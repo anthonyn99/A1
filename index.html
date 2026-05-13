@@ -16475,9 +16475,9 @@ function loadActiveEntry() {
     wbHistory = [];
     // Load canvas: prefer Firebase (freshest), fall back to local
     const _loadWbCanvas = (dataURL) => {
-      if (!dataURL) { if (wbCtx) wbCtx.clearRect(0,0,wbCanvas.width,wbCanvas.height); return; }
+      if (!dataURL) { if (wbCtx) wbClearAll(); return; }
       const img = new Image();
-      img.onload = () => { wbCtx.clearRect(0,0,wbCanvas.width,wbCanvas.height); wbCtx.drawImage(img,0,0); };
+      img.onload = () => { wbClearAll(); wbCtx.drawImage(img, 0, 0, WB_LOG_W, WB_LOG_H); };
       img.src = dataURL;
     };
     // Show local immediately for instant feedback
@@ -16599,30 +16599,67 @@ let wbCanvas, wbCtx, wbTool='pen', wbColor='#ede9f4', wbSize=3;
 let wbDrawing=false, wbStart=null, wbSnapshot=null, wbHistory=[];
 // Smooth drawing: point buffer for Catmull-Rom spline
 let wbPoints=[], wbLastPressure=0.5;
+// DPR: logical canvas dimensions (CSS/drawing space)
+const WB_LOG_W = 1400, WB_LOG_H = 900;
+let wbDPR = 1;
 
 function initWhiteboard() {
   wbCanvas = document.getElementById('bj-wb-canvas');
-  wbCtx = wbCanvas.getContext('2d');
-  // Set canvas pixel dimensions large enough for drawing space.
-  // CSS min-width/min-height on canvas makes the wrap scroll.
-  const targetW = 1400;
-  const targetH = 900;
-  if (wbCanvas.width !== targetW || wbCanvas.height !== targetH) {
-    // Preserve drawing across resize
+  wbCtx = wbCanvas.getContext('2d', { desynchronized: true });
+  // Use device pixel ratio for crisp rendering on Retina/iPad displays
+  const dpr = Math.max(1, Math.round(window.devicePixelRatio || 1));
+  if (wbDPR !== dpr || wbCanvas.width !== WB_LOG_W * dpr || wbCanvas.height !== WB_LOG_H * dpr) {
+    // Preserve existing drawing across DPR init/change
     var imgData = null;
-    try { if (wbCtx && wbCanvas.width > 0 && wbCanvas.height > 0) imgData = wbCtx.getImageData(0, 0, wbCanvas.width, wbCanvas.height); } catch(e) {}
-    wbCanvas.width  = targetW;
-    wbCanvas.height = targetH;
-    if (imgData) wbCtx.putImageData(imgData, 0, 0);
+    try {
+      if (wbCtx && wbCanvas.width > 0 && wbCanvas.height > 0)
+        imgData = wbCtx.getImageData(0, 0, wbCanvas.width, wbCanvas.height);
+    } catch(err) {}
+    wbDPR = dpr;
+    wbCanvas.width  = WB_LOG_W * dpr;
+    wbCanvas.height = WB_LOG_H * dpr;
+    // CSS size stays at logical dimensions so layout is unchanged
+    wbCanvas.style.width  = WB_LOG_W + 'px';
+    wbCanvas.style.height = WB_LOG_H + 'px';
+    // Scale all drawing commands so 1 unit = 1 CSS pixel
+    wbCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (imgData) {
+      // Restore old pixels — temporarily reset transform so putImageData lands at pixel 0,0
+      wbCtx.save();
+      wbCtx.setTransform(1, 0, 0, 1, 0, 0);
+      wbCtx.putImageData(imgData, 0, 0);
+      wbCtx.restore();
+    }
   }
+}
+// After any putImageData call (which writes to raw pixel buffer, bypassing transform),
+// the transform is preserved — but callers must use this helper to restore a snapshot
+// captured via getImageData (raw pixels), then re-apply transform.
+function wbPutSnapshot(imgData) {
+  wbCtx.save();
+  wbCtx.setTransform(1, 0, 0, 1, 0, 0);
+  wbCtx.putImageData(imgData, 0, 0);
+  wbCtx.restore();
+  // Re-apply DPR scale so subsequent drawing is in logical coords
+  wbCtx.setTransform(wbDPR, 0, 0, wbDPR, 0, 0);
+}
+function wbClearAll() {
+  // clearRect is transform-aware; use logical dimensions
+  wbCtx.clearRect(0, 0, WB_LOG_W, WB_LOG_H);
 }
 function getPos(canvas, e) {
   const r = canvas.getBoundingClientRect();
   const src = e.touches ? e.touches[0] : e;
-  return { x: (src.clientX - r.left) * (canvas.width / r.width), y: (src.clientY - r.top) * (canvas.height / r.height) };
+  // r.width = CSS logical width (WB_LOG_W). Divide clientX offset by CSS width to get 0..1,
+  // then multiply by logical width. DPR scaling is handled by ctx transform, not here.
+  return {
+    x: (src.clientX - r.left) * (WB_LOG_W / r.width),
+    y: (src.clientY - r.top)  * (WB_LOG_H / r.height)
+  };
 }
 function pushHistory() {
-  wbHistory.push(wbCtx.getImageData(0,0,wbCanvas.width,wbCanvas.height));
+  // getImageData works in raw pixel space regardless of transform
+  wbHistory.push(wbCtx.getImageData(0, 0, wbCanvas.width, wbCanvas.height));
   if (wbHistory.length > 30) wbHistory.shift();
 }
 
@@ -16694,7 +16731,7 @@ function _wbHandleMove(e) {
     if (wbPoints.length > 128) wbPoints = wbPoints.slice(-64);
   } else {
     // Shape tools: snapshot-restore for live preview
-    wbCtx.putImageData(wbSnapshot, 0, 0);
+    wbPutSnapshot(wbSnapshot);
     wbCtx.beginPath();
     wbCtx.strokeStyle = wbColor;
     wbCtx.lineWidth = wbSize;
@@ -16772,12 +16809,12 @@ document.getElementById('bj-wb-size').addEventListener('input', function() {
   document.getElementById('bj-wb-size-lbl').textContent = wbSize;
 });
 document.getElementById('bj-wb-clear').addEventListener('click', () => {
-  if (confirm('Clear the whiteboard?')) { pushHistory(); wbCtx.clearRect(0,0,wbCanvas.width,wbCanvas.height); autoSave(); saveCanvas(); }
+  if (confirm('Clear the whiteboard?')) { pushHistory(); wbClearAll(); autoSave(); saveCanvas(); }
 });
 document.getElementById('bj-wb-undo').addEventListener('click', () => {
   if (wbHistory.length === 0) return;
   const prev = wbHistory.pop();
-  wbCtx.putImageData(prev, 0, 0);
+  wbPutSnapshot(prev);
   autoSave(); saveCanvas();
 });
 
@@ -18344,29 +18381,7 @@ if (bjContent) {
   }, { passive: true });
 }
 
-/* Visual viewport resize (keyboard appears on iPad) — fix canvas height */
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', function() {
-    var wbWrap = document.getElementById('bj-wb-canvas-wrap');
-    if (wbWrap && wbWrap.style.display !== 'none') {
-      var canvas = document.getElementById('bj-wb-canvas');
-      if (canvas) {
-        var newH = Math.max(300, window.visualViewport.height - 160);
-        if (Math.abs(canvas.height - newH) > 20) {
-          // Save current drawing, resize, restore
-          var dataURL = canvas.toDataURL();
-          canvas.height = newH;
-          var img = new Image();
-          img.onload = function() {
-            var ctx = canvas.getContext('2d');
-            if (ctx) ctx.drawImage(img, 0, 0);
-          };
-          img.src = dataURL;
-        }
-      }
-    }
-  });
-}
+/* Visual viewport resize — canvas has fixed logical size (1400×900) so no resize needed */
 
 /* ── PDF EXPORT ── */
 /* bj-btn-export-pdf handled by fastTouch above */
