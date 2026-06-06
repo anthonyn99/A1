@@ -1,0 +1,3412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WarRoom</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Firebase - loaded dynamically to handle CORS/blocking -->
+<script>
+(function() {
+  function loadScript(src) {
+    return new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  window._firebaseReady = Promise.all([
+    loadScript('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js'),
+    loadScript('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js'),
+    loadScript('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js')
+  ]).then(function() {
+    window._firebaseLoaded = true;
+  }).catch(function(e) {
+    console.warn('Firebase SDK failed to load:', e);
+    window._firebaseLoaded = false;
+  });
+})();
+</script>
+
+<style>
+:root {
+  --bg:     #0f0f12;
+  --bg2:    #141418;
+  --bg3:    #1a1a20;
+  --bg4:    #202028;
+  --bg5:    #252530;
+  --bd:     rgba(255,255,255,0.06);
+  --bd2:    rgba(255,255,255,0.12);
+  --tx:     #ececf0;
+  --tx2:    #b0b0c0;
+  --tx3:    #72728a;
+  --gold:   #a78bfa;
+  --gold2:  #c4b5fd;
+  --blue:   #818cf8;
+  --red:    #e07070;
+  --green:  #50C878;
+  --purple: #c4b5fd;
+  --accent: #a78bfa;
+  --head: 'Sora', sans-serif;
+  --body: 'Outfit', sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { min-height: 100%; background: var(--bg); color: var(--tx); font-family: var(--body); font-size: 14px; overflow-x: hidden; overflow-y: auto; }
+
+/* ── LAYOUT ── */
+#app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 2000px; margin: 0 auto; overflow: hidden; }
+
+/* ── TOPBAR ── */
+#topbar {
+  display: flex; align-items: center; gap: 0;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--bd);
+  padding: 0 12px;
+  height: 52px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+#topbar-logo {
+  font-family: var(--head);
+  font-size: 20px;
+  font-weight: 900;
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  letter-spacing: 1px;
+  color: var(--gold);
+  margin-right: 28px;
+  text-shadow: 0 0 24px rgba(167,139,250,0.4);
+  flex-shrink: 0;
+}
+.tab-btn {
+  height: 52px;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--tx3);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex; align-items: center; gap: 7px;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: var(--tx2); }
+.tab-btn.active { color: var(--gold); border-bottom-color: var(--gold); }
+.tab-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+#topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+#summoner-display { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--tx3); }
+#summoner-display .name { color: var(--gold); font-weight: 700; }
+#summoner-display .tag { color: var(--tx3); }
+
+.hdr-btn {
+  height: 28px; padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--bd2);
+  border-radius: 4px;
+  color: var(--tx3);
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  letter-spacing: 1px; text-transform: uppercase;
+  cursor: pointer; transition: all 0.15s;
+}
+.hdr-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── MAIN CONTENT ── */
+#content { flex: 1; overflow: hidden; position: relative; }
+.tab-panel { display: none; width: 100%; height: 100%; overflow-y: auto; padding: 24px; }
+.tab-panel.active { display: block; }
+#builds-panel.active { display: flex !important; flex-direction: column; overflow: hidden; height: 100%; }
+
+/* ── SETUP MODAL ── */
+#setup-modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.88);
+  backdrop-filter: blur(10px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.setup-box {
+  background: var(--bg3);
+  border: 1px solid var(--bd2);
+  border-radius: 16px;
+  padding: 40px 44px;
+  width: 460px;
+  box-shadow: 0 60px 120px rgba(0,0,0,0.8), 0 0 0 1px rgba(167,139,250,0.1);
+}
+.setup-logo {
+  text-align: center;
+  margin-bottom: 20px;
+  line-height: 1;
+}
+.setup-logo-war {
+  font-family: var(--head);
+  font-size: 52px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #7c6af7, #a99eff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.setup-logo-room {
+  font-family: var(--head);
+  font-size: 52px;
+  font-weight: 900;
+  color: var(--tx);
+  letter-spacing: 6px;
+}
+.setup-shortcut-btn {
+  flex: 1; padding: 9px 0;
+  background: var(--bg4); border: 1px solid var(--bd2);
+  border-radius: 8px; color: var(--tx2);
+  font-family: var(--body); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+}
+.setup-shortcut-btn:hover { border-color: var(--gold); color: var(--gold); }
+.setup-row { display: flex; gap: 10px; margin-bottom: 12px; }
+.setup-input {
+  flex: 1; height: 42px; padding: 0 14px;
+  background: var(--bg4); border: 1px solid var(--bd2);
+  border-radius: 8px; color: var(--tx);
+  font-family: var(--body); font-size: 14px;
+  outline: none; transition: border-color 0.15s;
+}
+.setup-input:focus { border-color: var(--gold); }
+.setup-input::placeholder { color: var(--tx3); }
+.setup-select {
+  height: 42px; padding: 0 12px;
+  background: var(--bg4); border: 1px solid var(--bd2);
+  border-radius: 8px; color: var(--tx);
+  font-family: var(--body); font-size: 13px;
+  outline: none; cursor: pointer; width: 100%;
+}
+.btn-primary {
+  width: 100%; height: 44px;
+  background: var(--gold);
+  border: none; border-radius: 8px;
+  color: #fff;
+  font-family: var(--head); font-size: 15px; font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer; transition: all 0.15s;
+  margin-top: 8px;
+}
+.btn-primary:hover { background: var(--gold2); box-shadow: 0 4px 20px rgba(167,139,250,0.4); }
+.setup-error { color: var(--red); font-family: var(--mono); font-size: 11px; margin-top: 10px; display: none; }
+
+/* ── LOADING SPINNER ── */
+.spinner { width: 32px; height: 32px; border: 2px solid var(--bd2); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 300px; gap: 16px; color: var(--tx2); font-family: var(--mono); font-size: 12px; letter-spacing: 1px; }
+
+/* ── SECTION HEADERS ── */
+.section-hdr { display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; }
+.section-hdr h2 { font-family: var(--head); font-size: 20px; letter-spacing: 1px; color: var(--tx); }
+.section-hdr .sub { font-family: var(--mono); font-size: 10px; color: var(--tx3); letter-spacing: 1px; text-transform: uppercase; }
+.divider { height: 1px; background: var(--bd); margin: 24px 0; }
+
+/* ══ PROFILE ══ */
+.ranked-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.ranked-card { background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px; padding: 14px 16px; position: relative; overflow: hidden; display: flex; align-items: center; gap: 10px; }
+.ranked-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.ranked-card.gold::before { background: var(--gold); }
+.ranked-card.silver::before { background: #a8b8c8; }
+.ranked-card.platinum::before { background: #4bc8aa; }
+.ranked-card.emerald::before { background: #4bc87a; }
+.ranked-card.diamond::before { background: #6080e0; }
+.ranked-card.master::before { background: #a050d0; }
+.ranked-card.none::before { background: var(--bd2); }
+.ranked-card .queue-name { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--tx3); margin-bottom: 8px; }
+.ranked-card .tier-line { display: flex; align-items: baseline; gap: 8px; }
+.ranked-card .tier { font-family: var(--head); font-size: 22px; letter-spacing: 1px; line-height: 1; }
+.ranked-card.gold .tier { color: var(--gold); }
+.ranked-card.silver .tier { color: #a8b8c8; }
+.ranked-card.platinum .tier { color: #4bc8aa; }
+.ranked-card.emerald .tier { color: #4bc87a; }
+.ranked-card.diamond .tier { color: #6080e0; }
+.ranked-card.master .tier { color: #a050d0; }
+.ranked-card.none .tier { color: var(--tx3); }
+.ranked-card .division { font-family: var(--mono); font-size: 13px; color: var(--tx2); }
+.ranked-card .lp { font-family: var(--mono); font-size: 12px; color: var(--tx2); margin-top: 4px; }
+.ranked-card .wr { font-family: var(--mono); font-size: 12px; margin-top: 4px; }
+.ranked-card .wr .pct { color: var(--green); margin-right: 5px; font-weight: 700; }
+.ranked-card .wr .games { color: var(--tx3); }
+
+/* Summoner header */
+.summoner-header { display: flex; align-items: center; gap: 20px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 12px; padding: 20px 24px; margin-bottom: 20px; }
+.summoner-header .sh-icon { position: relative; flex-shrink: 0; }
+.summoner-header .sh-icon img { width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--bd2); display: block; object-fit: cover; background: var(--bg5); }
+.summoner-header .sh-icon .sh-level-badge { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); background: var(--bg2); border: 1px solid var(--bd2); border-radius: 10px; padding: 2px 8px; font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--tx2); white-space: nowrap; }
+.summoner-header .sh-info { flex: 1; }
+.summoner-header .sh-name { font-family: var(--head); font-size: 24px; font-weight: 800; color: var(--tx); letter-spacing: 0.5px; }
+.summoner-header .sh-tag { font-family: var(--mono); font-size: 14px; color: var(--tx3); margin-left: 4px; }
+
+/* Winrate / stats box */
+.stats-row { display: flex; align-items: center; gap: 28px; margin-bottom: 20px; flex-wrap: wrap; }
+.wr-circle-wrap { position: relative; width: 90px; height: 90px; flex-shrink: 0; }
+.wr-circle-wrap svg { width: 90px; height: 90px; transform: rotate(-90deg); }
+.wr-circle-wrap .wr-circle-bg { fill: none; stroke: var(--bg5); stroke-width: 8; }
+.wr-circle-wrap .wr-circle-fg { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+.wr-circle-wrap .wr-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.wr-circle-wrap .wr-pct { font-family: var(--head); font-size: 20px; font-weight: 800; line-height: 1; }
+.wr-circle-wrap .wr-sub { font-family: var(--mono); font-size: 9px; color: var(--tx3); letter-spacing: 0.5px; margin-top: 2px; }
+.stats-numbers { flex: 1; min-width: 0; }
+.stats-numbers .sn-row { display: flex; gap: 20px; flex-wrap: wrap; }
+.stats-numbers .sn-label { font-family: var(--mono); font-size: 10px; color: var(--tx3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+.stats-numbers .sn-val { font-family: var(--head); font-size: 20px; font-weight: 700; color: var(--tx); line-height: 1; }
+.stats-numbers .sn-sub { font-family: var(--mono); font-size: 11px; color: var(--tx2); margin-top: 3px; }
+
+/* Mastery */
+.mastery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 10px; margin-bottom: 24px; }
+.mastery-card { background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px; padding: 14px 10px; text-align: center; cursor: default; transition: all 0.15s; }
+.mastery-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+.mastery-card img { width: 80px; height: 80px; border-radius: 8px; object-fit: cover; }
+.mastery-card .champ-name { font-family: var(--body); font-size: 11px; font-weight: 700; color: var(--tx); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
+.mastery-card .mastery-pts { font-family: var(--mono); font-size: 12px; color: var(--gold); font-weight: 700; margin-top: 5px; }
+.mastery-card .mastery-lvl { display: inline-block; margin-top: 4px; background: var(--bg5); border-radius: 3px; padding: 1px 6px; font-family: var(--mono); font-size: 9px; color: var(--tx2); }
+
+/* Top champs */
+.top3-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+.top3-card { display: flex; align-items: center; gap: 14px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px; padding: 12px 16px; transition: border-color 0.15s; }
+.top3-card:hover { border-color: var(--bd2); }
+.top3-card img { width: 52px; height: 52px; border-radius: 8px; flex-shrink: 0; }
+.t3-info { flex: 1; }
+.t3-name { font-family: var(--head); font-size: 16px; font-weight: 700; color: var(--tx); }
+.t3-games { font-family: var(--mono); font-size: 12px; color: var(--tx3); margin-top: 2px; }
+.t3-stats { text-align: right; }
+.t3-wr { font-family: var(--head); font-size: 18px; font-weight: 700; }
+.t3-kda { font-family: var(--mono); font-size: 12px; color: var(--tx3); margin-top: 2px; }
+
+/* Agg stats */
+.agg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.agg-card { background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px; padding: 16px 14px; }
+.agg-card .label { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--tx3); margin-bottom: 8px; }
+.agg-card .value { font-family: var(--head); font-size: 22px; letter-spacing: 0.5px; color: var(--tx); line-height: 1; }
+.agg-card .sub-val { font-family: var(--mono); font-size: 12px; color: var(--tx2); margin-top: 4px; }
+
+/* Match filter chips */
+.match-filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+
+/* Match history */
+.match-list { display: flex; flex-direction: column; gap: 6px; }
+.match-row { display: grid; grid-template-columns: 0 52px 72px 110px 1fr 120px 80px; align-items: center; gap: 10px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; padding: 10px 14px; transition: border-color 0.15s; cursor: pointer; }
+.match-row:hover { border-color: var(--bd2); }
+.match-row img.champ-icon { width: 48px; height: 48px; border-radius: 8px; }
+.match-row .result-badge { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.match-row .result-badge.win { color: var(--green); }
+.match-row .result-badge.loss { color: var(--red); }
+.match-row .kda-val { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+.match-row .kda-val .kills { color: var(--tx); }
+.match-row .kda-val .slash { color: var(--tx3); }
+.match-row .kda-val .deaths { color: var(--red); }
+.match-row .kda-val .assists { color: var(--blue); }
+.match-row .champ-name { font-family: var(--body); font-weight: 600; font-size: 13px; color: var(--tx); }
+.match-row .champ-name .queue-tag { font-family: var(--mono); font-size: 10px; color: var(--tx3); margin-left: 6px; }
+.match-row .stats { display: flex; flex-direction: column; gap: 2px; text-align: right; }
+.match-row .stats .cs { font-family: var(--mono); font-size: 11px; color: var(--tx2); }
+.match-row .stats .duration { font-family: var(--mono); font-size: 11px; color: var(--tx3); }
+.match-row .kda-ratio { font-family: var(--mono); font-size: 11px; color: var(--gold); text-align: right; }
+
+/* Recently played */
+.recent-players { display: flex; flex-direction: column; gap: 4px; margin-bottom: 24px; }
+.recent-player-row { display: flex; align-items: center; gap: 12px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; padding: 8px 14px; transition: border-color 0.15s; }
+.recent-player-row:hover { border-color: var(--bd2); }
+.recent-player-row img { width: 28px; height: 28px; border-radius: 50%; }
+.rp-name { font-family: var(--body); font-weight: 700; font-size: 14px; color: var(--tx); flex: 1; }
+.rp-tag { font-family: var(--mono); font-size: 11px; color: var(--tx3); }
+.rp-games { font-family: var(--mono); font-size: 12px; color: var(--tx2); }
+.rp-wr { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+
+.load-more-btn { width: 100%; padding: 12px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; color: var(--tx2); font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; margin-top: 8px; margin-bottom: 24px; }
+.load-more-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* Match detail expand */
+.match-detail { display: none; background: var(--bg2); border-top: 1px solid var(--bd); }
+.match-detail.open { display: block; }
+.match-wrap { background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; overflow: hidden; margin-bottom: 6px; }
+.match-wrap.expanded { border-color: var(--bd2); }
+.obj-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; background: var(--bg); padding: 8px 16px; border-bottom: 1px solid var(--bd); }
+.obj-side { display: flex; align-items: center; gap: 10px; }
+.obj-side.right { justify-content: flex-end; }
+.obj-pill { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.obj-pill .op-icon { font-size: 16px; }
+.obj-pill .op-val { color: var(--tx); }
+.obj-pill .op-label { color: var(--tx3); }
+.obj-center { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.obj-center .oc-kills { font-family: var(--head); font-size: 26px; letter-spacing: 1px; }
+.obj-center .oc-kills .bk { color: var(--blue); }
+.obj-center .oc-kills .sep { color: var(--tx3); margin: 0 6px; }
+.obj-center .oc-kills .rk { color: var(--red); }
+.obj-center .oc-gold { font-family: var(--mono); font-size: 12px; color: var(--tx2); margin-top: 4px; }
+.dp-row { display: grid; grid-template-columns: 180px 130px 100px 52px 72px 1fr; align-items: center; padding: 5px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.1s; }
+.dp-row:hover { background: rgba(255,255,255,0.02); }
+.dp-row.is-me { background: rgba(167,139,250,0.07); }
+.dp-row.dp-hdr-row { background: var(--bg2); border-bottom: 1px solid var(--bd); font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 7px 12px; color: var(--tx3); letter-spacing: 0.5px; }
+.dp-champ { display: flex; align-items: center; gap: 7px; overflow: hidden; }
+.dp-champ img { width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0; }
+.dp-champ .dp-name-wrap { overflow: hidden; }
+.dp-champ .dp-name-wrap .dp-name { font-family: var(--body); font-weight: 700; font-size: 13px; color: var(--tx2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dp-champ .dp-name-wrap .dp-name.me { color: var(--gold); }
+.dp-champ .dp-name-wrap .dp-lvl { font-family: var(--mono); font-size: 9px; color: var(--tx3); }
+.dp-cell { text-align: right; font-family: var(--mono); font-size: 12px; padding-right: 6px; min-width: 0; overflow: hidden; }
+.dp-cell.items-col { display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding-right: 0; flex-wrap: nowrap; overflow: hidden; }
+.dp-cell img { width: 20px; height: 20px; border-radius: 2px; }
+.dp-cell .dp-kda-inner { white-space: nowrap; }
+.dp-cell .dk { color: var(--tx); }
+.dp-cell .dd { color: var(--red); }
+.dp-cell .da { color: var(--blue); }
+.dp-cell .dp-kda-ratio { font-size: 10px; color: var(--tx3); margin-top: 1px; }
+.dp-cell .dp-dmg-bar-wrap { margin-top: 3px; height: 3px; background: var(--bd2); border-radius: 2px; }
+.dp-cell .dp-dmg-bar { height: 3px; border-radius: 2px; background: var(--gold); }
+.dp-cell.blue-cell .dp-dmg-bar { background: var(--blue); }
+.dp-cell.red-cell .dp-dmg-bar { background: var(--red); }
+
+/* ══ BUILDS ══ */
+#builds-panel { display: none; }
+#builds-panel.active { display: grid; grid-template-columns: 260px 1fr; gap: 0; height: 100%; overflow: hidden; }
+.builds-sidebar { background: var(--bg2); border-right: 1px solid var(--bd); display: flex; flex-direction: column; overflow: hidden; }
+.builds-sidebar-hdr { padding: 16px; border-bottom: 1px solid var(--bd); display: flex; align-items: center; justify-content: space-between; }
+.builds-sidebar-hdr h3 { font-family: var(--head); font-size: 16px; letter-spacing: 1px; color: var(--tx); }
+.icon-btn { width: 28px; height: 28px; background: transparent; border: 1px solid var(--bd2); border-radius: 6px; color: var(--tx2); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+.icon-btn:hover { border-color: var(--gold); color: var(--gold); }
+.icon-btn svg { width: 13px; height: 13px; }
+.champ-search-wrap { padding: 10px 12px; border-bottom: 1px solid var(--bd); }
+.champ-search { width: 100%; height: 34px; padding: 0 12px; background: var(--bg4); border: 1px solid var(--bd); border-radius: 6px; color: var(--tx); font-family: var(--body); font-size: 13px; outline: none; }
+.champ-search:focus { border-color: var(--bd2); }
+.champ-search::placeholder { color: var(--tx3); }
+.champ-list { flex: 1; overflow-y: auto; padding: 8px; }
+.champ-list-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer; transition: background 0.1s; }
+.champ-list-item:hover { background: var(--bg4); }
+.champ-list-item.active { background: var(--bg5); }
+.champ-list-item img { width: 32px; height: 32px; border-radius: 4px; }
+.champ-list-item .item-name { font-family: var(--body); font-size: 14px; font-weight: 600; color: var(--tx); }
+.champ-list-item .item-count { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--tx3); }
+.builds-main { overflow-y: auto; padding: 24px; }
+.builds-champ-hdr { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+.builds-champ-hdr img { width: 64px; height: 64px; border-radius: 8px; border: 1px solid var(--bd2); }
+.builds-champ-hdr .champ-title { font-family: var(--head); font-size: 26px; letter-spacing: 1px; color: var(--tx); }
+.builds-champ-hdr .champ-role { font-family: var(--mono); font-size: 11px; color: var(--tx3); margin-top: 2px; }
+.builds-champ-hdr .add-build-btn { margin-left: auto; height: 36px; padding: 0 18px; background: var(--gold); border: none; border-radius: 8px; color: #fff; font-family: var(--body); font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.builds-champ-hdr .add-build-btn:hover { background: var(--gold2); }
+.build-card { background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px; padding: 18px; margin-bottom: 12px; }
+.build-card-hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.build-situation { flex: 1; font-family: var(--head); font-size: 17px; letter-spacing: 0.5px; color: var(--tx); }
+.build-vs { font-family: var(--mono); font-size: 10px; color: var(--tx3); letter-spacing: 1px; text-transform: uppercase; }
+.build-card-actions { display: flex; gap: 6px; }
+.build-card-btn { height: 26px; padding: 0 10px; background: transparent; border: 1px solid var(--bd); border-radius: 4px; color: var(--tx3); font-family: var(--mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.15s; }
+.build-card-btn:hover { border-color: var(--bd2); color: var(--tx); }
+.build-card-btn.del:hover { border-color: var(--red); color: var(--red); }
+.build-items-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.item-chip { display: flex; align-items: center; gap: 5px; background: var(--bg5); border: 1px solid var(--bd); border-radius: 6px; padding: 4px 8px; font-family: var(--mono); font-size: 11px; color: var(--tx2); }
+.item-chip img { width: 20px; height: 20px; border-radius: 2px; }
+.build-notes { font-family: var(--body); font-size: 13px; color: var(--tx2); line-height: 1.6; white-space: pre-wrap; }
+.build-notes-empty { font-family: var(--mono); font-size: 11px; color: var(--tx3); font-style: italic; }
+.builds-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; color: var(--tx3); gap: 12px; }
+.builds-empty svg { width: 48px; height: 48px; opacity: 0.3; }
+.builds-empty p { font-family: var(--mono); font-size: 12px; letter-spacing: 1px; }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 500; display: none; }
+.modal-overlay.open { display: flex; }
+.modal-box { background: var(--bg3); border: 1px solid var(--bd2); border-radius: 12px; padding: 28px; width: 560px; max-height: 85vh; overflow-y: auto; box-shadow: 0 40px 100px rgba(0,0,0,0.6); }
+.modal-box h3 { font-family: var(--head); font-size: 20px; letter-spacing: 1px; margin-bottom: 20px; color: var(--gold); }
+.form-row { margin-bottom: 14px; }
+.form-label { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--tx3); margin-bottom: 6px; display: block; }
+.form-input { width: 100%; height: 40px; padding: 0 12px; background: var(--bg4); border: 1px solid var(--bd2); border-radius: 6px; color: var(--tx); font-family: var(--body); font-size: 14px; outline: none; }
+.form-input:focus { border-color: var(--gold); }
+.form-textarea { width: 100%; padding: 10px 12px; min-height: 80px; background: var(--bg4); border: 1px solid var(--bd2); border-radius: 6px; color: var(--tx); font-family: var(--body); font-size: 13px; outline: none; resize: vertical; }
+.form-textarea:focus { border-color: var(--gold); }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.btn-cancel { flex: 1; height: 40px; background: transparent; border: 1px solid var(--bd2); border-radius: 6px; color: var(--tx2); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; }
+.btn-cancel:hover { border-color: var(--tx2); color: var(--tx); }
+.btn-save { flex: 2; height: 40px; background: var(--gold); border: none; border-radius: 6px; color: #fff; font-family: var(--body); font-size: 13px; font-weight: 700; letter-spacing: 1px; cursor: pointer; transition: background 0.15s; }
+.btn-save:hover { background: var(--gold2); }
+.item-search-wrap { position: relative; }
+.item-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg4); border: 1px solid var(--bd2); border-radius: 6px; z-index: 10; max-height: 200px; overflow-y: auto; margin-top: 4px; }
+.item-result-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; transition: background 0.1s; }
+.item-result-row:hover { background: var(--bg5); }
+.item-result-row img { width: 24px; height: 24px; border-radius: 2px; }
+.item-result-row span { font-family: var(--body); font-size: 13px; color: var(--tx); }
+.selected-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; min-height: 32px; }
+.sel-item-chip { display: flex; align-items: center; gap: 5px; background: var(--bg5); border: 1px solid var(--bd2); border-radius: 6px; padding: 4px 8px; font-family: var(--mono); font-size: 11px; color: var(--tx2); cursor: pointer; }
+.sel-item-chip:hover { border-color: var(--red); color: var(--red); }
+.sel-item-chip img { width: 18px; height: 18px; border-radius: 2px; }
+
+/* ══ LIVE ══ */
+#live-panel { display: none; }
+#live-panel.active { display: block; padding: 24px; }
+.live-status-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px; padding: 14px 18px; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.live-dot.offline { background: var(--tx3); }
+.live-dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.5s ease-in-out infinite; }
+.live-dot.waiting { background: var(--gold); animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.live-status-text { font-family: var(--body); font-size: 13px; color: var(--tx2); flex: 1; }
+.live-status-text .state { color: var(--tx); font-weight: 700; }
+.live-start-btn { height: 36px; padding: 0 22px; background: var(--green); border: none; border-radius: 8px; color: #fff; font-family: var(--body); font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+.live-start-btn:hover { filter: brightness(1.1); }
+.live-start-btn.stop { background: var(--red); }
+.live-stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.live-stat-card { background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px; padding: 16px 14px; transition: border-color 0.3s; }
+.live-stat-card.updated { border-color: var(--gold); }
+.live-stat-card .stat-label { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--tx3); margin-bottom: 8px; }
+.live-stat-card .stat-value { font-family: var(--head); font-size: 30px; letter-spacing: 0.5px; color: var(--tx); line-height: 1; }
+.live-stat-card .stat-sub { font-family: var(--mono); font-size: 11px; color: var(--tx2); margin-top: 6px; }
+.live-game-banner { background: linear-gradient(135deg, rgba(80,200,120,0.08), rgba(129,140,248,0.05)); border: 1px solid rgba(80,200,120,0.2); border-radius: 10px; padding: 14px 20px; display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+.live-pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: pulse 1.4s ease-in-out infinite; }
+.live-game-wrap { background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.live-team-hdr { display: grid; grid-template-columns: 1fr 52px 52px 80px; padding: 7px 14px; font-family: var(--mono); font-size: 9px; letter-spacing: 1px; color: var(--tx3); text-transform: uppercase; border-bottom: 1px solid var(--bd); }
+.live-player-row { display: grid; grid-template-columns: 1fr 52px 52px 80px; align-items: center; padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.1s; }
+.live-player-row:hover { background: rgba(255,255,255,0.02); }
+.live-player-row.is-me { background: rgba(167,139,250,0.07); }
+.live-champ { display: flex; align-items: center; gap: 8px; }
+.live-champ img { width: 30px; height: 30px; border-radius: 4px; flex-shrink: 0; }
+.live-items { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.live-items img { width: 22px; height: 22px; border-radius: 3px; }
+.live-rank { font-family: var(--mono); font-size: 10px; text-align: right; }
+
+/* ══ CHAMPIONS / ITEMS / SPELLS / RUNES ══ */
+.pick-tile { display:flex;flex-direction:column;align-items:center; gap:5px;padding:8px 4px; background:var(--bg4);border:1px solid var(--bd); border-radius:8px;cursor:pointer;transition:border-color 0.15s; }
+.pick-tile:hover { border-color:var(--gold); background:var(--bg5); }
+.items-filter-bar { position: sticky; top: 0; z-index: 20; background: var(--bg2); padding: 12px 0 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; border-bottom: 1px solid var(--bd); box-shadow: 0 6px 0 var(--bg2), 0 8px 20px rgba(0,0,0,0.5); }
+.items-filter-bar input { flex: 1; min-width: 200px; height: 42px; padding: 0 16px; background: var(--bg3); border: 1px solid var(--bd2); border-radius: 8px; color: var(--tx); font-family: var(--body); font-size: 14px; outline: none; }
+.items-filter-bar input:focus { border-color: var(--gold); }
+.items-filter-bar input::placeholder { color: var(--tx3); }
+.filter-chip { padding: 6px 14px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--bd2); color: var(--tx2); font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.filter-chip:hover, .filter-chip.active { border-color: var(--gold); color: var(--gold); background: rgba(167,139,250,0.1); }
+.items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; }
+.item-tile { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 4px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+.item-tile:hover { border-color: var(--gold); background: var(--bg4); transform: translateY(-2px); }
+.item-tile img { width: 52px; height: 52px; border-radius: 8px; }
+.item-tile .it-name { font-family: var(--body); font-size: 11px; font-weight: 700; color: var(--tx); text-align: center; white-space: normal; word-break: break-word; width: 100%; line-height: 1.3; }
+.item-tile .it-cost { font-family: var(--mono); font-size: 10px; color: var(--gold); }
+.io-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.io-header img { width: 72px; height: 72px; border-radius: 8px; border: 2px solid var(--bd2); }
+.io-name { font-family: var(--head); font-size: 24px; font-weight: 800; color: var(--tx); }
+.io-cost { font-family: var(--mono); font-size: 14px; color: var(--gold); margin-top: 4px; }
+.io-tags-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.io-tag { padding: 2px 10px; border-radius: 20px; background: var(--bg5); border: 1px solid var(--bd2); font-family: var(--mono); font-size: 10px; color: var(--tx3); }
+.io-desc { font-family: var(--body); font-size: 14px; color: var(--tx2); line-height: 1.8; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.io-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.io-stat { padding: 6px 14px; background: var(--bg3); border: 1px solid var(--bd2); border-radius: 6px; font-family: var(--mono); font-size: 12px; color: var(--blue); font-weight: 600; }
+.io-stat span { color: var(--green); font-weight: 700; }
+.io-close { position: fixed; top: 20px; right: 24px; width: 36px; height: 36px; border-radius: 50%; background: var(--bg4); border: 1px solid var(--bd2); color: var(--tx2); font-size: 18px; line-height: 34px; text-align: center; cursor: pointer; transition: all 0.15s; z-index: 901; }
+.io-close:hover { border-color: var(--gold); color: var(--gold); }
+.champs-search-bar { position: sticky; top: 0; z-index: 20; background: var(--bg2); padding: 12px 0 14px; margin-bottom: 12px; border-bottom: 1px solid var(--bd); box-shadow: 0 6px 0 var(--bg2), 0 8px 20px rgba(0,0,0,0.4); }
+.champs-search-input { width: 100%; height: 42px; padding: 0 16px; background: var(--bg3); border: 1px solid var(--bd2); border-radius: 8px; color: var(--tx); font-family: var(--body); font-size: 14px; outline: none; transition: border-color 0.15s; }
+.champs-search-input:focus { border-color: var(--gold); }
+.champs-search-input::placeholder { color: var(--tx3); }
+.champs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; }
+.champ-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+.champ-tile:hover { border-color: var(--gold); background: var(--bg4); transform: translateY(-2px); }
+.champ-tile img { width: 52px; height: 52px; border-radius: 6px; }
+.champ-tile .ct-name { font-family: var(--body); font-size: 11px; font-weight: 600; color: var(--tx2); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+.co-header { position: relative; border-radius: 12px; overflow: hidden; margin-bottom: 24px; min-height: 200px; }
+.co-splash { width: 100%; max-height: 320px; object-fit: cover; object-position: top; display: block; border-radius: 12px; filter: brightness(0.7); }
+.co-header-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 24px; background: linear-gradient(transparent, rgba(0,0,0,0.9)); border-radius: 0 0 12px 12px; }
+.co-name { font-family: var(--head); font-size: 34px; font-weight: 800; color: #fff; }
+.co-title { font-family: var(--body); font-size: 14px; color: rgba(255,255,255,0.6); margin-top: 2px; text-transform: capitalize; }
+.co-tags { display: flex; gap: 6px; margin-top: 8px; }
+.co-tag { padding: 2px 10px; border-radius: 20px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,0.7); letter-spacing: 1px; }
+.co-close { position: fixed; top: 20px; right: 24px; width: 36px; height: 36px; border-radius: 50%; background: var(--bg4); border: 1px solid var(--bd2); color: var(--tx2); font-size: 18px; line-height: 34px; text-align: center; cursor: pointer; transition: all 0.15s; z-index: 901; }
+.co-close:hover { border-color: var(--gold); color: var(--gold); }
+.co-lore { font-family: var(--body); font-size: 14px; color: var(--tx2); line-height: 1.8; margin-bottom: 28px; padding: 18px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; }
+.co-abilities { display: flex; flex-direction: column; gap: 10px; }
+.co-ability { display: flex; gap: 16px; align-items: flex-start; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; padding: 16px; transition: border-color 0.15s; }
+.co-ability:hover { border-color: var(--bd2); }
+.co-ability img { width: 52px; height: 52px; border-radius: 6px; border: 1px solid var(--bd2); flex-shrink: 0; }
+.co-ability .ab-key { font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+.co-ability .ab-name { font-family: var(--head); font-size: 17px; font-weight: 700; color: var(--tx); margin-bottom: 6px; }
+.co-ability .ab-desc { font-family: var(--body); font-size: 13px; color: var(--tx2); line-height: 1.7; }
+.rune-tree { background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+.rune-tree-header { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-bottom: 1px solid var(--bd); }
+.rune-tree-header img { width: 40px; height: 40px; }
+.rune-tree-header .rt-name { font-family: var(--head); font-size: 19px; font-weight: 800; color: var(--tx); }
+.rune-tree-header .rt-desc { font-family: var(--body); font-size: 12px; color: var(--tx3); margin-top: 2px; }
+.rune-slot { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.rune-slot:last-child { border-bottom: none; }
+.rune-slot-label { font-family: var(--mono); font-size: 9px; color: var(--tx3); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+.rune-slot-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.rune-card { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg4); border: 1px solid var(--bd); border-radius: 8px; cursor: pointer; flex: 1; min-width: 200px; transition: border-color 0.15s; }
+.rune-card:hover { border-color: var(--gold); }
+.rune-card img { width: 36px; height: 36px; border-radius: 50%; background: #000; flex-shrink: 0; }
+.rune-card.keystone img { width: 44px; height: 44px; }
+.rune-card .rc-info .rc-name { font-family: var(--head); font-size: 14px; font-weight: 700; color: var(--tx); }
+.rune-card .rc-info .rc-short { font-family: var(--body); font-size: 12px; color: var(--tx2); margin-top: 3px; line-height: 1.5; }
+.spell-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; cursor: pointer; transition: all 0.15s; text-align: center; }
+.spell-tile:hover { border-color: var(--gold); transform: translateY(-2px); }
+.spell-tile img { width: 64px; height: 64px; border-radius: 10px; }
+.spell-tile .st-name { font-family: var(--body); font-size: 12px; font-weight: 600; color: var(--tx); }
+.spells-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px,1fr)); gap: 10px; margin-bottom: 24px; }
+.champ-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; padding-top: 8px; }
+.champ-card { display: flex; flex-direction: column; align-items: center; padding: 10px 6px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+.champ-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+.champ-card img { width: 72px; height: 72px; border-radius: 6px; }
+.stats-block { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+.stats-col { background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.stat-row { display: flex; justify-content: space-between; align-items: center; }
+.stat-label { font-family: var(--mono); font-size: 11px; color: var(--tx3); letter-spacing: 0.5px; }
+.stat-val { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--tx); }
+.season-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+.season-card { display: flex; align-items: center; gap: 8px; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; padding: 8px 14px; }
+.season-card .sc-season { font-family: var(--mono); font-size: 10px; color: var(--tx3); text-transform: uppercase; letter-spacing: 1px; }
+.season-card .sc-tier { font-family: var(--head); font-size: 15px; font-weight: 700; }
+.season-card .sc-rank { font-family: var(--mono); font-size: 11px; color: var(--tx3); }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bd2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--tx3); }
+
+/* ── MISC ── */
+.error-msg { font-family: var(--mono); font-size: 12px; color: var(--red); padding: 20px; }
+</style>
+</head>
+<body>
+
+<!-- ── SETUP MODAL ── -->
+<div id="setup-modal">
+  <div class="setup-box">
+    <!-- Logo -->
+    <div class="setup-logo">
+      <span class="setup-logo-war">WAR</span><span class="setup-logo-room">ROOM</span>
+    </div>
+
+    <!-- Tagline -->
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="font-family:var(--head);font-size:26px;font-weight:800;color:var(--tx);letter-spacing:0.5px;margin-bottom:6px;">Welcome to the League of Legends WarRoom</div>
+      <div style="font-family:var(--body);font-size:14px;font-weight:600;color:var(--tx2);margin-bottom:8px;margin-top:10px;">Curated by AVybz</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--tx2);letter-spacing:0.5px;">Totally not inspired by op.gg and porofessor</div>
+    </div>
+
+    <!-- Inputs -->
+    <div class="setup-row">
+      <input class="setup-input" id="setup-name" placeholder="Game Name" autocomplete="off" style="flex:1;">
+      <div style="display:flex;align-items:center;background:var(--bg4);border:1px solid var(--bd2);border-radius:4px;overflow:hidden;max-width:130px;">
+        <span style="padding:0 8px 0 12px;font-family:var(--mono);font-size:15px;color:var(--tx3);font-weight:700;flex-shrink:0;">#</span>
+        <input class="setup-input" id="setup-tag" placeholder="TAG" autocomplete="off" style="border:none;border-radius:0;padding-left:0;background:transparent;flex:1;min-width:0;">
+      </div>
+    </div>
+    <div class="setup-row">
+      <select class="setup-select" id="setup-region" style="width:100%;">
+        <option value="na1|americas">NA — North America</option>
+        <option value="euw1|europe">EUW — Europe West</option>
+        <option value="eun1|europe">EUNE — Europe Nordic/East</option>
+        <option value="kr|asia">KR — Korea</option>
+        <option value="br1|americas">BR — Brazil</option>
+        <option value="la1|americas">LAN — Latin America North</option>
+        <option value="la2|americas">LAS — Latin America South</option>
+        <option value="oc1|americas">OCE — Oceania</option>
+        <option value="tr1|europe">TR — Turkey</option>
+        <option value="ru|europe">RU — Russia</option>
+        <option value="jp1|asia">JP — Japan</option>
+      </select>
+    </div>
+
+    <!-- Shortcuts -->
+    <div style="margin-bottom:16px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--tx3);text-transform:uppercase;margin-bottom:8px;">Shortcuts</div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="quickLoad('AVybz','PYKE')" class="setup-shortcut-btn">AVybz <span style="color:var(--tx3);">#PYKE</span></button>
+  
+      </div>
+    </div>
+
+    <button id="setup-submit-btn" class="btn-primary" onclick="setupSubmit()">Enter WarRoom</button>
+    <div class="setup-error" id="setup-error">Could not find summoner. Check name and tag.</div>
+  </div>
+</div>
+
+<!-- ── BUILD EDITOR MODAL ── -->
+<div class="modal-overlay" id="build-modal">
+  <div class="modal-box">
+    <h3 id="build-modal-title">NEW BUILD</h3>
+    <div class="form-row">
+      <label class="form-label">Situation / Label</label>
+      <input class="form-input" id="bm-situation" placeholder="e.g. vs Zed, General, Lethality Build">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Matchup (vs Champion, optional)</label>
+      <input class="form-input" id="bm-matchup" placeholder="e.g. Zed, Akali, general">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Items</label>
+      <div class="item-search-wrap">
+        <input class="form-input" id="bm-item-search" placeholder="Search items..." autocomplete="off" oninput="itemSearch(this.value)">
+        <div class="item-results" id="item-results"></div>
+      </div>
+      <div class="selected-items" id="selected-items"></div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Notes / Strategy</label>
+      <textarea class="form-textarea" id="bm-notes" placeholder="e.g. Rush Serpent's Fang into Youmuu's. Take ignite vs assassins..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeBuildModal()">CANCEL</button>
+      <button class="btn-save" onclick="saveBuild()">SAVE BUILD</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="app" style="display:none">
+  <div id="topbar">
+    <div id="topbar-logo"><span style="background:linear-gradient(135deg,#7c6af7,#a99eff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:900;letter-spacing:-0.5px;">WAR</span><span style="color:var(--tx);font-weight:900;letter-spacing:-0.5px;">ROOM</span></div>
+    <button class="tab-btn active" data-tab="profile" onclick="switchTab('profile')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6a5 5 0 0110 0H3z"/></svg>
+      Profile
+    </button>
+    <button class="tab-btn" data-tab="builds" onclick="switchTab('builds')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v5H2V2zm7 0h5v5H9V2zM2 9h5v5H2V9zm7 0h5v5H9V9z"/></svg>
+      Builds
+    </button>
+    <button class="tab-btn" data-tab="champions" onclick="switchTab('champions');loadChampionsTab()">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l2 4.5h5l-4 3 1.5 5L8 11.5 3.5 13.5 5 8.5l-4-3h5z"/></svg>
+      Champions
+    </button>
+    <button class="tab-btn" data-tab="items" onclick="switchTab('items');itemsLoaded=false;loadItemsTab()">
+      <svg viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+      Items
+    </button>
+    <button class="tab-btn" data-tab="runes" onclick="switchTab('runes');loadRunesTab()">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.5 3.5L13 6l-2.5 2.5.5 3.5L8 10.5 5 12l.5-3.5L3 6l3.5-1.5z"/></svg>
+      Runes
+    </button>
+    <button class="tab-btn" data-tab="spells" onclick="switchTab('spells');loadSpellsTab()">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 2c-.5 2-2 3-4 3.5 2 .5 3.5 2 4 4.5.5-2.5 2-4 4-4.5-2-.5-3.5-1.5-4-3.5z"/></svg>
+      Spells
+    </button>
+    <button class="tab-btn" data-tab="spectate" onclick="switchTab('spectate')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3C4.5 3 1.5 5.5 0 8c1.5 2.5 4.5 5 8 5s6.5-2.5 8-5c-1.5-2.5-4.5-5-8-5zm0 8a3 3 0 110-6 3 3 0 010 6z" opacity=".4"/><circle cx="8" cy="8" r="1.5"/></svg>
+      Spectate
+    </button>
+    <button class="tab-btn" data-tab="live" onclick="switchTab('live')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 1.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11z" opacity=".4"/></svg>
+      Live
+    </button>
+
+
+
+  <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding-left:16px;">
+    <span id="patch-badge" style="font-family:var(--mono);font-size:11px;color:var(--tx3);">Patch --</span>
+    <a id="patch-notes-link" href="https://www.leagueoflegends.com/en-us/news/tags/patch-notes/" target="_blank" rel="noopener"
+       style="height:30px;padding:0 14px;display:flex;align-items:center;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:11px;font-weight:700;text-decoration:none;letter-spacing:0.5px;transition:all 0.15s;"
+       onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
+       onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--tx2)'">
+      Patch Notes
+    </a>
+  </div>
+  </div>
+
+<div id="content">
+
+    <!-- TAB 1: PROFILE -->
+    <div class="tab-panel active" id="profile-panel">
+      <div id="profile-content">
+        <div class="loading-state"><div class="spinner"></div><span>LOADING PROFILE</span></div>
+      </div>
+    </div>
+
+    <!-- TAB 2: BUILDS -->
+    <div class="tab-panel" id="builds-panel" style="padding:0;">
+    </div>
+
+
+
+    <!-- TAB: RUNES -->
+    <div class="tab-panel" id="runes-panel">
+      <div id="runes-content">
+        <div class="loading-state"><div class="spinner"></div><span>LOADING RUNES</span></div>
+      </div>
+    </div>
+
+    <!-- RUNE OVERLAY -->
+    <div id="rune-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeRuneOverlay(event)">
+      <div id="rune-overlay-inner" style="max-width:600px;margin:60px auto;padding:24px;position:relative;" onclick="event.stopPropagation()"></div>
+    </div>
+
+    <!-- TAB: SPELLS -->
+    <div class="tab-panel" id="spells-panel">
+      <div id="spells-content">
+        <div class="loading-state"><div class="spinner"></div><span>LOADING SPELLS</span></div>
+      </div>
+    </div>
+
+    <!-- SPELL OVERLAY -->
+    <div id="spell-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeSpellOverlay(event)">
+      <div id="spell-overlay-inner" style="max-width:600px;margin:60px auto;padding:24px;position:relative;" onclick="event.stopPropagation()"></div>
+    </div>
+
+    <!-- TAB 4: CHAMPIONS -->
+    <div class="tab-panel" id="champions-panel">
+      <div id="champions-content">
+        <div class="loading-state"><div class="spinner"></div><span>LOADING CHAMPIONS</span></div>
+      </div>
+    </div>
+
+    <!-- TAB 5: ITEMS -->
+    <div class="tab-panel" id="items-panel">
+      <div id="items-content">
+        <div class="loading-state"><div class="spinner"></div><span>LOADING ITEMS</span></div>
+      </div>
+    </div>
+
+    <!-- TAB 3b: SPECTATE -->
+    <div class="tab-panel" id="spectate-panel">
+      <div style="max-width:680px;margin:0 auto;">
+        <div class="section-hdr"><h2>SPECTATE</h2></div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+          <div style="position:relative;flex:1;min-width:160px;">
+            <input id="spectate-name" placeholder="Summoner name" onkeydown="if(event.key==='Enter')lookupSpectate()" style="width:100%;height:44px;padding:0 40px 0 18px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:15px;outline:none;box-sizing:border-box;">
+            <button onclick="clearInput('spectate-name',null)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:0;line-height:1;">&#x2715;</button>
+          </div>
+          <input id="spectate-tag" placeholder="#TAG" onkeydown="if(event.key==='Enter')lookupSpectate()" style="width:90px;height:44px;padding:0 12px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:15px;outline:none;">
+          <select id="spectate-region" style="height:44px;padding:0 12px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--mono);font-size:12px;outline:none;cursor:pointer;">
+            <option value="americas">NA</option>
+            <option value="americas">BR</option>
+            <option value="americas">LAN</option>
+            <option value="americas">LAS</option>
+            <option value="europe">EUW</option>
+            <option value="europe">EUNE</option>
+            <option value="europe">TR</option>
+            <option value="europe">RU</option>
+            <option value="asia">KR</option>
+            <option value="asia">JP</option>
+            <option value="sea">OCE</option>
+            <option value="sea">PH</option>
+            <option value="sea">SG</option>
+            <option value="sea">TH</option>
+            <option value="sea">TW</option>
+            <option value="sea">VN</option>
+          </select>
+          <button onclick="lookupSpectate()" style="height:44px;padding:0 22px;background:var(--gold);border:none;border-radius:8px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:1px;white-space:nowrap;">CHECK GAME</button>
+        </div>
+
+        <div id="spectate-result"></div>
+      </div>
+    </div>
+
+    <!-- TAB 3: LIVE -->
+    <div class="tab-panel" id="live-panel">
+      <!-- One-button live tracking via LCU API -->
+      <div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:14px;padding:16px 24px;border-bottom:1px solid var(--bd);flex-shrink:0;background:var(--bg2);">
+          <div id="live-dot" class="live-dot offline"></div>
+          <div>
+            <div style="font-family:var(--head);font-size:17px;font-weight:800;color:var(--tx);">LIVE GAME</div>
+            <div id="live-state-text" style="font-family:var(--mono);font-size:10px;color:var(--tx3);">Not in game</div>
+          </div>
+          <button id="live-toggle-btn" onclick="toggleLiveWatch()" style="margin-left:auto;height:36px;padding:0 22px;background:var(--green);border:none;border-radius:8px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:1px;">▶ START</button>
+        </div>
+        <div id="live-cert-warning" style="display:none;padding:12px 20px;background:rgba(124,106,247,0.08);border-bottom:1px solid var(--bd);font-family:var(--mono);font-size:11px;color:var(--tx2);line-height:1.7;">
+          ⚠️ First time? Open <a href="https://127.0.0.1:2999/liveclientdata/allgamedata" target="_blank" style="color:var(--gold);">this link</a> in a new tab while in-game, accept the certificate, then come back and press START.
+        </div>
+  </div>
+</div>
+
+<!-- Player Context Menu -->
+<div id="player-menu" style="display:none;position:fixed;z-index:1100;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);overflow:hidden;min-width:160px;">
+  <div id="player-menu-name" style="padding:10px 14px;font-family:var(--mono);font-size:10px;color:var(--tx3);border-bottom:1px solid var(--bd);letter-spacing:1px;"></div>
+  <button id="player-menu-view" onclick="playerMenuViewProfile()" style="width:100%;padding:10px 14px;background:transparent;border:none;text-align:left;font-family:var(--body);font-size:13px;font-weight:600;color:var(--tx);cursor:pointer;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='var(--bg4)'" onmouseout="this.style.background='transparent'">&#x1F464; View Player</button>
+  <button id="player-menu-champ" onclick="playerMenuViewChamp()" style="width:100%;padding:10px 14px;background:transparent;border:none;text-align:left;font-family:var(--body);font-size:13px;font-weight:600;color:var(--tx);cursor:pointer;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='var(--bg4)'" onmouseout="this.style.background='transparent'">&#x2694;&#xFE0F; View Champion</button>
+</div>
+<!-- ── ITEM OVERLAY ── -->
+<div id="item-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeItemOverlay(event)">
+  <div id="item-overlay-inner" style="max-width:640px;margin:60px auto;padding:24px;position:relative;" onclick="event.stopPropagation()">
+  </div>
+</div>
+
+<!-- ── CHAMPION OVERLAY ── -->
+<div id="champ-overlay" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);overflow-y:auto;" onclick="closeChampOverlay(event)">
+  <div id="champ-overlay-inner" style="max-width:860px;margin:40px auto;padding:24px;position:relative;" onclick="event.stopPropagation()">
+    <!-- Content injected by JS -->
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════
+const WORKER_URL = 'https://warroom-api.av1.workers.dev';
+let   DDRAGON    = 'https://ddragon.leagueoflegends.com/cdn/16.11.1'; // updated on init
+let   DDRAGON_VER= '16.11.1'; // updated on init
+
+// Firebase config - REPLACE with your actual config
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
+  authDomain: "task-dashboard-d2b53.firebaseapp.com",
+  projectId: "task-dashboard-d2b53",
+  storageBucket: "task-dashboard-d2b53.firebasestorage.app",
+  messagingSenderId: "982539604706",
+  appId: "1:982539604706:web:e93da1aef499fcee2044bb"
+};
+
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+let db, summoner = {}, allChamps = {}, allItems = {};
+let allMatches = [], displayedMatches = 10, allMastery = [], masteryPage = 0;
+// builds state vars declared in TAB 2 section below
+let liveWatching = false, liveUnsub = null;
+let selectedBuildItems = [];
+let allSummonerSpells = [], allRuneData = [], allItemsData = [];
+let spellsLoaded = false, runesLoaded = false, allSpellsData = [];
+
+// ══════════════════════════════════════
+// INIT
+// ══════════════════════════════════════
+async function init() {
+  // Suppress unhandled promise rejections from blocked network requests (sandbox/preview)
+  window.addEventListener('unhandledrejection', function(e) { e.preventDefault(); });
+
+  // Auto-fetch latest DDragon version via Worker (avoids CORS)
+  try {
+    const _vr = await fetch(WORKER_URL + '/api/ddragon-version');
+    const _vt = (_vr && typeof _vr.text === 'function') ? await _vr.text() : '';
+    const versions = (_vt && _vt.trim().startsWith('[')) ? JSON.parse(_vt) : null;
+    if (!versions) throw new Error('no versions');
+    DDRAGON_VER = versions[0];
+    DDRAGON = 'https://ddragon.leagueoflegends.com/cdn/' + DDRAGON_VER;
+    console.log('DDragon version:', DDRAGON_VER);
+    var pb = document.getElementById('patch-badge'); if (pb) pb.textContent = 'Patch ' + DDRAGON_VER;
+    var pl = document.getElementById('patch-notes-link'); if (pl) { pl.href = 'https://www.leagueoflegends.com/en-us/news/tags/patch-notes/'; }
+  } catch(e) {
+    console.warn('Using fallback DDragon version. Deploy updated Worker to fix this.');
+  }
+
+  // Init Firebase - wait for dynamic SDK load
+  try {
+    if (window._firebaseReady) await window._firebaseReady;
+    if (window._firebaseLoaded && typeof firebase !== 'undefined') {
+      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      db = firebase.firestore();
+      // Authenticate anonymously — required by Firestore security rules
+      await firebase.auth().signInAnonymously();
+      console.log('Firebase ready, auth uid:', firebase.auth().currentUser && firebase.auth().currentUser.uid);
+    } else {
+      console.warn('Firebase SDK unavailable - builds will not sync');
+    }
+  } catch(e) { console.warn('Firebase init:', e); }
+
+  // Check saved summoner
+  try {
+    const saved = localStorage.getItem('warroom_summoner');
+    if (saved) {
+      summoner = JSON.parse(saved);
+      showApp();
+    }
+  } catch(e) {
+    console.warn('Clearing corrupted localStorage:', e);
+    localStorage.removeItem('warroom_summoner');
+  }
+}
+
+function showApp() {
+  document.getElementById('setup-modal').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  var dn = document.getElementById('disp-name'); if (dn) dn.textContent = summoner.gameName;
+  var dt = document.getElementById('disp-tag'); if (dt) dt.textContent = '#' + summoner.tagLine;
+  loadProfile();
+  loadDDragonData();
+  // Load builds after ensuring auth is ready
+  _ensureAuthThenLoadBuilds();
+}
+
+// ── Firebase Sync ──
+var _saveBuildTimer = null;
+var _buildsUnsubscribe = null;
+var _lastOwnSaveAt = 0;
+
+function showSyncStatus(state) {
+  var el = document.getElementById('builds-sync-status');
+  if (!el) return;
+  if (state === 'syncing') {
+    el.textContent = '\u29f3 SYNCING'; el.style.color = 'var(--tx3)';
+  } else if (state === 'synced') {
+    el.textContent = '\u2713 SYNCED'; el.style.color = 'var(--green)';
+    setTimeout(function(){ if(el && el.textContent==='\u2713 SYNCED') el.textContent=''; }, 3000);
+  } else if (state === 'error') {
+    el.textContent = '\u2715 SYNC FAILED'; el.style.color = 'var(--red)';
+  }
+}
+
+async function _ensureAuth() {
+  if (!db) return false;
+  try {
+    if (!firebase.auth().currentUser) {
+      await new Promise(function(resolve) {
+        var unsub = firebase.auth().onAuthStateChanged(function(u) { unsub(); resolve(u); });
+        setTimeout(resolve, 5000);
+      });
+    }
+    if (!firebase.auth().currentUser) {
+      await firebase.auth().signInAnonymously();
+    }
+    return true;
+  } catch(e) {
+    console.warn('Auth failed:', e.message);
+    return false;
+  }
+}
+
+async function loadBuildsFromFirestore() {
+  if (!await _ensureAuth()) return;
+  try {
+    var snap = await db.collection('dashboards').doc('lol_warroom').get();
+    if (snap.exists) {
+      var data = snap.data();
+      if (data && data.builds && typeof data.builds === 'object') {
+        builds = data.builds;
+        console.log('Builds loaded from Firestore:', Object.keys(builds).length, 'champs');
+      }
+    }
+    // Start real-time listener after initial load
+    _startBuildsListener();
+  } catch(e) {
+    console.warn('Builds load failed:', e.message);
+  }
+}
+
+function _startBuildsListener() {
+  if (_buildsUnsubscribe) _buildsUnsubscribe();
+  if (!db) return;
+  try {
+    _buildsUnsubscribe = db.collection('dashboards').doc('lol_warroom')
+      .onSnapshot(function(snap) {
+        if (!snap.exists) return;
+        var data = snap.data();
+        if (!data || !data.builds) return;
+        // Skip if this is our own recent save (echo suppression)
+        if (Date.now() - _lastOwnSaveAt < 3000) return;
+        builds = data.builds;
+        console.log('Builds updated from remote:', Object.keys(builds).length, 'champs');
+        // Refresh UI if builds panel is visible
+        var panel = document.getElementById('builds-panel');
+        if (panel && panel.classList.contains('active')) {
+          if (selectedBuildChamp && builds[selectedBuildChamp]) {
+            renderChampBuildPage(selectedBuildChamp);
+          } else {
+            renderBuildsHome();
+          }
+        }
+      }, function(e) {
+        console.warn('Builds snapshot error:', e.message);
+      });
+  } catch(e) {
+    console.warn('Could not start builds listener:', e.message);
+  }
+}
+
+function saveBuildsToFirestore() {
+  if (_saveBuildTimer) clearTimeout(_saveBuildTimer);
+  showSyncStatus('syncing');
+  _saveBuildTimer = setTimeout(async function() {
+    if (!await _ensureAuth()) { showSyncStatus('error'); return; }
+    try {
+      _lastOwnSaveAt = Date.now();
+      await db.collection('dashboards').doc('lol_warroom').set(
+        { builds: builds },
+        { merge: true }
+      );
+      showSyncStatus('synced');
+      console.log('Builds saved:', Object.keys(builds).length, 'champs');
+    } catch(e) {
+      console.warn('Builds save failed:', e.message);
+      showSyncStatus('error');
+    }
+  }, 800);
+}
+
+async function _ensureAuthThenLoadBuilds() {
+  await loadBuildsFromFirestore();
+}
+
+
+
+
+async function initBuildsTab() {
+  if (!buildsLoaded) {
+    await loadBuildsFromFirestore();
+    buildsLoaded = true;
+  }
+  if (!allRuneData.length || !allSummonerSpells.length) await loadDDragonData();
+  if (!allItemsData.length) {
+    try {
+      var itemData = await fetch(DDRAGON + '/data/en_US/item.json').then(function(r){ return r.json(); });
+      var seen = new Set();
+      allItemsData = Object.entries(itemData.data)
+        .map(function(e){ return Object.assign({id: e[0]}, e[1]); })
+        .filter(function(item) {
+          if (!item.gold || !item.gold.purchasable) return false;
+          if (item.requiredChampion || item.requiredAlly) return false;
+          if (!item.maps || !item.maps['11']) return false;
+          if (seen.has(item.name)) return false;
+          seen.add(item.name);
+          return true;
+        })
+        .sort(function(a,b){ return (b.gold&&b.gold.total||0)-(a.gold&&a.gold.total||0); });
+    } catch(e) { console.warn('Items load failed:', e); }
+  }
+  renderBuildsHome();
+}
+
+
+// ── Home: champ list ──
+function renderBuildsHome() {
+  var el = document.getElementById('builds-panel');
+  var champIds = Object.keys(builds);
+  el.innerHTML =
+    '<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px 12px;border-bottom:1px solid var(--bd);flex-shrink:0;">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<div style="font-family:var(--head);font-size:20px;font-weight:800;color:var(--tx);">MY BUILDS</div>' +
+          '<div id="builds-sync-status" style="font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--tx3);"></div>' +
+        '</div>' +
+        '<button id="new-champ-btn" style="height:34px;padding:0 18px;background:var(--gold);border:none;border-radius:8px;color:#fff;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;">+ NEW CHAMPION</button>' +
+      '</div>' +
+      '<div id="builds-home-list" style="flex:1;overflow-y:auto;padding:16px 24px;">' +
+        (champIds.length ? '' : '<div style="text-align:center;padding:60px 20px;color:var(--tx3);font-family:var(--mono);font-size:13px;">No builds yet.<br><br>Click <strong>+ NEW CHAMPION</strong> to start.</div>') +
+      '</div>' +
+    '</div>';
+  document.getElementById('new-champ-btn').onclick = openBuildsChampPicker;
+  var list = document.getElementById('builds-home-list');
+  champIds.forEach(function(cid, ci) {
+    var champ = allChamps[cid];
+    var champBuilds = builds[cid] || [];
+    var row = document.createElement('div');
+    row.className = 'champ-home-row';
+    row.dataset.cid = cid;
+    row.dataset.ci = ci;
+    row.draggable = true;
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;user-select:none;';
+    row.addEventListener('click', function(){ openChampBuilds(this.dataset.cid); });
+    row.onmouseover = function(){ this.style.borderColor='var(--bd2)'; };
+    row.onmouseout = function(){ this.style.borderColor='var(--bd)'; };
+    var grip = document.createElement('div');
+    grip.style.cssText = 'color:var(--tx3);font-size:18px;cursor:grab;flex-shrink:0;';
+    grip.textContent = '⠿';
+    grip.title = 'Drag to reorder';
+    var img = document.createElement('img');
+    img.src = DDRAGON + '/img/champion/' + cid + '.png';
+    img.style.cssText = 'width:44px;height:44px;border-radius:8px;flex-shrink:0;pointer-events:none;';
+    var info = document.createElement('div');
+    info.style.cssText = 'flex:1;pointer-events:none;';
+    info.innerHTML = '<div style="font-family:var(--head);font-size:15px;font-weight:700;color:var(--tx);">'+(champ?champ.name:cid)+'</div><div style="font-family:var(--mono);font-size:11px;color:var(--tx3);">'+champBuilds.length+' build'+(champBuilds.length!==1?'s':'')+'</div>';
+    var delBtn = document.createElement('button');
+    delBtn.style.cssText = 'width:28px;height:28px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx3);font-size:13px;cursor:pointer;';
+    delBtn.textContent = '✕';
+    delBtn.title = 'Delete';
+    delBtn.addEventListener('click', function(e){ e.stopPropagation(); deleteChampBuilds(this.parentElement.dataset.cid); });
+    delBtn.onmouseover = function(){ this.style.borderColor='var(--red)'; this.style.color='var(--red)'; };
+    delBtn.onmouseout = function(){ this.style.borderColor='var(--bd2)'; this.style.color='var(--tx3)'; };
+    row.appendChild(grip); row.appendChild(img); row.appendChild(info); row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+  attachChampListDrag();
+}
+
+
+function attachChampListDrag() {
+  var list = document.getElementById('builds-home-list');
+  if (!list) return;
+  var dragCi = null;
+  var rows = list.querySelectorAll('.champ-home-row');
+  rows.forEach(function(row) {
+    row.addEventListener('dragstart', function(e) {
+      if (e.target.tagName === 'BUTTON') { e.preventDefault(); return; }
+      dragCi = parseInt(this.dataset.ci);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('champ-reorder', '1');
+      var self = this;
+      setTimeout(function(){ self.style.opacity='0.4'; }, 0);
+    });
+    row.addEventListener('dragend', function(){ this.style.opacity='1'; this.style.outline=''; });
+    row.addEventListener('dragover', function(e) { e.preventDefault(); if(dragCi!==null) this.style.outline='2px solid var(--gold)'; });
+    row.addEventListener('dragleave', function(){ this.style.outline=''; });
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.style.outline='';
+      if (dragCi===null || e.dataTransfer.getData('champ-reorder')!=='1') return;
+      var overCi = parseInt(this.dataset.ci);
+      if (overCi===dragCi) return;
+      var champIds = Object.keys(builds);
+      var moved = champIds.splice(dragCi,1)[0];
+      champIds.splice(overCi,0,moved);
+      var newBuilds = {};
+      champIds.forEach(function(k){ newBuilds[k]=builds[k]; });
+      builds = newBuilds;
+      dragCi = null;
+      saveBuildsToFirestore();
+      renderBuildsHome();
+    });
+  });
+}
+
+
+// ── Champ Picker Modal ──
+function openBuildsChampPicker() {
+  const existing = document.getElementById('builds-champ-picker');
+  if (existing) { existing.style.display = 'flex'; renderBuildsChampGrid(''); return; }
+  const modal = document.createElement('div');
+  modal.id = 'builds-champ-picker';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;';
+  const inner = document.createElement('div');
+  inner.style.cssText = 'width:min(760px,92vw);max-height:82vh;background:var(--bg3);border:1px solid var(--bd2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;';
+  // Header
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--bd);';
+  hdr.innerHTML = '<span style="font-family:var(--head);font-size:20px;font-weight:800;color:var(--tx);">Select Champion</span>';
+  const closeBtn = document.createElement('button');
+  closeBtn.style.cssText = 'width:32px;height:32px;background:none;border:none;color:var(--tx2);font-size:18px;cursor:pointer;';
+  closeBtn.textContent = '✕';
+  closeBtn.onclick = function(){ modal.style.display='none'; };
+  hdr.appendChild(closeBtn);
+  // Search
+  const searchDiv = document.createElement('div');
+  searchDiv.style.cssText = 'padding:12px 16px;border-bottom:1px solid var(--bd);position:relative;';
+  const searchInput = document.createElement('input');
+  searchInput.id = 'bcp-search';
+  searchInput.placeholder = 'Search champions...';
+  searchInput.style.cssText = 'width:100%;height:40px;padding:0 34px 0 14px;background:var(--bg4);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:14px;outline:none;box-sizing:border-box;';
+  searchInput.oninput = function(){ renderBuildsChampGrid(this.value); };
+  const clearBtn = document.createElement('button');
+  clearBtn.style.cssText = 'position:absolute;right:24px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;';
+  clearBtn.textContent = '✕';
+  clearBtn.onclick = function(){ searchInput.value=''; renderBuildsChampGrid(''); };
+  searchDiv.appendChild(searchInput);
+  searchDiv.appendChild(clearBtn);
+  // Grid
+  const grid = document.createElement('div');
+  grid.id = 'bcp-grid';
+  grid.style.cssText = 'overflow-y:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;';
+  inner.appendChild(hdr);
+  inner.appendChild(searchDiv);
+  inner.appendChild(grid);
+  modal.appendChild(inner);
+  modal.addEventListener('click', function(e){ if (e.target === modal) modal.style.display='none'; });
+  document.body.appendChild(modal);
+  renderBuildsChampGrid('');
+}
+
+function renderBuildsChampGrid(q) {
+  const grid = document.getElementById('bcp-grid');
+  if (!grid) return;
+  const list = Object.values(allChamps).filter(function(c){ return !q || c.name.toLowerCase().includes(q.toLowerCase()); }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+  grid.innerHTML = list.map(function(c) {
+    return '<div data-cid="' + c.id + '" onclick="pickBuildChamp(this.dataset.cid)" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 4px;background:var(--bg4);border:1px solid var(--bd);border-radius:8px;cursor:pointer;transition:all 0.15s;"">' +
+      '<img src="' + DDRAGON + '/img/champion/' + c.id + '.png" style="width:56px;height:56px;border-radius:8px;" onerror="this.style.opacity=0.3">' +
+      '<span style="font-family:var(--body);font-size:10px;font-weight:600;color:var(--tx);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;">' + c.name + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function pickBuildChamp(cid) {
+  document.getElementById('builds-champ-picker').style.display = 'none';
+  if (!builds[cid]) builds[cid] = [];
+  openChampBuilds(cid);
+}
+
+function deleteChampBuilds(cid) {
+  if (!confirm('Delete all builds for ' + (allChamps[cid]?.name || cid) + '?')) return;
+  delete builds[cid];
+  saveBuildsToFirestore();
+  renderBuildsHome();
+}
+
+// ── Champ Build Page ──
+function openChampBuilds(cid) {
+  selectedBuildChamp = cid;
+  if (!builds[cid]) builds[cid] = [];
+  renderChampBuildPage(cid);
+}
+
+function renderChampBuildPage(cid) {
+  var champ = allChamps[cid];
+  var champBuilds = builds[cid] || [];
+  var el = document.getElementById('builds-panel');
+  el.innerHTML =
+    '<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">' +
+      '<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--bd);flex-shrink:0;">' +
+        '<button id="cbp-back" style="height:32px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:11px;cursor:pointer;">← BACK</button>' +
+        '<img src="'+DDRAGON+'/img/champion/'+cid+'.png" style="width:40px;height:40px;border-radius:8px;">' +
+        '<span style="font-family:var(--head);font-size:18px;font-weight:800;color:var(--tx);">'+(champ?champ.name:cid)+'</span>' +
+        '<button id="cbp-new" style="margin-left:auto;height:32px;padding:0 16px;background:var(--gold);border:none;border-radius:8px;color:#fff;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;">+ NEW BUILD</button>' +
+      '</div>' +
+      '<div id="champ-builds-list" style="flex:1;overflow-y:auto;padding:20px;">' +
+        (!champBuilds.length ? '<div style="text-align:center;padding:40px;color:var(--tx3);font-family:var(--mono);font-size:12px;">No builds yet. Click <strong>+ NEW BUILD</strong></div>' : '') +
+      '</div>' +
+    '</div>';
+  document.getElementById('cbp-back').onclick = renderBuildsHome;
+  document.getElementById('cbp-new').onclick = startNewBuild;
+  var listEl = document.getElementById('champ-builds-list');
+  champBuilds.forEach(function(b, i) {
+    var card = document.createElement('div');
+    card.className = 'build-card-row';
+    card.dataset.bi = i;
+    card.draggable = true;
+    card.style.cssText = 'cursor:default;margin-bottom:12px;';
+    card.innerHTML = renderBuildCard(cid, b, i);
+    listEl.appendChild(card);
+  });
+  attachBuildListDrag(cid);
+}
+
+
+function attachBuildListDrag(cid) {
+  var list = document.getElementById('champ-builds-list');
+  if (!list) return;
+  var dragBi = null;
+  list.querySelectorAll('.build-card-row').forEach(function(row) {
+    row.addEventListener('dragstart', function(e) {
+      if (e.target.tagName==='BUTTON' || e.target.tagName==='IMG') { e.preventDefault(); return; }
+      dragBi = parseInt(this.dataset.bi);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('build-reorder','1');
+      var self=this; setTimeout(function(){ self.style.opacity='0.5'; },0);
+    });
+    row.addEventListener('dragend', function(){ this.style.opacity='1'; this.style.boxShadow=''; });
+    row.addEventListener('dragover', function(e){ e.preventDefault(); if(dragBi!==null) this.style.boxShadow='0 0 0 2px var(--gold)'; });
+    row.addEventListener('dragleave', function(){ this.style.boxShadow=''; });
+    row.addEventListener('drop', function(e) {
+      e.preventDefault(); this.style.boxShadow='';
+      if (dragBi===null || e.dataTransfer.getData('build-reorder')!=='1') return;
+      var overBi = parseInt(this.dataset.bi);
+      if (overBi===dragBi) return;
+      var arr = builds[cid];
+      var moved = arr.splice(dragBi,1)[0];
+      arr.splice(overBi,0,moved);
+      dragBi=null;
+      saveBuildsToFirestore();
+      renderChampBuildPage(cid);
+    });
+  });
+}
+
+
+function renderBuildCard(cid, b, idx) {
+  const items = b.items || [];
+  const spells = b.spells || [];
+  const BASE = 'https://ddragon.leagueoflegends.com/cdn/img/';
+  const COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+
+  const itemIcons = items.map(function(id) {
+    var name = (allItems[id]||{}).name||id;
+    return '<div data-id="' + id + '" onclick="openItemOverlay(this.dataset.id)" style="cursor:pointer;" title="' + name + '"><img src="' + DDRAGON + '/img/item/' + id + '.png" style="width:40px;height:40px;border-radius:6px;" onerror="this.style.opacity=0.3"></div>';
+  }).join('');
+
+  const spellIcons = spells.map(function(sid) {
+    const sp = (allSummonerSpells||[]).find(function(s){ return s.id === sid; });
+    if (!sp) return '';
+    return '<div data-spid="' + sp.id + '" onclick="openSpellOverlay(this.dataset.spid)" style="cursor:pointer;" title="' + sp.name + '"><img src="' + DDRAGON + '/img/spell/' + sp.image.full + '" style="width:36px;height:36px;border-radius:6px;"></div>';
+  }).join('');
+
+  // Runes: show every selected rune (all slots) as clickable icons
+  let runeHtml = '';
+  if (b.runeMain && allRuneData && allRuneData.length) {
+    const mainPath = allRuneData.find(function(x){ return x.id === b.runeMain; });
+    const subPath  = b.runeSub ? allRuneData.find(function(x){ return x.id === b.runeSub; }) : null;
+    const mainCol  = mainPath ? (COLORS[mainPath.name]||'var(--gold)') : 'var(--gold)';
+    const subCol   = subPath  ? (COLORS[subPath.name]||'var(--blue)')  : 'var(--blue)';
+
+    runeHtml += '<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">';
+
+    // All primary path selected runes (keystones + rows)
+    if (mainPath && b.runeMainSlots) {
+      b.runeMainSlots.forEach(function(rid, si) {
+        if (!rid) return;
+        var rune = null;
+        for (var sl of mainPath.slots) { var rf = sl.runes.find(function(x){return x.id===rid;}); if(rf){rune=rf;break;} }
+        if (!rune) return;
+        var sz = si===0 ? '32' : '26';
+        var border = si===0 ? '2px solid ' + mainCol : '1px solid ' + mainCol + '66';
+        runeHtml += '<div data-rid="' + rune.id + '" data-pid="' + b.runeMain + '" onclick="openRuneOverlay(this.dataset.rid,this.dataset.pid)" title="' + rune.name + '" style="cursor:pointer;">' +
+          '<img src="' + BASE + rune.icon + '" style="width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:#0a0a0f;border:' + border + ';">' +
+        '</div>';
+      });
+    }
+
+    // Divider if we have both
+    if (mainPath && subPath && b.runeMainSlots && b.runeMainSlots.length && b.runeSubSlots && b.runeSubSlots.length) {
+      runeHtml += '<div style="width:1px;height:24px;background:var(--bd2);margin:0 2px;"></div>';
+    }
+
+    // Secondary path selected runes
+    if (subPath && b.runeSubSlots && b.runeSubSlots.length) {
+      b.runeSubSlots.forEach(function(rid) {
+        if (!rid) return;
+        var rune = null;
+        for (var sl of subPath.slots) { var rf2 = sl.runes.find(function(x){return x.id===rid;}); if(rf2){rune=rf2;break;} }
+        if (!rune) return;
+        runeHtml += '<div data-rid="' + rune.id + '" data-pid="' + subPath.id + '" onclick="openRuneOverlay(this.dataset.rid,this.dataset.pid)" title="' + rune.name + '" style="cursor:pointer;">' +
+          '<img src="' + BASE + rune.icon + '" style="width:26px;height:26px;border-radius:50%;background:#0a0a0f;border:1px solid ' + subCol + '66;">' +
+        '</div>';
+      });
+    }
+
+    runeHtml += '</div>';
+  }
+
+  // Matchup display
+  const matchupHtml = (b.matchupChamps && b.matchupChamps.length)
+    ? b.matchupChamps.map(function(mcid){ return '<img src="' + DDRAGON + '/img/champion/' + mcid + '.png" style="width:22px;height:22px;border-radius:4px;" title="' + ((allChamps[mcid]||{}).name||mcid) + '">'; }).join('')
+    : (b.matchup || '');
+
+  const SECT = 'font-family:var(--mono);font-size:11px;font-weight:800;color:var(--tx2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;';
+
+  return '<div style="background:var(--bg3);border:1px solid var(--bd);border-radius:10px;padding:16px 18px;margin-bottom:12px;">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
+      '<div>' +
+        '<div style="font-family:var(--head);font-size:17px;font-weight:800;color:var(--tx);">' + (b.name||'Build '+(idx+1)) + '</div>' +
+        (matchupHtml ? '<div style="display:flex;gap:3px;align-items:center;margin-top:4px;">' +
+          (matchupHtml.startsWith('<') ? matchupHtml : '<span style="font-family:var(--mono);font-size:11px;color:var(--tx3);">vs ' + matchupHtml + '</span>') +
+        '</div>' : '') +
+      '</div>' +
+      '<div style="display:flex;gap:6px;">' +
+        '<button onclick="editBuild(\'' + selectedBuildChamp + '\',' + idx + ')" style="height:28px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:10px;font-weight:700;cursor:pointer;">EDIT</button>' +
+        '<button onclick="deleteBuild(\'' + selectedBuildChamp + '\',' + idx + ')" style="height:28px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx3);font-family:var(--mono);font-size:10px;cursor:pointer;">✕</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">' +
+      (itemIcons  ? '<div><div style="' + SECT + '">ITEMS</div><div style="display:flex;gap:5px;flex-wrap:wrap;">'  + itemIcons  + '</div></div>' : '') +
+      (spellIcons ? '<div><div style="' + SECT + '">SPELLS</div><div style="display:flex;gap:5px;">'               + spellIcons + '</div></div>' : '') +
+      (runeHtml   ? '<div><div style="' + SECT + '">RUNES</div>'                                                   + runeHtml   + '</div>'       : '') +
+    '</div>' +
+    (b.notes ? '<div style="margin-top:12px;font-family:var(--body);font-size:13px;color:var(--tx3);border-top:1px solid var(--bd);padding-top:10px;line-height:1.6;">' + b.notes + '</div>' : '') +
+  '</div>';
+}
+
+function deleteBuild(cid, idx) {
+  if (!confirm('Delete this build?')) return;
+  builds[cid].splice(idx, 1);
+  saveBuildsToFirestore();
+  renderChampBuildPage(cid);
+}
+
+// ── Build Editor ──
+let buildEditorData = null;
+let buildEditorIdx = -1;
+
+function startNewBuild() {
+  buildEditorData = { name: '', matchup: '', items: [], spells: [], runeMain: null, runeSub: null, runeMainSlots: [], runeSubSlots: [], notes: '' };
+  buildEditorIdx = -1;
+  openBuildEditor();
+}
+
+function editBuild(cid, idx) {
+  buildEditorData = JSON.parse(JSON.stringify(builds[cid][idx]));
+  buildEditorIdx = idx;
+  openBuildEditor();
+}
+
+
+function openBuildEditor() {
+  var el = document.getElementById('builds-panel');
+  var cid = selectedBuildChamp;
+  var champ = allChamps[cid];
+  var b = buildEditorData;
+
+  // Build outer shell
+  el.innerHTML =
+    '<div id="be-outer" style="display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--bg);">' +
+      '<div id="be-header" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--bd);flex-shrink:0;background:var(--bg2);"></div>' +
+      '<div style="flex:1;display:flex;overflow:hidden;">' +
+        '<div id="be-left" style="width:50%;flex-shrink:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;border-right:1px solid var(--bd);"></div>' +
+        '<div id="be-right" style="width:50%;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;background:var(--bg2);"></div>' +
+      '</div>' +
+    '</div>';
+
+  // ── Header ──
+  var hdr = document.getElementById('be-header');
+  var backBtn = document.createElement('button');
+  backBtn.style.cssText = 'height:32px;padding:0 14px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:11px;cursor:pointer;';
+  backBtn.textContent = '← BACK';
+  backBtn.onclick = function(){ renderChampBuildPage(cid); };
+  var champImg = document.createElement('img');
+  champImg.src = DDRAGON + '/img/champion/' + cid + '.png';
+  champImg.style.cssText = 'width:36px;height:36px;border-radius:8px;border:2px solid var(--bd2);';
+  var title = document.createElement('div');
+  title.style.cssText = 'font-family:var(--head);font-size:19px;font-weight:800;color:var(--tx);';
+  title.innerHTML = (champ?champ.name:cid) + '<span style="font-size:12px;font-weight:400;color:var(--tx3);font-family:var(--mono);margin-left:10px;letter-spacing:1px;">' + (buildEditorIdx>=0?'EDIT BUILD':'NEW BUILD') + '</span>';
+  var saveBtn = document.createElement('button');
+  saveBtn.style.cssText = 'margin-left:auto;height:34px;padding:0 22px;background:var(--gold);border:none;border-radius:8px;color:#fff;font-family:var(--head);font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;box-shadow:0 2px 12px rgba(124,106,247,0.4);';
+  saveBtn.textContent = 'SAVE';
+  saveBtn.onclick = saveBuildEditor;
+  hdr.appendChild(backBtn); hdr.appendChild(champImg); hdr.appendChild(title); hdr.appendChild(saveBtn);
+
+  // ── Left panel ──
+  var left = document.getElementById('be-left');
+
+  function mkLabel(text) {
+    var d = document.createElement('div');
+    d.style.cssText = 'font-family:var(--mono);font-size:9px;font-weight:700;color:var(--tx3);letter-spacing:2px;margin-bottom:6px;';
+    d.textContent = text;
+    return d;
+  }
+  function mkSection() { var d=document.createElement('div'); return d; }
+
+  // Build Name
+  var nameSection = mkSection();
+  nameSection.appendChild(mkLabel('BUILD NAME'));
+  var nameInput = document.createElement('input');
+  nameInput.id = 'be-name';
+  nameInput.value = b.name || '';
+  nameInput.placeholder = 'e.g. Full Damage';
+  nameInput.style.cssText = 'width:100%;height:36px;padding:0 12px;background:var(--bg3);border:1px solid var(--bd2);border-radius:6px;color:var(--tx);font-family:var(--head);font-size:15px;font-weight:700;outline:none;box-sizing:border-box;';
+  nameInput.onfocus = function(){ this.style.borderColor='var(--gold)'; };
+  nameInput.onblur = function(){ this.style.borderColor='var(--bd2)'; };
+  nameSection.appendChild(nameInput);
+  left.appendChild(nameSection);
+
+  // Matchup
+  var matchSection = mkSection();
+  matchSection.appendChild(mkLabel('MATCHUP'));
+  var matchDisplay = document.createElement('div');
+  matchDisplay.id = 'be-matchup-display';
+  matchDisplay.style.cssText = 'min-height:40px;padding:6px 10px;background:var(--bg3);border:1px solid var(--bd2);border-radius:6px;cursor:pointer;display:flex;flex-wrap:wrap;gap:4px;align-items:center;';
+  matchDisplay.onclick = openMatchupPicker;
+  matchDisplay.onmouseover = function(){ this.style.borderColor='var(--gold)'; };
+  matchDisplay.onmouseout = function(){ this.style.borderColor='var(--bd2)'; };
+  matchSection.appendChild(matchDisplay);
+  left.appendChild(matchSection);
+
+  // Items zone
+  var itemsSection = mkSection();
+  var itemsHdr = document.createElement('div');
+  itemsHdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;';
+  itemsHdr.innerHTML = '<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--tx3);letter-spacing:2px;">ITEMS</div><span id="be-items-count" style="font-family:var(--mono);font-size:9px;color:var(--tx3);">0/7</span>';
+  itemsSection.appendChild(itemsHdr);
+  var itemsZone = document.createElement('div');
+  itemsZone.id = 'be-items-zone';
+  itemsZone.style.cssText = 'min-height:56px;padding:8px;background:var(--bg3);border:2px dashed var(--bd2);border-radius:8px;display:flex;gap:6px;flex-wrap:wrap;transition:border-color 0.15s;';
+  itemsZone.addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='var(--gold)'; });
+  itemsZone.addEventListener('dragleave', function(){ this.style.borderColor='var(--bd2)'; });
+  itemsZone.addEventListener('drop', function(e){ e.preventDefault(); this.style.borderColor='var(--bd2)'; dropOnBuild(e,'items'); });
+  itemsSection.appendChild(itemsZone);
+  left.appendChild(itemsSection);
+
+  // Spells zone
+  var spellsSection = mkSection();
+  spellsSection.appendChild(mkLabel('SPELLS'));
+  var spellsZone = document.createElement('div');
+  spellsZone.id = 'be-spells-zone';
+  spellsZone.style.cssText = 'min-height:50px;padding:8px;background:var(--bg3);border:2px dashed var(--bd2);border-radius:8px;display:flex;gap:6px;transition:border-color 0.15s;';
+  spellsZone.addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='var(--gold)'; });
+  spellsZone.addEventListener('dragleave', function(){ this.style.borderColor='var(--bd2)'; });
+  spellsZone.addEventListener('drop', function(e){ e.preventDefault(); this.style.borderColor='var(--bd2)'; dropOnBuild(e,'spells'); });
+  spellsSection.appendChild(spellsZone);
+  left.appendChild(spellsSection);
+
+  // Runes
+  var runesSection = mkSection();
+  runesSection.appendChild(mkLabel('RUNES'));
+  var runesZone = document.createElement('div');
+  runesZone.id = 'be-runes-zone';
+  runesZone.style.cssText = 'background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:10px;';
+  runesZone.innerHTML = renderRuneBuilderZone(b);
+  runesSection.appendChild(runesZone);
+  left.appendChild(runesSection);
+
+  // Notes
+  var notesSection = mkSection();
+  notesSection.appendChild(mkLabel('NOTES'));
+  var notesTA = document.createElement('textarea');
+  notesTA.id = 'be-notes';
+  notesTA.placeholder = 'Strategy, combos...';
+  notesTA.style.cssText = 'width:100%;min-height:100px;padding:10px;background:var(--bg3);border:1px solid var(--bd2);border-radius:6px;color:var(--tx);font-family:var(--body);font-size:12px;outline:none;resize:vertical;box-sizing:border-box;';
+  notesTA.value = b.notes || '';
+  notesTA.onfocus = function(){ this.style.borderColor='var(--gold)'; };
+  notesTA.onblur = function(){ this.style.borderColor='var(--bd2)'; };
+  notesSection.appendChild(notesTA);
+  left.appendChild(notesSection);
+
+  // ── Right panel ──
+  var right = document.getElementById('be-right');
+
+  // Tab bar
+  var tabBar = document.createElement('div');
+  tabBar.style.cssText = 'display:flex;border-bottom:1px solid var(--bd);flex-shrink:0;';
+  ['items','spells'].forEach(function(tab) {
+    var btn = document.createElement('button');
+    btn.id = 'bp-tab-' + tab;
+    btn.className = 'bp-tab';
+    btn.textContent = tab.toUpperCase();
+    btn.style.cssText = 'flex:1;padding:11px 6px;border:none;border-bottom:3px solid transparent;color:var(--tx3);font-family:var(--head);font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;background:transparent;';
+    btn.addEventListener('click', function(){ showBuildPanel(tab); });
+    tabBar.appendChild(btn);
+  });
+  right.appendChild(tabBar);
+
+  // Search row
+  var searchRow = document.createElement('div');
+  searchRow.id = 'bp-search-row';
+  searchRow.style.cssText = 'padding:8px 10px 4px;position:relative;flex-shrink:0;';
+  var searchInput = document.createElement('input');
+  searchInput.id = 'bp-search';
+  searchInput.placeholder = 'Search...';
+  searchInput.style.cssText = 'width:100%;height:34px;padding:0 30px 0 12px;background:var(--bg4);border:1px solid var(--bd2);border-radius:6px;color:var(--tx);font-family:var(--body);font-size:13px;outline:none;box-sizing:border-box;';
+  searchInput.oninput = function(){ filterBuildPanel(this.value); };
+  searchInput.onfocus = function(){ this.style.borderColor='var(--gold)'; };
+  searchInput.onblur = function(){ this.style.borderColor='var(--bd2)'; };
+  var clearBtn = document.createElement('button');
+  clearBtn.style.cssText = 'position:absolute;right:18px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;line-height:1;padding:2px;';
+  clearBtn.textContent = '✕';
+  clearBtn.onclick = function(){ searchInput.value=''; filterBuildPanel(''); };
+  searchRow.appendChild(searchInput);
+  searchRow.appendChild(clearBtn);
+  right.appendChild(searchRow);
+
+  // Category chips
+  var catChips = document.createElement('div');
+  catChips.id = 'bp-category-chips';
+  catChips.style.cssText = 'padding:4px 10px 6px;display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0;';
+  right.appendChild(catChips);
+
+  // Content area
+  var bpContent = document.createElement('div');
+  bpContent.id = 'bp-content';
+  bpContent.style.cssText = 'flex:1;overflow-y:auto;padding:8px 10px;';
+  right.appendChild(bpContent);
+
+  // Init
+  renderMatchupDisplay();
+  refreshBuildZones();
+  showBuildPanel('items');
+
+  // Matchup picker modal
+  if (!document.getElementById('matchup-picker-modal')) {
+    var mp = document.createElement('div');
+    mp.id = 'matchup-picker-modal';
+    mp.style.cssText = 'display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);align-items:center;justify-content:center;';
+    mp.innerHTML =
+      '<div style="width:min(780px,96vw);max-height:88vh;background:var(--bg3);border:1px solid var(--bd2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--bd);flex-shrink:0;">' +
+          '<span style="font-family:var(--head);font-size:18px;font-weight:800;color:var(--tx);">Select Matchup Champions</span>' +
+          '<button id="mq-close-btn" style="background:none;border:none;color:var(--tx2);font-size:20px;cursor:pointer;padding:4px;">✕</button>' +
+        '</div>' +
+        '<div style="padding:10px 14px;border-bottom:1px solid var(--bd);position:relative;flex-shrink:0;">' +
+          '<input id="matchup-search" placeholder="Search champions..." style="width:100%;height:38px;padding:0 34px 0 12px;background:var(--bg4);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:14px;outline:none;">' +
+          '<button id="mq-search-clear" style="position:absolute;right:22px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;">✕</button>' +
+        '</div>' +
+        '<div style="padding:8px 14px;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
+          '<div><div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--tx3);letter-spacing:2px;margin-bottom:4px;">CLASS</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-class-chips"></div></div>' +
+          '<div><div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--tx3);letter-spacing:2px;margin-bottom:4px;">RESOURCE TYPE</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-res-chips"></div></div>' +
+        '</div>' +
+        '<div id="matchup-grid" style="flex:1;overflow-y:auto;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;"></div>' +
+        '<div style="padding:10px 14px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:8px;flex-shrink:0;background:var(--bg2);">' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div id="matchup-selected-count" style="font-family:var(--mono);font-size:11px;color:var(--tx3);flex-shrink:0;">None selected</div><div id="matchup-selected-row" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;"></div></div>' +
+          '<div style="display:flex;justify-content:flex-end;gap:8px;"><button id="mq-cancel-btn" style="height:34px;padding:0 18px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:11px;cursor:pointer;">CANCEL</button><button id="mq-confirm-btn" style="height:34px;padding:0 22px;background:var(--gold);border:none;border-radius:6px;color:#fff;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;">CONFIRM</button></div>' +
+        '</div>' +
+      '</div>';
+    mp.addEventListener('click', function(e){ if(e.target===mp) closeMatchupPicker(); });
+    document.body.appendChild(mp);
+    document.getElementById('mq-close-btn').onclick = closeMatchupPicker;
+    document.getElementById('mq-cancel-btn').onclick = closeMatchupPicker;
+    document.getElementById('mq-confirm-btn').onclick = confirmMatchupPicker;
+    document.getElementById('mq-search-clear').onclick = function(){ var s=document.getElementById('matchup-search'); if(s){s.value='';filterMatchupGrid('');} };
+    document.getElementById('matchup-search').oninput = function(){ filterMatchupGrid(this.value); };
+  }
+}
+
+
+let _matchupSelected = [];
+
+function openMatchupPicker() {
+  _matchupSelected = buildEditorData.matchupChamps ? [...buildEditorData.matchupChamps] : [];
+  var mp = document.getElementById('matchup-picker-modal');
+  if (!mp) { openBuildEditor(); return; }
+  mp.style.display = 'flex';
+  var search = document.getElementById('matchup-search');
+  if (search) search.value = '';
+  // Init class chips
+  var CLASSES = ['All','Fighter','Tank','Mage','Assassin','Support','Marksman'];
+  var RESOURCES = ['All','Mana','Energy','None','Fury','Grit','Ferocity','Heat'];
+  ['mq-class-chips','mq-res-chips'].forEach(function(rid, ri) {
+    var chips = document.getElementById(rid);
+    if (!chips || chips.childElementCount > 0) return;
+    var arr = ri===0 ? CLASSES : RESOURCES;
+    var col = ri===0 ? 'var(--gold)' : 'var(--blue)';
+    arr.forEach(function(val) {
+      var sp = document.createElement('span');
+      sp.textContent = val;
+      sp.dataset.val = val;
+      sp.dataset.type = ri===0 ? 'class' : 'res';
+      sp.style.cssText = 'padding:3px 10px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:600;background:'+(val==='All'?col:'var(--bg3)')+';color:'+(val==='All'?'#fff':'var(--tx2)')+';border:1px solid '+(val==='All'?col:'var(--bd2)')+';transition:all 0.1s;';
+      sp.addEventListener('click', function() {
+        var isClass = this.dataset.type==='class';
+        var container = document.getElementById(isClass?'mq-class-chips':'mq-res-chips');
+        container.querySelectorAll('span').forEach(function(c){
+          var a = c.dataset.val===val;
+          c.style.background=a?col:'var(--bg3)'; c.style.color=a?'#fff':'var(--tx2)'; c.style.border='1px solid '+(a?col:'var(--bd2)');
+        });
+        if (isClass) window._mqClassFilter = val; else window._mqResFilter = val;
+        var q = document.getElementById('matchup-search');
+        filterMatchupGrid(q?q.value:'');
+      });
+      chips.appendChild(sp);
+    });
+  });
+  window._mqClassFilter = 'All'; window._mqResFilter = 'All';
+  filterMatchupGrid('');
+  renderMatchupSelectedRow();
+}
+function closeMatchupPicker() {
+  var mp = document.getElementById('matchup-picker-modal');
+  if (mp) mp.style.display = 'none';
+}
+function confirmMatchupPicker() {
+  buildEditorData.matchupChamps = [..._matchupSelected];
+  renderMatchupDisplay();
+  closeMatchupPicker();
+}
+function filterMatchupGrid(q) {
+  var grid = document.getElementById('matchup-grid');
+  if (!grid) return;
+  var cf = window._mqClassFilter || 'All';
+  var rf = window._mqResFilter || 'All';
+  var list = Object.values(allChamps).filter(function(c){
+    if (q && !c.name.toLowerCase().includes(q.toLowerCase())) return false;
+    if (cf !== 'All' && !(c.tags||[]).includes(cf)) return false;
+    if (rf !== 'All') { if (rf==='None'){ if (c.partype&&c.partype!=='None'&&c.partype!=='') return false; } else if (c.partype!==rf) return false; }
+    return true;
+  }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+  grid.innerHTML = list.map(function(c) {
+    var sel = _matchupSelected.includes(c.id);
+    return '<div data-cid="' + c.id + '" onclick="toggleMatchupChamp(this.dataset.cid)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;background:' + (sel?'rgba(124,106,247,0.15)':'var(--bg4)') + ';border:2px solid ' + (sel?'var(--gold)':'transparent') + ';border-radius:8px;cursor:pointer;transition:all 0.1s;"">' +
+      '<img src="' + DDRAGON + '/img/champion/' + c.id + '.png" style="width:50px;height:50px;border-radius:8px;" onerror="this.style.opacity=0.3">' +
+      '<span style="font-family:var(--body);font-size:9px;font-weight:600;color:' + (sel?'var(--gold)':'var(--tx)') + ';text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">' + c.name + '</span>' +
+    '</div>';
+  }).join('');
+}
+function toggleMatchupChamp(cid) {
+  var idx = _matchupSelected.indexOf(cid);
+  if (idx >= 0) _matchupSelected.splice(idx, 1);
+  else _matchupSelected.push(cid);
+  filterMatchupGrid(document.getElementById('matchup-search')?document.getElementById('matchup-search').value:'');
+  renderMatchupSelectedRow();
+}
+function renderMatchupSelectedRow() {
+  var cnt = document.getElementById('matchup-selected-count');
+  if (cnt) cnt.textContent = _matchupSelected.length ? _matchupSelected.length + ' selected:' : 'None selected';
+  var row = document.getElementById('matchup-selected-row');
+  if (!row) return;
+  row.innerHTML = '';
+  _matchupSelected.forEach(function(cid) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;cursor:pointer;flex-shrink:0;';
+    wrap.title = (allChamps[cid]||{}).name || cid;
+    wrap.addEventListener('click', function(){ toggleMatchupChamp(cid); });
+    var img = document.createElement('img');
+    img.src = DDRAGON + '/img/champion/' + cid + '.png';
+    img.style.cssText = 'width:28px;height:28px;border-radius:4px;border:2px solid var(--gold);';
+    var x = document.createElement('div');
+    x.style.cssText = 'position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:50%;background:var(--red);color:#fff;font-size:6px;line-height:11px;text-align:center;';
+    x.textContent = '✕';
+    wrap.appendChild(img);
+    wrap.appendChild(x);
+    row.appendChild(wrap);
+  });
+}
+function renderMatchupDisplay() {
+  var disp = document.getElementById('be-matchup-display');
+  if (!disp) return;
+  var champs = buildEditorData.matchupChamps || [];
+  if (!champs.length) {
+    disp.innerHTML = '<span style="font-family:var(--body);font-size:12px;color:var(--tx3);">Click to select matchups...</span>';
+    return;
+  }
+  disp.innerHTML = champs.map(function(cid){
+    var c = allChamps[cid];
+    return '<div style="display:flex;align-items:center;gap:3px;background:var(--bg4);border-radius:5px;padding:2px 6px 2px 2px;">' +
+      '<img src="' + DDRAGON + '/img/champion/' + cid + '.png" style="width:22px;height:22px;border-radius:3px;">' +
+      '<span style="font-family:var(--body);font-size:11px;font-weight:600;color:var(--tx);">' + (c?c.name:cid) + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function renderRuneBuilderZone(b) {
+  if (!allRuneData || !allRuneData.length) return '<div style="font-family:var(--mono);font-size:11px;color:var(--tx3);padding:8px;">Rune data loading...</div>';
+  const BASE = 'https://ddragon.leagueoflegends.com/cdn/img/';
+  const COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+  let html = '';
+
+  // Primary path pills
+  html += '<div style="margin-bottom:10px;"><div style="font-family:var(--mono);font-size:8px;font-weight:700;color:var(--tx3);letter-spacing:2px;margin-bottom:6px;">PRIMARY PATH</div>';
+  html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+  allRuneData.forEach(function(path) {
+    const col = COLORS[path.name] || 'var(--gold)';
+    const active = b.runeMain === path.id;
+    html += '<div onclick="selectRuneMainPath(' + path.id + ')" style="display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:20px;cursor:pointer;border:1px solid ' + (active?col:'var(--bd2)') + ';background:' + (active?col+'22':'transparent') + ';transition:all 0.15s;"">' +
+      '<img src="' + BASE + path.icon + '" style="width:16px;height:16px;">' +
+      '<span style="font-family:var(--mono);font-size:10px;font-weight:600;color:' + (active?col:'var(--tx2)') + ';">' + path.name + '</span>' +
+    '</div>';
+  });
+  html += '</div></div>';
+
+  // Primary keystone + rows
+  if (b.runeMain) {
+    html += '<div style="display:flex;gap:10px;align-items:flex-start;">';
+    const mainPath = allRuneData.find(function(p){ return p.id === b.runeMain; });
+    if (mainPath) {
+      const col = COLORS[mainPath.name] || 'var(--gold)';
+      html += '<div style="flex:1;min-width:0;background:var(--bg4);border:1px solid ' + col + '33;border-radius:8px;padding:8px;">';
+      mainPath.slots.forEach(function(slot, si) {
+        const isKS = si === 0;
+        html += '<div style="margin-bottom:' + (isKS?'8':'6') + 'px;">';
+        html += '<div style="font-family:var(--mono);font-size:7px;color:var(--tx3);letter-spacing:1.5px;margin-bottom:4px;">' + (isKS?'KEYSTONE':'ROW '+si) + '</div>';
+        html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+        slot.runes.forEach(function(r) {
+          const sel = (b.runeMainSlots||[])[si] === r.id;
+          const sz = isKS ? '28' : '22';
+          html += '<div onclick="selectRuneSlot(\'main\',' + si + ',' + r.id + ')" title="' + r.name + '" style="display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;cursor:pointer;background:' + (sel?col+'22':'transparent') + ';border:1px solid ' + (sel?col:'var(--bd)') + ';transition:all 0.1s;"">' +
+            '<img src="' + BASE + r.icon + '" style="width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:#0a0a0f;flex-shrink:0;" onerror="this.style.opacity=0.4">' +
+            '<span style="font-family:var(--body);font-size:10px;font-weight:' + (sel?'700':'400') + ';color:' + (sel?'var(--tx)':'var(--tx3)') + ';white-space:nowrap;">' + r.name + '</span>' +
+          '</div>';
+        });
+        html += '</div></div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  // Secondary path
+  if (b.runeMain) {
+    html += '<div style="margin-bottom:8px;"><div style="font-family:var(--mono);font-size:8px;font-weight:700;color:var(--tx3);letter-spacing:2px;margin-bottom:6px;">SECONDARY PATH</div>';
+    html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+    allRuneData.filter(function(p){ return p.id !== b.runeMain; }).forEach(function(path) {
+      const col = COLORS[path.name] || 'var(--gold)';
+      const active = b.runeSub === path.id;
+      html += '<div onclick="selectRuneSubPath(' + path.id + ')" style="display:flex;align-items:center;gap:4px;padding:3px 7px;border-radius:20px;cursor:pointer;border:1px solid ' + (active?col:'var(--bd2)') + ';background:' + (active?col+'22':'transparent') + ';transition:all 0.15s;"">' +
+        '<img src="' + BASE + path.icon + '" style="width:14px;height:14px;">' +
+        '<span style="font-family:var(--mono);font-size:10px;color:' + (active?col:'var(--tx2)') + ';">' + path.name + '</span>' +
+      '</div>';
+    });
+    html += '</div></div>';
+
+    if (b.runeSub) {
+      const subPath = allRuneData.find(function(p){ return p.id === b.runeSub; });
+      if (subPath) {
+        const col = COLORS[subPath.name] || 'var(--blue)';
+        html += '<div style="background:var(--bg4);border:1px solid ' + col + '33;border-radius:8px;padding:8px;">';
+        html += '<div style="font-family:var(--mono);font-size:7px;color:var(--tx3);letter-spacing:1.5px;margin-bottom:6px;">PICK 2 RUNES</div>';
+        subPath.slots.slice(1).forEach(function(slot, si) {
+          const actualSi = si + 1;
+          html += '<div style="margin-bottom:6px;"><div style="font-family:var(--mono);font-size:7px;color:var(--tx3);margin-bottom:4px;">ROW ' + actualSi + '</div><div style="display:flex;gap:4px;flex-wrap:wrap;">';
+          slot.runes.forEach(function(r) {
+            const sel = (b.runeSubSlots||[]).includes(r.id);
+            html += '<div onclick="selectRuneSubSlot(' + r.id + ')" title="' + r.name + '" style="display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:6px;cursor:pointer;background:' + (sel?col+'22':'transparent') + ';border:1px solid ' + (sel?col:'var(--bd)') + ';transition:all 0.1s;"">' +
+              '<img src="' + BASE + r.icon + '" style="width:20px;height:20px;border-radius:50%;background:#0a0a0f;" onerror="this.style.opacity=0.4">' +
+              '<span style="font-family:var(--body);font-size:10px;font-weight:' + (sel?'700':'400') + ';color:' + (sel?'var(--tx)':'var(--tx3)') + ';white-space:nowrap;">' + r.name + '</span>' +
+            '</div>';
+          });
+          html += '</div></div>';
+        });
+        html += '</div>';
+      }
+    }
+  }
+  return html;
+}
+
+function refreshBuildZones() {
+  var iz = document.getElementById('be-items-zone');
+  if (iz) {
+    var items = buildEditorData.items || [];
+    iz.innerHTML = '';
+    if (!items.length) {
+      var hint = document.createElement('span');
+      hint.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--tx3);align-self:center;padding:4px;';
+      hint.textContent = 'Drag or click items →';
+      iz.appendChild(hint);
+    } else {
+      items.forEach(function(id, i) {
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;cursor:grab;transition:opacity 0.15s;';
+        wrap.draggable = true;
+        wrap.dataset.zone = 'items';
+        wrap.dataset.idx = i;
+        var img = document.createElement('img');
+        img.src = DDRAGON + '/img/item/' + id + '.png';
+        img.style.cssText = 'width:44px;height:44px;border-radius:6px;display:block;';
+        img.title = (allItems[id]||{}).name || id;
+        img.onerror = function(){ this.style.opacity=0.3; };
+        var xBtn = document.createElement('button');
+        xBtn.style.cssText = 'position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;background:var(--red);border:none;color:#fff;font-size:8px;cursor:pointer;padding:0;line-height:15px;text-align:center;';
+        xBtn.textContent = '✕';
+        xBtn.addEventListener('click', (function(itemId){ return function(){ removeBuildItem('items',itemId); }; })(id));
+        wrap.appendChild(img); wrap.appendChild(xBtn);
+        iz.appendChild(wrap);
+      });
+      attachZoneDrag(iz, 'items');
+    }
+    var cnt = document.getElementById('be-items-count');
+    if (cnt) { cnt.textContent = items.length+'/7'; cnt.style.color = items.length>=7?'var(--green)':'var(--tx3)'; }
+  }
+  var sz = document.getElementById('be-spells-zone');
+  if (sz) {
+    var spells = buildEditorData.spells || [];
+    sz.innerHTML = '';
+    if (!spells.length) {
+      var hint2 = document.createElement('span');
+      hint2.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--tx3);align-self:center;padding:4px;';
+      hint2.textContent = 'Drag or click spells →';
+      sz.appendChild(hint2);
+    } else {
+      spells.forEach(function(sid, i) {
+        var sp = (allSummonerSpells||[]).find(function(s){ return s.id===sid; });
+        if (!sp) return;
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;cursor:grab;transition:opacity 0.15s;';
+        wrap.draggable = true;
+        wrap.dataset.zone = 'spells';
+        wrap.dataset.idx = i;
+        var img = document.createElement('img');
+        img.src = DDRAGON + '/img/spell/' + sp.image.full;
+        img.style.cssText = 'width:40px;height:40px;border-radius:6px;display:block;';
+        img.title = sp.name;
+        var xBtn = document.createElement('button');
+        xBtn.style.cssText = 'position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;background:var(--red);border:none;color:#fff;font-size:8px;cursor:pointer;padding:0;line-height:15px;text-align:center;';
+        xBtn.textContent = '✕';
+        xBtn.addEventListener('click', (function(spellId){ return function(){ removeBuildItem('spells',spellId); }; })(sid));
+        wrap.appendChild(img); wrap.appendChild(xBtn);
+        sz.appendChild(wrap);
+      });
+      attachZoneDrag(sz, 'spells');
+    }
+  }
+}
+
+
+// Attach drag-to-reorder to an items/spells zone
+function attachZoneDrag(container, zone) {
+  var dragIdx = null;
+  Array.from(container.querySelectorAll('[data-zone]')).forEach(function(el) {
+    el.addEventListener('dragstart', function(e) {
+      dragIdx = parseInt(this.dataset.idx);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('zone-reorder', zone);
+      var self = this;
+      setTimeout(function(){ self.style.opacity='0.4'; }, 0);
+    });
+    el.addEventListener('dragend', function(){ this.style.opacity='1'; this.style.outline=''; });
+    el.addEventListener('dragover', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      if (dragIdx !== null) this.style.outline = '2px solid var(--gold)';
+    });
+    el.addEventListener('dragleave', function(){ this.style.outline=''; });
+    el.addEventListener('drop', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      this.style.outline = '';
+      var overIdx = parseInt(this.dataset.idx);
+      if (dragIdx === null || overIdx === dragIdx) return;
+      if (e.dataTransfer.getData('zone-reorder') !== zone) return;
+      var arr = zone==='items' ? buildEditorData.items : buildEditorData.spells;
+      var moved = arr.splice(dragIdx, 1)[0];
+      arr.splice(overIdx, 0, moved);
+      dragIdx = null;
+      refreshBuildZones();
+    });
+  });
+}
+
+
+function showBuildPanel(tab) {
+  _bpTab = tab; _bpCat = 'All';
+  document.querySelectorAll('.bp-tab').forEach(function(btn) {
+    var active = btn.id === 'bp-tab-' + tab;
+    btn.style.background = active ? 'var(--bg3)' : 'transparent';
+    btn.style.color = active ? 'var(--tx)' : 'var(--tx3)';
+    btn.style.borderBottom = active ? '3px solid var(--gold)' : '3px solid transparent';
+  });
+  var sr = document.getElementById('bp-search-row');
+  if (sr) sr.style.display = 'block';
+  var bs = document.getElementById('bp-search');
+  if (bs) bs.value = '';
+  renderBuildPanelCats(tab);
+  renderBuildPanelContent('', 'All');
+}
+
+
+function renderBuildPanelContent(q, cat) {
+  const el = document.getElementById('bp-content');
+  if (!el) return;
+
+  if (_bpTab === 'items') {
+    // Dedupe by name
+    const seen = new Set();
+    let list = allItemsData.filter(function(i){
+      if (!itemMatchesCategory(i, cat)) return false;
+      if (seen.has(i.name)) return false;
+      seen.add(i.name); return true;
+    });
+    if (q) list = list.filter(function(i){ return i.name.toLowerCase().includes(q.toLowerCase()); });
+    list.sort(function(a,b){ return a.name.localeCompare(b.name); });
+    el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:6px;">' +
+      list.map(function(item) {
+        return '<div draggable="true" data-id="' + item.id + '" ondragstart="dragBuildItem(event,\'items\',this.dataset.id)" onclick="addToBuild(\'items\',this.dataset.id)" title="' + item.name + '" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;cursor:grab;transition:border-color 0.1s;"">' +
+          '<img src="' + DDRAGON + '/img/item/' + (item.image&&item.image.full||'') + '" style="width:44px;height:44px;border-radius:6px;" onerror="this.style.opacity=0.3">' +
+          '<span style="font-family:var(--body);font-size:9px;font-weight:600;color:var(--tx);text-align:center;word-break:break-word;line-height:1.2;width:100%;">' + item.name + '</span>' +
+        '</div>';
+      }).join('') + '</div>';
+
+  } else if (_bpTab === 'spells') {
+    const STANDARD = ['SummonerHeal','SummonerHaste','SummonerBarrier','SummonerExhaust','SummonerFlash','SummonerTeleport','SummonerSmite','SummonerBoost','SummonerDot'];
+    const list = (allSummonerSpells||[]).filter(function(s){ return STANDARD.includes(s.id); }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+    el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;">' +
+      list.map(function(s) {
+        return '<div draggable="true" data-id="' + s.id + '" ondragstart="dragBuildItem(event,\'spells\',this.dataset.id)" onclick="addToBuild(\'spells\',this.dataset.id)" title="' + s.name + '" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 6px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;cursor:grab;transition:border-color 0.1s;"">' +
+          '<img src="' + DDRAGON + '/img/spell/' + s.image.full + '" style="width:48px;height:48px;border-radius:8px;">' +
+          '<span style="font-family:var(--body);font-size:11px;font-weight:700;color:var(--tx);text-align:center;">' + s.name + '</span>' +
+        '</div>';
+      }).join('') + '</div>';
+  }
+}
+
+function addToBuild(zone, id) {
+  if (!buildEditorData) return;
+  if (zone === 'items') {
+    if (buildEditorData.items.length >= 7) return;
+    if (!buildEditorData.items.includes(id)) buildEditorData.items.push(id);
+  } else if (zone === 'spells') {
+    if (buildEditorData.spells.length >= 2) return;
+    if (!buildEditorData.spells.includes(id)) buildEditorData.spells.push(id);
+  }
+  refreshBuildZones();
+}
+
+function saveBuildEditor() {
+  const name = document.getElementById('be-name') ? document.getElementById('be-name').value : '';
+  const notes = document.getElementById('be-notes') ? document.getElementById('be-notes').value : '';
+  buildEditorData.name = name;
+  buildEditorData.notes = notes;
+  // matchupChamps already updated via confirmMatchupPicker
+  if (!builds[selectedBuildChamp]) builds[selectedBuildChamp] = [];
+  if (buildEditorIdx >= 0) builds[selectedBuildChamp][buildEditorIdx] = buildEditorData;
+  else builds[selectedBuildChamp].push(buildEditorData);
+  saveBuildsToFirestore();
+  renderChampBuildPage(selectedBuildChamp);
+}
+
+
+
+
+
+function selectRuneMainPath(pid) {
+  buildEditorData.runeMain = pid;
+  buildEditorData.runeMainSlots = [];
+  buildEditorData.runeSub = null;
+  buildEditorData.runeSubSlots = [];
+  document.getElementById('be-runes-zone').innerHTML = renderRuneBuilderZone(buildEditorData);
+}
+function selectRuneSubPath(pid) {
+  buildEditorData.runeSub = pid;
+  buildEditorData.runeSubSlots = [];
+  document.getElementById('be-runes-zone').innerHTML = renderRuneBuilderZone(buildEditorData);
+}
+function selectRuneSlot(type, slot, rid) {
+  if (!buildEditorData.runeMainSlots) buildEditorData.runeMainSlots = [];
+  buildEditorData.runeMainSlots[slot] = rid;
+  document.getElementById('be-runes-zone').innerHTML = renderRuneBuilderZone(buildEditorData);
+}
+function selectRuneSubSlot(rid) {
+  if (!buildEditorData.runeSubSlots) buildEditorData.runeSubSlots = [];
+  const idx = buildEditorData.runeSubSlots.indexOf(rid);
+  if (idx >= 0) { buildEditorData.runeSubSlots.splice(idx, 1); }
+  else if (buildEditorData.runeSubSlots.length < 2) { buildEditorData.runeSubSlots.push(rid); }
+  document.getElementById('be-runes-zone').innerHTML = renderRuneBuilderZone(buildEditorData);
+}
+
+// ── Right panel browser ──
+let _bpTab = 'items', _bpCat = 'All';
+
+
+function renderBuildPanelCats(tab) {
+  const chips = document.getElementById('bp-category-chips');
+  if (!chips) return;
+  let cats = [];
+  if (tab === 'items') cats = ['All','Starter','Consumable','Boots','Basic','Epic','Legendary'];
+  else if (tab === 'spells') cats = [];
+  else if (tab === 'runes') cats = [];
+  chips.innerHTML = cats.map(function(c) {
+    const active = c === _bpCat;
+    return '<span onclick="setBpCat(\'' + c + '\')" style="padding:3px 10px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:600;background:' + (active?'var(--gold)':'var(--bg3)') + ';color:' + (active?'#fff':'var(--tx2)') + ';border:1px solid ' + (active?'var(--gold)':'var(--bd2)') + ';">' + c + '</span>';
+  }).join('');
+}
+
+function setBpCat(cat) {
+  _bpCat = cat;
+  renderBuildPanelCats(_bpTab);
+  renderBuildPanelContent(document.getElementById('bp-search')?.value || '', cat);
+}
+
+function filterBuildPanel(q) {
+  renderBuildPanelContent(q, _bpCat);
+}
+
+
+
+// Drag and drop
+function dragBuildItem(event, type, id) {
+  event.dataTransfer.setData('type', type);
+  event.dataTransfer.setData('id', id);
+  event.dataTransfer.setData('source', 'panel');
+}
+function dragFromBuild(event, type, id) {
+  event.dataTransfer.setData('type', type);
+  event.dataTransfer.setData('id', id);
+  event.dataTransfer.setData('source', 'build');
+}
+function dropOnBuild(event, zone) {
+  event.preventDefault();
+  const type = event.dataTransfer.getData('type');
+  const id = event.dataTransfer.getData('id');
+  if (type !== zone) return;
+  addToBuild(zone, id);
+}
+
+function toggleLiveWatch() {
+  if (liveWatching) stopLiveWatch();
+  else startLiveWatch();
+}
+
+function setLiveState(state) {
+  var dot = document.getElementById('live-dot');
+  var txt = document.getElementById('live-state-text');
+  var btn = document.getElementById('live-toggle-btn');
+  if (!dot) return;
+  dot.className = 'live-dot ' + state;
+  if (state === 'online') {
+    if (txt) txt.textContent = 'In game — polling every 3s';
+    if (btn) { btn.textContent = '■ STOP'; btn.style.background = 'var(--red)'; }
+  } else if (state === 'waiting') {
+    if (txt) txt.textContent = 'Waiting for game...';
+    if (btn) { btn.textContent = '■ STOP'; btn.style.background = 'var(--red)'; }
+  } else {
+    if (txt) txt.textContent = 'Not in game';
+    if (btn) { btn.textContent = '▶ START'; btn.style.background = 'var(--green)'; }
+  }
+}
+
+var _liveTimer = null;
+
+function startLiveWatch() {
+  liveWatching = true;
+  setLiveState('waiting');
+  document.getElementById('live-cert-warning').style.display = 'block';
+  _pollLiveGame();
+}
+
+async function _pollLiveGame() {
+  if (!liveWatching) return;
+  var area = document.getElementById('live-data-area');
+  try {
+    var resp = await fetch('https://127.0.0.1:2999/liveclientdata/allgamedata');
+    if (!resp.ok) throw new Error('not in game');
+    var data = await resp.json();
+    document.getElementById('live-cert-warning').style.display = 'none';
+    setLiveState('online');
+    if (area) renderLiveClientData(data, area);
+  } catch(e) {
+    if (liveWatching) setLiveState('waiting');
+    if (area && !area.innerHTML) area.innerHTML = '<div style="padding:40px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--tx3);">Waiting for League client...<br><br>Enter a game and this will auto-populate.</div>';
+  }
+  if (liveWatching) _liveTimer = setTimeout(_pollLiveGame, 3000);
+}
+
+function stopLiveWatch() {
+  liveWatching = false;
+  if (_liveTimer) clearTimeout(_liveTimer);
+  setLiveState('offline');
+  var area = document.getElementById('live-data-area');
+  if (area) area.innerHTML = '';
+}
+
+
+function renderLiveClientData(data, el) {
+  var me = data.activePlayer || {};
+  var allPlayers = data.allPlayers || [];
+  var events = (data.events && data.events.Events) || [];
+  var gameData = data.gameData || {};
+  var gtime = Math.floor(gameData.gameTime || 0);
+  var mins = Math.floor(gtime/60), secs = gtime%60;
+  var timeStr = mins + ':' + String(secs).padStart(2,'0');
+  var stats = me.championStats || {};
+
+  // Find my player in allPlayers by riot id match or fallback first
+  var myName = (me.riotId || me.summonerName || '').toLowerCase().split('#')[0];
+  var myPlayer = allPlayers.find(function(p){
+    var n = (p.riotId || p.summonerName || '').toLowerCase().split('#')[0];
+    return n && myName && n === myName;
+  }) || allPlayers[0];
+  var myTeam = myPlayer ? myPlayer.team : 'ORDER';
+
+  // Champion icon: LCU gives rawChampionName like "game_character_displayname_Ahri"
+  // Or championName directly like "Ahri"
+  function champImg(player) {
+    var raw = player.rawChampionName || '';
+    var name = raw.replace('game_character_displayname_','') || player.championName || '';
+    return name ? (DDRAGON + '/img/champion/' + name + '.png') : '';
+  }
+
+  var order = allPlayers.filter(function(p){ return p.team==='ORDER'; });
+  var chaos  = allPlayers.filter(function(p){ return p.team==='CHAOS'; });
+  // Ensure my team is first
+  var teams = myTeam==='ORDER' ? [order,chaos] : [chaos,order];
+  var teamLabels = myTeam==='ORDER' ? ['YOUR TEAM','ENEMY TEAM'] : ['YOUR TEAM','ENEMY TEAM'];
+  var teamCols   = ['var(--blue)','var(--red)'];
+
+  var html = '';
+
+  // ── Header: timer + my stats ──
+  html += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;padding:14px 18px;background:var(--bg3);border:1px solid var(--bd);border-radius:10px;flex-wrap:wrap;">';
+  html += '<div style="font-family:var(--mono);font-size:26px;font-weight:700;color:var(--tx);">⏱ ' + timeStr + '</div>';
+  if (me.championName) {
+    html += '<div style="display:flex;align-items:center;gap:10px;">';
+    var meChampImg = champImg(myPlayer||{championName:me.championName});
+    if (meChampImg) html += '<img src="' + meChampImg + '" style="width:40px;height:40px;border-radius:8px;border:2px solid var(--gold);" onerror="this.style.display=\'none\'">';
+    html += '<div><div style="font-family:var(--head);font-size:16px;font-weight:800;color:var(--tx);">' + (me.championName||'') + '</div>';
+    html += '<div style="font-family:var(--mono);font-size:11px;color:var(--tx3);">Lvl ' + (me.level||1) + ' · ' + Math.floor(me.currentGold||0) + 'g</div>';
+    html += '</div></div>';
+  }
+  if (stats.currentHealth) {
+    html += '<div style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;">';
+    html += mkStat('HP', Math.floor(stats.currentHealth) + '<span style="color:var(--tx3);">/' + Math.floor(stats.maxHealth||0) + '</span>', 'var(--green)');
+    if (stats.resourceValue && stats.maxResourceValue) html += mkStat('MANA', Math.floor(stats.resourceValue) + '<span style="color:var(--tx3);">/' + Math.floor(stats.maxResourceValue) + '</span>', 'var(--blue)');
+    html += mkStat('AD', Math.floor(stats.attackDamage||0), 'var(--red)');
+    html += mkStat('AP', Math.floor(stats.abilityPower||0), 'var(--blue)');
+    html += mkStat('Armor', Math.floor(stats.armor||0), 'var(--tx2)');
+    html += mkStat('MR', Math.floor(stats.magicResist||0), 'var(--tx2)');
+    html += mkStat('AS', (stats.attackSpeed||0).toFixed(2), 'var(--gold)');
+    html += mkStat('CDR', Math.floor(stats.cooldownReduction||0) + '%', 'var(--gold)');
+    if (stats.physicalLethality) html += mkStat('Lethality', Math.floor(stats.physicalLethality||0), 'var(--red)');
+    if (stats.magicPenetration) html += mkStat('Mpen', (stats.magicPenetration||0).toFixed(1), 'var(--blue)');
+    html += '</div>';
+  }
+  // My KDA + CS
+  if (myPlayer) {
+    var sc = myPlayer.scores || {};
+    var d = sc.deaths||0, k = sc.kills||0, a = sc.assists||0;
+    var kda = d===0 ? (k+a).toFixed(1) : ((k+a)/d).toFixed(2);
+    var minsF = gtime/60 || 0.01;
+    var cspm = minsF > 0 ? (((sc.creepScore||0)/minsF).toFixed(1)) : '0.0';
+    html += '<div style="display:flex;gap:20px;margin-top:10px;width:100%;padding-top:10px;border-top:1px solid var(--bd);">';
+    html += mkStat('K/D/A', '<span style="color:var(--green);">'+k+'</span>/<span style="color:var(--red);">'+d+'</span>/<span style="color:var(--tx2);">'+a+'</span>', 'var(--tx)');
+    html += mkStat('KDA', kda, 'var(--gold)');
+    html += mkStat('CS', sc.creepScore||0, 'var(--tx2)');
+    html += mkStat('CS/m', cspm, 'var(--tx2)');
+    html += mkStat('Wards', sc.wardScore||0, 'var(--tx3)');
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // ── My Items ──
+  if (myPlayer && myPlayer.items && myPlayer.items.length) {
+    html += '<div style="margin-bottom:14px;padding:12px 14px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;">';
+    html += '<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--tx3);letter-spacing:2px;margin-bottom:8px;">MY ITEMS</div>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+    myPlayer.items.forEach(function(item) {
+      var id = item.itemID;
+      html += '<div style="position:relative;" title="' + (item.displayName||id) + '">';
+      html += '<img src="' + DDRAGON + '/img/item/' + id + '.png" style="width:40px;height:40px;border-radius:6px;" onerror="this.style.opacity=0.3">';
+      if (item.count > 1) html += '<div style="position:absolute;bottom:0;right:0;background:var(--bg2);font-family:var(--mono);font-size:9px;color:var(--gold);padding:0 3px;">×'+item.count+'</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // ── Teams ──
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">';
+  teams.forEach(function(team, ti) {
+    var col = teamCols[ti];
+    html += '<div style="background:var(--bg3);border:1px solid var(--bd);border-radius:8px;overflow:hidden;">';
+    html += '<div style="padding:8px 12px;font-family:var(--mono);font-size:10px;font-weight:700;color:'+col+';letter-spacing:1px;border-bottom:1px solid var(--bd);">'+teamLabels[ti]+'</div>';
+    team.forEach(function(p) {
+      var isMe = myPlayer && (p.riotId||p.summonerName) === (myPlayer.riotId||myPlayer.summonerName);
+      var sc = p.scores || {};
+      var ci = champImg(p);
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--bd);background:'+(isMe?'rgba(124,106,247,0.1)':'transparent')+'">';
+      if (ci) html += '<img src="'+ci+'" style="width:30px;height:30px;border-radius:5px;" onerror="this.style.opacity=0.3">';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<div style="font-family:var(--head);font-size:12px;font-weight:700;color:'+(isMe?'var(--gold)':'var(--tx)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p.riotId||p.summonerName||'')+'</div>';
+      html += '<div style="font-family:var(--mono);font-size:9px;color:var(--tx3);">'+(p.position||p.team||'')+'</div>';
+      html += '</div>';
+      html += '<div style="font-family:var(--mono);font-size:11px;text-align:right;">';
+      html += '<div><span style="color:var(--green);">'+(sc.kills||0)+'</span> / <span style="color:var(--red);">'+(sc.deaths||0)+'</span> / '+(sc.assists||0)+'</div>';
+      html += '<div style="font-size:9px;color:var(--tx3);">'+(sc.creepScore||0)+' cs</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // ── Recent Events ──
+  var kills = events.filter(function(e){ return e.EventName==='ChampionKill'; }).slice(-6).reverse();
+  var objectives = events.filter(function(e){ return ['DragonKill','BaronKill','TurretKilled','InhibKilled'].includes(e.EventName); }).slice(-4).reverse();
+  var recentAll = events.slice(-10).reverse();
+
+  if (recentAll.length) {
+    html += '<div style="background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;">';
+    html += '<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:var(--tx3);letter-spacing:2px;margin-bottom:8px;">RECENT EVENTS</div>';
+    recentAll.forEach(function(ev) {
+      var t = Math.floor(ev.EventTime||0);
+      var tStr = Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
+      var icon = '⚔️', desc = ev.EventName, col = 'var(--tx2)';
+      if (ev.EventName==='ChampionKill') { icon='💀'; desc=(ev.KillerName||'?')+' killed '+(ev.VictimName||'?'); col='var(--red)'; }
+      else if (ev.EventName==='DragonKill') { icon='🐉'; desc='Dragon slain by '+(ev.KillerName||'?'); col='var(--green)'; }
+      else if (ev.EventName==='BaronKill') { icon='👑'; desc='Baron slain by '+(ev.KillerName||'?'); col='var(--gold)'; }
+      else if (ev.EventName==='TurretKilled') { icon='🏰'; desc='Turret destroyed'; col='var(--blue)'; }
+      else if (ev.EventName==='InhibKilled') { icon='💥'; desc='Inhibitor destroyed'; col='var(--blue)'; }
+      else if (ev.EventName==='GameStart') { icon='🎮'; desc='Game started'; }
+      else if (ev.EventName==='FirstBrick') { icon='🧱'; desc='First turret'; }
+      else return; // skip uninteresting events
+      html += '<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);font-family:var(--mono);font-size:11px;align-items:center;">';
+      html += '<span style="color:var(--tx3);flex-shrink:0;width:32px;">'+tStr+'</span>';
+      html += '<span style="flex-shrink:0;">'+icon+'</span>';
+      html += '<span style="color:'+col+';">'+desc+'</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+
+  // ── Recommended Builds ──
+  var myChampName = (me.championName || '').toLowerCase().replace(/[^a-z0-9]/g,'');
+  var myChampId = null;
+  Object.keys(allChamps).forEach(function(id) {
+    var n = (allChamps[id].name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    if (n === myChampName) myChampId = id;
+  });
+
+  // Enemy players (opposite team from me)
+  var enemyTeam = myTeam === 'ORDER' ? chaos : order;
+  var enemyChampIds = enemyTeam.map(function(p) {
+    var raw = (p.rawChampionName||'').replace('game_character_displayname_','') || (p.championName||'');
+    var rawN = raw.toLowerCase().replace(/[^a-z0-9]/g,'');
+    var found = null;
+    Object.keys(allChamps).forEach(function(id) {
+      var n = (allChamps[id].name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+      if (n === rawN) found = id;
+    });
+    return found || raw;
+  });
+
+  if (myChampId && builds[myChampId] && builds[myChampId].length) {
+    var champBuilds = builds[myChampId];
+
+    // Separate: matchup-specific (enemy present) vs general (no matchup or no match)
+    var matchedBuilds = [];
+    var generalBuilds = [];
+
+    champBuilds.forEach(function(b) {
+      if (b.matchupChamps && b.matchupChamps.length) {
+        // Check if any of this build's matchup champs is in the enemy team
+        var hasMatch = b.matchupChamps.some(function(mcid) {
+          return enemyChampIds.indexOf(mcid) >= 0;
+        });
+        if (hasMatch) matchedBuilds.push(b);
+        else generalBuilds.push(b); // matchup-specific but not vs this enemy
+      } else {
+        generalBuilds.push(b); // no matchup = general
+      }
+    });
+
+    var buildsToShow = matchedBuilds.length ? matchedBuilds : generalBuilds;
+    var sectionTitle = matchedBuilds.length ? 'RECOMMENDED BUILDS (vs your matchup)' : 'YOUR BUILDS FOR ' + (allChamps[myChampId].name||myChampId).toUpperCase();
+    var BASE = 'https://ddragon.leagueoflegends.com/cdn/img/';
+
+    html += '<div style="margin-bottom:14px;">';
+    html += '<div style="font-family:var(--mono);font-size:9px;font-weight:700;color:' + (matchedBuilds.length?'var(--gold)':'var(--tx3)') + ';letter-spacing:2px;margin-bottom:10px;">' +
+      (matchedBuilds.length ? '⭐ ' : '') + sectionTitle + '</div>';
+
+    buildsToShow.forEach(function(b) {
+      var bItems = b.items || [];
+      var bSpells = b.spells || [];
+      var mainPath = b.runeMain && allRuneData.length ? allRuneData.find(function(p){return p.id===b.runeMain;}) : null;
+      var COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+      var pathCol = mainPath ? (COLORS[mainPath.name]||'var(--gold)') : 'var(--gold)';
+
+      html += '<div style="background:var(--bg3);border:1px solid ' + (matchedBuilds.length?'var(--gold)':'var(--bd)') + ';border-radius:10px;padding:14px 16px;margin-bottom:10px;">';
+
+      // Build name + matchup chips
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">';
+      html += '<span style="font-family:var(--head);font-size:15px;font-weight:800;color:var(--tx);">' + (b.name||'Build') + '</span>';
+      if (b.matchupChamps && b.matchupChamps.length) {
+        html += '<span style="font-family:var(--mono);font-size:9px;color:var(--tx3);">vs</span>';
+        b.matchupChamps.forEach(function(mcid) {
+          var inEnemy = enemyChampIds.indexOf(mcid) >= 0;
+          html += '<div style="display:flex;align-items:center;gap:3px;' + (inEnemy?'background:rgba(124,106,247,0.15);border-radius:4px;padding:2px 5px;':'') + '">' +
+            '<img src="' + DDRAGON + '/img/champion/' + mcid + '.png" style="width:18px;height:18px;border-radius:3px;' + (inEnemy?'border:1px solid var(--gold);':'') + '">' +
+            '<span style="font-family:var(--body);font-size:10px;color:' + (inEnemy?'var(--gold)':'var(--tx3)') + ';">' + ((allChamps[mcid]||{}).name||mcid) + '</span>' +
+          '</div>';
+        });
+      }
+      html += '</div>';
+
+      // Items row
+      if (bItems.length) {
+        html += '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">';
+        bItems.forEach(function(id) {
+          html += '<img src="' + DDRAGON + '/img/item/' + id + '.png" title="' + ((allItems[id]||{}).name||id) + '" style="width:36px;height:36px;border-radius:6px;" onerror="this.style.opacity=0.3">';
+        });
+        html += '</div>';
+      }
+
+      // Spells + rune path
+      html += '<div style="display:flex;gap:10px;align-items:center;">';
+      bSpells.forEach(function(sid) {
+        var sp = (allSummonerSpells||[]).find(function(s){return s.id===sid;});
+        if (sp) html += '<img src="' + DDRAGON + '/img/spell/' + sp.image.full + '" title="' + sp.name + '" style="width:26px;height:26px;border-radius:5px;">';
+      });
+      if (mainPath) {
+        html += '<img src="' + BASE + mainPath.icon + '" title="' + mainPath.name + '" style="width:22px;height:22px;border:1px solid ' + pathCol + '33;border-radius:50%;">';
+        // Keystone
+        var ksId = (b.runeMainSlots||[])[0];
+        if (ksId) {
+          var ksRune = null;
+          mainPath.slots.forEach(function(sl){ var r=sl.runes.find(function(x){return x.id===ksId;}); if(r) ksRune=r; });
+          if (ksRune) html += '<img src="' + BASE + ksRune.icon + '" title="' + ksRune.name + '" style="width:26px;height:26px;border-radius:50%;background:#0a0a0f;border:1px solid ' + pathCol + ';">';
+        }
+      }
+      if (b.notes) html += '<span style="font-family:var(--body);font-size:11px;color:var(--tx3);margin-left:4px;">' + b.notes.substring(0,60) + (b.notes.length>60?'…':'') + '</span>';
+      html += '</div>';
+
+      html += '</div>'; // end build card
+    });
+
+    html += '</div>'; // end builds section
+  }
+
+  el.innerHTML = html;
+}
+
+function mkStat(label, val, col) {
+  return '<div style="text-align:center;"><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:'+col+';">'+val+'</div><div style="font-family:var(--mono);font-size:9px;color:var(--tx3);letter-spacing:1px;">'+label+'</div></div>';
+}
+
+
+
+// ══════════════════════════════════════
+// DOWNLOAD WATCHER SCRIPT
+
+
+// ── Match expand ──
+function toggleMatch(idx) {
+  const wrap   = document.getElementById('mwrap-' + idx);
+  const detail = document.getElementById('mdetail-' + idx);
+  const isOpen = detail.classList.contains('open');
+  // Close all others
+  document.querySelectorAll('.match-detail.open').forEach(d => {
+    d.classList.remove('open');
+    d.closest('.match-wrap')?.classList.remove('expanded');
+  });
+  if (!isOpen) {
+    detail.classList.add('open');
+    wrap.classList.add('expanded');
+  }
+}
+
+// ── Load another player's profile ──
+async function loadPlayerProfile(name, tag) {
+  // Save current summoner
+  const prev = {...summoner};
+  const el = document.getElementById('profile-content');
+  el.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>LOADING ' + name.toUpperCase() + '</span></div>';
+
+  try {
+    const resp = await riotFetch('/riot/account/v1/accounts/by-riot-id/' + encodeURIComponent(name) + '/' + encodeURIComponent(tag), summoner.routing);
+    if (!resp.puuid) throw new Error('Not found');
+
+    // Temporarily switch summoner context
+    const prevSummoner = {...summoner};
+    summoner = {...resp, platform: prev.platform, routing: prev.routing};
+
+    const [ranked, mastery, matchIds] = await Promise.all([
+      riotFetch('/lol/league/v4/entries/by-puuid/' + resp.puuid, prev.platform),
+      riotFetch('/lol/champion-mastery/v4/champion-masteries/by-puuid/' + resp.puuid + '?count=10', prev.platform),
+      riotFetch('/lol/match/v5/matches/by-puuid/' + resp.puuid + '/ids?start=0&count=20', prev.routing)
+    ]);
+
+    const matches = [];
+    for (let i = 0; i < matchIds.length; i += 5) {
+      const batch = matchIds.slice(i, i+5);
+      const results = await Promise.all(batch.map(id => riotFetch('/lol/match/v5/matches/' + id, prev.routing)));
+      matches.push(...results);
+      if (i+5 < matchIds.length) await new Promise(r => setTimeout(r, 400));
+    }
+
+    allMatches = matches;
+    allMastery = mastery;
+    displayedMatches = 20;
+
+    // Add back button to profile content
+    renderProfile(null, ranked, mastery, matches.slice(0, 20));
+    // Prepend back button
+    const backBtn = '<div style="margin-bottom:16px;"><button onclick="restoreSummoner()" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:11px;cursor:pointer;">← BACK TO ' + prev.gameName.toUpperCase() + '</button></div>';
+    document.getElementById('profile-content').innerHTML = backBtn + document.getElementById('profile-content').innerHTML;
+
+    // Update topbar name display
+    const dn2=document.getElementById('disp-name'); if(dn2) dn2.textContent = name;
+    const dt2=document.getElementById('disp-tag'); if(dt2) dt2.textContent = '#' + tag;
+
+    // Store prev for back button
+    window._prevSummoner = prevSummoner;
+  } catch(e) {
+    summoner = prev;
+    el.innerHTML = '<div class="error-msg">Failed to load profile: ' + e.message + '</div>';
+  }
+}
+
+function restoreSummoner() {
+  if (!window._prevSummoner) return;
+  summoner = window._prevSummoner;
+  const dn = document.getElementById('disp-name'); if (dn) dn.textContent = summoner.gameName;
+  const dt = document.getElementById('disp-tag'); if (dt) dt.textContent = '#' + summoner.tagLine;
+  loadProfile();
+}
+
+// ── Close modals on outside click ──
+document.getElementById('build-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeBuildModal();
+});
+document.getElementById('item-results').addEventListener('click', function(e) {
+  e.stopPropagation();
+});
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.item-search-wrap')) {
+    document.getElementById('item-results').innerHTML = '';
+  }
+});
+
+// ══════════════════════════════════════
+// TAB 4: CHAMPIONS
+// ══════════════════════════════════════
+let champList = [], champListLoaded = false;
+let _champClassFilter = 'All', _champResourceFilter = 'All';
+
+async function loadChampionsTab() {
+  if (champListLoaded) return;
+  const el = document.getElementById('champions-content');
+
+  try {
+    const data = await fetch(`${DDRAGON}/data/en_US/champion.json`).then(r => r.json());
+    champList = Object.values(data.data).sort((a,b) => a.name.localeCompare(b.name));
+    champListLoaded = true;
+    renderChampionsGrid(champList);
+  } catch(e) {
+    el.innerHTML = `<div class="error-msg">Failed to load champions: ${e.message}</div>`;
+  }
+}
+
+function renderChampionsGrid(list) {
+  const el = document.getElementById('champions-content');
+  if (!document.getElementById('champs-search')) {
+    const bar = document.createElement('div');
+    bar.className = 'champs-search-bar';
+    bar.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+    bar.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<div style="position:relative;flex:1;">' +
+          '<input class="champs-search-input" placeholder="Search champions..." id="champs-search" style="width:100%;padding-right:40px;">' +
+          '<button onclick="clearChampSearch()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;line-height:1;padding:0;">&#x2715;</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;">' +
+        '<div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;">CLASS</div>' +
+        '<div id="champ-class-chips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;">' +
+        '<div style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;">RESOURCE TYPE</div>' +
+        '<div id="champ-res-chips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>' +
+      '</div>';
+    const gridArea = document.createElement('div');
+    gridArea.id = 'champs-grid-area';
+    el.innerHTML = '';
+    el.appendChild(bar);
+    el.appendChild(gridArea);
+
+    document.getElementById('champs-search').addEventListener('input', function() {
+      clearTimeout(this._deb);
+      var v = this.value;
+      this._deb = setTimeout(function(){ updateChampsGrid(v); }, 120);
+    });
+
+    var CLASSES = ['All','Fighter','Tank','Mage','Assassin','Support','Marksman'];
+    var RESOURCES = ['All','Mana','Energy','None','Fury','Grit','Ferocity','Heat'];
+    var classChips = document.getElementById('champ-class-chips');
+    CLASSES.forEach(function(cls) {
+      var sp = document.createElement('span');
+      sp.textContent = cls;
+      sp.style.cssText = 'padding:4px 12px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:600;background:'+(cls==='All'?'var(--gold)':'var(--bg3)')+';color:'+(cls==='All'?'#fff':'var(--tx2)')+';border:1px solid '+(cls==='All'?'var(--gold)':'var(--bd2)')+';transition:all 0.15s;';
+      sp.addEventListener('click', function() {
+        _champClassFilter = cls;
+        classChips.querySelectorAll('span').forEach(function(c){
+          var a = c.textContent === cls;
+          c.style.background = a?'var(--gold)':'var(--bg3)';
+          c.style.color = a?'#fff':'var(--tx2)';
+          c.style.border = '1px solid '+(a?'var(--gold)':'var(--bd2)');
+        });
+        updateChampsGrid();
+      });
+      classChips.appendChild(sp);
+    });
+
+    var resChips = document.getElementById('champ-res-chips');
+    RESOURCES.forEach(function(res) {
+      var sp = document.createElement('span');
+      sp.textContent = res;
+      sp.style.cssText = 'padding:4px 12px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:600;background:'+(res==='All'?'var(--blue)':'var(--bg3)')+';color:'+(res==='All'?'#fff':'var(--tx2)')+';border:1px solid '+(res==='All'?'var(--blue)':'var(--bd2)')+';transition:all 0.15s;';
+      sp.addEventListener('click', function() {
+        _champResourceFilter = res;
+        resChips.querySelectorAll('span').forEach(function(c){
+          var a = c.textContent === res;
+          c.style.background = a?'var(--blue)':'var(--bg3)';
+          c.style.color = a?'#fff':'var(--tx2)';
+          c.style.border = '1px solid '+(a?'var(--blue)':'var(--bd2)');
+        });
+        updateChampsGrid();
+      });
+      resChips.appendChild(sp);
+    });
+  }
+  updateChampsGrid();
+}
+
+function clearChampSearch() {
+  const inp = document.getElementById('champs-search');
+  if (inp) { inp.value = ''; updateChampsGrid(''); inp.focus(); }
+}
+
+function updateChampsGrid(query) {
+  const gridEl = document.getElementById('champs-grid-area');
+  if (!gridEl) return;
+  const rawQ = (query !== undefined && query !== null) ? query : (document.getElementById('champs-search') ? document.getElementById('champs-search').value : '');
+  const q = (rawQ || '').toLowerCase();
+  let list = champList;
+  if (q) list = list.filter(function(c){ return c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q); });
+  if (_champClassFilter !== 'All') list = list.filter(function(c){ return (c.tags||[]).includes(_champClassFilter); });
+  if (_champResourceFilter !== 'All') {
+    const res = _champResourceFilter;
+    list = list.filter(function(c){
+      if (res === 'None') return c.partype === '' || c.partype === 'None' || !c.partype;
+      return c.partype === res;
+    });
+  }
+  if (!list.length) { gridEl.innerHTML = '<div style="text-align:center;padding:40px;font-family:var(--mono);font-size:13px;color:var(--tx3);">No champions found</div>'; return; }
+  gridEl.innerHTML = '<div class="champ-grid">' +
+    list.map(function(c) {
+      return '<div class="champ-card" data-cid="' + c.id + '" onclick="openChampOverlay(this.dataset.cid)">' +
+        '<img src="' + DDRAGON + '/img/champion/' + c.id + '.png" alt="' + c.name + '" loading="lazy" onerror="this.style.opacity=0.3">' +
+        '<div class="champ-name" style="font-family:var(--body);font-weight:600;font-size:14px;color:var(--tx);">' + c.name + '</div>' +
+        '</div>';
+    }).join('') +
+    '</div>';
+}
+
+function filterChamps(query) { updateChampsGrid(query); }
+
+async function openChampOverlay(champId) {
+  closePlayerMenu();
+  const overlay = document.getElementById('champ-overlay');
+  const inner   = document.getElementById('champ-overlay-inner');
+  overlay.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  inner.innerHTML = `<div class="loading-state"><div class="spinner"></div><span>LOADING</span></div>`;
+
+  try {
+    const ddData = await fetch(`${DDRAGON}/data/en_US/champion/${champId}.json`).then(r=>r.json());
+    const c = ddData.data[champId];
+    const spells = c.spells;
+    const passive = c.passive;
+
+    const abilities = [
+      { key: 'Passive', name: passive.name, desc: passive.description.replace(/<[^>]+>/g,''), img: `${DDRAGON}/img/passive/${passive.image.full}` },
+      ...spells.map((s, i) => ({
+        key: ['Q','W','E','R'][i],
+        name: s.name,
+        desc: s.description.replace(/<[^>]+>/g,''),
+        img: `${DDRAGON}/img/spell/${s.image.full}`,
+        cd: s.cooldown?.join(' / '),
+        cost: s.cost?.join(' / ')
+      }))
+    ];
+
+    inner.innerHTML = `
+      <div class="co-close" onclick="document.getElementById('champ-overlay').style.display='none';document.getElementById('champ-overlay-inner').innerHTML='';document.body.style.overflow='';">✕</div>
+      <div class="co-header">
+        <img class="co-splash" src="https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${champId}_0.jpg" alt="${c.name}" onerror="this.style.display='none'">
+        <div class="co-header-info">
+          <div class="co-name">${c.name}</div>
+          <div class="co-title">${c.title}</div>
+          <div class="co-tags">${c.tags.map(t=>`<span class="co-tag">${t}</span>`).join('')}</div>
+        </div>
+      </div>
+      <div class="section-hdr"><h2>LORE</h2></div>
+      <div class="co-lore">${c.lore}</div>
+      <div class="section-hdr" style="margin-top:24px;"><h2>ABILITIES</h2></div>
+      <div class="co-abilities">
+        ${abilities.map(a => `
+          <div class="co-ability">
+            <img src="${a.img}" alt="${a.name}" onerror="this.style.opacity=0.3">
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span class="ab-key">${a.key}</span>
+                <span class="ab-name">${a.name}</span>
+              </div>
+
+              <div class="ab-desc">${a.desc}</div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  } catch(e) {
+    inner.innerHTML = `<div class="error-msg">Failed to load champion: ${e.message}</div>`;
+  }
+}
+
+function closeChampOverlay(e) {
+  if (e && e.target !== document.getElementById('champ-overlay')) return;
+  document.getElementById('champ-overlay').style.display = 'none';
+  document.getElementById('champ-overlay-inner').innerHTML = '';
+  document.body.style.overflow = '';
+}
+
+// ══════════════════════════════════════
+// TAB 5: ITEMS
+// ══════════════════════════════════════
+let itemsLoaded = false, activeItemTag = 'All';
+
+const ITEM_TAGS = ['All','Damage','Tank','Fighter','Mage','Assassin','Support','Jungle','Lane','Starter'];
+
+async function loadItemsTab() {
+  if (itemsLoaded) return;
+  const el = document.getElementById('items-content');
+  el.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>LOADING ITEMS</span></div>';
+  try {
+    const data = await fetch(`${DDRAGON}/data/en_US/item.json`).then(r=>r.json());
+    const seen = new Set();
+    allItemsData = Object.entries(data.data)
+      .map(([id, item]) => ({ id, ...item }))
+      .filter(item => {
+        if (!item.gold?.purchasable) return false;
+        if (item.requiredChampion || item.requiredAlly) return false;
+        if (!item.maps?.['11']) return false;
+        // Deduplicate by name
+        if (seen.has(item.name)) return false;
+        seen.add(item.name);
+        return true;
+      })
+      .sort((a,b) => (b.gold?.total||0) - (a.gold?.total||0));
+    itemsLoaded = true;
+    renderItemsGrid('All', '');
+  } catch(e) {
+    el.innerHTML = `<div class="error-msg">Failed to load items: ${e.message}</div>`;
+  }
+}
+
+function itemMatchesCategory(item, cat) {
+  var cost = (item.gold && item.gold.total) || 0;
+  var tags = item.tags || [];
+  var depth = item.depth || 1;
+  switch(cat) {
+    case 'All':        return true;
+    case 'Starter':    return cost <= 500;
+    case 'Consumable': return tags.includes('Consumable') || cost === 0;
+    case 'Boots':      return tags.includes('Boots');
+    case 'Basic':      return depth === 1 && !tags.includes('Boots') && !tags.includes('Consumable') && cost > 500;
+    case 'Epic':       return depth === 2 && !tags.includes('Boots');
+    case 'Legendary':  return depth === 3;
+    default:           return true;
+  }
+}
+
+function renderItemsGrid(activeTag, query) {
+  var el = document.getElementById('items-content');
+  if (!el) return;
+  activeItemTag = activeTag || activeItemTag;
+  var searchEl = document.getElementById('item-search');
+  var q = (query != null ? query : (searchEl ? searchEl.value : '')).toLowerCase();
+  var CAT_KEYS = ['All','Starter','Consumable','Boots','Basic','Epic','Legendary'];
+
+  // Build filter bar only once
+  if (!document.getElementById('item-search')) {
+    var fb = '<div class="items-filter-bar" id="items-filter-bar" style="position:sticky;top:0;z-index:10;background:var(--bg);padding:12px 0;border-bottom:1px solid var(--bd);box-shadow:0 4px 16px rgba(0,0,0,0.4);">' +
+      '<div style="position:relative;flex:1;min-width:200px;">' +
+        '<input id="item-search" placeholder="Search items..." style="width:100%;height:44px;padding:0 40px 0 18px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:15px;outline:none;box-sizing:border-box;">' +
+        '<button onclick="clearItemSearch()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:0;">&#x2715;</button>' +
+      '</div><div id="item-cat-chips" style="display:flex;gap:6px;flex-wrap:wrap;"></div></div>' +
+      '<div id="items-grid-area"></div>';
+    el.innerHTML = fb;
+    document.getElementById('item-search').addEventListener('input', function() {
+      clearTimeout(window._itemDeb);
+      var v = this.value;
+      window._itemDeb = setTimeout(function(){ renderItemsGrid(activeItemTag, v); }, 150);
+    });
+    var chips = document.getElementById('item-cat-chips');
+    CAT_KEYS.forEach(function(t) {
+      var sp = document.createElement('span');
+      sp.id = 'icat-' + t;
+      sp.className = 'filter-chip' + (t === activeItemTag ? ' active' : '');
+      sp.textContent = t;
+      sp.addEventListener('click', function(){ itemCatClick(t); });
+      chips.appendChild(sp);
+    });
+  }
+
+  // Update chip active states
+  CAT_KEYS.forEach(function(t) {
+    var chip = document.getElementById('icat-' + t);
+    if (chip) chip.className = 'filter-chip' + (t === activeItemTag ? ' active' : '');
+  });
+
+  // Filter + render grid
+  var filtered = allItemsData.filter(function(i){ return itemMatchesCategory(i, activeItemTag); });
+  if (q) filtered = filtered.filter(function(i){ return i.name.toLowerCase().includes(q); });
+  filtered.sort(function(a,b){ return a.name.localeCompare(b.name); });
+
+  var gridEl = document.getElementById('items-grid-area');
+  if (!gridEl) return;
+  if (!filtered.length) {
+    gridEl.innerHTML = '<div style="text-align:center;padding:60px;font-family:var(--mono);font-size:13px;color:var(--tx3);">No items found</div>';
+    return;
+  }
+  var grid = '<div class="items-grid">';
+  filtered.forEach(function(item) {
+    grid += '<div class="item-tile" onclick="openItemOverlay(\'' + item.id + '\')">' +
+      '<img src="' + DDRAGON + '/img/item/' + (item.image&&item.image.full||'') + '" loading="lazy" onerror="this.style.opacity=0.2">' +
+      '<span class="it-name">' + item.name + '</span>' +
+      '<span class="it-cost">' + (item.gold&&item.gold.total||0) + 'g</span>' +
+      '</div>';
+  });
+  grid += '</div>';
+  gridEl.innerHTML = grid;
+}
+
+function clearInput(id, callback) {
+  const inp = document.getElementById(id);
+  if (inp) { inp.value = ''; if(callback) callback(''); inp.focus(); }
+}
+
+function clearItemSearch() {
+  const inp = document.getElementById('item-search');
+  if (inp) { inp.value = ''; renderItemsGrid(activeItemTag, ''); inp.focus(); }
+}
+
+function itemCatClick(tag) {
+  activeItemTag = tag;
+  const val = document.getElementById('item-search')?.value || '';
+  renderItemsGrid(tag, val);
+}
+
+// filterItems merged into renderItemsGrid
+
+function openItemOverlay(itemId) {
+  closePlayerMenu();
+  const item = allItemsData.find(function(x){ return x.id === itemId; });
+  if (!item) return;
+  document.getElementById('item-overlay').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  const inner = document.getElementById('item-overlay-inner');
+
+  const desc = (item.description||'')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/@[A-Za-z0-9_.]+@/g, '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/\(\s*s\)/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  // Extract stats from description HTML (more complete than item.stats{})
+  // Description uses <stats><attention>+value</attention> Stat Name<br></stats>
+  let statsHtml = '';
+  const rawDesc = item.description || '';
+  // Try to parse <stats> block first
+  const statsMatch = rawDesc.match(/<stats>([\s\S]*?)<\/stats>/i);
+  if (statsMatch) {
+    const statsBlock = statsMatch[1];
+    // Each stat: <attention>+N</attention> Label<br>  OR  <attention>N%</attention> Label
+    const statLines = statsBlock.split(/<br\s*\/?>/i).filter(function(l){ return l.trim(); });
+    statLines.forEach(function(line) {
+      const clean = line.replace(/<[^>]+>/g, ' ').replace(/\s+/g,' ').trim();
+      if (clean) statsHtml += '<div class="io-stat">' + clean + '</div>';
+    });
+  }
+  // Fallback to item.stats{} if no stats block found
+  if (!statsHtml) {
+    const SLABELS = {FlatHPPoolMod:'HP',FlatMPPoolMod:'Mana',FlatArmorMod:'Armor',FlatSpellBlockMod:'Magic Resist',FlatPhysicalDamageMod:'Attack Damage',FlatMagicDamageMod:'Ability Power',FlatMovementSpeedMod:'Move Speed',FlatCritChanceMod:'Crit Chance',FlatAttackSpeedMod:'Attack Speed',FlatHPRegenMod:'HP Regen',PercentLifeStealMod:'Life Steal',PercentMovementSpeedMod:'Move Speed',FlatArmorPenetrationMod:'Armor Pen',PercentArmorPenetrationMod:'Armor Pen %'};
+    Object.entries(item.stats||{}).forEach(function(kv){
+      const k=kv[0],v=kv[1],pct=k.startsWith('Percent')?'%':'';
+      const label=SLABELS[k]||k.replace(/Flat|Mod|Percent/g,'').replace(/([A-Z])/g,' $1').trim();
+      statsHtml += '<div class="io-stat"><span>+'+v+pct+'</span> '+label+'</div>';
+    });
+  }
+
+  const g = item.gold||{};
+  const costStr = g.total ? g.total+'g'+(g.sell?' (sells '+g.sell+'g)':'') : '';
+  const tagsStr = (item.tags||[]).map(function(t){return '<span class="io-tag">'+t+'</span>';}).join('');
+  const imgSrc = DDRAGON+'/img/item/'+(item.image&&item.image.full||'');
+
+  inner.innerHTML =
+    '<div class="io-close" onclick="closeItemOverlay()">&#x2715;</div>'+
+    '<div class="io-header">'+
+      '<img src="'+imgSrc+'" alt="'+item.name+'">'+
+      '<div>'+
+        '<div class="io-name">'+item.name+'</div>'+
+        (costStr?'<div class="io-cost">'+costStr+'</div>':'')+
+        (tagsStr?'<div class="io-tags-row">'+tagsStr+'</div>':'')+
+      '</div>'+
+    '</div>'+
+    (statsHtml?'<div class="io-stats">'+statsHtml+'</div>':'')+
+    '<div class="io-desc" style="white-space:pre-line;">'+desc+'</div>'+
+    ((item.from||[]).length ? '<div id="io-from-section" style="margin-top:20px;"><div style="font-family:var(--mono);font-size:10px;color:var(--tx3);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">BUILDS FROM</div><div id="io-from-row" style="display:flex;gap:8px;flex-wrap:wrap;"></div></div>' : '')+
+    ((item.into||[]).length ? '<div id="io-into-section" style="margin-top:16px;"><div style="font-family:var(--mono);font-size:10px;color:var(--tx3);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">BUILDS INTO</div><div id="io-into-row" style="display:flex;gap:8px;flex-wrap:wrap;"></div></div>' : '');
+
+  // Populate builds-from with DOM elements
+  var fromRow = document.getElementById('io-from-row');
+  if (fromRow) {
+    (item.from||[]).forEach(function(fid) {
+      var fi = allItemsData.find(function(x){return x.id===fid;}) || allItems[fid];
+      if (!fi) return;
+      var el = document.createElement('div');
+      el.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:8px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;width:76px;min-height:90px;transition:border-color 0.15s;box-sizing:border-box;';
+      el.addEventListener('click', function(){ openItemOverlay(fid); });
+      el.addEventListener('mouseover', function(){ this.style.borderColor='var(--bd2)'; });
+      el.addEventListener('mouseout',  function(){ this.style.borderColor='var(--bd)'; });
+      el.innerHTML = '<img src="'+DDRAGON+'/img/item/'+(fi.image&&fi.image.full||'')+'" style="width:40px;height:40px;border-radius:6px;" onerror="this.style.opacity=0.3"><span style="font-family:var(--body);font-size:12px;font-weight:700;color:var(--tx);text-align:center;white-space:normal;word-break:break-word;width:100%;display:block;line-height:1.3;">'+(fi.name||fid)+'</span>';
+      fromRow.appendChild(el);
+    });
+  }
+
+  // Populate builds-into with DOM elements (only current items)
+  var intoRow = document.getElementById('io-into-row');
+  var intoSection = document.getElementById('io-into-section');
+  if (intoRow) {
+    var intoCount = 0;
+    (item.into||[]).forEach(function(iid) {
+      var ti = allItemsData.find(function(x){return x.id===iid;});
+      if (!ti) return; // skip removed/unavailable items
+      intoCount++;
+      var cost = ti.gold&&ti.gold.total ? ti.gold.total+'g' : '';
+      var el = document.createElement('div');
+      el.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:8px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;width:76px;min-height:90px;transition:border-color 0.15s;box-sizing:border-box;';
+      el.addEventListener('click', function(){ openItemOverlay(iid); });
+      el.addEventListener('mouseover', function(){ this.style.borderColor='var(--gold)'; });
+      el.addEventListener('mouseout',  function(){ this.style.borderColor='var(--bd)'; });
+      el.innerHTML = '<img src="'+DDRAGON+'/img/item/'+(ti.image&&ti.image.full||'')+'" style="width:40px;height:40px;border-radius:6px;" onerror="this.style.opacity=0.3"><span style="font-family:var(--body);font-size:12px;font-weight:700;color:var(--tx);text-align:center;white-space:normal;word-break:break-word;width:100%;display:block;line-height:1.3;">'+ti.name+'</span>'+(cost?'<span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--gold);">'+cost+'</span>':'');
+      intoRow.appendChild(el);
+    });
+  }
+
+}
+
+function closeItemOverlay(e) {
+  if (e && e.target !== document.getElementById('item-overlay')) return;
+  document.getElementById('item-overlay').style.display = 'none';
+  document.getElementById('item-overlay-inner').innerHTML = '';
+  document.body.style.overflow = '';
+}
+
+// ══════════════════════════════════════
+// SPECTATE TAB
+// ══════════════════════════════════════
+async function lookupSpectate() {
+  const name = document.getElementById('spectate-name').value.trim();
+  const tag  = document.getElementById('spectate-tag').value.replace('#','').trim() || 'NA1';
+  const regionEl = document.getElementById('spectate-region');
+  const routing  = regionEl ? regionEl.value : (summoner.routing || 'americas');
+  const platform = {'americas':'na1','europe':'euw1','asia':'kr','sea':'oc1'}[routing] || 'na1';
+  if (!name) return;
+  const el = document.getElementById('spectate-result');
+  el.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>CHECKING...</span></div>';
+
+  try {
+    // Get PUUID
+    const acct = await riotFetch('/riot/account/v1/accounts/by-riot-id/' + encodeURIComponent(name) + '/' + encodeURIComponent(tag), routing);
+    if (!acct || !acct.puuid) throw new Error('notfound');
+    const dispName = acct.gameName || name;
+    const dispTag  = acct.tagLine  || tag;
+
+    // Check live game
+    let game;
+    try {
+      game = await riotFetch('/lol/spectator/v5/active-games/by-summoner/' + acct.puuid, summoner.platform);
+    } catch(e) {
+      // 404 = not in game
+      el.innerHTML = renderNotInGame(dispName, dispTag);
+      return;
+    }
+
+    if (!game || !game.participants) {
+      el.innerHTML = renderNotInGame(dispName, dispTag);
+      return;
+    }
+
+    el.innerHTML = renderSpectateGame(game, acct.puuid, dispName, dispTag);
+  } catch(e) {
+    const code = e.message || '';
+    const msg = (code==='404'||code.includes('404')) ? '😕 Summoner not found. Check the name, tag, and region.'
+              : (code==='403') ? '🔑 API key error — check your Worker deployment.'
+              : '⚠️ ' + code;
+    el.innerHTML = '<div style="font-family:var(--body);font-size:14px;color:var(--tx2);padding:20px 24px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;line-height:1.6;">' + msg + '</div>';
+  }
+}
+
+function spectateQuick(name, tag) {
+  document.getElementById('spectate-name').value = name;
+  document.getElementById('spectate-tag').value = tag;
+  lookupSpectate();
+}
+
+function renderNotInGame(name, tag) {
+  return '<div style="text-align:center;padding:48px;background:var(--bg3);border:1px solid var(--bd);border-radius:10px;">' +
+    '<div style="font-size:40px;margin-bottom:12px;">💤</div>' +
+    '<div style="font-family:var(--head);font-size:20px;font-weight:700;color:var(--tx);margin-bottom:6px;">' + name + ' <span style="color:var(--tx3);">#' + tag + '</span></div>' +
+    '<div style="font-family:var(--mono);font-size:12px;color:var(--tx3);letter-spacing:1px;">NOT CURRENTLY IN A GAME</div>' +
+    '</div>';
+}
+
+function renderSpectateGame(game, targetPuuid, name, tag) {
+  const QUEUE = {420:'Ranked Solo/Duo',440:'Ranked Flex',450:'ARAM',400:'Normal Draft',490:'Normal Blind',430:'Normal Blind',900:'URF',1020:'One for All',700:'Clash',1300:'Swiftplay',1900:'Swiftplay',1400:'Ultimate Spellbook',720:'ARAM Clash',830:'Co-op vs AI',840:'Co-op vs AI',850:'Co-op vs AI',2000:'Tutorial',2010:'Tutorial',2020:'Tutorial'};
+  const qName = QUEUE[game.gameQueueConfigId] || 'Game';
+  const mins = Math.floor((game.gameLength||0) / 60);
+  const secs = String((game.gameLength||0) % 60).padStart(2,'0');
+  const timeStr = game.gameLength > 0 ? mins + ':' + secs : 'In Lobby';
+
+  const blue = game.participants.filter(p => p.teamId === 100);
+  const red  = game.participants.filter(p => p.teamId === 200);
+
+  function findRuneIcon(rid) {
+    if (!rid || !allRuneData.length) return null;
+    for (const path of allRuneData) {
+      for (const slot of path.slots) {
+        const r = slot.runes.find(x => x.id===rid);
+        if (r) return {icon:r.icon, name:r.name};
+      }
+    }
+    return null;
+  }
+  function findPathIcon(sid) {
+    if (!sid || !allRuneData.length) return null;
+    const p = allRuneData.find(x => x.id===sid);
+    return p ? {icon:p.icon, name:p.name} : null;
+  }
+
+  function renderTeam(team, side) {
+    const isBlue = side === 'blue';
+    const sideColor = isBlue ? 'var(--blue)' : 'var(--red)';
+    let h = '<div style="background:' + (isBlue?'rgba(91,156,246,0.05)':'rgba(240,96,112,0.05)') + ';border-bottom:1px solid var(--bd);">' +
+      '<div class="live-team-hdr" style="color:' + sideColor + ';">' +
+      '<span>' + (isBlue?'🔵 Blue Team':'🔴 Red Team') + '</span>' +
+      '<span>SPELLS</span><span>RUNES</span><span></span>' +
+      '</div></div>';
+
+    team.forEach(function(p) {
+      const isTarget = p.puuid === targetPuuid;
+      const champObj = Object.values(allChamps).find(c => parseInt(c.key) === p.championId);
+      const cName = champObj ? champObj.id : 'Unknown';
+      const spellKeys = {};
+      (allSummonerSpells||[]).forEach(function(s){ spellKeys[parseInt(s.key)] = s; });
+      const s1 = spellKeys[p.spell1Id], s2 = spellKeys[p.spell2Id];
+      const runeId = p.perks && p.perks.perkIds && p.perks.perkIds[0];
+      const secStyleId = p.perks && (p.perks.perkSubStyle || p.perks.perkStyle);
+      const keystoneData = findRuneIcon(runeId);
+      const secPathData  = findPathIcon(secStyleId);
+      const rowBg = isTarget ? 'background:rgba(124,106,247,0.1);' : '';
+      const pName = (p.riotId||p.summonerName||'Player').split('#')[0];
+      const pTag  = (p.riotId||'').split('#')[1]||'';
+
+      h += '<div class="live-player-row" style="' + (rowBg?rowBg+';':'') + 'cursor:pointer;"' +
+           ' data-pname="' + pName.replace(/"/g,'&quot;') + '" data-ptag="' + pTag + '" data-cid="' + cName + '"' +
+           ' onclick="showPlayerMenu(event,this.dataset.pname,this.dataset.ptag,this.dataset.cid)">' +
+        '<div class="live-champ">' +
+          '<img src="' + champIconUrl(cName) + '" style="width:36px;height:36px;border-radius:6px;" onerror="this.style.opacity=0.3">' +
+          '<div><div style="font-family:var(--body);font-size:13px;font-weight:' + (isTarget?'800':'600') + ';color:' + (isTarget?'var(--gold)':'var(--tx)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;">' +
+            pName + (isTarget?' ★':'') + '</div>' +
+          '<div style="font-family:var(--mono);font-size:9px;color:var(--tx3);">' + (champObj&&champObj.name||cName) + '</div></div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:2px;align-items:center;">' +
+          (s1?'<img src="'+DDRAGON+'/img/spell/'+s1.image.full+'" data-spid="'+s1.id+'" style="width:18px;height:18px;border-radius:2px;cursor:pointer;" title="'+s1.name+'" onclick="event.stopPropagation();openSpellOverlay(this.dataset.spid)">'
+             :'<div style="width:18px;height:18px;background:var(--bg5);border-radius:2px;"></div>') +
+          (s2?'<img src="'+DDRAGON+'/img/spell/'+s2.image.full+'" data-spid="'+s2.id+'" style="width:18px;height:18px;border-radius:2px;cursor:pointer;" title="'+s2.name+'" onclick="event.stopPropagation();openSpellOverlay(this.dataset.spid)">'
+             :'<div style="width:18px;height:18px;background:var(--bg5);border-radius:2px;"></div>') +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:2px;align-items:center;">' +
+          (keystoneData?'<img src="https://ddragon.leagueoflegends.com/cdn/img/'+keystoneData.icon+'" data-ricon="'+keystoneData.icon+'" data-rname="'+keystoneData.name+'" style="width:20px;height:20px;border-radius:50%;background:#000;cursor:pointer;" title="'+keystoneData.name+'" onclick="event.stopPropagation();openRuneOverlayByIcon(this.dataset.ricon,this.dataset.rname)">'
+                       :'<div style="width:20px;height:20px;background:var(--bg5);border-radius:50%;"></div>') +
+          (secPathData?'<img src="https://ddragon.leagueoflegends.com/cdn/img/'+secPathData.icon+'" style="width:16px;height:16px;border-radius:50%;background:#000;opacity:0.8;" title="'+secPathData.name+'">'
+                      :'<div style="width:16px;height:16px;background:var(--bg4);border-radius:50%;"></div>') +
+        '</div>' +
+        '<div></div></div>';
+    });
+    return h;
+  }
+
+  return '<div class="live-game-banner" style="margin-bottom:16px;">' +
+      '<div class="live-pulse"></div>' +
+      '<div><div style="font-family:var(--head);font-size:18px;font-weight:700;color:var(--green);">' + name + ' <span style="color:var(--tx3);font-weight:400;font-size:14px;">#' + tag + '</span> is LIVE</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;"><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--gold);background:rgba(167,139,250,0.12);padding:2px 8px;border-radius:4px;">' + qName + '</span><span style="font-family:var(--mono);font-size:11px;color:var(--tx3);">' + timeStr + '</span></div></div>' +
+      '<button onclick="lookupSpectate()" style="margin-left:auto;height:32px;padding:0 16px;background:transparent;border:1px solid var(--green);border-radius:6px;color:var(--green);font-family:var(--mono);font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;">&#x21BB; REFRESH</button>' +
+    '</div>' +
+    '<div class="live-game-wrap">' + renderTeam(blue,'blue') + renderTeam(red,'red') + '</div>';
+}
+
+// ══ PLAYER CONTEXT MENU ══
+let _menuPlayer = null;
+
+function showPlayerMenu(event, name, tag, champId) {
+  event.stopPropagation();
+  _menuPlayer = {name, tag, champId};
+  const menu = document.getElementById('player-menu');
+  document.getElementById('player-menu-name').textContent = name + (tag ? ' #' + tag : '');
+  menu.style.display = 'block';
+  menu.style.left = event.clientX + 'px';
+  menu.style.top  = event.clientY + 'px';
+  requestAnimationFrame(function() {
+    const r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth)   menu.style.left = (window.innerWidth - r.width - 8) + 'px';
+    if (r.bottom > window.innerHeight) menu.style.top  = (event.clientY - r.height) + 'px';
+  });
+}
+
+function closePlayerMenu() { document.getElementById('player-menu').style.display = 'none'; }
+
+function playerMenuViewProfile() {
+  closePlayerMenu();
+  if (!_menuPlayer) return;
+  loadPlayerProfile(_menuPlayer.name, _menuPlayer.tag || 'NA1');
+  switchTab('profile');
+}
+
+function playerMenuViewChamp() {
+  closePlayerMenu();
+  if (!_menuPlayer || !_menuPlayer.champId) return;
+  openChampOverlay(_menuPlayer.champId);
+}
+
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('player-menu');
+  if (menu && !menu.contains(e.target)) closePlayerMenu();
+});
+
+
+// ══════════════════════════════════════
+// TAB: SPELLS
+// ══════════════════════════════════════
+let spellsTabLoaded = false;
+
+async function loadSpellsTab() {
+  if (spellsTabLoaded) return;
+  const el = document.getElementById('spells-content');
+  try {
+    const data = await fetch(`${DDRAGON}/data/en_US/summoner.json`).then(r=>r.json());
+    allSpellsData = Object.values(data.data);
+    spellsTabLoaded = true;
+    renderSpellsTab();
+  } catch(e) {
+    el.innerHTML = '<div class="error-msg">Failed to load spells: ' + e.message + '</div>';
+  }
+}
+
+function renderSpellsTab() {
+  const el = document.getElementById('spells-content');
+  if (!el) return;
+
+  // Allowlist: only show these spells
+  const STANDARD_IDS = ['SummonerHeal','SummonerHaste','SummonerBarrier','SummonerExhaust','SummonerFlash','SummonerTeleport','SummonerSmite','SummonerBoost','SummonerDot'];
+  const ARAM_IDS     = ['SummonerSnowball','SummonerMana'];
+  const SPELL_ORDER  = STANDARD_IDS;
+
+  const normal = allSpellsData.filter(s => STANDARD_IDS.includes(s.id));
+  const aram   = allSpellsData.filter(s => ARAM_IDS.includes(s.id));
+
+  normal.sort(function(a,b){
+    return SPELL_ORDER.indexOf(a.id) - SPELL_ORDER.indexOf(b.id);
+  });
+
+  function spellCard(s) {
+    return '<div class="spell-tile" data-sid="' + s.id + '" onclick="openSpellOverlay(this.dataset.sid)">' +
+      '<img src="' + DDRAGON + '/img/spell/' + s.image.full + '" alt="' + (s.name||'') + '" onerror="this.style.opacity=0.3">' +
+      '<span class="st-name">' + s.name + '</span>' +
+    '</div>';
+  }
+
+  // Build standard spells with variants inline
+  let h = '<div class="section-hdr"><h2>SUMMONER SPELLS</h2><span class="sub">Standard · Summoner\'s Rift</span></div>';
+  h += '<div class="spells-grid">';
+  normal.forEach(function(s) {
+    h += spellCard(s);
+    // Add variants right after
+  });
+  h += '</div>';
+
+
+
+  if (aram.length) {
+    h += '<div class="section-hdr" style="margin-top:24px;"><h2>ARAM EXCLUSIVE</h2><span class="sub">Howling Abyss only</span></div>';
+    h += '<div class="spells-grid">';
+    aram.forEach(function(s) { h += spellCard(s); });
+    h += '</div>';
+  }
+
+  el.innerHTML = h;
+}
+
+
+function openRuneOverlayByIcon(icon, name) {
+  closePlayerMenu();
+  // Find rune by icon path
+  var found = null;
+  if (allRuneData && allRuneData.length) {
+    for (var p of allRuneData) {
+      // Check path icon
+      if (p.icon === icon) { found = {id: p.id, name: p.name, shortDesc: '', longDesc: ''}; break; }
+      for (var slot of p.slots) {
+        for (var r of slot.runes) {
+          if (r.icon === icon) { found = r; break; }
+        }
+        if (found) break;
+      }
+      if (found) break;
+    }
+  }
+  if (found && found.id) {
+    // Find path
+    var pathId = null;
+    for (var p of allRuneData) {
+      for (var slot of p.slots) {
+        if (slot.runes.find(function(r){ return r.id === found.id; })) { pathId = p.id; break; }
+      }
+      if (pathId) break;
+    }
+    if (pathId) { openRuneOverlay(found.id, pathId); return; }
+  }
+  // Fallback: simple overlay with just name
+  var overlay = document.getElementById('rune-overlay');
+  var inner = document.getElementById('rune-overlay-inner');
+  overlay.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  inner.innerHTML = '<button onclick="closeRuneOverlay()" style="position:fixed;top:20px;right:24px;width:36px;height:36px;border-radius:50%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx2);font-size:18px;cursor:pointer;line-height:34px;text-align:center;z-index:901;">&#x2715;</button>' +
+    '<div style="display:flex;align-items:center;gap:20px;margin-bottom:24px;">' +
+    '<img src="https://ddragon.leagueoflegends.com/cdn/img/' + icon + '" style="width:72px;height:72px;border-radius:50%;background:#111;">' +
+    '<div style="font-family:var(--head);font-size:28px;font-weight:800;color:var(--tx);">' + name + '</div></div>';
+}
+
+function openSpellOverlay(spellId) {
+  closePlayerMenu();
+  const spell = (allSpellsData.find(s => s.id === spellId)) || (allSummonerSpells && allSummonerSpells.find(s => s.id === spellId));
+  if (!spell) { console.warn("Spell not found:", spellId); return; }
+  const overlay = document.getElementById('spell-overlay');
+  const inner   = document.getElementById('spell-overlay-inner');
+  overlay.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+
+  const desc = cleanDesc ? cleanDesc(spell.description||'') : (spell.description||'').replace(/<[^>]+>/g,'');
+  const tooltip = (spell.tooltip||'')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g, function(m, token) {
+      // Try to find in spell effect vars, or format nicely
+      return '[' + token.replace(/([a-z])([A-Z])/g,'$1 $2').toLowerCase() + ']';
+    })
+    .replace(/@[A-Za-z0-9_.]+@/g, function(m) {
+      return '[' + m.slice(1,-1).replace(/([a-z])([A-Z])/g,'$1 $2').toLowerCase() + ']';
+    })
+    .trim();
+  const cd = spell.cooldownBurn || '—';
+  const range = spell.rangeBurn || '—';
+  const imgSrc = DDRAGON + '/img/spell/' + spell.image.full;
+
+  inner.innerHTML =
+    '<button onclick="closeSpellOverlay()" style="position:fixed;top:20px;right:24px;width:36px;height:36px;border-radius:50%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx2);font-size:18px;cursor:pointer;line-height:34px;text-align:center;z-index:901;">&#x2715;</button>' +
+    '<div style="display:flex;align-items:center;gap:20px;margin-bottom:24px;">' +
+      '<img src="' + imgSrc + '" style="width:72px;height:72px;border-radius:10px;border:2px solid var(--bd2);">' +
+      '<div>' +
+        '<div style="font-family:var(--head);font-size:28px;font-weight:800;color:var(--tx);">' + spell.name + '</div>' +
+        '<div style="font-family:var(--mono);font-size:12px;color:var(--tx3);margin-top:4px;">Cooldown: ' + cd + 's · Range: ' + range + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="font-family:var(--body);font-size:15px;color:var(--tx2);line-height:1.8;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:18px;margin-bottom:16px;">' + desc + '</div>' +
+    (tooltip && tooltip !== desc ? '<div class="section-hdr" style="margin-top:0;"><h2>TOOLTIP</h2></div><div style="font-family:var(--body);font-size:13px;color:var(--tx3);line-height:1.7;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:16px;">' + tooltip + '</div>' : '');
+}
+
+function closeSpellOverlay(e) {
+  if (e && e.target !== document.getElementById('spell-overlay')) return;
+  document.getElementById('spell-overlay').style.display = 'none';
+  document.getElementById('spell-overlay-inner').innerHTML = '';
+  document.body.style.overflow = '';
+}
+
+// ══════════════════════════════════════
+// TAB: RUNES
+// ══════════════════════════════════════
+let runesTabLoaded = false;
+
+async function loadRunesTab() {
+  if (runesTabLoaded) return;
+  const el = document.getElementById('runes-content');
+  try {
+    if (!allRuneData.length) {
+      const data = await fetch(`${DDRAGON}/data/en_US/runesReforged.json`).then(r=>r.json());
+      allRuneData = data;
+      runesLoaded = true;
+    }
+    runesTabLoaded = true;
+    renderRunesTab();
+  } catch(e) {
+    el.innerHTML = '<div class="error-msg">Failed to load runes: ' + e.message + '</div>';
+  }
+}
+
+// Path accent colors
+const RUNE_PATH_COLORS = {
+  'Precision': '#C89B3C',
+  'Domination': '#BE1E37',
+  'Sorcery': '#9FAAFC',
+  'Resolve': '#A0C85C',
+  'Inspiration': '#48C4B7',
+};
+
+function renderRunesTab() {
+  const el = document.getElementById('runes-content');
+  if (!el || !allRuneData.length) return;
+
+  const BASE = 'https://ddragon.leagueoflegends.com/cdn/img/';
+  const COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+
+  // Build tab header + content areas
+  const firstPath = allRuneData[0];
+  let tabsHtml = '<div style="display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:0;overflow-x:auto;">';
+  allRuneData.forEach(function(path, idx) {
+    const color = COLORS[path.name] || 'var(--gold)';
+    const active = idx === 0;
+    tabsHtml += '<button id="rtab-' + path.id + '" onclick="switchRuneTab(' + path.id + ')" style="' +
+      'display:flex;align-items:center;gap:8px;padding:12px 20px;background:transparent;' +
+      'border:none;border-bottom:2px solid ' + (active ? color : 'transparent') + ';' +
+      'color:' + (active ? color : 'var(--tx3)') + ';font-family:var(--body);font-size:13px;font-weight:600;' +
+      'cursor:pointer;white-space:nowrap;transition:all 0.15s;' +
+      '">' +
+      '<img src="' + BASE + path.icon + '" style="width:20px;height:20px;" onerror="this.style.opacity=0.3">' +
+      path.name +
+      '</button>';
+  });
+  tabsHtml += '</div>';
+
+  let contentHtml = '';
+  allRuneData.forEach(function(path, idx) {
+    const color = COLORS[path.name] || 'var(--gold)';
+    let html = '<div id="rcontent-' + path.id + '" style="display:' + (idx===0?'block':'none') + ';padding:20px;">';
+    html += '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">' +
+      '<img src="' + BASE + path.icon + '" style="width:48px;height:48px;" onerror="this.style.opacity=0.3">' +
+      '<div><div style="font-family:var(--head);font-size:22px;font-weight:800;color:' + color + ';">' + path.name + '</div>' +
+      '<div style="font-family:var(--body);font-size:12px;color:var(--tx3);margin-top:2px;">Click any rune to see full details</div></div>' +
+    '</div>';
+
+    path.slots.forEach(function(slot, slotIdx) {
+      const label = slotIdx === 0 ? 'KEYSTONE' : 'ROW ' + slotIdx;
+      html += '<div class="rune-slot">' +
+        '<div class="rune-slot-label">' + label + '</div>' +
+        '<div class="rune-slot-row">';
+      slot.runes.forEach(function(rune) {
+        const shortDesc = cleanDesc ? cleanDesc(rune.shortDesc||'') : (rune.shortDesc||'').replace(/<[^>]+>/g,'');
+        html += '<div class="rune-card' + (slotIdx===0?' keystone':'') + '" ' +
+          'data-rid="' + rune.id + '" data-pid="' + path.id + '" ' +
+          'onclick="openRuneOverlay(this.dataset.rid,this.dataset.pid)">' +
+          '<img src="' + BASE + rune.icon + '" onerror="this.style.opacity=0.3">' +
+          '<div class="rc-info">' +
+            '<div class="rc-name">' + rune.name + '</div>' +
+            '<div class="rc-short">' + shortDesc.substring(0,80) + (shortDesc.length>80?'...':'') + '</div>' +
+          '</div></div>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+    contentHtml += html;
+  });
+
+  el.innerHTML = tabsHtml + contentHtml;
+}
+
+function switchRuneTab(pathId) {
+  const COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+  allRuneData.forEach(function(path) {
+    const tab = document.getElementById('rtab-' + path.id);
+    const panel = document.getElementById('rcontent-' + path.id);
+    const active = path.id === parseInt(pathId);
+    const color = COLORS[path.name] || 'var(--gold)';
+    if (tab) {
+      tab.style.borderBottomColor = active ? color : 'transparent';
+      tab.style.color = active ? color : 'var(--tx3)';
+    }
+    if (panel) panel.style.display = active ? 'block' : 'none';
+  });
+}
+
+function cleanDesc(txt) {
+  if (!txt) return '';
+  return txt
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/@[A-Za-z0-9_.]+@/g, '?')
+    .replace(/\{\{\s*[^\}]+\s*\}\}/g, '?')
+    .trim();
+}
+
+function openRuneOverlay(runeId, pathId) {
+  closePlayerMenu();
+  runeId = parseInt(runeId); pathId = parseInt(pathId);
+  let rune = null, path = null;
+  for (const p of allRuneData) {
+    if (p.id === pathId) path = p;
+    for (const slot of p.slots) {
+      const r = slot.runes.find(x => x.id === runeId);
+      if (r) { rune = r; if (!path) path = p; break; }
+    }
+    if (rune) break;
+  }
+  if (!rune) return;
+
+  const overlay = document.getElementById('rune-overlay');
+  const inner   = document.getElementById('rune-overlay-inner');
+  overlay.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+
+  const BASE = 'https://ddragon.leagueoflegends.com/cdn/img/';
+  const pathColor = RUNE_PATH_COLORS[path&&path.name] || 'var(--gold)';
+  const shortDesc = cleanDesc(rune.shortDesc||'');
+  const longDesc  = cleanDesc(rune.longDesc||'');
+
+  inner.innerHTML =
+    '<button onclick="closeRuneOverlay()" style="position:fixed;top:20px;right:24px;width:36px;height:36px;border-radius:50%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx2);font-size:18px;cursor:pointer;line-height:34px;text-align:center;z-index:901;">&#x2715;</button>' +
+    '<div style="display:flex;align-items:center;gap:20px;margin-bottom:24px;">' +
+      '<img src="' + BASE + rune.icon + '" style="width:72px;height:72px;border-radius:50%;background:#111;border:2px solid ' + pathColor + ';">' +
+      '<div>' +
+        '<div style="font-family:var(--mono);font-size:10px;color:' + pathColor + ';letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">' + (path&&path.name||'') + '</div>' +
+        '<div style="font-family:var(--head);font-size:28px;font-weight:800;color:var(--tx);">' + rune.name + '</div>' +
+      '</div>' +
+    '</div>' +
+    (shortDesc ? '<div style="font-family:var(--body);font-size:16px;font-weight:600;color:var(--tx2);line-height:1.7;margin-bottom:16px;white-space:pre-line;">' + shortDesc + '</div>' : '') +
+    (longDesc  ? '<div style="font-family:var(--body);font-size:14px;color:var(--tx3);line-height:1.8;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:18px;white-space:pre-line;">' + longDesc + '</div>' : '');
+}
+
+function closeRuneOverlay(e) {
+  if (e && e.target !== document.getElementById('rune-overlay')) return;
+  document.getElementById('rune-overlay').style.display = 'none';
+  document.getElementById('rune-overlay-inner').innerHTML = '';
+  document.body.style.overflow = '';
+}
+
+// ── START ──
+init();
+
+</script>
+</body>
+</html>
