@@ -489,7 +489,7 @@ ${JSON.stringify(events.map(ev => ({
       if (provider === 'gemini'){
         parsed = await callGemini(model, prompt, env, ctx, blockKey);
       } else {
-        if (!env.NVIDIA_API_KEY){ console.warn('No NVIDIA_API_KEY — skipping NIM'); continue; }
+        if (!env.NVIDIA_API_KEY){ console.error('NVIDIA_API_KEY not set — skipping NIM model:', model); continue; }
         parsed = await callNIM(model, prompt, env, ctx, blockKey);
       }
       if (parsed && parsed.length){
@@ -830,6 +830,19 @@ export default {
             alphavantage: { used: avU, limit: API_BUDGETS.alphavantage.limit },
           },
         }), { headers: { ...cors(), 'Content-Type':'application/json' } });
+      } catch(e){
+        return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
+      }
+    }
+
+    // /reset-exhausted — clears all quota_block keys so AI models retry immediately
+    if (url.pathname === '/reset-exhausted'){
+      try {
+        const deletes = [];
+        for (const m of GEMINI_CHAIN) deletes.push(env.NEWSHUB_CACHE.delete('quota_block:'+m).catch(()=>{}));
+        for (const m of NIM_CHAIN) deletes.push(env.NEWSHUB_CACHE.delete('quota_block:nim:'+m.replace('/','_')).catch(()=>{}));
+        await Promise.all(deletes);
+        return new Response(JSON.stringify({ ok: true, cleared: [...GEMINI_CHAIN, ...NIM_CHAIN] }), { headers: { ...cors(), 'Content-Type':'application/json' } });
       } catch(e){
         return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
       }
