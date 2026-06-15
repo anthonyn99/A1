@@ -52,8 +52,8 @@ const AI_CHAIN = [
 const GEMINI_CHAIN = AI_CHAIN.filter(e=>e.provider==='gemini').map(e=>e.model);
 const NIM_CHAIN    = AI_CHAIN.filter(e=>e.provider==='nim').map(e=>e.model);
 const QUOTA_COOLDOWN = 3600; // 1h before retrying a model that hit 429
-const BATCH_SIZE = 8;        // increased — fewer Gemini calls, same coverage
-const MAX_EVENTS = 120;      // increased from 80 — more events reach Gemini
+const BATCH_SIZE = 10;       // more per batch = fewer API calls
+const MAX_EVENTS = 200;      // bumped — more events reach AI
 const CACHE_TTL = 1800;      // 30 minutes — longer cache, fewer rebuilds
 
 // ─── Per-API daily budgets ────────────────────────────────────────────────
@@ -445,9 +445,15 @@ RULES:
 4. Analyst upgrades/downgrades, price target changes, earnings previews, product news, partnerships, regulatory actions — ALL keep their ticker even if minor.
 5. Be INCLUSIVE — it is better to keep a minor relevant article (impactScore 10-20) than to drop it.
 
+SUMMARY FORMAT — 2-4 sentences, trader-focused:
+(1) What happened — be specific (include numbers, price targets, % moves, dollar amounts if mentioned).
+(2) Why it matters — catalyst explanation, what drove the move or decision.
+(3) Valuation/price angle — is the stock cheap/expensive relative to this news? Any PT changes, P/E context, or analyst valuation commentary?
+(4) Likely near-term price impact — direction and magnitude (e.g. "likely +2-5% pop", "modest pressure", "neutral until earnings").
+
 For each event return:
 - id: event id from input
-- summary: 1-3 sentences trader-focused. (1) what happened (2) why it matters (3) likely price impact. Be specific.
+- summary: 2-4 sentences per format above. Include specific numbers where available.
 - sentiment: "bull" | "neutral" | "bear"
 - sentimentScore: -1.0 to 1.0
 - impactScore: 0-100:
@@ -457,7 +463,7 @@ For each event return:
    * 40-59 Notable: routine update, minor partnership, modest rating change, analyst note
    * 10-39 Minor: opinion piece, speculative article, peripheral mention — keep these, just score low
    * 0-9 Noise: only for genuinely irrelevant content
-- eventType: "earnings"|"guidance"|"upgrade"|"downgrade"|"merger"|"regulatory"|"product"|"personnel"|"macro"|"other"
+- eventType: "earnings"|"guidance"|"upgrade"|"downgrade"|"merger"|"regulatory"|"product"|"personnel"|"macro"|"valuation"|"other"
 - primaryTicker: watchlist ticker this is most about, or "NONE" only if truly zero watchlist relevance
 - additionalTickers: other watchlist tickers materially affected
 - sectors: affected sectors from the map
@@ -675,10 +681,14 @@ async function buildAndCache(env, ctx, useLimitedAPIs){
     watchlist: WATCHLIST,
     sectors: SECTORS,
     modelsUsed: result.modelsUsed,
+    degraded: result.degraded || false,
   });
-  await env.NEWSHUB_CACHE.put('events:v1', body, { expirationTtl: CACHE_TTL });
+  // Only cache successful AI builds — don't overwrite good cache with raw fallback
+  if (!result.degraded){
+    await env.NEWSHUB_CACHE.put('events:v1', body, { expirationTtl: CACHE_TTL });
+  }
   await env.NEWSHUB_CACHE.delete('build:lock'); // release build lock
-  console.log(`Pipeline done: ${result.events.length} events`);
+  console.log(`Pipeline done: ${result.events.length} events, degraded=${result.degraded}`);
   return body;
 }
 
