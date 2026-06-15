@@ -430,44 +430,28 @@ async function markModelBlocked(env, model, ctx){
   } catch(e){}
 }
 
-async function geminiBatch(events, env, ctx){
-  // Build the shared prompt (same for both Gemini + NIM)
-  const prompt = `You are a stock market intelligence analyst for an active trader monitoring this watchlist: ${WATCHLIST.join(', ')}.
+// Build analyst prompt — Gemini gets JSON object input, NIM gets plain-text to avoid echo behaviour
+function buildGeminiPrompt(events){
+  return `You are a stock market intelligence analyst for an active trader monitoring this watchlist: ${WATCHLIST.join(', ')}.
 
 Sector map: ${Object.entries(SECTORS).map(([t,s])=>`${t}=${s}`).join(', ')}
 
-TASK: For each news event, assign the watchlist ticker it is MOST about, write a trader summary, and score its market impact.
+TASK: For each news event below, assign the watchlist ticker it is MOST about, write a trader summary, and score its market impact.
 
 RULES:
-1. If the headline/summary is directly about a watchlist company (mentions it by name, ticker, or product) → assign that ticker.
+1. If the headline/summary is directly about a watchlist company → assign that ticker.
 2. If multiple watchlist tickers are mentioned, pick the one most central to the story.
-3. Only set primaryTicker to "NONE" for events that have ZERO relevance to any watchlist company — e.g. pure macro news, earnings from non-watchlist companies, general opinion pieces that only vaguely mention the sector.
-4. Analyst upgrades/downgrades, price target changes, earnings previews, product news, partnerships, regulatory actions — ALL keep their ticker even if minor.
-5. Be INCLUSIVE — it is better to keep a minor relevant article (impactScore 10-20) than to drop it.
+3. Only set primaryTicker to "NONE" for events with ZERO watchlist relevance.
+4. Analyst upgrades/downgrades, price target changes, earnings previews, product news — ALL keep their ticker even if minor.
+5. Be INCLUSIVE — minor relevant article (impactScore 10-20) is better than dropping it.
 
 SUMMARY FORMAT — 2-4 sentences, trader-focused:
-(1) What happened — be specific (include numbers, price targets, % moves, dollar amounts if mentioned).
+(1) What happened — include specific numbers, price targets, % moves, dollar amounts if mentioned.
 (2) Why it matters — catalyst explanation, what drove the move or decision.
-(3) Valuation/price angle — is the stock cheap/expensive relative to this news? Any PT changes, P/E context, or analyst valuation commentary?
-(4) Likely near-term price impact — direction and magnitude (e.g. "likely +2-5% pop", "modest pressure", "neutral until earnings").
+(3) Valuation/price angle — PT changes, P/E context, cheap/expensive relative to news.
+(4) Near-term price direction — magnitude estimate (e.g. "+2-5% pop", "modest pressure", "neutral until earnings").
 
-For each event return:
-- id: event id from input
-- summary: 2-4 sentences per format above. Include specific numbers where available.
-- sentiment: "bull" | "neutral" | "bear"
-- sentimentScore: -1.0 to 1.0
-- impactScore: 0-100:
-   * 90-100 Critical: earnings surprise, M&A, FDA, sudden CEO exit, major guidance cut, regulatory crisis
-   * 75-89 Major: earnings beat/miss, big contract, major rating change, sector-wide action
-   * 60-74 Important: product launch, upgrade/downgrade, executive hire, mid-tier contract, meaningful partnership
-   * 40-59 Notable: routine update, minor partnership, modest rating change, analyst note
-   * 10-39 Minor: opinion piece, speculative article, peripheral mention — keep these, just score low
-   * 0-9 Noise: only for genuinely irrelevant content
-- eventType: "earnings"|"guidance"|"upgrade"|"downgrade"|"merger"|"regulatory"|"product"|"personnel"|"macro"|"valuation"|"other"
-- primaryTicker: watchlist ticker this is most about, or "NONE" only if truly zero watchlist relevance
-- additionalTickers: other watchlist tickers materially affected
-- sectors: affected sectors from the map
-- relevanceConfidence: 0.0-1.0
+Return a JSON array. Each element MUST have: id, summary, sentiment ("bull"|"neutral"|"bear"), sentimentScore, impactScore, eventType, primaryTicker, additionalTickers, sectors, relevanceConfidence.
 
 Events:
 ${JSON.stringify(events.map(ev => ({
@@ -479,7 +463,37 @@ ${JSON.stringify(events.map(ev => ({
     summary: (s.summary||'').slice(0,400),
   }))
 })), null, 2)}`;
+}
 
+function buildNIMPrompt(events){
+  // NIM echoes back JSON objects when given them — use plain text to avoid that
+  const lines = events.map(ev => {
+    const src = ev.sources.slice(0,2).map(s => `  - [${s.name}] ${s.headline}. ${(s.summary||'').slice(0,200)}`).join('\n');
+    return `EVENT_ID: ${ev.id}\nTICKERS: ${ev.candidateTickers.join(', ')}\nSOURCES:\n${src}`;
+  }).join('\n\n---\n\n');
+
+  return `Watchlist: ${WATCHLIST.join(', ')}
+Sector map: ${Object.entries(SECTORS).map(([t,s])=>`${t}=${s}`).join(', ')}
+
+Analyze each news event below. For EACH event output one JSON object with EXACTLY these fields:
+- id: the EVENT_ID string
+- summary: 2-4 sentences — (1) what happened with specific numbers/PTs, (2) why it matters/catalyst, (3) valuation context, (4) near-term price direction
+- sentiment: "bull", "neutral", or "bear"
+- sentimentScore: number from -1.0 to 1.0
+- impactScore: integer 0-100 (90+=critical, 75+=major, 60+=important, 40+=notable, 10+=minor)
+- eventType: one of earnings/guidance/upgrade/downgrade/merger/regulatory/product/personnel/macro/valuation/other
+- primaryTicker: the single most relevant watchlist ticker, or "NONE"
+- additionalTickers: array of other affected watchlist tickers
+- sectors: array of affected sectors
+- relevanceConfidence: number 0.0-1.0
+
+Output ONLY a JSON array containing one object per event. No markdown. No explanation. Start with [ end with ].
+
+EVENTS:
+${lines}`;
+}
+
+async function geminiBatch(events, env, ctx){
   // Walk the unified AI chain — Gemini and NIM interleaved
   for (const entry of AI_CHAIN){
     const { provider, model } = entry;
@@ -493,10 +507,10 @@ ${JSON.stringify(events.map(ev => ({
     try {
       let parsed;
       if (provider === 'gemini'){
-        parsed = await callGemini(model, prompt, env, ctx, blockKey);
+        parsed = await callGemini(model, buildGeminiPrompt(events), env, ctx, blockKey);
       } else {
         if (!env.NVIDIA_API_KEY){ console.error('NVIDIA_API_KEY not set — skipping NIM model:', model); continue; }
-        parsed = await callNIM(model, prompt, env, ctx, blockKey);
+        parsed = await callNIM(model, buildNIMPrompt(events), env, ctx, blockKey);
       }
       if (parsed && parsed.length){
         parsed.__model = (provider === 'nim' ? 'nim:' : '') + model;
@@ -567,21 +581,6 @@ async function callGemini(model, prompt, env, ctx, blockKey){
 }
 
 async function callNIM(model, prompt, env, ctx, blockKey){
-  const systemPrompt = `You are a stock market analyst API. You MUST respond with a valid JSON array ONLY.
-NO markdown. NO code fences. NO explanation. NO extra keys.
-Each element MUST have EXACTLY these keys:
-- id (string, from input)
-- summary (string, 2-4 sentences: what happened, why it matters, valuation/PT context, near-term price direction)
-- sentiment ("bull" | "neutral" | "bear")
-- sentimentScore (number -1.0 to 1.0)
-- impactScore (integer 0-100)
-- eventType ("earnings"|"guidance"|"upgrade"|"downgrade"|"merger"|"regulatory"|"product"|"personnel"|"macro"|"valuation"|"other")
-- primaryTicker (string — watchlist ticker or "NONE")
-- additionalTickers (array of strings)
-- sectors (array of strings)
-- relevanceConfidence (number 0.0-1.0)
-Output ONLY the JSON array. First character must be [. Last character must be ].`;
-
   const r = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -591,11 +590,11 @@ Output ONLY the JSON array. First character must be [. Last character must be ].
     body: JSON.stringify({
       model,
       messages: [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: 'You are a financial analyst. Respond with valid JSON array only — no markdown, no code fences, no explanation.' },
         { role: 'user', content: prompt },
       ],
       temperature: 0.1,
-      max_tokens: 8192,
+      max_tokens: 4096,
       stream: false,
     }),
   });
@@ -607,11 +606,11 @@ Output ONLY the JSON array. First character must be [. Last character must be ].
   if (!r.ok){ console.error(`NIM ${model} ${r.status}:`, (await r.text()).slice(0,200)); return null; }
   const j = await r.json();
   let text = j.choices?.[0]?.message?.content || '[]';
-  text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+  // Strip markdown fences if the model added them anyway
+  text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
   const arrStart = text.indexOf('['), arrEnd = text.lastIndexOf(']');
-  if (arrStart === -1 || arrEnd === -1){ console.error('NIM: no JSON array in response:', text.slice(0,200)); return null; }
-  try { return JSON.parse(text.slice(arrStart, arrEnd+1)); }
-  catch(e){ console.error('NIM JSON parse failed:', text.slice(0,200)); return null; }
+  if (arrStart === -1 || arrEnd === -1) throw new Error('No JSON array in NIM response');
+  return JSON.parse(text.slice(arrStart, arrEnd+1));
 }
 
 function impactTier(score){
