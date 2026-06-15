@@ -550,8 +550,10 @@ async function callGemini(model, prompt, env, ctx, blockKey){
   }
   if (!r.ok){ console.error(`Gemini ${model} ${r.status}`); return null; }
   const j = await r.json();
-  const text = j.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-  return JSON.parse(text);
+  let text = j.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+  // Strip markdown code fences if present (e.g. ```json ... ```)
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  try { return JSON.parse(text); } catch(e){ console.error(`Gemini ${model} JSON parse failed:`, text.slice(0,200)); return null; }
 }
 
 async function callNIM(model, prompt, env, ctx, blockKey){
@@ -853,22 +855,6 @@ export default {
         for (const m of NIM_CHAIN) deletes.push(env.NEWSHUB_CACHE.delete('quota_block:nim:'+m.replace('/','_')).catch(()=>{}));
         await Promise.all(deletes);
         return new Response(JSON.stringify({ ok: true, cleared: [...GEMINI_CHAIN, ...NIM_CHAIN] }), { headers: { ...cors(), 'Content-Type':'application/json' } });
-      } catch(e){
-        return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
-      }
-    }
-
-    // /test-gemini — fires a minimal Gemini call and returns raw response for debugging
-    if (url.pathname === '/test-gemini'){
-      try {
-        const model = url.searchParams.get('model') || 'gemini-2.5-flash-lite';
-        const body = { contents: [{ parts: [{ text: 'Say "ok" in JSON: {"result":"ok"}' }] }], generationConfig: { temperature: 0 } };
-        const r = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
-          { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
-        );
-        const text = await r.text();
-        return new Response(JSON.stringify({ model, status: r.status, ok: r.ok, body: text.slice(0, 2000) }), { headers: { ...cors(), 'Content-Type':'application/json' } });
       } catch(e){
         return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
       }
