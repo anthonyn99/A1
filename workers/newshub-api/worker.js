@@ -858,6 +858,22 @@ export default {
       }
     }
 
+    // /test-gemini — fires a minimal Gemini call and returns raw response for debugging
+    if (url.pathname === '/test-gemini'){
+      try {
+        const model = url.searchParams.get('model') || 'gemini-2.5-flash-lite';
+        const body = { contents: [{ parts: [{ text: 'Say "ok" in JSON: {"result":"ok"}' }] }], generationConfig: { temperature: 0 } };
+        const r = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
+          { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
+        );
+        const text = await r.text();
+        return new Response(JSON.stringify({ model, status: r.status, ok: r.ok, body: text.slice(0, 2000) }), { headers: { ...cors(), 'Content-Type':'application/json' } });
+      } catch(e){
+        return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
+      }
+    }
+
     if (url.pathname !== '/news')
       return new Response('Not found', { status: 404, headers: cors() });
 
