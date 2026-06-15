@@ -56,4 +56,4 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
-          workingDirectory: workers/warroom-api
+          workingDirectory: workers/warroom-api/warroom-api
