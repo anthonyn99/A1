@@ -567,6 +567,21 @@ async function callGemini(model, prompt, env, ctx, blockKey){
 }
 
 async function callNIM(model, prompt, env, ctx, blockKey){
+  const systemPrompt = `You are a stock market analyst API. You MUST respond with a valid JSON array ONLY.
+NO markdown. NO code fences. NO explanation. NO extra keys.
+Each element MUST have EXACTLY these keys:
+- id (string, from input)
+- summary (string, 2-4 sentences: what happened, why it matters, valuation/PT context, near-term price direction)
+- sentiment ("bull" | "neutral" | "bear")
+- sentimentScore (number -1.0 to 1.0)
+- impactScore (integer 0-100)
+- eventType ("earnings"|"guidance"|"upgrade"|"downgrade"|"merger"|"regulatory"|"product"|"personnel"|"macro"|"valuation"|"other")
+- primaryTicker (string — watchlist ticker or "NONE")
+- additionalTickers (array of strings)
+- sectors (array of strings)
+- relevanceConfidence (number 0.0-1.0)
+Output ONLY the JSON array. First character must be [. Last character must be ].`;
+
   const r = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -576,11 +591,11 @@ async function callNIM(model, prompt, env, ctx, blockKey){
     body: JSON.stringify({
       model,
       messages: [
-        { role: 'system', content: 'You are a financial analyst. Respond with valid JSON array only — no markdown, no code fences, no explanation.' },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },
       ],
       temperature: 0.1,
-      max_tokens: 4096,
+      max_tokens: 8192,
       stream: false,
     }),
   });
@@ -592,11 +607,11 @@ async function callNIM(model, prompt, env, ctx, blockKey){
   if (!r.ok){ console.error(`NIM ${model} ${r.status}:`, (await r.text()).slice(0,200)); return null; }
   const j = await r.json();
   let text = j.choices?.[0]?.message?.content || '[]';
-  // Strip markdown fences if the model added them anyway
-  text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
+  text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
   const arrStart = text.indexOf('['), arrEnd = text.lastIndexOf(']');
-  if (arrStart === -1 || arrEnd === -1) throw new Error('No JSON array in NIM response');
-  return JSON.parse(text.slice(arrStart, arrEnd+1));
+  if (arrStart === -1 || arrEnd === -1){ console.error('NIM: no JSON array in response:', text.slice(0,200)); return null; }
+  try { return JSON.parse(text.slice(arrStart, arrEnd+1)); }
+  catch(e){ console.error('NIM JSON parse failed:', text.slice(0,200)); return null; }
 }
 
 function impactTier(score){
