@@ -41,10 +41,10 @@ const HOURS = 72;
 // Gemini uses Google's API; NIM entries use NVIDIA's OpenAI-compatible endpoint.
 // Format: { provider: 'gemini'|'nim', model: '...' }
 const AI_CHAIN = [
-  { provider:'gemini', model:'gemini-2.0-flash' },        // workhorse: ~200 RPD, non-thinking, reliable
-  { provider:'nim',    model:'meta/llama-3.3-70b-instruct' }, // strong, NO daily cap — all-day backstop
-  { provider:'gemini', model:'gemini-2.5-flash' },        // highest quality, thin ~20 RPD — occasional upgrade
-  { provider:'gemini', model:'gemini-2.5-flash-lite' },   // high RPD, thinking disabled
+  { provider:'nim',    model:'meta/llama-3.3-70b-instruct' }, // PRIMARY: no daily cap, confirmed working schema
+  { provider:'gemini', model:'gemini-2.0-flash' },        // ~200 RPD, fallback if NIM down
+  { provider:'gemini', model:'gemini-2.5-flash-lite' },   // high RPD
+  { provider:'gemini', model:'gemini-2.5-flash' },        // best quality, thin quota
   { provider:'gemini', model:'gemini-1.5-flash' },        // last Gemini resort
   { provider:'nim',    model:'mistralai/mixtral-8x7b-instruct' }, // final AI fallback
 ];
@@ -52,7 +52,7 @@ const AI_CHAIN = [
 const GEMINI_CHAIN = AI_CHAIN.filter(e=>e.provider==='gemini').map(e=>e.model);
 const NIM_CHAIN    = AI_CHAIN.filter(e=>e.provider==='nim').map(e=>e.model);
 const QUOTA_COOLDOWN = 3600; // 1h before retrying a model that hit 429
-const BATCH_SIZE = 40;       // big batches = ~5 AI calls per refresh (was 20) — saves free-tier quota
+const BATCH_SIZE = 15;       // NIM handles 15 cleanly; ~14 calls per refresh (NIM has no daily cap)
 const MAX_EVENTS = 200;      // events reaching AI
 const CACHE_TTL = 1800;      // 30 minutes — longer cache, fewer rebuilds
 
@@ -513,11 +513,14 @@ async function geminiBatch(events, env, ctx){
       if (parsed && parsed.length){
         const required = ['id','summary','sentiment','impactScore','primaryTicker'];
         if (!required.every(k => k in parsed[0])){
-          console.error(`${provider}/${model} bad schema, missing: ${required.filter(k=>!(k in parsed[0])).join(',')}`);
+          console.error(`${provider}/${model} bad schema, got keys: [${Object.keys(parsed[0]).join(',')}], missing: [${required.filter(k=>!(k in parsed[0])).join(',')}]`);
           continue;
         }
         parsed.__model = (provider === 'nim' ? 'nim:' : '') + model;
+        console.log(`AI success: ${provider}/${model}, ${parsed.length} events`);
         return parsed;
+      } else if (parsed !== null){
+        console.error(`${provider}/${model} returned empty array`);
       }
     } catch(e){
       console.error(`AI chain ${provider}/${model} exception:`, e.message);
