@@ -318,9 +318,8 @@ async function fetchOrders(accountId, type = 'open', env) {
     const endpoint = type === 'open'
       ? '/openapi/trade/order/open'
       : '/openapi/trade/order/history';
-    const raw  = await wb('GET', endpoint, { query: { account_id: accountId, page_size: 100 } }, env);
+    const raw  = await wb('GET', endpoint, { query: { account_id: accountId, page_size: 500 } }, env);
     const list = Array.isArray(raw) ? raw : (raw?.data || raw?.orders || raw?.items || []);
-    if (type === 'history') console.log('[orders/history] raw groups:', Array.isArray(list) ? list.length : 0);
 
     const flat = [];
     for (const item of list) {
@@ -330,17 +329,6 @@ async function fetchOrders(accountId, type = 'open', env) {
       } else {
         flat.push(item);
       }
-    }
-
-    /* DEBUG: dump keys of first flattened order so the real fee field name is
-       confirmable in `wrangler tail`. Remove once fee mapping verified. */
-    if (type === 'history' && flat.length) {
-      console.log('[orders/history] sample order keys:', JSON.stringify(Object.keys(flat[0])));
-      console.log('[orders/history] sample fee-ish:', JSON.stringify({
-        fee: flat[0].fee, fees: flat[0].fees, commission: flat[0].commission,
-        sec_fee: flat[0].sec_fee, taf_fee: flat[0].taf_fee, tax: flat[0].tax,
-        extracted: extractFee(flat[0])
-      }));
     }
 
     return flat.map(r => ({
@@ -429,20 +417,7 @@ async function syncJournalFromWebull(env) {
     });
 
     let added = 0;
-    /* DEBUG: surface what statuses the account actually returns so margin/cash
-       differences are visible in `wrangler tail`. */
-    console.log('[journal] history orders:', orders.length,
-      'statuses:', JSON.stringify([...new Set(orders.map(o => o.status))]));
 
-    /* ── ONE-SHOT DEBUG: dump the DETAIL payload for the first filled order so the
-       real fee field name is confirmable in `wrangler tail`. Remove after verify. ── */
-    const probe = orders.find(o => String(o.status||'').toUpperCase().includes('FILL') && o.clientOrderId);
-    if (probe) {
-      const det = await fetchOrderDetail(probe.clientOrderId, accountId, env);
-      console.log('[order/detail] PROBE keys:', JSON.stringify(det ? Object.keys(det) : null));
-      console.log('[order/detail] PROBE extracted fee:', extractFee(det));
-      console.log('[order/detail] PROBE payload:', JSON.stringify(det));
-    }
     /* Treat an order as fillable if Webull marks it filled in ANY casing/variant
        (FILLED, Filled, PARTIAL_FILLED, partially_filled, …) or it has filled qty.
        Cash→Margin switch changed the status string, which the old strict

@@ -11,11 +11,11 @@
 //   NEWSHUB_CACHE (KV namespace)
 // ============================================================================
 
-const WATCHLIST = ['DRAM','SNDK','MU','INTC','WDC','AMD','CRWD','BE','GOOGL','PLTR','NVDA','CRDO','TSLA','SPCX','AAPL','MSFT','NET','SCCO','ERO','WMT','AMZN','BABA'];
+const WATCHLIST = ['DRAM','SNDK','MU','INTC','WDC','AMD','CRWD','BE','GOOGL','PLTR','NVDA','CRDO','TSLA','SPCX','AAPL','MSFT','NET','SCCO','ERO','WMT','AMZN','BABA','MRVL'];
 
 const SECTORS = {
   DRAM:'Semiconductor/Memory', SNDK:'Storage', MU:'Semiconductor/Memory',
-  INTC:'Semiconductor', WDC:'Storage', AMD:'Semiconductor', CRDO:'Semiconductor',
+  INTC:'Semiconductor', WDC:'Storage', AMD:'Semiconductor', CRDO:'Semiconductor', MRVL:'AI/Semiconductor',
   CRWD:'Cybersecurity', NET:'Cybersecurity',
   BE:'Clean Energy',
   GOOGL:'Tech/Mega-Cap', AAPL:'Tech/Mega-Cap', MSFT:'Tech/Mega-Cap',
@@ -31,7 +31,7 @@ const ALIASES = {
   GOOGL:['google','alphabet'], PLTR:['palantir'], NVDA:['nvidia'], CRDO:['credo'],
   TSLA:['tesla'], SPCX:['spacex'], AAPL:['apple'], MSFT:['microsoft'],
   NET:['cloudflare'], SCCO:['southern copper'], ERO:['ero copper'], WMT:['walmart'],
-  AMZN:['amazon'], BABA:['alibaba'],
+  AMZN:['amazon'], BABA:['alibaba'], MRVL:['marvell'],
 };
 
 const HOURS = 72;
@@ -41,10 +41,10 @@ const HOURS = 72;
 // Gemini uses Google's API; NIM entries use NVIDIA's OpenAI-compatible endpoint.
 // Format: { provider: 'gemini'|'nim', model: '...' }
 const AI_CHAIN = [
-  { provider:'gemini', model:'gemini-2.5-flash' },        // best quality, ~20 RPD
-  { provider:'gemini', model:'gemini-2.0-flash' },        // good, ~200 RPD
-  { provider:'nim',    model:'meta/llama-3.3-70b-instruct' }, // strong, no daily cap
-  { provider:'gemini', model:'gemini-2.5-flash-lite' },   // lighter Gemini
+  { provider:'gemini', model:'gemini-2.0-flash' },        // workhorse: ~200 RPD, non-thinking, reliable
+  { provider:'nim',    model:'meta/llama-3.3-70b-instruct' }, // strong, NO daily cap — all-day backstop
+  { provider:'gemini', model:'gemini-2.5-flash' },        // highest quality, thin ~20 RPD — occasional upgrade
+  { provider:'gemini', model:'gemini-2.5-flash-lite' },   // high RPD, thinking disabled
   { provider:'gemini', model:'gemini-1.5-flash' },        // last Gemini resort
   { provider:'nim',    model:'mistralai/mixtral-8x7b-instruct' }, // final AI fallback
 ];
@@ -52,8 +52,8 @@ const AI_CHAIN = [
 const GEMINI_CHAIN = AI_CHAIN.filter(e=>e.provider==='gemini').map(e=>e.model);
 const NIM_CHAIN    = AI_CHAIN.filter(e=>e.provider==='nim').map(e=>e.model);
 const QUOTA_COOLDOWN = 3600; // 1h before retrying a model that hit 429
-const BATCH_SIZE = 10;       // more per batch = fewer API calls
-const MAX_EVENTS = 200;      // bumped — more events reach AI
+const BATCH_SIZE = 40;       // big batches = ~5 AI calls per refresh (was 20) — saves free-tier quota
+const MAX_EVENTS = 200;      // events reaching AI
 const CACHE_TTL = 1800;      // 30 minutes — longer cache, fewer rebuilds
 
 // ─── Per-API daily budgets ────────────────────────────────────────────────
@@ -511,48 +511,59 @@ ${JSON.stringify(events.map(ev => ({
   return [];
 }
 
-async function callGemini(model, prompt, env, ctx, blockKey){
-  const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.2,
-      response_mime_type: 'application/json',
-      response_schema: {
-        type: 'ARRAY',
-        items: {
-          type: 'OBJECT',
-          properties: {
-            id:                   { type: 'STRING' },
-            summary:              { type: 'STRING' },
-            sentiment:            { type: 'STRING', enum: ['bull','neutral','bear'] },
-            sentimentScore:       { type: 'NUMBER' },
-            impactScore:          { type: 'INTEGER' },
-            eventType:            { type: 'STRING' },
-            primaryTicker:        { type: 'STRING' },
-            additionalTickers:    { type: 'ARRAY', items: { type: 'STRING' } },
-            sectors:              { type: 'ARRAY', items: { type: 'STRING' } },
-            relevanceConfidence:  { type: 'NUMBER' },
-          },
-          required: ['id','summary','sentiment','impactScore','primaryTicker']
-        }
+// Build the Gemini request body. v1beta REST needs camelCase keys.
+// 2.5 models are *thinking* models — without thinkingBudget:0 they burn the
+// output-token budget on reasoning and return MAX_TOKENS with empty content.
+function geminiBody(model, prompt){
+  const gc = {
+    temperature: 0.2,
+    maxOutputTokens: 8192,
+    responseMimeType: 'application/json',
+    responseSchema: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          id:                   { type: 'STRING' },
+          summary:              { type: 'STRING' },
+          sentiment:            { type: 'STRING', enum: ['bull','neutral','bear'] },
+          sentimentScore:       { type: 'NUMBER' },
+          impactScore:          { type: 'INTEGER' },
+          eventType:            { type: 'STRING' },
+          primaryTicker:        { type: 'STRING' },
+          additionalTickers:    { type: 'ARRAY', items: { type: 'STRING' } },
+          sectors:              { type: 'ARRAY', items: { type: 'STRING' } },
+          relevanceConfidence:  { type: 'NUMBER' },
+        },
+        required: ['id','summary','sentiment','impactScore','primaryTicker']
       }
     }
   };
+  // Disable thinking on 2.5 models so structured output isn't truncated.
+  if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
+  return { contents: [{ parts: [{ text: prompt }] }], generationConfig: gc };
+}
+
+async function callGemini(model, prompt, env, ctx, blockKey){
   const r = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
-    { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
+    { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(geminiBody(model, prompt)) }
   );
   if (r.status === 429){
-    console.warn(`Gemini ${model} 429 — blocking for ${QUOTA_COOLDOWN}s`);
-    // Await directly so the write completes before we return, not via fake ctx
+    console.warn(`Gemini ${model} 429 (daily quota) — blocking ${QUOTA_COOLDOWN}s`);
     await env.NEWSHUB_CACHE.put('quota_block:'+model, '1', { expirationTtl: QUOTA_COOLDOWN }).catch(()=>{});
     return null;
   }
-  if (!r.ok){ console.error(`Gemini ${model} ${r.status}`); return null; }
+  if (!r.ok){ console.error(`Gemini ${model} HTTP ${r.status}:`, (await r.text()).slice(0,300)); return null; }
   const j = await r.json();
-  let text = j.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+  const cand = j.candidates?.[0];
+  const finish = cand?.finishReason;
+  let text = cand?.content?.parts?.[0]?.text || '';
+  if (!text){ console.error(`Gemini ${model} empty content, finishReason=${finish}`); return null; }
+  if (finish && finish !== 'STOP') console.warn(`Gemini ${model} finishReason=${finish} (may be truncated)`);
   text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-  try { return JSON.parse(text); } catch(e){ console.error(`Gemini ${model} JSON parse failed:`, text.slice(0,200)); return null; }
+  try { return JSON.parse(text); }
+  catch(e){ console.error(`Gemini ${model} JSON parse failed (finish=${finish}):`, text.slice(0,200)); return null; }
 }
 
 async function callNIM(model, prompt, env, ctx, blockKey){
@@ -846,7 +857,7 @@ export default {
       }
     }
 
-    // /reset-exhausted — clears all quota_block keys so AI models retry immediately
+    // /reset-exhausted — clears local quota_block cooldown flags (NOT Google's server-side daily quota)
     if (url.pathname === '/reset-exhausted'){
       try {
         const deletes = [];
@@ -859,32 +870,47 @@ export default {
       }
     }
 
-    // /reset-exhausted — clears all quota_block keys
-    if (url.pathname === '/reset-exhausted'){
+    // /clear-cache — nukes the cached events doc so the next load forces a clean rebuild
+    if (url.pathname === '/clear-cache'){
       try {
-        const deletes = [];
-        for (const m of GEMINI_CHAIN) deletes.push(env.NEWSHUB_CACHE.delete('quota_block:'+m).catch(()=>{}));
-        for (const m of NIM_CHAIN) deletes.push(env.NEWSHUB_CACHE.delete('quota_block:nim:'+m.replace('/','_')).catch(()=>{}));
-        await Promise.all(deletes);
-        return new Response(JSON.stringify({ ok: true, cleared: [...GEMINI_CHAIN, ...NIM_CHAIN] }), { headers: { ...cors(), 'Content-Type':'application/json' } });
+        await env.NEWSHUB_CACHE.delete('events:v1');
+        await env.NEWSHUB_CACHE.delete('build:lock');
+        return new Response(JSON.stringify({ ok: true, cleared: 'events:v1' }), { headers: { ...cors(), 'Content-Type':'application/json' } });
       } catch(e){
         return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
       }
     }
 
-    // /test-gemini — fires minimal Gemini call, returns raw response for debugging
-    if (url.pathname === '/test-gemini'){
+    // /test-ai — fires ONE real analysis call (same schema/config as production) so we
+    // can see exactly what a provider returns. ?provider=gemini|nim & ?model=<name>
+    if (url.pathname === '/test-ai'){
       try {
-        const model = url.searchParams.get('model') || 'gemini-2.5-flash-lite';
-        const body = { contents: [{ parts: [{ text: 'Return JSON array of 1 item: [{"result":"ok"}]' }] }], generationConfig: { temperature: 0, response_mime_type: 'application/json' } };
-        const r = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
-          { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
-        );
-        const text = await r.text();
-        return new Response(JSON.stringify({ model, status: r.status, ok: r.ok, body: text.slice(0, 2000) }), { headers: { ...cors(), 'Content-Type':'application/json' } });
+        const provider = url.searchParams.get('provider') || 'gemini';
+        const model = url.searchParams.get('model') || (provider === 'nim' ? 'meta/llama-3.3-70b-instruct' : 'gemini-2.0-flash');
+        const prompt = 'Return a JSON array with one object analyzing this event: '
+          + JSON.stringify([{ id:'t1', candidateTickers:['NVDA'], sources:[{ source:'Test', headline:'Nvidia raises guidance, analysts lift price target to $200', summary:'Strong datacenter demand.' }] }]);
+        if (provider === 'gemini'){
+          const r = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
+            { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(geminiBody(model, prompt)) }
+          );
+          const txt = await r.text();
+          let finish=null, content=null;
+          try { const j = JSON.parse(txt); finish = j.candidates?.[0]?.finishReason; content = j.candidates?.[0]?.content?.parts?.[0]?.text || null; } catch(e){}
+          return new Response(JSON.stringify({ provider, model, status:r.status, ok:r.ok, finishReason:finish, content: content ? content.slice(0,800) : null, rawError: r.ok ? undefined : txt.slice(0,500) }, null, 2), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+        } else {
+          const r = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${env.NVIDIA_API_KEY}` },
+            body: JSON.stringify({ model, messages:[{role:'system',content:'Respond with valid JSON array only.'},{role:'user',content:prompt}], temperature:0.1, max_tokens:1024, stream:false })
+          });
+          const txt = await r.text();
+          let content=null;
+          try { const j = JSON.parse(txt); content = j.choices?.[0]?.message?.content || null; } catch(e){}
+          return new Response(JSON.stringify({ provider, model, status:r.status, ok:r.ok, hasKey: !!env.NVIDIA_API_KEY, content: content ? content.slice(0,800) : null, rawError: r.ok ? undefined : txt.slice(0,500) }, null, 2), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+        }
       } catch(e){
-        return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
+        return new Response(JSON.stringify({ error: e.message }), { status:500, headers:{ ...cors(), 'Content-Type':'application/json' } });
       }
     }
 
