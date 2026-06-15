@@ -430,44 +430,27 @@ async function markModelBlocked(env, model, ctx){
   } catch(e){}
 }
 
-async function geminiBatch(events, env, ctx){
-  // Build the shared prompt (same for both Gemini + NIM)
-  const prompt = `You are a stock market intelligence analyst for an active trader monitoring this watchlist: ${WATCHLIST.join(', ')}.
+function buildGeminiPrompt(events){
+  return `You are a stock market intelligence analyst for an active trader monitoring this watchlist: ${WATCHLIST.join(', ')}.
 
 Sector map: ${Object.entries(SECTORS).map(([t,s])=>`${t}=${s}`).join(', ')}
 
-TASK: For each news event, assign the watchlist ticker it is MOST about, write a trader summary, and score its market impact.
+TASK: For each news event below, assign the watchlist ticker it is MOST about, write a trader summary, and score its market impact.
 
 RULES:
-1. If the headline/summary is directly about a watchlist company (mentions it by name, ticker, or product) → assign that ticker.
+1. If the headline/summary is directly about a watchlist company → assign that ticker.
 2. If multiple watchlist tickers are mentioned, pick the one most central to the story.
-3. Only set primaryTicker to "NONE" for events that have ZERO relevance to any watchlist company — e.g. pure macro news, earnings from non-watchlist companies, general opinion pieces that only vaguely mention the sector.
-4. Analyst upgrades/downgrades, price target changes, earnings previews, product news, partnerships, regulatory actions — ALL keep their ticker even if minor.
-5. Be INCLUSIVE — it is better to keep a minor relevant article (impactScore 10-20) than to drop it.
+3. Only set primaryTicker to "NONE" for events with ZERO watchlist relevance.
+4. Analyst upgrades/downgrades, price target changes, earnings previews, product news — ALL keep their ticker even if minor.
+5. Be INCLUSIVE — minor relevant article (impactScore 10-20) is better than dropping it.
 
 SUMMARY FORMAT — 2-4 sentences, trader-focused:
-(1) What happened — be specific (include numbers, price targets, % moves, dollar amounts if mentioned).
+(1) What happened — include specific numbers, price targets, % moves, dollar amounts if mentioned.
 (2) Why it matters — catalyst explanation, what drove the move or decision.
-(3) Valuation/price angle — is the stock cheap/expensive relative to this news? Any PT changes, P/E context, or analyst valuation commentary?
-(4) Likely near-term price impact — direction and magnitude (e.g. "likely +2-5% pop", "modest pressure", "neutral until earnings").
+(3) Valuation/price angle — PT changes, P/E context, cheap/expensive relative to news.
+(4) Near-term price direction — magnitude estimate (e.g. "+2-5% pop", "modest pressure", "neutral until earnings").
 
-For each event return:
-- id: event id from input
-- summary: 2-4 sentences per format above. Include specific numbers where available.
-- sentiment: "bull" | "neutral" | "bear"
-- sentimentScore: -1.0 to 1.0
-- impactScore: 0-100:
-   * 90-100 Critical: earnings surprise, M&A, FDA, sudden CEO exit, major guidance cut, regulatory crisis
-   * 75-89 Major: earnings beat/miss, big contract, major rating change, sector-wide action
-   * 60-74 Important: product launch, upgrade/downgrade, executive hire, mid-tier contract, meaningful partnership
-   * 40-59 Notable: routine update, minor partnership, modest rating change, analyst note
-   * 10-39 Minor: opinion piece, speculative article, peripheral mention — keep these, just score low
-   * 0-9 Noise: only for genuinely irrelevant content
-- eventType: "earnings"|"guidance"|"upgrade"|"downgrade"|"merger"|"regulatory"|"product"|"personnel"|"macro"|"valuation"|"other"
-- primaryTicker: watchlist ticker this is most about, or "NONE" only if truly zero watchlist relevance
-- additionalTickers: other watchlist tickers materially affected
-- sectors: affected sectors from the map
-- relevanceConfidence: 0.0-1.0
+Return a JSON array. Each element MUST have: id, summary, sentiment ("bull"|"neutral"|"bear"), sentimentScore, impactScore, eventType, primaryTicker, additionalTickers, sectors, relevanceConfidence.
 
 Events:
 ${JSON.stringify(events.map(ev => ({
@@ -479,8 +462,37 @@ ${JSON.stringify(events.map(ev => ({
     summary: (s.summary||'').slice(0,400),
   }))
 })), null, 2)}`;
+}
 
-  // Walk the unified AI chain — Gemini and NIM interleaved
+function buildNIMPrompt(events){
+  const lines = events.map(ev => {
+    const src = ev.sources.slice(0,2).map(s => `  - [${s.name}] ${s.headline}. ${(s.summary||'').slice(0,200)}`).join('\n');
+    return `EVENT_ID: ${ev.id}\nTICKERS: ${ev.candidateTickers.join(', ')}\nSOURCES:\n${src}`;
+  }).join('\n\n---\n\n');
+
+  return `Watchlist: ${WATCHLIST.join(', ')}
+Sector map: ${Object.entries(SECTORS).map(([t,s])=>`${t}=${s}`).join(', ')}
+
+Analyze each news event below. For EACH event output one JSON object with EXACTLY these fields:
+- id: the EVENT_ID string
+- summary: 2-4 sentences — (1) what happened with specific numbers/PTs, (2) why it matters/catalyst, (3) valuation context, (4) near-term price direction
+- sentiment: "bull", "neutral", or "bear"
+- sentimentScore: number from -1.0 to 1.0
+- impactScore: integer 0-100 (90+=critical, 75+=major, 60+=important, 40+=notable, 10+=minor)
+- eventType: one of earnings/guidance/upgrade/downgrade/merger/regulatory/product/personnel/macro/valuation/other
+- primaryTicker: the single most relevant watchlist ticker, or "NONE"
+- additionalTickers: array of other affected watchlist tickers
+- sectors: array of affected sectors
+- relevanceConfidence: number 0.0-1.0
+
+Output ONLY a JSON array containing one object per event. No markdown. No explanation. Start with [ end with ].
+
+EVENTS:
+${lines}`;
+}
+
+async function geminiBatch(events, env, ctx){
+    // Walk the unified AI chain — Gemini and NIM interleaved
   for (const entry of AI_CHAIN){
     const { provider, model } = entry;
     const blockKey = provider === 'nim'
@@ -493,18 +505,16 @@ ${JSON.stringify(events.map(ev => ({
     try {
       let parsed;
       if (provider === 'gemini'){
-        parsed = await callGemini(model, prompt, env, ctx, blockKey);
+        parsed = await callGemini(model, buildGeminiPrompt(events), env, ctx, blockKey);
       } else {
         if (!env.NVIDIA_API_KEY){ console.error('NVIDIA_API_KEY not set — skipping NIM model:', model); continue; }
-        parsed = await callNIM(model, prompt, env, ctx, blockKey);
+        parsed = await callNIM(model, buildNIMPrompt(events), env, ctx, blockKey);
       }
       if (parsed && parsed.length){
-        // Validate first item has required fields — reject malformed responses
         const required = ['id','summary','sentiment','impactScore','primaryTicker'];
-        const valid = required.every(k => k in parsed[0]);
-        if (!valid){
-          console.error(`${provider}/${model} returned wrong schema, missing: ${required.filter(k=>!(k in parsed[0])).join(',')}`);
-          continue; // try next model
+        if (!required.every(k => k in parsed[0])){
+          console.error(`${provider}/${model} bad schema, missing: ${required.filter(k=>!(k in parsed[0])).join(',')}`);
+          continue;
         }
         parsed.__model = (provider === 'nim' ? 'nim:' : '') + model;
         return parsed;
@@ -888,22 +898,24 @@ export default {
       }
     }
 
-    // /test-ai — fires a REAL production call (same prompt builders as geminiBatch)
+    // /test-ai — fires ONE real analysis call (same schema/config as production) so we
+    // can see exactly what a provider returns. ?provider=gemini|nim & ?model=<name>
     if (url.pathname === '/test-ai'){
       try {
-        const provider = url.searchParams.get('provider') || 'nim';
+        const provider = url.searchParams.get('provider') || 'gemini';
         const model = url.searchParams.get('model') || (provider === 'nim' ? 'meta/llama-3.3-70b-instruct' : 'gemini-2.0-flash');
         const testEvents = [{ id:'t1', candidateTickers:['NVDA'], sources:[{ name:'Test', headline:'Nvidia raises guidance, analysts lift price target to $200', summary:'Strong datacenter demand drives upside surprise.' }] }];
+        const blockKey = 'test_block_ignore';
         let parsed = null;
-        const blockKey = provider === 'nim' ? 'quota_block:nim:meta_llama-3.3-70b-instruct' : 'quota_block:'+model;
         if (provider === 'gemini'){
-          parsed = await callGemini(model, buildGeminiPrompt(testEvents), env, {}, blockKey);
+          parsed = await callGemini(model, buildGeminiPrompt(testEvents), env, {waitUntil:()=>{}}, blockKey);
         } else {
-          parsed = await callNIM(model, buildNIMPrompt(testEvents), env, {}, blockKey);
+          parsed = await callNIM(model, buildNIMPrompt(testEvents), env, {waitUntil:()=>{}}, blockKey);
         }
         const required = ['id','summary','sentiment','impactScore','primaryTicker'];
         const valid = parsed && parsed.length > 0 && required.every(k => k in parsed[0]);
-        return new Response(JSON.stringify({ provider, model, parsed, valid, missingKeys: parsed?.[0] ? required.filter(k=>!(k in parsed[0])) : required }, null, 2), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+        const missing = parsed?.[0] ? required.filter(k=>!(k in parsed[0])) : required;
+        return new Response(JSON.stringify({ provider, model, valid, missing, parsed }, null, 2), { headers:{ ...cors(), 'Content-Type':'application/json' } });
       } catch(e){
         return new Response(JSON.stringify({ error: e.message }), { status:500, headers:{ ...cors(), 'Content-Type':'application/json' } });
       }
