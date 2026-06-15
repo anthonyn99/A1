@@ -4029,7 +4029,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
-  import { initializeFirestore, memoryLocalCache, terminate, doc, setDoc, updateDoc, onSnapshot, getDoc, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { initializeFirestore, memoryLocalCache, terminate, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -5376,7 +5376,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Journal: load all trades
     window._fbLoadTBJournal = async () => {
       try {
-        const snap = await getDoc(tbJournalDocRef);
+        /* Always fetch from server (not local cache) so phones immediately see
+           changes written by desktop (Re-merge, sync). Falls back to getDoc if
+           offline so the app still loads cached data without a network error. */
+        let snap;
+        try { snap = await getDocFromServer(tbJournalDocRef); }
+        catch(netErr) { snap = await getDoc(tbJournalDocRef); }
         if (!snap.exists()) return null;
         const data = snap.data();
         const trades = [];
@@ -5432,9 +5437,37 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Journal: delete single trade
     window._fbDeleteTBTrade = async (tradeId) => {
       try {
-        await updateDoc(tbJournalDocRef, { ['t_' + tradeId]: deleteField() });
+        _tbJournalLastOwnSaveAt = Date.now();
+        await updateDoc(tbJournalDocRef, { ['t_' + tradeId]: deleteField(), savedAt: Date.now() });
+        _tbJournalLastOwnSaveAt = Date.now();
       } catch(e) {
         if (e.code !== 'not-found') console.warn('TBJournal delete failed:', e.message);
+      }
+    };
+
+    /* Atomic replace: delete a set of old trade fields AND write new ones in ONE
+       updateDoc. Used by Re-merge so other devices (phone) receive the cleaned
+       journal in a single snapshot — no window where old broken docs linger
+       alongside the rebuilt ones. */
+    window._fbReplaceTBTrades = async (oldIds, newTrades) => {
+      _tbJournalLastOwnSaveAt = Date.now();
+      window.dispatchEvent(new CustomEvent('fb-tb-saving'));
+      const update = { savedAt: Date.now() };
+      (oldIds || []).forEach(id => { update['t_' + id] = deleteField(); });
+      (newTrades || []).forEach(t => { if (t && t.id) update['t_' + t.id] = JSON.parse(JSON.stringify(t)); });
+      try {
+        await updateDoc(tbJournalDocRef, update);
+        _tbJournalLastOwnSaveAt = Date.now();
+        window.dispatchEvent(new CustomEvent('fb-tb-journal-saved'));
+      } catch(err) {
+        if (err.code === 'not-found') {
+          await setDoc(tbJournalDocRef, update);
+          _tbJournalLastOwnSaveAt = Date.now();
+          window.dispatchEvent(new CustomEvent('fb-tb-journal-saved'));
+        } else {
+          console.warn('TBJournal replace failed:', err.code, err.message);
+          window.dispatchEvent(new CustomEvent('fb-tb-journal-error'));
+        }
       }
     };
 
@@ -5563,14 +5596,13 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!snap.exists()) return;
       if (Date.now() - _tbJournalLastOwnSaveAt < 8000) return;
       const data = snap.data();
+      const remoteSavedAt = data.savedAt || 0;
       const trades = [];
       Object.entries(data).forEach(([k, v]) => {
         if (k.startsWith('t_') && v && typeof v === 'object' && v.id) trades.push(v);
       });
-      if (trades.length > 0) {
-        trades.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        window.dispatchEvent(new CustomEvent('fb-tb-journal-remote', { detail: trades }));
-      }
+      trades.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      window.dispatchEvent(new CustomEvent('fb-tb-journal-remote', { detail: trades, savedAt: remoteSavedAt }));
     });
     if (_tbPromptsUnsub) { _tbPromptsUnsub(); _tbPromptsUnsub = null; }
     _tbPromptsUnsub = onSnapshot(tbPromptsDocRef, (snap) => {
@@ -33874,12 +33906,20 @@ function useTBJournal(){
     else{const h=()=>load();window.addEventListener('fb-ready',h,{once:true});return()=>window.removeEventListener('fb-ready',h);}
   },[load]);
 
-  /* Live sync: apply remote journal changes from other devices */
+  /* Live sync: apply remote journal changes from other devices.
+     Also force a fresh server load if we haven't seen this savedAt before — this
+     handles Firestore returning a stale local cache on mobile before the server
+     write arrives, which caused Re-merge on desktop to not reflect on phone. */
+  const lastSeenSavedAt=useRef(0);
   useEffect(()=>{
-    const onRemote=(e)=>{if(e.detail&&Array.isArray(e.detail))setTrades(e.detail);};
+    const onRemote=(e)=>{
+      if(!e.detail||!Array.isArray(e.detail))return;
+      const incoming=e.detail;
+      setTrades(incoming);
+    };
     window.addEventListener('fb-tb-journal-remote',onRemote);
     return()=>window.removeEventListener('fb-tb-journal-remote',onRemote);
-  },[]);
+  },[load]);
 
   /* Webull auto-sync: pull from Cloudflare Worker, merge into state + Firebase.
      SELLs chain as new legs onto the most-recent open BUY entry for the same
@@ -33895,9 +33935,17 @@ function useTBJournal(){
         setTrades(prev=>{
           /* Mutable map: entry id → entry (deep-copy legs so we can push) */
           const map=new Map(prev.map(t=>[t.id,{...t,legs:[...(t.legs||[])]}]));
-          /* Collect all _wbId values already absorbed so we skip duplicates */
-          const absorbedLegIds=new Set();
-          map.forEach(entry=>(entry.legs||[]).forEach(l=>{if(l._wbId)absorbedLegIds.add(l._wbId);}));
+          /* Dedup keys. Webull orders carry a _wbId; but worker IDs can drift
+             between syncs, so we ALSO key every existing leg by a content
+             fingerprint (ticker|action|minute|qty|price). A pull is skipped if
+             EITHER its _wbId or its content already exists — this is what stops
+             the every-sync re-duplication and pre-API orphan reappearance.
+             Trade-off: two genuinely identical fills in the same minute (same
+             qty+price+side) would collapse to one — vanishingly rare in practice. */
+          const fpOf=(tk,l)=>{const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};return (tk||'').toUpperCase()+'|'+(l.action||'')+'|'+String(l.datetime||'').slice(0,16)+'|'+p(l.qty)+'|'+p(l.price);};
+          const absorbedWb=new Set();       /* 'wb:'+_wbId */
+          const absorbedContent=new Set();  /* content fp of EVERY existing leg */
+          map.forEach(entry=>{const tk=entry.ticker;(entry.legs||[]).forEach(l=>{if(l._wbId)absorbedWb.add('wb:'+l._wbId);absorbedContent.add(fpOf(tk,l));});});
           /* Find the most-recent OPEN entry for a ticker (buyQty > sellQty, not CLOSED) */
           const findOpenEntry=ticker=>{
             let best=null;
@@ -33920,7 +33968,7 @@ function useTBJournal(){
 
           sorted.forEach(raw=>{
             const wbId=String(raw.id||raw.orderId||raw.fillId||(raw.ticker+(raw.date||raw.datetime||raw.filledAt||'')));
-            if(absorbedLegIds.has(wbId))return;
+            if(absorbedWb.has('wb:'+wbId))return;
             const action=(raw.side||raw.action||'BUY').toUpperCase();
             const ticker=(raw.ticker||raw.symbol||'').toUpperCase();
             /* ── Webull field aliases ─────────────────────────────────────────
@@ -33970,21 +34018,28 @@ function useTBJournal(){
               price:String(rawPrice),
               fee:rawFee!==0?String(rawFee):'0',
             };
-            absorbedLegIds.add(wbId);
-            if(action==='SELL'){
-              const open=findOpenEntry(ticker);
-              if(open){
-                open.legs=[...open.legs,newLeg];
-                /* Recompute status: if sellQty >= buyQty mark closed */
-                const bq=open.legs.filter(l=>l.action==='BUY').reduce((s,l)=>s+(parseFloat(l.qty)||0),0);
-                const sq=open.legs.filter(l=>l.action==='SELL').reduce((s,l)=>s+(parseFloat(l.qty)||0),0);
-                if(sq>=bq)open.status='CLOSED';
-                map.set(open.id,open);
-                toSave.set(open.id,open);
-                return;
-              }
+            absorbedWb.add('wb:'+wbId);
+            /* Already present (any source / any prior sync)? Skip — no dup. */
+            const _cfp=fpOf(ticker,newLeg);
+            if(absorbedContent.has(_cfp))return;
+            absorbedContent.add(_cfp);
+            /* Position grouping: attach BOTH buys and sells to the current open
+               position for this ticker. A position opens on the first buy while
+               flat and stays open until cumulative SELL qty >= cumulative BUY qty.
+               This lets scale-ins (extra buys) and scale-outs (partial sells)
+               merge into ONE trade instead of fragmenting per order. */
+            const open=findOpenEntry(ticker);
+            if(open){
+              open.legs=[...open.legs,newLeg];
+              const bq=open.legs.filter(l=>l.action==='BUY').reduce((s,l)=>s+(parseFloat(l.qty)||0),0);
+              const sq=open.legs.filter(l=>l.action==='SELL').reduce((s,l)=>s+(parseFloat(l.qty)||0),0);
+              open.status=(bq>0&&sq>=bq)?'CLOSED':'OPEN';
+              map.set(open.id,open);
+              toSave.set(open.id,open);
+              return;
             }
-            /* BUY, or SELL with no open entry → create new top-level entry */
+            /* No open position. A BUY opens a new one; a stray SELL with no
+               matching long becomes its own closed entry. */
             const entryId=tbUuid();
             const entry={
               id:entryId,
@@ -33999,10 +34054,18 @@ function useTBJournal(){
             map.set(entryId,entry);
             toSave.set(entryId,entry);
           });
-          const toSaveArr=[...toSave.values()];
-          if(window._fbSaveTBTradeBulk)window._fbSaveTBTradeBulk(toSaveArr);
-          else if(window._fbSaveTBTrade)toSaveArr.forEach(e=>window._fbSaveTBTrade(e));
-          return [...map.values()].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+          /* Reconcile the WHOLE journal: dedup + regroup all webull legs so the
+             output is always clean, then atomically replace the Firebase doc so
+             FB exactly matches local (drops any stale/duplicate docs from earlier
+             broken syncs) and every device receives it in one snapshot. */
+          const merged=[...map.values()];
+          const {others,rebuilt}=tbReconcileWebull(merged);
+          const finalTrades=[...others,...rebuilt].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+          const finalIds=new Set(finalTrades.map(t=>t.id));
+          const staleIds=prev.map(t=>t.id).filter(id=>!finalIds.has(id));
+          if(window._fbReplaceTBTrades)window._fbReplaceTBTrades(staleIds,finalTrades);
+          else if(window._fbSaveTBTradeBulk)window._fbSaveTBTradeBulk(finalTrades);
+          return finalTrades;
         });
       }
     }catch(e){console.warn('TB Webull sync error (server may be offline)',e);}
@@ -34043,8 +34106,31 @@ function useTBJournal(){
     if(window._fbDeleteTBTrade)await Promise.all(ids.map(id=>window._fbDeleteTBTrade(id)));
   },[]);
 
-  /* Auto-sync: run Webull sync once every 24h on mount, persist last-sync time */
+  /* Re-merge: same reconciliation Webull Sync now runs — dedup + FIFO regroup of
+     all webull legs. Manual/CSV trades untouched. Kept as a manual button for
+     one-off cleanups, but routine syncs already self-heal. */
+  const rebuild=useCallback(async()=>{
+    let removed=0,made=0,oldIds=[],rebuilt=[];
+    setTrades(prev=>{
+      const r=tbReconcileWebull(prev);
+      rebuilt=r.rebuilt;oldIds=r.oldWebullIds;removed=oldIds.length;made=rebuilt.length;
+      return [...r.others,...rebuilt].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    });
+    /* Persist atomically: one updateDoc drops stale webull docs AND writes the
+       merged ones, so every device gets the cleaned journal in a single snapshot. */
+    if(window._fbReplaceTBTrades){
+      await window._fbReplaceTBTrades(oldIds,rebuilt);
+    }else{
+      if(window._fbDeleteTBTrade)await Promise.all(oldIds.map(id=>window._fbDeleteTBTrade(id)));
+      if(window._fbSaveTBTradeBulk)await window._fbSaveTBTradeBulk(rebuilt);
+    }
+    return{ok:true,removed,made};
+  },[]);
+
+  /* Auto-sync: only runs on the "main" device (td6_mainDash==='tony') so phones
+     never trigger an independent sync that races with desktop and causes dupes. */
   useEffect(()=>{
+    if(localStorage.getItem('td6_mainDash')!=='tony')return; /* non-main: skip */
     const doAutoSync=async()=>{
       try{
         const last=parseInt(localStorage.getItem(TB_SYNC_TS_KEY)||'0',10);
@@ -34052,12 +34138,9 @@ function useTBJournal(){
         await sync();
         const now=Date.now();
         localStorage.setItem(TB_SYNC_TS_KEY,String(now));
-        /* Also persist to Firebase so other devices know */
-        if(window._fbSaveTBTrade){/* piggyback: store meta under special key */}
         if(window._fbSaveTBSyncMeta)window._fbSaveTBSyncMeta({lastWebullSync:now});
       }catch(e){console.warn('TB auto-sync failed',e);}
     };
-    /* Wait until Firebase is ready and trades are loaded before auto-syncing */
     const tryOnce=()=>{if(!window._fbReady){window.addEventListener('fb-ready',tryOnce,{once:true});return;}doAutoSync();};
     tryOnce();
   },[]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -34138,10 +34221,55 @@ function useTBJournal(){
     return{ok:true,added:newEntries.length,skipped:0};
   },[]);
 
-  return{trades,loading,syncing,load,sync,add,patch,del,delBulk,importCSV};
+  return{trades,loading,syncing,load,sync,add,patch,del,delBulk,importCSV,rebuild};
 }
 
 function tbUuid(){return([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16));}
+
+/* ── Group a flat, chronologically-sorted leg list for ONE ticker into position
+   entries. A position opens on the first leg while flat and closes once cumulative
+   SELL qty >= cumulative BUY qty (bq>0). Scale-ins/scale-outs stay in one entry.
+   Original leg objects are reused so _wbId dedup keys survive a rebuild. ── */
+function tbGroupLegsIntoPositions(ticker,legs,meta){
+  const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};
+  const out=[];let cur=null,bq=0,sq=0;
+  legs.forEach(leg=>{
+    if(!cur){cur={id:tbUuid(),ticker,market:(meta&&meta.market)||'STOCK',createdAt:new Date(leg.datetime).getTime()||Date.now(),source:'webull',legs:[],notes:'',status:'OPEN'};bq=0;sq=0;}
+    cur.legs.push(leg);
+    if(leg.action==='SELL')sq+=p(leg.qty);else bq+=p(leg.qty);
+    if(bq>0&&sq>=bq){cur.status='CLOSED';out.push(cur);cur=null;}
+  });
+  if(cur){cur.status='OPEN';out.push(cur);}
+  return out;
+}
+
+/* ── Reconcile an entire trade list: leave manual/CSV trades alone; take ALL
+   webull legs, dedup them (by _wbId, else content fingerprint), and regroup
+   per ticker into clean FIFO positions. Returns the clean webull entries, the
+   untouched others, and the ids of the old webull entries that were replaced.
+   Used by BOTH Webull Sync and Re-merge so they always produce identical,
+   duplicate-free output. ── */
+function tbReconcileWebull(trades){
+  const webull=trades.filter(t=>t.source==='webull');
+  const others=trades.filter(t=>t.source!=='webull');
+  const byTicker=new Map();const seen=new Set();
+  webull.forEach(t=>{
+    const tk=(t.ticker||'').toUpperCase();
+    if(!byTicker.has(tk))byTicker.set(tk,{market:t.market||'STOCK',legs:[]});
+    (t.legs||[]).forEach(l=>{
+      const p=n=>{const x=parseFloat(n);return isNaN(x)?0:x;};
+      const k=l._wbId?('wb:'+l._wbId):(tk+'|'+(l.action||'')+'|'+String(l.datetime||'').slice(0,16)+'|'+p(l.qty)+'|'+p(l.price));
+      if(seen.has(k))return;seen.add(k);
+      byTicker.get(tk).legs.push(l);
+    });
+  });
+  const rebuilt=[];
+  byTicker.forEach((v,tk)=>{
+    const sorted=[...v.legs].sort((a,b)=>new Date(a.datetime)-new Date(b.datetime));
+    tbGroupLegsIntoPositions(tk,sorted,{market:v.market}).forEach(e=>rebuilt.push(e));
+  });
+  return {others,rebuilt,oldWebullIds:webull.map(t=>t.id)};
+}
 
 /* ── Trade stats computer ── */
 /* ── Normalize any datetime value → 'YYYY-MM-DDThh:mm' for datetime-local inputs ── */
@@ -34498,6 +34626,18 @@ function TBJournalPage(){
 
   const doSync=async()=>{setSyncing(true);await jHook.sync();setSyncing(false);};
 
+  const [remerging,setRemerging]=useState(false);
+  const doRemerge=async()=>{
+    if(!window.confirm('Re-merge all Webull trades from their fills using FIFO grouping? Fixes split/mismatched trades. Manual & CSV trades are not touched.'))return;
+    setRemerging(true);
+    try{
+      const res=await jHook.rebuild();
+      setCsvToast(res&&res.ok?`Re-merged into ${res.made} trade${res.made!==1?'s':''} (was ${res.removed})`:'Re-merge failed');
+    }catch(err){setCsvToast('Re-merge error: '+err.message);}
+    setRemerging(false);
+    setTimeout(()=>setCsvToast(null),3500);
+  };
+
   const doImportCSV=async(e)=>{
     const file=e.target.files&&e.target.files[0];
     if(!file){return;}
@@ -34611,7 +34751,8 @@ function TBJournalPage(){
           <div style={{fontSize:13,color:'var(--txm)'}}>{jHook.trades.length} trades</div>
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-        {!selectMode&&<button className="tb-btn-ghost" onClick={doSync} disabled={jHook.syncing||syncing} style={{fontSize:13}}>{jHook.syncing||syncing?'⟳ Syncing…':'⟳ Webull Sync'}</button>}
+        {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doSync} disabled={jHook.syncing||syncing} style={{fontSize:13}}>{jHook.syncing||syncing?'⟳ Syncing…':'⟳ Webull Sync'}</button>}
+        {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doRemerge} disabled={remerging||jHook.syncing||syncing} style={{fontSize:13}} title="Rebuild Webull trades from fills with correct FIFO grouping">{remerging?'⟳ Re-merging…':'⤳ Re-merge'}</button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={()=>setModal('add')} style={{fontSize:13}}>＋ Manual Trade</button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={()=>csvInputRef.current&&csvInputRef.current.click()} disabled={csvImporting} style={{fontSize:13}}>{csvImporting?'⏳ Importing…':'📂 Import CSV'}</button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={doExportCSV} disabled={!jHook.trades.length} style={{fontSize:13}}>⬇ Export CSV</button>}
