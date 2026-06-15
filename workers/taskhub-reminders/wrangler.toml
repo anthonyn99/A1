@@ -1,0 +1,26 @@
+name = "taskhub-reminders"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[observability]
+enabled = false
+
+[observability.logs]
+enabled = false
+invocation_logs = true
+
+[[kv_namespaces]]
+binding = "TOKEN_CACHE"
+id = "b51e916cf3bf4f37ad146af5ca031575"
+
+# Secrets (set via `wrangler secret put <NAME>` — never commit values):
+#   FIREBASE_PROJECT_ID     — already set
+#   FIREBASE_CLIENT_EMAIL   — already set
+#   FIREBASE_PRIVATE_KEY    — already set
+#   AUTH_SETUP_KEY          — a strong random string you choose; required to call /auth/profile/setup
+#   GMAIL_SENDER            — optional; the Gmail address to send recovery emails from
+#                             (requires domain delegation on service account)
+#                             if not set, forgot-password falls back to Formspree

@@ -1,0 +1,14 @@
+# ── Credentials (NEVER commit) ──
+.env
+.webull-token.json
+
+# ── Persistent data (local only, back up separately) ──
+journal.json
+
+# ── Node ──
+node_modules/
+npm-debug.log*
+
+# ── OS ──
+.DS_Store
+Thumbs.db

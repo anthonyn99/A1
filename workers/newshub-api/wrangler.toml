@@ -1,0 +1,13 @@
+name = "newshub-api"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[[kv_namespaces]]
+binding = "NEWSHUB_CACHE"
+id = "dc67fb750dcc4858a8fcff9367b549e9"
+
+# Cron does a full AI build only 3x/day at 14:00, 17:00, 20:00 UTC
+# (~10am, 1pm, 4pm ET) — Mon-Fri. This pre-warms the cache without burning
+# AI quota on every tick. On-demand Refresh in the app covers everything else.
+[triggers]
+crons = ["0 14,17,20 * * 1-5"]
