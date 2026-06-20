@@ -1,0 +1,101 @@
+name: Deploy Cloudflare Workers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/**'
+      - '.github/workflows/deploy-workers.yml'
+  # Lets you trigger a manual run from the Actions tab if needed
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------
+  # Detect which worker folder(s) changed in this push.
+  # Each output is "true" only if files in that folder were touched.
+  # ---------------------------------------------------------------
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      taskhub: ${{ steps.filter.outputs.taskhub }}
+      tradeboard: ${{ steps.filter.outputs.tradeboard }}
+      newshub: ${{ steps.filter.outputs.newshub }}
+      warroom: ${{ steps.filter.outputs.warroom }}
+      tradedashboard: ${{ steps.filter.outputs.tradedashboard }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            taskhub:
+              - 'workers/taskhub-reminders/**'
+            tradeboard:
+              - 'workers/tradeboard-api/**'
+            newshub:
+              - 'workers/newshub-api/**'
+            warroom:
+              - 'workers/warroom-api/**'
+            tradedashboard:
+              - 'workers/trade-dashboard/**'
+
+  # ---------------------------------------------------------------
+  # One deploy job per worker. Each runs ONLY if its folder changed.
+  # If you ever want to force-deploy everything, run the workflow
+  # manually from the Actions tab (workflow_dispatch) — see notes.
+  # ---------------------------------------------------------------
+  deploy-taskhub-reminders:
+    needs: changes
+    if: ${{ needs.changes.outputs.taskhub == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/taskhub-reminders
+
+  deploy-tradeboard-api:
+    needs: changes
+    if: ${{ needs.changes.outputs.tradeboard == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/tradeboard-api
+
+  deploy-newshub-api:
+    needs: changes
+    if: ${{ needs.changes.outputs.newshub == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/newshub-api
+
+  deploy-warroom-api:
+    needs: changes
+    if: ${{ needs.changes.outputs.warroom == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          # Note the double-nested path — this matches your repo layout
+          workingDirectory: workers/warroom-api/warroom-api
+
+  deploy-trade-dashboard:
+    needs: changes
+    if: ${{ needs.changes.outputs.tradedashboard == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/trade-dashboard
