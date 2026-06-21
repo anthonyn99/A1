@@ -278,28 +278,36 @@ function nthWeekdayOfMonth(year, month, weekday, n) {
 function computedEconEvents(from, to) {
   const events = [];
   const inRange = ds => ds >= from.toISOString().slice(0,10) && ds <= to.toISOString().slice(0,10);
+  const lastWeekday = (y, m, wd) => { // last <wd> of month
+    const d = new Date(Date.UTC(y, m + 1, 0)); // last day
+    while (d.getUTCDay() !== wd) d.setUTCDate(d.getUTCDate() - 1);
+    return d;
+  };
 
   // FOMC (exact)
   for (const f of FOMC_DATES) if (inRange(f)) events.push({ date: f, event: 'FOMC rate decision + Powell press conf' });
 
-  // Walk each month touched by the window for CPI/PPI/Jobs.
   const months = [];
   const cur = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1));
   const end = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1));
   while (cur <= end) { months.push([cur.getUTCFullYear(), cur.getUTCMonth()]); cur.setUTCMonth(cur.getUTCMonth()+1); }
 
+  const push = (d, label) => { if (d) { const ds = d.toISOString().slice(0,10); if (inRange(ds)) events.push({ date: ds, event: label }); } };
+
   for (const [y, m] of months) {
-    // Jobs report (NFP): 1st Friday of month
-    const nfp = nthWeekdayOfMonth(y, m, 5, 1);
-    // CPI: ~10th–14th (Tue/Wed/Thu typical). Approx: 2nd Wednesday.
-    const cpi = nthWeekdayOfMonth(y, m, 3, 2);
-    // PPI: typically day after CPI → 2nd Thursday.
-    const ppi = nthWeekdayOfMonth(y, m, 4, 2);
-    for (const [d, label] of [[nfp,'Jobs report (NFP + unemployment)'],[cpi,'CPI inflation (approx)'],[ppi,'PPI inflation (approx)']]) {
-      if (d) { const ds = d.toISOString().slice(0,10); if (inRange(ds)) events.push({ date: ds, event: label }); }
-    }
+    push(nthWeekdayOfMonth(y, m, 5, 1), 'Jobs report (NFP + unemployment)');   // 1st Friday
+    push(nthWeekdayOfMonth(y, m, 3, 2), 'CPI inflation (approx)');             // 2nd Wednesday
+    push(nthWeekdayOfMonth(y, m, 4, 2), 'PPI inflation (approx)');             // 2nd Thursday
+    push(nthWeekdayOfMonth(y, m, 4, 3), 'Retail sales / Jobless claims (approx)'); // 3rd Thursday-ish
+    push(lastWeekday(y, m, 5), 'PCE inflation + personal income (approx)');    // last Friday
+    push(nthWeekdayOfMonth(y, m, 4, 4), 'GDP estimate / Durable goods (approx)'); // 4th Thursday
+    // Weekly jobless claims — every Thursday in window
+    for (let n = 1; n <= 5; n++) push(nthWeekdayOfMonth(y, m, 4, n), 'Weekly initial jobless claims');
   }
-  return events.sort((a,b) => a.date.localeCompare(b.date));
+  // dedup by date+event
+  const seen = new Set();
+  return events.filter(e => { const k = e.date + '|' + e.event; if (seen.has(k)) return false; seen.add(k); return true; })
+               .sort((a,b) => a.date.localeCompare(b.date));
 }
 
 /* Market-moving headlines (policy / Trump / tariff / Fed / geopolitics) pulled
@@ -809,6 +817,45 @@ async function handle(request, env, ctx) {
       factsLength: facts.length,
       factsPreview: facts.slice(0, 600),
     }, 200, request);
+  }
+
+  // ── calendar: deterministic macro (FOMC/CPI/jobs) + real earnings ──────────
+  // Reliable replacement/supplement for the newshub calendar. Always returns the
+  // hardcoded macro events (never empty) plus Finnhub earnings for the tickers.
+  // Shape matches what TradeHub Catalysts expects: {events:[{id,name,date,kind,when}]}
+  if (path === '/calendar' && method === 'GET') {
+    const days = Math.min(30, Math.max(1, parseInt(url.searchParams.get('days') || '10', 10)));
+    const tickers = (url.searchParams.get('tickers') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    const today = new Date();
+    const to = new Date(today); to.setDate(to.getDate() + days + 4);
+    const iso = d => d.toISOString().slice(0, 10);
+    const events = [];
+
+    // Macro (deterministic — never empty)
+    const kindFor = ev => /FOMC/i.test(ev) ? 'fed' : /CPI|PPI|PCE|inflation/i.test(ev) ? 'inflation' : /Jobs|NFP|unemployment|payroll/i.test(ev) ? 'jobs' : /GDP|durable|retail|sentiment/i.test(ev) ? 'growth' : 'macro';
+    for (const e of computedEconEvents(today, to)) {
+      events.push({ id: 'macro_' + e.date + '_' + e.event.slice(0,12).replace(/\W+/g,''), name: e.event, date: e.date, kind: kindFor(e.event), when: 'bmo' });
+    }
+
+    // Earnings (Finnhub, real dates) for requested tickers
+    if (tickers.length && env.FINNHUB_KEY) {
+      const ec = await fhFetch(`/calendar/earnings?from=${iso(today)}&to=${iso(to)}`, env);
+      const wl = new Set(tickers);
+      for (const e of (ec?.earningsCalendar || [])) {
+        const sym = (e.symbol || '').toUpperCase();
+        if (!wl.has(sym)) continue;
+        events.push({ id: 'earn_' + sym + '_' + e.date, name: sym + ' Earnings', date: e.date, kind: 'earnings', when: (e.hour === 'amc' || e.hour === 'bmo') ? e.hour : 'amc', epsEstimate: e.epsEstimate ?? null });
+      }
+    }
+
+    // Trim to a window a bit wider than `days` calendar days (covers ~10 trading
+    // days which can reach ~14 calendar days), dedup, sort.
+    const windowDays = Math.max(days, 14);
+    const cutoff = iso(new Date(today.getTime() + windowDays * 86400000));
+    const seen = new Set();
+    const out = events.filter(e => e.date >= iso(today) && e.date <= cutoff && !seen.has(e.id) && seen.add(e.id))
+                      .sort((a, b) => a.date.localeCompare(b.date));
+    return json({ events: out, generatedAt: Date.now(), degraded: false, source: 'trade-dashboard' }, 200, request);
   }
 
   // ── rate status (cheap) ──
