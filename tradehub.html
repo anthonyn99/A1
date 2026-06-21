@@ -432,22 +432,44 @@
     };
     window._fbSaveTBDash = (payload) => {
       _tbDashLastOwnSaveAt = Date.now();
+      window.dispatchEvent(new CustomEvent('fb-tb-saving'));
       if (_tbDashSaveTimer) clearTimeout(_tbDashSaveTimer);
       _tbDashSaveTimer = setTimeout(async () => {
         try {
           _tbDashLastOwnSaveAt = Date.now();
-          await setDoc(tbDashDocRef, { ...JSON.parse(JSON.stringify(payload)), savedAt: Date.now() });
+          // JSON round-trip strips undefined (Firestore rejects undefined values).
+          const clean = JSON.parse(JSON.stringify(payload || {}));
+          await setDoc(tbDashDocRef, { ...clean, savedAt: Date.now() });
           _tbDashLastOwnSaveAt = Date.now();
-        } catch(e){ console.warn('TBDash save failed:', e.message); }
+          window.dispatchEvent(new CustomEvent('fb-tb-dash-saved'));
+        } catch(e){
+          console.error('[TBDash save FAILED]', e.code||'', e.message, e);
+          window.dispatchEvent(new CustomEvent('fb-tb-dash-error'));
+        }
       }, 1000);
     };
     if (_tbDashUnsub) { _tbDashUnsub(); _tbDashUnsub = null; }
     _tbDashUnsub = onSnapshot(tbDashDocRef, (snap) => {
       if (!snap.exists()) return;
-      if (Date.now() - _tbDashLastOwnSaveAt < 8000) return;
       const data = snap.data();
+      // Prompt changes: signal other devices to re-pull the prompt list live.
+      // (This fires even for our own writes within the 8s window is avoided below.)
+      if (data && data.promptsBump && Date.now() - _tbDashLastOwnSaveAt >= 8000) {
+        window.dispatchEvent(new CustomEvent('fb-tb-dash-prompts-bump', { detail: data.promptsBump }));
+      }
+      if (Date.now() - _tbDashLastOwnSaveAt < 8000) return;
       if (data && data.report) window.dispatchEvent(new CustomEvent('fb-tb-dash-remote', { detail: data }));
     });
+    // Merge a tiny promptsBump into the dash doc (doesn't touch the report).
+    window._fbBumpTBPrompts = async () => {
+      try {
+        _tbDashLastOwnSaveAt = Date.now();
+        window.dispatchEvent(new CustomEvent('fb-tb-saving'));
+        await setDoc(tbDashDocRef, { promptsBump: Date.now() }, { merge: true });
+        _tbDashLastOwnSaveAt = Date.now();
+        window.dispatchEvent(new CustomEvent('fb-tb-dash-saved'));
+      } catch(e){ console.error('[TBDash promptsBump FAILED]', e.code||'', e.message); window.dispatchEvent(new CustomEvent('fb-tb-dash-error')); }
+    };
 
     // ── Market Calendar (earnings/macro catalysts) ─────────────────────────────
     // Single-doc store. TradeHub Catalysts tab is the only writer; Index reads
@@ -462,13 +484,15 @@
     };
     window._fbSaveMarketCal = (payload) => {
       _tbMarketCalLastOwnSaveAt = Date.now();
+      window.dispatchEvent(new CustomEvent('fb-tb-saving'));
       if (_tbMarketCalSaveTimer) clearTimeout(_tbMarketCalSaveTimer);
       _tbMarketCalSaveTimer = setTimeout(async () => {
         try {
           _tbMarketCalLastOwnSaveAt = Date.now();
           await setDoc(tbMarketCalRef, { ...JSON.parse(JSON.stringify(payload)), savedAt: Date.now() });
           _tbMarketCalLastOwnSaveAt = Date.now();
-        } catch(e){ console.warn('MarketCal save failed:', e.message); }
+          window.dispatchEvent(new CustomEvent('fb-tb-marketcal-saved'));
+        } catch(e){ console.warn('MarketCal save failed:', e.message); window.dispatchEvent(new CustomEvent('fb-tb-marketcal-error')); }
       }, 600);
     };
     if (_tbMarketCalUnsub) { _tbMarketCalUnsub(); _tbMarketCalUnsub = null; }
@@ -814,7 +838,7 @@ const TB_STYLES=`
   /* prompt page: max width */
   #tradeboard-root .tb-prompt-wrap{max-width:100%!important;padding:14px 12px 40px!important;}
   /* ── News page mobile layout ── */
-  #tradeboard-root .nh-page{padding:14px 12px 20px!important;}
+  #tradeboard-root .nh-page{padding:0!important;}
   #tradeboard-root .nh-stats-grid{grid-template-columns:repeat(3,1fr)!important;gap:6px!important;}
   #tradeboard-root .nh-header{flex-direction:column!important;align-items:stretch!important;gap:8px!important;}
   #tradeboard-root .nh-header-btns{justify-content:flex-start!important;}
@@ -1788,7 +1812,7 @@ function TBJournalPage(){
     <div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:16,padding:'16px clamp(10px,4vw,28px) 40px'}}>
       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
         <div style={{flex:1,minWidth:140}}>
-          <div className="tb-section-label" style={{marginBottom:3}}>Journal</div>
+          <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Journal</div>
           <div style={{fontSize:13,color:'var(--txm)'}}>{jHook.trades.length} trades</div>
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
@@ -1978,7 +2002,7 @@ function TBPortfolioPage(){
 
   return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:18,padding:'16px clamp(10px,4vw,28px) 40px'}}>
     <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-      <div style={{flex:1}}><div className="tb-section-label" style={{marginBottom:3}}>Webull · Live Account</div>{lastFetch&&<div style={{fontSize:13,color:'var(--txm)'}}>Updated {lastFetch.toLocaleTimeString()}</div>}</div>
+      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Portfolio</div>{lastFetch&&<div style={{fontSize:13,color:'var(--txm)'}}>Updated {lastFetch.toLocaleTimeString()}</div>}</div>
       {loading&&<span style={{fontSize:14,color:'var(--txm)',display:'flex',alignItems:'center',gap:5}}><span style={{display:'inline-block',animation:'tb-spin 1s linear infinite'}}>⟳</span>Refreshing…</span>}
       {error&&<div style={{fontSize:13,color:'var(--tbe)',background:'rgba(212,122,106,0.08)',border:'1px solid rgba(212,122,106,0.2)',borderRadius:8,padding:'4px 12px'}}>{error}</div>}
       <button className="tb-btn-ghost" onClick={refresh} disabled={loading} style={{fontSize:11}}>⟳ Refresh</button>
@@ -2152,9 +2176,9 @@ function TBPromptPage({prompts,onSave,onToast}){
     return()=>{handle.removeEventListener('mousedown',down);handle.removeEventListener('touchstart',down);};
   },[]);
 
-  return(<div className="tb-fade-in tb-prompt-wrap" style={{display:'flex',flexDirection:'column',gap:16,padding:'16px clamp(10px,4vw,28px) 40px',maxWidth:900,margin:'0 auto',width:'100%'}}>
+  return(<div className="tb-fade-in tb-prompt-wrap" style={{display:'flex',flexDirection:'column',gap:16,maxWidth:900,margin:'0 auto',width:'100%'}}>
     <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-      <div style={{flex:1}}><div className="tb-section-label" style={{marginBottom:3}}>Prompts Manager</div><div style={{fontSize:13,color:'var(--txm)'}}>{prompts.length} prompt{prompts.length!==1?'s':''}</div></div>
+      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Prompts</div><div style={{fontSize:13,color:'var(--txm)'}}>{prompts.length} prompt{prompts.length!==1?'s':''}</div></div>
       {fbSaving&&<span style={{fontSize:13,color:'var(--txm)'}}>⟳ Saving…</span>}
     </div>
     {/* Chips row: wraps freely */}
@@ -2220,7 +2244,7 @@ function TBReportsPage({reports,onUpdate,onLoad}){
   </div>);
   return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:12,padding:'24px 28px 40px'}}>
     <div style={{display:'flex',alignItems:'center',gap:10}}>
-      <div style={{flex:1}}><div className="tb-section-label" style={{marginBottom:3}}>Saved Reports</div><div style={{fontSize:13,color:'var(--txm)'}}>{reports.length} reports · Firebase synced</div></div>
+      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Saved Reports</div><div style={{fontSize:13,color:'var(--txm)'}}>{reports.length} reports · Firebase synced</div></div>
       {fbSaving&&<span style={{fontSize:13,color:'var(--txm)'}}>⟳ Saving…</span>}
     </div>
     {reports.map(r=>(<div key={r.id} className="tb-card" style={{display:'flex',alignItems:'center',gap:12}}>
@@ -2306,7 +2330,7 @@ function TDBScoreboard({block}){
       {(block.items||[]).map((it,i)=>{const T=tdbTone(it.rating);return(
         <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"var(--s2)",borderRadius:9,borderLeft:`3px solid ${T.c}`}}>
           <span style={{fontSize:14}}>{tdbDot(it.rating)}</span>
-          <span style={{fontWeight:700,minWidth:110}}>{it.label}</span>
+          <span style={{fontWeight:700,minWidth:110,color:"var(--tx)"}}>{it.label}</span>
           <span style={{color:"var(--txd)",fontSize:13,flex:1}}>{it.note}</span>
         </div>);})}
     </div>
@@ -2344,7 +2368,7 @@ function TDBCards({block}){
       {(block.items||[]).map((it,i)=>{const T=tdbTone(it.tone);return(
         <div key={i} style={{background:"var(--s2)",border:`1px solid var(--bd)`,borderLeft:`3px solid ${T.c}`,borderRadius:10,padding:"12px 14px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:5}}>
-            <span style={{fontWeight:800,fontSize:14}}>{it.heading}</span>
+            <span style={{fontWeight:800,fontSize:14,color:"var(--tx)"}}>{it.heading}</span>
             {it.tag&&<span style={{fontSize:11,fontWeight:800,borderRadius:6,padding:"3px 9px",color:T.c,background:T.bg}}>{it.tag}</span>}
           </div>
           <div style={{color:"var(--txd)",fontSize:13}}>{it.body}</div>
@@ -2413,7 +2437,7 @@ function TDBReportView({report}){
   ].filter(Boolean);
   return <div>
     {(report.title||report.summary)&&<div className="tb-card tb-fade-in" style={{marginBottom:14,borderColor:"var(--ac)"}}>
-      {report.title&&<div style={{fontSize:20,fontWeight:800}}>{report.title}</div>}
+      {report.title&&<div style={{fontSize:20,fontWeight:800,color:"var(--tx)"}}>{report.title}</div>}
       {report.summary&&<div style={{color:"var(--txd)",marginTop:6}}>{report.summary}</div>}
       {metaItems.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:12}}>
         {metaItems.map((it,i)=>{const T=tdbTone(it.tone);return(
@@ -2429,6 +2453,24 @@ function TDBPromptManager({prompts,activeId,onSave,onDelete,onSetActive,onClose}
   const [editId,setEditId]=useState(null);
   const [name,setName]=useState("");
   const [text,setText]=useState("");
+  const promptAreaH=useRef(null);
+  const resize=useRef(null);
+  // Drag handle to expand/compress the textarea (same as Prompts page).
+  useEffect(()=>{
+    const handle=resize.current;if(!handle)return;
+    let startY=0,startH=0,dragging=false;
+    const getInner=()=>promptAreaH.current?.querySelector('textarea');
+    const down=e=>{const inner=getInner();if(!inner)return;e.preventDefault();dragging=true;
+      startY=(e.touches?e.touches[0].clientY:e.clientY)||0;startH=inner.offsetHeight;
+      document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);
+      document.addEventListener('touchmove',move,{passive:false});document.addEventListener('touchend',up);};
+    const move=e=>{if(!dragging)return;if(e.cancelable)e.preventDefault();const inner=getInner();if(!inner)return;
+      const y=(e.touches?e.touches[0].clientY:e.clientY)||0;const newH=Math.max(80,startH+(y-startY));
+      inner.style.minHeight=newH+'px';inner.style.height=newH+'px';};
+    const up=()=>{dragging=false;document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);document.removeEventListener('touchmove',move);document.removeEventListener('touchend',up);};
+    handle.addEventListener('mousedown',down);handle.addEventListener('touchstart',down,{passive:false});
+    return()=>{handle.removeEventListener('mousedown',down);handle.removeEventListener('touchstart',down);};
+  },[editId]);
   const startNew=()=>{setEditId("new");setName("");setText("");};
   const startEdit=p=>{setEditId(p.id);setName(p.name);setText(p.text);};
   const save=()=>{onSave({id:editId==="new"?null:editId,name:name||"Untitled",text});setEditId(null);};
@@ -2441,8 +2483,15 @@ function TDBPromptManager({prompts,activeId,onSave,onDelete,onSetActive,onClose}
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         <input value={name} onChange={e=>setName(e.target.value)} placeholder="Prompt name"
           style={{padding:"9px 12px",borderRadius:9,border:`1px solid var(--bd)`,background:"var(--s2)",color:"var(--tx)",fontSize:13}}/>
-        <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Prompt text…" rows={10}
-          style={{padding:"11px 13px",borderRadius:10,border:`1px solid var(--bd)`,background:"var(--s2)",color:"var(--tx)",fontSize:13,resize:"vertical",minHeight:160,fontFamily:"inherit"}}/>
+        <div ref={promptAreaH} style={{position:"relative"}}>
+          <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Prompt text…" rows={10}
+            style={{width:"100%",display:"block",boxSizing:"border-box",padding:"11px 13px 24px",borderRadius:10,border:`1px solid var(--bd)`,background:"var(--s2)",color:"var(--tx)",fontSize:13,lineHeight:1.7,resize:"none",minHeight:200,maxHeight:600,overflowY:"auto",fontFamily:"IBM Plex Mono,monospace",outline:"none"}}/>
+          <div ref={resize} title="Drag to resize" style={{position:"absolute",bottom:0,right:0,width:36,height:36,cursor:"ns-resize",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--txm)",borderRadius:"0 0 10px 0",userSelect:"none",zIndex:2,touchAction:"none",transition:"color .15s,background .15s"}}
+            onMouseEnter={e=>{e.currentTarget.style.color="var(--ac)";e.currentTarget.style.background="rgba(224,96,122,0.12)";}}
+            onMouseLeave={e=>{e.currentTarget.style.color="var(--txm)";e.currentTarget.style.background="transparent";}}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M11 5L5 11M11 9L9 11"/></svg>
+          </div>
+        </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={save} disabled={!text.trim()} style={{padding:"8px 16px",borderRadius:9,border:"none",background:"var(--ac)",color:"#fff",fontWeight:700,cursor:text.trim()?"pointer":"not-allowed",opacity:text.trim()?1:.5}}>Save</button>
           <button onClick={()=>setEditId(null)} style={{padding:"8px 16px",borderRadius:9,border:"1px solid var(--bd)",background:"var(--s2)",color:"var(--tx)",cursor:"pointer"}}>Cancel</button>
@@ -2454,7 +2503,7 @@ function TDBPromptManager({prompts,activeId,onSave,onDelete,onSetActive,onClose}
         {prompts.map(p=>(
           <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--s2)",borderRadius:9,borderLeft:`3px solid ${p.id===activeId?"var(--ac)":"transparent"}`}}>
             <button onClick={()=>onSetActive(p.id)} title="Set active" style={{width:16,height:16,borderRadius:"50%",border:`2px solid ${p.id===activeId?"var(--ac)":"var(--bd)"}`,background:p.id===activeId?"var(--ac)":"transparent",cursor:"pointer",flexShrink:0}}/>
-            <span style={{fontWeight:700,flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</span>
+            <span style={{fontWeight:700,flex:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:"var(--tx)"}}>{p.name}</span>
             <button onClick={()=>startEdit(p)} style={{padding:"4px 9px",fontSize:12,borderRadius:7,border:"1px solid var(--bd)",background:"var(--s1)",color:"var(--tx)",cursor:"pointer"}}>Edit</button>
             <button onClick={()=>onDelete(p.id)} style={{padding:"4px 9px",fontSize:12,borderRadius:7,border:"1px solid var(--bd)",background:"var(--s1)",color:"var(--tbr)",cursor:"pointer"}}>Del</button>
           </div>))}
@@ -2477,6 +2526,7 @@ function TBDashboardBoard(){
   const [showPrompts,setShowPrompts]=useState(false);
   const [rlUsed,setRlUsed]=useState(0);
   const [rlCooldown,setRlCooldown]=useState(0);
+  const isMobile=useIsMobile();
   const pollTimer=useRef(null);
   const cdTimer=useRef(null);
   const hydrated=useRef(false);
@@ -2493,8 +2543,15 @@ function TBDashboardBoard(){
   },[]);
 
   const savePrompt=useCallback(async(body)=>{
-    const r=await fetch(TD_WORKER_URL+"/prompts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    const j=await r.json();if(j.ok){setPrompts(j.prompts);setActiveId(j.activeId);}
+    window.dispatchEvent(new CustomEvent("fb-tb-saving"));
+    try{
+      const r=await fetch(TD_WORKER_URL+"/prompts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      const j=await r.json();
+      if(j.ok){setPrompts(j.prompts);setActiveId(j.activeId);}
+      // signal other devices to re-pull prompts live (worker is source of truth)
+      if(window._fbBumpTBPrompts){window._fbBumpTBPrompts();}
+      else{window.dispatchEvent(new CustomEvent("fb-tb-dash-saved"));}
+    }catch(e){window.dispatchEvent(new CustomEvent("fb-tb-dash-error"));}
   },[]);
   const fetchPrompts=useCallback(async()=>{
     try{const r=await fetch(TD_WORKER_URL+"/prompts");if(!r.ok)return;const j=await r.json();
@@ -2503,8 +2560,13 @@ function TBDashboardBoard(){
     }catch(e){}
   },[savePrompt]);
   const deletePrompt=async(id)=>{
-    const r=await fetch(TD_WORKER_URL+"/prompts/"+id,{method:"DELETE"});
-    const j=await r.json();if(j.ok){setPrompts(j.prompts);setActiveId(j.activeId);}
+    window.dispatchEvent(new CustomEvent("fb-tb-saving"));
+    try{
+      const r=await fetch(TD_WORKER_URL+"/prompts/"+id,{method:"DELETE"});
+      const j=await r.json();if(j.ok){setPrompts(j.prompts);setActiveId(j.activeId);}
+      if(window._fbBumpTBPrompts){window._fbBumpTBPrompts();}
+      else{window.dispatchEvent(new CustomEvent("fb-tb-dash-saved"));}
+    }catch(e){window.dispatchEvent(new CustomEvent("fb-tb-dash-error"));}
   };
   const setActivePrompt=async(id)=>{await savePrompt({activeId:id});};
 
@@ -2535,13 +2597,20 @@ function TBDashboardBoard(){
   useEffect(()=>{
     const onRemote=e=>{const d=e.detail;if(d){if(d.report)setReport(d.report);if(d.generatedAt)setGeneratedAt(d.generatedAt);if(d.model)setModel(d.model);}};
     window.addEventListener("fb-tb-dash-remote",onRemote);
-    return()=>window.removeEventListener("fb-tb-dash-remote",onRemote);
+    // another device changed prompts → re-pull the list live
+    const onPromptsBump=()=>{
+      fetch(TD_WORKER_URL+"/prompts").then(r=>r.json()).then(j=>{
+        if(j&&j.prompts){setPrompts(j.prompts);setActiveId(j.activeId||null);}
+      }).catch(()=>{});
+    };
+    window.addEventListener("fb-tb-dash-prompts-bump",onPromptsBump);
+    return()=>{window.removeEventListener("fb-tb-dash-remote",onRemote);window.removeEventListener("fb-tb-dash-prompts-bump",onPromptsBump);};
   },[]);
 
   // save to Firebase when report changes (skip first hydrate)
   useEffect(()=>{
     if(!hydrated.current||!report)return;
-    if(window._fbSaveTBDash)window._fbSaveTBDash({report,generatedAt,model});
+    if(window._fbSaveTBDash)window._fbSaveTBDash({report,generatedAt:generatedAt||Date.now(),model:model||null});
   },[report,generatedAt,model]);
 
   const stopPoll=()=>{if(pollTimer.current){clearInterval(pollTimer.current);pollTimer.current=null;}};
@@ -2575,19 +2644,21 @@ function TBDashboardBoard(){
 
   const canRun=rlUsed<TD_DAILY_LIMIT&&rlCooldown<=0&&!loading&&!building;
 
-  return <div className="tb-fade-in" style={{padding:"4px 0 40px"}}>
-    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:16}}>
+  return <div className="tb-fade-in" style={{maxWidth:1100,margin:"0 auto",color:"var(--tx)"}}>
+    <div style={{display:"flex",alignItems:isMobile?"stretch":"center",gap:isMobile?10:12,flexWrap:"wrap",marginBottom:16,flexDirection:isMobile?"column":"row"}}>
       <div style={{flex:1,minWidth:160}}>
         <div style={{fontSize:20,fontWeight:800,color:"var(--tx)"}}>TradeBoard</div>
         {generatedAt&&<div style={{fontSize:12,color:"var(--txm)",marginTop:2}}>Updated {tdbTimeAgo(generatedAt)}{model?` · ${model}`:""}</div>}
       </div>
-      <span style={{fontSize:12,color:"var(--txm)"}}>{rlUsed}/{TD_DAILY_LIMIT} today</span>
-      {rlCooldown>0&&<span style={{fontSize:12,color:"var(--tbw)"}}>⏱ {tdbFmtTime(rlCooldown)}</span>}
-      <button onClick={()=>setShowPrompts(s=>!s)} style={{padding:"8px 14px",borderRadius:100,border:"1px solid var(--bd)",background:"var(--s2)",color:"var(--tx)",fontSize:13,fontWeight:700,cursor:"pointer"}}>⌘ Prompts</button>
-      <button onClick={()=>run(false)} disabled={!canRun} title={!canRun?(rlUsed>=TD_DAILY_LIMIT?"Daily limit reached":rlCooldown>0?`Wait ${tdbFmtTime(rlCooldown)}`:"Working…"):"Run prompt"}
-        style={{padding:"8px 18px",borderRadius:100,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:800,cursor:canRun?"pointer":"not-allowed",opacity:canRun?1:.5}}>
-        {building||loading?<span><span style={{display:"inline-block",animation:"tb-spin 1s linear infinite"}}>⟳</span> Running…</span>:"⚡ Run"}
-      </button>
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",justifyContent:isMobile?"flex-start":"flex-end"}}>
+        <span style={{fontSize:12,color:"var(--txm)"}}>{rlUsed}/{TD_DAILY_LIMIT} today</span>
+        {rlCooldown>0&&<span style={{fontSize:12,color:"var(--tbw)"}}>⏱ {tdbFmtTime(rlCooldown)}</span>}
+        <button onClick={()=>setShowPrompts(s=>!s)} style={{padding:"8px 14px",borderRadius:100,border:"1px solid var(--bd)",background:"var(--s2)",color:"var(--tx)",fontSize:13,fontWeight:700,cursor:"pointer"}}>⌘ Prompts</button>
+        <button onClick={()=>run(false)} disabled={!canRun} title={!canRun?(rlUsed>=TD_DAILY_LIMIT?"Daily limit reached":rlCooldown>0?`Wait ${tdbFmtTime(rlCooldown)}`:"Working…"):"Run prompt"}
+          style={{padding:"8px 18px",borderRadius:100,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:800,cursor:canRun?"pointer":"not-allowed",opacity:canRun?1:.5}}>
+          {building||loading?<span><span style={{display:"inline-block",animation:"tb-spin 1s linear infinite"}}>⟳</span> Running…</span>:"⚡ Run"}
+        </button>
+      </div>
     </div>
 
     {showPrompts&&<TDBPromptManager prompts={prompts} activeId={activeId} onSave={savePrompt} onDelete={deletePrompt} onSetActive={setActivePrompt} onClose={()=>setShowPrompts(false)}/>}
@@ -2596,7 +2667,7 @@ function TBDashboardBoard(){
 
     {building&&!report&&<div className="tb-card tb-fade-in" style={{textAlign:"center",padding:"40px 20px"}}>
       <div style={{fontSize:28,animation:"tb-spin 1.2s linear infinite",display:"inline-block"}}>⟳</div>
-      <div style={{marginTop:10,fontWeight:700}}>Running prompt through AI…</div>
+      <div style={{marginTop:10,fontWeight:700,color:"var(--tx)"}}>Running prompt through AI…</div>
       <div style={{fontSize:12,color:"var(--txm)",marginTop:4}}>Fetching live data + Gemini → NVIDIA → Groq chain. ~60–120s.</div>
     </div>}
 
@@ -2720,7 +2791,7 @@ function TBDashboardPage({report,onImport,onSaveReport,reports,onUpdateReports})
   };
   return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:16,padding:'24px 28px 40px',maxWidth:1200}}>
     <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:4}}>
-      <div style={{flex:1}}><div className="tb-section-label" style={{marginBottom:3}}>Market State</div><div style={{fontSize:13,color:'var(--txm)'}}>{new Date(report._parsedAt||Date.now()).toLocaleString()}</div></div>
+      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Analysis</div><div style={{fontSize:13,color:'var(--txm)'}}>{new Date(report._parsedAt||Date.now()).toLocaleString()}</div></div>
       <button className="tb-btn-ghost" onClick={saveReport} style={{fontSize:11}}>💾 Save Report</button>
       <button className="tb-btn-primary" onClick={onImport} style={{fontSize:11}}>⚡ New Import</button>
     </div>
@@ -3320,7 +3391,7 @@ function TBNewsPage(){
     {/* Header */}
     <div className="nh-header" style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:16}}>
       <div style={{flex:1,minWidth:0}}>
-        <div className="tb-section-label" style={{marginBottom:4}}>Market Intelligence</div>
+        <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>News</div>
         <div style={{fontSize:13,color:'var(--txm)',display:'flex',flexWrap:'wrap',alignItems:'center',gap:6}}>
           {building?(
             <span style={{color:'var(--tbw)',fontWeight:600}}>⟳ Building… polling in {Math.round(NH_POLL_INTERVAL/1000)}s</span>
@@ -3638,7 +3709,30 @@ function TBCatalystsPage(){
         if(j&&j.status==='building'){if(tries<20){pollRef.current=setTimeout(()=>poll(tries+1),3000);}else{setNotice('Build timed out.');setLoading(false);}return;}
         const evs=Array.isArray(j.events)?j.events:[];
         const today=tbEtDate(0);
-        const future=evs.filter(e=>e&&e.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+        // Merge in the trade-dashboard worker's DETERMINISTIC macro calendar
+        // (FOMC/CPI/jobs — never empty) so macro events never vanish even when
+        // the newshub macro source is degraded. Earnings stay from newshub.
+        let merged=evs;
+        try{
+          const tdq='tickers='+encodeURIComponent(wl.join(','))+'&days=10';
+          const tdr=await fetch('https://trade-dashboard.av1.workers.dev/calendar?'+tdq);
+          if(tdr.ok){
+            const tdj=await tdr.json();
+            const tdEvents=Array.isArray(tdj.events)?tdj.events:[];
+            const seen=new Set(evs.map(e=>e&&(e.id||(e.name+'@'+e.date))));
+            for(const e of tdEvents){const k=e.id||(e.name+'@'+e.date);if(!seen.has(k)){seen.add(k);merged.push(e);}}
+          }
+        }catch(e){}
+        const future=merged.filter(e=>e&&e.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+        const prevCount=(eventsRef.current||[]).filter(e=>e&&e.date>=today).length;
+        // Guard: if the worker came back DEGRADED with fewer events than we already
+        // have cached, it likely only returned partial (e.g. earnings but macro
+        // source was empty). Keep the richer cached set instead of wiping it.
+        if(j&&j.degraded&&future.length<prevCount){
+          setLoading(false);
+          setNotice('Sources partial right now — kept your last full calendar. Try Force again in a bit.');
+          return;
+        }
         await commit(future);
         setLoading(false);
         if(!future.length)setNotice(j&&j.degraded?'Sources empty right now — try Force in a bit.':'No catalysts in the next 10 days.');
@@ -3653,7 +3747,9 @@ function TBCatalystsPage(){
         if(window._fbLoadMarketCal){const d=await window._fbLoadMarketCal();if(d&&Array.isArray(d.events)){const today=tbEtDate(0);const fut=d.events.filter(e=>e&&e.date>=today);setEvents(fut);eventsRef.current=fut;setLastSync(d.generatedAt||d.savedAt||null);}}
         if(window._fbLoadTBNews){const n=await window._fbLoadTBNews();const wl=n&&n.settings&&Array.isArray(n.settings.newsTickers)&&n.settings.newsTickers.length?n.settings.newsTickers:NH_DEFAULT_TICKERS;setWatchlist(wl);wlRef.current=wl;}
       }catch(e){}
-      if(!didAuto.current){didAuto.current=true;setTimeout(()=>{const stale=!eventsRef.current.length||(lastSync&&Date.now()-lastSync>12*3600*1000);if(stale)refresh(false);},1000);}
+      // No auto-refresh on tab open — only load cached events from Firebase.
+      // Fresh fetch happens ONLY when the user hits Refresh / Force.
+      didAuto.current=true;
     };
     if(window._fbReady)doLoad();else{const h=()=>doLoad();window.addEventListener('fb-ready',h,{once:true});return()=>window.removeEventListener('fb-ready',h);}
   },[]);
@@ -3665,14 +3761,14 @@ function TBCatalystsPage(){
   },[]);
 
   useEffect(()=>{
-    const onNews=e=>{const wl=e.detail&&e.detail.settings&&e.detail.settings.newsTickers;if(Array.isArray(wl)&&wl.length){const changed=[...wl].sort().join(',')!==[...wlRef.current].sort().join(',');setWatchlist(wl);wlRef.current=wl;if(changed)refresh(true,wl);}};
+    const onNews=e=>{const wl=e.detail&&e.detail.settings&&e.detail.settings.newsTickers;if(Array.isArray(wl)&&wl.length){setWatchlist(wl);wlRef.current=wl;}};
     window.addEventListener('fb-tb-news-remote',onNews);
     return()=>window.removeEventListener('fb-tb-news-remote',onNews);
   },[refresh]);
 
   const groups=useMemo(()=>{const g={};events.forEach(e=>{(g[e.date]=g[e.date]||[]).push(e);});return Object.keys(g).sort().map(d=>({date:d,items:g[d]}));},[events]);
 
-  return (<div className="tb-fade-in">
+  return (<div className="tb-fade-in" style={{maxWidth:1100,margin:'0 auto'}}>
     <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:8}}>
       <div>
         <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Catalysts</div>
@@ -3728,20 +3824,28 @@ function TBApp(){
     window.addEventListener('fb-tb-prompts-saved',onSaved);
     window.addEventListener('fb-tb-news-saved',onSaved);
     window.addEventListener('fb-tb-analysis-saved',onSaved);
+    window.addEventListener('fb-tb-dash-saved',onSaved);
+    window.addEventListener('fb-tb-marketcal-saved',onSaved);
     window.addEventListener('fb-tb-journal-error',onError);
     window.addEventListener('fb-tb-prompts-error',onError);
     window.addEventListener('fb-tb-news-error',onError);
     window.addEventListener('fb-tb-analysis-error',onError);
+    window.addEventListener('fb-tb-dash-error',onError);
+    window.addEventListener('fb-tb-marketcal-error',onError);
     window.addEventListener('fb-tb-saving',onSaving);
     return()=>{
       window.removeEventListener('fb-tb-journal-saved',onSaved);
       window.removeEventListener('fb-tb-prompts-saved',onSaved);
       window.removeEventListener('fb-tb-news-saved',onSaved);
       window.removeEventListener('fb-tb-analysis-saved',onSaved);
+      window.removeEventListener('fb-tb-dash-saved',onSaved);
+      window.removeEventListener('fb-tb-marketcal-saved',onSaved);
       window.removeEventListener('fb-tb-journal-error',onError);
       window.removeEventListener('fb-tb-prompts-error',onError);
       window.removeEventListener('fb-tb-news-error',onError);
       window.removeEventListener('fb-tb-analysis-error',onError);
+      window.removeEventListener('fb-tb-dash-error',onError);
+      window.removeEventListener('fb-tb-marketcal-error',onError);
       window.removeEventListener('fb-tb-saving',onSaving);
     };
   },[]);
@@ -3816,7 +3920,7 @@ function TBApp(){
     <TBHeader page={page} onNav={setPage} syncStatus={tbSyncStatus} portfolioConnected={tbPortfolioOk} isDark={tbIsDark} onToggleTheme={toggleTbTheme}/>
     <TBMobileHeader page={page} syncStatus={tbSyncStatus} portfolioConnected={tbPortfolioOk} onNav={setPage} isDark={tbIsDark} onToggleTheme={toggleTbTheme}/>
     <div style={{flex:1,overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch'}}>
-      <div style={{maxWidth:2000,margin:'0 auto',width:'100%',paddingBottom:'calc(env(safe-area-inset-bottom,0px) + 60px)'}}>
+      <div style={{maxWidth:2000,margin:'0 auto',width:'100%',padding:'18px clamp(12px,3vw,24px) calc(env(safe-area-inset-bottom,0px) + 60px)'}}>
         {pageMap[page]||pageMap.portfolio}
       </div>
     </div>
