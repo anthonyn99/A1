@@ -1,0 +1,21 @@
+name = "trade-dashboard"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+[[kv_namespaces]]
+binding = "TD_KV"
+id = "897dc1bcd93d4a55ab67836639d3866b"
+
+[[services]]
+binding = "SELF"
+service = "trade-dashboard"
+
+# MacroBoard — 6:00 AM MT summer / 5:00 AM MT winter. Mon-Fri.
+[triggers]
+crons = ["0 12 * * 1-5"]
+
+[vars]
+WORKER_ORIGIN = "https://trade-dashboard.av1.workers.dev"
+
+# Secrets: MACRO_GEMINI_KEY, GEMINI_KEY, NVIDIA_KEY, GROQ_KEY,
+# FINNHUB_KEY, FRED_KEY, STAGE_SECRET.
