@@ -1,0 +1,39 @@
+name = "trade-dashboard"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Keep the worker NAME as trade-dashboard so the deployed URL
+# (https://trade-dashboard.av1.workers.dev) and the front-end TD_WORKER_URL
+# stay valid. The engine inside is now MacroBoard.
+
+[[kv_namespaces]]
+binding = "TD_KV"
+id = "897dc1bcd93d4a55ab67836639d3866b"
+
+# SELF binding: staged builds invoke the worker ITSELF (one stage per
+# invocation) so each gets a fresh CPU/wall-time budget.
+[[services]]
+binding = "SELF"
+service = "trade-dashboard"
+
+# ── CRON: 3× premarket/intraday pre-warm, Mon-Fri ───────────────────────────
+# Times are UTC. Targets (summer / EDT = UTC-4):
+#   11:00 UTC = 07:00 ET  → pre-market read
+#   13:30 UTC = 09:30 ET  → cash open
+#   16:00 UTC = 12:00 ET  → midday
+# In winter (EST = UTC-5) these land ~1h earlier ET — still fine for the use.
+[triggers]
+crons = ["0 11 * * 1-5", "30 13 * * 1-5", "0 16 * * 1-5"]
+
+[vars]
+WORKER_ORIGIN = "https://trade-dashboard.av1.workers.dev"
+
+# Secrets — set with `wrangler secret put <NAME>` (NEVER put values here):
+#   wrangler secret put GEMINI_KEY     Google AI Studio key (Gemini + grounding)
+#   wrangler secret put NVIDIA_KEY     NIM key  (Stage B fallback)
+#   wrangler secret put GROQ_KEY       Groq key (Stage B fallback)
+#   wrangler secret put FINNHUB_KEY    earnings + general news
+#   wrangler secret put FRED_KEY       NEW — free key: https://fred.stlouisfed.org/docs/api/api_key.html
+#   wrangler secret put STAGE_SECRET   long random string; gates /_stage
+#
+# GDELT needs NO key.
