@@ -1,0 +1,20 @@
+name = "tradeboard-api"
+main = "src/worker.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[kv_namespaces]]
+binding = "TB_KV"
+id = "74a9866ac7e944178287f647d76aaf26"
+preview_id = "70fc5785592749d0ba5f49b9fe0f05b9"
+
+# ── CRON: Journal auto-sync 6:30 AM Mountain = 12:30 UTC (summer/MDT). ──────
+# Pulls latest filled Webull orders + patches missing fees into KV every weekday.
+# Journal is ready when you open TradeHub — no manual sync needed.
+# DST note: winter (MST) 12:30 UTC = 5:30 AM MT; change 12 -> 13 in November.
+[triggers]
+crons = ["30 12 * * 1-5"]
+
+# Secrets (wrangler secret put <NAME>):
+#   wrangler secret put WEBULL_APP_KEY
+#   wrangler secret put WEBULL_APP_SECRET
