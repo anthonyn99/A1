@@ -1,0 +1,28 @@
+name = "trade-dashboard"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Worker name stays "trade-dashboard" so the deployed URL + front-end stay valid.
+# Engine inside is MacroBoard.
+
+[[kv_namespaces]]
+binding = "TD_KV"
+id = "897dc1bcd93d4a55ab67836639d3866b"
+
+[[services]]
+binding = "SELF"
+service = "trade-dashboard"
+
+# ── CRON (UTC). MacroBoard pre-warm — Mon-Fri 6:30 AM Mountain = 12:30 UTC. ────
+# Single morning build -> grounded MacroBoard ready in KV when you open the tab.
+# Manual Build still works all day (12/day, 15-min cooldown).
+# DST note: winter (MST) 12:30 UTC = 5:30 AM MT; change 12 -> 13 to hold 6:30 MT.
+[triggers]
+crons = ["30 12 * * 1-5"]
+
+[vars]
+WORKER_ORIGIN = "https://trade-dashboard.av1.workers.dev"
+
+# Secrets (wrangler secret put <NAME>):
+#   MACRO_GEMINI_KEY  (separate Google project - own grounding quota)
+#   GEMINI_KEY  NVIDIA_KEY  GROQ_KEY  FINNHUB_KEY  FRED_KEY  STAGE_SECRET
