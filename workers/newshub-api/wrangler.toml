@@ -1,0 +1,28 @@
+name = "newshub-api"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[[kv_namespaces]]
+binding = "NEWSHUB_CACHE"
+id = "dc67fb750dcc4858a8fcff9367b549e9"
+
+# ── CRON (UTC). 6:30 AM Mountain = 12:30 UTC in summer (MDT, UTC-6). ───────────
+#   "30 12 * * 1-5"  → NEWS pre-warm, Mon-Fri 6:30 AM MT (rich all-source build)
+#   "30 12 * * 0,3"  → CATALYSTS pre-warm, Sunday + Wednesday 6:30 AM MT
+# The scheduled() handler branches on event.cron to pick which to build.
+# On Wednesday BOTH fire (separate invocations) → News + Catalysts both refresh.
+# DST note: in winter (MST, UTC-7) 12:30 UTC = 5:30 AM MT. To hold exactly
+# 6:30 MT year-round, change 12 → 13 when DST ends (early Nov).
+[triggers]
+crons = ["30 12 * * 1-5", "30 12 * * 0,3"]
+
+[vars]
+WORKER_ORIGIN = "https://newshub-api.av1.workers.dev"
+
+[[services]]
+binding = "SELF"
+service = "newshub-api"
+
+# Secrets (wrangler secret put <NAME>): GEMINI_KEY, NVIDIA_API_KEY, FINNHUB_KEY,
+# MARKETAUX_KEY, STOCKDATA_KEY, ALPHAVANTAGE_KEY, POLYGON_KEY, TIINGO_KEY,
+# STAGE_SECRET.
