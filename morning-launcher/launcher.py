@@ -36,7 +36,7 @@ TASKHUB_POS  = [3420, 0, 1700, SCREEN_H]   # ← right  (~33 %)
 # ==============================================================================
 
 TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
-TASKHUB_URL  = "https://anthonyn99.github.io/A1/"
+# TaskHub opens via its installed Brave app (app-id below) — no URL needed here
 
 # ==============================================================================
 #  TRIGGER TIME
@@ -49,7 +49,11 @@ TRIGGER_HOUR = 6   # 6 = 6:00 AM Mountain Time
 # ==============================================================================
 
 WEBULL_EXE_OVERRIDE = r""   # e.g. r"C:\Program Files (x86)\Webull Desktop\Webull Desktop.exe"
-BROWSER_EXE_OVERRIDE = r""  # e.g. r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+BRAVE_EXE_OVERRIDE  = r""   # e.g. r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
+
+# TaskHub is installed as a Brave app shortcut — this is its app-id (do not change)
+TASKHUB_APP_ID        = "eejkbnfcmekdcdpjpiocgkmnjabcieoj"
+TASKHUB_PROFILE_DIR   = "Default"
 
 # ==============================================================================
 #  END OF CONFIGURATION
@@ -217,20 +221,28 @@ def _find_webull() -> str | None:
     return None
 
 
-def _find_browser() -> str | None:
-    """Find Chrome or Edge — both support --window-position/--window-size flags."""
-    if BROWSER_EXE_OVERRIDE and Path(BROWSER_EXE_OVERRIDE).exists():
-        return BROWSER_EXE_OVERRIDE
+def _find_brave() -> str | None:
+    """Find Brave browser — supports the same --window-position/--window-size flags as Chrome."""
+    if BRAVE_EXE_OVERRIDE and Path(BRAVE_EXE_OVERRIDE).exists():
+        return BRAVE_EXE_OVERRIDE
     candidates = [
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        Path.home() / "AppData" / "Local" / "Google" / "Chrome" / "Application" / "chrome.exe",
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
+        Path.home() / "AppData" / "Local" / "BraveSoftware" / "Brave-Browser" / "Application" / "brave.exe",
     ]
     for p in candidates:
         if Path(p).exists():
             return str(p)
+    return None
+
+
+def _find_chrome_proxy() -> str | None:
+    """Find chrome_proxy.exe inside Brave's install dir — used to launch installed PWA apps."""
+    brave = _find_brave()
+    if brave:
+        proxy = Path(brave).parent / "chrome_proxy.exe"
+        if proxy.exists():
+            return str(proxy)
     return None
 
 
@@ -286,20 +298,45 @@ def _open_browser_window(browser: str, url: str, pos: list, known_before: set) -
     return set(_all_visible_hwnds())   # updated snapshot for next call
 
 
-def open_browser_windows():
-    browser = _find_browser()
-    if not browser:
-        log("ERROR: Chrome/Edge not found. Set BROWSER_EXE_OVERRIDE at the top of this file.")
+def open_tradehub():
+    brave = _find_brave()
+    if not brave:
+        log("ERROR: Brave not found. Set BRAVE_EXE_OVERRIDE at the top of this file.")
         return
 
     before = set(_all_visible_hwnds())
+    log("Opening TradeHub in Brave...")
+    _open_browser_window(brave, TRADEHUB_URL, TRADEHUB_POS, before)
 
-    log(f"Opening TradeHub...")
-    before = _open_browser_window(browser, TRADEHUB_URL, TRADEHUB_POS, before)
-    time.sleep(1.5)
 
-    log(f"Opening TaskHub...")
-    _open_browser_window(browser, TASKHUB_URL, TASKHUB_POS, before)
+def open_taskhub_app():
+    """Launch TaskHub as its installed Brave app shortcut, then position it."""
+    proxy = _find_chrome_proxy()
+    if not proxy:
+        log("ERROR: chrome_proxy.exe not found inside Brave's directory.")
+        return
+
+    x, y, w, h = TASKHUB_POS
+    snapshot = set(_all_visible_hwnds())
+
+    log("Opening TaskHub as Brave app...")
+    subprocess.Popen([
+        proxy,
+        f"--profile-directory={TASKHUB_PROFILE_DIR}",
+        f"--app-id={TASKHUB_APP_ID}",
+    ])
+
+    hwnd = _wait_for_new_window(snapshot, timeout=25)
+    if hwnd is None:
+        # Fallback: search by window title
+        hwnd = _wait_for_title_window("taskhub", timeout=15)
+
+    if hwnd:
+        time.sleep(1)
+        _place(hwnd, x, y, w, h)
+        log(f"TaskHub → ({x},{y}) {w}×{h}")
+    else:
+        log("WARNING: TaskHub window not detected in time; it may not be positioned correctly.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -317,7 +354,9 @@ def run_morning():
 
     log("=== Morning launch starting ===")
     open_webull()
-    open_browser_windows()
+    open_tradehub()
+    time.sleep(1.5)
+    open_taskhub_app()
     mark_ran()
     log("=== Done ===")
 
