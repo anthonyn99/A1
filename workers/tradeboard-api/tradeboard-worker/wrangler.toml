@@ -1,0 +1,11 @@
+name = "tradeboard-api"
+main = "src/worker.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[kv_namespaces]]
+binding = "TB_KV"
+id = "74a9866ac7e944178287f647d76aaf26"
+preview_id = "70fc5785592749d0ba5f49b9fe0f05b9"
+
+# Secrets: WEBULL_APP_KEY, WEBULL_APP_SECRET.
