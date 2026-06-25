@@ -1,114 +1,111 @@
 """
 Morning Launcher
 ================
-Opens your programs and websites every morning at 6 AM Mountain Time (auto-handles DST).
-Runs once per calendar day — safe to leave running across reboots and re-logins.
+At 6 AM Mountain Time (auto-handles DST), opens:
+  - WeBull Desktop   →  left   panel
+  - TradeHub         →  middle panel  (browser window)
+  - TaskHub          →  right  panel  (browser window)
 
 USAGE
 -----
-  1. Edit the PROGRAMS and URLS sections below.
-  2. Run once as Administrator to register with Task Scheduler:
-       python launcher.py --setup
-  3. That's it. It will run silently at every login from now on.
+  1. Tweak the layout coordinates below if windows land in the wrong spot.
+  2. Run ONCE as Administrator to install into Task Scheduler:
+         python launcher.py --setup
+  3. Done. Runs silently at every login from now on.
 
-  To remove it from Task Scheduler:
-       python launcher.py --uninstall
+  To remove:   python launcher.py --uninstall
+  Manual run:  python launcher.py
+  Logs:        morning-launcher/launcher.log
 """
 
 # ==============================================================================
-# YOUR PROGRAMS  (edit this list)
-# ==============================================================================
-# Each entry is either:
-#   - A plain string path:            r"C:\Program Files\App\app.exe"
-#   - A list (path + arguments):      [r"C:\Program Files\App\app.exe", "--flag"]
+#  LAYOUT — pixel coordinates on your 5120 × 1440 ultrawide
+#  Format: [left_x, top_y, width, height]
+#  Tweak widths until each window lands where you want it.
 # ==============================================================================
 
-PROGRAMS = [
-    # r"C:\Program Files\Mozilla Firefox\firefox.exe",
-    # r"C:\Program Files\Slack\slack.exe",
-    # [r"C:\Windows\System32\notepad.exe"],
-]
+SCREEN_W = 5120
+SCREEN_H = 1440
+
+WEBULL_POS   = [   0, 0, 1700, SCREEN_H]   # ← left   (~33 %)
+TRADEHUB_POS = [1700, 0, 1720, SCREEN_H]   # ← middle (~33 %)
+TASKHUB_POS  = [3420, 0, 1700, SCREEN_H]   # ← right  (~33 %)
 
 # ==============================================================================
-# YOUR WEBSITES  (edit this list)
-# ==============================================================================
-# Plain URL strings — they open in your default browser, in order.
+#  URLs
 # ==============================================================================
 
-URLS = [
-    # "https://gmail.com",
-    # "https://calendar.google.com",
-    # "https://reddit.com",
-]
+TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
+TASKHUB_URL  = "https://anthonyn99.github.io/A1/"
 
 # ==============================================================================
-# SETTINGS
+#  TRIGGER TIME
 # ==============================================================================
 
-TRIGGER_HOUR = 6          # 6 = 6:00 AM Mountain Time
-TASK_NAME    = "MorningLauncher"
-TASK_FOLDER  = "\\Custom\\"
+TRIGGER_HOUR = 6   # 6 = 6:00 AM Mountain Time
 
 # ==============================================================================
-# END OF CONFIGURATION — do not edit below unless you know what you're doing
+#  EXECUTABLE PATHS  (auto-detected — override here if detection fails)
+# ==============================================================================
+
+WEBULL_EXE_OVERRIDE = r""   # e.g. r"C:\Program Files (x86)\Webull Desktop\Webull Desktop.exe"
+BROWSER_EXE_OVERRIDE = r""  # e.g. r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+
+# ==============================================================================
+#  END OF CONFIGURATION
 # ==============================================================================
 
 import argparse
+import ctypes
+import ctypes.wintypes as wt
 import subprocess
 import sys
 import time
-import webbrowser
 from datetime import date, datetime
 from pathlib import Path
-
-# ---------------------------------------------------------------------------
-# Timezone — zoneinfo is built into Python 3.9+.
-# On Windows, it needs the 'tzdata' package (installed automatically by --setup).
-# ---------------------------------------------------------------------------
-try:
-    from zoneinfo import ZoneInfo
-    MOUNTAIN_TZ = ZoneInfo("America/Denver")
-except Exception:
-    # Fallback: ask Windows for Mountain Time via PowerShell (no packages needed)
-    MOUNTAIN_TZ = None
 
 SCRIPT_PATH = Path(__file__).resolve()
 STATE_FILE  = SCRIPT_PATH.parent / ".last_run"
 LOG_FILE    = SCRIPT_PATH.parent / "launcher.log"
+TASK_NAME   = "MorningLauncher"
+TASK_FOLDER = "\\Custom\\"
+
+try:
+    from zoneinfo import ZoneInfo
+    _MOUNTAIN_TZ = ZoneInfo("America/Denver")
+except Exception:
+    _MOUNTAIN_TZ = None
 
 
-# ---------------------------------------------------------------------------
-# Time helpers
-# ---------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────────────
+# Time / timezone
+# ──────────────────────────────────────────────────────────────────────────────
 
 def mountain_now() -> datetime:
-    if MOUNTAIN_TZ is not None:
-        return datetime.now(tz=MOUNTAIN_TZ)
-    # Fallback via PowerShell when tzdata isn't installed yet
-    cmd = (
-        "powershell -NoProfile -Command "
-        "[System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId("
-        "[datetime]::Now, 'Mountain Standard Time').ToString('yyyy-MM-dd HH:mm:ss')"
-    )
-    raw = subprocess.check_output(cmd, text=True).strip()
+    if _MOUNTAIN_TZ:
+        return datetime.now(tz=_MOUNTAIN_TZ)
+    # Fallback: ask Windows — works even without tzdata installed
+    raw = subprocess.check_output(
+        ["powershell", "-NoProfile", "-Command",
+         "[System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId("
+         "[datetime]::Now,'Mountain Standard Time').ToString('yyyy-MM-dd HH:mm:ss')"],
+        text=True
+    ).strip()
     return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
 
 
 def seconds_until_trigger() -> float:
     now    = mountain_now()
     target = now.replace(hour=TRIGGER_HOUR, minute=0, second=0, microsecond=0)
-    delta  = (target - now).total_seconds()
-    return max(delta, 0.0)
+    return max((target - now).total_seconds(), 0.0)
 
 
-# ---------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 # State / logging
-# ---------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 
 def already_ran_today() -> bool:
-    if not STATE_FILE.exists():
-        return False
-    return STATE_FILE.read_text().strip() == str(date.today())
+    return STATE_FILE.exists() and STATE_FILE.read_text().strip() == str(date.today())
 
 
 def mark_ran():
@@ -125,31 +122,189 @@ def log(msg: str):
         f.write(line)
 
 
-# ---------------------------------------------------------------------------
-# Launching
-# ---------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────────────
+# Win32 window helpers  (ctypes only — no extra packages)
+# ──────────────────────────────────────────────────────────────────────────────
 
-def launch_programs():
-    for prog in PROGRAMS:
-        try:
-            cmd = prog if isinstance(prog, list) else [prog]
-            subprocess.Popen(cmd)
-        except Exception as e:
-            log(f"ERROR opening program {prog!r}: {e}")
+_u32           = ctypes.windll.user32
+_WNDENUMPROC   = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
+_SW_RESTORE    = 9
+_SWP_NOZORDER  = 0x0004
+_SWP_NOACTIVATE = 0x0010
 
 
-def open_urls():
-    for url in URLS:
-        try:
-            webbrowser.open(url)
-            time.sleep(0.8)   # small gap so browser tabs open in order
-        except Exception as e:
-            log(f"ERROR opening URL {url!r}: {e}")
+def _all_visible_hwnds() -> list:
+    out = []
+    @_WNDENUMPROC
+    def cb(hwnd, _):
+        if _u32.IsWindowVisible(hwnd) and _u32.GetWindowTextLengthW(hwnd) > 0:
+            out.append(hwnd)
+        return True
+    _u32.EnumWindows(cb, 0)
+    return out
 
 
-# ---------------------------------------------------------------------------
+def _hwnd_pid(hwnd) -> int:
+    pid = wt.DWORD()
+    _u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value
+
+
+def _hwnd_title(hwnd) -> str:
+    n = _u32.GetWindowTextLengthW(hwnd)
+    buf = ctypes.create_unicode_buffer(n + 1)
+    _u32.GetWindowTextW(hwnd, buf, n + 1)
+    return buf.value
+
+
+def _place(hwnd, x: int, y: int, w: int, h: int):
+    _u32.ShowWindow(hwnd, _SW_RESTORE)
+    time.sleep(0.25)
+    _u32.SetWindowPos(hwnd, 0, x, y, w, h, _SWP_NOZORDER | _SWP_NOACTIVATE)
+
+
+def _wait_for_pid_window(pid: int, timeout: int = 40) -> int | None:
+    """Return first visible top-level HWND owned by pid, or None on timeout."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for hwnd in _all_visible_hwnds():
+            if _hwnd_pid(hwnd) == pid:
+                return hwnd
+        time.sleep(1)
+    return None
+
+
+def _wait_for_title_window(substr: str, timeout: int = 40) -> int | None:
+    """Return first visible HWND whose title contains substr (case-insensitive)."""
+    sub = substr.lower()
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for hwnd in _all_visible_hwnds():
+            if sub in _hwnd_title(hwnd).lower():
+                return hwnd
+        time.sleep(1)
+    return None
+
+
+def _wait_for_new_window(known: set, timeout: int = 25) -> int | None:
+    """Return first HWND that appears after `known` was snapshotted."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        current = set(_all_visible_hwnds())
+        new = current - known
+        if new:
+            return next(iter(new))
+        time.sleep(0.8)
+    return None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Executable detection
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _find_webull() -> str | None:
+    if WEBULL_EXE_OVERRIDE and Path(WEBULL_EXE_OVERRIDE).exists():
+        return WEBULL_EXE_OVERRIDE
+    candidates = [
+        r"C:\Program Files (x86)\Webull Desktop\Webull Desktop.exe",
+        r"C:\Program Files\Webull Desktop\Webull Desktop.exe",
+        Path.home() / "AppData" / "Local" / "Webull" / "Webull.exe",
+        Path.home() / "AppData" / "Local" / "Programs" / "Webull Desktop" / "Webull Desktop.exe",
+    ]
+    for p in candidates:
+        if Path(p).exists():
+            return str(p)
+    return None
+
+
+def _find_browser() -> str | None:
+    """Find Chrome or Edge — both support --window-position/--window-size flags."""
+    if BROWSER_EXE_OVERRIDE and Path(BROWSER_EXE_OVERRIDE).exists():
+        return BROWSER_EXE_OVERRIDE
+    candidates = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        Path.home() / "AppData" / "Local" / "Google" / "Chrome" / "Application" / "chrome.exe",
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ]
+    for p in candidates:
+        if Path(p).exists():
+            return str(p)
+    return None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Opening each app
+# ──────────────────────────────────────────────────────────────────────────────
+
+def open_webull():
+    exe = _find_webull()
+    if not exe:
+        log("ERROR: WeBull not found. Set WEBULL_EXE_OVERRIDE at the top of this file.")
+        return
+
+    x, y, w, h = WEBULL_POS
+    log("Launching WeBull...")
+    proc = subprocess.Popen([exe])
+
+    # WeBull (Electron) may hand off to a child process; try PID first, then title
+    hwnd = _wait_for_pid_window(proc.pid, timeout=30)
+    if hwnd is None:
+        log("PID lookup failed — searching by window title...")
+        hwnd = _wait_for_title_window("webull", timeout=20)
+
+    if hwnd is None:
+        log("WARNING: WeBull window not found; it may not be positioned correctly.")
+        return
+
+    time.sleep(2)   # let WeBull finish painting before we resize it
+    _place(hwnd, x, y, w, h)
+    log(f"WeBull → ({x},{y}) {w}×{h}")
+
+
+def _open_browser_window(browser: str, url: str, pos: list, known_before: set) -> set:
+    x, y, w, h = pos
+    snapshot = set(_all_visible_hwnds())   # snapshot just before launch
+
+    subprocess.Popen([
+        browser,
+        f"--window-position={x},{y}",
+        f"--window-size={w},{h}",
+        "--new-window",
+        url,
+    ])
+
+    # Force-place the new window even if the flags were ignored (Chrome single-instance)
+    hwnd = _wait_for_new_window(snapshot, timeout=20)
+    if hwnd:
+        time.sleep(1)
+        _place(hwnd, x, y, w, h)
+    else:
+        log(f"WARNING: browser window for {url} not detected in time.")
+
+    return set(_all_visible_hwnds())   # updated snapshot for next call
+
+
+def open_browser_windows():
+    browser = _find_browser()
+    if not browser:
+        log("ERROR: Chrome/Edge not found. Set BROWSER_EXE_OVERRIDE at the top of this file.")
+        return
+
+    before = set(_all_visible_hwnds())
+
+    log(f"Opening TradeHub...")
+    before = _open_browser_window(browser, TRADEHUB_URL, TRADEHUB_POS, before)
+    time.sleep(1.5)
+
+    log(f"Opening TaskHub...")
+    _open_browser_window(browser, TASKHUB_URL, TASKHUB_POS, before)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Main morning routine
-# ---------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 
 def run_morning():
     if already_ran_today():
@@ -160,75 +315,64 @@ def run_morning():
         log(f"Logged in early — waiting {wait / 60:.1f} min until {TRIGGER_HOUR}:00 AM MT")
         time.sleep(wait)
 
-    log(f"Running morning launch ({len(PROGRAMS)} program(s), {len(URLS)} URL(s))")
-    launch_programs()
-    open_urls()
+    log("=== Morning launch starting ===")
+    open_webull()
+    open_browser_windows()
     mark_ran()
-    log("Done.")
+    log("=== Done ===")
 
 
-# ---------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 # Task Scheduler setup / uninstall
-# ---------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 
-def _find_pythonw() -> str:
-    """Return path to pythonw.exe (silent Python, no console window)."""
+def _pythonw() -> str:
     exe = Path(sys.executable)
-    # sys.executable might be python.exe; look for pythonw.exe next to it
-    candidate = exe.parent / "pythonw.exe"
-    if candidate.exists():
-        return str(candidate)
-    return str(exe)   # fallback to python.exe if pythonw not found
+    pw  = exe.parent / "pythonw.exe"
+    return str(pw) if pw.exists() else str(exe)
 
 
 def setup():
     print("Installing tzdata for timezone support...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "tzdata"])
 
-    pythonw   = _find_pythonw()
-    script    = str(SCRIPT_PATH)
-    work_dir  = str(SCRIPT_PATH.parent)
+    pw       = _pythonw()
+    script   = str(SCRIPT_PATH)
+    work_dir = str(SCRIPT_PATH.parent)
 
     ps = f"""
-$action   = New-ScheduledTaskAction -Execute '{pythonw}' -Argument '"{script}"' -WorkingDirectory '{work_dir}'
+$action   = New-ScheduledTaskAction -Execute '{pw}' -Argument '"{script}"' -WorkingDirectory '{work_dir}'
 $trigger  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 12) -StartWhenAvailable -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName '{TASK_NAME}' -TaskPath '{TASK_FOLDER}' -Action $action -Trigger $trigger -Settings $settings -Description 'Opens morning programs and websites at {TRIGGER_HOUR} AM Mountain Time' -Force
-Write-Host 'Task registered successfully.'
+Register-ScheduledTask -TaskName '{TASK_NAME}' -TaskPath '{TASK_FOLDER}' -Action $action -Trigger $trigger -Settings $settings `
+    -Description 'Opens WeBull + TradeHub + TaskHub at {TRIGGER_HOUR} AM Mountain Time' -Force
+Write-Host 'Registered.'
 """
-    result = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", ps],
-        capture_output=True, text=True
-    )
+    result = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                            capture_output=True, text=True)
     if result.returncode != 0:
-        print("ERROR: Could not register task. Try running this script as Administrator.")
+        print("ERROR: Could not register task. Try running as Administrator.")
         print(result.stderr)
         sys.exit(1)
     print(result.stdout.strip())
-    print(f"\nDone! Morning Launcher will run at every login as '{TASK_FOLDER}{TASK_NAME}'.")
-    print(f"Check {LOG_FILE} to confirm it's working.")
+    print(f"\nInstalled as '{TASK_FOLDER}{TASK_NAME}'. Logs → {LOG_FILE}")
 
 
 def uninstall():
-    ps = f"Unregister-ScheduledTask -TaskName '{TASK_NAME}' -TaskPath '{TASK_FOLDER}' -Confirm:$false"
-    result = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", ps],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print("Could not remove task (maybe it wasn't registered?).")
-        print(result.stderr)
-    else:
-        print(f"Task '{TASK_FOLDER}{TASK_NAME}' removed.")
+    ps = (f"Unregister-ScheduledTask -TaskName '{TASK_NAME}' "
+          f"-TaskPath '{TASK_FOLDER}' -Confirm:$false")
+    r = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                       capture_output=True, text=True)
+    print("Removed." if r.returncode == 0 else f"Error: {r.stderr}")
 
 
-# ---------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 # Entry point
-# ---------------------------------------------------------------------------
+# ──────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Morning Launcher")
-    parser.add_argument("--setup",     action="store_true", help="Register with Task Scheduler (run as Administrator)")
+    parser.add_argument("--setup",     action="store_true", help="Install into Task Scheduler (run as Admin)")
     parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler")
     args = parser.parse_args()
 
