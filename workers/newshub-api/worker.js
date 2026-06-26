@@ -1573,6 +1573,13 @@ function scoreImportance(ev){
   const hl = ev.sources?.[0]?.headline || '';
   if (IMPORTANT_KW.test(hl)) s += 25;                   // catalyst keywords
   if (/\$\d|\d+\s?%/.test(hl)) s += 10;                 // concrete numbers / PT / %
+  // SEC 8-K filings are material by definition — make sure they survive selection
+  // even when phrased without catalyst keywords. Earnings/M&A/exec/restatement
+  // items get a bigger bump than routine disclosures.
+  if ((ev.sources||[]).some(s => s.feed === 'ec')){
+    const ehl = (ev.sources||[]).find(s=>s.feed==='ec')?.headline || hl;
+    s += /Earnings|Acquisition|Director|Bankruptcy|Restatement|Control|Delisting|Cybersecurity|Material Definitive/i.test(ehl) ? 35 : 18;
+  }
   return s;
 }
 
