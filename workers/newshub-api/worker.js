@@ -647,9 +647,14 @@ async function fetchFinnhubGeneral(env, wl, cutoff){
     return out;
   } catch(e){ return []; }
 }
-// useLimitedAPIs: when false (most cron runs), skip Marketaux/StockData/AlphaVantage
-// to preserve their tiny daily quotas. Finnhub + TickerTick have no meaningful
-// daily cap so they run every time. Manual force-fresh sets this true.
+// Source tiers (all 1 subrequest each unless noted), tuned to pack maximum
+// coverage under Cloudflare's 50-subrequest/invocation cap:
+//   ALWAYS-ON (every build): Finnhub general + per-ticker Finnhub, TickerTick
+//     (bulk, free), SEC EDGAR 8-K (free), Marketaux + StockData (generous ~90/day
+//     caps, budget-gated). These give broad multi-ticker + material-filing coverage
+//     even on a normal cache-miss refresh — no more "Finnhub-only" blind spot.
+//   RICH-ONLY (useLimitedAPIs = force-fresh / cron rich tick): AlphaVantage (scarce
+//     25/day) + Tiingo (paid, disabled), reserved so their tiny quotas survive.
 async function fetchAllSources(env, useLimitedAPIs, wl){
   wl = wl || WATCHLIST;
   const now = new Date();
@@ -658,35 +663,31 @@ async function fetchAllSources(env, useLimitedAPIs, wl){
   const fromD = ymd(from), toD = ymd(now);
   const isoFrom = from.toISOString().slice(0,19);
 
-  // Limited-quota sources: only call if (a) allowed this run AND (b) budget remains
-  let mx=[], sd=[], av=[], tg=[], fg=[];
+  let mx=[], sd=[], av=[], tg=[], fg=[], tt=[], ec=[];
+  const tasks = [];
+  // ── Broad multi-symbol wires — run on EVERY build, budget-gated. ──
+  const [mxOk, sdOk] = await Promise.all([ budgetAvailable(env,'marketaux'), budgetAvailable(env,'stockdata') ]);
+  if (mxOk){ tasks.push(fetchMarketaux(wl, env, isoFrom).then(r=>{mx=r;return bumpBudget(env,'marketaux');})); }
+  if (sdOk){ tasks.push(fetchStockData(wl, env, isoFrom).then(r=>{sd=r;return bumpBudget(env,'stockdata');})); }
+  // ── Scarce-quota wires — only on rich/force-fresh builds. ──
   if (useLimitedAPIs){
-    const [mxOk, sdOk, avOk, tgOk] = await Promise.all([
-      budgetAvailable(env,'marketaux'),
-      budgetAvailable(env,'stockdata'),
-      budgetAvailable(env,'alphavantage'),
-      budgetAvailable(env,'tiingo'),
-    ]);
-    const tasks = [];
-    if (mxOk){ tasks.push(fetchMarketaux(wl, env, isoFrom).then(r=>{mx=r;return bumpBudget(env,'marketaux');})); }
-    if (sdOk){ tasks.push(fetchStockData(wl, env, isoFrom).then(r=>{sd=r;return bumpBudget(env,'stockdata');})); }
+    const [avOk, tgOk] = await Promise.all([ budgetAvailable(env,'alphavantage'), budgetAvailable(env,'tiingo') ]);
     if (avOk){ tasks.push(fetchAlphaVantage(wl, env, HOURS).then(r=>{av=r;return bumpBudget(env,'alphavantage');})); }
     if (tgOk && env.TIINGO_KEY && env.TIINGO_ENABLED){ tasks.push(fetchTiingo(wl, env, isoFrom).then(r=>{tg=r;return bumpBudget(env,'tiingo');})); }
-    await Promise.all(tasks);
   }
-  // Finnhub general (market-wide) runs every build — one cheap global call, no
-  // meaningful daily cap, attributed to any watchlist ticker it mentions.
-  fg = await fetchFinnhubGeneral(env, wl, cutoff);
+  // ── Free always-on breadth + canonical filings (each 1 subrequest). ──
+  tasks.push(fetchFinnhubGeneral(env, wl, cutoff).then(r=>{fg=r;}));   // market-wide, attributed
+  tasks.push(fetchTickerTickBulk(wl, cutoff).then(r=>{tt=r;}));        // 1 bulk OR-query for the WL
+  tasks.push(fetchEdgar8K(env, wl, cutoff).then(r=>{ec=r;}));          // SEC 8-K material events
+  await Promise.all(tasks);
 
-  // Per-ticker: Finnhub company-news ONLY. We dropped the per-ticker TickerTick +
-  // Polygon calls here: 29 tickers × 3 sources = 87 subrequests blew Cloudflare's
-  // 50/invocation cap and killed the AI phase. Finnhub-only = 1 subrequest/ticker,
-  // which (plus the multi-symbol sources above + general + the AI phase) keeps the
-  // entire build inside one invocation's budget — no fragile staged self-invocation
-  // chain. Multi-symbol breadth (Marketaux/StockData/AlphaVantage/Tiingo) is
-  // retained above, so coverage stays strong.
+  // ── Per-ticker Finnhub company-news (richest per-company source). One
+  // subrequest each, so it dominates the budget — capped at FINNHUB_PER_TICKER_CAP;
+  // the multi-symbol wires + TickerTick above cover any overflow on big custom
+  // watchlists. The default 29-ticker WL is under the cap (all fetched).
+  const fhTickers = wl.slice(0, FINNHUB_PER_TICKER_CAP);
   const perTicker = [];
-  const queue = [...wl];
+  const queue = [...fhTickers];
   async function worker(){
     while (queue.length){
       const t = queue.shift();
@@ -696,7 +697,7 @@ async function fetchAllSources(env, useLimitedAPIs, wl){
   }
   await Promise.all(Array.from({length:6}, worker));
 
-  const all = [...mx, ...sd, ...av, ...tg, ...fg, ...perTicker]
+  const all = [...mx, ...sd, ...av, ...tg, ...fg, ...tt, ...ec, ...perTicker]
     .filter(a => a.headline && a.ts >= cutoff);
   // Theme broadening: re-attribute sector/supply-chain articles to every
   // affected watchlist ticker (e.g. an SK-Hynix memory story → SNDK+MU+WDC),
