@@ -343,16 +343,17 @@ def open_taskhub_app():
 # Main morning routine
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_morning():
-    if already_ran_today():
+def run_morning(test: bool = False):
+    if not test and already_ran_today():
         return
 
-    wait = seconds_until_trigger()
-    if wait > 0:
-        log(f"Logged in early — waiting {wait / 60:.1f} min until {TRIGGER_HOUR}:00 AM MT")
-        time.sleep(wait)
+    if not test:
+        wait = seconds_until_trigger()
+        if wait > 0:
+            log(f"Logged in early — waiting {wait / 60:.1f} min until {TRIGGER_HOUR}:00 AM MT")
+            time.sleep(wait)
 
-    log("=== Morning launch starting ===")
+    log("=== Morning launch starting ===" + (" [TEST]" if test else ""))
     open_webull()
     open_tradehub()
     time.sleep(1.5)
@@ -422,6 +423,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Morning Launcher")
     parser.add_argument("--setup",     action="store_true", help="Install into Task Scheduler (run as Admin)")
     parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler")
+    parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time and once-per-day checks")
     args = parser.parse_args()
 
     if args.setup:
@@ -429,4 +431,4 @@ if __name__ == "__main__":
     elif args.uninstall:
         uninstall()
     else:
-        run_morning()
+        run_morning(test=args.test)
