@@ -245,7 +245,7 @@ function aiBudgetLeft(){ return _aiDeadline === 0 || Date.now() < _aiDeadline; }
 // launching new ones past this ceiling; any unanalyzed batches fall back to raw
 // individually. Ceiling < 50 leaves headroom for KV + the next-stage kick.
 let _aiSubrequests = 0;
-const AI_SUBREQUEST_BUDGET = 16; // RICH builds add limited-API globals, so the fetch
+const AI_SUBREQUEST_BUDGET = 12; // RICH builds add limited-API globals, so the fetch
                                  // phase runs ~28-30 subreq on a ~23-ticker list. The
                                  // OLD value (24) put fetch+AI at ~52 — JUST over the
                                  // 50/invocation cap, so a cold "new day" rich build
