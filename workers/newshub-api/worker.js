@@ -254,6 +254,11 @@ const AI_SUBREQUEST_BUDGET = 16; // RICH builds add limited-API globals, so the 
                                  // re-kick-looped forever. 16 lands the total at ~44-46,
                                  // safely under 50. First-pass AI is only ~5 calls, so
                                  // quality is unaffected; only deep salvage retries trim.
+// AI gets the subrequest budget left after the fetch phase. Fetch now uses ~35 on
+// the default 29-ticker force-fresh build (29 per-ticker Finnhub + general +
+// Marketaux + StockData + AlphaVantage + 1 bulk TickerTick + 1 EDGAR), so 12 for
+// AI lands the total at ~47, safely under 50. The strong-primary-first pass needs
+// only ~7 calls for 7 batches, leaving headroom for salvage.
 function aiCallBudgetLeft(){ return _aiSubrequests < AI_SUBREQUEST_BUDGET; }
 function countAICall(){ _aiSubrequests++; }
 
