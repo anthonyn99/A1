@@ -195,10 +195,20 @@ const NIM_CHAIN    = AI_CHAIN.filter(e=>e.provider==='nim').map(e=>e.model);
 const QUOTA_COOLDOWN = 3600; // 1h before retrying a model that hit 429
 const BATCH_SIZE = 8;        // 8 events/batch — best balance: model returns most
                              // of them, and 5 batches finish fast in one wave.
-const MAX_EVENTS = 40;       // 5 batches of 8.
-const PER_TICKER_CAP = 4;    // max events per ticker in the top-N, so one noisy
+const MAX_EVENTS = 56;       // 7 batches of 8. Raised from 40 once the strong-
+                             // primary-first AI pass made batches reliable (each
+                             // first-pass call returns its full batch), so more
+                             // events get analyzed without extra salvage churn.
+const PER_TICKER_CAP = 6;    // max events per ticker in the top-N, so one noisy
                              // ticker (e.g. AMZN) can't crowd out the rest of the
-                             // watchlist — every ticker/sector gets its top news
+                             // watchlist — every ticker/sector gets its top news.
+                             // 6 (was 4) keeps more depth on a heavy-news ticker
+                             // (earnings day) while breadth fill still runs after.
+// Per-ticker Finnhub company-news is the richest per-company source but costs one
+// subrequest each, so it dominates the 50/invocation budget. Cap it; the always-on
+// multi-symbol sources (Marketaux/StockData/AlphaVantage/TickerTick) cover any
+// overflow tickers on larger custom watchlists. The default WL (29) is under this.
+const FINNHUB_PER_TICKER_CAP = 34;
 const AI_CALL_TIMEOUT = 12000; // ms — MUST be < AI_PHASE_BUDGET_MS. A single call
                                // hanging near a 35s timeout blew the 20s phase
                                // budget (deadline only stops NEW calls, not
