@@ -1523,18 +1523,27 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
     // Start the AI-phase clock — retries/salvage stop launching past this.
     _aiDeadline = Date.now() + AI_PHASE_BUDGET_MS;
     _aiSubrequests = 0; // reset the hard subrequest counter for this build's AI phase
-    // Assign each batch a model round-robin, then run with bounded concurrency.
-    // Concurrency 4: with per-model 503/RPM retries now bounded by the deadline,
-    // more parallelism helps the whole build finish inside the Worker budget.
-    const jobs = batches.map((b, i) => ({ b, i, entry: avail[i % avail.length] }));
+    // ── First pass: send EVERY batch to the STRONGEST available model. ──
+    // The old design round-robined batches across the WHOLE chain
+    // (avail[i % avail.length]), so 4 of every 5 batches landed on weak fallback
+    // models (flash-lite / 2.0-flash / 1.5-flash / 8B-NIM) that truncate or
+    // mis-id the 8-event JSON → only the one batch that hit the strong primary
+    // came back complete, leaving ~8/40 events analyzed and the rest stuck as RAW.
+    // The strong primary returns all 8 verdicts per batch reliably (~7s each), and
+    // a handful of parallel calls stay under its RPM, so first-pass coverage jumps
+    // to ~full. Weak models are now reserved for the salvage passes below, applied
+    // only to batches the primary actually dropped.
+    const primary = avail[0];
+    const jobs = batches.map((b, i) => ({ b, i }));
     const ran = await mapLimit(
       jobs, AI_CONCURRENCY,
-      j => callModel(j.entry, j.b, env, ctx, wl, sectors).catch(() => null)
+      j => callModel(primary, j.b, env, ctx, wl, sectors).catch(() => null)
     );
     ran.forEach((out, k) => { if (out){ outputs[jobs[k].i] = out; } });
 
-    // ── Salvage pass: retry any dropped batches on a DIFFERENT available model.
-    // Cycle the model offset so a batch that failed on model A is tried on B, C…
+    // ── Salvage pass: retry any dropped batches on the FALLBACK models.
+    // Cycle through the rest of the chain (avail[round], avail[round+1]…) so a
+    // batch the primary dropped (503/RPM blip) still gets a different model.
     // Stops early if we're out of build budget (a 503 storm shouldn't run us past
     // the Worker limit — better to cache a partial-analyzed result than be killed).
     let dropped = batches.map((b, i) => ({ b, i })).filter(x => !outputs[x.i]);
@@ -1747,11 +1756,14 @@ async function aiAnalyzeWindow(env, ctx, eventsSubset, wl, sectors){
   if (batches.length && avail.length){
     _aiDeadline = Date.now() + AI_PHASE_BUDGET_MS;
     _aiSubrequests = 0;
-    const jobs = batches.map((b, i) => ({ b, i, entry: avail[i % avail.length] }));
+    // First pass on the STRONGEST model (see runPipeline note): round-robin onto
+    // weak fallbacks left most events RAW; the strong primary returns full batches.
+    const primary = avail[0];
+    const jobs = batches.map((b, i) => ({ b, i }));
     const ran = await mapLimit(jobs, AI_CONCURRENCY,
-      j => callModel(j.entry, j.b, env, ctx, wl, sectors).catch(() => null));
+      j => callModel(primary, j.b, env, ctx, wl, sectors).catch(() => null));
     ran.forEach((out, k) => { if (out){ outputs[jobs[k].i] = out; } });
-    // One salvage round on a different model for dropped batches.
+    // One salvage round on a fallback model for dropped batches.
     let dropped = batches.map((b, i) => ({ b, i })).filter(x => !outputs[x.i]);
     if (dropped.length && avail.length > 1 && aiBudgetLeft()){
       const retried = await mapLimit(dropped, AI_CONCURRENCY,
