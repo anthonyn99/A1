@@ -392,6 +392,106 @@ async function fetchTickerTick(ticker, cutoff){
       }));
   } catch(e){ return []; }
 }
+// TickerTick BULK — one query for the whole watchlist via its (or tt:a tt:b…)
+// syntax instead of one call per ticker. Free, no key. Stories arrive tagged with
+// their ticker(s); we keep only allowlisted financial publishers within the window
+// and attribute each to its first watchlist ticker. ≤30 tickers/query → the
+// default 29-ticker WL is a SINGLE subrequest (vs 29 in the old per-ticker path).
+async function fetchTickerTickBulk(wl, cutoff){
+  const wlSet = new Set(wl.map(t => t.toUpperCase()));
+  const out = [];
+  const CHUNK = 30;
+  for (let i=0; i<wl.length; i+=CHUNK){
+    const terms = wl.slice(i, i+CHUNK).map(t => 'tt:' + t.toLowerCase());
+    const q = terms.length === 1 ? terms[0] : `(or ${terms.join(' ')})`;
+    try {
+      const r = await fetch(`https://api.tickertick.com/feed?q=${encodeURIComponent(q)}&n=100`);
+      if (!r.ok) continue;
+      const j = await r.json();
+      for (const s of (j.stories||[])){
+        if ((s.time||0) < cutoff) continue;
+        if (!isTTAllowed(s.url, s.site)) continue;
+        const tk = (s.tickers||[]).map(x => (x||'').toUpperCase()).find(x => wlSet.has(x));
+        if (!tk) continue;
+        out.push({
+          feed:'tt', ticker:tk,
+          headline:s.title||'', summary:s.description||'',
+          url:s.url||'#', source:s.site||'TickerTick', ts:s.time||0,
+        });
+      }
+    } catch(e){}
+  }
+  return out;
+}
+
+// ─── SEC EDGAR 8-K material filings (free, no key) ─────────────────────────────
+// 8-Ks are the canonical source of MATERIAL corporate events (earnings, M&A, exec
+// changes, restatements, bankruptcies). One market-wide "getcurrent" atom call
+// returns the most recent filings WITH their item codes in the summary, so we get
+// descriptive headlines and event types from a SINGLE subrequest — no per-filing
+// fetches. We map each filing's CIK back to a watchlist ticker via SEC's
+// ticker→CIK table (cached in KV for a week; one cold fetch ~weekly).
+const EDGAR_HEADERS = { 'User-Agent': 'tradehub-newshub research anthonypn99@gmail.com', 'Accept-Encoding':'gzip, deflate' };
+const EDGAR_8K_ITEMS = {
+  '1.01':'Material Definitive Agreement','1.02':'Termination of Material Agreement',
+  '1.03':'Bankruptcy or Receivership','1.05':'Material Cybersecurity Incident',
+  '2.01':'Completion of Acquisition/Disposition','2.02':'Results of Operations (Earnings)',
+  '2.03':'Material Financial Obligation','2.04':'Triggering Event on Financial Obligation',
+  '2.05':'Costs from Exit/Disposal','2.06':'Material Impairment',
+  '3.01':'Delisting / Listing-Standard Notice','3.02':'Unregistered Equity Sale',
+  '3.03':'Modification of Security-Holder Rights','4.01':'Change in Accountant',
+  '4.02':'Non-Reliance on Prior Financials (Restatement)','5.01':'Change in Control',
+  '5.02':'Executive/Director Change','5.03':'Bylaw/Charter Amendment',
+  '5.07':'Shareholder Vote Results','7.01':'Reg FD Disclosure',
+  '8.01':'Other Material Event','9.01':'Financial Statements & Exhibits',
+};
+// ticker(UPPER) → CIK(int). KV-cached 7 days; rebuilt from SEC on miss.
+async function loadCikMap(env){
+  try { const c = await env.NEWSHUB_CACHE.get('edgar:cikmap'); if (c) return JSON.parse(c); } catch(e){}
+  try {
+    const r = await fetch('https://www.sec.gov/files/company_tickers.json', { headers: EDGAR_HEADERS });
+    if (!r.ok) return {};
+    const j = await r.json();
+    const map = {};
+    for (const k in j){ const row = j[k]; if (row && row.ticker) map[String(row.ticker).toUpperCase()] = row.cik_str; }
+    await env.NEWSHUB_CACHE.put('edgar:cikmap', JSON.stringify(map), { expirationTtl: 7*86400 }).catch(()=>{});
+    return map;
+  } catch(e){ return {}; }
+}
+async function fetchEdgar8K(env, wl, cutoff){
+  try {
+    const cikMap = await loadCikMap(env);
+    const cik2tk = {};                       // "CIK without leading zeros" → ticker
+    for (const t of wl){ const c = cikMap[t.toUpperCase()]; if (c != null) cik2tk[String(c)] = t.toUpperCase(); }
+    if (!Object.keys(cik2tk).length) return [];
+    const r = await fetch('https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=100&output=atom', { headers: EDGAR_HEADERS });
+    if (!r.ok) return [];
+    const xml = await r.text();
+    const out = [];
+    for (const e of xml.split('<entry>').slice(1)){
+      const title = ((e.match(/<title>([\s\S]*?)<\/title>/)||[])[1] || '').trim();
+      const cikM = title.match(/\((\d{4,10})\)/);
+      if (!cikM) continue;
+      const tk = cik2tk[String(parseInt(cikM[1], 10))];
+      if (!tk) continue;                     // not a watchlist filer
+      const upd = (e.match(/<updated>([^<]+)<\/updated>/)||[])[1];
+      const ts = upd ? Date.parse(upd) : Date.now();
+      if (ts < cutoff) continue;
+      const href = (e.match(/href="([^"]+)"/)||[])[1] || 'https://www.sec.gov';
+      const summaryRaw = (e.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)||[])[1] || '';
+      const items = [...summaryRaw.matchAll(/Item\s+(\d+\.\d+)/g)].map(m => m[1]);
+      const labels = items.map(c => EDGAR_8K_ITEMS[c] || ('Item ' + c));
+      const company = title.replace(/^8-K\s*-\s*/,'').replace(/\s*\(\d{4,10}\)\s*\(Filer\)\s*$/,'').trim();
+      out.push({
+        feed:'ec', ticker:tk,
+        headline:`${company} filed SEC 8-K — ${labels.length ? labels.join('; ') : 'material event'}`,
+        summary:`Official SEC 8-K filing. Items: ${items.length ? items.map((c,i)=>`${c} (${labels[i]})`).join(', ') : 'unspecified'}.`,
+        url:href, source:'SEC EDGAR', ts,
+      });
+    }
+    return out;
+  } catch(e){ return []; }
+}
 async function fetchMarketaux(symbols, env, isoFrom){
   try {
     const r = await fetch(`https://api.marketaux.com/v1/news/all?symbols=${symbols.join(',')}&filter_entities=true&language=en&published_after=${isoFrom}&limit=3&api_token=${env.MARKETAUX_KEY}`);
