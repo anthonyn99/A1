@@ -823,7 +823,7 @@ function clusterArticles(articles){
   // ── Step 0b: cross-ticker dedupe by URL + headline ────────────────────────
   // Precedence: mx/sd/av (relevance-scored) > tt (allowlist filtered) > fh
   pass1.sort((a,b) => {
-    const p = {mx:0, sd:0, av:0, tg:1, pg:1, tt:2, fh:3, fg:4};
+    const p = {ec:0, mx:0, sd:0, av:0, tg:1, pg:1, tt:2, fh:3, fg:4};
     return (p[a.feed]??3) - (p[b.feed]??3) || b.ts - a.ts;
   });
   const seenGlobal = new Set();
