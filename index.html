@@ -21471,15 +21471,31 @@ window._mdToHtml = function(md) {
       out.push('<blockquote>' + q.join('<br>') + '</blockquote>'); continue;
     }
     if (/^\s*([-*+_])\1{2,}\s*$/.test(ln)) { out.push('<hr>'); j++; continue; }
-    // table
-    if (/\|/.test(ln) && j+1 < lines.length && /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[j+1]) && /-/.test(lines[j+1])) {
-      var cell = function(r){ return r.replace(/^\s*\|/,'').replace(/\|\s*$/,'').split('|').map(function(c){return c.trim();}); };
-      var head = cell(ln); j += 2;
-      var t = '<table><tr>' + head.map(function(c){return '<th>'+inline(c)+'</th>';}).join('') + '</tr>';
-      while (j < lines.length && /\|/.test(lines[j]) && !/^\s*$/.test(lines[j])) {
-        t += '<tr>' + cell(lines[j]).map(function(c){return '<td>'+inline(c)+'</td>';}).join('') + '</tr>'; j++;
+    // table (tolerant of blank lines between header/separator/rows)
+    var isSepLine = function(s){ return /^\s*\|?[\s:|-]+\|?\s*$/.test(s) && /-/.test(s) && /\|/.test(s); };
+    if (/\|/.test(ln) && !isSepLine(ln)) {
+      // next non-blank line must be a separator row
+      var sIdx = j + 1;
+      while (sIdx < lines.length && /^\s*$/.test(lines[sIdx])) sIdx++;
+      if (sIdx < lines.length && isSepLine(lines[sIdx])) {
+        var cell = function(r){ return r.replace(/^\s*\|/,'').replace(/\|\s*$/,'').split('|').map(function(c){return c.trim();}); };
+        var head = cell(ln);
+        var t = '<table><tr>' + head.map(function(c){return '<th>'+inline(c)+'</th>';}).join('') + '</tr>';
+        j = sIdx + 1;
+        while (j < lines.length) {
+          if (/^\s*$/.test(lines[j])) {
+            // allow blank lines between rows; stop only if no further pipe row follows
+            var p = j + 1;
+            while (p < lines.length && /^\s*$/.test(lines[p])) p++;
+            if (p < lines.length && /\|/.test(lines[p]) && !isSepLine(lines[p])) { j = p; continue; }
+            break;
+          }
+          if (!/\|/.test(lines[j])) break;
+          if (isSepLine(lines[j])) { j++; continue; }
+          t += '<tr>' + cell(lines[j]).map(function(c){return '<td>'+inline(c)+'</td>';}).join('') + '</tr>'; j++;
+        }
+        out.push(t + '</table>'); continue;
       }
-      out.push(t + '</table>'); continue;
     }
     // lists
     if (/^\s*([-*+]|\d+\.)\s+/.test(ln)) {
@@ -21500,6 +21516,60 @@ window._mdToHtml = function(md) {
     if (para.length) out.push('<p>' + para.join('<br>') + '</p>');
   }
   return out.join('') + '<p></p>';
+};
+}
+// ── Convert raw markdown tables left inside an already-rendered editor ─────
+if (!window._renderMdTables) {
+window._renderMdTables = function(ed) {
+  var isSepLine = function(s){ return /^\s*\|?[\s:|-]+\|?\s*$/.test(s) && /-/.test(s) && /\|/.test(s); };
+  var splitCells = function(htmlLine){ return htmlLine.replace(/^\s*\|/,'').replace(/\|\s*$/,'').split('|').map(function(c){return c.trim();}); };
+  var lineText = function(el){ return (el.textContent || '').trim(); };
+
+  // Pass 0: a single block may hold the whole table as <br>-separated lines — split it.
+  Array.prototype.slice.call(ed.children).forEach(function(el){
+    var inner = el.innerHTML;
+    if (!/<br\s*\/?>/i.test(inner)) return;
+    var segs = inner.split(/<br\s*\/?>/i);
+    var anySep = segs.some(function(s){ var d=document.createElement('div'); d.innerHTML=s; return isSepLine(d.textContent.trim()); });
+    if (!anySep) return;
+    var frag = document.createDocumentFragment();
+    segs.forEach(function(s){ var p=document.createElement('p'); p.innerHTML = (s && s.trim()) ? s : '<br>'; frag.appendChild(p); });
+    el.parentNode.replaceChild(frag, el);
+  });
+
+  // Pass 1: scan top-level <p>/<div> blocks for header + separator + rows (blank lines tolerated).
+  var children = Array.prototype.slice.call(ed.children);
+  var i = 0;
+  while (i < children.length) {
+    var el = children[i];
+    var line = lineText(el);
+    if (line && /\|/.test(line) && !isSepLine(line) && el.tagName && /^(P|DIV)$/i.test(el.tagName)) {
+      var k = i + 1;
+      while (k < children.length && lineText(children[k]) === '') k++;
+      if (k < children.length && isSepLine(lineText(children[k]))) {
+        var rows = [], lastIdx = k, m = k + 1;
+        while (m < children.length) {
+          var ml = lineText(children[m]);
+          if (ml === '') { m++; continue; }
+          if (/\|/.test(ml) && !isSepLine(ml) && children[m].tagName && /^(P|DIV)$/i.test(children[m].tagName)) {
+            rows.push(children[m]); lastIdx = m; m++;
+          } else break;
+        }
+        var head = splitCells(el.innerHTML);
+        var t = '<table><tr>' + head.map(function(c){return '<th>'+c+'</th>';}).join('') + '</tr>';
+        rows.forEach(function(r){ t += '<tr>' + splitCells(r.innerHTML).map(function(c){return '<td>'+c+'</td>';}).join('') + '</tr>'; });
+        t += '</table>';
+        var holder = document.createElement('div'); holder.innerHTML = t;
+        var tableEl = holder.firstChild;
+        ed.insertBefore(tableEl, el);
+        for (var d = i; d <= lastIdx; d++) { if (children[d].parentNode) children[d].parentNode.removeChild(children[d]); }
+        children = Array.prototype.slice.call(ed.children);
+        i = Array.prototype.indexOf.call(children, tableEl) + 1;
+        continue;
+      }
+    }
+    i++;
+  }
 };
 }
 // ── Markdown paste modal (shared) ─────────────────────────────────────────
@@ -21543,7 +21613,11 @@ document.getElementById('bj-pt-md').addEventListener('click', () => {
     ed.innerHTML = window._mdToHtml(raw);
     autoSave();
   } else {
-    window._openMdModal(pgCmd);
+    // already rendered: convert any raw markdown tables left behind, else open paste modal
+    var before = ed.innerHTML;
+    window._renderMdTables(ed);
+    if (ed.innerHTML !== before) { autoSave(); }
+    else { window._openMdModal(pgCmd); }
   }
 });
 
@@ -26509,7 +26583,11 @@ document.getElementById('tj-pt-md').addEventListener('click', () => {
     ed.innerHTML = window._mdToHtml(raw);
     autoSave();
   } else {
-    window._openMdModal(pgCmd);
+    // already rendered: convert any raw markdown tables left behind, else open paste modal
+    var before = ed.innerHTML;
+    window._renderMdTables(ed);
+    if (ed.innerHTML !== before) { autoSave(); }
+    else { window._openMdModal(pgCmd); }
   }
 });
 
