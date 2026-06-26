@@ -405,7 +405,7 @@ async function fetchTickerTickBulk(wl, cutoff){
     const terms = wl.slice(i, i+CHUNK).map(t => 'tt:' + t.toLowerCase());
     const q = terms.length === 1 ? terms[0] : `(or ${terms.join(' ')})`;
     try {
-      const r = await fetch(`https://api.tickertick.com/feed?q=${encodeURIComponent(q)}&n=100`);
+      const r = await fetch(`https://api.tickertick.com/feed?q=${encodeURIComponent(q)}&n=150`);
       if (!r.ok) continue;
       const j = await r.json();
       for (const s of (j.stories||[])){

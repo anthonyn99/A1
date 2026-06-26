@@ -23,3 +23,11 @@
 [0626/100244.936:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
 [0626/100741.429:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
 [0626/100741.454:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
+[0626/103242.084:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
+[0626/103244.019:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
+[0626/103244.450:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
+[0626/103422.691:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
+[0626/103422.717:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
+[0626/103422.768:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
+[0626/103741.430:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
+[0626/104241.427:ERROR:cert_verify_proc_builtin.cc(623)] No net_fetcher for performing AIA chasing.
