@@ -4054,16 +4054,19 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
 
   useEffect(()=>{
     const doLoad=async()=>{
+      let lastPush=null;
       try{
-        if(window._fbLoadMarketCal){const d=await window._fbLoadMarketCal();if(d&&Array.isArray(d.events)){const today=tbEtDate(0);const fut=d.events.filter(e=>e&&e.date>=today);setEvents(fut);eventsRef.current=fut;setLastSync(d.generatedAt||d.savedAt||null);
+        if(window._fbLoadMarketCal){const d=await window._fbLoadMarketCal();if(d&&Array.isArray(d.events)){const today=tbEtDate(0);const fut=d.events.filter(e=>e&&e.date>=today);setEvents(fut);eventsRef.current=fut;lastPush=d.generatedAt||d.savedAt||null;setLastSync(lastPush);
           // One-time cleanup: nuke any catalyst reminder docs from the old push
           // flow (ids == event ids) so no 6:30 AM notification ever fires again.
           if(window._fbDeleteReminder){for(const e of (d.events||[])){if(e&&e.id){try{await window._fbDeleteReminder(e.id);}catch(_e){}}}}
         }}
       }catch(e){}
-      // No auto-refresh on tab open — only load cached events from Firebase.
-      // Fresh fetch happens ONLY when the user hits Refresh / Force.
       didAuto.current=true;
+      // Scheduled auto-push: every 30 days from 2026-07-01 (Mountain), pull
+      // fresh data and broadcast it to the TaskHubs. Fires once on the first
+      // load after a boundary; manual Refresh / Force still work as before.
+      if(tbCatPushDue(lastPush))refresh(true);
     };
     if(window._fbReady)doLoad();else{const h=()=>doLoad();window.addEventListener('fb-ready',h,{once:true});return()=>window.removeEventListener('fb-ready',h);}
   },[]);
