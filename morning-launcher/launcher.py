@@ -381,9 +381,18 @@ def setup():
 
     ps = f"""
 $action   = New-ScheduledTaskAction -Execute '{pw}' -Argument '"{script}"' -WorkingDirectory '{work_dir}'
-$trigger  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 12) -StartWhenAvailable -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName '{TASK_NAME}' -TaskPath '{TASK_FOLDER}' -Action $action -Trigger $trigger -Settings $settings `
+
+# Trigger 1: fresh login
+$logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+
+# Trigger 2: wake from sleep/hibernate (System log, Power-Troubleshooter event 1)
+$wakeClass   = Get-CimClass -ClassName MSFT_TaskEventTrigger -Namespace 'Root/Microsoft/Windows/TaskScheduler'
+$wakeTrigger = $wakeClass | New-CimInstance -ClientOnly
+$wakeTrigger.Subscription = '<QueryList><Query Id="0" Path="System"><Select Path="System">*[System[Provider[@Name=''Microsoft-Windows-Power-Troubleshooter''] and EventID=1]]</Select></Query></QueryList>'
+$wakeTrigger.Enabled = $True
+
+Register-ScheduledTask -TaskName '{TASK_NAME}' -TaskPath '{TASK_FOLDER}' -Action $action -Trigger @($logonTrigger, $wakeTrigger) -Settings $settings `
     -Description 'Opens WeBull + TradeHub + TaskHub at {TRIGGER_HOUR} AM Mountain Time' -Force
 Write-Host 'Registered.'
 """
