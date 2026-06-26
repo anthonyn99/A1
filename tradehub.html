@@ -3952,6 +3952,23 @@ const TB_CAT_COLORS={earnings:'#E0607A',inflation:'#d29922',fed:'#bc8cff',jobs:'
 const tbCatColor=c=>TB_CAT_COLORS[String(c||'').toLowerCase()]||'#8b949e';
 function tbFmtLocal(iso){ if(!iso) return ''; const d=new Date(iso); let h=d.getHours(); const m=d.getMinutes(); const ap=h<12?'AM':'PM'; h=h%12||12; return h+':'+(m<10?'0':'')+m+' '+ap; }
 
+// Auto-push schedule: refresh the calendar and broadcast it to the TaskHubs
+// every 30 days, anchored to 2026-07-01 (Mountain). tbCatPushDue returns true
+// when the latest 30-day boundary on/after the epoch has passed and the last
+// push (generatedAt/savedAt) predates it. The app only runs when open, so this
+// fires once on the first Catalysts load after each boundary.
+const TB_CAT_PUSH_EPOCH='2026-07-01';
+const TB_CAT_PUSH_DAYS=30;
+function tbCatPushDue(lastPushMs){
+  const today=tbEtDate(0);
+  if(today<TB_CAT_PUSH_EPOCH)return false;                 // cadence hasn't started yet
+  const epoch=new Date(TB_CAT_PUSH_EPOCH+'T12:00:00').getTime();
+  const now=new Date(today+'T12:00:00').getTime();
+  const k=Math.floor((now-epoch)/(TB_CAT_PUSH_DAYS*86400000));
+  const boundaryMs=epoch+k*TB_CAT_PUSH_DAYS*86400000;       // most recent boundary <= today
+  return !lastPushMs||lastPushMs<boundaryMs;                // never pushed, or before this window
+}
+
 
 function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
   const [events,setEvents]=useState([]);
@@ -4029,7 +4046,7 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
         }
         await commit(future);
         setLoading(false);
-        if(!future.length)setNotice(j&&j.degraded?'Sources empty right now — try Force in a bit.':'No catalysts in the next 10 days.');
+        if(!future.length)setNotice(j&&j.degraded?'Sources empty right now — try Force in a bit.':'No catalysts in the next 30 days.');
       }catch(e){setNotice('Network error: '+e.message);setLoading(false);}
     };
     poll(0);
@@ -4063,7 +4080,7 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
     <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:8}}>
       <div>
         <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Catalysts</div>
-        <div style={{fontSize:12,color:'var(--txm)',marginTop:2}}>Earnings + macro · next 10 days · {watchlist.length} tickers · auto-synced to TaskHub</div>
+        <div style={{fontSize:12,color:'var(--txm)',marginTop:2}}>Earnings + macro · next 30 days · {watchlist.length} tickers · auto-synced to TaskHub · auto-pushed every 30 days</div>
       </div>
       <div style={{display:'flex',gap:8}}>
         <button onClick={()=>refresh(false)} disabled={loading} style={{padding:'8px 16px',borderRadius:100,border:'1px solid var(--bd)',background:'var(--s2)',color:'var(--tx)',fontSize:13,fontWeight:700,cursor:loading?'default':'pointer',opacity:loading?.5:1}}>{loading?'Loading…':'↻ Refresh'}</button>
