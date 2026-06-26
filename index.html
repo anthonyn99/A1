@@ -21572,37 +21572,7 @@ window._renderMdTables = function(ed) {
   }
 };
 }
-// ── Markdown paste modal (shared) ─────────────────────────────────────────
-if (!window._mdModalInit) {
-  window._mdModalInit = true;
-  window._mdTargetCmd = null;
-  var mo = document.createElement('div');
-  mo.id = 'md-paste-modal';
-  mo.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;';
-  mo.innerHTML =
-    '<div style="background:#1c1c22;border:1px solid #3a3a45;border-radius:8px;width:min(560px,92vw);max-height:80vh;display:flex;flex-direction:column;padding:16px;font-family:\'IBM Plex Mono\',monospace;">' +
-      '<div style="font-size:13px;font-weight:700;color:#ECECEE;margin-bottom:8px;letter-spacing:0.05em;">PASTE MARKDOWN</div>' +
-      '<textarea id="md-paste-ta" placeholder="# Heading\n\n**bold**, *italic*, `code`\n- list item\n\n| a | b |\n|---|---|\n| 1 | 2 |" style="flex:1;min-height:240px;background:#0f0f12;border:1px solid #323240;border-radius:6px;color:#ECECEE;font-family:\'IBM Plex Mono\',monospace;font-size:12px;padding:10px;resize:vertical;outline:none;"></textarea>' +
-      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">' +
-        '<button id="md-paste-cancel" style="padding:7px 16px;background:transparent;border:1px solid #4a4b51;border-radius:6px;color:#AFB0B5;font-size:12px;font-weight:600;cursor:pointer;">Cancel</button>' +
-        '<button id="md-paste-insert" style="padding:7px 16px;background:#8D769A;border:none;border-radius:6px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">Insert</button>' +
-      '</div>' +
-    '</div>';
-  document.body.appendChild(mo);
-  var taEl = document.getElementById('md-paste-ta');
-  window._openMdModal = function(cmdFn){ window._mdTargetCmd = cmdFn; taEl.value=''; mo.style.display='flex'; setTimeout(function(){taEl.focus();},30); };
-  var closeMd = function(){ mo.style.display='none'; window._mdTargetCmd=null; };
-  document.getElementById('md-paste-cancel').addEventListener('click', closeMd);
-  mo.addEventListener('click', function(e){ if(e.target===mo) closeMd(); });
-  document.getElementById('md-paste-insert').addEventListener('click', function(){
-    var md = taEl.value;
-    if (md.trim() && window._mdTargetCmd) {
-      var html = window._mdToHtml(md);
-      window._mdTargetCmd('insertHTML', html);
-    }
-    closeMd();
-  });
-}
+// (Paste-markdown modal removed — MD now renders the editor's own text in place.)
 
 document.getElementById('bj-pt-md').addEventListener('click', () => {
   var ed = document.getElementById('bj-page-editor');
@@ -21613,11 +21583,10 @@ document.getElementById('bj-pt-md').addEventListener('click', () => {
     ed.innerHTML = window._mdToHtml(raw);
     autoSave();
   } else {
-    // already rendered: convert any raw markdown tables left behind, else open paste modal
+    // already rendered: convert any raw markdown tables left behind
     var before = ed.innerHTML;
     window._renderMdTables(ed);
     if (ed.innerHTML !== before) { autoSave(); }
-    else { window._openMdModal(pgCmd); }
   }
 });
 
@@ -26583,11 +26552,10 @@ document.getElementById('tj-pt-md').addEventListener('click', () => {
     ed.innerHTML = window._mdToHtml(raw);
     autoSave();
   } else {
-    // already rendered: convert any raw markdown tables left behind, else open paste modal
+    // already rendered: convert any raw markdown tables left behind
     var before = ed.innerHTML;
     window._renderMdTables(ed);
     if (ed.innerHTML !== before) { autoSave(); }
-    else { window._openMdModal(pgCmd); }
   }
 });
 
