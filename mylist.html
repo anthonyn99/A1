@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>MyList</title>
+<meta name="theme-color" content="#0f0f12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MyList">
+<link rel="manifest" href="data:application/json,{%22name%22:%22MyList%22,%22short_name%22:%22MyList%22,%22display%22:%22standalone%22,%22start_url%22:%22.%22,%22background_color%22:%22%230f0f12%22,%22theme_color%22:%22%23E0607A%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A//www.w3.org/2000/svg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%23E0607A'/%3E%3Ctext%20x%3D'50%25'%20y%3D'68%25'%20text-anchor%3D'middle'%20font-size%3D'52'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+*{scrollbar-width:none;-ms-overflow-style:none;}
+*::-webkit-scrollbar{display:none;width:0;height:0;}
+a,button,label,select,input,textarea,[role=button],[onclick]{touch-action:manipulation;}
+
+/* ── Theme tokens. Defaults = Tony (TaskHub dark). body[data-profile=veda] overrides. ── */
+body{
+  --bg:#0f0f12; --surface:#16161c; --surface2:#1d1d25; --border:#262630; --border2:#33333f;
+  --text:#ececf0; --textdim:#9898a8; --textmute:#5b5b6c;
+  --accent:#E0607A; --accent-ink:#0f0f12; --accent-soft:rgba(224,96,122,0.14);
+  --good:#5fbf8f; --bad:#d47a6a;
+  --font-body:'Nunito',sans-serif; --font-head:'Nunito',sans-serif; --font-btn:'Nunito',sans-serif;
+  --head-weight:800; --head-spacing:0px; --head-transform:none;
+  --radius:14px;
+  background:var(--bg);color:var(--text);
+  font-family:var(--font-body);-webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body[data-profile=veda]{
+  --bg:#1B1C1E; --surface:#232427; --surface2:#2b2c30; --border:#3a3b41; --border2:#4a4b51;
+  --text:#e9e7ec; --textdim:#9b96a3; --textmute:#615f6a;
+  --accent:#8D769A; --accent-ink:#1B1C1E; --accent-soft:rgba(141,118,154,0.16);
+  --good:#8fae8a; --bad:#c98a7d;
+  --font-body:'IBM Plex Mono',monospace; --font-head:'Playfair Display',serif; --font-btn:'IBM Plex Mono',monospace;
+  --head-weight:900; --head-spacing:1px; --head-transform:uppercase;
+  --radius:8px;
+}
+button,input,select,textarea{font-family:var(--font-body);color:var(--text);}
+input,textarea,select{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:11px 12px;font-size:15px;outline:none;width:100%;}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);}
+input::placeholder,textarea::placeholder{color:var(--textmute);}
+select{appearance:none;-webkit-appearance:none;background-image:none;cursor:pointer;}
+
+.wordmark{font-family:var(--font-head);font-weight:var(--head-weight);letter-spacing:var(--head-spacing);text-transform:var(--head-transform);color:var(--accent);}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--border2);background:transparent;color:var(--accent);border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font-btn);transition:all .15s;white-space:nowrap;}
+.btn:hover{border-color:var(--accent);}
+.btn.solid{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+.btn.ghost{color:var(--textdim);border-color:var(--border);}
+.btn.danger{color:var(--bad);border-color:rgba(212,122,106,0.5);}
+.btn.sm{padding:6px 10px;font-size:12px;border-radius:7px;}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--accent);cursor:pointer;flex-shrink:0;transition:all .15s;}
+.icon-btn:hover{border-color:var(--accent);}
+
+/* ── Profile overlay ── */
+#profile-overlay{position:fixed;inset:0;z-index:9000;display:none;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--bg);padding:calc(env(safe-area-inset-top,0px) + 24px) 22px calc(env(safe-area-inset-bottom,0px) + 24px);}
+#profile-overlay .pw-title{font-family:'Playfair Display',serif;font-weight:900;font-size:30px;letter-spacing:1px;color:#fff;margin-bottom:6px;text-align:center;}
+#profile-overlay .pw-sub{color:#9898a8;font-family:'Nunito',sans-serif;font-size:14px;margin-bottom:34px;text-align:center;}
+.profile-cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;width:100%;max-width:520px;}
+.profile-card{position:relative;flex:1 1 200px;max-width:240px;background:#16161c;border:1px solid #262630;border-radius:20px;padding:30px 20px 24px;text-align:center;cursor:pointer;transition:all .18s;}
+.profile-card:hover{transform:translateY(-4px);}
+.profile-card .emoji{font-size:46px;line-height:1;margin-bottom:14px;}
+.profile-card .pname{font-family:'Nunito',sans-serif;font-weight:800;font-size:22px;color:#fff;}
+.profile-card .plock{font-family:'Nunito',sans-serif;font-size:11px;color:#9898a8;margin-top:6px;min-height:14px;}
+.profile-card .fav-star{position:absolute;top:10px;right:12px;font-size:20px;color:#3a3a46;cursor:pointer;transition:all .15s;line-height:1;}
+.profile-card .fav-star.on{color:#f5c451;text-shadow:0 0 10px rgba(245,196,81,.5);}
+.profile-card.tony{border-color:rgba(224,96,122,0.4);} .profile-card.tony:hover{box-shadow:0 12px 30px rgba(224,96,122,0.18);}
+.profile-card.tony .emoji,.profile-card.tony .pname{color:#E0607A;}
+.profile-card.veda{border-color:rgba(141,118,154,0.45);} .profile-card.veda:hover{box-shadow:0 12px 30px rgba(141,118,154,0.2);}
+.profile-card.veda .emoji,.profile-card.veda .pname{color:#b79fc4;font-family:'Playfair Display',serif;}
+
+/* ── App shell ── */
+#app{display:none;min-height:100%;flex-direction:column;}
+#topbar{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);padding:calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,4vw,22px) 10px;}
+#topbar-inner{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:10px;}
+#topbar .tb-title{font-size:21px;flex-shrink:0;}
+#topbar .tb-spacer{flex:1;}
+.sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--textdim);font-family:var(--font-btn);padding:5px 9px;border-radius:20px;border:1px solid var(--border);white-space:nowrap;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--textmute);flex-shrink:0;}
+.sync-pill.ok .sync-dot{background:var(--good);}
+.sync-pill.busy .sync-dot{background:#e0b15f;animation:pulse 1s infinite;}
+.sync-pill.err{color:var(--bad);border-color:rgba(212,122,106,0.5);} .sync-pill.err .sync-dot{background:var(--bad);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+#main{flex:1;max-width:760px;width:100%;margin:0 auto;padding:14px clamp(12px,4vw,22px) calc(env(safe-area-inset-bottom,0px) + 120px);}
+
+/* lists bar */
+#lists-bar{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;}
+.list-chip{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--textdim);cursor:pointer;transition:all .15s;font-family:var(--font-btn);}
+.list-chip:hover{border-color:var(--border2);}
+.list-chip.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+.list-chip .cnt{font-size:11px;opacity:.8;}
+.list-chip.add{color:var(--accent);border-style:dashed;}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
+.section-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--textmute);margin-bottom:9px;font-family:var(--font-btn);}
+
+.list-head{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+.list-head .ttl{font-family:var(--font-head);font-weight:var(--head-weight);font-size:24px;color:var(--text);letter-spacing:var(--head-spacing);flex:1;border:none;background:transparent;padding:2px 0;}
+.list-meta{font-size:12px;color:var(--textmute);margin-bottom:12px;}
+
+/* stores */
+.store-chips{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+.store-chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-soft);border:1px solid var(--accent);color:var(--accent);border-radius:16px;padding:5px 11px;font-size:12px;font-weight:700;font-family:var(--font-btn);}
+.store-chip .x{cursor:pointer;opacity:.7;font-weight:900;} .store-chip .x:hover{opacity:1;}
+
+/* voice */
+#voice-wrap{display:flex;flex-direction:column;align-items:center;gap:12px;padding:6px 0 2px;}
+#mic-btn{width:96px;height:96px;border-radius:50%;border:none;cursor:pointer;background:var(--accent);color:var(--accent-ink);
+  display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px var(--accent-soft);transition:transform .12s;}
+#mic-btn:active{transform:scale(.94);}
+#mic-btn.recording{background:var(--bad);color:#fff;animation:recpulse 1.3s infinite;}
+#mic-btn.busy{opacity:.7;pointer-events:none;}
+@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(212,122,106,.5)}50%{box-shadow:0 0 0 16px rgba(212,122,106,0)}}
+#mic-btn svg{width:40px;height:40px;}
+#voice-status{font-size:13px;color:var(--textdim);font-weight:600;text-align:center;min-height:18px;}
+.voice-or{display:flex;align-items:center;gap:10px;color:var(--textmute);font-size:11px;font-weight:700;letter-spacing:1px;margin:4px 0;width:100%;max-width:380px;}
+.voice-or::before,.voice-or::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* add item row */
+.add-row{display:grid;grid-template-columns:1fr 84px auto;gap:8px;}
+.add-row .store-sel{grid-column:1 / -1;}
+@media(min-width:560px){.add-row{grid-template-columns:1fr 90px 150px auto;}.add-row .store-sel{grid-column:auto;}}
+
+/* items */
+.store-group{margin-top:14px;}
+.store-group-h{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:.5px;color:var(--accent);margin:0 2px 8px;font-family:var(--font-btn);text-transform:uppercase;}
+.store-group-h .gline{flex:1;height:1px;background:var(--border);}
+.item{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:11px 12px;margin-bottom:8px;transition:all .15s;}
+.item.done{opacity:.55;}
+.item .chk{width:24px;height:24px;border-radius:7px;border:2px solid var(--border2);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;background:transparent;}
+.item.done .chk{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
+.item .body{flex:1;min-width:0;}
+.item .nm{font-size:15px;font-weight:700;color:var(--text);word-break:break-word;}
+.item.done .nm{text-decoration:line-through;}
+.item .sub{font-size:12px;color:var(--textdim);margin-top:1px;display:flex;gap:8px;flex-wrap:wrap;}
+.item .qty-tag{color:var(--accent);font-weight:700;}
+.item .acts{display:flex;gap:4px;flex-shrink:0;}
+.item .acts .ib{width:30px;height:30px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--textmute);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.item .acts .ib:hover{color:var(--accent);border-color:var(--border);}
+.item .acts .ib.del:hover{color:var(--bad);border-color:rgba(212,122,106,.4);}
+.item.editing{flex-direction:column;align-items:stretch;gap:8px;}
+.edit-grid{display:grid;grid-template-columns:1fr 80px;gap:8px;}
+.edit-grid .full{grid-column:1 / -1;}
+
+.empty{text-align:center;color:var(--textmute);font-size:14px;padding:30px 10px;}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 22px);
+  background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:700;
+  z-index:9500;box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:88vw;text-align:center;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.err{border-color:var(--bad);color:var(--bad);}
+
+/* ── App-lock overlay ── */
+#lock-overlay{position:fixed;inset:0;z-index:9800;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.86);backdrop-filter:blur(6px);padding:22px;}
+#lock-box{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:26px 22px;text-align:center;}
+#lock-box.shake{animation:shk .45s;}
+@keyframes shk{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-9px)}40%,80%{transform:translateX(9px)}}
+#lock-icon{font-size:38px;margin-bottom:10px;}
+#lock-title{font-family:var(--font-head);font-weight:var(--head-weight);font-size:22px;margin-bottom:6px;}
+#lock-sub{font-size:13px;color:var(--textdim);margin-bottom:16px;line-height:1.4;}
+#lock-pw{text-align:center;font-size:17px;letter-spacing:3px;margin-bottom:10px;}
+#lock-pw.error{border-color:var(--bad);}
+#lock-err{color:var(--bad);font-size:12px;font-weight:700;min-height:16px;margin-bottom:8px;}
+#lock-menu{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;}
+#lock-row{display:flex;gap:8px;}
+#lock-row .btn{flex:1;justify-content:center;}
+#lock-forgot{background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;cursor:pointer;margin-top:12px;font-family:var(--font-btn);}
+
+.spin{width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite;display:inline-block;}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body data-profile="tony">
+
+<!-- ── Profile selection ── -->
+<div id="profile-overlay">
+  <div class="pw-title">MyList</div>
+  <div class="pw-sub">Choose your profile</div>
+  <div class="profile-cards">
+    <div class="profile-card tony" onclick="ML.chooseProfile('tony')">
+      <span class="fav-star" id="fav-tony" onclick="event.stopPropagation();ML.toggleFav('tony')" title="Set as default">★</span>
+      <div class="emoji">🛒</div>
+      <div class="pname">Tony</div>
+      <div class="plock" id="plock-tony"></div>
+    </div>
+    <div class="profile-card veda" onclick="ML.chooseProfile('veda')">
+      <span class="fav-star" id="fav-veda" onclick="event.stopPropagation();ML.toggleFav('veda')" title="Set as default">★</span>
+      <div class="emoji">✦</div>
+      <div class="pname">Veda</div>
+      <div class="plock" id="plock-veda"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="app">
+  <div id="topbar"><div id="topbar-inner">
+    <span class="wordmark tb-title">MyList</span>
+    <span class="tb-spacer"></span>
+    <span class="sync-pill" id="sync-pill"><span class="sync-dot"></span><span id="sync-text">Offline</span></span>
+    <button class="icon-btn" id="lock-mgr-btn" title="Lock" onclick="ML.manageLock()">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    </button>
+    <button class="icon-btn" id="switch-btn" title="Switch profile" onclick="ML.goProfileSelect()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77 5.82 21l1.18-6.88-5-4.87 7.1-1.01L12 2z"/></svg>
+    </button>
+  </div></div>
+
+  <div id="main">
+    <div id="lists-bar"></div>
+    <div id="list-view"></div>
+  </div>
+</div>
+
+<!-- ── App lock overlay ── -->
+<div id="lock-overlay"><div id="lock-box">
+  <div id="lock-icon">🔒</div>
+  <div id="lock-title">Locked</div>
+  <div id="lock-sub">Enter your password.</div>
+  <div id="lock-menu"></div>
+  <input id="lock-pw" type="password" placeholder="• • • •" autocomplete="off" inputmode="text">
+  <div id="lock-err"></div>
+  <div id="lock-row">
+    <button class="btn ghost" id="lock-cancel" onclick="ML.lockCancel()">Cancel</button>
+    <button class="btn solid" id="lock-submit" onclick="ML.lockSubmit()">Unlock</button>
+  </div>
+  <button id="lock-forgot" onclick="ML.lockForgot()">Forgot password?</button>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ── Firebase (same project as Index) ── -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+  import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
+  import { initializeFirestore, memoryLocalCache, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
+    authDomain: "task-dashboard-d2b53.firebaseapp.com",
+    projectId: "task-dashboard-d2b53",
+    storageBucket: "task-dashboard-d2b53.firebasestorage.app",
+    messagingSenderId: "982539604706",
+    appId: "1:982539604706:web:e93da1aef499fcee2044bb"
+  };
+  const app = initializeApp(firebaseConfig);
+  try {
+    initializeAppCheck(app, { provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'), isTokenAutoRefreshEnabled: true });
+  } catch(e){ console.warn('AppCheck init', e); }
+  const auth = getAuth(app);
+  signInAnonymously(auth).catch(e => console.warn("Anon auth failed:", e));
+  const db = initializeFirestore(app, { localCache: memoryLocalCache() });
+  const ML_DOC = doc(db, "dashboards/mylist");
+
+  let saveTimer = null;
+  let lastOwnSaveAt = 0;
+
+  window._mlLoad = async () => {
+    try { const snap = await getDoc(ML_DOC); return snap.exists() ? snap.data() : null; }
+    catch(e){ console.warn("MyList load failed:", e); return null; }
+  };
+  window._mlSave = (payload) => {
+    lastOwnSaveAt = Date.now();
+    window.dispatchEvent(new CustomEvent("ml-syncing"));
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        lastOwnSaveAt = Date.now();
+        await setDoc(ML_DOC, payload);
+        lastOwnSaveAt = Date.now();
+        window.dispatchEvent(new CustomEvent("ml-saved"));
+      } catch(e){
+        console.warn("MyList save failed:", e);
+        window.dispatchEvent(new CustomEvent("ml-error"));
+      }
+    }, 1200);
+  };
+  onSnapshot(ML_DOC, (snap) => {
+    if (Date.now() - lastOwnSaveAt < 8000) return;
+    if (snap.exists()) window.dispatchEvent(new CustomEvent("ml-remote-update", { detail: snap.data() }));
+  }, (err) => { console.warn("MyList snapshot err", err); window.dispatchEvent(new CustomEvent("ml-error")); });
+
+  window._mlReady = true;
+  window.dispatchEvent(new CustomEvent("ml-ready"));
+</script>
+
+<!-- ── App logic ── -->
+<script>
+(function(){
+"use strict";
+
+// ── config ──
+var API = 'https://mylist-api.av1.workers.dev';
+var AUTH_WORKER = 'https://taskhub-reminders.av1.workers.dev';
+var AUTH_JOURNAL = 'mylist';
+var FORMSPREE = 'https://formspree.io/f/xeedkebo';
+var EMAILS = { tony:'anthonypn99@gmail.com', veda:'vedaapatel1605@gmail.com' };
+var PROFILE_META = {
+  tony:{ label:'Tony', emoji:'🛒' },
+  veda:{ label:'Veda', emoji:'✦' }
+};
+
+// ── state ──
+// state.data = { tony:{lists:[]}, veda:{lists:[]}, locks:{tony,veda}, lockV:{tony,veda} }
+var state = { tony:{lists:[]}, veda:{lists:[]}, locks:{}, lockV:{} };
+var activeProfile = null;
+var activeListId = null;
+var editingItemId = null;
+var booted = false;
+
+function uid(){ return Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+// ── toast ──
+var toastTimer=null;
+function toast(msg, isErr){
+  var t=$('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':'');
+  clearTimeout(toastTimer); toastTimer=setTimeout(function(){ t.className='toast'; }, 2600);
+}
+
+// ── sync pill ──
+function setSync(kind){ // 'busy'|'ok'|'err'
+  var p=$('sync-pill'), t=$('sync-text');
+  p.className='sync-pill '+(kind==='busy'?'busy':kind==='ok'?'ok':kind==='err'?'err':'');
+  t.textContent = kind==='busy'?'Syncing…':kind==='ok'?'Synced':kind==='err'?'Sync failed':'Offline';
+}
+window.addEventListener('ml-syncing', function(){ setSync('busy'); });
+window.addEventListener('ml-saved',   function(){ setSync('ok'); });
+window.addEventListener('ml-error',   function(){ setSync('err'); });
+
+// ── persistence ──
+function sanitize(v){
+  if(Array.isArray(v)) return v.map(sanitize);
+  if(v && typeof v==='object'){ var o={}; for(var k in v){ if(v[k]!==undefined && v[k]!==null) o[k]=sanitize(v[k]); } return o; }
+  return v;
+}
+function persist(){
+  if(!window._mlSave) return;
+  window._mlSave(sanitize({ tony:state.tony, veda:state.veda, locks:state.locks, lockV:state.lockV, savedAt:Date.now() }));
+}
+function applyRemote(d){
+  if(!d) return;
+  state.tony = d.tony && Array.isArray(d.tony.lists) ? d.tony : {lists:[]};
+  state.veda = d.veda && Array.isArray(d.veda.lists) ? d.veda : {lists:[]};
+  state.locks = d.locks || {};
+  state.lockV = d.lockV || {};
+}
+window.addEventListener('ml-remote-update', function(e){
+  applyRemote(e.detail);
+  setSync('ok');
+  // If a lock for the active profile changed (set/version bump) elsewhere → re-gate.
+  if(activeProfile && mlMustBlock(activeProfile)){ goProfileSelect(); }
+  else { refreshProfileScreen(); if(activeProfile) render(); }
+});
+window.addEventListener('ml-ready', function(){ boot(); });
+if(window._mlReady) boot();
+
+function boot(){
+  if(booted) return; booted=true;
+  window._mlLoad().then(function(d){
+    if(d) applyRemote(d);
+    setSync('ok');
+    refreshProfileScreen();
+    var fav = localStorage.getItem('ml_fav_profile');
+    if(fav && PROFILE_META[fav]){ chooseProfile(fav); }
+    else { goProfileSelect(); }
+  });
+}
+
+// ── helpers for current profile/list ──
+function pData(){ return state[activeProfile] || {lists:[]}; }
+function lists(){ return pData().lists; }
+function curList(){ return lists().filter(function(l){ return l.id===activeListId; })[0] || null; }
+
+// ════════════════════════ APP LOCK ════════════════════════
+function entryId(p){ return 'profile_'+p; }
+function mlIsLocked(p){ return !!(state.locks && state.locks[p]); }
+function mlLockV(p){ return (state.lockV && state.lockV[p]) || 0; }
+function mlIsUnlocked(p){
+  if(!mlIsLocked(p)) return true;
+  return localStorage.getItem('ml_unlocked_'+p) === 'v'+mlLockV(p);
+}
+function mlMarkUnlocked(p){ try{ localStorage.setItem('ml_unlocked_'+p,'v'+mlLockV(p)); }catch(e){} }
+function mlMarkLocked(p){ try{ localStorage.removeItem('ml_unlocked_'+p); }catch(e){} }
+function mlMustBlock(p){ return mlIsLocked(p) && !mlIsUnlocked(p); }
+
+var lockMode='unlock', lockProfile=null, lockOnSuccess=null, lockAttempts=0;
+function showLock(profile, mode, onSuccess){
+  lockProfile=profile; lockMode=mode; lockOnSuccess=onSuccess||null;
+  $('lock-menu').innerHTML='';
+  $('lock-err').textContent=''; var pw=$('lock-pw'); pw.value=''; pw.classList.remove('error');
+  var name = PROFILE_META[profile].label;
+  $('lock-title').textContent = name;
+  $('lock-row').style.display=''; pw.style.display=''; $('lock-forgot').style.display='';
+  $('lock-submit').textContent = mode==='setpw'?'Set Password':mode==='remove'?'Remove Lock':mode==='changepw'?'Verify':'Unlock';
+  if(mode==='setpw'){ $('lock-icon').textContent='🔐'; $('lock-sub').textContent='Choose a password to lock '+name+"'s lists. Required once per device."; $('lock-forgot').style.display='none'; }
+  else if(mode==='remove'){ $('lock-icon').textContent='🔓'; $('lock-sub').textContent='Enter the password to remove the lock.'; }
+  else if(mode==='changepw'){ $('lock-icon').textContent='🔑'; $('lock-sub').textContent='Enter your current password first.'; }
+  else { $('lock-icon').textContent='🔒'; $('lock-sub').textContent='Enter your password to open '+name+"'s lists."; }
+  $('lock-overlay').style.display='flex';
+  setTimeout(function(){ pw.focus(); }, 80);
+}
+function hideLock(){ $('lock-overlay').style.display='none'; lockProfile=null; lockOnSuccess=null; }
+
+function manageLock(){
+  var p=activeProfile; if(!p) return;
+  if(!mlIsLocked(p)){ showLock(p,'setpw'); return; }
+  // locked → show menu
+  showLock(p,'unlock');
+  $('lock-icon').textContent='🔒'; $('lock-sub').textContent='Manage lock for '+PROFILE_META[p].label+'.';
+  $('lock-pw').style.display='none'; $('lock-row').style.display='none'; $('lock-forgot').style.display='none';
+  var m=$('lock-menu'); m.innerHTML='';
+  if(!mlIsUnlocked(p)) addMenuBtn(m,'🔓  Unlock this device','solid',function(){ showLock(p,'unlock'); });
+  addMenuBtn(m,'🔑  Change password','ghost',function(){ showLock(p,'changepw'); });
+  addMenuBtn(m,'🗑  Remove lock','danger',function(){ showLock(p,'remove'); });
+  addMenuBtn(m,'Close','ghost',function(){ hideLock(); });
+}
+function addMenuBtn(parent,label,cls,fn){
+  var b=document.createElement('button'); b.className='btn '+cls; b.style.width='100%'; b.style.justifyContent='center';
+  b.textContent=label; b.onclick=fn; parent.appendChild(b);
+}
+
+function lockCancel(){
+  var mode=lockMode;
+  hideLock();
+  // backing out of an access gate → return to profile select
+  if(mode==='unlock' && activeProfile && mlMustBlock(activeProfile)) goProfileSelect();
+}
+
+async function lockSubmit(){
+  var p=lockProfile; if(!p) return;
+  var pw=$('lock-pw').value.trim();
+  if(!pw){ lockErr('Password required.'); return; }
+  if(lockAttempts>=5){ lockErr('Too many attempts. Wait a moment.'); return; }
+  var sub=$('lock-submit'); sub.disabled=true; var prev=sub.textContent; sub.innerHTML='<span class="spin"></span>';
+  try{
+    if(lockMode==='setpw'){
+      var hint = window.prompt('Optional password hint (sent to your email if you forget). Leave blank to skip:') || '';
+      var r=await authFetch('/auth/journal/set-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw, hint:hint });
+      if(r.ok){ state.locks[p]=true; state.lockV[p]=Date.now(); mlMarkUnlocked(p); persist(); hideLock(); refreshProfileScreen(); updateLockBtn(); toast('Lock set'); if(lockOnSuccess)lockOnSuccess(); }
+      else lockErr('Failed to set lock.');
+    } else if(lockMode==='remove'){
+      var r2=await authFetch('/auth/journal/remove-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw });
+      if(r2.ok){ state.locks[p]=false; state.lockV[p]=Date.now(); mlMarkLocked(p); persist(); hideLock(); refreshProfileScreen(); updateLockBtn(); toast('Lock removed'); }
+      else { lockAttempts++; lockErr('Wrong password.'); }
+    } else if(lockMode==='changepw'){
+      var r3=await authFetch('/auth/journal/verify',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw });
+      if(r3.ok){
+        var np=window.prompt('Verified! Enter your NEW password:');
+        if(np && np.trim()){
+          var nh=window.prompt('Optional hint for the new password:')||'';
+          await authFetch('/auth/journal/remove-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw });
+          var s=await authFetch('/auth/journal/set-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:np.trim(), hint:nh });
+          if(s.ok){ state.locks[p]=true; state.lockV[p]=Date.now(); mlMarkUnlocked(p); persist(); hideLock(); updateLockBtn(); toast('Password changed'); }
+          else lockErr('Failed to set new password.');
+        } else lockErr('New password empty.');
+      } else { lockAttempts++; lockErr('Wrong password.'); }
+    } else { // unlock
+      var r4=await authFetch('/auth/journal/verify',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw });
+      if(r4.ok){ lockAttempts=0; mlMarkUnlocked(p); var cb=lockOnSuccess; hideLock(); updateLockBtn(); if(cb)cb(); }
+      else { lockAttempts++; lockErr('Wrong password.'); }
+    }
+  }catch(e){ lockErr('Network error.'); }
+  sub.disabled=false; sub.textContent=prev;
+}
+async function authFetch(path, body){
+  var r=await fetch(AUTH_WORKER+path,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  return r.json();
+}
+function lockErr(msg){
+  $('lock-err').textContent=msg; var pw=$('lock-pw'); pw.value=''; pw.classList.add('error');
+  var box=$('lock-box'); box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+  setTimeout(function(){ pw.classList.remove('error'); }, 450);
+}
+async function lockForgot(){
+  var p=lockProfile; if(!p) return;
+  var f=$('lock-forgot'); f.textContent='Sending…'; f.disabled=true;
+  try{
+    var hd=await authFetch('/auth/journal/hint',{ journal:AUTH_JOURNAL, entryId:entryId(p) });
+    if(hd.noLock){ $('lock-err').textContent='No lock on server.'; f.textContent='Forgot password?'; f.disabled=false; return; }
+    var fp=await fetch(FORMSPREE,{ method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({ email:EMAILS[p]||EMAILS.tony, subject:'MyList — Password Hint ('+PROFILE_META[p].label+')',
+        message:'Your MyList password hint for '+PROFILE_META[p].label+':\n\n'+(hd.hint||'(no hint was set)')+'\n\n— MyList' }) });
+    if(fp.ok){ f.textContent='Hint sent to email!'; } else { f.textContent='Send failed — try again'; f.disabled=false; return; }
+    setTimeout(function(){ f.textContent='Forgot password?'; f.disabled=false; }, 3500);
+  }catch(e){ f.textContent='Failed — try again'; f.disabled=false; }
+}
+function updateLockBtn(){
+  var b=$('lock-mgr-btn'); if(!b||!activeProfile) return;
+  var locked=mlIsLocked(activeProfile);
+  b.style.opacity = locked?'1':'0.5';
+  b.innerHTML = locked
+    ? '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+    : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
+  b.title = locked?'Locked — manage':'Unlocked — set a password';
+}
+
+// ════════════════════════ PROFILE SCREEN ════════════════════════
+function refreshProfileScreen(){
+  var fav = localStorage.getItem('ml_fav_profile');
+  ['tony','veda'].forEach(function(p){
+    var star=$('fav-'+p); if(star) star.className='fav-star'+(fav===p?' on':'');
+    var lk=$('plock-'+p); if(lk) lk.textContent = mlIsLocked(p) ? '🔒 Password protected' : '';
+  });
+}
+function goProfileSelect(){
+  activeProfile=null; activeListId=null;
+  $('app').style.display='none';
+  $('profile-overlay').style.display='flex';
+  document.body.setAttribute('data-profile','tony');
+  document.querySelector('meta[name=theme-color]').setAttribute('content','#0f0f12');
+  refreshProfileScreen();
+}
+function toggleFav(p){
+  var cur=localStorage.getItem('ml_fav_profile');
+  if(cur===p){ localStorage.removeItem('ml_fav_profile'); toast('Default cleared'); }
+  else { localStorage.setItem('ml_fav_profile',p); toast(PROFILE_META[p].label+' set as default'); }
+  refreshProfileScreen();
+}
+function chooseProfile(p){
+  if(mlMustBlock(p)){ showLock(p,'unlock',function(){ enterProfile(p); }); return; }
+  enterProfile(p);
+}
+function enterProfile(p){
+  activeProfile=p;
+  document.body.setAttribute('data-profile',p);
+  document.querySelector('meta[name=theme-color]').setAttribute('content', p==='veda'?'#1B1C1E':'#0f0f12');
+  $('profile-overlay').style.display='none';
+  $('app').style.display='flex';
+  // pick a list: last used for this profile, else first, else none
+  var last = localStorage.getItem('ml_last_list_'+p);
+  var L = lists();
+  activeListId = (last && L.filter(function(l){return l.id===last;}).length) ? last : (L[0] ? L[0].id : null);
+  updateLockBtn();
+  render();
+}
+
+// ════════════════════════ LIST / ITEM OPS ════════════════════════
+function addList(){
+  var name=(window.prompt('Name this list:','Groceries')||'').trim();
+  if(!name) return;
+  var l={ id:uid(), name:name, stores:[], items:[], createdAt:Date.now() };
+  lists().push(l); activeListId=l.id; persist(); render();
+}
+function openList(id){ activeListId=id; editingItemId=null; localStorage.setItem('ml_last_list_'+activeProfile,id); render(); }
+function deleteList(id){
+  var l=lists().filter(function(x){return x.id===id;})[0]; if(!l) return;
+  if(!window.confirm('Delete list "'+l.name+'" and all its items?')) return;
+  pData().lists = lists().filter(function(x){return x.id!==id;});
+  if(activeListId===id) activeListId = lists()[0] ? lists()[0].id : null;
+  persist(); render();
+}
+function renameList(id, name){
+  var l=lists().filter(function(x){return x.id===id;})[0]; if(!l) return;
+  name=(name||'').trim(); if(name){ l.name=name; persist(); renderListsBar(); }
+}
+function addStore(){
+  var l=curList(); if(!l) return;
+  var inp=$('store-input'); var v=(inp.value||'').trim(); if(!v) return;
+  l.stores=l.stores||[];
+  if(l.stores.map(function(s){return s.toLowerCase();}).indexOf(v.toLowerCase())<0) l.stores.push(v);
+  inp.value=''; persist(); render();
+}
+function removeStore(name){
+  var l=curList(); if(!l) return;
+  l.stores=(l.stores||[]).filter(function(s){return s!==name;});
+  (l.items||[]).forEach(function(it){ if(it.store===name) it.store=''; });
+  persist(); render();
+}
+function addItem(){
+  var l=curList(); if(!l) return;
+  var nm=($('add-name').value||'').trim(); if(!nm){ $('add-name').focus(); return; }
+  var qty=($('add-qty').value||'').trim();
+  var store= $('add-store') ? ($('add-store').value||'') : '';
+  l.items=l.items||[];
+  l.items.push({ id:uid(), name:nm, qty:qty, store:store, done:false });
+  $('add-name').value=''; $('add-qty').value='';
+  persist(); render(); $('add-name').focus();
+}
+function toggleDone(id){
+  var l=curList(); if(!l) return;
+  var it=l.items.filter(function(x){return x.id===id;})[0]; if(it){ it.done=!it.done; persist(); render(); }
+}
+function delItem(id){
+  var l=curList(); if(!l) return;
+  l.items=l.items.filter(function(x){return x.id!==id;}); persist(); render();
+}
+function startEdit(id){ editingItemId=id; render(); }
+function saveEdit(id){
+  var l=curList(); if(!l) return;
+  var it=l.items.filter(function(x){return x.id===id;})[0]; if(!it) return;
+  it.name=($('edit-name-'+id).value||'').trim()||it.name;
+  it.qty=($('edit-qty-'+id).value||'').trim();
+  if($('edit-store-'+id)) it.store=$('edit-store-'+id).value||'';
+  editingItemId=null; persist(); render();
+}
+function cancelEdit(){ editingItemId=null; render(); }
+function clearDone(){
+  var l=curList(); if(!l) return;
+  var n=l.items.filter(function(x){return x.done;}).length;
+  if(!n){ toast('No completed items'); return; }
+  if(!window.confirm('Remove '+n+' completed item'+(n>1?'s':'')+'?')) return;
+  l.items=l.items.filter(function(x){return !x.done;}); persist(); render();
+}
+
+// ════════════════════════ VOICE (WAV → Gemini, works on iOS) ════════════════════════
+var rec = { active:false, busy:false, ctx:null, stream:null, proc:null, src:null, buffers:[], sampleRate:44100 };
+async function micTap(){
+  if(rec.busy) return;
+  if(rec.active){ await stopRec(); return; }
+  await startRec();
+}
+async function startRec(){
+  var l=curList(); if(!l){ toast('Open or create a list first'); return; }
+  try{
+    rec.stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true } });
+  }catch(e){ toast('Microphone access denied', true); return; }
+  var AC = window.AudioContext || window.webkitAudioContext;
+  rec.ctx = new AC();
+  rec.sampleRate = rec.ctx.sampleRate;
+  rec.src = rec.ctx.createMediaStreamSource(rec.stream);
+  var bufSize = 4096;
+  rec.proc = rec.ctx.createScriptProcessor(bufSize, 1, 1);
+  rec.buffers = [];
+  rec.proc.onaudioprocess = function(e){
+    var ch = e.inputBuffer.getChannelData(0);
+    rec.buffers.push(new Float32Array(ch));
+  };
+  rec.src.connect(rec.proc);
+  rec.proc.connect(rec.ctx.destination);
+  rec.active=true;
+  var b=$('mic-btn'); b.classList.add('recording');
+  $('voice-status').textContent='Listening… tap to stop';
+}
+async function stopRec(){
+  rec.active=false;
+  var b=$('mic-btn');
+  try{ rec.proc && rec.proc.disconnect(); rec.src && rec.src.disconnect(); }catch(e){}
+  try{ rec.stream && rec.stream.getTracks().forEach(function(t){t.stop();}); }catch(e){}
+  var sampleRate=rec.sampleRate, buffers=rec.buffers.slice();
+  try{ rec.ctx && rec.ctx.close(); }catch(e){}
+  rec.buffers=[];
+  b.classList.remove('recording'); b.classList.add('busy');
+  $('voice-status').innerHTML='<span class="spin"></span> Thinking…';
+  rec.busy=true;
+  try{
+    var wav = encodeWav(buffers, sampleRate, 16000);
+    if(wav.byteLength < 1600){ throw new Error('too short'); }
+    var b64 = await blobToB64(new Blob([wav]));
+    await sendVoice(b64);
+  }catch(err){
+    console.warn(err);
+    toast(err.message==='too short'?'Didn\'t catch that — try again':'Voice failed — try again', true);
+    $('voice-status').textContent='';
+  }
+  b.classList.remove('busy'); rec.busy=false;
+}
+async function sendVoice(b64){
+  var l=curList(); if(!l) return;
+  var r=await fetch(API+'/parse',{ method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ profile:activeProfile, mode:'edit', audio:b64, mimeType:'audio/wav',
+      items:l.items||[], stores:l.stores||[] }) });
+  var d=await r.json();
+  if(d.ok && Array.isArray(d.items)){ applyParsed(l, d.items); $('voice-status').textContent=''; toast('List updated'); }
+  else { toast(d.error||'Could not understand', true); $('voice-status').textContent=''; }
+}
+async function sendText(){
+  var l=curList(); if(!l){ toast('Open or create a list first'); return; }
+  var t=($('voice-text').value||'').trim(); if(!t) return;
+  $('voice-text').value=''; $('voice-status').innerHTML='<span class="spin"></span> Thinking…';
+  try{
+    var r=await fetch(API+'/parse',{ method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ profile:activeProfile, mode:'edit', transcript:t, items:l.items||[], stores:l.stores||[] }) });
+    var d=await r.json();
+    if(d.ok && Array.isArray(d.items)){ applyParsed(l, d.items); $('voice-status').textContent=''; toast('List updated'); }
+    else { toast(d.error||'Could not understand', true); $('voice-status').textContent=''; }
+  }catch(e){ toast('Network error', true); $('voice-status').textContent=''; }
+}
+function applyParsed(l, parsed){
+  // Preserve ids/done for items that survive by name; replace whole set with AI's authoritative list.
+  var byName={}; (l.items||[]).forEach(function(it){ byName[it.name.toLowerCase()]=it; });
+  l.items = parsed.map(function(p){
+    var prev=byName[(p.name||'').toLowerCase()];
+    return { id: prev?prev.id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'',
+             done: (typeof p.done==='boolean')?p.done:(prev?prev.done:false) };
+  }).filter(function(x){return x.name;});
+  // auto-register any new store names the AI used
+  l.stores=l.stores||[];
+  l.items.forEach(function(it){
+    if(it.store && l.stores.map(function(s){return s.toLowerCase();}).indexOf(it.store.toLowerCase())<0) l.stores.push(it.store);
+  });
+  persist(); render();
+}
+function blobToB64(blob){ return new Promise(function(res,rej){ var r=new FileReader(); r.onloadend=function(){ res(String(r.result).split(',')[1]); }; r.onerror=rej; r.readAsDataURL(blob); }); }
+function encodeWav(buffers, inRate, outRate){
+  var len=0; buffers.forEach(function(b){ len+=b.length; });
+  var data=new Float32Array(len); var off=0;
+  buffers.forEach(function(b){ data.set(b,off); off+=b.length; });
+  // downsample
+  var ratio=inRate/outRate;
+  var outLen=Math.floor(data.length/ratio);
+  var out=new Float32Array(outLen);
+  for(var i=0;i<outLen;i++){ out[i]=data[Math.floor(i*ratio)]; }
+  // 16-bit PCM WAV
+  var buf=new ArrayBuffer(44+out.length*2); var view=new DataView(buf);
+  function ws(o,s){ for(var i=0;i<s.length;i++) view.setUint8(o+i, s.charCodeAt(i)); }
+  ws(0,'RIFF'); view.setUint32(4,36+out.length*2,true); ws(8,'WAVE'); ws(12,'fmt ');
+  view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
+  view.setUint32(24,outRate,true); view.setUint32(28,outRate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true);
+  ws(36,'data'); view.setUint32(40,out.length*2,true);
+  var p=44; for(var j=0;j<out.length;j++){ var s=Math.max(-1,Math.min(1,out[j])); view.setInt16(p, s<0?s*0x8000:s*0x7FFF, true); p+=2; }
+  return buf;
+}
+
+// ════════════════════════ RENDER ════════════════════════
+function renderListsBar(){
+  var bar=$('lists-bar'); var L=lists(); var h='';
+  L.forEach(function(l){
+    var cnt=(l.items||[]).filter(function(x){return !x.done;}).length;
+    h+='<div class="list-chip'+(l.id===activeListId?' active':'')+'" onclick="ML.openList(\''+l.id+'\')">'
+      + esc(l.name)+' <span class="cnt">'+cnt+'</span></div>';
+  });
+  h+='<div class="list-chip add" onclick="ML.addList()">+ New list</div>';
+  bar.innerHTML=h;
+}
+function render(){
+  if(!activeProfile) return;
+  updateLockBtn();
+  renderListsBar();
+  var l=curList(); var v=$('list-view');
+  if(!l){
+    v.innerHTML='<div class="card"><div class="empty">No lists yet.<br><br>'
+      +'<button class="btn solid" onclick="ML.addList()">+ Create your first list</button></div></div>';
+    return;
+  }
+  localStorage.setItem('ml_last_list_'+activeProfile,l.id);
+  var stores=l.stores||[]; var items=l.items||[];
+  var doneCount=items.filter(function(x){return x.done;}).length;
+
+  var h='';
+  // header
+  h+='<div class="card">';
+  h+='<div class="list-head">'
+    +'<input class="ttl" id="list-title" value="'+esc(l.name)+'" onchange="ML.renameList(\''+l.id+'\',this.value)">'
+    +'<button class="btn danger sm" onclick="ML.deleteList(\''+l.id+'\')">Delete</button></div>';
+  h+='<div class="list-meta">'+items.length+' item'+(items.length!==1?'s':'')+' · '+doneCount+' done'
+    + (doneCount?' · <span style="cursor:pointer;text-decoration:underline" onclick="ML.clearDone()">clear completed</span>':'')+'</div>';
+  // stores
+  h+='<div class="section-label">Stores</div><div class="store-chips">';
+  stores.forEach(function(s){ h+='<span class="store-chip">'+esc(s)+'<span class="x" onclick="ML.removeStore(\''+esc(s).replace(/'/g,"\\'")+'\')">×</span></span>'; });
+  h+='<input id="store-input" placeholder="Add store…" style="width:auto;flex:1;min-width:120px;padding:6px 10px;font-size:13px" '
+    +'onkeydown="if(event.key===\'Enter\'){event.preventDefault();ML.addStore();}">';
+  h+='<button class="btn sm" onclick="ML.addStore()">Add</button>';
+  h+='</div>';
+  h+='</div>';
+
+  // voice
+  h+='<div class="card"><div id="voice-wrap">'
+    +'<button id="mic-btn" onclick="ML.micTap()" aria-label="Voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>'
+    +'<div id="voice-status"></div>'
+    +'<div style="font-size:12px;color:var(--textmute);text-align:center">Tap and say what you need — add, edit, or remove items.</div>'
+    +'<div class="voice-or">OR TYPE</div>'
+    +'<div style="display:flex;gap:8px;width:100%;max-width:440px">'
+      +'<input id="voice-text" placeholder="e.g. add 2 milk, remove eggs" onkeydown="if(event.key===\'Enter\'){ML.sendText();}">'
+      +'<button class="btn solid" onclick="ML.sendText()">Go</button>'
+    +'</div>'
+    +'</div></div>';
+
+  // manual add
+  h+='<div class="card"><div class="section-label">Add item</div><div class="add-row">'
+    +'<input id="add-name" placeholder="Item name" onkeydown="if(event.key===\'Enter\'){ML.addItem();}">'
+    +'<input id="add-qty" placeholder="Qty" onkeydown="if(event.key===\'Enter\'){ML.addItem();}">'
+    + storeSelectHtml('add-store','')
+    +'<button class="btn solid" onclick="ML.addItem()">Add</button>'
+    +'</div></div>';
+
+  // items
+  h+='<div>'+renderItems(l)+'</div>';
+
+  v.innerHTML=h;
+}
+function storeSelectHtml(id, sel){
+  var l=curList(); var stores=(l&&l.stores)||[];
+  if(!stores.length) return ''; // no store selector if no stores
+  var o='<select id="'+id+'" class="store-sel"><option value="">No store</option>';
+  stores.forEach(function(s){ o+='<option value="'+esc(s)+'"'+(s===sel?' selected':'')+'>'+esc(s)+'</option>'; });
+  o+='</select>'; return o;
+}
+function renderItems(l){
+  var items=l.items||[]; var stores=l.stores||[];
+  if(!items.length) return '<div class="card"><div class="empty">No items yet. Use voice 🎤 or add manually above.</div></div>';
+  // group by store when stores exist
+  if(stores.length){
+    var groups=[];
+    stores.forEach(function(s){ groups.push({name:s, items:items.filter(function(x){return x.store===s;})}); });
+    var other=items.filter(function(x){return !x.store || stores.indexOf(x.store)<0;});
+    if(other.length) groups.push({name:'Other', items:other});
+    var out='';
+    groups.forEach(function(g){
+      if(!g.items.length) return;
+      out+='<div class="store-group"><div class="store-group-h">'+esc(g.name)+' <span class="gline"></span></div>';
+      out+=sortItems(g.items).map(itemHtml).join('');
+      out+='</div>';
+    });
+    return out;
+  }
+  return '<div class="store-group">'+sortItems(items).map(itemHtml).join('')+'</div>';
+}
+function sortItems(arr){ return arr.slice().sort(function(a,b){ return (a.done?1:0)-(b.done?1:0); }); }
+function itemHtml(it){
+  if(it.id===editingItemId){
+    return '<div class="item editing">'
+      +'<div class="edit-grid">'
+        +'<input class="full" id="edit-name-'+it.id+'" value="'+esc(it.name)+'" placeholder="Name">'
+        +'<input id="edit-qty-'+it.id+'" value="'+esc(it.qty||'')+'" placeholder="Qty">'
+        + (storeSelectHtml('edit-store-'+it.id, it.store||'')||'')
+      +'</div>'
+      +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+        +'<button class="btn ghost sm" onclick="ML.cancelEdit()">Cancel</button>'
+        +'<button class="btn solid sm" onclick="ML.saveEdit(\''+it.id+'\')">Save</button>'
+      +'</div></div>';
+  }
+  var sub=[];
+  if(it.qty) sub.push('<span class="qty-tag">×'+esc(it.qty)+'</span>');
+  return '<div class="item'+(it.done?' done':'')+'">'
+    +'<div class="chk" onclick="ML.toggleDone(\''+it.id+'\')">'+(it.done?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
+    +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+(sub.length?'<div class="sub">'+sub.join('')+'</div>':'')+'</div>'
+    +'<div class="acts">'
+      +'<button class="ib" onclick="ML.startEdit(\''+it.id+'\')" title="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
+      +'<button class="ib del" onclick="ML.delItem(\''+it.id+'\')" title="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>'
+    +'</div></div>';
+}
+
+// ── expose ──
+window.ML = {
+  chooseProfile:chooseProfile, toggleFav:toggleFav, goProfileSelect:goProfileSelect,
+  addList:addList, openList:openList, deleteList:deleteList, renameList:renameList,
+  addStore:addStore, removeStore:removeStore, addItem:addItem, toggleDone:toggleDone,
+  delItem:delItem, startEdit:startEdit, saveEdit:saveEdit, cancelEdit:cancelEdit, clearDone:clearDone,
+  micTap:micTap, sendText:sendText,
+  manageLock:manageLock, lockSubmit:lockSubmit, lockCancel:lockCancel, lockForgot:lockForgot
+};
+
+// lock overlay enter key
+$('lock-pw').addEventListener('keydown', function(e){ if(e.key==='Enter') lockSubmit(); });
+})();
+</script>
+</body>
+</html>

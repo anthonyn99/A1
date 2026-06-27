@@ -1,0 +1,11 @@
+name = "mylist-api"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+WORKER_ORIGIN = "https://mylist-api.av1.workers.dev"
+
+# Per-profile Gemini keys are stored as Cloudflare SECRETS (never committed):
+#   TONY_GEMINI_KEY, VEDA_GEMINI_KEY
+# Set them once with:  wrangler secret put TONY_GEMINI_KEY   (and VEDA_GEMINI_KEY)
+# Secrets persist across deploys, so CI auto-deploy keeps working without them in git.
