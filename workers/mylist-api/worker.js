@@ -53,15 +53,27 @@ function keyFor(env, profile) {
 // instead of reading a text transcript.
 function buildPrompt(mode, transcript, items, stores, hasAudio) {
   const storeLine = (stores && stores.length)
-    ? `The user shops at these stores: ${stores.join(', ')}. If an item is clearly tied to one of them, set its "store" to that exact name; otherwise leave store as "".`
-    : `No specific stores were provided — leave every "store" as "".`;
+    ? `The user already has these stores: ${stores.join(', ')}. Match item stores to one of these EXACT names when they fit.`
+    : `The user has no saved stores yet.`;
   const source = hasAudio
-    ? `Listen to the attached audio recording of the user speaking.`
+    ? `Listen carefully to the attached audio recording of the user speaking.`
     : `Read the user's input below.`;
+
+  const SHARED_RULES = [
+    `STORE DETECTION (very important): If the user mentions a store for an item — by ANY phrasing like "from Best Buy", "at Costco", "Walmart run", "get X from Y" — set that item's "store" to the store's clean Title Case name EVEN IF it is not in the saved list. Invent/recognize new store names freely. Only leave "store" as "" when no store is implied for that item. A store mentioned once can apply to all the items grouped with it in that phrase.`,
+    `BRANDS: If the user names a brand or specific product, KEEP it in the "name" (e.g. "Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill", "Apple MacBook Pro"). Do not strip brands.`,
+    `DESCRIPTIONS: Put any extra detail the user gives (size, color, flavor, variety, purpose, preference, "the big one", "organic", "for the party") into "desc" as a SHORT concise note. Do NOT repeat the name or quantity in desc. If no detail, "desc" is "".`,
+    `ITEMS: Split run-on speech into SEPARATE items. Recognize counts/quantities accurately. Ignore filler words ("um", "uh", "like", "let me think", "and then").`,
+    `Per-item fields:`,
+    `- "name": clean Title Case product name WITH brand if stated. No quantity inside the name.`,
+    `- "qty": short human quantity ("2", "1 gallon", "3 lbs", "a dozen", "5 bags") or "" if none.`,
+    `- "store": detected/saved store name, or "".`,
+    `- "desc": concise extra detail, or "".`,
+  ];
 
   if (mode === 'edit') {
     return [
-      `You are a precise shopping-list assistant. The user has an EXISTING list and just gave a command to change it. ${source}`,
+      `You are an expert shopping-list assistant. The user has an EXISTING list and just gave a command to change it. ${source}`,
       storeLine,
       ``,
       `CURRENT LIST (JSON):`,
@@ -69,28 +81,22 @@ function buildPrompt(mode, transcript, items, stores, hasAudio) {
       ``,
       hasAudio ? `` : `USER COMMAND (may be messy): """${transcript}"""`,
       ``,
-      `Apply the command to the list. The user may ADD items, REMOVE items, change QUANTITIES, mark items as done/gotten, rename items, or assign a store. Keep every existing item that the command does not touch, preserving its "done" state. Merge duplicates intelligently (same item → combine quantities). Return the COMPLETE updated list.`,
+      `Apply the command. The user may ADD items, REMOVE items, change QUANTITIES, mark items done/gotten, rename items, add/clarify descriptions, or assign a store. Keep every existing item the command does not touch, preserving its "done" and "desc". Merge duplicates intelligently (same item → combine quantities). Return the COMPLETE updated list.`,
       ``,
-      `Rules for each item:`,
-      `- "name": singular, clean, Title Case grocery name (e.g. "Bananas", "Whole Milk"). No quantities inside the name.`,
-      `- "qty": a short human quantity string ("2", "1 gallon", "3 lbs", "a dozen") or "" if none was stated.`,
-      `- "store": one of the user's stores, or "".`,
+      ...SHARED_RULES,
       `- "done": boolean — true only if the user said it's already bought/gotten/done.`,
     ].join('\n');
   }
 
   return [
-    `You are a precise shopping-list assistant. Convert what the user wants into a clean, de-duplicated shopping list. ${source}`,
+    `You are an expert shopping-list assistant. Convert what the user wants into a clean, de-duplicated shopping list. ${source}`,
     storeLine,
     ``,
     hasAudio ? `` : `USER INPUT (may be messy or run-on): """${transcript}"""`,
     ``,
-    `Extract every distinct item the user wants to buy. Be accurate: split run-on speech into separate items, infer obvious quantities, and ignore filler words ("um", "and uh", "let me think").`,
+    `Extract every distinct item the user wants to buy.`,
     ``,
-    `Rules for each item:`,
-    `- "name": singular, clean, Title Case grocery name (e.g. "Bananas", "Whole Milk"). No quantities inside the name.`,
-    `- "qty": a short human quantity string ("2", "1 gallon", "3 lbs", "a dozen") or "" if none was stated.`,
-    `- "store": one of the user's stores, or "".`,
+    ...SHARED_RULES,
     `- "done": always false for a new list.`,
   ].join('\n');
 }
@@ -106,6 +112,7 @@ const RESPONSE_SCHEMA = {
           name:  { type: 'STRING' },
           qty:   { type: 'STRING' },
           store: { type: 'STRING' },
+          desc:  { type: 'STRING' },
           done:  { type: 'BOOLEAN' },
         },
         required: ['name'],
