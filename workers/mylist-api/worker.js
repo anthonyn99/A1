@@ -167,6 +167,7 @@ function sanitizeItems(arr) {
       name:  String(it.name || '').trim(),
       qty:   String(it.qty || '').trim(),
       store: String(it.store || '').trim(),
+      desc:  String(it.desc || '').trim(),
       done:  !!it.done,
     }))
     .filter(it => it.name);
