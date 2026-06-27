@@ -30276,31 +30276,40 @@ function refreshDocList(listEl, cls, mod) {
     item.title = 'Click to open · drag out to copy into another app';
 
     // ── Native drag-out: drag this file into Claude / Explorer / any app ──
-    // Uses Chromium's DownloadURL dataTransfer so the OS receives a real file.
-    // The blob URL must exist synchronously at dragstart, so we pre-fetch it
-    // on hover / mousedown (IndexedDB read is async and can't run inside dragstart).
+    // We put a REAL File into the drag via dataTransfer.items.add(), so an
+    // app's drop handler (Claude, etc.) receives it through dataTransfer.files —
+    // exactly as if it were uploaded. We ALSO set DownloadURL so dropping onto
+    // the OS filesystem (Explorer/desktop) writes the actual file out.
+    // Deliberately NO text/uri-list — that's what made targets paste the blob
+    // link as text instead of accepting the file.
+    // The File must exist synchronously at dragstart, so we pre-build it on
+    // hover / mousedown (the IndexedDB read is async and can't run in dragstart).
     item.draggable = true;
-    let _dragUrl = null, _dragReady = false;
+    let _dragFile = null, _dragUrl = null, _dragReady = false;
     const _prepDrag = () => {
       if (_dragReady || !f.fileId) return;
       _dragReady = true;
       SosFileStore.get(f.fileId).then(blob => {
-        if (blob) _dragUrl = URL.createObjectURL(blob);
-        else _dragReady = false;
+        if (blob) {
+          const mime = f.mime || blob.type || 'application/octet-stream';
+          _dragFile = new File([blob], f.name, { type: mime });
+          _dragUrl = URL.createObjectURL(blob);
+        } else { _dragReady = false; }
       }).catch(() => { _dragReady = false; });
     };
     item.addEventListener('mouseenter', _prepDrag);
     item.addEventListener('mousedown', _prepDrag);
     item.addEventListener('dragstart', ev => {
-      if (!_dragUrl) { _prepDrag(); ev.preventDefault(); return; }
+      if (!_dragFile) { _prepDrag(); ev.preventDefault(); return; }
       const mime = f.mime || 'application/octet-stream';
-      // Format: "mimetype:filename:url" — Chromium materializes a real file on drop.
-      ev.dataTransfer.setData('DownloadURL', mime + ':' + f.name + ':' + _dragUrl);
-      ev.dataTransfer.setData('text/uri-list', _dragUrl);
+      try { ev.dataTransfer.items.add(_dragFile); } catch (_) {}
+      // Format "mimetype:filename:url" — lets a native OS drop write the file out.
+      if (_dragUrl) ev.dataTransfer.setData('DownloadURL', mime + ':' + f.name + ':' + _dragUrl);
       ev.dataTransfer.effectAllowed = 'copy';
     });
     item.addEventListener('dragend', () => {
-      if (_dragUrl) { const u = _dragUrl; _dragUrl = null; _dragReady = false; setTimeout(() => URL.revokeObjectURL(u), 60000); }
+      if (_dragUrl) { const u = _dragUrl; setTimeout(() => URL.revokeObjectURL(u), 60000); }
+      _dragFile = null; _dragUrl = null; _dragReady = false;
     });
 
     const icon = document.createElement('div');
