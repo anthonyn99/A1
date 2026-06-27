@@ -4077,7 +4077,7 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
       <div style={{fontSize:12,fontWeight:700,color:'var(--txd)',marginBottom:6}}>{new Date(g.date+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</div>
       {g.items.map(ev=>(<div key={ev.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderTop:'1px solid var(--bd)'}}>
         <span style={{fontSize:9,fontWeight:800,letterSpacing:.4,textTransform:'uppercase',color:tbCatColor(ev.category||ev.kind),background:tbCatColor(ev.category||ev.kind)+'1a',border:'1px solid '+(tbCatColor(ev.category||ev.kind)+'33'),borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap'}}>{ev.category||ev.kind}</span>
-        <span style={{fontSize:13,color:'var(--tx)',flex:1}}>{ev.name}{ev.kind==='earnings'&&ev.when?(<span style={{color:'var(--txm)',fontSize:11}}> · {ev.when==='amc'?'after close':ev.when==='bmo'?'before open':ev.when}</span>):null}</span>
+        <span style={{fontSize:13,color:'var(--tx)',flex:1}}>{ev.name}{ev.kind==='earnings'&&ev.when?(<span style={{color:'var(--txm)',fontSize:11}}> · {ev.when==='amc'?'after close':ev.when==='bmo'?'before open':ev.when}</span>):null}{ev.kind==='earnings'&&ev.confirmed===false?(<span title="Date not confirmed by a second source — may shift" style={{marginLeft:6,fontSize:9,fontWeight:700,letterSpacing:.3,color:'var(--txm)',border:'1px solid var(--bd)',borderRadius:4,padding:'1px 5px',verticalAlign:'middle'}}>EST</span>):null}</span>
 
       </div>))}
     </div>))}
