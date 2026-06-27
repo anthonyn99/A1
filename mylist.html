@@ -216,10 +216,11 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 .empty{text-align:center;color:var(--textmute);font-size:14px;padding:30px 10px;}
 
 /* selection action bar */
-#sel-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:60;display:none;gap:8px;
-  background:var(--surface2);border:1px solid var(--border2);border-radius:30px;padding:8px 8px 8px 18px;align-items:center;box-shadow:0 10px 34px rgba(0,0,0,.45);}
+#sel-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:60;display:none;gap:10px;
+  background:var(--surface2);border:1px solid var(--border2);border-radius:34px;padding:12px 12px 12px 22px;align-items:center;box-shadow:0 12px 40px rgba(0,0,0,.5);max-width:94vw;}
 #sel-bar.show{display:flex;}
-#sel-bar .cnt{font-size:13px;font-weight:800;color:var(--text);font-family:var(--font-btn);}
+#sel-bar .cnt{font-size:15px;font-weight:800;color:var(--text);font-family:var(--font-btn);white-space:nowrap;}
+#sel-bar .btn{padding:11px 16px;font-size:14px;border-radius:22px;}
 
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 22px);
   background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:700;
@@ -294,12 +295,22 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
   </div>
 </div>
 
+<!-- live caption (fixed top, concise, scrollable) -->
+<div id="top-caption"><div class="cap-h"><span class="rdot"></span>Listening</div><div id="top-caption-body"></div></div>
+
+<!-- floating voice bar (shows when big mic scrolls off-screen) -->
+<div id="float-voice">
+  <button id="float-mic" onclick="ML.micTap()" aria-label="Voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+  <input id="float-text" placeholder="Type to edit your list…" onkeydown="if(event.key==='Enter'){ML.sendFloatText();}">
+  <button class="btn solid fgo" onclick="ML.sendFloatText()">Go</button>
+</div>
+
 <!-- selection action bar -->
 <div id="sel-bar">
   <span class="cnt" id="sel-cnt">0 selected</span>
-  <button class="btn ghost sm" onclick="ML.selectAll()">All</button>
-  <button class="btn ghost sm" onclick="ML.exitSelect()">Cancel</button>
-  <button class="btn danger solid sm" onclick="ML.deleteSelected()">Delete</button>
+  <button class="btn ghost" id="sel-all-btn" onclick="ML.toggleSelectAll()">All</button>
+  <button class="btn ghost" onclick="ML.exitSelect()">Cancel</button>
+  <button class="btn danger solid" onclick="ML.deleteSelected()">Delete</button>
 </div>
 
 <!-- confirm modal -->
