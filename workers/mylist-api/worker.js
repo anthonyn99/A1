@@ -119,6 +119,7 @@ const RESPONSE_SCHEMA = {
         required: ['name'],
       },
     },
+    stores: { type: 'ARRAY', items: { type: 'STRING' } },
     note: { type: 'STRING' },
   },
   required: ['items'],
