@@ -2764,8 +2764,8 @@ const THEMES = {
   dark:{BG:"#0f0f12",S1:"#141418",S2:"#1a1a20",BD:"#252530",BDL:"#323240",TX:"#ececf0",TXD:"#9898a8",TXM:"#58586a",TXDONE:"#78788c",AC:"#E0607A",ACL:"#ffb3c1",ACD:"#e0405e",ACG:"rgba(224,96,122,0.12)",GRN:"#50C878",ERR:"#d47a6a",SHADOW:"rgba(0,0,0,0.5)",TODAYBG:"#1a1a20",TODAYBD:"#3a3a52"},
   light:{BG:"#EAE3E7",S1:"#E5DCE0",S2:"#DDD4D8",BD:"#C8B8C0",BDL:"#BCA8B0",TX:"#2A1F24",TXD:"#6B5560",TXM:"#A0909A",TXDONE:"#8A7880",AC:"#D4607A",ACL:"#E08898",ACD:"#B04060",ACG:"rgba(212,96,122,0.1)",GRN:"#158A4E",ERR:"#C0392B",SHADOW:"rgba(42,31,36,0.12)",TODAYBG:"#E2D8DE",TODAYBD:"#C0AAB4"}
 };
-const CC_DARK  = {work:"#5a8070",personal:"#5a7a96",health:"#8a6048",urgent:"#8a5048",study:"#72568c",finance:"#886478",other:"#5a5868",earnings:"#b0566e",inflation:"#9c7838",fed:"#8466a8",jobs:"#4c7a98",growth:"#4a9268",energy:"#a86838"};
-const CC_LIGHT = {work:"#2E7D52",personal:"#1A6080",health:"#7A4010",urgent:"#B03030",study:"#5A3A8A",finance:"#7A4060",other:"#4A4860",earnings:"#A8324E",inflation:"#8A5A10",fed:"#5A3A8A",jobs:"#1A5A80",growth:"#1E7A4A",energy:"#8A4A10"};
+const CC_DARK  = {work:"#5a8070",personal:"#5a7a96",health:"#8a6048",urgent:"#8a5048",study:"#72568c",finance:"#886478",other:"#5a5868",earnings:"#b0566e",inflation:"#9c7838",fed:"#8466a8",jobs:"#4c7a98",growth:"#4a9268",energy:"#a86838",holiday:"#6b7a99"};
+const CC_LIGHT = {work:"#2E7D52",personal:"#1A6080",health:"#7A4010",urgent:"#B03030",study:"#5A3A8A",finance:"#7A4060",other:"#4A4860",earnings:"#A8324E",inflation:"#8A5A10",fed:"#5A3A8A",jobs:"#1A5A80",growth:"#1E7A4A",energy:"#8A4A10",holiday:"#42587e"};
 
 function dimM(y,m){return new Date(y,m+1,0).getDate();}
 function fdow(y,m){const d=new Date(y,m,1).getDay();return d===0?6:d-1;}
@@ -3894,7 +3894,7 @@ function App(){
   const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date||ev.date<todayK)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,date:ev.date,notifyAt:ev.notifyAt||null});});return g;},[marketCal]);
   const mcFmt=(iso)=>{const d=new Date(iso);let h=d.getHours();const m=d.getMinutes();const ap=h<12?" AM":" PM";h=h%12||12;return h+":"+(m<10?"0":"")+m+ap;};
   const mcChip=(e)=>React.createElement("div",{key:e.id,style:{display:"flex",alignItems:"flex-start",gap:8,marginBottom:7,cursor:"default"}},
-    React.createElement("span",{style:{fontSize:13,flexShrink:0,lineHeight:1.4,marginTop:1}},e.kind==="earnings"?"📈":"📅"),
+    React.createElement("span",{style:{fontSize:13,flexShrink:0,lineHeight:1.4,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
     React.createElement("span",{style:{fontSize:14,fontWeight:700,color:T.TX,lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
     React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
       React.createElement("span",{style:ctag(e.category)},e.category)));
@@ -10105,7 +10105,7 @@ function App(){
   //    Grouped by day, today-onward. Display only — notifications removed. ──
   const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date||ev.date<todayK)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,_mc:true,kind:ev.kind,title:ev.name,category:ev.category,date:ev.date});});return g;},[marketCal]);
   const mcChip=(e)=>RC("div",{key:e.id,style:{display:"flex",alignItems:"flex-start",gap:6,marginBottom:5,cursor:"default"}},
-    RC("span",{style:{fontSize:12,flexShrink:0,lineHeight:1.35,marginTop:1}},e.kind==="earnings"?"📈":"📅"),
+    RC("span",{style:{fontSize:12,flexShrink:0,lineHeight:1.35,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
     RC("span",{style:{fontSize:13,fontWeight:700,color:TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
     RC("span",{style:ctag(e.category)},e.category));
 

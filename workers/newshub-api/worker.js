@@ -1227,9 +1227,41 @@ Use the real published schedule. If unsure of an exact date, omit that item. Dat
   return [];
 }
 
+// ── US market holidays (NYSE/Nasdaq) ─────────────────────────────────────────
+// Full closures + half-days (1 PM ET early close). Static table — top up for
+// 2028+. Surfaced as calendar events so the Catalysts tab + both TaskHubs show
+// which upcoming days the market is closed and why.
+const MKT_HOLIDAYS = {
+  '2026-01-01':"New Year's Day",'2026-01-19':'MLK Jr. Day','2026-02-16':"Presidents' Day",
+  '2026-04-03':'Good Friday','2026-05-25':'Memorial Day','2026-06-19':'Juneteenth',
+  '2026-07-03':'Independence Day','2026-09-07':'Labor Day','2026-11-26':'Thanksgiving Day',
+  '2026-12-25':'Christmas Day',
+  '2027-01-01':"New Year's Day",'2027-01-18':'MLK Jr. Day','2027-02-15':"Presidents' Day",
+  '2027-03-26':'Good Friday','2027-05-31':'Memorial Day',
+};
+const MKT_HALFDAYS = { '2026-11-27':'Day after Thanksgiving', '2026-12-24':'Christmas Eve' };
+
+// Holiday/half-day events within [fromD, toD] (inclusive). Kept in the same
+// window the calendar uses, so only the next ~30 days surface.
+function marketHolidayEvents(fromD, toD, diag){
+  const out = [];
+  for (const [date, name] of Object.entries(MKT_HOLIDAYS)){
+    if (date < fromD || date > toD) continue;
+    out.push({ kind:'holiday', ticker:null, category:'holiday', date, name:`${name} — Market Closed` });
+  }
+  for (const [date, name] of Object.entries(MKT_HALFDAYS)){
+    if (date < fromD || date > toD) continue;
+    out.push({ kind:'holiday', ticker:null, category:'holiday', date, name:`${name} — Early Close (1 PM ET)` });
+  }
+  diag && diag.push('holidays: '+out.length+' in window');
+  return out;
+}
+
 // Deterministic id so re-fetch overwrites (never dupes) downstream in Firestore.
 function calEventId(ev){
-  const t = ev.kind === 'earnings' ? `earnings_${ev.ticker}` : `macro_${ev.category}_${ev.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40)}`;
+  const t = ev.kind === 'earnings' ? `earnings_${ev.ticker}`
+          : ev.kind === 'holiday'  ? 'holiday'
+          : `macro_${ev.category}_${ev.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40)}`;
   return `mc_${t}_${ev.date}`;
 }
 
@@ -1371,7 +1403,10 @@ async function buildCalendar(wl, env, days, diag){
   }
 
   const macro = [...authMacro, ...extraMacro];
-  const events = [...earn, ...macro]
+  // 4) Market holidays / half-days in-window — so Catalysts + both TaskHubs show
+  //    which upcoming days the market is closed (and why).
+  const holidays = marketHolidayEvents(fromD, toD, diag);
+  const events = [...earn, ...macro, ...holidays]
     .map(ev => ({ ...ev, id: calEventId(ev) }))
     .sort((a,b) => a.date.localeCompare(b.date));
   return { events, generatedAt: Date.now(), from: fromD, to: toD, degraded: !earn.length && !events.length };
