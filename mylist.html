@@ -535,8 +535,13 @@ function boot(){
     setSync('ok'); refreshProfileScreen();
     var fav = localStorage.getItem('ml_fav_profile');
     if(fav && PROFILE_META[fav]) chooseProfile(fav); else goProfileSelect();
+    maybeFirstRunHelp();
   });
 }
+// ── help / instructions ──
+function showHelp(){ $('help-overlay').style.display='flex'; }
+function closeHelp(){ $('help-overlay').style.display='none'; try{ localStorage.setItem('ml_seen_help','1'); }catch(e){} }
+function maybeFirstRunHelp(){ var seen; try{ seen=localStorage.getItem('ml_seen_help'); }catch(e){} if(!seen) setTimeout(showHelp, 350); }
 
 function pData(){ return state[activeProfile] || {lists:[]}; }
 function lists(){ return pData().lists; }
@@ -1124,7 +1129,9 @@ window.ML = {
   delItem:delItem, startEdit:startEdit, saveEdit:saveEdit, cancelEdit:cancelEdit, clearDone:clearDone,
   micTap:micTap, sendText:sendText, sendFloatText:sendFloatText, autoGrow:autoGrow, toggleManual:toggleManual,
   toggleSelectMode:toggleSelectMode, exitSelect:exitSelect, toggleSel:toggleSel, toggleSelectAll:toggleSelectAll, deleteSelected:deleteSelected,
-  undoLast:undoLast,
+  undoLast:undoLast, redoLast:redoLast,
+  showHelp:showHelp, closeHelp:closeHelp,
+  openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker, pickDevice:pickDevice,
   manageLock:manageLock, lockSubmit:lockSubmit, lockCancel:lockCancel, lockForgot:lockForgot
 };
 
