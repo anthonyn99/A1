@@ -2161,6 +2161,9 @@ function TBMarketStatus({isMobile}){
         <span style={{fontSize:8.5,fontWeight:800,letterSpacing:.3,textTransform:'uppercase',color:u.half?'#d29922':'#8b949e',background:(u.half?'#d29922':'#8b949e')+'1a',borderRadius:4,padding:'1px 5px'}}>{u.half?'½ day':'closed'}</span>
       </div>))}
     </div>}
+    {calLow&&<div style={{marginTop:10,paddingTop:10,borderTop:'1px solid var(--bd)',fontSize:11.5,lineHeight:1.55,color:'#d29922'}}>
+      ⚠ <b>Update needed:</b> the market holiday calendar {calDaysLeft>=0?<>runs out {tbMktDayLabel(TB_MKT_CAL_THROUGH)} ({calDaysLeft} days)</>:<>expired {Math.abs(calDaysLeft)} days ago</>}. Refresh the holiday tables: <b>TB_MKT_HOLIDAYS</b>/<b>TB_MKT_HALFDAYS</b> in tradehub.html and <b>MKT_HOLIDAYS</b>/<b>MKT_HALFDAYS</b> in the newshub worker (keep both identical).
+    </div>}
   </div>);
 }
 
