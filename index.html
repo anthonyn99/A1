@@ -8831,7 +8831,15 @@ const DOW=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday
 const DS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const MO=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const MOS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-function fmt12h(t){if(!t)return '';const[hh,mm]=t.split(':').map(Number);const ap=hh<12?'AM':'PM';const h=hh%12||12;return h+':'+String(mm).padStart(2,'0')+' '+ap;}
+// ── Timezone-aware time display ──────────────────────────────────────────────
+// All TaskHub times render in the VIEWER's local zone with an abbreviation (ET,
+// MST…). notifyAt is an absolute instant (already cross-zone correct). Event
+// `time` is a wall-clock "HH:MM" + a stored `tz` (IANA, captured on save) so it
+// converts too: 2pm set in Denver shows "4:00 PM EDT" in New York.
+function thTzAbbr(d){try{return (new Intl.DateTimeFormat([],{timeZoneName:'short'}).formatToParts(d).find(p=>p.type==='timeZoneName')||{}).value||'';}catch(e){return '';}}
+function thZonedTs(ds,hh,mm,tz){const[Y,M,D]=ds.split('-').map(Number);const guess=Date.UTC(Y,M-1,D,hh,mm,0);const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(new Date(guess)).reduce((a,x)=>{a[x.type]=x.value;return a},{});let hr=+p.hour;if(hr===24)hr=0;const asTz=Date.UTC(+p.year,+p.month-1,+p.day,hr,+p.minute);return guess-(asTz-guess);}
+function fmtNotif(iso){if(!iso)return '';const d=new Date(iso);return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+' '+thTzAbbr(d);}
+function fmt12h(t,dateKey,tz){if(!t)return '';const[hh,mm]=t.split(':').map(Number);if(tz&&dateKey){try{const d=new Date(thZonedTs(dateKey,hh,mm,tz));return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+' '+thTzAbbr(d);}catch(e){}}const ap=hh<12?'AM':'PM';const h=hh%12||12;const lbl=thTzAbbr(dateKey?new Date(dateKey+'T12:00:00'):new Date());return h+':'+String(mm).padStart(2,'0')+' '+ap+(lbl?' '+lbl:'');}
 const A="#8D769A",AL="#A892B0",AD="#6E5C7A",ABG="rgba(141,118,154,.08)";
 const BG="#1B1C1E",S1="#26272A",BD="#3D3E43",BDL="#4A4B51",TX="#ECECEE",TXD="#AFB0B5",TXM="#76777C",GRN="#5DAF6D";
 const CC={work:A,personal:"#58a6d4",health:"#56d364",urgent:"#f85149",study:"#bc8cff",finance:"#d29922",other:"#8b949e"};
