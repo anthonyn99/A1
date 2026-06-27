@@ -666,7 +666,7 @@ function cancelEdit(){ editingItemId=null; render(); }
 function clearDone(){
   var l=curList(); if(!l) return; var n=l.items.filter(function(x){return x.done;}).length;
   if(!n){ toast('No completed items'); return; }
-  confirmAsk('Remove '+n+' completed item'+(n>1?'s':'')+'?', function(){ l.items=l.items.filter(function(x){return !x.done;}); persist(); render(); }, 'Remove');
+  confirmAsk('Remove '+n+' completed item'+(n>1?'s':'')+'?', function(){ pushUndo(l); l.items=l.items.filter(function(x){return !x.done;}); persist(); render(); }, 'Remove');
 }
 
 // ── multi-select ──
