@@ -634,7 +634,7 @@ function addStore(){
   inp.value=''; persist(); render(); setTimeout(function(){ var i=$('store-input'); if(i) i.focus(); },0);
 }
 function removeStore(name){
-  var l=curList(); if(!l) return;
+  var l=curList(); if(!l) return; pushUndo(l);
   l.stores=(l.stores||[]).filter(function(s){return s!==name;});
   (l.items||[]).forEach(function(it){ if(it.store===name) it.store=''; });
   persist(); render();
