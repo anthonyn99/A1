@@ -2108,6 +2108,10 @@ function tbMktState(now){
 }
 function tbCountdown(ms){if(ms<0)ms=0;const s=Math.floor(ms/1000);const d=Math.floor(s/86400);const h=Math.floor(s%86400/3600);const m=Math.floor(s%3600/60);const ss=s%60;if(d>0)return `${d}d ${h}h ${m}m`;if(h>0)return `${h}h ${m}m ${ss}s`;return `${m}m ${ss}s`;}
 function tbMktDayLabel(dateStr){return new Date(dateStr+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});}
+// Format a UTC timestamp in the VIEWER'S local timezone (auto-detected by the
+// browser), so market times read e.g. "7:30 AM MST" in Colorado, "9:30 AM EDT" in NY.
+function tbLocalTime(ts){return new Date(ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
+function tbLocalTimeTz(ts){return new Date(ts).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZoneName:'short'});}
 
 function TBMarketStatus({isMobile}){
   const [now,setNow]=useState(()=>new Date());
@@ -2125,10 +2129,9 @@ function TBMarketStatus({isMobile}){
   else if(st.phase==='after'){cdLabel='Extended closes in';cdTs=st.postEndTs;}
   else {cdLabel='Opens in';cdTs=st.nextOpenTs;}
   const cd=tbCountdown(cdTs-now.getTime());
-  const closeH=st.half?'1:00 PM':'4:00 PM';
   const hoursLine=st.tradable
-    ? `Today · 9:30 AM – ${closeH} ET${st.half?' (early close)':''}`
-    : `Opens ${tbMktDayLabel(st.nextOpenDate)} · 9:30 AM ET`;
+    ? `Today · ${tbLocalTime(st.regOpenTs)} – ${tbLocalTimeTz(st.regCloseTs)}${st.half?' (early close)':''}`
+    : `Opens ${tbMktDayLabel(st.nextOpenDate)} · ${tbLocalTimeTz(st.nextOpenTs)}`;
   // Computed on the fly for the current + next year (covers any month boundary).
   const yNow=+st.dateStr.slice(0,4);
   const upcoming=[yNow,yNow+1].flatMap(Y=>{const {H,HD}=tbMktHolYear(Y);return [
