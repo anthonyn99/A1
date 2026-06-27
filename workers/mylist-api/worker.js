@@ -60,10 +60,11 @@ function buildPrompt(mode, transcript, items, stores, hasAudio) {
     : `Read the user's input below.`;
 
   const SHARED_RULES = [
-    `STORE DETECTION (very important): If the user mentions a store for an item — by ANY phrasing like "from Best Buy", "at Costco", "Walmart run", "get X from Y" — set that item's "store" to the store's clean Title Case name EVEN IF it is not in the saved list. Invent/recognize new store names freely. Only leave "store" as "" when no store is implied for that item. A store mentioned once can apply to all the items grouped with it in that phrase.`,
+    `STORE DETECTION: If the user names a real shop/retailer for an item — "from Best Buy", "at Costco", "Walmart run", "get X from Target" — set that item's "store" to that shop's clean Title Case name (even if not in the saved list). A store named once applies to all items grouped with it in that phrase. STRICT: "store" must be a short proper store name, max 3 words. If the location is vague or generic ("the mall", "the store", "somewhere", "online"), leave "store" as "". Never write a sentence, explanation, or placeholder text in "store" — only a real name or "".`,
     `BRANDS: If the user names a brand or specific product, KEEP it in the "name" (e.g. "Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill", "Apple MacBook Pro"). Do not strip brands.`,
     `DESCRIPTIONS: Put any extra detail the user gives (size, color, flavor, variety, purpose, preference, "the big one", "organic", "for the party") into "desc" as a SHORT concise note. Do NOT repeat the name or quantity in desc. If no detail, "desc" is "".`,
     `ITEMS: Split run-on speech into SEPARATE items. Recognize counts/quantities accurately. Ignore filler words ("um", "uh", "like", "let me think", "and then").`,
+    `OUTPUT: Every field is short data only — never explanations, reasoning, or placeholder notes. Keep each field tight.`,
     `Per-item fields:`,
     `- "name": clean Title Case product name WITH brand if stated. No quantity inside the name.`,
     `- "qty": short human quantity ("2", "1 gallon", "3 lbs", "a dozen", "5 bags") or "" if none.`,
@@ -126,7 +127,7 @@ const RESPONSE_SCHEMA = {
 async function callGemini(model, key, prompt, audio, mimeType) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   const gc = {
-    temperature: 0.1,
+    temperature: 0,
     maxOutputTokens: 4096,
     responseMimeType: 'application/json',
     responseSchema: RESPONSE_SCHEMA,
