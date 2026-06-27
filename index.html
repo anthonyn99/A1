@@ -2950,7 +2950,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
       if(isEdit){
         // Editing an existing altSeq item — treat as title edit choice for the seq
         const item={id:initial.id,type,title:initial.title,category:cat,done:initial?.done||false,
-          ...(type==="event"&&time?{time}:{}),
+          ...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),
           altSeqId:initial.altSeqId,altSeqIdx:initial.altSeqIdx,altSeqTitles:validTitles,
           altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},
           ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
@@ -2958,7 +2958,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
         onSave(startDateKey,item,"altSeqEdit");onClose();
       } else {
         const baseItem={id:initial?.id||uid(),type,title:"",category:cat,done:false,
-          ...(type==="event"&&time?{time}:{}),
+          ...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),
           altSeqTitles:validTitles,
           altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},
           ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:null}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
@@ -2968,7 +2968,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
       return;
     }
     const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,
-      ...(type==="event"&&time?{time}:{}),
+      ...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),
       ...(repeat!=="none"?{repeat,repeatDays,repeatEndDate:endDate,repeatId:initial?.repeatId||uid()}:{repeat:"none"}),
       ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
 };
@@ -9634,15 +9634,15 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
       const isEdit=!!(initial?.altSeqId);
       const notifyFields=notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null};
       if(isEdit){
-        const item={id:initial.id,type,title:initial.title,category:cat,done:initial?.done||false,...(type==="event"&&time?{time}:{}),altSeqId:initial.altSeqId,altSeqIdx:initial.altSeqIdx,altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields};
+        const item={id:initial.id,type,title:initial.title,category:cat,done:initial?.done||false,...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),altSeqId:initial.altSeqId,altSeqIdx:initial.altSeqIdx,altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields};
         onSave(startDateKey,item,"altSeqEdit");onClose();
       } else {
-        const baseItem={id:initial?.id||uid(),type,title:"",category:cat,done:false,...(type==="event"&&time?{time}:{}),altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields};
+        const baseItem={id:initial?.id||uid(),type,title:"",category:cat,done:false,...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields};
         onSave(startDateKey,baseItem,{mode:"altSeq",titles:validTitles,endDate});onClose();
       }
       return;
     }
-    const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,...(type==="event"?{time}:{}),...(repeat!=="none"?{repeat,repeatDays,repeatEndDate:endDate,repeatId:initial?.repeatId||uid()}:{repeat:"none"}),...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null})};
+    const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,...(type==="event"?{time,tz:time?Intl.DateTimeFormat().resolvedOptions().timeZone:null}:{}),...(repeat!=="none"?{repeat,repeatDays,repeatEndDate:endDate,repeatId:initial?.repeatId||uid()}:{repeat:"none"}),...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null})};
     const wasAltSeq=!!(initial?.altSeqId);
     const wasRepeating=(initial?.repeatId&&initial?.repeat&&initial.repeat!=="none")||wasAltSeq;
     const nowCancelled=repeat==="none";
