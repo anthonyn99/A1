@@ -767,7 +767,7 @@ function toggleFav(p){
 }
 function chooseProfile(p){ if(mlMustBlock(p)){ showLock(p,'unlock',function(){ enterProfile(p); }); return; } enterProfile(p); }
 function enterProfile(p){
-  activeProfile=p; manualOpen=false; document.body.setAttribute('data-profile',p);
+  activeProfile=p; manualOpen=false; view='lists'; recDetailId=null; document.body.setAttribute('data-profile',p);
   document.querySelector('meta[name=theme-color]').setAttribute('content', p==='veda'?'#1B1C1E':'#0f0f12');
   $('profile-overlay').style.display='none'; $('app').style.display='flex';
   var last = localStorage.getItem('ml_last_list_'+p); var L = lists();
@@ -1370,6 +1370,8 @@ window.ML = {
   micTap:micTap, sendText:sendText, sendFloatText:sendFloatText, autoGrow:autoGrow, toggleManual:toggleManual,
   toggleSelectMode:toggleSelectMode, exitSelect:exitSelect, toggleSel:toggleSel, toggleSelectAll:toggleSelectAll, deleteSelected:deleteSelected,
   undoLast:undoLast, redoLast:redoLast,
+  setView:setView, recRerender:recRerender, recOpenAdd:recOpenAdd, recOpenEdit:recOpenEdit, recOpenDetail:recOpenDetail,
+  recBack:recBack, recAddIng:recAddIng, recAddTool:recAddTool, recSave:recSave, recCloseModal:recCloseModal, recDelete:recDelete,
   showHelp:showHelp, closeHelp:closeHelp,
   openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker, pickDevice:pickDevice,
   manageLock:manageLock, lockSubmit:lockSubmit, lockCancel:lockCancel, lockForgot:lockForgot
