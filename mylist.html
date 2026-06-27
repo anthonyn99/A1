@@ -134,11 +134,11 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 
 /* ── resizable textarea wrapper ── */
 .ta-wrap{position:relative;width:100%;}
-.ta-wrap textarea{padding-right:26px;}
-.resize-grip{position:absolute;right:3px;bottom:3px;width:22px;height:22px;cursor:ns-resize;touch-action:none;display:flex;align-items:flex-end;justify-content:flex-end;
-  color:var(--textmute);opacity:.7;border-radius:5px;}
-.resize-grip:hover{opacity:1;color:var(--accent);}
-.resize-grip svg{width:13px;height:13px;}
+.ta-wrap textarea{padding-right:42px;padding-bottom:30px;}
+.resize-grip{position:absolute;right:5px;bottom:5px;width:38px;height:38px;cursor:ns-resize;touch-action:none;display:flex;align-items:center;justify-content:center;
+  color:var(--accent);opacity:1;border-radius:9px;background:var(--accent-soft);border:1.5px solid var(--accent);}
+.resize-grip:active{background:var(--accent);color:var(--accent-ink);}
+.resize-grip svg{width:22px;height:22px;}
 
 /* ── Manual collapsible ── */
 .manual-toggle{width:100%;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
@@ -151,7 +151,7 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 .manual-toggle .mt-sub{font-size:11px;font-weight:600;color:var(--textmute);font-family:var(--font-btn);text-transform:none;letter-spacing:0;}
 #manual-body{display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:16px;margin-bottom:14px;background:var(--surface);}
 #manual-body.open{display:block;}
-.manual-sub{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--textmute);margin:0 0 10px;font-family:var(--font-btn);}
+.manual-sub{font-size:16px;font-weight:800;letter-spacing:var(--head-spacing);text-transform:var(--head-transform);color:var(--text);margin:0 0 13px;font-family:var(--font-head);}
 .manual-block + .manual-block{margin-top:20px;padding-top:18px;border-top:1px dashed var(--border2);}
 
 /* stores */
