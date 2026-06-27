@@ -30273,7 +30273,35 @@ function refreshDocList(listEl, cls, mod) {
     const item = document.createElement('div');
     item.className = 'doc-item';
     item.style.cursor = 'pointer';
-    item.title = 'Click to open in new tab';
+    item.title = 'Click to open · drag out to copy into another app';
+
+    // ── Native drag-out: drag this file into Claude / Explorer / any app ──
+    // Uses Chromium's DownloadURL dataTransfer so the OS receives a real file.
+    // The blob URL must exist synchronously at dragstart, so we pre-fetch it
+    // on hover / mousedown (IndexedDB read is async and can't run inside dragstart).
+    item.draggable = true;
+    let _dragUrl = null, _dragReady = false;
+    const _prepDrag = () => {
+      if (_dragReady || !f.fileId) return;
+      _dragReady = true;
+      SosFileStore.get(f.fileId).then(blob => {
+        if (blob) _dragUrl = URL.createObjectURL(blob);
+        else _dragReady = false;
+      }).catch(() => { _dragReady = false; });
+    };
+    item.addEventListener('mouseenter', _prepDrag);
+    item.addEventListener('mousedown', _prepDrag);
+    item.addEventListener('dragstart', ev => {
+      if (!_dragUrl) { _prepDrag(); ev.preventDefault(); return; }
+      const mime = f.mime || 'application/octet-stream';
+      // Format: "mimetype:filename:url" — Chromium materializes a real file on drop.
+      ev.dataTransfer.setData('DownloadURL', mime + ':' + f.name + ':' + _dragUrl);
+      ev.dataTransfer.setData('text/uri-list', _dragUrl);
+      ev.dataTransfer.effectAllowed = 'copy';
+    });
+    item.addEventListener('dragend', () => {
+      if (_dragUrl) { const u = _dragUrl; _dragUrl = null; _dragReady = false; setTimeout(() => URL.revokeObjectURL(u), 60000); }
+    });
 
     const icon = document.createElement('div');
     icon.className = 'doc-item-icon';
