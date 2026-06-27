@@ -1257,11 +1257,11 @@ async function resolveCronWatchlist(env){
 
 // Cron helper: build the Catalysts calendar and write it to the SAME cache key
 // the /calendar endpoint reads, so the tab loads instantly on open (Wed/Sun).
-// Uses the live TB_WL (wl:current) + days=10 so the pre-warm key matches what
-// the front-end requests.
+// Uses the live TB_WL (wl:current) + days=30 — the front-end requests days=30,
+// so the pre-warm key MUST use the same window or the warmed cache is never hit.
 async function prewarmCalendar(env){
   const { wl } = await resolveCronWatchlist(env);
-  const days   = 10;
+  const days   = 30;
   const calKey = `cal:v1:${wlHash(wl)}:${etDateStr(0)}:${days}`;
   const calLock= `cal:lock:${wlHash(wl)}`;
   await env.NEWSHUB_CACHE.put(calLock, '1', { expirationTtl: CAL_LOCK_TTL });
