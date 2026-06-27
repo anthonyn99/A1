@@ -4226,9 +4226,22 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
     </div>
     {notice&&<div className="tb-card" style={{marginBottom:12,fontSize:12,color:'var(--txm)'}}>{notice}</div>}
     {lastSync&&<div style={{fontSize:11,color:'var(--txm)',marginBottom:10}}>Last updated {new Date(lastSync).toLocaleString()}</div>}
-    {approxYears.length>0&&<div className="tb-card" style={{marginBottom:12,padding:'10px 14px',borderLeft:'3px solid #d29922',fontSize:12,color:'var(--txd)',lineHeight:1.55}}>
-      <b style={{color:'#d29922'}}>⚠ AI-estimated dates</b> — official macro release schedules for {approxYears.join(', ')} aren't published yet, so events tagged <b>(approx)</b> are AI-estimated and may shift a day or two. Earnings and market holidays are exact.
-    </div>}
+    {(()=>{
+      // Year-end (Dec, lingering into Jan): if next year's macro still isn't hardcoded,
+      // show a dedicated "annual update due" reminder. Self-clears once it's hardcoded
+      // (those events stop being AI-estimated), and recurs automatically every December.
+      const et=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'numeric'}).formatToParts(new Date()).reduce((a,x)=>{a[x.type]=x.value;return a},{});
+      const etM=+et.month, etY=+et.year;
+      const targetYear=etM>=11?etY+1:etY;                 // Nov+ → next year is the one to hardcode
+      const updateDue=(etM>=11||etM<=1)&&approxYears.includes(String(targetYear));
+      if(updateDue) return (<div className="tb-card" style={{marginBottom:12,padding:'11px 15px',borderLeft:'3px solid #d29922',background:'rgba(210,153,34,0.06)',fontSize:12.5,color:'var(--txd)',lineHeight:1.6}}>
+        <b style={{color:'#d29922'}}>📅 Annual macro update due ({targetYear})</b> — the {targetYear} release schedule (CPI, jobs, FOMC…) isn't hardcoded yet, so those dates are AI-estimated. The official BLS / BEA / Fed schedules are published now — time to hardcode {targetYear} in the newshub worker for exact dates.
+      </div>);
+      if(approxYears.length>0) return (<div className="tb-card" style={{marginBottom:12,padding:'10px 14px',borderLeft:'3px solid #d29922',fontSize:12,color:'var(--txd)',lineHeight:1.55}}>
+        <b style={{color:'#d29922'}}>⚠ AI-estimated dates</b> — official macro release schedules for {approxYears.join(', ')} aren't published yet, so events tagged <b>(approx)</b> are AI-estimated and may shift a day or two. Earnings and market holidays are exact.
+      </div>);
+      return null;
+    })()}
     {groups.length===0&&!loading&&<div className="tb-card" style={{textAlign:'center',color:'var(--txm)',padding:'32px 16px'}}>No catalysts yet — hit Refresh.</div>}
     {groups.map(g=>(<div key={g.date} className="tb-card" style={{marginBottom:10,padding:'12px 16px'}}>
       <div style={{fontSize:12,fontWeight:700,color:'var(--txd)',marginBottom:6}}>{new Date(g.date+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</div>
