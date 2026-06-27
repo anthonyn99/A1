@@ -2087,8 +2087,8 @@ function tbMktState(now){
   const {dateStr,hh,mm}=tbNyParts(now);
   const t=hh*60+mm;
   const wd=tbMktWeekday(dateStr);
-  const tradable=wd!==0&&wd!==6&&!TB_MKT_HOLIDAYS[dateStr];
-  const half=TB_MKT_HALFDAYS[dateStr]||null;
+  const tradable=wd!==0&&wd!==6&&!tbMktHolidayName(dateStr);
+  const half=tbMktHalfdayName(dateStr);
   const regClose=half?13*60:16*60;          // 1:00 or 4:00 PM ET
   const postEnd=half?17*60:20*60;            // extended session end
   let phase='closed';
@@ -2100,7 +2100,7 @@ function tbMktState(now){
     else phase='closed';
   }
   const nextOpenDate=(tradable&&t<570)?dateStr:tbMktNextTradingDay(dateStr,false);
-  return {dateStr,t,phase,half,tradable,holiday:TB_MKT_HOLIDAYS[dateStr]||null,regClose,postEnd,
+  return {dateStr,t,phase,half,tradable,holiday:tbMktHolidayName(dateStr),regClose,postEnd,
     regOpenTs:tbNyTs(dateStr,9,30),
     regCloseTs:tbNyTs(dateStr,Math.floor(regClose/60),regClose%60),
     postEndTs:tbNyTs(dateStr,Math.floor(postEnd/60),postEnd%60),
