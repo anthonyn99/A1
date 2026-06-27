@@ -651,7 +651,7 @@ function addItem(){
 function toggleDone(id){ var l=curList(); if(!l) return; var it=l.items.filter(function(x){return x.id===id;})[0]; if(it){ it.done=!it.done; persist(); render(); } }
 function delItem(id){
   var l=curList(); if(!l) return; var it=l.items.filter(function(x){return x.id===id;})[0]; if(!it) return;
-  confirmAsk('Delete "'+it.name+'"?', function(){ l.items=l.items.filter(function(x){return x.id!==id;}); persist(); render(); });
+  confirmAsk('Delete "'+it.name+'"?', function(){ pushUndo(l); l.items=l.items.filter(function(x){return x.id!==id;}); persist(); render(); });
 }
 function startEdit(id){ editingItemId=id; render(); }
 function saveEdit(id){
