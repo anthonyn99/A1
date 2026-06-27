@@ -1012,7 +1012,7 @@ ${lines}`;
 // ── Calendar config ─────────────────────────────────────────────────────────
 const CAL_TTL        = 12 * 3600;   // 12h cache — macro/earnings calendar barely moves
 const CAL_LOCK_TTL   = 120;         // build-lock auto-expiry
-const CAL_DAYS_MAX   = 21;          // clamp the lookahead window
+const CAL_DAYS_MAX   = 31;          // clamp the lookahead window (front-end asks for 30)
 const CAL_MACRO_MODELS = ['gemini-2.0-flash', 'gemini-2.5-flash']; // grounded-search capable
 
 // Only these macro releases are accepted (whitelist kills hallucinated junk).
@@ -1133,6 +1133,39 @@ async function fetchEarningsCalendar(wl, env, fromD, toD, diag){
     }
     return out;
   } catch(e){ console.warn('earnings cal err', e.message); return []; }
+}
+
+// ── Earnings cross-check via AlphaVantage EARNINGS_CALENDAR ───────────────────
+// Second independent source. Returns a bulk CSV of expected report dates for the
+// next ~3 months; we filter to the watchlist + window. Used to CONFIRM Finnhub
+// dates (both sources agree → confirmed) and to fill tickers Finnhub misses.
+// Free tier is ~25 req/day — fine since /calendar is cached 12h.
+async function fetchEarningsAlphaVantage(wl, env, fromD, toD, diag){
+  if (!env.ALPHAVANTAGE_KEY){ diag&&diag.push('av-earn: NO KEY'); return []; }
+  try {
+    const r = await fetch(`https://www.alphavantage.co/query?function=EARNINGS_CALENDAR&horizon=3month&apikey=${env.ALPHAVANTAGE_KEY}`);
+    if (!r.ok){ diag&&diag.push('av-earn: HTTP '+r.status); return []; }
+    const csv = await r.text();
+    // Rate-limit / info responses come back as JSON, not CSV.
+    if (csv.trimStart().startsWith('{')){ diag&&diag.push('av-earn: non-csv (rate/info)'); return []; }
+    const set = new Set(wl);
+    const out = [];
+    const lines = csv.split('\n');
+    for (let i = 1; i < lines.length; i++){       // skip header row
+      const line = lines[i];
+      const c = line.indexOf(',');
+      if (c < 0) continue;
+      const sym = line.slice(0, c).trim().toUpperCase();
+      if (!set.has(sym)) continue;
+      // First YYYY-MM-DD on the line is reportDate (name field may contain commas).
+      const m = line.match(/\d{4}-\d{2}-\d{2}/);
+      const date = m ? m[0] : null;
+      if (!date || date < fromD || date > toD) continue;
+      out.push({ ticker: sym, date });
+    }
+    diag&&diag.push('av-earn: '+out.length+' in-window matches');
+    return out;
+  } catch(e){ diag&&diag.push('av-earn: EXC '+e.message); return []; }
 }
 
 // ── Macro via grounded Gemini (Google Search) ────────────────────────────────
@@ -1294,11 +1327,26 @@ async function buildCalendar(wl, env, days, diag){
   const authMacro = authoritativeMacro(fromD, toD);
   diag && diag.push('authoritative macro: ' + authMacro.length + ' events');
 
-  // 2) Earnings (Finnhub, real) + Gemini macro (supplement only).
-  const [earn, aiMacro] = await Promise.all([
+  // 2) Earnings (Finnhub, real) + Gemini macro (supplement only) + AlphaVantage
+  //    earnings as an independent cross-check source.
+  const [earn, aiMacro, avEarn] = await Promise.all([
     fetchEarningsCalendar(wl, env, fromD, toD, diag),
     fetchMacroCalendar(env, fromD, toD, diag),
+    fetchEarningsAlphaVantage(wl, env, fromD, toD, diag),
   ]);
+
+  // 2b) Cross-check earnings dates across the two sources. Both agreeing on the
+  //     exact day = confirmed; single-source or conflicting dates = estimated
+  //     (front-end shows an "EST" tag). AV-only tickers fill Finnhub's gaps.
+  const avByTicker = new Map();
+  for (const a of avEarn){ if(!avByTicker.has(a.ticker)) avByTicker.set(a.ticker, new Set()); avByTicker.get(a.ticker).add(a.date); }
+  const finnTickers = new Set(earn.map(e => e.ticker));
+  for (const e of earn){ const d = avByTicker.get(e.ticker); e.confirmed = !!(d && d.has(e.date)); }
+  for (const a of avEarn){
+    if (finnTickers.has(a.ticker)) continue;   // Finnhub already has this name
+    earn.push({ kind:'earnings', ticker:a.ticker, name:`${a.ticker} Earnings`, date:a.date, category:'earnings', when:null, epsEst:null, confirmed:false });
+  }
+  diag && diag.push('earnings: '+earn.filter(e=>e.confirmed).length+' confirmed / '+earn.length+' total');
 
   // 3) Merge: authoritative wins. The hardcoded table only covers certain YEARS
   //    (see HARDCODED_YEARS). For those years, AI guesses of hardcoded release
