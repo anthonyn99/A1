@@ -95,7 +95,7 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 .sync-pill.err{color:var(--bad);border-color:rgba(212,122,106,0.5);} .sync-pill.err .sync-dot{background:var(--bad);}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-#main{flex:1;max-width:760px;width:100%;margin:0 auto;padding:14px clamp(12px,4vw,22px) calc(env(safe-area-inset-bottom,0px) + 130px);}
+#main{flex:1;max-width:760px;width:100%;margin:0 auto;padding:14px clamp(12px,4vw,22px) calc(env(safe-area-inset-bottom,0px) + 170px);}
 
 #lists-bar{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;}
 .list-chip{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--textdim);cursor:pointer;transition:all .15s;font-family:var(--font-btn);}
@@ -138,16 +138,33 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 #top-caption .cap-h .rdot{width:8px;height:8px;border-radius:50%;background:var(--bad);animation:pulse 1s infinite;}
 #top-caption .interim{color:var(--textmute);}
 
-/* floating voice bar — appears when the big mic scrolls off screen */
-#float-voice{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:55;display:none;
-  align-items:center;gap:9px;background:var(--surface2);border:1px solid var(--border2);border-radius:30px;padding:8px 9px 8px 9px;
-  width:min(560px,92vw);box-shadow:0 12px 40px rgba(0,0,0,.5);}
+/* permanent floating voice+type bar at the bottom */
+#float-voice{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:55;display:none;
+  align-items:flex-end;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:24px;padding:8px;
+  width:min(580px,94vw);box-shadow:0 12px 40px rgba(0,0,0,.5);}
 #float-voice.show{display:flex;}
 #float-mic{width:46px;height:46px;border-radius:50%;border:none;background:var(--accent);color:var(--accent-ink);flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;}
 #float-mic.recording{background:var(--bad);color:#fff;animation:recpulse 1.3s infinite;}
 #float-mic svg{width:22px;height:22px;}
-#float-voice input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:11px 14px;font-size:14px;min-width:0;}
-#float-voice .fgo{flex-shrink:0;height:44px;border-radius:22px;padding:0 16px;}
+#float-dev{width:40px;height:46px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--textdim);flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+#float-dev:hover{border-color:var(--accent);color:var(--accent);}
+#float-dev svg{width:18px;height:18px;}
+.fv-input{flex:1;min-width:0;}
+#float-text{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:12px 14px;font-size:14px;width:100%;max-height:120px;line-height:1.4;display:block;}
+#float-voice .fgo{flex-shrink:0;height:46px;border-radius:18px;padding:0 16px;}
+#float-rec-hint{display:none;flex:1;min-width:0;align-items:center;justify-content:center;color:var(--bad);font-weight:800;font-size:13px;font-family:var(--font-btn);text-align:center;padding:0 6px;min-height:46px;line-height:1.25;}
+#float-voice.recording .fv-input,#float-voice.recording .fgo{display:none;}
+#float-voice.recording #float-rec-hint{display:flex;}
+
+/* device picker popover */
+#dev-overlay{position:fixed;inset:0;z-index:9650;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.7);backdrop-filter:blur(4px);padding:22px;}
+#dev-box{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:18px;}
+#dev-box h3{font-family:var(--font-head);font-weight:var(--head-weight);font-size:17px;margin-bottom:4px;letter-spacing:var(--head-spacing);text-transform:var(--head-transform);}
+#dev-box .dev-sub{font-size:12px;color:var(--textdim);margin-bottom:14px;}
+.dev-item{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:14px;color:var(--text);}
+.dev-item:hover{border-color:var(--accent);}
+.dev-item.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700;}
+.dev-item .tick{margin-left:auto;color:var(--accent);}
 
 /* ── resizable textarea wrapper ── */
 .ta-wrap{position:relative;width:100%;}
@@ -216,11 +233,12 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 .empty{text-align:center;color:var(--textmute);font-size:14px;padding:30px 10px;}
 
 /* selection action bar */
-#sel-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:60;display:none;gap:10px;
-  background:var(--surface2);border:1px solid var(--border2);border-radius:34px;padding:12px 12px 12px 22px;align-items:center;box-shadow:0 12px 40px rgba(0,0,0,.5);max-width:94vw;}
+#sel-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:60;display:none;gap:8px;
+  background:var(--surface2);border:1px solid var(--border2);border-radius:22px;padding:12px 16px;align-items:center;justify-content:center;flex-wrap:wrap;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);max-width:94vw;}
 #sel-bar.show{display:flex;}
-#sel-bar .cnt{font-size:15px;font-weight:800;color:var(--text);font-family:var(--font-btn);white-space:nowrap;}
-#sel-bar .btn{padding:11px 16px;font-size:14px;border-radius:22px;}
+#sel-bar .cnt{font-size:15px;font-weight:800;color:var(--text);font-family:var(--font-btn);white-space:nowrap;width:100%;text-align:center;}
+#sel-bar .btn{padding:10px 15px;font-size:14px;border-radius:20px;}
 
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 22px);
   background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:700;
@@ -248,6 +266,23 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 #lock-menu{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;}
 #lock-row{display:flex;gap:8px;} #lock-row .btn{flex:1;justify-content:center;}
 #lock-forgot{background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;cursor:pointer;margin-top:12px;font-family:var(--font-btn);}
+
+/* ── Help / instructions modal ── */
+#help-overlay{position:fixed;inset:0;z-index:9750;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.84);backdrop-filter:blur(6px);padding:18px;}
+#help-box{width:100%;max-width:440px;max-height:86vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:24px 22px;}
+#help-box h2{font-family:var(--font-head);font-weight:var(--head-weight);font-size:24px;color:var(--accent);letter-spacing:var(--head-spacing);text-transform:var(--head-transform);margin-bottom:4px;}
+#help-box .hsub{font-size:13px;color:var(--textdim);margin-bottom:18px;}
+.help-row{display:flex;gap:12px;margin-bottom:15px;align-items:flex-start;}
+.help-row .hi{flex-shrink:0;width:34px;height:34px;border-radius:10px;background:var(--accent-soft);border:1px solid var(--accent);color:var(--accent);display:flex;align-items:center;justify-content:center;}
+.help-row .hi svg{width:18px;height:18px;}
+.help-row .ht{font-size:13.5px;color:var(--text);line-height:1.5;}
+.help-row .ht b{color:var(--accent);font-weight:800;}
+#help-box .hclose{width:100%;justify-content:center;margin-top:8px;}
+
+/* wrap safety — nothing pushed off-screen on any device */
+.list-head{flex-wrap:wrap;}
+.items-head{flex-wrap:wrap;}
+.store-add-row{flex-wrap:wrap;}
 
 .spin{width:15px;height:15px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite;display:inline-block;}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -281,6 +316,9 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
     <span class="wordmark tb-title">MyList</span>
     <span class="tb-spacer"></span>
     <span class="sync-pill" id="sync-pill"><span class="sync-dot"></span><span id="sync-text">Offline</span></span>
+    <button class="icon-btn" id="help-btn" title="How it works" onclick="ML.showHelp()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </button>
     <button class="icon-btn" id="lock-mgr-btn" title="Lock" onclick="ML.manageLock()">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
     </button>
@@ -298,12 +336,22 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 <!-- live caption (fixed top, concise, scrollable) -->
 <div id="top-caption"><div class="cap-h"><span class="rdot"></span>Listening</div><div id="top-caption-body"></div></div>
 
-<!-- floating voice bar (shows when big mic scrolls off-screen) -->
+<!-- permanent floating voice + type bar -->
 <div id="float-voice">
   <button id="float-mic" onclick="ML.micTap()" aria-label="Voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
-  <input id="float-text" placeholder="Type to edit your list…" onkeydown="if(event.key==='Enter'){ML.sendFloatText();}">
+  <button id="float-dev" title="Choose microphone" onclick="ML.openDevicePicker()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><circle cx="18.5" cy="5.5" r="3" fill="currentColor" stroke="none"/></svg></button>
+  <div class="fv-input"><textarea id="float-text" rows="1" placeholder="Type what you need…" oninput="ML.autoGrow(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ML.sendFloatText();}"></textarea></div>
   <button class="btn solid fgo" onclick="ML.sendFloatText()">Go</button>
+  <span id="float-rec-hint">Tap mic again to stop &amp; process</span>
 </div>
+
+<!-- microphone picker -->
+<div id="dev-overlay"><div id="dev-box">
+  <h3>Microphone</h3>
+  <div class="dev-sub">Pick which input to record from.</div>
+  <div id="dev-list"></div>
+  <button class="btn ghost" style="width:100%;justify-content:center;margin-top:6px" onclick="ML.closeDevicePicker()">Close</button>
+</div></div>
 
 <!-- selection action bar -->
 <div id="sel-bar">
@@ -312,6 +360,19 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
   <button class="btn ghost" onclick="ML.exitSelect()">Cancel</button>
   <button class="btn danger solid" onclick="ML.deleteSelected()">Delete</button>
 </div>
+
+<!-- help / instructions modal -->
+<div id="help-overlay"><div id="help-box">
+  <h2>MyList</h2>
+  <div class="hsub">Your voice-powered shopping &amp; to-do lists.</div>
+  <div class="help-row"><div class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div><div class="ht"><b>Talk to it.</b> Tap the mic at the bottom and just say what you need — “two gallons of milk, a dozen eggs, and a laptop from Best Buy.” The mic keeps listening through pauses; tap it again to stop &amp; process.</div></div>
+  <div class="help-row"><div class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg></div><div class="ht"><b>Or type it.</b> Use the box at the bottom — same thing, no mic needed.</div></div>
+  <div class="help-row"><div class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"/><path d="M8 12l3 3 5-6"/></svg></div><div class="ht"><b>Smart AI.</b> It splits items, catches quantities &amp; brands, writes short descriptions, and routes things to the right <b>store</b>. You can also add/edit/remove by voice or text, and even create stores (“add Walmart and Target”).</div></div>
+  <div class="help-row"><div class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div><div class="ht"><b>Manual control.</b> Open <b>Manual</b> to add stores or items by hand. Tap an item to edit its name, quantity, store and description. Use <b>Select</b> to delete several at once.</div></div>
+  <div class="help-row"><div class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/></svg></div><div class="ht"><b>Undo / redo.</b> Made a mistake? Say or type “undo” (or “redo”), or use the ↶ ↷ buttons.</div></div>
+  <div class="help-row"><div class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div><div class="ht"><b>Lists, sync &amp; lock.</b> Make as many lists as you like. Everything syncs live across your devices. Lock a profile with a password from the 🔒 button.</div></div>
+  <button class="btn solid hclose" onclick="ML.closeHelp()">Got it</button>
+</div></div>
 
 <!-- confirm modal -->
 <div id="confirm-overlay"><div id="confirm-box">
