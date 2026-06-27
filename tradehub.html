@@ -2129,14 +2129,12 @@ function TBMarketStatus({isMobile}){
   const hoursLine=st.tradable
     ? `Today · 9:30 AM – ${closeH} ET${st.half?' (early close)':''}`
     : `Opens ${tbMktDayLabel(st.nextOpenDate)} · 9:30 AM ET`;
-  const upcoming=[
-    ...Object.entries(TB_MKT_HOLIDAYS).map(([d,n])=>({d,n,half:false})),
-    ...Object.entries(TB_MKT_HALFDAYS).map(([d,n])=>({d,n,half:true})),
-  ].filter(x=>x.d>=st.dateStr).sort((a,b)=>a.d.localeCompare(b.d)).slice(0,3);
-  // Reminder: the holiday tables are hardcoded. Warn ~120 days before they run out
-  // so the open/closed status never silently goes wrong on an un-added holiday.
-  const calDaysLeft=Math.round((Date.parse(TB_MKT_CAL_THROUGH+'T00:00:00Z')-Date.parse(st.dateStr+'T00:00:00Z'))/86400000);
-  const calLow=calDaysLeft<120;
+  // Computed on the fly for the current + next year (covers any month boundary).
+  const yNow=+st.dateStr.slice(0,4);
+  const upcoming=[yNow,yNow+1].flatMap(Y=>{const {H,HD}=tbMktHolYear(Y);return [
+    ...Object.entries(H).map(([d,n])=>({d,n,half:false})),
+    ...Object.entries(HD).map(([d,n])=>({d,n,half:true})),
+  ];}).filter(x=>x.d>=st.dateStr).sort((a,b)=>a.d.localeCompare(b.d)).slice(0,3);
 
   return (<div className="tb-card" style={{padding:isMobile?'14px 16px':'16px 20px',borderLeft:`3px solid ${PHASE.tone}`}}>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
@@ -2162,9 +2160,6 @@ function TBMarketStatus({isMobile}){
         <span style={{fontSize:11,color:'var(--txm)'}}>{u.n}</span>
         <span style={{fontSize:8.5,fontWeight:800,letterSpacing:.3,textTransform:'uppercase',color:u.half?'#d29922':'#8b949e',background:(u.half?'#d29922':'#8b949e')+'1a',borderRadius:4,padding:'1px 5px'}}>{u.half?'½ day':'closed'}</span>
       </div>))}
-    </div>}
-    {calLow&&<div style={{marginTop:10,paddingTop:10,borderTop:'1px solid var(--bd)',fontSize:11.5,lineHeight:1.55,color:'#d29922'}}>
-      ⚠ <b>Update needed:</b> the market holiday calendar {calDaysLeft>=0?`runs out ${tbMktDayLabel(TB_MKT_CAL_THROUGH)} (${calDaysLeft} days)`:`expired ${Math.abs(calDaysLeft)} days ago`}. Refresh the holiday tables — <b>TB_MKT_HOLIDAYS</b>/<b>TB_MKT_HALFDAYS</b> in tradehub.html and <b>MKT_HOLIDAYS</b>/<b>MKT_HALFDAYS</b> in the newshub worker (keep both identical).
     </div>}
   </div>);
 }
