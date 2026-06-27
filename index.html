@@ -2757,6 +2757,10 @@ const DS  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const MO  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const MOS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 // \u2500\u2500 Timezone-aware time display (mirror of Veda's TaskHub helpers) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// Convert a stored event time (wall-clock "HH:MM" in IANA `tz` on `dateKey`) to
+// the viewer's LOCAL "HH:MM" — seeds the editor so editing in any zone preserves
+// the real moment (no silent shift while traveling).
+function thToLocalHHMM(timeStr,tz,dateKey){if(!timeStr)return '';if(!tz||!dateKey)return timeStr;try{const[hh,mm]=timeStr.split(':').map(Number);const d=new Date(thZonedTs(dateKey,hh,mm,tz));const pad=n=>String(n).padStart(2,'0');return pad(d.getHours())+':'+pad(d.getMinutes());}catch(e){return timeStr;}}
 function thTzAbbr(d){try{return (new Intl.DateTimeFormat([],{timeZoneName:'short'}).formatToParts(d).find(p=>p.type==='timeZoneName')||{}).value||'';}catch(e){return '';}}
 function thZonedTs(ds,hh,mm,tz){const[Y,M,D]=ds.split('-').map(Number);const guess=Date.UTC(Y,M-1,D,hh,mm,0);const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(new Date(guess)).reduce((a,x)=>{a[x.type]=x.value;return a},{});let hr=+p.hour;if(hr===24)hr=0;const asTz=Date.UTC(+p.year,+p.month-1,+p.day,hr,+p.minute);return guess-(asTz-guess);}
 function fmtNotif(iso){if(!iso)return '';const d=new Date(iso);return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'\u00a0'+thTzAbbr(d);}
@@ -2918,7 +2922,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
   useEffect(()=>{
     if(!open)return;
     setType(initial?.type||"task");setTitle(initial?.title||"");setCat(initial?.category||"");
-    setTime(initial?.time||"");
+    setTime(thToLocalHHMM(initial?.time,initial?.tz,startDateKey)||"");
     setRepeat(initial?.altSeqId?"altSeq":(initial?.repeat||"none"));setRepeatDays(initial?.repeatDays||[]);
     if(initial?.altSeqTitles)setAltSeqTitles(initial.altSeqTitles.length>=2?[...initial.altSeqTitles]:["","",""].map((v,i)=>initial.altSeqTitles[i]||""));
     else setAltSeqTitles(["","",""]);
@@ -8840,6 +8844,10 @@ const MOS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","De
 // MST…). notifyAt is an absolute instant (already cross-zone correct). Event
 // `time` is a wall-clock "HH:MM" + a stored `tz` (IANA, captured on save) so it
 // converts too: 2pm set in Denver shows "4:00 PM EDT" in New York.
+// Convert a stored event time (wall-clock "HH:MM" in IANA `tz` on `dateKey`) to
+// the viewer's LOCAL "HH:MM" — seeds the editor so editing in any zone preserves
+// the real moment (no silent shift while traveling).
+function thToLocalHHMM(timeStr,tz,dateKey){if(!timeStr)return '';if(!tz||!dateKey)return timeStr;try{const[hh,mm]=timeStr.split(':').map(Number);const d=new Date(thZonedTs(dateKey,hh,mm,tz));const pad=n=>String(n).padStart(2,'0');return pad(d.getHours())+':'+pad(d.getMinutes());}catch(e){return timeStr;}}
 function thTzAbbr(d){try{return (new Intl.DateTimeFormat([],{timeZoneName:'short'}).formatToParts(d).find(p=>p.type==='timeZoneName')||{}).value||'';}catch(e){return '';}}
 function thZonedTs(ds,hh,mm,tz){const[Y,M,D]=ds.split('-').map(Number);const guess=Date.UTC(Y,M-1,D,hh,mm,0);const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(new Date(guess)).reduce((a,x)=>{a[x.type]=x.value;return a},{});let hr=+p.hour;if(hr===24)hr=0;const asTz=Date.UTC(+p.year,+p.month-1,+p.day,hr,+p.minute);return guess-(asTz-guess);}
 function fmtNotif(iso){if(!iso)return '';const d=new Date(iso);return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+' '+thTzAbbr(d);}
@@ -9614,7 +9622,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const[notifyDate,setNotifyDate]=useState("");const[notifyTime,setNotifyTime]=useState("");
   const[notifyRepeat,setNotifyRepeat]=useState("none");const[notifyRepeatDays,setNotifyRepeatDays]=useState([]);
   const[altSeqTitles,setAltSeqTitles]=useState(["","",""]);
-  useEffect(()=>{if(open){setType(initial?.type||"task");setTitle(initial?.title||"");setCat(initial?.category||"");setTime(initial?.time||"");
+  useEffect(()=>{if(open){setType(initial?.type||"task");setTitle(initial?.title||"");setCat(initial?.category||"");setTime(thToLocalHHMM(initial?.time,initial?.tz,startDateKey)||"");
     setRepeat(initial?.altSeqId?"altSeq":(initial?.repeat||"none"));setRepeatDays(initial?.repeatDays||[]);
     if(initial?.altSeqTitles)setAltSeqTitles(initial.altSeqTitles.length>=2?[...initial.altSeqTitles]:["","",""].map((v,i)=>initial.altSeqTitles[i]||""));
     else setAltSeqTitles(["","",""]);
@@ -33912,7 +33920,7 @@ function syncToTaskHub(){
           type:'event',category:'other',
           title:(t1.name||t1.code)+' vs '+(t2.name||t2.code)+' · '+league.name,
           time:String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'),
-          notifyAt:startTime.getTime(),done:false,
+          tz:Intl.DateTimeFormat().resolvedOptions().timeZone,notifyAt:startTime.getTime(),done:false,
         });
       }
       // League-faved card (separate card, survives team unfav)
@@ -33931,7 +33939,7 @@ function syncToTaskHub(){
             type:'event',category:'other',
             title:(t1.name||t1.code)+' vs '+(t2.name||t2.code)+' · '+league.name,
             time:String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'),
-            notifyAt:startTime.getTime(),done:false,
+            tz:Intl.DateTimeFormat().resolvedOptions().timeZone,notifyAt:startTime.getTime(),done:false,
           });
         }
       }
