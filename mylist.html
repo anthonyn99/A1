@@ -590,6 +590,7 @@ function refreshProfileScreen(){
 }
 function goProfileSelect(){
   activeProfile=null; activeListId=null; exitSelect();
+  $('float-voice').classList.remove('show'); hideCaption();
   $('app').style.display='none'; $('profile-overlay').style.display='flex';
   document.body.setAttribute('data-profile','tony');
   document.querySelector('meta[name=theme-color]').setAttribute('content','#0f0f12');
@@ -603,12 +604,24 @@ function toggleFav(p){
 }
 function chooseProfile(p){ if(mlMustBlock(p)){ showLock(p,'unlock',function(){ enterProfile(p); }); return; } enterProfile(p); }
 function enterProfile(p){
-  activeProfile=p; document.body.setAttribute('data-profile',p);
+  activeProfile=p; manualOpen=false; document.body.setAttribute('data-profile',p);
   document.querySelector('meta[name=theme-color]').setAttribute('content', p==='veda'?'#1B1C1E':'#0f0f12');
   $('profile-overlay').style.display='none'; $('app').style.display='flex';
   var last = localStorage.getItem('ml_last_list_'+p); var L = lists();
   activeListId = (last && L.filter(function(l){return l.id===last;}).length) ? last : (L[0] ? L[0].id : null);
-  updateLockBtn(); render();
+  updateLockBtn(); render(); restoreScroll();
+}
+// per-(profile,list) scroll memory
+var scrollSaveTimer=null;
+window.addEventListener('scroll', function(){
+  if(!activeProfile||!activeListId) return;
+  clearTimeout(scrollSaveTimer);
+  scrollSaveTimer=setTimeout(function(){ try{ localStorage.setItem('ml_scroll_'+activeProfile+'_'+activeListId, String(window.scrollY)); }catch(e){} }, 200);
+}, {passive:true});
+function restoreScroll(){
+  if(!activeProfile||!activeListId){ window.scrollTo(0,0); return; }
+  var y=parseInt(localStorage.getItem('ml_scroll_'+activeProfile+'_'+activeListId)||'0',10);
+  setTimeout(function(){ window.scrollTo(0, y>0?y:0); }, 40);
 }
 
 // ════════ LIST / ITEM OPS ════════
@@ -617,7 +630,7 @@ function addList(){
   var l={ id:uid(), name:name, stores:[], items:[], createdAt:Date.now() };
   lists().push(l); activeListId=l.id; exitSelect(); persist(); render();
 }
-function openList(id){ activeListId=id; editingItemId=null; exitSelect(); localStorage.setItem('ml_last_list_'+activeProfile,id); render(); }
+function openList(id){ activeListId=id; editingItemId=null; selectMode=false; selected={}; updateSelBar(); localStorage.setItem('ml_last_list_'+activeProfile,id); render(); restoreScroll(); }
 function deleteList(id){
   var l=lists().filter(function(x){return x.id===id;})[0]; if(!l) return;
   confirmAsk('Delete list "'+l.name+'" and all its items?', function(){
@@ -671,17 +684,27 @@ function clearDone(){
 
 // ── multi-select ──
 function toggleSelectMode(){ selectMode=!selectMode; selected={}; editingItemId=null; render(); updateSelBar(); }
-function exitSelect(){ selectMode=false; selected={}; updateSelBar(); }
+function exitSelect(){ selectMode=false; selected={}; updateSelBar(); if(activeProfile && curList()) render(); }
 function toggleSel(id){ if(selected[id]) delete selected[id]; else selected[id]=true; render(); updateSelBar(); }
-function selectAll(){ var l=curList(); if(!l) return; (l.items||[]).forEach(function(it){ selected[it.id]=true; }); render(); updateSelBar(); }
+function toggleSelectAll(){
+  var l=curList(); if(!l) return; var items=l.items||[];
+  var allSel = items.length && items.every(function(it){ return selected[it.id]; });
+  if(allSel){ selected={}; } else { items.forEach(function(it){ selected[it.id]=true; }); }
+  render(); updateSelBar();
+}
 function updateSelBar(){
-  var bar=$('sel-bar'); var n=Object.keys(selected).length;
-  if(selectMode){ bar.classList.add('show'); $('sel-cnt').textContent=n+' selected'; } else bar.classList.remove('show');
+  var bar=$('sel-bar');
+  if(selectMode){
+    bar.classList.add('show');
+    var n=Object.keys(selected).length; $('sel-cnt').textContent=n+' selected';
+    var l=curList(); var items=(l&&l.items)||[]; var allSel=items.length && items.every(function(it){ return selected[it.id]; });
+    var ab=$('sel-all-btn'); if(ab) ab.textContent=allSel?'Deselect all':'All';
+  } else bar.classList.remove('show');
 }
 function deleteSelected(){
   var l=curList(); if(!l) return; var ids=Object.keys(selected); if(!ids.length){ toast('Nothing selected'); return; }
   confirmAsk('Delete '+ids.length+' selected item'+(ids.length>1?'s':'')+'?', function(){
-    l.items=l.items.filter(function(x){return !selected[x.id];}); exitSelect(); persist(); render();
+    pushUndo(l); l.items=l.items.filter(function(x){return !selected[x.id];}); exitSelect(); persist(); render();
   });
 }
 
