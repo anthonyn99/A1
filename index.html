@@ -95,171 +95,9 @@ body.light-mode input[type=time]{color-scheme:light;}
 @keyframes td-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 /* ── App shell ── */
 #el-root{display:flex;flex-direction:column;}
-#ms-root{display:flex;flex-direction:column;}
 #er-root{display:flex;flex-direction:column;}
 #er-root input[type=date]{color-scheme:dark;}
 #er-root.er-light input[type=date]{color-scheme:light;}
-/* ── MealSuite scoped styles — Elegant Redesign ── */
-#ms-root *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-#ms-root button,#ms-root input,#ms-root select,#ms-root textarea{font-family:'Nunito',sans-serif;touch-action:manipulation;}
-#ms-root textarea{resize:vertical;}
-
-/* ── Drag & Drop (MotionCore-style pointer events) ── */
-#ms-root .th-drag-handle{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;cursor:grab;color:var(--ms-txm);flex-shrink:0;touch-action:none;transition:color .15s,background .15s;-webkit-tap-highlight-color:transparent;user-select:none;}
-#ms-root .th-drag-handle:hover{color:var(--ms-txd);background:var(--ms-s2);}
-#ms-root .th-drag-handle:active{cursor:grabbing;}
-#ms-root .th-drag-placeholder{border:2px dashed var(--ms-ac);border-radius:12px;background:color-mix(in srgb,var(--ms-ac) 5%,transparent);flex-shrink:0;transition:height .12s;}
-
-/* ── Header / Logo (preserved exactly) ── */
-#ms-root .ms-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px;min-width:0;}
-#ms-root .ms-logo{font-family:'Lora',serif;font-size:clamp(18px,3vw,28px);font-weight:700;letter-spacing:-0.3px;white-space:nowrap;flex-shrink:0;}
-#ms-root .ms-logo .base{color:var(--ms-tx);}
-#ms-root .ms-logo .accent{color:var(--ms-ac);font-style:italic;}
-#ms-root .ms-hbtns{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:nowrap;}
-
-/* ── Layout ── */
-#ms-root .ms-inner{max-width:720px;width:100%;margin:0 auto;padding:clamp(16px,2vw,28px) clamp(16px,3vw,36px) clamp(16px,2vw,28px);display:flex;flex-direction:column;gap:20px;flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
-
-/* ── Tab nav — pill style ── */
-#ms-root .ms-tabs{display:flex;gap:2px;background:transparent;border:none;padding:0;margin-bottom:4px;}
-#ms-root .ms-tab{font-family:'Lora',serif;font-size:13px;font-weight:600;font-style:italic;padding:8px 22px;border-radius:100px;border:1.5px solid transparent;cursor:pointer;transition:all .2s cubic-bezier(.4,0,.2,1);color:var(--ms-txd);background:transparent;letter-spacing:.2px;}
-#ms-root .ms-tab.active{background:var(--ms-ac);color:#fff;border-color:var(--ms-ac);font-style:normal;font-weight:700;box-shadow:0 4px 14px color-mix(in srgb,var(--ms-ac) 35%,transparent);}
-#ms-root .ms-tab:hover:not(.active){color:var(--ms-ac);border-color:var(--ms-ac)33;background:var(--ms-acg);}
-
-/* ── Buttons ── */
-#ms-root .ms-btn{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito',sans-serif;font-size:12px;font-weight:700;border-radius:100px;padding:7px 18px;cursor:pointer;transition:all .2s;white-space:nowrap;letter-spacing:.3px;}
-#ms-root .ms-btn-primary{background:var(--ms-ac);color:#fff;border:none;box-shadow:0 3px 10px color-mix(in srgb,var(--ms-ac) 30%,transparent);}
-#ms-root .ms-btn-primary:hover{opacity:.88;transform:translateY(-1px);box-shadow:0 5px 16px color-mix(in srgb,var(--ms-ac) 40%,transparent);}
-#ms-root .ms-btn-ghost{background:transparent;border:1.5px solid var(--ms-bd);color:var(--ms-txd);}
-#ms-root .ms-btn-ghost:hover{border-color:var(--ms-ac);color:var(--ms-ac);}
-#ms-root .ms-btn-danger{background:transparent;border:1.5px solid var(--ms-err);color:var(--ms-err);border-radius:100px;}
-#ms-root .ms-btn-danger:hover{background:var(--ms-err);color:#fff;}
-#ms-root .ms-toggle{display:flex;align-items:center;gap:7px;background:transparent;border:1.5px solid var(--ms-bd);border-radius:100px;padding:5px 12px;font-size:11px;font-weight:700;color:var(--ms-txd);cursor:pointer;transition:all .2s;user-select:none;}
-#ms-root .ms-toggle:hover{border-color:var(--ms-ac);color:var(--ms-ac);}
-#ms-root .ms-track{width:26px;height:14px;border-radius:7px;background:var(--ms-bd);position:relative;transition:background .2s;flex-shrink:0;}
-#ms-root .ms-track.on{background:var(--ms-ac);}
-#ms-root .ms-thumb{width:10px;height:10px;border-radius:50%;background:#fff;position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
-#ms-root .ms-thumb.on{left:14px;}
-
-/* ── Panel card (no border, soft shadow) ── */
-#ms-root .ms-card{background:var(--ms-s1);border:none;border-radius:16px;padding:24px 26px;box-shadow:0 2px 16px var(--ms-shadow),0 0 0 1px var(--ms-bd);}
-#ms-root .ms-card-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;}
-#ms-root .ms-card-title{font-family:'Lora',serif;font-size:18px;font-weight:700;color:var(--ms-tx);letter-spacing:-.2px;line-height:1.2;}
-#ms-root .ms-card-count{font-size:11px;font-weight:600;color:var(--ms-txm);margin-top:3px;}
-
-/* ── Toolbar / search ── */
-#ms-root .ms-toolbar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
-#ms-root .ms-search{flex:1;min-width:160px;background:var(--ms-s2);border:1.5px solid var(--ms-bdl);border-radius:100px;color:var(--ms-tx);font-size:13px;padding:9px 18px;outline:none;transition:border-color .2s,box-shadow .2s;}
-#ms-root .ms-search:focus{border-color:var(--ms-ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ms-ac) 15%,transparent);}
-#ms-root .ms-search::placeholder{color:var(--ms-txm);}
-#ms-root .ms-select{background:var(--ms-s2);border:1.5px solid var(--ms-bdl);border-radius:100px;color:var(--ms-tx);font-size:12px;font-weight:600;padding:9px 14px;outline:none;cursor:pointer;transition:border-color .2s;}
-#ms-root .ms-select:focus{border-color:var(--ms-ac);}
-
-/* ── Recipe list — card tiles ── */
-#ms-root .ms-recipe-list{display:flex;flex-direction:column;gap:0;}
-#ms-root .ms-recipe-row{display:flex;align-items:center;gap:14px;padding:14px 14px;border-radius:12px;cursor:pointer;transition:background .15s,transform .1s;margin-bottom:2px;border:1px solid transparent;}
-#ms-root .ms-recipe-row:hover{background:var(--ms-s2);border-color:var(--ms-bdl);transform:translateX(2px);}
-#ms-root .ms-recipe-info{flex:1;min-width:0;}
-#ms-root .ms-recipe-name{font-family:'Lora',serif;font-size:15px;font-weight:600;color:var(--ms-tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px;}
-#ms-root .ms-recipe-meta{font-size:11px;color:var(--ms-txm);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap;}
-#ms-root .ms-recipe-meta span::before{content:'·';margin-right:6px;opacity:.5;}
-#ms-root .ms-recipe-meta span:first-child::before{display:none;}
-#ms-root .ms-tag{font-size:10px;font-weight:700;padding:3px 10px;border-radius:100px;border:1px solid transparent;white-space:nowrap;letter-spacing:.4px;}
-#ms-root .ms-row-btns{display:flex;gap:4px;flex-shrink:0;}
-#ms-root .ms-icon-btn{background:transparent;border:none;font-size:14px;padding:6px 8px;border-radius:8px;cursor:pointer;color:var(--ms-txd);transition:background .12s,color .12s;}
-#ms-root .ms-icon-btn:hover{background:var(--ms-s2);color:var(--ms-tx);}
-#ms-root .ms-icon-btn.del{color:var(--ms-err);}#ms-root .ms-icon-btn.del:hover{background:color-mix(in srgb,var(--ms-err) 12%,transparent);}
-#ms-root .ms-empty{text-align:center;padding:48px 20px;font-size:14px;color:var(--ms-txm);font-family:'Lora',serif;font-style:italic;line-height:1.8;}
-
-/* ── Divider between sections ── */
-#ms-root .ms-recipe-divider{height:1px;background:var(--ms-bd);margin:2px 0;opacity:.6;}
-
-/* ── Grocery list ── */
-#ms-root .ms-grocery-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;transition:background .15s;border:1px solid transparent;margin-bottom:2px;}
-#ms-root .ms-grocery-row:hover{background:var(--ms-s2);border-color:var(--ms-bdl);}
-#ms-root .ms-grocery-check{width:20px;height:20px;min-width:20px;border-radius:50%;border:2px solid var(--ms-bdl);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;}
-#ms-root .ms-grocery-check.checked{background:var(--ms-ac);border-color:var(--ms-ac);box-shadow:0 2px 8px color-mix(in srgb,var(--ms-ac) 35%,transparent);}
-#ms-root .ms-grocery-info{flex:1;min-width:0;}
-#ms-root .ms-grocery-name{font-size:14px;font-weight:600;color:var(--ms-tx);transition:color .2s;letter-spacing:-.1px;}
-#ms-root .ms-grocery-name.done{text-decoration:line-through;color:var(--ms-txm);font-weight:400;}
-#ms-root .ms-grocery-sub{font-size:11px;color:var(--ms-txm);margin-top:2px;}
-#ms-root .ms-grocery-source{font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;border:1px solid var(--ms-bdl);color:var(--ms-txd);background:var(--ms-s2);white-space:nowrap;flex-shrink:0;letter-spacing:.3px;}
-#ms-root .ms-grocery-section{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--ms-ac);padding:14px 14px 6px;opacity:.85;}
-#ms-root .ms-grocery-section-line{height:1px;background:linear-gradient(90deg,var(--ms-ac)33 0%,transparent 100%);margin:0 14px 8px;}
-
-/* ── Generate bar ── */
-#ms-root .ms-gen-bar{background:var(--ms-acg);border:1.5px solid color-mix(in srgb,var(--ms-ac) 25%,transparent);border-radius:14px;padding:16px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
-#ms-root .ms-gen-bar-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--ms-ac);flex:1;min-width:120px;}
-#ms-root .ms-gen-recipe-picker{display:flex;flex-wrap:wrap;gap:6px;flex:3;min-width:0;}
-#ms-root .ms-gen-chip{font-size:11px;font-weight:700;padding:6px 14px;border-radius:100px;border:1.5px solid var(--ms-bdl);background:var(--ms-s1);color:var(--ms-txd);cursor:pointer;transition:all .2s;}
-#ms-root .ms-gen-chip:hover{border-color:var(--ms-ac);color:var(--ms-ac);}
-#ms-root .ms-gen-chip.selected{background:var(--ms-ac);border-color:var(--ms-ac);color:#fff;box-shadow:0 2px 8px color-mix(in srgb,var(--ms-ac) 30%,transparent);}
-
-/* ── Overlay + Modal ── */
-#ms-root .ms-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:2000;padding:16px;}
-#ms-root .ms-modal{background:var(--ms-s1);border:none;border-radius:20px;padding:32px;width:100%;max-width:540px;max-height:92vh;overflow-y:auto;box-shadow:0 32px 80px rgba(0,0,0,.4),0 0 0 1px var(--ms-bd);}
-#ms-root .ms-modal-title{font-family:'Lora',serif;font-size:20px;font-weight:700;color:var(--ms-tx);margin-bottom:24px;letter-spacing:-.3px;}
-#ms-root .ms-modal-actions{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap;}
-#ms-root .ms-field{margin-bottom:18px;}
-#ms-root .ms-field label{display:block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--ms-txm);margin-bottom:8px;}
-#ms-root .ms-input{width:100%;background:var(--ms-s2);border:1.5px solid var(--ms-bdl);border-radius:10px;color:var(--ms-tx);font-size:13px;font-weight:500;padding:11px 14px;outline:none;transition:border-color .2s,box-shadow .2s;}
-#ms-root .ms-input:focus{border-color:var(--ms-ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ms-ac) 12%,transparent);}
-#ms-root .ms-input::placeholder{color:var(--ms-txm);}
-#ms-root .ms-textarea{width:100%;background:var(--ms-s2);border:1.5px solid var(--ms-bdl);border-radius:10px;color:var(--ms-tx);font-size:13px;font-weight:500;padding:11px 14px;outline:none;transition:border-color .2s,box-shadow .2s;min-height:110px;line-height:1.6;resize:vertical;}
-#ms-root .ms-textarea:focus{border-color:var(--ms-ac);box-shadow:0 0 0 3px color-mix(in srgb,var(--ms-ac) 12%,transparent);}
-#ms-root .ms-textarea::placeholder{color:var(--ms-txm);}
-#ms-root .ms-ing-rows{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
-#ms-root .ms-ing-row{display:grid;grid-template-columns:1fr 100px auto;gap:6px;align-items:center;}
-#ms-root .ms-ing-row input{background:var(--ms-s2);border:1.5px solid var(--ms-bdl);border-radius:8px;color:var(--ms-tx);font-size:12px;padding:8px 12px;outline:none;transition:border-color .2s;width:100%;font-family:'Nunito',sans-serif;}
-#ms-root .ms-ing-row input:focus{border-color:var(--ms-ac);}
-#ms-root .ms-ing-row input::placeholder{color:var(--ms-txm);}
-#ms-root .ms-tool-rows{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
-#ms-root .ms-tool-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;}
-#ms-root .ms-tool-row input{background:var(--ms-s2);border:1.5px solid var(--ms-bdl);border-radius:8px;color:var(--ms-tx);font-size:12px;padding:8px 12px;outline:none;transition:border-color .2s;width:100%;font-family:'Nunito',sans-serif;}
-#ms-root .ms-tool-row input:focus{border-color:var(--ms-ac);}
-#ms-root .ms-ing-remove{background:transparent;border:none;color:var(--ms-txm);cursor:pointer;font-size:17px;font-weight:400;padding:4px 7px;border-radius:50%;line-height:1;transition:color .15s,background .15s;}
-#ms-root .ms-ing-remove:hover{color:var(--ms-err);background:color-mix(in srgb,var(--ms-err) 10%,transparent);}
-#ms-root .ms-add-row{font-size:12px;font-weight:700;color:var(--ms-txd);background:transparent;border:1.5px dashed var(--ms-bd);border-radius:10px;padding:9px 0;width:100%;cursor:pointer;transition:all .2s;letter-spacing:.3px;}
-#ms-root .ms-add-row:hover{border-color:var(--ms-ac);color:var(--ms-ac);}
-
-/* ── Recipe detail view ── */
-#ms-root .ms-detail{background:var(--ms-s1);border:none;border-radius:16px;padding:28px 30px;box-shadow:0 2px 16px var(--ms-shadow),0 0 0 1px var(--ms-bd);}
-#ms-root .ms-detail-name{font-family:'Lora',serif;font-size:24px;font-weight:700;color:var(--ms-tx);margin-bottom:6px;letter-spacing:-.4px;line-height:1.2;}
-#ms-root .ms-detail-tags{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:22px;}
-#ms-root .ms-detail-section{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--ms-ac);margin-bottom:10px;margin-top:22px;opacity:.9;}
-#ms-root .ms-detail-ing-list{display:flex;flex-direction:column;gap:6px;}
-#ms-root .ms-detail-ing{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:10px 14px;border-radius:10px;background:var(--ms-s2);}
-#ms-root .ms-detail-ing-name{font-weight:600;color:var(--ms-tx);}
-#ms-root .ms-detail-ing-qty{font-weight:500;color:var(--ms-txd);font-size:12px;}
-#ms-root .ms-detail-tools{display:flex;flex-wrap:wrap;gap:7px;}
-#ms-root .ms-detail-tool{font-size:12px;font-weight:600;color:var(--ms-txd);background:var(--ms-s2);border:1px solid var(--ms-bd);border-radius:100px;padding:5px 12px;}
-#ms-root .ms-detail-instructions{font-size:13.5px;line-height:1.85;color:var(--ms-txd);white-space:pre-wrap;background:var(--ms-s2);border-radius:12px;padding:16px 18px;font-family:'Lora',serif;}
-#ms-root .ms-back-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ms-txd);background:transparent;border:1.5px solid var(--ms-bd);border-radius:100px;cursor:pointer;padding:7px 16px;margin-bottom:16px;transition:all .2s;letter-spacing:.3px;}
-#ms-root .ms-back-btn:hover{border-color:var(--ms-ac);color:var(--ms-ac);}
-#ms-root .ms-confirm-msg{font-size:14px;color:var(--ms-txd);line-height:1.7;margin-bottom:20px;}
-
-/* ── Switcher (dropdown) ── */
-#ms-root .ms-switcher{background:var(--ms-bg);border:1.5px solid var(--ms-bd);border-radius:100px;color:var(--ms-ac);font-size:11px;font-weight:700;padding:0 12px;height:30px;box-sizing:border-box;font-family:'Nunito',sans-serif;outline:none;cursor:pointer;}
-#ms-root .ms-switcher:hover{border-color:var(--ms-ac);}
-#ms-root .ms-switcher option{background:#0f0f12;color:#E0607A;}
-#ms-root.ms-light .ms-switcher option{background:#EAE3E7;color:#D4607A;}
-
-/* ── Profile / toggle buttons ── */
-#ms-root #ms-root .ms-profile-btn{background:var(--ms-bg);border:1.5px solid var(--ms-bd);border-radius:100px;color:var(--ms-ac);font-weight:700;padding:0 12px;height:30px;box-sizing:border-box;cursor:pointer;line-height:1;flex-shrink:0;display:inline-flex;align-items:center;transition:border-color .2s;}
-#ms-root .ms-profile-btn:hover{border-color:var(--ms-ac);}
-#ms-root .ms-toggle-track{width:26px;height:14px;border-radius:7px;background:var(--ms-bd);position:relative;transition:background .2s;flex-shrink:0;}
-#ms-root .ms-toggle-track.on{background:var(--ms-ac);}
-#ms-root .ms-toggle-thumb{width:10px;height:10px;border-radius:50%;background:var(--ms-txd);position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .2s,background .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
-#ms-root .ms-toggle-thumb.on{left:14px;background:#fff;}
-
-@media(max-width:1000px){
-  #ms-root .ms-tabs .ms-tab{padding:7px 14px;font-size:12px;}
-  #ms-root .ms-ing-row{grid-template-columns:1fr 80px auto;}
-  #ms-root .ms-modal{padding:24px 18px;border-radius:16px;}
-  #ms-root .ms-gen-bar{flex-direction:column;align-items:flex-start;}
-  #ms-root .ms-card{padding:18px 18px;}
-  #ms-root .ms-detail{padding:20px 18px;}
-}
 /* ── ExpenseLog scoped styles ── */
 #el-root .el-inner{max-width:720px;width:100%;margin:0 auto;padding:clamp(10px,2vw,24px) clamp(12px,3vw,32px) clamp(10px,1.5vw,16px);display:flex;flex-direction:column;gap:clamp(10px,1.5vw,16px);flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
 #el-root .el-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px;min-width:0;}
@@ -2535,7 +2373,6 @@ body.light-mode input[type=time]{color-scheme:light;}
     <option value="taskhub">Tony's TaskHub</option>
     <option value="tradeboard">TradeHub</option>
     <option value="health">MotionCore</option>
-    <option value="mealsuite">MealSuite</option>
     <option value="expenselog">ExpenseLog</option>
     <option value="eventrec">EventRec</option>
     <option value="keychain">Keychain</option>
@@ -2546,7 +2383,6 @@ body.light-mode input[type=time]{color-scheme:light;}
   <button class="tn-btn" data-app="taskhub" onclick="window._tonyNav&&window._tonyNav('taskhub')">TaskHub</button>
   <button class="tn-btn" id="thub-nav-btn" data-app="tradeboard" onclick="window._thubClick&&window._thubClick()">TradeHub</button>
   <button class="tn-btn" data-app="health" onclick="window._tonyNav&&window._tonyNav('health')">MotionCore</button>
-  <button class="tn-btn" data-app="mealsuite" onclick="window._tonyNav&&window._tonyNav('mealsuite')">MealSuite</button>
   <button class="tn-btn" data-app="expenselog" onclick="window._tonyNav&&window._tonyNav('expenselog')">ExpenseLog</button>
   <button class="tn-btn" data-app="eventrec" onclick="window._tonyNav&&window._tonyNav('eventrec')">EventRec</button>
   <button class="tn-btn" data-app="keychain" onclick="window._tonyNav&&window._tonyNav('keychain')">Keychain</button>
@@ -4217,7 +4053,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   const storage = getStorage(app);
   const DOC_PATH    = "dashboards/main";
   const EL_DOC_PATH = "dashboards/expenses";
-  const MS_DOC_PATH = "dashboards/mealsuite";
   const ER_DOC_PATH = "dashboards/eventrec";
   const VD_DOC_PATH = "dashboards/vedasdash";
   const MP_DOC_PATH = "dashboards/mealplan";
@@ -4234,7 +4069,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
   let _saveTimer = null;
   let _elSaveTimer = null;
-  let _msSaveTimer = null;
   let _erSaveTimer = null;
   let _vdSaveTimer = null;
   let _mpSaveTimer = null;
@@ -4249,7 +4083,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _unsubscribe    = null;
   let _mcCalUnsub     = null;
   let _elUnsubscribe  = null;
-  let _msUnsubscribe  = null;
   let _erUnsubscribe  = null;
   let _vdUnsubscribe  = null;
   let _vtUnsubscribe  = null;
@@ -4266,7 +4099,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   window._alSaveTimer = null;
   let _lastOwnSaveAt     = 0;
   let _elLastOwnSaveAt   = 0;
-  let _msLastOwnSaveAt   = 0;
   let _erLastOwnSaveAt   = 0;
   let _vdLastOwnSaveAt   = 0;
   let _mpLastOwnSaveAt   = 0;
@@ -4290,7 +4122,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   async function init() {
     const docRef   = doc(db, DOC_PATH);
     const elDocRef = doc(db, EL_DOC_PATH);
-    const msDocRef = doc(db, MS_DOC_PATH);
     const erDocRef = doc(db, ER_DOC_PATH);
     const vtDocRef = doc(db, VT_DOC_PATH);
 
@@ -4382,62 +4213,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         } catch(e) {
           console.error("Firebase expenses save failed:", e.code, e.message, e);
           window.dispatchEvent(new CustomEvent("fb-el-error"));
-        }
-      }, 1500);
-    };
-
-    // ── MealSuite real-time listener ──────────────────────────────────────────
-    if (_msUnsubscribe) { _msUnsubscribe(); _msUnsubscribe = null; }
-    _msUnsubscribe = onSnapshot(msDocRef, (snap) => {
-      if (Date.now() - _msLastOwnSaveAt < 8000) return;
-      if (snap.exists()) {
-        window.dispatchEvent(new CustomEvent("fb-ms-remote-update", { detail: snap.data() }));
-        window.dispatchEvent(new CustomEvent("fb-ms-synced"));
-      }
-    });
-
-    // ── MealSuite load ────────────────────────────────────────────────────────
-    window._fbLoadMealSuite = async () => {
-      try {
-        const snap = await getDoc(msDocRef);
-        if (snap.exists()) return snap.data();
-        return null;
-      } catch(e) {
-        console.warn("Firebase MealSuite load failed:", e);
-        return null;
-      }
-    };
-
-    // ── MealSuite save (strips null/undefined — Firestore safe) ───────────────
-    // Takes a getter function so the debounced write always uses the latest state,
-    // not a snapshot captured at call time (which caused grocery edits to not sync).
-    window._fbSaveMealSuite = (getState) => {
-      _msLastOwnSaveAt = Date.now();
-      if (_msSaveTimer) clearTimeout(_msSaveTimer);
-      _msSaveTimer = setTimeout(async () => {
-        try {
-          const {recipes, grocery} = getState();
-          const sanitizeItem = obj => {
-            const out = {};
-            Object.entries(obj).forEach(([k,v]) => {
-              if (v === null || v === undefined) return;
-              if (Array.isArray(v)) out[k] = v.map(i => typeof i === 'object' && i !== null ? sanitizeItem(i) : i);
-              else out[k] = v;
-            });
-            return out;
-          };
-          const payload = {
-            recipes: recipes.map(sanitizeItem),
-            grocery: grocery.map(sanitizeItem),
-            savedAt: Date.now()
-          };
-          _msLastOwnSaveAt = Date.now();
-          await setDoc(msDocRef, payload);
-          _msLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-ms-saved"));
-        } catch(e) {
-          console.error("Firebase MealSuite save failed:", e.code, e.message, e);
-          window.dispatchEvent(new CustomEvent("fb-ms-error"));
         }
       }, 1500);
     };
@@ -5635,7 +5410,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     _hideTimer = null; _idleTimer = null;
     if (_unsubscribe)    { _unsubscribe();    _unsubscribe    = null; }
     if (_elUnsubscribe)  { _elUnsubscribe();  _elUnsubscribe  = null; }
-    if (_msUnsubscribe)  { _msUnsubscribe();  _msUnsubscribe  = null; }
     if (_erUnsubscribe)  { _erUnsubscribe();  _erUnsubscribe  = null; }
     if (_vdUnsubscribe)  { _vdUnsubscribe();  _vdUnsubscribe  = null; }
     if (_vtUnsubscribe)  { _vtUnsubscribe();  _vtUnsubscribe  = null; }
@@ -6923,565 +6697,6 @@ const _colSnapshot={};
   elInitFirebase();
 })();
 </script>
-<!-- ── MealSuite App ───────────────────────────────────────────── -->
-<div id="ms-root" style="display:none">
-  <div class="app-hbar" style="background:var(--ms-bg);border-bottom:1px solid var(--ms-bd);transition:background .4s,border-color .4s;">
-    <div class="app-hbar-inner">
-      <div class="app-hbar-row1">
-        <div style="display:flex;flex-direction:column;gap:2px;">
-          <div class="ms-logo"><span class="base">Meal</span><span class="accent">Suite</span></div>
-          <span id="ms-sync-status" style="font-size:10px;font-weight:600;white-space:nowrap;visibility:hidden;display:block;min-height:14px;line-height:1.4;"></span>
-        </div>
-      </div>
-      <div class="app-hbar-row2">
-        <button class="ms-btn ms-btn-ghost" id="ms-theme-btn" onmouseenter="this.style.borderColor='var(--ms-ac)'" onmouseleave="this.style.borderColor='var(--ms-bd)'" style="padding:0 10px;height:28px;box-sizing:border-box;font-size:12px;font-weight:800;color:var(--ms-ac);background:var(--ms-bg);border:1px solid var(--ms-bd);border-radius:4px;"></button>
-        <button id="ms-edit-toggle" onmouseenter="this.style.borderColor='var(--ms-ac)'" onmouseleave="this.style.borderColor='var(--ms-bd)'" style="background:var(--ms-bg);border:1px solid var(--ms-bd);border-radius:4px;padding:0 10px;height:28px;box-sizing:border-box;font-size:12px;font-weight:800;color:var(--ms-ac);cursor:pointer;font-family:'Nunito',sans-serif;display:inline-flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap;flex-shrink:0;">
-          <div class="ms-toggle-track" id="ms-et-track"><div class="ms-toggle-thumb" id="ms-et-thumb"></div></div>
-          <span id="ms-edit-label" class="eye-icon-lbl" style="color:var(--ms-ac);font-size:0;line-height:1;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;"></span>
-        </button>
-      </div>
-    </div>
-  </div>
-  <div class="ms-inner" style="padding-top:clamp(14px,2vw,24px);">
-    <div class="ms-tabs">
-      <button class="ms-tab active" data-tab="recipes">Recipes</button>
-      <button class="ms-tab" data-tab="grocery">Grocery List</button>
-    </div>
-    <div id="ms-tab-recipes">
-      <div class="ms-card">
-        <div class="ms-card-hdr">
-          <div>
-            <div class="ms-card-title">My Recipes</div>
-            <div class="ms-card-count" id="ms-recipe-count"></div>
-          </div>
-          <button class="ms-btn ms-btn-primary" id="ms-btn-add-recipe">+ New Recipe</button>
-        </div>
-        <div class="ms-toolbar">
-          <input class="ms-search" id="ms-recipe-search" type="text" placeholder="🔍  Search recipes…">
-          <select class="ms-select" id="ms-recipe-filter">
-            <option value="all">All categories</option>
-            <option value="Breakfast">Breakfast</option>
-            <option value="Lunch">Lunch</option>
-            <option value="Dinner">Dinner</option>
-            <option value="Snack">Snack</option>
-            <option value="Dessert">Dessert</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div class="ms-recipe-list" id="ms-recipe-list"></div>
-      </div>
-    </div>
-    <div id="ms-tab-detail" style="display:none;"></div>
-    <div id="ms-tab-grocery" style="display:none;">
-      <div class="ms-card">
-        <div class="ms-card-hdr">
-          <div>
-            <div class="ms-card-title">Grocery List</div>
-            <div class="ms-card-count" id="ms-grocery-count"></div>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <button class="ms-btn ms-btn-ghost" id="ms-btn-clear-checked">Clear checked</button>
-            <button class="ms-btn ms-btn-primary" id="ms-btn-add-grocery">+ Add item</button>
-          </div>
-        </div>
-        <div class="ms-gen-bar" id="ms-gen-bar">
-          <div class="ms-gen-bar-label">Generate from recipes</div>
-          <div class="ms-gen-recipe-picker" id="ms-gen-picker"></div>
-          <button class="ms-btn ms-btn-primary" id="ms-btn-generate" style="flex-shrink:0;">Generate</button>
-        </div>
-        <div id="ms-grocery-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Recipe Modal -->
-  <div class="ms-overlay" id="ms-recipe-modal" style="display:none;">
-    <div class="ms-modal">
-      <div class="ms-modal-title" id="ms-recipe-modal-title">New Recipe</div>
-      <div class="ms-field"><label>Recipe Name *</label><input class="ms-input" id="ms-r-name" type="text" placeholder="e.g. Chicken Stir Fry"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="ms-field"><label>Category</label><select class="ms-input ms-select" id="ms-r-cat" style="width:100%;"><option>Breakfast</option><option>Lunch</option><option selected>Dinner</option><option>Snack</option><option>Dessert</option><option>Other</option></select></div>
-        <div class="ms-field"><label>Prep time (optional)</label><input class="ms-input" id="ms-r-time" type="text" placeholder="e.g. 30 min"></div>
-      </div>
-      <div class="ms-field"><label>Ingredients</label><div class="ms-ing-rows" id="ms-r-ing-rows"></div><button class="ms-add-row" id="ms-btn-add-ing">+ Add ingredient</button></div>
-      <div class="ms-field"><label>Tools &amp; Equipment</label><div class="ms-tool-rows" id="ms-r-tool-rows"></div><button class="ms-add-row" id="ms-btn-add-tool">+ Add tool</button></div>
-      <div class="ms-field" style="margin-bottom:0;"><label>Step-by-step Instructions</label><textarea class="ms-textarea" id="ms-r-instructions" placeholder="Write out the steps clearly…" style="min-height:120px;"></textarea></div>
-      <div class="ms-modal-actions">
-        <button class="ms-btn ms-btn-primary" id="ms-btn-save-recipe">Save Recipe</button>
-        <button class="ms-btn ms-btn-ghost" id="ms-btn-cancel-recipe">Cancel</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Grocery Modal -->
-  <div class="ms-overlay" id="ms-grocery-modal" style="display:none;">
-    <div class="ms-modal" style="max-width:420px;">
-      <div class="ms-modal-title" id="ms-grocery-modal-title">Add Item</div>
-      <div class="ms-field"><label>Item Name *</label><input class="ms-input" id="ms-g-name" type="text" placeholder="e.g. Chicken breast"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="ms-field"><label>Quantity (optional)</label><input class="ms-input" id="ms-g-qty" type="text" placeholder="e.g. 2 lbs"></div>
-        <div class="ms-field"><label>Store (optional)</label><input class="ms-input" id="ms-g-store" type="text" placeholder="e.g. Whole Foods"></div>
-      </div>
-      <div class="ms-modal-actions">
-        <button class="ms-btn ms-btn-primary" id="ms-btn-save-grocery">Save</button>
-        <button class="ms-btn ms-btn-ghost" id="ms-btn-cancel-grocery">Cancel</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Confirm Modal -->
-  <div class="ms-overlay" id="ms-confirm-modal" style="display:none;">
-    <div class="ms-modal" style="max-width:380px;">
-      <div class="ms-modal-title" id="ms-confirm-title">Are you sure?</div>
-      <div class="ms-confirm-msg" id="ms-confirm-msg"></div>
-      <div class="ms-modal-actions">
-        <button class="ms-btn ms-btn-danger" id="ms-btn-confirm-ok">Delete</button>
-        <button class="ms-btn ms-btn-ghost" id="ms-btn-confirm-cancel">Cancel</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-(function(){
-'use strict';
-
-// ── Storage keys ──────────────────────────────────────────────────────────────
-const TH_THEME_KEY = 'td6_theme'; // shared with TaskHub and ExpenseLog
-const MS_SK = {recipes:'ms_recipes', grocery:'ms_grocery'};
-
-function msLoad(k,fb){try{const v=localStorage.getItem(k);return v!=null?JSON.parse(v):fb;}catch{return fb;}}
-function msSave(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
-function msUid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
-function msEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function msCatStyle(cat){var c={Breakfast:"#e0405e",Lunch:"#4a88b0",Dinner:"#7060b8",Snack:"#b87830",Dessert:"#b04878",Other:null};var hex=c[cat];if(!hex)return"background:var(--ms-s2);border-color:var(--ms-bdl);color:var(--ms-txd)";return"background:"+hex+"22;border-color:"+hex+"55;color:"+hex+";font-weight:800;";}
-function msLoadTheme(){try{const v=localStorage.getItem(TH_THEME_KEY);return v!=null?JSON.parse(v):true;}catch{return true;}}
-function msSaveTheme(d){try{localStorage.setItem(TH_THEME_KEY,JSON.stringify(d));}catch{}}
-
-// ── Seed data ──────────────────────────────────────────────────────────────────
-const MS_RECIPE_SEED=[
-  {id:msUid(),name:"Grilled Chicken",category:"Dinner",prepTime:"25 min",
-   ingredients:[{name:"Chicken breast",qty:"2 lbs"},{name:"Olive oil",qty:"2 tbsp"},{name:"Garlic",qty:"3 cloves"},{name:"Lemon",qty:"1"}],
-   tools:["Grill pan","Tongs","Cutting board"],
-   instructions:"1. Pat chicken dry and season with salt, pepper, and minced garlic.\n2. Brush with olive oil.\n3. Heat grill pan over medium-high heat.\n4. Grill 6–7 min per side until cooked through.\n5. Rest 5 min, then slice and serve with lemon."},
-  {id:msUid(),name:"Avocado Toast",category:"Breakfast",prepTime:"10 min",
-   ingredients:[{name:"Sourdough bread",qty:"2 slices"},{name:"Avocado",qty:"1 large"},{name:"Lemon juice",qty:"1 tsp"},{name:"Red pepper flakes",qty:"pinch"}],
-   tools:["Toaster","Fork","Small bowl"],
-   instructions:"1. Toast the sourdough slices.\n2. Halve the avocado, remove pit, and scoop into a bowl.\n3. Mash with lemon juice, salt, and pepper.\n4. Spread onto toast.\n5. Top with red pepper flakes."},
-  {id:msUid(),name:"Pasta Primavera",category:"Dinner",prepTime:"30 min",
-   ingredients:[{name:"Penne pasta",qty:"300g"},{name:"Bell peppers",qty:"2"},{name:"Zucchini",qty:"1"},{name:"Cherry tomatoes",qty:"1 cup"},{name:"Parmesan",qty:"50g"},{name:"Olive oil",qty:"3 tbsp"}],
-   tools:["Large pot","Sauté pan","Colander","Wooden spoon"],
-   instructions:"1. Boil pasta in salted water per package instructions.\n2. Chop vegetables into bite-sized pieces.\n3. Heat olive oil in sauté pan over medium heat.\n4. Cook peppers and zucchini 5 min, then add tomatoes.\n5. Drain pasta, toss with vegetables.\n6. Top with grated parmesan."},
-];
-
-// ── Theme ──────────────────────────────────────────────────────────────────────
-const MS_DARK  = {bg:'#0f0f12',s1:'#141418',s2:'#1a1a20',bd:'#252530',bdl:'#323240',tx:'#ececf0',txd:'#9898a8',txm:'#58586a',ac:'#E0607A',err:'#d47a6a',shadow:'rgba(0,0,0,0.45)',acg:'rgba(224,96,122,0.12)'};
-const MS_LIGHT = {bg:'#EAE3E7',s1:'#E5DCE0',s2:'#DDD4D8',bd:'#C8B8C0',bdl:'#BCA8B0',tx:'#2A1F24',txd:'#6B5560',txm:'#A0909A',ac:'#D4607A',err:'#C0392B',shadow:'rgba(42,31,36,0.12)',acg:'rgba(212,96,122,0.1)'};
-
-function msApplyTheme(){
-  const isDark=msLoadTheme();
-  const t=isDark?MS_DARK:MS_LIGHT;
-  const root=document.getElementById('ms-root');
-  if(!root)return;
-  root.classList.toggle('ms-light',!isDark);
-  Object.entries({'--ms-bg':t.bg,'--ms-s1':t.s1,'--ms-s2':t.s2,'--ms-bd':t.bd,'--ms-bdl':t.bdl,'--ms-tx':t.tx,'--ms-txd':t.txd,'--ms-txm':t.txm,'--ms-ac':t.ac,'--ms-err':t.err,'--ms-shadow':t.shadow,'--ms-acg':t.acg,'--ms-bg-val':t.bg}).forEach(([k,v])=>root.style.setProperty(k,v));
-  root.style.background=t.bg;
-  if(root.style.display!=='none'){document.body.style.background=t.bg;document.documentElement.style.background=t.bg;}
-  const btn=document.getElementById('ms-theme-btn');
-  if(btn){btn.innerHTML=isDark?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';btn.style.color='var(--ms-ac)';}
-}
-
-// ── State ──────────────────────────────────────────────────────────────────────
-let msRecipes  = msLoad(MS_SK.recipes,null)||MS_RECIPE_SEED.map(r=>({...r,id:msUid()}));
-let msGrocery  = msLoad(MS_SK.grocery,[]);
-let msActiveTab = 'recipes';
-let msDetailId  = null;
-let msEditingRecipeId = null;
-let msEditingGroceryId = null;
-let msEditMode = false;
-let msConfirmCb = null;
-let msSelectedGenIds = new Set();
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-function msOpenModal(id){document.getElementById(id).style.display='flex';setTimeout(()=>{const f=document.querySelector('#'+id+' .ms-input, #'+id+' input');if(f)f.focus();},50);}
-function msCloseModal(id){document.getElementById(id).style.display='none';}
-
-function msMakeIngRow(name,qty){
-  const row=document.createElement('div');row.className='ms-ing-row';
-  row.innerHTML=`<input type="text" placeholder="Ingredient" value="${msEsc(name||'')}"><input type="text" placeholder="Qty / unit" value="${msEsc(qty||'')}"><button type="button" class="ms-ing-remove" title="Remove">×</button>`;
-  row.querySelector('.ms-ing-remove').onclick=()=>row.remove();
-  return row;
-}
-function msMakeToolRow(name){
-  const row=document.createElement('div');row.className='ms-tool-row';
-  row.innerHTML=`<input type="text" placeholder="Tool or equipment" value="${msEsc(name||'')}"><button type="button" class="ms-ing-remove" title="Remove">×</button>`;
-  row.querySelector('.ms-ing-remove').onclick=()=>row.remove();
-  return row;
-}
-function msCollectIngs(){const out=[];document.querySelectorAll('#ms-r-ing-rows .ms-ing-row').forEach(r=>{const n=r.querySelectorAll('input')[0].value.trim(),q=r.querySelectorAll('input')[1].value.trim();if(n)out.push({name:n,qty:q});});return out;}
-function msCollectTools(){const out=[];document.querySelectorAll('#ms-r-tool-rows .ms-tool-row').forEach(r=>{const n=r.querySelector('input').value.trim();if(n)out.push(n);});return out;}
-function msClearRecipeForm(){
-  document.getElementById('ms-r-name').value='';
-  document.getElementById('ms-r-cat').value='Dinner';
-  document.getElementById('ms-r-time').value='';
-  document.getElementById('ms-r-instructions').value='';
-  document.getElementById('ms-r-ing-rows').innerHTML='';
-  document.getElementById('ms-r-tool-rows').innerHTML='';
-}
-function msFillRecipeForm(r){
-  msClearRecipeForm();
-  document.getElementById('ms-r-name').value=r.name||'';
-  document.getElementById('ms-r-cat').value=r.category||'Dinner';
-  document.getElementById('ms-r-time').value=r.prepTime||'';
-  document.getElementById('ms-r-instructions').value=r.instructions||'';
-  const ir=document.getElementById('ms-r-ing-rows');
-  (r.ingredients||[]).forEach(i=>ir.appendChild(msMakeIngRow(i.name,i.qty)));
-  const tr=document.getElementById('ms-r-tool-rows');
-  (r.tools||[]).forEach(t=>tr.appendChild(msMakeToolRow(t)));
-  if(!r.ingredients||!r.ingredients.length)ir.appendChild(msMakeIngRow('',''));
-}
-
-// ── Recipes render ─────────────────────────────────────────────────────────────
-function msRenderRecipes(){
-  const q=(document.getElementById('ms-recipe-search')?.value||'').trim().toLowerCase();
-  const cat=document.getElementById('ms-recipe-filter')?.value||'all';
-  let list=[...msRecipes];
-  if(cat!=='all')list=list.filter(r=>r.category===cat);
-  if(q)list=list.filter(r=>(r.name+' '+(r.ingredients||[]).map(i=>i.name).join(' ')).toLowerCase().includes(q));
-  const countEl=document.getElementById('ms-recipe-count');
-  if(countEl)countEl.textContent=msRecipes.length+' recipe'+(msRecipes.length!==1?'s':'');
-  const listEl=document.getElementById('ms-recipe-list');if(!listEl)return;
-  if(!list.length){listEl.innerHTML=`<div class="ms-empty">${q||cat!=='all'?'No recipes match.':'No recipes yet — add your first!'}</div>`;return;}
-  listEl.innerHTML=list.map(r=>`
-    <div class="ms-recipe-row" data-id="${msEsc(r.id)}" style="position:relative;">
-      ${msEditMode?`<div class="th-drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="3.5" cy="2" r="1.1" fill="currentColor"/><circle cx="8.5" cy="2" r="1.1" fill="currentColor"/><circle cx="3.5" cy="6" r="1.1" fill="currentColor"/><circle cx="8.5" cy="6" r="1.1" fill="currentColor"/><circle cx="3.5" cy="10" r="1.1" fill="currentColor"/><circle cx="8.5" cy="10" r="1.1" fill="currentColor"/></svg></div>`:''}
-      <div class="ms-recipe-info">
-        <div class="ms-recipe-name">${msEsc(r.name)}</div>
-        <div class="ms-recipe-meta">
-          ${r.prepTime?`<span>${msEsc(r.prepTime)}</span>`:''}
-          ${r.ingredients?.length?`<span>${r.ingredients.length} ingredient${r.ingredients.length!==1?'s':''}</span>`:''}
-        </div>
-      </div>
-      <span class="ms-tag" style="${msCatStyle(r.category||'Other')}">${msEsc(r.category||'Other')}</span>
-      <div class="ms-row-btns">
-        ${msEditMode?`<button class="ms-icon-btn" data-edit="${msEsc(r.id)}" title="Edit">✎</button>`:''}
-        ${msEditMode?`<button class="ms-icon-btn del" data-del="${msEsc(r.id)}" title="Delete">×</button>`:''}
-      </div>
-    </div>`).join('');
-  listEl.querySelectorAll('.ms-recipe-row').forEach(row=>{
-    const id=row.dataset.id;
-    if(msEditMode){
-      row.querySelector('[data-edit]')?.addEventListener('click',e=>{e.stopPropagation();msOpenEditRecipe(id);});
-      row.querySelector('[data-del]')?.addEventListener('click',e=>{e.stopPropagation();msConfirmDeleteRecipe(id);});
-    }
-    row.addEventListener('click',()=>{if(!msEditMode)msOpenDetailView(id);});
-  });
-  // ── MotionCore-style pointer-event drag reorder ──
-  if(msEditMode && window.thDragList){
-    window.thDragList(
-      listEl,
-      ()=>msRecipes,
-      arr=>{msRecipes=arr;},
-      ()=>{msSaveAll();},
-      'var(--ms-ac)',
-      'th-drag-placeholder',
-      document.getElementById('ms-root')
-    );
-  }
-}
-
-// ── Recipe detail ──────────────────────────────────────────────────────────────
-function msOpenDetailView(id){
-  const r=msRecipes.find(x=>x.id===id);if(!r)return;
-  msDetailId=id;
-  document.getElementById('ms-tab-recipes').style.display='none';
-  document.getElementById('ms-tab-grocery').style.display='none';
-  const detail=document.getElementById('ms-tab-detail');detail.style.display='';
-  const ingHtml=r.ingredients&&r.ingredients.length
-    ?`<div class="ms-detail-ing-list">${r.ingredients.map(i=>`<div class="ms-detail-ing"><span class="ms-detail-ing-name">${msEsc(i.name)}</span><span class="ms-detail-ing-qty">${msEsc(i.qty||'')}</span></div>`).join('')}</div>`
-    :`<div style="font-size:13px;color:var(--ms-txm);font-style:italic;">No ingredients listed.</div>`;
-  const toolHtml=r.tools&&r.tools.length
-    ?`<div class="ms-detail-tools">${r.tools.map(t=>`<span class="ms-detail-tool">${msEsc(t)}</span>`).join('')}</div>`
-    :`<div style="font-size:13px;color:var(--ms-txm);font-style:italic;">No tools listed.</div>`;
-  const instrHtml=r.instructions
-    ?`<div class="ms-detail-instructions">${msEsc(r.instructions)}</div>`
-    :`<div style="font-size:13px;color:var(--ms-txm);font-style:italic;">No instructions added.</div>`;
-  detail.innerHTML=`
-    <button class="ms-back-btn" id="ms-btn-back">← Back to Recipes</button>
-    <div class="ms-detail">
-      <div class="ms-detail-name">${msEsc(r.name)}</div>
-      <div class="ms-detail-tags">
-        <span class="ms-tag" style="${msCatStyle(r.category||'Other')}">${msEsc(r.category||'Other')}</span>
-        ${r.prepTime?`<span class="ms-tag">⏱ ${msEsc(r.prepTime)}</span>`:''}
-      </div>
-      <div class="ms-detail-section">Ingredients</div>${ingHtml}
-      <div class="ms-detail-section">Tools &amp; Equipment</div>${toolHtml}
-      <div class="ms-detail-section">Instructions</div>${instrHtml}
-      <div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap;">
-        <button class="ms-btn ms-btn-ghost" id="ms-btn-detail-edit">✎ Edit Recipe</button>
-        <button class="ms-btn ms-btn-danger" id="ms-btn-detail-del">Delete</button>
-      </div>
-    </div>`;
-  document.getElementById('ms-btn-back').onclick=()=>{msDetailId=null;detail.style.display='none';document.getElementById('ms-tab-recipes').style.display='';msRenderRecipes();};
-  document.getElementById('ms-btn-detail-edit').onclick=()=>msOpenEditRecipe(id);
-  document.getElementById('ms-btn-detail-del').onclick=()=>msConfirmDeleteRecipe(id);
-}
-
-// ── Recipe CRUD ────────────────────────────────────────────────────────────────
-function msOpenAddRecipe(){msEditingRecipeId=null;document.getElementById('ms-recipe-modal-title').textContent='New Recipe';document.getElementById('ms-btn-save-recipe').textContent='Save Recipe';msClearRecipeForm();document.getElementById('ms-r-ing-rows').appendChild(msMakeIngRow('',''));msOpenModal('ms-recipe-modal');}
-function msOpenEditRecipe(id){const r=msRecipes.find(x=>x.id===id);if(!r)return;msEditingRecipeId=id;document.getElementById('ms-recipe-modal-title').textContent='Edit Recipe';document.getElementById('ms-btn-save-recipe').textContent='Update Recipe';msFillRecipeForm(r);msOpenModal('ms-recipe-modal');}
-function msSaveRecipe(){
-  const name=document.getElementById('ms-r-name').value.trim();
-  if(!name){document.getElementById('ms-r-name').style.borderColor='var(--ms-err)';setTimeout(()=>document.getElementById('ms-r-name').style.borderColor='',1500);return;}
-  const data={id:msEditingRecipeId||msUid(),name,category:document.getElementById('ms-r-cat').value,prepTime:document.getElementById('ms-r-time').value.trim(),ingredients:msCollectIngs(),tools:msCollectTools(),instructions:document.getElementById('ms-r-instructions').value.trim()};
-  if(msEditingRecipeId){msRecipes=msRecipes.map(r=>r.id===msEditingRecipeId?data:r);}else{msRecipes=[...msRecipes,data];}
-  msSaveAll();msCloseModal('ms-recipe-modal');msEditingRecipeId=null;
-  if(msDetailId){msOpenDetailView(data.id);}else{msRenderRecipes();}
-}
-function msConfirmDeleteRecipe(id){
-  const r=msRecipes.find(x=>x.id===id);if(!r)return;
-  document.getElementById('ms-confirm-title').textContent='Delete Recipe?';
-  document.getElementById('ms-confirm-msg').textContent=`"${r.name}" will be permanently removed.`;
-  msConfirmCb=()=>{
-    msRecipes=msRecipes.filter(x=>x.id!==id);
-    msGrocery=msGrocery.filter(g=>g.source!==r.name);
-    msSaveAll();
-    msCloseModal('ms-confirm-modal');
-    if(msDetailId===id){msDetailId=null;document.getElementById('ms-tab-detail').style.display='none';document.getElementById('ms-tab-recipes').style.display='';}
-    msRenderRecipes();
-  };
-  msOpenModal('ms-confirm-modal');
-}
-
-// ── Grocery render ─────────────────────────────────────────────────────────────
-function msRenderGrocery(){
-  const picker=document.getElementById('ms-gen-picker');
-  if(picker){
-    picker.innerHTML=msRecipes.length
-      ?msRecipes.map(r=>`<button class="ms-gen-chip${msSelectedGenIds.has(r.id)?' selected':''}" data-rid="${msEsc(r.id)}">${msEsc(r.name)}</button>`).join('')
-      :`<span style="font-size:12px;color:var(--ms-txm);font-style:italic;">No recipes yet.</span>`;
-    picker.querySelectorAll('.ms-gen-chip').forEach(chip=>{
-      chip.addEventListener('click',()=>{const rid=chip.dataset.rid;if(msSelectedGenIds.has(rid))msSelectedGenIds.delete(rid);else msSelectedGenIds.add(rid);chip.classList.toggle('selected',msSelectedGenIds.has(rid));});
-    });
-  }
-  const countEl=document.getElementById('ms-grocery-count');
-  const rem=msGrocery.filter(g=>!g.checked).length;
-  if(countEl)countEl.textContent=msGrocery.length+' item'+(msGrocery.length!==1?'s':'')+' — '+rem+' remaining';
-  const listEl=document.getElementById('ms-grocery-list');if(!listEl)return;
-  if(!msGrocery.length){listEl.innerHTML=`<div class="ms-empty">No items yet. Add manually or generate from recipes.</div>`;return;}
-  const manual=msGrocery.filter(g=>!g.source);
-  const bySource={};msGrocery.filter(g=>g.source).forEach(g=>{(bySource[g.source]=bySource[g.source]||[]).push(g);});
-  let html='';
-  if(manual.length){html+=`<div class="ms-grocery-section">Manual items</div><div class="ms-grocery-section-line"></div>`;html+=manual.map(g=>msGroceryRowHtml(g)).join('');}
-  Object.entries(bySource).forEach(([src,items])=>{html+=`<div class="ms-grocery-section">From: ${msEsc(src)}</div><div class="ms-grocery-section-line"></div>`;html+=items.map(g=>msGroceryRowHtml(g)).join('');});
-  listEl.innerHTML=html;
-  listEl.querySelectorAll('[data-check]').forEach(el=>el.addEventListener('click',()=>msToggleGroceryCheck(el.dataset.check)));
-  listEl.querySelectorAll('[data-gedit]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();msOpenEditGrocery(el.dataset.gedit);}));
-  listEl.querySelectorAll('[data-gdel]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();msDeleteGroceryItem(el.dataset.gdel);}));
-  // ── MotionCore-style pointer-event drag reorder ──
-  if(msEditMode && window.thDragList){
-    window.thDragList(
-      listEl,
-      ()=>msGrocery,
-      arr=>{msGrocery=arr;},
-      ()=>{msSaveAll();},
-      'var(--ms-ac)',
-      'th-drag-placeholder',
-      document.getElementById('ms-root')
-    );
-  }
-}
-
-function msGroceryRowHtml(g){
-  return `<div class="ms-grocery-row" data-id="${msEsc(g.id)}" style="position:relative;">
-    ${msEditMode?`<div class="th-drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="3.5" cy="2" r="1.1" fill="currentColor"/><circle cx="8.5" cy="2" r="1.1" fill="currentColor"/><circle cx="3.5" cy="6" r="1.1" fill="currentColor"/><circle cx="8.5" cy="6" r="1.1" fill="currentColor"/><circle cx="3.5" cy="10" r="1.1" fill="currentColor"/><circle cx="8.5" cy="10" r="1.1" fill="currentColor"/></svg></div>`:''}
-    <div class="ms-grocery-check${g.checked?' checked':''}" data-check="${msEsc(g.id)}" title="Toggle">
-      ${g.checked?`<svg width="9" height="9" viewBox="0 0 12 12"><path d="M2 6.5L5 9.5L10 3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`:''}
-    </div>
-    <div class="ms-grocery-info" style="cursor:pointer;" data-check="${msEsc(g.id)}">
-      <div class="ms-grocery-name${g.checked?' done':''}">${msEsc(g.name)}</div>
-      ${g.qty||g.store?`<div class="ms-grocery-sub">${[g.qty?msEsc(g.qty):'',g.store?msEsc(g.store):''].filter(Boolean).join(' · ')}</div>`:''}
-    </div>
-    ${g.store?`<span class="ms-grocery-source">${msEsc(g.store)}</span>`:''}
-    <div class="ms-row-btns">
-      <button class="ms-icon-btn" data-gedit="${msEsc(g.id)}" title="Edit">✎</button>
-      ${msEditMode?`<button class="ms-icon-btn del" data-gdel="${msEsc(g.id)}" title="Delete">×</button>`:''}
-    </div>
-  </div>`;
-}
-
-// ── Grocery CRUD ───────────────────────────────────────────────────────────────
-function msToggleGroceryCheck(id){msGrocery=msGrocery.map(g=>g.id===id?{...g,checked:!g.checked}:g);msSaveAll();msRenderGrocery();}
-function msOpenAddGrocery(){msEditingGroceryId=null;document.getElementById('ms-grocery-modal-title').textContent='Add Item';document.getElementById('ms-btn-save-grocery').textContent='Add Item';['ms-g-name','ms-g-qty','ms-g-store'].forEach(id=>document.getElementById(id).value='');msOpenModal('ms-grocery-modal');}
-function msOpenEditGrocery(id){const g=msGrocery.find(x=>x.id===id);if(!g)return;msEditingGroceryId=id;document.getElementById('ms-grocery-modal-title').textContent='Edit Item';document.getElementById('ms-btn-save-grocery').textContent='Save Changes';document.getElementById('ms-g-name').value=g.name||'';document.getElementById('ms-g-qty').value=g.qty||'';document.getElementById('ms-g-store').value=g.store||'';msOpenModal('ms-grocery-modal');}
-function msSaveGroceryItem(){
-  const name=document.getElementById('ms-g-name').value.trim();
-  if(!name){document.getElementById('ms-g-name').style.borderColor='var(--ms-err)';setTimeout(()=>document.getElementById('ms-g-name').style.borderColor='',1500);return;}
-  const item={id:msEditingGroceryId||msUid(),name,qty:document.getElementById('ms-g-qty').value.trim()||'',store:document.getElementById('ms-g-store').value.trim()||'',checked:false};
-  if(msEditingGroceryId){msGrocery=msGrocery.map(g=>g.id===msEditingGroceryId?{...g,...item,id:msEditingGroceryId,checked:g.checked}:g);}else{msGrocery=[...msGrocery,item];}
-  msSaveAll();msCloseModal('ms-grocery-modal');msEditingGroceryId=null;msRenderGrocery();
-}
-function msDeleteGroceryItem(id){msGrocery=msGrocery.filter(g=>g.id!==id);msSaveAll();msRenderGrocery();}
-function msClearChecked(){msGrocery=msGrocery.filter(g=>!g.checked);msSaveAll();msRenderGrocery();}
-function msGenerateFromRecipes(){
-  if(!msSelectedGenIds.size)return;
-  const selected=msRecipes.filter(r=>msSelectedGenIds.has(r.id));
-  selected.forEach(r=>{
-    msGrocery=msGrocery.filter(g=>g.source!==r.name);
-    const items=(r.ingredients||[]).map(i=>({id:msUid(),name:i.name,qty:i.qty||'',store:'',source:r.name,checked:false}));
-    msGrocery=[...msGrocery,...items];
-  });
-  msSaveAll();msSelectedGenIds.clear();msRenderGrocery();
-}
-
-// ── Tab switching ──────────────────────────────────────────────────────────────
-function msSwitchTab(tab){
-  msActiveTab=tab;msDetailId=null;
-  document.querySelectorAll('#ms-root .ms-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-  document.getElementById('ms-tab-recipes').style.display=tab==='recipes'?'':'none';
-  document.getElementById('ms-tab-detail').style.display='none';
-  document.getElementById('ms-tab-grocery').style.display=tab==='grocery'?'':'none';
-  if(tab==='recipes')msRenderRecipes();
-  if(tab==='grocery')msRenderGrocery();
-}
-
-// ── App switching ──────────────────────────────────────────────────────────────
-function msSwitchTo(app){
-  const thRoot=document.getElementById('root');
-  const elRoot=document.getElementById('el-root');
-  const msRoot=document.getElementById('ms-root');
-  const erRoot=document.getElementById('er-root');
-  if(app==='mealsuite'){
-    if(thRoot)thRoot.style.display='none';
-    if(elRoot)elRoot.style.display='none';
-    if(erRoot)erRoot.style.display='none';
-    if(msRoot)msRoot.style.display='flex';
-    msApplyTheme();
-    if(msActiveTab==='recipes')msRenderRecipes();
-    else msRenderGrocery();
-    const sw=document.getElementById('ms-app-switcher');if(sw)sw.value='mealsuite';
-  } else if(app==='expenselog'){
-    if(msRoot)msRoot.style.display='none';
-    if(erRoot)erRoot.style.display='none';
-    if(window._elSwitchTo)window._elSwitchTo('expenselog');
-  } else if(app==='eventrec'){
-    if(msRoot)msRoot.style.display='none';
-    if(elRoot)elRoot.style.display='none';
-    if(window._erSwitchTo)window._erSwitchTo('eventrec');
-  } else if(app==='brainstormjournal'){
-    var msRoot2=document.getElementById('ms-root');if(msRoot2)msRoot2.style.display='none';
-    var sw2=document.getElementById('ms-app-switcher');if(sw2)sw2.value='mealsuite';
-    if(window.showTonyJournal)window.showTonyJournal();
-  } else {
-    if(msRoot)msRoot.style.display='none';
-    if(elRoot)elRoot.style.display='none';
-    if(erRoot)erRoot.style.display='none';
-    if(thRoot)thRoot.style.display='';
-    const isDark=msLoadTheme();
-    const bg=isDark?'#0f0f12':'#F2EEF0';
-    document.body.style.background=bg;document.documentElement.style.background=bg;
-    document.body.classList.toggle('light-mode',!isDark);
-    const sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
-  }
-}
-window._msSwitchTo=function(app){msSwitchTo(app);if(app==='mealsuite'&&window._updateTonyNavActive)window._updateTonyNavActive('mealsuite');};
-
-// ── Sync status badge ──────────────────────────────────────────────────────────
-let msSyncTimer=null;
-function msSetSync(status){
-  const el=document.getElementById('ms-sync-status');if(!el)return;
-  const isDark=msLoadTheme();const t=isDark?MS_DARK:MS_LIGHT;
-  if(status==='saving'){el.style.visibility='visible';el.style.color=t.txm;el.textContent='Syncing…';}
-  else if(status==='saved'){el.style.visibility='visible';el.style.color=t.grn||'#4A9E68';el.textContent='✓ Synced';if(msSyncTimer)clearTimeout(msSyncTimer);msSyncTimer=setTimeout(()=>{el.style.visibility='hidden';},2500);}
-  else if(status==='error'){el.style.visibility='visible';el.style.color=t.err;el.textContent='⚠ Sync failed';}
-  else{el.style.visibility='hidden';}
-}
-
-// ── Save: localStorage + Firebase ─────────────────────────────────────────────
-function msSaveAll(){
-  msSave(MS_SK.recipes,msRecipes);
-  msSave(MS_SK.grocery,msGrocery);
-  if(window._fbSaveMealSuite){
-    msSetSync('saving');
-    window._fbSaveMealSuite(()=>({recipes:msRecipes,grocery:msGrocery}));
-  }
-}
-
-// ── Firebase init ──────────────────────────────────────────────────────────────
-function msInitFirebase(){
-  const doLoad=async()=>{
-    if(!window._fbLoadMealSuite)return;
-    const remote=await window._fbLoadMealSuite();
-    if(remote&&(Array.isArray(remote.recipes)||Array.isArray(remote.grocery))){
-      if(Array.isArray(remote.recipes)){msRecipes=remote.recipes;msSave(MS_SK.recipes,msRecipes);}
-      if(Array.isArray(remote.grocery)){msGrocery=remote.grocery;msSave(MS_SK.grocery,msGrocery);}
-      if(msActiveTab==='recipes')msRenderRecipes();
-      if(msActiveTab==='grocery')msRenderGrocery();
-    }
-  };
-  if(window._fbReady)doLoad();
-  else window.addEventListener('fb-ready',doLoad,{once:true});
-
-  window.addEventListener('fb-ms-saved',()=>msSetSync('saved'));
-  window.addEventListener('fb-ms-synced',()=>msSetSync('saved'));
-  window.addEventListener('fb-ms-error',()=>msSetSync('error'));
-
-  window.addEventListener('fb-ms-remote-update',(ev)=>{
-    if(!ev.detail)return;
-    const d=ev.detail;
-    if(Array.isArray(d.recipes)){msRecipes=d.recipes;msSave(MS_SK.recipes,msRecipes);}
-    if(Array.isArray(d.grocery)){msGrocery=d.grocery;msSave(MS_SK.grocery,msGrocery);}
-    if(msActiveTab==='recipes')msRenderRecipes();
-    if(msActiveTab==='grocery')msRenderGrocery();
-    msSetSync('saved');
-  });
-}
-
-// ── Bind events ────────────────────────────────────────────────────────────────
-function msUpdateEditToggle(){
-  const track=document.getElementById('ms-et-track'),thumb=document.getElementById('ms-et-thumb'),lbl=document.getElementById('ms-edit-label');
-  if(track){track.classList.toggle('on',msEditMode);thumb.classList.toggle('on',msEditMode);}
-  if(lbl){if(msEditMode){lbl.textContent='✎';lbl.style.fontSize='12px';}else{lbl.innerHTML='<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>';lbl.style.fontSize='0';}}
-}
-function msBindAll(){
-  document.getElementById('ms-edit-toggle').addEventListener('click',()=>{msEditMode=!msEditMode;msUpdateEditToggle();msRenderRecipes();msRenderGrocery();});
-  document.getElementById('ms-theme-btn').addEventListener('click',()=>{
-    const isDark=msLoadTheme();const newDark=!isDark;if(window._syncAllThemes)window._syncAllThemes(newDark);else{msSaveTheme(newDark);msApplyTheme();}
-  });
-  document.querySelectorAll('#ms-root .ms-tab').forEach(btn=>btn.addEventListener('click',()=>msSwitchTab(btn.dataset.tab)));
-  document.getElementById('ms-app-switcher')?.addEventListener('change',e=>{if(e.target.value==='vedasHub'&&window._switchToVeda){e.target.blur();window._switchToVeda();}else if(e.target.value==='keychain'&&window._kcSwitchTo){e.target.blur();window._kcSwitchTo('keychain');}else if(e.target.value==='brainstormjournal'){e.target.value='mealsuite';e.target.blur();if(window.showTonyJournal)window.showTonyJournal();}else{e.target.blur();msSwitchTo(e.target.value);}});
-  document.getElementById('ms-btn-add-recipe').addEventListener('click',msOpenAddRecipe);
-  document.getElementById('ms-recipe-search').addEventListener('input',msRenderRecipes);
-  document.getElementById('ms-recipe-filter').addEventListener('change',msRenderRecipes);
-  document.getElementById('ms-btn-save-recipe').addEventListener('click',msSaveRecipe);
-  document.getElementById('ms-btn-cancel-recipe').addEventListener('click',()=>msCloseModal('ms-recipe-modal'));
-  document.getElementById('ms-btn-add-ing').addEventListener('click',()=>document.getElementById('ms-r-ing-rows').appendChild(msMakeIngRow('','')));
-  document.getElementById('ms-btn-add-tool').addEventListener('click',()=>document.getElementById('ms-r-tool-rows').appendChild(msMakeToolRow('')));
-  document.getElementById('ms-recipe-modal').addEventListener('click',e=>{if(e.target.id==='ms-recipe-modal')msCloseModal('ms-recipe-modal');});
-  document.getElementById('ms-r-name').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')msSaveRecipe();});
-  document.getElementById('ms-btn-add-grocery').addEventListener('click',msOpenAddGrocery);
-  document.getElementById('ms-btn-clear-checked').addEventListener('click',msClearChecked);
-  document.getElementById('ms-btn-generate').addEventListener('click',msGenerateFromRecipes);
-  document.getElementById('ms-btn-save-grocery').addEventListener('click',msSaveGroceryItem);
-  document.getElementById('ms-btn-cancel-grocery').addEventListener('click',()=>msCloseModal('ms-grocery-modal'));
-  document.getElementById('ms-grocery-modal').addEventListener('click',e=>{if(e.target.id==='ms-grocery-modal')msCloseModal('ms-grocery-modal');});
-  document.getElementById('ms-g-name').addEventListener('keydown',e=>{if(e.key==='Enter')msSaveGroceryItem();});
-  document.getElementById('ms-btn-confirm-ok').addEventListener('click',()=>{if(msConfirmCb)msConfirmCb();msConfirmCb=null;});
-  document.getElementById('ms-btn-confirm-cancel').addEventListener('click',()=>{msConfirmCb=null;msCloseModal('ms-confirm-modal');});
-  document.getElementById('ms-confirm-modal').addEventListener('click',e=>{if(e.target.id==='ms-confirm-modal'){msConfirmCb=null;msCloseModal('ms-confirm-modal');}});
-  // Listen for theme changes from other apps
-}
-
-// ── Init ───────────────────────────────────────────────────────────────────────
-msApplyTheme();
-msBindAll();
-msUpdateEditToggle();
-msRenderRecipes();
-window._msApplyTheme=msApplyTheme;
-msInitFirebase();
-
-})();
-</script>
 
 <script>
 // ── Shared MotionCore-style pointer-event drag-to-reorder ──────────────────────
@@ -7647,7 +6862,6 @@ body.light-mode select#th-app-switcher option{background:#EAE3E7;color:#D4607A;}
 #er-root .er-theme-btn{background:var(--er-bg);border:1px solid var(--er-bd);border-radius:4px;padding:0 10px;height:28px;box-sizing:border-box;font-size:12px;font-weight:800;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;color:var(--er-ac);font-family:'Nunito',sans-serif;outline:none;flex-shrink:0;white-space:nowrap;gap:4px;}
 #er-root .er-theme-btn:hover{border-color:var(--er-ac);color:var(--er-ac);}
 #el-root .el-hbtns>button:hover{border-color:var(--el-ac)!important;}
-#ms-root .ms-hbtns>button:hover{border-color:var(--ms-ac)!important;}
 #er-root .er-hbtns>button:hover{border-color:var(--er-ac)!important;}
 #er-root .er-card{background:var(--er-s1);border:1px solid var(--er-bd);border-radius:4px;padding:18px 20px;}
 #er-root .er-card-title{font-family:'Lora',serif;font-size:13px;font-weight:700;color:var(--er-tx);margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--er-bd);letter-spacing:.2px;}
@@ -34698,7 +33912,6 @@ var AL_LABELS  = {
   tony_taskhub:   { label: 'TaskHub',    profile: 'tony', color: '#E0607A' },
   tony_tradehub:  { label: 'TradeHub',   profile: 'tony', color: '#E0607A' },
   tony_health:    { label: 'MotionCore', profile: 'tony', color: '#E0607A' },
-  tony_mealsuite: { label: 'MealSuite',  profile: 'tony', color: '#E0607A' },
   tony_expenselog:{ label: 'ExpenseLog', profile: 'tony', color: '#E0607A' },
   tony_eventrec:  { label: 'EventRec',   profile: 'tony', color: '#E0607A' },
   tony_keychain:  { label: 'Keychain',   profile: 'tony', color: '#E0607A' },
@@ -34857,7 +34070,6 @@ var _alCooldowns    = {};
 var AL_APP_ROOTS = {
   tony_taskhub:   ['root'],
   tony_health:    ['mc-root'],
-  tony_mealsuite: ['ms-root'],
   tony_expenselog:['el-root'],
   tony_eventrec:  ['er-root'],
   tony_keychain:  ['kc-root'],
@@ -34970,7 +34182,7 @@ function alGate(appId, cb, onCancel) {
 function alNavAppToId(profile, navApp) {
   var map = {
     tony: { taskhub:'tony_taskhub', tradeboard:'tony_tradehub', health:'tony_health',
-            mealsuite:'tony_mealsuite', expenselog:'tony_expenselog', eventrec:'tony_eventrec',
+            expenselog:'tony_expenselog', eventrec:'tony_eventrec',
             keychain:'tony_keychain', brainstormjournal:'tony_myjournal',
             proview:'tony_proview', warroom:'tony_warroom' },
     veda: { taskhub:'veda_taskhub', study:'veda_study', gita:'veda_gita',
@@ -35306,7 +34518,6 @@ function _alWrapSwitch(fnName, appId) {
 }
 _alWrapSwitch('_mcSwitchTo', 'tony_health');
 _alWrapSwitch('_elSwitchTo', 'tony_expenselog');
-_alWrapSwitch('_msSwitchTo', 'tony_mealsuite');
 _alWrapSwitch('_erSwitchTo', 'tony_eventrec');
 _alWrapSwitch('_kcSwitchTo', 'tony_keychain');
 _alWrapSwitch('_vdkcShow',   'veda_links');
@@ -35484,7 +34695,6 @@ var TONY_DEFAULT = [
   {app:'taskhub',          label:'TaskHub'},
   {app:'tradeboard',       label:'TradeHub'},
   {app:'health',           label:'MotionCore'},
-  {app:'mealsuite',        label:'MealSuite'},
   {app:'expenselog',       label:'ExpenseLog'},
   {app:'eventrec',         label:'EventRec'},
   {app:'keychain',         label:'Keychain'},
@@ -35494,7 +34704,7 @@ var TONY_DEFAULT = [
 ];
 var TONY_SELECT_LABELS = {
   taskhub:"Tony's TaskHub", tradeboard:'TradeHub', health:'MotionCore',
-  mealsuite:'MealSuite', expenselog:'ExpenseLog', eventrec:'EventRec',
+  expenselog:'ExpenseLog', eventrec:'EventRec',
   keychain:'Keychain', brainstormjournal:'MyJournal', proview:'ProView', warroom:'WarRoom'
 };
 
