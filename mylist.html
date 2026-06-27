@@ -770,119 +770,154 @@ function deleteSelected(){
 }
 
 // ════════ VOICE ════════
+// Capture: ALWAYS getUserMedia → WAV (device-selectable, never stops on silence,
+//          works on iOS). Live captions: SpeechRecognition in parallel, display-only.
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-var voice = { active:false, busy:false, recog:null, committed:'', stopping:false, mode:null,
-              ctx:null, stream:null, proc:null, src:null, buffers:[], sampleRate:44100 };
-function micTap(){
-  if(voice.busy) return;
-  if(voice.active){ stopVoice(); return; }
-  startVoice();
-}
-function startVoice(){
-  var l=curList(); if(!l){ toast('Open or create a list first'); return; }
-  if(SR){ startSR(); } else { startWav(); }
-}
-// toggle recording state on BOTH the big mic and the floating mic
+var voice = { active:false, busy:false,
+              ctx:null, stream:null, proc:null, src:null, buffers:[], sampleRate:44100,
+              recog:null, capSession:'', capCurrent:'', deviceId:'' };
+try{ voice.deviceId = localStorage.getItem('ml_mic_device') || ''; }catch(e){}
+
+function micTap(){ if(voice.busy) return; if(voice.active){ stopVoice(); } else { startVoice(); } }
+
 function setMicUI(on){ ['mic-btn','float-mic'].forEach(function(id){ var b=$(id); if(b){ if(on) b.classList.add('recording'); else b.classList.remove('recording'); } }); }
+function setBarRecording(on){ var fv=$('float-voice'); if(fv){ if(on) fv.classList.add('recording'); else fv.classList.remove('recording'); } }
 function showCaption(html){ var c=$('top-caption'), b=$('top-caption-body'), h=c&&c.querySelector('.cap-h'); if(c&&b){ if(h)h.style.display=''; c.classList.add('show'); b.innerHTML=html; b.scrollTop=b.scrollHeight; } }
 function showProcessing(){ var c=$('top-caption'), b=$('top-caption-body'), h=c&&c.querySelector('.cap-h'); if(c&&b){ if(h)h.style.display='none'; c.classList.add('show'); b.innerHTML='<div style="display:flex;align-items:center;gap:9px;font-weight:700"><span class="spin"></span> Processing your list…</div>'; } }
 function hideCaption(){ var c=$('top-caption'); if(c){ c.classList.remove('show'); var b=$('top-caption-body'); if(b)b.innerHTML=''; } }
-function setStatus(html){ var s=$('voice-status'); if(s) s.innerHTML=html; }
+function joinT(a,b){ a=(a||'').trim(); b=(b||'').trim(); return (a+' '+b).trim(); }
+function captionText(){ return joinT(voice.capSession, voice.capCurrent); }
 
-// live transcription path (Chrome / Android / desktop)
-function startSR(){
-  var r; try{ r=new SR(); }catch(e){ startWav(); return; }
-  r.continuous=true; r.interimResults=true; r.lang='en-US';
-  voice.committed=''; voice.stopping=false; voice.mode='sr';
-  r.onresult=function(e){
-    var interim='';
-    for(var i=e.resultIndex; i<e.results.length; i++){
-      var res=e.results[i];
-      if(res.isFinal) voice.committed += res[0].transcript + ' ';
-      else interim += res[0].transcript;
-    }
-    var done=voice.committed.trim();
-    showCaption((done?esc(done):'') + (interim?(done?' ':'')+'<span class="interim">'+esc(interim)+'</span>':'') || '<span class="interim">Listening…</span>');
-  };
-  r.onerror=function(ev){ if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){ toast('Microphone access denied', true); cleanupVoice(); } };
-  // KEY: a pause auto-ends the engine. If the user has NOT tapped stop, restart it
-  // so we keep listening through pauses and only process on the next mic tap.
-  r.onend=function(){
-    if(voice.stopping){ finalizeSR(); }
-    else if(voice.active){ try{ r.start(); }catch(e){ setTimeout(function(){ if(voice.active){ try{ r.start(); }catch(_){ } } },300); } }
-  };
-  try{ r.start(); }catch(e){ startWav(); return; }
-  voice.recog=r; voice.active=true; setMicUI(true);
-  $('voice-status').textContent='Listening… tap to stop & process';
-  showCaption('<span class="interim">Listening…</span>');
+async function getMic(){
+  var base={ channelCount:1, echoCancellation:true, noiseSuppression:true };
+  if(voice.deviceId){
+    try{ return await navigator.mediaDevices.getUserMedia({ audio: Object.assign({ deviceId:{ exact:voice.deviceId } }, base) }); }
+    catch(e){ voice.deviceId=''; try{ localStorage.removeItem('ml_mic_device'); }catch(_){} }
+  }
+  // default / current system input (fresh each time → picks up device changes like unplugged headphones)
+  return await navigator.mediaDevices.getUserMedia({ audio: base });
 }
-function finalizeSR(){
-  if(voice.busy) return;
-  voice.active=false; voice.stopping=false; setMicUI(false);
-  var text=(voice.committed||'').trim();
-  if(!text){ hideCaption(); $('voice-status').textContent=''; return; }
-  handleVoiceText(text);
-}
-function stopVoice(){
-  if(voice.recog && voice.mode==='sr'){ voice.stopping=true; voice.active=false; try{ voice.recog.stop(); }catch(e){ finalizeSR(); } return; }
-  if(voice.ctx){ stopWav(); }
-}
-function cleanupVoice(){ voice.active=false; voice.stopping=false; setMicUI(false); hideCaption(); $('voice-status').textContent=''; }
 
-// WAV path (iOS Safari — no SpeechRecognition)
-async function startWav(){
-  try{ voice.stream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true } }); }
-  catch(e){ toast('Microphone access denied', true); return; }
+async function startVoice(){
+  var stream;
+  try{ stream = await getMic(); }
+  catch(e){ toast('No microphone available — check your input device', true); return; }
+  voice.stream = stream;
   var AC = window.AudioContext || window.webkitAudioContext; voice.ctx = new AC();
-  voice.sampleRate = voice.ctx.sampleRate; voice.src = voice.ctx.createMediaStreamSource(voice.stream);
-  voice.proc = voice.ctx.createScriptProcessor(4096,1,1); voice.buffers=[]; voice.mode='wav';
+  if(voice.ctx.state==='suspended'){ try{ await voice.ctx.resume(); }catch(e){} }
+  voice.sampleRate = voice.ctx.sampleRate;
+  voice.src = voice.ctx.createMediaStreamSource(stream);
+  voice.proc = voice.ctx.createScriptProcessor(4096,1,1); voice.buffers=[];
   voice.proc.onaudioprocess=function(e){ voice.buffers.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
   voice.src.connect(voice.proc); voice.proc.connect(voice.ctx.destination);
-  voice.active=true; setMicUI(true);
-  $('voice-status').textContent='Recording… tap to stop & process';
-  showCaption('<span class="interim">🎙 Recording… tap the mic to finish &amp; process</span>');
+  voice.active=true; setMicUI(true); setBarRecording(true);
+  startCaptions(); // best-effort live text
+  showCaption('<span class="interim">Listening… tap the mic again to stop &amp; process.</span>');
 }
-async function stopWav(){
-  voice.active=false; setMicUI(false);
+// live captions only — rebuilds the current session each event (no duplication),
+// accumulates across auto-restarts so pauses never lose text.
+function startCaptions(){
+  if(!SR){ return; }
+  var r; try{ r=new SR(); }catch(e){ return; }
+  r.continuous=true; r.interimResults=true; r.lang='en-US';
+  voice.capSession=''; voice.capCurrent='';
+  r.onresult=function(e){
+    var fin='', interim='';
+    for(var i=0;i<e.results.length;i++){ var res=e.results[i]; if(res.isFinal) fin+=res[0].transcript+' '; else interim+=res[0].transcript; }
+    voice.capCurrent=fin.trim();
+    var full=captionText();
+    showCaption((full?esc(full):'')+(interim?(full?' ':'')+'<span class="interim">'+esc(interim)+'</span>':'') || '<span class="interim">Listening…</span>');
+  };
+  r.onerror=function(){};
+  r.onend=function(){
+    if(!voice.active) return;
+    voice.capSession=joinT(voice.capSession, voice.capCurrent); voice.capCurrent='';
+    try{ r.start(); }catch(e){ setTimeout(function(){ if(voice.active){ try{ r.start(); }catch(_){ } } },250); }
+  };
+  try{ r.start(); }catch(e){}
+  voice.recog=r;
+}
+async function stopVoice(){
+  voice.active=false; setMicUI(false); setBarRecording(false);
+  // stop captions, capture final caption text
+  if(voice.recog){ try{ voice.recog.onend=null; voice.recog.stop(); }catch(e){} }
+  voice.capSession=joinT(voice.capSession, voice.capCurrent); voice.capCurrent='';
+  var capText=captionText(); voice.recog=null;
+  // stop recorder, build WAV
   try{ voice.proc && voice.proc.disconnect(); voice.src && voice.src.disconnect(); }catch(e){}
-  try{ voice.stream && voice.stream.getTracks().forEach(function(t){t.stop();}); }catch(e){}
-  var sr=voice.sampleRate, buffers=voice.buffers.slice(); try{ voice.ctx && voice.ctx.close(); }catch(e){} voice.ctx=null; voice.buffers=[];
-  showProcessing(); setStatus('<span class="spin"></span> Processing…'); voice.busy=true;
+  try{ voice.stream && voice.stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+  var sr=voice.sampleRate, buffers=voice.buffers.slice();
+  try{ voice.ctx && voice.ctx.close(); }catch(e){} voice.ctx=null; voice.buffers=[];
+  // a spoken undo/redo command shouldn't go to the AI
+  if(capText && isUndoCommand(capText)){ hideCaption(); undoLast(); return; }
+  if(capText && isRedoCommand(capText)){ hideCaption(); redoLast(); return; }
+  showProcessing(); voice.busy=true;
   try{
     var wav=encodeWav(buffers, sr, 16000);
-    if(wav.byteLength<1600) throw new Error('too short');
-    var b64=await blobToB64(new Blob([wav]));
-    await sendToAI({ audio:b64, mimeType:'audio/wav' });
-  }catch(err){ toast(err.message==='too short'?'Didn\'t catch that — try again':'Voice failed — try again', true); $('voice-status').textContent=''; }
+    if(wav.byteLength>=1600){ var b64=await blobToB64(new Blob([wav])); await sendToAI({ audio:b64, mimeType:'audio/wav' }); }
+    else if(capText){ await sendToAI({ transcript:capText }); }
+    else { toast("Didn't catch that — try again", true); }
+  }catch(err){
+    if(capText){ try{ await sendToAI({ transcript:capText }); }catch(e){ toast('Voice failed — try again', true); } }
+    else toast('Voice failed — try again', true);
+  }
   hideCaption(); voice.busy=false;
 }
-// text commands (inline box + floating box)
+
+// ── microphone device picker ──
+async function openDevicePicker(){
+  var box=$('dev-list'); box.innerHTML='<div class="dev-sub">Loading…</div>';
+  $('dev-overlay').style.display='flex';
+  // need permission once for labels to appear
+  try{ var s=await navigator.mediaDevices.getUserMedia({audio:true}); s.getTracks().forEach(function(t){t.stop();}); }catch(e){}
+  var devs=[];
+  try{ devs=(await navigator.mediaDevices.enumerateDevices()).filter(function(d){return d.kind==='audioinput';}); }catch(e){}
+  var h='<div class="dev-item'+(!voice.deviceId?' on':'')+'" onclick="ML.pickDevice(\'\')">System default'+(!voice.deviceId?'<span class="tick">✓</span>':'')+'</div>';
+  devs.forEach(function(d,i){
+    var label=d.label||('Microphone '+(i+1));
+    h+='<div class="dev-item'+(voice.deviceId===d.deviceId?' on':'')+'" onclick="ML.pickDevice(\''+jq(d.deviceId)+'\')">'+esc(label)+(voice.deviceId===d.deviceId?'<span class="tick">✓</span>':'')+'</div>';
+  });
+  if(!devs.length) h+='<div class="dev-sub">No microphones found.</div>';
+  box.innerHTML=h;
+}
+function pickDevice(id){ voice.deviceId=id||''; try{ id?localStorage.setItem('ml_mic_device',id):localStorage.removeItem('ml_mic_device'); }catch(e){} closeDevicePicker(); toast('Microphone set'); }
+function closeDevicePicker(){ $('dev-overlay').style.display='none'; }
+
+// text commands (floating box)
 function sendText(){ doTypedSend($('voice-text')); }
 function sendFloatText(){ doTypedSend($('float-text')); }
 function doTypedSend(ta){
-  var l=curList(); if(!l){ toast('Open or create a list first'); return; }
+  if(!activeProfile){ return; }
   if(!ta) return; var t=(ta.value||'').trim(); if(!t) return;
   ta.value=''; if(ta.tagName==='TEXTAREA') autoGrow(ta);
   handleVoiceText(t);
 }
-// shared: undo intent → undo; otherwise send to AI
 function handleVoiceText(text){
   if(isUndoCommand(text)){ hideCaption(); undoLast(); return; }
-  showProcessing(); setStatus('<span class="spin"></span> Processing…'); voice.busy=true;
+  if(isRedoCommand(text)){ hideCaption(); redoLast(); return; }
+  showProcessing(); voice.busy=true;
   sendToAI({ transcript:text }).then(function(){ hideCaption(); voice.busy=false; });
 }
-function isUndoCommand(t){
-  return /^\s*(please\s+)?(undo( that| last| it)?|revert( that)?|go back|put (it|that|them) back|bring (it|that|them) back|never\s?mind|that was a mistake)\s*[.!?]?\s*$/i.test(t);
-}
+function isUndoCommand(t){ return /^\s*(please\s+)?(undo( that| last| it)?|revert( that)?|go back|put (it|that|them) back|bring (it|that|them) back|never\s?mind|that was a mistake)\s*[.!?]?\s*$/i.test(t); }
+function isRedoCommand(t){ return /^\s*(please\s+)?(redo( that| last| it)?|redo)\s*[.!?]?\s*$/i.test(t); }
+
 async function sendToAI(payloadExtra){
-  var l=curList(); if(!l) return;
+  if(!activeProfile) return;
+  var l=curList();
   try{
-    var body=Object.assign({ profile:activeProfile, mode:'edit', items:l.items||[], stores:l.stores||[] }, payloadExtra);
+    var body=Object.assign({ profile:activeProfile, mode:'edit', items:(l&&l.items)||[], stores:(l&&l.stores)||[] }, payloadExtra);
     var r=await fetch(API+'/parse',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     var d=await r.json();
-    if(d.ok && Array.isArray(d.items)){ applyParsed(l, d); $('voice-status').textContent=''; toast('List updated'); }
-    else { toast(d.error||'Could not understand', true); $('voice-status').textContent=''; }
-  }catch(e){ toast('Network error', true); $('voice-status').textContent=''; }
+    if(d.ok && Array.isArray(d.items)){ applyParsed(ensureList(), d); $('voice-status') && ($('voice-status').textContent=''); toast('List updated'); }
+    else { toast(d.error||'Could not understand', true); }
+  }catch(e){ toast('Network error', true); }
+}
+// create a list on the fly if there isn't one (lets you start by voice/text)
+function ensureList(){
+  var l=curList(); if(l) return l;
+  l={ id:uid(), name:'My List', stores:[], items:[], createdAt:Date.now() };
+  lists().push(l); activeListId=l.id; localStorage.setItem('ml_last_list_'+activeProfile,l.id);
+  return l;
 }
 function applyParsed(l, d){
   pushUndo(l);
@@ -894,22 +929,29 @@ function applyParsed(l, d){
              done: (typeof p.done==='boolean')?p.done:(prev?prev.done:false) };
   }).filter(function(x){return x.name;});
   l.stores=l.stores||[];
-  // merge stores the AI returned (lets voice/text manage stores even with no items)
   function addStoreName(s){ if(s && l.stores.map(function(x){return x.toLowerCase();}).indexOf(String(s).toLowerCase())<0) l.stores.push(String(s)); }
   (d.stores||[]).forEach(addStoreName);
   l.items.forEach(function(it){ addStoreName(it.store); });
   persist(); render();
 }
 
-// ── undo ──
-var undoStack={};
-function pushUndo(l){ if(!l) return; var s={ items:JSON.parse(JSON.stringify(l.items||[])), stores:JSON.parse(JSON.stringify(l.stores||[])) };
-  (undoStack[l.id]=undoStack[l.id]||[]).push(s); if(undoStack[l.id].length>25) undoStack[l.id].shift(); }
+// ── undo / redo ──
+var undoStack={}, redoStack={};
+function snap(l){ return { items:JSON.parse(JSON.stringify(l.items||[])), stores:JSON.parse(JSON.stringify(l.stores||[])) }; }
+function pushUndo(l){ if(!l) return; (undoStack[l.id]=undoStack[l.id]||[]).push(snap(l)); if(undoStack[l.id].length>30) undoStack[l.id].shift(); redoStack[l.id]=[]; }
 function undoAvailable(){ var l=curList(); return !!(l && undoStack[l.id] && undoStack[l.id].length); }
+function redoAvailable(){ var l=curList(); return !!(l && redoStack[l.id] && redoStack[l.id].length); }
 function undoLast(){
-  var l=curList(); if(!l) return; var st=undoStack[l.id];
+  var l=curList(); if(!l){ toast('Nothing to undo'); return; } var st=undoStack[l.id];
   if(!st || !st.length){ toast('Nothing to undo'); return; }
-  var snap=st.pop(); l.items=snap.items; l.stores=snap.stores; editingItemId=null; persist(); render(); toast('Undone ✓');
+  (redoStack[l.id]=redoStack[l.id]||[]).push(snap(l));
+  var s=st.pop(); l.items=s.items; l.stores=s.stores; editingItemId=null; persist(); render(); toast('Undone');
+}
+function redoLast(){
+  var l=curList(); if(!l){ toast('Nothing to redo'); return; } var st=redoStack[l.id];
+  if(!st || !st.length){ toast('Nothing to redo'); return; }
+  (undoStack[l.id]=undoStack[l.id]||[]).push(snap(l));
+  var s=st.pop(); l.items=s.items; l.stores=s.stores; editingItemId=null; persist(); render(); toast('Redone');
 }
 function blobToB64(blob){ return new Promise(function(res,rej){ var r=new FileReader(); r.onloadend=function(){ res(String(r.result).split(',')[1]); }; r.onerror=rej; r.readAsDataURL(blob); }); }
 function encodeWav(buffers, inRate, outRate){
