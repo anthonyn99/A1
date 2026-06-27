@@ -655,6 +655,7 @@ function refreshProfileScreen(){
   });
 }
 function goProfileSelect(){
+  if(voice.active){ try{ voice.stream&&voice.stream.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ voice.recog&&(voice.recog.onend=null,voice.recog.stop()); }catch(e){} voice.active=false; setMicUI(false); setBarRecording(false); }
   activeProfile=null; activeListId=null; exitSelect();
   $('float-voice').classList.remove('show'); hideCaption();
   $('app').style.display='none'; $('profile-overlay').style.display='flex';
