@@ -64,6 +64,7 @@ function buildPrompt(mode, transcript, items, stores, hasAudio) {
     `BRANDS: If the user names a brand or specific product, KEEP it in the "name" (e.g. "Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill", "Apple MacBook Pro"). Do not strip brands.`,
     `DESCRIPTIONS: Put any extra detail the user gives (size, color, flavor, variety, purpose, preference, "the big one", "organic", "for the party") into "desc" as a SHORT concise note. Do NOT repeat the name or quantity in desc. If no detail, "desc" is "".`,
     `ITEMS: Split run-on speech into SEPARATE items. Recognize counts/quantities accurately. Ignore filler words ("um", "uh", "like", "let me think", "and then").`,
+    `STORE-ONLY COMMANDS: The user can manage stores by voice/text with no items, e.g. "add Walmart, Target and Best Buy" or "add Costco as a store". When they do, put those store names in the top-level "stores" array and leave the existing items unchanged. ALWAYS also list in top-level "stores" every store name you assigned to any item, plus the user's existing saved stores. So "stores" = the full set of stores that should exist after this command.`,
     `OUTPUT: Every field is short data only — never explanations, reasoning, or placeholder notes. Keep each field tight.`,
     `Per-item fields:`,
     `- "name": clean Title Case product name WITH brand if stated. No quantity inside the name.`,
@@ -212,7 +213,14 @@ export default {
         try {
           const out = await callGemini(model, key, prompt, audio, mimeType);
           if (out && Array.isArray(out.items)) {
-            return json({ ok: true, items: sanitizeItems(out.items), note: out.note || '', model });
+            const cleanItems = sanitizeItems(out.items);
+            // stores = AI's returned stores ∪ any store assigned to an item ∪ caller's stores
+            const storeSet = new Map();
+            const addS = s => { const v = String(s || '').trim(); if (v && v.length <= 40) storeSet.set(v.toLowerCase(), v); };
+            (Array.isArray(out.stores) ? out.stores : []).forEach(addS);
+            cleanItems.forEach(it => addS(it.store));
+            stores.forEach(addS);
+            return json({ ok: true, items: cleanItems, stores: [...storeSet.values()], note: out.note || '', model });
           }
         } catch (e) {
           lastErr = e.message || String(e);
