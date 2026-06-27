@@ -2131,6 +2131,10 @@ function TBMarketStatus({isMobile}){
     ...Object.entries(TB_MKT_HOLIDAYS).map(([d,n])=>({d,n,half:false})),
     ...Object.entries(TB_MKT_HALFDAYS).map(([d,n])=>({d,n,half:true})),
   ].filter(x=>x.d>=st.dateStr).sort((a,b)=>a.d.localeCompare(b.d)).slice(0,3);
+  // Reminder: the holiday tables are hardcoded. Warn ~120 days before they run out
+  // so the open/closed status never silently goes wrong on an un-added holiday.
+  const calDaysLeft=Math.round((Date.parse(TB_MKT_CAL_THROUGH+'T00:00:00Z')-Date.parse(st.dateStr+'T00:00:00Z'))/86400000);
+  const calLow=calDaysLeft<120;
 
   return (<div className="tb-card" style={{padding:isMobile?'14px 16px':'16px 20px',borderLeft:`3px solid ${PHASE.tone}`}}>
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
