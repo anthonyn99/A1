@@ -919,6 +919,8 @@ const TB_STYLES=`
 }
 @keyframes tb-fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 @keyframes tb-spin{to{transform:rotate(360deg);}}
+@keyframes tb-pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+#tradeboard-root details summary::-webkit-details-marker{display:none;}
 #tradeboard-root .tb-fade-in{animation:tb-fadeIn .3s ease both;}
 `;
 
@@ -2036,6 +2038,108 @@ function tbRealizedFromHistory(history){
   return matched?realized:null;
 }
 
+/* ══ US Market Clock (NYSE/Nasdaq) ══════════════════════════════════════════
+   Computed entirely client-side in true Eastern Time — a live open/closed clock
+   shouldn't round-trip an API every second, and this keeps working even if the
+   Webull token is expired. Holidays are a maintained static list. ── */
+const TB_MKT_HOLIDAYS={
+  '2026-01-01':"New Year's Day",'2026-01-19':'MLK Jr. Day','2026-02-16':"Presidents' Day",
+  '2026-04-03':'Good Friday','2026-05-25':'Memorial Day','2026-06-19':'Juneteenth',
+  '2026-07-03':'Independence Day','2026-09-07':'Labor Day','2026-11-26':'Thanksgiving Day',
+  '2026-12-25':'Christmas Day',
+  '2027-01-01':"New Year's Day",'2027-01-18':'MLK Jr. Day','2027-02-15':"Presidents' Day",
+  '2027-03-26':'Good Friday','2027-05-31':'Memorial Day',
+};
+// Early closes — regular session ends 1:00 PM ET.
+const TB_MKT_HALFDAYS={'2026-11-27':'Day after Thanksgiving','2026-12-24':'Christmas Eve'};
+
+function tbMktDateAdd(s,n){const[Y,M,D]=s.split('-').map(Number);const d=new Date(Date.UTC(Y,M-1,D));d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function tbMktWeekday(s){const[Y,M,D]=s.split('-').map(Number);return new Date(Date.UTC(Y,M-1,D)).getUTCDay();} // 0=Sun..6=Sat
+function tbMktIsTradingDay(s){const wd=tbMktWeekday(s);return wd!==0&&wd!==6&&!TB_MKT_HOLIDAYS[s];}
+function tbMktNextTradingDay(s,incl){let d=incl?s:tbMktDateAdd(s,1);for(let i=0;i<14;i++){if(tbMktIsTradingDay(d))return d;d=tbMktDateAdd(d,1);}return d;}
+// Wall-clock parts in America/New_York for a given Date.
+function tbNyParts(date){const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(date).reduce((a,x)=>{a[x.type]=x.value;return a},{});let hh=+p.hour;if(hh===24)hh=0;return{dateStr:`${p.year}-${p.month}-${p.day}`,hh,mm:+p.minute,ss:+p.second};}
+// UTC ms timestamp for a given NY wall-clock date+time (DST-safe).
+function tbNyTs(dateStr,hh,mm){const[Y,M,D]=dateStr.split('-').map(Number);const guess=Date.UTC(Y,M-1,D,hh,mm,0);const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(new Date(guess)).reduce((a,x)=>{a[x.type]=x.value;return a},{});let hr=+p.hour;if(hr===24)hr=0;const asTz=Date.UTC(+p.year,+p.month-1,+p.day,hr,+p.minute);return guess-(asTz-guess);}
+function tbMktState(now){
+  const {dateStr,hh,mm}=tbNyParts(now);
+  const t=hh*60+mm;
+  const wd=tbMktWeekday(dateStr);
+  const tradable=wd!==0&&wd!==6&&!TB_MKT_HOLIDAYS[dateStr];
+  const half=TB_MKT_HALFDAYS[dateStr]||null;
+  const regClose=half?13*60:16*60;          // 1:00 or 4:00 PM ET
+  const postEnd=half?17*60:20*60;            // extended session end
+  let phase='closed';
+  if(tradable){
+    if(t<240)phase='closed';                 // before 4:00 AM
+    else if(t<570)phase='pre';               // 4:00–9:30
+    else if(t<regClose)phase='regular';      // 9:30–close
+    else if(t<postEnd)phase='after';         // close–8:00 PM
+    else phase='closed';
+  }
+  const nextOpenDate=(tradable&&t<570)?dateStr:tbMktNextTradingDay(dateStr,false);
+  return {dateStr,t,phase,half,tradable,holiday:TB_MKT_HOLIDAYS[dateStr]||null,regClose,postEnd,
+    regOpenTs:tbNyTs(dateStr,9,30),
+    regCloseTs:tbNyTs(dateStr,Math.floor(regClose/60),regClose%60),
+    postEndTs:tbNyTs(dateStr,Math.floor(postEnd/60),postEnd%60),
+    nextOpenTs:tbNyTs(nextOpenDate,9,30),nextOpenDate};
+}
+function tbCountdown(ms){if(ms<0)ms=0;const s=Math.floor(ms/1000);const d=Math.floor(s/86400);const h=Math.floor(s%86400/3600);const m=Math.floor(s%3600/60);const ss=s%60;if(d>0)return `${d}d ${h}h ${m}m`;if(h>0)return `${h}h ${m}m ${ss}s`;return `${m}m ${ss}s`;}
+function tbMktDayLabel(dateStr){return new Date(dateStr+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});}
+
+function TBMarketStatus({isMobile}){
+  const [now,setNow]=useState(()=>new Date());
+  useEffect(()=>{const id=setInterval(()=>setNow(new Date()),1000);return()=>clearInterval(id);},[]);
+  const st=useMemo(()=>tbMktState(now),[now]);
+  const PHASE={
+    regular:{label:'OPEN',sub:'Regular Hours',tone:'#3fb950'},
+    pre:    {label:'PRE-MARKET',sub:'Extended Hours',tone:'#d29922'},
+    after:  {label:'AFTER HOURS',sub:'Extended Hours',tone:'#58a6ff'},
+    closed: {label:'CLOSED',sub:st.holiday||(st.tradable?'Market Closed':'Weekend'),tone:'#8b949e'},
+  }[st.phase];
+  let cdLabel,cdTs;
+  if(st.phase==='regular'){cdLabel='Closes in';cdTs=st.regCloseTs;}
+  else if(st.phase==='pre'){cdLabel='Opens in';cdTs=st.regOpenTs;}
+  else if(st.phase==='after'){cdLabel='Extended closes in';cdTs=st.postEndTs;}
+  else {cdLabel='Opens in';cdTs=st.nextOpenTs;}
+  const cd=tbCountdown(cdTs-now.getTime());
+  const closeH=st.half?'1:00 PM':'4:00 PM';
+  const hoursLine=st.tradable
+    ? `Today · 9:30 AM – ${closeH} ET${st.half?' (early close)':''}`
+    : `Opens ${tbMktDayLabel(st.nextOpenDate)} · 9:30 AM ET`;
+  const upcoming=[
+    ...Object.entries(TB_MKT_HOLIDAYS).map(([d,n])=>({d,n,half:false})),
+    ...Object.entries(TB_MKT_HALFDAYS).map(([d,n])=>({d,n,half:true})),
+  ].filter(x=>x.d>=st.dateStr).sort((a,b)=>a.d.localeCompare(b.d)).slice(0,3);
+
+  return (<div className="tb-card" style={{padding:isMobile?'14px 16px':'16px 20px',borderLeft:`3px solid ${PHASE.tone}`}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+      <div style={{display:'flex',alignItems:'center',gap:11,minWidth:0}}>
+        <span style={{width:11,height:11,borderRadius:'50%',background:PHASE.tone,flexShrink:0,boxShadow:`0 0 0 4px ${PHASE.tone}22`,animation:st.phase==='regular'?'tb-pulse 2s ease-in-out infinite':'none'}}/>
+        <div style={{minWidth:0}}>
+          <div style={{display:'flex',alignItems:'baseline',gap:8,flexWrap:'wrap'}}>
+            <span style={{fontSize:18,fontWeight:900,letterSpacing:.5,color:PHASE.tone}}>{PHASE.label}</span>
+            <span style={{fontSize:11,fontWeight:700,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1}}>US Markets</span>
+          </div>
+          <div style={{fontSize:12,color:'var(--txm)',marginTop:1}}>{PHASE.sub}</div>
+        </div>
+      </div>
+      <div style={{textAlign:isMobile?'left':'right'}}>
+        <div style={{fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.2}}>{cdLabel}</div>
+        <div style={{fontFamily:'IBM Plex Mono,monospace',fontSize:18,fontWeight:800,color:'var(--tx)'}}>{cd}</div>
+      </div>
+    </div>
+    <div style={{fontSize:12,color:'var(--txd)',marginTop:10,paddingTop:10,borderTop:'1px solid var(--bd)'}}>{hoursLine}</div>
+    {upcoming.length>0&&<div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}>
+      {upcoming.map(u=>(<div key={u.d} style={{display:'flex',alignItems:'center',gap:6,background:'var(--s2)',border:'1px solid var(--bd)',borderRadius:8,padding:'4px 9px'}}>
+        <span style={{fontSize:11,fontWeight:800,color:'var(--txd)',fontFamily:'IBM Plex Mono,monospace'}}>{tbMktDayLabel(u.d)}</span>
+        <span style={{fontSize:11,color:'var(--txm)'}}>{u.n}</span>
+        <span style={{fontSize:8.5,fontWeight:800,letterSpacing:.3,textTransform:'uppercase',color:u.half?'#d29922':'#8b949e',background:(u.half?'#d29922':'#8b949e')+'1a',borderRadius:4,padding:'1px 5px'}}>{u.half?'½ day':'closed'}</span>
+      </div>))}
+    </div>}
+  </div>);
+}
+
 /* ── Portfolio Page (Webull, Cloudflare) ── */
 function TBPortfolioPage(){
   const {data,loading,error,lastFetch,refresh}=useTBPortfolio();
@@ -2110,6 +2214,7 @@ function TBPortfolioPage(){
       {error&&<div style={{fontSize:13,color:'var(--tbe)',background:'rgba(212,122,106,0.08)',border:'1px solid rgba(212,122,106,0.2)',borderRadius:8,padding:'4px 12px'}}>{error}</div>}
       <button className="tb-btn-ghost" onClick={refresh} disabled={loading} style={{fontSize:11}}>⟳ Refresh</button>
     </div>
+    <TBMarketStatus isMobile={isMobile}/>
     {acct&&(()=>{
       /* Webull field aliases — worker may return camelCase or snake_case variants */
       const p=v=>parseFloat(v)||0;
@@ -2132,6 +2237,27 @@ function TBPortfolioPage(){
         <StatCard label="Unrealized P&L" value={tbFmt$(totalUnreal)} color={tbPnlCol(totalUnreal)} sub={`${positions.length} positions`}/>
         <StatCard label="Realized P&L" value={realPnL!==0?tbFmt$(realPnL):'—'} color={realPnL!==0?tbPnlCol(realPnL):'var(--txm)'} sub={realPnL!==0&&realPnLWorker===0?'FIFO from history':undefined}/>
       </div>);
+    })()}
+    {acct&&(()=>{
+      /* Free Webull account fields the worker already fetches but never surfaced. */
+      const extra=[
+        ['Market Value','marketValue'],['Settled Cash','settledCash'],['Unsettled Cash','unsettledCash'],
+        ['Overnight BP','overnightBP'],['Initial Margin','initialMargin'],['Maint. Margin','maintenanceMargin'],
+        ['Excess Liquidity','excessLiquidity'],
+      ].filter(([_,k])=>acct[k]!=null&&acct[k]!==''&&!isNaN(parseFloat(acct[k])));
+      if(!extra.length)return null;
+      return(<details className="tb-card" style={{padding:'0'}}>
+        <summary style={{listStyle:'none',cursor:'pointer',padding:'13px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',userSelect:'none'}}>
+          <span style={{fontSize:11,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5}}>Account Details</span>
+          <span style={{fontSize:11,fontWeight:700,color:'var(--ac)'}}>{extra.length} more ›</span>
+        </summary>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:1,background:'var(--bd)',borderTop:'1px solid var(--bd)'}}>
+          {extra.map(([label,k])=>(<div key={k} style={{background:'var(--s1)',padding:'12px 18px'}}>
+            <div style={{fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>{label}</div>
+            <div style={{fontFamily:'IBM Plex Mono,monospace',fontSize:15,fontWeight:700,color:'var(--txd)'}}>{tbFmt$(parseFloat(acct[k]))}</div>
+          </div>))}
+        </div>
+      </details>);
     })()}
     <div style={{display:'flex',gap:2,background:'var(--s2)',borderRadius:10,padding:3,width:'fit-content'}}>
       {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'6px 16px',borderRadius:8,border:'none',background:tab===t.id?'var(--s3)':'transparent',color:tab===t.id?'var(--tx)':'var(--txm)',fontSize:12,fontWeight:tab===t.id?700:500,cursor:'pointer',transition:'all .15s'}}>{t.label}{t.count>0?` (${t.count})`:''}</button>))}
