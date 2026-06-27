@@ -452,6 +452,31 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
     if (snap.exists()) window.dispatchEvent(new CustomEvent("ml-remote-update", { detail: snap.data() }));
   }, (err) => { console.warn("MyList snapshot err", err); window.dispatchEvent(new CustomEvent("ml-error")); });
 
+  // ── Recipes (Tony) — migrated from MealSuite; lives in dashboards/mealsuite (recipes field) ──
+  const MS_DOC = doc(db, "dashboards/mealsuite");
+  let recSaveTimer = null, recLastOwnSaveAt = 0;
+  window._mlLoadRecipes = async () => {
+    try { const snap = await getDoc(MS_DOC); return (snap.exists() && Array.isArray(snap.data().recipes)) ? snap.data().recipes : []; }
+    catch(e){ console.warn("Recipes load failed:", e); return []; }
+  };
+  window._mlSaveRecipes = (recipes) => {
+    recLastOwnSaveAt = Date.now();
+    window.dispatchEvent(new CustomEvent("ml-syncing"));
+    if (recSaveTimer) clearTimeout(recSaveTimer);
+    recSaveTimer = setTimeout(async () => {
+      try {
+        recLastOwnSaveAt = Date.now();
+        await setDoc(MS_DOC, { recipes: recipes, savedAt: Date.now() });
+        recLastOwnSaveAt = Date.now();
+        window.dispatchEvent(new CustomEvent("ml-saved"));
+      } catch(e){ console.warn("Recipes save failed:", e); window.dispatchEvent(new CustomEvent("ml-error")); }
+    }, 1200);
+  };
+  onSnapshot(MS_DOC, (snap) => {
+    if (Date.now() - recLastOwnSaveAt < 8000) return;
+    if (snap.exists() && Array.isArray(snap.data().recipes)) window.dispatchEvent(new CustomEvent("ml-recipes-update", { detail: snap.data().recipes }));
+  }, (err) => { console.warn("Recipes snapshot err", err); });
+
   window._mlReady = true;
   window.dispatchEvent(new CustomEvent("ml-ready"));
 </script>
