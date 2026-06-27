@@ -687,7 +687,7 @@ function deleteSelected(){
 
 // ════════ VOICE ════════
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-var voice = { active:false, busy:false, recog:null, finalText:'', stopping:false,
+var voice = { active:false, busy:false, recog:null, committed:'', stopping:false, mode:null,
               ctx:null, stream:null, proc:null, src:null, buffers:[], sampleRate:44100 };
 function micTap(){
   if(voice.busy) return;
@@ -698,40 +698,49 @@ function startVoice(){
   var l=curList(); if(!l){ toast('Open or create a list first'); return; }
   if(SR){ startSR(); } else { startWav(); }
 }
-function setMicUI(on){ var b=$('mic-btn'); if(b){ if(on) b.classList.add('recording'); else b.classList.remove('recording'); } }
-function showCaption(html){ var c=$('live-caption'); if(c){ c.classList.add('show'); c.innerHTML=html; } }
-function hideCaption(){ var c=$('live-caption'); if(c){ c.classList.remove('show'); c.innerHTML=''; } }
+// toggle recording state on BOTH the big mic and the floating mic
+function setMicUI(on){ ['mic-btn','float-mic'].forEach(function(id){ var b=$(id); if(b){ if(on) b.classList.add('recording'); else b.classList.remove('recording'); } }); }
+function showCaption(html){ var c=$('top-caption'), b=$('top-caption-body'), h=c&&c.querySelector('.cap-h'); if(c&&b){ if(h)h.style.display=''; c.classList.add('show'); b.innerHTML=html; b.scrollTop=b.scrollHeight; } }
+function showProcessing(){ var c=$('top-caption'), b=$('top-caption-body'), h=c&&c.querySelector('.cap-h'); if(c&&b){ if(h)h.style.display='none'; c.classList.add('show'); b.innerHTML='<div style="display:flex;align-items:center;gap:9px;font-weight:700"><span class="spin"></span> Processing your list…</div>'; } }
+function hideCaption(){ var c=$('top-caption'); if(c){ c.classList.remove('show'); var b=$('top-caption-body'); if(b)b.innerHTML=''; } }
+function setStatus(html){ var s=$('voice-status'); if(s) s.innerHTML=html; }
 
-// live transcription path (Chrome/Android/desktop)
+// live transcription path (Chrome / Android / desktop)
 function startSR(){
-  var r;
-  try{ r=new SR(); }catch(e){ startWav(); return; }
+  var r; try{ r=new SR(); }catch(e){ startWav(); return; }
   r.continuous=true; r.interimResults=true; r.lang='en-US';
-  voice.finalText=''; voice.stopping=false;
+  voice.committed=''; voice.stopping=false; voice.mode='sr';
   r.onresult=function(e){
-    var fin='', interim='';
-    for(var i=0;i<e.results.length;i++){ var t=e.results[i][0].transcript; if(e.results[i].isFinal) fin+=t+' '; else interim+=t; }
-    voice.finalText=fin.trim();
-    showCaption(esc(voice.finalText)+(interim?' <span class="interim">'+esc(interim)+'</span>':''));
+    var interim='';
+    for(var i=e.resultIndex; i<e.results.length; i++){
+      var res=e.results[i];
+      if(res.isFinal) voice.committed += res[0].transcript + ' ';
+      else interim += res[0].transcript;
+    }
+    var done=voice.committed.trim();
+    showCaption((done?esc(done):'') + (interim?(done?' ':'')+'<span class="interim">'+esc(interim)+'</span>':'') || '<span class="interim">Listening…</span>');
   };
   r.onerror=function(ev){ if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){ toast('Microphone access denied', true); cleanupVoice(); } };
-  r.onend=function(){ if(voice.active||voice.stopping) finalizeSR(); };
+  // KEY: a pause auto-ends the engine. If the user has NOT tapped stop, restart it
+  // so we keep listening through pauses and only process on the next mic tap.
+  r.onend=function(){
+    if(voice.stopping){ finalizeSR(); }
+    else if(voice.active){ try{ r.start(); }catch(e){ setTimeout(function(){ if(voice.active){ try{ r.start(); }catch(_){ } } },300); } }
+  };
   try{ r.start(); }catch(e){ startWav(); return; }
   voice.recog=r; voice.active=true; setMicUI(true);
-  $('voice-status').textContent='Listening… tap to stop';
+  $('voice-status').textContent='Listening… tap to stop & process';
   showCaption('<span class="interim">Listening…</span>');
 }
 function finalizeSR(){
   if(voice.busy) return;
   voice.active=false; voice.stopping=false; setMicUI(false);
-  var text=(voice.finalText||'').trim();
-  hideCaption();
-  if(!text){ $('voice-status').textContent=''; return; }
-  $('voice-status').innerHTML='<span class="spin"></span> Processing…'; voice.busy=true;
-  sendToAI({ transcript:text }).then(function(){ voice.busy=false; });
+  var text=(voice.committed||'').trim();
+  if(!text){ hideCaption(); $('voice-status').textContent=''; return; }
+  handleVoiceText(text);
 }
 function stopVoice(){
-  if(voice.recog){ voice.stopping=true; voice.active=false; try{ voice.recog.stop(); }catch(e){ finalizeSR(); } return; }
+  if(voice.recog && voice.mode==='sr'){ voice.stopping=true; voice.active=false; try{ voice.recog.stop(); }catch(e){ finalizeSR(); } return; }
   if(voice.ctx){ stopWav(); }
 }
 function cleanupVoice(){ voice.active=false; voice.stopping=false; setMicUI(false); hideCaption(); $('voice-status').textContent=''; }
@@ -742,32 +751,44 @@ async function startWav(){
   catch(e){ toast('Microphone access denied', true); return; }
   var AC = window.AudioContext || window.webkitAudioContext; voice.ctx = new AC();
   voice.sampleRate = voice.ctx.sampleRate; voice.src = voice.ctx.createMediaStreamSource(voice.stream);
-  voice.proc = voice.ctx.createScriptProcessor(4096,1,1); voice.buffers=[];
+  voice.proc = voice.ctx.createScriptProcessor(4096,1,1); voice.buffers=[]; voice.mode='wav';
   voice.proc.onaudioprocess=function(e){ voice.buffers.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
   voice.src.connect(voice.proc); voice.proc.connect(voice.ctx.destination);
   voice.active=true; setMicUI(true);
-  $('voice-status').textContent='Listening… tap to stop';
-  showCaption('<span class="interim">🎙 Recording… tap mic to finish</span>');
+  $('voice-status').textContent='Recording… tap to stop & process';
+  showCaption('<span class="interim">🎙 Recording… tap the mic to finish &amp; process</span>');
 }
 async function stopWav(){
-  voice.active=false; setMicUI(false); hideCaption();
+  voice.active=false; setMicUI(false);
   try{ voice.proc && voice.proc.disconnect(); voice.src && voice.src.disconnect(); }catch(e){}
   try{ voice.stream && voice.stream.getTracks().forEach(function(t){t.stop();}); }catch(e){}
   var sr=voice.sampleRate, buffers=voice.buffers.slice(); try{ voice.ctx && voice.ctx.close(); }catch(e){} voice.ctx=null; voice.buffers=[];
-  $('voice-status').innerHTML='<span class="spin"></span> Processing…'; voice.busy=true;
+  showProcessing(); setStatus('<span class="spin"></span> Processing…'); voice.busy=true;
   try{
     var wav=encodeWav(buffers, sr, 16000);
     if(wav.byteLength<1600) throw new Error('too short');
     var b64=await blobToB64(new Blob([wav]));
     await sendToAI({ audio:b64, mimeType:'audio/wav' });
   }catch(err){ toast(err.message==='too short'?'Didn\'t catch that — try again':'Voice failed — try again', true); $('voice-status').textContent=''; }
-  voice.busy=false;
+  hideCaption(); voice.busy=false;
 }
-async function sendText(){
+// text commands (inline box + floating box)
+function sendText(){ doTypedSend($('voice-text')); }
+function sendFloatText(){ doTypedSend($('float-text')); }
+function doTypedSend(ta){
   var l=curList(); if(!l){ toast('Open or create a list first'); return; }
-  var ta=$('voice-text'); var t=(ta.value||'').trim(); if(!t) return;
-  ta.value=''; autoGrow(ta); $('voice-status').innerHTML='<span class="spin"></span> Processing…';
-  await sendToAI({ transcript:t });
+  if(!ta) return; var t=(ta.value||'').trim(); if(!t) return;
+  ta.value=''; if(ta.tagName==='TEXTAREA') autoGrow(ta);
+  handleVoiceText(t);
+}
+// shared: undo intent → undo; otherwise send to AI
+function handleVoiceText(text){
+  if(isUndoCommand(text)){ hideCaption(); undoLast(); return; }
+  showProcessing(); setStatus('<span class="spin"></span> Processing…'); voice.busy=true;
+  sendToAI({ transcript:text }).then(function(){ hideCaption(); voice.busy=false; });
+}
+function isUndoCommand(t){
+  return /^\s*(please\s+)?(undo( that| last| it)?|revert( that)?|go back|put (it|that|them) back|bring (it|that|them) back|never\s?mind|that was a mistake)\s*[.!?]?\s*$/i.test(t);
 }
 async function sendToAI(payloadExtra){
   var l=curList(); if(!l) return;
@@ -775,11 +796,13 @@ async function sendToAI(payloadExtra){
     var body=Object.assign({ profile:activeProfile, mode:'edit', items:l.items||[], stores:l.stores||[] }, payloadExtra);
     var r=await fetch(API+'/parse',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     var d=await r.json();
-    if(d.ok && Array.isArray(d.items)){ applyParsed(l, d.items); $('voice-status').textContent=''; toast('List updated'); }
+    if(d.ok && Array.isArray(d.items)){ applyParsed(l, d); $('voice-status').textContent=''; toast('List updated'); }
     else { toast(d.error||'Could not understand', true); $('voice-status').textContent=''; }
   }catch(e){ toast('Network error', true); $('voice-status').textContent=''; }
 }
-function applyParsed(l, parsed){
+function applyParsed(l, d){
+  pushUndo(l);
+  var parsed=d.items||[];
   var byName={}; (l.items||[]).forEach(function(it){ byName[it.name.toLowerCase()]=it; });
   l.items = parsed.map(function(p){
     var prev=byName[(p.name||'').toLowerCase()];
@@ -787,8 +810,22 @@ function applyParsed(l, parsed){
              done: (typeof p.done==='boolean')?p.done:(prev?prev.done:false) };
   }).filter(function(x){return x.name;});
   l.stores=l.stores||[];
-  l.items.forEach(function(it){ if(it.store && l.stores.map(function(s){return s.toLowerCase();}).indexOf(it.store.toLowerCase())<0) l.stores.push(it.store); });
+  // merge stores the AI returned (lets voice/text manage stores even with no items)
+  function addStoreName(s){ if(s && l.stores.map(function(x){return x.toLowerCase();}).indexOf(String(s).toLowerCase())<0) l.stores.push(String(s)); }
+  (d.stores||[]).forEach(addStoreName);
+  l.items.forEach(function(it){ addStoreName(it.store); });
   persist(); render();
+}
+
+// ── undo ──
+var undoStack={};
+function pushUndo(l){ if(!l) return; var s={ items:JSON.parse(JSON.stringify(l.items||[])), stores:JSON.parse(JSON.stringify(l.stores||[])) };
+  (undoStack[l.id]=undoStack[l.id]||[]).push(s); if(undoStack[l.id].length>25) undoStack[l.id].shift(); }
+function undoAvailable(){ var l=curList(); return !!(l && undoStack[l.id] && undoStack[l.id].length); }
+function undoLast(){
+  var l=curList(); if(!l) return; var st=undoStack[l.id];
+  if(!st || !st.length){ toast('Nothing to undo'); return; }
+  var snap=st.pop(); l.items=snap.items; l.stores=snap.stores; editingItemId=null; persist(); render(); toast('Undone ✓');
 }
 function blobToB64(blob){ return new Promise(function(res,rej){ var r=new FileReader(); r.onloadend=function(){ res(String(r.result).split(',')[1]); }; r.onerror=rej; r.readAsDataURL(blob); }); }
 function encodeWav(buffers, inRate, outRate){
