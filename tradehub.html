@@ -2041,41 +2041,43 @@ function tbRealizedFromHistory(history){
 /* ══ US Market Clock (NYSE/Nasdaq) ══════════════════════════════════════════
    Computed entirely client-side in true Eastern Time — a live open/closed clock
    shouldn't round-trip an API every second, and this keeps working even if the
-   Webull token is expired. Holidays are a maintained static list. ── */
-// ⚠ KEEP IN SYNC with MKT_HOLIDAYS / MKT_HALFDAYS / MKT_CAL_THROUGH in
-//   workers/newshub-api/worker.js. Coverage runs through TB_MKT_CAL_THROUGH;
-//   the market clock shows an update reminder as that date approaches.
-const TB_MKT_HOLIDAYS={
-  // 2026
-  '2026-01-01':"New Year's Day",'2026-01-19':'MLK Jr. Day','2026-02-16':"Presidents' Day",
-  '2026-04-03':'Good Friday','2026-05-25':'Memorial Day','2026-06-19':'Juneteenth',
-  '2026-07-03':'Independence Day','2026-09-07':'Labor Day','2026-11-26':'Thanksgiving Day','2026-12-25':'Christmas Day',
-  // 2027
-  '2027-01-01':"New Year's Day",'2027-01-18':'MLK Jr. Day','2027-02-15':"Presidents' Day",
-  '2027-03-26':'Good Friday','2027-05-31':'Memorial Day','2027-06-18':'Juneteenth',
-  '2027-07-05':'Independence Day','2027-09-06':'Labor Day','2027-11-25':'Thanksgiving Day','2027-12-24':'Christmas Day',
-  // 2028 — New Year falls on a Saturday, so NYSE does not observe it
-  '2028-01-17':'MLK Jr. Day','2028-02-21':"Presidents' Day",'2028-04-14':'Good Friday',
-  '2028-05-29':'Memorial Day','2028-06-19':'Juneteenth','2028-07-04':'Independence Day',
-  '2028-09-04':'Labor Day','2028-11-23':'Thanksgiving Day','2028-12-25':'Christmas Day',
-  // 2029
-  '2029-01-01':"New Year's Day",'2029-01-15':'MLK Jr. Day','2029-02-19':"Presidents' Day",
-  '2029-03-30':'Good Friday','2029-05-28':'Memorial Day','2029-06-19':'Juneteenth',
-  '2029-07-04':'Independence Day','2029-09-03':'Labor Day','2029-11-22':'Thanksgiving Day','2029-12-25':'Christmas Day',
-};
-// Early closes — regular session ends 1:00 PM ET.
-const TB_MKT_HALFDAYS={
-  '2026-11-27':'Day after Thanksgiving','2026-12-24':'Christmas Eve',
-  '2027-11-26':'Day after Thanksgiving',
-  '2028-07-03':'Independence Day Eve','2028-11-24':'Day after Thanksgiving',
-  '2029-07-03':'Independence Day Eve','2029-11-23':'Day after Thanksgiving','2029-12-24':'Christmas Eve',
-};
-// Last date the holiday tables cover. KEEP IN SYNC with the newshub worker.
-const TB_MKT_CAL_THROUGH='2029-12-31';
+   Webull token is expired. Holidays are COMPUTED from NYSE rules, so the
+   calendar is correct for any year and never needs manual updating. ── */
+// Holiday/half-day rules: nth-weekday-of-month, Easter computus for Good Friday,
+// and Sat→Fri / Sun→Mon observance (New Year is NOT observed when it lands on a
+// Saturday). Mirror of the same logic in workers/newshub-api/worker.js.
+function tbMktDow(y,m,d){return new Date(Date.UTC(y,m-1,d)).getUTCDay();}
+function tbMktNthDow(y,m,wd,n){let c=0;for(let d=1;d<=31;d++){if(tbMktDow(y,m,d)===wd&&++c===n)return d;}return null;}
+function tbMktLastDow(y,m,wd){const dim=new Date(Date.UTC(y,m,0)).getUTCDate();for(let d=dim;d>=1;d--)if(tbMktDow(y,m,d)===wd)return d;}
+function tbMktIso(y,m,d){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function tbMktEaster(Y){const a=Y%19,b=Math.floor(Y/100),c=Y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);return [Math.floor((h+l-7*m+114)/31),((h+l-7*m+114)%31)+1];}
+function tbMktObserve(y,m,d,isNY){const w=tbMktDow(y,m,d);if(w===6)return isNY?null:tbMktIso(y,m,d-1);if(w===0)return tbMktIso(y,m,d+1);return tbMktIso(y,m,d);}
+function tbMktComputeYear(Y){
+  const H={},HD={};
+  const ny=tbMktObserve(Y,1,1,true); if(ny)H[ny]="New Year's Day";
+  H[tbMktIso(Y,1,tbMktNthDow(Y,1,1,3))]='MLK Jr. Day';
+  H[tbMktIso(Y,2,tbMktNthDow(Y,2,1,3))]="Presidents' Day";
+  const [em,ed]=tbMktEaster(Y); const gf=new Date(Date.UTC(Y,em-1,ed)); gf.setUTCDate(gf.getUTCDate()-2);
+  H[tbMktIso(gf.getUTCFullYear(),gf.getUTCMonth()+1,gf.getUTCDate())]='Good Friday';
+  H[tbMktIso(Y,5,tbMktLastDow(Y,5,1))]='Memorial Day';
+  if(Y>=2022)H[tbMktObserve(Y,6,19,false)]='Juneteenth';
+  H[tbMktObserve(Y,7,4,false)]='Independence Day';
+  H[tbMktIso(Y,9,tbMktNthDow(Y,9,1,1))]='Labor Day';
+  const tg=tbMktNthDow(Y,11,4,4); H[tbMktIso(Y,11,tg)]='Thanksgiving Day';
+  const xm=tbMktObserve(Y,12,25,false); H[xm]='Christmas Day';
+  HD[tbMktIso(Y,11,tg+1)]='Day after Thanksgiving';
+  const j4=tbMktDow(Y,7,4); if(j4>=2&&j4<=5)HD[tbMktIso(Y,7,3)]='Independence Day Eve';
+  const d24=tbMktDow(Y,12,24); if(d24>=1&&d24<=5&&xm!==tbMktIso(Y,12,24))HD[tbMktIso(Y,12,24)]='Christmas Eve';
+  return {H,HD};
+}
+const _tbMktHolCache={};
+function tbMktHolYear(Y){return _tbMktHolCache[Y]||(_tbMktHolCache[Y]=tbMktComputeYear(Y));}
+function tbMktHolidayName(ds){return tbMktHolYear(+ds.slice(0,4)).H[ds]||null;}
+function tbMktHalfdayName(ds){return tbMktHolYear(+ds.slice(0,4)).HD[ds]||null;}
 
 function tbMktDateAdd(s,n){const[Y,M,D]=s.split('-').map(Number);const d=new Date(Date.UTC(Y,M-1,D));d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 function tbMktWeekday(s){const[Y,M,D]=s.split('-').map(Number);return new Date(Date.UTC(Y,M-1,D)).getUTCDay();} // 0=Sun..6=Sat
-function tbMktIsTradingDay(s){const wd=tbMktWeekday(s);return wd!==0&&wd!==6&&!TB_MKT_HOLIDAYS[s];}
+function tbMktIsTradingDay(s){const wd=tbMktWeekday(s);return wd!==0&&wd!==6&&!tbMktHolidayName(s);}
 function tbMktNextTradingDay(s,incl){let d=incl?s:tbMktDateAdd(s,1);for(let i=0;i<14;i++){if(tbMktIsTradingDay(d))return d;d=tbMktDateAdd(d,1);}return d;}
 // Wall-clock parts in America/New_York for a given Date.
 function tbNyParts(date){const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(date).reduce((a,x)=>{a[x.type]=x.value;return a},{});let hh=+p.hour;if(hh===24)hh=0;return{dateStr:`${p.year}-${p.month}-${p.day}`,hh,mm:+p.minute,ss:+p.second};}
