@@ -970,7 +970,14 @@ function encodeWav(buffers, inRate, outRate){
 }
 
 // ── textarea auto-grow + drag resize ──
-function autoGrow(ta){ if(!ta) return; if(ta.dataset.manual==='1') return; ta.style.height='auto'; ta.style.height=Math.min(Math.max(ta.scrollHeight,44),420)+'px'; }
+function autoGrow(ta){
+  if(!ta) return; if(ta.dataset.manual==='1') return;
+  var maxH=parseInt(getComputedStyle(ta).maxHeight,10); if(!maxH || isNaN(maxH)) maxH=420;
+  ta.style.height='auto';
+  var h=Math.min(Math.max(ta.scrollHeight,44),maxH);
+  ta.style.height=h+'px';
+  ta.style.overflowY = (ta.scrollHeight>maxH) ? 'auto' : 'hidden';
+}
 var dragTA=null, dragStartY=0, dragStartH=0;
 document.addEventListener('pointerdown', function(e){
   var grip=e.target.closest && e.target.closest('.resize-grip'); if(!grip) return;
@@ -998,9 +1005,12 @@ var GRIP='<div class="resize-grip"><svg viewBox="0 0 24 24" fill="none" stroke="
 function render(){
   if(!activeProfile) return;
   updateLockBtn(); renderListsBar();
+  $('float-voice').classList.add('show'); // bar is always available within a profile
   var l=curList(); var v=$('list-view');
   if(!l){
-    v.innerHTML='<div class="card"><div class="empty">No lists yet.<br><br><button class="btn solid" onclick="ML.addList()">+ Create your first list</button></div></div>';
+    v.innerHTML='<div class="card"><div class="empty">No lists yet.<br><br>'
+      +'Tap the <b>mic</b> or type in the bar below and just say what you need — the AI will create your list for you.<br><br>'
+      +'<button class="btn solid" onclick="ML.addList()">+ Create a blank list</button></div></div>';
     updateSelBar(); return;
   }
   localStorage.setItem('ml_last_list_'+activeProfile,l.id);
@@ -1014,21 +1024,6 @@ function render(){
   h+='<div class="list-meta">'+items.length+' item'+(items.length!==1?'s':'')+' · '+doneCount+' done'
     +(doneCount?' · <span class="lnk" onclick="ML.clearDone()">clear completed</span>':'')+'</div>';
   h+='</div>';
-
-  // VOICE (focus)
-  h+='<div class="card" id="voice-card">'
-    +'<div class="voice-title">Voice</div>'
-    +'<div id="voice-wrap">'
-    +'<button id="mic-btn" onclick="ML.micTap()" aria-label="Voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>'
-    +'<div id="voice-status"></div>'
-    +'<div class="voice-help"><b>Say or type — the AI auto-processes and builds your list.</b> It splits items, catches quantities &amp; brands, '
-      +'routes things to <b>specific stores</b> (e.g. “2 milk and bread from King Soopers, a laptop from Best Buy”), and can add, edit, or remove anything. Say “undo” to revert the last change.</div>'
-    +'<div class="voice-or">OR TYPE</div>'
-    +'<div style="display:flex;gap:8px;width:100%;max-width:460px;align-items:flex-start">'
-      +'<div class="ta-wrap"><textarea id="voice-text" rows="1" placeholder="Type what you need…" oninput="ML.autoGrow(this)" onkeydown="if(event.key===\'Enter\'&&(event.metaKey||event.ctrlKey)){ML.sendText();}"></textarea>'+GRIP+'</div>'
-      +'<button class="btn solid" style="height:46px" onclick="ML.sendText()">Go</button>'
-    +'</div>'
-  +'</div></div>';
 
   // MANUAL (collapsible) — stores + add item together
   h+='<div class="manual-toggle'+(manualOpen?' open':'')+'" onclick="ML.toggleManual()">'
@@ -1054,31 +1049,19 @@ function render(){
   +'</div></div>';
   h+='</div>';
 
-  // items header + undo + select toggle
+  // items header + undo/redo + select toggle
   h+='<div class="items-head"><span class="ih-title">Items</span><span class="sp"></span>';
-  if(undoAvailable()) h+='<button class="btn ghost sm" onclick="ML.undoLast()">↶ Undo</button>';
+  if(undoAvailable()) h+='<button class="btn ghost sm" onclick="ML.undoLast()" title="Undo">↶ Undo</button>';
+  if(redoAvailable()) h+='<button class="btn ghost sm" onclick="ML.redoLast()" title="Redo">↷ Redo</button>';
   if(items.length){ h+='<button class="btn ghost sm" onclick="ML.toggleSelectMode()">'+(selectMode?'Done':'Select')+'</button>'; }
   h+='</div>';
   h+='<div>'+renderItems(l)+'</div>';
 
   v.innerHTML=h;
   // restore auto-grow heights
-  ['voice-text','add-desc'].forEach(function(id){ autoGrow($(id)); });
+  autoGrow($('add-desc'));
   if(editingItemId) autoGrow($('edit-desc-'+editingItemId));
-  updateSelBar(); observeMic();
-}
-// show the floating voice bar whenever the big mic is scrolled out of view
-var micObserver=null;
-function observeMic(){
-  if(!('IntersectionObserver' in window)) return;
-  if(micObserver){ micObserver.disconnect(); micObserver=null; }
-  var mic=$('mic-btn'); var fv=$('float-voice');
-  if(!mic || !activeProfile || !curList()){ if(fv) fv.classList.remove('show'); return; }
-  micObserver=new IntersectionObserver(function(entries){
-    var vis=entries[0].isIntersecting;
-    if(vis) fv.classList.remove('show'); else fv.classList.add('show');
-  }, {threshold:0.15});
-  micObserver.observe(mic);
+  updateSelBar();
 }
 function storeSelectInner(id, sel){
   var l=curList(); var stores=(l&&l.stores)||[]; if(!stores.length) return '';
@@ -1088,7 +1071,7 @@ function storeSelectInner(id, sel){
 }
 function renderItems(l){
   var items=l.items||[]; var stores=l.stores||[];
-  if(!items.length) return '<div class="card"><div class="empty">No items yet. Use the mic 🎤 above or open <b>Manual</b> to add.</div></div>';
+  if(!items.length) return '<div class="card"><div class="empty">No items yet. Tap the mic or type in the bar at the bottom, or open <b>Manual</b> to add them by hand.</div></div>';
   if(stores.length){
     var groups=[]; stores.forEach(function(s){ groups.push({name:s, items:items.filter(function(x){return x.store===s;})}); });
     var other=items.filter(function(x){return !x.store || stores.indexOf(x.store)<0;});
