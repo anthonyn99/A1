@@ -1227,50 +1227,53 @@ Use the real published schedule. If unsure of an exact date, omit that item. Dat
   return [];
 }
 
-// ── US market holidays (NYSE/Nasdaq) ─────────────────────────────────────────
-// Full closures + half-days (1 PM ET early close). Surfaced as calendar events so
-// the Catalysts tab + both TaskHubs show which days the market is closed and why.
-// ⚠ KEEP IN SYNC with TB_MKT_HOLIDAYS / TB_MKT_HALFDAYS / TB_MKT_CAL_THROUGH in
-//   tradehub.html. Coverage runs through MKT_CAL_THROUGH; TradeHub shows an
-//   update reminder as that date approaches.
-const MKT_HOLIDAYS = {
-  // 2026
-  '2026-01-01':"New Year's Day",'2026-01-19':'MLK Jr. Day','2026-02-16':"Presidents' Day",
-  '2026-04-03':'Good Friday','2026-05-25':'Memorial Day','2026-06-19':'Juneteenth',
-  '2026-07-03':'Independence Day','2026-09-07':'Labor Day','2026-11-26':'Thanksgiving Day','2026-12-25':'Christmas Day',
-  // 2027
-  '2027-01-01':"New Year's Day",'2027-01-18':'MLK Jr. Day','2027-02-15':"Presidents' Day",
-  '2027-03-26':'Good Friday','2027-05-31':'Memorial Day','2027-06-18':'Juneteenth',
-  '2027-07-05':'Independence Day','2027-09-06':'Labor Day','2027-11-25':'Thanksgiving Day','2027-12-24':'Christmas Day',
-  // 2028 — New Year falls on a Saturday, so NYSE does not observe it
-  '2028-01-17':'MLK Jr. Day','2028-02-21':"Presidents' Day",'2028-04-14':'Good Friday',
-  '2028-05-29':'Memorial Day','2028-06-19':'Juneteenth','2028-07-04':'Independence Day',
-  '2028-09-04':'Labor Day','2028-11-23':'Thanksgiving Day','2028-12-25':'Christmas Day',
-  // 2029
-  '2029-01-01':"New Year's Day",'2029-01-15':'MLK Jr. Day','2029-02-19':"Presidents' Day",
-  '2029-03-30':'Good Friday','2029-05-28':'Memorial Day','2029-06-19':'Juneteenth',
-  '2029-07-04':'Independence Day','2029-09-03':'Labor Day','2029-11-22':'Thanksgiving Day','2029-12-25':'Christmas Day',
-};
-const MKT_HALFDAYS = {
-  '2026-11-27':'Day after Thanksgiving','2026-12-24':'Christmas Eve',
-  '2027-11-26':'Day after Thanksgiving',
-  '2028-07-03':'Independence Day Eve','2028-11-24':'Day after Thanksgiving',
-  '2029-07-03':'Independence Day Eve','2029-11-23':'Day after Thanksgiving','2029-12-24':'Christmas Eve',
-};
-// Last date the holiday tables cover. KEEP IN SYNC with tradehub.html.
-const MKT_CAL_THROUGH = '2029-12-31';
+// ── US market holidays (NYSE/Nasdaq) — COMPUTED, never needs updating ─────────
+// Full closures + half-days (1 PM ET early close), derived from NYSE rules:
+// nth-weekday-of-month, Easter computus for Good Friday, and Sat→Fri / Sun→Mon
+// observance (New Year is NOT observed when it lands on a Saturday). Surfaced as
+// calendar events so Catalysts + both TaskHubs show which days the market is
+// closed and why. Mirror of the same logic in tradehub.html (market clock).
+function mktDow(y,m,d){return new Date(Date.UTC(y,m-1,d)).getUTCDay();}
+function mktNthDow(y,m,wd,n){let c=0;for(let d=1;d<=31;d++){if(mktDow(y,m,d)===wd&&++c===n)return d;}return null;}
+function mktLastDow(y,m,wd){const dim=new Date(Date.UTC(y,m,0)).getUTCDate();for(let d=dim;d>=1;d--)if(mktDow(y,m,d)===wd)return d;}
+function mktIso(y,m,d){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function mktEaster(Y){const a=Y%19,b=Math.floor(Y/100),c=Y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);return [Math.floor((h+l-7*m+114)/31),((h+l-7*m+114)%31)+1];}
+function mktObserve(y,m,d,isNY){const w=mktDow(y,m,d);if(w===6)return isNY?null:mktIso(y,m,d-1);if(w===0)return mktIso(y,m,d+1);return mktIso(y,m,d);}
+function mktComputeYear(Y){
+  const H={},HD={};
+  const ny=mktObserve(Y,1,1,true); if(ny)H[ny]="New Year's Day";
+  H[mktIso(Y,1,mktNthDow(Y,1,1,3))]='MLK Jr. Day';
+  H[mktIso(Y,2,mktNthDow(Y,2,1,3))]="Presidents' Day";
+  const [em,ed]=mktEaster(Y); const gf=new Date(Date.UTC(Y,em-1,ed)); gf.setUTCDate(gf.getUTCDate()-2);
+  H[mktIso(gf.getUTCFullYear(),gf.getUTCMonth()+1,gf.getUTCDate())]='Good Friday';
+  H[mktIso(Y,5,mktLastDow(Y,5,1))]='Memorial Day';
+  if(Y>=2022)H[mktObserve(Y,6,19,false)]='Juneteenth';
+  H[mktObserve(Y,7,4,false)]='Independence Day';
+  H[mktIso(Y,9,mktNthDow(Y,9,1,1))]='Labor Day';
+  const tg=mktNthDow(Y,11,4,4); H[mktIso(Y,11,tg)]='Thanksgiving Day';
+  const xm=mktObserve(Y,12,25,false); H[xm]='Christmas Day';
+  HD[mktIso(Y,11,tg+1)]='Day after Thanksgiving';
+  const j4=mktDow(Y,7,4); if(j4>=2&&j4<=5)HD[mktIso(Y,7,3)]='Independence Day Eve';
+  const d24=mktDow(Y,12,24); if(d24>=1&&d24<=5&&xm!==mktIso(Y,12,24))HD[mktIso(Y,12,24)]='Christmas Eve';
+  return {H,HD};
+}
+const _mktHolCache={};
+function mktHolYear(Y){return _mktHolCache[Y]||(_mktHolCache[Y]=mktComputeYear(Y));}
 
-// Holiday/half-day events within [fromD, toD] (inclusive). Kept in the same
-// window the calendar uses, so only the next ~30 days surface.
+// Holiday/half-day events within [fromD, toD] (inclusive). Computed across the
+// years the window spans, so only the next ~30 days surface.
 function marketHolidayEvents(fromD, toD, diag){
   const out = [];
-  for (const [date, name] of Object.entries(MKT_HOLIDAYS)){
-    if (date < fromD || date > toD) continue;
-    out.push({ kind:'holiday', ticker:null, category:'holiday', date, name:`${name} — Market Closed` });
-  }
-  for (const [date, name] of Object.entries(MKT_HALFDAYS)){
-    if (date < fromD || date > toD) continue;
-    out.push({ kind:'holiday', ticker:null, category:'holiday', date, name:`${name} — Early Close (1 PM ET)` });
+  for (let Y = +fromD.slice(0,4); Y <= +toD.slice(0,4); Y++){
+    const { H, HD } = mktHolYear(Y);
+    for (const [date, name] of Object.entries(H)){
+      if (date < fromD || date > toD) continue;
+      out.push({ kind:'holiday', ticker:null, category:'holiday', date, name:`${name} — Market Closed` });
+    }
+    for (const [date, name] of Object.entries(HD)){
+      if (date < fromD || date > toD) continue;
+      out.push({ kind:'holiday', ticker:null, category:'holiday', date, name:`${name} — Early Close (1 PM ET)` });
+    }
   }
   diag && diag.push('holidays: '+out.length+' in window');
   return out;

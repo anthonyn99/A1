@@ -4210,6 +4210,8 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
   },[]);
 
   const groups=useMemo(()=>{const g={};events.forEach(e=>{(g[e.date]=g[e.date]||[]).push(e);});return Object.keys(g).sort().map(d=>({date:d,items:g[d]}));},[events]);
+  // Years whose macro dates are AI-estimated (official schedule not yet hardcoded).
+  const approxYears=useMemo(()=>[...new Set(events.filter(e=>e&&e.approx).map(e=>String(e.date).slice(0,4)))].sort(),[events]);
 
   return (<div className="tb-fade-in" style={{maxWidth:1100,margin:'0 auto'}}>
     <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:8}}>
@@ -4224,6 +4226,9 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
     </div>
     {notice&&<div className="tb-card" style={{marginBottom:12,fontSize:12,color:'var(--txm)'}}>{notice}</div>}
     {lastSync&&<div style={{fontSize:11,color:'var(--txm)',marginBottom:10}}>Last updated {new Date(lastSync).toLocaleString()}</div>}
+    {approxYears.length>0&&<div className="tb-card" style={{marginBottom:12,padding:'10px 14px',borderLeft:'3px solid #d29922',fontSize:12,color:'var(--txd)',lineHeight:1.55}}>
+      <b style={{color:'#d29922'}}>⚠ AI-estimated dates</b> — official macro release schedules for {approxYears.join(', ')} aren't published yet, so events tagged <b>(approx)</b> are AI-estimated and may shift a day or two. Earnings and market holidays are exact.
+    </div>}
     {groups.length===0&&!loading&&<div className="tb-card" style={{textAlign:'center',color:'var(--txm)',padding:'32px 16px'}}>No catalysts yet — hit Refresh.</div>}
     {groups.map(g=>(<div key={g.date} className="tb-card" style={{marginBottom:10,padding:'12px 16px'}}>
       <div style={{fontSize:12,fontWeight:700,color:'var(--txd)',marginBottom:6}}>{new Date(g.date+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</div>
