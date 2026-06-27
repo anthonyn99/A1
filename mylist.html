@@ -267,6 +267,48 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 #lock-row{display:flex;gap:8px;} #lock-row .btn{flex:1;justify-content:center;}
 #lock-forgot{background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;cursor:pointer;margin-top:12px;font-family:var(--font-btn);}
 
+/* ── View switcher (Lists | Recipes) ── */
+#view-switch{display:flex;gap:5px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:26px;padding:5px;}
+#view-switch button{flex:1;border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:13px;font-family:var(--font-btn);padding:10px 12px;border-radius:22px;cursor:pointer;transition:all .15s;text-transform:var(--head-transform);letter-spacing:var(--head-spacing);}
+#view-switch button.on{background:var(--accent);color:var(--accent-ink);}
+
+/* ── Recipes ── */
+.rec-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.rec-toolbar .rec-search{flex:1;min-width:150px;}
+.rec-toolbar .rec-filter{width:auto;min-width:140px;flex-shrink:0;}
+.rec-row{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s;}
+.rec-row:hover{border-color:var(--border2);}
+.rec-row .rec-info{flex:1;min-width:0;}
+.rec-row .rec-name{font-family:var(--font-head);font-weight:700;font-size:16px;color:var(--text);word-break:break-word;}
+.rec-row .rec-meta{font-size:12px;color:var(--textdim);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap;}
+.rec-tag{font-size:10px;font-weight:800;padding:4px 11px;border-radius:20px;letter-spacing:.4px;white-space:nowrap;font-family:var(--font-btn);}
+.rec-tag.time{background:var(--surface2);border:1px solid var(--border2);color:var(--textdim);}
+.rec-row .rec-acts{display:flex;gap:4px;flex-shrink:0;}
+.rec-row .rec-acts .ib{width:32px;height:32px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--textmute);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.rec-row .rec-acts .ib:hover{color:var(--accent);border-color:var(--border);}
+.rec-row .rec-acts .ib.del:hover{color:var(--bad);border-color:rgba(212,122,106,.4);}
+.rec-detail-name{font-family:var(--font-head);font-weight:var(--head-weight);font-size:25px;letter-spacing:var(--head-spacing);color:var(--text);margin-bottom:10px;word-break:break-word;}
+.rec-detail-tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+.rec-sec{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin:20px 0 10px;font-family:var(--font-btn);}
+.rec-ing{display:flex;justify-content:space-between;gap:12px;padding:9px 2px;border-bottom:1px solid var(--border);}
+.rec-ing .nm{color:var(--text);font-weight:600;font-size:14px;}
+.rec-ing .qt{color:var(--accent);font-weight:700;font-size:13px;white-space:nowrap;}
+.rec-tools{display:flex;gap:8px;flex-wrap:wrap;}
+.rec-tool{background:var(--surface2);border:1px solid var(--border2);border-radius:18px;padding:6px 13px;font-size:12.5px;color:var(--textdim);font-weight:600;}
+.rec-instr{white-space:pre-wrap;line-height:1.65;color:var(--text);font-size:14.5px;}
+.rec-muted{font-size:13px;color:var(--textmute);font-style:italic;}
+
+/* recipe modal */
+#rec-modal{position:fixed;inset:0;z-index:9700;display:none;align-items:flex-start;justify-content:center;background:rgba(8,8,11,.84);backdrop-filter:blur(6px);padding:max(env(safe-area-inset-top,0px),16px) 14px 24px;overflow-y:auto;}
+.rec-mbox{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:22px;margin:auto;}
+.rec-mbox h3{font-family:var(--font-head);font-weight:var(--head-weight);font-size:21px;margin-bottom:16px;letter-spacing:var(--head-spacing);text-transform:var(--head-transform);}
+.rec-ing-row{display:grid;grid-template-columns:1fr 92px 38px;gap:8px;margin-bottom:8px;}
+.rec-tool-row{display:grid;grid-template-columns:1fr 38px;gap:8px;margin-bottom:8px;}
+.rec-rm{border:1px solid var(--border2);background:transparent;color:var(--bad);border-radius:9px;cursor:pointer;font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+.rec-rm:hover{background:var(--bad);color:#fff;border-color:var(--bad);}
+.rec-addrow{background:transparent;border:1px dashed var(--border2);color:var(--accent);border-radius:9px;padding:9px;width:100%;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--font-btn);margin-top:4px;}
+.rec-addrow:hover{border-color:var(--accent);}
+
 /* ── Help / instructions modal ── */
 #help-overlay{position:fixed;inset:0;z-index:9750;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.84);backdrop-filter:blur(6px);padding:18px;}
 #help-box{width:100%;max-width:440px;max-height:86vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:24px 22px;}
@@ -360,6 +402,23 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
   <button class="btn ghost" onclick="ML.exitSelect()">Cancel</button>
   <button class="btn danger solid" onclick="ML.deleteSelected()">Delete</button>
 </div>
+
+<!-- recipe add/edit modal -->
+<div id="rec-modal"><div class="rec-mbox">
+  <h3 id="rec-modal-title">New Recipe</h3>
+  <label class="field" style="margin-bottom:12px"><span class="lbl">Recipe name *</span><input id="rec-name" placeholder="e.g. Chicken Stir Fry"></label>
+  <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <label class="field"><span class="lbl">Category</span><select id="rec-cat"><option>Breakfast</option><option>Lunch</option><option selected>Dinner</option><option>Snack</option><option>Dessert</option><option>Other</option></select></label>
+    <label class="field"><span class="lbl">Prep time</span><input id="rec-time" placeholder="e.g. 30 min"></label>
+  </div>
+  <div class="field" style="margin-bottom:12px"><span class="lbl">Ingredients</span><div id="rec-ing-rows"></div><button class="rec-addrow" onclick="ML.recAddIng()">+ Add ingredient</button></div>
+  <div class="field" style="margin-bottom:12px"><span class="lbl">Tools &amp; equipment</span><div id="rec-tool-rows"></div><button class="rec-addrow" onclick="ML.recAddTool()">+ Add tool</button></div>
+  <label class="field" style="margin-bottom:16px"><span class="lbl">Step-by-step instructions</span><div class="ta-wrap"><textarea id="rec-instr" rows="4" placeholder="Write out the steps clearly…" style="max-height:300px" oninput="ML.autoGrow(this)"></textarea><div class="resize-grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 18h8M11 22h5M15 14h1"/></svg></div></div></label>
+  <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+    <button class="btn ghost" onclick="ML.recCloseModal()">Cancel</button>
+    <button class="btn solid" onclick="ML.recSave()">Save recipe</button>
+  </div>
+</div></div>
 
 <!-- help / instructions modal -->
 <div id="help-overlay"><div id="help-box">
@@ -501,6 +560,12 @@ var manualOpen = false;
 var selectMode = false;
 var selected = {};
 var booted = false;
+// recipes (Tony only)
+var view = 'lists';              // 'lists' | 'recipes'
+var recipes = [];
+var recDetailId = null;
+var recEditingId = null;
+var recipesLoaded = false;
 
 function uid(){ return Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
 function $(id){ return document.getElementById(id); }
@@ -555,6 +620,7 @@ if(window._mlReady) boot();
 
 function boot(){
   if(booted) return; booted=true;
+  if(window._mlLoadRecipes){ window._mlLoadRecipes().then(function(r){ recipes=r||[]; recipesLoaded=true; if(activeProfile==='tony' && view==='recipes') render(); }); }
   window._mlLoad().then(function(d){
     if(d) applyRemote(d);
     setSync('ok'); refreshProfileScreen();
@@ -563,6 +629,10 @@ function boot(){
     maybeFirstRunHelp();
   });
 }
+window.addEventListener('ml-recipes-update', function(e){
+  recipes = Array.isArray(e.detail) ? e.detail : []; recipesLoaded=true;
+  if(activeProfile==='tony' && view==='recipes') render();
+});
 // ── help / instructions ──
 function showHelp(){ $('help-overlay').style.display='flex'; }
 function closeHelp(){ $('help-overlay').style.display='none'; try{ localStorage.setItem('ml_seen_help','1'); }catch(e){} }
