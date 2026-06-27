@@ -951,8 +951,9 @@ function render(){
   +'</div></div>';
   h+='</div>';
 
-  // items header + select toggle
+  // items header + undo + select toggle
   h+='<div class="items-head"><span class="ih-title">Items</span><span class="sp"></span>';
+  if(undoAvailable()) h+='<button class="btn ghost sm" onclick="ML.undoLast()">↶ Undo</button>';
   if(items.length){ h+='<button class="btn ghost sm" onclick="ML.toggleSelectMode()">'+(selectMode?'Done':'Select')+'</button>'; }
   h+='</div>';
   h+='<div>'+renderItems(l)+'</div>';
@@ -961,7 +962,20 @@ function render(){
   // restore auto-grow heights
   ['voice-text','add-desc'].forEach(function(id){ autoGrow($(id)); });
   if(editingItemId) autoGrow($('edit-desc-'+editingItemId));
-  updateSelBar();
+  updateSelBar(); observeMic();
+}
+// show the floating voice bar whenever the big mic is scrolled out of view
+var micObserver=null;
+function observeMic(){
+  if(!('IntersectionObserver' in window)) return;
+  if(micObserver){ micObserver.disconnect(); micObserver=null; }
+  var mic=$('mic-btn'); var fv=$('float-voice');
+  if(!mic || !activeProfile || !curList()){ if(fv) fv.classList.remove('show'); return; }
+  micObserver=new IntersectionObserver(function(entries){
+    var vis=entries[0].isIntersecting;
+    if(vis) fv.classList.remove('show'); else fv.classList.add('show');
+  }, {threshold:0.15});
+  micObserver.observe(mic);
 }
 function storeSelectInner(id, sel){
   var l=curList(); var stores=(l&&l.stores)||[]; if(!stores.length) return '';
