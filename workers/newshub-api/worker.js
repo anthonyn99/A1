@@ -1228,18 +1228,37 @@ Use the real published schedule. If unsure of an exact date, omit that item. Dat
 }
 
 // ── US market holidays (NYSE/Nasdaq) ─────────────────────────────────────────
-// Full closures + half-days (1 PM ET early close). Static table — top up for
-// 2028+. Surfaced as calendar events so the Catalysts tab + both TaskHubs show
-// which upcoming days the market is closed and why.
+// Full closures + half-days (1 PM ET early close). Surfaced as calendar events so
+// the Catalysts tab + both TaskHubs show which days the market is closed and why.
+// ⚠ KEEP IN SYNC with TB_MKT_HOLIDAYS / TB_MKT_HALFDAYS / TB_MKT_CAL_THROUGH in
+//   tradehub.html. Coverage runs through MKT_CAL_THROUGH; TradeHub shows an
+//   update reminder as that date approaches.
 const MKT_HOLIDAYS = {
+  // 2026
   '2026-01-01':"New Year's Day",'2026-01-19':'MLK Jr. Day','2026-02-16':"Presidents' Day",
   '2026-04-03':'Good Friday','2026-05-25':'Memorial Day','2026-06-19':'Juneteenth',
-  '2026-07-03':'Independence Day','2026-09-07':'Labor Day','2026-11-26':'Thanksgiving Day',
-  '2026-12-25':'Christmas Day',
+  '2026-07-03':'Independence Day','2026-09-07':'Labor Day','2026-11-26':'Thanksgiving Day','2026-12-25':'Christmas Day',
+  // 2027
   '2027-01-01':"New Year's Day",'2027-01-18':'MLK Jr. Day','2027-02-15':"Presidents' Day",
-  '2027-03-26':'Good Friday','2027-05-31':'Memorial Day',
+  '2027-03-26':'Good Friday','2027-05-31':'Memorial Day','2027-06-18':'Juneteenth',
+  '2027-07-05':'Independence Day','2027-09-06':'Labor Day','2027-11-25':'Thanksgiving Day','2027-12-24':'Christmas Day',
+  // 2028 — New Year falls on a Saturday, so NYSE does not observe it
+  '2028-01-17':'MLK Jr. Day','2028-02-21':"Presidents' Day",'2028-04-14':'Good Friday',
+  '2028-05-29':'Memorial Day','2028-06-19':'Juneteenth','2028-07-04':'Independence Day',
+  '2028-09-04':'Labor Day','2028-11-23':'Thanksgiving Day','2028-12-25':'Christmas Day',
+  // 2029
+  '2029-01-01':"New Year's Day",'2029-01-15':'MLK Jr. Day','2029-02-19':"Presidents' Day",
+  '2029-03-30':'Good Friday','2029-05-28':'Memorial Day','2029-06-19':'Juneteenth',
+  '2029-07-04':'Independence Day','2029-09-03':'Labor Day','2029-11-22':'Thanksgiving Day','2029-12-25':'Christmas Day',
 };
-const MKT_HALFDAYS = { '2026-11-27':'Day after Thanksgiving', '2026-12-24':'Christmas Eve' };
+const MKT_HALFDAYS = {
+  '2026-11-27':'Day after Thanksgiving','2026-12-24':'Christmas Eve',
+  '2027-11-26':'Day after Thanksgiving',
+  '2028-07-03':'Independence Day Eve','2028-11-24':'Day after Thanksgiving',
+  '2029-07-03':'Independence Day Eve','2029-11-23':'Day after Thanksgiving','2029-12-24':'Christmas Eve',
+};
+// Last date the holiday tables cover. KEEP IN SYNC with tradehub.html.
+const MKT_CAL_THROUGH = '2029-12-31';
 
 // Holiday/half-day events within [fromD, toD] (inclusive). Kept in the same
 // window the calendar uses, so only the next ~30 days surface.
