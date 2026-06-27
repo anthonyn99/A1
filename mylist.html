@@ -913,16 +913,16 @@ function render(){
   h+='</div>';
 
   // VOICE (focus)
-  h+='<div class="card" id="voice-card"><div id="voice-wrap">'
+  h+='<div class="card" id="voice-card">'
+    +'<div class="voice-title">Voice</div>'
+    +'<div id="voice-wrap">'
     +'<button id="mic-btn" onclick="ML.micTap()" aria-label="Voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>'
     +'<div id="voice-status"></div>'
-    +'<div id="live-caption"></div>'
-    +'<div class="voice-help"><b>Say or type</b> — the AI auto-processes and builds your list. '
-      +'It splits items, catches quantities &amp; brands, and you can <b>send things to specific stores</b> too '
-      +'(e.g. “2 milk and bread from King Soopers, a laptop from Best Buy”). Add, edit, or remove items by voice.</div>'
+    +'<div class="voice-help"><b>Say or type — the AI auto-processes and builds your list.</b> It splits items, catches quantities &amp; brands, '
+      +'routes things to <b>specific stores</b> (e.g. “2 milk and bread from King Soopers, a laptop from Best Buy”), and can add, edit, or remove anything. Say “undo” to revert the last change.</div>'
     +'<div class="voice-or">OR TYPE</div>'
     +'<div style="display:flex;gap:8px;width:100%;max-width:460px;align-items:flex-start">'
-      +'<div class="ta-wrap"><textarea id="voice-text" rows="1" placeholder="Type what you need… (e.g. add 2 eggs, remove milk, laptop from Best Buy)" oninput="ML.autoGrow(this)" onkeydown="if(event.key===\'Enter\'&&(event.metaKey||event.ctrlKey)){ML.sendText();}"></textarea>'+GRIP+'</div>'
+      +'<div class="ta-wrap"><textarea id="voice-text" rows="1" placeholder="Type what you need…" oninput="ML.autoGrow(this)" onkeydown="if(event.key===\'Enter\'&&(event.metaKey||event.ctrlKey)){ML.sendText();}"></textarea>'+GRIP+'</div>'
       +'<button class="btn solid" style="height:46px" onclick="ML.sendText()">Go</button>'
     +'</div>'
   +'</div></div>';
