@@ -1235,7 +1235,20 @@ function renderListsBar(){
 var GRIP='<div class="resize-grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 18h8M11 22h5M15 14h1"/></svg></div>';
 function render(){
   if(!activeProfile) return;
-  updateLockBtn(); renderListsBar();
+  updateLockBtn();
+  var isTony = activeProfile==='tony';
+  if(!isTony) view='lists';
+  renderViewSwitch(isTony);
+  // ── Recipes view (Tony only) ──
+  if(view==='recipes' && isTony){
+    $('lists-bar').style.display='none';
+    $('float-voice').classList.remove('show');
+    $('sel-bar').classList.remove('show');
+    $('list-view').innerHTML = renderRecipesView();
+    return;
+  }
+  $('lists-bar').style.display='';
+  renderListsBar();
   // voice/type bar is available within a profile, but hidden during Select mode
   $('float-voice').classList.toggle('show', !selectMode);
   var l=curList(); var v=$('list-view');
