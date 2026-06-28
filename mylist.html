@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MyList">
 <link rel="manifest" href="data:application/json,{%22name%22:%22MyList%22,%22short_name%22:%22MyList%22,%22display%22:%22standalone%22,%22id%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22start_url%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22scope%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22background_color%22:%22%230f0f12%22,%22theme_color%22:%22%23E0607A%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A//www.w3.org/2000/svg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%23E0607A'/%3E%3Ctext%20x%3D'50%25'%20y%3D'68%25'%20text-anchor%3D'middle'%20font-size%3D'52'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;}
@@ -37,10 +37,17 @@ body[data-profile=veda]{
   --text:#e9e7ec; --textdim:#9b96a3; --textmute:#615f6a;
   --accent:#8D769A; --accent-ink:#1B1C1E; --accent-soft:rgba(141,118,154,0.16);
   --good:#8fae8a; --bad:#c98a7d;
-  --font-body:'IBM Plex Mono',monospace; --font-head:'Playfair Display',serif; --font-btn:'IBM Plex Mono',monospace;
-  --head-weight:900; --head-spacing:1px; --head-transform:uppercase;
-  --radius:8px;
+  /* StudyOS-style elegance: Lora serif for text & headings, mono only for small labels/buttons */
+  --font-body:'Lora',serif; --font-head:'Lora',serif; --font-btn:'IBM Plex Mono',monospace;
+  --head-weight:700; --head-spacing:-0.2px; --head-transform:none;
+  --radius:10px;
 }
+body[data-profile=veda] .item .nm,
+body[data-profile=veda] .rec-row .rec-name,
+body[data-profile=veda] .rec-detail-name,
+body[data-profile=veda] .list-head .ttl{font-family:'Lora',serif;letter-spacing:-0.2px;}
+body[data-profile=veda] .item .desc{font-style:italic;}
+body[data-profile=veda] input,body[data-profile=veda] textarea{font-family:'Lora',serif;}
 button,input,select,textarea{font-family:var(--font-body);color:var(--text);}
 input,textarea,select{background:var(--surface2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px 12px;font-size:15px;outline:none;width:100%;}
 input:focus,textarea:focus,select:focus{border-color:var(--accent);}
