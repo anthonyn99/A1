@@ -2,11 +2,14 @@ name = "trade-dashboard"
 main = "worker.js"
 compatibility_date = "2026-01-01"
 
-# 6am-ET MacroBoard pre-build so it's ready before the user opens TradeHub on any
-# device. 09:30 UTC = 05:30 EDT / 04:30 EST — always before 6am ET. Days 1-5 = Mon-Fri.
+# MacroBoard pre-build, ready by 6am MOUNTAIN time (kicks off 5:30 MT). Cloudflare crons
+# are UTC-only and the MT offset shifts with DST, so we register BOTH offsets:
+#   11:30 UTC = 05:30 MDT (summer)   |   12:30 UTC = 05:30 MST (winter)
+# scheduled() runs only when it's hour 5 in America/Denver, so the off-DST fire is a
+# no-op → exactly one build/day at 5:30 MT year-round. Days 1-5 = Mon-Fri.
 # Market holidays are skipped inside scheduled() (US_MARKET_HOLIDAYS).
 [triggers]
-crons = ["30 9 * * 1-5"]
+crons = ["30 11 * * 1-5", "30 12 * * 1-5"]
 
 [[kv_namespaces]]
 binding = "TD_KV"

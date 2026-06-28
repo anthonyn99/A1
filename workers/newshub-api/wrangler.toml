@@ -2,13 +2,16 @@ name = "newshub-api"
 main = "worker.js"
 compatibility_date = "2025-06-01"
 
-# 6am-ET pre-warm so the data is ready before the user opens TradeHub on any device.
-# 09:30 UTC = 05:30 EDT (summer) / 04:30 EST (winter) — always before 6am ET, leaving a
-# few minutes for the build. Days 0-5 = Sun-Fri. The scheduled() handler branches on the
-# UTC day-of-week: Mon-Fri -> News pre-warm; Sun + Wed -> Catalysts (Wed -> both).
-# Saturday is omitted (nothing scheduled). Holidays are skipped inside scheduled().
+# Pre-warm so data is built before the user opens TradeHub on any device — ready by
+# 6am MOUNTAIN time (kicks off 5:30 MT, finishes in a few min). Cloudflare crons are
+# UTC-only and the MT offset shifts with DST, so we register BOTH offsets:
+#   11:30 UTC = 05:30 MDT (summer, UTC-6)   |   12:30 UTC = 05:30 MST (winter, UTC-7)
+# scheduled() runs only when it's hour 5 in America/Denver, so the off-DST fire is a
+# no-op → exactly one build/day at 5:30 MT year-round.
+# Days 0-5 = Sun-Fri: Mon-Fri -> News pre-warm; Sun + Wed -> Catalysts (Wed -> both).
+# Saturday omitted. Market holidays are skipped inside scheduled().
 [triggers]
-crons = ["30 9 * * 0-5"]
+crons = ["30 11 * * 0-5", "30 12 * * 0-5"]
 
 [[kv_namespaces]]
 binding = "NEWSHUB_CACHE"

@@ -633,10 +633,21 @@ async function handle(request, env, ctx){
    the tab. Cron builds bypass the manual cooldown and use a small daily cap.
    NOTE: crons are UTC. EDT(summer)=UTC-4, EST(winter)=UTC-5 — times below target
    the summer pre-open / open / midday; they drift ~1h in winter (still fine). */
+// Current hour (0-23) in America/Denver — DST-aware via the IANA tz database, so it
+// tracks the MDT/MST switch automatically (no hardcoded offsets to maintain).
+function denverHour(d=new Date()){
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',hour:'2-digit',hour12:false}).formatToParts(d);
+  return parseInt(p.find(x=>x.type==='hour').value,10)%24;
+}
+
 async function scheduled(event, env, ctx){
+  // Two cron times fire (11:30 + 12:30 UTC) so one is always 05:30 America/Denver
+  // (Mountain) regardless of DST. Run only on the 5-o'clock-MT fire; the other is a
+  // no-op → one build/day at 5:30 MT, finished before the user opens at 6am MT.
+  if(denverHour()!==5) return;
   // Skip full-closure market holidays (e.g. Labor Day) — no session to pre-build for.
-  // Cron fires at 09:30 UTC where the UTC date == US Eastern date, so todayUTC() is the
-  // correct ET day to test against the ET-dated US_MARKET_HOLIDAYS set.
+  // At 11:30/12:30 UTC the UTC date == US Eastern date, so todayUTC() is the correct
+  // calendar day to test against the ET-dated US_MARKET_HOLIDAYS set.
   if(US_MARKET_HOLIDAYS.has(todayUTC())) return;
   // small cron cap so a stuck loop can't hammer AI quota
   const day=todayUTC();
