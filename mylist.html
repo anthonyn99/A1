@@ -73,14 +73,14 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
   background:var(--bg);padding:calc(env(safe-area-inset-top,0px) + 24px) 22px calc(env(safe-area-inset-bottom,0px) + 24px);}
 #profile-overlay .pw-title{font-family:'Playfair Display',serif;font-weight:900;font-size:32px;letter-spacing:1px;color:#fff;margin-bottom:6px;text-align:center;}
 #profile-overlay .pw-sub{color:#9898a8;font-family:'Nunito',sans-serif;font-size:14px;margin-bottom:34px;text-align:center;}
-.profile-cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;width:100%;max-width:520px;}
-.profile-card{position:relative;flex:1 1 200px;max-width:240px;background:#16161c;border:1px solid #262630;border-radius:20px;padding:34px 20px 26px;text-align:center;cursor:pointer;transition:all .18s;}
+.profile-cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;width:100%;max-width:400px;}
+.profile-card{position:relative;flex:0 0 auto;width:clamp(130px,40vw,156px);aspect-ratio:1;background:#16161c;border:1px solid #262630;border-radius:18px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .18s;display:flex;flex-direction:column;align-items:center;justify-content:center;}
 .profile-card:hover{transform:translateY(-4px);}
-.profile-card .emoji{font-size:48px;line-height:1;margin-bottom:14px;}
-.profile-card .pname{font-family:'Nunito',sans-serif;font-weight:800;font-size:23px;color:#fff;}
-.profile-card .plock{font-family:'Nunito',sans-serif;font-size:11px;color:#9898a8;margin-top:6px;min-height:14px;}
-.profile-card .fav-star{position:absolute;top:10px;right:10px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;
-  font-size:26px;color:#41414e;cursor:pointer;transition:all .15s;line-height:1;border-radius:50%;background:rgba(255,255,255,0.03);}
+.profile-card .emoji{font-size:40px;line-height:1;margin-bottom:10px;}
+.profile-card .pname{font-family:'Nunito',sans-serif;font-weight:800;font-size:19px;color:#fff;}
+.profile-card .plock{font-family:'Nunito',sans-serif;font-size:10px;color:#9898a8;margin-top:5px;min-height:13px;line-height:1.2;}
+.profile-card .fav-star{position:absolute;top:7px;right:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:#41414e;cursor:pointer;transition:all .15s;line-height:1;border-radius:50%;background:rgba(255,255,255,0.03);}
 .profile-card .fav-star:hover{background:rgba(255,255,255,0.08);}
 .profile-card .fav-star.on{color:#f5c451;text-shadow:0 0 12px rgba(245,196,81,.55);}
 .profile-card.tony{border-color:rgba(224,96,122,0.4);} .profile-card.tony:hover{box-shadow:0 12px 30px rgba(224,96,122,0.18);}

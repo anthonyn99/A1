@@ -9064,12 +9064,12 @@ function App(){
   useEffect(()=>{const check=()=>{const n=new Date();if(n.getDate()!==now.getDate()||n.getMonth()!==now.getMonth()||n.getFullYear()!==now.getFullYear()){setNow(n);const cw=getMondayKey(n),sw=localStorage.getItem(SK.weekKey);if(sw!==cw){setHcState({});saveJ(SK.hc,{});localStorage.setItem(SK.weekKey,cw);}}};const t=setInterval(check,15000);return()=>clearInterval(t);},[now]);
 
   // ── stateRef: always current, updated synchronously inside wrapped setters ──
-  const vdRef=useRef({data:init.data,habits:init.habits,hc:init.hc,goals:init.goals});
+  const vdRef=useRef({data:init.data,habits:init.habits,hc:init.hc,goals:init.goals,monthlyGoals:init.monthlyGoals||[]});
 
   const buildVdPayload=useCallback(()=>{
     const sanitizeItem=item=>{const out={};Object.entries(item).forEach(([k,v])=>{if(v===null||v===undefined)return;out[k]=v;});return out;};
     const sanitizeData=d=>{const out={};Object.entries(d).forEach(([dk,arr])=>{out[dk]=Array.isArray(arr)?arr.map(sanitizeItem):arr;});return out;};
-    return{data:sanitizeData(vdRef.current.data),habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,weekKey:getMondayKey(new Date()),savedAt:Date.now()};
+    return{data:sanitizeData(vdRef.current.data),habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,monthlyGoals:vdRef.current.monthlyGoals,weekKey:getMondayKey(new Date()),savedAt:Date.now()};
   },[]);
 
   const vdFbPush=useCallback(()=>{
