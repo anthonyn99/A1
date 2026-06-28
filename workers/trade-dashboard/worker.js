@@ -83,9 +83,12 @@ const YH_SECTORS = [
   { sym:'XLC',  label:'Comm Services (XLC)  → GOOGL' },
   { sym:'XLY',  label:'Consumer Disc (XLY)  → AMZN,TSLA' },
   { sym:'KWEB', label:'China Internet (KWEB)→ BABA' },
-  { sym:'COPX', label:'Copper Miners (COPX) → SCCO,ERO' },
+  { sym:'COPX', label:'Copper Miners (COPX) → SCCO,ERO,FCX' },
   { sym:'TAN',  label:'Clean Energy (TAN)   → BE' },
   { sym:'ITA',  label:'Aero & Defense (ITA) → SPCX (space)' },
+  { sym:'XLF',  label:'Financials (XLF)     → COF' },
+  { sym:'XLI',  label:'Industrials (XLI)    → MMM' },
+  { sym:'XLB',  label:'Materials (XLB)      → VMC' },
 ];
 
 /* Watchlist — drives the earnings facts (per-ticker analysis is the News tab's

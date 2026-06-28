@@ -1234,6 +1234,93 @@ function renderViewSwitch(isTony){
     +'<button class="'+(view==='recipes'?'on':'')+'" onclick="ML.setView(\'recipes\')">Recipes</button></div>';
 }
 
+// ════════ HOLD-TO-DRAG REORDER (MotionCore-style, mouse + touch) ════════
+var lastDragEnd=0;
+function mlMakeDraggable(container, onDrop){
+  if(!container) return;
+  if(container._mlAbort) container._mlAbort.abort();
+  var ab=new AbortController(); container._mlAbort=ab;
+  var holdTimer=null, sx=0, sy=0, dragging=false, item=null, ph=null, ghost=null, offX=0, offY=0, didDrag=false;
+  function cancelHold(){ if(holdTimer){ clearTimeout(holdTimer); holdTimer=null; } }
+  container.addEventListener('pointerdown', function(e){
+    if(e.button && e.button!==0) return;
+    if(e.target.closest('button, input, select, textarea, a, .chk')) return;
+    var it=e.target.closest('[data-id]'); if(!it || !container.contains(it)) return;
+    sx=e.clientX; sy=e.clientY; didDrag=false; cancelHold();
+    holdTimer=setTimeout(function(){ begin(it); }, 200);
+  }, {signal:ab.signal});
+  container.addEventListener('pointermove', function(e){
+    if(holdTimer && !dragging){ if(Math.abs(e.clientX-sx)>9 || Math.abs(e.clientY-sy)>9) cancelHold(); }
+  }, {signal:ab.signal, passive:true});
+  container.addEventListener('pointerup', cancelHold, {signal:ab.signal});
+  container.addEventListener('pointercancel', cancelHold, {signal:ab.signal});
+  // swallow the click that follows a real drag
+  container.addEventListener('click', function(e){ if(Date.now()-lastDragEnd<350){ e.stopPropagation(); e.preventDefault(); } }, {signal:ab.signal, capture:true});
+
+  function isHeader(el){ return !(el.dataset && el.dataset.id); }
+  function begin(it){
+    dragging=true; didDrag=true; item=it;
+    try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
+    var rect=it.getBoundingClientRect(); offY=sy-rect.top; offX=sx-rect.left;
+    var ac=(getComputedStyle(document.body).getPropertyValue('--accent')||'#E0607A').trim();
+    ph=document.createElement('div'); ph.className='ml-drag-ph'; ph.style.height=rect.height+'px';
+    ghost=it.cloneNode(true);
+    ghost.style.cssText='position:fixed;left:'+rect.left+'px;top:'+rect.top+'px;width:'+rect.width+'px;margin:0;pointer-events:none;z-index:9999;opacity:.97;transform:rotate(1.1deg) scale(1.02);box-shadow:0 12px 36px rgba(0,0,0,.5),0 0 0 1.5px '+ac+';border-radius:12px;';
+    it.replaceWith(ph); document.body.appendChild(ghost);
+    container.style.touchAction='none'; document.body.style.userSelect='none';
+    document.addEventListener('pointermove', onMove, {passive:false});
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  }
+  function onMove(ev){
+    ev.preventDefault();
+    ghost.style.left=(ev.clientX-offX)+'px'; ghost.style.top=(ev.clientY-offY)+'px';
+    var kids=Array.prototype.slice.call(container.children).filter(function(el){ return el!==ph; });
+    var placed=false, seen=false;
+    for(var i=0;i<kids.length;i++){
+      var ch=kids[i]; var r=ch.getBoundingClientRect();
+      if(ev.clientY < r.top + r.height/2){
+        if(isHeader(ch)){
+          if(!seen){ var n=i+1; while(n<kids.length && isHeader(kids[n])) n++; if(n<kids.length) container.insertBefore(ph, kids[n]); else container.appendChild(ph); }
+          else { var bs=i; while(bs>0 && isHeader(kids[bs-1])) bs--; container.insertBefore(ph, kids[bs]); }
+        } else { container.insertBefore(ph, ch); }
+        placed=true; break;
+      }
+      if(!isHeader(ch)) seen=true;
+    }
+    if(!placed) container.appendChild(ph);
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onUp);
+    container.style.touchAction=''; document.body.style.userSelect='';
+    if(ph && item) ph.replaceWith(item); if(ghost) ghost.remove();
+    ph=null; ghost=null; dragging=false;
+    if(didDrag){ lastDragEnd=Date.now(); if(onDrop) onDrop(); }
+    item=null;
+  }
+}
+function onListDrop(l){
+  var cont=$('items-container'); if(!cont) return;
+  pushUndo(l);
+  var newItems=[], cur='';
+  Array.prototype.slice.call(cont.children).forEach(function(ch){
+    if(ch.classList && ch.classList.contains('store-group-h')){ cur=ch.getAttribute('data-store')||''; return; }
+    var id=ch.dataset && ch.dataset.id; if(!id) return;
+    var it=l.items.filter(function(x){return x.id===id;})[0]; if(it){ it.store=cur; newItems.push(it); }
+  });
+  l.items.forEach(function(it){ if(newItems.indexOf(it)<0) newItems.push(it); });
+  l.items=newItems; persist(); render();
+}
+function onRecipesDrop(){
+  var cont=$('rec-list-rows'); if(!cont) return;
+  var order=Array.prototype.slice.call(cont.querySelectorAll('[data-id]')).map(function(el){ return el.dataset.id; });
+  var sorted=order.map(function(id){ return recipes.filter(function(x){return x.id===id;})[0]; }).filter(Boolean);
+  recipes.forEach(function(r){ if(sorted.indexOf(r)<0) sorted.push(r); });
+  recipes=sorted; persistRecipes(); render();
+}
+
 // ════════ RENDER ════════
 function renderListsBar(){
   var bar=$('lists-bar'); var L=lists(); var h='';
