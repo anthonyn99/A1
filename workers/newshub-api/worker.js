@@ -1851,12 +1851,29 @@ function selectTopEvents(events, max, perTickerCap){
     .map(e => ({ e, s: scoreImportance(e) }))
     .sort((a,b) => b.s - a.s);
   const out = []; const perT = {}; const used = new Set();
+  const tickerOf = e => e.candidateTickers?.[0] || '?';
+
+  // Pass 1 — GUARANTEE COVERAGE: take the single highest-importance event for
+  // EACH ticker first, so every watchlist name that has news appears in the feed.
+  // Without this, on a big list (e.g. 29 tickers) the ~10 hottest megacaps fill
+  // all `max` slots in importance order and freshly-added / quieter tickers
+  // (COF, FCX, MMM, SMH, VMC…) get nothing. This is the fix for "force-fresh
+  // didn't pick up the new tickers."
   for (const { e } of scored){
-    const t = e.candidateTickers?.[0] || '?';
+    const t = tickerOf(e);
+    if (t === '?' || perT[t]) continue;     // already have this ticker's best
+    perT[t] = 1; out.push(e); used.add(e.id);
+    if (out.length >= max) return out;
+  }
+  // Pass 2 — fill remaining slots by importance, up to perTickerCap per ticker.
+  for (const { e } of scored){
+    if (used.has(e.id)) continue;
+    const t = tickerOf(e);
     if ((perT[t] || 0) >= perTickerCap) continue;
     perT[t] = (perT[t] || 0) + 1; out.push(e); used.add(e.id);
     if (out.length >= max) return out;
   }
+  // Pass 3 — top off the budget with anything left (cap relaxed).
   for (const { e } of scored){
     if (used.has(e.id)) continue;
     out.push(e);
