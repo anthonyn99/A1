@@ -30275,31 +30275,47 @@ function refreshDocList(listEl, cls, mod) {
     item.style.cursor = 'pointer';
     item.title = 'Click to open · drag out to copy into another app';
 
-    // ── Native drag-out: drag this file into Claude / Explorer / any app ──
-    // We put a REAL File into the drag via dataTransfer.items.add(), so an
-    // app's drop handler (Claude, etc.) receives it through dataTransfer.files —
-    // exactly as if it were uploaded. We ALSO set DownloadURL so dropping onto
-    // the OS filesystem (Explorer/desktop) writes the actual file out.
-    // Deliberately NO text/uri-list — that's what made targets paste the blob
-    // link as text instead of accepting the file.
-    // The File must exist synchronously at dragstart, so we pre-build it on
-    // hover / mousedown (the IndexedDB read is async and can't run in dragstart).
+    // ── Drag-out: drag this file into Claude / Explorer / any app ──
+    // Two modes, auto-detected:
+    //  • Desktop shell (window.studyDesktop present): a REAL OS file drag via
+    //    Electron's startDrag — works into ANY app (Claude desktop, claude.ai,
+    //    Explorer, Slack, Word…) because the OS gets a genuine file path.
+    //  • Plain browser/PWA fallback: a real File via dataTransfer.items.add()
+    //    (for same-browser drop targets) plus DownloadURL (for the OS file
+    //    manager). No text/uri-list — that's what made targets paste a link.
+    // Either way the payload must be ready synchronously at dragstart, so we
+    // pre-stage it on hover / mousedown (IndexedDB reads can't run in dragstart).
     item.draggable = true;
-    let _dragFile = null, _dragUrl = null, _dragReady = false;
+    const _native = typeof window !== 'undefined' && window.studyDesktop && window.studyDesktop.isDesktop;
+    let _dragFile = null, _dragUrl = null, _nativePath = null, _dragReady = false;
     const _prepDrag = () => {
       if (_dragReady || !f.fileId) return;
       _dragReady = true;
-      SosFileStore.get(f.fileId).then(blob => {
-        if (blob) {
-          const mime = f.mime || blob.type || 'application/octet-stream';
+      SosFileStore.get(f.fileId).then(async blob => {
+        if (!blob) { _dragReady = false; return; }
+        const mime = f.mime || blob.type || 'application/octet-stream';
+        if (_native) {
+          try {
+            const bytes = new Uint8Array(await blob.arrayBuffer());
+            _nativePath = await window.studyDesktop.stageFile(f.name, bytes);
+            if (!_nativePath) _dragReady = false;
+          } catch (e) { _dragReady = false; console.warn('native drag stage failed', e); }
+        } else {
           _dragFile = new File([blob], f.name, { type: mime });
           _dragUrl = URL.createObjectURL(blob);
-        } else { _dragReady = false; }
+        }
       }).catch(() => { _dragReady = false; });
     };
     item.addEventListener('mouseenter', _prepDrag);
     item.addEventListener('mousedown', _prepDrag);
     item.addEventListener('dragstart', ev => {
+      if (_native) {
+        // Always suppress the web drag; hand off to the OS-level native drag.
+        ev.preventDefault();
+        if (_nativePath) window.studyDesktop.startDrag(_nativePath);
+        else _prepDrag(); // not staged yet — ready on next attempt
+        return;
+      }
       if (!_dragFile) { _prepDrag(); ev.preventDefault(); return; }
       const mime = f.mime || 'application/octet-stream';
       try { ev.dataTransfer.items.add(_dragFile); } catch (_) {}
@@ -30308,8 +30324,9 @@ function refreshDocList(listEl, cls, mod) {
       ev.dataTransfer.effectAllowed = 'copy';
     });
     item.addEventListener('dragend', () => {
-      if (_dragUrl) { const u = _dragUrl; setTimeout(() => URL.revokeObjectURL(u), 60000); }
-      _dragFile = null; _dragUrl = null; _dragReady = false;
+      if (_dragUrl) { const u = _dragUrl; setTimeout(() => URL.revokeObjectURL(u), 60000); _dragUrl = null; }
+      if (!_native) { _dragFile = null; _dragReady = false; }
+      // native: keep the staged path cached for instant repeat drags
     });
 
     const icon = document.createElement('div');
