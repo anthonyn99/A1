@@ -107,18 +107,19 @@ const THEMES = [
     /\bchip (glut|oversupply|shortage)\b/, /\bssd (price|pricing|shortage)\b/,
     /\bsamsung (electronics|memory|semiconductor|semiconductors|chip|chips)\b/,
   ] },
-  // Broad semiconductor supply / equipment / trade policy (semis on the list)
-  { tickers:['INTC','AMD','NVDA','CRDO','MU','MRVL'], kw:[
+  // Broad semiconductor supply / equipment / trade policy (semis on the list).
+  // SMH is the VanEck semis ETF — broad semi news moves it directly.
+  { tickers:['INTC','AMD','NVDA','CRDO','MU','MRVL','SMH'], kw:[
     /\btsmc\b/, /\btaiwan semiconductor\b/, /\basml\b/, /\bapplied materials\b/,
     /\bchip (export|exports|tariff|tariffs|ban|bans|curb|curbs|control|controls)\b/,
     /\bsemiconductor (tariff|tariffs|export|exports|subsid|shortage|glut)\b/,
     /\bchips act\b/, /\beuv\b/, /\bwafer (fab|price|prices|shortage)\b/,
     /\bfoundry (capacity|price|prices|demand|utilization)\b/, /\bsemiconductor index\b/,
   ] },
-  // Copper / industrial metals (SCCO, ERO)
-  { tickers:['SCCO','ERO'], kw:[
+  // Copper / industrial metals (SCCO, ERO, FCX)
+  { tickers:['SCCO','ERO','FCX'], kw:[
     /\bcopper (price|prices|demand|supply|market|futures|inventories|smelter|smelting|output)\b/,
-    /\blme copper\b/, /\bcodelco\b/, /\bfreeport\b/, /\bcomex copper\b/,
+    /\blme copper\b/, /\bcodelco\b/, /\bcomex copper\b/,
   ] },
   // Crude / refining (XOM, CVX, VLO, CNQ)
   { tickers:['XOM','CVX','VLO','CNQ'], kw:[
@@ -329,7 +330,7 @@ function isRelevant(ticker, text){
   const lo = text.toLowerCase();
   const re = new RegExp('\\b'+ticker.toLowerCase()+'\\b','i');
   if (re.test(text)) return true;
-  for (const a of (ALIASES[ticker]||[])) if (lo.includes(a)) return true;
+  for (const a of aliasesFor(ticker)) if (lo.includes(a)) return true;
   return false;
 }
 

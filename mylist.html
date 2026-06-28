@@ -1129,7 +1129,7 @@ function recRowsHtml(){
   if(!list.length) return '<div class="card"><div class="empty">'+(recipes.length?'No recipes match.':'No recipes yet — tap “New recipe” to add one.')+'</div></div>';
   return list.map(function(r){
     var ic=(r.ingredients||[]).length;
-    return '<div class="rec-row" onclick="ML.recOpenDetail(\''+r.id+'\')">'
+    return '<div class="rec-row" data-id="'+r.id+'" onclick="ML.recOpenDetail(\''+r.id+'\')">'
       +'<div class="rec-info"><div class="rec-name">'+esc(r.name)+'</div>'
         +'<div class="rec-meta">'+(r.prepTime?'<span>'+esc(r.prepTime)+'</span>':'')+(ic?'<span>'+ic+' ingredient'+(ic!==1?'s':'')+'</span>':'')+'</div></div>'
       +'<span class="rec-tag" style="'+recCatStyle(r.category||'Other')+'">'+esc(r.category||'Other')+'</span>'
@@ -1257,6 +1257,7 @@ function render(){
     $('float-voice').classList.remove('show');
     $('sel-bar').classList.remove('show');
     $('list-view').innerHTML = renderRecipesView();
+    if(!recDetailId){ var rl=$('rec-list-rows'); if(rl && recFiltered().length===recipes.length) mlMakeDraggable(rl, onRecipesDrop); }
     return;
   }
   $('lists-bar').style.display='';
@@ -1366,7 +1367,7 @@ function itemHtml(it){
       +'<div class="chk selbox">'+(on?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
       +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+'</div></div>';
   }
-  return '<div class="item'+(it.done?' done':'')+'">'
+  return '<div class="item'+(it.done?' done':'')+'" data-id="'+it.id+'">'
     +'<div class="chk" onclick="ML.toggleDone(\''+it.id+'\')">'+(it.done?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
     +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+'</div>'
     +'<div class="acts">'
