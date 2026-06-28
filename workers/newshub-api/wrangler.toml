@@ -2,6 +2,14 @@ name = "newshub-api"
 main = "worker.js"
 compatibility_date = "2025-06-01"
 
+# 6am-ET pre-warm so the data is ready before the user opens TradeHub on any device.
+# 09:30 UTC = 05:30 EDT (summer) / 04:30 EST (winter) — always before 6am ET, leaving a
+# few minutes for the build. Days 0-5 = Sun-Fri. The scheduled() handler branches on the
+# UTC day-of-week: Mon-Fri -> News pre-warm; Sun + Wed -> Catalysts (Wed -> both).
+# Saturday is omitted (nothing scheduled). Holidays are skipped inside scheduled().
+[triggers]
+crons = ["30 9 * * 0-5"]
+
 [[kv_namespaces]]
 binding = "NEWSHUB_CACHE"
 id = "dc67fb750dcc4858a8fcff9367b549e9"

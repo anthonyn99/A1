@@ -2664,13 +2664,21 @@ export default {
     const isWeekday     = day >= 1 && day <= 5;
     const isCatalystDay = day === 0 || day === 3;
 
+    // Skip the Mon-Fri News pre-warm on full-closure market holidays (e.g. Labor
+    // Day) — there's no trading session to refresh for. Uses the built-in computed
+    // NYSE calendar (mktHolYear.H = full closures), keyed by the current ET date.
+    // Catalysts (Sun/Wed) is intentionally NOT gated: it's a forward-looking
+    // calendar and should still surface the holiday itself.
+    const etDate     = etDateStr(0);                 // 'YYYY-MM-DD' in US Eastern
+    const isHoliday  = !!mktHolYear(+etDate.slice(0,4)).H[etDate];
+
     // ── Catalysts pre-warm (Sun + Wed) → KV + Firebase push for TaskHub ──
     if (isCatalystDay){
       ctx.waitUntil(prewarmCalendar(env).catch(e => console.error('Cron calendar failed:', e.message)));
     }
 
-    // ── News pre-warm (Mon-Fri) — RICH build for the live TB_WL ──
-    if (isWeekday){
+    // ── News pre-warm (Mon-Fri, skipping market holidays) — RICH build for TB_WL ──
+    if (isWeekday && !isHoliday){
       const richKey = 'cron:rich:' + new Date().toISOString().slice(0,13);
       const already = await env.NEWSHUB_CACHE.get(richKey).catch(()=>null);
       const useLimited = !already;                 // first tick of the hour → rich

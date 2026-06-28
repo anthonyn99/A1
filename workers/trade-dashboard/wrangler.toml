@@ -2,6 +2,12 @@ name = "trade-dashboard"
 main = "worker.js"
 compatibility_date = "2026-01-01"
 
+# 6am-ET MacroBoard pre-build so it's ready before the user opens TradeHub on any
+# device. 09:30 UTC = 05:30 EDT / 04:30 EST — always before 6am ET. Days 1-5 = Mon-Fri.
+# Market holidays are skipped inside scheduled() (US_MARKET_HOLIDAYS).
+[triggers]
+crons = ["30 9 * * 1-5"]
+
 [[kv_namespaces]]
 binding = "TD_KV"
 id = "897dc1bcd93d4a55ab67836639d3866b"

@@ -634,6 +634,10 @@ async function handle(request, env, ctx){
    NOTE: crons are UTC. EDT(summer)=UTC-4, EST(winter)=UTC-5 — times below target
    the summer pre-open / open / midday; they drift ~1h in winter (still fine). */
 async function scheduled(event, env, ctx){
+  // Skip full-closure market holidays (e.g. Labor Day) — no session to pre-build for.
+  // Cron fires at 09:30 UTC where the UTC date == US Eastern date, so todayUTC() is the
+  // correct ET day to test against the ET-dated US_MARKET_HOLIDAYS set.
+  if(US_MARKET_HOLIDAYS.has(todayUTC())) return;
   // small cron cap so a stuck loop can't hammer AI quota
   const day=todayUTC();
   const c=await kvGet(env,'td_cron')||{day,used:0};
