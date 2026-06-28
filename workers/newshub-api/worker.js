@@ -2648,24 +2648,13 @@ async function bumpRateLimit(env){
   return count;
 }
 
-// Current hour (0-23) in America/Denver — DST-aware via the IANA tz database, so it
-// tracks the MDT/MST switch automatically (no hardcoded offsets to maintain).
-function denverHour(d = new Date()){
-  const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Denver', hour: '2-digit', hour12: false }).formatToParts(d);
-  return parseInt(p.find(x => x.type === 'hour').value, 10) % 24;
-}
-
 // ─── HTTP handler ─────────────────────────────────────────────────────────
 export default {
   // Cron — pre-warms cache. Uses Finnhub+TickerTick every run (no daily cap),
   // but only spends Marketaux/StockData/AlphaVantage quota a few times/day at
   // staggered hours so they don't get exhausted.
   async scheduled(event, env, ctx){
-    // Two cron times fire (11:30 + 12:30 UTC) so one is always 05:30 America/Denver
-    // (Mountain) regardless of DST. Run only on the 5-o'clock-MT fire; the other is a
-    // no-op → one build/day at 5:30 MT, finished before the user opens at 6am MT.
-    if (denverHour() !== 5) return;
-
+    // Fires once daily at 11:30 UTC (= 05:30 MDT / 04:30 MST) — before 6am Mountain.
     // Branch on the DAY OF WEEK, not the exact cron string. Robust to any future
     // cron-time change (DST shift, 6:30→6:00, etc.): whatever UTC time fires, the
     // day decides what builds.
