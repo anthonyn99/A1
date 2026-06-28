@@ -3576,8 +3576,8 @@ function App(){
   const dndRowStyle=(id,base)=>(!isMobile&&dragOverId===id)?{...base,outline:"2px solid "+T.AC,outlineOffset:"-1px",borderRadius:4}:base;
   const dndDayStyle=(k,base)=>(!isMobile&&dragOverId==="day-"+k)?{...base,boxShadow:"inset 0 0 0 2px "+T.AC}:base;
   // ── Weekly item cards: each task / event sits in its own dark-gray rounded card ──
-  const wkTaskCard={background:isDark?"#22232b":T.S1,border:"1px solid "+(isDark?"#32333f":T.BD),borderRadius:10,padding:isMobile?"10px 12px":"8px 10px",boxShadow:isDark?"0 1px 3px rgba(0,0,0,0.32)":"0 1px 2px "+T.SHADOW};
-  const wkEventCard=cat=>({background:isDark?"#1a1b22":T.S2,border:"1px solid "+(isDark?"#2b2c36":T.BD),borderLeft:"3px solid "+((CC&&CC[cat])||T.ACL),borderRadius:10,padding:isMobile?"10px 12px":"8px 10px",boxShadow:isDark?"0 1px 3px rgba(0,0,0,0.26)":"0 1px 2px "+T.SHADOW});
+  const wkTaskCard={background:isDark?"#25262f":T.S1,border:"1px solid "+(isDark?"#34354222":T.BD),borderRadius:10,padding:isMobile?"10px 12px":"8px 10px",boxShadow:isDark?"0 1px 3px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW};
+  const wkEventCard=cat=>({background:isDark?"#1c1d26":T.S2,border:"1px solid "+(isDark?"#2c2d38":T.BD),borderLeft:"3px solid "+((CC&&CC[cat])||T.ACL),borderRadius:10,padding:isMobile?"10px 12px":"8px 10px",boxShadow:isDark?"0 1px 3px rgba(0,0,0,0.28)":"0 1px 2px "+T.SHADOW});
 
   // Touch reorder for habits and goals
   const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habits,setHabits,"tony","habit");
