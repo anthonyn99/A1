@@ -1320,6 +1320,8 @@ function render(){
   autoGrow($('add-desc'));
   if(editingItemId) autoGrow($('edit-desc-'+editingItemId));
   updateSelBar();
+  // hold-to-drag reorder (not while selecting or editing)
+  if(!selectMode && !editingItemId){ var ic=$('items-container'); if(ic) mlMakeDraggable(ic, function(){ var ll=curList(); if(ll) onListDrop(ll); }); }
 }
 function storeSelectInner(id, sel){
   var l=curList(); var stores=(l&&l.stores)||[]; if(!stores.length) return '';
