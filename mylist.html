@@ -1349,9 +1349,9 @@ function paintIndicator(a){
   if(!a.target){ a.indicator.style.display='none'; return; }
   var cr=a.container.getBoundingClientRect();
   a.indicator.style.display='block';
-  a.indicator.style.left=(cr.left)+'px';
-  a.indicator.style.width=(cr.width)+'px';
-  a.indicator.style.top=(a.target.y)+'px';
+  a.indicator.style.left=(cr.left+4)+'px';
+  a.indicator.style.width=(cr.width-8)+'px';
+  a.indicator.style.top=(a.target.y-1.5)+'px';
 }
 function dndEnd(){
   if(!dnd) return;
