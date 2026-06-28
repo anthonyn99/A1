@@ -23,6 +23,7 @@ jobs:
       warroom: ${{ steps.filter.outputs.warroom }}
       tradedashboard: ${{ steps.filter.outputs.tradedashboard }}
       mylist: ${{ steps.filter.outputs.mylist }}
+      taskhubvoice: ${{ steps.filter.outputs.taskhubvoice }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -41,6 +42,8 @@ jobs:
               - 'workers/trade-dashboard/**'
             mylist:
               - 'workers/mylist-api/**'
+            taskhubvoice:
+              - 'workers/taskhub-voice/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -113,3 +116,14 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/mylist-api
+
+  deploy-taskhub-voice:
+    needs: changes
+    if: ${{ needs.changes.outputs.taskhubvoice == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/taskhub-voice

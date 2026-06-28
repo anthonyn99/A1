@@ -3032,6 +3032,7 @@ function Pomodoro({onClose,T,isMobile}){
   const startTimer=(secs)=>{workerRef.current?.postMessage({cmd:"start",secs});};
   const stopTimer=()=>{workerRef.current?.postMessage({cmd:"stop"});};
   const toggle=()=>{if(done){setDone(false);setLeft(total);return;}if(!running){warmAudio();startTimer(left);setRunning(true);}else{stopTimer();setRunning(false);}};
+  useEffect(()=>{window._thTimerExec=(cmd,arg)=>{if(cmd==="set"){const m=Math.max(1,Math.min(120,parseInt(arg)||25));setWorkMin(m);setLeft(m*60);setTotal(m*60);setRunning(false);setDone(false);stopTimer();}else if(cmd==="start"){warmAudio();startTimer(left);setRunning(true);setDone(false);}else if(cmd==="stop"){stopTimer();setRunning(false);}else if(cmd==="reset"){stopTimer();setRunning(false);setDone(false);setLeft(total);}};return()=>{if(window._thTimerExec)delete window._thTimerExec;};},[left,total,running,done,workMin]);
   const cancel=()=>{stopTimer();setRunning(false);setDone(false);setLeft(total);};
   const adjWork=(delta)=>{const nw=Math.max(1,Math.min(120,workMin+delta));setWorkMin(nw);const s=nw*60;setLeft(s);setTotal(s);setRunning(false);setDone(false);};
   const canAdj=!running&&!done;
@@ -3196,6 +3197,21 @@ function App(){
   const setMg=useCallback(fn=>{setMgState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.goals,next);stateRef.current={...stateRef.current,goals:next};fbPush();return next;});},[fbPush]);
   const setMgMonthly=useCallback(fn=>{setMgMonthlyState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.mgoals,next);stateRef.current={...stateRef.current,monthlyGoals:next};fbPush();return next;});},[fbPush]);
 
+  // ── Voice control: undo/redo history (covers BOTH manual edits and AI/voice changes) + button state ──
+  const vxHist=useRef({past:[],future:[],base:null,timer:null,applying:false});
+  const vxSnap=useCallback(()=>JSON.stringify({data:stateRef.current.data,habits:stateRef.current.habits,hc:stateRef.current.hc,goals:stateRef.current.goals,monthlyGoals:stateRef.current.monthlyGoals}),[]);
+  const[vxUndo,setVxUndo]=useState(false);
+  const[vxRedo,setVxRedo]=useState(false);
+  const[vxRec,setVxRec]=useState(false);
+  const vxBtns=useCallback(()=>{const h=vxHist.current;setVxUndo(h.past.length>0);setVxRedo(h.future.length>0);},[]);
+  const vxApply=useCallback((s)=>{vxHist.current.applying=true;setDataState(s.data);setHabitsState(s.habits);setHcState(s.hc);setMgState(s.goals);setMgMonthlyState(s.monthlyGoals);stateRef.current={data:s.data,habits:s.habits,hc:s.hc,goals:s.goals,monthlyGoals:s.monthlyGoals};saveJ(SK.data,s.data);saveJ(SK.habits,s.habits);saveJ(SK.hc,s.hc);saveJ(SK.goals,s.goals);saveJ(SK.mgoals,s.monthlyGoals);fbPush();},[fbPush]);
+  const vxFlush=useCallback(()=>{const h=vxHist.current;clearTimeout(h.timer);const cur=vxSnap();if(h.base!=null&&cur!==h.base){h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();}},[vxSnap,vxBtns]);
+  const vxDoUndo=useCallback(()=>{const h=vxHist.current;vxFlush();if(!h.past.length)return false;h.future.push(vxSnap());const prev=h.past.pop();h.base=prev;vxApply(JSON.parse(prev));vxBtns();return true;},[vxFlush,vxSnap,vxApply,vxBtns]);
+  const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;h.past.push(vxSnap());const nxt=h.future.pop();h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
+  useEffect(()=>{const h=vxHist.current;if(h.base===null){h.base=vxSnap();h.applying=false;return;}if(h.applying){h.applying=false;return;}clearTimeout(h.timer);h.timer=setTimeout(()=>{const cur=vxSnap();if(cur===h.base)return;h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();},600);},[data,habits,hc,mg,mgMonthly,vxSnap,vxBtns]);
+  useEffect(()=>{window._thVoiceUI={setRec:setVxRec,setUndo:setVxUndo,setRedo:setVxRedo};return()=>{if(window._thVoiceUI&&window._thVoiceUI.setRec===setVxRec)delete window._thVoiceUI;};},[]);
+  useEffect(()=>()=>{if(window._thVoice&&window._thVoice.profile==='tony')delete window._thVoice;},[]);
+
   // Load remote state and apply it
   const applyRemote=useCallback((remote)=>{
     if(!remote)return;
@@ -3222,6 +3238,7 @@ function App(){
     stateRef.current={data:d,habits:h,hc:hcD,goals:g,monthlyGoals:gm};
     saveJ(SK.data,d);saveJ(SK.habits,h);saveJ(SK.hc,hcD);saveJ(SK.goals,g);saveJ(SK.mgoals,gm);
     localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);
+    if(vxHist&&vxHist.current){vxHist.current.applying=true;vxHist.current.base=null;}
   },[]);
 
   // On Firebase ready: initial load
@@ -3835,6 +3852,22 @@ function App(){
     React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",width:16,height:16,margin:"0 auto",borderRadius:"50%",cursor:"pointer",transition:"background .15s, border-color .15s",border:ch?"2px solid "+T.AC:"2px solid "+T.BDL,background:ch?T.AC:"transparent"},onClick},
       ch&&React.createElement(Chk,{s:7,col:"#fff"})));
 
+  // ── Voice bridge (re-bound every render so getState/actions are always current) ──
+  window._thVoice={profile:"tony",uid:uid,
+    getState:()=>({data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),theme:isDark?"dark":"light",edit:edit}),
+    mutateData:setData,mutateHabits:setHabits,mutateLongGoals:setMg,mutateShortGoals:setMgMonthly,
+    toggleHabit:(id,want)=>setHc(prev=>{const d2=new Date();const k=id+"-"+d2.getFullYear()+"-"+d2.getMonth()+"-"+d2.getDate();const v=want==null?!prev[k]:want;const n=Object.assign({},prev);n[k]=v;return n;}),
+    setEdit:(on)=>setEdit(!!on),
+    setTheme:(d)=>{setIsDark(d);if(window._syncAllThemes)window._syncAllThemes(d);},
+    toggleTheme:()=>{const nd=!isDark;setIsDark(nd);if(window._syncAllThemes)window._syncAllThemes(nd);},
+    refreshQuote:()=>tgNext(),
+    goToDate:(y,m,d)=>{setSel({year:y,month:m,day:d});setVm(m);setVy(y);},
+    openTimer:()=>setShowPomo(true),
+    timer:(cmd,arg)=>{setShowPomo(true);setTimeout(()=>{if(window._thTimerExec)window._thTimerExec(cmd,arg);},140);},
+    undo:vxDoUndo,redo:vxDoRedo,flushHistory:vxFlush,
+    canUndo:()=>{const h=vxHist.current;return h.past.length>0||(h.base!=null&&vxSnap()!==h.base);},
+    canRedo:()=>vxHist.current.future.length>0};
+
   return React.createElement("div",{style:{background:T.BG,minHeight:"100%",color:T.TX,fontFamily:"'Nunito',sans-serif",fontSize:15}},
     // Sticky header bar
     React.createElement("div",{style:{position:"sticky",top:0,left:0,right:0,zIndex:200,background:T.BG,borderBottom:"1px solid "+T.BD,backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",transition:"background .4s,border-color .4s"}},
@@ -3846,7 +3879,11 @@ function App(){
               React.createElement("button",{type:"button",onClick:()=>{localStorage.setItem("td6_mainDash","tony");window._updateMainDashBtn&&window._updateMainDashBtn();},id:"th-setmain-btn",onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;},style:{background:localStorage.getItem("td6_mainDash")==="tony"?T.AC:T.BG,color:localStorage.getItem("td6_mainDash")==="tony"?"#000":T.AC,border:"1px solid "+T.BD,borderRadius:4,fontSize:10,fontWeight:800,padding:"0 10px",height:"28px",boxSizing:"border-box",cursor:"pointer",fontFamily:"'Nunito',sans-serif",letterSpacing:0.5,whiteSpace:"nowrap",transition:"all .2s"}},localStorage.getItem("td6_mainDash")==="tony"?"★ Main":"Set as main")),
             React.createElement("span",{style:{fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?T.TXM:syncStatus==="error"?T.ERR:T.GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"⚠ Sync failed":"✓ Synced")),
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}})),
-        React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,minWidth:0,width:"100%"}},
+        React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,minWidth:0,width:"100%",flexWrap:"wrap"}},
+          React.createElement("button",{type:"button",key:"vx-voice",title:"Voice control",style:{...hbtn(false),background:vxRec?"#e05a5a":T.AC,color:"#fff",border:"1px solid "+(vxRec?"#e05a5a":T.AC),fontWeight:800,boxShadow:vxRec?"none":"0 2px 10px "+T.AC+"66"},onClick:()=>window._THV&&window._THV.toggleVoice()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
+          React.createElement("button",{type:"button",key:"vx-dev",title:"Input device",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.openDevicePicker()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
+          vxUndo&&React.createElement("button",{type:"button",key:"vx-undo",title:"Undo",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD,fontSize:15,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.undo()},"↶"),
+          vxRedo&&React.createElement("button",{type:"button",key:"vx-redo",title:"Redo",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD,fontSize:15,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.redo()},"↷"),
           React.createElement("button",{type:"button",style:{...hbtn(false),background:showPomo?T.AC:T.BG,color:showPomo?"#000":T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>setShowPomo(p=>!p)},"⏱"),
           React.createElement("button",{type:"button",style:{...hbtn(false),color:T.AC},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>{const nd=!isDark;setIsDark(nd);if(window._syncAllThemes)window._syncAllThemes(nd);}},isDark?React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"})):React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("circle",{cx:12,cy:12,r:5}),React.createElement("line",{x1:12,y1:1,x2:12,y2:3}),React.createElement("line",{x1:12,y1:21,x2:12,y2:23}),React.createElement("line",{x1:4.22,y1:4.22,x2:5.64,y2:5.64}),React.createElement("line",{x1:18.36,y1:18.36,x2:19.78,y2:19.78}),React.createElement("line",{x1:1,y1:12,x2:3,y2:12}),React.createElement("line",{x1:21,y1:12,x2:23,y2:12}),React.createElement("line",{x1:4.22,y1:19.78,x2:5.64,y2:18.36}),React.createElement("line",{x1:18.36,y1:5.64,x2:19.78,y2:4.22}))),
           React.createElement("div",{style:{...hbtn(false),cursor:"pointer",userSelect:"none",border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>setEdit(e=>!e)},
@@ -9085,7 +9122,7 @@ function playAlarm(){const ctx=new(window.AudioContext||window.webkitAudioContex
 const workerBlob=new Blob([`let iv=null,end=0;onmessage=function(e){if(e.data.cmd==="start"){clearInterval(iv);end=Date.now()+e.data.secs*1000;iv=setInterval(function(){const rem=Math.round((end-Date.now())/1000);if(rem<=0){clearInterval(iv);iv=null;postMessage({type:"done"});}else postMessage({type:"tick",left:rem});},250);}else if(e.data.cmd==="stop"){clearInterval(iv);iv=null;}};`],{type:"application/javascript"});
 const workerUrl=URL.createObjectURL(workerBlob);
 
-function Pomodoro({onClose}){const SHORT=5*60,LONG=15*60;const[workMin,setWorkMin]=useState(25);const getModes=wm=>[{label:"Work",secs:wm*60},{label:"Short Break",secs:SHORT},{label:"Long Break",secs:LONG}];const[mode,setMode]=useState(0);const[left,setLeft]=useState(25*60);const[total,setTotal]=useState(25*60);const[running,setRunning]=useState(false);const[done,setDone]=useState(false);const workerRef=useRef(null);const audioCtxRef=useRef(null);useEffect(()=>{const w=new Worker(workerUrl);workerRef.current=w;w.onmessage=(e)=>{if(e.data.type==="tick"){setLeft(e.data.left);}else if(e.data.type==="done"){setLeft(0);setRunning(false);setDone(true);playAlarm();}};return()=>w.terminate();},[]);const warmAudio=()=>{if(!audioCtxRef.current){audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();const o=audioCtxRef.current.createOscillator();const g=audioCtxRef.current.createGain();g.gain.setValueAtTime(0,audioCtxRef.current.currentTime);o.connect(g);g.connect(audioCtxRef.current.destination);o.start();o.stop(audioCtxRef.current.currentTime+0.01);}};const modes=getModes(workMin);const startTimer=(secs)=>{workerRef.current?.postMessage({cmd:"start",secs});};const stopTimer=()=>{workerRef.current?.postMessage({cmd:"stop"});};const pickMode=(i)=>{stopTimer();setMode(i);const s=getModes(workMin)[i].secs;setLeft(s);setTotal(s);setRunning(false);setDone(false);};const toggle=()=>{if(done){setDone(false);setLeft(total);return;}if(!running){warmAudio();startTimer(left);setRunning(true);}else{stopTimer();setRunning(false);}};const cancel=()=>{stopTimer();setRunning(false);setDone(false);setLeft(total);};const adjWork=(delta)=>{const nw=Math.max(1,Math.min(120,workMin+delta));setWorkMin(nw);if(mode===0){const s=nw*60;setLeft(s);setTotal(s);}};const mm=String(Math.floor(left/60)).padStart(2,"0"),ss=String(left%60).padStart(2,"0");const pct=total>0?left/total:0;const R=54,C=2*Math.PI*R;const canAdj=mode===0&&!running&&!done;const adjBtn={background:"transparent",border:"1px solid "+BDL,borderRadius:4,color:canAdj?TX:TXM,cursor:canAdj?"pointer":"default",fontSize:14,fontWeight:700,fontFamily:"inherit",width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,opacity:canAdj?1:.4,transition:"all .15s"};
+function Pomodoro({onClose}){const SHORT=5*60,LONG=15*60;const[workMin,setWorkMin]=useState(25);const getModes=wm=>[{label:"Work",secs:wm*60},{label:"Short Break",secs:SHORT},{label:"Long Break",secs:LONG}];const[mode,setMode]=useState(0);const[left,setLeft]=useState(25*60);const[total,setTotal]=useState(25*60);const[running,setRunning]=useState(false);const[done,setDone]=useState(false);const workerRef=useRef(null);const audioCtxRef=useRef(null);useEffect(()=>{const w=new Worker(workerUrl);workerRef.current=w;w.onmessage=(e)=>{if(e.data.type==="tick"){setLeft(e.data.left);}else if(e.data.type==="done"){setLeft(0);setRunning(false);setDone(true);playAlarm();}};return()=>w.terminate();},[]);const warmAudio=()=>{if(!audioCtxRef.current){audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();const o=audioCtxRef.current.createOscillator();const g=audioCtxRef.current.createGain();g.gain.setValueAtTime(0,audioCtxRef.current.currentTime);o.connect(g);g.connect(audioCtxRef.current.destination);o.start();o.stop(audioCtxRef.current.currentTime+0.01);}};const modes=getModes(workMin);const startTimer=(secs)=>{workerRef.current?.postMessage({cmd:"start",secs});};const stopTimer=()=>{workerRef.current?.postMessage({cmd:"stop"});};const pickMode=(i)=>{stopTimer();setMode(i);const s=getModes(workMin)[i].secs;setLeft(s);setTotal(s);setRunning(false);setDone(false);};const toggle=()=>{if(done){setDone(false);setLeft(total);return;}if(!running){warmAudio();startTimer(left);setRunning(true);}else{stopTimer();setRunning(false);}};const cancel=()=>{stopTimer();setRunning(false);setDone(false);setLeft(total);};useEffect(()=>{window._vdTimerExec=(cmd,arg)=>{if(cmd==="set"){const m=Math.max(1,Math.min(120,parseInt(arg)||25));setWorkMin(m);setMode(0);setLeft(m*60);setTotal(m*60);setRunning(false);setDone(false);stopTimer();}else if(cmd==="start"){warmAudio();startTimer(left);setRunning(true);setDone(false);}else if(cmd==="stop"){stopTimer();setRunning(false);}else if(cmd==="reset"){stopTimer();setRunning(false);setDone(false);setLeft(total);}};return()=>{if(window._vdTimerExec)delete window._vdTimerExec;};},[left,total,running,done,workMin]);const adjWork=(delta)=>{const nw=Math.max(1,Math.min(120,workMin+delta));setWorkMin(nw);if(mode===0){const s=nw*60;setLeft(s);setTotal(s);}};const mm=String(Math.floor(left/60)).padStart(2,"0"),ss=String(left%60).padStart(2,"0");const pct=total>0?left/total:0;const R=54,C=2*Math.PI*R;const canAdj=mode===0&&!running&&!done;const adjBtn={background:"transparent",border:"1px solid "+BDL,borderRadius:4,color:canAdj?TX:TXM,cursor:canAdj?"pointer":"default",fontSize:14,fontWeight:700,fontFamily:"inherit",width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,opacity:canAdj?1:.4,transition:"all .15s"};
 return RC("div",{style:{background:S1,border:"1px solid "+BD,borderRadius:10,padding:"16px 20px",width:260,boxShadow:"0 8px 32px rgba(0,0,0,.5)"}},RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}},RC("span",{style:{fontSize:12,fontWeight:700,color:A,textTransform:"uppercase",letterSpacing:2}},"Timer"),RC("button",{onClick:onClose,style:{background:"transparent",border:"none",color:TXD,cursor:"pointer",fontSize:16,fontWeight:700,fontFamily:"inherit",lineHeight:1}},"×")),RC("div",{style:{display:"flex",gap:4,marginBottom:10}},modes.map((m,i)=>RC("button",{key:i,onClick:()=>pickMode(i),style:{fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:mode===i?A:BG,color:mode===i?BG:TXD,border:mode===i?"1px solid "+A:"1px solid "+BDL,transition:"all .15s",flex:1}},m.label))),mode===0&&RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:10}},RC("button",{style:adjBtn,onClick:()=>canAdj&&adjWork(-5),disabled:!canAdj},"−5"),RC("button",{style:{...adjBtn,width:22},onClick:()=>canAdj&&adjWork(-1),disabled:!canAdj},"−"),RC("span",{style:{fontSize:13,fontWeight:700,color:A,minWidth:50,textAlign:"center"}},workMin+" min"),RC("button",{style:{...adjBtn,width:22},onClick:()=>canAdj&&adjWork(1),disabled:!canAdj},"+"),RC("button",{style:adjBtn,onClick:()=>canAdj&&adjWork(5),disabled:!canAdj},"+5")),RC("div",{style:{display:"flex",justifyContent:"center",marginBottom:14}},RC("svg",{width:130,height:130,viewBox:"0 0 130 130"},RC("circle",{cx:65,cy:65,r:R,fill:"none",stroke:BD,strokeWidth:6}),RC("circle",{cx:65,cy:65,r:R,fill:"none",stroke:done?"#56d364":running?A:AL,strokeWidth:6,strokeLinecap:"round",strokeDasharray:C,strokeDashoffset:C*(1-pct),transform:"rotate(-90 65 65)",style:{transition:"stroke-dashoffset .4s linear, stroke .3s"}}),RC("text",{x:65,y:62,textAnchor:"middle",fill:done?"#56d364":TX,fontSize:28,fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"},mm+":"+ss),RC("text",{x:65,y:80,textAnchor:"middle",fill:TXD,fontSize:10,fontWeight:600,fontFamily:"'IBM Plex Mono',monospace"},done?"Done!":running?"Running":"Paused"))),RC("div",{style:{display:"flex",gap:8}},RC("button",{onClick:toggle,style:{flex:1,background:done?"#56d364":running?"#d29922":A,color:BG,border:"none",borderRadius:5,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1}},done?"Reset":running?"Pause":"Start"),RC("button",{onClick:cancel,style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"8px 14px",fontSize:12,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"}},"Cancel")));}
 
 // ─── GITA QUOTE MODAL ─────────────────────────────────────────────────
@@ -9246,6 +9283,21 @@ function App(){
   const setMg=useCallback(fn=>{setMgState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.goals,next);vdRef.current={...vdRef.current,goals:next};vdFbPush();return next;});},[vdFbPush]);
   const setMgMonthly=useCallback(fn=>{setMgMonthlyState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.mgoals,next);vdRef.current={...vdRef.current,monthlyGoals:next};vdFbPush();return next;});},[vdFbPush]);
 
+  // ── Voice control: undo/redo history (covers BOTH manual edits and AI/voice changes) + button state ──
+  const vxHist=useRef({past:[],future:[],base:null,timer:null,applying:false});
+  const vxSnap=useCallback(()=>JSON.stringify({data:vdRef.current.data,habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,monthlyGoals:vdRef.current.monthlyGoals}),[]);
+  const[vxUndo,setVxUndo]=useState(false);
+  const[vxRedo,setVxRedo]=useState(false);
+  const[vxRec,setVxRec]=useState(false);
+  const vxBtns=useCallback(()=>{const h=vxHist.current;setVxUndo(h.past.length>0);setVxRedo(h.future.length>0);},[]);
+  const vxApply=useCallback((s)=>{vxHist.current.applying=true;setDataState(s.data);setHabitsState(s.habits);setHcState(s.hc);setMgState(s.goals);setMgMonthlyState(s.monthlyGoals);vdRef.current={data:s.data,habits:s.habits,hc:s.hc,goals:s.goals,monthlyGoals:s.monthlyGoals};saveJ(SK.data,s.data);saveJ(SK.habits,s.habits);saveJ(SK.hc,s.hc);saveJ(SK.goals,s.goals);saveJ(SK.mgoals,s.monthlyGoals);vdFbPush();},[vdFbPush]);
+  const vxFlush=useCallback(()=>{const h=vxHist.current;clearTimeout(h.timer);const cur=vxSnap();if(h.base!=null&&cur!==h.base){h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();}},[vxSnap,vxBtns]);
+  const vxDoUndo=useCallback(()=>{const h=vxHist.current;vxFlush();if(!h.past.length)return false;h.future.push(vxSnap());const prev=h.past.pop();h.base=prev;vxApply(JSON.parse(prev));vxBtns();return true;},[vxFlush,vxSnap,vxApply,vxBtns]);
+  const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;h.past.push(vxSnap());const nxt=h.future.pop();h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
+  useEffect(()=>{const h=vxHist.current;if(h.base===null){h.base=vxSnap();h.applying=false;return;}if(h.applying){h.applying=false;return;}clearTimeout(h.timer);h.timer=setTimeout(()=>{const cur=vxSnap();if(cur===h.base)return;h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();},600);},[dataState,habitsState,hcState,mgState,mgMonthlyState,vxSnap,vxBtns]);
+  useEffect(()=>{window._vdVoiceUI={setRec:setVxRec,setUndo:setVxUndo,setRedo:setVxRedo};return()=>{if(window._vdVoiceUI&&window._vdVoiceUI.setRec===setVxRec)delete window._vdVoiceUI;};},[]);
+  useEffect(()=>()=>{if(window._vdVoice&&window._vdVoice.profile==='veda')delete window._vdVoice;},[]);
+
   // applyRemote — bypass wrapped setters to avoid triggering a re-save
   const applyRemote=useCallback((remote)=>{
     if(!remote)return;
@@ -9258,6 +9310,7 @@ function App(){
     vdRef.current={data:d,habits:h,hc:hcD,goals:g,monthlyGoals:gm};
     saveJ(SK.data,d);saveJ(SK.habits,h);saveJ(SK.hc,hcD);saveJ(SK.goals,g);saveJ(SK.mgoals,gm);
     localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);
+    if(vxHist&&vxHist.current){vxHist.current.applying=true;vxHist.current.base=null;}
   },[]);
 
   // ── Firebase: initial load on ready ──────────────────────────────────────────
@@ -9537,6 +9590,20 @@ function App(){
 
   const bannerLesson=GITA_LESSONS[bannerIdx];
 
+  // ── Voice bridge (re-bound every render so getState/actions are always current) ──
+  window._vdVoice={profile:"veda",uid:uid,
+    getState:()=>({data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),theme:"dark",edit:edit}),
+    mutateData:setData,mutateHabits:setHabits,mutateLongGoals:setMg,mutateShortGoals:setMgMonthly,
+    toggleHabit:(id,want)=>setHc(prev=>{const d2=new Date();const k=id+"-"+d2.getFullYear()+"-"+d2.getMonth()+"-"+d2.getDate();const v=want==null?!prev[k]:want;const n=Object.assign({},prev);n[k]=v;return n;}),
+    setEdit:(on)=>setEdit(!!on),
+    refreshQuote:()=>vgNextBanner(),
+    goToDate:(y,m,d)=>{setSel({year:y,month:m,day:d});setVm(m);setVy(y);},
+    openTimer:()=>setShowPomo(true),
+    timer:(cmd,arg)=>{setShowPomo(true);setTimeout(()=>{if(window._vdTimerExec)window._vdTimerExec(cmd,arg);},140);},
+    undo:vxDoUndo,redo:vxDoRedo,flushHistory:vxFlush,
+    canUndo:()=>{const h=vxHist.current;return h.past.length>0||(h.base!=null&&vxSnap()!==h.base);},
+    canRedo:()=>vxHist.current.future.length>0};
+
   return RC("div",{style:{background:BG,minHeight:"100%"}},
     RC("div",{style:{maxWidth:2000,margin:"0 auto",color:TX,fontFamily:"'IBM Plex Mono',monospace",fontSize:14,padding:"calc(env(safe-area-inset-top,0px) + 4px) 14px calc(env(safe-area-inset-bottom,0px) + 20px)",boxSizing:"border-box",lineHeight:1.5,display:"flex",flexDirection:"column",gap:8}},
 
@@ -9560,6 +9627,10 @@ function App(){
         syncStatus==="saving"&&RC("span",{style:{fontSize:10,fontWeight:600,color:TXD,whiteSpace:"nowrap"}},"Syncing…"),
         syncStatus==="saved"&&RC("span",{style:{fontSize:10,fontWeight:600,color:GRN,whiteSpace:"nowrap"}},"✓ Synced"),
         syncStatus==="error"&&RC("span",{style:{fontSize:10,fontWeight:600,color:"#f85149",whiteSpace:"nowrap"}},"⚠ Sync failed"),
+        RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:vxRec?"none":"0 2px 9px "+A+"66"}},RC("svg",{width:13,height:13,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23})),RC("span",{style:{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1}},vxRec?"Stop":"Voice")),
+        RC("button",{key:"vx-dev",title:"Input device",onClick:()=>window._THV&&window._THV.openDevicePicker(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
+        vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↶"),
+        vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↷"),
         RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
         RC("div",{style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
           RC("span",{style:{fontSize:10,color:A,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},edit?"Edit":"View"),
@@ -33259,6 +33330,394 @@ mcInitFirebase();
 mcApplyTheme();
 
 })(); // end IIFE
+</script>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     TaskHub Voice Control — shared engine for Tony's & Veda's TaskHubs.
+     Capture (getUserMedia → WAV, device-selectable, never stops on silence,
+     works on iOS) + live captions (SpeechRecognition, display-only) →
+     taskhub-voice worker (Gemini) → structured actions → executor.
+     Per-profile bridge registered by each App: window._thVoice / window._vdVoice.
+     ════════════════════════════════════════════════════════════════════════ -->
+<div id="thv-caption"><div class="thv-cap-h"><span class="thv-rdot"></span><span class="thv-cap-label">Listening</span></div><div id="thv-caption-body"></div></div>
+<div id="thv-hint">Tap the mic again to stop &amp; process</div>
+<div id="thv-dev-overlay"><div id="thv-dev-box">
+  <h3>Microphone</h3>
+  <div class="thv-dev-sub">Pick which input to record from.</div>
+  <div id="thv-dev-list"></div>
+  <button class="thv-dev-close" onclick="window._THV&&window._THV.closeDevicePicker()">Close</button>
+</div></div>
+<div id="thv-toast"></div>
+<style>
+#thv-caption{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);z-index:99000;display:none;
+  width:min(560px,92vw);max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  background:var(--thv-surface,#1d1d25);border:1.5px solid var(--thv-accent,#D4849A);border-radius:14px;
+  padding:13px 16px;font-size:16px;color:var(--thv-text,#ececf0);line-height:1.5;text-align:left;box-shadow:0 12px 44px rgba(0,0,0,.55);
+  font-family:'Nunito',sans-serif;}
+#thv-caption.show{display:block;}
+#thv-caption .thv-cap-h{font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--thv-accent,#D4849A);margin-bottom:7px;display:flex;align-items:center;gap:7px;}
+#thv-caption .thv-rdot{width:8px;height:8px;border-radius:50%;background:#e05a5a;animation:thv-pulse 1s infinite;}
+#thv-caption .thv-interim{color:var(--thv-mute,#8a8a98);}
+#thv-caption .thv-spin{width:15px;height:15px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:thv-sp .7s linear infinite;display:inline-block;}
+@keyframes thv-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes thv-sp{to{transform:rotate(360deg)}}
+#thv-hint{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%) translateY(calc(-100% - 8px));z-index:99001;display:none;
+  background:var(--thv-accent,#D4849A);color:#0f0f12;font-weight:800;font-size:12px;font-family:'Nunito',sans-serif;
+  padding:8px 14px;border-radius:20px;box-shadow:0 8px 26px rgba(0,0,0,.4);white-space:nowrap;}
+#thv-hint.show{display:block;}
+#thv-dev-overlay{position:fixed;inset:0;z-index:99500;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.72);backdrop-filter:blur(4px);padding:22px;}
+#thv-dev-overlay.show{display:flex;}
+#thv-dev-box{width:100%;max-width:360px;background:var(--thv-surface,#16161c);border:1px solid var(--thv-border,#33333f);border-radius:16px;padding:18px;font-family:'Nunito',sans-serif;color:var(--thv-text,#ececf0);}
+#thv-dev-box h3{font-size:17px;margin:0 0 4px;font-weight:800;}
+#thv-dev-box .thv-dev-sub{font-size:12px;color:var(--thv-mute,#8a8a98);margin-bottom:14px;}
+#thv-dev-list .thv-dev-item{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--thv-border,#33333f);border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:14px;}
+#thv-dev-list .thv-dev-item:hover{border-color:var(--thv-accent,#D4849A);}
+#thv-dev-list .thv-dev-item.on{border-color:var(--thv-accent,#D4849A);background:color-mix(in srgb,var(--thv-accent,#D4849A) 14%,transparent);color:var(--thv-accent,#D4849A);font-weight:700;}
+#thv-dev-list .thv-dev-item .thv-tick{margin-left:auto;color:var(--thv-accent,#D4849A);}
+.thv-dev-close{width:100%;justify-content:center;margin-top:6px;background:transparent;border:1px solid var(--thv-border,#33333f);color:var(--thv-mute,#8a8a98);border-radius:9px;padding:9px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Nunito',sans-serif;}
+.thv-dev-close:hover{border-color:var(--thv-accent,#D4849A);color:var(--thv-accent,#D4849A);}
+#thv-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 22px);z-index:99600;
+  background:var(--thv-surface,#1d1d25);border:1px solid var(--thv-border,#33333f);color:var(--thv-text,#ececf0);padding:11px 18px;border-radius:24px;
+  font-size:13px;font-weight:700;font-family:'Nunito',sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.45);opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;max-width:88vw;text-align:center;}
+#thv-toast.show{opacity:1;}
+#thv-toast.err{border-color:#e05a5a;color:#e89a9a;}
+</style>
+<script>
+(function(){
+"use strict";
+var WORKER='https://taskhub-voice.av1.workers.dev';
+var VALID_CATS=['work','personal','health','urgent','study','finance','other'];
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+// ── which TaskHub is active ──
+function profile(){return window._activeProfile==='veda'?'veda':'tony';}
+function bridge(){return profile()==='veda'?window._vdVoice:window._thVoice;}
+function ui(){return profile()==='veda'?window._vdVoiceUI:window._thVoiceUI;}
+function accent(){return profile()==='veda'?'#8D769A':'#D4849A';}
+function themeVars(){
+  var cs=getComputedStyle(document.body);
+  var bg=cs.backgroundColor||'#16161c';
+  var light=document.body.classList.contains('light-mode');
+  var root=document.documentElement.style;
+  root.setProperty('--thv-accent',accent());
+  root.setProperty('--thv-surface',bg);
+  root.setProperty('--thv-text',light?'#1a1a1f':'#ececf0');
+  root.setProperty('--thv-mute',light?'#7a7785':'#8a8a98');
+  root.setProperty('--thv-border',light?'#d8d2d6':'#33333f');
+}
+
+// ── toast (own; sync pills stay driven by each TaskHub) ──
+var toastTimer=null;
+function toast(msg,isErr){var t=$('thv-toast');if(!t)return;t.textContent=msg;t.className='show'+(isErr?' err':'');clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.className='';},2800);}
+
+// ── caption ──
+function showCaption(html){var c=$('thv-caption'),b=$('thv-caption-body'),h=c.querySelector('.thv-cap-h');if(h)h.style.display='';c.classList.add('show');b.innerHTML=html;b.scrollTop=b.scrollHeight;}
+function showProcessing(){var c=$('thv-caption'),b=$('thv-caption-body'),h=c.querySelector('.thv-cap-h');if(h)h.style.display='none';c.classList.add('show');b.innerHTML='<div style="display:flex;align-items:center;gap:9px;font-weight:700"><span class="thv-spin"></span> Processing…</div>';}
+function hideCaption(){var c=$('thv-caption');c.classList.remove('show');$('thv-caption-body').innerHTML='';$('thv-hint').classList.remove('show');}
+function showHint(){$('thv-hint').classList.add('show');}
+
+// ── capture state ──
+var V={active:false,busy:false,ctx:null,stream:null,proc:null,src:null,buffers:[],sampleRate:44100,recog:null,capSession:'',capCurrent:''};
+var deviceId='';try{deviceId=localStorage.getItem('thv_mic_device')||'';}catch(e){}
+
+function joinT(a,b){a=(a||'').trim();b=(b||'').trim();return (a+' '+b).trim();}
+function captionText(){return joinT(V.capSession,V.capCurrent);}
+
+function setRecUI(on){var u=ui();if(u&&u.setRec)u.setRec(on);}
+
+async function getMic(){
+  var base={channelCount:1,echoCancellation:true,noiseSuppression:true};
+  if(deviceId){
+    try{return await navigator.mediaDevices.getUserMedia({audio:Object.assign({deviceId:{exact:deviceId}},base)});}
+    catch(e){deviceId='';try{localStorage.removeItem('thv_mic_device');}catch(_){}}
+  }
+  return await navigator.mediaDevices.getUserMedia({audio:base});
+}
+async function start(){
+  if(!bridge()){toast('Open a TaskHub first');return;}
+  var stream;
+  try{stream=await getMic();}catch(e){toast('No microphone available — check your input device',true);return;}
+  themeVars();
+  V.stream=stream;
+  var AC=window.AudioContext||window.webkitAudioContext;V.ctx=new AC();
+  if(V.ctx.state==='suspended'){try{await V.ctx.resume();}catch(e){}}
+  V.sampleRate=V.ctx.sampleRate;
+  V.src=V.ctx.createMediaStreamSource(stream);
+  V.proc=V.ctx.createScriptProcessor(4096,1,1);V.buffers=[];
+  V.proc.onaudioprocess=function(e){V.buffers.push(new Float32Array(e.inputBuffer.getChannelData(0)));};
+  V.src.connect(V.proc);V.proc.connect(V.ctx.destination);
+  V.active=true;setRecUI(true);
+  startCaptions();
+  showCaption('<span class="thv-interim">Listening… tap the mic again to stop &amp; process.</span>');
+  showHint();
+}
+function startCaptions(){
+  if(!SR)return;
+  var r;try{r=new SR();}catch(e){return;}
+  r.continuous=true;r.interimResults=true;r.lang='en-US';
+  V.capSession='';V.capCurrent='';
+  r.onresult=function(e){
+    var fin='',interim='';
+    for(var i=0;i<e.results.length;i++){var res=e.results[i];if(res.isFinal)fin+=res[0].transcript+' ';else interim+=res[0].transcript;}
+    V.capCurrent=fin.trim();
+    var full=captionText();
+    showCaption((full?esc(full):'')+(interim?(full?' ':'')+'<span class="thv-interim">'+esc(interim)+'</span>':'')||'<span class="thv-interim">Listening…</span>');
+  };
+  r.onerror=function(){};
+  r.onend=function(){
+    if(!V.active)return;
+    V.capSession=joinT(V.capSession,V.capCurrent);V.capCurrent='';
+    try{r.start();}catch(e){setTimeout(function(){if(V.active){try{r.start();}catch(_){}}},250);}
+  };
+  try{r.start();}catch(e){}
+  V.recog=r;
+}
+async function stop(){
+  V.active=false;setRecUI(false);$('thv-hint').classList.remove('show');
+  if(V.recog){try{V.recog.onend=null;V.recog.stop();}catch(e){}}
+  V.capSession=joinT(V.capSession,V.capCurrent);V.capCurrent='';
+  var capText=captionText();V.recog=null;
+  try{V.proc&&V.proc.disconnect();V.src&&V.src.disconnect();}catch(e){}
+  try{V.stream&&V.stream.getTracks().forEach(function(t){t.stop();});}catch(e){}
+  var sr=V.sampleRate,buffers=V.buffers.slice();
+  try{V.ctx&&V.ctx.close();}catch(e){}V.ctx=null;V.buffers=[];
+  if(capText&&isUndo(capText)){hideCaption();doUndo();return;}
+  if(capText&&isRedo(capText)){hideCaption();doRedo();return;}
+  showProcessing();V.busy=true;
+  try{
+    var wav=encodeWav(buffers,sr,16000);
+    if(wav.byteLength>=1600){var b64=await blobToB64(new Blob([wav]));await send({audio:b64,mimeType:'audio/wav'});}
+    else if(capText){await send({transcript:capText});}
+    else{toast("Didn't catch that — try again",true);}
+  }catch(err){
+    if(capText){try{await send({transcript:capText});}catch(e){toast('Voice failed — try again',true);}}
+    else toast('Voice failed — try again',true);
+  }
+  hideCaption();V.busy=false;
+}
+function toggle(){if(V.busy)return;if(V.active)stop();else start();}
+function isUndo(t){return /^\s*(please\s+)?(undo( that| last| it)?|revert( that)?|go back|never\s?mind|that was a mistake)\s*[.!?]?\s*$/i.test(t);}
+function isRedo(t){return /^\s*(please\s+)?(redo( that| last| it)?)\s*[.!?]?\s*$/i.test(t);}
+
+// ── send to worker ──
+async function send(extra){
+  var b=bridge();if(!b){toast('TaskHub not ready',true);return;}
+  var d=new Date(),pad=function(n){return String(n).padStart(2,'0');};
+  var today=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  var weekday=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+  var tz='';try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone;}catch(e){}
+  var body=Object.assign({profile:profile(),today:today,weekday:weekday,tz:tz,state:b.getState()},extra);
+  try{
+    var r=await fetch(WORKER+'/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var j=await r.json();
+    if(j.ok&&Array.isArray(j.actions)){dispatch(j.actions,j.say);}
+    else{toast(j.error||'Could not understand',true);}
+  }catch(e){toast('Network error',true);}
+}
+
+// ── executor ──
+function norm(s){return String(s==null?'':s).toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();}
+function fuzzyIndex(arr,q){
+  q=norm(q);if(!q||!arr||!arr.length)return -1;
+  var best=-1,bestScore=0;
+  for(var i=0;i<arr.length;i++){
+    var t=norm(arr[i].title);if(!t)continue;
+    var sc=0;
+    if(t===q)sc=100;
+    else if(t.indexOf(q)>=0||q.indexOf(t)>=0)sc=70;
+    else{var qt=q.split(' '),tt=t.split(' '),o=0;for(var k=0;k<qt.length;k++)if(tt.indexOf(qt[k])>=0)o++;sc=o*100/Math.max(qt.length,1);}
+    if(sc>bestScore){bestScore=sc;best=i;}
+  }
+  return bestScore>=40?best:-1;
+}
+function ymd(s){var m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(s||''));if(!m)return null;return {y:+m[1],mo:+m[2],d:+m[3],key:m[1]+'-'+String(+m[2]).padStart(2,'0')+'-'+String(+m[3]).padStart(2,'0')};}
+function fixTime(t){var m=/^(\d{1,2}):(\d{2})/.exec(String(t||''));if(!m)return '';return String(Math.min(23,+m[1])).padStart(2,'0')+':'+m[2];}
+function notifyMs(n){if(!n||!n.date)return 0;var p=ymd(n.date);if(!p)return 0;var tm=/^(\d{1,2}):(\d{2})/.exec(String(n.time||'09:00'))||[0,9,0];return new Date(p.y,p.mo-1,p.d,+tm[1]||9,+tm[2]||0,0,0).getTime();}
+
+function buildCalItem(b,a){
+  var it={id:b.uid(),type:(a.kind==='event'||a.time)?'event':'task',title:(a.title||'').trim(),done:!!a.done};
+  if(a.category&&VALID_CATS.indexOf(a.category)>=0)it.category=a.category;
+  if(a.time)it.time=fixTime(a.time);
+  if(a.notify){var ms=notifyMs(a.notify);if(ms)it.notifyAt=ms;}
+  if(Array.isArray(a.altSeqTitles)&&a.altSeqTitles.filter(Boolean).length>=2){
+    it.altSeqId=b.uid();it.altSeqTitles=a.altSeqTitles.filter(Boolean);it.title=it.altSeqTitles[0];
+  }
+  if(a.repeat&&a.repeat!=='none'){
+    if(a.repeat==='daily'){it.repeat='daily';it.repeatDays=[0,1,2,3,4,5,6];}
+    else if(a.repeat==='weekdays'){it.repeat='weekly';it.repeatDays=[0,1,2,3,4];}
+    else{it.repeat='weekly';it.repeatDays=Array.isArray(a.repeatDays)&&a.repeatDays.length?a.repeatDays.slice():[];}
+    if(a.repeatEndDate&&a.repeatEndDate.year)it.repeatEndDate=a.repeatEndDate;
+  }
+  return it;
+}
+function mutatorFor(b,box){
+  if(box==='dailyHabits')return b.mutateHabits;
+  if(box==='shortTermGoals')return b.mutateShortGoals;
+  if(box==='longTermGoals')return b.mutateLongGoals;
+  return null; // calendar handled specially
+}
+function find(b,match){
+  var s=b.getState();match=match||{};
+  var boxes=match.box?[match.box]:['calendar','dailyHabits','shortTermGoals','longTermGoals'];
+  for(var bi=0;bi<boxes.length;bi++){
+    var box=boxes[bi];
+    if(box==='calendar'){
+      var key=match.date?(ymd(match.date)||{}).key:s.selectedDate;
+      var keys=key?[key]:Object.keys(s.data||{});
+      for(var ki=0;ki<keys.length;ki++){var arr=(s.data||{})[keys[ki]]||[];var idx=fuzzyIndex(arr,match.title);if(idx>=0)return {box:'calendar',key:keys[ki],idx:idx,item:arr[idx]};}
+    }else{
+      var a2=box==='dailyHabits'?s.habits:box==='shortTermGoals'?s.shortGoals:s.longGoals;
+      var i2=fuzzyIndex(a2||[],match.title);if(i2>=0)return {box:box,idx:i2,item:(a2||[])[i2]};
+    }
+  }
+  return null;
+}
+function applyOne(b,a){
+  if(!a||!a.type)return false;
+  switch(a.type){
+    case 'add_task':{
+      var box=a.box||'calendar';
+      if(box==='calendar'){
+        var key=(a.date?(ymd(a.date)||{}).key:null)||b.getState().selectedDate;
+        var it=buildCalItem(b,a);if(!it.title)return false;
+        b.mutateData(function(prev){var n=Object.assign({},prev);n[key]=(n[key]||[]).concat([it]);return n;});
+        return true;
+      }
+      var mut=mutatorFor(b,box);if(!mut)return false;
+      var title=(a.title||'').trim();if(!title)return false;
+      var item=box==='dailyHabits'?{id:b.uid(),title:title}:{id:b.uid(),title:title,done:!!a.done};
+      mut(function(prev){return (prev||[]).concat([item]);});
+      return true;
+    }
+    case 'edit_task':{
+      var f=find(b,a.match);if(!f)return false;var set=a.set||{};
+      if(f.box==='calendar'){
+        b.mutateData(function(prev){var n=Object.assign({},prev);var arr=(n[f.key]||[]).slice();var it=Object.assign({},arr[f.idx]);
+          if(set.title!=null)it.title=String(set.title).trim();
+          if(set.kind)it.type=set.kind==='event'?'event':'task';
+          if(set.category!=null){if(VALID_CATS.indexOf(set.category)>=0)it.category=set.category;else delete it.category;}
+          if(set.time!=null){var tt=fixTime(set.time);if(tt){it.time=tt;it.type='event';}else delete it.time;}
+          if(set.notify){var ms=notifyMs(set.notify);if(ms)it.notifyAt=ms;}
+          if(typeof set.done==='boolean')it.done=set.done;
+          if(set.repeat!=null){if(set.repeat==='none'){delete it.repeat;delete it.repeatDays;}else{var tmp=buildCalItem(b,{repeat:set.repeat,repeatDays:set.repeatDays});it.repeat=tmp.repeat;it.repeatDays=tmp.repeatDays;}}
+          arr[f.idx]=it;n[f.key]=arr;return n;});
+        if(set.date){var nd=ymd(set.date);if(nd&&nd.key!==f.key)applyOne(b,{type:'move_task',match:{box:'calendar',date:f.key,title:f.item.title},toBox:'calendar',toDate:set.date});}
+        return true;
+      }
+      var mut2=mutatorFor(b,f.box);
+      mut2(function(prev){var arr=(prev||[]).slice();var it=Object.assign({},arr[f.idx]);if(set.title!=null)it.title=String(set.title).trim();if(typeof set.done==='boolean'&&f.box!=='dailyHabits')it.done=set.done;arr[f.idx]=it;return arr;});
+      return true;
+    }
+    case 'remove_task':{
+      var fr=find(b,a.match);if(!fr)return false;
+      if(fr.box==='calendar'){b.mutateData(function(prev){var n=Object.assign({},prev);n[fr.key]=(n[fr.key]||[]).filter(function(_,i){return i!==fr.idx;});return n;});}
+      else{var m3=mutatorFor(b,fr.box);m3(function(prev){return (prev||[]).filter(function(_,i){return i!==fr.idx;});});}
+      return true;
+    }
+    case 'toggle_task':{
+      var ft=find(b,a.match);if(!ft)return false;var want=typeof a.done==='boolean'?a.done:null;
+      if(ft.box==='calendar'){b.mutateData(function(prev){var n=Object.assign({},prev);var arr=(n[ft.key]||[]).slice();var it=Object.assign({},arr[ft.idx]);it.done=want==null?!it.done:want;arr[ft.idx]=it;n[ft.key]=arr;return n;});return true;}
+      if(ft.box==='dailyHabits'){b.toggleHabit&&b.toggleHabit(ft.item.id,want);return true;}
+      var m4=mutatorFor(b,ft.box);m4(function(prev){var arr=(prev||[]).slice();var it=Object.assign({},arr[ft.idx]);it.done=want==null?!it.done:want;arr[ft.idx]=it;return arr;});
+      return true;
+    }
+    case 'move_task':{
+      var fm=find(b,a.match);if(!fm)return false;var toBox=a.toBox||'calendar';var moved=fm.item;
+      applyOne(b,{type:'remove_task',match:{box:fm.box,date:fm.key,title:moved.title}});
+      if(toBox==='calendar'){
+        var key2=(a.toDate?(ymd(a.toDate)||{}).key:null)||fm.key||b.getState().selectedDate;
+        var it2={id:b.uid(),type:moved.type||'task',title:moved.title,done:!!moved.done};
+        if(moved.category)it2.category=moved.category;if(moved.time)it2.time=moved.time;if(moved.notifyAt)it2.notifyAt=moved.notifyAt;
+        b.mutateData(function(prev){var n=Object.assign({},prev);n[key2]=(n[key2]||[]).concat([it2]);return n;});
+      }else{
+        var mut3=mutatorFor(b,toBox);if(!mut3)return false;
+        var item3=toBox==='dailyHabits'?{id:b.uid(),title:moved.title}:{id:b.uid(),title:moved.title,done:!!moved.done};
+        mut3(function(prev){return (prev||[]).concat([item3]);});
+      }
+      return true;
+    }
+    case 'clear':{
+      var box2=a.box||'calendar';
+      if(box2==='calendar'){var key3=(a.date?(ymd(a.date)||{}).key:null)||b.getState().selectedDate;b.mutateData(function(prev){var n=Object.assign({},prev);n[key3]=[];return n;});return true;}
+      var mut4=mutatorFor(b,box2);if(!mut4)return false;mut4(function(){return [];});return true;
+    }
+    case 'go_to_date':{var p=ymd(a.date);if(!p)return false;b.goToDate(p.y,p.mo-1,p.d);return true;}
+    case 'set_theme':return b.setTheme?(b.setTheme(!!a.dark),true):false;
+    case 'toggle_theme':return b.toggleTheme?(b.toggleTheme(),true):false;
+    case 'set_edit_mode':return b.setEdit?(b.setEdit(!!a.on),true):false;
+    case 'refresh_quote':return b.refreshQuote?(b.refreshQuote(),true):false;
+    case 'timer_set':return b.timer?(b.timer('set',a.minutes),true):false;
+    case 'timer_start':return b.timer?(b.timer('start'),true):false;
+    case 'timer_stop':return b.timer?(b.timer('stop'),true):false;
+    case 'timer_reset':return b.timer?(b.timer('reset'),true):false;
+    case 'timer_open':return b.openTimer?(b.openTimer(),true):false;
+    case 'undo':doUndo();return true;
+    case 'redo':doRedo();return true;
+  }
+  return false;
+}
+function dispatch(actions,say){
+  var b=bridge();if(!b){toast('TaskHub not ready',true);return;}
+  var n=0;
+  for(var i=0;i<actions.length;i++){try{if(applyOne(b,actions[i]))n++;}catch(e){console.warn('[voice] action failed',actions[i],e);}}
+  if(b.flushHistory)b.flushHistory();
+  refreshButtons();
+  if(say)toast(say);
+  else if(n)toast(n+' change'+(n>1?'s':'')+' applied');
+  else toast("Didn't catch a command — try again",true);
+}
+
+// ── undo / redo / button refresh ──
+function doUndo(){var b=bridge();if(!b||!b.undo){return;}if(b.undo())toast('Undone');else toast('Nothing to undo');refreshButtons();}
+function doRedo(){var b=bridge();if(!b||!b.redo){return;}if(b.redo())toast('Redone');else toast('Nothing to redo');refreshButtons();}
+function refreshButtons(){var b=bridge(),u=ui();if(b&&u){u.setUndo&&u.setUndo(!!(b.canUndo&&b.canUndo()));u.setRedo&&u.setRedo(!!(b.canRedo&&b.canRedo()));}}
+
+// ── device picker ──
+async function openDevicePicker(){
+  themeVars();
+  var box=$('thv-dev-list');box.innerHTML='<div class="thv-dev-sub">Loading…</div>';
+  $('thv-dev-overlay').classList.add('show');
+  try{var s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(function(t){t.stop();});}catch(e){}
+  var devs=[];try{devs=(await navigator.mediaDevices.enumerateDevices()).filter(function(d){return d.kind==='audioinput';});}catch(e){}
+  var h='<div class="thv-dev-item'+(!deviceId?' on':'')+'" data-id="">System default'+(!deviceId?'<span class="thv-tick">✓</span>':'')+'</div>';
+  devs.forEach(function(d,i){var label=d.label||('Microphone '+(i+1));h+='<div class="thv-dev-item'+(deviceId===d.deviceId?' on':'')+'" data-id="'+esc(d.deviceId)+'">'+esc(label)+(deviceId===d.deviceId?'<span class="thv-tick">✓</span>':'')+'</div>';});
+  if(!devs.length)h+='<div class="thv-dev-sub">No microphones found.</div>';
+  box.innerHTML=h;
+  Array.prototype.forEach.call(box.querySelectorAll('.thv-dev-item'),function(el){el.onclick=function(){pickDevice(el.getAttribute('data-id'));};});
+}
+function pickDevice(id){deviceId=id||'';try{id?localStorage.setItem('thv_mic_device',id):localStorage.removeItem('thv_mic_device');}catch(e){}closeDevicePicker();toast('Microphone set');}
+function closeDevicePicker(){$('thv-dev-overlay').classList.remove('show');}
+
+// ── WAV helpers (16 kHz mono PCM) ──
+function blobToB64(blob){return new Promise(function(res,rej){var r=new FileReader();r.onloadend=function(){res(String(r.result).split(',')[1]);};r.onerror=rej;r.readAsDataURL(blob);});}
+function encodeWav(buffers,inRate,outRate){
+  var len=0;buffers.forEach(function(b){len+=b.length;});
+  var data=new Float32Array(len);var off=0;buffers.forEach(function(b){data.set(b,off);off+=b.length;});
+  var ratio=inRate/outRate;var outLen=Math.floor(data.length/ratio);var out=new Float32Array(outLen);
+  for(var i=0;i<outLen;i++){out[i]=data[Math.floor(i*ratio)];}
+  var buf=new ArrayBuffer(44+out.length*2);var view=new DataView(buf);
+  function ws(o,s){for(var i=0;i<s.length;i++)view.setUint8(o+i,s.charCodeAt(i));}
+  ws(0,'RIFF');view.setUint32(4,36+out.length*2,true);ws(8,'WAVE');ws(12,'fmt ');
+  view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);
+  view.setUint32(24,outRate,true);view.setUint32(28,outRate*2,true);view.setUint16(32,2,true);view.setUint16(34,16,true);
+  ws(36,'data');view.setUint32(40,out.length*2,true);
+  var p=44;for(var j=0;j<out.length;j++){var s=Math.max(-1,Math.min(1,out[j]));view.setInt16(p,s<0?s*0x8000:s*0x7FFF,true);p+=2;}
+  return buf;
+}
+
+// close device overlay on backdrop click
+document.addEventListener('click',function(e){if(e.target&&e.target.id==='thv-dev-overlay')closeDevicePicker();});
+
+window._THV={
+  toggleVoice:toggle, startVoice:start, stopVoice:stop,
+  openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker,
+  undo:doUndo, redo:doRedo, refreshButtons:refreshButtons,
+  isActive:function(){return V.active;}
+};
+})();
 </script>
 
 </body>

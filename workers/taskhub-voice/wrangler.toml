@@ -1,0 +1,14 @@
+name = "taskhub-voice"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+WORKER_ORIGIN = "https://taskhub-voice.av1.workers.dev"
+
+# Per-TaskHub Gemini keys are stored as Cloudflare SECRETS (never committed):
+#   TONY_GEMINI_KEY   → Tony's TaskHub voice key
+#   VEDA_GEMINI_KEY   → Veda's TaskHub voice key
+# Set them once with:
+#   wrangler secret put TONY_GEMINI_KEY
+#   wrangler secret put VEDA_GEMINI_KEY
+# Secrets persist across deploys, so CI auto-deploy keeps working without them in git.

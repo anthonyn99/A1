@@ -74,7 +74,7 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 #profile-overlay .pw-title{font-family:'Playfair Display',serif;font-weight:900;font-size:32px;letter-spacing:1px;color:#fff;margin-bottom:6px;text-align:center;}
 #profile-overlay .pw-sub{color:#9898a8;font-family:'Nunito',sans-serif;font-size:14px;margin-bottom:34px;text-align:center;}
 .profile-cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;width:100%;max-width:400px;}
-.profile-card{position:relative;flex:0 0 auto;width:clamp(130px,40vw,156px);aspect-ratio:1;background:#16161c;border:2.5px solid #2e2e3a;border-radius:18px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .18s;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.profile-card{position:relative;flex:0 0 auto;width:clamp(130px,40vw,156px);aspect-ratio:1;background:#16161c;border:1.6px solid #2a2a34;border-radius:18px;padding:16px 12px;text-align:center;cursor:pointer;transition:all .18s;display:flex;flex-direction:column;align-items:center;justify-content:center;}
 .profile-card:hover{transform:translateY(-4px);}
 .profile-card .emoji{font-size:40px;line-height:1;margin-bottom:10px;}
 .profile-card .pname{font-family:'Nunito',sans-serif;font-weight:800;font-size:19px;color:#fff;}
@@ -83,9 +83,9 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
   font-size:22px;color:#41414e;cursor:pointer;transition:all .15s;line-height:1;border-radius:50%;background:rgba(255,255,255,0.03);}
 .profile-card .fav-star:hover{background:rgba(255,255,255,0.08);}
 .profile-card .fav-star.on{color:#f5c451;text-shadow:0 0 12px rgba(245,196,81,.55);}
-.profile-card.tony{border-color:rgba(224,96,122,0.6);} .profile-card.tony:hover{border-color:#E0607A;box-shadow:0 0 0 1px #E0607A,0 10px 34px rgba(224,96,122,0.55),0 0 22px rgba(224,96,122,0.45);}
+.profile-card.tony{border-color:rgba(224,96,122,0.45);} .profile-card.tony:hover{border-color:rgba(224,96,122,0.85);box-shadow:0 8px 24px rgba(224,96,122,0.22),0 0 12px rgba(224,96,122,0.16);}
 .profile-card.tony .emoji,.profile-card.tony .pname{color:#E0607A;}
-.profile-card.veda{border-color:rgba(141,118,154,0.65);} .profile-card.veda:hover{border-color:#b79fc4;box-shadow:0 0 0 1px #b79fc4,0 10px 34px rgba(141,118,154,0.6),0 0 22px rgba(141,118,154,0.5);}
+.profile-card.veda{border-color:rgba(141,118,154,0.5);} .profile-card.veda:hover{border-color:rgba(183,159,196,0.85);box-shadow:0 8px 24px rgba(141,118,154,0.24),0 0 12px rgba(141,118,154,0.18);}
 .profile-card.veda .emoji,.profile-card.veda .pname{color:#b79fc4;font-family:'Playfair Display',serif;}
 
 /* ── App shell ── */
@@ -95,7 +95,8 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 #topbar-inner{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:10px;}
 #topbar .tb-title{font-size:21px;flex-shrink:0;}
 #topbar .tb-spacer{flex:1;}
-.sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--textdim);font-family:var(--font-btn);padding:5px 9px;border-radius:20px;border:1px solid var(--border);white-space:nowrap;}
+.sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--textdim);font-family:var(--font-btn);padding:5px 9px;border-radius:20px;border:1px solid var(--border);white-space:nowrap;transition:opacity .45s;}
+.sync-pill.idle{opacity:0;pointer-events:none;}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--textmute);flex-shrink:0;}
 .sync-pill.ok .sync-dot{background:var(--good);}
 .sync-pill.busy .sync-dot{background:#e0b15f;animation:pulse 1s infinite;}
@@ -593,10 +594,14 @@ function jq(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"
 var toastTimer=null;
 function toast(msg, isErr){ var t=$('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':''); clearTimeout(toastTimer); toastTimer=setTimeout(function(){ t.className='toast'; }, 2600); }
 
+var syncIdleTimer=null;
 function setSync(kind){
   var p=$('sync-pill'), t=$('sync-text');
+  clearTimeout(syncIdleTimer);
   p.className='sync-pill '+(kind==='busy'?'busy':kind==='ok'?'ok':kind==='err'?'err':'');
-  t.textContent = kind==='busy'?'Syncing…':kind==='ok'?'Synced':kind==='err'?'Sync failed':'Offline';
+  t.textContent = kind==='busy'?'Syncing…':kind==='ok'?'Synced':kind==='err'?'Sync failed':'Synced';
+  // "Synced" fades out after ~2s; only "Sync failed" stays put
+  if(kind==='ok'||kind===undefined){ syncIdleTimer=setTimeout(function(){ var pp=$('sync-pill'); if(pp) pp.classList.add('idle'); }, 2000); }
 }
 window.addEventListener('ml-syncing', function(){ setSync('busy'); });
 window.addEventListener('ml-saved',   function(){ setSync('ok'); });
@@ -769,8 +774,9 @@ function refreshProfileScreen(){
 }
 function goProfileSelect(){
   if(voice.active){ try{ voice.stream&&voice.stream.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ voice.recog&&(voice.recog.onend=null,voice.recog.stop()); }catch(e){} voice.active=false; setMicUI(false); setBarRecording(false); }
-  activeProfile=null; activeListId=null; exitSelect();
+  activeProfile=null; activeListId=null; manualOpen=false; exitSelect();
   $('float-voice').classList.remove('show'); hideCaption();
+  var mf=$('manual-fab'); if(mf) mf.style.display='none'; var mp=$('manual-pop'); if(mp) mp.classList.remove('show');
   $('app').style.display='none'; $('profile-overlay').style.display='flex';
   document.body.setAttribute('data-profile','tony');
   document.querySelector('meta[name=theme-color]').setAttribute('content','#0f0f12');
@@ -832,11 +838,18 @@ function removeStore(name){
   (l.items||[]).forEach(function(it){ if(it.store===name) it.store=''; });
   persist(); render();
 }
+function ensureStore(l, name){
+  name=(name||'').trim(); if(!name) return '';
+  l.stores=l.stores||[];
+  var found=l.stores.filter(function(s){return s.toLowerCase()===name.toLowerCase();})[0];
+  if(found) return found;
+  l.stores.push(name); return name;
+}
 function addItem(){
   var l=curList(); if(!l) return;
   var nm=($('add-name').value||'').trim(); if(!nm){ $('add-name').focus(); return; }
   var qty=($('add-qty').value||'').trim();
-  var store= $('add-store') ? ($('add-store').value||'') : '';
+  var store= $('add-store') ? ensureStore(l, $('add-store').value) : '';
   var desc= $('add-desc') ? ($('add-desc').value||'').trim() : '';
   l.items=l.items||[]; l.items.push({ id:uid(), name:nm, qty:qty, store:store, desc:desc, done:false });
   persist(); render(); var n=$('add-name'); if(n){ n.value=''; n.focus(); }
@@ -851,7 +864,7 @@ function saveEdit(id){
   var l=curList(); if(!l) return; var it=l.items.filter(function(x){return x.id===id;})[0]; if(!it) return;
   it.name=($('edit-name-'+id).value||'').trim()||it.name;
   it.qty=($('edit-qty-'+id).value||'').trim();
-  if($('edit-store-'+id)) it.store=$('edit-store-'+id).value||'';
+  if($('edit-store-'+id)) it.store=ensureStore(l, $('edit-store-'+id).value);
   if($('edit-desc-'+id)) it.desc=($('edit-desc-'+id).value||'').trim();
   editingItemId=null; persist(); render();
 }
@@ -863,7 +876,7 @@ function clearDone(){
 }
 
 // ── multi-select ──
-function toggleSelectMode(){ selectMode=!selectMode; selected={}; editingItemId=null; render(); updateSelBar(); }
+function toggleSelectMode(){ selectMode=!selectMode; selected={}; editingItemId=null; manualOpen=false; render(); updateSelBar(); }
 function exitSelect(){ selectMode=false; selected={}; updateSelBar(); if(activeProfile && curList()) render(); }
 function toggleSel(id){ if(selected[id]) delete selected[id]; else selected[id]=true; render(); updateSelBar(); }
 function toggleSelectAll(){
@@ -1115,7 +1128,7 @@ var REC_CATS=['Breakfast','Lunch','Dinner','Snack','Dessert','Other'];
 var EDIT_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 var DEL_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 function persistRecipes(){ if(window._mlSaveRecipes) window._mlSaveRecipes(recipes.map(sanitize)); }
-function setView(v){ view=v; recDetailId=null; render(); window.scrollTo(0,0); }
+function setView(v){ view=v; recDetailId=null; manualOpen=false; render(); window.scrollTo(0,0); }
 function recCatStyle(cat){
   var c={Breakfast:'#e0658a',Lunch:'#5a9bd4',Dinner:'#9b8bd4',Snack:'#d49a5a',Dessert:'#d46a9b',Other:''};
   var hex=c[cat]; if(!hex) return 'background:var(--surface2);border:1px solid var(--border2);color:var(--textdim);';
@@ -1309,6 +1322,14 @@ function dndLoop(){
 }
 // Determine drop target: {store, beforeId, y}. store=null for recipes/flat lists.
 function computeTarget(a){
+  // horizontal reorder of the list tabs
+  if(a.kind==='listtab'){
+    var chips=Array.prototype.slice.call(a.container.querySelectorAll('[data-id]')).filter(function(el){return el!==a.row;});
+    var px=a.px, bId=null, x, done=false;
+    for(var c=0;c<chips.length;c++){ var cr2=chips[c].getBoundingClientRect(); if(px<cr2.left+cr2.width/2){ bId=chips[c].dataset.id; x=cr2.left-4; done=true; break; } }
+    if(!done){ if(chips.length){ var lc=chips[chips.length-1].getBoundingClientRect(); x=lc.right+4; } else { x=a.container.getBoundingClientRect().left+4; } }
+    return {axis:'x', beforeId:bId, x:x};
+  }
   var headers=Array.prototype.slice.call(a.container.querySelectorAll('.store-group-h'));
   var py=a.py;
   function itemsUnder(){ return Array.prototype.slice.call(a.container.querySelectorAll('[data-id]')).filter(function(el){return el!==a.row;}); }
@@ -1358,9 +1379,17 @@ function paintIndicator(a){
   if(!a.target){ a.indicator.style.display='none'; return; }
   var cr=a.container.getBoundingClientRect();
   a.indicator.style.display='block';
-  a.indicator.style.left=(cr.left+4)+'px';
-  a.indicator.style.width=(cr.width-8)+'px';
-  a.indicator.style.top=(a.target.y-1.5)+'px';
+  if(a.target.axis==='x'){
+    a.indicator.style.left=(a.target.x)+'px';
+    a.indicator.style.top=(cr.top+3)+'px';
+    a.indicator.style.width='3px';
+    a.indicator.style.height=(cr.height-6)+'px';
+  } else {
+    a.indicator.style.left=(cr.left+4)+'px';
+    a.indicator.style.top=(a.target.y-1.5)+'px';
+    a.indicator.style.width=(cr.width-8)+'px';
+    a.indicator.style.height='3px';
+  }
 }
 function dndEnd(){
   if(!dnd) return;
@@ -1381,6 +1410,13 @@ function dndEnd(){
   if(moved && t){ dndLastEnd=Date.now(); applyDrop(kind, id, t); }
 }
 function applyDrop(kind, id, t){
+  if(kind==='listtab'){
+    var arr=lists(); var src0=arr.filter(function(x){return x.id===id;})[0]; if(!src0) return;
+    var rest0=arr.filter(function(x){return x.id!==id;});
+    var i0 = t.beforeId ? rest0.findIndex(function(x){return x.id===t.beforeId;}) : rest0.length;
+    if(i0<0) i0=rest0.length;
+    rest0.splice(i0,0,src0); pData().lists=rest0; persist(); render(); return;
+  }
   if(kind==='recipe'){
     var src=recipes.filter(function(x){return x.id===id;})[0]; if(!src) return;
     var rest=recipes.filter(function(x){return x.id!==id;});
@@ -1418,7 +1454,7 @@ function renderListsBar(){
   var bar=$('lists-bar'); var L=lists(); var h='';
   L.forEach(function(l){
     var cnt=(l.items||[]).filter(function(x){return !x.done;}).length;
-    h+='<div class="list-chip'+(l.id===activeListId?' active':'')+'" onclick="ML.openList(\''+l.id+'\')">'+esc(l.name)+' <span class="cnt">'+cnt+'</span></div>';
+    h+='<div class="list-chip'+(l.id===activeListId?' active':'')+'" data-id="'+l.id+'" onclick="ML.openList(\''+l.id+'\')">'+esc(l.name)+' <span class="cnt">'+cnt+'</span></div>';
   });
   h+='<div class="list-chip add" onclick="ML.addList()">+ New list</div>';
   bar.innerHTML=h;
@@ -1435,6 +1471,7 @@ function render(){
     $('lists-bar').style.display='none';
     $('float-voice').classList.remove('show');
     $('sel-bar').classList.remove('show');
+    var mf=$('manual-fab'); if(mf) mf.style.display='none'; var mp=$('manual-pop'); if(mp) mp.classList.remove('show');
     $('list-view').innerHTML = renderRecipesView();
     if(!recDetailId){ var rl=$('rec-list-rows'); if(rl && recFiltered().length===recipes.length) enableDrag(rl, 'recipe'); }
     return;
@@ -1458,55 +1495,63 @@ function render(){
   h+='<div class="card list-head-card">';
   h+='<div class="list-head"><input class="ttl" id="list-title" value="'+esc(l.name)+'" onchange="ML.renameList(\''+l.id+'\',this.value)">'
     +'<button class="btn danger sm" onclick="ML.deleteList(\''+l.id+'\')">Delete list</button></div>';
-  h+='<div class="list-meta">'+items.length+' item'+(items.length!==1?'s':'')+' · '+doneCount+' done'
-    +(doneCount?' · <span class="lnk" onclick="ML.clearDone()">clear completed</span>':'')+'</div>';
+  h+='<div class="list-meta">'+items.length+' item'+(items.length!==1?'s':'')+' · '+doneCount+' done</div>';
   h+='</div>';
 
-  // MANUAL (collapsible) — stores + add item together
-  h+='<div class="manual-toggle'+(manualOpen?' open':'')+'" onclick="ML.toggleManual()">'
-    +'<span>Manual</span><span class="mt-sub">stores &amp; add item</span>'
-    +'<span class="chev"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></div>';
-  h+='<div id="manual-body" class="'+(manualOpen?'open':'')+'">';
-  // stores block
-  h+='<div class="manual-block"><div class="manual-sub">Stores</div>';
-  if(stores.length){ h+='<div class="store-chips">'; stores.forEach(function(s){ h+='<span class="store-chip">'+esc(s)+'<span class="x" onclick="ML.removeStore(\''+jq(s)+'\')" title="Remove">×</span></span>'; }); h+='</div>'; }
-  else { h+='<div class="store-empty">No stores yet — add the shops you go to, or just speak them and they\'ll appear here automatically.</div>'; }
-  h+='<div class="store-add-row"><input id="store-input" placeholder="Add a store…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();ML.addStore();}">'
-    +'<button class="btn solid" onclick="ML.addStore()">Add</button></div>';
-  h+='</div>';
-  // add item block
-  h+='<div class="manual-block"><div class="manual-sub">Add item</div><div class="add-grid">'
-    +'<label class="field"><span class="lbl">Item name</span><input id="add-name" placeholder="e.g. Fairlife Whole Milk" onkeydown="if(event.key===\'Enter\'){ML.addItem();}"></label>'
-    +'<div class="row2">'
-      +'<label class="field"><span class="lbl">Quantity</span><input id="add-qty" placeholder="e.g. 2 gallons" onkeydown="if(event.key===\'Enter\'){ML.addItem();}"></label>'
-      + (stores.length?'<label class="field"><span class="lbl">Store</span>'+storeSelectInner('add-store','')+'</label>':'')
-    +'</div>'
-    +'<label class="field"><span class="lbl">Description (optional)</span><div class="ta-wrap"><textarea id="add-desc" rows="1" placeholder="e.g. organic, for the party" oninput="ML.autoGrow(this)"></textarea>'+GRIP+'</div></label>'
-    +'<div class="actions"><button class="btn solid" onclick="ML.addItem()">Add item</button></div>'
-  +'</div></div>';
-  h+='</div>';
-
-  // items header + undo/redo + select toggle
+  // items header + undo/redo + clear + select toggle
   h+='<div class="items-head"><span class="ih-title">Items</span><span class="sp"></span>';
   if(undoAvailable()) h+='<button class="btn ghost sm" onclick="ML.undoLast()" title="Undo">↶ Undo</button>';
   if(redoAvailable()) h+='<button class="btn ghost sm" onclick="ML.redoLast()" title="Redo">↷ Redo</button>';
-  if(items.length){ h+='<button class="btn ghost sm" onclick="ML.toggleSelectMode()">'+(selectMode?'Done':'Select')+'</button>'; }
+  if(doneCount) h+='<button class="btn ghost sm" onclick="ML.clearDone()">Clear done</button>';
+  if(items.length) h+='<button class="btn ghost sm" onclick="ML.toggleSelectMode()">'+(selectMode?'Done':'Select')+'</button>';
   h+='</div>';
   h+='<div>'+renderItems(l)+'</div>';
 
   v.innerHTML=h;
-  // restore auto-grow heights
-  autoGrow($('add-desc'));
   if(editingItemId) autoGrow($('edit-desc-'+editingItemId));
   updateSelBar();
-  // hold-to-drag reorder (not while selecting or editing)
+  updateManualFab(); renderManualPop();
+  // drag: items + list tabs (hold to drag; works on desktop & mobile)
   if(!selectMode && !editingItemId){ var ic=$('items-container'); if(ic) enableDrag(ic, 'list'); }
+  enableDrag($('lists-bar'), 'listtab');
 }
-function storeSelectInner(id, sel){
-  var l=curList(); var stores=(l&&l.stores)||[]; if(!stores.length) return '';
-  var o='<select id="'+id+'"><option value="">No store</option>';
-  stores.forEach(function(s){ o+='<option value="'+esc(s)+'"'+(s===sel?' selected':'')+'>'+esc(s)+'</option>'; });
-  return o+'</select>';
+// ── Manual (now a compact bottom button + popup) ──
+function manualBodyHtml(){
+  var l=curList(); if(!l) return ''; var stores=l.stores||[];
+  var h='<div class="manual-block"><div class="manual-sub">Stores</div>';
+  if(stores.length){ h+='<div class="store-chips">'; stores.forEach(function(s){ h+='<span class="store-chip">'+esc(s)+'<span class="x" onclick="ML.removeStore(\''+jq(s)+'\')" title="Remove">×</span></span>'; }); h+='</div>'; }
+  else { h+='<div class="store-empty">No stores yet — add shops you go to, or just speak them.</div>'; }
+  h+='<input id="store-input" placeholder="Add a store…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();ML.addStore();}">';
+  h+='<div class="actions" style="margin-top:8px"><button class="btn solid" onclick="ML.addStore()">Add</button></div>';
+  h+='</div>';
+  h+='<div class="manual-block"><div class="manual-sub">Add item</div><div class="add-grid">'
+    +'<label class="field"><span class="lbl">Item name</span><input id="add-name" placeholder="e.g. Fairlife Whole Milk" onkeydown="if(event.key===\'Enter\'){ML.addItem();}"></label>'
+    +'<div class="row2">'
+      +'<label class="field"><span class="lbl">Quantity</span><input id="add-qty" placeholder="e.g. 2 gallons" onkeydown="if(event.key===\'Enter\'){ML.addItem();}"></label>'
+      +'<label class="field"><span class="lbl">Store</span>'+storeFieldInner('add-store','')+'</label>'
+    +'</div>'
+    +'<label class="field"><span class="lbl">Description (optional)</span><div class="ta-wrap"><textarea id="add-desc" rows="1" placeholder="e.g. organic, for the party" oninput="ML.autoGrow(this)"></textarea>'+GRIP+'</div></label>'
+    +'<div class="actions"><button class="btn solid" onclick="ML.addItem()">Add item</button></div>'
+  +'</div></div>';
+  return h;
+}
+function manualVisible(){ return !!(activeProfile && view==='lists' && curList() && !selectMode); }
+function updateManualFab(){ var fab=$('manual-fab'); if(fab) fab.style.display = manualVisible() ? '' : 'none'; }
+function renderManualPop(){
+  var pop=$('manual-pop'), fab=$('manual-fab');
+  if(manualOpen && manualVisible()){
+    pop.innerHTML=manualBodyHtml(); pop.classList.add('show'); if(fab) fab.classList.add('on');
+    autoGrow($('add-desc'));
+  } else {
+    pop.classList.remove('show'); pop.innerHTML=''; if(fab) fab.classList.remove('on');
+  }
+}
+// store field: type-to-create + dropdown of existing stores (datalist)
+function storeFieldInner(id, sel){
+  var l=curList(); var stores=(l&&l.stores)||[];
+  var dl='ml-dl-'+id;
+  return '<input id="'+id+'" list="'+dl+'" value="'+esc(sel||'')+'" placeholder="Type or pick a store…" autocomplete="off">'
+    +'<datalist id="'+dl+'">'+stores.map(function(s){return '<option value="'+esc(s)+'"></option>';}).join('')+'</datalist>';
 }
 function storeHeaderHtml(s){ return '<div class="store-group-h" data-store="'+esc(s)+'">'+esc(s||'Other')+' <span class="gline"></span></div>'; }
 function renderItems(l){
@@ -1521,8 +1566,7 @@ function renderItems(l){
       h+=sortItems(items.filter(function(x){return x.store===s;})).map(itemHtml).join('');
     });
     var other=items.filter(function(x){return !x.store || stores.indexOf(x.store)<0;});
-    h+=storeHeaderHtml('');
-    h+=sortItems(other).map(itemHtml).join('');
+    if(other.length){ h+=storeHeaderHtml(''); h+=sortItems(other).map(itemHtml).join(''); }
   } else {
     h+=sortItems(items).map(itemHtml).join('');
   }
@@ -1536,7 +1580,7 @@ function itemHtml(it){
       +'<label class="field"><span class="lbl">Item name</span><input id="edit-name-'+it.id+'" value="'+esc(it.name)+'" placeholder="Name"></label>'
       +'<div class="edit-grid"><div class="row2">'
         +'<label class="field"><span class="lbl">Quantity</span><input id="edit-qty-'+it.id+'" value="'+esc(it.qty||'')+'" placeholder="Qty"></label>'
-        + ((storeSelectInner('edit-store-'+it.id, it.store||''))?'<label class="field"><span class="lbl">Store</span>'+storeSelectInner('edit-store-'+it.id, it.store||'')+'</label>':'')
+        +'<label class="field"><span class="lbl">Store</span>'+storeFieldInner('edit-store-'+it.id, it.store||'')+'</label>'
       +'</div></div>'
       +'<label class="field"><span class="lbl">Description</span><div class="ta-wrap"><textarea id="edit-desc-'+it.id+'" rows="1" placeholder="Add a description…" oninput="ML.autoGrow(this)">'+esc(it.desc||'')+'</textarea>'+GRIP+'</div></label>'
       +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost sm" onclick="ML.cancelEdit()">Cancel</button><button class="btn solid sm" onclick="ML.saveEdit(\''+it.id+'\')">Save</button></div>'
@@ -1544,8 +1588,10 @@ function itemHtml(it){
   }
   if(selectMode){
     var on=!!selected[it.id];
-    return '<div class="item'+(on?' sel':'')+(it.done?' done':'')+'" onclick="ML.toggleSel(\''+it.id+'\')">'
-      +'<div class="chk selbox">'+(on?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
+    var ck='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    return '<div class="item selmode'+(on?' sel':'')+(it.done?' done':'')+'" onclick="ML.toggleSel(\''+it.id+'\')">'
+      +'<div class="selcircle'+(on?' on':'')+'">'+(on?ck:'')+'</div>'
+      +'<div class="chk" aria-hidden="true">'+(it.done?ck:'')+'</div>'
       +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+'</div></div>';
   }
   return '<div class="item'+(it.done?' done':'')+'" data-id="'+it.id+'">'
@@ -1562,7 +1608,7 @@ function itemSubHtml(it){
   if(it.desc) s+='<div class="desc">'+esc(it.desc)+'</div>';
   return s;
 }
-function toggleManual(){ manualOpen=!manualOpen; render(); }
+function toggleManual(){ if(!manualVisible()) return; manualOpen=!manualOpen; renderManualPop(); }
 
 window.ML = {
   chooseProfile:chooseProfile, toggleFav:toggleFav, goProfileSelect:goProfileSelect,
