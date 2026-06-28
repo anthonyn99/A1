@@ -9559,7 +9559,8 @@ function App(){
     RC(GitaQuoteModal,{lesson:gitaModal,onClose:()=>setGitaModal(null),onNext:gitaNext,onPrev:gitaPrev,onBackToLessons:gitaFromBrowser?closeGitaToLessons:null}),
     showLessons&&RC(GitaLessonsBrowser,{onClose:()=>setShowLessons(false),onSelectLesson:openGitaLesson}),
     RC(VdSimpleEditModal,{open:!!editingHabit,onClose:()=>setEditingHabit(null),onSave:title=>renameH(editingHabit.id,title),initialText:editingHabit?.title||"",heading:"Edit Habit"}),
-    RC(VdSimpleEditModal,{open:!!editingGoal,onClose:()=>setEditingGoal(null),onSave:title=>renameM(editingGoal.id,title),initialText:editingGoal?.title||"",heading:"Edit Goal"})
+    RC(VdSimpleEditModal,{open:!!editingGoal,onClose:()=>setEditingGoal(null),onSave:title=>renameM(editingGoal.id,title),initialText:editingGoal?.title||"",heading:"Edit Goal"}),
+    RC(VdSimpleEditModal,{open:!!editingGoalM,onClose:()=>setEditingGoalM(null),onSave:title=>renameMM(editingGoalM.id,title),initialText:editingGoalM?.title||"",heading:"Edit Short-Term Goal"})
   );
 }
 ReactDOM.render(RC(App),document.getElementById("vr-root"));
