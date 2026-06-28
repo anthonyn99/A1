@@ -1310,7 +1310,8 @@ function computeTarget(a){
     for(var i=0;i<children.length;i++){
       var ch=children[i];
       if(ch.classList.contains('store-group-h')){
-        groups.push({ store:ch.getAttribute('data-store')||'', top:ch.getBoundingClientRect().top, items:[] });
+        var hr=ch.getBoundingClientRect();
+        groups.push({ store:ch.getAttribute('data-store')||'', top:hr.top, hbottom:hr.bottom, items:[] });
       } else if(ch.dataset && ch.dataset.id && ch!==a.row && groups.length){
         groups[groups.length-1].items.push(ch);
       }
