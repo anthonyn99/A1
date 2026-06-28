@@ -937,7 +937,7 @@ const TB_WATCHLIST=['DRAM','SNDK','MU','INTC','WDC','AMD','CRWD','BE','GOOGL','P
 // News fetch, report parsing, and sector inference. Defaults to TB_WATCHLIST
 // until the user customizes it; TBApp keeps this in sync via tbSetWatchlist().
 let TB_WL=[...TB_WATCHLIST];
-function tbSetWatchlist(arr){TB_WL=(Array.isArray(arr)&&arr.length)?arr.slice():[...TB_WATCHLIST];pushWatchlistToWorkers(TB_WL);}
+function tbSetWatchlist(arr){TB_WL=(Array.isArray(arr)&&arr.length)?arr.slice():[...TB_WATCHLIST];pushWatchlistToWorkers(TB_WL);tbResolveSectors(TB_WL);}
 
 // Push TB_WL to the workers so their CRON pre-builds + on-demand builds use the
 // exact Control-tab list (News, Catalysts, MacroBoard all read it). Debounced;
@@ -956,8 +956,40 @@ function pushWatchlistToWorkers(tickers){
   },1500);
 }
 function tbGetWatchlist(){return TB_WL;}
-const TB_TICKER_SECTORS={DRAM:'AI/Semiconductor',MRVL:'Semiconductor',SPCX:'Space',SNDK:'Storage',MU:'Semiconductor',WDC:'Storage',INTC:'Semiconductor',AMD:'Semiconductor',LMT:'Defense',CRWD:'Cybersecurity',BE:'Clean Energy',GOOGL:'Tech/Mega-Cap',PLTR:'AI/Software',NVDA:'AI/Semiconductor',CRDO:'Semiconductor',TSLA:'EV/Auto',AAPL:'Tech/Mega-Cap',MSFT:'Tech/Mega-Cap',NET:'Cybersecurity',SCCO:'Copper/Mining',ERO:'Copper/Mining',WMT:'Retail',AMZN:'Tech/Retail',BABA:'China/Tech',LMND:'InsurTech',EXPE:'Travel',NVS:'Pharma',MS:'Financials',XOM:'Energy',CVX:'Energy',VLO:'Refining',CNQ:'Energy'};
-function tbInferSector(t){return TB_TICKER_SECTORS[t]||'Diversified';}
+const TB_TICKER_SECTORS={DRAM:'AI/Semiconductor',MRVL:'Semiconductor',SPCX:'Space',SNDK:'Storage',MU:'Semiconductor',WDC:'Storage',INTC:'Semiconductor',AMD:'Semiconductor',LMT:'Defense',CRWD:'Cybersecurity',BE:'Clean Energy',GOOGL:'Tech/Mega-Cap',PLTR:'AI/Software',NVDA:'AI/Semiconductor',CRDO:'Semiconductor',TSLA:'EV/Auto',AAPL:'Tech/Mega-Cap',MSFT:'Tech/Mega-Cap',NET:'Cybersecurity',SCCO:'Copper/Mining',ERO:'Copper/Mining',WMT:'Retail',AMZN:'Tech/Retail',BABA:'China/Tech',LMND:'InsurTech',EXPE:'Travel',NVS:'Pharma',MS:'Financials',XOM:'Energy',CVX:'Energy',VLO:'Refining',CNQ:'Energy',COF:'Financials',FCX:'Copper/Mining',MMM:'Industrials',SMH:'Semiconductor',VMC:'Materials/Construction'};
+
+// AI-derived sectors for tickers NOT in the static table above. Populated by
+// tbResolveSectors() (calls the newshub /sectors endpoint, which classifies via
+// Gemini and caches in KV), persisted to localStorage so chips render instantly
+// on reload. This is what makes any newly-added ticker get a real sector without
+// hardcoding it here. tbInferSector falls through static → AI cache → Diversified.
+let TB_AI_SECTORS={};
+try{const _s=localStorage.getItem('tb_ai_sectors');if(_s)TB_AI_SECTORS=JSON.parse(_s)||{};}catch(e){}
+function tbInferSector(t){return TB_TICKER_SECTORS[t]||TB_AI_SECTORS[t]||'Diversified';}
+// Re-render hook: components subscribe so chips/filters update when async AI
+// sectors land. Decoupled via a window event so News + Control both refresh.
+function tbNotifySectors(){try{window.dispatchEvent(new CustomEvent('tb-sectors-updated'));}catch(e){}}
+// Resolve sectors for any tickers missing from BOTH the static map and the AI
+// cache. Fire-and-forget; results merge into TB_AI_SECTORS + localStorage and
+// trigger a re-render. De-duped so it won't re-ask for tickers already known.
+let _sectorResolveInflight=new Set();
+async function tbResolveSectors(tickers){
+  if(!Array.isArray(tickers))return;
+  const need=tickers.filter(t=>t&&!TB_TICKER_SECTORS[t]&&!TB_AI_SECTORS[t]&&!_sectorResolveInflight.has(t));
+  if(!need.length)return;
+  need.forEach(t=>_sectorResolveInflight.add(t));
+  try{
+    const r=await fetch('https://newshub-api.av1.workers.dev/sectors?tickers='+encodeURIComponent(need.join(',')));
+    if(r.ok){
+      const j=await r.json();
+      const map=j&&j.sectors?j.sectors:{};
+      let changed=false;
+      for(const [t,s] of Object.entries(map)){if(s&&!TB_TICKER_SECTORS[t]&&TB_AI_SECTORS[t]!==s){TB_AI_SECTORS[t]=s;changed=true;}}
+      if(changed){try{localStorage.setItem('tb_ai_sectors',JSON.stringify(TB_AI_SECTORS));}catch(e){}tbNotifySectors();}
+    }
+  }catch(e){/* offline / worker down — chips stay 'Diversified' until next add */}
+  finally{need.forEach(t=>_sectorResolveInflight.delete(t));}
+}
 
 function tbExtractBullets(text){if(!text)return[];const lines=text.split('\n');const bullets=[];for(const l of lines){const t=l.replace(/^[\s•\-*#▸►▪○]+/,'').trim();if(t.length>5&&t.length<600)bullets.push(t);}return bullets;}
 function tbMatchSectionKey(header,body){const h=(header+' '+body.slice(0,120)).toLowerCase();if(/snapshot|market.*overview|premarket|indices/i.test(h))return'marketSnapshot';if(/macro.*driver|key.*driver|top.*macro/i.test(h))return'macroDrivers';if(/geo|iran|middle.?east|russia|ukraine/i.test(h))return'geopolitics';if(/trump|tariff/i.test(h))return'trump';if(/central.bank|fed|ecb|boj|fomc/i.test(h))return'centralBanks';if(/economic.*event|calendar|key.*data|forward/i.test(h))return'economicEvents';if(/bias|regime|market.*condition/i.test(h))return'marketBias';if(/go.*no|no.*go|signal/i.test(h))return'goNogo';if(/sector.*strength|sector.*focus|strongest/i.test(h))return'sectorStrength';if(/watchlist/i.test(h))return'watchlist';if(/setup|trade.*idea|long.*only.*setup|actionable/i.test(h))return'tradeSetups';if(/not.*do|avoid|what.*not|mistake/i.test(h))return'whatNotToDo';if(/tier.*list|tier.*summ/i.test(h))return'tierList';return null;}
@@ -2367,7 +2399,10 @@ function TBPortfolioPage(){
    Same UX the News settings panel used to have; now the one source of truth. */
 function TBWatchlistEditor({watchlist=[],onChange}){
   const [tickerInput,setTickerInput]=React.useState('');
-  const sectors=React.useMemo(()=>{const s=new Set();watchlist.forEach(t=>s.add(tbInferSector(t)));return [...s].sort();},[watchlist]);
+  // Bump on async AI-sector arrival so chips repaint from 'Diversified' → real sector.
+  const [sectorTick,setSectorTick]=React.useState(0);
+  React.useEffect(()=>{const h=()=>setSectorTick(x=>x+1);window.addEventListener('tb-sectors-updated',h);tbResolveSectors(watchlist);return()=>window.removeEventListener('tb-sectors-updated',h);},[watchlist]);
+  const sectors=React.useMemo(()=>{const s=new Set();watchlist.forEach(t=>s.add(tbInferSector(t)));return [...s].sort();},[watchlist,sectorTick]);
   const normTicker=(raw)=>(raw||'').trim().toUpperCase().replace(/[^A-Z0-9.\-]/g,'').slice(0,6);
   /* Accepts one OR many tickers — split on commas/whitespace/brackets so a
      pasted list like "DRAM, SNDK, MU" or "[NVDA AMD]" all add at once. */
@@ -3840,11 +3875,13 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   const hasFilter=sentFilter!=='all'||impFilter!=='all'||selTickers.length||selSectors.length;
 
   /* Sectors auto-derived from the shared watchlist — used to prune stale filters. */
+  const [secTick,setSecTick]=useState(0);
+  useEffect(()=>{const h=()=>setSecTick(x=>x+1);window.addEventListener('tb-sectors-updated',h);tbResolveSectors(newsTickers);return()=>window.removeEventListener('tb-sectors-updated',h);},[newsTickers]);
   const newsSectors=useMemo(()=>{
     const s=new Set();
     newsTickers.forEach(t=>s.add(tbInferSector(t)));
     return [...s].sort();
-  },[newsTickers]);
+  },[newsTickers,secTick]);
 
   /* When the watchlist changes (after hydration), drop events that no
      longer match and pull a fresh cache for the new list. Worker keys cache per

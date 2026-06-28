@@ -9226,6 +9226,7 @@ function App(){
   // Touch reorder for habits and goals
   const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habits,setHabits,"veda","habit");
   const {getTouchHandlers:goalTouchH,getRowProps:goalRowP}=useTouchReorder(mg,setMg,"veda","goal");
+  const {getTouchHandlers:goalMTouchH,getRowProps:goalMRowP}=useTouchReorder(mgMonthly,setMgMonthly,"veda","goalm");
   const {getTaskTouchHandlers:taskTouchH,getTaskRowProps:taskRowP}=useTouchReorderByDay(setData,A,"veda");
   const vOnDragStartTask=(e,k,id)=>{vdDragType.current="task";vdDragDay.current=k;vdDragSrc.current=id;vdDragInfo.current={zone:"week",id,dayKey:k};e.dataTransfer.effectAllowed="move";};
   const vOnDragOverTask=(e,id)=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!vrMobile)setVdDragOverId(id);};
@@ -9283,12 +9284,29 @@ function App(){
       return arr;
     });
   };
+  const vOnDragStartGoalM=(e,id)=>{vdDragType.current="goalm";vdDragSrc.current=id;vdDragInfo.current={zone:"goalm",id};e.dataTransfer.effectAllowed="move";};
+  const vOnDropGoalM=(e,targetId)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    setVdDragOverId(null);
+    if(vdDragInfo.current&&vdDragInfo.current.zone!=="goalm"){vCrossMoveRef.current&&vCrossMoveRef.current("goalm",targetId);vdDragInfo.current=null;return;}
+    if(vdDragType.current!=="goalm"||vdDragSrc.current===targetId)return;
+    const srcId=vdDragSrc.current;
+    setMgMonthly(prev=>{
+      const arr=[...prev];
+      const si=arr.findIndex(g=>g.id===srcId),ti=arr.findIndex(g=>g.id===targetId);
+      if(si<0||ti<0)return prev;
+      const[item]=arr.splice(si,1);arr.splice(ti,0,item);
+      return arr;
+    });
+  };
   // ── Veda CROSS-LIST DRAG ──
   const _vFindCross=(zone,id,dayKey)=>{
     const s=vdRef.current;
     if(zone==="week"){const arr=(s.data[dayKey]||[]);const it=arr.find(x=>x.id===id);return it?{...it}:null;}
     if(zone==="habit"){const it=(s.habits||[]).find(x=>x.id===id);return it?{...it}:null;}
     if(zone==="goal"){const it=(s.goals||[]).find(x=>x.id===id);return it?{...it}:null;}
+    if(zone==="goalm"){const it=(s.monthlyGoals||[]).find(x=>x.id===id);return it?{...it}:null;}
     return null;
   };
   const _vToWeek=it=>{const o={...it,type:"task"};if(o.done===undefined)o.done=false;return o;};
@@ -9302,10 +9320,12 @@ function App(){
     if(sZone==="week"){setData(prev=>{const arr=[...(prev[sDay]||[])];const i=arr.findIndex(x=>x.id===sId);if(i>=0)arr.splice(i,1);return{...prev,[sDay]:arr};});}
     else if(sZone==="habit"){setHabits(prev=>prev.filter(x=>x.id!==sId));}
     else if(sZone==="goal"){setMg(prev=>prev.filter(x=>x.id!==sId));}
+    else if(sZone==="goalm"){setMgMonthly(prev=>prev.filter(x=>x.id!==sId));}
     if(destZone==="week"){const ni=_vToWeek(item);setData(prev=>{const arr=[...(prev[destDayKey]||[])];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return{...prev,[destDayKey]:arr};});}
     else if(destZone==="habit"){const ni=_vToHabit(item);setHabits(prev=>{const arr=[...prev];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
     else if(destZone==="goal"){const ni=_vToGoal(item);setMg(prev=>{const arr=[...prev];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
-  },[setData,setHabits,setMg]);
+    else if(destZone==="goalm"){const ni=_vToGoal(item);setMgMonthly(prev=>{const arr=[...prev];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
+  },[setData,setHabits,setMg,setMgMonthly]);
   vCrossMoveRef.current=vCrossMove;
   _xRegister("veda",vCrossMove,vdDragInfo);
   const renameH=useCallback((id,title)=>setHabits(prev=>prev.map(h=>h.id===id?{...h,title}:h)),[setHabits]);
