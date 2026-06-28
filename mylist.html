@@ -275,9 +275,10 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 #lock-forgot{background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;cursor:pointer;margin-top:12px;font-family:var(--font-btn);}
 
 /* ── View switcher (Lists | Recipes) ── */
-#view-switch{display:flex;gap:5px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:26px;padding:5px;}
-#view-switch button{flex:1;border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:13px;font-family:var(--font-btn);padding:10px 12px;border-radius:22px;cursor:pointer;transition:all .15s;text-transform:var(--head-transform);letter-spacing:var(--head-spacing);}
-#view-switch button.on{background:var(--accent);color:var(--accent-ink);}
+#view-switch-wrap{display:flex;}
+#view-switch{display:inline-flex;gap:3px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:3px;}
+#view-switch button{border:none;background:transparent;color:var(--textmute);font-weight:700;font-size:11.5px;font-family:var(--font-btn);padding:6px 15px;border-radius:15px;cursor:pointer;transition:all .15s;letter-spacing:.3px;}
+#view-switch button.on{background:var(--accent-soft);color:var(--accent);}
 
 /* ── Recipes ── */
 .rec-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
