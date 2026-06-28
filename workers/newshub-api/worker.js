@@ -2645,10 +2645,29 @@ export default {
         if (!tickers.length)
           return new Response(JSON.stringify({ ok:false, error:'no tickers' }), { status:400, headers:{ ...cors(), 'Content-Type':'application/json' } });
         await env.NEWSHUB_CACHE.put('wl:current', JSON.stringify(tickers));
+        // Warm sector/alias classification for any non-static tickers in the
+        // background so the next cron/news build already has them cached.
+        const unknown = tickers.filter(t => !SECTOR_LOOKUP[t]);
+        if (unknown.length) ctx.waitUntil(resolveMeta(unknown, env).catch(()=>{}));
         return new Response(JSON.stringify({ ok:true, count:tickers.length }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
       }
       const cur = await resolveCronWatchlist(env);
       return new Response(JSON.stringify({ ok:true, tickers:cur.wl, count:cur.wl.length }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+    }
+
+    // ── /sectors?tickers=A,B,C — AI sector auto-derivation for the Control tab.
+    // For each ticker: static table → KV cache → Gemini classify (then cache).
+    // Returns { sectors:{TICKER:label}, meta:{TICKER:{name,aliases}} }. This is
+    // what lets a newly-added ticker show its real sector everywhere instead of
+    // "Diversified", with zero hardcoding.
+    if (url.pathname === '/sectors'){
+      const tk = parseTickers(url.searchParams.get('tickers'));
+      if (!tk || !tk.length)
+        return new Response(JSON.stringify({ ok:false, error:'no tickers' }), { status:400, headers:{ ...cors(), 'Content-Type':'application/json' } });
+      const meta = await resolveMeta(tk, env);
+      const sectors = {};
+      for (const [t, m] of Object.entries(meta)) sectors[t] = m.sector;
+      return new Response(JSON.stringify({ ok:true, sectors, meta }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
     }
 
     // ── /_stage — INTERNAL staged-build worker. Called by the worker on itself,
