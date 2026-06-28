@@ -2,16 +2,17 @@ name = "newshub-api"
 main = "worker.js"
 compatibility_date = "2025-06-01"
 
-# Pre-warm so data is built for the user opening TradeHub on any device. ONE daily cron
-# at 12:00 UTC = 06:00 MDT (summer) / 05:00 MST (winter) Mountain time. A single UTC
-# cron can't track DST to keep the same local time both seasons, and the account is
-# capped at 5 cron triggers total, so two-per-worker (one per offset) isn't an option.
+# Pre-warm so data is built before the user opens TradeHub on any device. ONE daily cron
+# at 11:45 UTC = 05:45 MDT (summer) / 04:45 MST (winter) Mountain time — finishes before
+# 6am so it's ready on open. A single UTC cron can't track DST to keep the same local
+# time both seasons, and the account is capped at 5 cron triggers total, so two-per-
+# worker (one per offset) isn't an option.
 # Fires every day (Cloudflare rejects a Sunday-inclusive DOW range like "0-5"); the
 # scheduled() handler branches on the day itself: Mon-Fri -> News pre-warm; Sun + Wed
 # -> Catalysts (Wed -> both); Saturday -> nothing (free no-op). Market holidays are
 # skipped inside scheduled().
 [triggers]
-crons = ["0 12 * * *"]
+crons = ["45 11 * * *"]
 
 [[kv_namespaces]]
 binding = "NEWSHUB_CACHE"
