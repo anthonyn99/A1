@@ -2,13 +2,13 @@ name = "trade-dashboard"
 main = "worker.js"
 compatibility_date = "2026-01-01"
 
-# MacroBoard pre-build, ready BEFORE the user opens at 6am Mountain. ONE daily cron at
-# 11:30 UTC = 05:30 MDT (summer) / 04:30 MST (winter) — always before 6am MT. A single
-# UTC cron can't track DST to hit exactly 6am both seasons, but the account is capped
-# at 5 cron triggers total, so two-per-worker isn't an option. Days 1-5 = Mon-Fri.
+# MacroBoard pre-build for the user opening in the morning. ONE daily cron at 12:00 UTC
+# = 06:00 MDT (summer) / 05:00 MST (winter) Mountain time. A single UTC cron can't track
+# DST to keep the same local time both seasons, and the account is capped at 5 cron
+# triggers total, so two-per-worker isn't an option. Days 1-5 = Mon-Fri.
 # Market holidays are skipped inside scheduled() (US_MARKET_HOLIDAYS).
 [triggers]
-crons = ["30 11 * * 1-5"]
+crons = ["0 12 * * 1-5"]
 
 [[kv_namespaces]]
 binding = "TD_KV"
