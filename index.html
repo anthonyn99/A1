@@ -9025,6 +9025,9 @@ function App(){
   const[habitsState,setHabitsState]=useState(init.habits);
   const[hcState,setHcState]=useState(init.hc);
   const[mgState,setMgState]=useState(init.goals);
+  const[mgMonthlyState,setMgMonthlyState]=useState(init.monthlyGoals||[]);
+  const[goalTab,setGoalTab]=useState("short");
+  useEffect(()=>{window._vGoalTabHover=(tab)=>{setGoalTab(tab);};return()=>{delete window._vGoalTabHover;};},[]);
   const[marketCal,setMarketCal]=useState([]);
   const[mo,setMo]=useState(false);
   const[mdt,setMdt]=useState(null);
