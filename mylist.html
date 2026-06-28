@@ -78,7 +78,7 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 .profile-card:hover{transform:translateY(-4px);}
 .profile-card .emoji{font-size:40px;line-height:1;margin-bottom:10px;}
 .profile-card .pname{font-family:'Nunito',sans-serif;font-weight:800;font-size:19px;color:#fff;}
-.profile-card .plock{font-family:'Nunito',sans-serif;font-size:10px;color:#9898a8;margin-top:5px;min-height:13px;line-height:1.2;}
+.profile-card .plock{position:absolute;left:0;right:0;bottom:8px;font-family:'Nunito',sans-serif;font-size:10px;color:#9898a8;line-height:1.2;text-align:center;}
 .profile-card .fav-star{position:absolute;top:7px;right:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;
   font-size:22px;color:#41414e;cursor:pointer;transition:all .15s;line-height:1;border-radius:50%;background:rgba(255,255,255,0.03);}
 .profile-card .fav-star:hover{background:rgba(255,255,255,0.08);}
@@ -253,6 +253,7 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 .dnd-ghost{position:fixed;left:0;top:0;margin:0;pointer-events:none;z-index:9999;opacity:.96;border-radius:12px;
   box-shadow:0 14px 38px rgba(0,0,0,.55),0 0 0 1.5px var(--accent);will-change:transform;}
 .dnd-src{opacity:.32;}
+.item,.rec-row{-webkit-touch-callout:none;}
 .dnd-indicator{position:fixed;height:3px;background:var(--accent);border-radius:3px;z-index:9998;pointer-events:none;box-shadow:0 0 10px var(--accent);}
 body.dnd-active{cursor:grabbing;}
 body.dnd-active *{cursor:grabbing !important;}
@@ -1259,7 +1260,7 @@ function enableDrag(container, kind){
     function cancel(){ clearTimeout(hold); document.removeEventListener('pointermove',pm,true); document.removeEventListener('pointerup',pu,true); document.removeEventListener('pointercancel',pu,true); }
     function pm(ev){ if(Math.abs(ev.clientX-sx)>9 || Math.abs(ev.clientY-sy)>9){ cancel(); } }
     function pu(){ cancel(); }
-    hold=setTimeout(function(){ cancel(); beginDrag(container, kind, row, sx, sy); }, 180);
+    hold=setTimeout(function(){ cancel(); beginDrag(container, kind, row, sx, sy, pid); }, 180);
     document.addEventListener('pointermove', pm, true);
     document.addEventListener('pointerup', pu, true);
     document.addEventListener('pointercancel', pu, true);
@@ -1268,7 +1269,7 @@ function enableDrag(container, kind){
   container.addEventListener('click', function(e){ if(Date.now()-dndLastEnd<350){ e.stopPropagation(); e.preventDefault(); } }, true);
 }
 
-function beginDrag(container, kind, row, px, py){
+function beginDrag(container, kind, row, px, py, pid){
   var rect=row.getBoundingClientRect();
   var ghost=row.cloneNode(true);
   ghost.classList.add('dnd-ghost');
@@ -1276,10 +1277,18 @@ function beginDrag(container, kind, row, px, py){
   document.body.appendChild(ghost);
   row.classList.add('dnd-src');
   var indicator=document.createElement('div'); indicator.className='dnd-indicator'; document.body.appendChild(indicator);
-  dnd={ container:container, kind:kind, row:row, id:row.dataset.id, ghost:ghost, indicator:indicator,
-        ox:px-rect.left, oy:py-rect.top, px:px, py:py, target:null, raf:0, moved:false };
+  // Block the page from scrolling/cancelling the gesture on touch — this is what
+  // made mobile "drop immediately": the browser claimed the touch for scrolling.
+  var blockScroll=function(e){ e.preventDefault(); };
+  var blockCtx=function(e){ e.preventDefault(); };
+  dnd={ container:container, kind:kind, row:row, id:row.dataset.id, ghost:ghost, indicator:indicator, pid:pid,
+        ox:px-rect.left, oy:py-rect.top, px:px, py:py, target:null, raf:0, moved:false,
+        blockScroll:blockScroll, blockCtx:blockCtx };
   document.body.classList.add('dnd-active');
+  try{ row.setPointerCapture && row.setPointerCapture(pid); }catch(_){}
   try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
+  document.addEventListener('touchmove', blockScroll, {passive:false});
+  document.addEventListener('contextmenu', blockCtx);
   document.addEventListener('pointermove', dndMove, {passive:false});
   document.addEventListener('pointerup', dndEnd);
   document.addEventListener('pointercancel', dndEnd);
@@ -1359,6 +1368,9 @@ function dndEnd(){
   document.removeEventListener('pointermove', dndMove);
   document.removeEventListener('pointerup', dndEnd);
   document.removeEventListener('pointercancel', dndEnd);
+  if(a.blockScroll) document.removeEventListener('touchmove', a.blockScroll, {passive:false});
+  if(a.blockCtx) document.removeEventListener('contextmenu', a.blockCtx);
+  try{ a.row && a.row.releasePointerCapture && a.row.releasePointerCapture(a.pid); }catch(_){}
   if(a.raf) cancelAnimationFrame(a.raf);
   if(a.ghost) a.ghost.remove();
   if(a.indicator) a.indicator.remove();
