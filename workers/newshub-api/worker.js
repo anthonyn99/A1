@@ -189,6 +189,116 @@ function wlHash(wl){
 // Default sector map, computed once from the canonical watchlist.
 const SECTORS = sectorsFor(WATCHLIST);
 
+// ── AI sector auto-derivation ──────────────────────────────────────────────
+// Any ticker NOT in the static SECTOR_LOOKUP gets classified by Gemini ONCE,
+// then cached in KV (meta:TICKER, 30d). This is what lets a freshly-added ticker
+// flow through the WHOLE system — UI chip, News sector filter + Gemini prompt,
+// alias matching — without anyone hardcoding it. The Control tab calls
+// GET /sectors on add; the news pipeline calls hydrateMeta() to overlay the
+// cached results before building.
+const META_TTL = 30 * 24 * 3600;          // 30 days — sector/company identity is stable
+const SECTOR_VOCAB = [
+  'Semiconductor','AI/Semiconductor','Semiconductor/Memory','Storage','AI/Software',
+  'Tech/Mega-Cap','Tech/Retail','Cybersecurity','Clean Energy','EV/Auto','Space/SPAC',
+  'Copper/Mining','Materials/Construction','Industrials','Energy','Refining','Retail',
+  'Financials','InsurTech','China/Tech','Pharma','Travel','Defense','Diversified',
+];
+// Ask Gemini to classify a batch of unknown tickers. Returns { TICKER:{sector,name,aliases[]} }.
+async function aiClassifyTickers(tickers, env){
+  if (!tickers.length || !env.GEMINI_KEY) return {};
+  const prompt = `You are a stock-market reference engine. For each US-listed ticker below, return its GICS-style sector label, official company/fund name, and search aliases.
+Tickers: ${tickers.join(', ')}
+Pick the "sector" from this controlled vocabulary when one fits; otherwise return a concise 1-2 word sector of your own:
+${SECTOR_VOCAB.join(', ')}
+"aliases": 3-7 lowercase strings a news headline might use instead of the ticker — company short name, CEO last name, flagship product/brand, common nicknames. No generic words.
+If a ticker is an ETF, set sector to the sector it tracks (e.g. a semiconductor ETF -> "Semiconductor").
+Return ONLY a JSON array; each element: {"ticker","sector","name","aliases"}.`;
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 2048,
+      responseMimeType: 'application/json',
+      responseSchema: { type:'ARRAY', items:{ type:'OBJECT', properties:{
+        ticker:{type:'STRING'}, sector:{type:'STRING'}, name:{type:'STRING'},
+        aliases:{ type:'ARRAY', items:{type:'STRING'} },
+      }, required:['ticker','sector'] } },
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
+  const out = {};
+  for (const model of ['gemini-2.5-flash-lite','gemini-2.5-flash','gemini-2.0-flash']){
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
+        { method:'POST', headers:{'Content-Type':'application/json'}, body });
+      if (!r.ok) continue;
+      const j = await r.json();
+      let text = j.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+      const arr = JSON.parse(text);
+      if (!Array.isArray(arr)) continue;
+      for (const e of arr){
+        const t = (e.ticker||'').toUpperCase().trim();
+        if (!t || !e.sector) continue;
+        out[t] = {
+          sector: String(e.sector).slice(0,40),
+          name: String(e.name||'').slice(0,80),
+          aliases: Array.isArray(e.aliases) ? e.aliases.map(a=>String(a).toLowerCase().trim()).filter(a=>a&&a.length<=40).slice(0,7) : [],
+        };
+      }
+      if (Object.keys(out).length) return out;
+    } catch(e){ /* try next model */ }
+  }
+  return out;
+}
+// Resolve sector/meta for a list of tickers: static table → KV cache → AI (cached).
+// Returns { TICKER:{sector,name,aliases} } for everything resolvable. Tickers that
+// stay unresolved (AI down) simply fall back to 'Diversified' downstream.
+async function resolveMeta(tickers, env){
+  const result = {};
+  const missing = [];
+  for (const t of tickers){
+    if (SECTOR_LOOKUP[t]){ result[t] = { sector: SECTOR_LOOKUP[t], name:'', aliases: ALIASES[t]||[] }; continue; }
+    let cached = null;
+    try { cached = await env.NEWSHUB_CACHE.get('meta:'+t, 'json'); } catch(e){}
+    if (cached && cached.sector){ result[t] = cached; continue; }
+    missing.push(t);
+  }
+  if (missing.length){
+    const ai = await aiClassifyTickers(missing, env);
+    for (const t of missing){
+      const m = ai[t];
+      if (m && m.sector){
+        result[t] = m;
+        try { await env.NEWSHUB_CACHE.put('meta:'+t, JSON.stringify(m), { expirationTtl: META_TTL }); } catch(e){}
+      }
+    }
+  }
+  return result;
+}
+// Overlay cached/derived sectors + aliases into the runtime maps so inferSector(),
+// the Gemini prompt, and isRelevant() all see real values for added tickers.
+// Read-only against KV (NO AI calls) — keeps the build hot path cheap; the AI
+// classification happens up front via the /sectors endpoint when a ticker is added.
+async function hydrateMeta(wl, env){
+  for (const t of wl){
+    if (SECTOR_LOOKUP[t]) continue;
+    if (SECTOR_DERIVED[t]) continue;            // already hydrated this isolate
+    let cached = null;
+    try { cached = await env.NEWSHUB_CACHE.get('meta:'+t, 'json'); } catch(e){}
+    if (cached && cached.sector){
+      SECTOR_DERIVED[t] = cached.sector;
+      if (Array.isArray(cached.aliases) && cached.aliases.length) ALIASES_DERIVED[t] = cached.aliases;
+    }
+  }
+}
+// Hydrate then build the sector map — use in build entry points so custom lists
+// with newly-added tickers get their real (AI-derived) sectors, not 'Diversified'.
+async function sectorsForLive(wl, env){
+  await hydrateMeta(wl, env);
+  return sectorsFor(wl);
+}
+
 const HOURS = 72;
 // Fallback chain: tries in order. If one returns 429 (quota), worker skips to next.
 // Quota-exhaustion state lives in KV for 1 hour so we don't waste retries.
