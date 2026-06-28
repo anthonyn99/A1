@@ -119,7 +119,7 @@ const THEMES = [
   // Copper / industrial metals (SCCO, ERO, FCX)
   { tickers:['SCCO','ERO','FCX'], kw:[
     /\bcopper (price|prices|demand|supply|market|futures|inventories|smelter|smelting|output)\b/,
-    /\blme copper\b/, /\bcodelco\b/, /\bcomex copper\b/,
+    /\blme copper\b/, /\bcodelco\b/, /\bfreeport\b/, /\bcomex copper\b/,
   ] },
   // Crude / refining (XOM, CVX, VLO, CNQ)
   { tickers:['XOM','CVX','VLO','CNQ'], kw:[
