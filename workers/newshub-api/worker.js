@@ -1428,7 +1428,7 @@ async function resolveCronWatchlist(env){
   const wl = isCustom ? saved : WATCHLIST;
   return {
     wl,
-    sectors:  isCustom ? sectorsFor(wl)            : SECTORS,
+    sectors:  isCustom ? await sectorsForLive(wl, env) : SECTORS,
     cacheKey: isCustom ? 'events:v1:' + wlHash(wl) : 'events:v1',
     lockKey:  isCustom ? 'build:lock:' + wlHash(wl): 'build:lock',
   };
