@@ -249,8 +249,13 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 #sel-bar .cnt{font-size:15px;font-weight:800;color:var(--text);font-family:var(--font-btn);white-space:nowrap;width:100%;text-align:center;}
 #sel-bar .btn{padding:10px 15px;font-size:14px;border-radius:20px;}
 
-.ml-drag-ph{border:2px dashed var(--accent);border-radius:12px;background:var(--accent-soft);margin-bottom:8px;flex-shrink:0;}
-.item.dragging-src,.rec-row.dragging-src{opacity:.4;}
+/* drag-and-drop: floating ghost + insertion line (no list reflow = smooth) */
+.dnd-ghost{position:fixed;left:0;top:0;margin:0;pointer-events:none;z-index:9999;opacity:.96;border-radius:12px;
+  box-shadow:0 14px 38px rgba(0,0,0,.55),0 0 0 1.5px var(--accent);will-change:transform;}
+.dnd-src{opacity:.32;}
+.dnd-indicator{position:fixed;height:3px;background:var(--accent);border-radius:3px;z-index:9998;pointer-events:none;box-shadow:0 0 10px var(--accent);}
+body.dnd-active{cursor:grabbing;}
+body.dnd-active *{cursor:grabbing !important;}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 92px);
   background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:700;
   z-index:9500;box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:88vw;text-align:center;}
@@ -279,10 +284,9 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 #lock-forgot{background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;cursor:pointer;margin-top:12px;font-family:var(--font-btn);}
 
 /* ── View switcher (Lists | Recipes) ── */
-#view-switch-wrap{display:flex;}
-#view-switch{display:inline-flex;gap:3px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:3px;}
-#view-switch button{border:none;background:transparent;color:var(--textmute);font-weight:700;font-size:11.5px;font-family:var(--font-btn);padding:6px 15px;border-radius:15px;cursor:pointer;transition:all .15s;letter-spacing:.3px;}
-#view-switch button.on{background:var(--accent-soft);color:var(--accent);}
+#view-switch{display:flex;gap:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px;}
+#view-switch button{flex:1;border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:12px;font-family:var(--font-btn);padding:8px 12px;border-radius:16px;cursor:pointer;transition:all .15s;text-transform:var(--head-transform);letter-spacing:var(--head-spacing);}
+#view-switch button.on{background:var(--accent);color:var(--accent-ink);}
 
 /* ── Recipes ── */
 .rec-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
