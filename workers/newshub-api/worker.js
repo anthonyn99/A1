@@ -133,6 +133,19 @@ const THEMES = [
     /\bndaa\b/, /\bdefense contract\b/, /\bmissile (order|deal|defense)\b/,
   ] },
 ];
+// AI-derived per-ticker theme keywords (compiled regexes), hydrated from KV
+// meta:TICKER by hydrateMeta(). Mirrors the static THEMES above but keyed by a
+// single ticker, so a newly-added ticker gets industry/supply-chain read-through
+// (a rival's capex, a commodity swing, a policy shift) with no hardcoding.
+const THEME_KW_DERIVED = {};
+// Turn an AI keyword phrase into a safe whole-phrase regex. Rejects too-short /
+// too-long / un-compilable strings so noise keywords can't broaden everything.
+function kwToRegex(s){
+  s = String(s||'').toLowerCase().trim();
+  if (s.length < 3 || s.length > 60) return null;
+  const esc = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try { return new RegExp('\\b' + esc + '\\b'); } catch(e){ return null; }
+}
 // Return the set of watchlist tickers an article maps to via theme keywords.
 function themeTickers(text, wl){
   if (!text) return [];
@@ -142,6 +155,12 @@ function themeTickers(text, wl){
     if (th.kw.some(re => re.test(lo))){
       for (const t of th.tickers) if (wl.includes(t)) hits.add(t);
     }
+  }
+  // AI-derived per-ticker themes — only for tickers in this watchlist.
+  for (const t of wl){
+    if (hits.has(t)) continue;
+    const res = THEME_KW_DERIVED[t];
+    if (res && res.some(re => re.test(lo))) hits.add(t);
   }
   return [...hits];
 }
@@ -203,16 +222,18 @@ const SECTOR_VOCAB = [
   'Copper/Mining','Materials/Construction','Industrials','Energy','Refining','Retail',
   'Financials','InsurTech','China/Tech','Pharma','Travel','Defense','Diversified',
 ];
-// Ask Gemini to classify a batch of unknown tickers. Returns { TICKER:{sector,name,aliases[]} }.
+// Ask Gemini to classify a batch of unknown tickers.
+// Returns { TICKER:{sector,name,aliases[],themeKw[]} }.
 async function aiClassifyTickers(tickers, env){
   if (!tickers.length || !env.GEMINI_KEY) return {};
-  const prompt = `You are a stock-market reference engine. For each US-listed ticker below, return its GICS-style sector label, official company/fund name, and search aliases.
+  const prompt = `You are a stock-market reference engine. For each US-listed ticker below, return its GICS-style sector label, official company/fund name, search aliases, and industry "theme" keywords.
 Tickers: ${tickers.join(', ')}
 Pick the "sector" from this controlled vocabulary when one fits; otherwise return a concise 1-2 word sector of your own:
 ${SECTOR_VOCAB.join(', ')}
 "aliases": 3-7 lowercase strings a news headline might use instead of the ticker — company short name, CEO last name, flagship product/brand, common nicknames. No generic words.
+"themeKw": 4-8 lowercase industry/supply-chain phrases that MOVE THIS STOCK even when the company is NOT named — e.g. a key commodity ("copper prices"), a rival/supplier ("tsmc"), an end-market or policy term ("data center capex", "auto tariffs"), a pricing/supply term ("memory glut"). Be SPECIFIC — these are matched as whole phrases in news text, so generic words like "market" or "stock" cause false positives and must be avoided. For a sector ETF, use the broad terms that move the whole sector.
 If a ticker is an ETF, set sector to the sector it tracks (e.g. a semiconductor ETF -> "Semiconductor").
-Return ONLY a JSON array; each element: {"ticker","sector","name","aliases"}.`;
+Return ONLY a JSON array; each element: {"ticker","sector","name","aliases","themeKw"}.`;
   const body = JSON.stringify({
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
@@ -222,10 +243,14 @@ Return ONLY a JSON array; each element: {"ticker","sector","name","aliases"}.`;
       responseSchema: { type:'ARRAY', items:{ type:'OBJECT', properties:{
         ticker:{type:'STRING'}, sector:{type:'STRING'}, name:{type:'STRING'},
         aliases:{ type:'ARRAY', items:{type:'STRING'} },
+        themeKw:{ type:'ARRAY', items:{type:'STRING'} },
       }, required:['ticker','sector'] } },
       thinkingConfig: { thinkingBudget: 0 },
     },
   });
+  const clean = arr => Array.isArray(arr)
+    ? arr.map(a=>String(a).toLowerCase().trim()).filter(a=>a&&a.length>=3&&a.length<=40).slice(0,8)
+    : [];
   const out = {};
   for (const model of ['gemini-2.5-flash-lite','gemini-2.5-flash','gemini-2.0-flash']){
     try {
@@ -243,7 +268,8 @@ Return ONLY a JSON array; each element: {"ticker","sector","name","aliases"}.`;
         out[t] = {
           sector: String(e.sector).slice(0,40),
           name: String(e.name||'').slice(0,80),
-          aliases: Array.isArray(e.aliases) ? e.aliases.map(a=>String(a).toLowerCase().trim()).filter(a=>a&&a.length<=40).slice(0,7) : [],
+          aliases: clean(e.aliases).slice(0,7),
+          themeKw: clean(e.themeKw),
         };
       }
       if (Object.keys(out).length) return out;
@@ -289,6 +315,10 @@ async function hydrateMeta(wl, env){
     if (cached && cached.sector){
       SECTOR_DERIVED[t] = cached.sector;
       if (Array.isArray(cached.aliases) && cached.aliases.length) ALIASES_DERIVED[t] = cached.aliases;
+      if (Array.isArray(cached.themeKw) && cached.themeKw.length){
+        const res = cached.themeKw.map(kwToRegex).filter(Boolean);
+        if (res.length) THEME_KW_DERIVED[t] = res;
+      }
     }
   }
 }
@@ -2399,6 +2429,10 @@ async function handleStage(env, ctx, req, buildId, stage, sliceIdx){
   if (!metaRaw) return new Response(JSON.stringify({ error:'stage meta missing/expired', buildId }), { status:410, headers:{...cors(),'Content-Type':'application/json'} });
   const meta = JSON.parse(metaRaw);
   const wl = meta.wl, sectors = meta.sectors, useLimited = meta.useLimited;
+  // Each stage is a fresh invocation, so the derived alias/theme overlays start
+  // empty — re-hydrate from KV so isRelevant() and broadenByTheme() see AI-derived
+  // aliases + industry keywords during this slice's fetch.
+  await hydrateMeta(wl, env);
   const slices = sliceTickers(wl);
   const origin = selfOrigin(req);
 
