@@ -2455,17 +2455,25 @@ function useTouchReorder(items, setItems, who, selfZone) {
     });
   }
 
+  // Whole row is the drag handle; a movement threshold keeps taps & scrolling working.
   const getTouchHandlers = useCallback((id) => ({
     onTouchStart(e) {
       src.current = id;
       lastHoverTab.current = null;
-      if(who&&selfZone)_xStart(who,selfZone,id);
-      makeClone(e.currentTarget, e.touches[0]);
+      const rowEl=e.currentTarget;
+      const t0=e.touches[0], dx0=t0.clientX, dy0=t0.clientY;
+      let dragStarted=false;
       // Attach move/end to document so the drag survives the dragged row unmounting
       // (e.g. when hovering a tab switches the visible list mid-drag).
       const moveH=(ev)=>{
-        ev.preventDefault();
         const t=ev.touches[0];
+        if(!dragStarted){
+          if(Math.abs(t.clientX-dx0)<8&&Math.abs(t.clientY-dy0)<8)return;
+          dragStarted=true;
+          if(who&&selfZone)_xStart(who,selfZone,id);
+          makeClone(rowEl,t);
+        }
+        ev.preventDefault();
         if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
         const el=document.elementFromPoint(t.clientX,t.clientY);
         const tabEl=el&&(el.dataset.goalTab?el:el.closest('[data-goal-tab]'));
@@ -2480,6 +2488,7 @@ function useTouchReorder(items, setItems, who, selfZone) {
         document.removeEventListener('touchmove',moveH,{passive:false});
         document.removeEventListener('touchend',endH);
         document.removeEventListener('touchcancel',endH);
+        if(!dragStarted){src.current=null;lastHoverTab.current=null;return;}
         const t=ev.changedTouches[0];
         const el=t?document.elementFromPoint(t.clientX,t.clientY):null;
         const row=el&&el.closest('[data-dnd-id]');
@@ -2494,7 +2503,7 @@ function useTouchReorder(items, setItems, who, selfZone) {
       document.addEventListener('touchend',endH);
       document.addEventListener('touchcancel',endH);
     },
-    onTouchMove(e) { e.preventDefault(); },
+    onTouchMove(e) {},
     onTouchEnd(e) {},
   }), [setItems]);
 
@@ -2512,6 +2521,9 @@ function useTouchReorderByDay(setData, accentColor, who) {
   const startY = useRef(0);
   const startX = useRef(0);
   const lastHoverTab = useRef(null);
+  const downX = useRef(0);
+  const downY = useRef(0);
+  const dragStarted = useRef(false);
 
   function makeClone(touchEl, touch) {
     const row = touchEl.closest('[data-dnd-id]') || touchEl.parentElement;
@@ -2543,16 +2555,26 @@ function useTouchReorderByDay(setData, accentColor, who) {
     });
   }
 
+  // Whole row is the drag handle. A small movement threshold lets taps (checkbox,
+  // edit/delete buttons) and list scrolling still work — drag only begins once the
+  // finger actually moves, then mirrors the old grip-drag behavior exactly.
   const getTaskTouchHandlers = useCallback((k, id) => ({
     onTouchStart(e) {
       src.current = id;
       srcDay.current = k;
-      if(who)_xStart(who,"week",id,k);
-      makeClone(e.currentTarget, e.touches[0]);
+      dragStarted.current = false;
+      const t = e.touches[0];
+      downX.current = t.clientX; downY.current = t.clientY;
     },
     onTouchMove(e) {
-      e.preventDefault();
       const t = e.touches[0];
+      if (!dragStarted.current) {
+        if (Math.abs(t.clientX - downX.current) < 8 && Math.abs(t.clientY - downY.current) < 8) return;
+        dragStarted.current = true;
+        if(who)_xStart(who,"week",id,k);
+        makeClone(e.currentTarget, t);
+      }
+      e.preventDefault();
       if (clone.current) {
         clone.current.style.left = (t.clientX - startX.current) + 'px';
         clone.current.style.top  = (t.clientY - startY.current) + 'px';
@@ -2564,6 +2586,8 @@ function useTouchReorderByDay(setData, accentColor, who) {
       if (row && row.dataset.dndId !== src.current) { row.style.boxShadow = `0 0 0 2px ${accentColor||'#E0607A'}`; lastTarget.current = row; }
     },
     onTouchEnd(e) {
+      if (!dragStarted.current) { src.current = null; srcDay.current = null; return; }
+      dragStarted.current = false;
       const t = e.changedTouches[0];
       const el = document.elementFromPoint(t.clientX, t.clientY);
       const row = el && el.closest('[data-dnd-id]');
@@ -7930,15 +7954,23 @@ function useTouchReorder(items, setItems, who, selfZone) {
     });
   }
 
+  // Whole row is the drag handle; a movement threshold keeps taps & scrolling working.
   const getTouchHandlers = useCallback((id) => ({
     onTouchStart(e) {
       src.current = id;
       lastHoverTab.current = null;
-      if(who&&selfZone)_xStart(who,selfZone,id);
-      makeClone(e.currentTarget, e.touches[0]);
+      const rowEl=e.currentTarget;
+      const t0=e.touches[0], dx0=t0.clientX, dy0=t0.clientY;
+      let dragStarted=false;
       const moveH=(ev)=>{
-        ev.preventDefault();
         const t=ev.touches[0];
+        if(!dragStarted){
+          if(Math.abs(t.clientX-dx0)<8&&Math.abs(t.clientY-dy0)<8)return;
+          dragStarted=true;
+          if(who&&selfZone)_xStart(who,selfZone,id);
+          makeClone(rowEl,t);
+        }
+        ev.preventDefault();
         if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
         const el=document.elementFromPoint(t.clientX,t.clientY);
         const tabEl=el&&(el.dataset.goalTab?el:el.closest('[data-goal-tab]'));
@@ -7953,6 +7985,7 @@ function useTouchReorder(items, setItems, who, selfZone) {
         document.removeEventListener('touchmove',moveH,{passive:false});
         document.removeEventListener('touchend',endH);
         document.removeEventListener('touchcancel',endH);
+        if(!dragStarted){src.current=null;lastHoverTab.current=null;return;}
         const t=ev.changedTouches[0];
         const el=t?document.elementFromPoint(t.clientX,t.clientY):null;
         const row=el&&el.closest('[data-dnd-id]');
@@ -7967,7 +8000,7 @@ function useTouchReorder(items, setItems, who, selfZone) {
       document.addEventListener('touchend',endH);
       document.addEventListener('touchcancel',endH);
     },
-    onTouchMove(e) { e.preventDefault(); },
+    onTouchMove(e) {},
     onTouchEnd(e) {},
   }), [setItems]);
 
@@ -7985,6 +8018,9 @@ function useTouchReorderByDay(setData, accentColor, who) {
   const startY = useRef(0);
   const startX = useRef(0);
   const lastHoverTab = useRef(null);
+  const downX = useRef(0);
+  const downY = useRef(0);
+  const dragStarted = useRef(false);
 
   function makeClone(touchEl, touch) {
     const row = touchEl.closest('[data-dnd-id]') || touchEl.parentElement;
@@ -8016,16 +8052,24 @@ function useTouchReorderByDay(setData, accentColor, who) {
     });
   }
 
+  // Whole row is the drag handle; a movement threshold keeps taps & scrolling working.
   const getTaskTouchHandlers = useCallback((k, id) => ({
     onTouchStart(e) {
       src.current = id;
       srcDay.current = k;
-      if(who)_xStart(who,"week",id,k);
-      makeClone(e.currentTarget, e.touches[0]);
+      dragStarted.current = false;
+      const t = e.touches[0];
+      downX.current = t.clientX; downY.current = t.clientY;
     },
     onTouchMove(e) {
-      e.preventDefault();
       const t = e.touches[0];
+      if (!dragStarted.current) {
+        if (Math.abs(t.clientX - downX.current) < 8 && Math.abs(t.clientY - downY.current) < 8) return;
+        dragStarted.current = true;
+        if(who)_xStart(who,"week",id,k);
+        makeClone(e.currentTarget, t);
+      }
+      e.preventDefault();
       if (clone.current) {
         clone.current.style.left = (t.clientX - startX.current) + 'px';
         clone.current.style.top  = (t.clientY - startY.current) + 'px';
@@ -8037,6 +8081,8 @@ function useTouchReorderByDay(setData, accentColor, who) {
       if (row && row.dataset.dndId !== src.current) { row.style.boxShadow = `0 0 0 2px ${accentColor||'#8D769A'}`; lastTarget.current = row; }
     },
     onTouchEnd(e) {
+      if (!dragStarted.current) { src.current = null; srcDay.current = null; return; }
+      dragStarted.current = false;
       const t = e.changedTouches[0];
       const el = document.elementFromPoint(t.clientX, t.clientY);
       const row = el && el.closest('[data-dnd-id]');
