@@ -3578,7 +3578,8 @@ function App(){
   // ── Weekly item cards: each task / event sits in its own dark-gray rounded card ──
   const wkTaskCard=done=>({background:isDark?(done?"#101116":"#131419"):(done?T.S2:T.S1),border:"1px solid "+(isDark?"#2a2b34":T.BD),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.4)":"0 1px 2px "+T.SHADOW});
   const wkEventCard=cat=>({background:isDark?"#141519":T.S2,border:"1px solid "+(isDark?"#27282f":T.BD),borderLeft:"3px solid "+((CC&&CC[cat])||T.ACL),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
-  const wkCatalystCard=kind=>({background:isDark?"#101319":T.S2,border:"1px solid "+(isDark?"#243042":T.BD),borderLeft:"3px solid "+(kind==="earnings"?"#50C878":kind==="holiday"?"#d29922":"#58a6d4"),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
+  const MC_PASTEL={earnings:"#e7a6b4",inflation:"#e3c794",fed:"#c9b3ec",jobs:"#a6c8e6",growth:"#a6dcb2",macro:"#c0c6cd",rates:"#c9b3ec",gdp:"#a6dcb2",retail:"#a6dcb2",housing:"#a3dcc6",sentiment:"#e3cb98",trade:"#edb2a6",oil:"#e3bd96",holiday:"#b0b9cc"};
+  const wkCatalystCard=cat=>({background:isDark?"#101319":T.S2,border:"1px solid "+(isDark?"#243042":T.BD),borderLeft:"3px solid "+(MC_PASTEL[String(cat||"").toLowerCase()]||"#b0b9cc"),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
 
   // Touch reorder for habits and goals
   const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habits,setHabits,"tony","habit");
@@ -3741,7 +3742,7 @@ function App(){
   const ctag=c=>({fontSize:9,color:CC[c]||T.TXD,background:(CC[c]||T.TXD)+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+(CC[c]||T.TXD)+"30"});
   const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date||ev.date<todayK)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,date:ev.date,notifyAt:ev.notifyAt||null});});return g;},[marketCal]);
   const mcFmt=(iso)=>{const d=new Date(iso);let h=d.getHours();const m=d.getMinutes();const ap=h<12?" AM":" PM";h=h%12||12;return h+":"+(m<10?"0":"")+m+ap;};
-  const mcChip=(e)=>React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:isMobile?4:3,cursor:"default"}},
+  const mcChip=(e)=>React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:isMobile?4:3,cursor:"default"}},
     React.createElement("span",{style:{fontSize:13,flexShrink:0,lineHeight:1.4,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
     React.createElement("span",{style:{fontSize:14,fontWeight:700,color:T.TX,lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
     React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
@@ -3838,11 +3839,11 @@ function App(){
                     React.createElement("span",{style:{fontSize:13,fontWeight:800,color:T.TX,lineHeight:1}},e._pvTeam2||"TBD")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>React.createElement("div",{key:t.id,...taskRowP(t.id),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
-                edit&&React.createElement("span",{style:grip(),...taskTouchH(k,t.id)},"⠿"),
+                edit&&React.createElement("span",{style:grip(),...taskTouchH(k,t.id)},""),
                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:18,height:18,minWidth:18,borderRadius:4,border:"2px solid "+(t.done?T.AC:T.BDL),background:t.done?T.AC:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:9,col:T.BG})),
-                React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},t.title),
+                React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},t.title),
                 !edit&&React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
-                  React.createElement("span",{style:ctag(t.category)},t.category),
+                  React.createElement("span",{style:{...ctag(t.category),opacity:t.done?0.6:1}},t.category),
                   t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},"🔔\u202f"+fmtNotif(t.notifyAt))),
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
@@ -3860,7 +3861,7 @@ function App(){
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3,textAlign:"center"}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))
               :React.createElement("div",{key:e.id,...taskRowP(e.id),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,cursor:edit?"grab":"default"})},
-                edit&&React.createElement("span",{style:grip(),...taskTouchH(k,e.id)},"⠿"),
+                edit&&React.createElement("span",{style:grip(),...taskTouchH(k,e.id)},""),
                 React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
                 React.createElement("span",{style:{fontSize:14,fontWeight:600,color:T.TXD,lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
                 (e.time||e.notifyAt)&&React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
@@ -3906,11 +3907,11 @@ function App(){
                     React.createElement("span",{style:{fontSize:11,fontWeight:800,color:T.TX,lineHeight:1}},e._pvTeam2||"TBD")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>React.createElement("div",{key:t.id,...taskRowP(t.id),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
-                edit&&React.createElement("span",{style:grip(),...taskTouchH(k,t.id)},"⠿"),
+                edit&&React.createElement("span",{style:grip(),...taskTouchH(k,t.id)},""),
                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?T.AC:T.BDL),background:t.done?T.AC:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:7,col:T.BG})),
-                React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word",whiteSpace:"normal"}},t.title),
+                React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word",whiteSpace:"normal"}},t.title),
                 !edit&&React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
-                  React.createElement("span",{style:ctag(t.category)},t.category),
+                  React.createElement("span",{style:{...ctag(t.category),opacity:t.done?0.6:1}},t.category),
                   t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},"🔔\u202f"+fmtNotif(t.notifyAt))),
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,t.id)},"×"))),
@@ -3928,7 +3929,7 @@ function App(){
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2,textAlign:"center"}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px"},onClick:()=>del(k,e.id)},"×"))
               :React.createElement("div",{key:e.id,...taskRowP(e.id),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category),display:"flex",alignItems:"flex-start",gap:5,marginBottom:3,cursor:edit?"grab":"default"})},
-                edit&&React.createElement("span",{style:grip(),...taskTouchH(k,e.id)},"⠿"),
+                edit&&React.createElement("span",{style:grip(),...taskTouchH(k,e.id)},""),
                 React.createElement("div",{style:{width:5,height:5,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
                 React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word",whiteSpace:"normal"}},e.title),
                 (e.time||e.notifyAt)&&React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
@@ -3958,7 +3959,7 @@ function App(){
             React.createElement("tbody",null,
               habits.map(h=>React.createElement("tr",{key:h.id,...habitRowP(h.id),draggable:edit,onDragStart:edit?e=>onDragStartHabit(e,h.id):null,onDragOver:edit?e=>{e.preventDefault();if(!isMobile)setDragOverId(h.id);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropHabit(e,h.id):null,style:{cursor:edit?"grab":"default",outline:(!isMobile&&dragOverId===h.id)?"2px solid "+T.AC:"none",outlineOffset:"-1px"}},
                 React.createElement("td",{style:{fontSize:13,fontWeight:700,color:T.TX,paddingLeft:4,paddingTop:7,paddingBottom:7,wordBreak:"break-word",whiteSpace:"normal",borderBottom:"1px solid "+T.BD+"22",width:"100%"}},
-                  edit&&React.createElement("span",{style:{...grip(),marginRight:4,display:"inline-block"},...habitTouchH(h.id)},"⠿"),
+                  edit&&React.createElement("span",{style:{...grip(),marginRight:4,display:"inline-block"},...habitTouchH(h.id)},""),
                   h.title),
                 ...wd.map((w2,di)=>{const hk=`${h.id}-${w2.year}-${w2.month}-${w2.day}`,ch=!!hc[hk];return habCell(ch,()=>togH(h.id,di));}),
                 React.createElement("td",{style:{textAlign:"right",paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:edit?62:0,paddingRight:edit?2:0,paddingLeft:0,overflow:"hidden",whiteSpace:"nowrap",visibility:edit?"visible":"hidden"}},
@@ -4005,7 +4006,7 @@ function App(){
             onDragEnd:edit?()=>setDragOverId(null):null,
             onDrop:edit?e=>(goalTab==="short"?onDropGoalM:onDropGoal)(e,g.id):null,
             style:dndRowStyle(g.id,{display:"flex",alignItems:"flex-start",gap:7,padding:"6px 0",opacity:g.done?0.72:1,borderBottom:"1px solid "+T.BD+"33",cursor:edit?"grab":"default"})},
-            edit&&React.createElement("span",{style:grip(),...(goalTab==="short"?goalMTouchH:goalTouchH)(g.id)},"⠿"),
+            edit&&React.createElement("span",{style:grip(),...(goalTab==="short"?goalMTouchH:goalTouchH)(g.id)},""),
             React.createElement("div",{onClick:()=>(goalTab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,cursor:"pointer",border:"2px solid "+(g.done?T.AC:T.BDL),background:g.done?T.AC:"transparent",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&React.createElement(Chk,{s:8,col:T.BG})),
             React.createElement("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?T.TXDONE:T.TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word",whiteSpace:"normal"}},g.title),
             edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>(goalTab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title})},"✎"),
@@ -9444,7 +9445,7 @@ function App(){
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               (mcByDay[k]||[]).map(mcChip),
               ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{display:"flex",alignItems:"flex-start",gap:7,marginBottom:7,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
-                edit&&RC("span",{style:vgripM(),...taskTouchH(k,t.id)},"⠿"),
+                edit&&RC("span",{style:vgripM(),...taskTouchH(k,t.id)},""),
                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:TX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},t.title),
                 !edit&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
@@ -9453,7 +9454,7 @@ function App(){
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&RC("button",{style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{display:"flex",alignItems:"flex-start",gap:6,marginBottom:6,cursor:edit?"grab":"default"})},
-                edit&&RC("span",{style:vgripM(),...taskTouchH(k,e.id)},"⠿"),
+                edit&&RC("span",{style:vgripM(),...taskTouchH(k,e.id)},""),
                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||"#58a6d4",marginTop:5,flexShrink:0}}),
                 RC("span",{style:{fontSize:14,fontWeight:600,color:"#58a6d4",lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
                 (e.time||e.notifyAt)&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
@@ -9482,7 +9483,7 @@ function App(){
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               (mcByDay[k]||[]).map(mcChip),
               ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{display:"flex",alignItems:"flex-start",gap:6,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
-                edit&&RC("span",{style:vgripM(),...taskTouchH(k,t.id)},"⠿"),
+                edit&&RC("span",{style:vgripM(),...taskTouchH(k,t.id)},""),
                 RC("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:8})),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:TX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word",overflowWrap:"break-word"}},t.title),
                 !edit&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
@@ -9491,7 +9492,7 @@ function App(){
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&RC("button",{style:dbtn,onClick:()=>del(k,t.id)},"×"))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4,cursor:edit?"grab":"default"})},
-                edit&&RC("span",{style:vgripM(),...taskTouchH(k,e.id)},"⠿"),
+                edit&&RC("span",{style:vgripM(),...taskTouchH(k,e.id)},""),
                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||"#58a6d4",marginTop:5,flexShrink:0}}),
                 RC("span",{style:{fontSize:12,fontWeight:600,color:"#58a6d4",lineHeight:1.35,flex:1}},e.title),
                 (e.time||e.notifyAt)&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
@@ -9517,7 +9518,7 @@ function App(){
               RC("th",{style:{width:edit?62:0,padding:0,overflow:"hidden",visibility:edit?"visible":"hidden"}}))),
             RC("tbody",null,habits.map((h,hi)=>RC("tr",{key:h.id,...habitRowP(h.id),draggable:edit,onDragStart:edit?e=>vOnDragStartHabit(e,h.id):null,onDragOver:edit?e=>{e.preventDefault();if(!vrMobile)setVdDragOverId(h.id);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropHabit(e,h.id):null,style:{cursor:edit?"grab":"default",outline:(!vrMobile&&vdDragOverId===h.id)?"2px solid "+A:"none",outlineOffset:"-1px"}},
               RC("td",{style:{fontSize:12,fontWeight:600,color:TXD,paddingLeft:4,paddingTop:4,paddingBottom:4,overflowWrap:"break-word",wordBreak:"break-word",width:"100%",borderBottom:"1px solid "+BD+"44"}},
-                edit&&RC("span",{style:{...vgripM(),marginRight:3,display:"inline-block"},...habitTouchH(h.id)},"⠿"),
+                edit&&RC("span",{style:{...vgripM(),marginRight:3,display:"inline-block"},...habitTouchH(h.id)},""),
                 h.title),
               ...wd.map((w2,di)=>{const hk=`${h.id}-${w2.year}-${w2.month}-${w2.day}`,ch=!!hc[hk];return RC("td",{key:di,style:{textAlign:"center",paddingTop:5,paddingBottom:5,borderBottom:"1px solid "+BD+"44",width:28,minWidth:28}},RC("div",{onClick:()=>togH(h.id,di),style:{display:"flex",alignItems:"center",justifyContent:"center",width:16,height:16,margin:"0 auto",borderRadius:"50%",cursor:"pointer",transition:"background .15s, border-color .15s",border:ch?"2px solid "+A:"2px solid "+BDL,background:ch?A:"transparent"}},ch&&RC(Chk,{s:7})));}),
               RC("td",{style:{textAlign:"center",paddingTop:6,paddingBottom:6,borderBottom:"1px solid "+BD+"44",whiteSpace:"nowrap",width:edit?62:0,padding:edit?"6px 0":"0",overflow:"hidden",visibility:edit?"visible":"hidden"}},RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>setEditingHabit({id:h.id,title:h.title})},"✎"),RC("button",{style:{...dbtn,fontSize:15,padding:"0 6px"},onClick:()=>delH(h.id)},"×"))))))),
@@ -9545,7 +9546,7 @@ function App(){
           RC("input",{style:{...inp,flex:1},placeholder:goalTab==="short"?"New short-term goal...":"New long-term goal...",value:goalTab==="short"?nmmt:nmt,onChange:e=>(goalTab==="short"?setNmmt:setNmt)(e.target.value),onKeyDown:e=>{if(e.key==="Enter")(goalTab==="short"?addMM:addM)();}}),
           RC("button",{style:sbtn,onClick:goalTab==="short"?addMM:addM},"+")),
         RC("div",{style:{flex:1,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},(goalTab==="short"?mgMonthly:mg).map(g=>RC("div",{key:g.id,...(goalTab==="short"?goalMRowP:goalRowP)(g.id),draggable:edit,onDragStart:edit?e=>(goalTab==="short"?vOnDragStartGoalM:vOnDragStartGoal)(e,g.id):null,onDragOver:edit?e=>{e.preventDefault();if(!vrMobile)setVdDragOverId(g.id);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>(goalTab==="short"?vOnDropGoalM:vOnDropGoal)(e,g.id):null,style:vdndRowStyle(g.id,{display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",opacity:g.done?.5:1,cursor:edit?"grab":"default"})},
-          edit&&RC("span",{style:vgripM(),...(goalTab==="short"?goalMTouchH:goalTouchH)(g.id)},"⠿"),
+          edit&&RC("span",{style:vgripM(),...(goalTab==="short"?goalMTouchH:goalTouchH)(g.id)},""),
           RC("div",{onClick:()=>(goalTab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,border:"2px solid "+(g.done?A:TXM),background:g.done?A:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&RC(Chk)),
           RC("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?TXM:TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word",overflowWrap:"break-word",minWidth:0}},g.title),
           edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>(goalTab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title})},"✎"),

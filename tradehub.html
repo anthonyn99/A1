@@ -4138,7 +4138,7 @@ function tbZonedISO(dateStr,hh,mm){
   const asTz=Date.UTC(+p.year,+p.month-1,+p.day,hr,+p.minute);
   return new Date(utcGuess-(asTz-utcGuess)).toISOString();
 }
-const TB_CAT_COLORS={earnings:'#E0607A',inflation:'#d29922',fed:'#bc8cff',jobs:'#58a6d4',growth:'#56d364',macro:'#8b949e',rates:'#bc8cff',gdp:'#56d364',retail:'#56d364',housing:'#58d4a4',sentiment:'#d4a93a',trade:'#e07a6a',oil:'#d4843a',holiday:'#6b7a99'};
+const TB_CAT_COLORS={earnings:'#e7a6b4',inflation:'#e3c794',fed:'#c9b3ec',jobs:'#a6c8e6',growth:'#a6dcb2',macro:'#c0c6cd',rates:'#c9b3ec',gdp:'#a6dcb2',retail:'#a6dcb2',housing:'#a3dcc6',sentiment:'#e3cb98',trade:'#edb2a6',oil:'#e3bd96',holiday:'#b0b9cc'};
 const tbCatColor=c=>TB_CAT_COLORS[String(c||'').toLowerCase()]||'#8b949e';
 function tbFmtLocal(iso){ if(!iso) return ''; const d=new Date(iso); let h=d.getHours(); const m=d.getMinutes(); const ap=h<12?'AM':'PM'; h=h%12||12; return h+':'+(m<10?'0':'')+m+' '+ap; }
 
