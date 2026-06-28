@@ -8,10 +8,12 @@ compatibility_date = "2025-06-01"
 #   11:30 UTC = 05:30 MDT (summer, UTC-6)   |   12:30 UTC = 05:30 MST (winter, UTC-7)
 # scheduled() runs only when it's hour 5 in America/Denver, so the off-DST fire is a
 # no-op → exactly one build/day at 5:30 MT year-round.
-# Days 0-5 = Sun-Fri: Mon-Fri -> News pre-warm; Sun + Wed -> Catalysts (Wed -> both).
-# Saturday omitted. Market holidays are skipped inside scheduled().
+# Fires every day (Cloudflare rejects a Sunday-inclusive DOW range like "0-5"); the
+# scheduled() handler branches on the day itself: Mon-Fri -> News pre-warm; Sun + Wed
+# -> Catalysts (Wed -> both); Saturday -> nothing (free no-op). Market holidays are
+# skipped inside scheduled().
 [triggers]
-crons = ["30 11 * * 0-5", "30 12 * * 0-5"]
+crons = ["30 11 * * *", "30 12 * * *"]
 
 [[kv_namespaces]]
 binding = "NEWSHUB_CACHE"
