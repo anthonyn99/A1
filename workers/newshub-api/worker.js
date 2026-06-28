@@ -30,8 +30,14 @@ const SECTOR_LOOKUP = {
   SCCO:'Copper/Mining', ERO:'Copper/Mining', WMT:'Retail', AMZN:'Tech/Retail',
   BABA:'China/Tech', LMND:'InsurTech', EXPE:'Travel', NVS:'Pharma', MS:'Financials',
   XOM:'Energy', CVX:'Energy', VLO:'Refining', CNQ:'Energy',
+  COF:'Financials', FCX:'Copper/Mining', MMM:'Industrials', SMH:'Semiconductor',
+  VMC:'Materials/Construction',
 };
-function inferSector(t){ return SECTOR_LOOKUP[t] || 'Diversified'; }
+// Runtime overlay: AI-derived sectors hydrated from KV (meta:TICKER) for tickers
+// not in the static table above. Merged via hydrateMeta() before each build so
+// inferSector() and the Gemini prompt see real sectors for newly-added tickers.
+const SECTOR_DERIVED = {};
+function inferSector(t){ return SECTOR_LOOKUP[t] || SECTOR_DERIVED[t] || 'Diversified'; }
 
 // Company-name aliases so headline matching catches articles that name the
 // company but not the ticker. Extend freely — unknown tickers match on symbol.
@@ -70,7 +76,15 @@ const ALIASES = {
   CVX:['chevron','mike wirth','hess corp','tengizchevroil'],
   VLO:['valero','valero energy','lane riggs','crack spread'],
   CNQ:['canadian natural','canadian natural resources','tim mckay','oil sands'],
+  COF:['capital one','richard fairbank','discover financial','venture x'],
+  FCX:['freeport','freeport-mcmoran','freeport mcmoran','grasberg','kathleen quirk'],
+  MMM:['3m','3m company','william brown','post-it','scotch tape','solventum'],
+  SMH:['vaneck semiconductor','semiconductor etf','soxx','philadelphia semiconductor','sox index'],
+  VMC:['vulcan materials','vulcan','aggregates','crushed stone','tom hill'],
 };
+// AI-derived aliases (from KV meta:TICKER) merged in at build time by hydrateMeta().
+const ALIASES_DERIVED = {};
+function aliasesFor(t){ return ALIASES[t] || ALIASES_DERIVED[t] || []; }
 
 // ── Industry / supply-chain THEME attribution ──────────────────────────────
 // isRelevant() only catches articles that name a ticker or its company alias.

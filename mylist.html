@@ -1326,18 +1326,26 @@ function storeSelectInner(id, sel){
   stores.forEach(function(s){ o+='<option value="'+esc(s)+'"'+(s===sel?' selected':'')+'>'+esc(s)+'</option>'; });
   return o+'</select>';
 }
+function storeHeaderHtml(s){ return '<div class="store-group-h" data-store="'+esc(s)+'">'+esc(s||'Other')+' <span class="gline"></span></div>'; }
 function renderItems(l){
   var items=l.items||[]; var stores=l.stores||[];
   if(!items.length) return '<div class="card"><div class="empty">No items yet. Tap the mic or type in the bar at the bottom, or open <b>Manual</b> to add them by hand.</div></div>';
+  // ONE flat container with interleaved store headers + item rows → enables
+  // smooth cross-store drag (an item's store = the header above it on drop).
+  var h='<div id="items-container">';
   if(stores.length){
-    var groups=[]; stores.forEach(function(s){ groups.push({name:s, items:items.filter(function(x){return x.store===s;})}); });
+    stores.forEach(function(s){
+      h+=storeHeaderHtml(s);
+      h+=sortItems(items.filter(function(x){return x.store===s;})).map(itemHtml).join('');
+    });
     var other=items.filter(function(x){return !x.store || stores.indexOf(x.store)<0;});
-    if(other.length) groups.push({name:'Other', items:other});
-    var out='';
-    groups.forEach(function(g){ if(!g.items.length) return; out+='<div class="store-group"><div class="store-group-h">'+esc(g.name)+' <span class="gline"></span></div>'+sortItems(g.items).map(itemHtml).join('')+'</div>'; });
-    return out;
+    h+=storeHeaderHtml('');
+    h+=sortItems(other).map(itemHtml).join('');
+  } else {
+    h+=sortItems(items).map(itemHtml).join('');
   }
-  return '<div class="store-group">'+sortItems(items).map(itemHtml).join('')+'</div>';
+  h+='</div>';
+  return h;
 }
 function sortItems(arr){ return arr.slice().sort(function(a,b){ return (a.done?1:0)-(b.done?1:0); }); }
 function itemHtml(it){

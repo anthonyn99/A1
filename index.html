@@ -7941,7 +7941,7 @@ function useTouchReorder(items, setItems, who, selfZone) {
         const el=document.elementFromPoint(t.clientX,t.clientY);
         const tabEl=el&&(el.dataset.goalTab?el:el.closest('[data-goal-tab]'));
         const hoverTab=tabEl?(tabEl.dataset.goalTab||tabEl.getAttribute('data-goal-tab')):null;
-        if(hoverTab&&hoverTab!==lastHoverTab.current&&src.current&&window._goalTabHover){lastHoverTab.current=hoverTab;window._goalTabHover(hoverTab);}
+        if(hoverTab&&hoverTab!==lastHoverTab.current&&src.current&&window._vGoalTabHover){lastHoverTab.current=hoverTab;window._vGoalTabHover(hoverTab);}
         else if(!hoverTab){lastHoverTab.current=null;}
         const row=el&&el.closest('[data-dnd-id]');
         if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.boxShadow='';}
@@ -9334,6 +9334,10 @@ function App(){
   const togM=useCallback(id=>{setMg(p=>p.map(g=>g.id===id?{...g,done:!g.done}:g));},[]);
   const delM=useCallback(id=>{setMg(p=>p.filter(g=>g.id!==id));},[]);
   const addM=useCallback(()=>{if(!nmt.trim())return;setMg(p=>[...p,{id:uid(),title:nmt.trim(),done:false}]);setNmt("");},[nmt]);
+  const renameMM=useCallback((id,title)=>setMgMonthly(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMgMonthly]);
+  const togMM=useCallback(id=>{setMgMonthly(p=>p.map(g=>g.id===id?{...g,done:!g.done}:g));},[setMgMonthly]);
+  const delMM=useCallback(id=>{setMgMonthly(p=>p.filter(g=>g.id!==id));},[setMgMonthly]);
+  const addMM=useCallback(()=>{if(!nmmt.trim())return;setMgMonthly(p=>[...p,{id:uid(),title:nmmt.trim(),done:false}]);setNmmt("");},[nmmt,setMgMonthly]);
   const calcCells=useMemo(()=>{const d=dimM(vy,vm),f=fdow(vy,vm),c=[];for(let i=0;i<f;i++)c.push(null);for(let i=1;i<=d;i++)c.push(i);return c;},[vy,vm]);
   const pm=()=>{if(vm===0){setVm(11);setVy(y=>y-1);}else setVm(m=>m-1);};
   const nm=()=>{if(vm===11){setVm(0);setVy(y=>y+1);}else setVm(m=>m+1);};
