@@ -18,6 +18,9 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;}
+/* Draggable task/habit/goal rows: long-press picks them up, so suppress the
+   iOS text-selection / callout that a hold would otherwise trigger. */
+[data-dnd-id]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}
 /* ── Shared Tony App Nav Bar ── */
 #tony-app-nav{
   position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;z-index:10001;
@@ -2455,27 +2458,21 @@ function useTouchReorder(items, setItems, who, selfZone) {
     });
   }
 
-  // Whole row is the drag handle; a movement threshold keeps taps & scrolling working.
+  // Long-press to pick up, then drag. Holding still for ~200ms arms the drag;
+  // moving before that = scroll (drag never starts). Once dragging, only the
+  // drag finger's own moves are captured — a SECOND finger can still scroll the
+  // page (or tap a day/tab) so you can reach a far drop target, then lift to drop.
   const getTouchHandlers = useCallback((id) => ({
     onTouchStart(e) {
-      src.current = id;
-      lastHoverTab.current = null;
+      const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
+      const touchId=t0.identifier;
       const rowEl=e.currentTarget;
-      const t0=e.touches[0], dx0=t0.clientX, dy0=t0.clientY;
-      let dragStarted=false;
-      // Attach move/end to document so the drag survives the dragged row unmounting
-      // (e.g. when hovering a tab switches the visible list mid-drag).
-      const moveH=(ev)=>{
-        const t=ev.touches[0];
-        if(!dragStarted){
-          if(Math.abs(t.clientX-dx0)<8&&Math.abs(t.clientY-dy0)<8)return;
-          dragStarted=true;
-          if(who&&selfZone)_xStart(who,selfZone,id);
-          makeClone(rowEl,t);
-        }
-        ev.preventDefault();
-        if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
-        const el=document.elementFromPoint(t.clientX,t.clientY);
+      const dx0=t0.clientX, dy0=t0.clientY;
+      let curX=dx0, curY=dy0;
+      let dragStarted=false, lpTimer=null;
+      const getT=(list)=>{for(let i=0;i<list.length;i++)if(list[i].identifier===touchId)return list[i];return null;};
+      const updateHighlight=(x,y)=>{
+        const el=document.elementFromPoint(x,y);
         const tabEl=el&&(el.dataset.goalTab?el:el.closest('[data-goal-tab]'));
         const hoverTab=tabEl?(tabEl.dataset.goalTab||tabEl.getAttribute('data-goal-tab')):null;
         if(hoverTab&&hoverTab!==lastHoverTab.current&&src.current&&window._goalTabHover){lastHoverTab.current=hoverTab;window._goalTabHover(hoverTab);}
@@ -2484,13 +2481,42 @@ function useTouchReorder(items, setItems, who, selfZone) {
         if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.boxShadow='';lastTarget.current.style.outline='';}
         if(row&&row.dataset.dndId!==src.current){row.style.boxShadow='0 0 0 2px #E0607A';lastTarget.current=row;}
       };
-      const endH=(ev)=>{
+      const cleanup=()=>{
+        if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
         document.removeEventListener('touchmove',moveH,{passive:false});
         document.removeEventListener('touchend',endH);
         document.removeEventListener('touchcancel',endH);
+      };
+      const beginDrag=()=>{
+        lpTimer=null; dragStarted=true;
+        if(who&&selfZone)_xStart(who,selfZone,id);
+        makeClone(rowEl,{clientX:curX,clientY:curY});
+        if(clone.current){clone.current.style.left=(curX-startX.current)+'px';clone.current.style.top=(curY-startY.current)+'px';clone.current.style.pointerEvents='none';}
+        try{navigator.vibrate&&navigator.vibrate(15);}catch(_){}
+        updateHighlight(curX,curY);
+      };
+      const moveH=(ev)=>{
+        const t=getT(ev.touches);
+        if(!dragStarted){
+          if(!t)return;
+          curX=t.clientX; curY=t.clientY;
+          // Finger moved before the hold completed → user is scrolling, abort the pickup.
+          if(Math.abs(t.clientX-dx0)>10||Math.abs(t.clientY-dy0)>10){cleanup();src.current=null;lastHoverTab.current=null;}
+          return; // never preventDefault while waiting → native scroll stays alive
+        }
+        if(!getT(ev.changedTouches))return; // our finger didn't move → let other fingers scroll
+        if(!t)return;
+        curX=t.clientX; curY=t.clientY;
+        ev.preventDefault();
+        if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
+        updateHighlight(t.clientX,t.clientY);
+      };
+      const endH=(ev)=>{
+        const t=getT(ev.changedTouches);
+        if(!t)return; // a different finger lifted; keep dragging
+        cleanup();
         if(!dragStarted){src.current=null;lastHoverTab.current=null;return;}
-        const t=ev.changedTouches[0];
-        const el=t?document.elementFromPoint(t.clientX,t.clientY):null;
+        const el=document.elementFromPoint(t.clientX,t.clientY);
         const row=el&&el.closest('[data-dnd-id]');
         const targetId=row?.dataset?.dndId;
         clearClone();
@@ -2499,6 +2525,8 @@ function useTouchReorder(items, setItems, who, selfZone) {
         if(targetId&&targetId!==src.current)reorder(src.current,targetId);
         src.current=null;
       };
+      src.current=id; lastHoverTab.current=null;
+      lpTimer=setTimeout(beginDrag,200);
       document.addEventListener('touchmove',moveH,{passive:false});
       document.addEventListener('touchend',endH);
       document.addEventListener('touchcancel',endH);
@@ -2555,56 +2583,85 @@ function useTouchReorderByDay(setData, accentColor, who) {
     });
   }
 
-  // Whole row is the drag handle. A small movement threshold lets taps (checkbox,
-  // edit/delete buttons) and list scrolling still work — drag only begins once the
-  // finger actually moves, then mirrors the old grip-drag behavior exactly.
+  // Long-press to pick up, then drag. Holding still ~200ms arms the drag; moving
+  // before that scrolls the page (drag never starts) so taps on the checkbox /
+  // edit / delete buttons and list scrolling still work. Once dragging, only the
+  // drag finger's moves are captured — a SECOND finger can scroll the page or tap
+  // another day to bring it under the drag finger, then lift to drop there.
   const getTaskTouchHandlers = useCallback((k, id) => ({
     onTouchStart(e) {
-      src.current = id;
-      srcDay.current = k;
-      dragStarted.current = false;
-      const t = e.touches[0];
-      downX.current = t.clientX; downY.current = t.clientY;
-    },
-    onTouchMove(e) {
-      const t = e.touches[0];
-      if (!dragStarted.current) {
-        if (Math.abs(t.clientX - downX.current) < 8 && Math.abs(t.clientY - downY.current) < 8) return;
-        dragStarted.current = true;
+      const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
+      const touchId=t0.identifier;
+      const rowEl=e.currentTarget;
+      const dx0=t0.clientX, dy0=t0.clientY;
+      let curX=dx0, curY=dy0;
+      let started=false, lpTimer=null;
+      const getT=(list)=>{for(let i=0;i<list.length;i++)if(list[i].identifier===touchId)return list[i];return null;};
+      const highlight=(x,y)=>{
+        const el=document.elementFromPoint(x,y);
+        const row=el&&el.closest('[data-dnd-id]');
+        if(lastTarget.current&&lastTarget.current!==row)lastTarget.current.style.boxShadow='';
+        if(row&&row.dataset.dndId!==src.current){row.style.boxShadow=`0 0 0 2px ${accentColor||'#E0607A'}`;lastTarget.current=row;}
+      };
+      const cleanup=()=>{
+        if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
+        document.removeEventListener('touchmove',moveH,{passive:false});
+        document.removeEventListener('touchend',endH);
+        document.removeEventListener('touchcancel',endH);
+      };
+      const beginDrag=()=>{
+        lpTimer=null; started=true; dragStarted.current=true;
         if(who)_xStart(who,"week",id,k);
-        makeClone(e.currentTarget, t);
-      }
-      e.preventDefault();
-      if (clone.current) {
-        clone.current.style.left = (t.clientX - startX.current) + 'px';
-        clone.current.style.top  = (t.clientY - startY.current) + 'px';
-        clone.current.style.pointerEvents = 'none';
-      }
-      const el = document.elementFromPoint(t.clientX, t.clientY);
-      const row = el && el.closest('[data-dnd-id]');
-      if (lastTarget.current && lastTarget.current !== row) lastTarget.current.style.boxShadow = '';
-      if (row && row.dataset.dndId !== src.current) { row.style.boxShadow = `0 0 0 2px ${accentColor||'#E0607A'}`; lastTarget.current = row; }
-    },
-    onTouchEnd(e) {
-      if (!dragStarted.current) { src.current = null; srcDay.current = null; return; }
-      dragStarted.current = false;
-      const t = e.changedTouches[0];
-      const el = document.elementFromPoint(t.clientX, t.clientY);
-      const row = el && el.closest('[data-dnd-id]');
-      const targetId = row?.dataset?.dndId;
-      const k = srcDay.current;
-      clearClone();
-      if(who){
-        const zEl=el&&el.closest('[data-dnd-zone]');
-        const tz=zEl?_xParseZone(zEl.getAttribute('data-dnd-zone')):null;
-        if(tz&&(tz.zone!=="week"||tz.dayKey!==k)){
-          if(_xDrop(who,tz.zone,targetId||null,tz.dayKey)){src.current=null;srcDay.current=null;return;}
+        makeClone(rowEl,{clientX:curX,clientY:curY});
+        if(clone.current){clone.current.style.left=(curX-startX.current)+'px';clone.current.style.top=(curY-startY.current)+'px';clone.current.style.pointerEvents='none';}
+        try{navigator.vibrate&&navigator.vibrate(15);}catch(_){}
+        highlight(curX,curY);
+      };
+      const moveH=(ev)=>{
+        const t=getT(ev.touches);
+        if(!started){
+          if(!t)return;
+          curX=t.clientX; curY=t.clientY;
+          if(Math.abs(t.clientX-dx0)>10||Math.abs(t.clientY-dy0)>10){cleanup();src.current=null;srcDay.current=null;}
+          return; // never preventDefault while waiting → native scroll stays alive
         }
-        if(_XDRAG[who])_XDRAG[who].infoRef.current=null;
-      }
-      if (targetId && targetId !== src.current && k) reorder(k, src.current, targetId);
-      src.current = null; srcDay.current = null;
+        if(!getT(ev.changedTouches))return; // our finger didn't move → let other fingers scroll
+        if(!t)return;
+        curX=t.clientX; curY=t.clientY;
+        ev.preventDefault();
+        if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
+        highlight(t.clientX,t.clientY);
+      };
+      const endH=(ev)=>{
+        const t=getT(ev.changedTouches);
+        if(!t)return; // a different finger lifted; keep dragging
+        cleanup();
+        if(!started){src.current=null;srcDay.current=null;return;}
+        dragStarted.current=false;
+        const el=document.elementFromPoint(t.clientX,t.clientY);
+        const row=el&&el.closest('[data-dnd-id]');
+        const targetId=row?.dataset?.dndId;
+        const dk=srcDay.current;
+        clearClone();
+        if(who){
+          const zEl=el&&el.closest('[data-dnd-zone]');
+          const tz=zEl?_xParseZone(zEl.getAttribute('data-dnd-zone')):null;
+          if(tz&&(tz.zone!=="week"||tz.dayKey!==dk)){
+            if(_xDrop(who,tz.zone,targetId||null,tz.dayKey)){src.current=null;srcDay.current=null;return;}
+          }
+          if(_XDRAG[who])_XDRAG[who].infoRef.current=null;
+        }
+        if(targetId&&targetId!==src.current&&dk)reorder(dk,src.current,targetId);
+        src.current=null; srcDay.current=null;
+      };
+      src.current=id; srcDay.current=k; dragStarted.current=false;
+      lpTimer=setTimeout(beginDrag,200);
+      document.addEventListener('touchmove',moveH,{passive:false});
+      document.addEventListener('touchend',endH);
+      document.addEventListener('touchcancel',endH);
     },
+    onTouchMove(e) {},
+    onTouchEnd(e) {},
   }), [setData]);
 
   const getTaskRowProps = useCallback((id) => ({'data-dnd-id': id}), []);
@@ -3611,7 +3668,7 @@ function App(){
   const {getTouchHandlers:goalMTouchH,getRowProps:goalMRowP}=useTouchReorder(mgMonthly,setMgMonthly,"tony","goalm");
   const {getTaskTouchHandlers:taskTouchH,getTaskRowProps:taskRowP}=useTouchReorderByDay(setData,T.AC,"tony");
   const onDragStartTask=(e,k,id)=>{dragType.current="task";dragDayKey.current=k;dragSrc.current=id;dragInfo.current={zone:"week",id,dayKey:k};e.dataTransfer.effectAllowed="move";};
-  const onDragOverTask=(e,id)=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!isMobile)setDragOverId(id);};
+  const onDragOverTask=(e,id)=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="move";if(!isMobile)setDragOverId(id);};
   const onDropTask=(e,k,targetId)=>{
     e.preventDefault();
     e.stopPropagation();
@@ -7948,25 +8005,21 @@ function useTouchReorder(items, setItems, who, selfZone) {
     });
   }
 
-  // Whole row is the drag handle; a movement threshold keeps taps & scrolling working.
+  // Long-press to pick up, then drag. Holding still for ~200ms arms the drag;
+  // moving before that = scroll (drag never starts). Once dragging, only the
+  // drag finger's own moves are captured — a SECOND finger can still scroll the
+  // page (or tap a day/tab) so you can reach a far drop target, then lift to drop.
   const getTouchHandlers = useCallback((id) => ({
     onTouchStart(e) {
-      src.current = id;
-      lastHoverTab.current = null;
+      const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
+      const touchId=t0.identifier;
       const rowEl=e.currentTarget;
-      const t0=e.touches[0], dx0=t0.clientX, dy0=t0.clientY;
-      let dragStarted=false;
-      const moveH=(ev)=>{
-        const t=ev.touches[0];
-        if(!dragStarted){
-          if(Math.abs(t.clientX-dx0)<8&&Math.abs(t.clientY-dy0)<8)return;
-          dragStarted=true;
-          if(who&&selfZone)_xStart(who,selfZone,id);
-          makeClone(rowEl,t);
-        }
-        ev.preventDefault();
-        if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
-        const el=document.elementFromPoint(t.clientX,t.clientY);
+      const dx0=t0.clientX, dy0=t0.clientY;
+      let curX=dx0, curY=dy0;
+      let dragStarted=false, lpTimer=null;
+      const getT=(list)=>{for(let i=0;i<list.length;i++)if(list[i].identifier===touchId)return list[i];return null;};
+      const updateHighlight=(x,y)=>{
+        const el=document.elementFromPoint(x,y);
         const tabEl=el&&(el.dataset.goalTab?el:el.closest('[data-goal-tab]'));
         const hoverTab=tabEl?(tabEl.dataset.goalTab||tabEl.getAttribute('data-goal-tab')):null;
         if(hoverTab&&hoverTab!==lastHoverTab.current&&src.current&&window._vGoalTabHover){lastHoverTab.current=hoverTab;window._vGoalTabHover(hoverTab);}
@@ -7975,13 +8028,41 @@ function useTouchReorder(items, setItems, who, selfZone) {
         if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.boxShadow='';}
         if(row&&row.dataset.dndId!==src.current){row.style.boxShadow='0 0 0 2px #8D769A';lastTarget.current=row;}
       };
-      const endH=(ev)=>{
+      const cleanup=()=>{
+        if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
         document.removeEventListener('touchmove',moveH,{passive:false});
         document.removeEventListener('touchend',endH);
         document.removeEventListener('touchcancel',endH);
+      };
+      const beginDrag=()=>{
+        lpTimer=null; dragStarted=true;
+        if(who&&selfZone)_xStart(who,selfZone,id);
+        makeClone(rowEl,{clientX:curX,clientY:curY});
+        if(clone.current){clone.current.style.left=(curX-startX.current)+'px';clone.current.style.top=(curY-startY.current)+'px';clone.current.style.pointerEvents='none';}
+        try{navigator.vibrate&&navigator.vibrate(15);}catch(_){}
+        updateHighlight(curX,curY);
+      };
+      const moveH=(ev)=>{
+        const t=getT(ev.touches);
+        if(!dragStarted){
+          if(!t)return;
+          curX=t.clientX; curY=t.clientY;
+          if(Math.abs(t.clientX-dx0)>10||Math.abs(t.clientY-dy0)>10){cleanup();src.current=null;lastHoverTab.current=null;}
+          return; // never preventDefault while waiting → native scroll stays alive
+        }
+        if(!getT(ev.changedTouches))return; // our finger didn't move → let other fingers scroll
+        if(!t)return;
+        curX=t.clientX; curY=t.clientY;
+        ev.preventDefault();
+        if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
+        updateHighlight(t.clientX,t.clientY);
+      };
+      const endH=(ev)=>{
+        const t=getT(ev.changedTouches);
+        if(!t)return; // a different finger lifted; keep dragging
+        cleanup();
         if(!dragStarted){src.current=null;lastHoverTab.current=null;return;}
-        const t=ev.changedTouches[0];
-        const el=t?document.elementFromPoint(t.clientX,t.clientY):null;
+        const el=document.elementFromPoint(t.clientX,t.clientY);
         const row=el&&el.closest('[data-dnd-id]');
         const targetId=row?.dataset?.dndId;
         clearClone();
@@ -7990,6 +8071,8 @@ function useTouchReorder(items, setItems, who, selfZone) {
         if(targetId&&targetId!==src.current)reorder(src.current,targetId);
         src.current=null;
       };
+      src.current=id; lastHoverTab.current=null;
+      lpTimer=setTimeout(beginDrag,200);
       document.addEventListener('touchmove',moveH,{passive:false});
       document.addEventListener('touchend',endH);
       document.addEventListener('touchcancel',endH);
@@ -8046,47 +8129,78 @@ function useTouchReorderByDay(setData, accentColor, who) {
     });
   }
 
-  // Whole row is the drag handle; a movement threshold keeps taps & scrolling working.
+  // Long-press to pick up, then drag. Holding still ~200ms arms the drag; moving
+  // before that scrolls the page (drag never starts) so taps on the checkbox /
+  // edit / delete buttons and list scrolling still work. Once dragging, only the
+  // drag finger's moves are captured — a SECOND finger can scroll the page or tap
+  // another day to bring it under the drag finger, then lift to drop there.
   const getTaskTouchHandlers = useCallback((k, id) => ({
     onTouchStart(e) {
-      src.current = id;
-      srcDay.current = k;
-      dragStarted.current = false;
-      const t = e.touches[0];
-      downX.current = t.clientX; downY.current = t.clientY;
-    },
-    onTouchMove(e) {
-      const t = e.touches[0];
-      if (!dragStarted.current) {
-        if (Math.abs(t.clientX - downX.current) < 8 && Math.abs(t.clientY - downY.current) < 8) return;
-        dragStarted.current = true;
+      const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
+      const touchId=t0.identifier;
+      const rowEl=e.currentTarget;
+      const dx0=t0.clientX, dy0=t0.clientY;
+      let curX=dx0, curY=dy0;
+      let started=false, lpTimer=null;
+      const getT=(list)=>{for(let i=0;i<list.length;i++)if(list[i].identifier===touchId)return list[i];return null;};
+      const highlight=(x,y)=>{
+        const el=document.elementFromPoint(x,y);
+        const row=el&&el.closest('[data-dnd-id]');
+        if(lastTarget.current&&lastTarget.current!==row)lastTarget.current.style.boxShadow='';
+        if(row&&row.dataset.dndId!==src.current){row.style.boxShadow=`0 0 0 2px ${accentColor||'#8D769A'}`;lastTarget.current=row;}
+      };
+      const cleanup=()=>{
+        if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
+        document.removeEventListener('touchmove',moveH,{passive:false});
+        document.removeEventListener('touchend',endH);
+        document.removeEventListener('touchcancel',endH);
+      };
+      const beginDrag=()=>{
+        lpTimer=null; started=true; dragStarted.current=true;
         if(who)_xStart(who,"week",id,k);
-        makeClone(e.currentTarget, t);
-      }
-      e.preventDefault();
-      if (clone.current) {
-        clone.current.style.left = (t.clientX - startX.current) + 'px';
-        clone.current.style.top  = (t.clientY - startY.current) + 'px';
-        clone.current.style.pointerEvents = 'none';
-      }
-      const el = document.elementFromPoint(t.clientX, t.clientY);
-      const row = el && el.closest('[data-dnd-id]');
-      if (lastTarget.current && lastTarget.current !== row) lastTarget.current.style.boxShadow = '';
-      if (row && row.dataset.dndId !== src.current) { row.style.boxShadow = `0 0 0 2px ${accentColor||'#8D769A'}`; lastTarget.current = row; }
+        makeClone(rowEl,{clientX:curX,clientY:curY});
+        if(clone.current){clone.current.style.left=(curX-startX.current)+'px';clone.current.style.top=(curY-startY.current)+'px';clone.current.style.pointerEvents='none';}
+        try{navigator.vibrate&&navigator.vibrate(15);}catch(_){}
+        highlight(curX,curY);
+      };
+      const moveH=(ev)=>{
+        const t=getT(ev.touches);
+        if(!started){
+          if(!t)return;
+          curX=t.clientX; curY=t.clientY;
+          if(Math.abs(t.clientX-dx0)>10||Math.abs(t.clientY-dy0)>10){cleanup();src.current=null;srcDay.current=null;}
+          return; // never preventDefault while waiting → native scroll stays alive
+        }
+        if(!getT(ev.changedTouches))return; // our finger didn't move → let other fingers scroll
+        if(!t)return;
+        curX=t.clientX; curY=t.clientY;
+        ev.preventDefault();
+        if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
+        highlight(t.clientX,t.clientY);
+      };
+      const endH=(ev)=>{
+        const t=getT(ev.changedTouches);
+        if(!t)return; // a different finger lifted; keep dragging
+        cleanup();
+        if(!started){src.current=null;srcDay.current=null;return;}
+        dragStarted.current=false;
+        const el=document.elementFromPoint(t.clientX,t.clientY);
+        const row=el&&el.closest('[data-dnd-id]');
+        const targetId=row?.dataset?.dndId;
+        const dk=srcDay.current;
+        clearClone();
+        if(who){const zEl=el&&el.closest('[data-dnd-zone]');const tz=zEl?_xParseZone(zEl.getAttribute('data-dnd-zone')):null;if(tz&&(tz.zone!=="week"||tz.dayKey!==dk)){if(_xDrop(who,tz.zone,targetId||null,tz.dayKey)){src.current=null;srcDay.current=null;return;}}if(_XDRAG[who])_XDRAG[who].infoRef.current=null;}
+        if(targetId&&targetId!==src.current&&dk)reorder(dk,src.current,targetId);
+        src.current=null; srcDay.current=null;
+      };
+      src.current=id; srcDay.current=k; dragStarted.current=false;
+      lpTimer=setTimeout(beginDrag,200);
+      document.addEventListener('touchmove',moveH,{passive:false});
+      document.addEventListener('touchend',endH);
+      document.addEventListener('touchcancel',endH);
     },
-    onTouchEnd(e) {
-      if (!dragStarted.current) { src.current = null; srcDay.current = null; return; }
-      dragStarted.current = false;
-      const t = e.changedTouches[0];
-      const el = document.elementFromPoint(t.clientX, t.clientY);
-      const row = el && el.closest('[data-dnd-id]');
-      const targetId = row?.dataset?.dndId;
-      const k = srcDay.current;
-      clearClone();
-      if(who){const zEl=el&&el.closest('[data-dnd-zone]');const tz=zEl?_xParseZone(zEl.getAttribute('data-dnd-zone')):null;if(tz&&(tz.zone!=="week"||tz.dayKey!==k)){if(_xDrop(who,tz.zone,targetId||null,tz.dayKey)){src.current=null;srcDay.current=null;return;}}if(_XDRAG[who])_XDRAG[who].infoRef.current=null;}
-      if (targetId && targetId !== src.current && k) reorder(k, src.current, targetId);
-      src.current = null; srcDay.current = null;
-    },
+    onTouchMove(e) {},
+    onTouchEnd(e) {},
   }), [setData]);
 
   const getTaskRowProps = useCallback((id) => ({'data-dnd-id': id}), []);
@@ -9271,7 +9385,7 @@ function App(){
   const {getTouchHandlers:goalMTouchH,getRowProps:goalMRowP}=useTouchReorder(mgMonthly,setMgMonthly,"veda","goalm");
   const {getTaskTouchHandlers:taskTouchH,getTaskRowProps:taskRowP}=useTouchReorderByDay(setData,A,"veda");
   const vOnDragStartTask=(e,k,id)=>{vdDragType.current="task";vdDragDay.current=k;vdDragSrc.current=id;vdDragInfo.current={zone:"week",id,dayKey:k};e.dataTransfer.effectAllowed="move";};
-  const vOnDragOverTask=(e,id)=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!vrMobile)setVdDragOverId(id);};
+  const vOnDragOverTask=(e,id)=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="move";if(!vrMobile)setVdDragOverId(id);};
   const vOnDropTask=(e,k,targetId)=>{
     e.preventDefault();
     e.stopPropagation();
