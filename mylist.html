@@ -177,11 +177,11 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 
 /* ── resizable textarea wrapper ── */
 .ta-wrap{position:relative;width:100%;}
-.ta-wrap textarea{padding-right:42px;padding-bottom:30px;}
-.resize-grip{position:absolute;right:5px;bottom:5px;width:38px;height:38px;cursor:ns-resize;touch-action:none;display:flex;align-items:center;justify-content:center;
-  color:var(--accent);opacity:1;border-radius:9px;background:var(--accent-soft);border:1.5px solid var(--accent);}
-.resize-grip:active{background:var(--accent);color:var(--accent-ink);}
-.resize-grip svg{width:22px;height:22px;}
+.ta-wrap textarea{padding-right:22px;padding-bottom:22px;}
+.resize-grip{position:absolute;right:5px;bottom:4px;width:18px;height:18px;cursor:ns-resize;touch-action:none;display:flex;align-items:center;justify-content:center;
+  color:var(--accent);opacity:.6;background:transparent;border:none;}
+.resize-grip:hover{opacity:1;}
+.resize-grip svg{width:15px;height:15px;}
 
 /* ── Manual collapsible ── */
 .manual-toggle{width:100%;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
