@@ -1178,7 +1178,7 @@ function recDetailHtml(){
       +'<button class="btn danger sm" onclick="ML.recDelete(\''+r.id+'\')">Delete</button></div>'
     +'</div>';
 }
-function recOpenDetail(id){ recDetailId=id; render(); window.scrollTo(0,0); }
+function recOpenDetail(id){ if(Date.now()-lastDragEnd<350) return; recDetailId=id; render(); window.scrollTo(0,0); }
 function recBack(){ recDetailId=null; render(); window.scrollTo(0,0); }
 // modal
 function recAddIng(name,qty){
