@@ -18614,37 +18614,47 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
 #bj-root .tb-btn.lock-btn.locked:hover { background: rgba(224,96,122,0.14); border-color: rgba(224,96,122,0.6); }
 #bj-lock-overlay {
   position: absolute; inset: 0; z-index: 200;
-  background: var(--bg); display: flex; align-items: center; justify-content: center;
-  flex-direction: column; gap: 18px;
+  background: rgba(10,10,12,0.78); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; padding: 22px;
 }
-#bj-lock-overlay .tl-icon { font-size: 48px; line-height: 1; }
-#bj-lock-overlay .tl-title { font-family: 'Lora', serif; font-size: 20px; font-weight: 800; color: var(--text); }
-#bj-lock-overlay .tl-sub { font-size: 13px; color: var(--text3); text-align: center; max-width: 260px; line-height: 1.5; font-family: var(--font); }
-#bj-lock-overlay .tl-input-wrap { display: flex; flex-direction: column; gap: 8px; width: 260px; }
+#bj-lock-overlay .tl-box {
+  width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--border2);
+  border-radius: 18px; padding: 26px 22px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+}
+#bj-lock-overlay .tl-box.shake { animation: bj-tl-shake 0.45s ease; }
+@keyframes bj-tl-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-9px)} 40%,80%{transform:translateX(9px)} }
+#bj-lock-overlay .tl-icon { font-size: 38px; line-height: 1; }
+#bj-lock-overlay .tl-title { font-family: 'Lora', serif; font-size: 22px; font-weight: 800; color: var(--text); }
+#bj-lock-overlay .tl-sub { font-size: 13px; color: var(--text3); text-align: center; line-height: 1.45; font-family: var(--font); }
+#bj-lock-overlay .tl-menu { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+#bj-lock-overlay .tl-input-wrap { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 #bj-lock-overlay .tl-pw-input {
   width: 100%; background: var(--card2); border: 1px solid var(--border2);
-  border-radius: 6px; color: var(--text); font-size: 14px; padding: 10px 14px;
-  outline: none; font-family: var(--font); transition: border-color 0.15s;
+  border-radius: 6px; color: var(--text); font-size: 16px; padding: 11px 14px;
+  outline: none; font-family: var(--font); text-align: center; letter-spacing: 3px;
+  transition: border-color 0.15s; box-sizing: border-box;
 }
 #bj-lock-overlay .tl-pw-input:focus { border-color: var(--purple); }
-#bj-lock-overlay .tl-pw-input.error { border-color: #E0607A; animation: bj-tl-shake 0.3s ease; }
-@keyframes bj-tl-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
-#bj-lock-overlay .tl-err { font-size: 11px; color: #E0607A; font-weight: 600; text-align: center; min-height: 14px; font-family: var(--font); }
+#bj-lock-overlay .tl-pw-input.error { border-color: #E0607A; }
+#bj-lock-overlay .tl-err { font-size: 12px; color: #E0607A; font-weight: 700; text-align: center; min-height: 16px; font-family: var(--font); }
+#bj-lock-overlay .tl-row { display: flex; gap: 8px; width: 100%; }
+#bj-lock-overlay .tl-row .tl-btn { flex: 1; }
 #bj-lock-overlay .tl-btn {
-  width: 100%; padding: 10px; background: var(--purple); color: #fff; border: none;
-  border-radius: 6px; font-size: 13px; font-weight: 600; font-family: var(--font);
-  letter-spacing: 0.05em; cursor: pointer; transition: opacity 0.15s;
+  width: 100%; padding: 11px; background: var(--purple); color: #fff; border: none;
+  border-radius: 6px; font-size: 13px; font-weight: 700; font-family: var(--font);
+  letter-spacing: 0.04em; cursor: pointer; transition: opacity 0.15s;
 }
+#bj-lock-overlay .tl-btn.ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
+#bj-lock-overlay .tl-btn.danger { background: transparent; color: #E0607A; border: 1px solid #E0607A; }
 #bj-lock-overlay .tl-btn:hover { opacity: 0.85; }
-#bj-lock-overlay .tl-forgot { background: none; border: none; color: var(--text3); font-size: 11px; font-family: var(--font); cursor: pointer; text-decoration: underline; padding: 0; margin-top: 2px; }
+#bj-lock-overlay .tl-forgot { background: none; border: none; color: var(--text3); font-size: 12px; font-family: var(--font); cursor: pointer; text-decoration: underline; padding: 0; margin-top: 4px; }
 #bj-lock-overlay .tl-forgot:hover { color: var(--text2); }
 #bj-root .entry-item .tl-badge { font-size: 10px; margin-left: 4px; opacity: 0.7; }
 @media (max-width: 768px) {
-  #bj-lock-overlay { padding: 24px 20px; }
-  #bj-lock-overlay .tl-input-wrap { width: min(280px, calc(100vw - 48px)); }
-  #bj-lock-overlay .tl-pw-input { font-size: 16px; padding: 13px 14px; }
-  #bj-lock-overlay .tl-btn { padding: 14px; font-size: 13px; }
-  #bj-lock-overlay .tl-icon { font-size: 56px; }
+  #bj-lock-overlay .tl-box { padding: 24px 20px; }
+  #bj-lock-overlay .tl-icon { font-size: 44px; }
   #bj-lock-overlay .tl-title { font-size: 22px; }
 }
 </style>
@@ -18745,14 +18755,19 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
   <div id="bj-content-area">
     <!-- LOCK OVERLAY -->
     <div id="bj-lock-overlay" style="display:none;">
-      <div class="tl-icon" id="bj-lock-icon">🔒</div>
-      <div class="tl-title" id="bj-lock-title">Locked Entry</div>
-      <div class="tl-sub" id="bj-lock-sub">Enter your password to unlock this entry.</div>
-      <div class="tl-input-wrap" id="bj-lock-input-wrap">
-        <input class="tl-pw-input" id="bj-lock-pw" type="password" placeholder="Password…" autocomplete="current-password" />
-        <div class="tl-err" id="bj-lock-err"></div>
-        <button class="tl-btn" id="bj-lock-submit">Unlock</button>
-        <button class="tl-btn" id="bj-lock-cancel" style="background:transparent;color:var(--text3);border:1px solid var(--border2);display:none;">Cancel</button>
+      <div class="tl-box" id="bj-lock-box">
+        <div class="tl-icon" id="bj-lock-icon">🔒</div>
+        <div class="tl-title" id="bj-lock-title">Locked Entry</div>
+        <div class="tl-sub" id="bj-lock-sub">Enter your password to unlock this entry.</div>
+        <div class="tl-menu" id="bj-lock-menu" style="display:none;"></div>
+        <div class="tl-input-wrap" id="bj-lock-input-wrap">
+          <input class="tl-pw-input" id="bj-lock-pw" type="password" placeholder="• • • •" autocomplete="current-password" />
+          <div class="tl-err" id="bj-lock-err"></div>
+          <div class="tl-row" id="bj-lock-row">
+            <button class="tl-btn ghost" id="bj-lock-cancel">Cancel</button>
+            <button class="tl-btn" id="bj-lock-submit">Unlock</button>
+          </div>
+        </div>
         <button class="tl-forgot" id="bj-lock-forgot">Forgot password?</button>
       </div>
     </div>
@@ -21950,33 +21965,109 @@ window.hideBrainstormJournal = function() {
   var lockTitle = document.getElementById('bj-lock-title');
   var lockSub = document.getElementById('bj-lock-sub');
   var cancelBtn = document.getElementById('bj-lock-cancel');
+  var boxEl = document.getElementById('bj-lock-box');
+  var menuEl = document.getElementById('bj-lock-menu');
+  var inputWrap = document.getElementById('bj-lock-input-wrap');
+  var blMode = 'unlock';
 
+  // modes: 'setpw' | 'unlock' | 'remove' | 'changepw'
   function blShowOverlay(mode) {
+    blMode = mode;
     overlay.style.display = 'flex';
+    if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
+    if (inputWrap) inputWrap.style.display = '';
     errEl.textContent = '';
     pwInput.value = '';
     pwInput.classList.remove('error');
+    submitBtn.style.display = '';
+    cancelBtn.style.display = '';
+    forgotBtn.style.display = '';
     if (mode === 'setpw') {
       lockIcon.textContent = '🔐';
       lockTitle.textContent = 'Set a Password';
       lockSub.textContent = 'Choose a password for this entry. Unlock once on this device — it stays unlocked here until you re-lock it.';
       submitBtn.textContent = 'Set Password';
       forgotBtn.style.display = 'none';
-      cancelBtn.style.display = '';
+    } else if (mode === 'remove') {
+      lockIcon.textContent = '🔓';
+      lockTitle.textContent = 'Remove Lock';
+      lockSub.textContent = 'Enter the password to remove the lock.';
+      submitBtn.textContent = 'Remove Lock';
+    } else if (mode === 'changepw') {
+      lockIcon.textContent = '🔑';
+      lockTitle.textContent = 'Change Password';
+      lockSub.textContent = 'Enter your current password first.';
+      submitBtn.textContent = 'Verify';
     } else {
       lockIcon.textContent = '🔒';
       lockTitle.textContent = 'Locked Entry';
       lockSub.textContent = 'Enter your password to unlock this entry.';
       submitBtn.textContent = 'Unlock';
-      forgotBtn.style.display = '';
-      cancelBtn.style.display = 'none';
     }
     setTimeout(function() { pwInput.focus(); }, 80);
   }
 
-  function blHideOverlay() { overlay.style.display = 'none'; }
+  function blHideOverlay() {
+    overlay.style.display = 'none';
+    if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
+    if (inputWrap) inputWrap.style.display = '';
+  }
 
-  cancelBtn && cancelBtn.addEventListener('click', function() { blHideOverlay(); });
+  function blLockErr(msg) {
+    errEl.textContent = msg;
+    pwInput.value = '';
+    pwInput.classList.add('error');
+    if (boxEl) { boxEl.classList.remove('shake'); void boxEl.offsetWidth; boxEl.classList.add('shake'); }
+    setTimeout(function() { pwInput.classList.remove('error'); }, 450);
+  }
+
+  function _blMenuBtn(parent, label, cls, fn) {
+    var b = document.createElement('button');
+    b.className = 'tl-btn' + (cls ? ' ' + cls : '');
+    b.textContent = label;
+    b.onclick = fn;
+    parent.appendChild(b);
+  }
+
+  // Manage menu shown when the entry is already locked (mirrors MyList)
+  function blShowMenu(entry) {
+    overlay.style.display = 'flex';
+    errEl.textContent = '';
+    pwInput.value = '';
+    pwInput.classList.remove('error');
+    lockIcon.textContent = '🔒';
+    lockTitle.textContent = 'Locked Entry';
+    lockSub.textContent = 'Manage lock for this entry.';
+    if (inputWrap) inputWrap.style.display = 'none';
+    forgotBtn.style.display = 'none';
+    var m = menuEl; m.innerHTML = ''; m.style.display = 'flex';
+    if (!blIsUnlocked(entry.id)) {
+      _blMenuBtn(m, '🔓  Unlock this device', '', function() { blShowOverlay('unlock'); });
+    } else {
+      _blMenuBtn(m, '🔒  Lock this device', '', function() { blMarkLocked(entry.id); blHideOverlay(); blUpdateLockBtn(); blCheckEntry(); });
+    }
+    _blMenuBtn(m, '🔑  Change password', 'ghost', function() { blShowOverlay('changepw'); });
+    _blMenuBtn(m, '🗑  Remove lock', 'danger', function() { blShowOverlay('remove'); });
+    _blMenuBtn(m, 'Close', 'ghost', function() { blDismiss(); });
+  }
+
+  // Dismiss the overlay — but if the entry is still locked & not unlocked on this
+  // device, stay gated (never expose content) by falling back to the unlock prompt.
+  function blDismiss() {
+    var entry = state.entries.find(function(e) { return e.id === state.activeId; });
+    if (entry && blGetLock(entry.id) && !blIsUnlocked(entry.id)) { blShowOverlay('unlock'); }
+    else { blHideOverlay(); }
+  }
+
+  function blManage() {
+    var entry = state.entries.find(function(e) { return e.id === state.activeId; });
+    if (!entry) return;
+    var lock = blGetLock(entry.id);
+    if (!lock) { blShowOverlay('setpw'); return; }
+    blShowMenu(entry);
+  }
+
+  cancelBtn && cancelBtn.addEventListener('click', function() { blDismiss(); });
 
   function blUpdateLockBtn() {
     var entry = state.entries.find(function(e) { return e.id === state.activeId; });
@@ -21999,25 +22090,7 @@ window.hideBrainstormJournal = function() {
     }
   }
 
-  function _blHandleLockClick() {
-    var entry = state.entries.find(function(e) { return e.id === state.activeId; });
-    if (!entry) return;
-    var lock = blGetLock(entry.id);
-    if (!lock) {
-      blShowOverlay('setpw');
-    } else {
-      if (blIsUnlocked(entry.id)) {
-        blMarkLocked(entry.id);
-        blShowOverlay('unlock');
-        blUpdateLockBtn();
-      } else {
-        if (confirm('Remove password from this entry?')) {
-          blShowOverlay('unlock');
-          submitBtn._mode = 'remove';
-        }
-      }
-    }
-  }
+  function _blHandleLockClick() { blManage(); }
   mobileLockBtn && mobileLockBtn.addEventListener('click', _blHandleLockClick);
   lockBtn && lockBtn.addEventListener('click', _blHandleLockClick);
 
@@ -22036,82 +22109,66 @@ window.hideBrainstormJournal = function() {
   submitBtn && submitBtn.addEventListener('click', async function() {
     var entry = state.entries.find(function(e) { return e.id === state.activeId; });
     if (!entry) return;
-    var pw = pwInput.value;
+    var pw = pwInput.value.trim();
     if (!pw) { pwInput.classList.add('error'); errEl.textContent = 'Password required.'; return; }
-    submitBtn.disabled = true; submitBtn.textContent = 'Checking…';
-
+    submitBtn.disabled = true; var _prev = submitBtn.textContent; submitBtn.textContent = 'Checking…';
     var lock = blGetLock(entry.id);
-
-    if (!lock) {
-      // Setting a new password — ask for hint first
-      var hint = window.prompt('Optional: enter a password hint (visible in recovery email, never the password itself). Leave blank to skip.') || '';
-      try {
+    try {
+      if (!lock || blMode === 'setpw') {
+        // Setting a new password — ask for hint first
+        var hint = window.prompt('Optional: enter a password hint (visible in recovery email, never the password itself). Leave blank to skip.') || '';
         var res = await fetch(BJ_AUTH + '/auth/journal/set-lock', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw, hint: hint })
         });
         var data = await res.json();
-        if (data.ok) {
-          blSetLock(entry.id);
-          blMarkUnlocked(entry.id);
-          blHideOverlay();
-          blUpdateLockBtn();
-          renderSidebar();
-        } else {
-          errEl.textContent = 'Failed to set lock. Try again.';
-        }
-      } catch(e) { errEl.textContent = 'Network error. Try again.'; }
-    } else {
-      try {
-        var mode = submitBtn._mode;
-        if (mode === 'remove') {
-          var res2 = await fetch(BJ_AUTH + '/auth/journal/remove-lock', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
-          });
-          var data2 = await res2.json();
-          if (data2.ok) {
-            blRemoveLock(entry.id);
-            blMarkLocked(entry.id);
-            submitBtn._mode = null;
-            blHideOverlay();
-            blUpdateLockBtn();
-            renderSidebar();
-          } else {
-            pwInput.classList.add('error');
-            errEl.textContent = 'Wrong password.';
-            pwInput.value = '';
-            setTimeout(function() { pwInput.classList.remove('error'); }, 400);
-          }
-        } else {
-          var res3 = await fetch(BJ_AUTH + '/auth/journal/verify', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
-          });
-          var data3 = await res3.json();
-          if (data3.ok) {
-            blMarkUnlocked(entry.id);
-            blHideOverlay();
-            blUpdateLockBtn();
-            try { loadActiveEntry(); renderSidebar(); } catch(e) {}
-            // Offer to update hint after unlock
-            var newHint = window.prompt('Entry unlocked! Optionally update your password hint (leave blank to keep existing):');
-            if (newHint !== null && newHint.trim() !== '') {
-              fetch(BJ_AUTH + '/auth/journal/update-hint', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw, hint: newHint.trim() })
-              }).catch(function(){});
-            }
-          } else {
-            pwInput.classList.add('error');
-            errEl.textContent = 'Wrong password.';
-            pwInput.value = '';
-            setTimeout(function() { pwInput.classList.remove('error'); }, 400);
-          }
-        }
-      } catch(e) { errEl.textContent = 'Network error. Try again.'; }
-    }
-    submitBtn.disabled = false; submitBtn.textContent = lock ? (submitBtn._mode === 'remove' ? 'Remove Password' : 'Unlock') : 'Set Password';
+        if (data.ok) { blSetLock(entry.id); blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); renderSidebar(); }
+        else errEl.textContent = 'Failed to set lock. Try again.';
+      } else if (blMode === 'remove') {
+        var res2 = await fetch(BJ_AUTH + '/auth/journal/remove-lock', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
+        });
+        var data2 = await res2.json();
+        if (data2.ok) { blRemoveLock(entry.id); blMarkLocked(entry.id); blHideOverlay(); blUpdateLockBtn(); renderSidebar(); }
+        else blLockErr('Wrong password.');
+      } else if (blMode === 'changepw') {
+        var res3 = await fetch(BJ_AUTH + '/auth/journal/verify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
+        });
+        var data3 = await res3.json();
+        if (data3.ok) {
+          var np = window.prompt('Verified! Enter your NEW password:');
+          if (np && np.trim()) {
+            var nh = window.prompt('Optional hint for the new password:') || '';
+            await fetch(BJ_AUTH + '/auth/journal/remove-lock', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
+            });
+            var s = await fetch(BJ_AUTH + '/auth/journal/set-lock', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: np.trim(), hint: nh })
+            });
+            var sd = await s.json();
+            if (sd.ok) { blSetLock(entry.id); blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); renderSidebar(); }
+            else errEl.textContent = 'Failed to set new password.';
+          } else errEl.textContent = 'New password empty.';
+        } else blLockErr('Wrong password.');
+      } else {
+        // unlock
+        var res4 = await fetch(BJ_AUTH + '/auth/journal/verify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
+        });
+        var data4 = await res4.json();
+        if (data4.ok) {
+          blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn();
+          try { loadActiveEntry(); renderSidebar(); } catch(e) {}
+        } else blLockErr('Wrong password.');
+      }
+    } catch(e) { errEl.textContent = 'Network error. Try again.'; }
+    submitBtn.disabled = false; submitBtn.textContent = _prev;
   });
 
   pwInput && pwInput.addEventListener('keydown', function(e) {
@@ -22611,37 +22668,47 @@ window.hideBrainstormJournal = function() {
 #tj-root .tb-btn.lock-btn.locked:hover { background: rgba(224,96,122,0.14); border-color: rgba(224,96,122,0.6); }
 #tj-lock-overlay {
   position: absolute; inset: 0; z-index: 200;
-  background: var(--bg); display: flex; align-items: center; justify-content: center;
-  flex-direction: column; gap: 18px;
+  background: rgba(10,10,12,0.78); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; padding: 22px;
 }
-#tj-lock-overlay .tl-icon { font-size: 48px; line-height: 1; }
-#tj-lock-overlay .tl-title { font-family: 'Lora', serif; font-size: 20px; font-weight: 800; color: var(--text); }
-#tj-lock-overlay .tl-sub { font-size: 13px; color: var(--text3); text-align: center; max-width: 260px; line-height: 1.5; font-family: var(--font); }
-#tj-lock-overlay .tl-input-wrap { display: flex; flex-direction: column; gap: 8px; width: 260px; }
+#tj-lock-overlay .tl-box {
+  width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--border2);
+  border-radius: 18px; padding: 26px 22px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+}
+#tj-lock-overlay .tl-box.shake { animation: tl-shake 0.45s ease; }
+@keyframes tl-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-9px)} 40%,80%{transform:translateX(9px)} }
+#tj-lock-overlay .tl-icon { font-size: 38px; line-height: 1; }
+#tj-lock-overlay .tl-title { font-family: 'Lora', serif; font-size: 22px; font-weight: 800; color: var(--text); }
+#tj-lock-overlay .tl-sub { font-size: 13px; color: var(--text3); text-align: center; line-height: 1.45; font-family: var(--font); }
+#tj-lock-overlay .tl-menu { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+#tj-lock-overlay .tl-input-wrap { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 #tj-lock-overlay .tl-pw-input {
   width: 100%; background: var(--card2); border: 1px solid var(--border2);
-  border-radius: 6px; color: var(--text); font-size: 14px; padding: 10px 14px;
-  outline: none; font-family: var(--font); transition: border-color 0.15s;
+  border-radius: 6px; color: var(--text); font-size: 16px; padding: 11px 14px;
+  outline: none; font-family: var(--font); text-align: center; letter-spacing: 3px;
+  transition: border-color 0.15s; box-sizing: border-box;
 }
 #tj-lock-overlay .tl-pw-input:focus { border-color: var(--purple); }
-#tj-lock-overlay .tl-pw-input.error { border-color: #E0607A; animation: tl-shake 0.3s ease; }
-@keyframes tl-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
-#tj-lock-overlay .tl-err { font-size: 11px; color: #E0607A; font-weight: 600; text-align: center; min-height: 14px; font-family: var(--font); }
+#tj-lock-overlay .tl-pw-input.error { border-color: #E0607A; }
+#tj-lock-overlay .tl-err { font-size: 12px; color: #E0607A; font-weight: 700; text-align: center; min-height: 16px; font-family: var(--font); }
+#tj-lock-overlay .tl-row { display: flex; gap: 8px; width: 100%; }
+#tj-lock-overlay .tl-row .tl-btn { flex: 1; }
 #tj-lock-overlay .tl-btn {
-  width: 100%; padding: 10px; background: var(--purple); color: #fff; border: none;
-  border-radius: 6px; font-size: 13px; font-weight: 600; font-family: var(--font);
-  letter-spacing: 0.05em; cursor: pointer; transition: opacity 0.15s;
+  width: 100%; padding: 11px; background: var(--purple); color: #fff; border: none;
+  border-radius: 6px; font-size: 13px; font-weight: 700; font-family: var(--font);
+  letter-spacing: 0.04em; cursor: pointer; transition: opacity 0.15s;
 }
+#tj-lock-overlay .tl-btn.ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
+#tj-lock-overlay .tl-btn.danger { background: transparent; color: #E0607A; border: 1px solid #E0607A; }
 #tj-lock-overlay .tl-btn:hover { opacity: 0.85; }
-#tj-lock-overlay .tl-forgot { background: none; border: none; color: var(--text3); font-size: 11px; font-family: var(--font); cursor: pointer; text-decoration: underline; padding: 0; margin-top: 2px; }
+#tj-lock-overlay .tl-forgot { background: none; border: none; color: var(--text3); font-size: 12px; font-family: var(--font); cursor: pointer; text-decoration: underline; padding: 0; margin-top: 4px; }
 #tj-lock-overlay .tl-forgot:hover { color: var(--text2); }
 #tj-root .entry-item .tl-badge { font-size: 10px; margin-left: 4px; opacity: 0.7; }
 @media (max-width: 768px) {
-  #tj-lock-overlay { padding: 24px 20px; }
-  #tj-lock-overlay .tl-input-wrap { width: min(280px, calc(100vw - 48px)); }
-  #tj-lock-overlay .tl-pw-input { font-size: 16px; padding: 13px 14px; } /* 16px prevents iOS zoom */
-  #tj-lock-overlay .tl-btn { padding: 14px; font-size: 13px; }
-  #tj-lock-overlay .tl-icon { font-size: 56px; }
+  #tj-lock-overlay .tl-box { padding: 24px 20px; }
+  #tj-lock-overlay .tl-icon { font-size: 44px; }
   #tj-lock-overlay .tl-title { font-size: 22px; }
 }
 
@@ -23703,14 +23770,19 @@ window.hideBrainstormJournal = function() {
   <div id="tj-content-area">
     <!-- LOCK OVERLAY -->
     <div id="tj-lock-overlay" style="display:none;">
-      <div class="tl-icon" id="tj-lock-icon">🔒</div>
-      <div class="tl-title" id="tj-lock-title">Locked Entry</div>
-      <div class="tl-sub" id="tj-lock-sub">Enter your password to unlock this entry.</div>
-      <div class="tl-input-wrap" id="tj-lock-input-wrap">
-        <input class="tl-pw-input" id="tj-lock-pw" type="password" placeholder="Password…" autocomplete="current-password" />
-        <div class="tl-err" id="tj-lock-err"></div>
-        <button class="tl-btn" id="tj-lock-submit">Unlock</button>
-        <button class="tl-btn" id="tj-lock-cancel" style="background:transparent;color:var(--text3);border:1px solid var(--border2);display:none;">Cancel</button>
+      <div class="tl-box" id="tj-lock-box">
+        <div class="tl-icon" id="tj-lock-icon">🔒</div>
+        <div class="tl-title" id="tj-lock-title">Locked Entry</div>
+        <div class="tl-sub" id="tj-lock-sub">Enter your password to unlock this entry.</div>
+        <div class="tl-menu" id="tj-lock-menu" style="display:none;"></div>
+        <div class="tl-input-wrap" id="tj-lock-input-wrap">
+          <input class="tl-pw-input" id="tj-lock-pw" type="password" placeholder="• • • •" autocomplete="current-password" />
+          <div class="tl-err" id="tj-lock-err"></div>
+          <div class="tl-row" id="tj-lock-row">
+            <button class="tl-btn ghost" id="tj-lock-cancel">Cancel</button>
+            <button class="tl-btn" id="tj-lock-submit">Unlock</button>
+          </div>
+        </div>
         <button class="tl-forgot" id="tj-lock-forgot">Forgot password?</button>
       </div>
     </div>
@@ -27503,37 +27575,109 @@ window.tjSwitchTo = function(app) {
   var lockTitle = document.getElementById('tj-lock-title');
   var lockSub = document.getElementById('tj-lock-sub');
   var cancelBtn = document.getElementById('tj-lock-cancel');
+  var boxEl = document.getElementById('tj-lock-box');
+  var menuEl = document.getElementById('tj-lock-menu');
+  var inputWrap = document.getElementById('tj-lock-input-wrap');
+  var tlMode = 'unlock';
 
+  // modes: 'setpw' | 'unlock' | 'remove' | 'changepw'
   function tlShowOverlay(mode) {
-    // mode: 'unlock' | 'setpw'
+    tlMode = mode;
     overlay.style.display = 'flex';
+    if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
+    if (inputWrap) inputWrap.style.display = '';
     errEl.textContent = '';
     pwInput.value = '';
     pwInput.classList.remove('error');
+    submitBtn.style.display = '';
+    cancelBtn.style.display = '';
+    forgotBtn.style.display = '';
     if (mode === 'setpw') {
       lockIcon.textContent = '🔐';
       lockTitle.textContent = 'Set a Password';
       lockSub.textContent = 'Choose a password for this entry. Unlock once on this device — it stays unlocked here until you re-lock it.';
       submitBtn.textContent = 'Set Password';
       forgotBtn.style.display = 'none';
-      cancelBtn.style.display = '';
+    } else if (mode === 'remove') {
+      lockIcon.textContent = '🔓';
+      lockTitle.textContent = 'Remove Lock';
+      lockSub.textContent = 'Enter the password to remove the lock.';
+      submitBtn.textContent = 'Remove Lock';
+    } else if (mode === 'changepw') {
+      lockIcon.textContent = '🔑';
+      lockTitle.textContent = 'Change Password';
+      lockSub.textContent = 'Enter your current password first.';
+      submitBtn.textContent = 'Verify';
     } else {
       lockIcon.textContent = '🔒';
       lockTitle.textContent = 'Locked Entry';
       lockSub.textContent = 'Enter your password to unlock this entry.';
       submitBtn.textContent = 'Unlock';
-      forgotBtn.style.display = '';
-      cancelBtn.style.display = 'none';
     }
     setTimeout(function() { pwInput.focus(); }, 80);
   }
 
-  function tlHideOverlay() { overlay.style.display = 'none'; }
+  function tlHideOverlay() {
+    overlay.style.display = 'none';
+    if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
+    if (inputWrap) inputWrap.style.display = '';
+  }
 
-  // Cancel button — only visible in setpw mode
-  cancelBtn && cancelBtn.addEventListener('click', function() {
-    tlHideOverlay();
-  });
+  function tlLockErr(msg) {
+    errEl.textContent = msg;
+    pwInput.value = '';
+    pwInput.classList.add('error');
+    if (boxEl) { boxEl.classList.remove('shake'); void boxEl.offsetWidth; boxEl.classList.add('shake'); }
+    setTimeout(function() { pwInput.classList.remove('error'); }, 450);
+  }
+
+  function _tlMenuBtn(parent, label, cls, fn) {
+    var b = document.createElement('button');
+    b.className = 'tl-btn' + (cls ? ' ' + cls : '');
+    b.textContent = label;
+    b.onclick = fn;
+    parent.appendChild(b);
+  }
+
+  // Manage menu shown when the entry is already locked (mirrors MyList)
+  function tlShowMenu(entry) {
+    overlay.style.display = 'flex';
+    errEl.textContent = '';
+    pwInput.value = '';
+    pwInput.classList.remove('error');
+    lockIcon.textContent = '🔒';
+    lockTitle.textContent = 'Locked Entry';
+    lockSub.textContent = 'Manage lock for this entry.';
+    if (inputWrap) inputWrap.style.display = 'none';
+    forgotBtn.style.display = 'none';
+    var m = menuEl; m.innerHTML = ''; m.style.display = 'flex';
+    if (!tlIsUnlocked(entry.id)) {
+      _tlMenuBtn(m, '🔓  Unlock this device', '', function() { tlShowOverlay('unlock'); });
+    } else {
+      _tlMenuBtn(m, '🔒  Lock this device', '', function() { tlMarkLocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); tlCheckEntry(); });
+    }
+    _tlMenuBtn(m, '🔑  Change password', 'ghost', function() { tlShowOverlay('changepw'); });
+    _tlMenuBtn(m, '🗑  Remove lock', 'danger', function() { tlShowOverlay('remove'); });
+    _tlMenuBtn(m, 'Close', 'ghost', function() { tlDismiss(); });
+  }
+
+  // Dismiss the overlay — but if the entry is still locked & not unlocked on this
+  // device, stay gated (never expose content) by falling back to the unlock prompt.
+  function tlDismiss() {
+    var entry = getActive();
+    if (entry && tlGetLock(entry.id) && !tlIsUnlocked(entry.id)) { tlShowOverlay('unlock'); }
+    else { tlHideOverlay(); }
+  }
+
+  function tlManage() {
+    var entry = getActive();
+    if (!entry) return;
+    var lock = tlGetLock(entry.id);
+    if (!lock) { tlShowOverlay('setpw'); return; }
+    tlShowMenu(entry);
+  }
+
+  cancelBtn && cancelBtn.addEventListener('click', function() { tlDismiss(); });
 
   function tlUpdateLockBtn() {
     var entry = getActive();
@@ -27556,25 +27700,8 @@ window.tjSwitchTo = function(app) {
     }
   }
 
-  // Mobile lock button — same logic as desktop
-  function _tlHandleLockClick() {
-    var entry = getActive(); if (!entry) return;
-    var lock = tlGetLock(entry.id);
-    if (!lock) {
-      tlShowOverlay('setpw');
-    } else {
-      if (tlIsUnlocked(entry.id)) {
-        tlMarkLocked(entry.id);
-        tlShowOverlay('unlock');
-        tlUpdateLockBtn();
-      } else {
-        if (confirm('Remove password from this entry?')) {
-          tlShowOverlay('unlock');
-          submitBtn._mode = 'remove';
-        }
-      }
-    }
-  }
+  // Lock button (desktop + mobile) opens the manage flow
+  function _tlHandleLockClick() { tlManage(); }
   mobileLockBtn && mobileLockBtn.addEventListener('click', _tlHandleLockClick);
 
   // Called by loadActiveEntry wrapper below
@@ -27596,79 +27723,64 @@ window.tjSwitchTo = function(app) {
   // Submit button
   submitBtn && submitBtn.addEventListener('click', async function() {
     var entry = getActive(); if (!entry) return;
-    var pw = pwInput.value;
+    var pw = pwInput.value.trim();
     if (!pw) { pwInput.classList.add('error'); errEl.textContent = 'Password required.'; return; }
-    submitBtn.disabled = true; submitBtn.textContent = 'Checking…';
-
+    submitBtn.disabled = true; var _prev = submitBtn.textContent; submitBtn.textContent = 'Checking…';
     var lock = tlGetLock(entry.id);
-
-    if (!lock) {
-      var hint = window.prompt('Optional: enter a password hint (sent in recovery email, never the password). Leave blank to skip.') || '';
-      try {
+    try {
+      if (!lock || tlMode === 'setpw') {
+        var hint = window.prompt('Optional: enter a password hint (sent in recovery email, never the password). Leave blank to skip.') || '';
         var res = await fetch(TJ_AUTH + '/auth/journal/set-lock', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw, hint: hint })
         });
         var data = await res.json();
-        if (data.ok) {
-          tlSetLock(entry.id);
-          tlMarkUnlocked(entry.id);
-          tlHideOverlay();
-          tlUpdateLockBtn();
-          renderSidebar();
-        } else { errEl.textContent = 'Failed to set lock. Try again.'; }
-      } catch(e) { errEl.textContent = 'Network error. Try again.'; }
-    } else {
-      var mode = submitBtn._mode;
-      try {
-        if (mode === 'remove') {
-          var res2 = await fetch(TJ_AUTH + '/auth/journal/remove-lock', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
-          });
-          var data2 = await res2.json();
-          if (data2.ok) {
-            tlRemoveLock(entry.id);
-            tlMarkLocked(entry.id);
-            submitBtn._mode = null;
-            tlHideOverlay();
-            tlUpdateLockBtn();
-            renderSidebar();
-          } else {
-            pwInput.classList.add('error');
-            errEl.textContent = 'Wrong password.';
-            pwInput.value = '';
-            setTimeout(function() { pwInput.classList.remove('error'); }, 400);
-          }
-        } else {
-          var res3 = await fetch(TJ_AUTH + '/auth/journal/verify', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
-          });
-          var data3 = await res3.json();
-          if (data3.ok) {
-            tlMarkUnlocked(entry.id);
-            tlHideOverlay();
-            tlUpdateLockBtn();
-            try { loadActiveEntry(); renderSidebar(); } catch(e) {}
-            // Offer to update hint after unlock
-            var newHint = window.prompt('Entry unlocked! Optionally update your password hint (leave blank to keep existing):');
-            if (newHint !== null && newHint.trim() !== '') {
-              fetch(TJ_AUTH + '/auth/journal/update-hint', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw, hint: newHint.trim() })
-              }).catch(function(){});
-            }
-          } else {
-            pwInput.classList.add('error');
-            errEl.textContent = 'Wrong password.';
-            pwInput.value = '';
-            setTimeout(function() { pwInput.classList.remove('error'); }, 400);
-          }
-        }
-      } catch(e) { errEl.textContent = 'Network error. Try again.'; }
-    }
-    submitBtn.disabled = false; submitBtn.textContent = lock ? (submitBtn._mode === 'remove' ? 'Remove Password' : 'Unlock') : 'Set Password';
+        if (data.ok) { tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); }
+        else errEl.textContent = 'Failed to set lock. Try again.';
+      } else if (tlMode === 'remove') {
+        var res2 = await fetch(TJ_AUTH + '/auth/journal/remove-lock', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
+        });
+        var data2 = await res2.json();
+        if (data2.ok) { tlRemoveLock(entry.id); tlMarkLocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); }
+        else tlLockErr('Wrong password.');
+      } else if (tlMode === 'changepw') {
+        var res3 = await fetch(TJ_AUTH + '/auth/journal/verify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
+        });
+        var data3 = await res3.json();
+        if (data3.ok) {
+          var np = window.prompt('Verified! Enter your NEW password:');
+          if (np && np.trim()) {
+            var nh = window.prompt('Optional hint for the new password:') || '';
+            await fetch(TJ_AUTH + '/auth/journal/remove-lock', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
+            });
+            var s = await fetch(TJ_AUTH + '/auth/journal/set-lock', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: np.trim(), hint: nh })
+            });
+            var sd = await s.json();
+            if (sd.ok) { tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); }
+            else errEl.textContent = 'Failed to set new password.';
+          } else errEl.textContent = 'New password empty.';
+        } else tlLockErr('Wrong password.');
+      } else {
+        var res4 = await fetch(TJ_AUTH + '/auth/journal/verify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
+        });
+        var data4 = await res4.json();
+        if (data4.ok) {
+          tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn();
+          try { loadActiveEntry(); renderSidebar(); } catch(e) {}
+        } else tlLockErr('Wrong password.');
+      }
+    } catch(e) { errEl.textContent = 'Network error. Try again.'; }
+    submitBtn.disabled = false; submitBtn.textContent = _prev;
   });
 
   pwInput && pwInput.addEventListener('keydown', function(e) {
