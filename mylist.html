@@ -249,7 +249,9 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 #sel-bar .cnt{font-size:15px;font-weight:800;color:var(--text);font-family:var(--font-btn);white-space:nowrap;width:100%;text-align:center;}
 #sel-bar .btn{padding:10px 15px;font-size:14px;border-radius:20px;}
 
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 22px);
+.ml-drag-ph{border:2px dashed var(--accent);border-radius:12px;background:var(--accent-soft);margin-bottom:8px;flex-shrink:0;}
+.item.dragging-src,.rec-row.dragging-src{opacity:.4;}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 92px);
   background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:700;
   z-index:9500;box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:88vw;text-align:center;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
@@ -1273,7 +1275,7 @@ function render(){
 
   var h='';
   // header
-  h+='<div class="card">';
+  h+='<div class="card list-head-card">';
   h+='<div class="list-head"><input class="ttl" id="list-title" value="'+esc(l.name)+'" onchange="ML.renameList(\''+l.id+'\',this.value)">'
     +'<button class="btn danger sm" onclick="ML.deleteList(\''+l.id+'\')">Delete list</button></div>';
   h+='<div class="list-meta">'+items.length+' item'+(items.length!==1?'s':'')+' · '+doneCount+' done'

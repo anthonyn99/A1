@@ -9083,10 +9083,12 @@ function App(){
   const habits=habitsState;
   const hc=hcState;
   const mg=mgState;
+  const mgMonthly=mgMonthlyState;
   const setData=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.data,next);vdRef.current={...vdRef.current,data:next};vdFbPush();return next;});},[vdFbPush]);
   const setHabits=useCallback(fn=>{setHabitsState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.habits,next);vdRef.current={...vdRef.current,habits:next};vdFbPush();return next;});},[vdFbPush]);
   const setHc=useCallback(fn=>{setHcState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.hc,next);vdRef.current={...vdRef.current,hc:next};vdFbPush();return next;});},[vdFbPush]);
   const setMg=useCallback(fn=>{setMgState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.goals,next);vdRef.current={...vdRef.current,goals:next};vdFbPush();return next;});},[vdFbPush]);
+  const setMgMonthly=useCallback(fn=>{setMgMonthlyState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.mgoals,next);vdRef.current={...vdRef.current,monthlyGoals:next};vdFbPush();return next;});},[vdFbPush]);
 
   // applyRemote — bypass wrapped setters to avoid triggering a re-save
   const applyRemote=useCallback((remote)=>{
@@ -9095,10 +9097,10 @@ function App(){
     let hcD=remote.hc||{};if((remote.weekKey||"")!==cw)hcD={};
     const restoreItem=item=>{if(!item)return item;const out={...item};if(out.repeat&&out.repeat!=="none"&&!Array.isArray(out.repeatDays))out.repeatDays=[];return out;};
     const restoreData=d=>{if(!d)return{};const out={};Object.entries(d).forEach(([dk,arr])=>{out[dk]=Array.isArray(arr)?arr.map(restoreItem):arr;});return out;};
-    const d=restoreData(remote.data)||{},h=remote.habits||[],g=remote.goals||[];
-    setDataState(d);setHabitsState(h);setHcState(hcD);setMgState(g);
-    vdRef.current={data:d,habits:h,hc:hcD,goals:g};
-    saveJ(SK.data,d);saveJ(SK.habits,h);saveJ(SK.hc,hcD);saveJ(SK.goals,g);
+    const d=restoreData(remote.data)||{},h=remote.habits||[],g=remote.goals||[],gm=remote.monthlyGoals||[];
+    setDataState(d);setHabitsState(h);setHcState(hcD);setMgState(g);setMgMonthlyState(gm);
+    vdRef.current={data:d,habits:h,hc:hcD,goals:g,monthlyGoals:gm};
+    saveJ(SK.data,d);saveJ(SK.habits,h);saveJ(SK.hc,hcD);saveJ(SK.goals,g);saveJ(SK.mgoals,gm);
     localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);
   },[]);
 
