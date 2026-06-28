@@ -1182,7 +1182,7 @@ function recDetailHtml(){
       +'<button class="btn danger sm" onclick="ML.recDelete(\''+r.id+'\')">Delete</button></div>'
     +'</div>';
 }
-function recOpenDetail(id){ if(Date.now()-lastDragEnd<350) return; recDetailId=id; render(); window.scrollTo(0,0); }
+function recOpenDetail(id){ if(Date.now()-dndLastEnd<350) return; recDetailId=id; render(); window.scrollTo(0,0); }
 function recBack(){ recDetailId=null; render(); window.scrollTo(0,0); }
 // modal
 function recAddIng(name,qty){
@@ -1238,91 +1238,166 @@ function renderViewSwitch(isTony){
     +'<button class="'+(view==='recipes'?'on':'')+'" onclick="ML.setView(\'recipes\')">Recipes</button></div>';
 }
 
-// ════════ HOLD-TO-DRAG REORDER (MotionCore-style, mouse + touch) ════════
-var lastDragEnd=0;
-function mlMakeDraggable(container, onDrop){
-  if(!container) return;
-  if(container._mlAbort) container._mlAbort.abort();
-  var ab=new AbortController(); container._mlAbort=ab;
-  var holdTimer=null, sx=0, sy=0, dragging=false, item=null, ph=null, ghost=null, offX=0, offY=0, didDrag=false;
-  function cancelHold(){ if(holdTimer){ clearTimeout(holdTimer); holdTimer=null; } }
+// ════════ DRAG & DROP (floating ghost + insertion line, no reflow) ════════
+// Hold ~180ms on a row to pick it up, then drag. The dragged row stays dimmed
+// in place (zero layout shift = smooth); a glowing line shows where it'll drop.
+// On release we mutate the data model once and re-render. Works for grocery
+// items (incl. moving between store groups) and recipe reordering, mouse+touch.
+var dndLastEnd = 0;
+var dnd = null; // active drag state
+
+function enableDrag(container, kind){
+  if(!container || container._dndBound) return;
+  container._dndBound = true;
   container.addEventListener('pointerdown', function(e){
+    if(dnd) return;
     if(e.button && e.button!==0) return;
     if(e.target.closest('button, input, select, textarea, a, .chk')) return;
-    var it=e.target.closest('[data-id]'); if(!it || !container.contains(it)) return;
-    sx=e.clientX; sy=e.clientY; didDrag=false; cancelHold();
-    holdTimer=setTimeout(function(){ begin(it); }, 200);
-  }, {signal:ab.signal});
-  container.addEventListener('pointermove', function(e){
-    if(holdTimer && !dragging){ if(Math.abs(e.clientX-sx)>9 || Math.abs(e.clientY-sy)>9) cancelHold(); }
-  }, {signal:ab.signal, passive:true});
-  container.addEventListener('pointerup', cancelHold, {signal:ab.signal});
-  container.addEventListener('pointercancel', cancelHold, {signal:ab.signal});
-  // swallow the click that follows a real drag
-  container.addEventListener('click', function(e){ if(Date.now()-lastDragEnd<350){ e.stopPropagation(); e.preventDefault(); } }, {signal:ab.signal, capture:true});
-
-  function isHeader(el){ return !(el.dataset && el.dataset.id); }
-  function begin(it){
-    dragging=true; didDrag=true; item=it;
-    try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
-    var rect=it.getBoundingClientRect(); offY=sy-rect.top; offX=sx-rect.left;
-    var ac=(getComputedStyle(document.body).getPropertyValue('--accent')||'#E0607A').trim();
-    ph=document.createElement('div'); ph.className='ml-drag-ph'; ph.style.height=rect.height+'px';
-    ghost=it.cloneNode(true);
-    ghost.style.cssText='position:fixed;left:'+rect.left+'px;top:'+rect.top+'px;width:'+rect.width+'px;margin:0;pointer-events:none;z-index:9999;opacity:.97;transform:rotate(1.1deg) scale(1.02);box-shadow:0 12px 36px rgba(0,0,0,.5),0 0 0 1.5px '+ac+';border-radius:12px;';
-    it.replaceWith(ph); document.body.appendChild(ghost);
-    container.style.touchAction='none'; document.body.style.userSelect='none';
-    document.addEventListener('pointermove', onMove, {passive:false});
-    document.addEventListener('pointerup', onUp);
-    document.addEventListener('pointercancel', onUp);
-  }
-  function onMove(ev){
-    ev.preventDefault();
-    ghost.style.left=(ev.clientX-offX)+'px'; ghost.style.top=(ev.clientY-offY)+'px';
-    var kids=Array.prototype.slice.call(container.children).filter(function(el){ return el!==ph; });
-    var placed=false, seen=false;
-    for(var i=0;i<kids.length;i++){
-      var ch=kids[i]; var r=ch.getBoundingClientRect();
-      if(ev.clientY < r.top + r.height/2){
-        if(isHeader(ch)){
-          if(!seen){ var n=i+1; while(n<kids.length && isHeader(kids[n])) n++; if(n<kids.length) container.insertBefore(ph, kids[n]); else container.appendChild(ph); }
-          else { var bs=i; while(bs>0 && isHeader(kids[bs-1])) bs--; container.insertBefore(ph, kids[bs]); }
-        } else { container.insertBefore(ph, ch); }
-        placed=true; break;
-      }
-      if(!isHeader(ch)) seen=true;
-    }
-    if(!placed) container.appendChild(ph);
-  }
-  function onUp(){
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', onUp);
-    container.style.touchAction=''; document.body.style.userSelect='';
-    if(ph && item) ph.replaceWith(item); if(ghost) ghost.remove();
-    ph=null; ghost=null; dragging=false;
-    if(didDrag){ lastDragEnd=Date.now(); if(onDrop) onDrop(); }
-    item=null;
-  }
-}
-function onListDrop(l){
-  var cont=$('items-container'); if(!cont) return;
-  pushUndo(l);
-  var newItems=[], cur='';
-  Array.prototype.slice.call(cont.children).forEach(function(ch){
-    if(ch.classList && ch.classList.contains('store-group-h')){ cur=ch.getAttribute('data-store')||''; return; }
-    var id=ch.dataset && ch.dataset.id; if(!id) return;
-    var it=l.items.filter(function(x){return x.id===id;})[0]; if(it){ it.store=cur; newItems.push(it); }
+    var row = e.target.closest('[data-id]');
+    if(!row || !container.contains(row)) return;
+    var sx=e.clientX, sy=e.clientY, pid=e.pointerId, hold;
+    function cancel(){ clearTimeout(hold); document.removeEventListener('pointermove',pm,true); document.removeEventListener('pointerup',pu,true); document.removeEventListener('pointercancel',pu,true); }
+    function pm(ev){ if(Math.abs(ev.clientX-sx)>9 || Math.abs(ev.clientY-sy)>9){ cancel(); } }
+    function pu(){ cancel(); }
+    hold=setTimeout(function(){ cancel(); beginDrag(container, kind, row, sx, sy); }, 180);
+    document.addEventListener('pointermove', pm, true);
+    document.addEventListener('pointerup', pu, true);
+    document.addEventListener('pointercancel', pu, true);
   });
-  l.items.forEach(function(it){ if(newItems.indexOf(it)<0) newItems.push(it); });
-  l.items=newItems; persist(); render();
+  // a real drag is followed by a click — swallow it
+  container.addEventListener('click', function(e){ if(Date.now()-dndLastEnd<350){ e.stopPropagation(); e.preventDefault(); } }, true);
 }
-function onRecipesDrop(){
-  var cont=$('rec-list-rows'); if(!cont) return;
-  var order=Array.prototype.slice.call(cont.querySelectorAll('[data-id]')).map(function(el){ return el.dataset.id; });
-  var sorted=order.map(function(id){ return recipes.filter(function(x){return x.id===id;})[0]; }).filter(Boolean);
-  recipes.forEach(function(r){ if(sorted.indexOf(r)<0) sorted.push(r); });
-  recipes=sorted; persistRecipes(); render();
+
+function beginDrag(container, kind, row, px, py){
+  var rect=row.getBoundingClientRect();
+  var ghost=row.cloneNode(true);
+  ghost.classList.add('dnd-ghost');
+  ghost.style.width=rect.width+'px';
+  document.body.appendChild(ghost);
+  row.classList.add('dnd-src');
+  var indicator=document.createElement('div'); indicator.className='dnd-indicator'; document.body.appendChild(indicator);
+  dnd={ container:container, kind:kind, row:row, id:row.dataset.id, ghost:ghost, indicator:indicator,
+        ox:px-rect.left, oy:py-rect.top, px:px, py:py, target:null, raf:0, moved:false };
+  document.body.classList.add('dnd-active');
+  try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
+  document.addEventListener('pointermove', dndMove, {passive:false});
+  document.addEventListener('pointerup', dndEnd);
+  document.addEventListener('pointercancel', dndEnd);
+  dndLoop();
+}
+function dndMove(e){ if(!dnd) return; e.preventDefault(); dnd.px=e.clientX; dnd.py=e.clientY; dnd.moved=true; }
+function dndLoop(){
+  if(!dnd) return;
+  var a=dnd;
+  a.ghost.style.transform='translate('+(a.px-a.ox)+'px,'+(a.py-a.oy)+'px) rotate(1deg)';
+  // edge auto-scroll
+  var vh=window.innerHeight, edge=80;
+  if(a.py<edge) window.scrollBy(0,-Math.ceil((edge-a.py)/6));
+  else if(a.py>vh-edge) window.scrollBy(0,Math.ceil((a.py-(vh-edge))/6));
+  a.target=computeTarget(a);
+  paintIndicator(a);
+  a.raf=requestAnimationFrame(dndLoop);
+}
+// Determine drop target: {store, beforeId, y}. store=null for recipes/flat lists.
+function computeTarget(a){
+  var headers=Array.prototype.slice.call(a.container.querySelectorAll('.store-group-h'));
+  var py=a.py;
+  function itemsUnder(){ return Array.prototype.slice.call(a.container.querySelectorAll('[data-id]')).filter(function(el){return el!==a.row;}); }
+  if(headers.length){
+    // grouped grocery list — build group spans
+    var children=Array.prototype.slice.call(a.container.children);
+    var groups=[];
+    for(var i=0;i<children.length;i++){
+      var ch=children[i];
+      if(ch.classList.contains('store-group-h')){
+        groups.push({ store:ch.getAttribute('data-store')||'', top:ch.getBoundingClientRect().top, items:[] });
+      } else if(ch.dataset && ch.dataset.id && ch!==a.row && groups.length){
+        groups[groups.length-1].items.push(ch);
+      }
+    }
+    if(!groups.length) return {store:'', beforeId:null, y:py};
+    // bottom of each group = top of next group (or container bottom)
+    var cbot=a.container.getBoundingClientRect().bottom;
+    for(var g=0; g<groups.length; g++){ groups[g].bottom = (g+1<groups.length)? groups[g+1].top : cbot; }
+    // pick group containing py (clamp)
+    var grp=groups[0];
+    if(py>=groups[groups.length-1].bottom) grp=groups[groups.length-1];
+    else { for(var k=0;k<groups.length;k++){ if(py < groups[k].bottom){ grp=groups[k]; break; } } }
+    // insertion index within group
+    var beforeId=null, y;
+    var placed=false;
+    for(var m=0;m<grp.items.length;m++){
+      var r=grp.items[m].getBoundingClientRect();
+      if(py < r.top + r.height/2){ beforeId=grp.items[m].dataset.id; y=r.top-4; placed=true; break; }
+    }
+    if(!placed){
+      if(grp.items.length){ var lr=grp.items[grp.items.length-1].getBoundingClientRect(); y=lr.bottom+4; }
+      else { y=grp.top + 30; } // empty group: just under its header
+    }
+    return {store:grp.store, beforeId:beforeId, y:y};
+  } else {
+    // flat list / recipes
+    var items=itemsUnder(); var beforeId2=null, y2;
+    var placed2=false;
+    for(var n=0;n<items.length;n++){ var rr=items[n].getBoundingClientRect(); if(py<rr.top+rr.height/2){ beforeId2=items[n].dataset.id; y2=rr.top-4; placed2=true; break; } }
+    if(!placed2){ if(items.length){ var l2=items[items.length-1].getBoundingClientRect(); y2=l2.bottom+4; } else { y2=a.container.getBoundingClientRect().top+4; } }
+    return {store:null, beforeId:beforeId2, y:y2};
+  }
+}
+function paintIndicator(a){
+  if(!a.target){ a.indicator.style.display='none'; return; }
+  var cr=a.container.getBoundingClientRect();
+  a.indicator.style.display='block';
+  a.indicator.style.left=(cr.left)+'px';
+  a.indicator.style.width=(cr.width)+'px';
+  a.indicator.style.top=(a.target.y)+'px';
+}
+function dndEnd(){
+  if(!dnd) return;
+  var a=dnd;
+  document.removeEventListener('pointermove', dndMove);
+  document.removeEventListener('pointerup', dndEnd);
+  document.removeEventListener('pointercancel', dndEnd);
+  if(a.raf) cancelAnimationFrame(a.raf);
+  if(a.ghost) a.ghost.remove();
+  if(a.indicator) a.indicator.remove();
+  if(a.row) a.row.classList.remove('dnd-src');
+  document.body.classList.remove('dnd-active');
+  var t=a.target, kind=a.kind, id=a.id, moved=a.moved;
+  dnd=null;
+  if(moved && t){ dndLastEnd=Date.now(); applyDrop(kind, id, t); }
+}
+function applyDrop(kind, id, t){
+  if(kind==='recipe'){
+    var src=recipes.filter(function(x){return x.id===id;})[0]; if(!src) return;
+    var rest=recipes.filter(function(x){return x.id!==id;});
+    var idx = t.beforeId ? rest.findIndex(function(x){return x.id===t.beforeId;}) : rest.length;
+    if(idx<0) idx=rest.length;
+    rest.splice(idx,0,src); recipes=rest; persistRecipes(); render(); return;
+  }
+  // list items
+  var l=curList(); if(!l) return;
+  var item=(l.items||[]).filter(function(x){return x.id===id;})[0]; if(!item) return;
+  pushUndo(l);
+  var stores=l.stores||[];
+  var targetStore = (t.store===null||t.store===undefined) ? (item.store||'') : t.store;
+  item.store = targetStore;
+  var rest2=l.items.filter(function(x){return x.id!==id;});
+  // rebuild in group order: each store, then Other; insert src into its group at beforeId
+  var order = stores.concat(['']);
+  var result=[];
+  order.forEach(function(st){
+    var g=rest2.filter(function(it){ return st==='' ? (!it.store||stores.indexOf(it.store)<0) : it.store===st; });
+    var isTarget = (st===targetStore) || (st==='' && (targetStore===''|| stores.indexOf(targetStore)<0));
+    if(isTarget){
+      var idx = t.beforeId ? g.findIndex(function(x){return x.id===t.beforeId;}) : g.length;
+      if(idx<0) idx=g.length;
+      g.splice(idx,0,item);
+    }
+    result=result.concat(g);
+  });
+  if(result.indexOf(item)<0) result.push(item);
+  l.items=result; persist(); render();
 }
 
 // ════════ RENDER ════════
@@ -1348,7 +1423,7 @@ function render(){
     $('float-voice').classList.remove('show');
     $('sel-bar').classList.remove('show');
     $('list-view').innerHTML = renderRecipesView();
-    if(!recDetailId){ var rl=$('rec-list-rows'); if(rl && recFiltered().length===recipes.length) mlMakeDraggable(rl, onRecipesDrop); }
+    if(!recDetailId){ var rl=$('rec-list-rows'); if(rl && recFiltered().length===recipes.length) enableDrag(rl, 'recipe'); }
     return;
   }
   $('lists-bar').style.display='';
@@ -1412,7 +1487,7 @@ function render(){
   if(editingItemId) autoGrow($('edit-desc-'+editingItemId));
   updateSelBar();
   // hold-to-drag reorder (not while selecting or editing)
-  if(!selectMode && !editingItemId){ var ic=$('items-container'); if(ic) mlMakeDraggable(ic, function(){ var ll=curList(); if(ll) onListDrop(ll); }); }
+  if(!selectMode && !editingItemId){ var ic=$('items-container'); if(ic) enableDrag(ic, 'list'); }
 }
 function storeSelectInner(id, sel){
   var l=curList(); var stores=(l&&l.stores)||[]; if(!stores.length) return '';
