@@ -224,8 +224,12 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 .item.sel{border-color:var(--accent);background:var(--accent-soft);}
 .item .chk{width:24px;height:24px;border-radius:7px;border:2px solid var(--border2);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;background:transparent;color:var(--accent-ink);}
 .item.done .chk{background:var(--accent);border-color:var(--accent);}
-.item .chk.selbox{border-radius:50%;border-color:var(--accent);border-width:2.5px;}
-.item.sel .chk.selbox{background:var(--accent);border-color:var(--accent);}
+/* select mode: a circular select box on the left, square done-box kept for consistency */
+.item.selmode{padding-left:14px;}
+.item .selcircle{width:24px;height:24px;border-radius:50%;border:2.5px solid var(--accent);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--accent-ink);transition:all .15s;}
+.item.selmode .chk{opacity:.6;pointer-events:none;}
+.item.sel .selcircle{background:var(--accent);border-color:var(--accent);}
+.item.sel{border-color:var(--accent);}
 .item .body{flex:1;min-width:0;}
 .item .nm{font-size:15px;font-weight:700;color:var(--text);word-break:break-word;}
 .item.done .nm{text-decoration:line-through;}
