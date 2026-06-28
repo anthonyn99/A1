@@ -3926,7 +3926,7 @@ function App(){
                     !e._pvTeam2Img&&React.createElement("span",{style:{fontSize:11,fontWeight:800,color:T.TX}},e._pvTeam2||"")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2,textAlign:"center"}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px"},onClick:()=>del(k,e.id)},"×"))
-              :React.createElement("div",{key:e.id,...taskRowP(e.id),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4,cursor:edit?"grab":"default"})},
+              :React.createElement("div",{key:e.id,...taskRowP(e.id),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category),display:"flex",alignItems:"flex-start",gap:5,marginBottom:5,cursor:edit?"grab":"default"})},
                 edit&&React.createElement("span",{style:grip(),...taskTouchH(k,e.id)},"⠿"),
                 React.createElement("div",{style:{width:5,height:5,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
                 React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word",whiteSpace:"normal"}},e.title),
