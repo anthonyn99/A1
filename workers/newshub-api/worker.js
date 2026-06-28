@@ -2708,7 +2708,7 @@ export default {
         const isCustomT = wlHash(tw) !== wlHash(WATCHLIST);
         const ck = isCustomT ? 'events:v1:' + wlHash(tw) : 'events:v1';
         const lk = isCustomT ? 'build:lock:' + wlHash(tw) : 'build:lock';
-        const sc = isCustomT ? sectorsFor(tw) : SECTORS;
+        const sc = isCustomT ? await sectorsForLive(tw, env) : SECTORS;
         await clearQuotaBlocks(env);
         await env.NEWSHUB_CACHE.delete(lk).catch(()=>{}); // clear any stale lock
         await env.NEWSHUB_CACHE.put(lk, '1', { expirationTtl: 180 });
