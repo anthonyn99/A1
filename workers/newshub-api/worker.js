@@ -3118,7 +3118,7 @@ export default {
     const customTickers = parseTickers(url.searchParams.get('tickers'));
     const isCustom = !!customTickers && wlHash(customTickers) !== wlHash(WATCHLIST);
     const wl       = isCustom ? customTickers : WATCHLIST;
-    const sectors  = isCustom ? sectorsFor(wl) : SECTORS;
+    const sectors  = isCustom ? await sectorsForLive(wl, env) : SECTORS;
     const cacheKey = isCustom ? 'events:v1:' + wlHash(wl) : 'events:v1';
     const lockKey  = isCustom ? 'build:lock:' + wlHash(wl) : 'build:lock';
 
