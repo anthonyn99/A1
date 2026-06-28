@@ -1333,7 +1333,7 @@ function computeTarget(a){
     }
     if(!placed){
       if(grp.items.length){ var lr=grp.items[grp.items.length-1].getBoundingClientRect(); y=lr.bottom+4; }
-      else { y=grp.top + 30; } // empty group: just under its header
+      else { y=grp.hbottom + 7; } // empty group: just BELOW its header, never through it
     }
     return {store:grp.store, beforeId:beforeId, y:y};
   } else {
