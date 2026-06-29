@@ -55,58 +55,61 @@ const CATEGORIES = ['work', 'personal', 'health', 'urgent', 'study', 'finance', 
 //    front-end executor (window._thVoice / window._vdVoice .apply). ───────────
 function buildPrompt(profile, transcript, state, today, weekday, hasAudio) {
   const src = hasAudio
-    ? `FIRST, transcribe the attached audio of the user speaking (US English). Then treat that transcription as the command.`
-    : `The user typed/spoke the command below.`;
+    ? `FIRST, transcribe the attached audio of the user speaking (US English), correcting obvious mishearings. Then act on that transcription.`
+    : `Act on the user's command below.`;
 
   const isTony = profile !== 'veda';
 
   return [
-    `You are the voice command engine for "${isTony ? 'Tony' : 'Veda'}'s TaskHub" — a weekly planner with a calendar, daily habits, short-term goals, long-term goals, a focus timer, light/dark themes, and an edit mode.`,
+    `You are the precise voice command engine for "${isTony ? 'Tony' : 'Veda'}'s TaskHub" — a weekly planner with a dated calendar, daily habits, short-term goals, long-term goals, a focus timer, themes, and an edit mode. Your job: convert ONE spoken command into an exact, ordered list of ACTIONS. Be thorough and literal — capture EVERY change and EVERY detail the user mentions.`,
     `${src}`,
+    hasAudio ? `` : `USER COMMAND: """${transcript}"""`,
     ``,
-    `TODAY is ${today} (${weekday}). Resolve relative dates ("today", "tomorrow", "next Monday", "the 5th", "this Friday", "in 3 days") to absolute YYYY-MM-DD using TODAY. Dates may be in the past, present, or future.`,
+    `TODAY is ${today} (${weekday}). Resolve relative dates ("today", "tomorrow", "tonight", "next Monday", "the 5th", "this Friday", "in 3 days", "end of month") to absolute YYYY-MM-DD using TODAY. Past, present and future dates are all allowed. If no date is given for a calendar task, use TODAY.`,
     ``,
-    `CURRENT STATE (JSON — use it to find existing tasks to edit/remove/move, and to avoid duplicates):`,
-    JSON.stringify(state || {}, null, 0).slice(0, 12000),
+    `CURRENT STATE (JSON — the source of truth for editing/removing/moving/reordering existing items and avoiding duplicates):`,
+    JSON.stringify(state || {}, null, 0).slice(0, 14000),
     ``,
-    `Convert the command into an ordered list of ACTIONS. Output ONLY actions that the user actually asked for. The user may issue several at once ("clear Monday and add gym Tuesday at 6") — emit one action per discrete change. Support BULK changes across multiple days/boxes.`,
+    `BOXES: "calendar" (dated day tasks/events; needs "date"), "dailyHabits", "shortTermGoals", "longTermGoals".`,
     ``,
-    `BOXES (where a task lives):`,
-    `- "calendar" = a task/event on a specific dated day (needs "date"). This is the weekly view.`,
-    `- "dailyHabits" = recurring daily habit checklist (no date).`,
-    `- "shortTermGoals" = short-term goals list (no date).`,
-    `- "longTermGoals" = long-term goals list (no date).`,
-    ``,
-    `ACTION TYPES (each is an object with a "type"):`,
-    `- {type:"add_task", box, date?, title, kind?, category?, time?, notify?, repeat?, repeatDays?, repeatEndDate?, altSeqTitles?, done?}`,
-    `    kind: "task" or "event" (default "task"; use "event" if the user gives a clock time for it, e.g. "meeting at 3pm").`,
-    `    box "calendar" REQUIRES "date" (YYYY-MM-DD). Other boxes ignore date.`,
-    `    category (calendar tasks only): one of ${CATEGORIES.join(', ')} — pick the best fit, else omit.`,
-    `    time: event clock time as 24h "HH:MM" (e.g. "17:00"). Only for events.`,
-    `    notify: a reminder, as {date:"YYYY-MM-DD", time:"HH:MM"} (24h). Use when the user asks to be reminded/notified.`,
-    `    repeat: "none"|"daily"|"weekly"|"weekdays"|"custom". repeatDays: array of weekday indexes (0=Mon..6=Sun) when repeat is "weekly"/"custom".`,
-    `    repeatEndDate: {year, month(0-based), day} when the user bounds the repeat; else omit.`,
-    `    altSeqTitles: array of 2+ titles for an ALTERNATING SEQUENCE task (e.g. "alternate push day and pull day") — emit instead of "title".`,
-    `- {type:"edit_task", match, set:{...any add_task fields...}} — change an existing task. "set" only the changed fields.`,
+    `ACTIONS:`,
+    `- {type:"add_task", box, date?, title, kind?, category, time?, notify?, repeat?, repeatDays?, repeatEndDate?, altSeqTitles?, done?}`,
+    `- {type:"edit_task", match, set:{ any of: title, kind, category, time, date, notify, repeat, repeatDays, done }}`,
     `- {type:"remove_task", match}`,
-    `- {type:"toggle_task", match, done?} — check/uncheck or mark done/not done.`,
-    `- {type:"move_task", match, toBox, toDate?} — move between boxes (toDate required if toBox is "calendar").`,
-    `- {type:"clear", box, date?} — remove all tasks in a box (calendar needs date).`,
-    `- {type:"go_to_date", date} — navigate the calendar to a day.`,
-    `- {type:"set_theme", dark:true|false}  /  {type:"toggle_theme"}`,
-    `- {type:"set_edit_mode", on:true|false}`,
-    `- {type:"refresh_quote"}`,
-    `- {type:"timer_set", minutes}  /  {type:"timer_start"}  /  {type:"timer_stop"}  /  {type:"timer_reset"}  /  {type:"timer_open"}`,
-    `- {type:"undo"}  /  {type:"redo"}`,
+    `- {type:"toggle_task", match, done?}   (check off / mark done or not done)`,
+    `- {type:"move_task", match, toBox, toDate?}   (move BETWEEN boxes; toDate required if toBox="calendar")`,
+    `- {type:"swap", first, second}   (swap the positions of two existing tasks)`,
+    `- {type:"reorder", match, position?, relativeTo?, before?}   (position: "top"|"bottom"|"up"|"down"; OR relativeTo:{title} with before:true/false to place it before/after another task)`,
+    `- {type:"clear", box, date?}`,
+    `- {type:"go_to_date", date}`,
+    `- {type:"set_theme", dark:true|false} | {type:"toggle_theme"} | {type:"set_edit_mode", on:true|false} | {type:"refresh_quote"}`,
+    `- {type:"timer_set", minutes} | {type:"timer_start"} | {type:"timer_stop"} | {type:"timer_reset"} | {type:"timer_open"}`,
+    `- {type:"undo"} | {type:"redo"}`,
     ``,
-    `"match" identifies an existing task: {box, date?, title} where "title" is the user's words for it (fuzzy — front-end matches loosely). Include "date" when box is "calendar". If the user says "it"/"that", match the most relevant recent task in CURRENT STATE.`,
+    `FIELD RULES:`,
+    `- title: clean and concise. NEVER include the time, date, category, or the word "task" in the title.`,
+    `- category (REQUIRED on every calendar add_task): exactly one of ${CATEGORIES.join(', ')}. Infer the best fit from the task ("gym"/"run"/"dentist"→health, "meeting"/"email"/"report"→work, "groceries"/"call mom"→personal, "exam"/"homework"/"study"→study, "pay rent"/"budget"→finance, anything time-critical the user stresses→urgent). If nothing fits well, use "other". NEVER leave it blank, even if the user doesn't say a category.`,
+    `- kind: "event" when the task happens AT a clock time ("meeting at 3", "gym at 5pm", "call at noon", "dinner tonight at 7") → also set time. Otherwise "task".`,
+    `- time: the EVENT's clock time, 24h "HH:MM" (5pm→"17:00", noon→"12:00", "7:30 in the morning"→"07:30").`,
+    `- notify: a REMINDER/notification, as {date:"YYYY-MM-DD", time:"HH:MM"}. Set it whenever the user says remind / reminder / notify / notification / alert / alarm / "ping me" / "let me know". The reminder time defaults to the event time unless the user gives a different one. An item can have BOTH a "time" (when it happens) AND a "notify" (when to be reminded). "remind me 15 minutes before" → notify 15 min before the event time.`,
+    `- repeat: "none"|"daily"|"weekly"|"weekdays"|"custom"; repeatDays: weekday indexes 0=Mon..6=Sun for weekly/custom.`,
+    `- altSeqTitles: 2+ titles for an alternating-sequence task ("alternate push and pull days") — use instead of title.`,
     ``,
-    `RULES:`,
-    `- Titles: clean, concise, Title-ish case. Do NOT put the time or date inside the title.`,
-    `- If the user clearly wants something done but a detail is ambiguous, choose the most reasonable interpretation rather than refusing.`,
-    `- If the command is small talk or you truly cannot map it to any action, return an empty "actions" array and put a one-line reply in "say".`,
-    `- Never invent tasks the user didn't ask for. Never echo the whole state back as adds.`,
-    `- "say": a SHORT (<=12 words) human confirmation of what you did, e.g. "Added Gym at 5pm Tuesday." Keep it tight.`,
+    `MATCHING: "match"/"first"/"second"/"relativeTo" = {box?, date?, title}. "title" is the user's words for an EXISTING item (matched loosely). Include box and (for calendar) date when known. Resolve "it/that/this/the task" to the most recently referenced or just-added item.`,
+    ``,
+    `CRITICAL RULES:`,
+    `- CONSOLIDATE: put ALL attributes the user mentions about a single new task into that ONE add_task — even when said mid-sentence or out of order ("add a dentist appointment, put it in health, tomorrow at 2, and remind me" = ONE add_task with category:"health", date, time:"14:00", notify). Do NOT emit a separate edit for attributes of a task you just added.`,
+    `- BULK: a command may contain many changes. Emit one action per DISTINCT change, in the order stated. Don't merge unrelated changes; don't drop any.`,
+    `- SWAP vs reorder: "swap A and B" / "switch their positions" → ONE swap. "move X to the top" / "put X above Y" / "move it up" → reorder.`,
+    `- Only act on what was asked. Never echo existing state as new adds. Never invent tasks.`,
+    `- "say": ≤12-word confirmation of what you did (e.g. "Added dentist 2pm tomorrow with a reminder.").`,
+    ``,
+    `EXAMPLES (command → actions):`,
+    `"add gym at 6am, put it in health, and remind me at 5:45" → [{"type":"add_task","box":"calendar","date":"${today}","title":"Gym","kind":"event","category":"health","time":"06:00","notify":{"date":"${today}","time":"05:45"}}]`,
+    `"schedule a team meeting tomorrow at 3pm as an event with a notification" → [{"type":"add_task","box":"calendar","date":"<tomorrow>","title":"Team Meeting","kind":"event","category":"work","time":"15:00","notify":{"date":"<tomorrow>","time":"15:00"}}]`,
+    `"swap morning run and meal prep" → [{"type":"swap","first":{"box":"calendar","title":"morning run"},"second":{"box":"calendar","title":"meal prep"}}]`,
+    `"move groceries to the top" → [{"type":"reorder","match":{"box":"calendar","title":"groceries"},"position":"top"}]`,
+    `"add read 20 pages to daily habits and finish taxes to long term goals" → [{"type":"add_task","box":"dailyHabits","title":"Read 20 pages"},{"type":"add_task","box":"longTermGoals","title":"Finish taxes"}]`,
   ].join('\n');
 }
 
@@ -153,6 +156,20 @@ const ACTION_SCHEMA = {
             type: 'OBJECT',
             properties: { box: { type: 'STRING' }, date: { type: 'STRING' }, title: { type: 'STRING' }, id: { type: 'STRING' } },
           },
+          first: {
+            type: 'OBJECT',
+            properties: { box: { type: 'STRING' }, date: { type: 'STRING' }, title: { type: 'STRING' } },
+          },
+          second: {
+            type: 'OBJECT',
+            properties: { box: { type: 'STRING' }, date: { type: 'STRING' }, title: { type: 'STRING' } },
+          },
+          relativeTo: {
+            type: 'OBJECT',
+            properties: { box: { type: 'STRING' }, date: { type: 'STRING' }, title: { type: 'STRING' } },
+          },
+          position: { type: 'STRING' },
+          before: { type: 'BOOLEAN' },
           toBox: { type: 'STRING' },
           toDate: { type: 'STRING' },
           dark: { type: 'BOOLEAN' },
@@ -170,11 +187,14 @@ async function callGemini(model, key, prompt, audio, mimeType) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   const gc = {
     temperature: 0,
-    maxOutputTokens: 4096,
+    maxOutputTokens: 8192,
     responseMimeType: 'application/json',
     responseSchema: ACTION_SCHEMA,
   };
-  if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
+  // Let the strongest model reason (dynamic budget) for accurate bulk/ambiguous commands;
+  // keep the lite fallback fast.
+  if (model === 'gemini-2.5-flash') gc.thinkingConfig = { thinkingBudget: -1 };
+  else if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
   const parts = [{ text: prompt }];
   if (audio) parts.push({ inlineData: { mimeType: mimeType || 'audio/wav', data: audio } });
   const body = JSON.stringify({ contents: [{ parts }], generationConfig: gc });
