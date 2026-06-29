@@ -33347,8 +33347,9 @@ mcApplyTheme();
 </div></div>
 <div id="thv-toast"></div>
 <style>
-#thv-caption{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);z-index:99000;display:none;
-  width:min(560px,92vw);max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+/* anchored to the BOTTOM so it never covers the header mic; grows upward, scrolls */
+#thv-caption{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);left:50%;transform:translateX(-50%);z-index:99000;display:none;
+  width:min(560px,92vw);max-height:40vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
   background:var(--thv-surface,#1d1d25);border:1.5px solid var(--thv-accent,#D4849A);border-radius:14px;
   padding:13px 16px;font-size:16px;color:var(--thv-text,#ececf0);line-height:1.5;text-align:left;box-shadow:0 12px 44px rgba(0,0,0,.55);
   font-family:'Nunito',sans-serif;}
@@ -33359,7 +33360,7 @@ mcApplyTheme();
 #thv-caption .thv-spin{width:15px;height:15px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:thv-sp .7s linear infinite;display:inline-block;}
 @keyframes thv-pulse{0%,100%{opacity:1}50%{opacity:.3}}
 @keyframes thv-sp{to{transform:rotate(360deg)}}
-#thv-hint{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%) translateY(calc(-100% - 8px));z-index:99001;display:none;
+#thv-hint{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 40px);left:50%;transform:translateX(-50%);z-index:99001;display:none;
   background:var(--thv-accent,#D4849A);color:#0f0f12;font-weight:800;font-size:12px;font-family:'Nunito',sans-serif;
   padding:8px 14px;border-radius:20px;box-shadow:0 8px 26px rgba(0,0,0,.4);white-space:nowrap;}
 #thv-hint.show{display:block;}
