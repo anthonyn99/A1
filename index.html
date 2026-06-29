@@ -9731,7 +9731,7 @@ function App(){
     RC("div",{style:{display:"grid",gridTemplateColumns:vrMobile?"1fr":"minmax(0,4fr) minmax(0,2.5fr) minmax(0,4fr)",gap:10}},
       RC("div",{"data-dnd-zone":"habit",style:{...sec,display:"flex",flexDirection:"column",minHeight:280},onDragOver:edit?e=>{if(vdDragInfo.current&&vdDragInfo.current.zone!=="habit"){e.preventDefault();e.dataTransfer.dropEffect="move";}}:null,onDrop:edit?e=>{if(vdDragInfo.current&&vdDragInfo.current.zone!=="habit"){e.preventDefault();vCrossMoveRef.current&&vCrossMoveRef.current("habit",null);vdDragInfo.current=null;}}:null},
         RC("div",{style:{...stt,display:"flex",justifyContent:"space-between",alignItems:"center"}},RC("span",null,"DAILY HABITS"),RC("span",{style:{fontSize:9,fontWeight:600,color:TXM,textTransform:"none",letterSpacing:0,fontStyle:"italic"}},"Resets every Monday")),
-        RC("div",{style:{display:"flex",gap:5,marginBottom:8,flexShrink:0,visibility:edit?"visible":"hidden"}},
+        RC("div",{style:{display:edit?"flex":"none",gap:5,marginBottom:8,flexShrink:0}},
           RC("input",{style:{...inp,flex:1},placeholder:"New habit...",value:nht,onChange:e=>setNht(e.target.value),onKeyDown:e=>{if(e.key==="Enter")addH();}}),
           RC("button",{style:sbtn,onClick:addH},"+")),
         RC("div",{style:{width:"100%"}},
