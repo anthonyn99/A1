@@ -4160,6 +4160,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
                 <span style={{marginLeft:'auto',fontSize:11,color:'var(--txm)',fontFamily:"'IBM Plex Mono',monospace"}}>{nhTimeAgo(e.ts)}</span>
               </div>
               <div style={{fontSize:15,lineHeight:1.55,color:'var(--tx)',fontWeight:500,fontFamily:"'Lora',serif",marginBottom:11}}>{e.summary}</div>
+              <NHHeadlineList sources={sources}/>
               <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',paddingTop:10,borderTop:'1px dashed var(--bd)',fontSize:11.5,color:'var(--txm)'}}>
                 <span style={{fontWeight:800,textTransform:'uppercase',letterSpacing:0.6,fontSize:10}}>Sources</span>
                 {shown.map((s,i)=>(<React.Fragment key={i}>
