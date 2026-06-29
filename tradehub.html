@@ -3606,6 +3606,61 @@ function nhTimeAgo(ts){
 function nhFmtScore(s){if(s==null||s===0)return '';return (s>0?'+':'')+(+s).toFixed(2);}
 function nhFmtTime(sec){if(sec<=0)return 'now';if(sec<60)return sec+'s';return Math.ceil(sec/60)+'m';}
 
+// Build a deduped, display-ordered headline list from an event's sources.
+// Skips empty headlines and non-article URLs (the Finnhub API redirect / '#').
+// Orders "why it moved" explainers first (the catchy Robinhood-style lines —
+// "Why Sandisk Stock Just Dropped", "What's Behind the Memory Split"), then most
+// recent. Dedupes near-identical headlines that clustering attached from multiple wires.
+function nhHeadlines(sources){
+  const seen=new Set(), out=[];
+  for(const s of (sources||[])){
+    const h=(s.headline||'').trim();
+    if(!h)continue;
+    const u=s.url||'';
+    if(!u||u==='#'||u.includes('finnhub.io/api/news'))continue;
+    const key=h.toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim().slice(0,60);
+    if(seen.has(key))continue;
+    seen.add(key); out.push(s);
+  }
+  const isWhy=h=>/^(why\b|what'?s behind|here'?s why|what'?s driving)/i.test((h||'').trim());
+  out.sort((a,b)=>{
+    const wa=isWhy(a.headline)?1:0, wb=isWhy(b.headline)?1:0;
+    if(wa!==wb)return wb-wa;
+    return (b.ts||0)-(a.ts||0);
+  });
+  return out;
+}
+// Raw catchy source headlines under an event card, with a "+N more" expander.
+// Additive: sits between the AI summary and the Sources row.
+function NHHeadlineList({sources}){
+  const [open,setOpen]=useState(false);
+  const items=nhHeadlines(sources);
+  if(!items.length)return null;
+  const CAP=6;
+  const shown=open?items:items.slice(0,CAP);
+  const more=items.length-shown.length;
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:7,marginBottom:11}}>
+      {shown.map((s,i)=>(
+        <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
+          style={{display:'flex',gap:8,alignItems:'baseline',textDecoration:'none',color:'var(--tx)'}}
+          onMouseEnter={ev=>ev.currentTarget.style.color='var(--ac)'}
+          onMouseLeave={ev=>ev.currentTarget.style.color='var(--tx)'}>
+          <span style={{color:'var(--txd)',opacity:0.5,flex:'none'}}>›</span>
+          <span style={{fontSize:13,lineHeight:1.45,fontWeight:500}}>{s.headline}
+            <span style={{color:'var(--txm)',fontWeight:600,marginLeft:6,fontSize:11}}>{s.name}{s.ts?' · '+nhTimeAgo(s.ts):''}</span>
+          </span>
+        </a>
+      ))}
+      {(more>0||open)&&(
+        <span onClick={()=>setOpen(o=>!o)} style={{fontSize:11,fontWeight:700,color:'var(--ac)',cursor:'pointer',marginLeft:16}}>
+          {open?'Show less':('+ '+more+' more headline'+(more!==1?'s':''))}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   const [events,setEvents]=useState([]);
   const [generatedAt,setGeneratedAt]=useState(null);
