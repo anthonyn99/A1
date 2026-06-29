@@ -3611,6 +3611,18 @@ function nhFmtPrice(c){if(c==null||!isFinite(c))return '';return '$'+(+c).toLoca
 function nhMoveColor(dp){if(dp==null||!isFinite(dp)||dp===0)return 'var(--txm)';return dp>0?'var(--tbb)':'var(--tbr)';}
 // Events newer than this are tagged BREAKING so fresh catalysts stand out.
 const NH_BREAKING_MS=30*60*1000; // 30 min
+// US regular-session check (ET, Mon–Fri 9:30–16:00). Throttles quote polling —
+// quotes barely move when the market is closed. Holidays aren't special-cased
+// (worst case: a few wasted polls on a holiday). Fails open if Intl misbehaves.
+function nhMarketOpen(){
+  try{
+    const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date()).reduce((a,x)=>{a[x.type]=x.value;return a},{});
+    if(p.weekday==='Sat'||p.weekday==='Sun')return false;
+    let h=+p.hour; if(h===24)h=0;
+    const mins=h*60+(+p.minute);
+    return mins>=570&&mins<960; // 9:30 → 16:00 ET
+  }catch(e){return true;}
+}
 
 // Build a deduped, display-ordered headline list from an event's sources.
 // Skips empty headlines and non-article URLs (the Finnhub API redirect / '#').
@@ -3999,8 +4011,11 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
     return (e.additionalTickers||[]).some(t=>set.has(t));
   }
 
-  /* ── Live quotes (price-move correlation). Worker KV-caches ~60s, so polling
-     every 60s is one cheap KV read most of the time. ── */
+  /* ── Live quotes (price-move correlation). Worker KV-caches ~60s. Polling is
+     guarded two ways so it only spends API/requests when it's actually useful:
+       • Tab hidden  → don't fetch at all (re-fetches the moment it's visible).
+       • Market open → 60s cadence.  Market closed → 5min (quotes are static).
+  ── */
   const nhFetchQuotes=useCallback(async()=>{
     if(!newsTickers.length)return;
     try{
@@ -4011,9 +4026,19 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
     }catch(e){}
   },[tickersKey]);
   useEffect(()=>{
-    nhFetchQuotes();
-    const id=setInterval(nhFetchQuotes,60000);
-    return()=>clearInterval(id);
+    let timer=null, stopped=false;
+    const tick=async()=>{
+      if(stopped)return;
+      if(typeof document==='undefined'||!document.hidden)await nhFetchQuotes();
+      if(stopped)return;
+      const hidden=typeof document!=='undefined'&&document.hidden;
+      const delay=hidden?120000:(nhMarketOpen()?60000:300000);
+      timer=setTimeout(tick,delay);
+    };
+    tick();
+    const onVis=()=>{if(!document.hidden)nhFetchQuotes();};
+    if(typeof document!=='undefined')document.addEventListener('visibilitychange',onVis);
+    return()=>{stopped=true;if(timer)clearTimeout(timer);if(typeof document!=='undefined')document.removeEventListener('visibilitychange',onVis);};
   },[nhFetchQuotes]);
 
   const canRefresh=rlUsed<NH_DAILY_LIMIT&&rlCooldown<=0&&!loading&&!building;
