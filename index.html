@@ -9433,7 +9433,7 @@ function App(){
   const vgrip={fontSize:13,color:"#6b6b7a",cursor:"grab",padding:"0 3px",userSelect:"none",touchAction:"none",flexShrink:0,lineHeight:1,opacity:1,position:"relative",zIndex:1};
   const vgripM=()=>({...vgrip,fontSize:vrMobile?20:13,padding:vrMobile?"0 8px":"0 3px",minWidth:vrMobile?32:undefined,minHeight:vrMobile?32:undefined,display:"inline-flex",alignItems:"center",justifyContent:"center"});
   const vdndAC="#B47BFF";
-  const vdndRowStyle=(id,base)=>(!vrMobile&&vdDragOverId===id)?{...base,outline:"2px solid "+vdndAC,outlineOffset:"-1px",borderRadius:4}:base;
+  const vdndRowStyle=(id,base)=>(!vrMobile&&vdDragOverId===id)?{...base,opacity:1,outline:"2px solid "+vdndAC,outlineOffset:"-1px",borderRadius:4}:base;
   const vdndDayStyle=(k,base)=>(!vrMobile&&vdDragOverId==="day-"+k)?{...base,boxShadow:"inset 0 0 0 2px "+vdndAC}:base;
 
   // Touch reorder for habits and goals
