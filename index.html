@@ -3674,8 +3674,8 @@ function App(){
   const dndRowStyle=(id,base)=>(!isMobile&&dragOverId===id)?{...base,outline:"2px solid "+T.AC,outlineOffset:"-1px",borderRadius:4}:base;
   const dndDayStyle=(k,base)=>(!isMobile&&dragOverId==="day-"+k)?{...base,boxShadow:"inset 0 0 0 2px "+T.AC}:base;
   // ── Weekly item cards: each task / event sits in its own dark-gray rounded card ──
-  const wkTaskCard=done=>({background:isDark?(done?"#101116":"#131419"):(done?T.S2:T.S1),border:"1px solid "+(isDark?"#2a2b34":T.BD),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.4)":"0 1px 2px "+T.SHADOW});
-  const wkEventCard=cat=>({background:isDark?"#141519":T.S2,border:"1px solid "+(isDark?"#27282f":T.BD),borderLeft:"3px solid "+((CC&&CC[cat])||T.ACL),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
+  const wkTaskCard=done=>({background:isDark?(done?"#101116":"#21222b"):(done?T.S2:T.S1),border:"1px solid "+(isDark?(done?"#2a2b34":"#3a3b46"):T.BD),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.4)":"0 1px 2px "+T.SHADOW});
+  const wkEventCard=cat=>({background:isDark?"#22232c":T.S2,border:"1px solid "+(isDark?"#3a3b46":T.BD),borderLeft:"3px solid "+((CC&&CC[cat])||T.ACL),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
   const MC_PASTEL={earnings:"#e7a6b4",inflation:"#e3c794",fed:"#c9b3ec",jobs:"#a6c8e6",growth:"#a6dcb2",macro:"#c0c6cd",rates:"#c9b3ec",gdp:"#a6dcb2",retail:"#a6dcb2",housing:"#a3dcc6",sentiment:"#e3cb98",trade:"#edb2a6",oil:"#e3bd96",holiday:"#b0b9cc"};
   const wkCatalystCard=cat=>({background:isDark?"#101319":T.S2,border:"1px solid "+(isDark?"#243042":T.BD),borderLeft:"3px solid "+(MC_PASTEL[String(cat||"").toLowerCase()]||"#b0b9cc"),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
 
@@ -9428,8 +9428,9 @@ function App(){
   const [vdDragOverId,setVdDragOverId]=useState(null);
   const vgrip={fontSize:13,color:"#6b6b7a",cursor:"grab",padding:"0 3px",userSelect:"none",touchAction:"none",flexShrink:0,lineHeight:1,opacity:1,position:"relative",zIndex:1};
   const vgripM=()=>({...vgrip,fontSize:vrMobile?20:13,padding:vrMobile?"0 8px":"0 3px",minWidth:vrMobile?32:undefined,minHeight:vrMobile?32:undefined,display:"inline-flex",alignItems:"center",justifyContent:"center"});
-  const vdndRowStyle=(id,base)=>(!vrMobile&&vdDragOverId===id)?{...base,outline:"2px solid "+A,outlineOffset:"-1px",borderRadius:4}:base;
-  const vdndDayStyle=(k,base)=>(!vrMobile&&vdDragOverId==="day-"+k)?{...base,boxShadow:"inset 0 0 0 2px "+A}:base;
+  const vdndAC="#B47BFF";
+  const vdndRowStyle=(id,base)=>(!vrMobile&&vdDragOverId===id)?{...base,outline:"2px solid "+vdndAC,outlineOffset:"-1px",borderRadius:4}:base;
+  const vdndDayStyle=(k,base)=>(!vrMobile&&vdDragOverId==="day-"+k)?{...base,boxShadow:"inset 0 0 0 2px "+vdndAC}:base;
 
   // Touch reorder for habits and goals
   const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habits,setHabits,"veda","habit");
@@ -9758,8 +9759,8 @@ function App(){
         onDragOver:edit?e=>{const z=goalTab==="short"?"goalm":"goal";if(vdDragInfo.current&&vdDragInfo.current.zone!==z){e.preventDefault();e.dataTransfer.dropEffect="move";}}:null,
         onDrop:edit?e=>{const z=goalTab==="short"?"goalm":"goal";if(vdDragInfo.current&&vdDragInfo.current.zone!==z){e.preventDefault();vCrossMoveRef.current&&vCrossMoveRef.current(z,null);vdDragInfo.current=null;}}:null},
         RC("div",{style:{...stt,display:"flex",gap:14,alignItems:"center",letterSpacing:1}},
-          RC("span",{"data-goal-tab":"short",onClick:()=>setGoalTab("short"),onDragOver:edit?e=>{e.preventDefault();if(vdDragInfo.current&&goalTab!=="short")setGoalTab("short");}:undefined,style:{cursor:"pointer",color:goalTab==="short"?TX:TXM,borderBottom:goalTab==="short"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term"),
-          RC("span",{"data-goal-tab":"long",onClick:()=>setGoalTab("long"),onDragOver:edit?e=>{e.preventDefault();if(vdDragInfo.current&&goalTab!=="long")setGoalTab("long");}:undefined,style:{cursor:"pointer",color:goalTab==="long"?TX:TXM,borderBottom:goalTab==="long"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term")),
+          RC("span",{"data-goal-tab":"short",onClick:()=>setGoalTab("short"),onDragOver:edit?e=>{e.preventDefault();if(vdDragInfo.current&&goalTab!=="short")setGoalTab("short");}:undefined,style:{cursor:"pointer",color:goalTab==="short"?TX:TXM,borderBottom:goalTab==="short"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
+          RC("span",{"data-goal-tab":"long",onClick:()=>setGoalTab("long"),onDragOver:edit?e=>{e.preventDefault();if(vdDragInfo.current&&goalTab!=="long")setGoalTab("long");}:undefined,style:{cursor:"pointer",color:goalTab==="long"?TX:TXM,borderBottom:goalTab==="long"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals")),
         edit&&RC("div",{style:{display:"flex",gap:5,marginBottom:8,flexShrink:0}},
           RC("input",{style:{...inp,flex:1},placeholder:goalTab==="short"?"New short-term goal...":"New long-term goal...",value:goalTab==="short"?nmmt:nmt,onChange:e=>(goalTab==="short"?setNmmt:setNmt)(e.target.value),onKeyDown:e=>{if(e.key==="Enter")(goalTab==="short"?addMM:addM)();}}),
           RC("button",{style:sbtn,onClick:goalTab==="short"?addMM:addM},"+")),
