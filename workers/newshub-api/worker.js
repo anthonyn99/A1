@@ -806,6 +806,34 @@ async function fetchFinnhubGeneral(env, wl, cutoff){
     return out;
   } catch(e){ return []; }
 }
+
+// ─── Finnhub real-time quotes (free, 60/min). One call per ticker; the /quotes
+// route KV-caches the whole map ~60s so repeated News opens don't re-hit the API.
+// Powers the client's "Top Movers" strip + per-card % change (price-move
+// correlation). Returns null for invalid/empty symbols so they're skipped. ─────
+async function fetchQuote(ticker, env){
+  try {
+    const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${env.FINNHUB_KEY}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j || (j.c === 0 && j.pc === 0)) return null; // no data / bad symbol
+    return { c:j.c, d:j.d, dp:j.dp, h:j.h, l:j.l, o:j.o, pc:j.pc, t:j.t };
+  } catch(e){ return null; }
+}
+async function fetchQuotes(wl, env){
+  const out = {};
+  const queue = [...wl];
+  async function worker(){
+    while (queue.length){
+      const t = queue.shift();
+      const q = await fetchQuote(t, env);
+      if (q) out[t] = q;
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(8, wl.length || 1) }, worker));
+  return out;
+}
+
 // Source tiers (all 1 subrequest each unless noted), tuned to pack maximum
 // coverage under Cloudflare's 50-subrequest/invocation cap:
 //   ALWAYS-ON (every build): Finnhub general + per-ticker Finnhub, TickerTick
@@ -2732,6 +2760,25 @@ export default {
       const sectors = {};
       for (const [t, m] of Object.entries(meta)) sectors[t] = m.sector;
       return new Response(JSON.stringify({ ok:true, sectors, meta }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+    }
+
+    // ── /quotes?tickers=A,B,C — real-time Finnhub quotes for the watchlist,
+    // KV-cached ~60s. Powers the Top Movers strip + per-card % change (price-move
+    // correlation). Cheap: Finnhub quotes are 60/min, effectively unlimited daily.
+    // ?fresh=1 bypasses the cache. Returns { quotes:{T:{c,d,dp,h,l,o,pc}}, asOf }.
+    if (url.pathname === '/quotes'){
+      const tk = parseTickers(url.searchParams.get('tickers')) || WATCHLIST;
+      const ckey = 'quotes:' + wlHash(tk);
+      if (url.searchParams.get('fresh') !== '1'){
+        try {
+          const c = await env.NEWSHUB_CACHE.get(ckey, 'json');
+          if (c && c.quotes) return new Response(JSON.stringify({ ok:true, ...c, cached:true }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+        } catch(e){}
+      }
+      const quotes = await fetchQuotes(tk, env);
+      const payload = { quotes, asOf: Date.now() };
+      ctx.waitUntil(env.NEWSHUB_CACHE.put(ckey, JSON.stringify(payload), { expirationTtl: 60 }).catch(()=>{}));
+      return new Response(JSON.stringify({ ok:true, ...payload }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
     }
 
     // ── /_stage — INTERNAL staged-build worker. Called by the worker on itself,

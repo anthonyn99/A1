@@ -3605,6 +3605,12 @@ function nhTimeAgo(ts){
 }
 function nhFmtScore(s){if(s==null||s===0)return '';return (s>0?'+':'')+(+s).toFixed(2);}
 function nhFmtTime(sec){if(sec<=0)return 'now';if(sec<60)return sec+'s';return Math.ceil(sec/60)+'m';}
+// Price-move helpers (Finnhub quote: dp = % change, c = current price).
+function nhFmtPct(dp){if(dp==null||!isFinite(dp))return '';return (dp>0?'+':'')+(+dp).toFixed(2)+'%';}
+function nhFmtPrice(c){if(c==null||!isFinite(c))return '';return '$'+(+c).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
+function nhMoveColor(dp){if(dp==null||!isFinite(dp)||dp===0)return 'var(--txm)';return dp>0?'var(--tbb)':'var(--tbr)';}
+// Events newer than this are tagged BREAKING so fresh catalysts stand out.
+const NH_BREAKING_MS=30*60*1000; // 30 min
 
 // Build a deduped, display-ordered headline list from an event's sources.
 // Skips empty headlines and non-article URLs (the Finnhub API redirect / '#').
@@ -3679,6 +3685,9 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   // Rate limit state (fetched from /rate-status)
   const [rlUsed,setRlUsed]=useState(0);
   const [rlCooldown,setRlCooldown]=useState(0); // seconds remaining in cooldown
+  // Live quotes for price-move correlation: { TICKER:{c,d,dp,...} }
+  const [quotes,setQuotes]=useState({});
+  const [quotesAt,setQuotesAt]=useState(0);
   const pollTimer=useRef(null);
   const pollCount=useRef(0);
   const cooldownTimer=useRef(null);
@@ -3924,6 +3933,35 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   const tickerCounts=useMemo(()=>{const m=new Map();windowed.forEach(e=>{if(e.primaryTicker)m.set(e.primaryTicker,(m.get(e.primaryTicker)||0)+1);(e.additionalTickers||[]).forEach(t=>m.set(t,(m.get(t)||0)+1));});return m;},[windowed]);
   const sectorCounts=useMemo(()=>{const m=new Map();windowed.forEach(e=>(e.sectors||[]).forEach(s=>m.set(s,(m.get(s)||0)+1)));return m;},[windowed]);
 
+  /* Breaking = events fresher than NH_BREAKING_MS (recompute on nowTick). */
+  const [nowTick,setNowTick]=useState(0);
+  useEffect(()=>{const id=setInterval(()=>setNowTick(x=>x+1),60000);return()=>clearInterval(id);},[]);
+  const breakingCount=useMemo(()=>{const c=Date.now()-NH_BREAKING_MS;return windowed.filter(e=>(e.ts||0)>=c).length;},[windowed,nowTick]);
+
+  /* Each watchlist ticker → its single most-important event in-window. Ties a
+     price mover to the news that explains it (price-move correlation). */
+  const topEventByTicker=useMemo(()=>{
+    const m={};
+    for(const e of windowed){
+      const t=e.primaryTicker;if(!t)continue;
+      const sc=e.impact?.score||0;
+      if(!m[t]||sc>(m[t].impact?.score||0))m[t]=e;
+    }
+    return m;
+  },[windowed]);
+
+  /* Top Movers — biggest |%| movers on the watchlist, with their top headline. */
+  const movers=useMemo(()=>{
+    const list=[];
+    for(const t of newsTickers){
+      const q=quotes[t];
+      if(!q||q.dp==null||!isFinite(q.dp))continue;
+      list.push({t,c:q.c,dp:q.dp});
+    }
+    list.sort((a,b)=>Math.abs(b.dp)-Math.abs(a.dp));
+    return list.slice(0,6);
+  },[quotes,newsTickers]);
+
   const toggleTicker=(t)=>setSelTickers(p=>p.includes(t)?p.filter(x=>x!==t):[...p,t]);
   const toggleSector=(s)=>setSelSectors(p=>p.includes(s)?p.filter(x=>x!==s):[...p,s]);
   const clearAll=()=>{setSelTickers([]);setSelSectors([]);setSentFilter('all');setImpFilter('all');};
@@ -3960,6 +3998,23 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
     if(set.has(e.primaryTicker))return true;
     return (e.additionalTickers||[]).some(t=>set.has(t));
   }
+
+  /* ── Live quotes (price-move correlation). Worker KV-caches ~60s, so polling
+     every 60s is one cheap KV read most of the time. ── */
+  const nhFetchQuotes=useCallback(async()=>{
+    if(!newsTickers.length)return;
+    try{
+      const r=await fetch(NH_WORKER_URL+'/quotes?tickers='+encodeURIComponent(newsTickers.join(',')));
+      if(!r.ok)return;
+      const j=await r.json();
+      if(j&&j.quotes){setQuotes(j.quotes);setQuotesAt(j.asOf||Date.now());}
+    }catch(e){}
+  },[tickersKey]);
+  useEffect(()=>{
+    nhFetchQuotes();
+    const id=setInterval(nhFetchQuotes,60000);
+    return()=>clearInterval(id);
+  },[nhFetchQuotes]);
 
   const canRefresh=rlUsed<NH_DAILY_LIMIT&&rlCooldown<=0&&!loading&&!building;
   const rlRemaining=NH_DAILY_LIMIT-rlUsed;
@@ -4028,11 +4083,44 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       </div>
     )}
 
+    {/* Top Movers — biggest % movers tied to the news that explains them */}
+    {movers.length>0&&(
+      <div style={{marginBottom:16}}>
+        <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:8}}>
+          <span style={{fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)'}}>Top Movers</span>
+          {quotesAt>0&&<span style={{fontSize:10,color:'var(--txm)'}}>quotes {nhTimeAgo(quotesAt)}</span>}
+        </div>
+        <div className="nh-movers" style={{display:'grid',gridAutoFlow:'column',gridAutoColumns:'minmax(210px,1fr)',gap:10,overflowX:'auto',paddingBottom:4}}>
+          {movers.map(m=>{
+            const ev=topEventByTicker[m.t];
+            const hl=ev?(nhHeadlines(ev.sources)[0]?.headline||ev.summary):'';
+            const on=selTickers.length===1&&selTickers[0]===m.t;
+            return(
+              <div key={m.t} className="tb-card" onClick={()=>setSelTickers(on?[]:[m.t])}
+                style={{padding:'12px 14px',cursor:'pointer',borderLeft:'3px solid '+nhMoveColor(m.dp),outline:on?'2px solid var(--ac)':'none'}}>
+                <div style={{display:'flex',alignItems:'baseline',gap:8}}>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,fontSize:14,color:'var(--ac)'}}>{m.t}</span>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,fontSize:13,color:nhMoveColor(m.dp)}}>{m.dp>0?'▲':'▼'} {nhFmtPct(m.dp)}</span>
+                  <span style={{marginLeft:'auto',fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:'var(--txd)'}}>{nhFmtPrice(m.c)}</span>
+                </div>
+                {hl?(
+                  <div style={{fontSize:12,lineHeight:1.4,color:'var(--txm)',marginTop:7,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{hl}</div>
+                ):(
+                  <div style={{fontSize:11,color:'var(--txm)',marginTop:7,fontStyle:'italic',opacity:0.7}}>No news in window</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
     {/* Stats */}
     {events.length>0&&(
-      <div className="nh-stats-grid" style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:16}}>
+      <div className="nh-stats-grid" style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8,marginBottom:16}}>
         {[
           {n:counts.total,l:'Events · '+hours+'h',c:'var(--tx)'},
+          {n:breakingCount,l:'Breaking',c:'var(--tbw)'},
           {n:counts.critical,l:'Critical',c:'var(--tbr)'},
           {n:counts.major,l:'Major',c:'var(--ac)'},
           {n:counts.bull,l:'Bullish',c:'var(--tbb)'},
@@ -4143,10 +4231,15 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
           const shown=sources.slice(0,3);
           const extra=sources.length-shown.length;
           const sentCls=sLabel==='bull'?'tb-badge-bull':sLabel==='bear'?'tb-badge-bear':'tb-badge-neutral';
+          const q=quotes[e.primaryTicker];
+          const hasPct=q&&q.dp!=null&&isFinite(q.dp);
+          const breaking=(Date.now()-(e.ts||0))<NH_BREAKING_MS;
           return(
-            <div key={e.id} className="tb-card" style={{padding:'16px 18px',borderLeft:'3px solid '+tm.c}}>
+            <div key={e.id} className="tb-card" style={{padding:'16px 18px',borderLeft:'3px solid '+(breaking?'var(--tbw)':tm.c)}}>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:9,flexWrap:'wrap'}}>
+                {breaking&&<span style={{fontSize:9,fontWeight:900,letterSpacing:0.7,color:'#fff',background:'var(--tbw)',padding:'3px 8px',borderRadius:100,textTransform:'uppercase',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:6,height:6,borderRadius:'50%',background:'#fff'}}/>Breaking</span>}
                 <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,fontSize:13,color:'var(--ac)'}}>{e.primaryTicker}</span>
+                {hasPct&&<span title="Today's move" style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,fontSize:11,color:nhMoveColor(q.dp)}}>{q.dp>0?'▲':'▼'} {nhFmtPct(q.dp)}</span>}
                 {e.additionalTickers?.length>0&&<span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:'var(--txm)',fontWeight:600}}>+ {e.additionalTickers.join(' · ')}</span>}
                 {e.sectors?.length>0&&<span style={{fontSize:11,color:'var(--txm)',paddingLeft:8,borderLeft:'1px solid var(--bd)'}}>{e.sectors[0]}</span>}
                 {tier!=='minor'&&<span style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:0.6,padding:'3px 9px',borderRadius:100,background:(tier==='critical'||tier==='major')?tm.c:'transparent',color:(tier==='critical'||tier==='major')?'#fff':tm.c,border:(tier==='critical'||tier==='major')?'none':'1px solid '+tm.c,display:'inline-flex',alignItems:'center',gap:4}}>
