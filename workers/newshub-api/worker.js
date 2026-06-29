@@ -512,6 +512,10 @@ const TT_ALLOWLIST = [
   'streetinsider','thefly','briefing.com','morningstar',
   'investors.com','investing.com','schaeffersresearch','quiverquant',
   'finbold','simplywall','sharewise',
+  // "Why the stock moved" explainer desks — exactly the catchy Robinhood-style
+  // headlines ("Why Sandisk Stock Just Dropped", "What's Behind the Memory Split").
+  // 247wallst + wccftech are TickerTick-indexed but were missing from this list.
+  '247wallst','wccftech','kiplinger','marketrealist',
   // Financial institutions / research
   'sec.gov','edgar','irs.gov','federalreserve',
   // Tech but business-focused
