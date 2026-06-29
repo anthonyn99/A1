@@ -2654,7 +2654,7 @@ export default {
   // but only spends Marketaux/StockData/AlphaVantage quota a few times/day at
   // staggered hours so they don't get exhausted.
   async scheduled(event, env, ctx){
-    // Fires once daily at 11:45 UTC (= 05:45 MDT / 04:45 MST) — before 6am Mountain.
+    // Fires once daily at 12:00 UTC (= builds begin 06:00 MDT / 05:00 MST Mountain).
     // Branch on the DAY OF WEEK, not the exact cron string. Robust to any future
     // cron-time change (DST shift, 6:30→6:00, etc.): whatever UTC time fires, the
     // day decides what builds.

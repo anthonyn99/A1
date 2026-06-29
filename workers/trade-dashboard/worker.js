@@ -630,11 +630,11 @@ async function handle(request, env, ctx){
 
 /* ════════════════════════ CRON ════════════════════════
    Mon-Fri pre-warm → build + cache so the user just opens the tab. Fires once daily
-   at 11:45 UTC (= 05:45 MDT / 04:45 MST) — before 6am Mountain. Cron builds bypass the
+   at 12:00 UTC (= builds begin 06:00 MDT / 05:00 MST Mountain). Cron builds bypass the
    manual cooldown and use a small daily cap. */
 async function scheduled(event, env, ctx){
   // Skip full-closure market holidays (e.g. Labor Day) — no session to pre-build for.
-  // At 11:45 UTC the UTC date == US Eastern date, so todayUTC() is the correct
+  // At 12:00 UTC the UTC date == US Eastern date, so todayUTC() is the correct
   // calendar day to test against the ET-dated US_MARKET_HOLIDAYS set.
   if(US_MARKET_HOLIDAYS.has(todayUTC())) return;
   // small cron cap so a stuck loop can't hammer AI quota
