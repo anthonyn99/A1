@@ -33613,19 +33613,15 @@ function locate(W,match){
 }
 function newItemFor(b,box,moved){
   if(box==='dailyHabits')return {id:b.uid(),title:moved.title};
-  if(box==='calendar'){var it={id:b.uid(),type:moved.type||'task',title:moved.title,done:!!moved.done,category:moved.category||'other'};if(moved.time)it.time=moved.time;if(moved.notifyAt)it.notifyAt=moved.notifyAt;if(moved.altSeqId){it.altSeqId=b.uid();it.altSeqTitles=moved.altSeqTitles;}return it;}
+  if(box==='calendar'){var it={id:b.uid(),type:moved.type||'task',title:moved.title,done:!!moved.done,category:moved.category||'other'};if(moved.time){it.time=moved.time;it.tz=moved.tz||tzName();}if(moved.notifyAt){it.notifyAt=moved.notifyAt;it.notifyRepeat=moved.notifyRepeat||'none';it.notifyRepeatDays=moved.notifyRepeatDays||[];it.notifyRepeatId=null;}if(moved.altSeqId){it.altSeqId=b.uid();it.altSeqTitles=moved.altSeqTitles;}return it;}
   return {id:b.uid(),title:moved.title,done:!!moved.done};
 }
-// apply one TASK action to the working copy W; mark() flags which slice changed
-function applyTask(b,W,a,mark){
+// apply one TASK action to the working copy W; mark() flags which slice changed; fx collects notif side-effects
+function applyTask(b,W,a,mark,fx){
   switch(a.type){
     case 'add_task':{
       var box=a.box||'calendar';
-      if(box==='calendar'){
-        var key=(a.date?(ymd(a.date)||{}).key:null)||W.selectedDate;
-        var it=buildCalItem(b,a);if(!it.title)return false;
-        if(!W.data[key])W.data[key]=[];W.data[key].push(it);mark('calendar');return true;
-      }
+      if(box==='calendar')return addCalItem(b,W,a,fx)?(mark('calendar'),true):false;
       var arr=arrFor(W,box);if(!arr)return false;var title=(a.title||'').trim();if(!title)return false;
       arr.push(box==='dailyHabits'?{id:b.uid(),title:title}:{id:b.uid(),title:title,done:!!a.done});mark(box);return true;
     }
@@ -33635,25 +33631,26 @@ function applyTask(b,W,a,mark){
       if(f.box==='calendar'){
         if(set.kind)it2.type=set.kind==='event'?'event':'task';
         if(set.category!=null)it2.category=(VALID_CATS.indexOf(set.category)>=0)?set.category:'other';
-        if(set.time!=null){var tt=fixTime(set.time);if(tt){it2.time=tt;it2.type='event';}else{delete it2.time;}}
-        if(set.notify){var ms=notifyMs(set.notify);if(ms)it2.notifyAt=ms;}
+        if(set.time!=null){var tt=fixTime(set.time);if(tt){it2.time=tt;it2.tz=tzName();it2.type='event';}else{delete it2.time;delete it2.tz;}}
+        if(set.notify){if(setNotify(it2,set.notify))fx.schedule.push(it2);}
         if(typeof set.done==='boolean')it2.done=set.done;
-        if(set.repeat!=null){if(set.repeat==='none'){delete it2.repeat;delete it2.repeatDays;}else{var tmp=buildCalItem(b,{repeat:set.repeat,repeatDays:set.repeatDays});it2.repeat=tmp.repeat;it2.repeatDays=tmp.repeatDays;}}
+        if(set.repeat!=null){if(set.repeat==='none'){delete it2.repeat;delete it2.repeatDays;delete it2.repeatId;}else{var tmp=buildCalItem(b,{repeat:set.repeat,repeatDays:set.repeatDays});it2.repeat=tmp.repeat;it2.repeatDays=tmp.repeatDays;it2.repeatId=it2.repeatId||tmp.repeatId;}}
         mark('calendar');
         if(set.date){var nd=ymd(set.date);if(nd&&nd.key!==f.key){var mv=f.arr.splice(f.idx,1)[0];if(!W.data[nd.key])W.data[nd.key]=[];W.data[nd.key].push(mv);}}
       }else{ if(typeof set.done==='boolean'&&f.box!=='dailyHabits')it2.done=set.done;mark(f.box); }
       return true;
     }
-    case 'remove_task':{var fr=locate(W,a.match);if(!fr)return false;fr.arr.splice(fr.idx,1);mark(fr.box);return true;}
+    case 'remove_task':{var fr=locate(W,a.match);if(!fr)return false;var rm=fr.arr.splice(fr.idx,1)[0];mark(fr.box);if(rm&&rm.notifyAt)fx.cancel.push({id:rm.id,notifyRepeatId:rm.notifyRepeatId||null});return true;}
     case 'toggle_task':{
       var ft=locate(W,a.match);if(!ft)return false;var want=typeof a.done==='boolean'?a.done:null;
-      if(ft.box==='dailyHabits'){var d2=new Date();var hk=ft.item.id+'-'+d2.getFullYear()+'-'+d2.getMonth()+'-'+d2.getDate();W.hc[hk]=want==null?!W.hc[hk]:want;mark('hc');return true;}
+      if(ft.box==='dailyHabits'){var dstr=(a.match&&a.match.date)||a.date||'';var hk=habitKey(ft.item.id,dstr);W.hc[hk]=want==null?!W.hc[hk]:want;mark('hc');return true;}
       ft.item.done=want==null?!ft.item.done:want;mark(ft.box);return true;
     }
     case 'move_task':{
       var fm=locate(W,a.match);if(!fm)return false;var toBox=a.toBox||'calendar';var moved=fm.item;
       fm.arr.splice(fm.idx,1);mark(fm.box);
-      if(toBox==='calendar'){var key2=(a.toDate?(ymd(a.toDate)||{}).key:null)||(fm.box==='calendar'?fm.key:null)||W.selectedDate;if(!W.data[key2])W.data[key2]=[];W.data[key2].push(newItemFor(b,'calendar',moved));mark('calendar');}
+      if(moved.notifyAt)fx.cancel.push({id:moved.id,notifyRepeatId:moved.notifyRepeatId||null});
+      if(toBox==='calendar'){var key2=(a.toDate?(ymd(a.toDate)||{}).key:null)||(fm.box==='calendar'?fm.key:null)||W.selectedDate;if(!W.data[key2])W.data[key2]=[];var ni=newItemFor(b,'calendar',moved);W.data[key2].push(ni);mark('calendar');if(ni.notifyAt)fx.schedule.push(ni);}
       else{var ta=arrFor(W,toBox);if(!ta)return true;ta.push(newItemFor(b,toBox,moved));mark(toBox);}
       return true;
     }
