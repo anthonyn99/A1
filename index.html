@@ -5026,7 +5026,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           _mjLastOwnSaveAt = _mjSavedAt;
           _mjLastWrittenSavedAt = _mjSavedAt;
           await Promise.all(imageUploadPromises);
-          await setDoc(mjDocRef, payload);
+          await _fbWriteRetry(() => setDoc(mjDocRef, payload), 'MJ save');
           _mjLastOwnSaveAt = Date.now();
           window.dispatchEvent(new CustomEvent("fb-mj-saved"));
         } catch(e) {
