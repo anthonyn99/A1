@@ -5212,13 +5212,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           const _tjSavedAt = Date.now();
           _tjLastOwnSaveAt = _tjSavedAt;
           _tjLastWrittenSavedAt = _tjSavedAt;
-          try {
-            await updateDoc(tjDocRef, { [fieldKey]: sanitized, _order, activeId, savedAt: _tjSavedAt });
-          } catch(updateErr) {
-            if (updateErr.code === 'not-found') {
-              await setDoc(tjDocRef, { [fieldKey]: sanitized, _order, activeId, savedAt: _tjSavedAt });
-            } else { throw updateErr; }
-          }
+          await _fbUpsert(tjDocRef, { [fieldKey]: sanitized, _order, activeId, savedAt: _tjSavedAt }, 'TJ save');
           _tjLastOwnSaveAt = Date.now();
           window.dispatchEvent(new CustomEvent("fb-tj-saved"));
         } catch(e) {
