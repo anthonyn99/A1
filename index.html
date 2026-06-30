@@ -32558,7 +32558,7 @@ function sosInitFirebase() {
   window.addEventListener('fb-sos-remote', function(e) {
     var remote = e.detail;
     if (!remote) return;
-    if (Array.isArray(remote.classes))  { classes   = remote.classes;   localStorage.setItem('studyos_classes',   JSON.stringify(classes));   }
+    if (Array.isArray(remote.classes))  { classes   = remote.classes;   classes.forEach(c => { if (c && c.color && window.sosPastel) c.color = window.sosPastel(c.color); });   localStorage.setItem('studyos_classes',   JSON.stringify(classes));   }
     if (Array.isArray(remote.events))   { events    = remote.events;    localStorage.setItem('studyos_events',    JSON.stringify(events));    }
     if (Array.isArray(remote.tasks))    { tasks     = remote.tasks;     localStorage.setItem('studyos_tasks',     JSON.stringify(tasks));     }
     if (Array.isArray(remote.notes))    { notesList = remote.notes;     localStorage.setItem('studyos_notes_v2',  JSON.stringify(notesList));  }
