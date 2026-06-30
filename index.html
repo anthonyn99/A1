@@ -33700,11 +33700,12 @@ function dispatch(actions,say){
   var s=b.getState();
   var W={data:clone(s.data)||{},habits:clone(s.habits)||[],shortGoals:clone(s.shortGoals)||[],longGoals:clone(s.longGoals)||[],hc:clone(s.hc)||{},selectedDate:s.selectedDate};
   var dirty={};var mark=function(k){dirty[k]=true;};
+  var fx={schedule:[],cancel:[]};
   var n=0;
   for(var i=0;i<actions.length;i++){
     var a=actions[i];if(!a||!a.type)continue;
     try{
-      if(TASK_TYPES[a.type]){if(applyTask(b,W,a,mark))n++;}
+      if(TASK_TYPES[a.type]){if(applyTask(b,W,a,mark,fx))n++;}
       else{if(applyControl(b,a))n++;}
     }catch(e){console.warn('[voice] action failed',a,e);}
   }
@@ -33714,6 +33715,10 @@ function dispatch(actions,say){
   if(dirty.longTermGoals)b.mutateLongGoals(function(){return W.longGoals;});
   if(dirty.hc&&b.mutateHc)b.mutateHc(function(){return W.hc;});
   if(b.flushHistory)b.flushHistory();
+  // fire/cancel push reminders exactly like the app's own add/delete paths
+  var who=profile();
+  fx.cancel.forEach(function(c){if(window.thCancelNotif){try{window.thCancelNotif(c.id,c.notifyRepeatId);}catch(e){}}});
+  fx.schedule.forEach(function(it){if(window.thScheduleNotif){try{window.thScheduleNotif(Object.assign({},it,{dashboard:who}));}catch(e){}}});
   refreshButtons();
   if(say)toast(say);
   else if(n)toast(n+' change'+(n>1?'s':'')+' applied');
