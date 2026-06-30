@@ -1332,8 +1332,9 @@ function computedMacro(fromD, toD){
       add(lastBusinessDay(Y,M), `${lbl} Chicago PMI`, 'growth'); // last business day
     }
   }
-  // ADP National Employment — the Wednesday before each NFP Friday.
-  for (const d of MACRO_RELEASES_2026.jobs){ const adp = addDaysIso(d, -2); add(adp, `${prevMonthLabel(d)} ADP Employment`, 'jobs'); }
+  // ADP National Employment — the Wednesday immediately preceding each NFP
+  // (usually 2 days before a Friday NFP; 1 day before in holiday-shifted weeks).
+  for (const d of MACRO_RELEASES_2026.jobs){ let adp = addDaysIso(d, -1); while (isoDow(adp) !== 3) adp = addDaysIso(adp, -1); add(adp, `${prevMonthLabel(d)} ADP Employment`, 'jobs'); }
   // FOMC Minutes — released exactly 3 weeks after each rate decision (a Wednesday).
   for (const d of MACRO_RELEASES_2026.fomc){ add(addDaysIso(d, 21), 'FOMC Minutes', 'fed'); }
   // Initial Jobless Claims — every Thursday in the window.
