@@ -32361,7 +32361,11 @@ function _sosSerializeClasses() {
     modules: (cls.modules || []).map(mod => ({
       ...mod,
       files: (mod.files || []).map(f => {
-        const { dataUrl, ...meta } = f; // always strip dataUrl
+        // Keep persistent metadata (incl. storageUrl/storagePath so the cloud
+        // copy is reachable on other devices). Strip the inline blob (dataUrl)
+        // and any transient `_`-prefixed flags (e.g. _uploading/_cloudError).
+        const meta = {};
+        for (const k in f) { if (k === 'dataUrl' || k.charAt(0) === '_') continue; meta[k] = f[k]; }
         return meta;
       })
     }))
