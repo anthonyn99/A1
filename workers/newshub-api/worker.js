@@ -1691,7 +1691,7 @@ async function buildCalendar(wl, env, days, diag){
     if (!yearIsHardcoded && HARDCODED_NAME.test(e.name)) {
       extraMacro.push({ ...e, approx: true, name: /\(approx\)/i.test(e.name) ? e.name : (e.name + ' (approx)') });
     } else {
-      extraMacro.push(e); // jobless claims / ISM etc — already AI in every year
+      extraMacro.push(e); // durable goods / housing / home sales / trade — AI-sourced every year
     }
   }
 
