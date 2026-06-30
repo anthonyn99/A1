@@ -5229,8 +5229,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       const _tjOrdTs = Date.now();
       _tjLastOwnSaveAt = _tjOrdTs;
       _tjLastWrittenSavedAt = _tjOrdTs;
-      updateDoc(tjDocRef, { _order, savedAt: _tjOrdTs })
-        .catch(err => { if (err.code === 'not-found') setDoc(tjDocRef, { _order, savedAt: _tjOrdTs }); });
+      _fbUpsert(tjDocRef, { _order, savedAt: _tjOrdTs }, 'TJ order')
+        .catch(err => console.warn('TJ order save failed:', err.message));
     };
 
     window._fbDeleteTonyJournalEntry = async (entryId) => {
@@ -5238,7 +5238,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         const _delTs = Date.now();
         _tjLastOwnSaveAt = _delTs;
         _tjLastWrittenSavedAt = _delTs;
-        await updateDoc(tjDocRef, { ["e_" + entryId]: deleteField(), savedAt: _delTs });
+        await _fbWriteRetry(() => updateDoc(tjDocRef, { ["e_" + entryId]: deleteField(), savedAt: _delTs }), 'TJ delete');
       }
       catch(e) { if (e.code !== "not-found") console.warn("TJ delete failed:", e.message); }
     };
@@ -5251,7 +5251,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           const { entry: stripped } = await _tjStripEntry(e);
           payload['e_' + e.id] = _tjSanitize(stripped);
         }
-        await setDoc(tjDocRef, payload);
+        await _fbWriteRetry(() => setDoc(tjDocRef, payload), 'TJ migrate');
       } catch(err) { console.warn('TJ migration failed:', err.message); }
     };
 
