@@ -1701,7 +1701,7 @@ async function buildCalendar(wl, env, days, diag){
   //    which upcoming days the market is closed (and why).
   const holidays = marketHolidayEvents(fromD, toD, diag);
   const events = [...earn, ...macro, ...holidays]
-    .map(ev => ({ ...ev, id: calEventId(ev) }))
+    .map(ev => ({ ...ev, id: calEventId(ev), ...(ev.kind === 'macro' ? { importance: macroImportance(ev.name) } : {}) }))
     .sort((a,b) => a.date.localeCompare(b.date));
   return { events, generatedAt: Date.now(), from: fromD, to: toD, degraded: !earn.length && !events.length };
 }
