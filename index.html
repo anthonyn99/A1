@@ -4810,8 +4810,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       const _bjOrdTs = Date.now();
       _bjLastOwnSaveAt = _bjOrdTs;
       _bjLastWrittenSavedAt = _bjOrdTs;
-      updateDoc(bjDocRef, { _order, savedAt: _bjOrdTs })
-        .catch(err => { if (err.code === 'not-found') setDoc(bjDocRef, { _order, savedAt: _bjOrdTs }); });
+      _fbUpsert(bjDocRef, { _order, savedAt: _bjOrdTs }, 'BJ order')
+        .catch(err => console.warn('BJ order save failed:', err.message));
     };
 
     window._fbDeleteJournalEntry = async (entryId) => {
@@ -4819,7 +4819,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         const _delTs = Date.now();
         _bjLastOwnSaveAt = _delTs;
         _bjLastWrittenSavedAt = _delTs;
-        await updateDoc(bjDocRef, { ["e_" + entryId]: deleteField(), savedAt: _delTs });
+        await _fbWriteRetry(() => updateDoc(bjDocRef, { ["e_" + entryId]: deleteField(), savedAt: _delTs }), 'BJ delete');
       }
       catch(e) { if (e.code !== "not-found") console.warn("BJ delete failed:", e.message); }
     };
