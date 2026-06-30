@@ -1441,7 +1441,7 @@ async function fetchMacroCalendar(env, fromD, toD, diag){
   const prompt =
 `You are a financial calendar API. Using Google Search, list scheduled US macroeconomic data releases and Federal Reserve events between ${fromD} and ${toD} (inclusive), US Eastern dates.
 
-Include ONLY these release types if they fall in the window: CPI, PPI, PCE, FOMC rate decision / Fed meeting, Nonfarm Payrolls (jobs report), weekly Initial Jobless Claims, GDP, Retail Sales, ISM/PMI, Durable Goods.
+Include ONLY these release types if they fall in the window: CPI, PPI, PCE, FOMC rate decision / Fed meeting, FOMC Minutes, Nonfarm Payrolls (jobs report), ADP Employment, JOLTS Job Openings, weekly Initial Jobless Claims, GDP, Retail Sales, ISM/PMI, Durable Goods, Consumer Confidence, Michigan Consumer Sentiment, Housing Starts, Building Permits, Existing Home Sales, New Home Sales, Trade Balance.
 
 Return ONLY a JSON array, no prose, no markdown fences. Each item:
 {"name":"<official release name incl. month/period, e.g. 'May CPI Report'>","date":"YYYY-MM-DD"}
