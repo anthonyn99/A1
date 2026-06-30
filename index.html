@@ -4647,6 +4647,34 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // no overwrite collisions, exactly like Google Docs per-document isolation.
     const bjDocRef = doc(db, BJ_DOC_PATH);
 
+    // ── Resilient write helpers (shared by BJ / MJ / TJ) ──────────────────────
+    // Retry a Firestore write on transient failures with exponential backoff so a
+    // single network blip (the usual cause of "it didn't save") never drops a save.
+    const _fbWriteRetry = async (fn, label) => {
+      const transient = new Set(['unavailable','deadline-exceeded','aborted','internal','cancelled','unknown']);
+      let lastErr;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try { return await fn(); }
+        catch(err) {
+          lastErr = err;
+          if (!transient.has(err && err.code) || attempt === 3) throw err;
+          console.warn((label||'fb') + ': transient write error, retry ' + (attempt+1), err.code);
+          await new Promise(r => setTimeout(r, 400 * Math.pow(2, attempt)));
+        }
+      }
+      throw lastErr;
+    };
+
+    // Upsert: updateDoc (field-level merge) falling back to setDoc when the doc is
+    // missing, wrapped in transient-failure retry.
+    const _fbUpsert = (ref, payload, label) => _fbWriteRetry(async () => {
+      try { await updateDoc(ref, payload); }
+      catch(err) {
+        if (err && err.code === 'not-found') await setDoc(ref, payload);
+        else throw err;
+      }
+    }, label);
+
     // Helper: deep-sanitize object (remove null/undefined for Firestore)
     const _bjSanitize = (v) => {
       if (Array.isArray(v)) return v.map(_bjSanitize);
