@@ -14,4 +14,4 @@ WORKER_ORIGIN = "https://studyos-files.av1.workers.dev"
 # then copy its ID here. KV (free Workers plan) = no credit card, 1 GB, 25 MB/file.
 [[kv_namespaces]]
 binding = "FILES"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+id = "db15ea4183e84982baabf95bf974d933"
