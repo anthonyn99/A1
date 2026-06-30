@@ -384,16 +384,23 @@ def setup():
 $action   = New-ScheduledTaskAction -Execute '{pw}' -Argument '"{script}"' -WorkingDirectory '{work_dir}'
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 12) -StartWhenAvailable -MultipleInstances IgnoreNew
 
-# Trigger 1: fresh login
-$logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+# Run interactively as the logged-on user so the GUI windows actually draw on the desktop
+$principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\\$env:USERNAME" -LogonType Interactive -RunLevel Limited
 
-# Trigger 2: wake from sleep/hibernate (System log, Power-Troubleshooter event 1)
+# Trigger 1: daily at {TRIGGER_HOUR}:00 AM — the reliable one when the PC is already on & logged in.
+#            (-StartWhenAvailable above re-runs it on next boot/logon if the PC was off at {TRIGGER_HOUR} AM.)
+$dailyTrigger = New-ScheduledTaskTrigger -Daily -At {TRIGGER_HOUR}:00
+
+# Trigger 2: fresh login (covers logging in before {TRIGGER_HOUR} AM — the script then waits until {TRIGGER_HOUR}:00)
+$logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERNAME"
+
+# Trigger 3: wake from sleep/hibernate (System log, Power-Troubleshooter event 1)
 $wakeClass   = Get-CimClass -ClassName MSFT_TaskEventTrigger -Namespace 'Root/Microsoft/Windows/TaskScheduler'
 $wakeTrigger = $wakeClass | New-CimInstance -ClientOnly
 $wakeTrigger.Subscription = '<QueryList><Query Id="0" Path="System"><Select Path="System">*[System[Provider[@Name=''Microsoft-Windows-Power-Troubleshooter''] and EventID=1]]</Select></Query></QueryList>'
 $wakeTrigger.Enabled = $True
 
-Register-ScheduledTask -TaskName '{TASK_NAME}' -TaskPath '{TASK_FOLDER}' -Action $action -Trigger @($logonTrigger, $wakeTrigger) -Settings $settings `
+Register-ScheduledTask -TaskName '{TASK_NAME}' -TaskPath '{TASK_FOLDER}' -Action $action -Trigger @($dailyTrigger, $logonTrigger, $wakeTrigger) -Principal $principal -Settings $settings `
     -Description 'Opens WeBull + TradeHub + TaskHub at {TRIGGER_HOUR} AM Mountain Time' -Force
 Write-Host 'Registered.'
 """
