@@ -1208,13 +1208,19 @@ const MACRO_WHITELIST = [
   [/\bcpi\b|consumer price/i,                         'inflation'],
   [/\bppi\b|producer price/i,                         'inflation'],
   [/\bpce\b|personal consumption/i,                   'inflation'],
-  [/\bfomc\b|fed(eral)? (reserve|funds)|rate decision|powell|interest rate decision/i, 'fed'],
+  [/\bfomc\b|fed(eral)? (reserve|funds)|rate decision|powell|interest rate decision|fomc minutes/i, 'fed'],
   [/nonfarm|non-farm|\bnfp\b|jobs report|payroll|unemployment rate/i, 'jobs'],
+  [/\bjolts\b|job openings|labor turnover/i,           'jobs'],
+  [/\badp\b|adp (national )?employment/i,              'jobs'],
   [/jobless claims|initial claims|continuing claims/i, 'jobs'],
   [/\bgdp\b|gross domestic/i,                          'growth'],
   [/retail sales/i,                                    'growth'],
-  [/\bism\b|\bpmi\b|manufacturing index|services index/i, 'growth'],
+  [/\bism\b|\bpmi\b|manufacturing index|services index|chicago business barometer/i, 'growth'],
   [/durable goods/i,                                   'growth'],
+  [/consumer confidence|conference board/i,            'sentiment'],
+  [/michigan|consumer sentiment/i,                     'sentiment'],
+  [/housing starts|building permits|existing home|new home sales|home sales/i, 'housing'],
+  [/trade balance|trade deficit|international trade/i, 'trade'],
 ];
 function macroCategory(name){
   for (const [re, cat] of MACRO_WHITELIST) if (re.test(name)) return cat;
