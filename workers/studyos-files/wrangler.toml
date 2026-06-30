@@ -1,0 +1,17 @@
+name = "studyos-files"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+WORKER_ORIGIN = "https://studyos-files.av1.workers.dev"
+
+# ── KV namespace that holds the uploaded files ──────────────────────────────
+# Create it ONCE, then paste its id below (the deploy fails until this is real):
+#
+#   wrangler kv namespace create FILES
+#
+# …or in the dashboard: Workers & Pages → KV → Create namespace ("studyos-files")
+# then copy its ID here. KV (free Workers plan) = no credit card, 1 GB, 25 MB/file.
+[[kv_namespaces]]
+binding = "FILES"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
