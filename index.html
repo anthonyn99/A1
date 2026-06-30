@@ -3858,7 +3858,7 @@ function App(){
 
   // ── Voice bridge (re-bound every render so getState/actions are always current) ──
   window._thVoice={profile:"tony",uid:uid,
-    getState:()=>({data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),theme:isDark?"dark":"light",edit:edit}),
+    getState:()=>({data:data,habits:habits,hc:hc,longGoals:mg,shortGoals:mgMonthly,selectedDate:dkey(sel.year,sel.month,sel.day),today:dkey(now.getFullYear(),now.getMonth(),now.getDate()),week:(wd||[]).map(function(d){var dt=new Date(d.year,d.month,d.day);return {date:dkey(d.year,d.month,d.day),weekday:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dt.getDay()]};}),theme:isDark?"dark":"light",edit:edit}),
     mutateData:setData,mutateHabits:setHabits,mutateLongGoals:setMg,mutateShortGoals:setMgMonthly,mutateHc:setHc,
     setEdit:(on)=>setEdit(!!on),
     setTheme:(d)=>{setIsDark(d);if(window._syncAllThemes)window._syncAllThemes(d);},
