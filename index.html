@@ -9599,8 +9599,8 @@ function App(){
   const vdEventCard=(cat,passed)=>({background:passed?"#0f1014":"#1b1c23",border:"1px solid "+(passed?"#1d1e25":"#32333d"),borderLeft:"3px solid "+(passed?"#33343d":(CC[cat]||"#58a6d4")),borderRadius:10,padding:vrMobile?"4px 12px":"3px 10px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
   const vdEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
   const mcChip=(e)=>RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:vrMobile?4:3,cursor:"default"}},
-    RC("span",{style:{fontSize:12,flexShrink:0,lineHeight:1.35,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
-    RC("span",{style:{fontSize:13,fontWeight:700,color:TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
+    RC("span",{style:{fontSize:10,flexShrink:0,lineHeight:1.3,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
+    RC("span",{style:{fontSize:11,fontWeight:700,color:TX,lineHeight:1.3,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
     RC("span",{style:ctag(e.category)},e.category),
     e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:8,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null);
 
