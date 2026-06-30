@@ -4833,7 +4833,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           const { entry: stripped } = await _bjStripEntry(e);
           payload['e_' + e.id] = _bjSanitize(stripped);
         }
-        await setDoc(bjDocRef, payload);
+        await _fbWriteRetry(() => setDoc(bjDocRef, payload), 'BJ migrate');
         console.log('BJ: migrated', legacyEntries.length, 'entries to per-entry field format');
       } catch(err) {
         console.warn('BJ migration failed:', err.message);
