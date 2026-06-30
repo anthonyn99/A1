@@ -28289,6 +28289,12 @@ window.tjSwitchTo = function(app) {
 }
 #study-root .btn-icon:hover { background: var(--bg3); color: var(--text); }
 #study-root .btn-icon svg { width: 16px; height: 16px; }
+#study-root .sos-cloud-badge {
+  font-size: 10px; font-weight: 800; border-radius: 10px; padding: 1px 6px;
+  min-width: 16px; text-align: center; line-height: 1.5; letter-spacing: 0;
+}
+#study-root .sos-cloud-badge.pending { background: #e0a060; color: #2a1c08; }
+#study-root .sos-cloud-badge.synced  { background: #4f9d6b; color: #fff; }
 /* VIEWS */
 #study-root .view { flex: 1; overflow-y: auto; padding: 24px; display: none; }
 #study-root .view.active { display: block; }
@@ -28946,6 +28952,8 @@ window.tjSwitchTo = function(app) {
   #study-root .nav-section-label { display: none; }
   #study-root #sidebar-classes { display: none; }
   #study-root .sidebar-bottom { padding: 10px 8px; }
+  #study-root .sos-cloud-sync-label { display: none; }
+  #study-root #sos-cloud-sync-btn { padding: 10px 0; gap: 0; }
 
   /* Topbar */
   #study-root .topbar { padding: 0 16px; gap: 10px; }
@@ -29289,6 +29297,11 @@ window.tjSwitchTo = function(app) {
       <div id="sidebar-classes"></div>
     </div>
     <div class="sidebar-bottom">
+      <button class="btn" id="sos-cloud-sync-btn" onclick="sosCloudSyncClick()" title="Upload every file on this device to the cloud so it's available everywhere" style="width:100%;justify-content:center;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><polyline points="8 12 12 8 16 12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
+        <span class="sos-cloud-sync-label">Sync to Cloud</span>
+        <span id="sos-cloud-badge" class="sos-cloud-badge" style="display:none;"></span>
+      </button>
     </div>
   </div>
 
@@ -30166,8 +30179,60 @@ function _sosAfterSync() {
   if (_sosReapplyCloudUrls()) { persist(); persistKsu(); }
   // debounce backfill so a burst of remote events triggers it once
   if (_sosAfterSyncTimer) clearTimeout(_sosAfterSyncTimer);
-  _sosAfterSyncTimer = setTimeout(() => { _sosBackfillCloud(); }, 400);
+  _sosAfterSyncTimer = setTimeout(() => { _sosBackfillCloud().then(() => _sosUpdateCloudBadge()); }, 400);
+  _sosUpdateCloudBadge(); // refresh the count immediately
 }
+
+// Count files not in the cloud, split by whether THIS device holds the blob.
+//   localOnly  → has a local blob, not uploaded yet (this device can fix it)
+//   elsewhere  → no cloud copy and no local blob (lives on another device)
+async function _sosCloudCounts() {
+  const pending = new Set();
+  _sosEachFile(f => { if (f.fileId && !f.storageUrl && !_sosCloudUrls.has(f.fileId)) pending.add(f.fileId); });
+  let localOnly = 0, elsewhere = 0;
+  for (const id of pending) {
+    let blob; try { blob = await SosFileStore.get(id); } catch (_) {}
+    if (blob) localOnly++; else elsewhere++;
+  }
+  return { localOnly, elsewhere };
+}
+
+// Paint the sidebar badge: amber count of files still local-only on this
+// device, or a green ✓ when everything here is in the cloud.
+let _sosBadgeBusy = false, _sosBadgeDirty = false;
+async function _sosUpdateCloudBadge() {
+  const badge = document.getElementById('sos-cloud-badge');
+  const btn = document.getElementById('sos-cloud-sync-btn');
+  if (!badge || !btn) return;
+  if (_sosBadgeBusy) { _sosBadgeDirty = true; return; } // coalesce; re-run after
+  _sosBadgeBusy = true;
+  try {
+    do {
+      _sosBadgeDirty = false;
+      const { localOnly, elsewhere } = await _sosCloudCounts();
+      badge.classList.remove('pending', 'synced');
+      badge.style.display = '';
+      if (localOnly > 0) {
+        badge.textContent = localOnly;
+        badge.classList.add('pending');
+        btn.title = localOnly + ' file' + (localOnly > 1 ? 's are' : ' is') + ' on this device but not in the cloud yet — click to upload'
+          + (elsewhere ? ' · ' + elsewhere + ' more live on another device' : '');
+      } else if (elsewhere > 0) {
+        // Nothing to upload from here, but the account still has un-synced files elsewhere.
+        badge.textContent = elsewhere + ' elsewhere';
+        badge.classList.add('synced');
+        btn.title = 'All files on THIS device are synced. ' + elsewhere + ' file' + (elsewhere > 1 ? 's' : '') + ' not yet uploaded live on another device — open StudyOS there and click Sync.';
+      } else {
+        badge.textContent = '✓';
+        badge.classList.add('synced');
+        btn.title = 'All files are synced to the cloud and available on every device.';
+      }
+    } while (_sosBadgeDirty);
+  } finally {
+    _sosBadgeBusy = false;
+  }
+}
+window.sosUpdateCloudBadge = _sosUpdateCloudBadge;
 window.sosSyncAllToCloud = () => _sosBackfillCloud(true); // manual trigger (console/button)
 
 // Auto-upload every previously-uploaded file that's still local-only (has a
@@ -30175,8 +30240,8 @@ window.sosSyncAllToCloud = () => _sosBackfillCloud(true); // manual trigger (con
 // become cross-device without re-uploading. Keyed by fileId so it's immune to
 // the array-replacement race. Sweeps regular classes AND the KSU bucket.
 let _sosBackfillRunning = false;
-async function _sosBackfillCloud(manual) {
-  if (_sosBackfillRunning) return;
+async function _sosBackfillCloud(manual, onProgress) {
+  if (_sosBackfillRunning) return { busy: true };
   _sosBackfillRunning = true;
   try {
     // Snapshot fileIds needing a cloud copy (deduped) from the CURRENT data.
@@ -30185,22 +30250,29 @@ async function _sosBackfillCloud(manual) {
       if (f.fileId && !f.storageUrl && !_sosCloudUrls.has(f.fileId) && !want.has(f.fileId))
         want.set(f.fileId, { name: f.name, mime: f.mime });
     });
-    if (!want.size) { if (manual) showNotif('☁️', 'All synced', 'Every local file is already in the cloud.'); return; }
+    const total = want.size;
+    if (!total) {
+      if (manual) showNotif('☁️', 'All synced', 'Every file on this device is already in the cloud.');
+      return { uploaded: 0, total: 0, missing: 0, tooBig: 0, failed: 0 };
+    }
 
-    let uploaded = 0, strikes = 0;
+    let uploaded = 0, strikes = 0, missing = 0, tooBig = 0, failed = 0, seen = 0;
     for (const [fileId, meta] of want) {
+      seen++;
+      if (onProgress) onProgress(seen, total, meta.name);
       let blob;
       try { blob = await SosFileStore.get(fileId); } catch (_) {}
-      if (!blob) continue;                       // no local copy on this device → skip
-      if (blob.size > SOS_CLOUD_MAX) continue;   // over KV cap → stays local-only
+      if (!blob) { missing++; continue; }          // no local copy on this device → skip
+      if (blob.size > SOS_CLOUD_MAX) { tooBig++; continue; } // over KV cap → local-only
       try {
         const file = new File([blob], meta.name || 'document', { type: meta.mime || blob.type || 'application/octet-stream' });
         const url = await SosCloud.upload(fileId, file);
-        _sosCloudUrls.set(fileId, url);          // remember so syncs can't drop it
+        _sosCloudUrls.set(fileId, url);            // remember so syncs can't drop it
         uploaded++; strikes = 0;
       } catch (e) {
+        failed++;
         console.warn('SOS backfill upload failed:', meta.name, e);
-        if (++strikes >= 3) break;               // worker likely down — retry next sync
+        if (++strikes >= 3) break;                 // worker likely down — retry next sync
       }
     }
 
@@ -30209,14 +30281,53 @@ async function _sosBackfillCloud(manual) {
       _sosReapplyCloudUrls();
       persist(); persistKsu();
       _sosRefreshAllDocLists();
-      showNotif('☁️', 'Synced to cloud', uploaded + ' file' + (uploaded > 1 ? 's are' : ' is') + ' now available on all devices.');
-    } else if (manual) {
-      showNotif('⚠️', 'Nothing uploaded', 'No local copies were found on this device to upload.');
+      if (!manual) showNotif('☁️', 'Synced to cloud', uploaded + ' file' + (uploaded > 1 ? 's are' : ' is') + ' now available on all devices.');
+    } else if (manual && missing) {
+      showNotif('⚠️', 'Files not on this device', missing + ' file' + (missing > 1 ? "s aren't" : " isn't") + ' stored on this device, so they can\'t be uploaded from here. Open StudyOS on the device that has them.');
     }
+    return { uploaded, total, missing, tooBig, failed };
   } finally {
     _sosBackfillRunning = false;
   }
 }
+
+// ── "Sync to Cloud" button (sidebar) ──────────────────────────────────────
+let _sosCloudSyncBusy = false;
+async function sosCloudSyncClick() {
+  if (_sosCloudSyncBusy) return;
+  _sosCloudSyncBusy = true;
+  const btn = document.getElementById('sos-cloud-sync-btn');
+  const label = btn ? btn.querySelector('.sos-cloud-sync-label') : null;
+  const setLabel = t => { if (label) label.textContent = t; };
+  const orig = label ? label.textContent : 'Sync to Cloud';
+  if (btn) btn.disabled = true;
+  setLabel('Syncing…');
+  try {
+    const r = await _sosBackfillCloud(true, (done, total) => setLabel('Syncing ' + done + '/' + total + '…'));
+    if (r && r.busy) { setLabel('Already running…'); }
+    else if (r && r.uploaded) {
+      setLabel('✓ ' + r.uploaded + ' synced');
+      const extra = [];
+      if (r.tooBig)  extra.push(r.tooBig + ' over 25MB');
+      if (r.missing) extra.push(r.missing + ' not on this device');
+      if (r.failed)  extra.push(r.failed + ' failed');
+      showNotif('☁️', 'Sync complete', r.uploaded + ' file' + (r.uploaded > 1 ? 's' : '') + ' uploaded — now on all devices.' + (extra.length ? ' (' + extra.join(', ') + ')' : ''));
+    } else if (r && r.total === 0) {
+      setLabel('✓ All synced');
+    } else {
+      setLabel('Nothing to upload');
+    }
+  } catch (e) {
+    console.warn('Sync to Cloud failed:', e);
+    setLabel('⚠ Failed — retry');
+  } finally {
+    if (btn) btn.disabled = false;
+    setTimeout(() => setLabel('Sync to Cloud'), 4000);
+    _sosCloudSyncBusy = false;
+    _sosUpdateCloudBadge();
+  }
+}
+window.sosCloudSyncClick = sosCloudSyncClick;
 
 // Refresh whatever module doc-lists are currently rendered so ☁ badges update.
 function _sosRefreshAllDocLists() {
@@ -30901,6 +31012,7 @@ async function sosUploadToCloud(file, meta, cls, mod, modId) {
     }
   }
   _sosRefreshModFiles(cls, mod, modId);
+  _sosUpdateCloudBadge();
 }
 
 function _sosRefreshModFiles(cls, mod, modId) {
@@ -31054,10 +31166,12 @@ function removeFile(classId, modId, idx) {
   const f = mod.files[idx];
   if (f && f.fileId) SosFileStore.delete(f.fileId).catch(() => {});
   if (f && (f.storagePath || f.fileId)) SosCloud.remove(f.storagePath || f.fileId);
+  if (f && f.fileId) _sosCloudUrls.delete(f.fileId);
   mod.files.splice(idx, 1);
   persistForCls(cls);
   const listEl = _sosEl('doc-list-' + modId);
   if (listEl) refreshDocList(listEl, cls, mod);
+  _sosUpdateCloudBadge();
 }
 
 function fileEmoji(name) {
