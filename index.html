@@ -3842,7 +3842,7 @@ function App(){
   const ebtn={background:"transparent",border:"none",color:T.TXD,cursor:"pointer",fontSize:12,padding:"0 3px",lineHeight:1,fontFamily:"inherit"};
   const sbtn={background:T.AC,color:T.BG,border:"none",borderRadius:4,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Nunito',sans-serif"};
   const ctag=c=>({fontSize:9,color:CC[c]||T.TXD,background:(CC[c]||T.TXD)+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+(CC[c]||T.TXD)+"30"});
-  const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date||ev.date<todayK)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,date:ev.date,notifyAt:ev.notifyAt||null});});return g;},[marketCal]);
+  const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date||ev.date<todayK)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null});});return g;},[marketCal]);
   const mcFmt=(iso)=>{const d=new Date(iso);let h=d.getHours();const m=d.getMinutes();const ap=h<12?" AM":" PM";h=h%12||12;return h+":"+(m<10?"0":"")+m+ap;};
   const mcChip=(e)=>React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:isMobile?4:3,cursor:"default"}},
     React.createElement("span",{style:{fontSize:13,flexShrink:0,lineHeight:1.4,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
@@ -3850,7 +3850,8 @@ function App(){
     React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
       /* Catalysts-pushed events use a neutral GRAY chip here (Tony's TaskHub), to
          match Veda's. The colorful category chips stay in the Catalysts tab only. */
-      React.createElement("span",{style:{fontSize:9,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},e.category)));
+      React.createElement("span",{style:{fontSize:9,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},e.category),
+      e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:8,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null));
 
   const habCell=(ch,onClick)=>React.createElement("td",{style:{textAlign:"center",paddingTop:5,paddingBottom:5,borderBottom:"1px solid "+T.BD+"44",width:28,minWidth:28}},
     React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",width:16,height:16,margin:"0 auto",borderRadius:"50%",cursor:"pointer",transition:"background .15s, border-color .15s",border:ch?"2px solid "+T.AC:"2px solid "+T.BDL,background:ch?T.AC:"transparent"},onClick},
