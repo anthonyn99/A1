@@ -30126,32 +30126,48 @@ function init() {
     .catch(e => console.warn('SOS file migration error:', e));
 }
 
-// Push any local-only files (have a local blob but no cloud copy yet) up to
-// Firebase Storage so previously-uploaded files also become cross-device.
-// Sequential + bails on first failure (e.g. Storage not enabled) to stay cheap.
+// Auto-upload every previously-uploaded file that's still local-only (has a
+// local blob but no cloud copy yet) so old files become cross-device without
+// re-uploading. Sweeps BOTH regular classes and the KSU bucket. Survives a
+// one-off file error; only gives up if the worker looks down (3 strikes).
 async function _sosBackfillCloud() {
-  let synced = false;
-  for (const cls of classes) {
-    for (const mod of (cls.modules || [])) {
-      for (const f of (mod.files || [])) {
-        if (!f.fileId || f.storageUrl) continue;
-        let blob;
-        try { blob = await SosFileStore.get(f.fileId); } catch (_) {}
-        if (!blob) continue; // no local copy to upload from
-        if (blob.size > SOS_CLOUD_MAX) continue; // over KV cap — leave local-only
-        try {
-          const file = new File([blob], f.name || 'document', { type: f.mime || blob.type || 'application/octet-stream' });
-          f.storageUrl = await SosCloud.upload(f.fileId, file);
-          f.storagePath = f.fileId;
-          synced = true;
-        } catch (e) {
-          console.warn('SOS cloud backfill stopped:', e);
-          return; // worker unavailable — stop hammering
-        }
+  // (module, owning cls, persist fn) for every place files can live.
+  const groups = [];
+  for (const cls of classes)
+    for (const mod of (cls.modules || [])) groups.push({ mod, cls, persist: () => persistForCls(cls) });
+  const ksuCls = { id: 'ksu', color: '#8D769A', modules: ksuData.modules, _ksu: true };
+  for (const mod of (ksuData.modules || [])) groups.push({ mod, cls: ksuCls, persist: persistKsu });
+
+  let uploaded = 0, strikes = 0, aborted = false;
+  const persisted = new Set(), changedMods = [];
+
+  for (const g of groups) {
+    if (aborted) break;
+    for (const f of (g.mod.files || [])) {
+      if (!f.fileId || f.storageUrl) continue;            // already in the cloud
+      let blob;
+      try { blob = await SosFileStore.get(f.fileId); } catch (_) {}
+      if (!blob) continue;                                // no local copy to send
+      if (blob.size > SOS_CLOUD_MAX) continue;            // over KV cap → local-only
+      try {
+        const file = new File([blob], f.name || 'document', { type: f.mime || blob.type || 'application/octet-stream' });
+        f.storageUrl = await SosCloud.upload(f.fileId, file);
+        f.storagePath = f.fileId;
+        uploaded++; strikes = 0;
+        persisted.add(g.persist);
+        changedMods.push({ cls: g.cls, mod: g.mod });
+      } catch (e) {
+        console.warn('SOS backfill upload failed:', f.name, e);
+        if (++strikes >= 3) { aborted = true; break; }    // worker likely down — retry next load
       }
     }
   }
-  if (synced) persist(); // re-sync metadata now carrying storageUrl/storagePath
+
+  if (uploaded) {
+    persisted.forEach(fn => fn());                        // re-sync metadata (now carries storageUrl)
+    changedMods.forEach(({ cls, mod }) => _sosRefreshModFiles(cls, mod, mod.id)); // light up ☁ badges
+    showNotif('☁️', 'Synced to cloud', uploaded + ' existing file' + (uploaded > 1 ? 's are' : ' is') + ' now available on all devices.');
+  }
 }
 
 function setTodayDate() {
