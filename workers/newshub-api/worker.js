@@ -1251,6 +1251,11 @@ const MACRO_RELEASES_2026 = {
   retail: ['2026-01-16','2026-02-17','2026-03-16','2026-04-15','2026-05-15','2026-06-16','2026-07-16','2026-08-14','2026-09-16','2026-10-16','2026-11-17','2026-12-15'],
   // FOMC rate decision (2nd day of meeting) — Federal Reserve
   fomc: ['2026-01-28','2026-03-18','2026-04-29','2026-06-17','2026-07-29','2026-09-16','2026-10-28','2026-12-09'],
+  // JOLTS (Job Openings & Labor Turnover) — BLS. Released ~10am ET, reports the
+  // month from ~2 months prior. 2026 schedule is irregular (shutdown-shifted in
+  // H1); forward dates confirmed via BLS/TradingCalendar. Past months left sparse
+  // since only the forward 30-day window is ever surfaced.
+  jolts: ['2026-02-03','2026-05-05','2026-06-02','2026-06-30','2026-08-04','2026-09-01','2026-09-29','2026-11-03','2026-12-01'],
 };
 const MON_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 // Set of years we have hardcoded (auto-derived from the table above, so adding a
