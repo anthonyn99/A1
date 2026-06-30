@@ -8306,7 +8306,7 @@ function fmtNotif(iso){if(!iso)return '';const d=new Date(iso);return d.toLocale
 function fmt12h(t,dateKey,tz){if(!t)return '';const[hh,mm]=t.split(':').map(Number);if(tz&&dateKey){try{const d=new Date(thZonedTs(dateKey,hh,mm,tz));return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+' '+thTzAbbr(d);}catch(e){}}const ap=hh<12?'AM':'PM';const h=hh%12||12;const lbl=thTzAbbr(dateKey?new Date(dateKey+'T12:00:00'):new Date());return h+':'+String(mm).padStart(2,'0')+' '+ap+(lbl?' '+lbl:'');}
 const A="#8D769A",AL="#A892B0",AD="#6E5C7A",ABG="rgba(141,118,154,.08)";
 const BG="#1B1C1E",S1="#26272A",BD="#3D3E43",BDL="#4A4B51",TX="#ECECEE",TXD="#AFB0B5",TXM="#76777C",GRN="#5DAF6D";
-const CC={work:"#6FBFA8",personal:"#8FB8E8",health:"#93CFA0",urgent:"#EBA39B",study:"#BFA6E0",finance:"#E2C285",other:"#B4AEC0"};
+const CC={work:"#6FBFA8",personal:"#8FB8E8",health:"#93CFA0",urgent:"#ED7C7C",study:"#BFA6E0",finance:"#E2C285",other:"#B4AEC0"};
 const CL=Object.keys(CC);
 
 // ─── BHAGAVAD GITA DATA ───────────────────────────────────────────────
