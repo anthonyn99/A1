@@ -33548,11 +33548,18 @@ function fixTime(t){var m=/^(\d{1,2}):(\d{2})/.exec(String(t||''));if(!m)return 
 function notifyMs(n){if(!n||!n.date)return 0;var p=ymd(n.date);if(!p)return 0;var tm=/^(\d{1,2}):(\d{2})/.exec(String(n.time||'09:00'));var hh=tm?+tm[1]:9,mm=tm?+tm[2]:0;return new Date(p.y,p.mo-1,p.d,hh,mm,0,0).getTime();}
 function clone(o){try{return JSON.parse(JSON.stringify(o==null?null:o));}catch(e){return o;}}
 
+function tzName(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone;}catch(e){return '';}}
+function dkeyE(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function toMonIdxJS(jsd){return jsd===0?6:jsd-1;}            // JS day (0=Sun) → Mon-based 0..6
+// notifyAt is stored as an ISO string (exactly like the app's modal) so the push scheduler accepts it
+function notifyISO(n){if(!n||!n.date)return '';var p=ymd(n.date);if(!p)return '';var tm=/^(\d{1,2}):(\d{2})/.exec(String(n.time||'09:00'));var hh=tm?+tm[1]:9,mm=tm?+tm[2]:0;var d=new Date(p.y,p.mo-1,p.d,hh,mm,0,0);return isNaN(d.getTime())?'':d.toISOString();}
+function setNotify(it,n){var iso=notifyISO(n);if(!iso)return false;it.notifyAt=iso;it.notifyRepeat='none';it.notifyRepeatDays=[];it.notifyRepeatId=null;return true;}
+function habitKey(id,dateStr){var p=dateStr?ymd(dateStr):null,y,m,d;if(p){y=p.y;m=p.mo-1;d=p.d;}else{var dn=new Date();y=dn.getFullYear();m=dn.getMonth();d=dn.getDate();}return id+'-'+y+'-'+m+'-'+d;}
 function buildCalItem(b,a){
   var it={id:b.uid(),type:(a.kind==='event'||a.time)?'event':'task',title:(a.title||'').trim(),done:!!a.done};
   it.category=(a.category&&VALID_CATS.indexOf(a.category)>=0)?a.category:'other';  // always categorise
-  if(a.time)it.time=fixTime(a.time);
-  if(a.notify){var ms=notifyMs(a.notify);if(ms)it.notifyAt=ms;}
+  if(a.time){it.time=fixTime(a.time);it.tz=tzName();}
+  if(a.notify)setNotify(it,a.notify);
   if(Array.isArray(a.altSeqTitles)&&a.altSeqTitles.filter(Boolean).length>=2){
     it.altSeqId=b.uid();it.altSeqTitles=a.altSeqTitles.filter(Boolean);it.title=it.altSeqTitles[0];
   }
@@ -33560,9 +33567,32 @@ function buildCalItem(b,a){
     if(a.repeat==='daily'){it.repeat='daily';it.repeatDays=[0,1,2,3,4,5,6];}
     else if(a.repeat==='weekdays'){it.repeat='weekly';it.repeatDays=[0,1,2,3,4];}
     else{it.repeat='weekly';it.repeatDays=Array.isArray(a.repeatDays)&&a.repeatDays.length?a.repeatDays.slice():[];}
+    it.repeatId=b.uid();
     if(a.repeatEndDate&&a.repeatEndDate.year)it.repeatEndDate=a.repeatEndDate;
   }
   return it;
+}
+// add a calendar item, expanding repeats across days exactly like the app's modal
+function addCalItem(b,W,a,fx){
+  var startKey=(a.date?(ymd(a.date)||{}).key:null)||W.selectedDate;
+  var base=buildCalItem(b,a);if(!base.title)return false;
+  if(!W.data[startKey])W.data[startKey]=[];W.data[startKey].push(base);
+  if(base.notifyAt)fx.schedule.push(base);
+  if(base.repeat&&base.repeat!=='none'){
+    var sp=ymd(startKey);if(sp){
+      var sd=new Date(sp.y,sp.mo-1,sp.d),ed;
+      if(base.repeatEndDate&&typeof base.repeatEndDate.year==='number')ed=new Date(base.repeatEndDate.year,base.repeatEndDate.month,base.repeatEndDate.day);
+      else{ed=new Date(sd);ed.setDate(ed.getDate()+90);}
+      var maxEd=new Date(sd);maxEd.setFullYear(maxEd.getFullYear()+1);if(ed>maxEd)ed=maxEd;
+      var c=new Date(sd);c.setDate(c.getDate()+1);var guard=0;
+      while(c<=ed&&guard<400){
+        var on=base.repeat==='daily'?true:(base.repeatDays||[]).indexOf(toMonIdxJS(c.getDay()))>=0;
+        if(on){var ck=dkeyE(c);var occ=Object.assign({},base,{id:b.uid(),done:false});delete occ.notifyAt;delete occ.notifyRepeat;delete occ.notifyRepeatDays;delete occ.notifyRepeatId;if(!W.data[ck])W.data[ck]=[];W.data[ck].push(occ);}
+        c.setDate(c.getDate()+1);guard++;
+      }
+    }
+  }
+  return true;
 }
 function arrFor(W,box){return box==='dailyHabits'?W.habits:box==='shortTermGoals'?W.shortGoals:box==='longTermGoals'?W.longGoals:null;}
 // returns {box, arr (live ref into W), key?, idx, item}
