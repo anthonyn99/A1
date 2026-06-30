@@ -32514,6 +32514,7 @@ function sosInitFirebase() {
       var changed = false;
       if (Array.isArray(remote.classes) && remote.classes.length) {
         classes = remote.classes;
+        classes.forEach(c => { if (c && c.color && window.sosPastel) c.color = window.sosPastel(c.color); });
         localStorage.setItem('studyos_classes', JSON.stringify(classes));
         changed = true;
       }
