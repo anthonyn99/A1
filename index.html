@@ -4794,15 +4794,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           const _bjSavedAt = Date.now();
           _bjLastOwnSaveAt = _bjSavedAt;
           _bjLastWrittenSavedAt = _bjSavedAt;
-          try {
-            await updateDoc(bjDocRef, { [fieldKey]: sanitized, _order, activeId, savedAt: _bjSavedAt });
-          } catch(updateErr) {
-            if (updateErr.code === 'not-found') {
-              await setDoc(bjDocRef, { [fieldKey]: sanitized, _order, activeId, savedAt: _bjSavedAt });
-            } else {
-              throw updateErr;
-            }
-          }
+          await _fbUpsert(bjDocRef, { [fieldKey]: sanitized, _order, activeId, savedAt: _bjSavedAt }, 'BJ save');
           _bjLastOwnSaveAt = Date.now();
           window.dispatchEvent(new CustomEvent("fb-bj-saved"));
         } catch(e) {
