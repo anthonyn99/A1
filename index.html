@@ -30121,7 +30121,37 @@ function init() {
   renderExamCountdown();
   renderPriorityQueue();
   // Migrate legacy base64 file blobs → IndexedDB (one-time, no-op if already done)
-  _sosMigrateFilesToIdb().catch(e => console.warn('SOS file migration error:', e));
+  _sosMigrateFilesToIdb()
+    .then(() => _sosBackfillCloud())
+    .catch(e => console.warn('SOS file migration error:', e));
+}
+
+// Push any local-only files (have a local blob but no cloud copy yet) up to
+// Firebase Storage so previously-uploaded files also become cross-device.
+// Sequential + bails on first failure (e.g. Storage not enabled) to stay cheap.
+async function _sosBackfillCloud() {
+  if (!window._fbUploadFile) return;
+  let synced = false;
+  for (const cls of classes) {
+    for (const mod of (cls.modules || [])) {
+      for (const f of (mod.files || [])) {
+        if (!f.fileId || f.storageUrl) continue;
+        let blob;
+        try { blob = await SosFileStore.get(f.fileId); } catch (_) {}
+        if (!blob) continue; // no local copy to upload from
+        try {
+          const path = 'studyos/' + f.fileId;
+          f.storageUrl = await window._fbUploadFile(path, new File([blob], f.name || 'document', { type: f.mime || blob.type || 'application/octet-stream' }));
+          f.storagePath = path;
+          synced = true;
+        } catch (e) {
+          console.warn('SOS cloud backfill stopped:', e);
+          return; // Storage unavailable — stop hammering
+        }
+      }
+    }
+  }
+  if (synced) persist(); // re-sync metadata now carrying storageUrl/storagePath
 }
 
 function setTodayDate() {
@@ -30615,6 +30645,19 @@ const SosFileStore = (function() {
         tx.onerror = e => rej(e.target.error);
       });
     },
+    // Cache a blob under a specific (existing) id — used to store a file
+    // pulled down from the cloud so later views/drags are instant & offline.
+    putById: async function(id, blob, name) {
+      const db = await open();
+      const buf = await blob.arrayBuffer();
+      const mime = blob.type || 'application/octet-stream';
+      return new Promise((res, rej) => {
+        const tx = db.transaction(ST, 'readwrite');
+        tx.objectStore(ST).put({ id, buf, name: name || 'document', mime });
+        tx.oncomplete = () => res(id);
+        tx.onerror = e => rej(e.target.error);
+      });
+    },
     get: async function(id) {
       const db = await open();
       return new Promise((res, rej) => {
@@ -30685,6 +30728,91 @@ async function _sosMigrateFilesToIdb() {
   }
 }
 
+// ── StudyOS cross-device file sync (Firebase Storage) ─────────────────────
+// Files upload to Firebase Storage (free Spark tier: 5GB / 1GB-per-day down).
+// The download URL + storage path ride along in the synced file metadata, so
+// any device can fetch a file it never uploaded locally. Local IndexedDB stays
+// the fast path / offline cache; the cloud is the fallback + cross-device link.
+let _sosCloudWarned = false;
+
+// Resolve a file's bytes: local IDB first, then the cloud copy (cached back).
+async function sosResolveBlob(f) {
+  if (!f) return null;
+  if (f.fileId) {
+    try { const b = await SosFileStore.get(f.fileId); if (b) return b; } catch (_) {}
+  }
+  if (f.storageUrl) {
+    try {
+      const resp = await fetch(f.storageUrl);
+      if (resp.ok) {
+        const raw = await resp.blob();
+        const blob = new Blob([raw], { type: f.mime || raw.type || 'application/octet-stream' });
+        // Cache locally so future opens/drags are instant and work offline.
+        if (f.fileId) SosFileStore.putById(f.fileId, blob, f.name).catch(() => {});
+        return blob;
+      }
+    } catch (_) { /* CORS or network — fall through to open-by-URL */ }
+  }
+  return null;
+}
+
+async function sosOpenFile(f) {
+  const blob = await sosResolveBlob(f);
+  if (blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return;
+  }
+  if (f && f.storageUrl) { window.open(f.storageUrl, '_blank', 'noopener'); return; }
+  showNotif('⚠️', 'File missing', 'No local copy and the cloud copy is unavailable.');
+}
+
+async function sosDownloadFile(f) {
+  const blob = await sosResolveBlob(f);
+  if (blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = (f && f.name) || 'document';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return;
+  }
+  if (f && f.storageUrl) { window.open(f.storageUrl, '_blank', 'noopener'); return; }
+  showNotif('⚠️', 'File missing', 'No local copy and the cloud copy is unavailable.');
+}
+
+// Push a freshly-uploaded file to Firebase Storage, then re-sync metadata so
+// the storageUrl reaches every device. Non-blocking; failure leaves the file
+// fully usable locally (degrades to the pre-cloud behaviour).
+async function sosUploadToCloud(file, meta, cls, mod, modId) {
+  if (!window._fbUploadFile || !meta.fileId) return;
+  meta._uploading = true;
+  _sosRefreshModFiles(cls, mod, modId);
+  try {
+    const path = 'studyos/' + meta.fileId;
+    const url = await window._fbUploadFile(path, file);
+    meta.storageUrl = url;
+    meta.storagePath = path;
+    delete meta._uploading;
+    persistForCls(cls);            // re-sync metadata (now carries storageUrl)
+  } catch (e) {
+    delete meta._uploading;
+    meta._cloudError = true;
+    console.warn('SOS cloud upload failed:', meta.name, e);
+    if (!_sosCloudWarned) {
+      _sosCloudWarned = true;
+      showNotif('☁️', 'Cloud sync off', 'File saved on this device only. Enable Firebase Storage to sync across devices.');
+    }
+  }
+  _sosRefreshModFiles(cls, mod, modId);
+}
+
+function _sosRefreshModFiles(cls, mod, modId) {
+  const listEl = _sosEl('doc-list-' + modId);
+  if (listEl) refreshDocList(listEl, cls, mod);
+}
+
 function refreshDocList(listEl, cls, mod) {
   const editOn = !!moduleEditMode[mod.id];
   listEl.innerHTML = '';
@@ -30710,9 +30838,9 @@ function refreshDocList(listEl, cls, mod) {
     item.draggable = true;
     let _dragFile = null, _dragUrl = null, _dragReady = false;
     const _prepDrag = () => {
-      if (_dragReady || !f.fileId) return;
+      if (_dragReady || (!f.fileId && !f.storageUrl)) return;
       _dragReady = true;
-      SosFileStore.get(f.fileId).then(blob => {
+      sosResolveBlob(f).then(blob => {
         if (blob) {
           const mime = f.mime || blob.type || 'application/octet-stream';
           _dragFile = new File([blob], f.name, { type: mime });
@@ -30757,12 +30885,20 @@ function refreshDocList(listEl, cls, mod) {
     dlBtn.addEventListener('mouseout',  () => { dlBtn.style.color='var(--text3)';  dlBtn.style.borderColor='var(--border)'; });
     dlBtn.addEventListener('click', e => {
       e.stopPropagation();
-      SosFileStore.download(f.fileId, f.name);
+      sosDownloadFile(f);
     });
+
+    // Cloud-sync status: ☁ synced · ⟳ uploading · ⚠ local-only
+    const cloudEl = document.createElement('div');
+    cloudEl.style.cssText = 'font-size:11px;padding:0 2px;';
+    if (f._uploading)      { cloudEl.textContent = '⟳'; cloudEl.title = 'Uploading to cloud…';            cloudEl.style.color = 'var(--text3)'; }
+    else if (f.storageUrl) { cloudEl.textContent = '☁'; cloudEl.title = 'Synced — available on all devices'; cloudEl.style.color = 'var(--accent)'; }
+    else if (f._cloudError){ cloudEl.textContent = '⚠'; cloudEl.title = 'Saved on this device only';         cloudEl.style.color = '#e0a060'; }
 
     item.appendChild(icon);
     item.appendChild(nameEl);
     item.appendChild(sizeEl);
+    item.appendChild(cloudEl);
     item.appendChild(dlBtn);
 
     if (editOn) {
@@ -30777,8 +30913,8 @@ function refreshDocList(listEl, cls, mod) {
       item.appendChild(delBtn);
     }
 
-    // Open in new tab via IndexedDB blob
-    item.onclick = () => SosFileStore.openTab(f.fileId, f.name);
+    // Open in new tab — local IDB blob, else cloud copy
+    item.onclick = () => sosOpenFile(f);
 
     listEl.appendChild(item);
   });
@@ -30797,7 +30933,8 @@ function handleFilesAdded(files, classId, modId) {
   let done = 0;
   files.forEach(file => {
     SosFileStore.save(file).then(fileId => {
-      mod.files.push({ name: file.name, size: file.size, mime: file.type || 'application/octet-stream', fileId });
+      const meta = { name: file.name, size: file.size, mime: file.type || 'application/octet-stream', fileId };
+      mod.files.push(meta);
       done++;
       if (done === files.length) {
         persistForCls(cls);
@@ -30805,6 +30942,8 @@ function handleFilesAdded(files, classId, modId) {
         if (listEl) refreshDocList(listEl, cls, mod);
         showNotif('📎', 'Uploaded', files.length + ' file' + (files.length > 1 ? 's' : '') + ' added.');
       }
+      // Push to cloud so it's viewable/downloadable on every device.
+      sosUploadToCloud(file, meta, cls, mod, modId);
     }).catch(e => {
       console.error('SOS file save failed:', file.name, e);
       showNotif('\u26a0\ufe0f', 'Upload failed', file.name + ' could not be saved.');
@@ -30819,6 +30958,7 @@ function removeFile(classId, modId, idx) {
   if (!mod) return;
   const f = mod.files[idx];
   if (f && f.fileId) SosFileStore.delete(f.fileId).catch(() => {});
+  if (f && f.storagePath && window._fbDeleteFile) window._fbDeleteFile(f.storagePath).catch(() => {});
   mod.files.splice(idx, 1);
   persistForCls(cls);
   const listEl = _sosEl('doc-list-' + modId);
