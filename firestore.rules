@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Reminder docs — written by the client (anonymous auth) and read/cleaned
+    // by the Cloud Worker (service account bypasses rules). THIS match was
+    // missing, so client writes to /reminders were default-denied and no push
+    // ever fired on any device.
+    match /reminders/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Device push tokens (this one already worked).
+    match /fcm_tokens/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    // App data (Tony + Veda dashboards, journals, links, etc.)
+    match /dashboards/{doc=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Anything else still requires auth — keeps your hardened posture intact.
+    // NOTE: StudyOS documents (incl. file metadata: name/size/mime/storageUrl)
+    // live under this catch-all, so the new cross-device file sync needs no
+    // dedicated Firestore rule. The file *blobs* live in Storage — see
+    // storage.rules.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

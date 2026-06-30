@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // StudyOS documents — uploaded by the client (anonymous auth) and read/
+    // downloaded across every signed-in device. Path: studyos/<fileId>.
+    // Mirrors the Firestore posture: any signed-in anon user can read & write.
+    //
+    // Optimization for the file-sync feature:
+    //  • 50 MB/file upload cap — protects the free Spark quota (5 GB total,
+    //    1 GB/day download) from an accidental huge upload. Bump the number
+    //    if you need bigger files.
+    //  • `request.resource == null` keeps DELETE allowed (a delete has no
+    //    incoming resource, so the size check must be skipped for it) — this
+    //    is what lets removeFile() clean up the cloud copy.
+    match /studyos/{fileId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && (request.resource == null
+                       || request.resource.size < 50 * 1024 * 1024);
+    }
+
+    // Anything else still requires auth — keeps your hardened posture intact.
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
