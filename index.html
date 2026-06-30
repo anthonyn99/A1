@@ -30121,53 +30121,108 @@ function init() {
   renderExamCountdown();
   renderPriorityQueue();
   // Migrate legacy base64 file blobs → IndexedDB (one-time, no-op if already done)
+  // then push any local-only files up to the cloud (offline / no-Firebase path).
   _sosMigrateFilesToIdb()
-    .then(() => _sosBackfillCloud())
+    .then(() => _sosAfterSync())
     .catch(e => console.warn('SOS file migration error:', e));
 }
 
+// ── Cloud-URL memory (survives Firestore array-replacement) ───────────────
+// Firestore sync does `classes = remote.classes` / `ksuData = remote.ksu`,
+// replacing the arrays wholesale. That would drop a storageUrl this device
+// just set (or that another device set) whenever a save without it lands. So
+// we remember every cloud URL we've ever seen/created, keyed by stable fileId,
+// and re-stamp it back onto the current data after each sync.
+const _sosCloudUrls = new Map(); // fileId → storageUrl
+
+function _sosEachFile(fn) {
+  for (const cls of classes) for (const mod of (cls.modules || [])) for (const f of (mod.files || [])) fn(f);
+  for (const mod of (ksuData.modules || [])) for (const f of (mod.files || [])) fn(f);
+}
+
+// Learn any cloud URLs already present in the current data.
+function _sosLearnCloudUrls() {
+  _sosEachFile(f => { if (f.fileId && f.storageUrl) _sosCloudUrls.set(f.fileId, f.storageUrl); });
+}
+
+// Re-stamp known cloud URLs onto files that lost them. Returns true if it filled any.
+function _sosReapplyCloudUrls() {
+  let changed = false;
+  _sosEachFile(f => {
+    if (f.fileId && !f.storageUrl && _sosCloudUrls.has(f.fileId)) {
+      f.storageUrl = _sosCloudUrls.get(f.fileId);
+      f.storagePath = f.fileId;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+// Called after the initial load AND every remote sync: keep cloud URLs sticky,
+// then upload anything this device has locally that isn't in the cloud yet.
+let _sosAfterSyncTimer = null;
+function _sosAfterSync() {
+  _sosLearnCloudUrls();
+  if (_sosReapplyCloudUrls()) { persist(); persistKsu(); }
+  // debounce backfill so a burst of remote events triggers it once
+  if (_sosAfterSyncTimer) clearTimeout(_sosAfterSyncTimer);
+  _sosAfterSyncTimer = setTimeout(() => { _sosBackfillCloud(); }, 400);
+}
+window.sosSyncAllToCloud = () => _sosBackfillCloud(true); // manual trigger (console/button)
+
 // Auto-upload every previously-uploaded file that's still local-only (has a
-// local blob but no cloud copy yet) so old files become cross-device without
-// re-uploading. Sweeps BOTH regular classes and the KSU bucket. Survives a
-// one-off file error; only gives up if the worker looks down (3 strikes).
-async function _sosBackfillCloud() {
-  // (module, owning cls, persist fn) for every place files can live.
-  const groups = [];
-  for (const cls of classes)
-    for (const mod of (cls.modules || [])) groups.push({ mod, cls, persist: () => persistForCls(cls) });
-  const ksuCls = { id: 'ksu', color: '#8D769A', modules: ksuData.modules, _ksu: true };
-  for (const mod of (ksuData.modules || [])) groups.push({ mod, cls: ksuCls, persist: persistKsu });
+// local blob in THIS device's IndexedDB but no cloud copy yet) so old files
+// become cross-device without re-uploading. Keyed by fileId so it's immune to
+// the array-replacement race. Sweeps regular classes AND the KSU bucket.
+let _sosBackfillRunning = false;
+async function _sosBackfillCloud(manual) {
+  if (_sosBackfillRunning) return;
+  _sosBackfillRunning = true;
+  try {
+    // Snapshot fileIds needing a cloud copy (deduped) from the CURRENT data.
+    const want = new Map(); // fileId → {name, mime}
+    _sosEachFile(f => {
+      if (f.fileId && !f.storageUrl && !_sosCloudUrls.has(f.fileId) && !want.has(f.fileId))
+        want.set(f.fileId, { name: f.name, mime: f.mime });
+    });
+    if (!want.size) { if (manual) showNotif('☁️', 'All synced', 'Every local file is already in the cloud.'); return; }
 
-  let uploaded = 0, strikes = 0, aborted = false;
-  const persisted = new Set(), changedMods = [];
-
-  for (const g of groups) {
-    if (aborted) break;
-    for (const f of (g.mod.files || [])) {
-      if (!f.fileId || f.storageUrl) continue;            // already in the cloud
+    let uploaded = 0, strikes = 0;
+    for (const [fileId, meta] of want) {
       let blob;
-      try { blob = await SosFileStore.get(f.fileId); } catch (_) {}
-      if (!blob) continue;                                // no local copy to send
-      if (blob.size > SOS_CLOUD_MAX) continue;            // over KV cap → local-only
+      try { blob = await SosFileStore.get(fileId); } catch (_) {}
+      if (!blob) continue;                       // no local copy on this device → skip
+      if (blob.size > SOS_CLOUD_MAX) continue;   // over KV cap → stays local-only
       try {
-        const file = new File([blob], f.name || 'document', { type: f.mime || blob.type || 'application/octet-stream' });
-        f.storageUrl = await SosCloud.upload(f.fileId, file);
-        f.storagePath = f.fileId;
+        const file = new File([blob], meta.name || 'document', { type: meta.mime || blob.type || 'application/octet-stream' });
+        const url = await SosCloud.upload(fileId, file);
+        _sosCloudUrls.set(fileId, url);          // remember so syncs can't drop it
         uploaded++; strikes = 0;
-        persisted.add(g.persist);
-        changedMods.push({ cls: g.cls, mod: g.mod });
       } catch (e) {
-        console.warn('SOS backfill upload failed:', f.name, e);
-        if (++strikes >= 3) { aborted = true; break; }    // worker likely down — retry next load
+        console.warn('SOS backfill upload failed:', meta.name, e);
+        if (++strikes >= 3) break;               // worker likely down — retry next sync
       }
     }
-  }
 
-  if (uploaded) {
-    persisted.forEach(fn => fn());                        // re-sync metadata (now carries storageUrl)
-    changedMods.forEach(({ cls, mod }) => _sosRefreshModFiles(cls, mod, mod.id)); // light up ☁ badges
-    showNotif('☁️', 'Synced to cloud', uploaded + ' existing file' + (uploaded > 1 ? 's are' : ' is') + ' now available on all devices.');
+    if (uploaded) {
+      // Stamp the new URLs onto the live data (by fileId — current arrays), save, refresh.
+      _sosReapplyCloudUrls();
+      persist(); persistKsu();
+      _sosRefreshAllDocLists();
+      showNotif('☁️', 'Synced to cloud', uploaded + ' file' + (uploaded > 1 ? 's are' : ' is') + ' now available on all devices.');
+    } else if (manual) {
+      showNotif('⚠️', 'Nothing uploaded', 'No local copies were found on this device to upload.');
+    }
+  } finally {
+    _sosBackfillRunning = false;
   }
+}
+
+// Refresh whatever module doc-lists are currently rendered so ☁ badges update.
+function _sosRefreshAllDocLists() {
+  const stamp = (cls, mods) => { for (const mod of (mods || [])) _sosRefreshModFiles(cls, mod, mod.id); };
+  for (const cls of classes) stamp(cls, cls.modules);
+  stamp({ id: 'ksu', color: '#8D769A', modules: ksuData.modules, _ksu: true }, ksuData.modules);
 }
 
 function setTodayDate() {
@@ -32729,6 +32784,9 @@ function sosInitFirebase() {
         renderExamCountdown();
         renderPriorityQueue();
       }
+      // Firestore data is now authoritative — keep cloud URLs sticky and
+      // upload any files this device has locally but the cloud doesn't.
+      _sosAfterSync();
     }).catch(function(e){ console.warn('SOS load error', e); });
   };
 
@@ -32753,6 +32811,9 @@ function sosInitFirebase() {
     renderExamCountdown();
     renderPriorityQueue();
     scheduleNotifications();
+    // A remote save may have arrived without storageUrls (from a device that
+    // lacks the blobs). Re-stamp known cloud URLs and upload any local-only files.
+    _sosAfterSync();
   });
 
   // saved / error events
