@@ -9601,7 +9601,8 @@ function App(){
   const mcChip=(e)=>RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:vrMobile?4:3,cursor:"default"}},
     RC("span",{style:{fontSize:12,flexShrink:0,lineHeight:1.35,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
     RC("span",{style:{fontSize:13,fontWeight:700,color:TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
-    RC("span",{style:ctag(e.category)},e.category));
+    RC("span",{style:ctag(e.category)},e.category),
+    e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:8,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null);
 
   const bannerLesson=GITA_LESSONS[bannerIdx];
 
