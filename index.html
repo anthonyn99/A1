@@ -2689,8 +2689,21 @@ const THEMES = {
   dark:{BG:"#0f0f12",S1:"#141418",S2:"#1a1a20",BD:"#252530",BDL:"#323240",TX:"#ececf0",TXD:"#9898a8",TXM:"#58586a",TXDONE:"#78788c",AC:"#E0607A",ACL:"#ffb3c1",ACD:"#e0405e",ACG:"rgba(224,96,122,0.12)",GRN:"#50C878",ERR:"#d47a6a",SHADOW:"rgba(0,0,0,0.5)",TODAYBG:"#1a1a20",TODAYBD:"#3a3a52"},
   light:{BG:"#EAE3E7",S1:"#E5DCE0",S2:"#DDD4D8",BD:"#C8B8C0",BDL:"#BCA8B0",TX:"#2A1F24",TXD:"#6B5560",TXM:"#A0909A",TXDONE:"#8A7880",AC:"#D4607A",ACL:"#E08898",ACD:"#B04060",ACG:"rgba(212,96,122,0.1)",GRN:"#158A4E",ERR:"#C0392B",SHADOW:"rgba(42,31,36,0.12)",TODAYBG:"#E2D8DE",TODAYBD:"#C0AAB4"}
 };
-const CC_DARK  = {work:"#5a8070",personal:"#5a7a96",health:"#8a6048",urgent:"#8a5048",study:"#72568c",finance:"#886478",other:"#5a5868",earnings:"#b0566e",inflation:"#9c7838",fed:"#8466a8",jobs:"#4c7a98",growth:"#4a9268",energy:"#a86838",holiday:"#6b7a99"};
-const CC_LIGHT = {work:"#2E7D52",personal:"#1A6080",health:"#7A4010",urgent:"#B03030",study:"#5A3A8A",finance:"#7A4060",other:"#4A4860",earnings:"#A8324E",inflation:"#8A5A10",fed:"#5A3A8A",jobs:"#1A5A80",growth:"#1E7A4A",energy:"#8A4A10",holiday:"#42587e"};
+// Task-category colors. Dark = soft pastels (light text on dark bg). Light = deeper
+// dusty pastels that still read on the light theme. Macro-catalyst keys keep their hues.
+const CC_DARK  = {work:"#6FBFA8",personal:"#8FB8E8",health:"#93CFA0",urgent:"#EBA39B",study:"#BFA6E0",finance:"#E2C285",other:"#B4AEC0",earnings:"#b0566e",inflation:"#9c7838",fed:"#8466a8",jobs:"#4c7a98",growth:"#4a9268",energy:"#a86838",holiday:"#6b7a99"};
+const CC_LIGHT = {work:"#3E8C76",personal:"#3F77A8",health:"#4F9B63",urgent:"#C25D54",study:"#76549E",finance:"#A87C32",other:"#6B6478",earnings:"#A8324E",inflation:"#8A5A10",fed:"#5A3A8A",jobs:"#1A5A80",growth:"#1E7A4A",energy:"#8A4A10",holiday:"#42587e"};
+
+// Legacy StudyOS class colors → soft pastel equivalents. Applied on load and at
+// render so existing classes adopt the elegant palette without manual re-picking.
+const SOS_PASTEL_MAP = {
+  '#7c6fff':'#a99cf0','#ff6b6b':'#ef9f9f','#ff9f43':'#f0bd86','#ffd32a':'#e6cd7c',
+  '#0be881':'#8fd6ad','#00d2d3':'#8ccfcf','#54a0ff':'#9dc0ee','#f368e0':'#dea2d6',
+  '#ff6b81':'#f0a2af','#48dbfb':'#9bd6ea','#1dd1a1':'#88d2ba','#c8d6e5':'#c2cdda',
+  '#a29bfe':'#bbb4ef','#fd79a8':'#f0a8c2','#e17055':'#dd9f8b','#00b894':'#84ccb6'
+};
+function sosPastel(c){ if(!c) return c; return SOS_PASTEL_MAP[String(c).toLowerCase()] || c; }
+window.sosPastel = sosPastel;
 
 function dimM(y,m){return new Date(y,m+1,0).getDate();}
 function fdow(y,m){const d=new Date(y,m,1).getDay();return d===0?6:d-1;}
