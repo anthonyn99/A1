@@ -22,9 +22,10 @@ service cloud.firestore {
 
     // Anything else still requires auth — keeps your hardened posture intact.
     // NOTE: StudyOS documents (incl. file metadata: name/size/mime/storageUrl)
-    // live under this catch-all, so the new cross-device file sync needs no
-    // dedicated Firestore rule. The file *blobs* live in Storage — see
-    // storage.rules.
+    // live under this catch-all, so the cross-device file sync needs no
+    // dedicated Firestore rule. The file *blobs* are NOT in Firebase (Storage
+    // needs the paid Blaze plan) — they live in Cloudflare Workers KV via the
+    // free `studyos-files` worker (workers/studyos-files).
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

@@ -30130,7 +30130,6 @@ function init() {
 // Firebase Storage so previously-uploaded files also become cross-device.
 // Sequential + bails on first failure (e.g. Storage not enabled) to stay cheap.
 async function _sosBackfillCloud() {
-  if (!window._fbUploadFile) return;
   let synced = false;
   for (const cls of classes) {
     for (const mod of (cls.modules || [])) {
@@ -30139,14 +30138,15 @@ async function _sosBackfillCloud() {
         let blob;
         try { blob = await SosFileStore.get(f.fileId); } catch (_) {}
         if (!blob) continue; // no local copy to upload from
+        if (blob.size > SOS_CLOUD_MAX) continue; // over KV cap — leave local-only
         try {
-          const path = 'studyos/' + f.fileId;
-          f.storageUrl = await window._fbUploadFile(path, new File([blob], f.name || 'document', { type: f.mime || blob.type || 'application/octet-stream' }));
-          f.storagePath = path;
+          const file = new File([blob], f.name || 'document', { type: f.mime || blob.type || 'application/octet-stream' });
+          f.storageUrl = await SosCloud.upload(f.fileId, file);
+          f.storagePath = f.fileId;
           synced = true;
         } catch (e) {
           console.warn('SOS cloud backfill stopped:', e);
-          return; // Storage unavailable — stop hammering
+          return; // worker unavailable — stop hammering
         }
       }
     }
@@ -30728,12 +30728,36 @@ async function _sosMigrateFilesToIdb() {
   }
 }
 
-// ── StudyOS cross-device file sync (Firebase Storage) ─────────────────────
-// Files upload to Firebase Storage (free Spark tier: 5GB / 1GB-per-day down).
-// The download URL + storage path ride along in the synced file metadata, so
-// any device can fetch a file it never uploaded locally. Local IndexedDB stays
-// the fast path / offline cache; the cloud is the fallback + cross-device link.
+// ── StudyOS cross-device file sync (Cloudflare KV worker — free, no card) ──
+// Files upload to the `studyos-files` Worker (Workers KV, free plan). The
+// returned URL rides along in the synced file metadata, so any device can
+// fetch a file it never uploaded locally. Local IndexedDB stays the fast path
+// / offline cache; the KV worker is the fallback + cross-device link.
+const SOS_CLOUD_BASE = 'https://studyos-files.av1.workers.dev';
+const SOS_CLOUD_MAX  = 25 * 1024 * 1024; // KV value limit (free plan)
 let _sosCloudWarned = false;
+
+const SosCloud = {
+  // PUT the raw file bytes under its fileId; returns the GET url to store.
+  async upload(fileId, file) {
+    if (file.size > SOS_CLOUD_MAX) { const e = new Error('too-large'); e.tooLarge = true; throw e; }
+    const u = SOS_CLOUD_BASE + '/f/' + encodeURIComponent(fileId);
+    const resp = await fetch(u, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name || 'document'),
+      },
+      body: file,
+    });
+    if (!resp.ok) throw new Error('upload ' + resp.status);
+    return u;
+  },
+  async remove(fileId) {
+    if (!fileId) return;
+    try { await fetch(SOS_CLOUD_BASE + '/f/' + encodeURIComponent(fileId), { method: 'DELETE' }); } catch (_) {}
+  },
+};
 
 // Resolve a file's bytes: local IDB first, then the cloud copy (cached back).
 async function sosResolveBlob(f) {
@@ -30786,23 +30810,23 @@ async function sosDownloadFile(f) {
 // the storageUrl reaches every device. Non-blocking; failure leaves the file
 // fully usable locally (degrades to the pre-cloud behaviour).
 async function sosUploadToCloud(file, meta, cls, mod, modId) {
-  if (!window._fbUploadFile || !meta.fileId) return;
+  if (!meta.fileId) return;
   meta._uploading = true;
   _sosRefreshModFiles(cls, mod, modId);
   try {
-    const path = 'studyos/' + meta.fileId;
-    const url = await window._fbUploadFile(path, file);
-    meta.storageUrl = url;
-    meta.storagePath = path;
+    meta.storageUrl  = await SosCloud.upload(meta.fileId, file);
+    meta.storagePath = meta.fileId;   // KV key = fileId
     delete meta._uploading;
-    persistForCls(cls);            // re-sync metadata (now carries storageUrl)
+    persistForCls(cls);               // re-sync metadata (now carries storageUrl)
   } catch (e) {
     delete meta._uploading;
     meta._cloudError = true;
     console.warn('SOS cloud upload failed:', meta.name, e);
-    if (!_sosCloudWarned) {
+    if (e && e.tooLarge) {
+      showNotif('📦', 'Too big to sync', (meta.name || 'File') + ' is over 25MB — kept on this device only.');
+    } else if (!_sosCloudWarned) {
       _sosCloudWarned = true;
-      showNotif('☁️', 'Cloud sync off', 'File saved on this device only. Enable Firebase Storage to sync across devices.');
+      showNotif('☁️', 'Cloud sync off', 'File saved on this device only. The sync worker may not be deployed yet.');
     }
   }
   _sosRefreshModFiles(cls, mod, modId);
@@ -30958,7 +30982,7 @@ function removeFile(classId, modId, idx) {
   if (!mod) return;
   const f = mod.files[idx];
   if (f && f.fileId) SosFileStore.delete(f.fileId).catch(() => {});
-  if (f && f.storagePath && window._fbDeleteFile) window._fbDeleteFile(f.storagePath).catch(() => {});
+  if (f && (f.storagePath || f.fileId)) SosCloud.remove(f.storagePath || f.fileId);
   mod.files.splice(idx, 1);
   persistForCls(cls);
   const listEl = _sosEl('doc-list-' + modId);

@@ -24,6 +24,7 @@ jobs:
       tradedashboard: ${{ steps.filter.outputs.tradedashboard }}
       mylist: ${{ steps.filter.outputs.mylist }}
       taskhubvoice: ${{ steps.filter.outputs.taskhubvoice }}
+      studyosfiles: ${{ steps.filter.outputs.studyosfiles }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -44,6 +45,8 @@ jobs:
               - 'workers/mylist-api/**'
             taskhubvoice:
               - 'workers/taskhub-voice/**'
+            studyosfiles:
+              - 'workers/studyos-files/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -127,3 +130,14 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/taskhub-voice
+
+  deploy-studyos-files:
+    needs: changes
+    if: ${{ needs.changes.outputs.studyosfiles == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/studyos-files
