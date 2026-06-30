@@ -1278,6 +1278,69 @@ function gdpQuarterLabel(dateStr){
   if (m>=7 && m<=9)  return `Q2 ${y}`;
   return `Q3 ${y}`;
 }
+// ── Date helpers for rule-based (computed) releases ──────────────────────────
+// UTC-safe (worker runs UTC; all calendar dates are bare YYYY-MM-DD ET dates).
+function addDaysIso(iso, n){ const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0,10); }
+function isoDow(iso){ return new Date(iso + 'T00:00:00Z').getUTCDay(); } // 0=Sun … 6=Sat
+
+// Federal holidays (BLS/Census/Conference Board are closed these days, which is
+// what shifts business-day-anchored releases — NOT the NYSE calendar, which
+// differs on Columbus/Veterans Day & Good Friday). Reuses the nth-weekday and
+// Sat→Fri / Sun→Mon observance helpers defined for the market-holiday block.
+const _fedHolCache = {};
+function fedHolidaySet(Y){
+  if (_fedHolCache[Y]) return _fedHolCache[Y];
+  const s = new Set();
+  const ny = mktObserve(Y,1,1,false); if (ny) s.add(ny);          // New Year's Day
+  s.add(mktIso(Y,1,  mktNthDow(Y,1,1,3)));                         // MLK — 3rd Mon Jan
+  s.add(mktIso(Y,2,  mktNthDow(Y,2,1,3)));                         // Washington — 3rd Mon Feb
+  s.add(mktIso(Y,5,  mktLastDow(Y,5,1)));                          // Memorial — last Mon May
+  s.add(mktObserve(Y,6,19,false));                                // Juneteenth
+  s.add(mktObserve(Y,7,4,false));                                 // Independence Day
+  s.add(mktIso(Y,9,  mktNthDow(Y,9,1,1)));                         // Labor — 1st Mon Sep
+  s.add(mktIso(Y,10, mktNthDow(Y,10,1,2)));                        // Columbus — 2nd Mon Oct
+  s.add(mktObserve(Y,11,11,false));                               // Veterans Day
+  s.add(mktIso(Y,11, mktNthDow(Y,11,4,4)));                        // Thanksgiving — 4th Thu Nov
+  s.add(mktObserve(Y,12,25,false));                               // Christmas Day
+  return (_fedHolCache[Y] = s);
+}
+function isFedBiz(Y,M,d,hol){ const w = mktDow(Y,M,d); return w>=1 && w<=5 && !hol.has(mktIso(Y,M,d)); }
+function nthBusinessDay(Y,M,n){ const hol = fedHolidaySet(Y); const dim = new Date(Date.UTC(Y,M,0)).getUTCDate(); let c=0; for (let d=1; d<=dim; d++){ if (isFedBiz(Y,M,d,hol) && ++c===n) return mktIso(Y,M,d); } return null; }
+function lastBusinessDay(Y,M){ const hol = fedHolidaySet(Y); const dim = new Date(Date.UTC(Y,M,0)).getUTCDate(); for (let d=dim; d>=1; d--){ if (isFedBiz(Y,M,d,hol)) return mktIso(Y,M,d); } return null; }
+
+// Rule-based macro releases that follow a fixed scheduling rule (so they're exact
+// by construction — no hand-maintained date table needed). Only emitted for years
+// we treat as hardcoded (matches the CPI/jobs table); 2027+ falls back to grounded
+// Gemini + the "hardcode next year" banner, same as the rest of the calendar.
+function computedMacro(fromD, toD){
+  const out = [];
+  const inWin = d => d && d >= fromD && d <= toD;
+  const add = (date, name, category) => { if (inWin(date)) out.push({ kind:'macro', ticker:null, name, date, category }); };
+  const y0 = +fromD.slice(0,4), y1 = +toD.slice(0,4);
+  for (let Y=y0; Y<=y1; Y++){
+    if (!HARDCODED_YEARS.has(String(Y))) continue;
+    const m0 = (Y===y0) ? +fromD.slice(5,7) : 1;
+    const m1 = (Y===y1) ? +toD.slice(5,7)   : 12;
+    for (let M=m0; M<=m1; M++){
+      const lbl = MON_NAMES[M-1];
+      const prevLbl = MON_NAMES[(M+10)%12];
+      add(nthBusinessDay(Y,M,1), `${prevLbl} ISM Manufacturing PMI`, 'growth');  // 1st business day
+      add(nthBusinessDay(Y,M,3), `${prevLbl} ISM Services PMI`,      'growth');  // 3rd business day
+      add(mktIso(Y,M,mktLastDow(Y,M,2)), `${lbl} Consumer Confidence`, 'sentiment'); // last Tue
+      add(mktIso(Y,M,mktNthDow(Y,M,5,2)), `${lbl} Michigan Sentiment (Prelim)`, 'sentiment'); // 2nd Fri
+      add(mktIso(Y,M,mktLastDow(Y,M,5)),  `${lbl} Michigan Sentiment (Final)`,  'sentiment'); // last Fri
+      add(lastBusinessDay(Y,M), `${lbl} Chicago PMI`, 'growth'); // last business day
+    }
+  }
+  // ADP National Employment — the Wednesday before each NFP Friday.
+  for (const d of MACRO_RELEASES_2026.jobs){ const adp = addDaysIso(d, -2); add(adp, `${prevMonthLabel(d)} ADP Employment`, 'jobs'); }
+  // FOMC Minutes — released exactly 3 weeks after each rate decision (a Wednesday).
+  for (const d of MACRO_RELEASES_2026.fomc){ add(addDaysIso(d, 21), 'FOMC Minutes', 'fed'); }
+  // Initial Jobless Claims — every Thursday in the window.
+  for (let d = fromD; d <= toD; d = addDaysIso(d, 1)){ if (isoDow(d)===4) add(d, 'Initial Jobless Claims', 'jobs'); }
+  return out;
+}
+
 // Build authoritative events that fall within [fromD, toD].
 function authoritativeMacro(fromD, toD){
   const out = [];
@@ -1290,6 +1353,11 @@ function authoritativeMacro(fromD, toD){
   for (const d of MACRO_RELEASES_2026.gdp)    add(d, `${gdpQuarterLabel(d)} GDP`, 'growth');
   for (const d of MACRO_RELEASES_2026.retail) add(d, `${prevMonthLabel(d)} Retail Sales`, 'growth');
   for (const d of MACRO_RELEASES_2026.fomc)   add(d, 'FOMC Rate Decision', 'fed');
+  // JOLTS — released ~5-6 weeks after its reference month; label that month.
+  for (const d of MACRO_RELEASES_2026.jolts)  add(d, `${MON_NAMES[+addDaysIso(d,-38).slice(5,7)-1]} JOLTS Job Openings`, 'jobs');
+  // Rule-based releases (ISM, Consumer Confidence, Michigan, Chicago PMI, ADP,
+  // FOMC Minutes, jobless claims) — computed, exact by construction.
+  out.push(...computedMacro(fromD, toD));
   return out;
 }
 
