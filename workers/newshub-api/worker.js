@@ -1227,6 +1227,17 @@ function macroCategory(name){
   return null; // not whitelisted → reject
 }
 
+// Market-impact tier for a macro release, by standard consensus (Forex Factory /
+// Investing.com-style). high = can move indices; medium = watched; low = minor.
+// Order matters: FOMC Minutes (medium) must be tested before FOMC decision (high).
+function macroImportance(name){
+  const n = name || '';
+  if (/fomc minutes/i.test(n)) return 'medium';
+  if (/\bcpi\b|consumer price|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|\bpce\b|personal consumption|\bgdp\b|gross domestic/i.test(n)) return 'high';
+  if (/\bppi\b|producer price|retail sales|\bjolts\b|job openings|\bism\b|\badp\b|jobless claims|initial claims|consumer confidence/i.test(n)) return 'medium';
+  return 'low'; // michigan, chicago pmi, durable goods, housing, home sales, trade
+}
+
 // ── AUTHORITATIVE macro release calendar ─────────────────────────────────────
 // Hardcoded from OFFICIAL published schedules (BLS, BEA, Federal Reserve) so
 // dates are CONCRETE and correct — never AI-guessed. This is the source of truth;
