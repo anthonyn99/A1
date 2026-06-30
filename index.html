@@ -33671,7 +33671,7 @@ function applyTask(b,W,a,mark,fx){
     }
     case 'clear':{
       var box2=a.box||'calendar';
-      if(box2==='calendar'){var key3=(a.date?(ymd(a.date)||{}).key:null)||W.selectedDate;W.data[key3]=[];mark('calendar');return true;}
+      if(box2==='calendar'){var key3=(a.date?(ymd(a.date)||{}).key:null)||W.selectedDate;(W.data[key3]||[]).forEach(function(x){if(x.notifyAt)fx.cancel.push({id:x.id,notifyRepeatId:x.notifyRepeatId||null});});W.data[key3]=[];mark('calendar');return true;}
       var ca=arrFor(W,box2);if(!ca)return false;ca.length=0;mark(box2);return true;
     }
   }
