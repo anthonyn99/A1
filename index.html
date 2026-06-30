@@ -33582,7 +33582,7 @@ function addCalItem(b,W,a,fx){
     var sp=ymd(startKey);if(sp){
       var sd=new Date(sp.y,sp.mo-1,sp.d),ed;
       if(base.repeatEndDate&&typeof base.repeatEndDate.year==='number')ed=new Date(base.repeatEndDate.year,base.repeatEndDate.month,base.repeatEndDate.day);
-      else{ed=new Date(sd);ed.setDate(ed.getDate()+90);}
+      else{ed=new Date(sd);ed.setDate(ed.getDate()+14);}   // matches the app modal's default repeat horizon
       var maxEd=new Date(sd);maxEd.setFullYear(maxEd.getFullYear()+1);if(ed>maxEd)ed=maxEd;
       var c=new Date(sd);c.setDate(c.getDate()+1);var guard=0;
       while(c<=ed&&guard<400){
