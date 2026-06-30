@@ -29872,6 +29872,8 @@ const EVENT_COLORS = { exam:'#ff6b6b', hw:'#ff9f43', quiz:'#ffd32a', lecture:'#5
 const PRIORITY_COLORS = { low:'#54a0ff', medium:'#ffd32a', high:'#ff6b6b' };
 
 let classes = JSON.parse(localStorage.getItem('studyos_classes') || '[]');
+// Migrate any legacy vibrant class colors to the soft pastel palette in-place.
+classes.forEach(c => { if (c && c.color && window.sosPastel) c.color = window.sosPastel(c.color); });
 let events = JSON.parse(localStorage.getItem('studyos_events') || '[]');
 let tasks = JSON.parse(localStorage.getItem('studyos_tasks') || '[]');
 let notesList = JSON.parse(localStorage.getItem('studyos_notes_v2') || '[]');
