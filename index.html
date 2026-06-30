@@ -3788,7 +3788,7 @@ function App(){
     return null;
   };
   // Convert an item (carrying all original fields) to the shape a destination list needs
-  const _toWeek=it=>{const o={...it,type:"task"};if(o.done===undefined)o.done=false;return o;};
+  const _toWeek=it=>{const o={...it};if(o.type!=="event")o.type="task";if(o.type!=="event"&&o.done===undefined)o.done=false;return o;};
   const _toHabit=it=>({...it,title:it.title||""});
   const _toGoal=it=>{const o={...it,title:it.title||""};if(o.done===undefined)o.done=false;return o;};
   // Remove item from its source list (returns updater-free; we apply directly)
@@ -9561,7 +9561,7 @@ function App(){
     if(zone==="goalm"){const it=(s.monthlyGoals||[]).find(x=>x.id===id);return it?{...it}:null;}
     return null;
   };
-  const _vToWeek=it=>{const o={...it,type:"task"};if(o.done===undefined)o.done=false;return o;};
+  const _vToWeek=it=>{const o={...it};if(o.type!=="event")o.type="task";if(o.type!=="event"&&o.done===undefined)o.done=false;return o;};
   const _vToHabit=it=>({...it,title:it.title||""});
   const _vToGoal=it=>{const o={...it,title:it.title||""};if(o.done===undefined)o.done=false;return o;};
   const vCrossMove=useCallback((destZone,targetId,destDayKey)=>{
