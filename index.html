@@ -5117,64 +5117,55 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       return v;
     };
 
+    // Extract inline data: images from an HTML string into their own docs. The
+    // tj-fbimg:// placeholder is written ONLY after the image is confirmed saved
+    // (with retry); on failure the inline data URI is kept so nothing is lost.
+    const _tjExtractHtmlImages = async (html, e, dateKey) => {
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      const imgs = Array.from(div.querySelectorAll('img'));
+      await Promise.all(imgs.map(async (img) => {
+        const src = img.getAttribute('src') || '';
+        if (!src.startsWith('data:')) return;
+        let imgKey = img.getAttribute('data-tjkey') || '';
+        if (!imgKey) {
+          let h = 0;
+          const step = Math.max(1, Math.floor(src.length / 512));
+          for (let i = 0; i < src.length; i += step) { h = (Math.imul(31, h) + src.charCodeAt(i)) | 0; }
+          h = (Math.imul(31, h) + src.length) | 0;
+          const suffix = dateKey ? (dateKey.replace(/-/g,'') + '_') : '';
+          imgKey = 'tony_journal_img_' + e.id + '_' + suffix + Math.abs(h).toString(36);
+        }
+        const imgRef = doc(db, 'dashboards', imgKey);
+        try {
+          await _fbWriteRetry(() => setDoc(imgRef, { img: src, savedAt: Date.now() }), 'TJ img ' + imgKey);
+          img.setAttribute('data-tjkey', imgKey);
+          img.setAttribute('src', 'tj-fbimg://' + imgKey);
+        } catch(err) {
+          console.warn('TJ image upload failed, keeping inline:', imgKey, err.message);
+        }
+      }));
+      return div.innerHTML;
+    };
+
     const _tjStripEntry = async (e) => {
-      const imageUploadPromises = [];
       if (e.template === 'whiteboard') {
         const { canvas, history, ...rest } = (e.data || {});
-        return { entry: { ...e, data: rest }, imageUploadPromises };
+        return { entry: { ...e, data: rest }, imageUploadPromises: [] };
       }
       if (e.template === 'page' && e.data && e.data.html) {
-        const div = document.createElement('div');
-        div.innerHTML = e.data.html;
-        div.querySelectorAll('img').forEach(img => {
-          const src = img.getAttribute('src') || '';
-          if (!src.startsWith('data:')) return;
-          let imgKey = img.getAttribute('data-tjkey') || '';
-          if (!imgKey) {
-            let h = 0;
-            const step = Math.max(1, Math.floor(src.length / 512));
-            for (let i = 0; i < src.length; i += step) { h = (Math.imul(31, h) + src.charCodeAt(i)) | 0; }
-            h = (Math.imul(31, h) + src.length) | 0;
-            imgKey = 'tony_journal_img_' + e.id + '_' + Math.abs(h).toString(36);
-          }
-          const imgRef = doc(db, 'dashboards', imgKey);
-          imageUploadPromises.push(
-            setDoc(imgRef, { img: src, savedAt: Date.now() })
-              .catch(err => console.warn('TJ image upload failed:', imgKey, err.message))
-          );
-          img.setAttribute('src', 'tj-fbimg://' + imgKey);
-        });
-        return { entry: { ...e, data: { ...e.data, html: div.innerHTML } }, imageUploadPromises };
+        const html = await _tjExtractHtmlImages(e.data.html, e, null);
+        return { entry: { ...e, data: { ...e.data, html } }, imageUploadPromises: [] };
       }
       if (e.template === 'journal-entries' && e.data && e.data.dates) {
         const strippedDates = {};
         for (const [dateKey, dateData] of Object.entries(e.data.dates)) {
           if (!dateData || !dateData.html) { strippedDates[dateKey] = dateData || { html: '' }; continue; }
-          const div = document.createElement('div');
-          div.innerHTML = dateData.html;
-          div.querySelectorAll('img').forEach(img => {
-            const src = img.getAttribute('src') || '';
-            if (!src.startsWith('data:')) return;
-            let imgKey = img.getAttribute('data-tjkey') || '';
-            if (!imgKey) {
-              let h = 0;
-              const step = Math.max(1, Math.floor(src.length / 512));
-              for (let i = 0; i < src.length; i += step) { h = (Math.imul(31, h) + src.charCodeAt(i)) | 0; }
-              h = (Math.imul(31, h) + src.length) | 0;
-              imgKey = 'tony_journal_img_' + e.id + '_' + dateKey.replace(/-/g,'') + '_' + Math.abs(h).toString(36);
-            }
-            const imgRef = doc(db, 'dashboards', imgKey);
-            imageUploadPromises.push(
-              setDoc(imgRef, { img: src, savedAt: Date.now() })
-                .catch(err => console.warn('TJ JE image upload failed:', imgKey, err.message))
-            );
-            img.setAttribute('src', 'tj-fbimg://' + imgKey);
-          });
-          strippedDates[dateKey] = { html: div.innerHTML };
+          strippedDates[dateKey] = { ...dateData, html: await _tjExtractHtmlImages(dateData.html, e, dateKey) };
         }
-        return { entry: { ...e, data: { ...e.data, dates: strippedDates } }, imageUploadPromises };
+        return { entry: { ...e, data: { ...e.data, dates: strippedDates } }, imageUploadPromises: [] };
       }
-      return { entry: e, imageUploadPromises };
+      return { entry: e, imageUploadPromises: [] };
     };
 
     window._fbLoadTonyJournal = async () => {
