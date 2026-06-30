@@ -1673,7 +1673,12 @@ async function buildCalendar(wl, env, days, diag){
   //    types are DROPPED (real date wins). For years we DON'T hardcode yet (e.g.
   //    2027+), we KEEP the AI's macro so the calendar still works automatically —
   //    but we flag those as approximate so they're visibly not-yet-verified.
-  const HARDCODED_NAME = /\bcpi\b|\bppi\b|\bpce\b|personal consumption|\bgdp\b|gross domestic|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|retail sales/i;
+  // Release types we provide authoritatively (hardcoded dates OR computed rules).
+  // AI versions of these are dropped in hardcoded years so our exact ones win.
+  // NOT listed (so AI's real-dated versions survive): durable goods, housing
+  // starts/permits, home sales, trade balance — those have no fixed rule and
+  // aren't hardcoded, so grounded Gemini supplies them.
+  const HARDCODED_NAME = /\bcpi\b|\bppi\b|\bpce\b|personal consumption|\bgdp\b|gross domestic|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|retail sales|\bjolts\b|job openings|\badp\b|\bism\b|chicago pmi|chicago business|consumer confidence|consumer sentiment|michigan|jobless claims|initial claims/i;
   const authKey = new Set(authMacro.map(e => e.category + '|' + e.date));
   const extraMacro = [];
   for (const e of aiMacro){
