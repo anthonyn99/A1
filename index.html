@@ -9593,7 +9593,7 @@ function App(){
   // matching Tony's TaskHub (wkCatalystCard). Veda is dark-only, so dark values inline.
   const MC_PASTEL={earnings:"#e7a6b4",inflation:"#e3c794",fed:"#c9b3ec",jobs:"#a6c8e6",growth:"#a6dcb2",macro:"#c0c6cd",rates:"#c9b3ec",gdp:"#a6dcb2",retail:"#a6dcb2",housing:"#a3dcc6",sentiment:"#e3cb98",trade:"#edb2a6",oil:"#e3bd96",holiday:"#b0b9cc"};
   const MC_IMP={high:{c:"#f85149",t:"HIGH"},medium:{c:"#d29922",t:"MED"},low:{c:"#8b949e",t:"LOW"}};
-  const vdCatalystCard=cat=>({background:"#101319",border:"1px solid #243042",borderLeft:"3px solid "+(MC_PASTEL[String(cat||"").toLowerCase()]||"#b0b9cc"),borderRadius:10,padding:vrMobile?"4px 12px":"3px 10px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
+  const vdCatalystCard=cat=>({background:"#101319",border:"1px solid #243042",borderLeft:"3px solid #8b949e",borderRadius:10,padding:vrMobile?"3px 11px":"2px 9px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
   // Events get the same card treatment (mirror of Tony's wkEventCard): bordered card,
   // category-colored left stripe, fading once both event time and reminder have passed.
   const vdEventCard=(cat,passed)=>({background:passed?"#0f1014":"#1b1c23",border:"1px solid "+(passed?"#1d1e25":"#32333d"),borderLeft:"3px solid "+(passed?"#33343d":(CC[cat]||"#58a6d4")),borderRadius:10,padding:vrMobile?"4px 12px":"3px 10px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
