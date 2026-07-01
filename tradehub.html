@@ -4318,13 +4318,72 @@ const tbCatColor=c=>TB_CAT_COLORS[String(c||'').toLowerCase()]||'#8b949e';
 const TB_IMP={high:{c:'#f85149',t:'HIGH'},medium:{c:'#d29922',t:'MED'},low:{c:'#8b949e',t:'LOW'}};
 function tbFmtLocal(iso){ if(!iso) return ''; const d=new Date(iso); let h=d.getHours(); const m=d.getMinutes(); const ap=h<12?'AM':'PM'; h=h%12||12; return h+':'+(m<10?'0':'')+m+' '+ap; }
 
+// ── Shared calendar builder ─────────────────────────────────────────────────
+// Fetch + poll + merge-fallback + de-dup, returning {future,degraded}. Used by
+// both the manual Refresh/Force button (below) and the app-level auto-force
+// scheduler so the two paths can never drift apart. No React state here.
+async function tbBuildCalendar(wl,opts){
+  opts=opts||{};
+  wl=(wl&&wl.length)?wl:NH_DEFAULT_TICKERS;
+  const tq='tickers='+encodeURIComponent(wl.join(','))+'&days=30'+(opts.force?'&fresh=1':'');
+  const url=NH_WORKER_URL+'/calendar?'+tq;
+  let j=null;
+  for(let tries=0;tries<=20;tries++){
+    const r=await fetch(url);
+    if(r.status===429){const jj=await r.json().catch(()=>({}));const e=new Error(jj.reason||'Rate limited — try later.');e.rateLimited=true;throw e;}
+    if(r.status===202){await new Promise(res=>setTimeout(res,3000));continue;}
+    j=await r.json();
+    if(j&&j.status==='building'){await new Promise(res=>setTimeout(res,3000));j=null;continue;}
+    break;
+  }
+  if(!j){const e=new Error('Build timed out.');e.timedOut=true;throw e;}
+  const evs=Array.isArray(j.events)?j.events:[];
+  const today=tbEtDate(0);
+  // newshub provides ACCURATE, real-dated macro + earnings. Only fall back to the
+  // trade-dashboard COMPUTED calendar when newshub returns NO macro at all.
+  let merged=evs;
+  const hasMacro=evs.some(e=>e&&e.kind==='macro');
+  if(!hasMacro){
+    try{
+      const tdq='tickers='+encodeURIComponent(wl.join(','))+'&days=30';
+      const tdr=await fetch('https://trade-dashboard.av1.workers.dev/calendar?'+tdq);
+      if(tdr.ok){
+        const tdj=await tdr.json();
+        const tdEvents=(Array.isArray(tdj.events)?tdj.events:[]).filter(e=>e&&e.kind!=='earnings');
+        const seen=new Set(evs.map(e=>e&&((e.kind==='earnings'?'earn':'macro')+'|'+(e.category||e.kind||'')+'|'+e.date)));
+        for(const e of tdEvents){const k='macro|'+(e.category||e.kind||'')+'|'+e.date;if(!seen.has(k)){seen.add(k);merged.push(e);}}
+      }
+    }catch(e){}
+  }
+  // de-dup earnings across any source by ticker+date
+  const dseen=new Set();
+  merged=merged.filter(e=>{if(!e)return false;const nm=(e.name||'');const tick=(nm.match(/^[A-Z]{1,5}\b/)||[])[0];const k=((e.kind==='earnings'||/earnings/i.test(nm))?'earn|'+(tick||nm):'ev|'+nm)+'|'+e.date;if(dseen.has(k))return false;dseen.add(k);return true;});
+  const future=merged.filter(e=>e&&e.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+  return {future,degraded:!!(j&&j.degraded)};
+}
+
+// Most-recent scheduled auto-force slot: Wed & Sun at 6:00 AM America/Denver
+// (Mountain), at or before now. Returns a ms timestamp, or 0 if none found.
+function tbLastScheduledForce(){
+  const now=Date.now();
+  for(let back=0;back<8;back++){
+    const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',weekday:'short',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(now-back*86400000)).reduce((a,x)=>{a[x.type]=x.value;return a},{});
+    if(p.weekday==='Wed'||p.weekday==='Sun'){
+      const ts=new Date(tbZonedISO(`${p.year}-${p.month}-${p.day}`,6,0)).getTime();
+      if(ts<=now) return ts;
+    }
+  }
+  return 0;
+}
+let _tbAutoForceInFlight=false;
+
 
 function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
   const [events,setEvents]=useState([]);
   const [loading,setLoading]=useState(false);
   const [notice,setNotice]=useState('');
   const [lastSync,setLastSync]=useState(null);
-  const eventsRef=useRef([]); const wlRef=useRef(watchlist); const pollRef=useRef(null); const didAuto=useRef(false);
+  const eventsRef=useRef([]); const wlRef=useRef(watchlist); const refreshTok=useRef(0); const didAuto=useRef(false);
   useEffect(()=>{eventsRef.current=events;},[events]);
   // Keep the ref in sync with the shared watchlist prop (used by refresh()).
   useEffect(()=>{wlRef.current=watchlist;},[watchlist]);
@@ -4348,59 +4407,28 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
 
   const refresh=useCallback((force,wlOverride)=>{
     const wl=wlOverride||wlRef.current||NH_DEFAULT_TICKERS;
+    const tok=++refreshTok.current;
     setLoading(true);setNotice('');
-    if(pollRef.current){clearTimeout(pollRef.current);pollRef.current=null;}
-    const tq='tickers='+encodeURIComponent(wl.join(','))+'&days=30'+(force?'&fresh=1':'');
-    const url=NH_WORKER_URL+'/calendar?'+tq;
-    const poll=async(tries)=>{
-      try{
-        const r=await fetch(url);
-        if(r.status===429){const j=await r.json().catch(()=>({}));setNotice(j.reason||'Rate limited — try later.');setLoading(false);return;}
-        if(r.status===202){if(tries<20){pollRef.current=setTimeout(()=>poll(tries+1),3000);}else{setNotice('Build timed out.');setLoading(false);}return;}
-        const j=await r.json();
-        if(j&&j.status==='building'){if(tries<20){pollRef.current=setTimeout(()=>poll(tries+1),3000);}else{setNotice('Build timed out.');setLoading(false);}return;}
-        const evs=Array.isArray(j.events)?j.events:[];
-        const today=tbEtDate(0);
-        // newshub provides ACCURATE, real-dated macro + earnings. Trust it.
-        // Only fall back to the trade-dashboard COMPUTED calendar (approximate
-        // dates) when newshub returns NO macro events at all — so the tab is
-        // never empty, but accurate data always wins when present.
-        let merged=evs;
-        // Only true macro counts here — holidays are non-earnings too but must NOT
-        // suppress the computed-macro fallback when Gemini macro is empty.
-        const hasMacro=evs.some(e=>e&&e.kind==='macro');
-        if(!hasMacro){
-          try{
-            const tdq='tickers='+encodeURIComponent(wl.join(','))+'&days=30';
-            const tdr=await fetch('https://trade-dashboard.av1.workers.dev/calendar?'+tdq);
-            if(tdr.ok){
-              const tdj=await tdr.json();
-              const tdEvents=(Array.isArray(tdj.events)?tdj.events:[]).filter(e=>e&&e.kind!=='earnings');
-              // add computed macro (earnings already covered by newshub)
-              const seen=new Set(evs.map(e=>e&&((e.kind==='earnings'?'earn':'macro')+'|'+(e.category||e.kind||'')+'|'+e.date)));
-              for(const e of tdEvents){const k='macro|'+(e.category||e.kind||'')+'|'+e.date;if(!seen.has(k)){seen.add(k);merged.push(e);}}
-            }
-          }catch(e){}
-        }
-        // de-dup earnings across any source by ticker+date
-        const dseen=new Set();
-        merged=merged.filter(e=>{if(!e)return false;const nm=(e.name||'');const tick=(nm.match(/^[A-Z]{1,5}\b/)||[])[0];const k=((e.kind==='earnings'||/earnings/i.test(nm))?'earn|'+(tick||nm):'ev|'+nm)+'|'+e.date;if(dseen.has(k))return false;dseen.add(k);return true;});
-        const future=merged.filter(e=>e&&e.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
-        const prevCount=(eventsRef.current||[]).filter(e=>e&&e.date>=today).length;
-        // Guard: if the worker came back DEGRADED with fewer events than we already
-        // have cached, it likely only returned partial (e.g. earnings but macro
-        // source was empty). Keep the richer cached set instead of wiping it.
-        if(j&&j.degraded&&future.length<prevCount){
-          setLoading(false);
-          setNotice('Sources partial right now — kept your last full calendar. Try Force again in a bit.');
-          return;
-        }
-        await commit(future);
+    tbBuildCalendar(wl,{force}).then(async({future,degraded})=>{
+      if(tok!==refreshTok.current)return;                 // a newer refresh superseded this one
+      const today=tbEtDate(0);
+      const prevCount=(eventsRef.current||[]).filter(e=>e&&e.date>=today).length;
+      // Guard: if the worker came back DEGRADED with fewer events than we already
+      // have cached, it likely only returned partial (e.g. earnings but macro
+      // source was empty). Keep the richer cached set instead of wiping it.
+      if(degraded&&future.length<prevCount){
         setLoading(false);
-        if(!future.length)setNotice(j&&j.degraded?'Sources empty right now — try Force in a bit.':'No catalysts in the next 30 days.');
-      }catch(e){setNotice('Network error: '+e.message);setLoading(false);}
-    };
-    poll(0);
+        setNotice('Sources partial right now — kept your last full calendar. Try Force again in a bit.');
+        return;
+      }
+      await commit(future);
+      setLoading(false);
+      if(!future.length)setNotice(degraded?'Sources empty right now — try Force in a bit.':'No catalysts in the next 30 days.');
+    }).catch(e=>{
+      if(tok!==refreshTok.current)return;
+      setLoading(false);
+      setNotice(e.rateLimited?e.message:e.timedOut?e.message:'Network error: '+e.message);
+    });
   },[commit]);
 
   useEffect(()=>{
@@ -4551,6 +4579,38 @@ function TBApp(){
   useEffect(()=>{
     window._tbSetPortfolioOk=(ok)=>setTbPortfolioOk(!!ok);
     return()=>{window._tbSetPortfolioOk=null;};
+  },[]);
+
+  /* ── Auto-force the market calendar on Wed & Sun at 6:00 AM Mountain ──────────
+     Runs at the APP level (not the Catalysts tab) so simply opening TradeHub is
+     enough — no tab visit, no manual Refresh. On open (and every 5 min while
+     open) we compare the shared doc's generatedAt against the most recent
+     scheduled 6 AM MT slot; if the cache predates it, we fetch fresh and save.
+     The generatedAt>=slot check means the first device to refresh wins and the
+     rest skip, so it fires once per slot across all devices. */
+  useEffect(()=>{
+    let stop=false, timer=null;
+    const check=async()=>{
+      if(stop||_tbAutoForceInFlight||!window._fbLoadMarketCal||!window._fbSaveMarketCal)return;
+      const slot=tbLastScheduledForce();
+      if(!slot)return;
+      try{
+        const d=await window._fbLoadMarketCal();
+        const gen=(d&&(d.generatedAt||d.savedAt))||0;
+        if(gen>=slot)return;                                // already refreshed since this slot
+        _tbAutoForceInFlight=true;
+        const {future}=await tbBuildCalendar(tbLoadWatchlistLocal(),{force:true});
+        // Only overwrite when we actually got events — never wipe a good cache with empties.
+        if(future&&future.length){
+          const now=Date.now();
+          window._fbSaveMarketCal({events:future,generatedAt:now,savedAt:now});
+        }
+      }catch(e){}finally{_tbAutoForceInFlight=false;}
+    };
+    const start=()=>{check();timer=setInterval(check,5*60*1000);};
+    if(window._fbReady)start();
+    else window.addEventListener('fb-ready',start,{once:true});
+    return()=>{stop=true;if(timer)clearInterval(timer);window.removeEventListener('fb-ready',start);};
   },[]);
 
   /* Load prompts + reports from Firebase on mount */
