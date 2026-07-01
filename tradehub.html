@@ -81,7 +81,7 @@
     var gotV = parseInt(localStorage.getItem('al_unlockedv_' + APPID) || '0', 10);
     var isUnlocked = v === 0
       ? (localStorage.getItem('al_unlocked_' + APPID) === '1' || gotV > 0)
-      : (gotV === v);
+      : (gotV > 0 && gotV >= v);
     if (isLocked && !isUnlocked) {
       var r = document.getElementById('tradeboard-root');
       if (r) r.style.display = 'none';
@@ -4697,12 +4697,20 @@ function alIsUnlocked() {
   var v = alLockVersion();
   var got = parseInt(localStorage.getItem('al_unlockedv_' + APPID)||'0',10);
   if(v===0){ return localStorage.getItem('al_unlocked_' + APPID)==='1' || got>0; }
-  return got===v;
+  // Monotonic: this device is unlocked as long as it unlocked AT OR AFTER the
+  // current password version. Only a genuine password change (newer version)
+  // makes got<v and re-requires the password. Prevents spurious re-prompts from
+  // stale/duplicate snapshots that report a merely-different (not newer) version.
+  return got>0 && got>=v;
 }
 function alMarkUnlocked(){
   try{
     var v = alLockVersion();
-    localStorage.setItem('al_unlockedv_' + APPID, String(v||Date.now()));
+    var prev = parseInt(localStorage.getItem('al_unlockedv_' + APPID)||'0',10);
+    // Record the highest version seen so a slow/stale version read can never
+    // regress an already-valid unlock.
+    var mark = Math.max(v||Date.now(), prev||0);
+    localStorage.setItem('al_unlockedv_' + APPID, String(mark));
     if(v===0) localStorage.setItem('al_unlocked_' + APPID, '1');
   }catch(e){}
 }
@@ -4726,13 +4734,12 @@ function alShowRoot(){ var r=_el('tradeboard-root'); if(r) r.style.display='flex
 // about TradeHub's entry but must preserve the rest so we never wipe them.
 window._alApplyRemoteLocks = function(remoteLocks){
   remoteLocks = remoteLocks || {};
-  var wasLocked = !!_alLocks[APPID];
-  var oldV = alLockVersion();
-  var nowLocked = !!remoteLocks[APPID];
-  var newV = (remoteLocks[APPID] && remoteLocks[APPID].v) || 0;
-  // Newly locked OR password changed (version bumped) elsewhere → require the
-  // (possibly new) password again on this device.
-  if ((nowLocked && !wasLocked) || (nowLocked && newV !== oldV)) { alMarkLocked(); }
+  // Re-locking is governed entirely by version comparison in alIsUnlocked()
+  // (got>=v). If the password was genuinely changed (newer version) OR newly set
+  // on a device that never unlocked, this device's recorded unlock is < newV and
+  // it blocks automatically below via alMustBlock(). We deliberately do NOT wipe
+  // the unlock record on a mere version DIFFERENCE — a stale/duplicate snapshot
+  // reporting an older-or-equal version must never force a spurious re-prompt.
   _alLocks = {};
   Object.keys(remoteLocks).forEach(function(id){ var r=remoteLocks[id]; _alLocks[id] = { locked: true, v:(r&&r.v)||0 }; });
   try { localStorage.setItem('al_locks', JSON.stringify(_alLocks)); } catch(e){}
@@ -4979,13 +4986,17 @@ function tabIsUnlocked(tabId){
     // Legacy lock with no version → unlock with the simple flag (or any recorded unlock).
     return localStorage.getItem('al_unlocked_' + tabAppId(tabId))==='1' || got>0;
   }
-  return got===v;
+  // Monotonic (mirrors alIsUnlocked): unlocked as long as this device unlocked at
+  // or after the current password version. Only a genuine change re-requires it.
+  return got>0 && got>=v;
 }
 function tabMustBlock(tabId){ return tabIsLocked(tabId) && !tabIsUnlocked(tabId); }
 function tabMarkUnlocked(tabId){
   try{
     var v = tabLockVersion(tabId);
-    localStorage.setItem('al_unlockedv_' + tabAppId(tabId), String(v||Date.now()));
+    var prev = parseInt(localStorage.getItem('al_unlockedv_' + tabAppId(tabId))||'0',10);
+    var mark = Math.max(v||Date.now(), prev||0);
+    localStorage.setItem('al_unlockedv_' + tabAppId(tabId), String(mark));
     if(v===0) localStorage.setItem('al_unlocked_' + tabAppId(tabId), '1'); // legacy flag too
   }catch(e){}
 }
@@ -5021,14 +5032,10 @@ window._alApplyRemoteLocks = function(remoteLocks){
   // Detect tabs newly locked OR password-changed (version bumped) remotely →
   // require the (possibly new) password again on this device.
   remoteLocks = remoteLocks || {};
-  Object.keys(remoteLocks).forEach(function(id){
-    if (id.indexOf(TAB_PREFIX)===0) {
-      var tabId = id.slice(TAB_PREFIX.length);
-      var newV = (remoteLocks[id] && remoteLocks[id].v) || 0;
-      var oldV = tabLockVersion(tabId);
-      if (!_alLocks[id] || newV !== oldV) { tabMarkLocked(tabId); }
-    }
-  });
+  // Re-locking is governed by version comparison in tabIsUnlocked() (got>=v), so
+  // we no longer wipe a tab's unlock record on a mere version difference — that
+  // caused spurious re-prompts. A genuine password change (newer version) or a
+  // newly-set lock this device never unlocked will block automatically.
   if (_origApply) _origApply(remoteLocks);
   tabNotify();
 };

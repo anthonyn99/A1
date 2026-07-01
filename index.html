@@ -3856,9 +3856,9 @@ function App(){
   const ebtn={background:"transparent",border:"none",color:T.TXD,cursor:"pointer",fontSize:12,padding:"0 3px",lineHeight:1,fontFamily:"inherit"};
   const sbtn={background:T.AC,color:T.BG,border:"none",borderRadius:4,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Nunito',sans-serif"};
   const ctag=c=>({fontSize:9,color:CC[c]||T.TXD,background:(CC[c]||T.TXD)+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+(CC[c]||T.TXD)+"30"});
-  const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date||ev.date<todayK)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null});});return g;},[marketCal]);
+  const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null,_past:ev.date<todayK});});return g;},[marketCal]);
   const mcFmt=(iso)=>{const d=new Date(iso);let h=d.getHours();const m=d.getMinutes();const ap=h<12?" AM":" PM";h=h%12||12;return h+":"+(m<10?"0":"")+m+ap;};
-  const mcChip=(e)=>React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:isMobile?4:3,cursor:"default"}},
+  const mcChip=(e)=>React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:isMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     React.createElement("span",{style:{fontSize:11,flexShrink:0,lineHeight:1.35,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
     React.createElement("span",{style:{fontSize:11,fontWeight:700,color:T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
     React.createElement("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:4,flexShrink:0}},
@@ -9625,7 +9625,7 @@ function App(){
 
   // ── Macro banners (from TradeHub Catalysts, shared market_calendar doc).
   //    Grouped by day, today-onward. Display only — notifications removed. ──
-  const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date||ev.date<todayK)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date});});return g;},[marketCal]);
+  const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,_past:ev.date<todayK});});return g;},[marketCal]);
   // Macro catalyst cards get a bordered card with a category-colored left stripe,
   // matching Tony's TaskHub (wkCatalystCard). Veda is dark-only, so dark values inline.
   const MC_PASTEL={earnings:"#e7a6b4",inflation:"#e3c794",fed:"#c9b3ec",jobs:"#a6c8e6",growth:"#a6dcb2",macro:"#c0c6cd",rates:"#c9b3ec",gdp:"#a6dcb2",retail:"#a6dcb2",housing:"#a3dcc6",sentiment:"#e3cb98",trade:"#edb2a6",oil:"#e3bd96",holiday:"#b0b9cc"};
@@ -9635,7 +9635,7 @@ function App(){
   // category-colored left stripe, fading once both event time and reminder have passed.
   const vdEventCard=(cat,passed)=>({background:passed?"#0f1014":"#1b1c23",border:"1px solid "+(passed?"#1d1e25":"#32333d"),borderLeft:"3px solid "+(passed?"#33343d":(CC[cat]||"#58a6d4")),borderRadius:10,padding:vrMobile?"4px 12px":"3px 10px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
   const vdEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
-  const mcChip=(e)=>RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:vrMobile?4:3,cursor:"default"}},
+  const mcChip=(e)=>RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:vrMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     RC("span",{style:{fontSize:10,flexShrink:0,lineHeight:1.3,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
     RC("span",{style:{fontSize:11,fontWeight:700,color:TX,lineHeight:1.3,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
     RC("span",{style:{...ctag(e.category),fontSize:8}},e.category),
