@@ -3881,7 +3881,7 @@ function App(){
   // into a narrow column beside the pills.
   const mcChip=(e)=>{const tm=mcTimeLocal(e);return React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
-      tm?React.createElement("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},tm):null,
+      tm?React.createElement("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:T.TXD,whiteSpace:"nowrap",flexShrink:0}},tm):null,
       /* Catalysts-pushed events use a neutral GRAY category chip here (Tony's TaskHub),
          to match Veda's. The colorful category chips stay in the Catalysts tab only. */
       React.createElement("span",{style:{fontSize:9.5,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 6px",textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},e.category),
