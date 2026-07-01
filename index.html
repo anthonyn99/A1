@@ -6471,38 +6471,12 @@ window.kcSaveModal=async function(){
   document.querySelectorAll('#kc-doc-fields .kc-doc-name-input').forEach(inp=>{
     const d=_kcDocs.find(x=>x.id===inp.dataset.docid);if(d)d.displayName=inp.value.trim()||d.fileName;
   });
-  // Process new files: read as base64, store in Firestore (no Storage needed)
+  // Process new files: upload to Cloudflare KV (Keychain's own namespace)
   for(const d of _kcDocs.filter(x=>!x.saved&&!x.toDelete&&x.file)){
-    const statusEl=document.getElementById('kcds-'+d.id);
-    if(statusEl){statusEl.textContent='reading…';statusEl.className='kc-doc-row-status uploading';}
-    const file=d._origFile||d.file;
-    // Enforce 900KB limit (Firestore doc max ~1MB; base64 adds 33% overhead)
-    if(file.size>900000){
-      if(statusEl){statusEl.textContent='too large (max 900KB)';statusEl.className='kc-doc-row-status error';}
+    const ok=await window._kcUploadDocEntry(d,'kcds-',window.KcCloud);
+    if(!ok){
       setBtnState('Save',false);
-      alert(file.name+' is too large. Max file size is 900KB.');
-      return;
-    }
-    try{
-      // Convert to base64 data URL with timeout guard
-      const fileData=await Promise.race([
-        new Promise((res,rej)=>{
-          const fr=new FileReader();
-          fr.onload=e=>res(e.target.result);
-          fr.onerror=()=>rej(new Error('FileReader failed'));
-          fr.readAsDataURL(file);
-        }),
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error('File read timed out')),15000))
-      ]);
-      d.fileData=fileData;
-      // Also save to IDB as local cache (best-effort, non-blocking)
-      window.KcFileStore.save(file).then(fid=>{d.fileId=fid;}).catch(()=>{});
-      d.saved=true;d.file=null;d._origFile=null;
-      if(statusEl){statusEl.textContent='✓';statusEl.className='kc-doc-row-status';}
-    }catch(e){
-      if(statusEl){statusEl.textContent='failed!';statusEl.className='kc-doc-row-status error';}
-      console.error('File read failed',file.name,e);
-      setBtnState('Save',false);
+      alert(((d._origFile||d.file||{}).name||'A file')+" couldn't be saved. Files over 25MB can't sync; check your connection and try again.");
       return;
     }
   }
@@ -16617,38 +16591,12 @@ window.kcSaveModal=async function(){
   document.querySelectorAll('#kc-doc-fields .kc-doc-name-input').forEach(inp=>{
     const d=_kcDocs.find(x=>x.id===inp.dataset.docid);if(d)d.displayName=inp.value.trim()||d.fileName;
   });
-  // Process new files: read as base64, store in Firestore (no Storage needed)
+  // Process new files: upload to Cloudflare KV (Keychain's own namespace)
   for(const d of _kcDocs.filter(x=>!x.saved&&!x.toDelete&&x.file)){
-    const statusEl=document.getElementById('kcds-'+d.id);
-    if(statusEl){statusEl.textContent='reading…';statusEl.className='kc-doc-row-status uploading';}
-    const file=d._origFile||d.file;
-    // Enforce 900KB limit (Firestore doc max ~1MB; base64 adds 33% overhead)
-    if(file.size>900000){
-      if(statusEl){statusEl.textContent='too large (max 900KB)';statusEl.className='kc-doc-row-status error';}
+    const ok=await window._kcUploadDocEntry(d,'kcds-',window.KcCloud);
+    if(!ok){
       setBtnState('Save',false);
-      alert(file.name+' is too large. Max file size is 900KB.');
-      return;
-    }
-    try{
-      // Convert to base64 data URL with timeout guard
-      const fileData=await Promise.race([
-        new Promise((res,rej)=>{
-          const fr=new FileReader();
-          fr.onload=e=>res(e.target.result);
-          fr.onerror=()=>rej(new Error('FileReader failed'));
-          fr.readAsDataURL(file);
-        }),
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error('File read timed out')),15000))
-      ]);
-      d.fileData=fileData;
-      // Also save to IDB as local cache (best-effort, non-blocking)
-      window.KcFileStore.save(file).then(fid=>{d.fileId=fid;}).catch(()=>{});
-      d.saved=true;d.file=null;d._origFile=null;
-      if(statusEl){statusEl.textContent='✓';statusEl.className='kc-doc-row-status';}
-    }catch(e){
-      if(statusEl){statusEl.textContent='failed!';statusEl.className='kc-doc-row-status error';}
-      console.error('File read failed',file.name,e);
-      setBtnState('Save',false);
+      alert(((d._origFile||d.file||{}).name||'A file')+" couldn't be saved. Files over 25MB can't sync; check your connection and try again.");
       return;
     }
   }
@@ -17519,34 +17467,12 @@ window.vdkcSaveModal=async function(){
   document.querySelectorAll('#vd-kc-doc-fields .kc-doc-name-input').forEach(inp=>{
     const d=_vdkcDocs.find(x=>x.id===inp.dataset.docid);if(d)d.displayName=inp.value.trim()||d.fileName;
   });
+  // Process new files: upload to Cloudflare KV (Links' own namespace)
   for(const d of _vdkcDocs.filter(x=>!x.saved&&!x.toDelete&&x.file)){
-    const statusEl=document.getElementById('vdkcds-'+d.id);
-    if(statusEl){statusEl.textContent='reading…';statusEl.className='kc-doc-row-status uploading';}
-    const file=d._origFile||d.file;
-    if(file.size>900000){
-      if(statusEl){statusEl.textContent='too large (max 900KB)';statusEl.className='kc-doc-row-status error';}
+    const ok=await window._kcUploadDocEntry(d,'vdkcds-',window.VdkcCloud);
+    if(!ok){
       setBtnState('Save',false);
-      alert(file.name+' is too large. Max file size is 900KB.');
-      return;
-    }
-    try{
-      const fileData=await Promise.race([
-        new Promise((res,rej)=>{
-          const fr=new FileReader();
-          fr.onload=e=>res(e.target.result);
-          fr.onerror=()=>rej(new Error('FileReader failed'));
-          fr.readAsDataURL(file);
-        }),
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error('File read timed out')),15000))
-      ]);
-      d.fileData=fileData;
-      window.KcFileStore.save(file).then(fid=>{d.fileId=fid;}).catch(()=>{});
-      d.saved=true;d.file=null;d._origFile=null;
-      if(statusEl){statusEl.textContent='✓';statusEl.className='kc-doc-row-status';}
-    }catch(e){
-      if(statusEl){statusEl.textContent='failed!';statusEl.className='kc-doc-row-status error';}
-      console.error('File read failed',file.name,e);
-      setBtnState('Save',false);
+      alert(((d._origFile||d.file||{}).name||'A file')+" couldn't be saved. Files over 25MB can't sync; check your connection and try again.");
       return;
     }
   }
