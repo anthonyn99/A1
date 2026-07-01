@@ -16670,18 +16670,39 @@ applyTheme();render();
     localStorage.setItem('kc_connections',JSON.stringify(conns));
     if(Array.isArray(map)){localStorage.setItem('kc_colmap',JSON.stringify(map));}
     render();
+    scheduleMigration();                 // carry any legacy base64 files → Cloudflare KV
   }
   async function doLoad(){
     if(!window._fbLoadKeychain) return;
     const data=await window._fbLoadKeychain();
     applyRemote(data);
   }
+  // ── Auto-migrate legacy base64 docs → Cloudflare KV ──────────────────────
+  let _kcMigTimer=null, _kcMigRunning=false;
+  async function runCloudMigration(manual, onProgress){
+    if(_kcMigRunning) return {busy:true};
+    _kcMigRunning=true;
+    try{
+      const r=await window._kcMigrateConnsToCloud(conns, window.KcCloud, onProgress);
+      if(r.uploaded){
+        localStorage.setItem('kc_connections',JSON.stringify(conns));
+        save();                          // push slimmed metadata (URL, no base64) to Firestore
+        render();
+      }
+      return r;
+    } finally { _kcMigRunning=false; }
+  }
+  function scheduleMigration(){ if(_kcMigTimer)clearTimeout(_kcMigTimer); _kcMigTimer=setTimeout(()=>runCloudMigration(false),600); }
+  window._kcCloudMigrate=runCloudMigration;   // manual trigger for the Sync Files button
+
   if(window._fbReady){doLoad();}
   else{window.addEventListener('fb-ready',doLoad,{once:true});}
   window.addEventListener('fb-kc-remote-update',e=>{applyRemote(e.detail);});
   window.addEventListener('fb-kc-saved',()=>{if(window.kcSetSync)window.kcSetSync('saved');});
   window.addEventListener('fb-kc-synced',()=>{if(window.kcSetSync)window.kcSetSync('saved');});
   window.addEventListener('fb-kc-error',()=>{if(window.kcSetSync)window.kcSetSync('error');});
+  // Also migrate what's already in localStorage on first open (no wait for remote).
+  scheduleMigration();
 })();
 let _prevCols=numCols();
 // Snapshot: maps colCount -> [{colIdx, cardEl}] so we can restore on expand
@@ -17559,18 +17580,38 @@ function vdkcInitFirebase(){
     localStorage.setItem('vd_kc_connections',JSON.stringify(vdkc_conns));
     if(Array.isArray(map)){localStorage.setItem('vd_kc_colmap',JSON.stringify(map));}
     vdkc_render();
+    scheduleMigration();                 // carry any legacy base64 files → Cloudflare KV
   }
   async function doLoad(){
     if(!window._fbLoadVedaLinks) return;
     const data=await window._fbLoadVedaLinks();
     applyRemote(data);
   }
+  // ── Auto-migrate legacy base64 docs → Cloudflare KV ──────────────────────
+  let _vdkcMigTimer=null, _vdkcMigRunning=false;
+  async function runCloudMigration(manual, onProgress){
+    if(_vdkcMigRunning) return {busy:true};
+    _vdkcMigRunning=true;
+    try{
+      const r=await window._kcMigrateConnsToCloud(vdkc_conns, window.VdkcCloud, onProgress);
+      if(r.uploaded){
+        localStorage.setItem('vd_kc_connections',JSON.stringify(vdkc_conns));
+        vdkc_save();                     // push slimmed metadata (URL, no base64) to Firestore
+        vdkc_render();
+      }
+      return r;
+    } finally { _vdkcMigRunning=false; }
+  }
+  function scheduleMigration(){ if(_vdkcMigTimer)clearTimeout(_vdkcMigTimer); _vdkcMigTimer=setTimeout(()=>runCloudMigration(false),600); }
+  window._vdkcCloudMigrate=runCloudMigration;  // manual trigger for the Sync Files button
+
   if(window._fbReady){doLoad();}
   else{window.addEventListener('fb-ready',doLoad,{once:true});}
   window.addEventListener('fb-vdkc-remote-update',e=>{applyRemote(e.detail);});
   window.addEventListener('fb-vdkc-saved',()=>{if(window.vdkcSetSync)window.vdkcSetSync('saved');});
   window.addEventListener('fb-vdkc-synced',()=>{if(window.vdkcSetSync)window.vdkcSetSync('saved');});
   window.addEventListener('fb-vdkc-error',()=>{if(window.vdkcSetSync)window.vdkcSetSync('error');});
+  scheduleMigration();                    // migrate localStorage docs on first open too
 }
 vdkcInitFirebase();
 
