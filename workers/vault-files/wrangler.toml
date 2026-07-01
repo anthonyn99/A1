@@ -15,8 +15,8 @@ WORKER_ORIGIN = "https://vault-files.av1.workers.dev"
 # KV (free Workers plan) = no credit card, 1 GB + 25 MB/file per namespace.
 [[kv_namespaces]]
 binding = "KEYCHAIN"
-id = "REPLACE_WITH_KEYCHAIN_KV_ID"
+id = "368086aa79d34d8383ef85bd1e4f597b"
 
 [[kv_namespaces]]
 binding = "LINKS"
-id = "REPLACE_WITH_LINKS_KV_ID"
+id = "43e7af9882894b5b82f34bb9b6f88719"
