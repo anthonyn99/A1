@@ -6480,9 +6480,10 @@ window.kcSaveModal=async function(){
       return;
     }
   }
-  // Clean up deleted files from IDB (Storage no longer used)
+  // Clean up deleted files from local IDB cache AND Cloudflare KV
   _kcDocs.forEach(d=>{
     [d.toDelete?d.fileId:null,d._deleteFileId||null].filter(Boolean).forEach(fid=>window.KcFileStore.delete(fid).catch(()=>{}));
+    [d.toDelete?(d.storagePath||d.fileId):null,d._deleteStoragePath||null].filter(Boolean).forEach(p=>window.KcCloud.remove(p));
   });
   // Build items
   const items=[];
@@ -16600,9 +16601,10 @@ window.kcSaveModal=async function(){
       return;
     }
   }
-  // Clean up deleted files from IDB (Storage no longer used)
+  // Clean up deleted files from local IDB cache AND Cloudflare KV
   _kcDocs.forEach(d=>{
     [d.toDelete?d.fileId:null,d._deleteFileId||null].filter(Boolean).forEach(fid=>window.KcFileStore.delete(fid).catch(()=>{}));
+    [d.toDelete?(d.storagePath||d.fileId):null,d._deleteStoragePath||null].filter(Boolean).forEach(p=>window.KcCloud.remove(p));
   });
   // Build items
   const items=[];
@@ -17478,6 +17480,7 @@ window.vdkcSaveModal=async function(){
   }
   _vdkcDocs.forEach(d=>{
     [d.toDelete?d.fileId:null,d._deleteFileId||null].filter(Boolean).forEach(fid=>window.KcFileStore.delete(fid).catch(()=>{}));
+    [d.toDelete?(d.storagePath||d.fileId):null,d._deleteStoragePath||null].filter(Boolean).forEach(p=>window.VdkcCloud.remove(p));
   });
   const items=[];
   document.querySelectorAll('#vd-kc-link-fields .kc-link-field-row').forEach(row=>{
