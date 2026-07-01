@@ -5880,6 +5880,28 @@ window._kcMigrateConnsToCloud = async function(conns, cloud, onProgress) {
   }
   return { uploaded, total, tooBig, failed };
 };
+
+// Shared "Sync Files" button handler for Keychain + Links.
+async function _kcRunSyncButton(btnId, getMigrateFn, appName) {
+  const btn = document.getElementById(btnId);
+  if (!btn || btn._busy) return;
+  const migrate = getMigrateFn();
+  const orig = btn.textContent;
+  const set = t => { btn.textContent = t; };
+  if (typeof migrate !== 'function') { set('⚠ Not ready'); setTimeout(() => set(orig), 3000); return; }
+  btn._busy = true; btn.disabled = true;
+  set('Syncing…');
+  try {
+    const r = await migrate(true, (done, total) => set('Syncing ' + done + '/' + total + '…'));
+    if (r && r.busy) set('Busy…');
+    else if (r && r.uploaded) set('✓ ' + r.uploaded + ' synced' + (r.tooBig ? ' · ' + r.tooBig + ' too big' : ''));
+    else if (r && r.total === 0) set('✓ All synced');
+    else set(r && r.tooBig ? '⚠ ' + r.tooBig + ' over 25MB' : 'Nothing to sync');
+  } catch (e) { console.warn(appName + ' sync failed:', e); set('⚠ Failed — retry'); }
+  finally { btn.disabled = false; setTimeout(() => { set(orig); btn._busy = false; }, 4500); }
+}
+window.kcSyncFilesClick   = () => _kcRunSyncButton('kc-syncfiles-btn',    () => window._kcCloudMigrate,   'Keychain');
+window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => window._vdkcCloudMigrate, 'Links');
 </script>
 <!-- ── Keychain App ─────────────────────────────────────────── -->
 <div id="kc-root" class="view-mode" style="display:none">
