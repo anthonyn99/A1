@@ -25,6 +25,7 @@ jobs:
       mylist: ${{ steps.filter.outputs.mylist }}
       taskhubvoice: ${{ steps.filter.outputs.taskhubvoice }}
       studyosfiles: ${{ steps.filter.outputs.studyosfiles }}
+      vaultfiles: ${{ steps.filter.outputs.vaultfiles }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -47,6 +48,8 @@ jobs:
               - 'workers/taskhub-voice/**'
             studyosfiles:
               - 'workers/studyos-files/**'
+            vaultfiles:
+              - 'workers/vault-files/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -141,3 +144,14 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/studyos-files
+
+  deploy-vault-files:
+    needs: changes
+    if: ${{ needs.changes.outputs.vaultfiles == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/vault-files

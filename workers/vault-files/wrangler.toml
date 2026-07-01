@@ -1,0 +1,22 @@
+name = "vault-files"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+WORKER_ORIGIN = "https://vault-files.av1.workers.dev"
+
+# ── Two separate KV namespaces: one per app (keeps their files isolated) ────
+# Create them ONCE, then paste each id below (deploy fails until both are real):
+#
+#   wrangler kv namespace create KEYCHAIN
+#   wrangler kv namespace create LINKS
+#
+# …or in the dashboard: Workers & Pages → KV → Create namespace (×2).
+# KV (free Workers plan) = no credit card, 1 GB + 25 MB/file per namespace.
+[[kv_namespaces]]
+binding = "KEYCHAIN"
+id = "REPLACE_WITH_KEYCHAIN_KV_ID"
+
+[[kv_namespaces]]
+binding = "LINKS"
+id = "REPLACE_WITH_LINKS_KV_ID"

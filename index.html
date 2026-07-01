@@ -3881,16 +3881,17 @@ function App(){
   // into a narrow column beside the pills.
   const mcChip=(e)=>{const tm=mcTimeLocal(e);return React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
-      tm?React.createElement("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:T.AC,background:T.AC+"22",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.AC+"55"}},tm):null,
+      tm?React.createElement("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},tm):null,
       /* Catalysts-pushed events use a neutral GRAY category chip here (Tony's TaskHub),
          to match Veda's. The colorful category chips stay in the Catalysts tab only. */
-      React.createElement("span",{style:{fontSize:8,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 5px",textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},e.category),
-      e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:8,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
+      React.createElement("span",{style:{fontSize:9.5,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 6px",textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},e.category),
+      e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
     React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       React.createElement("span",{style:{fontSize:11,flexShrink:0,lineHeight:1.35,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
       React.createElement("span",{style:{fontSize:11,fontWeight:700,color:T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
-  // Render a day's catalysts: collapse 2+ earnings into ONE clean full-width card
-  // ("Earnings: AAPL, AMZN, BE …"); a lone earnings + every macro/holiday render as their own chip.
+  // Render a day's catalysts: collapse 2+ earnings into ONE card that looks IDENTICAL to a
+  // single earning — "Earnings" pill on top, "GOOGL, MMM … Earnings" below — by routing the
+  // grouped card through the same mcChip. Macros/holidays render as their own chip.
   const mcRender=(mcDay)=>{
     if(!mcDay||!mcDay.length)return null;
     const earn=mcDay.filter(e=>e.kind==="earnings"),rest=mcDay.filter(e=>e.kind!=="earnings"),out=[];
@@ -3898,9 +3899,7 @@ function App(){
     else if(earn.length>1){
       const past=earn.every(e=>e._past);
       const tickers=earn.map(e=>mcTicker(e.title)).join(", ");
-      out.push(React.createElement("div",{key:"earn-"+earn[0].date,style:{...wkCatalystCard("earnings"),display:"flex",alignItems:"flex-start",gap:6,marginBottom:isMobile?4:3,cursor:"default",opacity:past?0.5:1}},
-        React.createElement("span",{style:{fontSize:11,flexShrink:0,lineHeight:1.35,marginTop:1}},"📈"),
-        React.createElement("span",{style:{fontSize:11,fontWeight:700,color:T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},"Earnings: "+tickers)));
+      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past}));
     }
     rest.forEach(e=>out.push(mcChip(e)));
     return out;
@@ -5782,6 +5781,104 @@ window.kcDownloadFileData = function(dataUrl, name, mime) {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url), 5000);
   }catch(e){console.error('kcDownloadFileData error:',e);alert('Could not download file.');}
+};
+
+// ── Cloudflare KV file storage for Keychain (Tony) + Links (Veda) ─────────
+// Replaces base64-in-Firestore. Each app has its own KV namespace via the
+// free `vault-files` worker. Only the URL rides in Firestore, so files sync
+// (viewable + downloadable) on every device with no 900KB limit.
+const KC_CLOUD_BASE = 'https://vault-files.av1.workers.dev';
+const KC_CLOUD_MAX  = 25 * 1024 * 1024; // KV value limit (free plan)
+function _kcMakeCloud(bucket) {
+  const base = KC_CLOUD_BASE + '/' + bucket + '/f/';
+  return {
+    async upload(key, file) {
+      if (file.size > KC_CLOUD_MAX) { const e = new Error('too-large'); e.tooLarge = true; throw e; }
+      const u = base + encodeURIComponent(key);
+      const resp = await fetch(u, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          'X-File-Name': encodeURIComponent(file.name || 'document'),
+        },
+        body: file,
+      });
+      if (!resp.ok) throw new Error('upload ' + resp.status);
+      return u;
+    },
+    async remove(key) { if (!key) return; try { await fetch(base + encodeURIComponent(key), { method: 'DELETE' }); } catch (_) {} },
+  };
+}
+window.KcCloud   = _kcMakeCloud('keychain'); // Tony's Keychain
+window.VdkcCloud = _kcMakeCloud('links');    // Veda's Links
+
+// Shared: upload one pending doc entry (from _kcDocs/_vdkcDocs) to KV.
+// Keeps a local IDB cache, sets storageUrl/storagePath, clears fileData.
+// Falls back to base64-in-Firestore only if the worker fails AND file ≤900KB.
+window._kcUploadDocEntry = async function(d, statusPrefix, cloud) {
+  const statusEl = document.getElementById(statusPrefix + d.id);
+  const file = d._origFile || d.file;
+  const setS = (t, c) => { if (statusEl) { statusEl.textContent = t; statusEl.className = 'kc-doc-row-status' + (c ? ' ' + c : ''); } };
+  if (!file) return true;
+  // Local IDB cache first — its id doubles as the stable cloud key.
+  let key;
+  try { key = await window.KcFileStore.save(file); } catch (_) { key = 'kf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
+  d.fileId = key;
+  if (file.size <= KC_CLOUD_MAX) {
+    try {
+      setS('uploading…', 'uploading');
+      d.storageUrl = await cloud.upload(key, file);
+      d.storagePath = key;
+      d.fileData = '';                 // no base64 in Firestore anymore
+      d.saved = true; d.file = null; d._origFile = null;
+      setS('✓');
+      return true;
+    } catch (e) { console.warn('KC cloud upload failed, trying local fallback:', file.name, e); }
+  }
+  // Fallback: base64 into Firestore (only viable ≤900KB).
+  if (file.size <= 900000) {
+    try {
+      d.fileData = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.onerror = () => rej(new Error('read fail')); fr.readAsDataURL(file); });
+      d.saved = true; d.file = null; d._origFile = null;
+      setS('✓ (local)');
+      return true;
+    } catch (e) { console.error('KC base64 fallback failed:', file.name, e); }
+  }
+  setS('failed!', 'error');
+  return false;
+};
+
+// Shared: migrate a connections array's legacy base64 docs → KV. Mutates in
+// place (sets storageUrl/storagePath/fileId, clears fileData). Returns counts.
+window._kcMigrateConnsToCloud = async function(conns, cloud, onProgress) {
+  // Collect legacy docs first so progress totals are known.
+  const todo = [];
+  (conns || []).forEach(c => (c.items || []).forEach(it => {
+    if (it.type === 'doc' && !it.storageUrl && it.fileData) todo.push(it);
+  }));
+  const total = todo.length;
+  let uploaded = 0, tooBig = 0, failed = 0, strikes = 0, seen = 0;
+  for (const it of todo) {
+    seen++;
+    if (onProgress) onProgress(seen, total);
+    let blob;
+    try { blob = _kcDataUrlToBlob(it.fileData, it.mimeType).blob; } catch (_) { failed++; continue; }
+    if (blob.size > KC_CLOUD_MAX) { tooBig++; continue; }
+    const key = it.fileId || ('kf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
+    try {
+      const file = new File([blob], it.fileName || 'document', { type: it.mimeType || blob.type || 'application/octet-stream' });
+      it.storageUrl = await cloud.upload(key, file);
+      it.storagePath = key;
+      it.fileId = key;
+      it.fileData = '';               // slim the Firestore doc
+      uploaded++; strikes = 0;
+    } catch (e) {
+      failed++;
+      console.warn('KC migrate failed:', it.fileName, e);
+      if (++strikes >= 3) break;      // worker likely down — stop, retry next load
+    }
+  }
+  return { uploaded, total, tooBig, failed };
 };
 </script>
 <!-- ── Keychain App ─────────────────────────────────────────── -->
@@ -9695,13 +9792,14 @@ function App(){
   // below — so long macro names span the whole box instead of wrapping into a narrow column.
   const mcChip=(e)=>{const tm=mcTimeLocal(e);return RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
-      tm?RC("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:AL,background:AL+"26",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+AL+"66"}},tm):null,
-      RC("span",{style:{...ctag(e.category),fontSize:8}},e.category),
-      e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:8,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
+      tm?RC("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:TXD,background:TXD+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXD+"30"}},tm):null,
+      RC("span",{style:{...ctag(e.category),fontSize:9.5,borderRadius:6,padding:"1px 6px",marginLeft:0}},e.category),
+      e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
     RC("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       RC("span",{style:{fontSize:10,flexShrink:0,lineHeight:1.3,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
       RC("span",{style:{fontSize:11,fontWeight:700,color:TX,lineHeight:1.3,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
-  // Collapse 2+ earnings on a day into ONE full-width card ("Earnings: AAPL, AMZN …"); lone earnings + macros render individually.
+  // Collapse 2+ earnings into ONE card identical to a single earning ("Earnings" pill on top,
+  // "GOOGL, MMM … Earnings" below) by routing it through the same mcChip. Macros render individually.
   const mcRender=(mcDay)=>{
     if(!mcDay||!mcDay.length)return null;
     const earn=mcDay.filter(e=>e.kind==="earnings"),rest=mcDay.filter(e=>e.kind!=="earnings"),out=[];
@@ -9709,9 +9807,7 @@ function App(){
     else if(earn.length>1){
       const past=earn.every(e=>e._past);
       const tickers=earn.map(e=>mcTicker(e.title)).join(", ");
-      out.push(RC("div",{key:"earn-"+earn[0].date,style:{...vdCatalystCard("earnings"),display:"flex",alignItems:"flex-start",gap:6,marginBottom:vrMobile?4:3,cursor:"default",opacity:past?0.5:1}},
-        RC("span",{style:{fontSize:10,flexShrink:0,lineHeight:1.3,marginTop:1}},"📈"),
-        RC("span",{style:{fontSize:11,fontWeight:700,color:TX,lineHeight:1.3,flex:1,minWidth:0,wordBreak:"break-word"}},"Earnings: "+tickers)));
+      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past}));
     }
     rest.forEach(e=>out.push(mcChip(e)));
     return out;
