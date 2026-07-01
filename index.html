@@ -9790,7 +9790,7 @@ function App(){
   // below — so long macro names span the whole box instead of wrapping into a narrow column.
   const mcChip=(e)=>{const tm=mcTimeLocal(e);return RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
-      tm?RC("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:TXD,background:TXD+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXD+"30"}},tm):null,
+      tm?RC("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:TXD,whiteSpace:"nowrap",flexShrink:0}},tm):null,
       RC("span",{style:{fontSize:9.5,color:TXD,background:TXD+"1a",borderRadius:6,padding:"1px 6px",textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXD+"30"}},e.category),
       e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
     RC("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
