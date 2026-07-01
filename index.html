@@ -3876,28 +3876,31 @@ function App(){
   // Standard US-macro release time (ET), by name/category. Converted to the
   // viewer's LOCAL zone for display (CO→Mountain, GA→Eastern, etc). null → no time.
   const mcTimeLocal=(e)=>{const t=mcMacroET(e);if(!t)return"";try{const ts=thZonedTs(e.date,t.hh,t.mm,"America/New_York");return new Date(ts).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});}catch(_){return"";}};
-  const mcChip=(e)=>{const tm=mcTimeLocal(e);return React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:isMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
-    React.createElement("span",{style:{fontSize:11,flexShrink:0,lineHeight:1.35,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
-    React.createElement("span",{style:{fontSize:11,fontWeight:700,color:T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
-    React.createElement("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:4,flexShrink:0}},
-      tm?React.createElement("span",{title:"Release time (your local zone)",style:{fontSize:9,fontWeight:700,color:T.TXM,whiteSpace:"nowrap",flexShrink:0}},tm):null,
-      /* Catalysts-pushed events use a neutral GRAY chip here (Tony's TaskHub), to
-         match Veda's. The colorful category chips stay in the Catalysts tab only. */
-      React.createElement("span",{style:{fontSize:8,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},e.category),
-      e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:8,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null));};
-  // Render a day's catalysts: collapse 2+ earnings into ONE clean card (📈 · tickers · "N Earnings");
-  // a lone earnings and every macro/holiday render as their own chip (with release time).
+  // Two-row card: pills (time · category · impact) on top, then icon + full-width title
+  // below — so long names ("June PCE Report") stretch the whole box instead of wrapping
+  // into a narrow column beside the pills.
+  const mcChip=(e)=>{const tm=mcTimeLocal(e);return React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
+    React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
+      tm?React.createElement("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:T.AC,background:T.AC+"22",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.AC+"55"}},tm):null,
+      /* Catalysts-pushed events use a neutral GRAY category chip here (Tony's TaskHub),
+         to match Veda's. The colorful category chips stay in the Catalysts tab only. */
+      React.createElement("span",{style:{fontSize:8,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 5px",textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},e.category),
+      e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:8,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
+    React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
+      React.createElement("span",{style:{fontSize:11,flexShrink:0,lineHeight:1.35,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
+      React.createElement("span",{style:{fontSize:11,fontWeight:700,color:T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
+  // Render a day's catalysts: collapse 2+ earnings into ONE clean full-width card
+  // ("Earnings: AAPL, AMZN, BE …"); a lone earnings + every macro/holiday render as their own chip.
   const mcRender=(mcDay)=>{
     if(!mcDay||!mcDay.length)return null;
     const earn=mcDay.filter(e=>e.kind==="earnings"),rest=mcDay.filter(e=>e.kind!=="earnings"),out=[];
     if(earn.length===1)out.push(mcChip(earn[0]));
     else if(earn.length>1){
       const past=earn.every(e=>e._past);
-      const tickers=earn.map(e=>mcTicker(e.title)).join(" · ");
-      out.push(React.createElement("div",{key:"earn-"+earn[0].date,style:{...wkCatalystCard("earnings"),display:"flex",alignItems:"flex-start",gap:8,marginBottom:isMobile?4:3,cursor:"default",opacity:past?0.5:1}},
+      const tickers=earn.map(e=>mcTicker(e.title)).join(", ");
+      out.push(React.createElement("div",{key:"earn-"+earn[0].date,style:{...wkCatalystCard("earnings"),display:"flex",alignItems:"flex-start",gap:6,marginBottom:isMobile?4:3,cursor:"default",opacity:past?0.5:1}},
         React.createElement("span",{style:{fontSize:11,flexShrink:0,lineHeight:1.35,marginTop:1}},"📈"),
-        React.createElement("span",{style:{fontSize:11,fontWeight:700,color:T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},tickers),
-        React.createElement("span",{style:{fontSize:8,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 5px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},earn.length+" Earnings")));
+        React.createElement("span",{style:{fontSize:11,fontWeight:700,color:T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},"Earnings: "+tickers)));
     }
     rest.forEach(e=>out.push(mcChip(e)));
     return out;
@@ -9688,24 +9691,27 @@ function App(){
   const vdEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
   // Macro release time in the viewer's LOCAL zone (CO→Mountain, GA→Eastern…). "" if unknown.
   const mcTimeLocal=(e)=>{const t=mcMacroET(e);if(!t)return"";try{const ts=thZonedTs(e.date,t.hh,t.mm,"America/New_York");return new Date(ts).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});}catch(_){return"";}};
-  const mcChip=(e)=>{const tm=mcTimeLocal(e);return RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",alignItems:"flex-start",gap:8,marginBottom:vrMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
-    RC("span",{style:{fontSize:10,flexShrink:0,lineHeight:1.3,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
-    RC("span",{style:{fontSize:11,fontWeight:700,color:TX,lineHeight:1.3,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
-    tm?RC("span",{title:"Release time (your local zone)",style:{fontSize:9,fontWeight:700,color:TXM,whiteSpace:"nowrap",flexShrink:0}},tm):null,
-    RC("span",{style:{...ctag(e.category),fontSize:8}},e.category),
-    e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:8,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null);};
-  // Collapse 2+ earnings on a day into ONE card (📈 · tickers · "N Earnings"); lone earnings + macros render individually.
+  // Two-row card: pills (time · category · impact) on top, then icon + full-width title
+  // below — so long macro names span the whole box instead of wrapping into a narrow column.
+  const mcChip=(e)=>{const tm=mcTimeLocal(e);return RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
+    RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
+      tm?RC("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:AL,background:AL+"26",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+AL+"66"}},tm):null,
+      RC("span",{style:{...ctag(e.category),fontSize:8}},e.category),
+      e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:8,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 5px",whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
+    RC("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
+      RC("span",{style:{fontSize:10,flexShrink:0,lineHeight:1.3,marginTop:1}},e.kind==="earnings"?"📈":e.kind==="holiday"?"🏛️":"📅"),
+      RC("span",{style:{fontSize:11,fontWeight:700,color:TX,lineHeight:1.3,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
+  // Collapse 2+ earnings on a day into ONE full-width card ("Earnings: AAPL, AMZN …"); lone earnings + macros render individually.
   const mcRender=(mcDay)=>{
     if(!mcDay||!mcDay.length)return null;
     const earn=mcDay.filter(e=>e.kind==="earnings"),rest=mcDay.filter(e=>e.kind!=="earnings"),out=[];
     if(earn.length===1)out.push(mcChip(earn[0]));
     else if(earn.length>1){
       const past=earn.every(e=>e._past);
-      const tickers=earn.map(e=>mcTicker(e.title)).join(" · ");
-      out.push(RC("div",{key:"earn-"+earn[0].date,style:{...vdCatalystCard("earnings"),display:"flex",alignItems:"flex-start",gap:8,marginBottom:vrMobile?4:3,cursor:"default",opacity:past?0.5:1}},
+      const tickers=earn.map(e=>mcTicker(e.title)).join(", ");
+      out.push(RC("div",{key:"earn-"+earn[0].date,style:{...vdCatalystCard("earnings"),display:"flex",alignItems:"flex-start",gap:6,marginBottom:vrMobile?4:3,cursor:"default",opacity:past?0.5:1}},
         RC("span",{style:{fontSize:10,flexShrink:0,lineHeight:1.3,marginTop:1}},"📈"),
-        RC("span",{style:{fontSize:11,fontWeight:700,color:TX,lineHeight:1.3,flex:1,minWidth:0,wordBreak:"break-word"}},tickers),
-        RC("span",{style:{...ctag("earnings"),fontSize:8}},earn.length+" Earnings")));
+        RC("span",{style:{fontSize:11,fontWeight:700,color:TX,lineHeight:1.3,flex:1,minWidth:0,wordBreak:"break-word"}},"Earnings: "+tickers)));
     }
     rest.forEach(e=>out.push(mcChip(e)));
     return out;

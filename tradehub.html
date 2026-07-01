@@ -4376,6 +4376,7 @@ function tbLastScheduledForce(){
   return 0;
 }
 let _tbAutoForceInFlight=false;
+let _tbLastCheckedSlot=0;
 
 
 function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
@@ -4583,21 +4584,23 @@ function TBApp(){
 
   /* ── Auto-force the market calendar on Wed & Sun at 6:00 AM Mountain ──────────
      Runs at the APP level (not the Catalysts tab) so simply opening TradeHub is
-     enough — no tab visit, no manual Refresh. On open (and every 5 min while
-     open) we compare the shared doc's generatedAt against the most recent
-     scheduled 6 AM MT slot; if the cache predates it, we fetch fresh and save.
-     The generatedAt>=slot check means the first device to refresh wins and the
-     rest skip, so it fires once per slot across all devices. */
+     enough — no tab visit, no manual Refresh.
+     Cost note: the 5-min tick is almost entirely local. tbLastScheduledForce()
+     is pure date math (free); we only touch Firebase (one getDoc) the FIRST time
+     we see a given 6 AM slot — once confirmed/handled we remember it in
+     _tbLastCheckedSlot and every later tick short-circuits with ZERO reads until
+     the next Wed/Sun boundary. Cloudflare is hit only when a force actually fires
+     (≤ once per slot across all devices — first writer wins via generatedAt). */
   useEffect(()=>{
     let stop=false, timer=null;
     const check=async()=>{
       if(stop||_tbAutoForceInFlight||!window._fbLoadMarketCal||!window._fbSaveMarketCal)return;
       const slot=tbLastScheduledForce();
-      if(!slot)return;
+      if(!slot||slot===_tbLastCheckedSlot)return;           // no slot, or already handled → 0 Firebase reads
       try{
-        const d=await window._fbLoadMarketCal();
+        const d=await window._fbLoadMarketCal();            // one read, only when a new 6 AM slot needs confirming
         const gen=(d&&(d.generatedAt||d.savedAt))||0;
-        if(gen>=slot)return;                                // already refreshed since this slot
+        if(gen>=slot){_tbLastCheckedSlot=slot;return;}      // already refreshed since this slot (maybe by another device)
         _tbAutoForceInFlight=true;
         const {future}=await tbBuildCalendar(tbLoadWatchlistLocal(),{force:true});
         // Only overwrite when we actually got events — never wipe a good cache with empties.
@@ -4605,7 +4608,8 @@ function TBApp(){
           const now=Date.now();
           window._fbSaveMarketCal({events:future,generatedAt:now,savedAt:now});
         }
-      }catch(e){}finally{_tbAutoForceInFlight=false;}
+        _tbLastCheckedSlot=slot;                            // mark handled so we don't re-fetch this slot again
+      }catch(e){}finally{_tbAutoForceInFlight=false;}       // a thrown fetch/network error leaves the slot unmarked → retried next tick
     };
     const start=()=>{check();timer=setInterval(check,5*60*1000);};
     if(window._fbReady)start();
