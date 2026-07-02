@@ -19881,13 +19881,13 @@ function renderSidebar() {
     const titleClass = entry.title ? '' : ' untitled';
     div.innerHTML = `
       ${isDraggable ? `<div class="entry-drag-handle" title="Drag to reorder"><span></span><span></span><span></span></div>` : ''}
-      <div class="entry-item-title${titleClass}">${entry.title || 'Untitled'}</div>
+      <div class="entry-item-title${titleClass}">${_bjHlTitle(entry.title || 'Untitled', search)}</div>
       <div class="entry-item-meta">
         <span class="template-badge">${tmap[entry.template]||'NOTE'}</span>
         <span>${date}</span>
         ${(entry.tags||[]).length ? `<span>· ${entry.tags.slice(0,2).join(', ')}${entry.tags.length > 2 ? '…' : ''}</span>` : ''}
       </div>
-      <button class="entry-delete" data-id="${entry.id}" title="Delete entry">✕</button>
+      <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">✕</button>
     `;
     div.addEventListener('click', e => {
       if (e.target.classList.contains('entry-delete') || e.target.closest('.entry-delete')) return;
