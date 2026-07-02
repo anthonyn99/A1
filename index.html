@@ -25137,9 +25137,9 @@ function renderSidebar() {
   });
   list.innerHTML = '';
   if (entries.length === 0) {
-    list.innerHTML = `<div class="list-empty">${search ? 'No entries match your search.' : 'No entries yet.<br>Click "New Entry" to begin.'}</div>`;
+    list.innerHTML = `<div class="list-empty">${search || tjTagFilters.length ? 'No entries match your search.' : 'No entries yet.<br>Click "New Entry" to begin.'}</div>`;
   }
-  const isDraggable = !search;
+  const isDraggable = !search && tjTagFilters.length === 0;
   let dragSrcId = null;
 
   entries.forEach(entry => {
@@ -25235,7 +25235,9 @@ function renderSidebar() {
     list.appendChild(div);
   });
   const ec = document.getElementById('tj-entry-count');
-  if (ec) ec.textContent = state.entries.length;
+  if (ec) ec.textContent = live.length;
+  _tjRenderTagChips(live);
+  _tjRenderTrashBtn();
 }
 
 function showTemplate(name) {
@@ -27767,7 +27769,7 @@ document.getElementById('tj-new-entry-btn').addEventListener('click', () => {
 });
 document.getElementById('tj-search-box').addEventListener('input', renderSidebar);
 
-loadState(); renderSidebar(); loadActiveEntry(); setEditMode(false);
+loadState(); purgeExpiredTrash(); renderSidebar(); loadActiveEntry(); setEditMode(false);
 
 /* ── MOBILE UI LOGIC ─────────────────────────────────────────────── */
 var tjIsMobile = false;
