@@ -4865,6 +4865,23 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         .catch(err => console.warn('BJ order save failed:', err.message));
     };
 
+    // Save ONE specific entry's field immediately (used for trash/restore of a
+    // non-active entry — the debounced _fbSaveJournal only writes the active one).
+    window._fbSaveJournalEntry = async (entry, allEntries) => {
+      if (!entry || !entry.id) return;
+      try {
+        const { entry: stripped, imageUploadPromises } = await _bjStripEntry(entry);
+        const sanitized = _bjSanitize(stripped);
+        await Promise.all(imageUploadPromises || []);
+        const _ts = Date.now();
+        _bjLastOwnSaveAt = _ts; _bjLastWrittenSavedAt = _ts;
+        const payload = { ['e_' + entry.id]: sanitized, savedAt: _ts };
+        if (Array.isArray(allEntries)) payload._order = allEntries.map(e => e.id);
+        await _fbUpsert(bjDocRef, payload, 'BJ save-one');
+        window.dispatchEvent(new CustomEvent('fb-bj-saved'));
+      } catch(e) { console.warn('BJ save-one failed:', e.message); }
+    };
+
     window._fbDeleteJournalEntry = async (entryId) => {
       try {
         const _delTs = Date.now();
@@ -5282,6 +5299,23 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _tjLastWrittenSavedAt = _tjOrdTs;
       _fbUpsert(tjDocRef, { _order, savedAt: _tjOrdTs }, 'TJ order')
         .catch(err => console.warn('TJ order save failed:', err.message));
+    };
+
+    // Save ONE specific entry's field immediately (used for trash/restore of a
+    // non-active entry — the debounced _fbSaveTonyJournal only writes the active one).
+    window._fbSaveTonyJournalEntry = async (entry, allEntries) => {
+      if (!entry || !entry.id) return;
+      try {
+        const { entry: stripped, imageUploadPromises } = await _tjStripEntry(entry);
+        const sanitized = _tjSanitize(stripped);
+        await Promise.all(imageUploadPromises || []);
+        const _ts = Date.now();
+        _tjLastOwnSaveAt = _ts; _tjLastWrittenSavedAt = _ts;
+        const payload = { ['e_' + entry.id]: sanitized, savedAt: _ts };
+        if (Array.isArray(allEntries)) payload._order = allEntries.map(e => e.id);
+        await _fbUpsert(tjDocRef, payload, 'TJ save-one');
+        window.dispatchEvent(new CustomEvent('fb-tj-saved'));
+      } catch(e) { console.warn('TJ save-one failed:', e.message); }
     };
 
     window._fbDeleteTonyJournalEntry = async (entryId) => {
@@ -19705,8 +19739,10 @@ function _bjApplyRemote(remote) {
   }
   state.entries = allEntries;
 
-  // If active entry was deleted on another device, switch to first available
-  if (state.activeId && !state.entries.find(function(e) { return e.id === state.activeId; })) {
+  // If the active entry was deleted OR trashed on another device, switch to first available
+  var _bjActiveGone = state.activeId && !state.entries.find(function(e) { return e.id === state.activeId; });
+  var _bjActiveTrashed = state.activeId && (state.entries.find(function(e){ return e.id === state.activeId; }) || {}).trashed;
+  if (_bjActiveGone || _bjActiveTrashed) {
     state.activeId = (state.entries.find(function(e){ return !e.trashed; }) || {}).id || null;
     loadActiveEntry();
   }
@@ -19776,6 +19812,8 @@ function deleteEntry(id) {
   entry.updated = Date.now();
   if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
   saveState(); renderSidebar(); loadActiveEntry();
+  // Push the trashed entry itself (it isn't the active one, so the debounced save skips it)
+  if (window._fbSaveJournalEntry) window._fbSaveJournalEntry(entry, state.entries);
 }
 // Permanent delete — used by the Trash UI and the 30-day auto-purge
 function hardDeleteEntry(id) {
@@ -19792,7 +19830,13 @@ function purgeExpiredTrash() {
 }
 window._bjTrashAPI = {
   list: () => state.entries.filter(e => e.trashed).sort((a,b) => (b.trashed||0)-(a.trashed||0)),
-  restore: (ids) => { (ids||[]).forEach(id => { const e = state.entries.find(x => x.id === id); if (e) { delete e.trashed; e.updated = Date.now(); } }); saveState(); renderSidebar(); },
+  restore: (ids) => {
+    (ids||[]).forEach(id => {
+      const e = state.entries.find(x => x.id === id);
+      if (e) { delete e.trashed; e.updated = Date.now(); if (window._fbSaveJournalEntry) window._fbSaveJournalEntry(e, state.entries); }
+    });
+    saveState(); renderSidebar();
+  },
   purge: (ids) => { (ids||[]).forEach(hardDeleteEntry); },
   ttlDays: 30
 };
@@ -20064,6 +20108,7 @@ function loadActiveEntry() {
     ed.innerHTML = html;
     ed.contentEditable = isEditMode ? 'true' : 'false';
     updatePageToolbarState();
+    if (window._docxOnLoad) window._docxOnLoad('bj-page-editor');
     // Rebind image handlers lost when innerHTML was set
     ed.querySelectorAll('.pg-img-wrap').forEach(_pgBindImgWrap);
     if (html.includes('bj-fbimg://') && window._fbRehydratePageImages) {
@@ -22901,6 +22946,8 @@ window.hideBrainstormJournal = function() {
 /* Bottom bar light mode */
 #tj-root.tj-light #tj-bottom-bar { background: #DDD3D8; border-color: #C8BAC0; }
 /* theme btn */
+/* MyJournal is dark-only — hide the light/dark toggle buttons entirely. */
+#tj-root #tj-theme-btn, #tj-root #tj-theme-btn-mobile { display: none !important; }
 #tj-root #tj-theme-btn {
   background: transparent;
   border: 1px solid var(--border2);
@@ -25000,8 +25047,10 @@ function _tjApplyRemote(remote) {
   }
   state.entries = allEntries;
 
-  // If active entry was deleted on another device, switch to first available
-  if (state.activeId && !state.entries.find(function(e) { return e.id === state.activeId; })) {
+  // If the active entry was deleted OR trashed on another device, switch to first available
+  var _activeGone = state.activeId && !state.entries.find(function(e) { return e.id === state.activeId; });
+  var _activeTrashed = state.activeId && (state.entries.find(function(e){ return e.id === state.activeId; }) || {}).trashed;
+  if (_activeGone || _activeTrashed) {
     state.activeId = (state.entries.find(function(e){ return !e.trashed; }) || {}).id || null;
     loadActiveEntry();
   }
@@ -25073,6 +25122,8 @@ function deleteEntry(id) {
   entry.updated = Date.now();
   if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
   saveState(); renderSidebar(); loadActiveEntry();
+  // Push the trashed entry itself (it isn't the active one, so the debounced save skips it)
+  if (window._fbSaveTonyJournalEntry) window._fbSaveTonyJournalEntry(entry, state.entries);
 }
 // Permanent delete — used by the Trash UI and the 30-day auto-purge
 function hardDeleteEntry(id) {
@@ -25089,7 +25140,13 @@ function purgeExpiredTrash() {
 }
 window._tjTrashAPI = {
   list: () => state.entries.filter(e => e.trashed).sort((a,b) => (b.trashed||0)-(a.trashed||0)),
-  restore: (ids) => { (ids||[]).forEach(id => { const e = state.entries.find(x => x.id === id); if (e) { delete e.trashed; e.updated = Date.now(); } }); saveState(); renderSidebar(); },
+  restore: (ids) => {
+    (ids||[]).forEach(id => {
+      const e = state.entries.find(x => x.id === id);
+      if (e) { delete e.trashed; e.updated = Date.now(); if (window._fbSaveTonyJournalEntry) window._fbSaveTonyJournalEntry(e, state.entries); }
+    });
+    saveState(); renderSidebar();
+  },
   purge: (ids) => { (ids||[]).forEach(hardDeleteEntry); },
   ttlDays: 30
 };
@@ -25365,6 +25422,7 @@ function loadActiveEntry() {
     ed.innerHTML = html;
     ed.contentEditable = isEditMode ? 'true' : 'false';
     updatePageToolbarState();
+    if (window._docxOnLoad) window._docxOnLoad('tj-page-editor');
     // Rebind image handlers lost when innerHTML was set
     ed.querySelectorAll('.pg-img-wrap').forEach(_pgBindImgWrap);
     if (html.includes('tj-fbimg://') && window._fbRehydrateTonyPageImages) {
@@ -28563,7 +28621,9 @@ window.tjSwitchTo = function(app) {
   function tjApplyTheme(isDark) {
     var root = document.getElementById('tj-root');
     if (!root) return;
-    root.classList.toggle('tj-light', !isDark);
+    // MyJournal is dark-only now — never apply the light theme regardless of the shared toggle.
+    root.classList.remove('tj-light');
+    isDark = true;
     var btn = document.getElementById('tj-theme-btn');
     if (btn) btn.innerHTML = isDark ? moonSvg : sunSvg;
     var btnM = document.getElementById('tj-theme-btn-mobile');
@@ -28794,8 +28854,8 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 #tj-root .docx-tagchip, #bj-root .docx-tagchip { max-width: 100%; box-sizing: border-box; font-size: 10.5px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border2, #444); background: transparent; color: var(--text2, #999); cursor: pointer; font-family: inherit; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all .12s; }
 #tj-root .docx-tagchip:hover, #bj-root .docx-tagchip:hover { border-color: var(--purple, #E0607A); color: var(--text, #eee); }
 #tj-root .docx-tagchip.on, #bj-root .docx-tagchip.on { background: var(--purple, #E0607A); color: #101014; border-color: var(--purple, #E0607A); font-weight: 700; }
-#tj-root .docx-trash-btn, #bj-root .docx-trash-btn { margin: 4px 12px 8px; padding: 8px 11px; display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: calc(100% - 24px); background: transparent; border: 1px dashed var(--border2, #444); border-radius: 7px; color: var(--text3, #777); font-size: 11px; cursor: pointer; font-family: inherit; letter-spacing: .04em; transition: all .12s; }
-#tj-root .docx-trash-btn:hover, #bj-root .docx-trash-btn:hover { color: var(--text, #eee); border-color: var(--purple, #E0607A); }
+#tj-root .docx-trash-btn, #bj-root .docx-trash-btn { flex-shrink: 0; margin: 0; padding: 11px 16px; display: flex; align-items: center; gap: 9px; box-sizing: border-box; width: 100%; background: transparent; border: none; border-top: 1px solid var(--border, #252530); border-radius: 0; color: var(--text3, #777); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit; letter-spacing: .05em; text-transform: uppercase; transition: all .12s; }
+#tj-root .docx-trash-btn:hover, #bj-root .docx-trash-btn:hover { color: var(--text, #eee); background: rgba(255,255,255,.03); }
 #tj-root .docx-trash-count, #bj-root .docx-trash-count { margin-left: auto; background: var(--purple, #E0607A); color: #101014; border-radius: 9px; padding: 0 7px; font-weight: 700; font-size: 10px; line-height: 16px; }
 
 /* ── Modals (Trash / Page setup / Word count / Shortcuts) ── */
@@ -30037,8 +30097,6 @@ function buildMenubar(ctx) {
     p.appendChild(mi('Rename document', function() { var t = $(app === 'tj' ? 'tj-entry-title-input' : 'bj-entry-title-input'); if (t) { t.focus(); t.select(); } }));
     p.appendChild(msep());
     p.appendChild(mi('Print / Export PDF', function() { var eb = $(cfg.exportBtn); if (eb) eb.click(); }, 'Ctrl+P'));
-    p.appendChild(msep());
-    p.appendChild(mi('Trash…', function() { window._docxOpenTrash(app); }));
   });
   menu('Edit', function(p) {
     p.appendChild(mi('Undo', function() { ctx.history.undo(); }, 'Ctrl+Z'));
