@@ -21066,6 +21066,7 @@ function _bjCompressImage(src, callback) {
 
 // Bind all interactive handlers to a pg-img-wrap element.
 // Called both when inserting a new image AND after ed.innerHTML = html (rebind).
+window._bjBindImg = function(w){ return _pgBindImgWrap(w); };
 function _pgBindImgWrap(wrap) {
   // Avoid double-binding
   if (wrap._pgBound) return;
@@ -26375,6 +26376,7 @@ function _tjCompressImage(src, callback) {
 
 // Bind all interactive handlers to a pg-img-wrap element.
 // Called both when inserting a new image AND after ed.innerHTML = html (rebind).
+window._tjBindImg = function(w){ return _pgBindImgWrap(w); };
 function _pgBindImgWrap(wrap) {
   // Avoid double-binding
   if (wrap._pgBound) return;
