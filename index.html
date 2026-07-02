@@ -30186,11 +30186,157 @@ function injectRibbonExtras(ctx) {
     setZoom(ctx.app, v);
   });
   endFrag.appendChild(zoomSel);
-  var clearFB = ptBtn(svg(IC.clearFmt), 'Clear formatting');
-  clearFB.addEventListener('click', function() { exec(ctx, 'removeFormat'); });
+  var clearFB = ptBtn(svg(IC.clearFmt), 'Clear ALL formatting');
+  clearFB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
+  clearFB.addEventListener('click', function() { clearAllFormatting(ctx); });
   endFrag.appendChild(clearFB);
   if (spacer) tb.insertBefore(endFrag, spacer);
   else tb.appendChild(endFrag);
+}
+
+/* ═══════════ Robust block / inline-code / link / indent / clear operations ═══════════ */
+function changeBlockTag(el, tag) {
+  var n = document.createElement(tag);
+  // carry over inline block styles (indent margin, text-align, line spacing)
+  if (el.style.cssText) n.style.cssText = el.style.cssText;
+  while (el.firstChild) n.appendChild(el.firstChild);
+  el.parentNode.replaceChild(n, el);
+  return n;
+}
+function setBlock(ctx, tag) {
+  restoreSel(ctx);
+  var blocks = selBlocks(ctx);
+  if (!blocks.length) { document.execCommand('formatBlock', false, tag); fireInput(ctx.edEl); return; }
+  var last = null;
+  blocks.forEach(function(b) {
+    if (b.tagName === 'LI') return; // don't retag list items
+    // toggle: choosing the same tag it already is → back to paragraph
+    var target = (b.tagName.toLowerCase() === tag.toLowerCase()) ? 'p' : tag;
+    if (b.tagName.toLowerCase() === target.toLowerCase()) { last = b; return; }
+    last = changeBlockTag(b, target);
+  });
+  if (last) {
+    var r = document.createRange(); r.selectNodeContents(last); r.collapse(false);
+    var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  fireInput(ctx.edEl);
+  updateBlockSelect(ctx);
+}
+function updateBlockSelect(ctx) {
+  var sel = ctx.tbEl.querySelector('[id$="-pt-block"]');
+  if (!sel) return;
+  var b = selBlocks(ctx)[0];
+  var tag = b ? b.tagName.toLowerCase() : 'p';
+  sel.value = ({ h1: 'h1', h2: 'h2', h3: 'h3', pre: 'pre', blockquote: 'blockquote' })[tag] || 'p';
+}
+function codeAncestor(ctx) { return closestInEd(ctx, 'code'); }
+function toggleInlineCode(ctx) {
+  restoreSel(ctx);
+  var existing = codeAncestor(ctx);
+  if (existing) { _unwrap(existing); ctx.edEl.normalize(); fireInput(ctx.edEl); return; }
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+  var range = sel.getRangeAt(0);
+  // strip any <code> fully inside the selection first (avoid nesting)
+  var frag = range.cloneContents();
+  var tmp = document.createElement('div'); tmp.appendChild(frag);
+  var text = tmp.textContent;
+  var code = document.createElement('code');
+  code.textContent = text;
+  range.deleteContents();
+  range.insertNode(code);
+  var r2 = document.createRange(); r2.selectNodeContents(code); r2.collapse(false);
+  sel.removeAllRanges(); sel.addRange(r2);
+  fireInput(ctx.edEl);
+}
+function linkAncestor(ctx) { return closestInEd(ctx, 'a'); }
+function toggleLink(ctx) {
+  restoreSel(ctx);
+  var a = linkAncestor(ctx);
+  if (a) {
+    // already a link → offer edit / remove via a small popup
+    linkPopup(ctx, a);
+    return;
+  }
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) { docxToast('Select text first to add a link.'); return; }
+  var url = prompt('Link URL:');
+  if (!url) return;
+  if (!/^(https?:|mailto:|tel:|#|\/)/i.test(url)) url = 'https://' + url;
+  document.execCommand('createLink', false, url);
+  // mark new links to open in a new tab
+  ctx.edEl.querySelectorAll('a[href="' + url + '"]').forEach(function(x) { x.setAttribute('target', '_blank'); x.setAttribute('rel', 'noopener'); });
+  fireInput(ctx.edEl);
+}
+function linkPopup(ctx, a) {
+  showPop(ctx.tbEl.querySelector('[id$="-pt-link"]') || ctx.tbEl, function(p) {
+    p.appendChild(mi('Open link', function() { window.open(a.href, '_blank', 'noopener'); }));
+    p.appendChild(mi('Edit link…', function() {
+      var url = prompt('Link URL:', a.href);
+      if (url) { if (!/^(https?:|mailto:|tel:|#|\/)/i.test(url)) url = 'https://' + url; a.href = url; fireInput(ctx.edEl); }
+    }));
+    p.appendChild(mi('Remove link', function() { _unwrap(a); ctx.edEl.normalize(); fireInput(ctx.edEl); }));
+  });
+}
+function indentBlocks(ctx, dir) {
+  restoreSel(ctx);
+  var blocks = selBlocks(ctx);
+  if (!blocks.length) return;
+  blocks.forEach(function(b) {
+    var cur = parseInt(b.style.marginLeft, 10) || 0;
+    var next = Math.max(0, cur + dir * 40);
+    b.style.marginLeft = next ? next + 'px' : '';
+  });
+  fireInput(ctx.edEl);
+}
+function clearAllFormatting(ctx) {
+  restoreSel(ctx);
+  var sel = window.getSelection();
+  var collapsed = !sel || !sel.rangeCount || sel.isCollapsed;
+  // 1) strip inline formatting the browser knows about
+  document.execCommand('removeFormat');
+  document.execCommand('unlink');
+  // 2) our own: strip marks/bg spans, inline <code>, and reset block tags/styles on affected blocks
+  var blocks = selBlocks(ctx);
+  blocks.forEach(function(b) {
+    b.querySelectorAll('mark,code,[style]').forEach(function(el) {
+      if (el.tagName === 'MARK' || el.tagName === 'CODE') _unwrap(el);
+      else el.removeAttribute('style');
+    });
+    b.querySelectorAll('a').forEach(_unwrap);
+    b.style.cssText = '';
+    if (/^(H[1-6]|PRE|BLOCKQUOTE)$/.test(b.tagName)) changeBlockTag(b, 'p');
+  });
+  ctx.edEl.normalize();
+  fireInput(ctx.edEl);
+  updateBlockSelect(ctx);
+}
+
+// Re-bind the existing app toolbar buttons to the robust module implementations (Pages only).
+function rebindPageButtons(ctx) {
+  var tb = ctx.tbEl;
+  function replaceBtn(sel) {
+    var b = tb.querySelector(sel);
+    if (!b) return null;
+    var n = b.cloneNode(true);
+    b.parentNode.replaceChild(n, b);
+    n.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
+    return n;
+  }
+  // inline code toggle
+  var codeB = replaceBtn('[id$="-pt-code"]');
+  if (codeB) codeB.addEventListener('click', function() { toggleInlineCode(ctx); });
+  // link add / edit / remove
+  var linkB = replaceBtn('[id$="-pt-link"]');
+  if (linkB) linkB.addEventListener('click', function() { toggleLink(ctx); });
+  // block-type <select> — robust tag toggle
+  var blkSel = tb.querySelector('[id$="-pt-block"]');
+  if (blkSel) {
+    var nb = blkSel.cloneNode(true);
+    blkSel.parentNode.replaceChild(nb, blkSel);
+    nb.addEventListener('mousedown', function() { saveSel(ctx); });
+    nb.addEventListener('change', function() { setBlock(ctx, this.value); });
+  }
 }
 
 /* ═══════════ Keyboard shortcuts + checklist toggling + undo history per editor ═══════════ */
