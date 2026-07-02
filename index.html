@@ -30341,6 +30341,50 @@ function rebindPageButtons(ctx) {
   }
 }
 
+// Ensure every image wrapper stays interactive (resize/delete/copy) no matter how the DOM
+// is rebuilt, plus float-wrap (double-click) + drag-to-place. Uses the app's own binder.
+function wireImageDelegation(ctx) {
+  var ed = ctx.edEl;
+  var binder = ctx.app === 'tj' ? window._tjBindImg : window._bjBindImg;
+  function setImgFloat(w, dir) {
+    w.style.float = dir === 'none' ? '' : dir;
+    w.style.margin = dir === 'left' ? '4px 16px 8px 0' : (dir === 'right' ? '4px 0 8px 16px' : '8px 0');
+    w.style.display = dir === 'none' ? 'block' : 'inline-block';
+  }
+  ctx.setImgFloat = setImgFloat;
+  function addExtras(w) {
+    w._docxImgExtra = true;
+    w.setAttribute('draggable', 'true');
+    var img = w.querySelector('img');
+    w.addEventListener('dragstart', function(e) {
+      ctx._imgDrag = w;
+      try { e.dataTransfer.setData('text/plain', ''); e.dataTransfer.effectAllowed = 'move'; } catch (x) {}
+    });
+    w.addEventListener('dblclick', function(e) {
+      e.preventDefault();
+      var f = (w.style.float || 'none');
+      setImgFloat(w, f === 'none' || !f ? 'left' : (f === 'left' ? 'right' : 'none'));
+      fireInput(ed);
+    });
+  }
+  function rebindAll() {
+    ed.querySelectorAll('.pg-img-wrap').forEach(function(w) {
+      if (!w._pgBound && typeof binder === 'function') binder(w);
+      if (!w._docxImgExtra) addExtras(w);
+    });
+  }
+  ed.addEventListener('dragover', function(e) { if (ctx._imgDrag) e.preventDefault(); });
+  ed.addEventListener('drop', function(e) {
+    if (!ctx._imgDrag) return;
+    e.preventDefault();
+    var w = ctx._imgDrag; ctx._imgDrag = null;
+    var range = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+    if (range) { range.insertNode(w); fireInput(ed); }
+  });
+  new MutationObserver(rebindAll).observe(ed, { childList: true, subtree: true });
+  rebindAll();
+}
+
 /* ═══════════ Keyboard shortcuts + checklist toggling + undo history per editor ═══════════ */
 function wireEditor(ctx) {
   var ed = ctx.edEl;
@@ -30450,6 +30494,7 @@ function initApp(app) {
     if (areaEl) areaEl.classList.add('docx-find-host');
     buildMenubar(ctx);
     injectRibbonExtras(ctx);
+    rebindPageButtons(ctx);
     buildRuler(ctx);
     wireEditor(ctx);
     // Re-fit zoom when the wrap resizes (sidebar toggles, orientation change)
@@ -30464,6 +30509,12 @@ function initApp(app) {
   applyPageSetup(app);
   applyViewMode(app);
 }
+// Called by the apps' loadActiveEntry after they set the page editor's innerHTML,
+// so undo/redo history resets to the freshly-loaded entry (no cross-entry undo).
+window._docxOnLoad = function(edId) {
+  var ctx = ALLCTX.find(function(c) { return c.edEl.id === edId; });
+  if (ctx && ctx.history) { ctx._histSuppress = false; ctx.history.seed(); }
+};
 function initAll() {
   Object.keys(APPS).forEach(function(app) {
     try { initApp(app); } catch (e) { console.warn('docx init failed for', app, e); }
