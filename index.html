@@ -29052,40 +29052,58 @@ function setCaret(ed, offset) {
   var s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(r2);
 }
 function makeHistory(ctx) {
-  var stack = [], idx = -1, lastT = 0;
+  var stack = [], idx = -1, lastT = 0, obs = null, pending = null;
   function snap() { return { html: ctx.edEl.innerHTML, caret: caretOffset(ctx.edEl) }; }
-  function seed() { stack = [snap()]; idx = 0; }
+  function seed() { stack = [snap()]; idx = 0; updateBtns(); }
   function syncBase() {
     if (idx < 0 || !stack[idx] || stack[idx].html !== ctx.edEl.innerHTML) seed();
   }
   function record(force) {
+    if (ctx._histSuppress) return;
     if (idx < 0) { seed(); return; }
     var html = ctx.edEl.innerHTML;
     if (stack[idx] && stack[idx].html === html) { stack[idx].caret = caretOffset(ctx.edEl); return; }
     var now = Date.now();
-    if (!force && now - lastT < 550) { stack[idx] = snap(); lastT = now; return; }  // coalesce fast typing
+    if (!force && now - lastT < 500) { stack[idx] = snap(); lastT = now; updateBtns(); return; }  // coalesce fast typing
     stack = stack.slice(0, idx + 1);
     stack.push(snap());
-    if (stack.length > 300) stack.shift();
+    if (stack.length > 400) stack.shift();
     idx = stack.length - 1;
     lastT = now;
+    updateBtns();
   }
   function apply(s) {
     ctx._histSuppress = true;
     ctx.edEl.innerHTML = s.html;
-    try { ctx.edEl.querySelectorAll('.pg-img-wrap').forEach(function(w) { if (typeof window._pgBindImgWrap === 'function') window._pgBindImgWrap(w); }); } catch (e) {}
     ctx.edEl.focus();
     setCaret(ctx.edEl, s.caret);
-    fireInput(ctx.edEl);           // triggers autoSave; history-record listener skips while suppressed
-    ctx._histSuppress = false;
+    fireInput(ctx.edEl);           // triggers autoSave; recording is suppressed
+    // release suppression on the next tick so the observer's queued records are dropped
+    setTimeout(function () { ctx._histSuppress = false; updateBtns(); }, 0);
+  }
+  function updateBtns() {
+    if (ctx.undoBtn) ctx.undoBtn.classList.toggle('pt-disabled', !(idx > 0));
+    if (ctx.redoBtn) ctx.redoBtn.classList.toggle('pt-disabled', !(idx < stack.length - 1));
+  }
+  // A MutationObserver captures EVERY DOM change (typing, execCommand, surroundContents,
+  // paste, drag, AI format) so undo/redo works for any edit, not just 'input' events.
+  function start() {
+    if (obs) return;
+    obs = new MutationObserver(function () {
+      if (ctx._histSuppress) return;
+      clearTimeout(pending);
+      pending = setTimeout(function () { record(false); }, 260);
+    });
+    obs.observe(ctx.edEl, { childList: true, subtree: true, characterData: true, attributes: true });
   }
   return {
-    seed: seed, syncBase: syncBase, record: record,
+    seed: seed, syncBase: syncBase, record: record, start: start,
     canUndo: function () { return idx > 0; },
     canRedo: function () { return idx < stack.length - 1; },
-    undo: function () { syncBase(); if (idx > 0) { idx--; apply(stack[idx]); } },
-    redo: function () { syncBase(); if (idx < stack.length - 1) { idx++; apply(stack[idx]); } },
-    commit: function () { record(true); }   // force a discrete step (AI format, etc.)
+    undo: function () { clearTimeout(pending); syncBase(); if (idx > 0) { idx--; apply(stack[idx]); } },
+    redo: function () { clearTimeout(pending); if (idx < stack.length - 1) { idx++; apply(stack[idx]); } },
+    commit: function () { clearTimeout(pending); record(true); },   // force a discrete step (AI format, etc.)
+    refresh: updateBtns
   };
 }
 
@@ -30175,6 +30193,7 @@ function wireEditor(ctx) {
   var ed = ctx.edEl;
   ctx.history = makeHistory(ctx);
   ctx.history.seed();
+  ctx.history.start();
   ed.addEventListener('keydown', function(e) {
     var mod = e.ctrlKey || e.metaKey;
     if (mod && !e.altKey) {
