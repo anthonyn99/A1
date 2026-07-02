@@ -30364,7 +30364,7 @@ function wireEditor(ctx) {
     }
   });
   // (History is captured by the MutationObserver in makeHistory — no 'input' hook needed.)
-  // Checklist checkbox toggling (sync the attribute so the state survives innerHTML saves)
+  // Checklist toggling + opening links (Ctrl/Cmd+click, or plain click when not editing)
   ed.addEventListener('click', function(e) {
     var t = e.target;
     if (t && t.classList && t.classList.contains('docx-cl-box')) {
@@ -30373,8 +30373,16 @@ function wireEditor(ctx) {
       var li = t.closest('li');
       if (li) li.classList.toggle('done', t.checked);
       fireInput(ed);
+      return;
+    }
+    var a = t && t.closest ? t.closest('a[href]') : null;
+    if (a && ed.contains(a) && (e.ctrlKey || e.metaKey || ed.contentEditable !== 'true')) {
+      e.preventDefault();
+      window.open(a.href, '_blank', 'noopener');
     }
   });
+  // Delegated image handling so images stay resizable/deletable/copyable no matter how the DOM moves
+  wireImageDelegation(ctx);
   // Keep selection bookmarked for toolbar/menu actions; reseed history on entry switch
   ed.addEventListener('keyup', function() { saveSel(ctx); });
   ed.addEventListener('mouseup', function() { saveSel(ctx); });
