@@ -20107,6 +20107,19 @@ function saveCurrentEntry() {
   saveState(); renderSidebar();
 }
 
+// First meaningful content line → title (max 60 chars)
+function _bjAutoTitle(entry) {
+  const d = entry.data || {};
+  let src = '';
+  if (entry.template === 'page') { const ed = document.getElementById('bj-page-editor'); src = ed && ed.innerText ? ed.innerText : String(d.html||'').replace(/<[^>]*>/g,'\n'); }
+  else if (entry.template === 'notes') src = d.main || d.links || d.questions || '';
+  else if (entry.template === 'cornell') src = d.topic || d.notes || d.cues || '';
+  else if (entry.template === 'mindmap') { const root = (d.nodes||[]).find(n=>n.root) || (d.nodes||[])[0]; src = (root && root.label !== 'Central Idea') ? (root.label||'') : ''; }
+  const line = (src||'').split('\n').map(s=>s.trim()).find(s=>s.length > 1) || '';
+  if (!line) return '';
+  return line.length > 60 ? line.slice(0, 57).trimEnd() + '…' : line;
+}
+
 /* TAGS */
 function renderTags(tags) {
   const row = document.getElementById('bj-tags-row');
