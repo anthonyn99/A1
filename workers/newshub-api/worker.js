@@ -1955,16 +1955,12 @@ async function callModel(entry, batch, env, ctx, wl, sectors){
 // pre-AI ordering). Favors corroboration, recency, and catalyst language.
 const IMPORTANT_KW = /(upgrade|downgrade|price target|raises|cuts guidance|guidance|earnings|beats|misses|acquir|merger|lawsuit|\bsec\b|investigation|recall|partnership|contract|launch|approval|\bfda\b|deal|buyback|dividend|surge|plunge|soar|tumble|record high|all-time|breakout|guides|tariff|antitrust|\bdoj\b|export ban|export control|sanction|chip ban|layoff|restructur|bankrupt|spinoff|stock split|\bipo\b|delist|short report|hindenburg|citron|muddy waters|insider sell|insider buy|\b13f\b|breach|cyberattack|ransomware|outage|capex|production cut|opec|barrel|inventory build|pre-announce|warns|profit warning|halts|halted|suspension|class action|whistleblower|subpoena|raid|patent|infringement|spinout|stake|activist|elliott|carl icahn|buffett|berkshire)/i;
 function scoreImportance(ev){
-  // Tuned for the 2-day window: with a day of the lowest-signal older news cut,
-  // the selection budget is redirected onto the most market-moving recent items.
-  // Corroboration + catalyst language + hard numbers are weighted above raw recency
-  // so genuinely market-moving stories outrank fresh-but-trivial single-source noise.
-  let s = (ev.sourceCount || 1) * 16;                  // multi-source corroboration = genuinely market-moving
+  let s = (ev.sourceCount || 1) * 12;                  // multi-source = market-moving
   const ageH = (Date.now() - (ev.ts || 0)) / 3600000;
-  s += Math.max(0, 48 - ageH);                          // recency bonus across the full 2-day window (freshest ranks highest)
+  s += Math.max(0, 36 - ageH);                          // recency bonus (≤36h)
   const hl = ev.sources?.[0]?.headline || '';
-  if (IMPORTANT_KW.test(hl)) s += 32;                   // catalyst keywords
-  if (/\$\d|\d+\s?%/.test(hl)) s += 12;                 // concrete numbers / PT / %
+  if (IMPORTANT_KW.test(hl)) s += 25;                   // catalyst keywords
+  if (/\$\d|\d+\s?%/.test(hl)) s += 10;                 // concrete numbers / PT / %
   // SEC 8-K filings are material by definition — make sure they survive selection
   // even when phrased without catalyst keywords. Earnings/M&A/exec/restatement
   // items get a bigger bump than routine disclosures.

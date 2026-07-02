@@ -3691,7 +3691,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   const [building,setBuilding]=useState(false); // pipeline running in background
   const [degraded,setDegraded]=useState(false); // all AI down, showing raw headlines
   const [notice,setNotice]=useState('');
-  const [hours,setHours]=useState(48); // 2-day window (worker only pulls 48h now)
+  const [hours,setHours]=useState(72); // 3-day window
   const [sentFilter,setSentFilter]=useState('all');
   const [impFilter,setImpFilter]=useState('all');
   const [selTickers,setSelTickers]=useState([]);
@@ -3742,7 +3742,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
           if(d.generatedAt&&(!d.events||d.events.length>0))setGeneratedAt(d.generatedAt);
           if(d.settings){
             const s=d.settings;
-            if(s.hours)setHours(Math.min(s.hours,48)); // clamp old saved 72h → 2-day max
+            if(s.hours)setHours(s.hours);
             if(s.sentFilter)setSentFilter(s.sentFilter);
             if(s.impFilter)setImpFilter(s.impFilter);
             if(Array.isArray(s.selTickers))setSelTickers(s.selTickers);
@@ -3776,7 +3776,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       if(d.generatedAt&&(!d.events||d.events.length>0))setGeneratedAt(d.generatedAt);
       if(d.settings){
         const s=d.settings;
-        if(s.hours)setHours(Math.min(s.hours,48)); // clamp old saved 72h → 2-day max
+        if(s.hours)setHours(s.hours);
         if(s.sentFilter)setSentFilter(s.sentFilter);
         if(s.impFilter)setImpFilter(s.impFilter);
         if(Array.isArray(s.selTickers))setSelTickers(s.selTickers);
