@@ -4019,7 +4019,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   /* ── Live quotes (price-move correlation). Worker KV-caches ~60s. Polling is
      guarded two ways so it only spends API/requests when it's actually useful:
        • Tab hidden  → don't fetch at all (re-fetches the moment it's visible).
-       • Market open → 60s cadence.  Market closed → 5min (quotes are static).
+       • Otherwise   → 5min cadence.
   ── */
   const nhFetchQuotes=useCallback(async()=>{
     if(!newsTickers.length)return;
