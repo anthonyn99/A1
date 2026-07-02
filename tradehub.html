@@ -4037,7 +4037,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       if(typeof document==='undefined'||!document.hidden)await nhFetchQuotes();
       if(stopped)return;
       const hidden=typeof document!=='undefined'&&document.hidden;
-      const delay=hidden?120000:(nhMarketOpen()?60000:300000);
+      const delay=hidden?120000:300000;
       timer=setTimeout(tick,delay);
     };
     tick();
