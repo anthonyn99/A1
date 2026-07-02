@@ -28667,10 +28667,14 @@ window.tjSwitchTo = function(app) {
 #tj-root:not(.tj-light) .docx-sheet h2, #bj-root .docx-sheet h2 { font-family: inherit; font-size: 15pt; font-weight: 700; color: #fff; margin: 12px 0 6px; line-height: 1.3; }
 #tj-root:not(.tj-light) .docx-sheet h3, #bj-root .docx-sheet h3 { font-family: inherit; font-size: 12.5pt; font-weight: 700; color: var(--purple); margin: 10px 0 5px; text-transform: none; letter-spacing: 0; }
 #tj-root:not(.tj-light) .docx-sheet a, #bj-root .docx-sheet a { color: #7ab8ff; }
-#tj-root:not(.tj-light) .docx-sheet hr, #bj-root .docx-sheet hr { border-top-color: rgba(255,255,255,.22); }
-#tj-root:not(.tj-light) .docx-sheet th, #bj-root .docx-sheet th { background: rgba(255,255,255,.08); color: #fff; text-transform: none; letter-spacing: 0; font-size: inherit; }
+/* Clearer divider + page break against the dark page */
+#tj-root:not(.tj-light) .docx-sheet hr, #bj-root .docx-sheet hr { border: none; height: 2px; background: rgba(255,255,255,.34); border-radius: 2px; margin: 18px 0; }
+#tj-root:not(.tj-light) .docx-sheet hr.docx-pagebreak, #bj-root .docx-sheet hr.docx-pagebreak { background: none; height: 0; border-top: 2px dashed rgba(150,170,255,.6); }
+#tj-root:not(.tj-light) .docx-sheet th, #bj-root .docx-sheet th { background: rgba(255,255,255,.12); color: #fff; text-transform: none; letter-spacing: 0; font-size: inherit; }
+/* Clearer table gridlines against the dark page */
 #tj-root:not(.tj-light) .docx-sheet th, #tj-root:not(.tj-light) .docx-sheet td,
-#bj-root .docx-sheet th, #bj-root .docx-sheet td { border-color: rgba(255,255,255,.25); }
+#bj-root .docx-sheet th, #bj-root .docx-sheet td { border: 1px solid rgba(255,255,255,.5); }
+#tj-root:not(.tj-light) .docx-sheet table, #bj-root .docx-sheet table { border: 1px solid rgba(255,255,255,.55); }
 #tj-root:not(.tj-light) .docx-sheet table, #bj-root .docx-sheet table { font-size: inherit; }
 #tj-root:not(.tj-light) .docx-sheet blockquote, #bj-root .docx-sheet blockquote { background: rgba(255,255,255,.05); }
 #tj-root:not(.tj-light) .docx-sheet pre, #tj-root:not(.tj-light) .docx-sheet code,
@@ -28728,20 +28732,42 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
   #bj-root #bj-page-toolbar.edit-mode ~ .docx-ruler { display: block; }
 }
 
-/* ── Find & Replace panel ── */
-.docx-find-host { position: relative; }
-.docx-find { position: absolute; top: 8px; right: 16px; z-index: 6000; background: #232428; border: 1px solid #3B3C42; border-radius: 11px; box-shadow: 0 14px 44px rgba(0,0,0,.55); padding: 11px; width: 315px; font-family: 'DM Sans','Segoe UI',sans-serif; color: #E8E8EC; display: flex; flex-direction: column; gap: 7px; }
-.docx-find .row { display: flex; gap: 6px; align-items: center; }
-.docx-find input[type="text"] { flex: 1; min-width: 0; background: #18191C; border: 1px solid #3B3C42; border-radius: 6px; color: #fff; padding: 6px 9px; font-size: 12.5px; outline: none; font-family: inherit; }
-.docx-find input[type="text"]:focus { border-color: #6f7dff; }
-.docx-find button { background: #2C2D33; border: 1px solid #3B3C42; border-radius: 6px; color: #E8E8EC; padding: 5px 9px; font-size: 11.5px; cursor: pointer; font-family: inherit; white-space: nowrap; }
-.docx-find button:hover { background: #37383F; }
-.docx-find .cnt { font-size: 11px; opacity: .65; min-width: 52px; text-align: center; }
-.docx-find label { display: flex; align-items: center; gap: 5px; font-size: 11px; opacity: .8; cursor: pointer; }
-.docx-find .x { margin-left: auto; background: transparent; border: none; font-size: 14px; padding: 2px 6px; }
-mark.docx-find-hit { background: #8A6D1A; color: inherit; border-radius: 2px; }
-mark.docx-find-hit.cur { background: #C79A1F; outline: 1px solid #FFD75E; }
+/* ── Find & Replace panel (fixed overlay — never shifts the page layout) ── */
+.docx-find { position: fixed; top: 74px; right: 22px; z-index: 100020; background: linear-gradient(180deg,#26272C,#202126); border: 1px solid #40424A; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03); padding: 12px 13px 13px; width: 340px; max-width: calc(100vw - 24px); font-family: 'DM Sans','Segoe UI',sans-serif; color: #ECECF0; display: flex; flex-direction: column; gap: 9px; }
+.docx-find-head { display: flex; align-items: center; }
+.docx-find-title { font-size: 13px; font-weight: 700; letter-spacing: .01em; }
+.docx-find .row { display: flex; gap: 7px; align-items: center; }
+.docx-find-ico { display: inline-flex; opacity: .5; flex-shrink: 0; }
+.docx-find input[type="text"] { flex: 1; min-width: 0; background: #17181B; border: 1px solid #3B3C42; border-radius: 8px; color: #fff; padding: 8px 11px; font-size: 13px; outline: none; font-family: inherit; transition: border-color .12s, box-shadow .12s; }
+.docx-find input[type="text"]:focus { border-color: #6f7dff; box-shadow: 0 0 0 3px rgba(111,125,255,.15); }
+.docx-find button { background: #303138; border: 1px solid #40424A; border-radius: 8px; color: #E8E8EC; padding: 7px 11px; font-size: 12px; cursor: pointer; font-family: inherit; white-space: nowrap; transition: background .12s, border-color .12s; }
+.docx-find button:hover { background: #3c3e46; border-color: #55575f; }
+.docx-find .f-prev, .docx-find .f-next { padding: 7px 9px; font-size: 13px; line-height: 1; }
+.docx-find .f-rall { background: #5B7CFF; border-color: #5B7CFF; color: #fff; font-weight: 700; }
+.docx-find .f-rall:hover { background: #6E8BFF; }
+.docx-find .cnt { font-size: 11.5px; opacity: .6; min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+.docx-find-opts { gap: 16px; padding-top: 1px; }
+.docx-find label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; opacity: .82; cursor: pointer; }
+.docx-find .x { margin-left: auto; background: transparent; border: none; font-size: 15px; padding: 2px 6px; color: #9a9aa4; }
+.docx-find .x:hover { color: #fff; background: rgba(255,255,255,.08); }
+mark.docx-find-hit { background: #8A6D1A; color: #fff; border-radius: 2px; }
+mark.docx-find-hit.cur { background: #E0A62A; color: #201800; outline: 2px solid #FFD75E; }
 mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+/* ── Disabled ribbon buttons (nothing to undo/redo) ── */
+#tj-root .pt-btn.pt-disabled, #bj-root .pt-btn.pt-disabled { opacity: .3; cursor: default; pointer-events: none; color: var(--text3, #666) !important; }
+
+/* ── Font-family button: dark box like the block-type <select> ── */
+#tj-root .docx-fontfam-btn, #bj-root .docx-fontfam-btn { background: var(--card, #141418); border: 1px solid var(--border, #252530); }
+#tj-root .docx-fontfam-btn:hover, #bj-root .docx-fontfam-btn:hover { border-color: var(--border2, #323240); }
+
+/* ── Pinned live word count (bottom-left) ── */
+.docx-wcpin { position: fixed; left: 16px; bottom: 16px; z-index: 100019; background: #24252A; border: 1px solid #3B3C42; border-radius: 9px; padding: 6px 8px 6px 12px; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12px; color: #D6D6DC; display: flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.docx-wcpin .n { font-weight: 800; color: #fff; }
+.docx-wcpin button { background: transparent; border: none; color: #8a8a94; cursor: pointer; font-size: 12px; padding: 2px 4px; border-radius: 5px; }
+.docx-wcpin button:hover { color: #fff; background: rgba(255,255,255,.08); }
+
+/* ── Floating selection toolbar (removed; kept for legacy safety) ── */
 
 /* ── Floating selection toolbar ── */
 .docx-float { position: fixed; z-index: 100001; display: flex; gap: 2px; align-items: center; background: #232428; border: 1px solid #3B3C42; border-radius: 9px; padding: 4px; box-shadow: 0 10px 32px rgba(0,0,0,.5); }
@@ -29481,19 +29507,22 @@ function frOpen(ctx, withReplace) {
   var seed = (sel && !sel.isCollapsed && ctx.edEl.contains(sel.anchorNode)) ? sel.toString().slice(0, 80) : '';
   frClose(true);
   FR.ctx = ctx;
-  var area = $(ctx.area) || ctx.wrapEl.parentNode;
+  // Fixed-position overlay on <body> so it never shifts/cuts off the page layout.
   var p = document.createElement('div');
   p.className = 'docx-find';
   p.innerHTML =
-    '<div class="row"><input type="text" class="f-find" placeholder="Find…">' +
-    '<span class="cnt">0 / 0</span>' +
-    '<button class="f-prev" title="Previous">↑</button><button class="f-next" title="Next">↓</button>' +
-    '<button class="x" title="Close">✕</button></div>' +
-    '<div class="row f-reprow"><input type="text" class="f-rep" placeholder="Replace with…">' +
+    '<div class="docx-find-head"><span class="docx-find-title">' + (withReplace ? 'Find &amp; Replace' : 'Find') + '</span>' +
+    '<button class="x" title="Close (Esc)">✕</button></div>' +
+    '<div class="row"><span class="docx-find-ico">' + svg(IC.find, 14) + '</span>' +
+    '<input type="text" class="f-find" placeholder="Find in document…">' +
+    '<button class="f-prev" title="Previous (Shift+Enter)">↑</button><button class="f-next" title="Next (Enter)">↓</button>' +
+    '<span class="cnt">0 / 0</span></div>' +
+    '<div class="row f-reprow"><span class="docx-find-ico">' + svg(IC.redo, 14) + '</span>' +
+    '<input type="text" class="f-rep" placeholder="Replace with…">' +
     '<button class="f-rone">Replace</button><button class="f-rall">All</button></div>' +
-    '<div class="row"><label><input type="checkbox" class="f-mc"> Match case</label>' +
+    '<div class="row docx-find-opts"><label><input type="checkbox" class="f-mc"> Match case</label>' +
     '<label><input type="checkbox" class="f-ww"> Whole word</label></div>';
-  area.appendChild(p);
+  document.body.appendChild(p);
   FR.panel = p;
   if (!withReplace) p.querySelector('.f-reprow').style.display = 'none';
   var find = p.querySelector('.f-find');
@@ -29646,16 +29675,59 @@ function modal(title, buildBody, buildFooter) {
   document.body.appendChild(veil);
   return veil;
 }
-function wordCountModal(ctx) {
+function wcCounts(ctx) {
   var text = ctx.edEl.innerText || '';
-  var words = (text.trim().match(/\S+/g) || []).length;
-  var chars = text.replace(/\n/g, '').length;
-  var charsNS = text.replace(/\s/g, '').length;
+  return {
+    words: (text.trim().match(/\S+/g) || []).length,
+    chars: text.replace(/\n/g, '').length,
+    charsNS: text.replace(/\s/g, '').length
+  };
+}
+// Live pinned word-count widget (bottom-left), toggled per app.
+function wcPinned(app) { return !!lsGet('docx_wcpin_' + app, false); }
+function updateWcPin(ctx) {
+  var el = $('docx-wcpin-' + ctx.app);
+  if (!el) return;
+  var c = wcCounts(ctx);
+  el.querySelector('.n').textContent = c.words;
+}
+function mountWcPin(ctx) {
+  if ($('docx-wcpin-' + ctx.app)) return;
+  var el = document.createElement('div');
+  el.id = 'docx-wcpin-' + ctx.app;
+  el.className = 'docx-wcpin';
+  el.innerHTML = '<span class="n">0</span> words <button title="Unpin">✕</button>';
+  el.querySelector('button').addEventListener('click', function() { lsSet('docx_wcpin_' + ctx.app, false); el.remove(); });
+  document.body.appendChild(el);
+  updateWcPin(ctx);
+  if (!ctx._wcHooked) {
+    ctx._wcHooked = true;
+    ctx.edEl.addEventListener('input', function() { if ($('docx-wcpin-' + ctx.app)) updateWcPin(ctx); });
+  }
+}
+function wordCountModal(ctx) {
+  var c = wcCounts(ctx);
   modal('Word count', function(b) {
     b.innerHTML = '<div class="docx-kbd-grid" style="grid-template-columns:1fr auto;">' +
-      '<span>Words</span><b>' + words + '</b>' +
-      '<span>Characters</span><b>' + chars + '</b>' +
-      '<span>Characters (no spaces)</span><b>' + charsNS + '</b></div>';
+      '<span>Words</span><b>' + c.words + '</b>' +
+      '<span>Characters</span><b>' + c.chars + '</b>' +
+      '<span>Characters (no spaces)</span><b>' + c.charsNS + '</b></div>';
+  }, function(f, close) {
+    var pinned = wcPinned(ctx.app);
+    var pin = document.createElement('button');
+    pin.className = 'docx-btn pri';
+    pin.textContent = pinned ? 'Unpin from screen' : 'Pin to screen (bottom-left)';
+    pin.addEventListener('click', function() {
+      var now = !wcPinned(ctx.app);
+      lsSet('docx_wcpin_' + ctx.app, now);
+      if (now) mountWcPin(ctx); else { var e = $('docx-wcpin-' + ctx.app); if (e) e.remove(); }
+      close();
+    });
+    var ok = document.createElement('button');
+    ok.className = 'docx-btn'; ok.textContent = 'Close';
+    ok.addEventListener('click', close);
+    f.style.justifyContent = 'flex-end';
+    f.appendChild(ok); f.appendChild(pin);
   });
 }
 function shortcutsModal() {
@@ -29898,10 +29970,24 @@ function fontPop(ctx, anchor) {
 
 function lineSpacingPop(ctx, anchor) {
   saveSel(ctx);
+  // Detect the current line spacing on the first selected block (for the check mark)
+  var curLH = '';
+  var b0 = selBlocks(ctx)[0];
+  if (b0) {
+    var inline = b0.style.lineHeight;
+    if (inline) curLH = inline;
+    else {
+      var fs = parseFloat(getComputedStyle(b0).fontSize) || 16;
+      var lh = parseFloat(getComputedStyle(b0).lineHeight);
+      if (lh) curLH = (lh / fs).toFixed(2);
+    }
+  }
+  var near = function(a, b) { return Math.abs(parseFloat(a) - parseFloat(b)) < 0.08; };
   showPop(anchor, function(pop) {
     pop.appendChild(mlabel('Line spacing'));
     [['1.0', '1.15'], ['1.15', '1.38'], ['1.5', '1.8'], ['2.0', '2.4']].forEach(function(o) {
-      pop.appendChild(mi(o[0], function() { setBlockStyle(ctx, 'lineHeight', o[1]); }));
+      var active = curLH && (near(curLH, o[1]) || near(curLH, o[0]));
+      pop.appendChild(mi(o[0], function() { setBlockStyle(ctx, 'lineHeight', o[1]); }, null, active));
     });
     pop.appendChild(msep());
     pop.appendChild(mlabel('Paragraph spacing'));
@@ -30086,6 +30172,7 @@ function injectRibbonExtras(ctx) {
   // ── Font family dropdown before the font-size select ──
   var fsSel = tb.querySelector('[id$="-fontsize"]');
   var fontB = ptBtn('', 'Font family');
+  fontB.className = 'pt-btn docx-fontfam-btn';
   fontB.style.minWidth = '104px';
   fontB.style.justifyContent = 'space-between';
   var fontLbl = document.createElement('span');
@@ -30485,6 +30572,7 @@ function initApp(app) {
     rebindPageButtons(ctx);
     buildRuler(ctx);
     wireEditor(ctx);
+    if (wcPinned(app)) mountWcPin(ctx);
     // Re-fit zoom when the wrap resizes (sidebar toggles, orientation change)
     if (window.ResizeObserver) {
       var ro = new ResizeObserver(function() {
