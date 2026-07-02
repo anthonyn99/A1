@@ -18665,7 +18665,7 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
     letter-spacing: 0.02em; text-transform: lowercase; max-width: 100%;
     transition: background 0.12s, border-color 0.12s;
   }
-#bj-root .tag > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#bj-root .tag .tag-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
 #bj-root .tag:hover { background: rgba(141,118,154,0.24); border-color: rgba(141,118,154,0.5); }
 #bj-root .tag-del { cursor: pointer; opacity: 0.55; font-size: 12px; line-height: 1; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0; transition: opacity 0.1s, background 0.1s; }
 #bj-root .tag-del:hover { opacity: 1; color: #fff; background: var(--red); }
@@ -20129,14 +20129,20 @@ function renderTags(tags) {
   tags.forEach(tag => {
     const span = document.createElement('span');
     span.className = 'tag';
-    span.innerHTML = `${tag} <span class="tag-del">✕</span>`;
-    const delBtn = span.querySelector('.tag-del');
+    const label = document.createElement('span');
+    label.className = 'tag-txt';
+    label.textContent = tag;
+    span.appendChild(label);
+    const delBtn = document.createElement('span');
+    delBtn.className = 'tag-del';
+    delBtn.textContent = '✕';
     delBtn.style.display = isEditMode ? '' : 'none';
     delBtn.onclick = () => {
       const e = getActive(); if (!e) return;
       e.tags = (e.tags||[]).filter(t => t !== tag);
       saveState(); renderTags(e.tags);
     };
+    span.appendChild(delBtn);
     row.insertBefore(span, input);
   });
 }
