@@ -29053,7 +29053,7 @@ function setViewMode(app, vm) { lsSet('docx_vm_' + app, vm); applyViewMode(app);
 
 /* ═══════════ Ruler ═══════════ */
 function buildRuler(ctx) {
-  var tb = $(ctx.tb);
+  var tb = ctx.tbEl;
   if (!tb || !tb.parentNode) return;
   var ruler = document.createElement('div');
   ruler.className = 'docx-ruler';
