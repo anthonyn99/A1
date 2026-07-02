@@ -19964,7 +19964,9 @@ function renderSidebar() {
     list.appendChild(div);
   });
   const ec = document.getElementById('bj-entry-count');
-  if (ec) ec.textContent = state.entries.length;
+  if (ec) ec.textContent = live.length;
+  _bjRenderTagChips(live);
+  _bjRenderTrashBtn();
 }
 
 function showTemplate(name) {
@@ -22176,7 +22178,7 @@ document.getElementById('bj-new-entry-btn').addEventListener('click', () => {
 });
 document.getElementById('bj-search-box').addEventListener('input', renderSidebar);
 
-loadState(); renderSidebar(); loadActiveEntry(); setEditMode(false);
+loadState(); purgeExpiredTrash(); renderSidebar(); loadActiveEntry(); setEditMode(false);
 
 /* ── MOBILE UI LOGIC ─────────────────────────────────────────────── */
 var bjIsMobile = false;
