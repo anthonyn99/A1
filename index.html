@@ -22413,6 +22413,9 @@ function exportEntryAsPDF(entry) {
     + '.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#9b7ec8;margin-bottom:6px;font-family:sans-serif;border-bottom:1px solid #ede9f4;padding-bottom:4px;}'
     + '.section-body{white-space:pre-wrap;word-break:break-word;}'
     + '.page-content{line-height:1.7;}'
+    + 'table{border-collapse:collapse;width:100%;margin:10px 0;}th,td{border:1px solid #d8d0e8;padding:6px 10px;text-align:left;}th{background:#f3effa;}'
+    + 'ul.docx-checklist{list-style:none;padding-left:8px;}li.docx-cl-item{list-style:none;}.docx-cl-box{margin-right:8px;}li.docx-cl-item.done .docx-cl-text{text-decoration:line-through;opacity:.6;}'
+    + 'hr.docx-pagebreak{page-break-after:always;break-after:page;border:none;margin:0;}'
     + 'hr{border:none;border-top:1px solid #ede9f4;margin:20px 0;}'
     + '@media print{body{margin:0;padding:16px;}}'
     + '</style></head><body>'
@@ -28018,6 +28021,9 @@ function exportEntryAsPDF(entry) {
     + '.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#9b7ec8;margin-bottom:6px;font-family:sans-serif;border-bottom:1px solid #ede9f4;padding-bottom:4px;}'
     + '.section-body{white-space:pre-wrap;word-break:break-word;}'
     + '.page-content{line-height:1.7;}'
+    + 'table{border-collapse:collapse;width:100%;margin:10px 0;}th,td{border:1px solid #d8d0e8;padding:6px 10px;text-align:left;}th{background:#f3effa;}'
+    + 'ul.docx-checklist{list-style:none;padding-left:8px;}li.docx-cl-item{list-style:none;}.docx-cl-box{margin-right:8px;}li.docx-cl-item.done .docx-cl-text{text-decoration:line-through;opacity:.6;}'
+    + 'hr.docx-pagebreak{page-break-after:always;break-after:page;border:none;margin:0;}'
     + '.je-date-label{font-family:sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#9b7ec8;margin-bottom:14px;}'
     + 'hr{border:none;border-top:1px solid #ede9f4;margin:20px 0;}'
     + '@media print{body{margin:0;padding:16px;}}'
@@ -28778,10 +28784,6 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 
 /* ── Mobile / tablet ── */
 @media (max-width: 820px) {
-  #tj-root #tj-page-toolbar.edit-mode, #tj-root #tj-je-toolbar.edit-mode, #bj-root #bj-page-toolbar.edit-mode {
-    flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  }
-  #tj-root #tj-page-toolbar::-webkit-scrollbar, #tj-root #tj-je-toolbar::-webkit-scrollbar, #bj-root #bj-page-toolbar::-webkit-scrollbar { display: none; }
   #tj-root .pt-btn, #bj-root .pt-btn { min-height: 32px; padding: 6px 9px; }
   .docx-menubar { order: -1; }
   #tj-root:not(.tj-light) .docx-wrap, #bj-root .docx-wrap { padding: 12px 6px 80px !important; }
