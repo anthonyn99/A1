@@ -19707,7 +19707,7 @@ function _bjApplyRemote(remote) {
 
   // If active entry was deleted on another device, switch to first available
   if (state.activeId && !state.entries.find(function(e) { return e.id === state.activeId; })) {
-    state.activeId = state.entries[0] ? state.entries[0].id : null;
+    state.activeId = (state.entries.find(function(e){ return !e.trashed; }) || {}).id || null;
     loadActiveEntry();
   }
 
@@ -21344,14 +21344,31 @@ window._mdToHtml = function(md) {
         out.push(t + '</table>'); continue;
       }
     }
-    // lists
+    // lists — nested via indentation; supports checklists "- [ ]" / "- [x]"
     if (/^\s*([-*+]|\d+\.)\s+/.test(ln)) {
-      var ordered = /^\s*\d+\.\s+/.test(ln), tag = ordered ? 'ol' : 'ul', items = [];
-      while (j < lines.length && /^\s*([-*+]|\d+\.)\s+/.test(lines[j]) &&
-             (ordered === /^\s*\d+\.\s+/.test(lines[j]))) {
-        items.push('<li>' + inline(lines[j].replace(/^\s*([-*+]|\d+\.)\s+/, '')) + '</li>'); j++;
+      var items = [];
+      while (j < lines.length && /^\s*([-*+]|\d+\.)\s+/.test(lines[j])) {
+        var lm = lines[j].match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/);
+        items.push({ depth: Math.floor(lm[1].replace(/\t/g, '  ').length / 2), ordered: /\d+\./.test(lm[2]), text: lm[3] });
+        j++;
       }
-      out.push('<' + tag + '>' + items.join('') + '</' + tag + '>'); continue;
+      var renderList = function(arr) {
+        var depth = arr[0].depth, k = 0, ordered = arr[0].ordered;
+        var hasCheck = arr.some(function(it) { return it.depth === depth && /^\[[ xX]\]\s/.test(it.text); });
+        var html = ordered ? '<ol>' : (hasCheck ? '<ul class="docx-checklist">' : '<ul>');
+        while (k < arr.length) {
+          var it = arr[k], kids = [], k2 = k + 1;
+          while (k2 < arr.length && arr[k2].depth > depth) { kids.push(arr[k2]); k2++; }
+          var cm = it.text.match(/^\[([ xX])\]\s+(.*)$/);
+          var body = cm
+            ? '<input type="checkbox" class="docx-cl-box"' + (cm[1] !== ' ' ? ' checked' : '') + '><span class="docx-cl-text">' + inline(cm[2]) + '</span>'
+            : inline(it.text);
+          html += '<li' + (cm ? ' class="docx-cl-item' + (cm[1] !== ' ' ? ' done' : '') + '"' : '') + '>' + body + (kids.length ? renderList(kids) : '') + '</li>';
+          k = k2;
+        }
+        return html + (ordered ? '</ol>' : '</ul>');
+      };
+      out.push(renderList(items)); continue;
     }
     // paragraph (merge consecutive non-block lines)
     var para = [];
@@ -24976,7 +24993,7 @@ function _tjApplyRemote(remote) {
 
   // If active entry was deleted on another device, switch to first available
   if (state.activeId && !state.entries.find(function(e) { return e.id === state.activeId; })) {
-    state.activeId = state.entries[0] ? state.entries[0].id : null;
+    state.activeId = (state.entries.find(function(e){ return !e.trashed; }) || {}).id || null;
     loadActiveEntry();
   }
 
@@ -25152,13 +25169,13 @@ function renderSidebar() {
     const titleClass = entry.title ? '' : ' untitled';
     div.innerHTML = `
       ${isDraggable ? `<div class="entry-drag-handle" title="Drag to reorder"><span></span><span></span><span></span></div>` : ''}
-      <div class="entry-item-title${titleClass}">${entry.title || 'Untitled'}</div>
+      <div class="entry-item-title${titleClass}">${_tjHlTitle(entry.title || 'Untitled', search)}</div>
       <div class="entry-item-meta">
         <span class="template-badge">${tmap[entry.template]||'NOTE'}</span>
         <span>${date}</span>
         ${(entry.tags||[]).length ? `<span>· ${entry.tags.slice(0,2).join(', ')}${entry.tags.length > 2 ? '…' : ''}</span>` : ''}
       </div>
-      <button class="entry-delete" data-id="${entry.id}" title="Delete entry">✕</button>
+      <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">✕</button>
     `;
     div.addEventListener('click', e => {
       if (e.target.classList.contains('entry-delete') || e.target.closest('.entry-delete')) return;
@@ -25358,6 +25375,15 @@ function saveCurrentEntry() {
   // GUARD: see BJ — do not persist a locked-but-not-unlocked entry's blank DOM.
   if (window._tjGetLock && window._tjGetLock(entry.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(entry.id))) return;
   entry.title = document.getElementById('tj-entry-title-input').value;
+  // Auto-title: derive from content while the title is empty; a user-typed title always wins
+  if (!entry.title.trim()) {
+    const _auto = _tjAutoTitle(entry);
+    if (_auto) {
+      entry.title = _auto;
+      const _ti = document.getElementById('tj-entry-title-input');
+      if (_ti && document.activeElement !== _ti) _ti.value = _auto;
+    }
+  }
   entry.updated = Date.now();
   if (entry.template === 'whiteboard') entry.data.canvas = wbCanvas ? wbCanvas.toDataURL('image/png') : '';
   if (entry.template === 'notes') {
@@ -25375,6 +25401,24 @@ function saveCurrentEntry() {
   if (entry.template === 'page') { const ed = document.getElementById('tj-page-editor'); entry.data.html = ed.innerHTML; }
   if (entry.template === 'journal-entries') { _jeSaveActiveDate(entry); }
   saveState(); renderSidebar();
+}
+
+// First meaningful content line → title (max 60 chars)
+function _tjAutoTitle(entry) {
+  const d = entry.data || {};
+  let src = '';
+  if (entry.template === 'page') { const ed = document.getElementById('tj-page-editor'); src = ed && ed.innerText ? ed.innerText : String(d.html||'').replace(/<[^>]*>/g,'\n'); }
+  else if (entry.template === 'notes') src = d.main || d.links || d.questions || '';
+  else if (entry.template === 'cornell') src = d.topic || d.notes || d.cues || '';
+  else if (entry.template === 'mindmap') { const root = (d.nodes||[]).find(n=>n.root) || (d.nodes||[])[0]; src = (root && root.label !== 'Central Idea') ? (root.label||'') : ''; }
+  else if (entry.template === 'journal-entries') {
+    const k = d.activeDateKey || (d.dateOrder||[])[0];
+    const dd = (k && d.dates) ? d.dates[k] : null;
+    src = (dd && dd.html) ? String(dd.html).replace(/<[^>]*>/g,'\n') : '';
+  }
+  const line = (src||'').split('\n').map(s=>s.trim()).find(s=>s.length > 1) || '';
+  if (!line) return '';
+  return line.length > 60 ? line.slice(0, 57).trimEnd() + '…' : line;
 }
 
 /* TAGS */
