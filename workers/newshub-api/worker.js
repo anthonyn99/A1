@@ -329,7 +329,7 @@ async function sectorsForLive(wl, env){
   return sectorsFor(wl);
 }
 
-const HOURS = 48;   // news lookback = 2 days. Same AI budget (MAX_EVENTS) now concentrates on the most recent 2 days instead of spreading across 3.
+const HOURS = 72;   // news lookback = 3 days.
 // Fallback chain: tries in order. If one returns 429 (quota), worker skips to next.
 // Quota-exhaustion state lives in KV for 1 hour so we don't waste retries.
 // Unified AI fallback chain — tried in order, first available wins.
