@@ -29063,8 +29063,10 @@ function saveSel(ctx) {
   if (s && s.rangeCount && ctx.edEl.contains(s.anchorNode)) ctx._savedSel = s.getRangeAt(0).cloneRange();
 }
 function restoreSel(ctx) {
-  ctx.edEl.focus();
+  // Read the saved range BEFORE focus() — focusing fires the editor's focus listener
+  // which calls saveSel and would otherwise overwrite _savedSel with a collapsed range.
   var r = savedSelFor(ctx);
+  ctx.edEl.focus();
   if (r) {
     var s = window.getSelection();
     s.removeAllRanges();
