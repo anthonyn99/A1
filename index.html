@@ -19079,7 +19079,7 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
 <div id="bj-nav-header" class="veda-hdr-outer">
   <div class="veda-hdr-inner">
   <div class="veda-hdr-left">
-    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#8D769A;letter-spacing:1px;text-transform:uppercase;line-height:1;">Veda's Brainstorm Journal</div>
+    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#8D769A;letter-spacing:1px;text-transform:uppercase;line-height:1;">Brainstorm Journal</div>
   </div>
   <div class="veda-hdr-right">
     <div class="veda-hbtns">
@@ -27911,7 +27911,7 @@ window.showTonyJournal = function() {
   if(tni && !document.getElementById('tj-nav-title')) {
     var titleEl = document.createElement('div');
     titleEl.id = 'tj-nav-title';
-    titleEl.style.cssText = 'font-family:Lora,serif;font-size:clamp(19px,2.8vw,26px);font-weight:700;letter-spacing:-0.3px;white-space:nowrap;margin-right:auto;pointer-events:none;line-height:1;';
+    titleEl.style.cssText = 'font-family:Lora,serif;font-size:clamp(19px,2.8vw,26px);font-weight:700;letter-spacing:-0.3px;white-space:nowrap;margin-right:auto;pointer-events:none;line-height:1;padding-left:clamp(12px,3vw,24px);align-self:center;';
     titleEl.innerHTML = '<span style="color:var(--tn-tx,#ececf0)">My</span><span style="color:var(--tn-ac,#E0607A);font-style:italic">Journal</span>';
     tni.insertBefore(titleEl, tni.firstChild);
   }
