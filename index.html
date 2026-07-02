@@ -29200,6 +29200,13 @@ function buildRuler(ctx) {
   var leftH = ruler.querySelector('.docx-ruler-marg.left');
   var rightH = ruler.querySelector('.docx-ruler-marg.right');
   function startDrag(handle, side) {
+    // Double-click a margin handle → reset that side to 1 inch (96px)
+    handle.addEventListener('dblclick', function(e) {
+      e.preventDefault();
+      var nm = marginsGet(ctx.app);
+      if (side === 'left') nm.ml = 96; else nm.mr = 96;
+      marginsSet(ctx.app, nm);
+    });
     handle.addEventListener('pointerdown', function(e) {
       e.preventDefault();
       handle.setPointerCapture(e.pointerId);
