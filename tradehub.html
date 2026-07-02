@@ -3754,6 +3754,11 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       hydrated.current=true;
       // Always fetch rate status on mount
       fetchRateStatus();
+      // Auto-display the 6am cron pre-warm: pull the worker's cache (non-fresh =
+      // free cache HIT, NO force burn) so opening TradeHub shows the freshly-built
+      // news without the user having to click Refresh. On a cache miss this kicks a
+      // cheap Finnhub-only build (also free of the daily force budget).
+      refresh(false);
     };
     if(window._fbReady)doLoad();
     else{const h=()=>doLoad();window.addEventListener('fb-ready',h,{once:true});return()=>window.removeEventListener('fb-ready',h);}
@@ -4607,7 +4612,11 @@ function TBApp(){
         const gen=(d&&(d.generatedAt||d.savedAt))||0;
         if(gen>=slot){_tbLastCheckedSlot=slot;return;}      // already refreshed since this slot (maybe by another device)
         _tbAutoForceInFlight=true;
-        const {future}=await tbBuildCalendar(tbLoadWatchlistLocal(),{force:true});
+        // NON-fresh pull: the 6am cron already did the expensive fresh rebuild and
+        // warmed the worker's calendar cache, so this is a free cache HIT — it must
+        // NOT force (force=fresh=1 shares the SAME daily counter as News forces, so a
+        // failing/retrying auto-force here would silently drain your News forces).
+        const {future}=await tbBuildCalendar(tbLoadWatchlistLocal(),{force:false});
         // Only overwrite when we actually got events — never wipe a good cache with empties.
         if(future&&future.length){
           const now=Date.now();
