@@ -175,9 +175,19 @@ def _observed(d: date) -> date:
     return d
 
 
+def _observed_new_year(year: int) -> date:
+    """New Year's Day is the ONE exception to the Sat→Fri rule: when Jan 1 falls on
+    a Saturday the NYSE does NOT close the preceding Friday (Dec 31 stays a trading
+    day). Sunday still rolls forward to Monday."""
+    d = date(year, 1, 1)
+    if d.weekday() == 6:      # Sunday → observed Monday
+        return d + timedelta(days=1)
+    return d                  # weekday as-is; Saturday → not observed (falls on weekend)
+
+
 def _nyse_holidays(year: int) -> set:
     return {
-        _observed(date(year, 1, 1)),        # New Year's Day
+        _observed_new_year(year),           # New Year's Day
         _nth_weekday(year, 1, 0, 3),        # MLK Jr. Day        (3rd Mon Jan)
         _nth_weekday(year, 2, 0, 3),        # Washington's Bday  (3rd Mon Feb)
         _easter(year) - timedelta(days=2),  # Good Friday
