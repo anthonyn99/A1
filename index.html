@@ -19767,21 +19767,103 @@ function createEntry(template) {
   return entry;
 }
 
+// ── TRASH SYSTEM: delete = move to Trash (30 days), synced via entry.trashed ──
+const BJ_TRASH_TTL = 30 * 24 * 60 * 60 * 1000;
 function deleteEntry(id) {
+  const entry = state.entries.find(e => e.id === id);
+  if (!entry) return;
+  entry.trashed = Date.now();
+  entry.updated = Date.now();
+  if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
+  saveState(); renderSidebar(); loadActiveEntry();
+}
+// Permanent delete — used by the Trash UI and the 30-day auto-purge
+function hardDeleteEntry(id) {
   if (!Array.isArray(state.deletedIds)) state.deletedIds = [];
   if (!state.deletedIds.includes(id)) state.deletedIds.push(id);
   if (window._fbDeleteJournalEntry) window._fbDeleteJournalEntry(id);
   state.entries = state.entries.filter(e => e.id !== id);
-  if (state.activeId === id) state.activeId = state.entries[0]?.id || null;
+  if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
   saveState(); renderSidebar(); loadActiveEntry();
+}
+function purgeExpiredTrash() {
+  const cutoff = Date.now() - BJ_TRASH_TTL;
+  state.entries.filter(e => e.trashed && e.trashed < cutoff).map(e => e.id).forEach(hardDeleteEntry);
+}
+window._bjTrashAPI = {
+  list: () => state.entries.filter(e => e.trashed).sort((a,b) => (b.trashed||0)-(a.trashed||0)),
+  restore: (ids) => { (ids||[]).forEach(id => { const e = state.entries.find(x => x.id === id); if (e) { delete e.trashed; e.updated = Date.now(); } }); saveState(); renderSidebar(); },
+  purge: (ids) => { (ids||[]).forEach(hardDeleteEntry); },
+  ttlDays: 30
+};
+
+// ── UNIFIED SEARCH: title + full content + tags; multi-tag filter ──
+let bjTagFilters = [];
+function _bjEntryText(e) {
+  const d = e.data || {};
+  const parts = [e.title || '', (e.tags||[]).join(' ')];
+  ['main','links','questions','topic','cues','notes','summary'].forEach(k => { if (d[k]) parts.push(d[k]); });
+  if (d.html) parts.push(String(d.html).replace(/<[^>]*>/g, ' '));
+  if (d.dates) Object.values(d.dates).forEach(dd => { if (dd && dd.html) parts.push(String(dd.html).replace(/<[^>]*>/g, ' ')); });
+  if (d.nodes) d.nodes.forEach(n => parts.push(n.label || ''));
+  return parts.join(' ').toLowerCase();
+}
+function _bjHlTitle(text, q) {
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  if (!q) return esc(text);
+  const i = text.toLowerCase().indexOf(q);
+  if (i < 0) return esc(text);
+  return esc(text.slice(0,i)) + '<mark class="docx-hl">' + esc(text.slice(i, i+q.length)) + '</mark>' + esc(text.slice(i+q.length));
+}
+function _bjRenderTagChips(live) {
+  let row = document.getElementById('bj-tagfilter-row');
+  if (!row) {
+    row = document.createElement('div');
+    row.id = 'bj-tagfilter-row';
+    row.className = 'docx-tagchips';
+    const listEl = document.getElementById('bj-entries-list');
+    listEl.parentNode.insertBefore(row, listEl);
+  }
+  const all = [...new Set(live.reduce((a,e) => a.concat(e.tags||[]), []))].sort((a,b)=>a.localeCompare(b));
+  bjTagFilters = bjTagFilters.filter(t => all.includes(t));
+  row.style.display = all.length ? 'flex' : 'none';
+  row.innerHTML = '';
+  all.forEach(tag => {
+    const chip = document.createElement('button');
+    chip.className = 'docx-tagchip' + (bjTagFilters.includes(tag) ? ' on' : '');
+    chip.textContent = tag;
+    chip.onclick = () => {
+      bjTagFilters = bjTagFilters.includes(tag) ? bjTagFilters.filter(t => t !== tag) : bjTagFilters.concat(tag);
+      renderSidebar();
+    };
+    row.appendChild(chip);
+  });
+}
+function _bjRenderTrashBtn() {
+  let btn = document.getElementById('bj-trash-btn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'bj-trash-btn';
+    btn.className = 'docx-trash-btn';
+    btn.onclick = () => { if (window._docxOpenTrash) window._docxOpenTrash('bj'); };
+    const stats = document.getElementById('bj-sidebar-stats');
+    if (stats && stats.parentNode) stats.parentNode.insertBefore(btn, stats);
+  }
+  const n = state.entries.filter(e => e.trashed).length;
+  btn.innerHTML = '🗑 Trash' + (n ? ' <span class="docx-trash-count">' + n + '</span>' : '');
 }
 
 function renderSidebar() {
   const list = document.getElementById('bj-entries-list');
-  const search = document.getElementById('bj-search-box').value.toLowerCase();
-  const entries = state.entries.filter(e =>
-    (e.title||'').toLowerCase().includes(search) || (e.tags||[]).some(t => t.toLowerCase().includes(search))
-  );
+  const search = document.getElementById('bj-search-box').value.toLowerCase().trim();
+  const live = state.entries.filter(e => !e.trashed);
+  const entries = live.filter(e => {
+    // Locked entries: search title/tags only (never their hidden content)
+    const isLocked = window._bjGetLock && window._bjGetLock(e.id) && !(window._bjIsUnlocked && window._bjIsUnlocked(e.id));
+    const hay = isLocked ? ((e.title||'') + ' ' + (e.tags||[]).join(' ')).toLowerCase() : _bjEntryText(e);
+    return (!search || hay.includes(search)) &&
+           (bjTagFilters.length === 0 || bjTagFilters.every(t => (e.tags||[]).includes(t)));
+  });
   list.innerHTML = '';
   if (entries.length === 0) {
     list.innerHTML = `<div class="list-empty">${search ? 'No entries match your search.' : 'No entries yet.<br>Click "New Entry" to begin.'}</div>`;
