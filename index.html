@@ -19364,7 +19364,7 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
         <button class="pt-btn" id="bj-pt-link" title="Insert link">&#128279;</button>
         <button class="pt-btn" id="bj-pt-hr" title="Divider">&#8213;</button>
         <button class="pt-btn" id="bj-pt-table" title="Insert table">&#9783;</button>
-        <button class="pt-btn" id="bj-pt-md" title="Paste Markdown" style="font-weight:700;font-size:11px;">MD</button>
+        <button class="pt-btn" id="bj-pt-md" title="Render Markdown — convert raw Markdown into formatted text" style="font-weight:700;font-size:11px;">Render Markdown</button>
         <button class="pt-btn" id="bj-page-img-btn" title="Insert image / attach file">
           &#128247;
           <input type="file" id="bj-page-img-file" accept="*/*" multiple>
@@ -19464,7 +19464,7 @@ function _bjSetSync(status) {
   var bb   = document.getElementById('bj-bb-saved');
   if (!pill || !txt) return;
   pill.className = 'bj-sync-pill bj-sync-' + status;
-  var labels = { idle:'Idle', syncing:'Syncing…', synced:'Synced', error:'Sync Failed' };
+  var labels = { idle:'Saved', syncing:'Saving…', synced:'Synced', error:'Sync Failed' };
   txt.textContent = labels[status] || status;
   // Bottom bar indicator on mobile
   if (bb) {
@@ -21643,10 +21643,17 @@ document.getElementById('bj-page-editor').addEventListener('paste', function(e) 
       return;
     }
   }
-  // Plain text paste — strip formatting
+  // Rich paste: preserve formatting (fonts, sizes, colors, lists, tables, links)
+  // from Word / Google Docs / web pages via sanitized HTML insertion.
   e.preventDefault();
-  const text = e.clipboardData.getData('text/plain');
-  document.execCommand('insertText', false, text);
+  const htmlData = e.clipboardData.getData('text/html');
+  if (htmlData && window._docxCleanHTML) {
+    document.execCommand('insertHTML', false, window._docxCleanHTML(htmlData));
+  } else {
+    const text = e.clipboardData.getData('text/plain');
+    document.execCommand('insertText', false, text);
+  }
+  autoSave();
 });
 
 // Update toolbar state on selection change
@@ -24379,7 +24386,7 @@ window.hideBrainstormJournal = function() {
         <button class="pt-btn" id="tj-pt-link" title="Insert link">&#128279;</button>
         <button class="pt-btn" id="tj-pt-hr" title="Divider">&#8213;</button>
         <button class="pt-btn" id="tj-pt-table" title="Insert table">&#9783;</button>
-        <button class="pt-btn" id="tj-pt-md" title="Paste Markdown" style="font-weight:700;font-size:11px;">MD</button>
+        <button class="pt-btn" id="tj-pt-md" title="Render Markdown — convert raw Markdown into formatted text" style="font-weight:700;font-size:11px;">Render Markdown</button>
         <button class="pt-btn" id="tj-page-img-btn" title="Insert image / attach file">
           &#128247;
           <input type="file" id="tj-page-img-file" accept="*/*" multiple>
@@ -24571,7 +24578,7 @@ function _tjSetSync(status) {
   var bb   = document.getElementById('tj-bb-saved');
   if (!pill || !txt) return;
   pill.className = 'tj-sync-pill tj-sync-' + status;
-  var labels = { idle:'Idle', syncing:'Syncing…', synced:'Synced', error:'Sync Failed' };
+  var labels = { idle:'Saved', syncing:'Saving…', synced:'Synced', error:'Sync Failed' };
   txt.textContent = labels[status] || status;
   // Bottom bar indicator on mobile
   if (bb) {
@@ -26669,10 +26676,17 @@ document.getElementById('tj-page-editor').addEventListener('paste', function(e) 
       return;
     }
   }
-  // Plain text paste — strip formatting
+  // Rich paste: preserve formatting (fonts, sizes, colors, lists, tables, links)
+  // from Word / Google Docs / web pages via sanitized HTML insertion.
   e.preventDefault();
-  const text = e.clipboardData.getData('text/plain');
-  document.execCommand('insertText', false, text);
+  const htmlData = e.clipboardData.getData('text/html');
+  if (htmlData && window._docxCleanHTML) {
+    document.execCommand('insertHTML', false, window._docxCleanHTML(htmlData));
+  } else {
+    const text = e.clipboardData.getData('text/plain');
+    document.execCommand('insertText', false, text);
+  }
+  autoSave();
 });
 
 // Update toolbar state on selection change
