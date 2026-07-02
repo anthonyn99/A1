@@ -29567,65 +29567,47 @@ window._docxToggleHighlight = function(ed, color) {
   fireInput(ed);
 };
 
-/* ═══════════ Floating selection toolbar ═══════════ */
-var floatBar = null;
-function hideFloat() { if (floatBar) { floatBar.remove(); floatBar = null; } }
-function buildFloat(ctx) {
-  hideFloat();
-  floatBar = document.createElement('div');
-  floatBar.className = 'docx-float';
-  function fbtn(html, title, fn) {
-    var b = document.createElement('button');
-    b.innerHTML = html;
-    b.title = title;
-    b.addEventListener('mousedown', function(e) { e.preventDefault(); });
-    b.addEventListener('click', function() { fn(); });
-    floatBar.appendChild(b);
-    return b;
-  }
-  fbtn('<b>B</b>', 'Bold', function() { document.execCommand('bold'); fireInput(ctx.edEl); });
-  fbtn('<i>I</i>', 'Italic', function() { document.execCommand('italic'); fireInput(ctx.edEl); });
-  fbtn('<u>U</u>', 'Underline', function() { document.execCommand('underline'); fireInput(ctx.edEl); });
-  fbtn('<s>S</s>', 'Strikethrough', function() { document.execCommand('strikeThrough'); fireInput(ctx.edEl); });
-  var sep1 = document.createElement('div'); sep1.className = 'sep'; floatBar.appendChild(sep1);
-  fbtn('<span style="background:#FFE066;color:#111;border-radius:2px;padding:0 4px;font-weight:700;">A</span>', 'Highlight (click again to remove)', function() {
-    window._docxToggleHighlight(ctx.edEl, '#FFE066');
-  });
-  var colorIn = document.createElement('input');
-  colorIn.type = 'color'; colorIn.value = '#f1f2f4'; colorIn.title = 'Text color';
-  colorIn.addEventListener('input', function() { document.execCommand('foreColor', false, colorIn.value); fireInput(ctx.edEl); });
-  floatBar.appendChild(colorIn);
-  var sep2 = document.createElement('div'); sep2.className = 'sep'; floatBar.appendChild(sep2);
-  fbtn('🔗', 'Link', function() {
-    var url = prompt('Link URL:');
-    if (url) { document.execCommand('createLink', false, url); fireInput(ctx.edEl); }
-  });
-  fbtn('T⌫', 'Clear formatting', function() { document.execCommand('removeFormat'); fireInput(ctx.edEl); });
-  document.body.appendChild(floatBar);
-}
-var floatTimer = null;
+/* ═══════════ Selection watcher (table bubble + varied-font-size dash) ═══════════
+   The floating format popup was removed by request — all tools live in the ribbon. */
+var selTimer = null;
 document.addEventListener('selectionchange', function() {
-  clearTimeout(floatTimer);
-  floatTimer = setTimeout(function() {
+  clearTimeout(selTimer);
+  selTimer = setTimeout(function() {
     var s = window.getSelection();
     var ctx = (s && s.rangeCount)
       ? ALLCTX.find(function(c) { return c.edEl.contentEditable === 'true' && c.edEl.contains(s.anchorNode); })
       : null;
-    // Table bubble: follows the caret (collapsed or not) while inside a table
+    // Table bubble: follows the caret while inside a table
     if (ctx && window.innerWidth >= 640) maybeShowTblBubble(ctx);
     else hideTblBubble();
-    // Floating format toolbar: desktop, non-collapsed selection only
-    if (window.innerWidth < 900 || !ctx || !s || s.isCollapsed) { hideFloat(); return; }
-    if (openPop) return;
-    buildFloat(ctx);
-    var r = s.getRangeAt(0).getBoundingClientRect();
-    if (!r || (!r.width && !r.height)) { hideFloat(); return; }
-    var top = r.top - floatBar.offsetHeight - 8;
-    if (top < 60) top = r.bottom + 8;
-    floatBar.style.left = Math.max(8, Math.min(r.left + r.width / 2 - floatBar.offsetWidth / 2, window.innerWidth - floatBar.offsetWidth - 8)) + 'px';
-    floatBar.style.top = top + 'px';
-  }, 160);
+    // Reflect varied / current font size + block type in the toolbar
+    if (ctx) { updateFontSizeIndicator(ctx); updateBlockSelect(ctx); }
+  }, 140);
 });
+// Show the font-size box as "—" when the selection spans mixed sizes, else the size.
+function updateFontSizeIndicator(ctx) {
+  var sel = ctx.tbEl.querySelector('[id$="-pt-fontsize"]');
+  if (!sel) return;
+  var s = window.getSelection();
+  if (!s || !s.rangeCount || !ctx.edEl.contains(s.anchorNode)) return;
+  var sizes = {};
+  function px(node) {
+    var el = node.nodeType === 3 ? node.parentElement : node;
+    if (!el) return;
+    sizes[Math.round(parseFloat(getComputedStyle(el).fontSize))] = 1;
+  }
+  if (s.isCollapsed) { px(s.anchorNode); }
+  else {
+    var walker = document.createTreeWalker(ctx.edEl, NodeFilter.SHOW_TEXT, {
+      acceptNode: function(n) { try { return s.getRangeAt(0).intersectsNode(n) && n.nodeValue.trim() ? 1 : 2; } catch (e) { return 2; } }
+    });
+    var n, count = 0;
+    while ((n = walker.nextNode()) && count < 400) { px(n); count++; }
+  }
+  var keys = Object.keys(sizes);
+  sel.value = keys.length === 1 ? (hasOption(sel, keys[0]) ? keys[0] : '') : '';
+}
+function hasOption(sel, v) { return Array.prototype.some.call(sel.options, function(o) { return o.value === String(v); }); }
 
 /* ═══════════ Modals ═══════════ */
 function modal(title, buildBody, buildFooter) {
@@ -30030,9 +30012,6 @@ function buildMenubar(ctx) {
   });
   menu('Help', function(p) {
     p.appendChild(mi('Keyboard shortcuts', shortcutsModal));
-    p.appendChild(mi('About this editor', function() {
-      modal('About', function(b) { b.innerHTML = 'Word-style rich text editor.<br>Autosaves locally and syncs to the cloud automatically.'; });
-    }));
   });
   ctx.tbEl.insertBefore(bar, ctx.tbEl.firstChild);
 }
