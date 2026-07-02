@@ -29012,6 +29012,74 @@ function setBlockStyle(ctx, prop, val, toggle) {
   fireInput(ctx.edEl);
 }
 
+/* ═══════════ Undo / Redo history (self-contained per editor) ═══════════
+   document.execCommand('undo') is unreliable once innerHTML is set programmatically
+   (entry load, paste, AI format), so each editor keeps its own snapshot stack. */
+function caretOffset(ed) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return null;
+  var range = sel.getRangeAt(0);
+  if (!ed.contains(range.endContainer)) return null;
+  var pre = range.cloneRange();
+  pre.selectNodeContents(ed);
+  try { pre.setEnd(range.endContainer, range.endOffset); } catch (e) { return null; }
+  return pre.toString().length;
+}
+function setCaret(ed, offset) {
+  if (offset == null) return;
+  var walker = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT, null);
+  var remaining = offset, node;
+  while ((node = walker.nextNode())) {
+    if (node.nodeValue.length >= remaining) {
+      var r = document.createRange();
+      r.setStart(node, remaining); r.collapse(true);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      return;
+    }
+    remaining -= node.nodeValue.length;
+  }
+  var r2 = document.createRange();
+  r2.selectNodeContents(ed); r2.collapse(false);
+  var s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(r2);
+}
+function makeHistory(ctx) {
+  var stack = [], idx = -1, lastT = 0;
+  function snap() { return { html: ctx.edEl.innerHTML, caret: caretOffset(ctx.edEl) }; }
+  function seed() { stack = [snap()]; idx = 0; }
+  function syncBase() {
+    if (idx < 0 || !stack[idx] || stack[idx].html !== ctx.edEl.innerHTML) seed();
+  }
+  function record(force) {
+    if (idx < 0) { seed(); return; }
+    var html = ctx.edEl.innerHTML;
+    if (stack[idx] && stack[idx].html === html) { stack[idx].caret = caretOffset(ctx.edEl); return; }
+    var now = Date.now();
+    if (!force && now - lastT < 550) { stack[idx] = snap(); lastT = now; return; }  // coalesce fast typing
+    stack = stack.slice(0, idx + 1);
+    stack.push(snap());
+    if (stack.length > 300) stack.shift();
+    idx = stack.length - 1;
+    lastT = now;
+  }
+  function apply(s) {
+    ctx._histSuppress = true;
+    ctx.edEl.innerHTML = s.html;
+    try { ctx.edEl.querySelectorAll('.pg-img-wrap').forEach(function(w) { if (typeof window._pgBindImgWrap === 'function') window._pgBindImgWrap(w); }); } catch (e) {}
+    ctx.edEl.focus();
+    setCaret(ctx.edEl, s.caret);
+    fireInput(ctx.edEl);           // triggers autoSave; history-record listener skips while suppressed
+    ctx._histSuppress = false;
+  }
+  return {
+    seed: seed, syncBase: syncBase, record: record,
+    canUndo: function () { return idx > 0; },
+    canRedo: function () { return idx < stack.length - 1; },
+    undo: function () { syncBase(); if (idx > 0) { idx--; apply(stack[idx]); } },
+    redo: function () { syncBase(); if (idx < stack.length - 1) { idx++; apply(stack[idx]); } },
+    commit: function () { record(true); }   // force a discrete step (AI format, etc.)
+  };
+}
+
 /* ═══════════ Page setup + zoom + view mode ═══════════ */
 function psGet(app) { return lsGet('docx_ps_' + app, { size: 'letter', orient: 'portrait', margin: 'normal' }); }
 function applyPageSetup(app) {
@@ -29939,9 +30007,11 @@ function injectRibbonExtras(ctx) {
   else tb.appendChild(endFrag);
 }
 
-/* ═══════════ Keyboard shortcuts + checklist toggling per editor ═══════════ */
+/* ═══════════ Keyboard shortcuts + checklist toggling + undo history per editor ═══════════ */
 function wireEditor(ctx) {
   var ed = ctx.edEl;
+  ctx.history = makeHistory(ctx);
+  ctx.history.seed();
   ed.addEventListener('keydown', function(e) {
     var mod = e.ctrlKey || e.metaKey;
     if (mod && !e.altKey) {
@@ -29950,7 +30020,8 @@ function wireEditor(ctx) {
       if (!e.shiftKey && k === 'p') { e.preventDefault(); var eb = $(APPS[ctx.app].exportBtn); if (eb) eb.click(); return; }
       if (!e.shiftKey && k === 'f') { e.preventDefault(); frOpen(ctx, false); return; }
       if (!e.shiftKey && k === 'h') { e.preventDefault(); frOpen(ctx, true); return; }
-      if (k === 'y' || (e.shiftKey && k === 'z')) { e.preventDefault(); document.execCommand('redo'); fireInput(ed); return; }
+      if (!e.shiftKey && k === 'z') { e.preventDefault(); ctx.history.undo(); return; }
+      if (k === 'y' || (e.shiftKey && k === 'z')) { e.preventDefault(); ctx.history.redo(); return; }
     }
     if (e.key === 'Tab') {
       e.preventDefault();
@@ -29959,6 +30030,8 @@ function wireEditor(ctx) {
       fireInput(ed);
     }
   });
+  // Record a history snapshot on edits (skipped while an undo/redo is being applied)
+  ed.addEventListener('input', function() { if (!ctx._histSuppress) ctx.history.record(); });
   // Checklist checkbox toggling (sync the attribute so the state survives innerHTML saves)
   ed.addEventListener('click', function(e) {
     var t = e.target;
@@ -29970,10 +30043,10 @@ function wireEditor(ctx) {
       fireInput(ed);
     }
   });
-  // Keep selection bookmarked for toolbar/menu actions
+  // Keep selection bookmarked for toolbar/menu actions; reseed history on entry switch
   ed.addEventListener('keyup', function() { saveSel(ctx); });
   ed.addEventListener('mouseup', function() { saveSel(ctx); });
-  ed.addEventListener('focus', function() { saveSel(ctx); });
+  ed.addEventListener('focus', function() { saveSel(ctx); ctx.history.syncBase(); });
   // Rich paste for editors without their own paste handler (journal-entries)
   if (ctx.needsPaste) {
     ed.addEventListener('paste', function(e) {
