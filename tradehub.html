@@ -3776,7 +3776,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       if(d.generatedAt&&(!d.events||d.events.length>0))setGeneratedAt(d.generatedAt);
       if(d.settings){
         const s=d.settings;
-        if(s.hours)setHours(s.hours);
+        if(s.hours)setHours(Math.min(s.hours,48)); // clamp old saved 72h → 2-day max
         if(s.sentFilter)setSentFilter(s.sentFilter);
         if(s.impFilter)setImpFilter(s.impFilter);
         if(Array.isArray(s.selTickers))setSelTickers(s.selTickers);
@@ -4192,7 +4192,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
         <span style={{flex:1,minWidth:8}}/>
         <span className="nh-lbl" style={lbl}>Window</span>
         <div className="nh-seg" style={segWrap}>
-          {[24,48,72].map(h=><button key={h} style={segBtn(hours===h)} onClick={()=>setHours(h)}>{h}h</button>)}
+          {[24,48].map(h=><button key={h} style={segBtn(hours===h)} onClick={()=>setHours(h)}>{h}h</button>)}
         </div>
       </div>
       <div className="nh-filter-row" style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
