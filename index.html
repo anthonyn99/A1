@@ -28642,10 +28642,10 @@ window.tjSwitchTo = function(app) {
   min-height: var(--docx-ph, 1056px) !important;
   margin: 0 auto !important;
   padding: var(--docx-mt,96px) var(--docx-mr,96px) var(--docx-mb,96px) var(--docx-ml,96px) !important;
-  background: #3B3D42 !important;
-  color: #F1F2F4 !important;
+  background: #202124 !important;
+  color: #EDEEF0 !important;
   border-radius: 2px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.55), 0 10px 34px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.035);
+  box-shadow: 0 1px 3px rgba(0,0,0,.6), 0 12px 38px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.05);
   zoom: var(--docx-zoom, 1);
   caret-color: #fff !important;
   position: relative;
@@ -28691,11 +28691,12 @@ li.docx-cl-item { list-style: none !important; }
 .docx-cl-box { margin-right: 9px; width: 14px; height: 14px; vertical-align: -2px; cursor: pointer; }
 li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .6; }
 
-/* ── Menu bar (first row inside each rich-text toolbar) ── */
-.docx-menubar { display: flex; gap: 1px; width: 100%; order: -1; padding: 1px 0 4px; margin-bottom: 3px; border-bottom: 1px solid rgba(128,128,128,.18); overflow-x: auto; scrollbar-width: none; }
-.docx-menubar::-webkit-scrollbar { display: none; }
-.docx-menu-btn { background: transparent; border: none; border-radius: 4px; padding: 4px 11px; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12px; color: var(--text2, #9a9aa5); cursor: pointer; white-space: nowrap; line-height: 1.2; }
-.docx-menu-btn:hover, .docx-menu-btn.open { background: rgba(128,128,128,.18); color: var(--text, #ececf0); }
+/* ── Menu bar (first row inside each rich-text toolbar) ──
+   Scoped with the root IDs so the roots' universal padding:0 reset does not collapse them. */
+#tj-root .docx-menubar, #bj-root .docx-menubar { display: flex; gap: 2px; width: 100%; order: -1; padding: 2px 0 6px; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,.16); overflow-x: auto; scrollbar-width: none; align-items: center; }
+#tj-root .docx-menubar::-webkit-scrollbar, #bj-root .docx-menubar::-webkit-scrollbar { display: none; }
+#tj-root .docx-menu-btn, #bj-root .docx-menu-btn { background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 5px 12px; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12.5px; font-weight: 500; color: var(--text2, #9a9aa5); cursor: pointer; white-space: nowrap; line-height: 1.2; flex-shrink: 0; transition: background .12s, color .12s; }
+#tj-root .docx-menu-btn:hover, #bj-root .docx-menu-btn:hover, #tj-root .docx-menu-btn.open, #bj-root .docx-menu-btn.open { background: rgba(128,128,128,.2); color: var(--text, #ececf0); }
 
 /* ── Popup menus / dropdowns ── */
 .docx-pop { position: fixed; z-index: 100000; background: #232428; border: 1px solid #3B3C42; border-radius: 9px; box-shadow: 0 14px 44px rgba(0,0,0,.55); padding: 5px; min-width: 208px; max-height: 72vh; overflow-y: auto; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12.5px; color: #E8E8EC; }
@@ -28714,12 +28715,16 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
 .docx-grid span.on { background: #5B7CFF; border-color: #7A93FF; }
 .docx-grid-lbl { text-align: center; padding: 0 0 7px; font-size: 11px; opacity: .7; }
 
-/* ── Ruler ── */
-.docx-ruler { display: none; height: 22px; position: relative; flex-shrink: 0; background: #131316; overflow: hidden; }
-.docx-ruler-in { position: absolute; top: 5px; height: 13px; left: 50%; transform: translateX(-50%); background: #26272B; border-radius: 2px;
-  background-image: repeating-linear-gradient(to right, transparent 0, transparent 11px, rgba(255,255,255,.28) 11px, rgba(255,255,255,.28) 12px),
-                    repeating-linear-gradient(to right, transparent 0, transparent 95px, rgba(255,255,255,.55) 95px, rgba(255,255,255,.55) 96px); }
-.docx-ruler-marg { position: absolute; top: 0; bottom: 0; background: rgba(255,255,255,.13); }
+/* ── Ruler (draggable margins) ── */
+#tj-root .docx-ruler, #bj-root .docx-ruler { display: none; height: 26px; position: relative; flex-shrink: 0; background: #131316; overflow: visible; user-select: none; }
+#tj-root .docx-ruler-in, #bj-root .docx-ruler-in { position: absolute; top: 7px; height: 13px; left: 50%; transform: translateX(-50%); background: #3a3b40; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+/* the writable (inside-margins) span shown lighter */
+#tj-root .docx-ruler-page, #bj-root .docx-ruler-page { position: absolute; top: 0; bottom: 0; background: #26272B; }
+#tj-root .docx-ruler-marg, #bj-root .docx-ruler-marg { position: absolute; top: -3px; bottom: -3px; width: 12px; cursor: ew-resize; z-index: 3; display: flex; align-items: flex-start; justify-content: center; touch-action: none; }
+#tj-root .docx-ruler-marg::after, #bj-root .docx-ruler-marg::after { content: ''; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid #8b8c94; margin-top: 1px; transition: border-top-color .12s; }
+#tj-root .docx-ruler-marg:hover::after, #bj-root .docx-ruler-marg:hover::after, #tj-root .docx-ruler-marg.drag::after, #bj-root .docx-ruler-marg.drag::after { border-top-color: var(--purple, #E0607A); }
+#tj-root .docx-ruler-marg.left, #bj-root .docx-ruler-marg.left { margin-left: -6px; }
+#tj-root .docx-ruler-marg.right, #bj-root .docx-ruler-marg.right { margin-right: -6px; }
 @media (min-width: 900px) {
   #tj-root:not(.tj-light) #tj-page-toolbar.edit-mode ~ .docx-ruler,
   #tj-root:not(.tj-light) #tj-je-toolbar.edit-mode ~ .docx-ruler,
@@ -28753,14 +28758,17 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 .docx-tbl-bubble button { background: transparent; border: none; border-radius: 4px; color: #E8E8EC; padding: 4px 8px; font-size: 11px; cursor: pointer; font-family: 'DM Sans',sans-serif; white-space: nowrap; }
 .docx-tbl-bubble button:hover { background: rgba(255,255,255,.1); }
 
-/* ── Sidebar: tag filter chips + Trash button + search highlight ── */
-.docx-tagchips { display: none; flex-wrap: wrap; gap: 4px; padding: 2px 12px 7px; }
-.docx-tagchip { font-size: 10px; padding: 3px 9px; border-radius: 11px; border: 1px solid var(--border2, #444); background: transparent; color: var(--text2, #999); cursor: pointer; font-family: inherit; letter-spacing: .03em; transition: all .12s; }
-.docx-tagchip:hover { border-color: var(--purple, #E0607A); color: var(--text, #eee); }
-.docx-tagchip.on { background: var(--purple, #E0607A); color: #101014; border-color: var(--purple, #E0607A); font-weight: 700; }
-.docx-trash-btn { margin: 4px 12px 6px; padding: 7px 10px; display: flex; align-items: center; gap: 7px; background: transparent; border: 1px dashed var(--border2, #444); border-radius: 6px; color: var(--text3, #777); font-size: 11px; cursor: pointer; font-family: inherit; letter-spacing: .04em; transition: all .12s; }
-.docx-trash-btn:hover { color: var(--text, #eee); border-color: var(--purple, #E0607A); }
-.docx-trash-count { background: var(--purple, #E0607A); color: #101014; border-radius: 9px; padding: 0 7px; font-weight: 700; font-size: 10px; line-height: 16px; }
+/* ── Sidebar: tag filter chips + Trash button + search highlight ──
+   Scoped so the roots' universal padding:0 reset doesn't flatten them; box-sizing + overflow guard keep chips on-screen. */
+#tj-root .docx-tagchips, #bj-root .docx-tagchips { display: none; flex-wrap: wrap; gap: 5px; padding: 4px 12px 8px; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden; }
+#tj-root .docx-tagchips.on, #bj-root .docx-tagchips.on { display: flex; }
+#tj-root .docx-tagchips-lbl, #bj-root .docx-tagchips-lbl { width: 100%; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text3, #777); margin-bottom: 1px; }
+#tj-root .docx-tagchip, #bj-root .docx-tagchip { max-width: 100%; box-sizing: border-box; font-size: 10.5px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border2, #444); background: transparent; color: var(--text2, #999); cursor: pointer; font-family: inherit; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all .12s; }
+#tj-root .docx-tagchip:hover, #bj-root .docx-tagchip:hover { border-color: var(--purple, #E0607A); color: var(--text, #eee); }
+#tj-root .docx-tagchip.on, #bj-root .docx-tagchip.on { background: var(--purple, #E0607A); color: #101014; border-color: var(--purple, #E0607A); font-weight: 700; }
+#tj-root .docx-trash-btn, #bj-root .docx-trash-btn { margin: 4px 12px 8px; padding: 8px 11px; display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: calc(100% - 24px); background: transparent; border: 1px dashed var(--border2, #444); border-radius: 7px; color: var(--text3, #777); font-size: 11px; cursor: pointer; font-family: inherit; letter-spacing: .04em; transition: all .12s; }
+#tj-root .docx-trash-btn:hover, #bj-root .docx-trash-btn:hover { color: var(--text, #eee); border-color: var(--purple, #E0607A); }
+#tj-root .docx-trash-count, #bj-root .docx-trash-count { margin-left: auto; background: var(--purple, #E0607A); color: #101014; border-radius: 9px; padding: 0 7px; font-weight: 700; font-size: 10px; line-height: 16px; }
 
 /* ── Modals (Trash / Page setup / Word count / Shortcuts) ── */
 .docx-veil { position: fixed; inset: 0; z-index: 100002; background: rgba(0,0,0,.58); display: flex; align-items: center; justify-content: center; padding: 16px; }
