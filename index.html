@@ -19866,9 +19866,9 @@ function renderSidebar() {
   });
   list.innerHTML = '';
   if (entries.length === 0) {
-    list.innerHTML = `<div class="list-empty">${search ? 'No entries match your search.' : 'No entries yet.<br>Click "New Entry" to begin.'}</div>`;
+    list.innerHTML = `<div class="list-empty">${search || bjTagFilters.length ? 'No entries match your search.' : 'No entries yet.<br>Click "New Entry" to begin.'}</div>`;
   }
-  const isDraggable = !search;
+  const isDraggable = !search && bjTagFilters.length === 0;
   let dragSrcId = null;
 
   entries.forEach(entry => {
