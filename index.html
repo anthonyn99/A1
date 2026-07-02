@@ -29019,17 +29019,17 @@ function applyPageSetup(app) {
   var dim = SIZES[ps.size] || SIZES.letter;
   var pw = ps.orient === 'landscape' ? dim[1] : dim[0];
   var ph = ps.orient === 'landscape' ? dim[0] : dim[1];
-  var m = MARGINS[ps.margin] || MARGINS.normal;
+  var m = marginsGet(app);
   cfg.ctxs.forEach(function(c) {
     var wrap = $(c.wrap);
     if (!wrap) return;
     wrap.style.setProperty('--docx-pw', pw + 'px');
     wrap.style.setProperty('--docx-ph', ph + 'px');
-    wrap.style.setProperty('--docx-mt', m[0] + 'px');
-    wrap.style.setProperty('--docx-mr', m[1] + 'px');
-    wrap.style.setProperty('--docx-mb', m[2] + 'px');
-    wrap.style.setProperty('--docx-ml', m[3] + 'px');
-    wrap.style.setProperty('--docx-pi', (ph - m[0] - m[2]) + 'px');
+    wrap.style.setProperty('--docx-mt', m.mt + 'px');
+    wrap.style.setProperty('--docx-mr', m.mr + 'px');
+    wrap.style.setProperty('--docx-mb', m.mb + 'px');
+    wrap.style.setProperty('--docx-ml', m.ml + 'px');
+    wrap.style.setProperty('--docx-pi', (ph - m.mt - m.mb) + 'px');
   });
   applyZoom(app);
   updateRulers(app);
@@ -29059,46 +29059,100 @@ function applyZoom(app) {
   });
 }
 function setZoom(app, z) { lsSet('docx_zoom_' + app, z); applyZoom(app); }
-function vmGet(app) { return lsGet('docx_vm_' + app, 'pages'); }
+// View mode: continuous ("web") only — no paginated slits, no Pages/Web switcher.
+function vmGet(app) { return 'flow'; }
 function applyViewMode(app) {
-  var cfg = APPS[app], vm = vmGet(app);
-  cfg.ctxs.forEach(function(c) {
-    var wrap = $(c.wrap);
-    if (wrap) wrap.classList.toggle('docx-pages', vm === 'pages');
-  });
-  var seg = $('docx-viewseg-' + app);
-  if (seg) {
-    seg.querySelectorAll('button').forEach(function(b) { b.classList.toggle('on', b.dataset.vm === vm); });
-  }
+  var cfg = APPS[app];
+  cfg.ctxs.forEach(function(c) { var wrap = $(c.wrap); if (wrap) wrap.classList.remove('docx-pages'); });
 }
-function setViewMode(app, vm) { lsSet('docx_vm_' + app, vm); applyViewMode(app); }
+function setViewMode(app, vm) { /* continuous only */ }
 
-/* ═══════════ Ruler ═══════════ */
+/* ═══════════ Margins (custom + draggable, default 1 inch) ═══════════ */
+// Stored per-app as explicit px {mt,mr,mb,ml}; falls back to the page-setup preset.
+function marginsGet(app) {
+  var ps = psGet(app);
+  var preset = MARGINS[ps.margin] || MARGINS.normal;
+  var saved = lsGet('docx_margins_' + app, null);
+  if (saved && typeof saved.ml === 'number') return saved;
+  return { mt: preset[0], mr: preset[1], mb: preset[2], ml: preset[3] };
+}
+function marginsSet(app, m) { lsSet('docx_margins_' + app, m); applyPageSetup(app); }
+
+function _pageWidth(app) {
+  var ps = psGet(app), dim = SIZES[ps.size] || SIZES.letter;
+  return ps.orient === 'landscape' ? dim[1] : dim[0];
+}
+function _zoomFactor(app, wrap) {
+  var z = zGet(app);
+  if (z === 'fit' && wrap) return Math.max(0.4, Math.min(1.5, ((wrap.clientWidth || window.innerWidth) - 30) / _pageWidth(app)));
+  return z === 'fit' ? 1 : z;
+}
+
+/* ═══════════ Ruler (draggable margins) ═══════════ */
 function buildRuler(ctx) {
   var tb = ctx.tbEl;
   if (!tb || !tb.parentNode) return;
   var ruler = document.createElement('div');
   ruler.className = 'docx-ruler';
-  ruler.innerHTML = '<div class="docx-ruler-in"><div class="docx-ruler-marg" style="left:0"></div><div class="docx-ruler-marg" style="right:0"></div></div>';
+  ruler.innerHTML = '<div class="docx-ruler-in"><div class="docx-ruler-page"></div>' +
+    '<div class="docx-ruler-marg left" title="Drag to set the left margin"></div>' +
+    '<div class="docx-ruler-marg right" title="Drag to set the right margin"></div></div>';
   tb.parentNode.insertBefore(ruler, tb.nextSibling);
   ctx.rulerEl = ruler;
+
+  var leftH = ruler.querySelector('.docx-ruler-marg.left');
+  var rightH = ruler.querySelector('.docx-ruler-marg.right');
+  function startDrag(handle, side) {
+    handle.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      handle.classList.add('drag');
+      var wrap = $(ctx.wrap);
+      var zi = _zoomFactor(ctx.app, wrap);
+      var pw = _pageWidth(ctx.app);
+      var startX = e.clientX;
+      var m = marginsGet(ctx.app);
+      var startVal = side === 'left' ? m.ml : m.mr;
+      function onMove(ev) {
+        var deltaPx = (ev.clientX - startX) / (zi || 1);
+        var next = side === 'left' ? startVal + deltaPx : startVal - deltaPx;
+        // clamp: 0.25in .. leave at least 1.5in of writable width
+        next = Math.max(24, Math.min(next, pw - (side === 'left' ? m.mr : m.ml) - 144));
+        var nm = marginsGet(ctx.app);
+        if (side === 'left') nm.ml = Math.round(next); else nm.mr = Math.round(next);
+        marginsSet(ctx.app, nm);
+      }
+      function onUp() {
+        handle.classList.remove('drag');
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+  }
+  startDrag(leftH, 'left');
+  startDrag(rightH, 'right');
 }
 function updateRulers(app) {
-  var cfg = APPS[app], ps = psGet(app), z = zGet(app);
-  var dim = SIZES[ps.size] || SIZES.letter;
-  var pw = ps.orient === 'landscape' ? dim[1] : dim[0];
-  var m = MARGINS[ps.margin] || MARGINS.normal;
+  var cfg = APPS[app];
+  var pw = _pageWidth(app);
+  var m = marginsGet(app);
   cfg.ctxs.forEach(function(c) {
     if (!c._ctx || !c._ctx.rulerEl) return;
     var wrap = $(c.wrap);
-    var zi = z;
-    if (z === 'fit' && wrap) zi = Math.max(0.4, Math.min(1.5, ((wrap.clientWidth || window.innerWidth) - 30) / pw));
+    var zi = _zoomFactor(app, wrap);
     var inEl = c._ctx.rulerEl.querySelector('.docx-ruler-in');
     if (!inEl) return;
-    inEl.style.width = Math.round(pw * zi) + 'px';
-    var margs = inEl.querySelectorAll('.docx-ruler-marg');
-    if (margs[0]) margs[0].style.width = Math.round(m[3] * zi) + 'px';
-    if (margs[1]) margs[1].style.width = Math.round(m[1] * zi) + 'px';
+    var wPx = Math.round(pw * zi);
+    inEl.style.width = wPx + 'px';
+    var pageEl = inEl.querySelector('.docx-ruler-page');
+    var lPx = Math.round(m.ml * zi), rPx = Math.round(m.mr * zi);
+    if (pageEl) { pageEl.style.left = lPx + 'px'; pageEl.style.right = rPx + 'px'; }
+    var leftH = inEl.querySelector('.docx-ruler-marg.left');
+    var rightH = inEl.querySelector('.docx-ruler-marg.right');
+    if (leftH) leftH.style.left = lPx + 'px';
+    if (rightH) rightH.style.right = rPx + 'px';
   });
 }
 
