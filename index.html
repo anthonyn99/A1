@@ -29215,6 +29215,8 @@ function buildRuler(ctx) {
         var next = side === 'left' ? startVal + deltaPx : startVal - deltaPx;
         // clamp: 0.25in .. leave at least 1.5in of writable width
         next = Math.max(24, Math.min(next, pw - (side === 'left' ? m.mr : m.ml) - 144));
+        // snap to 1 inch (96px) when within ~10px — the default reset point
+        if (Math.abs(next - 96) < 10) next = 96;
         var nm = marginsGet(ctx.app);
         if (side === 'left') nm.ml = Math.round(next); else nm.mr = Math.round(next);
         marginsSet(ctx.app, nm);
