@@ -19827,12 +19827,19 @@ function _bjRenderTagChips(live) {
   }
   const all = [...new Set(live.reduce((a,e) => a.concat(e.tags||[]), []))].sort((a,b)=>a.localeCompare(b));
   bjTagFilters = bjTagFilters.filter(t => all.includes(t));
-  row.style.display = all.length ? 'flex' : 'none';
+  row.classList.toggle('on', all.length > 0);
+  row.style.display = '';
   row.innerHTML = '';
+  if (!all.length) return;
+  const lbl = document.createElement('div');
+  lbl.className = 'docx-tagchips-lbl';
+  lbl.textContent = 'Filter by tag';
+  row.appendChild(lbl);
   all.forEach(tag => {
     const chip = document.createElement('button');
     chip.className = 'docx-tagchip' + (bjTagFilters.includes(tag) ? ' on' : '');
     chip.textContent = tag;
+    chip.title = tag;
     chip.onclick = () => {
       bjTagFilters = bjTagFilters.includes(tag) ? bjTagFilters.filter(t => t !== tag) : bjTagFilters.concat(tag);
       renderSidebar();
@@ -21831,16 +21838,30 @@ function _bjFindMarkAncestor(node, editorEl) {
   trigger.addEventListener('touchstart', function(e) {
     e.preventDefault();
   }, { passive: false });
-  // touchend: selection IS committed by now — save it, then open palette
+  // Toggle-off: if the selection is already highlighted, clicking the trigger removes it.
+  function _bjTriggerToggle() {
+    var ed = document.getElementById('bj-page-editor');
+    if (savedRange) { var s = window.getSelection(); s.removeAllRanges(); s.addRange(savedRange); }
+    if (savedRange && !savedRange.collapsed && window._docxSelectionHighlighted && window._docxSelectionHighlighted(ed)) {
+      applyHighlight('none', savedRange.cloneRange());
+      savedRange = null;
+      return true;
+    }
+    return false;
+  }
+  // touchend: selection IS committed by now — save it, then toggle-off or open palette
   trigger.addEventListener('touchend', function(e) {
     e.preventDefault(); e.stopPropagation();
     _bjSaveRange();
+    if (_bjTriggerToggle()) return;
     palette.classList.add('open');
   }, { passive: false });
   trigger.addEventListener('click', function(e) {
     e.stopPropagation();
     // Desktop: toggle; touchend already handled palette open on mobile
-    if (!('ontouchend' in window)) palette.classList.toggle('open');
+    if ('ontouchend' in window) return;
+    if (_bjTriggerToggle()) return;
+    palette.classList.toggle('open');
   });
 
   palette.addEventListener('mousedown', function(e) { e.preventDefault(); });
@@ -21902,33 +21923,10 @@ function _bjFindMarkAncestor(node, editorEl) {
       range = sel.getRangeAt(0).cloneRange();
     }
     if (color === 'none') {
-      var r = range.cloneRange();
-      // Expand range to wrap any containing mark ancestors
-      function expandRangeAroundMarks(r2) {
-        var sc = _bjFindMarkAncestor(r2.startContainer, ed);
-        var ec = _bjFindMarkAncestor(r2.endContainer, ed);
-        if (sc) try { r2.setStartBefore(sc); } catch(e){}
-        if (ec) try { r2.setEndAfter(ec); } catch(e){}
+      // Robust removal (handles <mark> AND background-color spans) via the shared stripper.
+      if (window._docxStripHighlight) {
+        window._docxStripHighlight(ed, range.cloneRange());
       }
-      expandRangeAroundMarks(r);
-      // Search ENTIRE editor — no subtree misses
-      var allMarks = Array.from(ed.querySelectorAll('mark,[data-bj-hl]'));
-      var toUnwrap = allMarks.filter(function(el) {
-        if (_bjFindMarkAncestor(r.startContainer, ed) === el) return true;
-        try {
-          var elR = document.createRange();
-          elR.selectNode(el);
-          return r.compareBoundaryPoints(Range.END_TO_START, elR) <= 0 &&
-                 r.compareBoundaryPoints(Range.START_TO_END, elR) >= 0;
-        } catch(e) { return true; }
-      });
-      toUnwrap.forEach(function(el) {
-        var p = el.parentNode;
-        if (!p) return;
-        while (el.firstChild) p.insertBefore(el.firstChild, el);
-        p.removeChild(el);
-      });
-      ed.normalize();
       window.getSelection().removeAllRanges();
       autoSave();
       return;
@@ -25125,12 +25123,19 @@ function _tjRenderTagChips(live) {
   }
   const all = [...new Set(live.reduce((a,e) => a.concat(e.tags||[]), []))].sort((a,b)=>a.localeCompare(b));
   tjTagFilters = tjTagFilters.filter(t => all.includes(t));
-  row.style.display = all.length ? 'flex' : 'none';
+  row.classList.toggle('on', all.length > 0);
+  row.style.display = '';
   row.innerHTML = '';
+  if (!all.length) return;
+  const lbl = document.createElement('div');
+  lbl.className = 'docx-tagchips-lbl';
+  lbl.textContent = 'Filter by tag';
+  row.appendChild(lbl);
   all.forEach(tag => {
     const chip = document.createElement('button');
     chip.className = 'docx-tagchip' + (tjTagFilters.includes(tag) ? ' on' : '');
     chip.textContent = tag;
+    chip.title = tag;
     chip.onclick = () => {
       tjTagFilters = tjTagFilters.includes(tag) ? tjTagFilters.filter(t => t !== tag) : tjTagFilters.concat(tag);
       renderSidebar();
@@ -26985,16 +26990,30 @@ function _tjFindMarkAncestor(node, editorEl) {
   trigger.addEventListener('touchstart', function(e) {
     e.preventDefault();
   }, { passive: false });
-  // touchend: selection IS committed by now — save it, then open palette
+  // Toggle-off: if the selection is already highlighted, clicking the trigger removes it.
+  function _tjTriggerToggle() {
+    var ed = document.getElementById('tj-page-editor');
+    if (savedRange) { var s = window.getSelection(); s.removeAllRanges(); s.addRange(savedRange); }
+    if (savedRange && !savedRange.collapsed && window._docxSelectionHighlighted && window._docxSelectionHighlighted(ed)) {
+      applyHighlight('none', savedRange.cloneRange());
+      savedRange = null;
+      return true;
+    }
+    return false;
+  }
+  // touchend: selection IS committed by now — save it, then toggle-off or open palette
   trigger.addEventListener('touchend', function(e) {
     e.preventDefault(); e.stopPropagation();
     _tjSaveRange();
+    if (_tjTriggerToggle()) return;
     palette.classList.add('open');
   }, { passive: false });
   trigger.addEventListener('click', function(e) {
     e.stopPropagation();
     // Desktop: toggle; touchend already handled palette open on mobile
-    if (!('ontouchend' in window)) palette.classList.toggle('open');
+    if ('ontouchend' in window) return;
+    if (_tjTriggerToggle()) return;
+    palette.classList.toggle('open');
   });
 
   palette.addEventListener('mousedown', function(e) { e.preventDefault(); });
@@ -27056,33 +27075,10 @@ function _tjFindMarkAncestor(node, editorEl) {
       range = sel.getRangeAt(0).cloneRange();
     }
     if (color === 'none') {
-      var r = range.cloneRange();
-      // Expand range to wrap any containing mark ancestors
-      function expandRangeAroundMarks(r2) {
-        var sc = _tjFindMarkAncestor(r2.startContainer, ed);
-        var ec = _tjFindMarkAncestor(r2.endContainer, ed);
-        if (sc) try { r2.setStartBefore(sc); } catch(e){}
-        if (ec) try { r2.setEndAfter(ec); } catch(e){}
+      // Robust removal (handles <mark> AND background-color spans) via the shared stripper.
+      if (window._docxStripHighlight) {
+        window._docxStripHighlight(ed, range.cloneRange());
       }
-      expandRangeAroundMarks(r);
-      // Search ENTIRE editor — no subtree misses
-      var allMarks = Array.from(ed.querySelectorAll('mark,[data-tj-hl]'));
-      var toUnwrap = allMarks.filter(function(el) {
-        if (_tjFindMarkAncestor(r.startContainer, ed) === el) return true;
-        try {
-          var elR = document.createRange();
-          elR.selectNode(el);
-          return r.compareBoundaryPoints(Range.END_TO_START, elR) <= 0 &&
-                 r.compareBoundaryPoints(Range.START_TO_END, elR) >= 0;
-        } catch(e) { return true; }
-      });
-      toUnwrap.forEach(function(el) {
-        var p = el.parentNode;
-        if (!p) return;
-        while (el.firstChild) p.insertBefore(el.firstChild, el);
-        p.removeChild(el);
-      });
-      ed.normalize();
       window.getSelection().removeAllRanges();
       autoSave();
       return;
@@ -29477,6 +29473,67 @@ function frOpen(ctx, withReplace) {
   if (seed) frSearch();
 }
 
+/* ═══════════ Highlight: robust strip + toggle (shared by both apps) ═══════════ */
+function _isHL(el) {
+  if (!el || el.nodeType !== 1) return false;
+  if (el.tagName === 'MARK' || el.hasAttribute('data-tj-hl') || el.hasAttribute('data-bj-hl')) return true;
+  var s = el.style;
+  return !!(s && (s.backgroundColor || (s.background && !/^none/i.test(s.background))));
+}
+function _unwrap(el) {
+  var p = el.parentNode; if (!p) return;
+  while (el.firstChild) p.insertBefore(el.firstChild, el);
+  p.removeChild(el);
+}
+window._docxStripHighlight = function(ed, range) {
+  var sel = window.getSelection();
+  var r = range || (sel && sel.rangeCount ? sel.getRangeAt(0) : null);
+  if (!r || !ed.contains(r.commonAncestorContainer)) return;
+  function hlAnc(node) { var c = node; while (c && c !== ed) { if (_isHL(c)) return c; c = c.parentNode; } return null; }
+  var sc = hlAnc(r.startContainer), ec = hlAnc(r.endContainer);
+  if (sc) { try { r.setStartBefore(sc); } catch (e) {} }
+  if (ec) { try { r.setEndAfter(ec); } catch (e) {} }
+  Array.prototype.slice.call(ed.querySelectorAll('mark,[data-tj-hl],[data-bj-hl],span[style]')).forEach(function(el) {
+    if (!_isHL(el)) return;
+    var hit = false;
+    try { hit = r.intersectsNode(el); } catch (e) { hit = true; }
+    if (!hit && el !== sc && el !== ec) return;
+    if (el.tagName === 'MARK') { _unwrap(el); }
+    else {
+      el.style.background = ''; el.style.backgroundColor = ''; el.style.color = '';
+      if (!(el.getAttribute('style') || '').trim()) el.removeAttribute('style');
+      if (!el.attributes.length) _unwrap(el);
+    }
+  });
+  ed.normalize();
+};
+window._docxSelectionHighlighted = function(ed) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return false;
+  var r = sel.getRangeAt(0);
+  if (!ed.contains(r.commonAncestorContainer)) return false;
+  var n = r.startContainer; if (n.nodeType === 3) n = n.parentElement;
+  if (n && n.closest) { var a = n.closest('mark,[data-tj-hl],[data-bj-hl]'); if (a && ed.contains(a)) return true; }
+  var els = ed.querySelectorAll('mark,[data-tj-hl],[data-bj-hl]');
+  for (var i = 0; i < els.length; i++) { try { if (r.intersectsNode(els[i])) return true; } catch (e) {} }
+  return false;
+};
+window._docxToggleHighlight = function(ed, color) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+  var r = sel.getRangeAt(0);
+  if (!ed.contains(r.commonAncestorContainer)) return;
+  if (window._docxSelectionHighlighted(ed)) {
+    window._docxStripHighlight(ed, r.cloneRange());
+    sel.removeAllRanges();
+  } else {
+    var mark = document.createElement('mark');
+    mark.style.cssText = 'background:' + color + ';color:#111;border-radius:2px;padding:0 1px;';
+    try { r.surroundContents(mark); } catch (e) { document.execCommand('hiliteColor', false, color); }
+  }
+  fireInput(ed);
+};
+
 /* ═══════════ Floating selection toolbar ═══════════ */
 var floatBar = null;
 function hideFloat() { if (floatBar) { floatBar.remove(); floatBar = null; } }
@@ -29498,8 +29555,8 @@ function buildFloat(ctx) {
   fbtn('<u>U</u>', 'Underline', function() { document.execCommand('underline'); fireInput(ctx.edEl); });
   fbtn('<s>S</s>', 'Strikethrough', function() { document.execCommand('strikeThrough'); fireInput(ctx.edEl); });
   var sep1 = document.createElement('div'); sep1.className = 'sep'; floatBar.appendChild(sep1);
-  fbtn('<span style="background:#FFE066;color:#111;border-radius:2px;padding:0 4px;font-weight:700;">A</span>', 'Highlight', function() {
-    document.execCommand('hiliteColor', false, '#FFE066'); fireInput(ctx.edEl);
+  fbtn('<span style="background:#FFE066;color:#111;border-radius:2px;padding:0 4px;font-weight:700;">A</span>', 'Highlight (click again to remove)', function() {
+    window._docxToggleHighlight(ctx.edEl, '#FFE066');
   });
   var colorIn = document.createElement('input');
   colorIn.type = 'color'; colorIn.value = '#f1f2f4'; colorIn.title = 'Text color';
@@ -29615,11 +29672,15 @@ function pageSetupModal(app) {
     apply.textContent = 'Apply';
     apply.addEventListener('click', function() {
       var veil = f.closest('.docx-veil');
+      var marginKey = veil.querySelector('.ps-margin').value;
       lsSet('docx_ps_' + app, {
         size: veil.querySelector('.ps-size').value,
         orient: veil.querySelector('.ps-orient').value,
-        margin: veil.querySelector('.ps-margin').value
+        margin: marginKey
       });
+      // Reset any custom (ruler-dragged) margins so the chosen preset takes effect.
+      var mp = MARGINS[marginKey] || MARGINS.normal;
+      lsSet('docx_margins_' + app, { mt: mp[0], mr: mp[1], mb: mp[2], ml: mp[3] });
       applyPageSetup(app);
       close();
     });
