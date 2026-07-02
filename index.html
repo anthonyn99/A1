@@ -17417,19 +17417,23 @@ function vdkcCalcDocBytes(){
   },0);
 }
 function vdkcUpdateStorageBar(){
-  const MAX=900000;
-  const used=vdkcCalcDocBytes();
+  // Files now upload individually to Cloudflare KV — the only limit is 25 MB
+  // PER FILE (no shared budget). Bar tracks the largest pending file vs that.
+  const PERFILE=25*1024*1024;
   const wrap=document.getElementById('vd-kc-storage-bar-wrap');
   const fill=document.getElementById('vd-kc-storage-bar-fill');
   const txt=document.getElementById('vd-kc-storage-bar-text');
   if(!wrap)return;
-  if(used===0){wrap.style.display='none';return;}
+  const sizeOf=d=>d.file?d.file.size:(d.fileData?Math.round(d.fileData.length*0.75):0);
+  const pending=_vdkcDocs.filter(d=>!d.toDelete&&sizeOf(d)>0);
+  if(!pending.length){wrap.style.display='none';return;}
   wrap.style.display='block';
-  const pct=Math.min(100,Math.round(used/MAX*100));
-  const usedKB=Math.round(used/1024);
-  const remKB=Math.max(0,Math.round((MAX-used)/1024));
-  if(txt)txt.textContent=usedKB+' KB used — '+remKB+' KB free (max 900 KB)';
-  if(fill){fill.style.width=pct+'%';fill.style.background=pct>=90?'#e05555':pct>=70?'#e09030':'var(--ac)';}
+  const largest=pending.reduce((m,d)=>Math.max(m,sizeOf(d)),0);
+  const over=largest>PERFILE;
+  const fmt=b=>b>=1048576?(b/1048576).toFixed(1)+' MB':Math.round(b/1024)+' KB';
+  if(txt)txt.textContent=over?'A file is over the 25 MB limit — it won’t sync to the cloud':fmt(largest)+' · 25 MB max per file';
+  const pct=Math.min(100,Math.round(largest/PERFILE*100));
+  if(fill){fill.style.width=pct+'%';fill.style.background=over?'#e05555':pct>=80?'#e09030':'var(--ac)';}
 }
 function vdkcRebuildDocFields(){
   const df=document.getElementById('vd-kc-doc-fields');if(!df)return;
