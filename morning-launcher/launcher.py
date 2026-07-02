@@ -1,21 +1,34 @@
 """
 Morning Launcher
 ================
-At 6 AM Mountain Time (auto-handles DST), opens:
+On every market weekday (Mon–Fri, skipping NYSE holidays), the FIRST time you
+wake / unlock / boot your laptop at or after 6 AM Mountain Time, it opens:
   - WeBull Desktop   →  left   panel
   - TradeHub         →  middle panel  (browser window)
-  - TaskHub          →  right  panel  (browser window)
+  - TaskHub          →  right  panel  (Brave app shortcut)
+
+It fires on ALL of these so nothing is missed on a laptop:
+  - waking from sleep + unlocking the screen   (session-unlock trigger)
+  - a fresh boot / login                        (logon trigger)
+  - already-on-and-unlocked at 6 AM             (daily trigger)
+  - classic wake-from-sleep event               (power event trigger)
+It only launches ONCE per day (first qualifying trigger wins), only on days the
+US stock market is open, and it runs even when the laptop is on battery.
 
 USAGE
 -----
   1. Tweak the layout coordinates below if windows land in the wrong spot.
-  2. Run ONCE as Administrator to install into Task Scheduler:
+  2. Run ONCE to (re)install into Task Scheduler:
          python launcher.py --setup
-  3. Done. Runs silently at every login from now on.
+     (If it complains about permissions, run that from an Administrator terminal.)
+  3. Done. Runs silently from now on.
 
   To remove:   python launcher.py --uninstall
-  Manual run:  python launcher.py
+  Test now:    python launcher.py --test      (opens everything immediately)
   Logs:        morning-launcher/launcher.log
+
+  NOTE: If you had an older version installed, you MUST re-run --setup so the new
+  battery / unlock / market-day behavior takes effect.
 """
 
 # ==============================================================================
@@ -39,10 +52,12 @@ TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
 # TaskHub opens via its installed Brave app (app-id below) — no URL needed here
 
 # ==============================================================================
-#  TRIGGER TIME
+#  TRIGGER WINDOW  (Mountain Time)
 # ==============================================================================
 
-TRIGGER_HOUR = 6   # 6 = 6:00 AM Mountain Time
+TRIGGER_HOUR = 6    # Earliest launch time. Open before this → it waits until 6:00 AM.
+LATEST_HOUR  = 12   # If your FIRST open of the day is at/after this hour (noon MT),
+                    # it won't auto-launch — assumes you're not starting a trading day.
 
 # ==============================================================================
 #  EXECUTABLE PATHS  (auto-detected — override here if detection fails)
@@ -65,7 +80,7 @@ import ctypes.wintypes as wt
 import subprocess
 import sys
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).resolve()
@@ -98,6 +113,13 @@ def mountain_now() -> datetime:
     return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
 
 
+def mountain_today() -> date:
+    try:
+        return mountain_now().date()
+    except Exception:
+        return date.today()
+
+
 def seconds_until_trigger() -> float:
     now    = mountain_now()
     target = now.replace(hour=TRIGGER_HOUR, minute=0, second=0, microsecond=0)
@@ -105,15 +127,88 @@ def seconds_until_trigger() -> float:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# US stock market (NYSE) calendar
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _easter(year: int) -> date:
+    """Gregorian Easter Sunday (anonymous algorithm)."""
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day   = ((h + l - 7 * m + 114) % 31) + 1
+    return date(year, month, day)
+
+
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
+    """n-th `weekday` (Mon=0) of a month, e.g. 3rd Monday of January."""
+    first = date(year, month, 1)
+    offset = (weekday - first.weekday()) % 7
+    return date(year, month, 1) + timedelta(days=offset + (n - 1) * 7)
+
+
+def _last_weekday(year: int, month: int, weekday: int) -> date:
+    """Last `weekday` (Mon=0) of a month, e.g. last Monday of May."""
+    if month == 12:
+        last = date(year, 12, 31)
+    else:
+        last = date(year, month + 1, 1) - timedelta(days=1)
+    offset = (last.weekday() - weekday) % 7
+    return last - timedelta(days=offset)
+
+
+def _observed(d: date) -> date:
+    """NYSE weekend-observation: Sat holiday → Fri before, Sun holiday → Mon after."""
+    if d.weekday() == 5:      # Saturday
+        return d - timedelta(days=1)
+    if d.weekday() == 6:      # Sunday
+        return d + timedelta(days=1)
+    return d
+
+
+def _nyse_holidays(year: int) -> set:
+    return {
+        _observed(date(year, 1, 1)),        # New Year's Day
+        _nth_weekday(year, 1, 0, 3),        # MLK Jr. Day        (3rd Mon Jan)
+        _nth_weekday(year, 2, 0, 3),        # Washington's Bday  (3rd Mon Feb)
+        _easter(year) - timedelta(days=2),  # Good Friday
+        _last_weekday(year, 5, 0),          # Memorial Day       (last Mon May)
+        _observed(date(year, 6, 19)),       # Juneteenth
+        _observed(date(year, 7, 4)),        # Independence Day
+        _nth_weekday(year, 9, 0, 1),        # Labor Day          (1st Mon Sep)
+        _nth_weekday(year, 11, 3, 4),       # Thanksgiving       (4th Thu Nov)
+        _observed(date(year, 12, 25)),      # Christmas Day
+    }
+
+
+def is_market_day(d: date) -> bool:
+    """True on a regular US-stock-market trading day (Mon–Fri, not an NYSE holiday)."""
+    if d.weekday() >= 5:                    # Saturday / Sunday
+        return False
+    if d in _nyse_holidays(d.year):
+        return False
+    return True
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # State / logging
 # ──────────────────────────────────────────────────────────────────────────────
 
 def already_ran_today() -> bool:
-    return STATE_FILE.exists() and STATE_FILE.read_text().strip() == str(date.today())
+    return STATE_FILE.exists() and STATE_FILE.read_text().strip() == str(mountain_today())
 
 
 def mark_ran():
-    STATE_FILE.write_text(str(date.today()))
+    STATE_FILE.write_text(str(mountain_today()))
 
 
 def log(msg: str):
@@ -343,23 +438,45 @@ def open_taskhub_app():
 # Main morning routine
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_morning(test: bool = False):
-    if not test and already_ran_today():
-        return
-
-    if not test:
-        wait = seconds_until_trigger()
-        if wait > 0:
-            log(f"Logged in early — waiting {wait / 60:.1f} min until {TRIGGER_HOUR}:00 AM MT")
-            time.sleep(wait)
-
+def _launch_all(test: bool):
     log("=== Morning launch starting ===" + (" [TEST]" if test else ""))
     open_webull()
     open_tradehub()
     time.sleep(1.5)
     open_taskhub_app()
-    mark_ran()
+    if not test:
+        mark_ran()
     log("=== Done ===")
+
+
+def run_morning(test: bool = False):
+    log("Triggered" + (" [TEST]" if test else ""))
+
+    if test:
+        _launch_all(test=True)
+        return
+
+    if already_ran_today():
+        log("Already launched today — skipping.")
+        return
+
+    today = mountain_today()
+    if not is_market_day(today):
+        log(f"{today} is a weekend or NYSE holiday — market closed, skipping.")
+        return
+
+    now = mountain_now()
+    if now.hour < TRIGGER_HOUR:
+        wait = seconds_until_trigger()
+        log(f"Woke before {TRIGGER_HOUR}:00 — waiting {wait / 60:.1f} min until market-open prep time.")
+        time.sleep(wait)
+    elif now.hour >= LATEST_HOUR:
+        log(f"First open of the day at {now:%H:%M} MT is past the morning window "
+            f"({TRIGGER_HOUR}:00–{LATEST_HOUR}:00 MT) — not auto-launching. "
+            f"Run 'python launcher.py --test' to open manually.")
+        return
+
+    _launch_all(test=False)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -374,7 +491,10 @@ def _pythonw() -> str:
 
 def setup():
     print("Installing tzdata for timezone support...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "tzdata"])
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "tzdata"])
+    except Exception as e:
+        print(f"  (tzdata install skipped: {e} — Windows timezone fallback will be used)")
 
     pw       = _pythonw()
     script   = str(SCRIPT_PATH)
@@ -382,36 +502,64 @@ def setup():
 
     ps = f"""
 $action   = New-ScheduledTaskAction -Execute '{pw}' -Argument '"{script}"' -WorkingDirectory '{work_dir}'
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 12) -StartWhenAvailable -MultipleInstances IgnoreNew
+
+# Settings tuned for a LAPTOP:
+#   -AllowStartIfOnBatteries / -DontStopIfGoingOnBatteries → run even when unplugged
+#     (this is the #1 reason a laptop task silently never runs)
+#   -WakeToRun          → let the daily trigger wake the machine
+#   -StartWhenAvailable → re-run a missed trigger as soon as possible
+#   -RestartCount       → retry a few times if it fails to start
+$settings = New-ScheduledTaskSettingsSet `
+    -ExecutionTimeLimit (New-TimeSpan -Hours 12) `
+    -StartWhenAvailable `
+    -MultipleInstances IgnoreNew `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -WakeToRun `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 1)
 
 # Run interactively as the logged-on user so the GUI windows actually draw on the desktop
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\\$env:USERNAME" -LogonType Interactive -RunLevel Limited
 
-# Trigger 1: daily at {TRIGGER_HOUR}:00 AM — the reliable one when the PC is already on & logged in.
-#            (-StartWhenAvailable above re-runs it on next boot/logon if the PC was off at {TRIGGER_HOUR} AM.)
+# Trigger 1: daily at {TRIGGER_HOUR}:00 AM — fires when the laptop is already on & unlocked.
 $dailyTrigger = New-ScheduledTaskTrigger -Daily -At {TRIGGER_HOUR}:00
 
-# Trigger 2: fresh login (covers logging in before {TRIGGER_HOUR} AM — the script then waits until {TRIGGER_HOUR}:00)
+# Trigger 2: fresh boot / login (covers cold starts).
 $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERNAME"
 
-# Trigger 3: wake from sleep/hibernate (System log, Power-Troubleshooter event 1)
+# Trigger 3: SESSION UNLOCK — the key one for a laptop. Opening the lid on a
+#            Windows 11 (Modern Standby) machine wakes + unlocks WITHOUT a fresh
+#            logon, so this is what actually fires when you open your laptop.
+$sessionClass  = Get-CimClass -ClassName MSFT_TaskSessionStateChangeTrigger -Namespace 'Root/Microsoft/Windows/TaskScheduler'
+$unlockTrigger = $sessionClass | New-CimInstance -ClientOnly
+$unlockTrigger.StateChange = 8   # 8 = SessionUnlock
+$unlockTrigger.UserId      = "$env:USERDOMAIN\\$env:USERNAME"
+$unlockTrigger.Enabled     = $True
+
+# Trigger 4: classic wake-from-sleep event (belt-and-suspenders for machines that
+#            still emit Power-Troubleshooter event 1).
 $wakeClass   = Get-CimClass -ClassName MSFT_TaskEventTrigger -Namespace 'Root/Microsoft/Windows/TaskScheduler'
 $wakeTrigger = $wakeClass | New-CimInstance -ClientOnly
 $wakeTrigger.Subscription = '<QueryList><Query Id="0" Path="System"><Select Path="System">*[System[Provider[@Name=''Microsoft-Windows-Power-Troubleshooter''] and EventID=1]]</Select></Query></QueryList>'
 $wakeTrigger.Enabled = $True
 
-Register-ScheduledTask -TaskName '{TASK_NAME}' -TaskPath '{TASK_FOLDER}' -Action $action -Trigger @($dailyTrigger, $logonTrigger, $wakeTrigger) -Principal $principal -Settings $settings `
-    -Description 'Opens WeBull + TradeHub + TaskHub at {TRIGGER_HOUR} AM Mountain Time' -Force
+Register-ScheduledTask -TaskName '{TASK_NAME}' -TaskPath '{TASK_FOLDER}' `
+    -Action $action -Trigger @($dailyTrigger, $logonTrigger, $unlockTrigger, $wakeTrigger) `
+    -Principal $principal -Settings $settings `
+    -Description 'Opens WeBull + TradeHub + TaskHub on the first wake/unlock/login of each market weekday (>= {TRIGGER_HOUR} AM MT).' -Force
 Write-Host 'Registered.'
 """
     result = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
                             capture_output=True, text=True)
     if result.returncode != 0:
-        print("ERROR: Could not register task. Try running as Administrator.")
+        print("ERROR: Could not register task. Try running from an Administrator terminal.")
         print(result.stderr)
         sys.exit(1)
     print(result.stdout.strip())
-    print(f"\nInstalled as '{TASK_FOLDER}{TASK_NAME}'. Logs → {LOG_FILE}")
+    print(f"\nInstalled as '{TASK_FOLDER}{TASK_NAME}'.")
+    print("Triggers: session-unlock (open laptop) | logon (boot) | daily 6 AM | wake event.")
+    print("Runs on battery, only on market weekdays, once per day. Logs -> " + str(LOG_FILE))
 
 
 def uninstall():
@@ -428,9 +576,9 @@ def uninstall():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Morning Launcher")
-    parser.add_argument("--setup",     action="store_true", help="Install into Task Scheduler (run as Admin)")
+    parser.add_argument("--setup",     action="store_true", help="Install into Task Scheduler")
     parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler")
-    parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time and once-per-day checks")
+    parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time / market / once-per-day checks")
     args = parser.parse_args()
 
     if args.setup:
