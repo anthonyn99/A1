@@ -1,0 +1,18 @@
+name = "personal-ai"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+WORKER_ORIGIN = "https://personal-ai.av1.workers.dev"
+
+# ONE Gemini key per person, shared across ALL three personal features
+# (MyList shopping lists, TaskHub voice, Journal AI Format). Stored as Cloudflare
+# SECRETS (never committed):
+#   TONY_GEMINI_KEY   → Tony's single key (MyList + TaskHub + MyJournal)
+#   VEDA_GEMINI_KEY   → Veda's single key (MyList + TaskHub + Brainstorm Journal)
+# Set them once with:
+#   wrangler secret put TONY_GEMINI_KEY
+#   wrangler secret put VEDA_GEMINI_KEY
+# Secrets persist across deploys, so CI auto-deploy keeps working without them in git.
+#
+# This worker REPLACES the old mylist-api / taskhub-voice / journal-ai workers.

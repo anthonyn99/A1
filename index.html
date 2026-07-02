@@ -29001,7 +29001,7 @@ var APPS = {
     aiProfile: 'veda'
   }
 };
-var AI_FORMAT_ENDPOINT = 'https://journal-ai.av1.workers.dev/format';
+var AI_FORMAT_ENDPOINT = 'https://personal-ai.av1.workers.dev/journal/format';   // consolidated worker (one Gemini key per person across all personal AI)
 
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -36304,7 +36304,7 @@ mcApplyTheme();
 <script>
 (function(){
 "use strict";
-var WORKER='https://taskhub-voice.av1.workers.dev';
+var WORKER='https://personal-ai.av1.workers.dev';   // consolidated worker; /taskhub/parse (one Gemini key per person)
 var VALID_CATS=['work','personal','health','urgent','study','finance','other'];
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 function $(id){return document.getElementById(id);}
@@ -36429,7 +36429,7 @@ async function send(extra){
   var tz='';try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone;}catch(e){}
   var body=Object.assign({profile:profile(),today:today,weekday:weekday,tz:tz,state:b.getState()},extra);
   try{
-    var r=await fetch(WORKER+'/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var r=await fetch(WORKER+'/taskhub/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var j=await r.json();
     if(j.ok&&Array.isArray(j.actions)){dispatch(j.actions,j.say);}
     else{toast(j.error||'Could not understand',true);}

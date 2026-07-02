@@ -22,11 +22,9 @@ jobs:
       newshub: ${{ steps.filter.outputs.newshub }}
       warroom: ${{ steps.filter.outputs.warroom }}
       tradedashboard: ${{ steps.filter.outputs.tradedashboard }}
-      mylist: ${{ steps.filter.outputs.mylist }}
-      taskhubvoice: ${{ steps.filter.outputs.taskhubvoice }}
+      personalai: ${{ steps.filter.outputs.personalai }}
       studyosfiles: ${{ steps.filter.outputs.studyosfiles }}
       vaultfiles: ${{ steps.filter.outputs.vaultfiles }}
-      journalai: ${{ steps.filter.outputs.journalai }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -43,16 +41,12 @@ jobs:
               - 'workers/warroom-api/**'
             tradedashboard:
               - 'workers/trade-dashboard/**'
-            mylist:
-              - 'workers/mylist-api/**'
-            taskhubvoice:
-              - 'workers/taskhub-voice/**'
+            personalai:
+              - 'workers/personal-ai/**'
             studyosfiles:
               - 'workers/studyos-files/**'
             vaultfiles:
               - 'workers/vault-files/**'
-            journalai:
-              - 'workers/journal-ai/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -115,27 +109,18 @@ jobs:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/trade-dashboard
 
-  deploy-mylist-api:
+  # Consolidated personal AI worker — replaces mylist-api + taskhub-voice + journal-ai.
+  # One worker, one Gemini key per person (TONY_GEMINI_KEY / VEDA_GEMINI_KEY secrets).
+  deploy-personal-ai:
     needs: changes
-    if: ${{ needs.changes.outputs.mylist == 'true' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ needs.changes.outputs.personalai == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
-          workingDirectory: workers/mylist-api
-
-  deploy-taskhub-voice:
-    needs: changes
-    if: ${{ needs.changes.outputs.taskhubvoice == 'true' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          workingDirectory: workers/taskhub-voice
+          workingDirectory: workers/personal-ai
 
   deploy-studyos-files:
     needs: changes
@@ -158,14 +143,3 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/vault-files
-
-  deploy-journal-ai:
-    needs: changes
-    if: ${{ needs.changes.outputs.journalai == 'true' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          workingDirectory: workers/journal-ai
