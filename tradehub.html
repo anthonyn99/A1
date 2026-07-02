@@ -3477,6 +3477,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
   const setSearchAt=(i,v)=>setDraft(d=>d.map((x,j)=>j===i?v:x));
   const addSearch=()=>setDraft(d=>[...d,'']);
   const removeSearch=(i)=>setDraft(d=>d.length<=1?['']:d.filter((_,j)=>j!==i));
+  const moveSearch=(i,dir)=>setDraft(d=>{const j=i+dir;if(j<0||j>=d.length)return d;const n=[...d];[n[i],n[j]]=[n[j],n[i]];return n;});
   const saveSearches=()=>{
     const cleaned=draft.map(s=>(s||'').trim()).filter(Boolean);
     const next={...cfg,searches:cleaned};
@@ -3527,6 +3528,10 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
               <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)'}}>{numIcon(i)} Search / URL {i+1}</div>
               <span style={{flex:1}}/>
+              {draft.length>1&&<button onClick={()=>moveSearch(i,-1)} disabled={i===0} title="Move up" style={{border:'none',background:'transparent',color:i===0?'var(--txd)':'var(--txm)',cursor:i===0?'default':'pointer',fontSize:15,lineHeight:1,fontWeight:700,padding:'0 3px',opacity:i===0?.4:1}}
+                onMouseEnter={e=>{if(i!==0)e.currentTarget.style.color='var(--ac)';}} onMouseLeave={e=>{if(i!==0)e.currentTarget.style.color='var(--txm)';}}>↑</button>}
+              {draft.length>1&&<button onClick={()=>moveSearch(i,1)} disabled={i===draft.length-1} title="Move down" style={{border:'none',background:'transparent',color:i===draft.length-1?'var(--txd)':'var(--txm)',cursor:i===draft.length-1?'default':'pointer',fontSize:15,lineHeight:1,fontWeight:700,padding:'0 3px',opacity:i===draft.length-1?.4:1}}
+                onMouseEnter={e=>{if(i!==draft.length-1)e.currentTarget.style.color='var(--ac)';}} onMouseLeave={e=>{if(i!==draft.length-1)e.currentTarget.style.color='var(--txm)';}}>↓</button>}
               {draft.length>1&&<button onClick={()=>removeSearch(i)} title="Remove this search" style={{border:'none',background:'transparent',color:'var(--txm)',cursor:'pointer',fontSize:16,lineHeight:1,fontWeight:700,padding:'0 4px'}}
                 onMouseEnter={e=>e.currentTarget.style.color='var(--tbr)'} onMouseLeave={e=>e.currentTarget.style.color='var(--txm)'}>×</button>}
             </div>
