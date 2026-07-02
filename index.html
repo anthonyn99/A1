@@ -28598,6 +28598,1397 @@ window.tjSwitchTo = function(app) {
 
 
 
+<!-- ════════════════════════════════════════════════════════════════════════
+     DOCX — Word-style document editor upgrade (shared by MyJournal & Brainstorm Journal)
+     Dark-mode-only visual redesign (light mode untouched) + editor feature layer:
+     page sheet canvas, menu bar, ribbon extras, font selector, zoom, find/replace,
+     floating selection toolbar, table tools, view modes, page setup, ruler,
+     trash UI, keyboard shortcuts, HTML paste sanitizer.
+     ════════════════════════════════════════════════════════════════════════ -->
+<style id="docx-css">
+/* ── Word-dark workspace + page sheet (scoped: tj dark mode only; bj is dark-only) ── */
+#tj-root:not(.tj-light) .docx-wrap,
+#bj-root .docx-wrap {
+  background: #131316 !important;
+  padding: 26px 14px 80px !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+}
+#tj-root:not(.tj-light) .docx-sheet,
+#bj-root .docx-sheet {
+  box-sizing: border-box !important;
+  width: var(--docx-pw, 816px) !important;
+  max-width: none !important;
+  min-height: var(--docx-ph, 1056px) !important;
+  margin: 0 auto !important;
+  padding: var(--docx-mt,96px) var(--docx-mr,96px) var(--docx-mb,96px) var(--docx-ml,96px) !important;
+  background: #3B3D42 !important;
+  color: #F1F2F4 !important;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.55), 0 10px 34px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.035);
+  zoom: var(--docx-zoom, 1);
+  caret-color: #fff !important;
+  position: relative;
+  font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important;
+  font-size: 12pt !important;
+  line-height: 1.5 !important;
+}
+#tj-root:not(.tj-light) .docx-sheet ::selection,
+#bj-root .docx-sheet ::selection { background: rgba(120,150,255,.35); }
+/* Page-break slits between pages (Print-layout view) */
+#tj-root:not(.tj-light) .docx-pages .docx-sheet,
+#bj-root .docx-pages .docx-sheet {
+  background-image: repeating-linear-gradient(to bottom,
+    transparent 0, transparent calc(var(--docx-pi, 864px) - 2px),
+    #131316 calc(var(--docx-pi, 864px) - 2px), #131316 var(--docx-pi, 864px)) !important;
+  background-origin: content-box !important;
+  background-clip: border-box;
+  background-repeat: repeat-y;
+}
+/* Word-like neutral typography on the sheet (dark only) */
+#tj-root:not(.tj-light) .docx-sheet h1, #bj-root .docx-sheet h1 { font-family: inherit; font-size: 20pt; font-weight: 700; letter-spacing: 0; color: #fff; margin: 14px 0 8px; line-height: 1.25; }
+#tj-root:not(.tj-light) .docx-sheet h2, #bj-root .docx-sheet h2 { font-family: inherit; font-size: 15pt; font-weight: 700; color: #fff; margin: 12px 0 6px; line-height: 1.3; }
+#tj-root:not(.tj-light) .docx-sheet h3, #bj-root .docx-sheet h3 { font-family: inherit; font-size: 12.5pt; font-weight: 700; color: var(--purple); margin: 10px 0 5px; text-transform: none; letter-spacing: 0; }
+#tj-root:not(.tj-light) .docx-sheet a, #bj-root .docx-sheet a { color: #7ab8ff; }
+#tj-root:not(.tj-light) .docx-sheet hr, #bj-root .docx-sheet hr { border-top-color: rgba(255,255,255,.22); }
+#tj-root:not(.tj-light) .docx-sheet th, #bj-root .docx-sheet th { background: rgba(255,255,255,.08); color: #fff; text-transform: none; letter-spacing: 0; font-size: inherit; }
+#tj-root:not(.tj-light) .docx-sheet th, #tj-root:not(.tj-light) .docx-sheet td,
+#bj-root .docx-sheet th, #bj-root .docx-sheet td { border-color: rgba(255,255,255,.25); }
+#tj-root:not(.tj-light) .docx-sheet table, #bj-root .docx-sheet table { font-size: inherit; }
+#tj-root:not(.tj-light) .docx-sheet blockquote, #bj-root .docx-sheet blockquote { background: rgba(255,255,255,.05); }
+#tj-root:not(.tj-light) .docx-sheet pre, #tj-root:not(.tj-light) .docx-sheet code,
+#bj-root .docx-sheet pre, #bj-root .docx-sheet code { background: rgba(0,0,0,.3); border-color: rgba(255,255,255,.12); }
+/* Word-dark toolbar background (dark only) */
+#tj-root:not(.tj-light) #tj-page-toolbar, #tj-root:not(.tj-light) #tj-je-toolbar,
+#bj-root #bj-page-toolbar { background: #1B1C1F; border-bottom-color: #2A2B30; }
+
+/* Manual page break */
+.docx-pagebreak { border: none !important; border-top: 2px dashed rgba(140,160,255,.5) !important; margin: 20px 0 !important; page-break-after: always; break-after: page; }
+
+/* ── Checklists ── */
+ul.docx-checklist { list-style: none !important; padding-left: 8px !important; }
+li.docx-cl-item { list-style: none !important; }
+.docx-cl-box { margin-right: 9px; width: 14px; height: 14px; vertical-align: -2px; cursor: pointer; }
+li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .6; }
+
+/* ── Menu bar (first row inside each rich-text toolbar) ── */
+.docx-menubar { display: flex; gap: 1px; width: 100%; order: -1; padding: 1px 0 4px; margin-bottom: 3px; border-bottom: 1px solid rgba(128,128,128,.18); overflow-x: auto; scrollbar-width: none; }
+.docx-menubar::-webkit-scrollbar { display: none; }
+.docx-menu-btn { background: transparent; border: none; border-radius: 4px; padding: 4px 11px; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12px; color: var(--text2, #9a9aa5); cursor: pointer; white-space: nowrap; line-height: 1.2; }
+.docx-menu-btn:hover, .docx-menu-btn.open { background: rgba(128,128,128,.18); color: var(--text, #ececf0); }
+
+/* ── Popup menus / dropdowns ── */
+.docx-pop { position: fixed; z-index: 100000; background: #232428; border: 1px solid #3B3C42; border-radius: 9px; box-shadow: 0 14px 44px rgba(0,0,0,.55); padding: 5px; min-width: 208px; max-height: 72vh; overflow-y: auto; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12.5px; color: #E8E8EC; }
+.docx-mi { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 12px; border: none; background: transparent; color: inherit; border-radius: 5px; cursor: pointer; text-align: left; font: inherit; white-space: nowrap; }
+.docx-mi:hover { background: rgba(255,255,255,.09); }
+.docx-mi .k { margin-left: auto; opacity: .42; font-size: 10.5px; padding-left: 20px; }
+.docx-mi .chk { width: 14px; display: inline-block; text-align: center; opacity: .9; }
+.docx-msep { height: 1px; background: rgba(255,255,255,.09); margin: 5px 8px; }
+.docx-mlabel { padding: 6px 12px 3px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; opacity: .45; }
+.docx-pop input[type="text"], .docx-pop input[type="search"] { width: 100%; box-sizing: border-box; background: #18191C; border: 1px solid #3B3C42; border-radius: 6px; color: #fff; padding: 6px 9px; font-size: 12.5px; outline: none; font-family: inherit; }
+.docx-pop input[type="text"]:focus, .docx-pop input[type="search"]:focus { border-color: #6f7dff; }
+.docx-fontitem { font-size: 14px; }
+/* Table grid picker */
+.docx-grid { display: grid; grid-template-columns: repeat(8, 17px); gap: 3px; padding: 8px; }
+.docx-grid span { width: 17px; height: 17px; border: 1px solid #4A4B52; border-radius: 3px; background: #1A1B1E; }
+.docx-grid span.on { background: #5B7CFF; border-color: #7A93FF; }
+.docx-grid-lbl { text-align: center; padding: 0 0 7px; font-size: 11px; opacity: .7; }
+
+/* ── Ruler ── */
+.docx-ruler { display: none; height: 22px; position: relative; flex-shrink: 0; background: #131316; overflow: hidden; }
+.docx-ruler-in { position: absolute; top: 5px; height: 13px; left: 50%; transform: translateX(-50%); background: #26272B; border-radius: 2px;
+  background-image: repeating-linear-gradient(to right, transparent 0, transparent 11px, rgba(255,255,255,.28) 11px, rgba(255,255,255,.28) 12px),
+                    repeating-linear-gradient(to right, transparent 0, transparent 95px, rgba(255,255,255,.55) 95px, rgba(255,255,255,.55) 96px); }
+.docx-ruler-marg { position: absolute; top: 0; bottom: 0; background: rgba(255,255,255,.13); }
+@media (min-width: 900px) {
+  #tj-root:not(.tj-light) #tj-page-toolbar.edit-mode ~ .docx-ruler,
+  #tj-root:not(.tj-light) #tj-je-toolbar.edit-mode ~ .docx-ruler,
+  #bj-root #bj-page-toolbar.edit-mode ~ .docx-ruler { display: block; }
+}
+
+/* ── Find & Replace panel ── */
+.docx-find-host { position: relative; }
+.docx-find { position: absolute; top: 8px; right: 16px; z-index: 6000; background: #232428; border: 1px solid #3B3C42; border-radius: 11px; box-shadow: 0 14px 44px rgba(0,0,0,.55); padding: 11px; width: 315px; font-family: 'DM Sans','Segoe UI',sans-serif; color: #E8E8EC; display: flex; flex-direction: column; gap: 7px; }
+.docx-find .row { display: flex; gap: 6px; align-items: center; }
+.docx-find input[type="text"] { flex: 1; min-width: 0; background: #18191C; border: 1px solid #3B3C42; border-radius: 6px; color: #fff; padding: 6px 9px; font-size: 12.5px; outline: none; font-family: inherit; }
+.docx-find input[type="text"]:focus { border-color: #6f7dff; }
+.docx-find button { background: #2C2D33; border: 1px solid #3B3C42; border-radius: 6px; color: #E8E8EC; padding: 5px 9px; font-size: 11.5px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.docx-find button:hover { background: #37383F; }
+.docx-find .cnt { font-size: 11px; opacity: .65; min-width: 52px; text-align: center; }
+.docx-find label { display: flex; align-items: center; gap: 5px; font-size: 11px; opacity: .8; cursor: pointer; }
+.docx-find .x { margin-left: auto; background: transparent; border: none; font-size: 14px; padding: 2px 6px; }
+mark.docx-find-hit { background: #8A6D1A; color: inherit; border-radius: 2px; }
+mark.docx-find-hit.cur { background: #C79A1F; outline: 1px solid #FFD75E; }
+mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+/* ── Floating selection toolbar ── */
+.docx-float { position: fixed; z-index: 100001; display: flex; gap: 2px; align-items: center; background: #232428; border: 1px solid #3B3C42; border-radius: 9px; padding: 4px; box-shadow: 0 10px 32px rgba(0,0,0,.5); }
+.docx-float button { background: transparent; border: none; border-radius: 5px; color: #E8E8EC; min-width: 27px; height: 26px; font-size: 12.5px; cursor: pointer; font-family: 'DM Sans',sans-serif; display: inline-flex; align-items: center; justify-content: center; }
+.docx-float button:hover { background: rgba(255,255,255,.1); }
+.docx-float .sep { width: 1px; height: 16px; background: rgba(255,255,255,.12); margin: 0 2px; }
+.docx-float input[type="color"] { width: 22px; height: 22px; border: none; background: none; padding: 0; cursor: pointer; }
+
+/* ── Table bubble ── */
+.docx-tbl-bubble { position: fixed; z-index: 100001; background: #232428; border: 1px solid #3B3C42; border-radius: 7px; box-shadow: 0 8px 28px rgba(0,0,0,.5); padding: 3px; display: flex; gap: 2px; }
+.docx-tbl-bubble button { background: transparent; border: none; border-radius: 4px; color: #E8E8EC; padding: 4px 8px; font-size: 11px; cursor: pointer; font-family: 'DM Sans',sans-serif; white-space: nowrap; }
+.docx-tbl-bubble button:hover { background: rgba(255,255,255,.1); }
+
+/* ── Sidebar: tag filter chips + Trash button + search highlight ── */
+.docx-tagchips { display: none; flex-wrap: wrap; gap: 4px; padding: 2px 12px 7px; }
+.docx-tagchip { font-size: 10px; padding: 3px 9px; border-radius: 11px; border: 1px solid var(--border2, #444); background: transparent; color: var(--text2, #999); cursor: pointer; font-family: inherit; letter-spacing: .03em; transition: all .12s; }
+.docx-tagchip:hover { border-color: var(--purple, #E0607A); color: var(--text, #eee); }
+.docx-tagchip.on { background: var(--purple, #E0607A); color: #101014; border-color: var(--purple, #E0607A); font-weight: 700; }
+.docx-trash-btn { margin: 4px 12px 6px; padding: 7px 10px; display: flex; align-items: center; gap: 7px; background: transparent; border: 1px dashed var(--border2, #444); border-radius: 6px; color: var(--text3, #777); font-size: 11px; cursor: pointer; font-family: inherit; letter-spacing: .04em; transition: all .12s; }
+.docx-trash-btn:hover { color: var(--text, #eee); border-color: var(--purple, #E0607A); }
+.docx-trash-count { background: var(--purple, #E0607A); color: #101014; border-radius: 9px; padding: 0 7px; font-weight: 700; font-size: 10px; line-height: 16px; }
+
+/* ── Modals (Trash / Page setup / Word count / Shortcuts) ── */
+.docx-veil { position: fixed; inset: 0; z-index: 100002; background: rgba(0,0,0,.58); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.docx-modal { background: #1E1F23; border: 1px solid #3B3C42; border-radius: 14px; width: min(600px, 100%); max-height: 84vh; display: flex; flex-direction: column; color: #ECECF0; font-family: 'DM Sans','Segoe UI',sans-serif; overflow: hidden; }
+.docx-modal-h { display: flex; align-items: center; gap: 10px; padding: 15px 18px 11px; font-size: 15px; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,.08); }
+.docx-modal-h .x { margin-left: auto; background: transparent; border: none; color: #999; font-size: 17px; cursor: pointer; padding: 2px 8px; border-radius: 5px; }
+.docx-modal-h .x:hover { background: rgba(255,255,255,.08); color: #fff; }
+.docx-modal-b { padding: 12px 18px; overflow-y: auto; flex: 1; font-size: 13px; }
+.docx-modal-f { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-top: 1px solid rgba(255,255,255,.08); flex-wrap: wrap; }
+.docx-btn { background: #2C2D33; border: 1px solid #3B3C42; border-radius: 7px; color: #ECECF0; padding: 7px 13px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.docx-btn:hover { background: #37383F; }
+.docx-btn.pri { background: #5B7CFF; border-color: #5B7CFF; color: #fff; font-weight: 700; }
+.docx-btn.pri:hover { background: #6E8BFF; }
+.docx-btn.danger { color: #FF7B7B; border-color: rgba(255,123,123,.4); }
+.docx-btn.danger:hover { background: rgba(255,123,123,.12); }
+.docx-trash-row { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.docx-trash-row .t { flex: 1; min-width: 0; overflow: hidden; }
+.docx-trash-row .t .n { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.docx-trash-row .t .m { font-size: 10.5px; opacity: .55; margin-top: 2px; }
+.docx-trash-row .b { display: flex; gap: 5px; flex-shrink: 0; }
+.docx-trash-row .b button { background: transparent; border: 1px solid #3B3C42; border-radius: 6px; color: #CFCFD6; padding: 4px 9px; font-size: 11px; cursor: pointer; font-family: inherit; }
+.docx-trash-row .b button:hover { border-color: #6f7dff; color: #fff; }
+.docx-trash-row .b button.del:hover { border-color: #FF7B7B; color: #FF7B7B; }
+.docx-empty-note { text-align: center; opacity: .5; padding: 26px 0; font-size: 13px; }
+.docx-ps-row { display: flex; align-items: center; gap: 10px; margin: 9px 0; }
+.docx-ps-row label { width: 105px; font-size: 12.5px; opacity: .75; }
+.docx-ps-row select { flex: 1; background: #18191C; border: 1px solid #3B3C42; border-radius: 6px; color: #fff; padding: 6px 9px; font-size: 12.5px; outline: none; font-family: inherit; }
+.docx-kbd-grid { display: grid; grid-template-columns: 1fr auto; gap: 5px 18px; font-size: 12.5px; }
+.docx-kbd-grid kbd { background: #2C2D33; border: 1px solid #3B3C42; border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px; font-size: 11px; font-family: Consolas, monospace; }
+
+/* ── View-mode segmented toggle (main toolbar) ── */
+.docx-viewseg { display: inline-flex; gap: 0; border: 1px solid var(--border2, #444); border-radius: 5px; overflow: hidden; flex-shrink: 0; }
+.docx-viewseg button { background: transparent; border: none; color: var(--text2, #999); font-size: 11px; padding: 5px 9px; cursor: pointer; font-family: inherit; line-height: 1; display: inline-flex; align-items: center; gap: 4px; }
+.docx-viewseg button.on { background: var(--purple, #E0607A); color: #101014; font-weight: 700; }
+
+/* ── Mobile / tablet ── */
+@media (max-width: 820px) {
+  #tj-root #tj-page-toolbar.edit-mode, #tj-root #tj-je-toolbar.edit-mode, #bj-root #bj-page-toolbar.edit-mode {
+    flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  #tj-root #tj-page-toolbar::-webkit-scrollbar, #tj-root #tj-je-toolbar::-webkit-scrollbar, #bj-root #bj-page-toolbar::-webkit-scrollbar { display: none; }
+  #tj-root .pt-btn, #bj-root .pt-btn { min-height: 32px; padding: 6px 9px; }
+  .docx-menubar { order: -1; }
+  #tj-root:not(.tj-light) .docx-wrap, #bj-root .docx-wrap { padding: 12px 6px 80px !important; }
+  .docx-find { left: 8px; right: 8px; width: auto; }
+  .docx-float { display: none !important; }
+  .docx-viewseg button { padding: 6px 8px; }
+}
+</style>
+<script>
+(function(){
+'use strict';
+
+/* ═══════════ HTML paste sanitizer (kept formatting, stripped junk) ═══════════ */
+var KEEPTAGS = {A:1,ABBR:1,B:1,BLOCKQUOTE:1,BR:1,CAPTION:1,CODE:1,DIV:1,EM:1,FIGURE:1,FONT:1,H1:1,H2:1,H3:1,H4:1,H5:1,H6:1,HR:1,I:1,IMG:1,INPUT:1,LI:1,MARK:1,OL:1,P:1,PRE:1,S:1,SMALL:1,SPAN:1,STRIKE:1,STRONG:1,SUB:1,SUP:1,TABLE:1,TBODY:1,TD:1,TFOOT:1,TH:1,THEAD:1,TR:1,U:1,UL:1};
+var KEEPATTR = {A:['href','target'],IMG:['src','alt','width','height'],TD:['colspan','rowspan'],TH:['colspan','rowspan'],INPUT:['type','checked','class'],OL:['start'],FONT:['face','color','size'],UL:['class'],LI:['class'],SPAN:['class']};
+var KEEPCSS = ['font-family','font-size','font-weight','font-style','color','background-color','background','text-decoration','text-decoration-line','text-align','line-height','margin-left','text-indent','vertical-align','letter-spacing','width','height','border','border-collapse','padding'];
+window._docxCleanHTML = function(html) {
+  try {
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    (function walk(node) {
+      var kids = Array.prototype.slice.call(node.childNodes);
+      kids.forEach(function(ch) {
+        if (ch.nodeType === 8) { ch.parentNode.removeChild(ch); return; }
+        if (ch.nodeType !== 1) return;
+        var tag = ch.tagName;
+        if (/^(SCRIPT|STYLE|META|LINK|TITLE|IFRAME|OBJECT|EMBED|FORM|SELECT|TEXTAREA|BUTTON|VIDEO|AUDIO)$/.test(tag)) { ch.parentNode.removeChild(ch); return; }
+        walk(ch);
+        if (!KEEPTAGS[tag]) {
+          while (ch.firstChild) ch.parentNode.insertBefore(ch.firstChild, ch);
+          ch.parentNode.removeChild(ch);
+          return;
+        }
+        var styleVal = ch.getAttribute('style') || '';
+        var allow = KEEPATTR[tag] || [];
+        Array.prototype.slice.call(ch.attributes).forEach(function(at) {
+          var n = at.name.toLowerCase();
+          if (n !== 'style' && allow.indexOf(n) === -1) ch.removeAttribute(at.name);
+        });
+        if (tag === 'A') {
+          var href = ch.getAttribute('href') || '';
+          if (/^\s*javascript:/i.test(href)) ch.removeAttribute('href');
+        }
+        if (tag === 'IMG') {
+          var src = ch.getAttribute('src') || '';
+          if (!/^(data:image\/|https?:)/i.test(src)) { ch.parentNode.removeChild(ch); return; }
+          ch.style.maxWidth = '100%';
+        }
+        if (styleVal) {
+          var out = [];
+          styleVal.split(';').forEach(function(d) {
+            var ix = d.indexOf(':'); if (ix < 0) return;
+            var prop = d.slice(0, ix).trim().toLowerCase();
+            var val = d.slice(ix + 1).trim();
+            if (KEEPCSS.indexOf(prop) !== -1 && !/url\s*\(|expression|javascript/i.test(val)) out.push(prop + ':' + val);
+          });
+          if (tag === 'IMG') out.push('max-width:100%');
+          if (out.length) ch.setAttribute('style', out.join(';'));
+          else ch.removeAttribute('style');
+        }
+      });
+    })(doc.body);
+    return doc.body.innerHTML;
+  } catch (e) {
+    var d = document.createElement('div');
+    d.textContent = html.replace(/<[^>]*>/g, '');
+    return d.innerHTML;
+  }
+};
+
+/* ═══════════ App / editor context registry ═══════════ */
+var FONTS = ['Arial','Aptos','Calibri','Times New Roman','Georgia','Verdana','Tahoma','Trebuchet MS','Garamond','Cambria','Century Gothic','Franklin Gothic Medium','Segoe UI','Helvetica','Courier New','Consolas','Lucida Sans Unicode','Book Antiqua','Baskerville','Palatino Linotype','Brush Script MT','Lucida Handwriting','Segoe Script','Comic Sans MS','Monotype Corsiva'];
+var SIZES = { letter: [816, 1056], a4: [794, 1123], legal: [816, 1344] };
+var MARGINS = { normal: [96,96,96,96], narrow: [48,48,48,48], moderate: [96,72,96,72], wide: [96,192,96,192] };
+var ZOOMS = [0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+
+var APPS = {
+  tj: {
+    root: 'tj-root', lightClass: 'tj-light',
+    ctxs: [
+      { ed: 'tj-page-editor', tb: 'tj-page-toolbar', wrap: 'tj-page-editor-wrap', area: 'tj-page-area', img: 'tj-page-img-file', md: 'tj-pt-md' },
+      { ed: 'tj-je-editor',   tb: 'tj-je-toolbar',   wrap: 'tj-je-editor-wrap',   area: 'tj-je-area',   img: 'tj-je-img-file',   md: null }
+    ],
+    mainToolbar: 'tj-toolbar', syncPill: 'tj-sync-pill', newBtn: 'tj-new-entry-btn',
+    exportBtn: 'tj-btn-export-pdf', sidebarBtn: 'tj-fullscreen-btn', trashAPI: '_tjTrashAPI'
+  },
+  bj: {
+    root: 'bj-root', lightClass: null,
+    ctxs: [
+      { ed: 'bj-page-editor', tb: 'bj-page-toolbar', wrap: 'bj-page-editor-wrap', area: 'bj-page-area', img: 'bj-page-img-file', md: 'bj-pt-md' }
+    ],
+    mainToolbar: 'bj-toolbar', syncPill: 'bj-sync-pill', newBtn: 'bj-new-entry-btn',
+    exportBtn: 'bj-btn-export-pdf', sidebarBtn: 'bj-fullscreen-btn', trashAPI: '_bjTrashAPI'
+  }
+};
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function lsGet(k, dflt) { try { var v = localStorage.getItem(k); return v == null ? dflt : JSON.parse(v); } catch (e) { return dflt; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function fireInput(ed) { try { ed.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {} }
+
+/* ═══════════ Popup helper ═══════════ */
+var openPop = null;
+function closePop() {
+  if (openPop) {
+    if (openPop._btn) openPop._btn.classList.remove('open');
+    openPop.remove();
+    openPop = null;
+  }
+}
+document.addEventListener('pointerdown', function(e) {
+  if (openPop && !openPop.contains(e.target) && e.target !== openPop._btn && !(openPop._btn && openPop._btn.contains(e.target))) closePop();
+}, true);
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePop(); });
+function showPop(anchor, build, opts) {
+  closePop();
+  var pop = document.createElement('div');
+  pop.className = 'docx-pop';
+  if (opts && opts.cls) pop.className += ' ' + opts.cls;
+  build(pop);
+  // keep editor selection alive while interacting with the pop (inputs excepted)
+  pop.addEventListener('pointerdown', function(e) {
+    var t = e.target;
+    if (t.tagName !== 'INPUT' && t.tagName !== 'SELECT') e.preventDefault();
+  });
+  document.body.appendChild(pop);
+  var r = anchor.getBoundingClientRect();
+  var pw = pop.offsetWidth, ph = pop.offsetHeight;
+  var left = Math.max(6, Math.min(r.left, window.innerWidth - pw - 8));
+  var top = r.bottom + 4;
+  if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 4);
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  pop._btn = anchor;
+  anchor.classList.add('open');
+  openPop = pop;
+  return pop;
+}
+function mi(label, fn, key, chk) {
+  var b = document.createElement('button');
+  b.className = 'docx-mi';
+  b.innerHTML = (chk !== undefined ? '<span class="chk">' + (chk ? '✓' : '') + '</span>' : '') + esc(label) + (key ? '<span class="k">' + esc(key) + '</span>' : '');
+  b.addEventListener('click', function() { closePop(); fn(); });
+  return b;
+}
+function msep() { var d = document.createElement('div'); d.className = 'docx-msep'; return d; }
+function mlabel(t) { var d = document.createElement('div'); d.className = 'docx-mlabel'; d.textContent = t; return d; }
+
+/* ═══════════ Selection helpers ═══════════ */
+function savedSelFor(ctx) { return ctx._savedSel || null; }
+function saveSel(ctx) {
+  var s = window.getSelection();
+  if (s && s.rangeCount && ctx.edEl.contains(s.anchorNode)) ctx._savedSel = s.getRangeAt(0).cloneRange();
+}
+function restoreSel(ctx) {
+  ctx.edEl.focus();
+  var r = savedSelFor(ctx);
+  if (r) {
+    var s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }
+}
+function exec(ctx, cmd, val) {
+  restoreSel(ctx);
+  document.execCommand(cmd, false, val || null);
+  saveSel(ctx);
+  fireInput(ctx.edEl);
+}
+function insertHTML(ctx, html) { exec(ctx, 'insertHTML', html); }
+function closestInEd(ctx, selector) {
+  var s = window.getSelection();
+  if (!s || !s.rangeCount) return null;
+  var n = s.anchorNode;
+  if (!n || !ctx.edEl.contains(n)) return null;
+  if (n.nodeType === 3) n = n.parentElement;
+  var hit = n && n.closest ? n.closest(selector) : null;
+  return (hit && ctx.edEl.contains(hit)) ? hit : null;
+}
+function selBlocks(ctx) {
+  var s = window.getSelection();
+  if (!s || !s.rangeCount || !ctx.edEl.contains(s.anchorNode)) return [];
+  var range = s.getRangeAt(0);
+  var blocks = [];
+  ctx.edEl.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,div,blockquote,pre').forEach(function(b) {
+    try { if (range.intersectsNode(b)) blocks.push(b); } catch (e) {}
+  });
+  if (!blocks.length) {
+    var n = s.anchorNode;
+    if (n && n.nodeType === 3) n = n.parentElement;
+    while (n && n !== ctx.edEl && !/^(P|H[1-6]|LI|DIV|BLOCKQUOTE|PRE)$/.test(n.tagName)) n = n.parentElement;
+    if (n && n !== ctx.edEl) blocks.push(n);
+  }
+  // innermost only: drop blocks that contain other collected blocks
+  return blocks.filter(function(b) { return !blocks.some(function(o) { return o !== b && b.contains(o); }); });
+}
+function setBlockStyle(ctx, prop, val, toggle) {
+  restoreSel(ctx);
+  var blocks = selBlocks(ctx);
+  blocks.forEach(function(b) {
+    if (toggle && b.style[prop] === val) b.style[prop] = '';
+    else b.style[prop] = val;
+  });
+  fireInput(ctx.edEl);
+}
+
+/* ═══════════ Page setup + zoom + view mode ═══════════ */
+function psGet(app) { return lsGet('docx_ps_' + app, { size: 'letter', orient: 'portrait', margin: 'normal' }); }
+function applyPageSetup(app) {
+  var cfg = APPS[app], ps = psGet(app);
+  var dim = SIZES[ps.size] || SIZES.letter;
+  var pw = ps.orient === 'landscape' ? dim[1] : dim[0];
+  var ph = ps.orient === 'landscape' ? dim[0] : dim[1];
+  var m = MARGINS[ps.margin] || MARGINS.normal;
+  cfg.ctxs.forEach(function(c) {
+    var wrap = $(c.wrap);
+    if (!wrap) return;
+    wrap.style.setProperty('--docx-pw', pw + 'px');
+    wrap.style.setProperty('--docx-ph', ph + 'px');
+    wrap.style.setProperty('--docx-mt', m[0] + 'px');
+    wrap.style.setProperty('--docx-mr', m[1] + 'px');
+    wrap.style.setProperty('--docx-mb', m[2] + 'px');
+    wrap.style.setProperty('--docx-ml', m[3] + 'px');
+    wrap.style.setProperty('--docx-pi', (ph - m[0] - m[2]) + 'px');
+  });
+  applyZoom(app);
+  updateRulers(app);
+}
+function zGet(app) { return lsGet('docx_zoom_' + app, (window.innerWidth < 900 ? 'fit' : 1)); }
+function applyZoom(app) {
+  var cfg = APPS[app], z = zGet(app), ps = psGet(app);
+  var dim = SIZES[ps.size] || SIZES.letter;
+  var pw = ps.orient === 'landscape' ? dim[1] : dim[0];
+  cfg.ctxs.forEach(function(c) {
+    var wrap = $(c.wrap);
+    if (!wrap) return;
+    var zi = z;
+    if (z === 'fit') {
+      var avail = (wrap.clientWidth || window.innerWidth) - 30;
+      zi = Math.max(0.4, Math.min(1.5, avail / pw));
+    }
+    wrap.style.setProperty('--docx-zoom', zi);
+  });
+  updateRulers(app);
+  // sync all zoom selects for this app
+  cfg.ctxs.forEach(function(c) {
+    var tb = $(c.tb);
+    if (!tb) return;
+    var sel = tb.querySelector('.docx-zoom-sel');
+    if (sel) sel.value = String(z);
+  });
+}
+function setZoom(app, z) { lsSet('docx_zoom_' + app, z); applyZoom(app); }
+function vmGet(app) { return lsGet('docx_vm_' + app, 'pages'); }
+function applyViewMode(app) {
+  var cfg = APPS[app], vm = vmGet(app);
+  cfg.ctxs.forEach(function(c) {
+    var wrap = $(c.wrap);
+    if (wrap) wrap.classList.toggle('docx-pages', vm === 'pages');
+  });
+  var seg = $('docx-viewseg-' + app);
+  if (seg) {
+    seg.querySelectorAll('button').forEach(function(b) { b.classList.toggle('on', b.dataset.vm === vm); });
+  }
+}
+function setViewMode(app, vm) { lsSet('docx_vm_' + app, vm); applyViewMode(app); }
+
+/* ═══════════ Ruler ═══════════ */
+function buildRuler(ctx) {
+  var tb = $(ctx.tb);
+  if (!tb || !tb.parentNode) return;
+  var ruler = document.createElement('div');
+  ruler.className = 'docx-ruler';
+  ruler.innerHTML = '<div class="docx-ruler-in"><div class="docx-ruler-marg" style="left:0"></div><div class="docx-ruler-marg" style="right:0"></div></div>';
+  tb.parentNode.insertBefore(ruler, tb.nextSibling);
+  ctx.rulerEl = ruler;
+}
+function updateRulers(app) {
+  var cfg = APPS[app], ps = psGet(app), z = zGet(app);
+  var dim = SIZES[ps.size] || SIZES.letter;
+  var pw = ps.orient === 'landscape' ? dim[1] : dim[0];
+  var m = MARGINS[ps.margin] || MARGINS.normal;
+  cfg.ctxs.forEach(function(c) {
+    if (!c._ctx || !c._ctx.rulerEl) return;
+    var wrap = $(c.wrap);
+    var zi = z;
+    if (z === 'fit' && wrap) zi = Math.max(0.4, Math.min(1.5, ((wrap.clientWidth || window.innerWidth) - 30) / pw));
+    var inEl = c._ctx.rulerEl.querySelector('.docx-ruler-in');
+    if (!inEl) return;
+    inEl.style.width = Math.round(pw * zi) + 'px';
+    var margs = inEl.querySelectorAll('.docx-ruler-marg');
+    if (margs[0]) margs[0].style.width = Math.round(m[3] * zi) + 'px';
+    if (margs[1]) margs[1].style.width = Math.round(m[1] * zi) + 'px';
+  });
+}
+
+/* ═══════════ Table tools ═══════════ */
+function curCell(ctx) { return closestInEd(ctx, 'td,th'); }
+function curTable(ctx) { return closestInEd(ctx, 'table'); }
+function cellIndex(cell) { return Array.prototype.indexOf.call(cell.parentNode.cells, cell); }
+function tblInsertRow(ctx, below) {
+  var cell = curCell(ctx); if (!cell) return;
+  var row = cell.parentNode;
+  var idx = row.rowIndex + (below ? 1 : 0);
+  var table = row.closest('table');
+  var nr = table.insertRow(idx);
+  for (var i = 0; i < row.cells.length; i++) { var c = nr.insertCell(); c.innerHTML = '<br>'; }
+  fireInput(ctx.edEl);
+}
+function tblInsertCol(ctx, right) {
+  var cell = curCell(ctx); if (!cell) return;
+  var idx = cellIndex(cell) + (right ? 1 : 0);
+  var table = cell.closest('table');
+  Array.prototype.forEach.call(table.rows, function(r) {
+    var ref = r.cells[Math.min(idx, r.cells.length)] || null;
+    var nc = document.createElement(r.cells[0] && r.cells[0].tagName === 'TH' ? 'th' : 'td');
+    nc.innerHTML = '<br>';
+    r.insertBefore(nc, ref);
+  });
+  fireInput(ctx.edEl);
+}
+function tblDeleteRow(ctx) {
+  var cell = curCell(ctx); if (!cell) return;
+  var row = cell.parentNode, table = row.closest('table');
+  if (table.rows.length <= 1) { table.remove(); } else row.remove();
+  fireInput(ctx.edEl);
+}
+function tblDeleteCol(ctx) {
+  var cell = curCell(ctx); if (!cell) return;
+  var idx = cellIndex(cell), table = cell.closest('table');
+  if (table.rows[0] && table.rows[0].cells.length <= 1) { table.remove(); }
+  else Array.prototype.forEach.call(table.rows, function(r) { if (r.cells[idx]) r.deleteCell(idx); });
+  fireInput(ctx.edEl);
+}
+function tblDelete(ctx) { var t = curTable(ctx); if (t) { t.remove(); fireInput(ctx.edEl); } }
+function tblToggleHeader(ctx) {
+  var t = curTable(ctx); if (!t || !t.rows.length) return;
+  var first = t.rows[0];
+  var isTh = first.cells[0] && first.cells[0].tagName === 'TH';
+  Array.prototype.forEach.call(first.cells, function(c) {
+    var n = document.createElement(isTh ? 'td' : 'th');
+    n.innerHTML = c.innerHTML;
+    c.parentNode.replaceChild(n, c);
+  });
+  fireInput(ctx.edEl);
+}
+function insertTableHTML(ctx, rows, cols) {
+  var html = '<table><tr>';
+  for (var c = 0; c < cols; c++) html += '<th><br></th>';
+  html += '</tr>';
+  for (var r = 1; r < rows; r++) { html += '<tr>'; for (var c2 = 0; c2 < cols; c2++) html += '<td><br></td>'; html += '</tr>'; }
+  html += '</table><p><br></p>';
+  insertHTML(ctx, html);
+}
+function tableGridPop(ctx, anchor) {
+  showPop(anchor, function(pop) {
+    var lbl = document.createElement('div');
+    lbl.className = 'docx-grid-lbl';
+    lbl.textContent = 'Insert table';
+    var grid = document.createElement('div');
+    grid.className = 'docx-grid';
+    var cells = [];
+    for (var r = 1; r <= 8; r++) for (var c = 1; c <= 8; c++) {
+      (function(r, c) {
+        var sp = document.createElement('span');
+        sp.addEventListener('pointerenter', function() {
+          cells.forEach(function(o) { o.el.classList.toggle('on', o.r <= r && o.c <= c); });
+          lbl.textContent = r + ' × ' + c;
+        });
+        sp.addEventListener('click', function() { closePop(); insertTableHTML(ctx, r, c); });
+        cells.push({ el: sp, r: r, c: c });
+        grid.appendChild(sp);
+      })(r, c);
+    }
+    pop.appendChild(lbl);
+    pop.appendChild(grid);
+  });
+}
+/* Bubble shown while the caret is inside a table (rebuilt per show so ctx is always current) */
+var tblBubble = null;
+function hideTblBubble() { if (tblBubble) { tblBubble.remove(); tblBubble = null; } }
+function maybeShowTblBubble(ctx) {
+  var t = curTable(ctx);
+  if (!t || ctx.edEl.contentEditable !== 'true') { hideTblBubble(); return; }
+  hideTblBubble();
+  tblBubble = document.createElement('div');
+  tblBubble.className = 'docx-tbl-bubble';
+  var ops = [
+    ['+Row', function() { tblInsertRow(ctx, true); }],
+    ['+Col', function() { tblInsertCol(ctx, true); }],
+    ['−Row', function() { tblDeleteRow(ctx); }],
+    ['−Col', function() { tblDeleteCol(ctx); }],
+    ['Header', function() { tblToggleHeader(ctx); }],
+    ['✕ Table', function() { tblDelete(ctx); hideTblBubble(); }]
+  ];
+  ops.forEach(function(op) {
+    var b = document.createElement('button');
+    b.textContent = op[0];
+    b.addEventListener('mousedown', function(e) { e.preventDefault(); });
+    b.addEventListener('click', function() { op[1](); });
+    tblBubble.appendChild(b);
+  });
+  document.body.appendChild(tblBubble);
+  var r = t.getBoundingClientRect();
+  tblBubble.style.left = Math.max(6, Math.min(r.left, window.innerWidth - tblBubble.offsetWidth - 8)) + 'px';
+  tblBubble.style.top = Math.max(6, r.top - tblBubble.offsetHeight - 6) + 'px';
+}
+
+/* ═══════════ Find & Replace ═══════════ */
+var FR = { panel: null, ctx: null, marks: [], cur: -1 };
+function frClearMarks() {
+  FR.marks.forEach(function(m) {
+    if (!m.parentNode) return;
+    var p = m.parentNode;
+    while (m.firstChild) p.insertBefore(m.firstChild, m);
+    p.removeChild(m);
+    p.normalize();
+  });
+  FR.marks = [];
+  FR.cur = -1;
+}
+function frClose(silent) {
+  var hadMarks = FR.marks.length > 0;
+  frClearMarks();
+  if (FR.panel) { FR.panel.remove(); FR.panel = null; }
+  if (hadMarks && FR.ctx && !silent) fireInput(FR.ctx.edEl);
+  FR.ctx = null;
+}
+function frBuildRegex() {
+  var q = FR.panel.querySelector('.f-find').value;
+  if (!q) return null;
+  var escq = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var ww = FR.panel.querySelector('.f-ww').checked;
+  if (ww) {
+    if (/^\w/.test(q)) escq = '\\b' + escq;
+    if (/\w$/.test(q)) escq = escq + '\\b';
+  }
+  var mc = FR.panel.querySelector('.f-mc').checked;
+  try { return new RegExp(escq, mc ? 'g' : 'gi'); } catch (e) { return null; }
+}
+function frSearch(jumpTo) {
+  if (!FR.panel || !FR.ctx) return;
+  frClearMarks();
+  var re = frBuildRegex();
+  var cntEl = FR.panel.querySelector('.cnt');
+  if (!re) { cntEl.textContent = '0 / 0'; return; }
+  var walker = document.createTreeWalker(FR.ctx.edEl, NodeFilter.SHOW_TEXT, null);
+  var nodes = [];
+  var n;
+  while ((n = walker.nextNode())) {
+    if (n.parentElement && n.parentElement.closest('.pg-img-wrap')) continue;
+    nodes.push(n);
+  }
+  nodes.forEach(function(tn) {
+    var text = tn.nodeValue;
+    var matches = [];
+    var m;
+    re.lastIndex = 0;
+    while ((m = re.exec(text))) {
+      if (!m[0].length) break;
+      matches.push([m.index, m[0].length]);
+    }
+    if (!matches.length) return;
+    // split from the end so offsets stay valid
+    for (var i = matches.length - 1; i >= 0; i--) {
+      var st = matches[i][0], len = matches[i][1];
+      var tail = tn.splitText(st + len);
+      var mid = tn.splitText(st);
+      var mark = document.createElement('mark');
+      mark.className = 'docx-find-hit';
+      mid.parentNode.insertBefore(mark, mid);
+      mark.appendChild(mid);
+      FR.marks.unshift(mark);
+    }
+  });
+  cntEl.textContent = FR.marks.length ? '1 / ' + FR.marks.length : '0 / 0';
+  if (FR.marks.length) frJump(typeof jumpTo === 'number' ? jumpTo : 0);
+}
+function frJump(i) {
+  if (!FR.marks.length) return;
+  if (FR.cur >= 0 && FR.marks[FR.cur]) FR.marks[FR.cur].classList.remove('cur');
+  FR.cur = ((i % FR.marks.length) + FR.marks.length) % FR.marks.length;
+  var m = FR.marks[FR.cur];
+  m.classList.add('cur');
+  m.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  FR.panel.querySelector('.cnt').textContent = (FR.cur + 1) + ' / ' + FR.marks.length;
+}
+function frReplaceCur() {
+  if (FR.cur < 0 || !FR.marks[FR.cur]) return;
+  var rep = FR.panel.querySelector('.f-rep').value;
+  var m = FR.marks[FR.cur];
+  m.replaceWith(document.createTextNode(rep));
+  fireInput(FR.ctx.edEl);
+  var next = FR.cur;
+  FR.marks.splice(FR.cur, 1);
+  FR.cur = -1;
+  FR.marks.forEach(function(x) { x.classList.remove('cur'); });
+  if (FR.marks.length) frJump(next);
+  else FR.panel.querySelector('.cnt').textContent = '0 / 0';
+}
+function frReplaceAll() {
+  var rep = FR.panel.querySelector('.f-rep').value;
+  if (!FR.marks.length) return;
+  FR.marks.forEach(function(m) { m.replaceWith(document.createTextNode(rep)); });
+  FR.marks = [];
+  FR.cur = -1;
+  FR.ctx.edEl.normalize();
+  FR.panel.querySelector('.cnt').textContent = '0 / 0';
+  fireInput(FR.ctx.edEl);
+}
+function frOpen(ctx, withReplace) {
+  var sel = window.getSelection();
+  var seed = (sel && !sel.isCollapsed && ctx.edEl.contains(sel.anchorNode)) ? sel.toString().slice(0, 80) : '';
+  frClose(true);
+  FR.ctx = ctx;
+  var area = $(ctx.area) || ctx.wrapEl.parentNode;
+  var p = document.createElement('div');
+  p.className = 'docx-find';
+  p.innerHTML =
+    '<div class="row"><input type="text" class="f-find" placeholder="Find…">' +
+    '<span class="cnt">0 / 0</span>' +
+    '<button class="f-prev" title="Previous">↑</button><button class="f-next" title="Next">↓</button>' +
+    '<button class="x" title="Close">✕</button></div>' +
+    '<div class="row f-reprow"><input type="text" class="f-rep" placeholder="Replace with…">' +
+    '<button class="f-rone">Replace</button><button class="f-rall">All</button></div>' +
+    '<div class="row"><label><input type="checkbox" class="f-mc"> Match case</label>' +
+    '<label><input type="checkbox" class="f-ww"> Whole word</label></div>';
+  area.appendChild(p);
+  FR.panel = p;
+  if (!withReplace) p.querySelector('.f-reprow').style.display = 'none';
+  var find = p.querySelector('.f-find');
+  find.value = seed;
+  var deb = null;
+  find.addEventListener('input', function() { clearTimeout(deb); deb = setTimeout(function() { frSearch(); }, 180); });
+  find.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); e.shiftKey ? frJump(FR.cur - 1) : frJump(FR.cur + 1); }
+    if (e.key === 'Escape') frClose();
+  });
+  p.querySelector('.f-mc').addEventListener('change', function() { frSearch(); });
+  p.querySelector('.f-ww').addEventListener('change', function() { frSearch(); });
+  p.querySelector('.f-prev').addEventListener('click', function() { frJump(FR.cur - 1); });
+  p.querySelector('.f-next').addEventListener('click', function() { frJump(FR.cur + 1); });
+  p.querySelector('.x').addEventListener('click', function() { frClose(); });
+  p.querySelector('.f-rone').addEventListener('click', frReplaceCur);
+  p.querySelector('.f-rall').addEventListener('click', frReplaceAll);
+  find.focus();
+  if (seed) frSearch();
+}
+
+/* ═══════════ Floating selection toolbar ═══════════ */
+var floatBar = null;
+function hideFloat() { if (floatBar) { floatBar.remove(); floatBar = null; } }
+function buildFloat(ctx) {
+  hideFloat();
+  floatBar = document.createElement('div');
+  floatBar.className = 'docx-float';
+  function fbtn(html, title, fn) {
+    var b = document.createElement('button');
+    b.innerHTML = html;
+    b.title = title;
+    b.addEventListener('mousedown', function(e) { e.preventDefault(); });
+    b.addEventListener('click', function() { fn(); });
+    floatBar.appendChild(b);
+    return b;
+  }
+  fbtn('<b>B</b>', 'Bold', function() { document.execCommand('bold'); fireInput(ctx.edEl); });
+  fbtn('<i>I</i>', 'Italic', function() { document.execCommand('italic'); fireInput(ctx.edEl); });
+  fbtn('<u>U</u>', 'Underline', function() { document.execCommand('underline'); fireInput(ctx.edEl); });
+  fbtn('<s>S</s>', 'Strikethrough', function() { document.execCommand('strikeThrough'); fireInput(ctx.edEl); });
+  var sep1 = document.createElement('div'); sep1.className = 'sep'; floatBar.appendChild(sep1);
+  fbtn('<span style="background:#FFE066;color:#111;border-radius:2px;padding:0 4px;font-weight:700;">A</span>', 'Highlight', function() {
+    document.execCommand('hiliteColor', false, '#FFE066'); fireInput(ctx.edEl);
+  });
+  var colorIn = document.createElement('input');
+  colorIn.type = 'color'; colorIn.value = '#f1f2f4'; colorIn.title = 'Text color';
+  colorIn.addEventListener('input', function() { document.execCommand('foreColor', false, colorIn.value); fireInput(ctx.edEl); });
+  floatBar.appendChild(colorIn);
+  var sep2 = document.createElement('div'); sep2.className = 'sep'; floatBar.appendChild(sep2);
+  fbtn('🔗', 'Link', function() {
+    var url = prompt('Link URL:');
+    if (url) { document.execCommand('createLink', false, url); fireInput(ctx.edEl); }
+  });
+  fbtn('T⌫', 'Clear formatting', function() { document.execCommand('removeFormat'); fireInput(ctx.edEl); });
+  document.body.appendChild(floatBar);
+}
+var floatTimer = null;
+document.addEventListener('selectionchange', function() {
+  clearTimeout(floatTimer);
+  floatTimer = setTimeout(function() {
+    var s = window.getSelection();
+    var ctx = (s && s.rangeCount)
+      ? ALLCTX.find(function(c) { return c.edEl.contentEditable === 'true' && c.edEl.contains(s.anchorNode); })
+      : null;
+    // Table bubble: follows the caret (collapsed or not) while inside a table
+    if (ctx && window.innerWidth >= 640) maybeShowTblBubble(ctx);
+    else hideTblBubble();
+    // Floating format toolbar: desktop, non-collapsed selection only
+    if (window.innerWidth < 900 || !ctx || !s || s.isCollapsed) { hideFloat(); return; }
+    if (openPop) return;
+    buildFloat(ctx);
+    var r = s.getRangeAt(0).getBoundingClientRect();
+    if (!r || (!r.width && !r.height)) { hideFloat(); return; }
+    var top = r.top - floatBar.offsetHeight - 8;
+    if (top < 60) top = r.bottom + 8;
+    floatBar.style.left = Math.max(8, Math.min(r.left + r.width / 2 - floatBar.offsetWidth / 2, window.innerWidth - floatBar.offsetWidth - 8)) + 'px';
+    floatBar.style.top = top + 'px';
+  }, 160);
+});
+
+/* ═══════════ Modals ═══════════ */
+function modal(title, buildBody, buildFooter) {
+  var veil = document.createElement('div');
+  veil.className = 'docx-veil';
+  var box = document.createElement('div');
+  box.className = 'docx-modal';
+  var h = document.createElement('div');
+  h.className = 'docx-modal-h';
+  h.innerHTML = esc(title);
+  var x = document.createElement('button');
+  x.className = 'x'; x.innerHTML = '✕';
+  x.addEventListener('click', function() { veil.remove(); });
+  h.appendChild(x);
+  var b = document.createElement('div');
+  b.className = 'docx-modal-b';
+  box.appendChild(h); box.appendChild(b);
+  if (buildFooter) {
+    var f = document.createElement('div');
+    f.className = 'docx-modal-f';
+    buildFooter(f, function() { veil.remove(); });
+    box.appendChild(f);
+  }
+  buildBody(b, function() { veil.remove(); });
+  veil.appendChild(box);
+  veil.addEventListener('pointerdown', function(e) { if (e.target === veil) veil.remove(); });
+  document.body.appendChild(veil);
+  return veil;
+}
+function wordCountModal(ctx) {
+  var text = ctx.edEl.innerText || '';
+  var words = (text.trim().match(/\S+/g) || []).length;
+  var chars = text.replace(/\n/g, '').length;
+  var charsNS = text.replace(/\s/g, '').length;
+  modal('Word count', function(b) {
+    b.innerHTML = '<div class="docx-kbd-grid" style="grid-template-columns:1fr auto;">' +
+      '<span>Words</span><b>' + words + '</b>' +
+      '<span>Characters</span><b>' + chars + '</b>' +
+      '<span>Characters (no spaces)</span><b>' + charsNS + '</b></div>';
+  });
+}
+function shortcutsModal() {
+  var rows = [
+    ['Bold / Italic / Underline', 'Ctrl+B / I / U'],
+    ['Undo / Redo', 'Ctrl+Z / Ctrl+Y'],
+    ['Cut / Copy / Paste', 'Ctrl+X / C / V'],
+    ['Select all', 'Ctrl+A'],
+    ['Save', 'Ctrl+S'],
+    ['Print / Export PDF', 'Ctrl+P'],
+    ['Find', 'Ctrl+F'],
+    ['Find & Replace', 'Ctrl+H'],
+    ['Indent / Outdent list', 'Tab / Shift+Tab'],
+    ['Line break (no new paragraph)', 'Shift+Enter']
+  ];
+  modal('Keyboard shortcuts', function(b) {
+    b.innerHTML = '<div class="docx-kbd-grid">' + rows.map(function(r) {
+      return '<span>' + esc(r[0]) + '</span><span><kbd>' + esc(r[1]) + '</kbd></span>';
+    }).join('') + '</div>';
+  });
+}
+function pageSetupModal(app) {
+  var ps = psGet(app);
+  modal('Page setup', function(b) {
+    b.innerHTML =
+      '<div class="docx-ps-row"><label>Page size</label><select class="ps-size">' +
+      '<option value="letter">Letter (8.5 × 11 in)</option><option value="a4">A4 (210 × 297 mm)</option><option value="legal">Legal (8.5 × 14 in)</option></select></div>' +
+      '<div class="docx-ps-row"><label>Orientation</label><select class="ps-orient">' +
+      '<option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></div>' +
+      '<div class="docx-ps-row"><label>Margins</label><select class="ps-margin">' +
+      '<option value="normal">Normal (1&quot;)</option><option value="narrow">Narrow (0.5&quot;)</option><option value="moderate">Moderate (1&quot; × 0.75&quot;)</option><option value="wide">Wide (1&quot; × 2&quot;)</option></select></div>';
+    b.querySelector('.ps-size').value = ps.size;
+    b.querySelector('.ps-orient').value = ps.orient;
+    b.querySelector('.ps-margin').value = ps.margin;
+  }, function(f, close) {
+    var apply = document.createElement('button');
+    apply.className = 'docx-btn pri';
+    apply.textContent = 'Apply';
+    apply.addEventListener('click', function() {
+      var veil = f.closest('.docx-veil');
+      lsSet('docx_ps_' + app, {
+        size: veil.querySelector('.ps-size').value,
+        orient: veil.querySelector('.ps-orient').value,
+        margin: veil.querySelector('.ps-margin').value
+      });
+      applyPageSetup(app);
+      close();
+    });
+    var cancel = document.createElement('button');
+    cancel.className = 'docx-btn';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', close);
+    f.style.justifyContent = 'flex-end';
+    f.appendChild(cancel);
+    f.appendChild(apply);
+  });
+}
+
+/* ═══════════ Trash modal ═══════════ */
+window._docxOpenTrash = function(app) {
+  var api = window[APPS[app].trashAPI];
+  if (!api) return;
+  var TMAP = { whiteboard: 'BOARD', notes: 'NOTES', cornell: 'CORNELL', mindmap: 'MAP', page: 'PAGE', 'journal-entries': 'JOURNAL' };
+  var selected = {};
+  var veil = modal('Trash — items delete permanently after 30 days', function(b) {
+    function render() {
+      var items = api.list();
+      Object.keys(selected).forEach(function(id) { if (!items.some(function(e) { return e.id === id; })) delete selected[id]; });
+      if (!items.length) { b.innerHTML = '<div class="docx-empty-note">Trash is empty.</div>'; syncFooter(); return; }
+      b.innerHTML = '';
+      items.forEach(function(e) {
+        var days = Math.max(0, Math.ceil((e.trashed + api.ttlDays * 864e5 - Date.now()) / 864e5));
+        var row = document.createElement('div');
+        row.className = 'docx-trash-row';
+        row.innerHTML =
+          '<input type="checkbox" ' + (selected[e.id] ? 'checked' : '') + '>' +
+          '<div class="t"><div class="n">' + esc(e.title || 'Untitled') + (e.lock ? ' 🔒' : '') + '</div>' +
+          '<div class="m">' + (TMAP[e.template] || 'NOTE') + ' · deleted ' + new Date(e.trashed).toLocaleDateString() + ' · auto-deletes in ' + days + 'd</div></div>' +
+          '<div class="b"><button class="res">↩ Restore</button><button class="del">Delete forever</button></div>';
+        row.querySelector('input').addEventListener('change', function() {
+          if (this.checked) selected[e.id] = true; else delete selected[e.id];
+          syncFooter();
+        });
+        row.querySelector('.res').addEventListener('click', function() { api.restore([e.id]); render(); });
+        row.querySelector('.del').addEventListener('click', function() {
+          if (confirm('Permanently delete "' + (e.title || 'Untitled') + '"? This cannot be undone.')) { api.purge([e.id]); render(); }
+        });
+        b.appendChild(row);
+      });
+      syncFooter();
+    }
+    b._render = render;
+    render();
+  }, function(f, close) {
+    var selAll = document.createElement('button');
+    selAll.className = 'docx-btn';
+    selAll.textContent = 'Select all';
+    selAll.addEventListener('click', function() {
+      var items = api.list();
+      var all = items.length && items.every(function(e) { return selected[e.id]; });
+      items.forEach(function(e) { if (all) delete selected[e.id]; else selected[e.id] = true; });
+      body._render();
+    });
+    var res = document.createElement('button');
+    res.className = 'docx-btn pri';
+    res.textContent = 'Restore selected';
+    res.addEventListener('click', function() {
+      var ids = Object.keys(selected);
+      if (!ids.length) return;
+      api.restore(ids);
+      ids.forEach(function(id) { delete selected[id]; });
+      body._render();
+    });
+    var del = document.createElement('button');
+    del.className = 'docx-btn danger';
+    del.textContent = 'Delete selected forever';
+    del.addEventListener('click', function() {
+      var ids = Object.keys(selected);
+      if (!ids.length) return;
+      if (!confirm('Permanently delete ' + ids.length + ' item(s)? This cannot be undone.')) return;
+      api.purge(ids);
+      ids.forEach(function(id) { delete selected[id]; });
+      body._render();
+    });
+    var empty = document.createElement('button');
+    empty.className = 'docx-btn danger';
+    empty.textContent = 'Empty Trash';
+    empty.addEventListener('click', function() {
+      var ids = api.list().map(function(e) { return e.id; });
+      if (!ids.length) return;
+      if (!confirm('Permanently delete ALL ' + ids.length + ' item(s) in Trash?')) return;
+      api.purge(ids);
+      body._render();
+    });
+    f.appendChild(selAll); f.appendChild(res); f.appendChild(del); f.appendChild(empty);
+    f._sync = function() {
+      var n = Object.keys(selected).length;
+      res.textContent = n ? 'Restore selected (' + n + ')' : 'Restore selected';
+      del.textContent = n ? 'Delete selected forever (' + n + ')' : 'Delete selected forever';
+    };
+  });
+  var body = veil.querySelector('.docx-modal-b');
+  var footer = veil.querySelector('.docx-modal-f');
+  function syncFooter() { if (footer && footer._sync) footer._sync(); }
+  syncFooter();
+};
+
+/* ═══════════ Ribbon / menubar construction ═══════════ */
+function ptBtn(html, title) {
+  var b = document.createElement('button');
+  b.className = 'pt-btn';
+  b.innerHTML = html;
+  b.title = title || '';
+  return b;
+}
+function ptSep() { var d = document.createElement('div'); d.className = 'pt-sep'; return d; }
+
+function fontPop(ctx, anchor) {
+  saveSel(ctx);
+  showPop(anchor, function(pop) {
+    var search = document.createElement('input');
+    search.type = 'search';
+    search.placeholder = 'Search fonts…';
+    search.style.marginBottom = '5px';
+    pop.appendChild(search);
+    var holder = document.createElement('div');
+    pop.appendChild(holder);
+    function renderList(q) {
+      holder.innerHTML = '';
+      FONTS.filter(function(f) { return !q || f.toLowerCase().includes(q.toLowerCase()); }).forEach(function(f) {
+        var b = document.createElement('button');
+        b.className = 'docx-mi docx-fontitem';
+        b.textContent = f;
+        b.style.fontFamily = "'" + f + "', sans-serif";
+        b.addEventListener('click', function() {
+          closePop();
+          exec(ctx, 'fontName', f);
+          if (ctx.fontLbl) ctx.fontLbl.textContent = f;
+        });
+        holder.appendChild(b);
+      });
+      if (!holder.children.length) holder.innerHTML = '<div class="docx-empty-note" style="padding:12px 0;">No fonts match.</div>';
+    }
+    renderList('');
+    search.addEventListener('input', function() { renderList(search.value); });
+    setTimeout(function() { search.focus(); }, 30);
+  });
+}
+
+function lineSpacingPop(ctx, anchor) {
+  saveSel(ctx);
+  showPop(anchor, function(pop) {
+    pop.appendChild(mlabel('Line spacing'));
+    [['1.0', '1.15'], ['1.15', '1.38'], ['1.5', '1.8'], ['2.0', '2.4']].forEach(function(o) {
+      pop.appendChild(mi(o[0], function() { setBlockStyle(ctx, 'lineHeight', o[1]); }));
+    });
+    pop.appendChild(msep());
+    pop.appendChild(mlabel('Paragraph spacing'));
+    pop.appendChild(mi('Add space before paragraph', function() { setBlockStyle(ctx, 'marginTop', '12px', true); }));
+    pop.appendChild(mi('Add space after paragraph', function() { setBlockStyle(ctx, 'marginBottom', '12px', true); }));
+    pop.appendChild(msep());
+    pop.appendChild(mlabel('Indentation'));
+    pop.appendChild(mi('First-line indent', function() { setBlockStyle(ctx, 'textIndent', '48px', true); }));
+    pop.appendChild(mi('Hanging indent', function() {
+      restoreSel(ctx);
+      selBlocks(ctx).forEach(function(b) {
+        var on = b.style.textIndent === '-48px';
+        b.style.textIndent = on ? '' : '-48px';
+        b.style.paddingLeft = on ? '' : '48px';
+      });
+      fireInput(ctx.edEl);
+    }));
+  });
+}
+
+function insertChecklist(ctx) {
+  insertHTML(ctx, '<ul class="docx-checklist"><li class="docx-cl-item"><input type="checkbox" class="docx-cl-box" contenteditable="false"><span class="docx-cl-text">&nbsp;</span></li></ul>');
+}
+
+function buildMenubar(ctx) {
+  var app = ctx.app, cfg = APPS[app];
+  var bar = document.createElement('div');
+  bar.className = 'docx-menubar';
+  function menu(name, build) {
+    var b = document.createElement('button');
+    b.className = 'docx-menu-btn';
+    b.textContent = name;
+    b.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
+    b.addEventListener('click', function() {
+      if (openPop && openPop._btn === b) { closePop(); return; }
+      showPop(b, build);
+    });
+    bar.appendChild(b);
+  }
+  menu('File', function(p) {
+    p.appendChild(mi('New entry', function() { var nb = $(cfg.newBtn); if (nb) nb.click(); }));
+    p.appendChild(mi('Rename document', function() { var t = $(app === 'tj' ? 'tj-entry-title-input' : 'bj-entry-title-input'); if (t) { t.focus(); t.select(); } }));
+    p.appendChild(msep());
+    p.appendChild(mi('Print / Export PDF', function() { var eb = $(cfg.exportBtn); if (eb) eb.click(); }, 'Ctrl+P'));
+    p.appendChild(msep());
+    p.appendChild(mi('Trash…', function() { window._docxOpenTrash(app); }));
+  });
+  menu('Edit', function(p) {
+    p.appendChild(mi('Undo', function() { exec(ctx, 'undo'); }, 'Ctrl+Z'));
+    p.appendChild(mi('Redo', function() { exec(ctx, 'redo'); }, 'Ctrl+Y'));
+    p.appendChild(msep());
+    p.appendChild(mi('Select all', function() { restoreSel(ctx); document.execCommand('selectAll'); }, 'Ctrl+A'));
+    p.appendChild(msep());
+    p.appendChild(mi('Find…', function() { frOpen(ctx, false); }, 'Ctrl+F'));
+    p.appendChild(mi('Find & replace…', function() { frOpen(ctx, true); }, 'Ctrl+H'));
+  });
+  menu('View', function(p) {
+    p.appendChild(mlabel('Zoom'));
+    ZOOMS.forEach(function(z) {
+      p.appendChild(mi(Math.round(z * 100) + '%', function() { setZoom(app, z); }, null, zGet(app) === z));
+    });
+    p.appendChild(mi('Fit width', function() { setZoom(app, 'fit'); }, null, zGet(app) === 'fit'));
+    p.appendChild(msep());
+    p.appendChild(mi('Print layout (pages)', function() { setViewMode(app, 'pages'); }, null, vmGet(app) === 'pages'));
+    p.appendChild(mi('Continuous (web)', function() { setViewMode(app, 'flow'); }, null, vmGet(app) === 'flow'));
+    p.appendChild(msep());
+    p.appendChild(mi('Toggle sidebar', function() { var sb = $(cfg.sidebarBtn); if (sb) sb.click(); }));
+  });
+  menu('Insert', function(p) {
+    if (ctx.imgEl) p.appendChild(mi('Image…', function() { ctx.imgEl.click(); }));
+    p.appendChild(mi('Table…', function() { tableGridPop(ctx, ctx.tbEl); }));
+    p.appendChild(mi('Link…', function() { var url = prompt('Link URL:'); if (url) exec(ctx, 'createLink', url); }));
+    p.appendChild(mi('Horizontal divider', function() { exec(ctx, 'insertHorizontalRule'); }));
+    p.appendChild(mi('Page break', function() { insertHTML(ctx, '<hr class="docx-pagebreak"><p><br></p>'); }));
+    p.appendChild(mi('Code block', function() { exec(ctx, 'formatBlock', 'pre'); }));
+    p.appendChild(mi('Checklist', function() { insertChecklist(ctx); }));
+    p.appendChild(msep());
+    p.appendChild(mi('Date', function() { exec(ctx, 'insertText', new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })); }));
+    p.appendChild(mi('Time', function() { exec(ctx, 'insertText', new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })); }));
+  });
+  menu('Format', function(p) {
+    p.appendChild(mi('Bold', function() { exec(ctx, 'bold'); }, 'Ctrl+B'));
+    p.appendChild(mi('Italic', function() { exec(ctx, 'italic'); }, 'Ctrl+I'));
+    p.appendChild(mi('Underline', function() { exec(ctx, 'underline'); }, 'Ctrl+U'));
+    p.appendChild(mi('Strikethrough', function() { exec(ctx, 'strikeThrough'); }));
+    p.appendChild(msep());
+    p.appendChild(mi('Align left', function() { exec(ctx, 'justifyLeft'); }));
+    p.appendChild(mi('Align center', function() { exec(ctx, 'justifyCenter'); }));
+    p.appendChild(mi('Align right', function() { exec(ctx, 'justifyRight'); }));
+    p.appendChild(mi('Justify', function() { exec(ctx, 'justifyFull'); }));
+    p.appendChild(msep());
+    p.appendChild(mi('Increase indent', function() { exec(ctx, 'indent'); }));
+    p.appendChild(mi('Decrease indent', function() { exec(ctx, 'outdent'); }));
+    p.appendChild(mi('Line & paragraph spacing…', function() { lineSpacingPop(ctx, ctx.tbEl); }));
+    p.appendChild(msep());
+    p.appendChild(mi('Clear formatting', function() { exec(ctx, 'removeFormat'); }));
+    p.appendChild(msep());
+    p.appendChild(mi('Page setup…', function() { pageSetupModal(app); }));
+  });
+  menu('Tools', function(p) {
+    if (ctx.mdEl) p.appendChild(mi('Render Markdown', function() { ctx.mdEl.click(); }));
+    p.appendChild(mi('Word count', function() { wordCountModal(ctx); }));
+    p.appendChild(mi('Keyboard shortcuts', shortcutsModal));
+  });
+  menu('Table', function(p) {
+    p.appendChild(mi('Insert table…', function() { tableGridPop(ctx, ctx.tbEl); }));
+    p.appendChild(msep());
+    p.appendChild(mi('Insert row above', function() { restoreSel(ctx); tblInsertRow(ctx, false); }));
+    p.appendChild(mi('Insert row below', function() { restoreSel(ctx); tblInsertRow(ctx, true); }));
+    p.appendChild(mi('Insert column left', function() { restoreSel(ctx); tblInsertCol(ctx, false); }));
+    p.appendChild(mi('Insert column right', function() { restoreSel(ctx); tblInsertCol(ctx, true); }));
+    p.appendChild(msep());
+    p.appendChild(mi('Delete row', function() { restoreSel(ctx); tblDeleteRow(ctx); }));
+    p.appendChild(mi('Delete column', function() { restoreSel(ctx); tblDeleteCol(ctx); }));
+    p.appendChild(mi('Delete table', function() { restoreSel(ctx); tblDelete(ctx); }));
+    p.appendChild(msep());
+    p.appendChild(mi('Toggle header row', function() { restoreSel(ctx); tblToggleHeader(ctx); }));
+  });
+  menu('Help', function(p) {
+    p.appendChild(mi('Keyboard shortcuts', shortcutsModal));
+    p.appendChild(mi('About this editor', function() {
+      modal('About', function(b) { b.innerHTML = 'Word-style rich text editor.<br>Autosaves locally and syncs to the cloud automatically.'; });
+    }));
+  });
+  ctx.tbEl.insertBefore(bar, ctx.tbEl.firstChild);
+}
+
+function injectRibbonExtras(ctx) {
+  var tb = ctx.tbEl;
+  // ── Undo / Redo / Print at the very start (after menubar) ──
+  var startFrag = document.createDocumentFragment();
+  var undoB = ptBtn('↶', 'Undo (Ctrl+Z)');
+  undoB.addEventListener('click', function() { exec(ctx, 'undo'); });
+  var redoB = ptBtn('↷', 'Redo (Ctrl+Y)');
+  redoB.addEventListener('click', function() { exec(ctx, 'redo'); });
+  var printB = ptBtn('🖨', 'Print / Export PDF (Ctrl+P)');
+  printB.addEventListener('click', function() { var eb = $(APPS[ctx.app].exportBtn); if (eb) eb.click(); });
+  startFrag.appendChild(undoB);
+  startFrag.appendChild(redoB);
+  startFrag.appendChild(printB);
+  startFrag.appendChild(ptSep());
+  // insert right after the menubar (first child)
+  var menubar = tb.querySelector('.docx-menubar');
+  tb.insertBefore(startFrag, menubar ? menubar.nextSibling : tb.firstChild);
+
+  // ── Font family dropdown before the font-size select ──
+  var fsSel = tb.querySelector('[id$="-fontsize"]');
+  var fontB = ptBtn('', 'Font family');
+  fontB.style.minWidth = '86px';
+  fontB.style.justifyContent = 'space-between';
+  var fontLbl = document.createElement('span');
+  fontLbl.textContent = 'Arial';
+  fontLbl.style.cssText = 'max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+  fontB.appendChild(fontLbl);
+  var caret = document.createElement('span');
+  caret.textContent = '▾';
+  caret.style.cssText = 'font-size:9px;opacity:.7;margin-left:3px;';
+  fontB.appendChild(caret);
+  fontB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
+  fontB.addEventListener('click', function() { fontPop(ctx, fontB); });
+  ctx.fontLbl = fontLbl;
+  if (fsSel) tb.insertBefore(fontB, fsSel);
+  else tb.appendChild(fontB);
+
+  // ── Justify + indent + spacing + checklist after align-right ──
+  var alignR = tb.querySelector('[id$="-alignR"]');
+  var midFrag = document.createDocumentFragment();
+  var justB = ptBtn('☰', 'Justify');
+  justB.addEventListener('click', function() { exec(ctx, 'justifyFull'); });
+  var outB = ptBtn('⇤', 'Decrease indent');
+  outB.addEventListener('click', function() { exec(ctx, 'outdent'); });
+  var inB = ptBtn('⇥', 'Increase indent');
+  inB.addEventListener('click', function() { exec(ctx, 'indent'); });
+  var lsB = ptBtn('↕≡', 'Line & paragraph spacing');
+  lsB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
+  lsB.addEventListener('click', function() { lineSpacingPop(ctx, lsB); });
+  midFrag.appendChild(justB);
+  midFrag.appendChild(ptSep());
+  midFrag.appendChild(outB);
+  midFrag.appendChild(inB);
+  midFrag.appendChild(lsB);
+  if (alignR && alignR.parentNode === tb) tb.insertBefore(midFrag, alignR.nextSibling);
+  else tb.appendChild(midFrag);
+
+  // ── Checklist button after the ordered-list button ──
+  var olB = tb.querySelector('[id$="-ol"]');
+  var clB = ptBtn('☑', 'Checklist');
+  clB.addEventListener('click', function() { insertChecklist(ctx); });
+  if (olB && olB.parentNode === tb) tb.insertBefore(clB, olB.nextSibling);
+  else tb.appendChild(clB);
+
+  // ── Table grid picker replaces the old fixed 3×3 insert on the table button.
+  //    Clone-replace strips the previously registered click listener.
+  var tblB = tb.querySelector('[id$="-table"]');
+  if (tblB) {
+    var tblB2 = tblB.cloneNode(true);
+    tblB.parentNode.replaceChild(tblB2, tblB);
+    tblB2.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
+    tblB2.addEventListener('click', function() { tableGridPop(ctx, tblB2); });
+  }
+
+  // ── Find + Zoom before the trailing flex spacer ──
+  var spacer = null;
+  Array.prototype.forEach.call(tb.children, function(chEl) {
+    if (!spacer && chEl.tagName === 'DIV' && /flex:\s*1/.test(chEl.getAttribute('style') || '')) spacer = chEl;
+  });
+  var endFrag = document.createDocumentFragment();
+  endFrag.appendChild(ptSep());
+  var findB = ptBtn('🔍', 'Find & replace (Ctrl+F)');
+  findB.addEventListener('click', function() { frOpen(ctx, true); });
+  endFrag.appendChild(findB);
+  var zoomSel = document.createElement('select');
+  zoomSel.className = 'pt-select docx-zoom-sel';
+  zoomSel.title = 'Zoom';
+  ZOOMS.forEach(function(z) {
+    var o = document.createElement('option');
+    o.value = String(z);
+    o.textContent = Math.round(z * 100) + '%';
+    zoomSel.appendChild(o);
+  });
+  var fitO = document.createElement('option');
+  fitO.value = 'fit';
+  fitO.textContent = 'Fit';
+  zoomSel.appendChild(fitO);
+  zoomSel.value = String(zGet(ctx.app));
+  zoomSel.addEventListener('change', function() {
+    var v = this.value === 'fit' ? 'fit' : parseFloat(this.value);
+    setZoom(ctx.app, v);
+  });
+  endFrag.appendChild(zoomSel);
+  var clearFB = ptBtn('T⌫', 'Clear formatting');
+  clearFB.addEventListener('click', function() { exec(ctx, 'removeFormat'); });
+  endFrag.appendChild(clearFB);
+  if (spacer) tb.insertBefore(endFrag, spacer);
+  else tb.appendChild(endFrag);
+}
+
+/* ═══════════ Keyboard shortcuts + checklist toggling per editor ═══════════ */
+function wireEditor(ctx) {
+  var ed = ctx.edEl;
+  ed.addEventListener('keydown', function(e) {
+    var mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.altKey) {
+      var k = e.key.toLowerCase();
+      if (!e.shiftKey && k === 's') { e.preventDefault(); fireInput(ed); return; }
+      if (!e.shiftKey && k === 'p') { e.preventDefault(); var eb = $(APPS[ctx.app].exportBtn); if (eb) eb.click(); return; }
+      if (!e.shiftKey && k === 'f') { e.preventDefault(); frOpen(ctx, false); return; }
+      if (!e.shiftKey && k === 'h') { e.preventDefault(); frOpen(ctx, true); return; }
+      if (k === 'y' || (e.shiftKey && k === 'z')) { e.preventDefault(); document.execCommand('redo'); fireInput(ed); return; }
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      if (closestInEd(ctx, 'li')) document.execCommand(e.shiftKey ? 'outdent' : 'indent');
+      else if (!e.shiftKey) document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;');
+      fireInput(ed);
+    }
+  });
+  // Checklist checkbox toggling (sync the attribute so the state survives innerHTML saves)
+  ed.addEventListener('click', function(e) {
+    var t = e.target;
+    if (t && t.classList && t.classList.contains('docx-cl-box')) {
+      if (t.checked) t.setAttribute('checked', '');
+      else t.removeAttribute('checked');
+      var li = t.closest('li');
+      if (li) li.classList.toggle('done', t.checked);
+      fireInput(ed);
+    }
+  });
+  // Keep selection bookmarked for toolbar/menu actions
+  ed.addEventListener('keyup', function() { saveSel(ctx); });
+  ed.addEventListener('mouseup', function() { saveSel(ctx); });
+  ed.addEventListener('focus', function() { saveSel(ctx); });
+  // Rich paste for editors without their own paste handler (journal-entries)
+  if (ctx.needsPaste) {
+    ed.addEventListener('paste', function(e) {
+      var items = e.clipboardData && e.clipboardData.items;
+      if (items) {
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].type && items[i].type.startsWith('image/')) return; // let any existing image logic run / default
+        }
+      }
+      var html = e.clipboardData.getData('text/html');
+      if (html) {
+        e.preventDefault();
+        document.execCommand('insertHTML', false, window._docxCleanHTML(html));
+        fireInput(ed);
+      }
+    });
+  }
+}
+
+/* ═══════════ View mode toggle in the main toolbar ═══════════ */
+function injectViewToggle(app) {
+  var cfg = APPS[app];
+  var bar = $(cfg.mainToolbar);
+  if (!bar || $('docx-viewseg-' + app)) return;
+  var seg = document.createElement('span');
+  seg.className = 'docx-viewseg';
+  seg.id = 'docx-viewseg-' + app;
+  [['pages', '📄 Pages', 'Print layout — real page boundaries'], ['flow', '≡ Web', 'Continuous — one endless page']].forEach(function(o) {
+    var b = document.createElement('button');
+    b.dataset.vm = o[0];
+    b.innerHTML = o[1];
+    b.title = o[2];
+    b.addEventListener('click', function() { setViewMode(app, o[0]); });
+    seg.appendChild(b);
+  });
+  var pill = $(cfg.syncPill);
+  if (pill && pill.parentNode === bar) bar.insertBefore(seg, pill);
+  else bar.appendChild(seg);
+}
+
+/* ═══════════ Init ═══════════ */
+var ALLCTX = [];
+function initApp(app) {
+  var cfg = APPS[app];
+  if (!$(cfg.root)) return;
+  cfg.ctxs.forEach(function(c) {
+    var edEl = $(c.ed), tbEl = $(c.tb), wrapEl = $(c.wrap);
+    if (!edEl || !tbEl || !wrapEl) return;
+    var ctx = {
+      app: app, edEl: edEl, tbEl: tbEl, wrapEl: wrapEl, area: c.area,
+      imgEl: c.img ? $(c.img) : null, mdEl: c.md ? $(c.md) : null,
+      needsPaste: /je-editor/.test(c.ed)
+    };
+    c._ctx = ctx;
+    ALLCTX.push(ctx);
+    wrapEl.classList.add('docx-wrap');
+    edEl.classList.add('docx-sheet');
+    var areaEl = $(c.area);
+    if (areaEl) areaEl.classList.add('docx-find-host');
+    buildMenubar(ctx);
+    injectRibbonExtras(ctx);
+    buildRuler(ctx);
+    wireEditor(ctx);
+    // Re-fit zoom when the wrap resizes (sidebar toggles, orientation change)
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(function() {
+        if (zGet(app) === 'fit') applyZoom(app);
+        else updateRulers(app);
+      });
+      ro.observe(wrapEl);
+    }
+  });
+  injectViewToggle(app);
+  applyPageSetup(app);
+  applyViewMode(app);
+}
+function initAll() {
+  Object.keys(APPS).forEach(function(app) {
+    try { initApp(app); } catch (e) { console.warn('docx init failed for', app, e); }
+  });
+  window.addEventListener('resize', function() {
+    Object.keys(APPS).forEach(function(app) {
+      if (zGet(app) === 'fit') applyZoom(app);
+      else updateRulers(app);
+    });
+  });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAll);
+else initAll();
+})();
+</script>
+
+
 <!-- ── StudyOS ── -->
 <style id="study-root-css">
 
