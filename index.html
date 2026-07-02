@@ -28757,6 +28757,11 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 /* ── Disabled ribbon buttons (nothing to undo/redo) ── */
 #tj-root .pt-btn.pt-disabled, #bj-root .pt-btn.pt-disabled { opacity: .3; cursor: default; pointer-events: none; color: var(--text3, #666) !important; }
 
+/* ── Page-toolbar buttons get a boxed outline (matches the Journal-Entries edit menu) ── */
+#tj-root:not(.tj-light) #tj-page-toolbar .pt-btn, #bj-root #bj-page-toolbar .pt-btn { border: 1px solid var(--border2, #323240); background: rgba(255,255,255,.02); }
+#tj-root:not(.tj-light) #tj-page-toolbar .pt-btn:hover, #bj-root #bj-page-toolbar .pt-btn:hover { border-color: var(--purple, #E0607A); background: rgba(255,255,255,.05); }
+#tj-root:not(.tj-light) #tj-page-toolbar .pt-btn.pt-disabled, #bj-root #bj-page-toolbar .pt-btn.pt-disabled { border-color: var(--border, #252530); background: transparent; }
+
 /* ── Font-family button: dark box like the block-type <select> ── */
 #tj-root .docx-fontfam-btn, #bj-root .docx-fontfam-btn { background: var(--card, #141418); border: 1px solid var(--border, #252530); }
 #tj-root .docx-fontfam-btn:hover, #bj-root .docx-fontfam-btn:hover { border-color: var(--border2, #323240); }
