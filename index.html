@@ -30022,7 +30022,12 @@ function fontPop(ctx, anchor) {
         b.style.fontFamily = "'" + f + "', sans-serif";
         b.addEventListener('click', function() {
           closePop();
-          exec(ctx, 'fontName', f);
+          restoreSel(ctx);
+          document.execCommand('styleWithCSS', false, true);
+          document.execCommand('fontName', false, f);
+          document.execCommand('styleWithCSS', false, false);
+          saveSel(ctx);
+          fireInput(ctx.edEl);
           if (ctx.fontLbl) ctx.fontLbl.textContent = f;
         });
         holder.appendChild(b);
