@@ -30076,9 +30076,12 @@ function injectRibbonExtras(ctx) {
   aiB.className = 'pt-btn docx-ai-btn';
   aiB.addEventListener('click', function() { aiFormat(ctx); });
   var undoB = ptBtn(svg(IC.undo), 'Undo (Ctrl+Z)');
-  undoB.addEventListener('click', function() { ctx.history.undo(); });
+  undoB.classList.add('pt-disabled');
+  undoB.addEventListener('click', function() { if (!undoB.classList.contains('pt-disabled')) ctx.history.undo(); });
   var redoB = ptBtn(svg(IC.redo), 'Redo (Ctrl+Y)');
-  redoB.addEventListener('click', function() { ctx.history.redo(); });
+  redoB.classList.add('pt-disabled');
+  redoB.addEventListener('click', function() { if (!redoB.classList.contains('pt-disabled')) ctx.history.redo(); });
+  ctx.undoBtn = undoB; ctx.redoBtn = redoB;
   var printB = ptBtn(svg(IC.print), 'Print / Export PDF (Ctrl+P)');
   printB.addEventListener('click', function() { var eb = $(APPS[ctx.app].exportBtn); if (eb) eb.click(); });
   startFrag.appendChild(aiB);
@@ -30115,9 +30118,11 @@ function injectRibbonExtras(ctx) {
   var justB = ptBtn(svg(IC.justify), 'Justify');
   justB.addEventListener('click', function() { exec(ctx, 'justifyFull'); });
   var outB = ptBtn(svg(IC.indentDec), 'Decrease indent');
-  outB.addEventListener('click', function() { exec(ctx, 'outdent'); });
+  outB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
+  outB.addEventListener('click', function() { indentBlocks(ctx, -1); });
   var inB = ptBtn(svg(IC.indentInc), 'Increase indent');
-  inB.addEventListener('click', function() { exec(ctx, 'indent'); });
+  inB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
+  inB.addEventListener('click', function() { indentBlocks(ctx, 1); });
   var lsB = ptBtn(svg(IC.spacing), 'Line & paragraph spacing');
   lsB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   lsB.addEventListener('click', function() { lineSpacingPop(ctx, lsB); });
