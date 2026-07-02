@@ -20080,6 +20080,15 @@ function saveCurrentEntry() {
   // re-renders from the intact synced state.
   if (window._bjGetLock && window._bjGetLock(entry.id) && !(window._bjIsUnlocked && window._bjIsUnlocked(entry.id))) return;
   entry.title = document.getElementById('bj-entry-title-input').value;
+  // Auto-title: derive from content while the title is empty; a user-typed title always wins
+  if (!entry.title.trim()) {
+    const _auto = _bjAutoTitle(entry);
+    if (_auto) {
+      entry.title = _auto;
+      const _ti = document.getElementById('bj-entry-title-input');
+      if (_ti && document.activeElement !== _ti) _ti.value = _auto;
+    }
+  }
   entry.updated = Date.now();
   if (entry.template === 'whiteboard') entry.data.canvas = wbCanvas ? wbCanvas.toDataURL('image/png') : '';
   if (entry.template === 'notes') {
