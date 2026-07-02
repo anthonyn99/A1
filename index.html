@@ -18659,23 +18659,24 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
     font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
   }
 #bj-root .tag {
-    display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 3px;
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 6px 3px 11px; border-radius: 999px;
     font-family: var(--font); font-size: 11px; font-weight: 600;
-    background: rgba(141,118,154,0.1); color: var(--purple); border: 1px solid rgba(141,118,154,0.2);
-    letter-spacing: 0.04em; text-transform: lowercase;
-    transition: background 0.1s;
+    background: rgba(141,118,154,0.14); color: var(--purple); border: 1px solid rgba(141,118,154,0.32);
+    letter-spacing: 0.02em; text-transform: lowercase; max-width: 100%;
+    transition: background 0.12s, border-color 0.12s;
   }
-#bj-root .tag:hover { background: rgba(141,118,154,0.18); }
-#bj-root .tag-del { cursor: pointer; opacity: 0.4; font-size: 10px; line-height: 1; transition: opacity 0.1s; }
-#bj-root .tag-del:hover { opacity: 1; color: var(--red); }
+#bj-root .tag > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#bj-root .tag:hover { background: rgba(141,118,154,0.24); border-color: rgba(141,118,154,0.5); }
+#bj-root .tag-del { cursor: pointer; opacity: 0.55; font-size: 12px; line-height: 1; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0; transition: opacity 0.1s, background 0.1s; }
+#bj-root .tag-del:hover { opacity: 1; color: #fff; background: var(--red); }
 #bj-root #bj-add-tag-input {
-    border: 1px solid var(--border); border-radius: 3px; padding: 2px 10px;
+    border: 1px dashed var(--border2); border-radius: 999px; padding: 3px 12px; box-sizing: content-box;
     font-family: var(--font); font-size: 11px;
-    color: var(--text3); background: none; outline: none; width: 80px;
+    color: var(--text2); background: none; outline: none; width: 92px;
     transition: border-color 0.15s, width 0.2s;
     letter-spacing: 0.02em;
   }
-#bj-root #bj-add-tag-input:focus { border-color: var(--purple); color: var(--text); width: 110px; }
+#bj-root #bj-add-tag-input:focus { border-style: solid; border-color: var(--purple); color: var(--text); width: 120px; }
 #bj-root #bj-add-tag-input::placeholder { color: var(--text3); }
 
   /* ── SCROLLBAR ── */
@@ -23864,23 +23865,24 @@ window.hideBrainstormJournal = function() {
     font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
   }
 #tj-root .tag {
-    display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 3px;
-    font-family: var(--font); font-size: 11px; font-weight: 500;
-    background: rgba(224,96,122,0.1); color: var(--purple); border: 1px solid rgba(224,96,122,0.2);
-    letter-spacing: 0.02em;
-    transition: background 0.1s;
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 6px 3px 11px; border-radius: 999px;
+    font-family: var(--font); font-size: 11px; font-weight: 600;
+    background: rgba(224,96,122,0.13); color: var(--purple); border: 1px solid rgba(224,96,122,0.3);
+    letter-spacing: 0.02em; max-width: 100%;
+    transition: background 0.12s, border-color 0.12s;
   }
-#tj-root .tag:hover { background: rgba(224,96,122,0.16); }
-#tj-root .tag-del { cursor: pointer; opacity: 0.4; font-size: 10px; line-height: 1; transition: opacity 0.1s; }
-#tj-root .tag-del:hover { opacity: 1; color: var(--red); }
+#tj-root .tag > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#tj-root .tag:hover { background: rgba(224,96,122,0.22); border-color: rgba(224,96,122,0.48); }
+#tj-root .tag-del { cursor: pointer; opacity: 0.55; font-size: 12px; line-height: 1; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0; transition: opacity 0.1s, background 0.1s; }
+#tj-root .tag-del:hover { opacity: 1; color: #fff; background: var(--red); }
 #tj-root #tj-add-tag-input {
-    border: 1px solid var(--border); border-radius: 3px; padding: 2px 10px;
+    border: 1px dashed var(--border2); border-radius: 999px; padding: 3px 12px; box-sizing: content-box;
     font-family: var(--font); font-size: 11px;
-    color: var(--text3); background: none; outline: none; width: 80px;
+    color: var(--text2); background: none; outline: none; width: 92px;
     transition: border-color 0.15s, width 0.2s;
     letter-spacing: 0.02em;
   }
-#tj-root #tj-add-tag-input:focus { border-color: var(--purple); color: var(--text); width: 110px; }
+#tj-root #tj-add-tag-input:focus { border-style: solid; border-color: var(--purple); color: var(--text); width: 120px; }
 #tj-root #tj-add-tag-input::placeholder { color: var(--text3); }
 
   /* ── SCROLLBAR ── */
