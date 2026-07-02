@@ -28800,14 +28800,25 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 .docx-viewseg button { background: transparent; border: none; color: var(--text2, #999); font-size: 11px; padding: 5px 9px; cursor: pointer; font-family: inherit; line-height: 1; display: inline-flex; align-items: center; gap: 4px; }
 .docx-viewseg button.on { background: var(--purple, #E0607A); color: #101014; font-weight: 700; }
 
+/* ── AI Format button + overlay + toast ── */
+#tj-root .docx-ai-btn, #bj-root .docx-ai-btn { color: #c3a7ff; border: 1px solid rgba(150,110,255,.4); background: rgba(150,110,255,.08); font-weight: 600; }
+#tj-root .docx-ai-btn:hover, #bj-root .docx-ai-btn:hover { background: rgba(150,110,255,.2); color: #e2d4ff; border-color: rgba(150,110,255,.7); }
+.docx-ai-veil { z-index: 100010; }
+.docx-ai-card { background: #1E1F23; border: 1px solid #3B3C42; border-radius: 16px; padding: 28px 40px; display: flex; flex-direction: column; align-items: center; gap: 14px; color: #ECECF0; font-family: 'DM Sans','Segoe UI',sans-serif; box-shadow: 0 24px 70px rgba(0,0,0,.65); }
+.docx-ai-spin { width: 40px; height: 40px; border-radius: 50%; border: 3px solid rgba(150,110,255,.22); border-top-color: #a78bfa; animation: docxspin .8s linear infinite; }
+@keyframes docxspin { to { transform: rotate(360deg); } }
+.docx-ai-msg { font-size: 15px; font-weight: 700; }
+.docx-ai-sub { font-size: 11.5px; opacity: .6; margin-top: -6px; }
+.docx-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 100011; background: #232428; border: 1px solid #3B3C42; color: #ECECF0; padding: 11px 18px; border-radius: 10px; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 13px; box-shadow: 0 12px 34px rgba(0,0,0,.55); transition: opacity .4s; max-width: 88vw; text-align: center; }
+.docx-toast.err { border-color: rgba(255,123,123,.5); }
+
 /* ── Mobile / tablet ── */
 @media (max-width: 820px) {
   #tj-root .pt-btn, #bj-root .pt-btn { min-height: 32px; padding: 6px 9px; }
-  .docx-menubar { order: -1; }
+  #tj-root .docx-menubar, #bj-root .docx-menubar { order: -1; }
   #tj-root:not(.tj-light) .docx-wrap, #bj-root .docx-wrap { padding: 12px 6px 80px !important; }
   .docx-find { left: 8px; right: 8px; width: auto; }
   .docx-float { display: none !important; }
-  .docx-viewseg button { padding: 6px 8px; }
 }
 </style>
 <script>
@@ -28885,7 +28896,8 @@ var APPS = {
       { ed: 'tj-je-editor',   tb: 'tj-je-toolbar',   wrap: 'tj-je-editor-wrap',   area: 'tj-je-area',   img: 'tj-je-img-file',   md: null }
     ],
     mainToolbar: 'tj-toolbar', syncPill: 'tj-sync-pill', newBtn: 'tj-new-entry-btn',
-    exportBtn: 'tj-btn-export-pdf', sidebarBtn: 'tj-fullscreen-btn', trashAPI: '_tjTrashAPI'
+    exportBtn: 'tj-btn-export-pdf', sidebarBtn: 'tj-fullscreen-btn', trashAPI: '_tjTrashAPI',
+    aiProfile: 'tony'
   },
   bj: {
     root: 'bj-root', lightClass: null,
@@ -28893,9 +28905,11 @@ var APPS = {
       { ed: 'bj-page-editor', tb: 'bj-page-toolbar', wrap: 'bj-page-editor-wrap', area: 'bj-page-area', img: 'bj-page-img-file', md: 'bj-pt-md' }
     ],
     mainToolbar: 'bj-toolbar', syncPill: 'bj-sync-pill', newBtn: 'bj-new-entry-btn',
-    exportBtn: 'bj-btn-export-pdf', sidebarBtn: 'bj-fullscreen-btn', trashAPI: '_bjTrashAPI'
+    exportBtn: 'bj-btn-export-pdf', sidebarBtn: 'bj-fullscreen-btn', trashAPI: '_bjTrashAPI',
+    aiProfile: 'veda'
   }
 };
+var AI_FORMAT_ENDPOINT = 'https://journal-ai.av1.workers.dev/format';
 
 function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -29782,6 +29796,53 @@ window._docxOpenTrash = function(app) {
   function syncFooter() { if (footer && footer._sync) footer._sync(); }
   syncFooter();
 };
+
+/* ═══════════ AI Format (Gemini via Cloudflare Worker) ═══════════ */
+function docxToast(msg, isErr) {
+  var t = document.createElement('div');
+  t.className = 'docx-toast' + (isErr ? ' err' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { t.style.opacity = '0'; }, 2600);
+  setTimeout(function() { t.remove(); }, 3100);
+}
+function aiOverlay() {
+  var v = document.createElement('div');
+  v.className = 'docx-veil docx-ai-veil';
+  v.innerHTML = '<div class="docx-ai-card"><div class="docx-ai-spin"></div>' +
+    '<div class="docx-ai-msg">Formatting…</div>' +
+    '<div class="docx-ai-sub">Cleaning up your document with AI</div></div>';
+  document.body.appendChild(v);
+  return v;
+}
+var _aiBusy = {};
+function aiFormat(ctx) {
+  var ed = ctx.edEl;
+  var app = ctx.app;
+  if (_aiBusy[app]) return;
+  var text = (ed.innerText || '').replace(/ /g, ' ').trim();
+  if (!text) { docxToast('Nothing to format — the page is empty.'); return; }
+  if (ed.querySelector('img')) { docxToast('AI Format works on text only; images would be dropped. Remove images first.', true); return; }
+  _aiBusy[app] = true;
+  var overlay = aiOverlay();
+  fetch(AI_FORMAT_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile: APPS[app].aiProfile, text: text })
+  }).then(function(r) { return r.json().catch(function() { return { ok: false, error: 'bad response' }; }); })
+    .then(function(data) {
+      overlay.remove(); _aiBusy[app] = false;
+      if (!data || !data.ok || !data.html) { docxToast('AI Format failed: ' + ((data && data.error) || 'try again'), true); return; }
+      var clean = window._docxCleanHTML(data.html);
+      if (!clean || !clean.trim()) { docxToast('AI Format returned nothing — text unchanged.', true); return; }
+      ctx.history.commit();          // snapshot the pre-format content (so Undo restores it)
+      ed.innerHTML = clean;
+      ctx.history.commit();          // snapshot the formatted content (discrete Redo step)
+      fireInput(ed);                 // autosave the new content
+      docxToast('Formatted ✓  — press Undo to revert.');
+    })
+    .catch(function() { overlay.remove(); _aiBusy[app] = false; docxToast('AI Format failed: network error.', true); });
+}
 
 /* ═══════════ Ribbon / menubar construction ═══════════ */
 function ptBtn(html, title) {
