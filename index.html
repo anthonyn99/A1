@@ -25434,14 +25434,20 @@ function renderTags(tags) {
   tags.forEach(tag => {
     const span = document.createElement('span');
     span.className = 'tag';
-    span.innerHTML = `${tag} <span class="tag-del">✕</span>`;
-    const delBtn = span.querySelector('.tag-del');
+    const label = document.createElement('span');
+    label.className = 'tag-txt';
+    label.textContent = tag;
+    span.appendChild(label);
+    const delBtn = document.createElement('span');
+    delBtn.className = 'tag-del';
+    delBtn.textContent = '✕';
     delBtn.style.display = isEditMode ? '' : 'none';
     delBtn.onclick = () => {
       const e = getActive(); if (!e) return;
       e.tags = (e.tags||[]).filter(t => t !== tag);
       saveState(); renderTags(e.tags);
     };
+    span.appendChild(delBtn);
     row.insertBefore(span, input);
   });
 }
