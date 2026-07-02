@@ -30212,8 +30212,7 @@ function wireEditor(ctx) {
       fireInput(ed);
     }
   });
-  // Record a history snapshot on edits (skipped while an undo/redo is being applied)
-  ed.addEventListener('input', function() { if (!ctx._histSuppress) ctx.history.record(); });
+  // (History is captured by the MutationObserver in makeHistory — no 'input' hook needed.)
   // Checklist checkbox toggling (sync the attribute so the state survives innerHTML saves)
   ed.addEventListener('click', function(e) {
     var t = e.target;
