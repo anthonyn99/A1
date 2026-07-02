@@ -29818,8 +29818,8 @@ function buildMenubar(ctx) {
     p.appendChild(mi('Trash…', function() { window._docxOpenTrash(app); }));
   });
   menu('Edit', function(p) {
-    p.appendChild(mi('Undo', function() { exec(ctx, 'undo'); }, 'Ctrl+Z'));
-    p.appendChild(mi('Redo', function() { exec(ctx, 'redo'); }, 'Ctrl+Y'));
+    p.appendChild(mi('Undo', function() { ctx.history.undo(); }, 'Ctrl+Z'));
+    p.appendChild(mi('Redo', function() { ctx.history.redo(); }, 'Ctrl+Y'));
     p.appendChild(msep());
     p.appendChild(mi('Select all', function() { restoreSel(ctx); document.execCommand('selectAll'); }, 'Ctrl+A'));
     p.appendChild(msep());
@@ -29832,9 +29832,6 @@ function buildMenubar(ctx) {
       p.appendChild(mi(Math.round(z * 100) + '%', function() { setZoom(app, z); }, null, zGet(app) === z));
     });
     p.appendChild(mi('Fit width', function() { setZoom(app, 'fit'); }, null, zGet(app) === 'fit'));
-    p.appendChild(msep());
-    p.appendChild(mi('Print layout (pages)', function() { setViewMode(app, 'pages'); }, null, vmGet(app) === 'pages'));
-    p.appendChild(mi('Continuous (web)', function() { setViewMode(app, 'flow'); }, null, vmGet(app) === 'flow'));
     p.appendChild(msep());
     p.appendChild(mi('Toggle sidebar', function() { var sb = $(cfg.sidebarBtn); if (sb) sb.click(); }));
   });
@@ -29870,7 +29867,9 @@ function buildMenubar(ctx) {
     p.appendChild(mi('Page setup…', function() { pageSetupModal(app); }));
   });
   menu('Tools', function(p) {
+    p.appendChild(mi('✨ AI Format', function() { aiFormat(ctx); }));
     if (ctx.mdEl) p.appendChild(mi('Render Markdown', function() { ctx.mdEl.click(); }));
+    p.appendChild(msep());
     p.appendChild(mi('Word count', function() { wordCountModal(ctx); }));
     p.appendChild(mi('Keyboard shortcuts', shortcutsModal));
   });
