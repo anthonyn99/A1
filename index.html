@@ -29155,7 +29155,7 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 
 /* ═══════════ HTML paste sanitizer (kept formatting, stripped junk) ═══════════ */
 var KEEPTAGS = {A:1,ABBR:1,B:1,BLOCKQUOTE:1,BR:1,CAPTION:1,CODE:1,DIV:1,EM:1,FIGURE:1,FONT:1,H1:1,H2:1,H3:1,H4:1,H5:1,H6:1,HR:1,I:1,IMG:1,INPUT:1,LI:1,MARK:1,OL:1,P:1,PRE:1,S:1,SMALL:1,SPAN:1,STRIKE:1,STRONG:1,SUB:1,SUP:1,TABLE:1,TBODY:1,TD:1,TFOOT:1,TH:1,THEAD:1,TR:1,U:1,UL:1};
-var KEEPATTR = {A:['href','target'],IMG:['src','alt','width','height'],TD:['colspan','rowspan'],TH:['colspan','rowspan'],INPUT:['type','checked','class'],OL:['start'],FONT:['face','color','size'],UL:['class'],LI:['class'],SPAN:['class']};
+var KEEPATTR = {A:['href','target','rel'],IMG:['src','alt','width','height'],TD:['colspan','rowspan'],TH:['colspan','rowspan'],INPUT:['type','checked','class'],OL:['start'],FONT:['face','color','size'],UL:['class'],LI:['class'],SPAN:['class','data-tex','contenteditable'],DIV:['class','data-tex','contenteditable','align'],DETAILS:['open'],TH2:[]};
 var KEEPCSS = ['font-family','font-size','font-weight','font-style','color','background-color','background','text-decoration','text-decoration-line','text-align','line-height','margin-left','text-indent','vertical-align','letter-spacing','width','height','border','border-collapse','padding'];
 window._docxCleanHTML = function(html) {
   try {
