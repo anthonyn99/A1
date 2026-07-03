@@ -28330,6 +28330,7 @@ function exportEntryAsPDF(entry) {
     + (tags ? tags.split(',').map(function(t){ return '<span class="tag">' + _tjEsc(t.trim()) + '</span>'; }).join('') : '')
     + '</div><hr/>'
     + bodyHTML
+    + (/docx-math/.test(bodyHTML) && window._docxExportMathScript ? window._docxExportMathScript() : '')
     + '</body></html>';
 
   _tjOpenPrintBlob(html);
