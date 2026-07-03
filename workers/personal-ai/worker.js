@@ -477,6 +477,7 @@ const FORMAT_OUTPUT_CONTRACT = [
   `Return ONLY an HTML fragment representing the formatted document. No markdown code fences, no <html>/<head>/<body> wrappers, no commentary before or after.`,
   `Allowed tags ONLY: h1 h2 h3 h4 p ul ol li blockquote pre code strong em u s a table thead tbody tr th td hr br. "Markdown headings/lists/tables/etc" from the rules above means: express them with these HTML tags.`,
   `For checklists use exactly: <ul class="docx-checklist"><li class="docx-cl-item"><input type="checkbox" class="docx-cl-box"><span class="docx-cl-text">TASK</span></li></ul> (add the "checked" attribute and class "done" on <li> for completed items).`,
+  `MATH: write math as plain LaTeX between dollar-sign delimiters directly in the text — inline as $ ... $ and display equations as $$ ... $$ (these dollar delimiters are REQUIRED and will be rendered; do NOT wrap math in any HTML tag).`,
   `Never wrap the whole document in <pre>/<code>. Do not add inline style attributes. Do not output <img> tags or scripts.`,
   `IMAGES: the document contains image tokens written EXACTLY like [[IMG1]], [[IMG2]], … Keep EVERY token exactly once. Place each token near the most relevant content (you MAY reorder them for better flow). Never change the number in a token, never invent tokens, never delete a token, never describe an image. To suggest a display size append |large, |medium, or |small before the closing brackets, e.g. [[IMG1|large]] or [[IMG2|small]]. Put each image token on its own line.`,
   ``,
