@@ -48,12 +48,12 @@ const POLL_STALE_MS   = 240 * 1000;  // /poll marks a build dead after this
 /* Stage-B render chain — walked top→bottom. Grounding is Stage A only; B is a
    pure JSON formatter so a fast non-grounded model is ideal. */
 const RENDER_CHAIN = [
-  { provider:'gemini', models:['gemini-2.5-flash-lite','gemini-2.5-flash'] },
+  { provider:'gemini', models:['gemini-3.1-flash-lite','gemini-3.5-flash','gemini-2.5-flash-lite','gemini-2.5-flash'] },
   { provider:'nvidia', models:['nvidia/llama-3.3-nemotron-super-49b-v1','meta/llama-3.3-70b-instruct'] },
   { provider:'groq',   models:['llama-3.3-70b-versatile'] },
 ];
-/* Stage-A grounded models (must support google_search tool). */
-const GROUNDED_MODELS = ['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-flash-lite'];
+/* Stage-A grounded models (must support google_search tool). Newest first. */
+const GROUNDED_MODELS = ['gemini-3.5-flash','gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-flash-lite'];
 
 /* ════════════════════════ FACTS: live data layer ════════════════════════ */
 const FH_BASE = 'https://finnhub.io/api/v1';
@@ -306,7 +306,11 @@ async function callGemini(model, sys, user, env, maxTokens, grounded, timeoutMs)
       // grounding CANNOT combine with responseMimeType:json → ask for JSON in text,
       // salvage-parse downstream. Non-grounded render uses strict JSON mode.
       ...(grounded?{}:{responseMimeType:'application/json'}),
-      thinkingConfig:{ thinkingBudget: /pro/i.test(model)?256:0 },
+      // Gemini 3.x uses thinkingLevel (can't fully disable → "low" for speed under
+      // the ~24s isolate wall); 2.5/older use numeric thinkingBudget.
+      thinkingConfig: model.startsWith('gemini-3')
+        ? { thinkingLevel:'low' }
+        : { thinkingBudget: /pro/i.test(model)?256:0 },
     },
     ...(grounded?{tools:[{google_search:{}}]}:{}),
   };
