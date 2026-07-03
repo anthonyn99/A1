@@ -31277,9 +31277,14 @@ function renderMarkdown(ctx) {
   if (sel && sel.rangeCount && !sel.isCollapsed && ed.contains(sel.anchorNode) && ed.contains(sel.focusNode)) {
     var range = sel.getRangeAt(0);
     var src = sel.toString();
-    var rendered = (window._mdToHtml(src) || '').replace(/<p><br><\/p>\s*$/, '');
+    var rendered = (window._mdToHtml(src) || '').replace(/<p><br><\/p>\s*$/, '').trim();
     if (window._docxMathify) rendered = window._docxMathify(rendered);
     var tmp = document.createElement('div'); tmp.innerHTML = rendered;
+    // If it rendered to a single paragraph, insert its INLINE contents so we don't nest a
+    // <p> inside the selection's block (invalid → the browser would drop it).
+    if (tmp.children.length === 1 && tmp.firstElementChild.tagName === 'P' && !tmp.firstElementChild.querySelector('div,p,ul,ol,table,blockquote,pre,h1,h2,h3,h4,h5,h6')) {
+      var inner = document.createElement('div'); inner.innerHTML = tmp.firstElementChild.innerHTML; tmp = inner;
+    }
     var frag = document.createDocumentFragment();
     while (tmp.firstChild) frag.appendChild(tmp.firstChild);
     range.deleteContents(); range.insertNode(frag);
