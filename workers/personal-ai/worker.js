@@ -433,29 +433,55 @@ async function handleTaskhub(body, env) {
 // ════════════════════════════════════════════════════════════════════════════
 // FEATURE 3 — Journal "AI Format"  (POST /journal/format)
 // ════════════════════════════════════════════════════════════════════════════
-function buildFormatPrompt(text) {
-  return [
-    `You are a meticulous document formatter for a rich-text journal editor.`,
-    `You are given the RAW TEXT of a document that the user pasted or typed. It may be messy: inconsistent spacing, no headings, run-on lines, ad-hoc lists, pasted markdown, etc.`,
-    ``,
-    `Your job: return the SAME content re-expressed as clean, beautiful, well-structured HTML.`,
-    ``,
-    `ABSOLUTE RULES:`,
-    `- DO NOT change the wording. Preserve every sentence, word, number, name, URL and piece of data EXACTLY. Do not add new information, do not remove content, do not summarize, do not rewrite, do not correct spelling or grammar, do not translate.`,
-    `- You may ONLY change formatting/structure: split into paragraphs, add headings for sections that clearly are headings, turn obvious lists into <ul>/<ol>, turn checkbox-like lines ("[ ]", "[x]", "- todo") into checklists, format tables written with pipes into <table>, wrap quotes in <blockquote>, wrap code/command lines in <pre><code>, add <strong>/<em> only where the raw text used markdown markers (**bold**, *italic*, __bold__, _italic_) or ALL-CAPS emphasis that is clearly a label.`,
-    `- Reasonable inference of structure is encouraged (e.g. a short line followed by related lines can become a heading + paragraph), but NEVER invent or drop words.`,
-    `- If a line is just a label like "Prompt 1:" keep it, optionally as a heading.`,
-    ``,
-    `OUTPUT FORMAT:`,
-    `- Output ONLY an HTML fragment (no markdown fences, no <html>, <head> or <body> tags).`,
-    `- Allowed tags: h1 h2 h3 h4 p ul ol li blockquote pre code strong em u s a table thead tbody tr th td hr br. For checklists use: <ul class="docx-checklist"><li class="docx-cl-item"><input type="checkbox" class="docx-cl-box"><span class="docx-cl-text">TASK</span></li></ul> (add the "checked" attribute and class "done" for completed items).`,
-    `- Do not use inline style attributes. Do not use images or scripts.`,
-    ``,
-    `RAW TEXT (between the fences):`,
-    `<<<`,
-    text,
-    `>>>`,
-  ].join('\n');
+// The editable default prompt (the front-end shows/stores its own copy per journal;
+// this is only the fallback when the client doesn't send one).
+const DEFAULT_FORMAT_PROMPT = [
+  `You are an expert document formatter.`,
+  ``,
+  `Your task is to intelligently reformat the provided document without changing its meaning, tone, facts, wording, or intent in ANY way.`,
+  ``,
+  `Rules:`,
+  `- Preserve ALL content. Never summarize, remove, invent, or rewrite information except for minor grammar, punctuation, spacing, capitalization, and formatting improvements.`,
+  `- Choose the best presentation automatically:`,
+  `  - Plain clean paragraphs if the document is primarily narrative.`,
+  `  - Markdown headings, lists, tables, quotes, code blocks, callouts, etc. only when they genuinely improve readability.`,
+  `  - Mix paragraphs and Markdown naturally when appropriate.`,
+  `- Create a logical document structure with clear sections where beneficial.`,
+  `- Merge broken lines into proper paragraphs.`,
+  `- Fix spacing, indentation, numbering, bullet consistency, and overall layout.`,
+  `- Preserve code, URLs, equations, and special formatting.`,
+  `- If tables communicate information better, convert suitable content into Markdown tables.`,
+  `- Do not over-format. Simplicity is preferred.`,
+  `- Never wrap the entire document in a code block.`,
+  ``,
+  `Images:`,
+  `- Preserve every image.`,
+  `- Move images only if doing so improves document flow.`,
+  `- Place each image near the most relevant content.`,
+  `- Output reasonable display sizes based on importance (large for primary images, medium for supporting images, small for icons or references).`,
+  `- Do not remove, duplicate, or describe images.`,
+  ``,
+  `Output only the fully formatted document.`,
+].join('\n');
+
+// Fixed output contract appended AFTER the (user-editable) prompt so the result is
+// always parseable by the editor and images survive as tokens.
+const FORMAT_OUTPUT_CONTRACT = [
+  ``,
+  `──────────  OUTPUT CONTRACT (obey exactly, overrides any conflicting instruction above)  ──────────`,
+  `Return ONLY an HTML fragment representing the formatted document. No markdown code fences, no <html>/<head>/<body> wrappers, no commentary before or after.`,
+  `Allowed tags ONLY: h1 h2 h3 h4 p ul ol li blockquote pre code strong em u s a table thead tbody tr th td hr br. "Markdown headings/lists/tables/etc" from the rules above means: express them with these HTML tags.`,
+  `For checklists use exactly: <ul class="docx-checklist"><li class="docx-cl-item"><input type="checkbox" class="docx-cl-box"><span class="docx-cl-text">TASK</span></li></ul> (add the "checked" attribute and class "done" on <li> for completed items).`,
+  `Never wrap the whole document in <pre>/<code>. Do not add inline style attributes. Do not output <img> tags or scripts.`,
+  `IMAGES: the document contains image tokens written EXACTLY like [[IMG1]], [[IMG2]], … Keep EVERY token exactly once. Place each token near the most relevant content (you MAY reorder them for better flow). Never change the number in a token, never invent tokens, never delete a token, never describe an image. To suggest a display size append |large, |medium, or |small before the closing brackets, e.g. [[IMG1|large]] or [[IMG2|small]]. Put each image token on its own line.`,
+  ``,
+  `DOCUMENT TO FORMAT (between the fences):`,
+  `<<<`,
+];
+
+function buildFormatPrompt(text, customPrompt) {
+  const base = (customPrompt && String(customPrompt).trim()) ? String(customPrompt).trim() : DEFAULT_FORMAT_PROMPT;
+  return [base, ...FORMAT_OUTPUT_CONTRACT, text, `>>>`].join('\n');
 }
 
 const FORMAT_SCHEMA = {
@@ -468,22 +494,23 @@ async function handleFormat(body, env) {
   const profile = body.profile === 'veda' ? 'veda' : 'tony';
   const text = String(body.text || '').trim();
   if (!text) return json({ ok: false, error: 'no text' }, 400);
-  const clipped = text.length > 100000 ? text.slice(0, 100000) : text;
+  const clipped = text.length > 120000 ? text.slice(0, 120000) : text;
 
   const key = keyFor(env, profile);
   if (!key) return json({ ok: false, error: `no Gemini key configured for ${profile}` }, 500);
 
-  const prompt = buildFormatPrompt(clipped);
-  let lastErr = null;
+  const prompt = buildFormatPrompt(clipped, body.prompt);
+  let lastErr = null, quota = false;
   for (const model of MODELS) {
     try {
       const out = await callGemini(model, key, { prompt, schema: FORMAT_SCHEMA, maxOutputTokens: 65536, feature: 'journal' });
       if (out && typeof out.html === 'string' && out.html.trim()) return json({ ok: true, html: out.html, model });
     } catch (e) {
       lastErr = e.message || String(e);
+      if (/\b429\b|quota|resource_exhausted|exhaust/i.test(lastErr)) quota = true;
     }
   }
-  return json({ ok: false, error: lastErr || 'all models failed' }, 502);
+  return json({ ok: false, error: lastErr || 'all models failed', exhausted: quota }, quota ? 429 : 502);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
