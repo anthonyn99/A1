@@ -429,7 +429,9 @@ async function handleList(body, env) {
       const out = await callGemini(model, key, { prompt, schema: LIST_OPS_SCHEMA, maxOutputTokens: 8192, feature: 'list', audio, mimeType });
       if (out && Array.isArray(out.ops)) {
         const res = applyListOps(items, stores, out.ops);
-        return json({ ok: true, items: res.items, stores: res.stores, note: String(out.note || '').trim(), ops: out.ops.length, model });
+        const resp = { ok: true, items: res.items, stores: res.stores, note: String(out.note || '').trim(), ops: out.ops.length, model };
+        if (body.debug) resp.opsDetail = out.ops;
+        return json(resp);
       }
     } catch (e) {
       lastErr = e.message || String(e);
@@ -724,7 +726,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 2, // bump when verifying a deploy went live
+        version: 3, // bump when verifying a deploy went live
         features: ['list', 'taskhub', 'journal'],
         models: MODELS,
         listModels: LIST_MODELS,
