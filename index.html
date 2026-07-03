@@ -29276,6 +29276,18 @@ function _loadKatex() {
   });
   return window._docxKatexReady;
 }
+// Convert $…$ / $$…$$ math delimiters that appear as TEXT in an HTML string
+// (e.g. from AI Format output) into .docx-math elements for KaTeX to render.
+window._docxMathify = function (html) {
+  html = html.replace(/\$\$([\s\S]+?)\$\$/g, function (_, tex) {
+    return '<div class="docx-math docx-math-block" data-tex="' + encodeURIComponent(tex.trim()) + '" contenteditable="false"></div>';
+  });
+  html = html.replace(/\$([^$<>\n]+?)\$/g, function (m, tex) {
+    if (/^[\d,.\s$]+$/.test(tex)) return m;   // skip currency like $120,000
+    return '<span class="docx-math docx-math-inline" data-tex="' + encodeURIComponent(tex.trim()) + '" contenteditable="false"></span>';
+  });
+  return html;
+};
 // Render every .docx-math[data-tex] placeholder; also ensures KaTeX CSS is present
 // so previously-saved math displays after an entry reload.
 window._docxRenderMath = function (root) {
