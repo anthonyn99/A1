@@ -5005,6 +5005,22 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
     };
 
+    // ── AI Format prompt (per-journal, cross-device synced via its own doc) ──
+    window._fbSaveBJPrompt = async (prompt) => {
+      try {
+        await setDoc(doc(db, 'dashboards', 'journal_aiprompt'), { prompt: String(prompt), savedAt: Date.now() });
+        window.dispatchEvent(new CustomEvent('fb-bj-prompt-saved'));
+      } catch(e) { console.warn('BJ prompt save failed:', e.message); }
+    };
+    try {
+      onSnapshot(doc(db, 'dashboards', 'journal_aiprompt'), (snap) => {
+        if (snap.exists() && typeof snap.data().prompt === 'string') {
+          try { localStorage.setItem('docx_aiprompt_bj', JSON.stringify(snap.data().prompt)); } catch(e) {}
+          window.dispatchEvent(new CustomEvent('docx-prompt-updated', { detail: { app: 'bj', prompt: snap.data().prompt } }));
+        }
+      });
+    } catch(e) {}
+
     // Subscribe to live canvas updates for one entry at a time
     window._fbWatchCanvas = (entryId, onUpdate) => {
       // Unsubscribe previous listener
@@ -5420,6 +5436,23 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         return snap.exists() ? snap.data().canvas || null : null;
       } catch(e) { return null; }
     };
+
+    // ── AI Format prompt (per-journal, cross-device synced via its own doc) ──
+    window._fbSaveTJPrompt = async (prompt) => {
+      try {
+        await setDoc(doc(db, 'dashboards', 'myjournal_aiprompt'), { prompt: String(prompt), savedAt: Date.now() });
+        window.dispatchEvent(new CustomEvent('fb-tj-prompt-saved'));
+      } catch(e) { console.warn('TJ prompt save failed:', e.message); }
+    };
+    // Live-sync the remote prompt into localStorage so AI Format always uses the latest.
+    try {
+      onSnapshot(doc(db, 'dashboards', 'myjournal_aiprompt'), (snap) => {
+        if (snap.exists() && typeof snap.data().prompt === 'string') {
+          try { localStorage.setItem('docx_aiprompt_tj', JSON.stringify(snap.data().prompt)); } catch(e) {}
+          window.dispatchEvent(new CustomEvent('docx-prompt-updated', { detail: { app: 'tj', prompt: snap.data().prompt } }));
+        }
+      });
+    } catch(e) {}
 
     window._fbWatchTJCanvas = (entryId, onUpdate) => {
       if (_tjCanvasUnsub) { _tjCanvasUnsub(); _tjCanvasUnsub = null; }
@@ -28956,8 +28989,12 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 .docx-ps-row { display: flex; align-items: center; gap: 10px; margin: 9px 0; }
 .docx-ps-row label { width: 105px; font-size: 12.5px; opacity: .75; }
 .docx-ps-row select { flex: 1; background: #18191C; border: 1px solid #3B3C42; border-radius: 6px; color: #fff; padding: 6px 9px; font-size: 12.5px; outline: none; font-family: inherit; }
-.docx-prompt-ta { width: 100%; box-sizing: border-box; min-height: 320px; max-height: 60vh; resize: vertical; background: #17181B; border: 1px solid #3B3C42; border-radius: 8px; color: #EDEDF2; padding: 11px 13px; font-family: 'Consolas','DM Mono',monospace; font-size: 12.5px; line-height: 1.5; outline: none; }
-.docx-prompt-ta:focus { border-color: #6f7dff; }
+.docx-prompt-body { padding: 16px 20px !important; }
+.docx-prompt-note { font-size: 13px; line-height: 1.55; color: #b9b9c4; margin-bottom: 14px; padding: 10px 13px; background: rgba(150,110,255,.09); border: 1px solid rgba(150,110,255,.22); border-radius: 9px; }
+.docx-prompt-note b { color: #d9d0ff; font-weight: 700; }
+.docx-prompt-ta { width: 100%; box-sizing: border-box; min-height: 42vh; max-height: 64vh; resize: vertical; background: #16171B; border: 1px solid #3A3C44; border-radius: 11px; color: #EEEFF4; padding: 16px 18px; font-family: 'DM Sans','Segoe UI',system-ui,sans-serif; font-size: 15px; line-height: 1.65; letter-spacing: .005em; outline: none; box-shadow: inset 0 1px 3px rgba(0,0,0,.35); transition: border-color .15s, box-shadow .15s; }
+.docx-prompt-ta::placeholder { color: #6a6b76; }
+.docx-prompt-ta:focus { border-color: #7d8bff; box-shadow: inset 0 1px 3px rgba(0,0,0,.35), 0 0 0 3px rgba(125,139,255,.16); }
 .docx-kbd-grid { display: grid; grid-template-columns: 1fr auto; gap: 5px 18px; font-size: 12.5px; }
 .docx-kbd-grid kbd { background: #2C2D33; border: 1px solid #3B3C42; border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px; font-size: 11px; font-family: Consolas, monospace; }
 
@@ -30126,7 +30163,12 @@ var AI_DEFAULT_PROMPT = [
   'Output only the fully formatted document.'
 ].join('\n');
 function aiPromptGet(app) { var v = lsGet('docx_aiprompt_' + app, null); return (typeof v === 'string' && v.trim()) ? v : AI_DEFAULT_PROMPT; }
-function aiPromptSet(app, v) { lsSet('docx_aiprompt_' + app, v); }
+function aiPromptSet(app, v) {
+  lsSet('docx_aiprompt_' + app, v);
+  // Push to Firebase immediately so the prompt syncs live across all devices.
+  var fn = app === 'tj' ? window._fbSaveTJPrompt : window._fbSaveBJPrompt;
+  if (typeof fn === 'function') fn(v);
+}
 
 var AI_COOLDOWN_MS = 6000;      // safe spacing between AI Format runs (protects the free tier)
 var _aiBusy = {}, _aiLastRun = {};
@@ -30209,13 +30251,16 @@ function aiFormat(ctx) {
 
 // Editable AI Format prompt (per journal) — opened from the Help menu.
 function aiPromptModal(app) {
-  modal('AI Format prompt — ' + (app === 'tj' ? 'MyJournal' : 'Brainstorm Journal'), function(b) {
+  var veil = modal('✨  AI Format Prompt', function(b) {
+    b.classList.add('docx-prompt-body');
     var note = document.createElement('div');
-    note.style.cssText = 'font-size:12px;opacity:.7;margin-bottom:8px;';
-    note.textContent = 'This prompt guides how AI Format restructures your document. It is saved for this journal only.';
+    note.className = 'docx-prompt-note';
+    note.innerHTML = 'This prompt tells the AI how to restructure your document. It is saved for <b>' +
+      (app === 'tj' ? 'MyJournal' : 'Brainstorm Journal') + '</b> only and syncs across your devices.';
     b.appendChild(note);
     var ta = document.createElement('textarea');
     ta.className = 'docx-prompt-ta';
+    ta.spellcheck = false;
     ta.value = aiPromptGet(app);
     b.appendChild(ta);
   }, function(f, close) {
@@ -30226,13 +30271,16 @@ function aiPromptModal(app) {
     save.className = 'docx-btn pri'; save.textContent = 'Save';
     save.addEventListener('click', function() {
       var v = f.closest('.docx-modal').querySelector('.docx-prompt-ta').value;
-      aiPromptSet(app, v);
-      docxToast('AI Format prompt saved for ' + (app === 'tj' ? 'MyJournal' : 'Brainstorm Journal') + '.');
+      aiPromptSet(app, v);   // writes localStorage + Firebase immediately
+      docxToast('AI Format prompt saved & synced for ' + (app === 'tj' ? 'MyJournal' : 'Brainstorm Journal') + '.');
       close();
     });
     f.style.justifyContent = 'flex-end';
     f.appendChild(reset); f.appendChild(save);
   });
+  // Make this modal a touch wider for comfortable prompt editing.
+  var box = veil.querySelector('.docx-modal');
+  if (box) box.style.width = 'min(760px, 100%)';
 }
 
 /* ═══════════ Ribbon / menubar construction ═══════════ */
@@ -30796,7 +30844,19 @@ function wireImageDelegation(ctx) {
     var img = w.querySelector('img');
     w.addEventListener('dragstart', function(e) {
       ctx._imgDrag = w;
-      try { e.dataTransfer.setData('text/plain', ''); e.dataTransfer.effectAllowed = 'move'; } catch (x) {}
+      var src = img ? img.src : '';
+      try {
+        e.dataTransfer.effectAllowed = 'copyMove';
+        if (src) {
+          var mime = (src.match(/^data:([^;]+)/) || [])[1] || 'image/png';
+          var name = 'image.' + ((mime.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '') || 'png');
+          // DownloadURL → drag the ACTUAL image file onto the desktop / a folder (Chrome/Edge)
+          e.dataTransfer.setData('DownloadURL', mime + ':' + name + ':' + src);
+          e.dataTransfer.setData('text/uri-list', src);
+          e.dataTransfer.setData('text/html', '<img src="' + src + '">');
+          e.dataTransfer.setData('text/plain', src);
+        }
+      } catch (x) {}
     });
     w.addEventListener('dblclick', function(e) {
       e.preventDefault();
@@ -30805,13 +30865,23 @@ function wireImageDelegation(ctx) {
       fireInput(ed);
     });
   }
-  // Attached (non-image) file chips get the same drag-to-place behaviour as images.
+  // Attached (non-image) file chips: drag within the doc AND out to the desktop / other apps.
   function addChipDrag(c) {
     c._docxDragExtra = true;
     c.setAttribute('draggable', 'true');
     c.addEventListener('dragstart', function(e) {
       ctx._imgDrag = c;
-      try { e.dataTransfer.setData('text/plain', ''); e.dataTransfer.effectAllowed = 'move'; } catch (x) {}
+      var href = c.getAttribute('href') || '';
+      var name = c.getAttribute('download') || 'file';
+      try {
+        e.dataTransfer.effectAllowed = 'copyMove';
+        if (href) {
+          var mime = (href.match(/^data:([^;]+)/) || [])[1] || 'application/octet-stream';
+          e.dataTransfer.setData('DownloadURL', mime + ':' + name + ':' + href);
+          e.dataTransfer.setData('text/uri-list', href);
+          e.dataTransfer.setData('text/plain', href);
+        }
+      } catch (x) {}
     });
   }
   function rebindAll() {
