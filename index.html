@@ -21445,8 +21445,7 @@ window._mdToHtml = function(md) {
     var escd = [];
     t = t.replace(/\([\`*_{}\[\]()#+.!~^=|<>&-])/g, function(_, ch){ escd.push(ch); return ' e' + (escd.length - 1) + ' '; });
     // protect inline math  $ math $
-    t = t.replace(/\$([^$
-]+?)\$/g, function(_, tex){ mathBlocks.push({ tex: tex.trim(), display: false }); return ' M' + (mathBlocks.length - 1) + ' '; });
+    t = t.replace(/\$([^$\n]+?)\$/g, function(_, tex){ mathBlocks.push({ tex: tex.trim(), display: false }); return ' M' + (mathBlocks.length - 1) + ' '; });
     // protect inline code  ` code `  (escaped backticks are already placeholders now)
     var codes = [];
     t = t.replace(/`([^`]+)`/g, function(_, c){ codes.push(esc(c)); return ' c' + (codes.length - 1) + ' '; });
