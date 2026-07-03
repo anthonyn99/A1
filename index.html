@@ -30834,6 +30834,45 @@ function rebindPageButtons(ctx) {
     nb.addEventListener('mousedown', function() { saveSel(ctx); });
     nb.addEventListener('change', function() { setBlock(ctx, this.value); });
   }
+  // font-size <select> — robust apply that works on an EMPTY doc / collapsed caret too
+  var fsSel = tb.querySelector('[id$="-pt-fontsize"]');
+  if (fsSel) {
+    var nf = fsSel.cloneNode(true);
+    fsSel.parentNode.replaceChild(nf, fsSel);
+    nf.addEventListener('mousedown', function() { saveSel(ctx); });
+    nf.addEventListener('change', function() { var px = this.value; this.value = ''; if (px) applyFontSize(ctx, px); });
+  }
+}
+
+// Apply a font size to the selection, or set the caret's typing size on an empty/collapsed
+// selection (the old execCommand('fontSize','7') left a 48px typing state → new text was 48px).
+function applyFontSize(ctx, px) {
+  restoreSel(ctx);
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  var range = sel.getRangeAt(0);
+  if (!ctx.edEl.contains(range.commonAncestorContainer)) return;
+  if (sel.isCollapsed) {
+    // Insert a zero-width span carrying the size; place the caret inside so typing uses it.
+    var span = document.createElement('span');
+    span.style.fontSize = px + 'px';
+    span.appendChild(document.createTextNode('​'));
+    range.insertNode(span);
+    var r = document.createRange();
+    r.setStart(span.firstChild, 1); r.collapse(true);
+    sel.removeAllRanges(); sel.addRange(r);
+  } else {
+    document.execCommand('fontSize', false, '7');
+    ctx.edEl.querySelectorAll('font[size="7"]').forEach(function (f) {
+      var span = document.createElement('span');
+      span.style.fontSize = px + 'px';
+      while (f.firstChild) span.appendChild(f.firstChild);
+      f.parentNode.replaceChild(span, f);
+      var li = span.closest('li'); if (li) li.style.fontSize = px + 'px';
+    });
+  }
+  saveSel(ctx);
+  fireInput(ctx.edEl);
 }
 
 // Ensure every image wrapper stays interactive (resize/delete/copy) no matter how the DOM
