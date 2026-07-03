@@ -454,6 +454,7 @@ const DEFAULT_FORMAT_PROMPT = [
   `- Merge broken lines into proper paragraphs.`,
   `- Fix spacing, indentation, numbering, bullet consistency, and overall layout.`,
   `- Preserve code, URLs, equations, and special formatting.`,
+  `- Format ALL mathematics as Markdown math: inline math wrapped in single dollar signs like $E = mc^2$, and block/display equations wrapped in double dollar signs on their own lines like $$ ... $$. Convert any plain-text math (e.g. "E = mc^2", "integral from 0 to infinity", "x^2 + y^2 = z^2") into proper LaTeX inside those delimiters. Never leave math unformatted.`,
   `- If tables communicate information better, convert suitable content into Markdown tables.`,
   `- Do not over-format. Simplicity is preferred.`,
   `- Never wrap the entire document in a code block.`,
