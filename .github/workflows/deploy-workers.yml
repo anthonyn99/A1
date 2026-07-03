@@ -48,6 +48,8 @@ jobs:
               - 'workers/studyos-files/**'
             vaultfiles:
               - 'workers/vault-files/**'
+            proview:
+              - 'workers/proview-api/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -144,3 +146,16 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/vault-files
+
+  # Recovered 2026-07-03 from the live Cloudflare deployment — this worker had
+  # no source in git before (deployed outside this repo). Now backed up + auto-deploys.
+  deploy-proview-api:
+    needs: changes
+    if: ${{ needs.changes.outputs.proview == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/proview-api
