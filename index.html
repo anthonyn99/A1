@@ -28781,11 +28781,13 @@ window.tjSwitchTo = function(app) {
 #tj-root:not(.tj-light) .docx-sheet hr, #bj-root .docx-sheet hr { border: none; height: 2px; background: rgba(255,255,255,.34); border-radius: 2px; margin: 18px 0; }
 #tj-root:not(.tj-light) .docx-sheet hr.docx-pagebreak, #bj-root .docx-sheet hr.docx-pagebreak { background: none; height: 0; border-top: 2px dashed rgba(150,170,255,.6); }
 #tj-root:not(.tj-light) .docx-sheet th, #bj-root .docx-sheet th { background: rgba(255,255,255,.12); color: #fff; text-transform: none; letter-spacing: 0; font-size: inherit; }
-/* Clearer table gridlines against the dark page */
+/* Clearer table gridlines against the dark page (solid light gray reads far better than low-alpha white) */
 #tj-root:not(.tj-light) .docx-sheet th, #tj-root:not(.tj-light) .docx-sheet td,
-#bj-root .docx-sheet th, #bj-root .docx-sheet td { border: 1px solid rgba(255,255,255,.5); }
-#tj-root:not(.tj-light) .docx-sheet table, #bj-root .docx-sheet table { border: 1px solid rgba(255,255,255,.55); }
+#bj-root .docx-sheet th, #bj-root .docx-sheet td { border: 1.5px solid #8b8d97; }
+#tj-root:not(.tj-light) .docx-sheet table, #bj-root .docx-sheet table { border: 1.5px solid #9a9ca6; }
 #tj-root:not(.tj-light) .docx-sheet table, #bj-root .docx-sheet table { font-size: inherit; }
+/* Stable text while editing: break only at spaces (no mid-word jitter), never justify by default */
+#tj-root:not(.tj-light) .docx-sheet, #bj-root .docx-sheet { word-break: normal !important; overflow-wrap: break-word; -webkit-hyphens: none; hyphens: none; text-align: left; }
 #tj-root:not(.tj-light) .docx-sheet blockquote, #bj-root .docx-sheet blockquote { background: rgba(255,255,255,.05); }
 #tj-root:not(.tj-light) .docx-sheet pre, #tj-root:not(.tj-light) .docx-sheet code,
 #bj-root .docx-sheet pre, #bj-root .docx-sheet code { background: rgba(0,0,0,.3); border-color: rgba(255,255,255,.12); }
