@@ -26860,11 +26860,13 @@ document.getElementById('tj-pt-md').addEventListener('click', () => {
   var alreadyRendered = /<(h[1-6]|ul|ol|blockquote|table|pre)\b/i.test(html);
   if (raw.length > 0 && !alreadyRendered) {
     ed.innerHTML = window._mdToHtml(raw);
+    if (window._docxRenderMath) window._docxRenderMath(ed);
     autoSave();
   } else {
     // already rendered: convert any raw markdown tables left behind
     var before = ed.innerHTML;
     window._renderMdTables(ed);
+    if (window._docxRenderMath) window._docxRenderMath(ed);
     if (ed.innerHTML !== before) { autoSave(); }
   }
 });
