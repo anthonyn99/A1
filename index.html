@@ -18501,10 +18501,10 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
 #bj-root .pt-hl-trigger { display: flex; align-items: center; gap: 1px; }
 #bj-root .pt-hl-icon { display: inline-block; width: 13px; height: 13px; border-radius: 2px; background: #FFE066; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
 #bj-root .pt-hl-palette {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 9999;
+  position: absolute; top: calc(100% + 4px); right: 0; left: auto; z-index: 9999;
   display: none; flex-wrap: wrap; gap: 4px; padding: 7px;
   background: var(--card); border: 1px solid var(--border); border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3); width: 130px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); width: 130px; max-width: calc(100vw - 24px);
 }
 #bj-root .pt-hl-palette.open { display: flex; }
 #bj-root .pt-hl-swatch {
@@ -19808,6 +19808,8 @@ window.addEventListener('fb-bj-saved', function() {
 window.addEventListener('fb-bj-synced', function() { _bjSetSync('synced'); });
 window.addEventListener('fb-bj-canvas-saved', function() { _bjSetSync('synced'); });
 window.addEventListener('fb-bj-error', function() { _bjSetSync('error'); });
+window.addEventListener('fb-bj-prompt-saved', function() { _bjSetSync('synced'); });
+window._bjSetSync = _bjSetSync;   // exposed so the AI-prompt save can drive the sync pill
 window.addEventListener('fb-bj-remote-update', function(e) { _bjApplyRemote(e.detail); });
 
 // Initial Firebase load when FB ready
@@ -23692,10 +23694,10 @@ window.hideBrainstormJournal = function() {
 #tj-root .pt-hl-trigger { display: flex; align-items: center; gap: 1px; }
 #tj-root .pt-hl-icon { display: inline-block; width: 13px; height: 13px; border-radius: 2px; background: #FFE066; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
 #tj-root .pt-hl-palette {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 9999;
+  position: absolute; top: calc(100% + 4px); right: 0; left: auto; z-index: 9999;
   display: none; flex-wrap: wrap; gap: 4px; padding: 7px;
   background: var(--card); border: 1px solid var(--border); border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3); width: 130px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); width: 130px; max-width: calc(100vw - 24px);
 }
 #tj-root .pt-hl-palette.open { display: flex; }
 #tj-root .pt-hl-swatch {
@@ -25152,6 +25154,8 @@ window.addEventListener('fb-tj-saved', function() {
 window.addEventListener('fb-tj-synced', function() { _tjSetSync('synced'); });
 window.addEventListener('fb-tj-canvas-saved', function() { _tjSetSync('synced'); });
 window.addEventListener('fb-tj-error', function() { _tjSetSync('error'); });
+window.addEventListener('fb-tj-prompt-saved', function() { _tjSetSync('synced'); });
+window._tjSetSync = _tjSetSync;   // exposed so the AI-prompt save can drive the sync pill
 window.addEventListener('fb-tj-remote-update', function(e) { _tjApplyRemote(e.detail); });
 
 // Initial Firebase load when FB ready
@@ -28919,6 +28923,18 @@ mark.docx-find-hit { background: #8A6D1A; color: #fff; border-radius: 2px; }
 mark.docx-find-hit.cur { background: #E0A62A; color: #201800; outline: 2px solid #FFD75E; }
 mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2px; padding: 0 1px; }
 
+/* ── Fading page scrollbar ── */
+.docx-scrollbar { position: absolute; right: 5px; width: 8px; border-radius: 5px; background: rgba(255,255,255,.32); opacity: 0; transition: opacity .45s ease; pointer-events: none; z-index: 60; }
+#tj-root .docx-scrollbar:hover, #bj-root .docx-scrollbar:hover { background: rgba(255,255,255,.5); }
+
+/* ── Text-color shortcut popup ── */
+#tj-root .docx-color-btn, #bj-root .docx-color-btn { display: inline-flex; align-items: center; }
+.docx-color-dot { width: 15px; height: 15px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
+.docx-colorpop { min-width: 0 !important; }
+.docx-color-grid { display: grid; grid-template-columns: repeat(5, 26px); gap: 6px; padding: 4px 4px 8px; }
+.docx-color-sw { width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(255,255,255,.14); cursor: pointer; padding: 0; transition: transform .1s; }
+.docx-color-sw:hover { transform: scale(1.12); }
+
 /* ── Disabled ribbon buttons (nothing to undo/redo) ── */
 #tj-root .pt-btn.pt-disabled, #bj-root .pt-btn.pt-disabled { opacity: .3; cursor: default; pointer-events: none; color: var(--text3, #666) !important; }
 
@@ -30165,9 +30181,12 @@ var AI_DEFAULT_PROMPT = [
 function aiPromptGet(app) { var v = lsGet('docx_aiprompt_' + app, null); return (typeof v === 'string' && v.trim()) ? v : AI_DEFAULT_PROMPT; }
 function aiPromptSet(app, v) {
   lsSet('docx_aiprompt_' + app, v);
-  // Push to Firebase immediately so the prompt syncs live across all devices.
+  // Push to Firebase immediately so the prompt syncs live across all devices,
+  // driving the header sync pill: Saving… → Synced.
+  var setSync = app === 'tj' ? window._tjSetSync : window._bjSetSync;
+  if (typeof setSync === 'function') setSync('syncing');
   var fn = app === 'tj' ? window._fbSaveTJPrompt : window._fbSaveBJPrompt;
-  if (typeof fn === 'function') fn(v);
+  if (typeof fn === 'function') { fn(v); } else if (typeof setSync === 'function') { setSync('synced'); }
 }
 
 var AI_COOLDOWN_MS = 6000;      // safe spacing between AI Format runs (protects the free tier)
@@ -31045,6 +31064,88 @@ function injectViewToggle(app) {
 
 /* ═══════════ Init ═══════════ */
 var ALLCTX = [];
+// ── Subtle auto-hiding scrollbar on the page (fades out when idle) ──
+function addFadingScrollbar(ctx) {
+  var wrap = ctx.wrapEl;
+  if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+  var bar = document.createElement('div');
+  bar.className = 'docx-scrollbar';
+  wrap.appendChild(bar);
+  var hideT = null;
+  function update() {
+    var sh = wrap.scrollHeight, ch = wrap.clientHeight;
+    if (sh <= ch + 4) { bar.style.opacity = '0'; return; }
+    var thumbH = Math.max(32, ch * ch / sh);
+    var top = (wrap.scrollTop / (sh - ch)) * (ch - thumbH);
+    bar.style.height = thumbH + 'px';
+    bar.style.top = (wrap.scrollTop + top) + 'px';   // absolute inside the scroller → follow the viewport
+    bar.style.opacity = '1';
+    clearTimeout(hideT);
+    hideT = setTimeout(function () { bar.style.opacity = '0'; }, 950);
+  }
+  wrap.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  try { new MutationObserver(update).observe(ctx.edEl, { childList: true, subtree: true, characterData: true }); } catch (e) {}
+}
+
+// ── Text-color shortcuts: replace the bare color <input> with a swatch popup ──
+var DOCX_COLORS = [
+  ['#FFFFFF', 'White'], ['#D9D9DE', 'Light gray'], ['#9A9AA5', 'Gray'], ['#5C5C66', 'Dark gray'], ['#000000', 'Black'],
+  ['#E0607A', 'Pink'], ['#E05555', 'Red'], ['#E0903A', 'Orange'], ['#E5C84A', 'Yellow'],
+  ['#5DAF6D', 'Green'], ['#22D3EE', 'Cyan'], ['#6DA8F5', 'Blue'], ['#A78BDA', 'Purple']
+];
+function wireColorShortcuts(ctx) {
+  var input = ctx.tbEl.querySelector('[id$="-page-color-pick"]');
+  if (!input) return;
+  // A button that shows the current color and opens the palette; the native input becomes the "custom" picker.
+  var btn = document.createElement('button');
+  btn.className = 'pt-btn docx-color-btn';
+  btn.title = 'Text color';
+  btn.innerHTML = '<span class="docx-color-dot" style="background:#EDEEF0"></span><span style="font-size:9px;opacity:.7;margin-left:2px;">▾</span>';
+  input.parentNode.insertBefore(btn, input);
+  input.style.display = 'none';
+  var dot = btn.querySelector('.docx-color-dot');
+  function applyColor(c) { restoreSel(ctx); document.execCommand('styleWithCSS', false, true); document.execCommand('foreColor', false, c); document.execCommand('styleWithCSS', false, false); dot.style.background = c; saveSel(ctx); fireInput(ctx.edEl); }
+  btn.addEventListener('mousedown', function (e) { e.preventDefault(); saveSel(ctx); });
+  btn.addEventListener('click', function () {
+    showPop(btn, function (pop) {
+      pop.classList.add('docx-colorpop');
+      var grid = document.createElement('div'); grid.className = 'docx-color-grid';
+      DOCX_COLORS.forEach(function (c) {
+        var s = document.createElement('button'); s.className = 'docx-color-sw'; s.title = c[1];
+        s.style.background = c[0]; if (c[0] === '#FFFFFF') s.style.border = '1px solid #888';
+        s.addEventListener('click', function () { closePop(); applyColor(c[0]); });
+        grid.appendChild(s);
+      });
+      pop.appendChild(grid);
+      var custom = document.createElement('button'); custom.className = 'docx-mi'; custom.textContent = '🎨  Custom colour…';
+      custom.addEventListener('click', function () { closePop(); input.value = '#ffffff'; input.click(); });
+      pop.appendChild(custom);
+    });
+  });
+  input.addEventListener('input', function () { applyColor(this.value); });
+}
+
+// ── Click an attached file chip → View / Download / Delete menu ──
+function wireFileMenu(ctx) {
+  ctx.edEl.addEventListener('click', function (e) {
+    var chip = e.target.closest ? e.target.closest('a.tj-file-chip, a[download]') : null;
+    if (!chip || !ctx.edEl.contains(chip)) return;
+    e.preventDefault(); e.stopPropagation();
+    var href = chip.getAttribute('href') || '';
+    var name = chip.getAttribute('download') || 'file';
+    showPop(chip, function (pop) {
+      pop.appendChild(mi('👁  View', function () { try { window.open(href, '_blank', 'noopener'); } catch (x) {} }));
+      pop.appendChild(mi('⬇  Download', function () {
+        var a = document.createElement('a'); a.href = href; a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+      }));
+      pop.appendChild(msep());
+      pop.appendChild(mi('🗑  Delete', function () { chip.remove(); fireInput(ctx.edEl); }));
+    });
+  });
+}
+
 function initApp(app) {
   var cfg = APPS[app];
   if (!$(cfg.root)) return;
@@ -31067,6 +31168,9 @@ function initApp(app) {
     rebindPageButtons(ctx);
     buildRuler(ctx);
     wireEditor(ctx);
+    addFadingScrollbar(ctx);
+    wireColorShortcuts(ctx);
+    wireFileMenu(ctx);
     if (wcPinned(app)) mountWcPin(ctx);
     // Re-fit zoom when the wrap resizes (sidebar toggles, orientation change)
     if (window.ResizeObserver) {
