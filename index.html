@@ -31136,6 +31136,13 @@ function wireEditor(ctx) {
       fireInput(ed);
       return;
     }
+    // Math element → Copy Raw / Copy Formatted bubble
+    var m = t && t.closest ? t.closest('.docx-math') : null;
+    if (m && ed.contains(m)) {
+      e.preventDefault();
+      mathCopyPop(m);
+      return;
+    }
     // Open links in the browser — VIEW mode only (in edit mode a click just places the caret)
     var a = t && t.closest ? t.closest('a[href]') : null;
     if (a && ed.contains(a) && ed.contentEditable !== 'true') {
