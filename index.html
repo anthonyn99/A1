@@ -31491,24 +31491,16 @@ function wireImageDelegation(ctx) {
     h.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); });
     h.addEventListener('dragstart', function(e) { e.preventDefault(); e.stopPropagation(); });
   }
-  // Rendered math: independent draggable + resizable boxes (item 7). Double-click floats so text wraps.
-  function addMathDrag(m) {
-    m._docxMathDrag = true;
-    m.setAttribute('draggable', 'true');
-    m.setAttribute('contenteditable', 'false');
-    m.addEventListener('dragstart', function(e) {
-      if (ed.getAttribute('contenteditable') !== 'true') { e.preventDefault(); return; }
-      ctx._imgDrag = m;
-      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ''); } catch (x) {}
-    });
-    // Resize handle → scale the whole box via font-size (KaTeX scales cleanly with it).
+  // Attach the resize handle (item 7). Separated because katex.render() replaces the math
+  // element's innerHTML and wipes the handle — so rebindAll re-ensures it after every render.
+  function addMathResizeHandle(m) {
     var rh = document.createElement('span');
     rh.className = 'docx-math-resize'; rh.setAttribute('contenteditable', 'false');
     m.appendChild(rh);
     rh.addEventListener('pointerdown', function(e) {
       e.preventDefault(); e.stopPropagation();
       try { rh.setPointerCapture(e.pointerId); } catch (x) {}
-      var startX = e.clientX, startFs = parseFloat(getComputedStyle(m).fontSize) || 18;
+      var startX = e.clientX, startFs = parseFloat(m.style.fontSize) || parseFloat(getComputedStyle(m).fontSize) || 18;
       function mv(ev) { m.style.fontSize = Math.max(10, Math.min(72, startFs + (ev.clientX - startX) * 0.16)) + 'px'; }
       function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); m._justResized = Date.now(); fireInput(ed); }
       document.addEventListener('pointermove', mv);
@@ -31516,13 +31508,28 @@ function wireImageDelegation(ctx) {
     });
     rh.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); });
     rh.addEventListener('dragstart', function(e) { e.preventDefault(); e.stopPropagation(); });
-    m.addEventListener('dblclick', function(e) {
-      e.preventDefault();
-      var f = m.style.float || 'none';
-      m.style.float = f === 'none' ? 'left' : (f === 'left' ? 'right' : '');
-      m.style.margin = m.style.float ? (m.style.float === 'left' ? '4px 16px 6px 0' : '4px 0 6px 16px') : '';
-      fireInput(ed);
-    });
+  }
+  // Rendered math: independent draggable + resizable boxes (item 7). Double-click floats so text wraps.
+  function ensureMathBox(m) {
+    if (!m._docxMathDrag) {
+      m._docxMathDrag = true;
+      m.setAttribute('draggable', 'true');
+      m.setAttribute('contenteditable', 'false');
+      m.addEventListener('dragstart', function(e) {
+        if (ed.getAttribute('contenteditable') !== 'true') { e.preventDefault(); return; }
+        ctx._imgDrag = m;
+        try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ''); } catch (x) {}
+      });
+      m.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+        var f = m.style.float || 'none';
+        m.style.float = f === 'none' ? 'left' : (f === 'left' ? 'right' : '');
+        m.style.margin = m.style.float ? (m.style.float === 'left' ? '4px 16px 6px 0' : '4px 0 6px 16px') : '';
+        fireInput(ed);
+      });
+    }
+    // (re)attach the resize handle if a render wiped it
+    if (!m.querySelector(':scope > .docx-math-resize')) addMathResizeHandle(m);
   }
   function rebindAll() {
     ed.querySelectorAll('.pg-img-wrap').forEach(function(w) {
@@ -31532,9 +31539,7 @@ function wireImageDelegation(ctx) {
     ed.querySelectorAll('a.tj-file-chip, a[download]').forEach(function(c) {
       if (!c._docxDragExtra) addChipDrag(c);
     });
-    ed.querySelectorAll('.docx-math').forEach(function(m) {
-      if (!m._docxMathDrag) addMathDrag(m);
-    });
+    ed.querySelectorAll('.docx-math').forEach(function(m) { ensureMathBox(m); });
   }
   ed.addEventListener('dragover', function(e) { if (ctx._imgDrag) e.preventDefault(); });
   ed.addEventListener('drop', function(e) {
