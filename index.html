@@ -29032,9 +29032,21 @@ mark.docx-find-hit { background: #8A6D1A; color: #fff; border-radius: 2px; }
 mark.docx-find-hit.cur { background: #E0A62A; color: #201800; outline: 2px solid #FFD75E; }
 mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2px; padding: 0 1px; }
 
-/* ── Fading page scrollbar ── */
-.docx-scrollbar { position: absolute; right: 5px; width: 8px; border-radius: 5px; background: rgba(255,255,255,.32); opacity: 0; transition: opacity .45s ease; pointer-events: none; z-index: 60; }
+/* ── Fading page scrollbar (draggable) ── */
+.docx-scrollbar { position: absolute; right: 5px; width: 9px; border-radius: 5px; background: rgba(255,255,255,.34); opacity: 0; transition: opacity .5s ease; pointer-events: auto; cursor: grab; z-index: 60; touch-action: none; }
+.docx-scrollbar.on { opacity: 1; }
+.docx-scrollbar:active { cursor: grabbing; background: rgba(255,255,255,.55); }
 #tj-root .docx-scrollbar:hover, #bj-root .docx-scrollbar:hover { background: rgba(255,255,255,.5); }
+/* File chips: resizable like images */
+#tj-root .docx-sheet a.tj-file-chip, #bj-root .docx-sheet a.tj-file-chip { position: relative; }
+.docx-file-resize { position: absolute; right: -5px; bottom: -5px; width: 14px; height: 14px; background: var(--purple, #E0607A); border: 2px solid #fff; border-radius: 3px; cursor: se-resize; display: none; z-index: 6; touch-action: none; }
+#tj-root .docx-sheet a.tj-file-chip:hover .docx-file-resize, #tj-root .docx-sheet a.tj-file-chip.sel .docx-file-resize,
+#bj-root .docx-sheet a.tj-file-chip:hover .docx-file-resize, #bj-root .docx-sheet a.tj-file-chip.sel .docx-file-resize { display: block; }
+/* Rendered math: no vertical clipping, draggable float in edit mode */
+.docx-math-block { max-height: none !important; overflow: visible !important; }
+.docx-math-block .katex-display { margin: 0 !important; overflow-x: auto; overflow-y: visible; padding: 2px 0; }
+.docx-math-block .katex { white-space: normal; }
+.docx-math[draggable="true"] { cursor: grab; }
 
 /* ── Text-color shortcut popup ── */
 #tj-root .docx-color-btn, #bj-root .docx-color-btn { display: inline-flex; align-items: center; }
