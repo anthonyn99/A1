@@ -31196,6 +31196,40 @@ function rebindPageButtons(ctx) {
   if (ulB) ulB.addEventListener('click', function() { toggleListPreserve(ctx, 'insertUnorderedList'); });
   var olB = replaceBtn('[id$="-pt-ol"]');
   if (olB) olB.addEventListener('click', function() { toggleListPreserve(ctx, 'insertOrderedList'); });
+  // Render Markdown — selective (highlighted) or whole-doc; always re-renderable (item 6)
+  var mdB = replaceBtn('[id$="-pt-md"]');
+  if (mdB) mdB.addEventListener('click', function() { renderMarkdown(ctx); });
+}
+
+// Render Markdown. With a selection → render ONLY the selected text. With no selection →
+// render the whole document (and convert any leftover $…$ text to math), so you can
+// unrender/re-render math freely at any time (item 6).
+function renderMarkdown(ctx) {
+  var ed = ctx.edEl;
+  restoreSel(ctx);
+  var sel = window.getSelection();
+  if (sel && sel.rangeCount && !sel.isCollapsed && ed.contains(sel.anchorNode) && ed.contains(sel.focusNode)) {
+    var range = sel.getRangeAt(0);
+    var src = sel.toString();
+    var rendered = (window._mdToHtml(src) || '').replace(/<p><br><\/p>\s*$/, '');
+    if (window._docxMathify) rendered = window._docxMathify(rendered);
+    var tmp = document.createElement('div'); tmp.innerHTML = rendered;
+    var frag = document.createDocumentFragment();
+    while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+    range.deleteContents(); range.insertNode(frag);
+  } else {
+    var raw = ed.innerText.trim();
+    var alreadyRendered = /<(h[1-6]|ul|ol|blockquote|table|pre)\b/i.test(ed.innerHTML);
+    if (raw.length > 0 && !alreadyRendered) {
+      ed.innerHTML = window._mdToHtml(raw);
+    } else {
+      // Already-formatted doc: convert leftover $…$ text → math + raw tables, keep other formatting.
+      if (window._docxMathify) ed.innerHTML = window._docxMathify(ed.innerHTML);
+      if (window._renderMdTables) window._renderMdTables(ed);
+    }
+  }
+  if (window._docxRenderMath) window._docxRenderMath(ed);
+  fireInput(ed);
 }
 
 // Toggle a bullet/numbered list while keeping each block's font size (execCommand's
@@ -31275,6 +31309,27 @@ function syncFontSizeUI(ctx) {
   if (!n) return;
   var px = Math.round(parseFloat(getComputedStyle(n).fontSize) || 0);
   setFontSizeUI(ctx, px);
+}
+
+// Drop a node (image / file chip / math box) at the exact (x,y) caret position, so content
+// wraps around it naturally (items 10, 12). Never drops INSIDE another atomic box — math/image
+// boxes stay independent and are placed beside the target instead (item 7 "never merge").
+function _docxDropAtPoint(ed, node, x, y) {
+  if (node.parentNode) node.parentNode.removeChild(node);   // moving → detach from old spot
+  var range = null;
+  if (document.caretRangeFromPoint) range = document.caretRangeFromPoint(x, y);
+  else if (document.caretPositionFromPoint) { var cp = document.caretPositionFromPoint(x, y); if (cp) { range = document.createRange(); range.setStart(cp.offsetNode, cp.offset); range.collapse(true); } }
+  if (!range || !ed.contains(range.startContainer)) { ed.appendChild(node); return; }
+  var atomSel = '.docx-math, .pg-img-wrap, a.tj-file-chip, a[download]';
+  var host = range.startContainer; host = host.nodeType === 1 ? host : host.parentNode;
+  var atom = host && host.closest ? host.closest(atomSel) : null;
+  if (atom && atom !== node && ed.contains(atom)) {
+    var r = atom.getBoundingClientRect();
+    var after = y > r.top + r.height / 2 || (y >= r.top && y <= r.bottom && x > r.left + r.width / 2);
+    atom.parentNode.insertBefore(node, after ? atom.nextSibling : atom);   // beside, never inside
+  } else {
+    range.insertNode(node);
+  }
 }
 
 // Ensure every image wrapper stays interactive (resize/delete/copy) no matter how the DOM
@@ -31357,24 +31412,38 @@ function wireImageDelegation(ctx) {
     h.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); });
     h.addEventListener('dragstart', function(e) { e.preventDefault(); e.stopPropagation(); });
   }
-  // Rendered math: draggable/movable in edit mode (item 16); double-click floats a block so text wraps.
+  // Rendered math: independent draggable + resizable boxes (item 7). Double-click floats so text wraps.
   function addMathDrag(m) {
     m._docxMathDrag = true;
     m.setAttribute('draggable', 'true');
+    m.setAttribute('contenteditable', 'false');
     m.addEventListener('dragstart', function(e) {
       if (ed.getAttribute('contenteditable') !== 'true') { e.preventDefault(); return; }
       ctx._imgDrag = m;
       try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ''); } catch (x) {}
     });
-    if (m.classList.contains('docx-math-block')) {
-      m.addEventListener('dblclick', function(e) {
-        e.preventDefault();
-        var f = m.style.float || 'none';
-        m.style.float = f === 'none' ? 'left' : (f === 'left' ? 'right' : '');
-        m.style.margin = m.style.float ? (m.style.float === 'left' ? '4px 16px 6px 0' : '4px 0 6px 16px') : '';
-        fireInput(ed);
-      });
-    }
+    // Resize handle → scale the whole box via font-size (KaTeX scales cleanly with it).
+    var rh = document.createElement('span');
+    rh.className = 'docx-math-resize'; rh.setAttribute('contenteditable', 'false');
+    m.appendChild(rh);
+    rh.addEventListener('pointerdown', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      try { rh.setPointerCapture(e.pointerId); } catch (x) {}
+      var startX = e.clientX, startFs = parseFloat(getComputedStyle(m).fontSize) || 18;
+      function mv(ev) { m.style.fontSize = Math.max(10, Math.min(72, startFs + (ev.clientX - startX) * 0.16)) + 'px'; }
+      function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); m._justResized = Date.now(); fireInput(ed); }
+      document.addEventListener('pointermove', mv);
+      document.addEventListener('pointerup', up);
+    });
+    rh.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); });
+    rh.addEventListener('dragstart', function(e) { e.preventDefault(); e.stopPropagation(); });
+    m.addEventListener('dblclick', function(e) {
+      e.preventDefault();
+      var f = m.style.float || 'none';
+      m.style.float = f === 'none' ? 'left' : (f === 'left' ? 'right' : '');
+      m.style.margin = m.style.float ? (m.style.float === 'left' ? '4px 16px 6px 0' : '4px 0 6px 16px') : '';
+      fireInput(ed);
+    });
   }
   function rebindAll() {
     ed.querySelectorAll('.pg-img-wrap').forEach(function(w) {
@@ -31393,8 +31462,8 @@ function wireImageDelegation(ctx) {
     if (!ctx._imgDrag) return;
     e.preventDefault();
     var w = ctx._imgDrag; ctx._imgDrag = null;
-    var range = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
-    if (range) { range.insertNode(w); fireInput(ed); }
+    _docxDropAtPoint(ed, w, e.clientX, e.clientY);
+    fireInput(ed);
   });
   new MutationObserver(rebindAll).observe(ed, { childList: true, subtree: true });
   rebindAll();
