@@ -26941,7 +26941,8 @@ function _tjPageInsertFileChip(name, dataURL, mimeType) {
   const ed = document.getElementById('tj-page-editor');
   ed.focus();
   const escaped = name.replace(/"/g,'&quot;');
-  const html = '<a class="tj-file-chip" href="' + dataURL + '" download="' + escaped + '" contenteditable="false" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:var(--card2);border:1px solid var(--border);border-radius:4px;text-decoration:none;color:var(--text2);font-size:11px;font-weight:600;margin:2px 3px;cursor:pointer;">📎 ' + escaped + '</a>';
+  const clip = (window._docxPaperclipSVG || '📎');
+  const html = '<a class="tj-file-chip" href="' + dataURL + '" download="' + escaped + '" contenteditable="false" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:var(--card2);border:1px solid var(--border);border-radius:4px;text-decoration:none;color:var(--text2);font-size:11px;font-weight:600;margin:2px 3px;cursor:pointer;">' + clip + '<span class="tj-file-name">' + escaped + '</span></a>';
   document.execCommand('insertHTML', false, html);
   autoSave();
 }
@@ -31879,6 +31880,8 @@ function wireColorShortcuts(ctx) {
   input.addEventListener('change', function () { if (ctx._liveSpan) { ctx._liveSpan.style.color = this.value; endLive(); } else applyColor(this.value); dot.style.background = this.value; });
 }
 
+// Clean, modern paperclip icon (SVG) for file chips — replaces the flat 📎 emoji (item 6).
+window._docxPaperclipSVG = '<svg class="docx-clip" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
 // Open any file reliably (large data: URLs fail with window.open → use a Blob URL).
 function docxViewFile(href) {
   try {
