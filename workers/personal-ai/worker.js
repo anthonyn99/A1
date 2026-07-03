@@ -30,6 +30,19 @@ const MODELS = [
   'gemini-2.0-flash',       // older Flash fallback
 ];
 
+// TaskHub's structured multi-action commands parse most RELIABLY on 2.5-flash
+// (dynamic thinking) and 3.1-flash-lite — 3.5-flash at low thinking tends to drop
+// fields on these, and high thinking is too slow for voice. So TaskHub leads with
+// the reliable models, then falls through the rest of the chain for extra free-tier
+// capacity. (List/Journal are simple and use the standard MODELS order.)
+const TASKHUB_MODELS = [
+  'gemini-2.5-flash',       // proven primary (dynamic thinking) — no regression vs old worker
+  'gemini-3.1-flash-lite',  // fast + reliable on structured actions
+  'gemini-3.5-flash',       // newest, kept in chain for capacity
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+];
+
 function cors() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -397,7 +410,7 @@ async function handleTaskhub(body, env) {
 
   const prompt = buildTaskPrompt(profile, transcript, state, today, weekday, !!audio);
   let lastErr = null;
-  for (const model of MODELS) {
+  for (const model of TASKHUB_MODELS) {
     try {
       const out = await callGemini(model, key, { prompt, schema: ACTION_SCHEMA, maxOutputTokens: 8192, feature: 'taskhub', audio, mimeType });
       if (out && Array.isArray(out.actions)) {
