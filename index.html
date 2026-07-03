@@ -30555,27 +30555,32 @@ function indentBlocks(ctx, dir) {
   });
   fireInput(ctx.edEl);
 }
+// Clear CHARACTER formatting only (bold/italic/underline/strike, font family/size,
+// color/highlight, super/subscript, letter-spacing, text effects). KEEPS the text,
+// paragraph breaks, lists, and document structure (headings, blockquotes, links).
 function clearAllFormatting(ctx) {
   restoreSel(ctx);
   var sel = window.getSelection();
-  var collapsed = !sel || !sel.rangeCount || sel.isCollapsed;
-  // 1) strip inline formatting the browser knows about
+  if (!sel || !sel.rangeCount) return;
+  var range = sel.getRangeAt(0);
+  if (!ctx.edEl.contains(range.commonAncestorContainer)) return;
+  // 1) Browser-native inline strip (bold/italic/underline/strike/color/bg/font/size/sub/sup) — selection-scoped.
+  document.execCommand('styleWithCSS', false, true);
   document.execCommand('removeFormat');
-  document.execCommand('unlink');
-  // 2) our own: strip marks/bg spans, inline <code>, and reset block tags/styles on affected blocks
-  var blocks = selBlocks(ctx);
-  blocks.forEach(function(b) {
-    b.querySelectorAll('mark,code,[style]').forEach(function(el) {
-      if (el.tagName === 'MARK' || el.tagName === 'CODE') _unwrap(el);
-      else el.removeAttribute('style');
-    });
-    b.querySelectorAll('a').forEach(_unwrap);
-    b.style.cssText = '';
-    if (/^(H[1-6]|PRE|BLOCKQUOTE)$/.test(b.tagName)) changeBlockTag(b, 'p');
+  document.execCommand('styleWithCSS', false, false);
+  // 2) Remove our custom <mark> highlights intersecting the selection.
+  if (window._docxStripHighlight) window._docxStripHighlight(ctx.edEl, range.cloneRange());
+  // 3) Strip residual character styles left on inline spans / <font> that the selection touches.
+  var CHARPROPS = ['fontFamily','fontSize','fontWeight','fontStyle','color','background','backgroundColor','textDecoration','textDecorationLine','letterSpacing','wordSpacing','textShadow','verticalAlign','textTransform','fontVariant'];
+  Array.prototype.slice.call(ctx.edEl.querySelectorAll('span[style],font,sub,sup')).forEach(function(el) {
+    var hit = false; try { hit = range.intersectsNode(el); } catch (e) { hit = true; }
+    if (!hit) return;
+    if (el.tagName === 'FONT' || el.tagName === 'SUB' || el.tagName === 'SUP') { _unwrap(el); return; }
+    CHARPROPS.forEach(function(p) { el.style[p] = ''; });
+    if (!(el.getAttribute('style') || '').trim()) _unwrap(el);
   });
   ctx.edEl.normalize();
   fireInput(ctx.edEl);
-  updateBlockSelect(ctx);
 }
 
 // Re-bind the existing app toolbar buttons to the robust module implementations (Pages only).
