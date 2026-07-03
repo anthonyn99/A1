@@ -17965,7 +17965,7 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
 #bj-root #bj-new-entry-btn svg { flex-shrink: 0; }
 
 #bj-root #bj-search-box {
-    margin: 4px 12px 8px;
+    margin: 0;
     padding: 7px 10px 7px 32px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -17973,7 +17973,9 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
     font-family: var(--font);
     font-size: 13px;
     color: var(--text);
-    width: calc(100% - 24px);
+    width: 100%;
+    box-sizing: border-box;
+    -webkit-appearance: none; appearance: none;
     outline: none;
     transition: border-color 0.15s;
     position: relative;
