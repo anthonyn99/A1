@@ -3246,7 +3246,7 @@ export default {
     if (url.pathname === '/test-ai'){
       try {
         const provider = url.searchParams.get('provider') || 'gemini';
-        const model = url.searchParams.get('model') || (provider === 'nim' ? 'mistralai/mixtral-8x7b-instruct' : 'gemini-2.5-flash-lite');
+        const model = url.searchParams.get('model') || (provider === 'nim' ? 'mistralai/mixtral-8x7b-instruct' : 'gemini-3.1-flash-lite');
         const n = Math.min(20, Math.max(1, parseInt(url.searchParams.get('n') || '1', 10)));
         const sampleTickers = ['NVDA','MU','AMD','TSLA','AAPL','MSFT','GOOGL','PLTR','WDC','SNDK'];
         const testEvents = Array.from({ length: n }, (_, i) => ({
