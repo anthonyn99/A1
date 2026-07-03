@@ -23647,6 +23647,8 @@ window.hideBrainstormJournal = function() {
     overflow-wrap: break-word; word-break: break-word;
   }
 #tj-root #tj-page-editor[contenteditable="false"] { pointer-events: none; }
+/* In view mode, links stay clickable so they open in the browser */
+#tj-root #tj-page-editor[contenteditable="false"] a { pointer-events: auto; cursor: pointer; }
 #tj-root #tj-page-editor:empty::before {
     content: "Start writing... paste images, add lists, format text.";
     color: var(--text3); font-style: italic; pointer-events: none;
