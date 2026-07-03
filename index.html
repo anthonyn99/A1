@@ -28321,7 +28321,10 @@ function exportEntryAsPDF(entry) {
     + '.je-date-label{font-family:sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#9b7ec8;margin-bottom:14px;}'
     + 'hr{border:none;border-top:1px solid #ede9f4;margin:20px 0;}'
     + '@media print{body{margin:0;padding:16px;}}'
-    + '</style></head><body>'
+    + '</style>'
+    + ((entry.template === 'page' && window._docxExportPageCss) ? '<style>' + window._docxExportPageCss('tj') + '</style>' : '')
+    + (/docx-math/.test(bodyHTML) && window._docxExportMathHead ? window._docxExportMathHead() : '')
+    + '</head><body>'
     + '<h1>' + _tjEsc(title) + '</h1>'
     + '<div class="meta">' + _tjEsc(date)
     + (tags ? tags.split(',').map(function(t){ return '<span class="tag">' + _tjEsc(t.trim()) + '</span>'; }).join('') : '')
