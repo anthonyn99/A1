@@ -176,8 +176,9 @@ function buildListPrompt(transcript, items, stores, hasAudio) {
     `- {op:"add", name, qty?, store?, desc?} — a NEW item ("add / get / need / buy / pick up / grab / we're out of X").`,
     `- {op:"update", index, match, set:{name?, qty?, store?, desc?, done?}} — change ONE existing item: rename (set.name), new quantity (set.qty), move it to a different store (set.store), add detail (set.desc), check it off or un-check it (set.done). "index" = the item's number in the list above; "match" = that item's name. Include BOTH.`,
     `- {op:"remove", index, match} — delete ONE existing item.`,
-    `- {op:"update_all", where:{store?, done?}, set:{store?, done?}} — bulk-change every matching item. "move everything from Walmart to Target" → where:{store:"Walmart"}, set:{store:"Target"}. "check everything off" → where:{}, set:{done:true}. Empty where = ALL items.`,
-    `- {op:"remove_all", where:{store?, done?}} — bulk delete. "clear the list" → where:{}. "remove everything I already got" → where:{done:true}. "delete all the Costco stuff" → where:{store:"Costco"}.`,
+    `- {op:"move_all", from, to} — move EVERY item at store "from" to store "to" ("move everything from Walmart to Target" → from:"Walmart", to:"Target"). Both fields are store names and BOTH are required.`,
+    `- {op:"check_all", store?} / {op:"uncheck_all", store?} — check off (or un-check) every item; add "store" to limit it to one store's items.`,
+    `- {op:"remove_all", store?, done?} — bulk delete. "clear the list" → {}. "remove everything I already got" → {done:true}. "delete all the Costco stuff" → {store:"Costco"}.`,
     `- {op:"add_store", name} / {op:"remove_store", name} / {op:"rename_store", name, newName} — manage the saved-stores list itself.`,
     ``,
     `RULES:`,
@@ -195,7 +196,7 @@ function buildListPrompt(transcript, items, stores, hasAudio) {
     `"move the milk to Costco and the eggs to Walmart instead" → [{"op":"update","index":1,"match":"Milk","set":{"store":"Costco"}},{"op":"update","index":4,"match":"Eggs","set":{"store":"Walmart"}}]`,
     `"we need 2 gallons of Fairlife milk and paper towels from Costco, and check off the bread" → [{"op":"add","name":"Fairlife Milk","qty":"2 gallons"},{"op":"add","name":"Paper Towels","store":"Costco"},{"op":"update","index":2,"match":"Bread","set":{"done":true}}]`,
     `"actually make it 3 avocados and get rid of the chips" → [{"op":"update","index":5,"match":"Avocados","set":{"qty":"3"}},{"op":"remove","index":7,"match":"Chips"}]`,
-    `"move everything from Target to Walmart and clear out what I've already gotten" → [{"op":"update_all","where":{"store":"Target"},"set":{"store":"Walmart"}},{"op":"remove_all","where":{"done":true}}]`,
+    `"move everything from Target to Walmart and clear out what I've already gotten" → [{"op":"move_all","from":"Target","to":"Walmart"},{"op":"remove_all","done":true}]`,
     `"add Walmart and Best Buy as stores" → [{"op":"add_store","name":"Walmart"},{"op":"add_store","name":"Best Buy"}]`,
   ].join('\n');
 }
