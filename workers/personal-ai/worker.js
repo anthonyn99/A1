@@ -230,13 +230,6 @@ const LIST_OPS_SCHEMA = {
               done:  { type: 'BOOLEAN' },
             },
           },
-          where: {
-            type: 'OBJECT',
-            properties: {
-              store: { type: 'STRING' },
-              done:  { type: 'BOOLEAN' },
-            },
-          },
         },
         required: ['op'],
       },
@@ -330,10 +323,10 @@ function applyListOps(items, stores, ops) {
     return merged;
   };
   const effWhere = (op) => {
-    const w = (op.where && typeof op.where === 'object') ? op.where : {};
-    const hasW = (typeof w.store === 'string' && w.store.trim()) || typeof w.done === 'boolean';
-    if (hasW) return w;
-    return (typeof op.store === 'string' && op.store.trim()) ? { store: op.store } : w;
+    const w = (op.where && typeof op.where === 'object') ? { ...op.where } : {};
+    if ((typeof w.store !== 'string' || !w.store.trim()) && typeof op.store === 'string' && op.store.trim()) w.store = op.store;
+    if (typeof w.done !== 'boolean' && typeof op.done === 'boolean') w.done = op.done;
+    return w;
   };
 
   for (const op of (Array.isArray(ops) ? ops : [])) {
@@ -356,7 +349,7 @@ function applyListOps(items, stores, ops) {
         break;
       }
       case 'update': {
-        const set = effSet(op, ['name', 'qty', 'store', 'desc']);
+        const set = effSet(op, ['name', 'qty', 'store', 'desc', 'done']);
         const it = findItem(list, op.index, op.match || op.name);
         if (it) { applySet(it, set, true); break; }
         // Target not found (e.g. user thinks it's on the list) — add it so the command still lands.
@@ -373,13 +366,25 @@ function applyListOps(items, stores, ops) {
         if (it) list = list.filter(x => x !== it);
         break;
       }
-      case 'update_all': {
+      case 'move_all': {
+        const from = normName(op.from);
+        const to = canonStore(op.to);
+        if (!to) break;
+        addStore(to);
+        for (const it of list) if (normName(it.store) === from) it.store = to;
+        break;
+      }
+      case 'check_all':
+      case 'uncheck_all': {
+        const done = op.op === 'check_all';
+        const f = normName(op.store);
+        for (const it of list) if (!f || normName(it.store) === f) it.done = done;
+        break;
+      }
+      case 'update_all': { // legacy shape — kept in case a model emits it anyway
         const where = effWhere(op);
-        // Top-level "store" is ambiguous on update_all (filter or new value?);
-        // only treat it as the new value when it isn't already the filter.
         const set = (op.set && typeof op.set === 'object') ? { ...op.set } : {};
-        if (set.store === undefined && typeof op.store === 'string' && op.store.trim() && op.store !== where.store) set.store = op.store;
-        if (set.qty === undefined && typeof op.qty === 'string' && op.qty.trim()) set.qty = op.qty;
+        if (set.store === undefined && typeof op.to === 'string' && op.to.trim()) set.store = op.to;
         for (const it of list) if (whereMatch(it, where)) applySet(it, set, false);
         break;
       }
@@ -730,7 +735,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 3, // bump when verifying a deploy went live
+        version: 4, // bump when verifying a deploy went live
         features: ['list', 'taskhub', 'journal'],
         models: MODELS,
         listModels: LIST_MODELS,
