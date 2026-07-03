@@ -137,121 +137,276 @@ async function callGemini(model, key, { prompt, schema, maxOutputTokens, feature
 
 // ════════════════════════════════════════════════════════════════════════════
 // FEATURE 1 — MyList shopping-list parser  (POST /list/parse)
+//
+// The model emits small targeted OPERATIONS (add / update / remove / bulk ops)
+// referencing existing items by their number, and the worker applies them to
+// the client's list deterministically. Compared to the old "echo the whole
+// updated list back" design this is ~10x fewer output tokens (fast) and makes
+// it impossible for a bulk edit to drop or corrupt items the user never
+// mentioned. The response shape ({items, stores, note}) is unchanged, so the
+// front-end keeps working as-is.
 // ════════════════════════════════════════════════════════════════════════════
-function buildListPrompt(mode, transcript, items, stores, hasAudio) {
-  const storeLine = (stores && stores.length)
-    ? `The user already has these stores: ${stores.join(', ')}. Match item stores to one of these EXACT names when they fit.`
-    : `The user has no saved stores yet.`;
+function buildListPrompt(transcript, items, stores, hasAudio) {
   const source = hasAudio
-    ? `Listen carefully to the attached audio recording of the user speaking.`
-    : `Read the user's input below.`;
+    ? `FIRST, listen carefully to the attached audio of the user speaking (US English) and work out what they said, using shopping context to correct obvious mishearings. Then act on it.`
+    : `Act on the user's input below.`;
 
-  const SHARED_RULES = [
-    `STORE DETECTION: If the user names a real shop/retailer for an item — "from Best Buy", "at Costco", "Walmart run", "get X from Target" — set that item's "store" to that shop's clean Title Case name (even if not in the saved list). A store named once applies to all items grouped with it in that phrase. STRICT: "store" must be a short proper store name, max 3 words. If the location is vague or generic ("the mall", "the store", "somewhere", "online"), leave "store" as "". Never write a sentence, explanation, or placeholder text in "store" — only a real name or "".`,
-    `BRANDS: If the user names a brand or specific product, KEEP it in the "name" (e.g. "Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill", "Apple MacBook Pro"). Do not strip brands.`,
-    `DESCRIPTIONS: Put any extra detail the user gives (size, color, flavor, variety, purpose, preference, "the big one", "organic", "for the party") into "desc" as a SHORT concise note. Do NOT repeat the name or quantity in desc. If no detail, "desc" is "".`,
-    `ITEMS: Split run-on speech into SEPARATE items. Recognize counts/quantities accurately. Ignore filler words ("um", "uh", "like", "let me think", "and then").`,
-    `STORE-ONLY COMMANDS: The user can manage stores by voice/text with no items, e.g. "add Walmart, Target and Best Buy" or "add Costco as a store". When they do, put those store names in the top-level "stores" array and leave the existing items unchanged. ALWAYS also list in top-level "stores" every store name you assigned to any item, plus the user's existing saved stores. So "stores" = the full set of stores that should exist after this command.`,
-    `OUTPUT: Every field is short data only — never explanations, reasoning, or placeholder notes. Keep each field tight.`,
-    `Per-item fields:`,
-    `- "name": clean Title Case product name WITH brand if stated. No quantity inside the name.`,
-    `- "qty": short human quantity ("2", "1 gallon", "3 lbs", "a dozen", "5 bags") or "" if none.`,
-    `- "store": detected/saved store name, or "".`,
-    `- "desc": concise extra detail, or "".`,
-  ];
-
-  if (mode === 'edit') {
-    return [
-      `You are an expert shopping-list assistant. The user has an EXISTING list and just gave a command to change it. ${source}`,
-      storeLine,
-      ``,
-      `CURRENT LIST (JSON):`,
-      JSON.stringify(items || [], null, 0),
-      ``,
-      hasAudio ? `` : `USER COMMAND (may be messy): """${transcript}"""`,
-      ``,
-      `Apply the command. The user may ADD items, REMOVE items, change QUANTITIES, mark items done/gotten, rename items, add/clarify descriptions, or assign a store. Keep every existing item the command does not touch, preserving its "done" and "desc". Merge duplicates intelligently (same item → combine quantities). Return the COMPLETE updated list.`,
-      ``,
-      ...SHARED_RULES,
-      `- "done": boolean — true only if the user said it's already bought/gotten/done.`,
-    ].join('\n');
-  }
+  const listLines = (items && items.length)
+    ? items.map((it, i) => {
+        let line = `${i + 1}. ${it.name}`;
+        if (it.qty) line += ` | qty: ${it.qty}`;
+        line += ` | store: ${it.store || '(none)'}`;
+        if (it.desc) line += ` | note: ${it.desc}`;
+        if (it.done) line += ` | DONE`;
+        return line;
+      }).join('\n')
+    : `(the list is empty)`;
 
   return [
-    `You are an expert shopping-list assistant. Convert what the user wants into a clean, de-duplicated shopping list. ${source}`,
-    storeLine,
-    ``,
+    `You are a world-class shopping-list assistant. The user manages a grocery/shopping list by voice or text. Convert their ONE command into a precise sequence of OPERATIONS ("ops") on the list. Be fast, literal, and complete: capture EVERY change they ask for, and NEVER touch anything they did not mention.`,
+    source,
     hasAudio ? `` : `USER INPUT (may be messy or run-on): """${transcript}"""`,
     ``,
-    `Extract every distinct item the user wants to buy.`,
+    `CURRENT LIST (numbered — use an item's number as "index" when targeting it):`,
+    listLines,
     ``,
-    ...SHARED_RULES,
-    `- "done": always false for a new list.`,
+    `SAVED STORES: ${stores && stores.length ? stores.join(', ') : '(none yet)'}`,
+    ``,
+    `OPS (emit one per distinct change, in the order the user said them):`,
+    `- {op:"add", name, qty?, store?, desc?} — a NEW item ("add / get / need / buy / pick up / grab / we're out of X").`,
+    `- {op:"update", index, match, set:{name?, qty?, store?, desc?, done?}} — change ONE existing item: rename (set.name), new quantity (set.qty), move it to a different store (set.store), add detail (set.desc), check it off or un-check it (set.done). "index" = the item's number in the list above; "match" = that item's name. Include BOTH.`,
+    `- {op:"remove", index, match} — delete ONE existing item.`,
+    `- {op:"update_all", where:{store?, done?}, set:{store?, done?}} — bulk-change every matching item. "move everything from Walmart to Target" → where:{store:"Walmart"}, set:{store:"Target"}. "check everything off" → where:{}, set:{done:true}. Empty where = ALL items.`,
+    `- {op:"remove_all", where:{store?, done?}} — bulk delete. "clear the list" → where:{}. "remove everything I already got" → where:{done:true}. "delete all the Costco stuff" → where:{store:"Costco"}.`,
+    `- {op:"add_store", name} / {op:"remove_store", name} / {op:"rename_store", name, newName} — manage the saved-stores list itself.`,
+    ``,
+    `RULES:`,
+    `- BULK COMMANDS: one command often contains MANY changes ("move the milk to Costco, the eggs to Walmart, check off bread, and add paper towels" = 4 ops). Emit one op per change, never drop or merge any, never add extras.`,
+    `- MOVING AN ITEM BETWEEN STORES: "move / switch / swap / put X (over) to/at STORE" → update with set:{store:"STORE"}. Only that item's store changes. "swap X and Y's stores" → two updates exchanging their stores.`,
+    `- STORE NAMES: a store is a short proper retailer name in Title Case, max 3 words ("Costco", "Best Buy", "Trader Joe's"). When it's clearly one of the SAVED STORES, use that exact spelling. Vague places ("the store", "the mall", "online", "somewhere") are NOT stores — omit the field. Never write a sentence or explanation in a store field.`,
+    `- NEW ITEMS: "name" = clean Title Case product name, KEEPING any brand ("Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill"). Quantity goes in "qty" ("2", "1 gallon", "3 lbs", "a dozen") — never inside the name. Extra detail (size, color, flavor, "organic", "the big one", "for the party") goes in "desc", short, no repeats of name/qty.`,
+    `- ADD vs UPDATE: if the user "adds" something already on the list, they mean more of it → update that item with the new TOTAL qty (list has "Milk qty:1", user says "grab another milk" → set:{qty:"2"}). Anything not on the list is an add.`,
+    `- CHECK-OFF: "got / bought / grabbed / picked up / already have / check off / done with X" → update set:{done:true}. "put X back / didn't get X / uncheck X" → set:{done:false}.`,
+    `- Split run-on speech into separate ops. Ignore filler ("um", "uh", "like", "let me think", "and then").`,
+    `- Do ONLY what was asked. If the command maps to no change, return ops: [].`,
+    `- "note": ≤10-word confirmation of what you did ("Moved milk to Costco, eggs to Walmart.").`,
+    ``,
+    `EXAMPLES (command → ops):`,
+    `"move the milk to Costco and the eggs to Walmart instead" → [{"op":"update","index":1,"match":"Milk","set":{"store":"Costco"}},{"op":"update","index":4,"match":"Eggs","set":{"store":"Walmart"}}]`,
+    `"we need 2 gallons of Fairlife milk and paper towels from Costco, and check off the bread" → [{"op":"add","name":"Fairlife Milk","qty":"2 gallons"},{"op":"add","name":"Paper Towels","store":"Costco"},{"op":"update","index":2,"match":"Bread","set":{"done":true}}]`,
+    `"actually make it 3 avocados and get rid of the chips" → [{"op":"update","index":5,"match":"Avocados","set":{"qty":"3"}},{"op":"remove","index":7,"match":"Chips"}]`,
+    `"move everything from Target to Walmart and clear out what I've already gotten" → [{"op":"update_all","where":{"store":"Target"},"set":{"store":"Walmart"}},{"op":"remove_all","where":{"done":true}}]`,
+    `"add Walmart and Best Buy as stores" → [{"op":"add_store","name":"Walmart"},{"op":"add_store","name":"Best Buy"}]`,
   ].join('\n');
 }
 
-const LIST_SCHEMA = {
+const LIST_OPS_SCHEMA = {
   type: 'OBJECT',
   properties: {
-    items: {
+    ops: {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
         properties: {
-          name:  { type: 'STRING' },
-          qty:   { type: 'STRING' },
-          store: { type: 'STRING' },
-          desc:  { type: 'STRING' },
-          done:  { type: 'BOOLEAN' },
+          op:      { type: 'STRING', enum: ['add', 'update', 'remove', 'update_all', 'remove_all', 'add_store', 'remove_store', 'rename_store'] },
+          name:    { type: 'STRING' },
+          qty:     { type: 'STRING' },
+          store:   { type: 'STRING' },
+          desc:    { type: 'STRING' },
+          index:   { type: 'INTEGER' },
+          match:   { type: 'STRING' },
+          newName: { type: 'STRING' },
+          set: {
+            type: 'OBJECT',
+            properties: {
+              name:  { type: 'STRING' },
+              qty:   { type: 'STRING' },
+              store: { type: 'STRING' },
+              desc:  { type: 'STRING' },
+              done:  { type: 'BOOLEAN' },
+            },
+          },
+          where: {
+            type: 'OBJECT',
+            properties: {
+              store: { type: 'STRING' },
+              done:  { type: 'BOOLEAN' },
+            },
+          },
         },
-        required: ['name'],
+        required: ['op'],
       },
     },
-    stores: { type: 'ARRAY', items: { type: 'STRING' } },
     note: { type: 'STRING' },
   },
-  required: ['items'],
+  required: ['ops'],
 };
 
+// Keeps the client's "id" so untouched/edited items keep their identity in the app.
 function sanitizeItems(arr) {
   if (!Array.isArray(arr)) return [];
   return arr
-    .map(it => ({
-      name:  String(it.name || '').trim(),
-      qty:   String(it.qty || '').trim(),
-      store: String(it.store || '').trim(),
-      desc:  String(it.desc || '').trim(),
-      done:  !!it.done,
-    }))
+    .map(it => {
+      const o = {
+        name:  String(it.name || '').trim(),
+        qty:   String(it.qty || '').trim(),
+        store: String(it.store || '').trim(),
+        desc:  String(it.desc || '').trim(),
+        done:  !!it.done,
+      };
+      if (it.id) o.id = String(it.id);
+      return o;
+    })
     .filter(it => it.name);
+}
+
+function normName(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function tokenOverlap(a, b) {
+  const ta = new Set(a.split(' ').filter(Boolean));
+  const tb = new Set(b.split(' ').filter(Boolean));
+  if (!ta.size || !tb.size) return 0;
+  let hit = 0;
+  for (const t of tb) if (ta.has(t)) hit++;
+  return hit / Math.min(ta.size, tb.size);
+}
+// Resolve an op's target: trust the 1-based index when its item also roughly
+// matches the given name (guards against off-by-one), else fuzzy-match by name.
+function findItem(items, index, match) {
+  const m = normName(match);
+  if (Number.isInteger(index) && index >= 1 && index <= items.length) {
+    const it = items[index - 1];
+    if (!m) return it;
+    const n = normName(it.name);
+    if (n === m || n.includes(m) || m.includes(n) || tokenOverlap(n, m) >= 0.5) return it;
+  }
+  if (!m) return null;
+  let best = null, bestScore = 0;
+  for (const it of items) {
+    const n = normName(it.name);
+    if (n === m) return it;
+    const score = (n.includes(m) || m.includes(n)) ? 0.8 : tokenOverlap(n, m);
+    if (score > bestScore) { bestScore = score; best = it; }
+  }
+  return bestScore >= 0.5 ? best : null;
+}
+
+function applyListOps(items, stores, ops) {
+  let list = items.map(it => ({ ...it }));
+  const storeMap = new Map(); // lowercase → clean display name
+  const addStore = s => { const v = String(s || '').trim(); if (v && v.length <= 40) storeMap.set(v.toLowerCase(), v); };
+  stores.forEach(addStore);
+  // Prefer a saved store's exact spelling when the model names the same store.
+  const canonStore = s => { const v = String(s || '').trim(); return v ? (storeMap.get(v.toLowerCase()) || v) : ''; };
+  const whereMatch = (it, where) => {
+    if (!where || typeof where !== 'object') return true;
+    if (typeof where.store === 'string' && where.store.trim() &&
+        normName(it.store) !== normName(where.store)) return false;
+    if (typeof where.done === 'boolean' && it.done !== where.done) return false;
+    return true;
+  };
+  // Apply only non-empty set fields — an empty string from the model must never
+  // wipe a field the user didn't ask to clear.
+  const applySet = (it, set, allowRename) => {
+    if (!set || typeof set !== 'object') return;
+    if (allowRename && typeof set.name === 'string' && set.name.trim()) it.name = set.name.trim();
+    if (typeof set.qty === 'string' && set.qty.trim()) it.qty = set.qty.trim();
+    if (typeof set.store === 'string' && set.store.trim()) { it.store = canonStore(set.store); addStore(it.store); }
+    if (typeof set.desc === 'string' && set.desc.trim()) it.desc = set.desc.trim();
+    if (typeof set.done === 'boolean') it.done = set.done;
+  };
+
+  for (const op of (Array.isArray(ops) ? ops : [])) {
+    if (!op || typeof op !== 'object') continue;
+    switch (String(op.op || '')) {
+      case 'add': {
+        const name = String(op.name || '').trim();
+        if (!name) break;
+        const store = canonStore(op.store);
+        if (store) addStore(store);
+        // Same item already on the list (and not checked off) → merge instead of duplicating.
+        const dup = list.find(it => !it.done && normName(it.name) === normName(name));
+        if (dup) {
+          if (String(op.qty || '').trim()) dup.qty = String(op.qty).trim();
+          if (store) dup.store = store;
+          if (String(op.desc || '').trim()) dup.desc = String(op.desc).trim();
+        } else {
+          list.push({ name, qty: String(op.qty || '').trim(), store, desc: String(op.desc || '').trim(), done: false });
+        }
+        break;
+      }
+      case 'update': {
+        const it = findItem(list, op.index, op.match);
+        if (it) { applySet(it, op.set, true); break; }
+        // Target not found (e.g. user thinks it's on the list) — add it so the command still lands.
+        const name = String((op.set && op.set.name) || op.match || '').trim();
+        if (name) {
+          const fresh = { name, qty: '', store: '', desc: '', done: false };
+          applySet(fresh, op.set, true);
+          list.push(fresh);
+        }
+        break;
+      }
+      case 'remove': {
+        const it = findItem(list, op.index, op.match);
+        if (it) list = list.filter(x => x !== it);
+        break;
+      }
+      case 'update_all': {
+        for (const it of list) if (whereMatch(it, op.where)) applySet(it, op.set, false);
+        break;
+      }
+      case 'remove_all': {
+        list = list.filter(it => !whereMatch(it, op.where));
+        break;
+      }
+      case 'add_store': {
+        addStore(op.name);
+        break;
+      }
+      case 'remove_store': {
+        const k = String(op.name || '').trim().toLowerCase();
+        if (!k) break;
+        storeMap.delete(k);
+        list.forEach(it => { if (it.store.toLowerCase() === k) it.store = ''; });
+        break;
+      }
+      case 'rename_store': {
+        const from = String(op.name || '').trim(), to = String(op.newName || '').trim();
+        if (!from || !to) break;
+        storeMap.delete(from.toLowerCase());
+        addStore(to);
+        list.forEach(it => { if (it.store.toLowerCase() === from.toLowerCase()) it.store = canonStore(to); });
+        break;
+      }
+    }
+  }
+
+  list.forEach(it => addStore(it.store));
+  return { items: list, stores: [...storeMap.values()] };
 }
 
 async function handleList(body, env) {
   const profile = body.profile === 'veda' ? 'veda' : 'tony';
-  const mode = body.mode === 'edit' ? 'edit' : 'create';
   const transcript = String(body.transcript || '').trim();
   const audio = typeof body.audio === 'string' ? body.audio : '';
   const mimeType = String(body.mimeType || 'audio/webm');
-  const items = Array.isArray(body.items) ? body.items : [];
-  const stores = Array.isArray(body.stores) ? body.stores.filter(Boolean) : [];
+  const items = sanitizeItems(body.items);
+  const stores = Array.isArray(body.stores) ? body.stores.filter(Boolean).map(String) : [];
 
   if (!transcript && !audio) return json({ ok: false, error: 'no transcript or audio' }, 400);
   const key = keyFor(env, profile);
   if (!key) return json({ ok: false, error: `no Gemini key configured for ${profile}` }, 500);
 
-  const prompt = buildListPrompt(mode, transcript, items, stores, !!audio);
+  const prompt = buildListPrompt(transcript, items, stores, !!audio);
   let lastErr = null;
-  for (const model of MODELS) {
+  for (const model of LIST_MODELS) {
     try {
-      const out = await callGemini(model, key, { prompt, schema: LIST_SCHEMA, maxOutputTokens: 4096, feature: 'list', audio, mimeType });
-      if (out && Array.isArray(out.items)) {
-        const cleanItems = sanitizeItems(out.items);
-        const storeSet = new Map();
-        const addS = s => { const v = String(s || '').trim(); if (v && v.length <= 40) storeSet.set(v.toLowerCase(), v); };
-        (Array.isArray(out.stores) ? out.stores : []).forEach(addS);
-        cleanItems.forEach(it => addS(it.store));
-        stores.forEach(addS);
-        return json({ ok: true, items: cleanItems, stores: [...storeSet.values()], note: out.note || '', model });
+      const out = await callGemini(model, key, { prompt, schema: LIST_OPS_SCHEMA, maxOutputTokens: 8192, feature: 'list', audio, mimeType });
+      if (out && Array.isArray(out.ops)) {
+        const res = applyListOps(items, stores, out.ops);
+        return json({ ok: true, items: res.items, stores: res.stores, note: String(out.note || '').trim(), ops: out.ops.length, model });
       }
     } catch (e) {
       lastErr = e.message || String(e);
