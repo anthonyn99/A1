@@ -25,6 +25,7 @@ jobs:
       personalai: ${{ steps.filter.outputs.personalai }}
       studyosfiles: ${{ steps.filter.outputs.studyosfiles }}
       vaultfiles: ${{ steps.filter.outputs.vaultfiles }}
+      proview: ${{ steps.filter.outputs.proview }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
