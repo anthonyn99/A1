@@ -21488,7 +21488,9 @@ window._mdToHtml = function(md) {
 
   var lines = md.split('\n'), out = [], j = 0;
   var isSepLine = function(s){ return /^\s*\|?[\s:|-]+\|?\s*$/.test(s) && /-/.test(s) && /\|/.test(s); };
-  var htmlBlockRe = /^\s*<\/?(details|summary|div|section|article|aside|nav|header|footer|figure|figcaption|table|thead|tbody|tfoot|tr|td|th|ul|ol|li|dl|dt|dd|blockquote|pre|hr|p|h[1-6]|iframe|video|audio|img|br)\b[^>]*>?\s*$/i;
+  // A line that BEGINS with a block-level HTML tag passes through raw (content after the tag is fine,
+  // so `<summary>Click</summary>` / `<li>item</li>` inside a <details> render as HTML, not literal text).
+  var htmlBlockRe = /^\s*<\/?(details|summary|div|section|article|aside|nav|header|footer|figure|figcaption|table|thead|tbody|tfoot|tr|td|th|ul|ol|li|dl|dt|dd|blockquote|pre|hr|p|h[1-6]|iframe|video|audio|img|br)\b/i;
 
   while (j < lines.length) {
     var ln = lines[j];
@@ -31129,6 +31131,7 @@ function wireImageDelegation(ctx) {
   function addChipDrag(c) {
     c._docxDragExtra = true;
     c.setAttribute('draggable', 'true');
+    c.classList.add('tj-file-chip');
     c.addEventListener('dragstart', function(e) {
       ctx._imgDrag = c;
       var href = c.getAttribute('href') || '';
@@ -31143,6 +31146,25 @@ function wireImageDelegation(ctx) {
         }
       } catch (x) {}
     });
+    // Resize handle → scale the chip like an image (drag the corner to grow/shrink).
+    var h = document.createElement('span');
+    h.className = 'docx-file-resize';
+    h.setAttribute('contenteditable', 'false');
+    c.appendChild(h);
+    h.addEventListener('pointerdown', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      try { h.setPointerCapture(e.pointerId); } catch (x) {}
+      var startX = e.clientX, startFs = parseFloat(getComputedStyle(c).fontSize) || 14;
+      c.style.display = 'inline-flex';
+      function mv(ev) {
+        var fs = Math.max(10, Math.min(48, startFs + (ev.clientX - startX) * 0.14));
+        c.style.fontSize = fs + 'px';
+      }
+      function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); fireInput(ed); }
+      document.addEventListener('pointermove', mv);
+      document.addEventListener('pointerup', up);
+    });
+    h.addEventListener('dragstart', function(e) { e.preventDefault(); e.stopPropagation(); });
   }
   function rebindAll() {
     ed.querySelectorAll('.pg-img-wrap').forEach(function(w) {
@@ -31188,8 +31210,46 @@ function wireEditor(ctx) {
     if (e.key === 'Tab') {
       e.preventDefault();
       if (!e.shiftKey) { document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;'); fireInput(ed); }
+      return;
+    }
+    // File chips are only removable via the Delete button — never by Backspace/Delete keys.
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      var s = window.getSelection();
+      if (s && s.isCollapsed && s.rangeCount && _docxAdjacentChip(s.getRangeAt(0), e.key === 'Backspace' ? 'back' : 'fwd')) { e.preventDefault(); return; }
+    }
+    // In a blockquote/box: Enter escapes the box (types outside); Shift+Enter = newline still inside.
+    if (e.key === 'Enter' && !e.shiftKey) {
+      var se = window.getSelection();
+      if (se && se.rangeCount) {
+        var node = se.getRangeAt(0).startContainer;
+        var bq = node.nodeType === 1 ? node : node.parentNode;
+        bq = bq && bq.closest ? bq.closest('blockquote') : null;
+        if (bq && ed.contains(bq)) {
+          e.preventDefault();
+          var p = document.createElement('p'); p.innerHTML = '<br>';
+          if (bq.nextSibling) bq.parentNode.insertBefore(p, bq.nextSibling); else bq.parentNode.appendChild(p);
+          var r = document.createRange(); r.setStart(p, 0); r.collapse(true);
+          se.removeAllRanges(); se.addRange(r);
+          fireInput(ed);
+          return;
+        }
+      }
     }
   });
+  // Is the caret sitting immediately before (fwd) / after (back) a file chip?
+  function _docxAdjacentChip(range, dir) {
+    function isChip(n) { return n && n.nodeType === 1 && n.matches && n.matches('a.tj-file-chip, a[download]'); }
+    var node = range.startContainer, off = range.startOffset, sib;
+    if (dir === 'back') {
+      if (node.nodeType === 3) { if (off > 0) return null; sib = node.previousSibling; }
+      else { sib = node.childNodes[off - 1]; }
+    } else {
+      if (node.nodeType === 3) { if (off < node.textContent.length) return null; sib = node.nextSibling; }
+      else { sib = node.childNodes[off]; }
+    }
+    while (sib && sib.nodeType === 3 && !sib.textContent) sib = (dir === 'back' ? sib.previousSibling : sib.nextSibling);
+    return isChip(sib) ? sib : null;
+  }
   // (History is captured by the MutationObserver in makeHistory — no 'input' hook needed.)
   // Checklist toggling + opening links (Ctrl/Cmd+click, or plain click when not editing)
   ed.addEventListener('click', function(e) {
