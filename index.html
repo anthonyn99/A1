@@ -30670,6 +30670,8 @@ function wireEditor(ctx) {
       if (!e.shiftKey && k === 'h') { e.preventDefault(); frOpen(ctx, true); return; }
       if (!e.shiftKey && k === 'z') { e.preventDefault(); ctx.history.undo(); return; }
       if (k === 'y' || (e.shiftKey && k === 'z')) { e.preventDefault(); ctx.history.redo(); return; }
+      if (e.key === ']') { e.preventDefault(); saveSel(ctx); indentBlocks(ctx, 1); return; }
+      if (e.key === '[') { e.preventDefault(); saveSel(ctx); indentBlocks(ctx, -1); return; }
     }
     if (e.key === 'Tab') {
       e.preventDefault();
