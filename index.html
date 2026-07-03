@@ -29110,6 +29110,8 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 #tj-root .docx-scrollbar:hover, #bj-root .docx-scrollbar:hover { background: rgba(255,255,255,.5); }
 /* File chips: resizable like images */
 #tj-root .docx-sheet a.tj-file-chip, #bj-root .docx-sheet a.tj-file-chip { position: relative; }
+.docx-clip { flex: 0 0 auto; opacity: .8; vertical-align: middle; }
+a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 .docx-file-resize { position: absolute; right: -5px; bottom: -5px; width: 14px; height: 14px; background: var(--purple, #E0607A); border: 2px solid #fff; border-radius: 3px; cursor: se-resize; display: none; z-index: 6; touch-action: none; }
 #tj-root .docx-sheet a.tj-file-chip:hover .docx-file-resize, #tj-root .docx-sheet a.tj-file-chip.sel .docx-file-resize,
 #bj-root .docx-sheet a.tj-file-chip:hover .docx-file-resize, #bj-root .docx-sheet a.tj-file-chip.sel .docx-file-resize { display: block; }
