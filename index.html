@@ -19055,7 +19055,10 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
     transform: none !important;
     left: auto !important;
     top: auto !important; bottom: auto !important;
-    height: 100dvh !important;
+    height: 100% !important;      /* fill the body row (NOT 100dvh — that overflows past the header) */
+    min-height: 0 !important;
+    align-self: stretch !important;
+    overflow: hidden !important;
     transition: none !important;
     box-shadow: none !important;
     display: flex !important;
