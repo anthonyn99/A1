@@ -30984,20 +30984,26 @@ function clearAllFormatting(ctx) {
   if (!sel || !sel.rangeCount) return;
   var range = sel.getRangeAt(0);
   if (!ctx.edEl.contains(range.commonAncestorContainer)) return;
-  // 1) Browser-native inline strip (bold/italic/underline/strike/color/bg/font/size/sub/sup) — selection-scoped.
+  var CHARPROPS = ['fontFamily','fontSize','fontWeight','fontStyle','color','background','backgroundColor','textDecoration','textDecorationLine','textDecorationColor','letterSpacing','wordSpacing','textShadow','verticalAlign','textTransform','fontVariant','WebkitTextStroke'];
+  function intersects(el) { try { return range.intersectsNode(el); } catch (e) { return true; } }
+  // 1) Browser-native inline strip (bold/italic/underline/strike/color/bg/font/size/sub/sup).
   document.execCommand('styleWithCSS', false, true);
   document.execCommand('removeFormat');
   document.execCommand('styleWithCSS', false, false);
   // 2) Remove our custom <mark> highlights intersecting the selection.
   if (window._docxStripHighlight) window._docxStripHighlight(ctx.edEl, range.cloneRange());
-  // 3) Strip residual character styles left on inline spans / <font> that the selection touches.
-  var CHARPROPS = ['fontFamily','fontSize','fontWeight','fontStyle','color','background','backgroundColor','textDecoration','textDecorationLine','letterSpacing','wordSpacing','textShadow','verticalAlign','textTransform','fontVariant'];
-  Array.prototype.slice.call(ctx.edEl.querySelectorAll('span[style],font,sub,sup')).forEach(function(el) {
-    var hit = false; try { hit = range.intersectsNode(el); } catch (e) { hit = true; }
-    if (!hit) return;
-    if (el.tagName === 'FONT' || el.tagName === 'SUB' || el.tagName === 'SUP') { _unwrap(el); return; }
-    CHARPROPS.forEach(function(p) { el.style[p] = ''; });
-    if (!(el.getAttribute('style') || '').trim()) _unwrap(el);
+  // 3) Unwrap any inline formatting ELEMENTS the browser left behind (b/i/u/s/strike/…).
+  Array.prototype.slice.call(ctx.edEl.querySelectorAll('b,strong,i,em,u,s,strike,del,ins,sub,sup,font,mark,big,tt')).forEach(function(el) {
+    if (intersects(el)) _unwrap(el);
+  });
+  // 4) Strip character styles left on spans AND on the block elements themselves
+  //    (covers block-level strikethrough/color applied to a <p>/<blockquote>/<li>).
+  Array.prototype.slice.call(ctx.edEl.querySelectorAll('[style]')).forEach(function(el) {
+    if (!intersects(el)) return;
+    if (/^(P|H[1-6]|LI|BLOCKQUOTE|PRE|DIV|SPAN|DL|DT|DD|TD|TH)$/.test(el.tagName)) {
+      CHARPROPS.forEach(function(p) { el.style[p] = ''; });
+      if (el.tagName === 'SPAN' && !(el.getAttribute('style') || '').trim()) _unwrap(el);
+    }
   });
   ctx.edEl.normalize();
   fireInput(ctx.edEl);
