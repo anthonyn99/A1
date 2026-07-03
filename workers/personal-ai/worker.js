@@ -703,6 +703,8 @@ export default {
         service: 'personal-ai',
         features: ['list', 'taskhub', 'journal'],
         models: MODELS,
+        listModels: LIST_MODELS,
+        taskhubModels: TASKHUB_MODELS,
         tonyKey: !!env.TONY_GEMINI_KEY,
         vedaKey: !!env.VEDA_GEMINI_KEY,
         time: new Date().toISOString(),

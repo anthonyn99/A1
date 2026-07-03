@@ -1058,7 +1058,7 @@ async function sendToAI(payloadExtra){
     var body=Object.assign({ profile:activeProfile, mode:'edit', items:(l&&l.items)||[], stores:(l&&l.stores)||[] }, payloadExtra);
     var r=await fetch(API+'/list/parse',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     var d=await r.json();
-    if(d.ok && Array.isArray(d.items)){ applyParsed(ensureList(), d); $('voice-status') && ($('voice-status').textContent=''); toast('List updated'); }
+    if(d.ok && Array.isArray(d.items)){ applyParsed(ensureList(), d); $('voice-status') && ($('voice-status').textContent=''); toast(d.note||'List updated'); }
     else { toast(d.error||'Could not understand', true); }
   }catch(e){ toast('Network error', true); }
 }
@@ -1072,9 +1072,9 @@ function ensureList(){
 function applyParsed(l, d){
   pushUndo(l);
   var parsed=d.items||[];
-  var byName={}; (l.items||[]).forEach(function(it){ byName[it.name.toLowerCase()]=it; });
+  var byName={}, byId={}; (l.items||[]).forEach(function(it){ byName[it.name.toLowerCase()]=it; if(it.id) byId[it.id]=it; });
   l.items = parsed.map(function(p){
-    var prev=byName[(p.name||'').toLowerCase()];
+    var prev=(p.id&&byId[p.id])||byName[(p.name||'').toLowerCase()];
     return { id: prev?prev.id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'', desc:p.desc||(prev?prev.desc:'')||'',
              done: (typeof p.done==='boolean')?p.done:(prev?prev.done:false) };
   }).filter(function(x){return x.name;});
