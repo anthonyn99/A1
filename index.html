@@ -28956,10 +28956,10 @@ window.tjSwitchTo = function(app) {
 #tj-root:not(.tj-light) .docx-sheet hr, #bj-root .docx-sheet hr { border: none; height: 2px; background: rgba(255,255,255,.34); border-radius: 2px; margin: 18px 0; }
 #tj-root:not(.tj-light) .docx-sheet hr.docx-pagebreak, #bj-root .docx-sheet hr.docx-pagebreak { background: none; height: 0; border-top: 2px dashed rgba(150,170,255,.6); }
 #tj-root:not(.tj-light) .docx-sheet th, #bj-root .docx-sheet th { background: rgba(255,255,255,.12); color: #fff; text-transform: none; letter-spacing: 0; font-size: inherit; }
-/* Clearer table gridlines against the dark page (solid light gray reads far better than low-alpha white) */
+/* Clearer table gridlines against the dark page (bright solid gray reads far better than low-alpha white) */
 #tj-root:not(.tj-light) .docx-sheet th, #tj-root:not(.tj-light) .docx-sheet td,
-#bj-root .docx-sheet th, #bj-root .docx-sheet td { border: 1.5px solid #8b8d97; }
-#tj-root:not(.tj-light) .docx-sheet table, #bj-root .docx-sheet table { border: 1.5px solid #9a9ca6; }
+#bj-root .docx-sheet th, #bj-root .docx-sheet td { border: 1.5px solid #c9ccd6 !important; }
+#tj-root:not(.tj-light) .docx-sheet table, #bj-root .docx-sheet table { border: 1.5px solid #c9ccd6 !important; border-collapse: collapse; }
 #tj-root:not(.tj-light) .docx-sheet table, #bj-root .docx-sheet table { font-size: inherit; }
 /* Stable text while editing: break only at spaces (no mid-word jitter), never justify by default */
 #tj-root:not(.tj-light) .docx-sheet, #bj-root .docx-sheet { word-break: normal !important; overflow-wrap: break-word; -webkit-hyphens: none; hyphens: none; text-align: left; }
@@ -31630,23 +31630,27 @@ function docxViewFile(href) {
     } else { window.open(href, '_blank', 'noopener'); }
   } catch (e) {}
 }
-// ── Click an attached file chip → View / Download / Delete menu ──
+// ── Click an attached file chip → View / Download (+ Delete only in edit mode) menu ──
 function wireFileMenu(ctx) {
   ctx.edEl.addEventListener('click', function (e) {
-    if (e.target.classList && e.target.classList.contains('docx-file-resize')) return; // resize handle
+    if (e.target.classList && e.target.classList.contains('docx-file-resize')) { e.preventDefault(); return; } // resize handle, not a download
     var chip = e.target.closest ? e.target.closest('a.tj-file-chip, a[download]') : null;
     if (!chip || !ctx.edEl.contains(chip)) return;
     e.preventDefault(); e.stopPropagation();
+    if (chip._justResized && Date.now() - chip._justResized < 400) return;   // ignore the click right after a resize drag
     var href = chip.getAttribute('href') || '';
     var name = chip.getAttribute('download') || 'file';
+    var editMode = ctx.edEl.getAttribute('contenteditable') === 'true';
     showPop(chip, function (pop) {
       pop.appendChild(mi('👁  View', function () { docxViewFile(href); }));
       pop.appendChild(mi('⬇  Download', function () {
         var a = document.createElement('a'); a.href = href; a.download = name;
         document.body.appendChild(a); a.click(); a.remove();
       }));
-      pop.appendChild(msep());
-      pop.appendChild(mi('🗑  Delete', function () { chip.remove(); fireInput(ctx.edEl); }));
+      if (editMode) {   // Delete only while editing — never in View mode (item 13)
+        pop.appendChild(msep());
+        pop.appendChild(mi('🗑  Delete', function () { chip.remove(); fireInput(ctx.edEl); }));
+      }
     });
   });
 }
