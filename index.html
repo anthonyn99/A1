@@ -29071,19 +29071,30 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 .docx-file-resize { position: absolute; right: -5px; bottom: -5px; width: 14px; height: 14px; background: var(--purple, #E0607A); border: 2px solid #fff; border-radius: 3px; cursor: se-resize; display: none; z-index: 6; touch-action: none; }
 #tj-root .docx-sheet a.tj-file-chip:hover .docx-file-resize, #tj-root .docx-sheet a.tj-file-chip.sel .docx-file-resize,
 #bj-root .docx-sheet a.tj-file-chip:hover .docx-file-resize, #bj-root .docx-sheet a.tj-file-chip.sel .docx-file-resize { display: block; }
-/* Rendered math: no vertical clipping, draggable float in edit mode */
+/* Rendered math: independent draggable/resizable boxes (never merge) */
 .docx-math-block { max-height: none !important; overflow: visible !important; }
 .docx-math-block .katex-display { margin: 0 !important; overflow-x: auto; overflow-y: visible; padding: 2px 0; }
 .docx-math-block .katex { white-space: normal; }
-.docx-math { display: inline-block; vertical-align: middle; }
+.docx-math { position: relative; display: inline-block; vertical-align: middle; border-radius: 5px; }
 .docx-math-block { display: block; }
 .docx-math[draggable="true"] { cursor: grab; }
 .docx-math[draggable="true"]:active { cursor: grabbing; }
-/* Math edit popup */
-.docx-mathedit { padding: 8px; min-width: 260px; }
-.docx-math-ta { width: 100%; min-height: 74px; resize: vertical; box-sizing: border-box; font-family: 'Consolas','Courier New',monospace; font-size: 13px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
-.docx-mathedit-row { display: flex; justify-content: flex-end; margin-top: 7px; }
-.docx-mi-primary { background: var(--purple, #6DA8F5); color: #fff; border-radius: 6px; font-weight: 600; padding: 6px 14px; }
+#tj-root .docx-sheet .docx-math:hover, #bj-root .docx-sheet .docx-math:hover { outline: 1.5px dashed rgba(150,170,255,.55); outline-offset: 2px; }
+.docx-math-resize { position: absolute; right: -6px; bottom: -6px; width: 14px; height: 14px; background: #6DA8F5; border: 2px solid #fff; border-radius: 3px; cursor: nwse-resize; display: none; z-index: 6; touch-action: none; }
+#tj-root .docx-sheet .docx-math:hover .docx-math-resize, #bj-root .docx-sheet .docx-math:hover .docx-math-resize { display: block; }
+/* Math edit MODAL — roomy + elegant */
+.docx-matheditor-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.docx-matheditor { width: min(640px, 94vw); background: var(--card, #23242b); border: 1px solid var(--border, #3a3b45); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.5); padding: 20px 22px; color: var(--text, #eaeaf0); }
+.docx-matheditor-h { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+.docx-matheditor-ta { width: 100%; min-height: 120px; box-sizing: border-box; resize: vertical; font-family: 'Consolas','Courier New',monospace; font-size: 15px; line-height: 1.5; padding: 12px 14px; border: 1px solid var(--border, #3a3b45); border-radius: 9px; background: rgba(0,0,0,.22); color: var(--text, #eaeaf0); outline: none; }
+.docx-matheditor-ta:focus { border-color: #6DA8F5; }
+.docx-matheditor-prev-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .6; margin: 14px 0 6px; }
+.docx-matheditor-prev { min-height: 44px; padding: 12px 14px; border: 1px solid var(--border, #3a3b45); border-radius: 9px; background: rgba(255,255,255,.04); overflow-x: auto; font-size: 18px; }
+.docx-matheditor-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.docx-matheditor-btn { padding: 9px 18px; border-radius: 8px; font-weight: 600; font-size: 13.5px; cursor: pointer; border: 1px solid var(--border, #3a3b45); background: transparent; color: var(--text, #eaeaf0); }
+.docx-matheditor-discard:hover { background: rgba(255,255,255,.08); }
+.docx-matheditor-save { background: #6DA8F5; border-color: #6DA8F5; color: #fff; }
+.docx-matheditor-save:hover { background: #5b97e4; }
 
 /* ── Text-color shortcut popup ── */
 #tj-root .docx-color-btn, #bj-root .docx-color-btn { display: inline-flex; align-items: center; }
@@ -29371,26 +29382,55 @@ function mathCopyPop(mathEl) {
     pop.appendChild(mi('🗑  Delete', function () { var c = _docxCtxOf(mathEl); mathEl.remove(); if (c) fireInput(c.edEl); }));
   });
 }
-// Edit the LaTeX in place; Save re-renders automatically.
+// Edit the LaTeX in a roomy, elegant modal with a live preview; Save re-renders, Discard cancels.
 function mathEditPop(mathEl) {
-  showPop(mathEl, function (pop) {
-    pop.classList.add('docx-mathedit');
-    var ta = document.createElement('textarea'); ta.className = 'docx-math-ta'; ta.value = _mathTex(mathEl); ta.spellcheck = false;
-    pop.appendChild(ta);
-    var row = document.createElement('div'); row.className = 'docx-mathedit-row';
-    var save = document.createElement('button'); save.className = 'docx-mi docx-mi-primary'; save.textContent = '💾  Save';
-    save.addEventListener('click', function () {
-      mathEl.setAttribute('data-tex', encodeURIComponent(ta.value.trim()));
-      mathEl.removeAttribute('data-rendered'); mathEl.innerHTML = '';
-      var c = _docxCtxOf(mathEl);
-      if (window._docxRenderMath) window._docxRenderMath(c ? c.edEl : (mathEl.parentNode || document));
-      if (c) fireInput(c.edEl);
-      closePop();
+  closePop();
+  var display = mathEl.classList.contains('docx-math-block');
+  var overlay = document.createElement('div');
+  overlay.className = 'docx-matheditor-overlay';
+  overlay.innerHTML =
+    '<div class="docx-matheditor" role="dialog" aria-label="Edit math">' +
+      '<div class="docx-matheditor-h">Edit math (LaTeX)</div>' +
+      '<textarea class="docx-matheditor-ta" spellcheck="false"></textarea>' +
+      '<div class="docx-matheditor-prev-label">Preview</div>' +
+      '<div class="docx-matheditor-prev"></div>' +
+      '<div class="docx-matheditor-row">' +
+        '<button class="docx-matheditor-btn docx-matheditor-discard">Discard</button>' +
+        '<button class="docx-matheditor-btn docx-matheditor-save">Save changes</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  var ta = overlay.querySelector('.docx-matheditor-ta');
+  var prev = overlay.querySelector('.docx-matheditor-prev');
+  ta.value = _mathTex(mathEl);
+  function renderPreview() {
+    var tex = ta.value.trim();
+    _loadKatex().then(function () {
+      try { if (window.katex) { window.katex.render(tex, prev, { displayMode: display, throwOnError: false, output: 'html' }); } else { prev.textContent = tex; } }
+      catch (e) { prev.textContent = tex; }
     });
-    row.appendChild(save);
-    pop.appendChild(row);
-    setTimeout(function () { ta.focus(); ta.select(); }, 0);
-  });
+  }
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey, true); }
+  function save() {
+    mathEl.setAttribute('data-tex', encodeURIComponent(ta.value.trim()));
+    mathEl.removeAttribute('data-rendered'); mathEl.innerHTML = '';
+    var c = _docxCtxOf(mathEl);
+    if (window._docxRenderMath) window._docxRenderMath(c ? c.edEl : (mathEl.parentNode || document));
+    if (c) fireInput(c.edEl);
+    close();
+  }
+  function onKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
+  }
+  ta.addEventListener('input', renderPreview);
+  overlay.querySelector('.docx-matheditor-save').addEventListener('click', save);
+  overlay.querySelector('.docx-matheditor-discard').addEventListener('click', close);
+  overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onKey, true);
+  renderPreview();
+  // focus WITHOUT selecting everything — put the caret at the end so typing edits, not replaces
+  setTimeout(function () { ta.focus(); var n = ta.value.length; ta.setSelectionRange(n, n); }, 0);
 }
 // Convert a rendered element back to raw markdown text ($…$ / $$…$$).
 function mathUnrender(mathEl) {
