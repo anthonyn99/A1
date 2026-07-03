@@ -18488,6 +18488,8 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
     font-size: 13.5px; line-height: 1.85; color: var(--text); caret-color: var(--purple);
   }
 #bj-root #bj-page-editor[contenteditable="false"] { pointer-events: none; }
+/* In view mode, links stay clickable so they open in the browser */
+#bj-root #bj-page-editor[contenteditable="false"] a { pointer-events: auto; cursor: pointer; }
 #bj-root #bj-page-editor:empty::before {
     content: "Start writing... paste images, add lists, format text.";
     color: var(--text3); font-style: italic; pointer-events: none;
