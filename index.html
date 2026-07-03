@@ -28950,6 +28950,26 @@ li.docx-cl-item { list-style: none !important; }
 .docx-cl-box { margin-right: 9px; width: 14px; height: 14px; vertical-align: -2px; cursor: pointer; }
 li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .6; }
 
+/* ── Markdown-rendered extras: math, footnotes, definition lists, code labels ── */
+.docx-math-block { display: block; margin: 14px 0; text-align: center; overflow-x: auto; }
+.docx-math-inline { display: inline-block; }
+.docx-math { cursor: pointer; border-radius: 3px; }
+.docx-math:hover { background: rgba(120,150,255,.14); box-shadow: 0 0 0 2px rgba(120,150,255,.14); }
+.docx-math:empty::before, .docx-math:not([data-rendered])::after { content: attr(data-tex); color: #9fb0ff; font-family: 'Consolas',monospace; }
+#tj-root .docx-sheet dl, #bj-root .docx-sheet dl { margin: 8px 0; }
+#tj-root .docx-sheet dt, #bj-root .docx-sheet dt { font-weight: 700; margin-top: 6px; }
+#tj-root .docx-sheet dd, #bj-root .docx-sheet dd { margin: 2px 0 2px 24px; opacity: .92; }
+#tj-root .docx-sheet ol.docx-footnotes, #bj-root .docx-sheet ol.docx-footnotes { font-size: .86em; opacity: .82; padding-left: 24px; margin-top: 6px; }
+.docx-fnref { font-size: .72em; }
+.docx-fnref a { text-decoration: none; }
+#tj-root .docx-sheet pre.docx-code, #bj-root .docx-sheet pre.docx-code { position: relative; }
+#tj-root .docx-sheet pre.docx-code[data-lang]::before, #bj-root .docx-sheet pre.docx-code[data-lang]::before { content: attr(data-lang); position: absolute; top: 4px; right: 9px; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; opacity: .5; }
+#tj-root .docx-sheet sub, #bj-root .docx-sheet sub { font-size: .72em; }
+#tj-root .docx-sheet sup, #bj-root .docx-sheet sup { font-size: .72em; }
+#tj-root .docx-sheet details, #bj-root .docx-sheet details { margin: 8px 0; padding: 6px 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 7px; background: rgba(255,255,255,.03); }
+#tj-root .docx-sheet summary, #bj-root .docx-sheet summary { cursor: pointer; font-weight: 600; }
+#tj-root .docx-sheet div[align="center"], #bj-root .docx-sheet div[align="center"] { text-align: center; }
+
 /* ── Menu bar (first row inside each rich-text toolbar) ──
    Scoped with the root IDs so the roots' universal padding:0 reset does not collapse them. */
 #tj-root .docx-menubar, #bj-root .docx-menubar { display: flex; gap: 2px; width: 100%; order: -1; padding: 2px 0 6px; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,.16); overflow-x: auto; scrollbar-width: none; align-items: center; }
