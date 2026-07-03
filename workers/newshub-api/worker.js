@@ -3114,7 +3114,7 @@ export default {
       }];
       // Raw Gemini HTTP probe (flash-lite) — show status + first chunk of body.
       try {
-        const model = 'gemini-2.5-flash-lite';
+        const model = 'gemini-3.1-flash-lite';
         const r = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
           { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(geminiBody(model, buildGeminiPrompt(batch, WATCHLIST, SECTORS))) }
@@ -3124,12 +3124,12 @@ export default {
       } catch(e){ out.geminiRaw = { threw: e.message }; }
       // Full callModel path result (null = failed somewhere in parse/validate).
       try {
-        const parsed = await callModel({provider:'gemini',model:'gemini-2.5-flash-lite'}, batch, env, null, WATCHLIST, SECTORS);
+        const parsed = await callModel({provider:'gemini',model:'gemini-3.1-flash-lite'}, batch, env, null, WATCHLIST, SECTORS);
         out.callModelResult = parsed ? { ok:true, count:parsed.length, sample:parsed[0] } : { ok:false, note:'callModel returned null' };
       } catch(e){ out.callModelResult = { threw: e.message }; }
       // Isolate: bare callGemini (no withTimeout wrapper).
       try {
-        const bare = await callGemini('gemini-2.5-flash-lite', buildGeminiPrompt(batch, WATCHLIST, SECTORS), env, null, 'quota_block:gemini-2.5-flash-lite');
+        const bare = await callGemini('gemini-3.1-flash-lite', buildGeminiPrompt(batch, WATCHLIST, SECTORS), env, null, 'quota_block:gemini-3.1-flash-lite');
         out.callGeminiBare = bare ? { ok:true, count:bare.length, sample:bare[0] } : { ok:false, note:'callGemini returned null' };
       } catch(e){ out.callGeminiBare = { threw: e.message }; }
       // Isolate: withTimeout around a trivially-resolving promise.
