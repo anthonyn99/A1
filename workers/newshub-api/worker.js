@@ -336,10 +336,11 @@ const HOURS = 72;   // news lookback = 3 days.
 // Gemini uses Google's API; NIM entries use NVIDIA's OpenAI-compatible endpoint.
 // Format: { provider: 'gemini'|'nim', model: '...' }
 const AI_CHAIN = [
-  { provider:'gemini', model:'gemini-2.5-flash' },            // PRIMARY: strongest fast Gemini, thinkingBudget:0 keeps it quick
-  { provider:'gemini', model:'gemini-2.5-flash-lite' },       // fast, high RPD primary fallback
-  { provider:'gemini', model:'gemini-2.0-flash' },            // fast Gemini fallback
-  { provider:'gemini', model:'gemini-1.5-flash' },            // older Gemini fallback
+  { provider:'gemini', model:'gemini-3.5-flash' },            // PRIMARY: newest/strongest free Flash, thinkingLevel:low keeps it quick
+  { provider:'gemini', model:'gemini-3.1-flash-lite' },       // newest Flash-Lite — 2.5-flash quality, very high RPD
+  { provider:'gemini', model:'gemini-2.5-flash' },            // proven fast Flash fallback
+  { provider:'gemini', model:'gemini-2.5-flash-lite' },       // high-RPD lite fallback
+  { provider:'gemini', model:'gemini-2.0-flash' },            // older Gemini fallback
   { provider:'nim',    model:'meta/llama-3.1-8b-instruct' },  // cross-provider fallback: live NIM, fast (~8b), separate quota — immune to Gemini 503/daily-cap
   { provider:'nim',    model:'meta/llama-3.1-70b-instruct' }, // bigger NIM fallback
   { provider:'nim',    model:'meta/llama-3.3-70b-instruct', slow:true }, // salvage only — ~107s/batch
@@ -1200,7 +1201,7 @@ ${lines}`;
 const CAL_TTL        = 12 * 3600;   // 12h cache — macro/earnings calendar barely moves
 const CAL_LOCK_TTL   = 120;         // build-lock auto-expiry
 const CAL_DAYS_MAX   = 31;          // clamp the lookahead window (front-end asks for 30)
-const CAL_MACRO_MODELS = ['gemini-2.0-flash', 'gemini-2.5-flash']; // grounded-search capable
+const CAL_MACRO_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.0-flash']; // grounded-search capable, newest first
 
 // Only these macro releases are accepted (whitelist kills hallucinated junk).
 // [regex, category]. First match wins.
@@ -1743,8 +1744,10 @@ function geminiBody(model, prompt){
       }
     }
   };
-  // Disable thinking on 2.5 models so structured output isn't truncated.
-  if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
+  // Keep thinking minimal so fast structured output isn't truncated. Gemini 3.x
+  // uses thinkingLevel (can't fully disable → "low"); 2.5 uses thinkingBudget:0.
+  if (model.startsWith('gemini-3')) gc.thinkingConfig = { thinkingLevel: 'low' };
+  else if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
   return { contents: [{ parts: [{ text: prompt }] }], generationConfig: gc };
 }
 
