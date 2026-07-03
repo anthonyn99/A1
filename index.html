@@ -29276,6 +29276,20 @@ window._docxRenderMath = function (root) {
   });
 };
 
+// Clicking a rendered math element offers "Copy Raw" (the LaTeX source) and
+// "Copy Formatted" (the Markdown-delimited version, $…$ or $$…$$).
+function mathCopyPop(mathEl) {
+  var tex = '';
+  try { tex = decodeURIComponent(mathEl.getAttribute('data-tex') || ''); } catch (e) { tex = mathEl.getAttribute('data-tex') || ''; }
+  var display = mathEl.classList.contains('docx-math-block');
+  var formatted = display ? ('$$\n' + tex + '\n$$') : ('$' + tex + '$');
+  function copy(str) { try { navigator.clipboard.writeText(str); } catch (e) { var ta = document.createElement('textarea'); ta.value = str; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (x) {} ta.remove(); } }
+  showPop(mathEl, function (pop) {
+    pop.appendChild(mi('📋  Copy Raw (LaTeX)', function () { copy(tex); docxToast('Copied raw LaTeX.'); }));
+    pop.appendChild(mi('📐  Copy Formatted (Markdown)', function () { copy(formatted); docxToast('Copied formatted math.'); }));
+  });
+}
+
 /* ═══════════ App / editor context registry ═══════════ */
 var FONTS = ['Arial','Aptos','Calibri','Times New Roman','Georgia','Verdana','Tahoma','Trebuchet MS','Garamond','Cambria','Century Gothic','Franklin Gothic Medium','Segoe UI','Helvetica','Courier New','Consolas','Lucida Sans Unicode','Book Antiqua','Baskerville','Palatino Linotype','Brush Script MT','Lucida Handwriting','Segoe Script','Comic Sans MS','Monotype Corsiva'];
 var SIZES = { letter: [816, 1056], a4: [794, 1123], legal: [816, 1344] };
