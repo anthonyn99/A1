@@ -22467,7 +22467,7 @@ function exportEntryAsPDF(entry) {
   // Text-based templates: build styled HTML print page
   var bodyHTML = '';
   if (entry.template === 'page') {
-    bodyHTML = '<div class="page-content">' + (entry.data.html || '') + '</div>';
+    bodyHTML = '<div class="page-content">' + (window._docxPdfBlackText ? window._docxPdfBlackText(entry.data.html || '') : (entry.data.html || '')) + '</div>';
   } else if (entry.template === 'notes') {
     bodyHTML = _bjPdfSection('Main Notes', entry.data.main || '');
     if (entry.data.links) bodyHTML += _bjPdfSection('Links & Resources', entry.data.links);
@@ -28112,7 +28112,7 @@ function exportEntryAsPDF(entry) {
   // Text-based templates: build styled HTML print page
   var bodyHTML = '';
   if (entry.template === 'page') {
-    bodyHTML = '<div class="page-content">' + (entry.data.html || '') + '</div>';
+    bodyHTML = '<div class="page-content">' + (window._docxPdfBlackText ? window._docxPdfBlackText(entry.data.html || '') : (entry.data.html || '')) + '</div>';
   } else if (entry.template === 'journal-entries') {
     var activeKey = entry.data.activeDateKey;
     var dateLabel = '';
