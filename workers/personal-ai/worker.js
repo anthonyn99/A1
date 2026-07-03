@@ -53,7 +53,9 @@ function keyFor(env, profile) {
 // dynamic thinking (bulk/ambiguous commands need the reasoning); everything else
 // stays fast. Older models take no thinking config.
 function thinkingConfig(model, feature) {
-  if (model.startsWith('gemini-3')) return { thinkingLevel: 'low' };
+  // TaskHub commands are complex/bulk (multi-attribute, ordered edits) and need
+  // real reasoning to avoid dropping fields; list/journal are simple/fast.
+  if (model.startsWith('gemini-3')) return { thinkingLevel: feature === 'taskhub' ? 'high' : 'low' };
   if (model === 'gemini-2.5-flash') return { thinkingBudget: feature === 'taskhub' ? -1 : 0 };
   if (model.startsWith('gemini-2.5')) return { thinkingBudget: 0 };
   return undefined;
