@@ -31259,21 +31259,34 @@ function addFadingScrollbar(ctx) {
   var bar = document.createElement('div');
   bar.className = 'docx-scrollbar';
   wrap.appendChild(bar);
-  var hideT = null;
-  function update() {
+  var hideT = null, dragging = false, raf = null;
+  function geom() {
     var sh = wrap.scrollHeight, ch = wrap.clientHeight;
-    if (sh <= ch + 4) { bar.style.opacity = '0'; return; }
-    var thumbH = Math.max(32, ch * ch / sh);
-    var top = (wrap.scrollTop / (sh - ch)) * (ch - thumbH);
-    bar.style.height = thumbH + 'px';
-    bar.style.top = (wrap.scrollTop + top) + 'px';   // absolute inside the scroller → follow the viewport
-    bar.style.opacity = '1';
-    clearTimeout(hideT);
-    hideT = setTimeout(function () { bar.style.opacity = '0'; }, 950);
+    if (sh <= ch + 4) { bar.style.display = 'none'; return null; }
+    bar.style.display = '';
+    var thumbH = Math.max(36, ch * ch / sh);
+    var maxTop = ch - thumbH;
+    var top = (sh - ch) ? (wrap.scrollTop / (sh - ch)) * maxTop : 0;
+    return { thumbH: thumbH, top: top, sh: sh, ch: ch, maxTop: maxTop };
   }
-  wrap.addEventListener('scroll', update, { passive: true });
-  window.addEventListener('resize', update);
-  try { new MutationObserver(update).observe(ctx.edEl, { childList: true, subtree: true, characterData: true }); } catch (e) {}
+  function place() { var g = geom(); if (!g) return; bar.style.height = g.thumbH + 'px'; bar.style.top = (wrap.scrollTop + g.top) + 'px'; }
+  function flash() { place(); bar.classList.add('on'); if (!dragging) { clearTimeout(hideT); hideT = setTimeout(function () { bar.classList.remove('on'); }, 1100); } }
+  // Show ONLY on scroll or drag (rAF-throttled → no jitter); typing never flashes it.
+  wrap.addEventListener('scroll', function () { if (raf) return; raf = requestAnimationFrame(function () { raf = null; flash(); }); }, { passive: true });
+  window.addEventListener('resize', place);
+  try { new MutationObserver(function () { if (bar.classList.contains('on') || dragging) place(); }).observe(ctx.edEl, { childList: true, subtree: true, characterData: true }); } catch (e) {}
+  // Grab-and-drag the bar to scroll.
+  bar.addEventListener('pointerdown', function (e) {
+    var g = geom(); if (!g) return;
+    e.preventDefault(); dragging = true; bar.classList.add('on');
+    try { bar.setPointerCapture(e.pointerId); } catch (x) {}
+    var startY = e.clientY, startScroll = wrap.scrollTop;
+    function onMove(ev) { var g2 = geom(); if (!g2 || !g2.maxTop) return; wrap.scrollTop = startScroll + (ev.clientY - startY) * ((g2.sh - g2.ch) / g2.maxTop); place(); }
+    function onUp() { dragging = false; document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); clearTimeout(hideT); hideT = setTimeout(function () { bar.classList.remove('on'); }, 1100); }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  });
+  place();
 }
 
 // ── Text-color shortcuts: replace the bare color <input> with a swatch popup ──
@@ -31285,15 +31298,27 @@ var DOCX_COLORS = [
 function wireColorShortcuts(ctx) {
   var input = ctx.tbEl.querySelector('[id$="-page-color-pick"]');
   if (!input) return;
-  // A button that shows the current color and opens the palette; the native input becomes the "custom" picker.
   var btn = document.createElement('button');
   btn.className = 'pt-btn docx-color-btn';
   btn.title = 'Text color';
   btn.innerHTML = '<span class="docx-color-dot" style="background:#EDEEF0"></span><span style="font-size:9px;opacity:.7;margin-left:2px;">▾</span>';
   input.parentNode.insertBefore(btn, input);
-  input.style.display = 'none';
+  // keep the native input in the DOM (its position anchors the OS picker) but invisible
+  input.style.cssText = 'position:absolute;width:22px;height:10px;opacity:0;border:none;padding:0;margin:0;pointer-events:none;';
   var dot = btn.querySelector('.docx-color-dot');
-  function applyColor(c) { restoreSel(ctx); document.execCommand('styleWithCSS', false, true); document.execCommand('foreColor', false, c); document.execCommand('styleWithCSS', false, false); dot.style.background = c; saveSel(ctx); fireInput(ctx.edEl); }
+  // Apply a colour to the whole current selection, restoring it each call so live-dragging
+  // in the OS picker keeps recolouring the SAME text in real time.
+  function applyColor(c, keepRange) {
+    if (keepRange && ctx._colorRange) { ctx.edEl.focus(); var s = window.getSelection(); s.removeAllRanges(); s.addRange(ctx._colorRange.cloneRange()); }
+    else restoreSel(ctx);
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('foreColor', false, c);
+    document.execCommand('styleWithCSS', false, false);
+    dot.style.background = c;
+    if (keepRange) { var sel = window.getSelection(); if (sel && sel.rangeCount) ctx._colorRange = sel.getRangeAt(0).cloneRange(); }
+    else saveSel(ctx);
+    fireInput(ctx.edEl);
+  }
   btn.addEventListener('mousedown', function (e) { e.preventDefault(); saveSel(ctx); });
   btn.addEventListener('click', function () {
     showPop(btn, function (pop) {
@@ -31307,23 +31332,48 @@ function wireColorShortcuts(ctx) {
       });
       pop.appendChild(grid);
       var custom = document.createElement('button'); custom.className = 'docx-mi'; custom.textContent = '🎨  Custom colour…';
-      custom.addEventListener('click', function () { closePop(); input.value = '#ffffff'; input.click(); });
+      custom.addEventListener('click', function () {
+        closePop();
+        // remember the selection so every live 'input' recolours the same text
+        var sel = window.getSelection();
+        ctx._colorRange = (sel && sel.rangeCount && ctx.edEl.contains(sel.anchorNode)) ? sel.getRangeAt(0).cloneRange() : (ctx._savedSel ? ctx._savedSel.cloneRange() : null);
+        // move the hidden input under the swatch button so the OS picker opens there (not top-left)
+        var r = btn.getBoundingClientRect();
+        input.style.pointerEvents = 'auto';
+        input.style.left = (r.left + window.scrollX) + 'px';
+        input.style.top = (r.bottom + window.scrollY) + 'px';
+        input.value = '#ffffff';
+        setTimeout(function () { input.click(); input.style.pointerEvents = 'none'; }, 0);
+      });
       pop.appendChild(custom);
     });
   });
-  input.addEventListener('input', function () { applyColor(this.value); });
+  input.addEventListener('input', function () { applyColor(this.value, true); });   // live update while dragging
 }
 
+// Open any file reliably (large data: URLs fail with window.open → use a Blob URL).
+function docxViewFile(href) {
+  try {
+    if (/^data:/.test(href)) {
+      fetch(href).then(function (r) { return r.blob(); }).then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener');
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      }).catch(function () { window.open(href, '_blank', 'noopener'); });
+    } else { window.open(href, '_blank', 'noopener'); }
+  } catch (e) {}
+}
 // ── Click an attached file chip → View / Download / Delete menu ──
 function wireFileMenu(ctx) {
   ctx.edEl.addEventListener('click', function (e) {
+    if (e.target.classList && e.target.classList.contains('docx-file-resize')) return; // resize handle
     var chip = e.target.closest ? e.target.closest('a.tj-file-chip, a[download]') : null;
     if (!chip || !ctx.edEl.contains(chip)) return;
     e.preventDefault(); e.stopPropagation();
     var href = chip.getAttribute('href') || '';
     var name = chip.getAttribute('download') || 'file';
     showPop(chip, function (pop) {
-      pop.appendChild(mi('👁  View', function () { try { window.open(href, '_blank', 'noopener'); } catch (x) {} }));
+      pop.appendChild(mi('👁  View', function () { docxViewFile(href); }));
       pop.appendChild(mi('⬇  Download', function () {
         var a = document.createElement('a'); a.href = href; a.download = name;
         document.body.appendChild(a); a.click(); a.remove();
