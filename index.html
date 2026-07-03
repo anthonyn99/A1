@@ -29317,6 +29317,8 @@ window._docxPdfBlackText = function(html) {
   try {
     var d = document.createElement('div');
     d.innerHTML = html;
+    // Strip editing-only UI (resize/delete handles) so they never appear in the printed PDF.
+    d.querySelectorAll('.docx-math-resize, .docx-file-resize, .pg-img-resize-handle, .pg-img-del-handle').forEach(function(x) { x.remove(); });
     d.querySelectorAll('[style]').forEach(function(el) {
       var c = el.style.color;
       if (!c) return;
@@ -31394,11 +31396,11 @@ function syncFontSizeUI(ctx) {
 // wraps around it naturally (items 10, 12). Never drops INSIDE another atomic box — math/image
 // boxes stay independent and are placed beside the target instead (item 7 "never merge").
 function _docxDropAtPoint(ed, node, x, y) {
-  if (node.parentNode) node.parentNode.removeChild(node);   // moving → detach from old spot
   var range = null;
   if (document.caretRangeFromPoint) range = document.caretRangeFromPoint(x, y);
   else if (document.caretPositionFromPoint) { var cp = document.caretPositionFromPoint(x, y); if (cp) { range = document.createRange(); range.setStart(cp.offsetNode, cp.offset); range.collapse(true); } }
-  if (!range || !ed.contains(range.startContainer)) { ed.appendChild(node); return; }
+  if (node.parentNode) node.parentNode.removeChild(node);   // moving → detach from old spot (after resolving the drop point)
+  if (!range || !ed.contains(range.startContainer) || node.contains(range.startContainer)) { ed.appendChild(node); return; }
   var atomSel = '.docx-math, .pg-img-wrap, a.tj-file-chip, a[download]';
   var host = range.startContainer; host = host.nodeType === 1 ? host : host.parentNode;
   var atom = host && host.closest ? host.closest(atomSel) : null;

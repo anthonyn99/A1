@@ -370,11 +370,18 @@ function applyListOps(items, stores, ops) {
         break;
       }
       case 'update_all': {
-        for (const it of list) if (whereMatch(it, op.where)) applySet(it, op.set, false);
+        const where = effWhere(op);
+        // Top-level "store" is ambiguous on update_all (filter or new value?);
+        // only treat it as the new value when it isn't already the filter.
+        const set = (op.set && typeof op.set === 'object') ? { ...op.set } : {};
+        if (set.store === undefined && typeof op.store === 'string' && op.store.trim() && op.store !== where.store) set.store = op.store;
+        if (set.qty === undefined && typeof op.qty === 'string' && op.qty.trim()) set.qty = op.qty;
+        for (const it of list) if (whereMatch(it, where)) applySet(it, set, false);
         break;
       }
       case 'remove_all': {
-        list = list.filter(it => !whereMatch(it, op.where));
+        const where = effWhere(op);
+        list = list.filter(it => !whereMatch(it, where));
         break;
       }
       case 'add_store': {
@@ -717,6 +724,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
+        version: 2, // bump when verifying a deploy went live
         features: ['list', 'taskhub', 'journal'],
         models: MODELS,
         listModels: LIST_MODELS,
