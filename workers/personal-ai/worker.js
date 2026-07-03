@@ -92,6 +92,7 @@ async function callGemini(model, key, { prompt, schema, maxOutputTokens, feature
   if (audio) parts.push({ inlineData: { mimeType: mimeType || 'audio/wav', data: audio } });
   const body = JSON.stringify({ contents: [{ parts }], generationConfig: gc });
 
+  let lastStatus = 0;
   for (let attempt = 0; attempt < 3; attempt++) {
     let r;
     try {
@@ -102,6 +103,7 @@ async function callGemini(model, key, { prompt, schema, maxOutputTokens, feature
     }
     if (r.status === 429 || r.status >= 500) {
       // Quota/overload — retry briefly, then let the outer loop try the next model.
+      lastStatus = r.status;
       await new Promise(res => setTimeout(res, 700 * (attempt + 1)));
       continue;
     }
@@ -114,6 +116,8 @@ async function callGemini(model, key, { prompt, schema, maxOutputTokens, feature
     if (!text) continue;
     try { return JSON.parse(text); } catch (e) { continue; }
   }
+  // Surface a persistent quota condition so the caller can report "exhausted".
+  if (lastStatus === 429) throw new Error(`gemini ${model} 429 quota/exhausted`);
   return null;
 }
 
