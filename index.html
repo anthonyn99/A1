@@ -30385,6 +30385,7 @@ function aiFormat(ctx) {
     if (!clean || !clean.trim()) { docxToast('AI Format returned nothing — text unchanged.', true); return; }
     ctx.history.commit();          // snapshot the pre-format content (so Undo restores it)
     ed.innerHTML = clean;
+    if (window._docxRenderMath) window._docxRenderMath(ed);   // render any $…$ / $$…$$ math
     ctx.history.commit();          // snapshot the formatted content (discrete Redo step)
     fireInput(ed);                 // autosave the new content
     docxToast('Formatted ✓  — press Undo to revert.');
