@@ -20153,7 +20153,7 @@ function loadActiveEntry() {
     ed.innerHTML = html;
     ed.contentEditable = isEditMode ? 'true' : 'false';
     updatePageToolbarState();
-    if (window._docxOnLoad) window._docxOnLoad('bj-page-editor');
+    if (window._docxOnLoad) window._docxOnLoad('bj-page-editor', entry.id);
     // Rebind image handlers lost when innerHTML was set
     ed.querySelectorAll('.pg-img-wrap').forEach(_pgBindImgWrap);
     if (html.includes('bj-fbimg://') && window._fbRehydratePageImages) {
@@ -25593,7 +25593,7 @@ function loadActiveEntry() {
     ed.innerHTML = html;
     ed.contentEditable = isEditMode ? 'true' : 'false';
     updatePageToolbarState();
-    if (window._docxOnLoad) window._docxOnLoad('tj-page-editor');
+    if (window._docxOnLoad) window._docxOnLoad('tj-page-editor', entry.id);
     // Rebind image handlers lost when innerHTML was set
     ed.querySelectorAll('.pg-img-wrap').forEach(_pgBindImgWrap);
     if (html.includes('tj-fbimg://') && window._fbRehydrateTonyPageImages) {
@@ -29509,9 +29509,36 @@ function setCaret(ed, offset) {
   var s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(r2);
 }
 function makeHistory(ctx) {
-  var stack = [], idx = -1, lastT = 0, obs = null, pending = null;
+  var stack = [], idx = -1, lastT = 0, obs = null, pending = null, persistT = null;
   function snap() { return { html: ctx.edEl.innerHTML, caret: caretOffset(ctx.edEl) }; }
   function seed() { stack = [snap()]; idx = 0; updateBtns(); }
+  // ── Cross-session persistence (item 13): while open we keep the full stack in memory;
+  //    we also mirror a small window (current ± 2 states) to localStorage so undo/redo
+  //    survives close+reopen. Docs whose snapshots are huge (big embedded images) are skipped.
+  function histKey() { return ctx._docId ? ('docx_hist_' + ctx.app + '_' + ctx._docId) : null; }
+  function persist() {
+    var key = histKey(); if (!key) return;
+    try {
+      var lo = Math.max(0, idx - 2), hi = Math.min(stack.length, idx + 3);
+      var slice = stack.slice(lo, hi);
+      var payload = JSON.stringify({ stack: slice, idx: idx - lo });
+      if (payload.length > 900000) { localStorage.removeItem(key); return; }  // too big to persist safely
+      localStorage.setItem(key, payload);
+    } catch (e) { try { localStorage.removeItem(histKey()); } catch (x) {} }
+  }
+  function schedulePersist() { clearTimeout(persistT); persistT = setTimeout(persist, 600); }
+  function loadPersisted(docId) {
+    ctx._docId = docId || ctx.edEl.id;
+    var key = histKey(); if (!key) return;
+    try {
+      var data = JSON.parse(localStorage.getItem(key) || 'null');
+      if (!data || !data.stack || !data.stack.length) return;
+      stack = data.stack; idx = Math.min(data.idx | 0, stack.length - 1); if (idx < 0) idx = 0;
+      // Reconcile with what actually loaded: if content differs from the restored state, add it on top.
+      if (stack[idx].html !== ctx.edEl.innerHTML) { stack = stack.slice(0, idx + 1); stack.push(snap()); idx = stack.length - 1; }
+      updateBtns();
+    } catch (e) {}
+  }
   function syncBase() {
     if (idx < 0 || !stack[idx] || stack[idx].html !== ctx.edEl.innerHTML) seed();
   }
@@ -29528,6 +29555,7 @@ function makeHistory(ctx) {
     idx = stack.length - 1;
     lastT = now;
     updateBtns();
+    schedulePersist();
   }
   function apply(s) {
     ctx._histSuppress = true;
@@ -29537,6 +29565,7 @@ function makeHistory(ctx) {
     fireInput(ctx.edEl);           // triggers autoSave; recording is suppressed
     // release suppression on the next tick so the observer's queued records are dropped
     setTimeout(function () { ctx._histSuppress = false; updateBtns(); }, 0);
+    schedulePersist();
   }
   function updateBtns() {
     if (ctx.undoBtn) ctx.undoBtn.classList.toggle('pt-disabled', !(idx > 0));
@@ -29560,7 +29589,8 @@ function makeHistory(ctx) {
     undo: function () { clearTimeout(pending); syncBase(); if (idx > 0) { idx--; apply(stack[idx]); } },
     redo: function () { clearTimeout(pending); if (idx < stack.length - 1) { idx++; apply(stack[idx]); } },
     commit: function () { clearTimeout(pending); record(true); },   // force a discrete step (AI format, etc.)
-    refresh: updateBtns
+    refresh: updateBtns,
+    loadPersisted: loadPersisted, persist: persist
   };
 }
 
@@ -31324,6 +31354,27 @@ function injectViewToggle(app) {
 
 /* ═══════════ Init ═══════════ */
 var ALLCTX = [];
+// ── Highlight palette: clamp fully on-screen no matter the screen size (item 7) ──
+function wireHighlightClamp(ctx) {
+  var palette = ctx.tbEl.querySelector('.pt-hl-palette');
+  var trigger = ctx.tbEl.querySelector('[id$="-pt-hl-trigger"]');
+  if (!palette || !trigger) return;
+  function clamp() {
+    if (!palette.classList.contains('open')) return;
+    palette.style.position = 'fixed';
+    palette.style.top = ''; palette.style.left = ''; palette.style.right = '';
+    var tr = trigger.getBoundingClientRect();
+    var pw = palette.offsetWidth || 130, ph = palette.offsetHeight || 40;
+    var left = Math.max(8, Math.min(tr.right - pw, window.innerWidth - pw - 8));   // right-align, keep on-screen
+    var top = tr.bottom + 4;
+    if (top + ph > window.innerHeight - 8) top = Math.max(8, tr.top - ph - 4);      // flip above if no room below
+    palette.style.left = left + 'px';
+    palette.style.top = top + 'px';
+  }
+  new MutationObserver(function (muts) { muts.forEach(function (m) { if (m.attributeName === 'class') clamp(); }); }).observe(palette, { attributes: true });
+  window.addEventListener('resize', clamp);
+  window.addEventListener('scroll', clamp, true);
+}
 // ── Subtle auto-hiding scrollbar on the page (fades out when idle) ──
 function addFadingScrollbar(ctx) {
   var wrap = ctx.wrapEl;
@@ -31343,8 +31394,11 @@ function addFadingScrollbar(ctx) {
   }
   function place() { var g = geom(); if (!g) return; bar.style.height = g.thumbH + 'px'; bar.style.top = (wrap.scrollTop + g.top) + 'px'; }
   function flash() { place(); bar.classList.add('on'); if (!dragging) { clearTimeout(hideT); hideT = setTimeout(function () { bar.classList.remove('on'); }, 1100); } }
+  // Persist scroll position per open doc (item 12).
+  var saveT = null;
+  function saveScroll() { if (!ctx._docId) return; clearTimeout(saveT); saveT = setTimeout(function () { try { localStorage.setItem('docx_scroll_' + ctx.app + '_' + ctx._docId, String(wrap.scrollTop)); } catch (e) {} }, 350); }
   // Show ONLY on scroll or drag (rAF-throttled → no jitter); typing never flashes it.
-  wrap.addEventListener('scroll', function () { if (raf) return; raf = requestAnimationFrame(function () { raf = null; flash(); }); }, { passive: true });
+  wrap.addEventListener('scroll', function () { saveScroll(); if (raf) return; raf = requestAnimationFrame(function () { raf = null; flash(); }); }, { passive: true });
   window.addEventListener('resize', place);
   try { new MutationObserver(function () { if (bar.classList.contains('on') || dragging) place(); }).observe(ctx.edEl, { childList: true, subtree: true, characterData: true }); } catch (e) {}
   // Grab-and-drag the bar to scroll.
@@ -31481,6 +31535,7 @@ function initApp(app) {
     addFadingScrollbar(ctx);
     wireColorShortcuts(ctx);
     wireFileMenu(ctx);
+    wireHighlightClamp(ctx);
     if (wcPinned(app)) mountWcPin(ctx);
     // Re-fit zoom when the wrap resizes (sidebar toggles, orientation change)
     if (window.ResizeObserver) {
@@ -31496,12 +31551,30 @@ function initApp(app) {
 }
 // Called by the apps' loadActiveEntry after they set the page editor's innerHTML,
 // so undo/redo history resets to the freshly-loaded entry (no cross-entry undo).
-window._docxOnLoad = function(edId) {
+window._docxOnLoad = function(edId, docId) {
   var ctx = ALLCTX.find(function(c) { return c.edEl.id === edId; });
-  if (ctx && ctx.history) { ctx._histSuppress = false; ctx.history.seed(); }
+  if (ctx) {
+    ctx._docId = docId || edId;
+    if (ctx.history) {
+      ctx._histSuppress = false;
+      ctx.history.seed();
+      ctx.history.loadPersisted(ctx._docId);   // restore last undo/redo states from a previous session
+    }
+    _docxRestoreScroll(ctx);                    // reopen at the last scroll position
+  }
   // Re-render any saved math (and ensure the KaTeX stylesheet is loaded).
   if (window._docxRenderMath) { var el = $(edId); if (el && el.querySelector('.docx-math')) window._docxRenderMath(el); }
 };
+// Restore the saved scroll position for the doc now loaded into ctx (item 12).
+function _docxRestoreScroll(ctx) {
+  if (!ctx._docId) return;
+  var key = 'docx_scroll_' + ctx.app + '_' + ctx._docId;
+  var v = parseInt(localStorage.getItem(key) || '', 10);
+  if (isNaN(v)) return;
+  var set = function() { ctx.wrapEl.scrollTop = v; };
+  requestAnimationFrame(function() { requestAnimationFrame(set); });
+  setTimeout(set, 250);   // again after async image rehydration reflows the page
+}
 function initAll() {
   Object.keys(APPS).forEach(function(app) {
     try { initApp(app); } catch (e) { console.warn('docx init failed for', app, e); }
@@ -31511,6 +31584,10 @@ function initAll() {
       if (zGet(app) === 'fit') applyZoom(app);
       else updateRulers(app);
     });
+  });
+  // Flush undo/redo history to localStorage on leave so it survives close+reopen (item 13).
+  window.addEventListener('beforeunload', function() {
+    ALLCTX.forEach(function(c) { if (c.history && c.history.persist) c.history.persist(); });
   });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAll);
