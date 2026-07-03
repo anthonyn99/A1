@@ -29028,6 +29028,27 @@ window._docxCleanHTML = function(html) {
   }
 };
 
+// When pasting INTO an existing list item, flatten any pasted list wrappers so the
+// content merges into the current bullet/number/checklist instead of doubling markers.
+window._docxPasteListFix = function(html, edEl) {
+  try {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return html;
+    var n = sel.anchorNode; if (n && n.nodeType === 3) n = n.parentElement;
+    var li = n && n.closest ? n.closest('li') : null;
+    if (!li || (edEl && !edEl.contains(li))) return html;   // only when caret is in a list item
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    if (!tmp.querySelector('li')) return html;               // nothing list-like pasted
+    var parts = Array.prototype.slice.call(tmp.querySelectorAll('li')).map(function(x) {
+      // drop nested checkbox inputs; keep inline content only
+      x.querySelectorAll('input').forEach(function(inp) { inp.remove(); });
+      return x.innerHTML.trim();
+    }).filter(Boolean);
+    return parts.join('<br>');
+  } catch (e) { return html; }
+};
+
 /* ═══════════ App / editor context registry ═══════════ */
 var FONTS = ['Arial','Aptos','Calibri','Times New Roman','Georgia','Verdana','Tahoma','Trebuchet MS','Garamond','Cambria','Century Gothic','Franklin Gothic Medium','Segoe UI','Helvetica','Courier New','Consolas','Lucida Sans Unicode','Book Antiqua','Baskerville','Palatino Linotype','Brush Script MT','Lucida Handwriting','Segoe Script','Comic Sans MS','Monotype Corsiva'];
 var SIZES = { letter: [816, 1056], a4: [794, 1123], legal: [816, 1344] };
