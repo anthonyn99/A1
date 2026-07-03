@@ -31425,22 +31425,55 @@ function applyFontSize(ctx, px) {
   saveSel(ctx);
   fireInput(ctx.edEl);
 }
-// Reflect a size in the toolbar's font-size <select> (item 3 "make it say the new one").
-function setFontSizeUI(ctx, px) {
+// Just set what the <select> DISPLAYS (px string, or '' for the "—" dash). Does not change
+// the tracked active size.
+function _setFontSizeDisplay(ctx, v) {
   var fs = ctx.tbEl.querySelector('[id$="-pt-fontsize"]');
   if (!fs) return;
-  var v = String(parseInt(px, 10));
-  var has = Array.prototype.some.call(fs.options, function (o) { return o.value === v; });
-  fs.value = has ? v : '';
+  var s = v === '' ? '' : String(parseInt(v, 10));
+  var has = s === '' || Array.prototype.some.call(fs.options, function (o) { return o.value === s; });
+  fs.value = has ? s : '';
 }
-// Sync the font-size <select> to the size at the caret whenever the selection moves.
+// Record the size the user is actively working in AND show it (item 3 "make it say the new one").
+function setFontSizeUI(ctx, px) {
+  var v = parseInt(px, 10);
+  if (v) ctx._activeFontSize = v;
+  _setFontSizeDisplay(ctx, v || '');
+}
+// Distinct font sizes (rounded px) across the current selection's text.
+function _selectionFontSizes(ctx, range) {
+  var sizes = {};
+  var root = range.commonAncestorContainer;
+  root = root.nodeType === 1 ? root : root.parentNode;
+  if (!root) return [];
+  var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: function (n) {
+      if (!n.nodeValue.replace(/[​\s]/g, '')) return NodeFilter.FILTER_REJECT;
+      return range.intersectsNode(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    }
+  });
+  var tn;
+  while ((tn = w.nextNode())) { var el = tn.parentElement; if (el) sizes[Math.round(parseFloat(getComputedStyle(el).fontSize) || 0)] = 1; }
+  return Object.keys(sizes);
+}
+// Sync the font-size <select> to the caret/selection whenever it moves:
+//  • multi-size selection → "—" dash (item 8)
+//  • empty editor (all text deleted) → keep showing the LAST active size (item 5)
+//  • otherwise → the size at the caret
 function syncFontSizeUI(ctx) {
   var sel = window.getSelection();
   if (!sel || !sel.rangeCount || !ctx.edEl.contains(sel.anchorNode)) return;
+  if (!sel.isCollapsed) {
+    var sizes = _selectionFontSizes(ctx, sel.getRangeAt(0));
+    if (sizes.length > 1) { _setFontSizeDisplay(ctx, ''); return; }          // mixed → dash
+    if (sizes.length === 1) { setFontSizeUI(ctx, sizes[0]); return; }
+    return;
+  }
+  // Collapsed caret. If the editor has no real text left, hold the last active size.
+  if (!ctx.edEl.textContent.replace(/[​\s]/g, '').length) { _setFontSizeDisplay(ctx, ctx._activeFontSize || ''); return; }
   var n = sel.anchorNode; n = n.nodeType === 1 ? n : n.parentNode;
   if (!n) return;
-  var px = Math.round(parseFloat(getComputedStyle(n).fontSize) || 0);
-  setFontSizeUI(ctx, px);
+  setFontSizeUI(ctx, Math.round(parseFloat(getComputedStyle(n).fontSize) || 0));
 }
 
 var DOCX_ATOM_SEL = '.docx-math, .pg-img-wrap, a.tj-file-chip, a[download]';
