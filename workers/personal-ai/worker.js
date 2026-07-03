@@ -36,9 +36,9 @@ const MODELS = [
 // the reliable models, then falls through the rest of the chain for extra free-tier
 // capacity. (List/Journal are simple and use the standard MODELS order.)
 const TASKHUB_MODELS = [
-  'gemini-2.5-flash',       // proven primary (dynamic thinking) — no regression vs old worker
-  'gemini-3.1-flash-lite',  // fast + reliable on structured actions
-  'gemini-3.5-flash',       // newest, kept in chain for capacity
+  'gemini-3.1-flash-lite',  // BEST here: fast AND reliably captures all fields on multi-action commands
+  'gemini-3.5-flash',       // newest flagship — capacity fallback
+  'gemini-2.5-flash',       // proven Flash — capacity fallback
   'gemini-2.5-flash-lite',
   'gemini-2.0-flash',
 ];
@@ -65,12 +65,12 @@ function keyFor(env, profile) {
 // numeric thinkingBudget (0 = off, -1 = dynamic). Only TaskHub's 2.5-flash gets
 // dynamic thinking (bulk/ambiguous commands need the reasoning); everything else
 // stays fast. Older models take no thinking config.
-function thinkingConfig(model, feature) {
+function thinkingConfig(model) {
   // Keep latency low (esp. for voice). Gemini 3.x uses thinkingLevel — "low" is
-  // fast and already capable; "high" is far too slow for interactive use. Gemini
-  // 2.5-flash keeps the dynamic budget for TaskHub's more complex commands.
+  // fast and already capable ("high" is far too slow for interactive use). Gemini
+  // 2.5 uses thinkingBudget:0 — dynamic thinking (-1) caused 90s+ hangs, not worth
+  // it now that 3.1-flash-lite handles structured commands accurately and fast.
   if (model.startsWith('gemini-3')) return { thinkingLevel: 'low' };
-  if (model === 'gemini-2.5-flash') return { thinkingBudget: feature === 'taskhub' ? -1 : 0 };
   if (model.startsWith('gemini-2.5')) return { thinkingBudget: 0 };
   return undefined;
 }
