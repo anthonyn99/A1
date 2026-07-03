@@ -1,0 +1,10 @@
+name = "proview-api"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "PV_CACHE"
+id = "512ff8d9f3144c16966179105586768d"
+
+[vars]
+WORKER_ORIGIN = "https://proview-api.av1.workers.dev"
