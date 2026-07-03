@@ -53,9 +53,10 @@ function keyFor(env, profile) {
 // dynamic thinking (bulk/ambiguous commands need the reasoning); everything else
 // stays fast. Older models take no thinking config.
 function thinkingConfig(model, feature) {
-  // TaskHub commands are complex/bulk (multi-attribute, ordered edits) and need
-  // real reasoning to avoid dropping fields; list/journal are simple/fast.
-  if (model.startsWith('gemini-3')) return { thinkingLevel: feature === 'taskhub' ? 'high' : 'low' };
+  // Keep latency low (esp. for voice). Gemini 3.x uses thinkingLevel — "low" is
+  // fast and already capable; "high" is far too slow for interactive use. Gemini
+  // 2.5-flash keeps the dynamic budget for TaskHub's more complex commands.
+  if (model.startsWith('gemini-3')) return { thinkingLevel: 'low' };
   if (model === 'gemini-2.5-flash') return { thinkingBudget: feature === 'taskhub' ? -1 : 0 };
   if (model.startsWith('gemini-2.5')) return { thinkingBudget: 0 };
   return undefined;
@@ -396,8 +397,7 @@ async function handleTaskhub(body, env) {
 
   const prompt = buildTaskPrompt(profile, transcript, state, today, weekday, !!audio);
   let lastErr = null;
-  const chain = body.only ? [String(body.only)] : MODELS;   // DIAG: body.only forces a single model
-  for (const model of chain) {
+  for (const model of MODELS) {
     try {
       const out = await callGemini(model, key, { prompt, schema: ACTION_SCHEMA, maxOutputTokens: 8192, feature: 'taskhub', audio, mimeType });
       if (out && Array.isArray(out.actions)) {
