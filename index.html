@@ -29297,6 +29297,32 @@ window._docxPdfBlackText = function(html) {
     return d.innerHTML;
   } catch (e) { return html; }
 };
+// Export/print page CSS that mirrors the on-screen page setup + margins exactly (item 9),
+// so an exported PDF matches the preview whether margins are expanded or compressed.
+window._docxExportPageCss = function (app) {
+  try {
+    var ps = psGet(app), m = marginsGet(app);
+    var sizeName = ps.size === 'a4' ? 'A4' : (ps.size === 'legal' ? 'legal' : 'letter');
+    var toIn = function (px) { return (Math.max(0, px) / 96).toFixed(3) + 'in'; };
+    return '@page{ size:' + sizeName + (ps.orient === 'landscape' ? ' landscape' : '') +
+           '; margin:' + toIn(m.mt) + ' ' + toIn(m.mr) + ' ' + toIn(m.mb) + ' ' + toIn(m.ml) + '; }' +
+           'html,body{ margin:0 !important; padding:0 !important; max-width:none !important; width:auto !important; }' +
+           '@media print{ body{ margin:0 !important; padding:0 !important; } }';
+  } catch (e) { return ''; }
+};
+// KaTeX assets + a render pass for the print document, so every rendered math expression
+// prints accurately (item 8) — covers both pre-rendered KaTeX HTML and bare data-tex placeholders.
+window._docxExportMathHead = function () {
+  return '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">' +
+         '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"><\/script>';
+};
+window._docxExportMathScript = function () {
+  return '<script>(function(){function R(){if(!window.katex)return;' +
+         'document.querySelectorAll(".docx-math[data-tex]").forEach(function(el){if(el.querySelector(".katex"))return;' +
+         'var t="";try{t=decodeURIComponent(el.getAttribute("data-tex")||"");}catch(e){t=el.getAttribute("data-tex")||"";}' +
+         'try{katex.render(t,el,{displayMode:el.classList.contains("docx-math-block"),throwOnError:false,output:"html"});}catch(e){el.textContent=t;}});}' +
+         'if(window.katex)R();else{var n=0,iv=setInterval(function(){if(window.katex||n>60){clearInterval(iv);R();}n++;},50);}})();<\/script>';
+};
 
 // When pasting INTO an existing list item, flatten any pasted list wrappers so the
 // content merges into the current bullet/number/checklist instead of doubling markers.
