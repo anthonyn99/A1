@@ -22566,11 +22566,19 @@ function _bjOpenPrintBlob(htmlStr) {
   doc.open();
   doc.write(htmlStr);
   doc.close();
-  iframe.contentWindow.focus();
-  setTimeout(function() {
-    iframe.contentWindow.print();
-    setTimeout(function() { document.body.removeChild(iframe); }, 2000);
-  }, 500);
+  var printed = false;
+  function go() {
+    if (printed) return; printed = true;
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {}
+    setTimeout(function() { try { document.body.removeChild(iframe); } catch (e) {} }, 2000);
+  }
+  // Wait for KaTeX CSS/JS + web fonts so rendered math prints accurately (item 8); hard fallback at 4s.
+  iframe.onload = function() {
+    var d = iframe.contentDocument;
+    var fonts = (d && d.fonts && d.fonts.ready) ? d.fonts.ready : Promise.resolve();
+    Promise.resolve(fonts).then(function() { setTimeout(go, 250); });
+  };
+  setTimeout(go, 4000);
 }
 
 function exportEntryAsPDF(entry) {
@@ -22640,12 +22648,16 @@ function exportEntryAsPDF(entry) {
     + 'hr.docx-pagebreak{page-break-after:always;break-after:page;border:none;margin:0;}'
     + 'hr{border:none;border-top:1px solid #ede9f4;margin:20px 0;}'
     + '@media print{body{margin:0;padding:16px;}}'
-    + '</style></head><body>'
+    + '</style>'
+    + ((entry.template === 'page' && window._docxExportPageCss) ? '<style>' + window._docxExportPageCss('bj') + '</style>' : '')
+    + (/docx-math/.test(bodyHTML) && window._docxExportMathHead ? window._docxExportMathHead() : '')
+    + '</head><body>'
     + '<h1>' + _bjEsc(title) + '</h1>'
     + '<div class="meta">' + _bjEsc(date)
     + (tags ? tags.split(',').map(function(t){ return '<span class="tag">' + _bjEsc(t.trim()) + '</span>'; }).join('') : '')
     + '</div><hr/>'
     + bodyHTML
+    + (/docx-math/.test(bodyHTML) && window._docxExportMathScript ? window._docxExportMathScript() : '')
     + '</body></html>';
 
   _bjOpenPrintBlob(html);
