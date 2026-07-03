@@ -316,6 +316,21 @@ function applyListOps(items, stores, ops) {
     if (typeof set.desc === 'string' && set.desc.trim()) it.desc = set.desc.trim();
     if (typeof set.done === 'boolean') it.done = set.done;
   };
+  // The model sometimes puts new values at the op's top level instead of inside
+  // "set" (or the where filter in top-level "store"). Accept both shapes so a
+  // slightly-off op still applies instead of silently doing nothing.
+  const effSet = (op, keys) => {
+    const merged = {};
+    for (const k of keys) if (op[k] !== undefined) merged[k] = op[k];
+    if (op.set && typeof op.set === 'object') Object.assign(merged, op.set);
+    return merged;
+  };
+  const effWhere = (op) => {
+    const w = (op.where && typeof op.where === 'object') ? op.where : {};
+    const hasW = (typeof w.store === 'string' && w.store.trim()) || typeof w.done === 'boolean';
+    if (hasW) return w;
+    return (typeof op.store === 'string' && op.store.trim()) ? { store: op.store } : w;
+  };
 
   for (const op of (Array.isArray(ops) ? ops : [])) {
     if (!op || typeof op !== 'object') continue;
@@ -337,13 +352,14 @@ function applyListOps(items, stores, ops) {
         break;
       }
       case 'update': {
-        const it = findItem(list, op.index, op.match);
-        if (it) { applySet(it, op.set, true); break; }
+        const set = effSet(op, ['name', 'qty', 'store', 'desc']);
+        const it = findItem(list, op.index, op.match || op.name);
+        if (it) { applySet(it, set, true); break; }
         // Target not found (e.g. user thinks it's on the list) — add it so the command still lands.
-        const name = String((op.set && op.set.name) || op.match || '').trim();
+        const name = String(set.name || op.match || '').trim();
         if (name) {
           const fresh = { name, qty: '', store: '', desc: '', done: false };
-          applySet(fresh, op.set, true);
+          applySet(fresh, set, true);
           list.push(fresh);
         }
         break;
