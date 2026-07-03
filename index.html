@@ -23100,7 +23100,7 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-new-entry-btn svg { flex-shrink: 0; }
 
 #tj-root #tj-search-box {
-    margin: 4px 12px 8px;
+    margin: 0;
     padding: 7px 10px 7px 32px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -23108,7 +23108,9 @@ window.hideBrainstormJournal = function() {
     font-family: var(--font);
     font-size: 13px;
     color: var(--text);
-    width: calc(100% - 24px);
+    width: 100%;
+    box-sizing: border-box;
+    -webkit-appearance: none; appearance: none;
     outline: none;
     transition: border-color 0.15s;
     position: relative;
