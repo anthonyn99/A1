@@ -30215,23 +30215,24 @@ function fontPop(ctx, anchor) {
 
 function lineSpacingPop(ctx, anchor) {
   saveSel(ctx);
-  // Detect the current line spacing on the first selected block (for the check mark)
-  var curLH = '';
-  var b0 = selBlocks(ctx)[0];
-  if (b0) {
-    var inline = b0.style.lineHeight;
-    if (inline) curLH = inline;
+  // Collect the ratio for EVERY selected block, so mixed selections check-mark all present spacings.
+  var ratios = [];
+  selBlocks(ctx).forEach(function(b) {
+    var r;
+    if (b.style.lineHeight) r = parseFloat(b.style.lineHeight);
     else {
-      var fs = parseFloat(getComputedStyle(b0).fontSize) || 16;
-      var lh = parseFloat(getComputedStyle(b0).lineHeight);
-      if (lh) curLH = (lh / fs).toFixed(2);
+      var fs = parseFloat(getComputedStyle(b).fontSize) || 16;
+      var lh = parseFloat(getComputedStyle(b).lineHeight);
+      r = lh ? lh / fs : null;
     }
-  }
-  var near = function(a, b) { return Math.abs(parseFloat(a) - parseFloat(b)) < 0.08; };
+    if (r != null) ratios.push(r);
+  });
+  var near = function(a, b) { return Math.abs(parseFloat(a) - parseFloat(b)) < 0.09; };
+  var anyMatches = function(vals) { return ratios.some(function(r) { return vals.some(function(v) { return near(r, v); }); }); };
   showPop(anchor, function(pop) {
     pop.appendChild(mlabel('Line spacing'));
     [['1.0', '1.15'], ['1.15', '1.38'], ['1.5', '1.8'], ['2.0', '2.4']].forEach(function(o) {
-      var active = curLH && (near(curLH, o[1]) || near(curLH, o[0]));
+      var active = anyMatches([o[1], o[0]]);
       pop.appendChild(mi(o[0], function() { setBlockStyle(ctx, 'lineHeight', o[1]); }, null, active));
     });
     pop.appendChild(msep());
