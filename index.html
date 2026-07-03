@@ -30241,7 +30241,7 @@ function buildMenubar(ctx) {
     p.appendChild(mi('Toggle sidebar', function() { var sb = $(cfg.sidebarBtn); if (sb) sb.click(); }));
   });
   menu('Insert', function(p) {
-    if (ctx.imgEl) p.appendChild(mi('Image…', function() { ctx.imgEl.click(); }));
+    if (ctx.imgEl) p.appendChild(mi('Image/File…', function() { ctx.imgEl.click(); }));
     p.appendChild(mi('Table…', function() { tableGridPop(ctx, ctx.tbEl); }));
     p.appendChild(mi('Link…', function() { var url = prompt('Link URL:'); if (url) exec(ctx, 'createLink', url); }));
     p.appendChild(mi('Horizontal divider', function() { exec(ctx, 'insertHorizontalRule'); }));
