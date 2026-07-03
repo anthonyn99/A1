@@ -31313,17 +31313,30 @@ function renderMarkdown(ctx) {
   fireInput(ed);
 }
 
+// The effective font size of a block's actual TEXT (not the block's own default) — reads the
+// computed size at the block's first non-empty text node, so an inline size span is respected.
+function _blockTextSize(b) {
+  if (!b) return '';
+  try {
+    var w = document.createTreeWalker(b, NodeFilter.SHOW_TEXT, null);
+    var tn = w.nextNode();
+    while (tn && !tn.textContent.replace(/[​\s]/g, '')) tn = w.nextNode();
+    var el = tn ? (tn.parentElement || b) : b;
+    return getComputedStyle(el).fontSize;
+  } catch (e) { return getComputedStyle(b).fontSize; }
+}
 // Toggle a bullet/numbered list while keeping each block's font size (execCommand's
-// list→paragraph conversion otherwise drops the size back to the editor default).
+// list→paragraph conversion otherwise drops the size back to the editor default). We pin the
+// size onto the resulting block explicitly, so it survives even if the inline span is lost.
 function toggleListPreserve(ctx, cmd) {
   restoreSel(ctx);
   var before = selBlocks(ctx);
-  var sizes = before.map(function(b) { return b ? getComputedStyle(b).fontSize : ''; });
+  var sizes = before.map(_blockTextSize);
   document.execCommand(cmd, false, null);
   var after = selBlocks(ctx);
   after.forEach(function(b, i) {
     var sz = sizes.length ? sizes[Math.min(i, sizes.length - 1)] : '';
-    if (b && sz && getComputedStyle(b).fontSize !== sz) b.style.fontSize = sz;
+    if (b && sz && _blockTextSize(b) !== sz) b.style.fontSize = sz;
   });
   saveSel(ctx);
   fireInput(ctx.edEl);
