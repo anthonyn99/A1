@@ -22188,9 +22188,10 @@ document.getElementById('bj-page-editor').addEventListener('keydown', e => {
       if (!sel || !sel.rangeCount) { document.execCommand('insertParagraph'); if (typeof autoSave === 'function') autoSave(); return; }
       var editor = document.getElementById('bj-page-editor');
       var n = sel.getRangeAt(0).commonAncestorContainer;
-      var codeEl = null, preEl = null;
+      var codeEl = null, preEl = null, bqEl = null;
       while (n && n !== editor) {
         if (n.nodeName === 'CODE') codeEl = n;
+        if (n.nodeName === 'BLOCKQUOTE') bqEl = n;
         if (n.nodeName === 'PRE') { preEl = n; break; }
         n = n.parentNode;
       }
@@ -22217,6 +22218,18 @@ document.getElementById('bj-page-editor').addEventListener('keydown', e => {
         var nr = document.createRange();
         nr.setStart(newP, 0); nr.collapse(true);
         sel.removeAllRanges(); sel.addRange(nr);
+      } else if (bqEl && !e.shiftKey) {
+        // Exit blockquote: Enter escapes the box (new <p> after it) — never leaves a blank line inside
+        var r = sel.getRangeAt(0); if (!r.collapsed) r.deleteContents();
+        var newP = document.createElement('p');
+        newP.appendChild(document.createElement('br'));
+        if (bqEl.parentNode) bqEl.parentNode.insertBefore(newP, bqEl.nextSibling);
+        var nr = document.createRange();
+        nr.setStart(newP, 0); nr.collapse(true);
+        sel.removeAllRanges(); sel.addRange(nr);
+      } else if (bqEl && e.shiftKey) {
+        // Stay inside the box: soft line break
+        document.execCommand('insertLineBreak');
       } else {
         document.execCommand(e.shiftKey ? 'insertLineBreak' : 'insertParagraph');
       }
@@ -27663,9 +27676,10 @@ function _tjFindMarkAncestor(node, editorEl) {
       if (!sel || !sel.rangeCount) { document.execCommand('insertParagraph'); if (typeof autoSave === 'function') autoSave(); return; }
       var editor = document.getElementById('tj-je-editor');
       var n = sel.getRangeAt(0).commonAncestorContainer;
-      var codeEl = null, preEl = null;
+      var codeEl = null, preEl = null, bqEl = null;
       while (n && n !== editor) {
         if (n.nodeName === 'CODE') codeEl = n;
+        if (n.nodeName === 'BLOCKQUOTE') bqEl = n;
         if (n.nodeName === 'PRE') { preEl = n; break; }
         n = n.parentNode;
       }
@@ -27832,9 +27846,10 @@ document.getElementById('tj-page-editor').addEventListener('keydown', e => {
       if (!sel || !sel.rangeCount) { document.execCommand('insertParagraph'); if (typeof autoSave === 'function') autoSave(); return; }
       var editor = document.getElementById('tj-page-editor');
       var n = sel.getRangeAt(0).commonAncestorContainer;
-      var codeEl = null, preEl = null;
+      var codeEl = null, preEl = null, bqEl = null;
       while (n && n !== editor) {
         if (n.nodeName === 'CODE') codeEl = n;
+        if (n.nodeName === 'BLOCKQUOTE') bqEl = n;
         if (n.nodeName === 'PRE') { preEl = n; break; }
         n = n.parentNode;
       }
@@ -27861,6 +27876,18 @@ document.getElementById('tj-page-editor').addEventListener('keydown', e => {
         var nr = document.createRange();
         nr.setStart(newP, 0); nr.collapse(true);
         sel.removeAllRanges(); sel.addRange(nr);
+      } else if (bqEl && !e.shiftKey) {
+        // Exit blockquote: Enter escapes the box (new <p> after it) — never leaves a blank line inside
+        var r = sel.getRangeAt(0); if (!r.collapsed) r.deleteContents();
+        var newP = document.createElement('p');
+        newP.appendChild(document.createElement('br'));
+        if (bqEl.parentNode) bqEl.parentNode.insertBefore(newP, bqEl.nextSibling);
+        var nr = document.createRange();
+        nr.setStart(newP, 0); nr.collapse(true);
+        sel.removeAllRanges(); sel.addRange(nr);
+      } else if (bqEl && e.shiftKey) {
+        // Stay inside the box: soft line break
+        document.execCommand('insertLineBreak');
       } else {
         document.execCommand(e.shiftKey ? 'insertLineBreak' : 'insertParagraph');
       }
@@ -31338,24 +31365,8 @@ function wireEditor(ctx) {
       var s = window.getSelection();
       if (s && s.isCollapsed && s.rangeCount && _docxAdjacentChip(s.getRangeAt(0), e.key === 'Backspace' ? 'back' : 'fwd')) { e.preventDefault(); return; }
     }
-    // In a blockquote/box: Enter escapes the box (types outside); Shift+Enter = newline still inside.
-    if (e.key === 'Enter' && !e.shiftKey) {
-      var se = window.getSelection();
-      if (se && se.rangeCount) {
-        var node = se.getRangeAt(0).startContainer;
-        var bq = node.nodeType === 1 ? node : node.parentNode;
-        bq = bq && bq.closest ? bq.closest('blockquote') : null;
-        if (bq && ed.contains(bq)) {
-          e.preventDefault();
-          var p = document.createElement('p'); p.innerHTML = '<br>';
-          if (bq.nextSibling) bq.parentNode.insertBefore(p, bq.nextSibling); else bq.parentNode.appendChild(p);
-          var r = document.createRange(); r.setStart(p, 0); r.collapse(true);
-          se.removeAllRanges(); se.addRange(r);
-          fireInput(ed);
-          return;
-        }
-      }
-    }
+    // (Blockquote Enter-escape is handled in each app's own page-editor keydown handler,
+    //  which runs first and calls preventDefault — handling it here too would double-insert.)
   });
   // Is the caret sitting immediately before (fwd) / after (back) a file chip?
   function _docxAdjacentChip(range, dir) {
