@@ -29239,6 +29239,43 @@ window._docxPasteListFix = function(html, edEl) {
   } catch (e) { return html; }
 };
 
+/* ═══════════ Math rendering (KaTeX, lazy-loaded from CDN) ═══════════ */
+function _loadKatex() {
+  if (window.katex) return Promise.resolve();
+  if (window._docxKatexReady) return window._docxKatexReady;
+  window._docxKatexReady = new Promise(function (resolve) {
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
+    document.head.appendChild(css);
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';
+    s.onload = function () { resolve(); };
+    s.onerror = function () { resolve(); };   // resolve anyway → fall back to raw LaTeX
+    document.head.appendChild(s);
+  });
+  return window._docxKatexReady;
+}
+// Render every .docx-math[data-tex] placeholder; also ensures KaTeX CSS is present
+// so previously-saved math displays after an entry reload.
+window._docxRenderMath = function (root) {
+  var els = (root || document).querySelectorAll('.docx-math[data-tex]');
+  if (!els.length) return;
+  _loadKatex().then(function () {
+    els.forEach(function (el) {
+      if (el.getAttribute('data-rendered') === '1' && el.querySelector('.katex')) return;
+      var tex = '';
+      try { tex = decodeURIComponent(el.getAttribute('data-tex') || ''); } catch (e) { tex = el.getAttribute('data-tex') || ''; }
+      try {
+        if (window.katex) {
+          window.katex.render(tex, el, { displayMode: el.classList.contains('docx-math-block'), throwOnError: false, output: 'html' });
+          el.setAttribute('data-rendered', '1');
+        } else { el.textContent = tex; }
+      } catch (e) { el.textContent = tex; }
+    });
+  });
+};
+
 /* ═══════════ App / editor context registry ═══════════ */
 var FONTS = ['Arial','Aptos','Calibri','Times New Roman','Georgia','Verdana','Tahoma','Trebuchet MS','Garamond','Cambria','Century Gothic','Franklin Gothic Medium','Segoe UI','Helvetica','Courier New','Consolas','Lucida Sans Unicode','Book Antiqua','Baskerville','Palatino Linotype','Brush Script MT','Lucida Handwriting','Segoe Script','Comic Sans MS','Monotype Corsiva'];
 var SIZES = { letter: [816, 1056], a4: [794, 1123], legal: [816, 1344] };
