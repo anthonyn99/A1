@@ -31439,6 +31439,15 @@ function syncFontSizeUI(ctx) {
   setFontSizeUI(ctx, px);
 }
 
+var DOCX_ATOM_SEL = '.docx-math, .pg-img-wrap, a.tj-file-chip, a[download]';
+// Insert zero-width text nodes between an atom and any adjacent atom siblings, so the caret
+// CAN be placed between two touching math/image boxes (item 5 — "hit space to create space").
+function _ensureCaretGap(node) {
+  if (!node || !node.parentNode) return;
+  function isAtom(n) { return n && n.nodeType === 1 && n.matches && n.matches(DOCX_ATOM_SEL); }
+  if (isAtom(node.previousSibling)) node.parentNode.insertBefore(document.createTextNode('​'), node);
+  if (isAtom(node.nextSibling)) node.parentNode.insertBefore(document.createTextNode('​'), node.nextSibling);
+}
 // Drop a node (image / file chip / math box) at the exact (x,y) caret position, so content
 // wraps around it naturally (items 10, 12). Never drops INSIDE another atomic box — math/image
 // boxes stay independent and are placed beside the target instead (item 7 "never merge").
@@ -31446,18 +31455,25 @@ function _docxDropAtPoint(ed, node, x, y) {
   var range = null;
   if (document.caretRangeFromPoint) range = document.caretRangeFromPoint(x, y);
   else if (document.caretPositionFromPoint) { var cp = document.caretPositionFromPoint(x, y); if (cp) { range = document.createRange(); range.setStart(cp.offsetNode, cp.offset); range.collapse(true); } }
-  if (node.parentNode) node.parentNode.removeChild(node);   // moving → detach from old spot (after resolving the drop point)
-  if (!range || !ed.contains(range.startContainer) || node.contains(range.startContainer)) { ed.appendChild(node); return; }
-  var atomSel = '.docx-math, .pg-img-wrap, a.tj-file-chip, a[download]';
-  var host = range.startContainer; host = host.nodeType === 1 ? host : host.parentNode;
-  var atom = host && host.closest ? host.closest(atomSel) : null;
-  if (atom && atom !== node && ed.contains(atom)) {
-    var r = atom.getBoundingClientRect();
-    var after = y > r.top + r.height / 2 || (y >= r.top && y <= r.bottom && x > r.left + r.width / 2);
-    atom.parentNode.insertBefore(node, after ? atom.nextSibling : atom);   // beside, never inside
-  } else {
-    range.insertNode(node);
+  // Detect a target atom under the drop point (so dropping directly ON a box lands beside it).
+  var atom = null;
+  if (range && ed.contains(range.startContainer)) {
+    var host = range.startContainer; host = host.nodeType === 1 ? host : host.parentNode;
+    atom = host && host.closest ? host.closest(DOCX_ATOM_SEL) : null;
   }
+  if (!atom) { var elAt = document.elementFromPoint(x, y); if (elAt && elAt.closest) atom = elAt.closest(DOCX_ATOM_SEL); }
+  if (node.parentNode) node.parentNode.removeChild(node);   // moving → detach from old spot (after resolving the drop point)
+  if (atom && atom !== node && ed.contains(atom) && !node.contains(atom)) {
+    var r = atom.getBoundingClientRect();
+    // Above the target's vertical midpoint → before it; below → after it (item 5 drop above/below).
+    var after = y > r.top + r.height / 2 || (Math.abs(y - (r.top + r.height / 2)) < 1 && x > r.left + r.width / 2);
+    atom.parentNode.insertBefore(node, after ? atom.nextSibling : atom);   // beside, never inside
+  } else if (range && ed.contains(range.startContainer) && !node.contains(range.startContainer)) {
+    range.insertNode(node);
+  } else {
+    ed.appendChild(node);
+  }
+  _ensureCaretGap(node);
 }
 
 // Ensure every image wrapper stays interactive (resize/delete/copy) no matter how the DOM
