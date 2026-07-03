@@ -21949,6 +21949,14 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
       var files = e.dataTransfer && e.dataTransfer.files;
       if (!files || !files.length) return;
       var tmpl = cfg.tmpl;
+      // Page template: land the dropped file/image at the EXACT drop point (item 10).
+      if (tmpl === 'page') {
+        var ped = document.getElementById('bj-page-editor');
+        if (ped && ped.getAttribute('contenteditable') === 'true' && document.caretRangeFromPoint) {
+          var rng = document.caretRangeFromPoint(e.clientX, e.clientY);
+          if (rng && ped.contains(rng.startContainer)) { ped.focus(); var s = window.getSelection(); s.removeAllRanges(); s.addRange(rng); }
+        }
+      }
       processFiles(files, tmpl);
     });
   });
@@ -27179,6 +27187,14 @@ function _tjPageInsertFileChip(name, dataURL, mimeType) {
       var files = e.dataTransfer && e.dataTransfer.files;
       if (!files || !files.length) return;
       var tmpl = cfg.tmpl;
+      // Page template: land the dropped file/image at the EXACT drop point (item 10).
+      if (tmpl === 'page') {
+        var ped = document.getElementById('tj-page-editor');
+        if (ped && ped.getAttribute('contenteditable') === 'true' && document.caretRangeFromPoint) {
+          var rng = document.caretRangeFromPoint(e.clientX, e.clientY);
+          if (rng && ped.contains(rng.startContainer)) { ped.focus(); var s = window.getSelection(); s.removeAllRanges(); s.addRange(rng); }
+        }
+      }
       processFiles(files, tmpl);
     });
   });

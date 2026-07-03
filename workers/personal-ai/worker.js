@@ -18,16 +18,30 @@
 //   TONY_GEMINI_KEY, VEDA_GEMINI_KEY
 // ============================================================================
 
-// Fallback chain: most powerful → most efficient, walked top→bottom. When a
-// model is exhausted (429 / quota) or errors, we drop to the next one, so the
-// apps stay usable even after the newest model hits its daily cap.
+// Fallback chains: walked top→bottom. When a model is exhausted (429 / quota)
+// or errors, we drop to the next one, so the apps stay usable even after the
+// lead model hits its daily cap.
 // All entries are on Google's FREE tier (Flash / Flash-Lite; Pro is paid-only).
+
+// Journal formatting: long-document quality matters most → lead with 3.5-flash.
 const MODELS = [
   'gemini-3.5-flash',       // newest flagship free Flash — most capable
   'gemini-3.1-flash-lite',  // newest Flash-Lite — matches 2.5-flash quality, high RPD
   'gemini-2.5-flash',       // proven fast Flash
   'gemini-2.5-flash-lite',  // high-RPD lite fallback
   'gemini-2.0-flash',       // older Flash fallback
+];
+
+// MyList: interactive voice → latency matters most. 3.1-flash-lite is both the
+// fastest and the most reliable at structured multi-op commands (3.5-flash can
+// only throttle thinking to "low", never off, so it's seconds slower per call
+// and was dropping changes on bulk edits).
+const LIST_MODELS = [
+  'gemini-3.1-flash-lite',  // fast, accurate structured ops — best for voice
+  'gemini-3.5-flash',       // flagship — capacity fallback
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
 ];
 
 // TaskHub's structured multi-action commands parse most RELIABLY on 2.5-flash
