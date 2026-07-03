@@ -21425,30 +21425,30 @@ window._mdToHtml = function(md) {
   var codeBlocks = [], mathBlocks = [], refs = {}, footnotes = {}, footnoteOrder = [];
 
   // 1) Reference-link definitions:  [id]: url "title"
-  md = md.replace(/^[ \t]{0,3}\[([^\^\]][^\]]*)\]:\s*(\S+).*$/gm, function(_, id, url){ refs[id.toLowerCase().trim()] = url; return ' K'; });
+  md = md.replace(/^[ \t]{0,3}\[([^\^\]][^\]]*)\]:\s*(\S+).*$/gm, function(_, id, url){ refs[id.toLowerCase().trim()] = url; return 'K'; });
   // 2) Footnote definitions:  [^id]: text
-  md = md.replace(/^[ \t]{0,3}\[\^([^\]]+)\]:[ \t]*(.*)$/gm, function(_, id, text){ footnotes[id.trim()] = text; return ' K'; });
+  md = md.replace(/^[ \t]{0,3}\[\^([^\]]+)\]:[ \t]*(.*)$/gm, function(_, id, text){ footnotes[id.trim()] = text; return 'K'; });
   // 3) Fenced code blocks  ```lang \n … ```
   md = md.replace(/```([a-zA-Z0-9_+-]*)[ \t]*\n?([\s\S]*?)```/g, function(_, lang, c){
     codeBlocks.push('<pre class="docx-code"' + (lang ? ' data-lang="' + esc(lang) + '"' : '') + '><code>' + esc(c.replace(/\n$/, '')) + '</code></pre>');
-    return ' C' + (codeBlocks.length - 1) + ' ';
+    return 'C' + (codeBlocks.length - 1) + '';
   });
   // 4) Block math  $$ … $$  (multi-line) → its own placeholder line
   md = md.replace(/\$\$([\s\S]*?)\$\$/g, function(_, tex){
     mathBlocks.push({ tex: tex.replace(/^\n+|\n+$/g, ''), display: true });
-    return '\n M' + (mathBlocks.length - 1) + ' \n';
+    return '\nM' + (mathBlocks.length - 1) + '\n';
   });
 
   var SAFE_HTML = 'u|sub|sup|br|mark|kbd|small|b|i|em|strong|code|span|a|abbr|del|ins';
   var inline = function(t){
     // backslash escapes FIRST (so \` \* etc. become literal and never trigger code/format)
     var escd = [];
-    t = t.replace(/\\([\\`*_{}\[\]()#+.!~^=|<>&-])/g, function(_, ch){ escd.push(ch); return ' e' + (escd.length - 1) + ' '; });
+    t = t.replace(/\\([\\`*_{}\[\]()#+.!~^=|<>&-])/g, function(_, ch){ escd.push(ch); return 'e' + (escd.length - 1) + ''; });
     // protect inline math  $ math $
     t = t.replace(/\$([^$\n]+?)\$/g, function(_, tex){ mathBlocks.push({ tex: tex.trim(), display: false }); return ' M' + (mathBlocks.length - 1) + ' '; });
     // protect inline code  ` code `  (escaped backticks are already placeholders now)
     var codes = [];
-    t = t.replace(/`([^`]+)`/g, function(_, c){ codes.push(esc(c)); return ' c' + (codes.length - 1) + ' '; });
+    t = t.replace(/`([^`]+)`/g, function(_, c){ codes.push(esc(c)); return 'c' + (codes.length - 1) + ''; });
     t = esc(t);
     // images
     t = t.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, '<img src="$2" alt="$1" style="max-width:100%;">');
@@ -21481,8 +21481,8 @@ window._mdToHtml = function(md) {
     // restore whitelisted inline HTML tags the author wrote
     t = t.replace(new RegExp('&lt;(/?)(' + SAFE_HTML + ')((?:\\s[^&]*?)?)\\s*(/?)&gt;', 'gi'), function(m, slash, tag, attrs, sc){ attrs = attrs.replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&amp;/g, '&'); return '<' + slash + tag + attrs + sc + '>'; });
     // restore escapes / inline code
-    t = t.replace(/ e(\d+) /g, function(_, n){ return esc(escd[+n]); });
-    t = t.replace(/ c(\d+) /g, function(_, n){ return '<code>' + codes[+n] + '</code>'; });
+    t = t.replace(/e(\d+)/g, function(_, n){ return esc(escd[+n]); });
+    t = t.replace(/c(\d+)/g, function(_, n){ return '<code>' + codes[+n] + '</code>'; });
     return t;
   };
 
@@ -21494,9 +21494,9 @@ window._mdToHtml = function(md) {
 
   while (j < lines.length) {
     var ln = lines[j];
-    if (ln === ' K') { j++; continue; }
-    var phC = ln.match(/^ C(\d+) $/); if (phC) { out.push(codeBlocks[+phC[1]]); j++; continue; }
-    var phM = ln.match(/^ M(\d+) $/); if (phM) { out.push(' M' + phM[1] + ' '); j++; continue; }
+    if (ln === 'K') { j++; continue; }
+    var phC = ln.match(/^C(\d+)$/); if (phC) { out.push(codeBlocks[+phC[1]]); j++; continue; }
+    var phM = ln.match(/^M(\d+)$/); if (phM) { out.push('M' + phM[1] + ''); j++; continue; }
     if (/^\s*$/.test(ln)) { j++; continue; }
 
     // raw HTML block line → pass through untouched
@@ -21575,7 +21575,7 @@ window._mdToHtml = function(md) {
     // paragraph
     var para = [];
     while (j < lines.length && lines[j].trim() && !/^(#{1,6})\s/.test(lines[j]) && !/^\s*>/.test(lines[j]) &&
-           !/^\s*([-*+]|\d+[.)])\s+/.test(lines[j]) && !/^ [CM]\d+ $/.test(lines[j]) &&
+           !/^\s*([-*+]|\d+[.)])\s+/.test(lines[j]) && !/^[CM]\d+$/.test(lines[j]) &&
            !/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(lines[j]) && !htmlBlockRe.test(lines[j]) &&
            !(lines[j].indexOf('|') >= 0 && j + 1 < lines.length && isSepLine(lines[j + 1]))) {
       para.push(inline(lines[j])); j++;
@@ -21585,8 +21585,8 @@ window._mdToHtml = function(md) {
 
   var html = out.join('');
   // math placeholders → KaTeX target elements (rendered by _docxRenderMath after insert)
-  html = html.replace(/ M(\d+) /g, function(_, n){ var m = mathBlocks[+n]; if (!m) return ''; var enc = encodeURIComponent(m.tex); return m.display ? '<div class="docx-math docx-math-block" data-tex="' + enc + '" contenteditable="false"></div>' : '<span class="docx-math docx-math-inline" data-tex="' + enc + '" contenteditable="false"></span>'; });
-  html = html.replace(/ C(\d+) /g, function(_, n){ return codeBlocks[+n] || ''; });
+  html = html.replace(/M(\d+)/g, function(_, n){ var m = mathBlocks[+n]; if (!m) return ''; var enc = encodeURIComponent(m.tex); return m.display ? '<div class="docx-math docx-math-block" data-tex="' + enc + '" contenteditable="false"></div>' : '<span class="docx-math docx-math-inline" data-tex="' + enc + '" contenteditable="false"></span>'; });
+  html = html.replace(/C(\d+)/g, function(_, n){ return codeBlocks[+n] || ''; });
   // footnotes section
   if (footnoteOrder.length) {
     html += '<hr><ol class="docx-footnotes">';
