@@ -31295,6 +31295,8 @@ function renderMarkdown(ctx) {
     if (tmp.children.length === 1 && tmp.firstElementChild.tagName === 'P' && !tmp.firstElementChild.querySelector('div,p,ul,ol,table,blockquote,pre,h1,h2,h3,h4,h5,h6')) {
       var inner = document.createElement('div'); inner.innerHTML = tmp.firstElementChild.innerHTML; tmp = inner;
     }
+    // NOTHING to render in the selection (no markdown produced any elements) → do nothing (item 3).
+    if (tmp.children.length === 0) return;
     var frag = document.createDocumentFragment();
     while (tmp.firstChild) frag.appendChild(tmp.firstChild);
     range.deleteContents(); range.insertNode(frag);
@@ -31304,13 +31306,42 @@ function renderMarkdown(ctx) {
     if (raw.length > 0 && !alreadyRendered) {
       ed.innerHTML = window._mdToHtml(raw);
     } else {
-      // Already-formatted doc: convert leftover $…$ text → math + raw tables, keep other formatting.
-      if (window._docxMathify) ed.innerHTML = window._docxMathify(ed.innerHTML);
-      if (window._renderMdTables) window._renderMdTables(ed);
+      // Already-formatted doc: convert ONLY leftover raw $…$ math / raw tables IN PLACE, never
+      // reparse the whole innerHTML (that broke existing formatting). If there's nothing raw
+      // left to render, do absolutely nothing (item 3).
+      var changed = _docxConvertRawMath(ed);
+      if (window._renderMdTables && /\|[^\n]*\n[ \t]*\|?[\s:|-]*-[\s:|-]*\|/.test(ed.innerText)) {
+        var before = ed.innerHTML; window._renderMdTables(ed);
+        if (ed.innerHTML !== before) changed = true;
+      }
+      if (!changed) return;   // everything already rendered → no-op
     }
   }
   if (window._docxRenderMath) window._docxRenderMath(ed);
   fireInput(ed);
+}
+// Convert leftover $…$ / $$…$$ math that appears as TEXT into .docx-math elements, IN PLACE
+// (walks text nodes only — never reparses the document, so existing formatting is untouched).
+function _docxConvertRawMath(root) {
+  if (!window._docxMathify) return false;
+  var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: function(n) {
+      if (n.parentElement && n.parentElement.closest('.docx-math, code, pre')) return NodeFilter.FILTER_REJECT;
+      return /\$[^$\n]+?\$/.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    }
+  });
+  var nodes = [], n; while ((n = walker.nextNode())) nodes.push(n);
+  var changed = false;
+  nodes.forEach(function(tn) {
+    var safe = tn.nodeValue.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    var conv = window._docxMathify(safe);
+    if (conv === safe) return;
+    var span = document.createElement('span'); span.innerHTML = conv;
+    var frag = document.createDocumentFragment(); while (span.firstChild) frag.appendChild(span.firstChild);
+    tn.parentNode.replaceChild(frag, tn);
+    changed = true;
+  });
+  return changed;
 }
 
 // The effective font size of a block's actual TEXT (not the block's own default) — reads the
