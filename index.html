@@ -31433,8 +31433,8 @@ function wireEditor(ctx) {
   // Delegated image handling so images stay resizable/deletable/copyable no matter how the DOM moves
   wireImageDelegation(ctx);
   // Keep selection bookmarked for toolbar/menu actions; reseed history on entry switch
-  ed.addEventListener('keyup', function() { saveSel(ctx); });
-  ed.addEventListener('mouseup', function() { saveSel(ctx); });
+  ed.addEventListener('keyup', function() { saveSel(ctx); syncFontSizeUI(ctx); });
+  ed.addEventListener('mouseup', function() { saveSel(ctx); syncFontSizeUI(ctx); });
   ed.addEventListener('focus', function() { saveSel(ctx); ctx.history.syncBase(); });
   // Rich paste for editors without their own paste handler (journal-entries)
   if (ctx.needsPaste) {
