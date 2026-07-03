@@ -21855,7 +21855,9 @@ document.getElementById('bj-page-editor').addEventListener('paste', function(e) 
   e.preventDefault();
   const htmlData = e.clipboardData.getData('text/html');
   if (htmlData && window._docxCleanHTML) {
-    document.execCommand('insertHTML', false, window._docxCleanHTML(htmlData));
+    var _clean = window._docxCleanHTML(htmlData);
+    if (window._docxPasteListFix) _clean = window._docxPasteListFix(_clean, document.getElementById('bj-page-editor'));
+    document.execCommand('insertHTML', false, _clean);
   } else {
     const text = e.clipboardData.getData('text/plain');
     document.execCommand('insertText', false, text);
@@ -27046,7 +27048,9 @@ document.getElementById('tj-page-editor').addEventListener('paste', function(e) 
   e.preventDefault();
   const htmlData = e.clipboardData.getData('text/html');
   if (htmlData && window._docxCleanHTML) {
-    document.execCommand('insertHTML', false, window._docxCleanHTML(htmlData));
+    var _clean = window._docxCleanHTML(htmlData);
+    if (window._docxPasteListFix) _clean = window._docxPasteListFix(_clean, document.getElementById('tj-page-editor'));
+    document.execCommand('insertHTML', false, _clean);
   } else {
     const text = e.clipboardData.getData('text/plain');
     document.execCommand('insertText', false, text);
