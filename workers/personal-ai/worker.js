@@ -396,7 +396,8 @@ async function handleTaskhub(body, env) {
 
   const prompt = buildTaskPrompt(profile, transcript, state, today, weekday, !!audio);
   let lastErr = null;
-  for (const model of MODELS) {
+  const chain = body.only ? [String(body.only)] : MODELS;   // DIAG: body.only forces a single model
+  for (const model of chain) {
     try {
       const out = await callGemini(model, key, { prompt, schema: ACTION_SCHEMA, maxOutputTokens: 8192, feature: 'taskhub', audio, mimeType });
       if (out && Array.isArray(out.actions)) {
