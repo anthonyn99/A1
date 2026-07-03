@@ -31277,6 +31277,14 @@ function renderMarkdown(ctx) {
   if (sel && sel.rangeCount && !sel.isCollapsed && ed.contains(sel.anchorNode) && ed.contains(sel.focusNode)) {
     var range = sel.getRangeAt(0);
     var src = sel.toString();
+    if (!src) {   // robust fallback: read the selected text straight from the range
+      var tmpDiv = document.createElement('div');
+      tmpDiv.style.cssText = 'position:fixed;left:-99999px;top:0;white-space:pre-wrap;';
+      tmpDiv.appendChild(range.cloneContents());
+      document.body.appendChild(tmpDiv);
+      src = tmpDiv.innerText || tmpDiv.textContent || '';
+      tmpDiv.remove();
+    }
     var rendered = (window._mdToHtml(src) || '').replace(/<p><br><\/p>\s*$/, '').trim();
     if (window._docxMathify) rendered = window._docxMathify(rendered);
     var tmp = document.createElement('div'); tmp.innerHTML = rendered;
