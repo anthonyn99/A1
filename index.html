@@ -21703,7 +21703,8 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
   const ed = document.getElementById('bj-page-editor');
   ed.focus();
   const escaped = name.replace(/"/g,'&quot;');
-  const html = '<a class="bj-file-chip" href="' + dataURL + '" download="' + escaped + '" contenteditable="false" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:var(--card2);border:1px solid var(--border);border-radius:4px;text-decoration:none;color:var(--text2);font-size:11px;font-weight:600;margin:2px 3px;cursor:pointer;">📎 ' + escaped + '</a>';
+  const clip = (window._docxPaperclipSVG || '📎');
+  const html = '<a class="bj-file-chip" href="' + dataURL + '" download="' + escaped + '" contenteditable="false" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:var(--card2);border:1px solid var(--border);border-radius:4px;text-decoration:none;color:var(--text2);font-size:11px;font-weight:600;margin:2px 3px;cursor:pointer;">' + clip + '<span class="tj-file-name">' + escaped + '</span></a>';
   document.execCommand('insertHTML', false, html);
   autoSave();
 }
@@ -31520,6 +31521,10 @@ function wireImageDelegation(ctx) {
     c._docxDragExtra = true;
     c.setAttribute('draggable', 'true');
     c.classList.add('tj-file-chip');
+    // Migrate old chips that used the flat 📎 emoji → clean SVG paperclip (item 6).
+    if (window._docxPaperclipSVG && !c.querySelector('.docx-clip') && /📎/.test(c.innerHTML)) {
+      c.innerHTML = c.innerHTML.replace(/📎\s*/, window._docxPaperclipSVG);
+    }
     c.addEventListener('dragstart', function(e) {
       ctx._imgDrag = c;
       var href = c.getAttribute('href') || '';
