@@ -31316,6 +31316,8 @@ function initApp(app) {
 window._docxOnLoad = function(edId) {
   var ctx = ALLCTX.find(function(c) { return c.edEl.id === edId; });
   if (ctx && ctx.history) { ctx._histSuppress = false; ctx.history.seed(); }
+  // Re-render any saved math (and ensure the KaTeX stylesheet is loaded).
+  if (window._docxRenderMath) { var el = $(edId); if (el && el.querySelector('.docx-math')) window._docxRenderMath(el); }
 };
 function initAll() {
   Object.keys(APPS).forEach(function(app) {
