@@ -31149,7 +31149,7 @@ function rebindPageButtons(ctx) {
     var nf = fsSel.cloneNode(true);
     fsSel.parentNode.replaceChild(nf, fsSel);
     nf.addEventListener('mousedown', function() { saveSel(ctx); });
-    nf.addEventListener('change', function() { var px = this.value; this.value = ''; if (px) applyFontSize(ctx, px); });
+    nf.addEventListener('change', function() { var px = this.value; if (px) applyFontSize(ctx, px); });
   }
   // list toggles — preserve the font size when un-listing (item 8)
   var ulB = replaceBtn('[id$="-pt-ul"]');
@@ -31175,21 +31175,25 @@ function toggleListPreserve(ctx, cmd) {
 }
 
 // Apply a font size to the selection, or set the caret's typing size on an empty/collapsed
-// selection (the old execCommand('fontSize','7') left a 48px typing state → new text was 48px).
+// selection. For a collapsed caret we insert a zero-width span at the size and SELECT the ZWSP,
+// so the next typed character REPLACES it inside the styled span — the browser's pending
+// typing-style can never override it (fixes "types in the old size" for good).
+var ZWSP = '​';
 function applyFontSize(ctx, px) {
   restoreSel(ctx);
   var sel = window.getSelection();
   if (!sel || !sel.rangeCount) return;
   var range = sel.getRangeAt(0);
   if (!ctx.edEl.contains(range.commonAncestorContainer)) return;
-  if (sel.isCollapsed) {
-    // Insert a zero-width span carrying the size; place the caret inside so typing uses it.
+  // Treat "only a ZWSP selected" (re-picking a size before typing) as collapsed.
+  var collapsedLike = sel.isCollapsed || sel.toString() === ZWSP;
+  if (collapsedLike) {
+    if (!sel.isCollapsed) { range.deleteContents(); range.collapse(true); }
     var span = document.createElement('span');
     span.style.fontSize = px + 'px';
-    span.appendChild(document.createTextNode('​'));
+    span.appendChild(document.createTextNode(ZWSP));
     // If the caret's block is effectively empty (all text was just deleted), REPLACE its
-    // contents — otherwise a leftover old-size span / the caret's pending typing-style keeps
-    // capturing the next keystrokes at the previous size (item 9).
+    // contents so no leftover old-size span survives to capture the next keystrokes.
     var blk = range.startContainer;
     blk = blk.nodeType === 1 ? blk : blk.parentNode;
     blk = blk && blk.closest ? blk.closest('p,h1,h2,h3,h4,h5,h6,li,div,blockquote,pre') : null;
@@ -31199,7 +31203,7 @@ function applyFontSize(ctx, px) {
       range.insertNode(span);
     }
     var r = document.createRange();
-    r.setStart(span.firstChild, 1); r.collapse(true);
+    r.setStart(span.firstChild, 0); r.setEnd(span.firstChild, 1);   // SELECT the ZWSP
     sel.removeAllRanges(); sel.addRange(r);
   } else {
     document.execCommand('fontSize', false, '7');
@@ -31211,8 +31215,26 @@ function applyFontSize(ctx, px) {
       var li = span.closest('li'); if (li) li.style.fontSize = px + 'px';
     });
   }
+  setFontSizeUI(ctx, px);
   saveSel(ctx);
   fireInput(ctx.edEl);
+}
+// Reflect a size in the toolbar's font-size <select> (item 3 "make it say the new one").
+function setFontSizeUI(ctx, px) {
+  var fs = ctx.tbEl.querySelector('[id$="-pt-fontsize"]');
+  if (!fs) return;
+  var v = String(parseInt(px, 10));
+  var has = Array.prototype.some.call(fs.options, function (o) { return o.value === v; });
+  fs.value = has ? v : '';
+}
+// Sync the font-size <select> to the size at the caret whenever the selection moves.
+function syncFontSizeUI(ctx) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !ctx.edEl.contains(sel.anchorNode)) return;
+  var n = sel.anchorNode; n = n.nodeType === 1 ? n : n.parentNode;
+  if (!n) return;
+  var px = Math.round(parseFloat(getComputedStyle(n).fontSize) || 0);
+  setFontSizeUI(ctx, px);
 }
 
 // Ensure every image wrapper stays interactive (resize/delete/copy) no matter how the DOM
