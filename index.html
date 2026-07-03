@@ -31621,8 +31621,11 @@ function wireEditor(ctx) {
       mathCopyPop(m);
       return;
     }
-    // Open links in the browser — VIEW mode only (in edit mode a click just places the caret)
+    // Open links in the browser — VIEW mode only (in edit mode a click just places the caret).
+    // File chips are NOT links: they must show the View/Download menu (handled by wireFileMenu),
+    // never navigate/open-blank — so skip them here (item 1).
     var a = t && t.closest ? t.closest('a[href]') : null;
+    if (a && (a.hasAttribute('download') || a.classList.contains('tj-file-chip'))) return;
     if (a && ed.contains(a) && ed.contentEditable !== 'true') {
       e.preventDefault();
       window.open(a.href, '_blank', 'noopener');
