@@ -29115,12 +29115,15 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 .docx-math-block { max-height: none !important; overflow: visible !important; }
 .docx-math-block .katex-display { margin: 0 !important; overflow-x: auto; overflow-y: visible; padding: 2px 0; }
 .docx-math-block .katex { white-space: normal; }
-.docx-math { position: relative; display: inline-block; vertical-align: middle; border-radius: 5px; }
+.docx-math { position: relative; display: inline-block; vertical-align: middle; border-radius: 5px; margin: 0 2px; }
 .docx-math-block { display: block; }
 .docx-math[draggable="true"] { cursor: grab; }
 .docx-math[draggable="true"]:active { cursor: grabbing; }
 #tj-root .docx-sheet .docx-math:hover, #bj-root .docx-sheet .docx-math:hover { outline: 1.5px dashed rgba(150,170,255,.55); outline-offset: 2px; }
-.docx-math-resize { position: absolute; right: -6px; bottom: -6px; width: 14px; height: 14px; background: #6DA8F5; border: 2px solid #fff; border-radius: 3px; cursor: nwse-resize; display: none; z-index: 6; touch-action: none; }
+/* Resize handle — works for BOTH inline and display math (item 4). Bigger + a larger invisible
+   hit area (::before) so it's easy to grab even on small inline math. */
+.docx-math-resize { position: absolute; right: -7px; bottom: -7px; width: 15px; height: 15px; background: #6DA8F5; border: 2px solid #fff; border-radius: 4px; cursor: nwse-resize; display: none; z-index: 20; touch-action: none; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+.docx-math-resize::before { content: ''; position: absolute; inset: -9px; }
 #tj-root .docx-sheet .docx-math:hover .docx-math-resize, #bj-root .docx-sheet .docx-math:hover .docx-math-resize { display: block; }
 /* Math edit MODAL — roomy + elegant */
 .docx-matheditor-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100000; display: flex; align-items: center; justify-content: center; padding: 20px; }
