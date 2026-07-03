@@ -21441,14 +21441,15 @@ window._mdToHtml = function(md) {
 
   var SAFE_HTML = 'u|sub|sup|br|mark|kbd|small|b|i|em|strong|code|span|a|abbr|del|ins';
   var inline = function(t){
-    // protect inline math  $ … $
-    t = t.replace(/\$([^$\n]+?)\$/g, function(_, tex){ mathBlocks.push({ tex: tex.trim(), display: false }); return ' M' + (mathBlocks.length - 1) + ' '; });
-    // protect inline code  ` … `
-    var codes = [];
-    t = t.replace(/`([^`]+)`/g, function(_, c){ codes.push(esc(c)); return ' c' + (codes.length - 1) + ' '; });
-    // backslash escapes  \X
+    // backslash escapes FIRST (so \` \* etc. become literal and never trigger code/format)
     var escd = [];
-    t = t.replace(/\\([\\`*_{}\[\]()#+.!~^=|<>&-])/g, function(_, ch){ escd.push(ch); return ' e' + (escd.length - 1) + ' '; });
+    t = t.replace(/\([\`*_{}\[\]()#+.!~^=|<>&-])/g, function(_, ch){ escd.push(ch); return ' e' + (escd.length - 1) + ' '; });
+    // protect inline math  $ math $
+    t = t.replace(/\$([^$
+]+?)\$/g, function(_, tex){ mathBlocks.push({ tex: tex.trim(), display: false }); return ' M' + (mathBlocks.length - 1) + ' '; });
+    // protect inline code  ` code `  (escaped backticks are already placeholders now)
+    var codes = [];
+    t = t.replace(/`([^`]+)`/g, function(_, c){ codes.push(esc(c)); return ' c' + (codes.length - 1) + ' '; });
     t = esc(t);
     // images
     t = t.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, '<img src="$2" alt="$1" style="max-width:100%;">');
