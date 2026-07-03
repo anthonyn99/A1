@@ -31308,10 +31308,13 @@ function wireImageDelegation(ctx) {
         var fs = Math.max(10, Math.min(48, startFs + (ev.clientX - startX) * 0.14));
         c.style.fontSize = fs + 'px';
       }
-      function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); fireInput(ed); }
+      function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); c._justResized = Date.now(); fireInput(ed); }
       document.addEventListener('pointermove', mv);
       document.addEventListener('pointerup', up);
     });
+    // Swallow the click the browser fires after releasing the handle — otherwise it reaches
+    // the <a download> and prompts a download (item 1).
+    h.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); });
     h.addEventListener('dragstart', function(e) { e.preventDefault(); e.stopPropagation(); });
   }
   // Rendered math: draggable/movable in edit mode (item 16); double-click floats a block so text wraps.
