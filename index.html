@@ -31523,18 +31523,31 @@ function wireColorShortcuts(ctx) {
   // keep the native input in the DOM (its position anchors the OS picker) but invisible
   input.style.cssText = 'position:absolute;width:22px;height:10px;opacity:0;border:none;padding:0;margin:0;pointer-events:none;';
   var dot = btn.querySelector('.docx-color-dot');
-  // Apply a colour to the whole current selection, restoring it each call so live-dragging
-  // in the OS picker keeps recolouring the SAME text in real time.
-  function applyColor(c, keepRange) {
-    if (keepRange && ctx._colorRange) { ctx.edEl.focus(); var s = window.getSelection(); s.removeAllRanges(); s.addRange(ctx._colorRange.cloneRange()); }
-    else restoreSel(ctx);
+  // Apply a colour to the current selection (swatch clicks + collapsed-caret typing colour).
+  function applyColor(c) {
+    restoreSel(ctx);
     document.execCommand('styleWithCSS', false, true);
     document.execCommand('foreColor', false, c);
     document.execCommand('styleWithCSS', false, false);
     dot.style.background = c;
-    if (keepRange) { var sel = window.getSelection(); if (sel && sel.rangeCount) ctx._colorRange = sel.getRangeAt(0).cloneRange(); }
-    else saveSel(ctx);
+    saveSel(ctx);
     fireInput(ctx.edEl);
+  }
+  // For the OS picker we wrap the selection in a marker span ONCE, then recolour that same
+  // span on every 'input' — giving true real-time updates as the cursor moves in the picker
+  // (no execCommand/refocus juggling while the modal dialog is open).
+  function beginLive() {
+    restoreSel(ctx);
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed || !ctx.edEl.contains(sel.anchorNode)) { ctx._liveSpan = null; return; }
+    var range = sel.getRangeAt(0);
+    var span = document.createElement('span'); span.className = 'docx-livecolor';
+    try { range.surroundContents(span); } catch (e) { try { span.appendChild(range.extractContents()); range.insertNode(span); } catch (x) { ctx._liveSpan = null; return; } }
+    ctx._liveSpan = span;
+  }
+  function endLive() {
+    var span = ctx._liveSpan; ctx._liveSpan = null;
+    if (span) { span.classList.remove('docx-livecolor'); fireInput(ctx.edEl); }
   }
   btn.addEventListener('mousedown', function (e) { e.preventDefault(); saveSel(ctx); });
   btn.addEventListener('click', function () {
@@ -31551,21 +31564,22 @@ function wireColorShortcuts(ctx) {
       var custom = document.createElement('button'); custom.className = 'docx-mi'; custom.textContent = '🎨  Custom colour…';
       custom.addEventListener('click', function () {
         closePop();
-        // remember the selection so every live 'input' recolours the same text
-        var sel = window.getSelection();
-        ctx._colorRange = (sel && sel.rangeCount && ctx.edEl.contains(sel.anchorNode)) ? sel.getRangeAt(0).cloneRange() : (ctx._savedSel ? ctx._savedSel.cloneRange() : null);
+        beginLive();   // wrap the selection so live 'input' recolours it in real time
         // move the hidden input under the swatch button so the OS picker opens there (not top-left)
         var r = btn.getBoundingClientRect();
         input.style.pointerEvents = 'auto';
         input.style.left = (r.left + window.scrollX) + 'px';
         input.style.top = (r.bottom + window.scrollY) + 'px';
         input.value = '#ffffff';
-        setTimeout(function () { input.click(); input.style.pointerEvents = 'none'; }, 0);
+        input.click();   // keep it inside the click gesture so the OS picker actually opens
+        input.style.pointerEvents = 'none';
       });
       pop.appendChild(custom);
     });
   });
-  input.addEventListener('input', function () { applyColor(this.value, true); });   // live update while dragging
+  // live drag: recolour the marker span directly; final commit resolves it
+  input.addEventListener('input', function () { dot.style.background = this.value; if (ctx._liveSpan) ctx._liveSpan.style.color = this.value; else applyColor(this.value); });
+  input.addEventListener('change', function () { if (ctx._liveSpan) { ctx._liveSpan.style.color = this.value; endLive(); } else applyColor(this.value); dot.style.background = this.value; });
 }
 
 // Open any file reliably (large data: URLs fail with window.open → use a Blob URL).
