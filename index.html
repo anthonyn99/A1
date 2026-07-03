@@ -28783,7 +28783,7 @@ window.tjSwitchTo = function(app) {
 /* Word-like neutral typography on the sheet (dark only) */
 #tj-root:not(.tj-light) .docx-sheet h1, #bj-root .docx-sheet h1 { font-family: inherit; font-size: 20pt; font-weight: 700; letter-spacing: 0; color: #fff; margin: 14px 0 8px; line-height: 1.25; }
 #tj-root:not(.tj-light) .docx-sheet h2, #bj-root .docx-sheet h2 { font-family: inherit; font-size: 15pt; font-weight: 700; color: #fff; margin: 12px 0 6px; line-height: 1.3; }
-#tj-root:not(.tj-light) .docx-sheet h3, #bj-root .docx-sheet h3 { font-family: inherit; font-size: 12.5pt; font-weight: 700; color: var(--purple); margin: 10px 0 5px; text-transform: none; letter-spacing: 0; }
+#tj-root:not(.tj-light) .docx-sheet h3, #bj-root .docx-sheet h3 { font-family: inherit; font-size: 12.5pt; font-weight: 700; color: #fff; margin: 10px 0 5px; text-transform: none; letter-spacing: 0; }
 #tj-root:not(.tj-light) .docx-sheet a, #bj-root .docx-sheet a { color: #7ab8ff; }
 /* Clearer divider + page break against the dark page */
 #tj-root:not(.tj-light) .docx-sheet hr, #bj-root .docx-sheet hr { border: none; height: 2px; background: rgba(255,255,255,.34); border-radius: 2px; margin: 18px 0; }
@@ -29926,7 +29926,7 @@ function shortcutsModal() {
     ['Print / Export PDF', 'Ctrl+P'],
     ['Find', 'Ctrl+F'],
     ['Find & Replace', 'Ctrl+H'],
-    ['Indent / Outdent list', 'Tab / Shift+Tab'],
+    ['Indent / Outdent', 'Ctrl+] / Ctrl+['],
     ['Line break (no new paragraph)', 'Shift+Enter']
   ];
   modal('Keyboard shortcuts', function(b) {
@@ -30622,22 +30622,25 @@ function setBlock(ctx, tag) {
   var sel = window.getSelection();
   var blocks = selBlocks(ctx);
   if (!blocks.length) { document.execCommand('formatBlock', false, tag); fireInput(ctx.edEl); return; }
-  // Single non-list block with a partial selection → change ONLY the highlighted text.
-  if (blocks.length === 1 && sel && sel.rangeCount && !sel.isCollapsed && blocks[0].tagName !== 'LI') {
-    var range = sel.getRangeAt(0);
-    if (!_rangeCoversBlock(range, blocks[0])) { _splitBlockApplyTag(ctx, blocks[0], range, tag); return; }
-  }
-  var last = null;
+  // Whole-block conversion (like Word / Google Docs): the type applies to every
+  // paragraph the selection touches — no splitting, so nothing gets pushed to a new
+  // line, backspace behaves normally, reverting rejoins cleanly, and inline font-size
+  // spans are carried over (changeBlockTag moves the children), so sizes never change.
+  var changed = [];
   blocks.forEach(function(b) {
     if (b.tagName === 'LI') return; // don't retag list items
-    // toggle: choosing the same tag it already is → back to paragraph
+    // toggle: choosing the tag it already is → back to paragraph
     var target = (b.tagName.toLowerCase() === tag.toLowerCase()) ? 'p' : tag;
-    if (b.tagName.toLowerCase() === target.toLowerCase()) { last = b; return; }
-    last = changeBlockTag(b, target);
+    if (b.tagName.toLowerCase() === target.toLowerCase()) { changed.push(b); return; }
+    changed.push(changeBlockTag(b, target));
   });
-  if (last) {
-    var r = document.createRange(); r.selectNodeContents(last); r.collapse(false);
+  // Re-select across all converted blocks so the selection (and the toolbar) stay put.
+  if (changed.length) {
+    var r = document.createRange();
+    r.setStart(changed[0], 0);
+    r.setEnd(changed[changed.length - 1], changed[changed.length - 1].childNodes.length);
     var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    saveSel(ctx);
   }
   fireInput(ctx.edEl);
   updateBlockSelect(ctx);
@@ -30839,11 +30842,10 @@ function wireEditor(ctx) {
       if (e.key === ']') { e.preventDefault(); saveSel(ctx); indentBlocks(ctx, 1); return; }
       if (e.key === '[') { e.preventDefault(); saveSel(ctx); indentBlocks(ctx, -1); return; }
     }
+    // Tab inserts spaces (never indents/outdents — that's Ctrl+] / Ctrl+[ only). Shift+Tab does nothing.
     if (e.key === 'Tab') {
       e.preventDefault();
-      if (closestInEd(ctx, 'li')) document.execCommand(e.shiftKey ? 'outdent' : 'indent');
-      else if (!e.shiftKey) document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;');
-      fireInput(ed);
+      if (!e.shiftKey) { document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;'); fireInput(ed); }
     }
   });
   // (History is captured by the MutationObserver in makeHistory — no 'input' hook needed.)
