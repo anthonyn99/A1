@@ -21184,6 +21184,29 @@ function _pgBindImgWrap(wrap) {
       } catch(err) { console.warn('Copy failed', err); }
     });
     menu.appendChild(copyBtn);
+    var dlBtn = document.createElement('div');
+    dlBtn.textContent = '⬇️  Download';
+    dlBtn.style.cssText = 'padding:9px 16px;cursor:pointer;color:#ECECEE;white-space:nowrap;';
+    dlBtn.onmouseenter = function() { dlBtn.style.background='rgba(141,118,154,0.15)'; };
+    dlBtn.onmouseleave = function() { dlBtn.style.background=''; };
+    dlBtn.addEventListener('pointerdown', function(ev) {
+      ev.preventDefault();
+      menu.remove();
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        canvas.toBlob(function(blob) {
+          if (!blob) return;
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url; a.download = (img.getAttribute('alt') || 'image') + '.png';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+        }, 'image/png');
+      } catch(err) { console.warn('Download failed', err); }
+    });
+    menu.appendChild(dlBtn);
     var mx = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : window.innerWidth/2);
     var my = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : window.innerHeight/2);
     menu.style.left = Math.min(mx, window.innerWidth - 180) + 'px';
@@ -26509,6 +26532,29 @@ function _pgBindImgWrap(wrap) {
       } catch(err) { console.warn('Copy failed', err); }
     });
     menu.appendChild(copyBtn);
+    var dlBtn = document.createElement('div');
+    dlBtn.textContent = '⬇️  Download';
+    dlBtn.style.cssText = 'padding:9px 16px;cursor:pointer;color:#ECECEE;white-space:nowrap;';
+    dlBtn.onmouseenter = function() { dlBtn.style.background='rgba(141,118,154,0.15)'; };
+    dlBtn.onmouseleave = function() { dlBtn.style.background=''; };
+    dlBtn.addEventListener('pointerdown', function(ev) {
+      ev.preventDefault();
+      menu.remove();
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        canvas.toBlob(function(blob) {
+          if (!blob) return;
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url; a.download = (img.getAttribute('alt') || 'image') + '.png';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+        }, 'image/png');
+      } catch(err) { console.warn('Download failed', err); }
+    });
+    menu.appendChild(dlBtn);
     var mx = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : window.innerWidth/2);
     var my = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : window.innerHeight/2);
     menu.style.left = Math.min(mx, window.innerWidth - 180) + 'px';
@@ -29549,7 +29595,15 @@ function frJump(i) {
   FR.cur = ((i % FR.marks.length) + FR.marks.length) % FR.marks.length;
   var m = FR.marks[FR.cur];
   m.classList.add('cur');
-  m.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  // Scroll ONLY the editor's own scroll container — never bubble to the window/header,
+  // which was pushing the whole UI up and cutting off the top.
+  var wrap = FR.ctx && FR.ctx.wrapEl;
+  if (wrap && wrap.scrollHeight > wrap.clientHeight) {
+    var mr = m.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+    wrap.scrollTop += (mr.top + mr.height / 2) - (wr.top + wr.height / 2);
+  } else if (m.scrollIntoView) {
+    m.scrollIntoView({ block: 'nearest' });
+  }
   FR.panel.querySelector('.cnt').textContent = (FR.cur + 1) + ' / ' + FR.marks.length;
 }
 function frReplaceCur() {
@@ -30676,10 +30730,22 @@ function wireImageDelegation(ctx) {
       fireInput(ed);
     });
   }
+  // Attached (non-image) file chips get the same drag-to-place behaviour as images.
+  function addChipDrag(c) {
+    c._docxDragExtra = true;
+    c.setAttribute('draggable', 'true');
+    c.addEventListener('dragstart', function(e) {
+      ctx._imgDrag = c;
+      try { e.dataTransfer.setData('text/plain', ''); e.dataTransfer.effectAllowed = 'move'; } catch (x) {}
+    });
+  }
   function rebindAll() {
     ed.querySelectorAll('.pg-img-wrap').forEach(function(w) {
       if (!w._pgBound && typeof binder === 'function') binder(w);
       if (!w._docxImgExtra) addExtras(w);
+    });
+    ed.querySelectorAll('a.tj-file-chip, a[download]').forEach(function(c) {
+      if (!c._docxDragExtra) addChipDrag(c);
     });
   }
   ed.addEventListener('dragover', function(e) { if (ctx._imgDrag) e.preventDefault(); });
