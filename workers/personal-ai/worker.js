@@ -209,14 +209,17 @@ const LIST_OPS_SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          op:      { type: 'STRING', enum: ['add', 'update', 'remove', 'update_all', 'remove_all', 'add_store', 'remove_store', 'rename_store'] },
+          op:      { type: 'STRING', enum: ['add', 'update', 'remove', 'move_all', 'check_all', 'uncheck_all', 'remove_all', 'add_store', 'remove_store', 'rename_store'] },
           name:    { type: 'STRING' },
           qty:     { type: 'STRING' },
           store:   { type: 'STRING' },
           desc:    { type: 'STRING' },
+          done:    { type: 'BOOLEAN' },
           index:   { type: 'INTEGER' },
           match:   { type: 'STRING' },
           newName: { type: 'STRING' },
+          from:    { type: 'STRING' },
+          to:      { type: 'STRING' },
           set: {
             type: 'OBJECT',
             properties: {
