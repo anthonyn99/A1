@@ -30469,10 +30469,50 @@ function changeBlockTag(el, tag) {
   el.parentNode.replaceChild(n, el);
   return n;
 }
+// True if the range covers essentially all of the block's content.
+function _rangeCoversBlock(range, block) {
+  var full = document.createRange();
+  full.selectNodeContents(block);
+  var startsAtBegin = range.compareBoundaryPoints(Range.START_TO_START, full) <= 0;
+  var endsAtFinish = range.compareBoundaryPoints(Range.END_TO_END, full) >= 0;
+  return startsAtBegin && endsAtFinish;
+}
+// Split a block so ONLY the selected text takes the new tag: before / [selected→tag] / after.
+function _splitBlockApplyTag(ctx, block, range, tag) {
+  var origTag = block.tagName.toLowerCase();
+  var target = (origTag === tag.toLowerCase()) ? 'p' : tag;
+  var beforeR = document.createRange();
+  beforeR.setStart(block, 0);
+  beforeR.setEnd(range.startContainer, range.startOffset);
+  var afterR = document.createRange();
+  afterR.setStart(range.endContainer, range.endOffset);
+  afterR.setEnd(block, block.childNodes.length);
+  var beforeFrag = beforeR.cloneContents();
+  var selFrag = range.cloneContents();
+  var afterFrag = afterR.cloneContents();
+  function nonEmpty(frag) { return (frag.textContent || '').length > 0 || frag.querySelector('img,br,.pg-img-wrap'); }
+  function wrap(t, frag) { var e = document.createElement(t); if (block.style.cssText) e.style.cssText = block.style.cssText; e.appendChild(frag); return e; }
+  var out = document.createDocumentFragment();
+  if (nonEmpty(beforeFrag)) out.appendChild(wrap(origTag, beforeFrag));
+  var mid = wrap(target, selFrag);
+  out.appendChild(mid);
+  if (nonEmpty(afterFrag)) out.appendChild(wrap(origTag, afterFrag));
+  block.parentNode.replaceChild(out, block);
+  var r2 = document.createRange(); r2.selectNodeContents(mid);
+  var s = window.getSelection(); s.removeAllRanges(); s.addRange(r2);
+  fireInput(ctx.edEl);
+  updateBlockSelect(ctx);
+}
 function setBlock(ctx, tag) {
   restoreSel(ctx);
+  var sel = window.getSelection();
   var blocks = selBlocks(ctx);
   if (!blocks.length) { document.execCommand('formatBlock', false, tag); fireInput(ctx.edEl); return; }
+  // Single non-list block with a partial selection → change ONLY the highlighted text.
+  if (blocks.length === 1 && sel && sel.rangeCount && !sel.isCollapsed && blocks[0].tagName !== 'LI') {
+    var range = sel.getRangeAt(0);
+    if (!_rangeCoversBlock(range, blocks[0])) { _splitBlockApplyTag(ctx, blocks[0], range, tag); return; }
+  }
   var last = null;
   blocks.forEach(function(b) {
     if (b.tagName === 'LI') return; // don't retag list items
