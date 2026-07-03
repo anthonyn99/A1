@@ -29048,7 +29048,15 @@ mark.docx-hl { background: rgba(224,96,122,.4); color: inherit; border-radius: 2
 .docx-math-block { max-height: none !important; overflow: visible !important; }
 .docx-math-block .katex-display { margin: 0 !important; overflow-x: auto; overflow-y: visible; padding: 2px 0; }
 .docx-math-block .katex { white-space: normal; }
+.docx-math { display: inline-block; vertical-align: middle; }
+.docx-math-block { display: block; }
 .docx-math[draggable="true"] { cursor: grab; }
+.docx-math[draggable="true"]:active { cursor: grabbing; }
+/* Math edit popup */
+.docx-mathedit { padding: 8px; min-width: 260px; }
+.docx-math-ta { width: 100%; min-height: 74px; resize: vertical; box-sizing: border-box; font-family: 'Consolas','Courier New',monospace; font-size: 13px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
+.docx-mathedit-row { display: flex; justify-content: flex-end; margin-top: 7px; }
+.docx-mi-primary { background: var(--purple, #6DA8F5); color: #fff; border-radius: 6px; font-weight: 600; padding: 6px 14px; }
 
 /* ── Text-color shortcut popup ── */
 #tj-root .docx-color-btn, #bj-root .docx-color-btn { display: inline-flex; align-items: center; }
@@ -29322,18 +29330,48 @@ window._docxRenderMath = function (root) {
   });
 };
 
-// Clicking a rendered math element offers "Copy Raw" (the LaTeX source) and
-// "Copy Formatted" (the Markdown-delimited version, $…$ or $$…$$).
+function _mathTex(el) { try { return decodeURIComponent(el.getAttribute('data-tex') || ''); } catch (e) { return el.getAttribute('data-tex') || ''; } }
+function _docxCtxOf(el) { return ALLCTX.find(function (c) { return c.edEl.contains(el); }); }
+// Clicking a rendered math element → Copy Raw / Edit / Un-render / Delete (item 15).
 function mathCopyPop(mathEl) {
-  var tex = '';
-  try { tex = decodeURIComponent(mathEl.getAttribute('data-tex') || ''); } catch (e) { tex = mathEl.getAttribute('data-tex') || ''; }
-  var display = mathEl.classList.contains('docx-math-block');
-  var formatted = display ? ('$$\n' + tex + '\n$$') : ('$' + tex + '$');
+  var tex = _mathTex(mathEl);
   function copy(str) { try { navigator.clipboard.writeText(str); } catch (e) { var ta = document.createElement('textarea'); ta.value = str; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (x) {} ta.remove(); } }
   showPop(mathEl, function (pop) {
-    pop.appendChild(mi('📋  Copy Raw (LaTeX)', function () { copy(tex); docxToast('Copied raw LaTeX.'); }));
-    pop.appendChild(mi('📐  Copy Formatted (Markdown)', function () { copy(formatted); docxToast('Copied formatted math.'); }));
+    pop.appendChild(mi('📋  Copy Raw', function () { copy(tex); docxToast('Copied raw LaTeX.'); }));
+    pop.appendChild(mi('✏️  Edit', function () { mathEditPop(mathEl); }));
+    pop.appendChild(mi('↩  Un-render', function () { mathUnrender(mathEl); }));
+    pop.appendChild(msep());
+    pop.appendChild(mi('🗑  Delete', function () { var c = _docxCtxOf(mathEl); mathEl.remove(); if (c) fireInput(c.edEl); }));
   });
+}
+// Edit the LaTeX in place; Save re-renders automatically.
+function mathEditPop(mathEl) {
+  showPop(mathEl, function (pop) {
+    pop.classList.add('docx-mathedit');
+    var ta = document.createElement('textarea'); ta.className = 'docx-math-ta'; ta.value = _mathTex(mathEl); ta.spellcheck = false;
+    pop.appendChild(ta);
+    var row = document.createElement('div'); row.className = 'docx-mathedit-row';
+    var save = document.createElement('button'); save.className = 'docx-mi docx-mi-primary'; save.textContent = '💾  Save';
+    save.addEventListener('click', function () {
+      mathEl.setAttribute('data-tex', encodeURIComponent(ta.value.trim()));
+      mathEl.removeAttribute('data-rendered'); mathEl.innerHTML = '';
+      var c = _docxCtxOf(mathEl);
+      if (window._docxRenderMath) window._docxRenderMath(c ? c.edEl : (mathEl.parentNode || document));
+      if (c) fireInput(c.edEl);
+      closePop();
+    });
+    row.appendChild(save);
+    pop.appendChild(row);
+    setTimeout(function () { ta.focus(); ta.select(); }, 0);
+  });
+}
+// Convert a rendered element back to raw markdown text ($…$ / $$…$$).
+function mathUnrender(mathEl) {
+  var display = mathEl.classList.contains('docx-math-block');
+  var raw = (display ? '$$' : '$') + _mathTex(mathEl) + (display ? '$$' : '$');
+  var c = _docxCtxOf(mathEl);
+  mathEl.parentNode.replaceChild(document.createTextNode(raw), mathEl);
+  if (c) fireInput(c.edEl);
 }
 
 /* ═══════════ App / editor context registry ═══════════ */
@@ -31086,6 +31124,27 @@ function rebindPageButtons(ctx) {
     nf.addEventListener('mousedown', function() { saveSel(ctx); });
     nf.addEventListener('change', function() { var px = this.value; this.value = ''; if (px) applyFontSize(ctx, px); });
   }
+  // list toggles — preserve the font size when un-listing (item 8)
+  var ulB = replaceBtn('[id$="-pt-ul"]');
+  if (ulB) ulB.addEventListener('click', function() { toggleListPreserve(ctx, 'insertUnorderedList'); });
+  var olB = replaceBtn('[id$="-pt-ol"]');
+  if (olB) olB.addEventListener('click', function() { toggleListPreserve(ctx, 'insertOrderedList'); });
+}
+
+// Toggle a bullet/numbered list while keeping each block's font size (execCommand's
+// list→paragraph conversion otherwise drops the size back to the editor default).
+function toggleListPreserve(ctx, cmd) {
+  restoreSel(ctx);
+  var before = selBlocks(ctx);
+  var sizes = before.map(function(b) { return b ? getComputedStyle(b).fontSize : ''; });
+  document.execCommand(cmd, false, null);
+  var after = selBlocks(ctx);
+  after.forEach(function(b, i) {
+    var sz = sizes.length ? sizes[Math.min(i, sizes.length - 1)] : '';
+    if (b && sz && getComputedStyle(b).fontSize !== sz) b.style.fontSize = sz;
+  });
+  saveSel(ctx);
+  fireInput(ctx.edEl);
 }
 
 // Apply a font size to the selection, or set the caret's typing size on an empty/collapsed
@@ -31101,7 +31160,17 @@ function applyFontSize(ctx, px) {
     var span = document.createElement('span');
     span.style.fontSize = px + 'px';
     span.appendChild(document.createTextNode('​'));
-    range.insertNode(span);
+    // If the caret's block is effectively empty (all text was just deleted), REPLACE its
+    // contents — otherwise a leftover old-size span / the caret's pending typing-style keeps
+    // capturing the next keystrokes at the previous size (item 9).
+    var blk = range.startContainer;
+    blk = blk.nodeType === 1 ? blk : blk.parentNode;
+    blk = blk && blk.closest ? blk.closest('p,h1,h2,h3,h4,h5,h6,li,div,blockquote,pre') : null;
+    if (blk && blk !== ctx.edEl && !blk.textContent.replace(/[​\s]/g, '')) {
+      blk.innerHTML = ''; blk.appendChild(span);
+    } else {
+      range.insertNode(span);
+    }
     var r = document.createRange();
     r.setStart(span.firstChild, 1); r.collapse(true);
     sel.removeAllRanges(); sel.addRange(r);
@@ -31196,6 +31265,25 @@ function wireImageDelegation(ctx) {
     });
     h.addEventListener('dragstart', function(e) { e.preventDefault(); e.stopPropagation(); });
   }
+  // Rendered math: draggable/movable in edit mode (item 16); double-click floats a block so text wraps.
+  function addMathDrag(m) {
+    m._docxMathDrag = true;
+    m.setAttribute('draggable', 'true');
+    m.addEventListener('dragstart', function(e) {
+      if (ed.getAttribute('contenteditable') !== 'true') { e.preventDefault(); return; }
+      ctx._imgDrag = m;
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ''); } catch (x) {}
+    });
+    if (m.classList.contains('docx-math-block')) {
+      m.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+        var f = m.style.float || 'none';
+        m.style.float = f === 'none' ? 'left' : (f === 'left' ? 'right' : '');
+        m.style.margin = m.style.float ? (m.style.float === 'left' ? '4px 16px 6px 0' : '4px 0 6px 16px') : '';
+        fireInput(ed);
+      });
+    }
+  }
   function rebindAll() {
     ed.querySelectorAll('.pg-img-wrap').forEach(function(w) {
       if (!w._pgBound && typeof binder === 'function') binder(w);
@@ -31203,6 +31291,9 @@ function wireImageDelegation(ctx) {
     });
     ed.querySelectorAll('a.tj-file-chip, a[download]').forEach(function(c) {
       if (!c._docxDragExtra) addChipDrag(c);
+    });
+    ed.querySelectorAll('.docx-math').forEach(function(m) {
+      if (!m._docxMathDrag) addMathDrag(m);
     });
   }
   ed.addEventListener('dragover', function(e) { if (ctx._imgDrag) e.preventDefault(); });
