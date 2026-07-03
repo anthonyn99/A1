@@ -30428,6 +30428,7 @@ function aiFormat(ctx) {
     }
     if (!data || !data.ok || !data.html) { docxToast('AI Format failed: ' + ((data && data.error) || 'try again'), true); return; }
     var restored = aiRestoreImages(data.html, extracted.imgs);
+    if (window._docxMathify) restored = window._docxMathify(restored);   // $…$ text → math elements
     var clean = window._docxCleanHTML(restored);
     if (!clean || !clean.trim()) { docxToast('AI Format returned nothing — text unchanged.', true); return; }
     ctx.history.commit();          // snapshot the pre-format content (so Undo restores it)
