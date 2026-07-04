@@ -541,7 +541,7 @@ async function stageFacts(runId, env){
 async function stageNarrative(runId, env){
   const job=await kvGet(env,'td_job'); if(!job||job.runId!==runId) return;
   if(job.facts){
-    try{ const {narrative,model}=await runStageA(job.facts,env); job.narrative=narrative; job.narrativeModel=model; }
+    try{ const {narrative,model}=await runStageA(job.facts,job.promptText,env); job.narrative=narrative; job.narrativeModel=model; }
     catch(e){
       console.error('[narrative]',e.message); job.deadStageA=true; job.lastAttempts=e.attempts||null;
       // if grounding 429'd, gemini is throttled for this build → skip it in render
@@ -557,9 +557,9 @@ async function stageRender(runId, env){
   const job=await kvGet(env,'td_job'); if(!job||job.runId!==runId) return;
   const generatedAt=Date.now();
   try{
-    const {report,model}=await runStageB(job.facts||{text:''}, job.narrative, env, {skipGemini: !!job.geminiThrottled});
+    const {report,model}=await runStageB(job.facts||{text:''}, job.narrative, job.promptText, env, {skipGemini: !!job.geminiThrottled});
     const modelStr=`${job.narrativeModel?job.narrativeModel+' + ':''}${model}`;
-    await kvPut(env,'td_report',{status:'ready',report,error:null,generatedAt,model:modelStr,runId});
+    await kvPut(env,'td_report',{status:'ready',report,error:null,generatedAt,model:modelStr,runId,promptName:job.promptName});
     const hash=await fnv1a((job.facts?.text||'')+JSON.stringify(job.narrative||{}));
     await kvPut(env,`td_cache:${hash}`,{report,generatedAt,model:modelStr},CACHE_TTL_S);
     if(!job.cron) await bumpRate(env);
@@ -619,7 +619,11 @@ async function handle(request, env, ctx){
     const force=body.force===true;
     if(rs.usedToday>=DAILY_LIMIT) return json({ok:false,error:'Daily limit reached.',...rs},429,request);
     if(!force&&rs.cooldownSec>0) return json({ok:false,error:`Cooldown ${rs.cooldownSec}s`,...rs},429,request);
-    const {runId}=await runBuild(env,{cron:false});
+    // The front-end sends the selected prompt with the build. Persist it as the
+    // active prompt (so the cron uses the same one) AND run it for this build.
+    const override = (body.prompt&&body.prompt.text) ? body.prompt : null;
+    if(override) await setActivePrompt(env, override);
+    const {runId}=await runBuild(env,{cron:false, prompt: override});
     return json({ok:true,status:'building',runId},202,request);
   }
 
@@ -666,8 +670,22 @@ async function handle(request, env, ctx){
     return json({ok:true,tickers:wl,count:wl.length},200,request);
   }
 
-  // legacy prompts CRUD kept so old front-end calls don't 404 (no longer drives build)
-  if(path==='/prompts'&&method==='GET') return json({ok:true,prompts:[],activeId:null,note:'MacroBoard is fixed-pipeline; prompts deprecated'},200,request);
+  // Active prompt — the Control-tab selection the front-end pushes here so both
+  // manual builds and the weekday cron run the SAME prompt.
+  if(path==='/active-prompt'&&method==='POST'){
+    const body=await request.json().catch(()=>({}));
+    const ok=await setActivePrompt(env, body);
+    if(!ok) return json({ok:false,error:'prompt text required'},400,request);
+    const p=await getActivePrompt(env);
+    return json({ok:true,name:p.name,preview:p.text.slice(0,160)},200,request);
+  }
+  if(path==='/active-prompt'&&method==='GET'){
+    const p=await getActivePrompt(env);
+    return json({ok:true,name:p.name,text:p.text},200,request);
+  }
+
+  // legacy prompts CRUD kept so old cached front-ends don't 404 (superseded by /active-prompt)
+  if(path==='/prompts'&&method==='GET') return json({ok:true,prompts:[],activeId:null,note:'superseded by /active-prompt'},200,request);
   if(path==='/prompts'&&method==='POST') return json({ok:true,prompts:[],activeId:null},200,request);
   if(/^\/prompts\/.+$/.test(path)&&method==='DELETE') return json({ok:true},200,request);
 
@@ -675,9 +693,11 @@ async function handle(request, env, ctx){
 }
 
 /* ════════════════════════ CRON ════════════════════════
-   Mon-Fri pre-warm → build + cache so the user just opens the tab. Fires once daily
-   at 12:00 UTC (= builds begin 06:00 MDT / 05:00 MST Mountain). Cron builds bypass the
-   manual cooldown and use a small daily cap. */
+   Mon-Fri pre-warm → build + cache so the user just opens the tab and sees today's
+   board. Fires once daily at 12:00 UTC (= builds begin 06:00 MDT / 05:00 MST Mountain);
+   the cron string is restricted to Mon-Fri and full-closure holidays are skipped below,
+   so it only pre-builds on days the market is actually open. Uses the SAME active prompt
+   (Control-tab selection) as manual builds. Bypasses the manual cooldown; small daily cap. */
 async function scheduled(event, env, ctx){
   // Skip full-closure market holidays (e.g. Labor Day) — no session to pre-build for.
   // At 12:00 UTC the UTC date == US Eastern date, so todayUTC() is the correct
