@@ -31312,13 +31312,15 @@ function renderMarkdown(ctx) {
     range.deleteContents(); range.insertNode(frag);
   } else {
     var raw = ed.innerText.trim();
-    var alreadyRendered = /<(h[1-6]|ul|ol|blockquote|table|pre)\b/i.test(ed.innerHTML);
-    if (raw.length > 0 && !alreadyRendered) {
-      ed.innerHTML = window._mdToHtml(raw);
+    // "Rendered" = ANY rendered structure: block tags OR rendered math OR inline formatting/links.
+    // (The old check missed rendered math, so a math-only doc got a destructive FULL re-render.)
+    var hasRendered = /<(h[1-6]|ul|ol|blockquote|table|pre)\b/i.test(ed.innerHTML) ||
+                      !!ed.querySelector('.docx-math, .katex, strong, b, em, i, u, s, code, mark, sub, sup, a[href]');
+    if (raw.length > 0 && !hasRendered) {
+      ed.innerHTML = window._mdToHtml(raw);   // entirely raw → full render
     } else {
-      // Already-formatted doc: convert ONLY leftover raw $…$ math / raw tables IN PLACE, never
-      // reparse the whole innerHTML (that broke existing formatting). If there's nothing raw
-      // left to render, do absolutely nothing (item 3).
+      // Partially/fully rendered: convert ONLY leftover raw $…$ math / raw tables IN PLACE, never
+      // reparse innerHTML (that broke existing formatting). Nothing raw left → do NOTHING (item 2).
       var changed = _docxConvertRawMath(ed);
       if (window._renderMdTables && /\|[^\n]*\n[ \t]*\|?[\s:|-]*-[\s:|-]*\|/.test(ed.innerText)) {
         var before = ed.innerHTML; window._renderMdTables(ed);
@@ -31586,6 +31588,7 @@ function wireImageDelegation(ctx) {
     c.appendChild(h);
     h.addEventListener('pointerdown', function(e) {
       e.preventDefault(); e.stopPropagation();
+      c.setAttribute('draggable', 'false');   // stop the chip's native drag from hijacking the resize
       try { h.setPointerCapture(e.pointerId); } catch (x) {}
       var startX = e.clientX, startFs = parseFloat(getComputedStyle(c).fontSize) || 14;
       c.style.display = 'inline-flex';
@@ -31593,7 +31596,7 @@ function wireImageDelegation(ctx) {
         var fs = Math.max(10, Math.min(48, startFs + (ev.clientX - startX) * 0.14));
         c.style.fontSize = fs + 'px';
       }
-      function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); c._justResized = Date.now(); fireInput(ed); }
+      function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); c.setAttribute('draggable', 'true'); c._justResized = Date.now(); fireInput(ed); }
       document.addEventListener('pointermove', mv);
       document.addEventListener('pointerup', up);
     });
@@ -31610,10 +31613,11 @@ function wireImageDelegation(ctx) {
     m.appendChild(rh);
     rh.addEventListener('pointerdown', function(e) {
       e.preventDefault(); e.stopPropagation();
+      m.setAttribute('draggable', 'false');   // stop the parent's native drag from hijacking the resize (item 3)
       try { rh.setPointerCapture(e.pointerId); } catch (x) {}
       var startX = e.clientX, startFs = parseFloat(m.style.fontSize) || parseFloat(getComputedStyle(m).fontSize) || 18;
       function mv(ev) { m.style.fontSize = Math.max(10, Math.min(72, startFs + (ev.clientX - startX) * 0.16)) + 'px'; }
-      function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); m._justResized = Date.now(); fireInput(ed); }
+      function up() { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); m.setAttribute('draggable', 'true'); m._justResized = Date.now(); fireInput(ed); }
       document.addEventListener('pointermove', mv);
       document.addEventListener('pointerup', up);
     });
