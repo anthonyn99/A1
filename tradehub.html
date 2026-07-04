@@ -2934,6 +2934,7 @@ function TBDashboardBoard({prompts,boardPromptId,onSelectBoardPrompt,onGoToPromp
   const cdTimer=useRef(null);
   const hydrated=useRef(false);
   const lastSavedSig=useRef(null);
+  const pushedSig=useRef(null);
 
   // Effective selected prompt (falls back to first prompt).
   const selPrompt=(prompts&&(prompts.find(p=>p.id===boardPromptId)||prompts[0]))||null;
