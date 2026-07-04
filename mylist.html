@@ -1526,11 +1526,9 @@ var GRIP='<div class="resize-grip"><svg viewBox="0 0 16 16" fill="none" stroke="
 function render(){
   if(!activeProfile) return;
   updateLockBtn();
-  var isTony = activeProfile==='tony';
-  if(!isTony) view='lists';
-  renderViewSwitch(isTony);
-  // ── Recipes view (Tony only) ──
-  if(view==='recipes' && isTony){
+  renderViewSwitch(true);
+  // ── Recipes view (both profiles) ──
+  if(view==='recipes'){
     $('lists-bar').style.display='none';
     $('float-voice').classList.remove('show');
     $('sel-bar').classList.remove('show');
