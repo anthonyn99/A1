@@ -29154,6 +29154,11 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 /* ── Disabled ribbon buttons (nothing to undo/redo) ── */
 #tj-root .pt-btn.pt-disabled, #bj-root .pt-btn.pt-disabled { opacity: .3; cursor: default; pointer-events: none; color: var(--text3, #666) !important; }
 
+/* ── Feature-locked (admin-disabled) buttons/menu items: dimmed but still clickable, so the
+   click still reaches the handler and shows the "disabled on your journal" toast. ── */
+.docx-feature-locked { opacity: .4 !important; cursor: not-allowed !important; }
+.docx-feature-locked:hover { opacity: .5 !important; }
+
 /* ── Page-toolbar buttons get a boxed outline (matches the Journal-Entries edit menu) ── */
 #tj-root:not(.tj-light) #tj-page-toolbar .pt-btn, #bj-root #bj-page-toolbar .pt-btn { border: 1px solid var(--border2, #323240); background: rgba(255,255,255,.02); }
 #tj-root:not(.tj-light) #tj-page-toolbar .pt-btn:hover, #bj-root #bj-page-toolbar .pt-btn:hover { border-color: var(--purple, #E0607A); background: rgba(255,255,255,.05); }
@@ -30878,8 +30883,14 @@ function buildMenubar(ctx) {
     p.appendChild(mi('Page setup…', function() { pageSetupModal(app); }));
   });
   menu('Tools', function(p) {
-    p.appendChild(mi('✨ AI Format', function() { aiFormat(ctx); }));
-    if (ctx.mdEl) p.appendChild(mi('Render Markdown', function() { ctx.mdEl.click(); }));
+    var aiMi = mi('✨ AI Format', function() { aiFormat(ctx); });
+    if (_docxFeatureLocked(app, 'aiFormat')) aiMi.classList.add('docx-feature-locked');
+    p.appendChild(aiMi);
+    if (ctx.mdEl) {
+      var mdMi = mi('Render Markdown', function() { ctx.mdEl.click(); });
+      if (_docxFeatureLocked(app, 'renderMarkdown')) mdMi.classList.add('docx-feature-locked');
+      p.appendChild(mdMi);
+    }
     p.appendChild(msep());
     p.appendChild(mi('Word count', function() { wordCountModal(ctx); }));
     p.appendChild(mi('Keyboard shortcuts', shortcutsModal));
@@ -30899,7 +30910,9 @@ function buildMenubar(ctx) {
     p.appendChild(mi('Toggle header row', function() { restoreSel(ctx); tblToggleHeader(ctx); }));
   });
   menu('Help', function(p) {
-    p.appendChild(mi('✨ AI Format prompt…', function() { aiPromptModal(app); }));
+    var promptMi = mi('✨ AI Format prompt…', function() { aiPromptModal(app); });
+    if (_docxFeatureLocked(app, 'aiPrompt')) promptMi.classList.add('docx-feature-locked');
+    p.appendChild(promptMi);
     p.appendChild(msep());
     p.appendChild(mi('Keyboard shortcuts', shortcutsModal));
   });
@@ -30945,6 +30958,7 @@ function injectRibbonExtras(ctx) {
   var startFrag = document.createDocumentFragment();
   var aiB = ptBtn(svg(IC.ai) + '<span style="margin-left:4px;font-weight:600;">AI Format</span>', 'AI Format — clean up formatting with AI');
   aiB.className = 'pt-btn docx-ai-btn';
+  if (_docxFeatureLocked(ctx.app, 'aiFormat')) { aiB.classList.add('docx-feature-locked'); aiB.title = 'This feature has been disabled on your journal.'; }
   aiB.addEventListener('click', function() { aiFormat(ctx); });
   var undoB = ptBtn(svg(IC.undo), 'Undo (Ctrl+Z)');
   undoB.classList.add('pt-disabled');
@@ -31290,7 +31304,10 @@ function rebindPageButtons(ctx) {
   if (olB) olB.addEventListener('click', function() { toggleListPreserve(ctx, 'insertOrderedList'); });
   // Render Markdown — selective (highlighted) or whole-doc; always re-renderable (item 6)
   var mdB = replaceBtn('[id$="-pt-md"]');
-  if (mdB) mdB.addEventListener('click', function() { renderMarkdown(ctx); });
+  if (mdB) {
+    if (_docxFeatureLocked(ctx.app, 'renderMarkdown')) { mdB.classList.add('docx-feature-locked'); mdB.title = 'This feature has been disabled on your journal.'; }
+    mdB.addEventListener('click', function() { renderMarkdown(ctx); });
+  }
 }
 
 // Render Markdown. With a selection → render ONLY the selected text. With no selection →
