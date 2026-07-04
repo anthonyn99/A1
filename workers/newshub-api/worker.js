@@ -2789,28 +2789,21 @@ export default {
     // Branch on the DAY OF WEEK, not the exact cron string. Robust to any future
     // cron-time change (DST shift, 6:30→6:00, etc.): whatever UTC time fires, the
     // day decides what builds.
-    //   Mon-Fri (1-5) → News pre-warm
-    //   Sun (0) + Wed (3) → Catalysts pre-warm
-    //   Wednesday → BOTH (weekday AND catalyst day)
+    //   EVERY day (Mon-Sun) → News pre-warm
+    //   Sun (0) + Wed (3)   → Catalysts pre-warm (in ADDITION to news)
     const day = new Date().getUTCDay();              // 0=Sun … 6=Sat
-    const isWeekday     = day >= 1 && day <= 5;
     const isCatalystDay = day === 0 || day === 3;
-
-    // Skip the Mon-Fri News pre-warm on full-closure market holidays (e.g. Labor
-    // Day) — there's no trading session to refresh for. Uses the built-in computed
-    // NYSE calendar (mktHolYear.H = full closures), keyed by the current ET date.
-    // Catalysts (Sun/Wed) is intentionally NOT gated: it's a forward-looking
-    // calendar and should still surface the holiday itself.
-    const etDate     = etDateStr(0);                 // 'YYYY-MM-DD' in US Eastern
-    const isHoliday  = !!mktHolYear(+etDate.slice(0,4)).H[etDate];
 
     // ── Catalysts pre-warm (Sun + Wed) → KV + Firebase push for TaskHub ──
     if (isCatalystDay){
       ctx.waitUntil(prewarmCalendar(env).catch(e => console.error('Cron calendar failed:', e.message)));
     }
 
-    // ── News pre-warm (Mon-Fri, skipping market holidays) — RICH build for TB_WL ──
-    if (isWeekday && !isHoliday){
+    // ── News pre-warm — EVERY day (Mon-Sun) at ~6am Mountain so opening TradeHub any
+    //    morning shows freshly-built news. World/company news doesn't stop on weekends
+    //    or market holidays, so this is intentionally NOT day/holiday-gated — a RICH
+    //    build for the current TB_WL. ──
+    {
       const richKey = 'cron:rich:' + new Date().toISOString().slice(0,13);
       const already = await env.NEWSHUB_CACHE.get(richKey).catch(()=>null);
       const useLimited = !already;                 // first tick of the hour → rich
