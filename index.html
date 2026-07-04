@@ -30526,6 +30526,18 @@ window._docxOpenTrash = function(app) {
   syncFooter();
 };
 
+/* ═══════════ Per-journal feature locks (reversible) ═══════════
+   Add/remove an app key or a feature name here to disable/enable it — nothing else in the
+   code needs to change. Currently Brainstorm Journal (bj) has AI Format, Render Markdown, and
+   the AI Format prompt editor disabled by request. To re-enable, remove 'bj' below (or just
+   the specific feature name from its list). */
+var DOCX_DISABLED_FEATURES = { bj: ['aiFormat', 'renderMarkdown', 'aiPrompt'] };
+function _docxFeatureLocked(app, feature) {
+  return (DOCX_DISABLED_FEATURES[app] || []).indexOf(feature) !== -1;
+}
+function _docxLockedToast() {
+  docxToast('This feature has been disabled on your journal.', true);
+}
 /* ═══════════ AI Format (Gemini via consolidated personal-ai Worker) ═══════════ */
 function docxToast(msg, isErr) {
   var t = document.createElement('div');
@@ -30628,6 +30640,7 @@ function aiRestoreImages(html, imgs) {
 
 function aiFormat(ctx) {
   var ed = ctx.edEl, app = ctx.app;
+  if (_docxFeatureLocked(app, 'aiFormat')) { _docxLockedToast(); return; }
   if (_aiBusy[app]) return;
   var since = Date.now() - (_aiLastRun[app] || 0);
   if (since < AI_COOLDOWN_MS) {
