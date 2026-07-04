@@ -4513,67 +4513,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }, 500);
     };
 
-    // ── MealPlan Studio load ──────────────────────────────────────────────────
-    const mpDocRef = doc(db, MP_DOC_PATH);
-
-    // ── MealPlan Studio real-time listener ────────────────────────────────────
-    if (_mpUnsubscribe) { _mpUnsubscribe(); _mpUnsubscribe = null; }
-    _mpUnsubscribe = onSnapshot(mpDocRef, (snap) => {
-      if (Date.now() - _mpLastOwnSaveAt < 8000) return;
-      if (snap.exists()) {
-        window.dispatchEvent(new CustomEvent("fb-mp-remote-update", { detail: snap.data() }));
-        window.dispatchEvent(new CustomEvent("fb-mp-synced"));
-      }
-    });
-
-    window._fbLoadMealPlan = async () => {
-      try {
-        const snap = await getDoc(mpDocRef);
-        if (snap.exists()) return snap.data();
-        return null;
-      } catch(e) {
-        console.warn("Firebase MealPlan load failed:", e);
-        return null;
-      }
-    };
-
-    // ── MealPlan Studio save (getter pattern, 1500ms debounce) ────────────────
-    window._fbSaveMealPlan = (getState) => {
-      _mpLastOwnSaveAt = Date.now();
-      if (_mpSaveTimer) clearTimeout(_mpSaveTimer);
-      _mpSaveTimer = setTimeout(async () => {
-        try {
-          const state = getState();
-          const sanitize = obj => {
-            if (Array.isArray(obj)) return obj.map(sanitize);
-            if (obj && typeof obj === 'object') {
-              const out = {};
-              Object.entries(obj).forEach(([k,v]) => {
-                if (v !== null && v !== undefined) out[k] = sanitize(v);
-              });
-              return out;
-            }
-            return obj;
-          };
-          const payload = {
-            recipes:     sanitize(state.recipes),
-            inventory:   sanitize(state.inventory),
-            mealPlan:    sanitize(state.mealPlan),
-            groceryList: sanitize(state.groceryList),
-            savedAt:     Date.now(),
-          };
-          _mpLastOwnSaveAt = Date.now();
-          await setDoc(mpDocRef, payload);
-          _mpLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-mp-saved"));
-        } catch(e) {
-          console.error("Firebase MealPlan save failed:", e.code, e.message, e);
-          window.dispatchEvent(new CustomEvent("fb-mp-error"));
-        }
-      }, 1500);
-    };
-
-
     // ── Keychain load ─────────────────────────────────────────────────────────
     const kcDocRef = doc(db, KC_DOC_PATH);
 
