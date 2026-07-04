@@ -24001,6 +24001,16 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
   #bj-root #bj-page-toolbar.edit-mode ~ .docx-ruler { display: block; }
 }
 
+/* ── Page fullscreen (Batch 10 #4): the editor overtakes the whole browser
+   window — sidebar and app header hidden, editor area fixed to the viewport. ── */
+#tj-root.tj-page-fs #tj-toolbar, #tj-root.tj-page-fs #tj-mobile-header,
+#bj-root.bj-page-fs #bj-toolbar, #bj-root.bj-page-fs #bj-mobile-header { display: none !important; }
+#tj-root.tj-page-fs #tj-sidebar, #bj-root.bj-page-fs #bj-sidebar { display: none !important; }
+#tj-root.tj-page-fs #tj-main, #bj-root.bj-page-fs #bj-main {
+  position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
+  max-width: none !important; margin: 0 !important; z-index: 100000; background: #1a1b1e;
+}
+
 /* ── Find & Replace panel (fixed overlay — never shifts the page layout) ── */
 .docx-find { position: fixed; top: 74px; right: 22px; z-index: 100020; background: linear-gradient(180deg,#26272C,#202126); border: 1px solid #40424A; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03); padding: 12px 13px 13px; width: 340px; max-width: calc(100vw - 24px); font-family: 'DM Sans','Segoe UI',sans-serif; color: #ECECF0; display: flex; flex-direction: column; gap: 9px; }
 .docx-find-head { display: flex; align-items: center; }
