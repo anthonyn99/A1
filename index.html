@@ -24002,6 +24002,19 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
   #bj-root #bj-page-toolbar.edit-mode ~ .docx-ruler { display: block; }
 }
 
+/* ── Vertical ruler (Batch 11 #1: draggable TOP / BOTTOM margins) ── */
+#tj-root .docx-vruler, #bj-root .docx-vruler { display: none; position: absolute; width: 13px; background: #3a3b40; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); z-index: 4; user-select: none; }
+#tj-root .docx-vruler-page, #bj-root .docx-vruler-page { position: absolute; left: 0; right: 0; background: #26272B; }
+#tj-root .docx-vruler-marg, #bj-root .docx-vruler-marg { position: absolute; left: -3px; right: -3px; height: 12px; cursor: ns-resize; z-index: 5; display: flex; align-items: center; justify-content: flex-start; touch-action: none; }
+#tj-root .docx-vruler-marg::after, #bj-root .docx-vruler-marg::after { content: ''; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 7px solid #8b8c94; margin-left: 1px; transition: border-left-color .12s; }
+#tj-root .docx-vruler-marg:hover::after, #bj-root .docx-vruler-marg:hover::after, #tj-root .docx-vruler-marg.drag::after, #bj-root .docx-vruler-marg.drag::after { border-left-color: var(--purple, #E0607A); }
+#tj-root .docx-vruler-marg.top, #bj-root .docx-vruler-marg.top { margin-top: -6px; }
+#tj-root .docx-vruler-marg.bottom, #bj-root .docx-vruler-marg.bottom { margin-top: -6px; }
+@media (min-width: 900px) {
+  #tj-root:not(.tj-light) #tj-page-editor[contenteditable="true"] ~ .docx-vruler,
+  #bj-root #bj-page-editor[contenteditable="true"] ~ .docx-vruler { display: block; }
+}
+
 /* ── Page fullscreen (Batch 10 #4): the editor overtakes the whole browser
    window — sidebar and app header hidden, editor area fixed to the viewport. ── */
 #tj-root.tj-page-fs #tj-toolbar, #tj-root.tj-page-fs #tj-mobile-header,
