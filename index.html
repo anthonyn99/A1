@@ -24030,6 +24030,16 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
 #tj-root.tj-page-fs #tj-toolbar, #tj-root.tj-page-fs #tj-mobile-header, #tj-root.tj-page-fs #tj-nav-header,
 #bj-root.bj-page-fs #bj-toolbar, #bj-root.bj-page-fs #bj-mobile-header, #bj-root.bj-page-fs #bj-nav-header { display: none !important; }
 #tj-root.tj-page-fs #tj-sidebar, #bj-root.bj-page-fs #bj-sidebar { display: none !important; }
+/* Batch 13 #2: in fullscreen, the sidebar can be toggled back on (as a fixed left
+   panel) to browse / swap between documents; the page insets to make room. */
+#tj-root.tj-page-fs.tj-fs-sidebar #tj-sidebar, #bj-root.bj-page-fs.bj-fs-sidebar #bj-sidebar {
+  display: flex !important; position: fixed !important; left: 0; top: 0; height: 100vh !important;
+  width: 268px !important; z-index: 100001; box-shadow: 2px 0 20px rgba(0,0,0,.55);
+}
+#tj-root.tj-page-fs.tj-fs-sidebar #tj-main, #bj-root.bj-page-fs.bj-fs-sidebar #bj-main {
+  left: 268px !important; width: calc(100vw - 268px) !important;
+}
+.docx-fs-float button.on { color: #fff; border-color: #6f7dff; background: rgba(70,80,120,.6); }
 /* Body-level shared Tony app nav (outside the root) — hide it in page fullscreen. */
 body.docx-page-fs #tony-app-nav { display: none !important; }
 #tj-root.tj-page-fs #tj-main, #bj-root.bj-page-fs #bj-main {
