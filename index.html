@@ -24545,11 +24545,20 @@ function restoreSel(ctx) {
   // Read the saved range BEFORE focus() — focusing fires the editor's focus listener
   // which calls saveSel and would otherwise overwrite _savedSel with a collapsed range.
   var r = savedSelFor(ctx);
-  ctx.edEl.focus();
+  // Batch 11 #2: pin the scroll position across the edit. focus() + execCommand +
+  // DOM insertion all scroll the caret into view (jumping a scrolled-down page to the
+  // top). Capture scrollTop now, focus WITHOUT scrolling, and re-pin — synchronously and
+  // again next frame — so the follow-up edit that runs after this call can't move the page.
+  var wrap = ctx.wrapEl, st = wrap ? wrap.scrollTop : null;
+  try { ctx.edEl.focus({ preventScroll: true }); } catch (e) { ctx.edEl.focus(); }
   if (r) {
     var s = window.getSelection();
     s.removeAllRanges();
     s.addRange(r);
+  }
+  if (wrap && st != null) {
+    if (wrap.scrollTop !== st) wrap.scrollTop = st;
+    requestAnimationFrame(function () { if (wrap && Math.abs(wrap.scrollTop - st) > 1) wrap.scrollTop = st; });
   }
 }
 function exec(ctx, cmd, val) {
