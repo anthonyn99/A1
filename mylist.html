@@ -1185,9 +1185,17 @@ var DEL_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke=
 function persistRecipes(){ if(window._mlSaveRecipes && activeProfile) window._mlSaveRecipes(activeProfile, recipes.map(sanitize)); }
 function setView(v){ view=v; recDetailId=null; manualOpen=false; render(); window.scrollTo(0,0); }
 function recCatStyle(cat){
-  var c={Breakfast:'#e0658a',Lunch:'#5a9bd4',Dinner:'#9b8bd4',Snack:'#d49a5a',Dessert:'#d46a9b',Other:''};
-  var hex=c[cat]; if(!hex) return 'background:var(--surface2);border:1px solid var(--border2);color:var(--textdim);';
-  return 'background:'+hex+'26;border:1px solid '+hex+'66;color:'+hex+';';
+  // soft pastel pills — light pastel fill + darker ink text (reads well on the dark UI)
+  var c={
+    Breakfast:{bg:'#FFDCC7',fg:'#8A3E1F'},   // peach
+    Lunch:    {bg:'#CFE9F2',fg:'#1F5464'},   // sky
+    Dinner:   {bg:'#DCD2F2',fg:'#402C67'},   // lavender
+    Snack:    {bg:'#FCE9C6',fg:'#6E4A12'},   // butter
+    Dessert:  {bg:'#F8D3E2',fg:'#752048'},   // rose
+    Other:    {bg:'#DEE2E7',fg:'#3B434B'}    // stone
+  };
+  var v=c[cat]||c.Other;
+  return 'background:'+v.bg+';border:1px solid '+v.bg+';color:'+v.fg+';';
 }
 function recFiltered(){
   var q=($('rec-search')?$('rec-search').value:'').trim().toLowerCase();
