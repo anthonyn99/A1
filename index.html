@@ -31655,6 +31655,9 @@ function wireImageDelegation(ctx) {
       if (!c._docxDragExtra) addChipDrag(c);
     });
     ed.querySelectorAll('.docx-math').forEach(function(m) { ensureMathBox(m); });
+    // Guarantee a caret-accessible gap between any two touching atoms (math/image/chip) so you
+    // can click/arrow between two adjacent math boxes and type a space (item 4).
+    ed.querySelectorAll(DOCX_ATOM_SEL).forEach(function(a) { _ensureCaretGap(a); });
   }
   ed.addEventListener('dragover', function(e) { if (ctx._imgDrag) e.preventDefault(); });
   ed.addEventListener('drop', function(e) {
