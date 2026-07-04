@@ -31831,6 +31831,7 @@ function wireImageDelegation(ctx) {
   function addMathResizeHandle(m) {
     var rh = document.createElement('span');
     rh.className = 'docx-math-resize'; rh.setAttribute('contenteditable', 'false');
+    rh._docxBound = true;   // marks a handle that actually has listeners (survives nothing → detects stale reloaded handles)
     m.appendChild(rh);
     rh.addEventListener('pointerdown', function(e) {
       e.preventDefault(); e.stopPropagation();
