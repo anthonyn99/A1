@@ -173,7 +173,7 @@ function buildListPrompt(transcript, items, stores, hasAudio) {
     `SAVED STORES: ${stores && stores.length ? stores.join(', ') : '(none yet)'}`,
     ``,
     `OPS (emit one per distinct change, in the order the user said them):`,
-    `- {op:"add", name, qty?, store?, desc?} — a NEW item ("add / get / need / buy / pick up / grab / we're out of X").`,
+    `- {op:"add", name, qty?, store?, desc?} — a NEW item ("add / get / need / buy / pick up / grab / we're out of X"). "desc" is MANDATORY whenever the user says ANY detail beyond name/qty/store — dimensions, size, specs, model number, color, flavor, purpose. Example: "add 2 furnace air filters, 20 by 20 by 1" → {"op":"add","name":"Furnace Air Filter","qty":"2","desc":"20×20×1"} (the "20 by 20 by 1" MUST NOT be dropped).`,
     `- {op:"update", index, match, set:{name?, qty?, store?, desc?, done?}} — change ONE existing item: rename (set.name), new quantity (set.qty), move it to a different store (set.store), add detail (set.desc), check it off or un-check it (set.done). "index" = the item's number in the list above; "match" = that item's name. Include BOTH.`,
     `- {op:"remove", index, match} — delete ONE existing item.`,
     `- {op:"move_all", from, to} — move EVERY item at store "from" to store "to" ("move everything from Walmart to Target" → from:"Walmart", to:"Target"). Both fields are store names and BOTH are required.`,
@@ -188,7 +188,7 @@ function buildListPrompt(transcript, items, stores, hasAudio) {
     `- MOVING AN ITEM BETWEEN STORES: "move / switch / swap / put X (over) to/at STORE" → update with set:{store:"STORE"}. Only that item's store changes. "swap X and Y's stores" → two updates exchanging their stores.`,
     `- STORE NAMES: a store is a short proper retailer name in Title Case, max 3 words ("Costco", "Best Buy", "Trader Joe's"). When it's clearly one of the SAVED STORES, use that exact spelling. Vague places ("the store", "the mall", "online", "somewhere") are NOT stores — omit the field. Never write a sentence or explanation in a store field.`,
     `- NEW ITEMS: "name" = clean Title Case product name (singular), KEEPING any brand ("Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill"). Quantity goes in "qty" ("2", "1 gallon", "3 lbs", "a dozen") — never inside the name.`,
-    `- AUTO-DESCRIPTIONS: the user never has to say "description" — ANY extra detail spoken with an item automatically goes in "desc": sizes/dimensions ("20 by 20 by 1" → "20×20×1"), model/part numbers, color, flavor, variety, material, "organic", "the big pack", "for the party", preferences. Summarize it short and telegraphic; never repeat the name or qty in desc. ("add 2 furnace air filters, 20 by 20 by 1" → name:"Furnace Air Filter", qty:"2", desc:"20×20×1").`,
+    `- AUTO-DESCRIPTIONS (never drop details!): the user never has to say the word "description" — EVERY extra detail spoken with an item goes in that item's "desc", automatically: sizes/dimensions ("20 by 20 by 1" → "20×20×1"), model/part numbers, color, flavor, variety, material, "organic", "the big pack", purposes ("for the party", "for the bathroom trim"), preferences ("the cheap one"). Before finishing, re-check the command: if the user said something about an item that is not captured in name/qty/store, it MUST be in desc. Keep desc short and telegraphic; never repeat the name or qty in it.`,
     `- ADD vs UPDATE: if the user "adds" more of something already on the list, update that item with the new TOTAL qty (list has "Milk qty:1", user says "grab another milk" → set:{qty:"2"}). Anything not on the list is an add.`,
     `- DUPLICATE vs MOVE: "copy/duplicate X to STORE", "add X at STORE too/also/as well", "I also need X from STORE" → a NEW add op with that store (the original item stays untouched). Use update set:{store} ONLY when they say to MOVE/switch/change the item's store.`,
     `- CHECK-OFF: "got / bought / grabbed / picked up / already have / check off / done with X" → update set:{done:true}. "put X back / didn't get X / uncheck X" → set:{done:false}.`,
@@ -207,6 +207,8 @@ function buildListPrompt(transcript, items, stores, hasAudio) {
     `"copy the milk over to Walmart too" → [{"op":"add","name":"Milk","store":"Walmart"}]`,
     `"start a new list called Weekend BBQ with burgers and hot dog buns from Costco" → [{"op":"new_list","name":"Weekend BBQ"},{"op":"add","name":"Burgers","store":"Costco"},{"op":"add","name":"Hot Dog Buns","store":"Costco"}]`,
     `"add 2 furnace air filters, 20 by 20 by 1" → [{"op":"add","name":"Furnace Air Filter","qty":"2","desc":"20×20×1"}]`,
+    `"a can of white semi-gloss paint for the bathroom trim" → [{"op":"add","name":"White Semi-Gloss Paint","qty":"1 can","desc":"bathroom trim"}]`,
+    `"grab the organic strawberries, the big container" → [{"op":"add","name":"Strawberries","desc":"organic, big container"}]`,
   ].join('\n');
 }
 
@@ -772,7 +774,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 5, // bump when verifying a deploy went live
+        version: 6, // bump when verifying a deploy went live
         features: ['list', 'taskhub', 'journal'],
         models: MODELS,
         listModels: LIST_MODELS,
