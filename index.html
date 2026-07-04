@@ -14781,6 +14781,18 @@ window._bjTrashAPI = {
   ttlDays: 30
 };
 
+// ── Per-page margins (Batch 10 #3): stored on the active PAGE entry, synced to
+// Firebase with the entry, so dragging a margin affects only that page. ──
+window._bjGetPageMargins = function() {
+  const e = state.entries.find(x => x.id === state.activeId);
+  if (e && e.template === 'page' && e.data && e.data.margins && typeof e.data.margins.ml === 'number') return e.data.margins;
+  return null;
+};
+window._bjSetPageMargins = function(m) {
+  const e = state.entries.find(x => x.id === state.activeId);
+  if (e && e.template === 'page') { e.data.margins = m; e.updated = Date.now(); autoSave(); }
+};
+
 // ── UNIFIED SEARCH: title + full content + tags; multi-tag filter ──
 let bjTagFilters = [];
 function _bjEntryText(e) {
@@ -16911,6 +16923,7 @@ document.addEventListener('selectionchange', () => {
 document.getElementById('bj-pt-clear').addEventListener('click', () => {
   if (!confirm('Clear all page content?')) return;
   document.getElementById('bj-page-editor').innerHTML = '';
+  if (window._docxScrollToTop) window._docxScrollToTop('bj-page-editor');
   autoSave();
 });
 
@@ -20251,6 +20264,18 @@ window._tjTrashAPI = {
   ttlDays: 30
 };
 
+// ── Per-page margins (Batch 10 #3): stored on the active PAGE entry, synced to
+// Firebase with the entry, so dragging a margin affects only that page. ──
+window._tjGetPageMargins = function() {
+  const e = state.entries.find(x => x.id === state.activeId);
+  if (e && e.template === 'page' && e.data && e.data.margins && typeof e.data.margins.ml === 'number') return e.data.margins;
+  return null;
+};
+window._tjSetPageMargins = function(m) {
+  const e = state.entries.find(x => x.id === state.activeId);
+  if (e && e.template === 'page') { e.data.margins = m; e.updated = Date.now(); autoSave(); }
+};
+
 // ── UNIFIED SEARCH: title + full content + tags; multi-tag filter ──
 let tjTagFilters = [];
 function _tjEntryText(e) {
@@ -22150,6 +22175,7 @@ document.addEventListener('selectionchange', () => {
 document.getElementById('tj-pt-clear').addEventListener('click', () => {
   if (!confirm('Clear all page content?')) return;
   document.getElementById('tj-page-editor').innerHTML = '';
+  if (window._docxScrollToTop) window._docxScrollToTop('tj-page-editor');
   autoSave();
 });
 
@@ -24731,15 +24757,26 @@ function applyViewMode(app) {
 function setViewMode(app, vm) { /* continuous only */ }
 
 /* ═══════════ Margins (custom + draggable, default 1 inch) ═══════════ */
-// Stored per-app as explicit px {mt,mr,mb,ml}; falls back to the page-setup preset.
+// Stored PER-PAGE on the active entry (entry.data.margins), synced via Firebase,
+// so dragging a margin only affects THAT page — not every page. Each app exposes
+// _<app>GetPageMargins / _<app>SetPageMargins hooks over its own entry state.
+function _pageMarginsHook(app, which) {
+  return window['_' + app + which];   // e.g. window._tjGetPageMargins
+}
 function marginsGet(app) {
+  var getFn = _pageMarginsHook(app, 'GetPageMargins');
+  if (getFn) {
+    try { var saved = getFn(); if (saved && typeof saved.ml === 'number') return saved; } catch (e) {}
+  }
   var ps = psGet(app);
   var preset = MARGINS[ps.margin] || MARGINS.normal;
-  var saved = lsGet('docx_margins_' + app, null);
-  if (saved && typeof saved.ml === 'number') return saved;
   return { mt: preset[0], mr: preset[1], mb: preset[2], ml: preset[3] };
 }
-function marginsSet(app, m) { lsSet('docx_margins_' + app, m); applyPageSetup(app); }
+function marginsSet(app, m) {
+  var setFn = _pageMarginsHook(app, 'SetPageMargins');
+  if (setFn) { try { setFn(m); } catch (e) {} }
+  applyPageSetup(app);
+}
 
 function _pageWidth(app) {
   var ps = psGet(app), dim = SIZES[ps.size] || SIZES.letter;
@@ -25835,6 +25872,8 @@ var IC = {
   ai: '<path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z"/>',
   eraser: '<path d="M20 20H7L3 16a2 2 0 0 1 0-3l8-8a2 2 0 0 1 3 0l6 6a2 2 0 0 1 0 3l-7 6"/><line x1="9" y1="10" x2="15" y2="16"/>',
   highlight: '<path d="M4 20h6"/><path d="m14 4 6 6-9 9-6 1 1-6z"/>',
+  fullscreen: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  fullscreenExit: '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>',
 };
 function svg(paths, size) {
   return '<svg width="' + (size || 15) + '" height="' + (size || 15) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
@@ -25975,8 +26014,48 @@ function injectRibbonExtras(ctx) {
   clearFB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   clearFB.addEventListener('click', function() { clearAllFormatting(ctx); });
   endFrag.appendChild(clearFB);
+  endFrag.appendChild(ptSep());
+  // ── Page fullscreen (Batch 10 #4): fill the whole browser window, hiding the
+  // sidebar + app header. Esc or the button (icon flips) exits. ──
+  var fsB = ptBtn(svg(IC.fullscreen), 'Fullscreen page (Esc to exit)');
+  fsB.className += ' docx-pagefs-btn';
+  fsB.addEventListener('click', function() { togglePageFullscreen(ctx); });
+  ctx._pagefsBtn = fsB;
+  endFrag.appendChild(fsB);
   if (spacer) tb.insertBefore(endFrag, spacer);
   else tb.appendChild(endFrag);
+}
+
+/* ═══════════ Page fullscreen (overtake the browser window) ═══════════ */
+function _pageFsClass(app) { return app + '-page-fs'; }
+function _setPageFsBtn(ctx, on) {
+  if (!ctx._pagefsBtn) return;
+  ctx._pagefsBtn.innerHTML = svg(on ? IC.fullscreenExit : IC.fullscreen);
+  ctx._pagefsBtn.title = on ? 'Exit fullscreen (Esc)' : 'Fullscreen page (Esc to exit)';
+}
+function setPageFullscreen(ctx, on) {
+  var root = document.getElementById(ctx.app + '-root');
+  if (!root) return;
+  root.classList.toggle(_pageFsClass(ctx.app), !!on);
+  _setPageFsBtn(ctx, !!on);
+  // recompute the "fit" zoom for the new (wider) available width
+  requestAnimationFrame(function() { try { applyZoom(ctx.app); updateRulers(ctx.app); } catch (e) {} });
+}
+function togglePageFullscreen(ctx) {
+  var root = document.getElementById(ctx.app + '-root');
+  if (!root) return;
+  setPageFullscreen(ctx, !root.classList.contains(_pageFsClass(ctx.app)));
+}
+// Global Esc handler — leave fullscreen for whichever page is currently maximized.
+if (!window._docxPageFsEscBound) {
+  window._docxPageFsEscBound = true;
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    ALLCTX.forEach(function(ctx) {
+      var root = document.getElementById(ctx.app + '-root');
+      if (root && root.classList.contains(_pageFsClass(ctx.app))) setPageFullscreen(ctx, false);
+    });
+  });
 }
 
 /* ═══════════ Robust block / inline-code / link / indent / clear operations ═══════════ */
@@ -27143,21 +27222,30 @@ window._docxOnLoad = function(edId, docId) {
       ctx.history.seed();
       ctx.history.loadPersisted(ctx._docId);   // restore last undo/redo states from a previous session
     }
+    try { applyPageSetup(ctx.app); } catch (e) {}   // apply THIS page's own saved margins
     _docxRestoreScroll(ctx);                    // reopen at the last scroll position
   }
   // Re-render any saved math (and ensure the KaTeX stylesheet is loaded).
   if (window._docxRenderMath) { var el = $(edId); if (el && el.querySelector('.docx-math')) window._docxRenderMath(el); }
 };
 // Restore the saved scroll position for the doc now loaded into ctx (item 12).
+// A brand-new page (or one that was never scrolled) has no saved value → open at
+// the TOP, not wherever the previously-viewed page happened to be scrolled to.
 function _docxRestoreScroll(ctx) {
   if (!ctx._docId) return;
   var key = 'docx_scroll_' + ctx.app + '_' + ctx._docId;
   var v = parseInt(localStorage.getItem(key) || '', 10);
-  if (isNaN(v)) return;
-  var set = function() { ctx.wrapEl.scrollTop = v; };
+  if (isNaN(v)) v = 0;
+  var set = function() { if (ctx.wrapEl) ctx.wrapEl.scrollTop = v; };
+  set();
   requestAnimationFrame(function() { requestAnimationFrame(set); });
   setTimeout(set, 250);   // again after async image rehydration reflows the page
 }
+// Snap a page editor's scroll container back to the top (used after "clear all content").
+window._docxScrollToTop = function(edId) {
+  var ctx = ALLCTX.find(function(c) { return c.edEl.id === edId; });
+  if (ctx && ctx.wrapEl) ctx.wrapEl.scrollTop = 0;
+};
 function initAll() {
   Object.keys(APPS).forEach(function(app) {
     try { initApp(app); } catch (e) { console.warn('docx init failed for', app, e); }
