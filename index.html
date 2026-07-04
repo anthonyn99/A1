@@ -7287,7 +7287,7 @@ function erLoad(k,fb){try{const v=localStorage.getItem(k);return v!=null?JSON.pa
 function erSave(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
 function erUid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function erEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function erLoadTheme(){try{const v=localStorage.getItem(TH_THEME_KEY);return v!=null?JSON.parse(v):true;}catch{return true;}}
+function erLoadTheme(){return true;} // light mode removed — always dark
 function erSaveTheme(d){try{localStorage.setItem(TH_THEME_KEY,JSON.stringify(d));}catch{}}
 function erFormatDate(dateStr){
   const d=new Date(dateStr);
@@ -23800,7 +23800,7 @@ window.tjSwitchTo = function(app) {
 
   function tjToggleTheme() {
     var isDark = true;
-    try { isDark = JSON.parse(localStorage.getItem(TJ_THEME_KEY) || 'true'); } catch(e) {}
+    isDark = true; // light mode removed — always dark
     var newDark = !isDark;
     // Use global sync so all Tony apps stay in sync
     if (window._syncAllThemes) {
@@ -23814,7 +23814,7 @@ window.tjSwitchTo = function(app) {
   // Read initial theme (shared with TaskHub — stored as JSON boolean "true"/"false")
   window._tjApplyTheme = function() {
     var isDark = true;
-    try { isDark = JSON.parse(localStorage.getItem(TJ_THEME_KEY) || 'true'); } catch(e) {}
+    isDark = true; // light mode removed — always dark
     tjApplyTheme(isDark);
   };
 
@@ -32713,7 +32713,7 @@ window._mcSwitchTo = mcDoSwitchTo;
 var MC_TH_KEY = 'td6_theme';
 var moonSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
 var sunSvg  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
-function mcLoadTheme(){ try{ var v=localStorage.getItem(MC_TH_KEY); return v!==null?JSON.parse(v):true; }catch{ return true; } }
+function mcLoadTheme(){ return true; } // light mode removed — always dark
 function mcApplyTheme(){
   var isDark = mcLoadTheme();
   var root = document.getElementById('mc-root');
