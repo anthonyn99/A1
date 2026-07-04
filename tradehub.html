@@ -2908,7 +2908,7 @@ function TBBoardPromptPicker({prompts,value,onChange,onGoToPrompts,isMobile}){
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(230px,1fr))",gap:10}}>
       {prompts.map(p=>{const on=p.id===effective;return(
         <button key={p.id} onClick={()=>onChange(p.id)} title={p.name}
-          style={{textAlign:"left",padding:"12px 14px",borderRadius:12,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"rgba(224,96,122,0.10)":"var(--bgc)",cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",gap:6}}>
+          style={{textAlign:"left",padding:"12px 14px",borderRadius:12,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"rgba(224,96,122,0.10)":"var(--s2)",cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",gap:6}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{width:15,height:15,borderRadius:"50%",border:`2px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"var(--ac)":"transparent",flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{on&&<span style={{width:5,height:5,borderRadius:"50%",background:"#fff"}}/>}</span>
             <span style={{fontSize:14,fontWeight:800,color:on?"var(--ac)":"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</span>
@@ -3073,7 +3073,7 @@ function TBDashboardBoard({prompts,boardPromptId,onSelectBoardPrompt,onGoToPromp
     {building&&!report&&<div className="tb-card tb-fade-in" style={{textAlign:"center",padding:"40px 20px"}}>
       <div style={{fontSize:28,animation:"tb-spin 1.2s linear infinite",display:"inline-block"}}>⟳</div>
       <div style={{marginTop:10,fontWeight:700,color:"var(--tx)"}}>Building {selPrompt?`“${selPrompt.name}”`:"today's macro read"}…</div>
-      <div style={{fontSize:12,color:"var(--txm)",marginTop:4}}>Live data (FRED · Yahoo · Finnhub) → grounded {model?"":"Gemini "}search → render. ~30–90s.</div>
+      <div style={{fontSize:12,color:"var(--txm)",marginTop:4}}>Live data (FRED · Yahoo · Finnhub) → grounded web search → render. ~30–90s.</div>
     </div>}
 
     {!report&&!building&&<div className="tb-card tb-fade-in" style={{textAlign:"center",padding:"40px 20px",color:"var(--txm)"}}>
