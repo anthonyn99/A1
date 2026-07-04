@@ -2950,30 +2950,23 @@ function TBDashboardBoard({prompts,boardPromptId,onSelectBoardPrompt,onGoToPromp
       setRlUsed(j.usedToday||0);setRlCooldown(Math.max(0,j.cooldownSec||0));}catch(e){}
   },[]);
 
-  /* Push the selected Prompts-tab prompt into the worker's single slot and make
-     it active. Returns true on success. Reuses the stored slot id so we update
-     in place rather than piling up worker prompts. */
-  const pushPromptToWorker=useCallback(async(p)=>{
-    if(!p)return false;
+  /* Push the selected prompt to the worker's active-prompt slot so BOTH the
+     weekday 6am cron and manual builds run the same one. Deduped so we only POST
+     when the selected name/text actually changes. */
+  const pushActivePrompt=useCallback(async(p)=>{
+    if(!p||!p.text)return false;
+    const sig=(p.name||"")+" "+p.text;
+    if(pushedSig.current===sig)return true;   // already pushed this exact prompt
     try{
-      let pid=null; try{pid=localStorage.getItem(TD_SLOT_KEY)||null;}catch{}
-      // Snapshot existing ids so a freshly-created slot is detectable.
-      let beforeIds=new Set();
-      try{const lr=await fetch(TD_WORKER_URL+"/prompts");if(lr.ok){const lj=await lr.json();(lj.prompts||[]).forEach(x=>beforeIds.add(x.id));}}catch{}
-      // Upsert: existing pid → update in place; else create new.
-      const r=await fetch(TD_WORKER_URL+"/prompts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:pid||null,name:p.name||"Prompt",text:p.text||""})});
-      const j=await r.json();
-      if(!j||!j.ok)return false;
-      // Determine our slot id.
-      let slot=pid;
-      if(!slot){ const fresh=(j.prompts||[]).find(x=>!beforeIds.has(x.id)); slot=fresh?fresh.id:(j.activeId||null); }
-      if(!slot)return false;
-      try{localStorage.setItem(TD_SLOT_KEY,slot);}catch{}
-      // Ensure it's the active prompt the worker builds with.
-      await fetch(TD_WORKER_URL+"/prompts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({activeId:slot})}).catch(()=>{});
-      return true;
-    }catch(e){return false;}
+      const r=await fetch(TD_WORKER_URL+"/active-prompt",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:p.name||"Prompt",text:p.text})});
+      if(r.ok){pushedSig.current=sig;return true;}
+    }catch(e){}
+    return false;
   },[]);
+
+  // Keep the worker's active prompt in sync with the current selection (so the
+  // cron pre-build uses whatever prompt is selected here).
+  useEffect(()=>{ if(selPrompt&&selPrompt.text) pushActivePrompt(selPrompt); },[selPrompt&&selPrompt.id,selPrompt&&selPrompt.name,selPrompt&&selPrompt.text]);
 
   useEffect(()=>{
     const boot=async()=>{
@@ -3037,12 +3030,15 @@ function TBDashboardBoard({prompts,boardPromptId,onSelectBoardPrompt,onGoToPromp
 
   const run=async(force)=>{
     if(building||loading)return;
-    // MacroBoard is a FIXED pipeline (FRED + Yahoo + GDELT + grounded Gemini →
-    // render). No prompt to pick — just build.
+    // Build with the prompt selected above. The worker grounds it in live data +
+    // web search, then renders it into the board. Falls back to the next model
+    // only when the top model is genuinely exhausted.
+    if(!selPrompt||!selPrompt.text){setNotice("Add a prompt in the Prompts tab first.");return;}
     setLoading(true);setNotice("");setDegraded(false);
     window._tbBuildUntil=Date.now()+180000; // hold teardown off during /build too
     try{
-      const r=await fetch(TD_WORKER_URL+"/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({force:!!force})});
+      await pushActivePrompt(selPrompt); // keep cron in sync even on a fresh device
+      const r=await fetch(TD_WORKER_URL+"/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({force:!!force,prompt:{name:selPrompt.name,text:selPrompt.text}})});
       const j=await r.json();
       if(r.status===429){setLoading(false);window._tbBuildUntil=0;setNotice(j.error||"Rate limited.");setRlUsed(j.usedToday||rlUsed);setRlCooldown(j.cooldownSec||0);return;}
       if(!r.ok){setLoading(false);window._tbBuildUntil=0;setNotice(j.error||"Build failed.");return;}
@@ -3056,30 +3052,34 @@ function TBDashboardBoard({prompts,boardPromptId,onSelectBoardPrompt,onGoToPromp
     <div style={{display:"flex",alignItems:isMobile?"stretch":"center",gap:isMobile?10:12,flexWrap:"wrap",marginBottom:16,flexDirection:isMobile?"column":"row"}}>
       <div style={{flex:1,minWidth:160}}>
         <div style={{fontSize:20,fontWeight:800,color:"var(--tx)"}}>MacroBoard</div>
-        {generatedAt&&<div style={{fontSize:12,color:"var(--txm)",marginTop:2}}>Updated {tdbTimeAgo(generatedAt)}{model?` · ${model}`:""}</div>}
+        {generatedAt
+          ?<div style={{fontSize:12,color:"var(--txm)",marginTop:2}}>Updated {tdbTimeAgo(generatedAt)}{model?` · ${model}`:""}</div>
+          :<div style={{fontSize:12,color:"var(--txm)",marginTop:2}}>Auto-builds every weekday morning · grounded in live data</div>}
       </div>
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",justifyContent:isMobile?"flex-start":"flex-end"}}>
         <span style={{fontSize:12,color:"var(--txm)"}}>{rlUsed}/{TD_DAILY_LIMIT} today</span>
         {rlCooldown>0&&<span style={{fontSize:12,color:"var(--tbw)"}}>⏱ {tdbFmtTime(rlCooldown)}</span>}
-        <button onClick={()=>run(false)} disabled={!canRun} title={!canRun?(rlUsed>=TD_DAILY_LIMIT?"Daily limit reached":rlCooldown>0?`Wait ${tdbFmtTime(rlCooldown)}`:"Working…"):"Build today's macro read"}
+        <button onClick={()=>run(false)} disabled={!canRun} title={!canRun?(rlUsed>=TD_DAILY_LIMIT?"Daily limit reached":rlCooldown>0?`Wait ${tdbFmtTime(rlCooldown)}`:"Working…"):"Build using the selected prompt"}
           style={{padding:"8px 18px",borderRadius:100,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:800,cursor:canRun?"pointer":"not-allowed",opacity:canRun?1:.5}}>
           {building||loading?<span><span style={{display:"inline-block",animation:"tb-spin 1s linear infinite"}}>⟳</span> Building…</span>:"⚡ Build"}
         </button>
       </div>
     </div>
 
+    <TBBoardPromptPicker prompts={prompts} value={boardPromptId} onChange={onSelectBoardPrompt} onGoToPrompts={onGoToPrompts} isMobile={isMobile}/>
+
     {notice&&<div className="tb-card tb-fade-in" style={{marginBottom:14,borderColor:degraded?"var(--tbr)":"var(--bd)",color:degraded?"var(--tbr)":"var(--txd)"}}>{notice}</div>}
 
     {building&&!report&&<div className="tb-card tb-fade-in" style={{textAlign:"center",padding:"40px 20px"}}>
       <div style={{fontSize:28,animation:"tb-spin 1.2s linear infinite",display:"inline-block"}}>⟳</div>
-      <div style={{marginTop:10,fontWeight:700,color:"var(--tx)"}}>Building today's macro read…</div>
-      <div style={{fontSize:12,color:"var(--txm)",marginTop:4}}>Live data (FRED · Yahoo · GDELT) → grounded Gemini → render. ~30–90s.</div>
+      <div style={{marginTop:10,fontWeight:700,color:"var(--tx)"}}>Building {selPrompt?`“${selPrompt.name}”`:"today's macro read"}…</div>
+      <div style={{fontSize:12,color:"var(--txm)",marginTop:4}}>Live data (FRED · Yahoo · Finnhub) → grounded {model?"":"Gemini "}search → render. ~30–90s.</div>
     </div>}
 
     {!report&&!building&&<div className="tb-card tb-fade-in" style={{textAlign:"center",padding:"40px 20px",color:"var(--txm)"}}>
       <div style={{fontSize:32,marginBottom:8}}>📊</div>
       <div style={{fontWeight:700,color:"var(--txd)"}}>No board yet.</div>
-      <div style={{fontSize:13,marginTop:4}}>Auto-builds 3× on weekdays — or hit ⚡ Build now.</div>
+      <div style={{fontSize:13,marginTop:4}}>Auto-builds every weekday morning (Mon–Fri) — or hit ⚡ Build now.</div>
     </div>}
 
     {report&&<TDBReportView report={report}/>}
