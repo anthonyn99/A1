@@ -10047,7 +10047,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     // Also hide study-root so profile overlay isn't covered
     var sr=document.getElementById("study-root");if(sr)sr.style.display="none";
     // Restore Tony's body bg
-    try{const d=JSON.parse(localStorage.getItem("td6_theme")||"true");const bg=d?"#0f0f12":"#f5f0e8";document.body.style.background=bg;document.documentElement.style.background=bg;}catch{}
+    document.body.style.background="#0f0f12";document.documentElement.style.background="#0f0f12"; // light mode removed — always dark
   }
 
   function showProfile(){
@@ -10082,7 +10082,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     ["el-root","ms-root","er-root","kc-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
     const sw=document.getElementById("th-app-switcher");if(sw)sw.value="taskhub";
     // Restore Tony body bg from saved theme
-    try{const d=JSON.parse(localStorage.getItem("td6_theme")||"true");const bg=d?"#0f0f12":"#f5f0e8";document.body.style.background=bg;document.documentElement.style.background=bg;}catch{}
+    document.body.style.background="#0f0f12";document.documentElement.style.background="#0f0f12"; // light mode removed — always dark
     // Show Tony nav bar
     if(window._updateTonyNavActive)window._updateTonyNavActive('taskhub');
     // Security gate: if TaskHub is locked on this device, hide + prompt
