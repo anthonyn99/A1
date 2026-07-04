@@ -1485,7 +1485,7 @@ function applyDrop(kind, id, t){
     var rest=recipes.filter(function(x){return x.id!==id;});
     var idx = t.beforeId ? rest.findIndex(function(x){return x.id===t.beforeId;}) : rest.length;
     if(idx<0) idx=rest.length;
-    rest.splice(idx,0,src); recipes=rest; persistRecipes(); render(); return;
+    rest.splice(idx,0,src); setRecipes(rest); persistRecipes(); render(); return;
   }
   // list items
   var l=curList(); if(!l) return;
