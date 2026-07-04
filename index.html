@@ -15144,7 +15144,7 @@ function renderTags(tags) {
     delBtn.onclick = () => {
       const e = getActive(); if (!e) return;
       e.tags = (e.tags||[]).filter(t => t !== tag);
-      saveState(); renderTags(e.tags);
+      saveState(); renderTags(e.tags); renderSidebar();
     };
     span.appendChild(delBtn);
     row.insertBefore(span, input);
@@ -15158,7 +15158,7 @@ document.getElementById('bj-add-tag-input').addEventListener('keydown', e => {
     const entry = getActive(); if (!entry) return;
     entry.tags = entry.tags || [];
     if (!entry.tags.includes(val)) entry.tags.push(val);
-    e.target.value = ''; saveState(); renderTags(entry.tags);
+    e.target.value = ''; saveState(); renderTags(entry.tags); renderSidebar();
   }
 });
 
@@ -20642,7 +20642,7 @@ function renderTags(tags) {
     delBtn.onclick = () => {
       const e = getActive(); if (!e) return;
       e.tags = (e.tags||[]).filter(t => t !== tag);
-      saveState(); renderTags(e.tags);
+      saveState(); renderTags(e.tags); renderSidebar();
     };
     span.appendChild(delBtn);
     row.insertBefore(span, input);
@@ -20656,7 +20656,7 @@ document.getElementById('tj-add-tag-input').addEventListener('keydown', e => {
     const entry = getActive(); if (!entry) return;
     entry.tags = entry.tags || [];
     if (!entry.tags.includes(val)) entry.tags.push(val);
-    e.target.value = ''; saveState(); renderTags(entry.tags);
+    e.target.value = ''; saveState(); renderTags(entry.tags); renderSidebar();
   }
 });
 
