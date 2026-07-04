@@ -29158,6 +29158,8 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
    click still reaches the handler and shows the "disabled on your journal" toast. ── */
 .docx-feature-locked { opacity: .4 !important; cursor: not-allowed !important; }
 .docx-feature-locked:hover { opacity: .5 !important; }
+/* ── Increase / Decrease font-size buttons ── */
+.docx-fs-step { display: inline-flex; align-items: baseline; justify-content: center; min-width: 26px; }
 
 /* ── Page-toolbar buttons get a boxed outline (matches the Journal-Entries edit menu) ── */
 #tj-root:not(.tj-light) #tj-page-toolbar .pt-btn, #bj-root #bj-page-toolbar .pt-btn { border: 1px solid var(--border2, #323240); background: rgba(255,255,255,.02); }
@@ -31803,6 +31805,8 @@ function wireImageDelegation(ctx) {
       } catch (x) {}
     });
     // Resize handle → scale the chip like an image (drag the corner to grow/shrink).
+    // Remove any stale handle from saved HTML first (it has no listeners) to avoid duplicates.
+    var oldH = c.querySelector(':scope > .docx-file-resize'); if (oldH) oldH.remove();
     var h = document.createElement('span');
     h.className = 'docx-file-resize';
     h.setAttribute('contenteditable', 'false');
