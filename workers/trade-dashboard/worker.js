@@ -36,13 +36,13 @@
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /* ════════════════════════ CONFIG ════════════════════════ */
-const VERSION         = '2026-06-23-macroboard-v1';
+const VERSION         = '2026-07-04-macroboard-v2-prompt';
 const DAILY_LIMIT     = 12;          // manual fresh builds / UTC day
 const MIN_INTERVAL_S  = 15 * 60;     // 15-min cooldown between manual builds
 const CACHE_TTL_S     = 25 * 60;     // dedup identical builds 25 min
 const AI_TIMEOUT_MS   = 24 * 1000;   // per-AI-call cap (under ~30s isolate wall)
-const STAGE_A_TOKENS  = 4096;        // grounded narrative budget
-const STAGE_B_TOKENS  = 8192;        // render budget (full block report)
+const STAGE_A_TOKENS  = 6144;        // grounded analysis budget (follows the user's prompt)
+const STAGE_B_TOKENS  = 10240;       // render budget (full block report — big prompts = big output)
 const POLL_STALE_MS   = 240 * 1000;  // /poll marks a build dead after this
 
 /* Stage-B render chain — walked top→bottom. Grounding is Stage A only; B is a
