@@ -30536,7 +30536,7 @@ window._docxOpenTrash = function(app) {
    code needs to change. Currently Brainstorm Journal (bj) has AI Format, Render Markdown, and
    the AI Format prompt editor disabled by request. To re-enable, remove 'bj' below (or just
    the specific feature name from its list). */
-var DOCX_DISABLED_FEATURES = { bj: ['aiFormat', 'renderMarkdown', 'aiPrompt'] };
+var DOCX_DISABLED_FEATURES = { bj: ['aiFormat', 'renderMarkdown', 'unrenderMarkdown', 'aiPrompt'] };
 function _docxFeatureLocked(app, feature) {
   return (DOCX_DISABLED_FEATURES[app] || []).indexOf(feature) !== -1;
 }
@@ -30891,6 +30891,9 @@ function buildMenubar(ctx) {
       if (_docxFeatureLocked(app, 'renderMarkdown')) mdMi.classList.add('docx-feature-locked');
       p.appendChild(mdMi);
     }
+    var unMi = mi('Unrender Markdown', function() { unrenderMarkdown(ctx); });
+    if (_docxFeatureLocked(app, 'unrenderMarkdown')) unMi.classList.add('docx-feature-locked');
+    p.appendChild(unMi);
     p.appendChild(msep());
     p.appendChild(mi('Word count', function() { wordCountModal(ctx); }));
     p.appendChild(mi('Keyboard shortcuts', shortcutsModal));
@@ -31323,6 +31326,18 @@ function rebindPageButtons(ctx) {
   if (mdB) {
     if (_docxFeatureLocked(ctx.app, 'renderMarkdown')) { mdB.classList.add('docx-feature-locked'); mdB.title = 'This feature has been disabled on your journal.'; }
     mdB.addEventListener('click', function() { renderMarkdown(ctx); });
+    // Unrender Markdown — the exact reverse of Render (whole doc, or only the selection).
+    if (!tb.querySelector('.docx-unmd-btn')) {
+      var unmdB = document.createElement('button');
+      unmdB.className = 'pt-btn docx-unmd-btn';
+      unmdB.style.cssText = 'font-weight:700;font-size:11px;';
+      unmdB.textContent = 'Unrender';
+      unmdB.title = 'Unrender Markdown — convert formatted content back to raw Markdown';
+      if (_docxFeatureLocked(ctx.app, 'unrenderMarkdown')) { unmdB.classList.add('docx-feature-locked'); unmdB.title = 'This feature has been disabled on your journal.'; }
+      unmdB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
+      unmdB.addEventListener('click', function() { unrenderMarkdown(ctx); });
+      if (mdB.nextSibling) mdB.parentNode.insertBefore(unmdB, mdB.nextSibling); else mdB.parentNode.appendChild(unmdB);
+    }
   }
 }
 
@@ -31402,6 +31417,96 @@ function _docxConvertRawMath(root) {
     changed = true;
   });
   return changed;
+}
+
+// Serialize rendered HTML back into raw Markdown text (the reverse of _mdToHtml) — used by Unrender.
+function _docxHtmlToMd(root) {
+  function kids(node) { var s = ''; Array.prototype.slice.call(node.childNodes).forEach(function (c) { s += ser(c); }); return s; }
+  function listMd(listEl, ordered, depth) {
+    var lines = [], idx = 1;
+    Array.prototype.slice.call(listEl.children).forEach(function (li) {
+      if (li.tagName.toLowerCase() !== 'li') return;
+      var box = li.querySelector('input[type=checkbox], .docx-cl-box');
+      var checked = null;
+      if (box || li.classList.contains('docx-cl-item') || li.classList.contains('docx-cl')) checked = box ? (box.checked || box.hasAttribute('checked')) : li.classList.contains('done');
+      var marker = checked !== null ? ('- [' + (checked ? 'x' : ' ') + '] ') : (ordered ? (idx + '. ') : '- ');
+      var inline = '', nested = [];
+      Array.prototype.slice.call(li.childNodes).forEach(function (ch) {
+        if (ch.nodeType === 1 && /^(ul|ol)$/i.test(ch.tagName)) nested.push(ch);
+        else if (ch.nodeType === 1 && ch.matches && ch.matches('input, .docx-cl-box')) { /* skip checkbox */ }
+        else inline += ser(ch);
+      });
+      lines.push(new Array((depth || 0) + 1).join('  ') + marker + inline.replace(/\s+/g, ' ').trim());
+      nested.forEach(function (nl) { lines.push(listMd(nl, nl.tagName.toLowerCase() === 'ol', (depth || 0) + 1)); });
+      idx++;
+    });
+    return lines.join('\n');
+  }
+  function tableMd(tableEl) {
+    var rows = Array.prototype.slice.call(tableEl.querySelectorAll('tr')), lines = [];
+    rows.forEach(function (tr, ri) {
+      var cells = Array.prototype.slice.call(tr.querySelectorAll('th,td')).map(function (c) { return kids(c).replace(/\s+/g, ' ').trim() || ' '; });
+      lines.push('| ' + cells.join(' | ') + ' |');
+      if (ri === 0) lines.push('| ' + cells.map(function () { return '---'; }).join(' | ') + ' |');
+    });
+    return lines.join('\n');
+  }
+  function ser(node) {
+    if (node.nodeType === 3) return node.nodeValue.replace(/​/g, '');
+    if (node.nodeType !== 1) return '';
+    var el = node, tag = el.tagName.toLowerCase();
+    if (el.classList) {
+      if (el.classList.contains('docx-math')) { var tex = _mathTex(el); return el.classList.contains('docx-math-block') ? ('\n$$' + tex + '$$\n') : ('$' + tex + '$'); }
+      if (el.classList.contains('docx-math-resize') || el.classList.contains('docx-file-resize') || el.classList.contains('pg-img-resize-handle') || el.classList.contains('pg-img-del-handle')) return '';
+    }
+    switch (tag) {
+      case 'br': return '\n';
+      case 'strong': case 'b': return '**' + kids(el) + '**';
+      case 'em': case 'i': return '*' + kids(el) + '*';
+      case 's': case 'strike': case 'del': return '~~' + kids(el) + '~~';
+      case 'mark': return '==' + kids(el) + '==';
+      case 'sub': return '~' + kids(el) + '~';
+      case 'sup': return '^' + kids(el) + '^';
+      case 'u': return '<u>' + kids(el) + '</u>';
+      case 'code': return '`' + kids(el) + '`';
+      case 'pre': return '\n```\n' + el.textContent.replace(/​/g, '').replace(/\n$/, '') + '\n```\n';
+      case 'a': return '[' + kids(el) + '](' + (el.getAttribute('href') || '') + ')';
+      case 'img': return '![' + (el.getAttribute('alt') || '') + '](' + (el.getAttribute('src') || '') + ')';
+      case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
+        return '\n' + new Array(+tag[1] + 1).join('#') + ' ' + kids(el).replace(/\s+/g, ' ').trim() + '\n';
+      case 'blockquote': { var inr = kids(el).trim(); return '\n' + inr.split('\n').map(function (l) { return '> ' + l; }).join('\n') + '\n'; }
+      case 'hr': return '\n---\n';
+      case 'ul': return '\n' + listMd(el, false, 0) + '\n';
+      case 'ol': return '\n' + listMd(el, true, 0) + '\n';
+      case 'li': return kids(el);
+      case 'table': return '\n' + tableMd(el) + '\n';
+      case 'p': case 'div': return kids(el) + '\n\n';
+      case 'input': return '';
+      default: return kids(el);   // span, font, etc. — just their text/markup
+    }
+  }
+  return kids(root).replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
+}
+// Unrender Markdown — reverse of renderMarkdown. Selection → unrender only it; else → whole doc.
+function unrenderMarkdown(ctx) {
+  if (_docxFeatureLocked(ctx.app, 'unrenderMarkdown')) { _docxLockedToast(); return; }
+  var ed = ctx.edEl;
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  restoreSel(ctx);
+  var sel = window.getSelection();
+  if (sel && sel.rangeCount && !sel.isCollapsed && ed.contains(sel.anchorNode) && ed.contains(sel.focusNode)) {
+    var range = sel.getRangeAt(0);
+    var holder = document.createElement('div'); holder.appendChild(range.cloneContents());
+    var md = _docxHtmlToMd(holder);
+    range.deleteContents();
+    var tmp = document.createElement('div'); tmp.innerHTML = esc(md).replace(/\n/g, '<br>');
+    var out = document.createDocumentFragment(); while (tmp.firstChild) out.appendChild(tmp.firstChild);
+    range.insertNode(out);
+  } else {
+    var mdAll = _docxHtmlToMd(ed);
+    ed.innerHTML = mdAll.split(/\n{2,}/).map(function (p) { return '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>'; }).join('') || '<p><br></p>';
+  }
+  fireInput(ed);
 }
 
 // The effective font size of a block's actual TEXT (not the block's own default) — reads the
