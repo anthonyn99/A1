@@ -390,53 +390,49 @@ function parseObj(txt){
   throw tagged('PARSE','unparseable');
 }
 
-/* ════════════════════════ STAGE A — grounded narrative ════════════════════════ */
-const STAGE_A_SYS = `You are a senior macro strategist for an active LONG-ONLY equity trader. Using Google Search for the latest developments, produce TODAY'S market-moving macro picture. The user provides real live market/macro DATA below — build the narrative AROUND that data. Be specific, current, and cite real developments. Return ONE JSON object ONLY (no markdown, no prose outside it):
-{
- "asOf": "<today, US Eastern>",
- "marketReaction": "<1-2 sentences: how is the tape reacting right now — indices/yields/oil/VIX, premarket direction>",
- "drivers": [ {"title":"<driver>","detail":"<1 line, with the actual latest fact>","tone":"good|warn|bad|neutral"} ],   // top 3-6 that ACTUALLY matter today
- "geopolitics": {"summary":"<1 line>","bullets":["<latest Iran/Hormuz/Middle East/Ukraine/Taiwan dev + market impact>"]},
- "trump": {"summary":"<1 line>","bullets":["<latest market-moving Trump statement/policy/tariff + impact>"]},
- "centralBanks": {"summary":"<1 line>","bullets":["<Fed/ECB/BOJ latest + rate-path read>"]},
- "energy": {"summary":"<1 line>","bullets":["<oil/OPEC driver + equity/inflation impact>"]},
- "dataPrints": ["<any econ print released today/this week + actual vs expected if known>"],
- "regimeRead": "<risk-on | risk-off | mixed — why, 1 line>",
- "biasRead": "<bullish | bearish | chop — why, 1 line>",
- "keyRisk": "<the single biggest downside risk to longs today>",
- "keyOpportunity": "<the single best tailwind for longs today>",
- "sectorTailwinds": ["<sectors with macro tailwind today>"],
- "sectorHeadwinds": ["<sectors to avoid for longs today>"]
-}
-RULES: real facts only — if search yields nothing fresh on a topic, say "no major new development" rather than inventing. Keep each string to ~1 line. Never output template brackets.`;
+/* ════════════════════════ STAGE A — grounded analysis (runs the user's prompt) ════════════════════════ */
+const STAGE_A_SYS = `You are a senior macro & markets strategist for an active LONG-ONLY equity trader, with live Google Search access. The user gives you THEIR analysis request (their "daily prompt") plus REAL live market/macro DATA. Do exactly what their request asks — cover every section, in their order — but keep it grounded:
+- Use Google Search for the VERY latest developments (geopolitics, Trump/policy/tariffs, the Fed & rate path, oil/OPEC, econ data, and any tickers/sectors the prompt names).
+- Anchor every number to the REAL DATA provided (indices, yields, oil, VIX, FRED prints, forward calendar, earnings). Never invent a price or a level.
+- If search turns up nothing fresh on a point, say "no major new development" rather than guessing.
+- Be specific, current, and concise — ~1-2 lines per point.
+Write a clean, well-structured analysis in PLAIN TEXT: a short heading per section followed by tight bullets. Do NOT output JSON — a downstream renderer turns your text into cards. Be complete and organized.`;
 
-const STAGE_A_CALL_MS = 18000;   // per grounded call (search adds latency)
-const STAGE_A_WALK_MS = 70000;   // hard cap for the whole Stage A walk
-async function runStageA(facts, env){
-  const user = `${facts.text}\n\nUsing live Google Search, produce the macro JSON for an active long-only trader. Search the very latest on: geopolitics (Iran/Middle East/Ukraine), Trump policy & tariffs, the Fed & rate path, and oil/OPEC. Tie each to how it moves the data above (yields, oil, VIX, indices).`;
+function renderStageAUser(facts, promptText){
+  return `REAL LIVE DATA (authoritative — anchor ALL numbers to these):\n${facts.text}\n\n──────────\nMY ANALYSIS REQUEST (follow this exactly, in this order):\n${promptText}\n\nUsing live Google Search for the latest, write the full analysis now. Anchor every number to the DATA above; pull today's freshest developments for anything time-sensitive.`;
+}
+
+const STAGE_A_CALL_MS = 22000;   // per grounded call (search + big output adds latency)
+const STAGE_A_WALK_MS = 78000;   // hard cap for the whole Stage A walk
+async function runStageA(facts, promptText, env){
+  const user = renderStageAUser(facts, promptText || DEFAULT_PROMPT.text);
   const attempts=[];
   const deadline = Date.now() + STAGE_A_WALK_MS;
+  // GROUNDED_MODELS is ordered HIGHEST-capability first. We only advance to a
+  // weaker model when the stronger one is GENUINELY exhausted (429/quota) or
+  // KV-blocked from a prior 429 — never on a transient hiccup (those retry in place).
   for(const model of GROUNDED_MODELS){
     if(Date.now() > deadline) break;                              // out of time → fall to degraded
     const blocked = await kvGet(env,'qblock:'+model).catch(()=>null);
     if(blocked){ attempts.push({model:`gemini:${model}`,code:'KV_BLOCKED'}); continue; }
-    // at most ONE retry per model, and only if there's time left
-    for(let retry=0; retry<=1; retry++){
+    // Up to TWO retries per model for transient errors (don't drop to a weaker
+    // model just because the strong one blipped) — as long as there's time left.
+    for(let retry=0; retry<=2; retry++){
       if(Date.now() > deadline) break;
       try{
         const txt=await callGemini(model, STAGE_A_SYS, user, env, STAGE_A_TOKENS, true, STAGE_A_CALL_MS);
-        const obj=parseObj(txt);
-        return { narrative:obj, model:`gemini:${model} (grounded)`, attempts };
+        if(!txt || txt.trim().length<60) throw tagged('EMPTY','analysis too short');
+        return { narrative:txt.trim(), model:`gemini:${model} (grounded)`, attempts };
       }catch(e){
         attempts.push({model:`gemini:${model}`,code:e.code||'ERR',retry,msg:(e.message||'').slice(0,80)});
-        if(e.code==='RATE_LIMIT'){ await kvPut(env,'qblock:'+model,'1',3600); break; }   // quota → block 1h, next model
+        if(e.code==='RATE_LIMIT'){ await kvPut(env,'qblock:'+model,'1',3600); break; }   // real quota → block 1h, next model
         const transient = e.code==='SERVER' || e.name==='TimeoutError' || e.code==='EMPTY';
-        if(transient && retry<1 && Date.now()+3000<deadline){ await sleep(900+Math.random()*400); continue; }
-        break;  // next model
+        if(transient && retry<2 && Date.now()+3500<deadline){ await sleep(900+Math.random()*500); continue; }  // retry SAME model
+        break;  // non-transient / out of retries → next model
       }
     }
   }
-  const e=tagged('STAGE_A_FAILED','grounded narrative failed'); e.attempts=attempts; throw e;
+  const e=tagged('STAGE_A_FAILED','grounded analysis failed'); e.attempts=attempts; throw e;
 }
 
 /* ════════════════════════ STAGE B — render to block schema ════════════════════════ */
