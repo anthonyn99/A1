@@ -40,14 +40,14 @@
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /* ════════════════════════ CONFIG ════════════════════════ */
-const VERSION         = '2026-07-04-macroboard-v2-prompt';
+const VERSION         = '2026-07-04-macroboard-v3-notimeout';
 const DAILY_LIMIT     = 12;          // manual fresh builds / UTC day
 const MIN_INTERVAL_S  = 15 * 60;     // 15-min cooldown between manual builds
 const CACHE_TTL_S     = 25 * 60;     // dedup identical builds 25 min
 const AI_TIMEOUT_MS   = 24 * 1000;   // per-AI-call cap (under ~30s isolate wall)
-const STAGE_A_TOKENS  = 6144;        // grounded analysis budget (follows the user's prompt)
-const STAGE_B_TOKENS  = 10240;       // render budget (full block report — big prompts = big output)
-const POLL_STALE_MS   = 240 * 1000;  // /poll marks a build dead after this
+const STAGE_A_TOKENS  = 3000;        // grounded analysis budget — kept tight so the call returns WELL under the ~30s isolate wall (concise, no timeouts)
+const STAGE_B_TOKENS  = 5500;        // render budget — a concise board renders fast enough to never time out
+const POLL_STALE_MS   = 150 * 1000;  // /poll marks a build dead after this
 
 /* Stage-B render chain — walked top→bottom. Grounding is Stage A only; B is a
    pure JSON formatter so a fast non-grounded model is ideal. */
@@ -402,40 +402,36 @@ function renderStageAUser(facts, promptText){
   return `REAL LIVE DATA (authoritative — anchor ALL numbers to these):\n${facts.text}\n\n──────────\nMY ANALYSIS REQUEST (follow this exactly, in this order):\n${promptText}\n\nUsing live Google Search for the latest, write the full analysis now. Anchor every number to the DATA above; pull today's freshest developments for anything time-sensitive.`;
 }
 
-const STAGE_A_CALL_MS = 22000;   // per grounded call (search + big output adds latency)
-const STAGE_A_WALK_MS = 78000;   // hard cap for the whole Stage A walk
+const STAGE_A_CALL_MS = 18000;   // per grounded call — capped so ONE call can't blow the ~30s isolate wall
+const STAGE_A_WALK_MS = 23000;   // whole Stage A stays comfortably under the wall (never gets killed → never hangs the build)
 async function runStageA(facts, promptText, env){
   const user = renderStageAUser(facts, promptText || DEFAULT_PROMPT.text);
   const attempts=[];
   const deadline = Date.now() + STAGE_A_WALK_MS;
-  // GROUNDED_MODELS is ordered HIGHEST-capability first. We only advance to a
-  // weaker model when the stronger one is GENUINELY exhausted (429/quota) or
-  // KV-blocked from a prior 429 — never on a transient hiccup (those retry in place).
+  // GROUNDED_MODELS is ordered HIGHEST-capability first. ONE attempt per model.
+  // A 429 returns fast, so we can step DOWN to the next model within budget (this
+  // is the real fallback). A slow TIMEOUT eats the budget, so after one we STOP and
+  // let render proceed from the hard data — the isolate must return, never hang.
   for(const model of GROUNDED_MODELS){
-    if(Date.now() > deadline) break;                              // out of time → fall to degraded
+    if(Date.now()+2000 > deadline) break;                        // out of time → render from data
     const blocked = await kvGet(env,'qblock:'+model).catch(()=>null);
     if(blocked){ attempts.push({model:`gemini:${model}`,code:'KV_BLOCKED'}); continue; }
-    // Up to TWO retries per model for transient errors (don't drop to a weaker
-    // model just because the strong one blipped) — as long as there's time left.
-    for(let retry=0; retry<=2; retry++){
-      if(Date.now() > deadline) break;
-      try{
-        const txt=await callGemini(model, STAGE_A_SYS, user, env, STAGE_A_TOKENS, true, STAGE_A_CALL_MS);
-        if(!txt || txt.trim().length<60) throw tagged('EMPTY','analysis too short');
-        return { narrative:txt.trim(), model:`gemini:${model} (grounded)`, attempts };
-      }catch(e){
-        attempts.push({model:`gemini:${model}`,code:e.code||'ERR',retry,msg:(e.message||'').slice(0,80)});
-        if(e.code==='RATE_LIMIT'){
-          // Real quota hit → step down to the next model. Block this one only for
-          // as long as the API says (Retry-After) so a brief per-minute throttle
-          // doesn't lock us out of the TOP model for an hour. Default 20 min.
-          const ttl = e.retryAfter>0 ? Math.min(3600, Math.max(60, Math.ceil(e.retryAfter))) : 1200;
-          await kvPut(env,'qblock:'+model,'1',ttl); break;
-        }
-        const transient = e.code==='SERVER' || e.name==='TimeoutError' || e.code==='EMPTY';
-        if(transient && retry<2 && Date.now()+3500<deadline){ await sleep(900+Math.random()*500); continue; }  // retry SAME model
-        break;  // non-transient / out of retries → next model
+    const started=Date.now();
+    const budget=Math.max(6000, Math.min(STAGE_A_CALL_MS, deadline-Date.now()));  // never exceed the walk
+    try{
+      const txt=await callGemini(model, STAGE_A_SYS, user, env, STAGE_A_TOKENS, true, budget);
+      if(!txt || txt.trim().length<60) throw tagged('EMPTY','analysis too short');
+      return { narrative:txt.trim(), model:`gemini:${model} (grounded)`, attempts };
+    }catch(e){
+      attempts.push({model:`gemini:${model}`,code:e.code||'ERR',msg:(e.message||'').slice(0,80)});
+      if(e.code==='RATE_LIMIT'){
+        // Real quota hit → step down. Block this model only as long as the API says
+        // (Retry-After) so a brief per-minute throttle doesn't lock out the TOP model.
+        const ttl = e.retryAfter>0 ? Math.min(3600, Math.max(60, Math.ceil(e.retryAfter))) : 1200;
+        await kvPut(env,'qblock:'+model,'1',ttl); continue;      // 429 is fast → try next model
       }
+      if(Date.now()-started > 8000) break;                       // a SLOW failure ate the budget → stop, render from data
+      continue;                                                  // a quick error → try the next model
     }
   }
   const e=tagged('STAGE_A_FAILED','grounded analysis failed'); e.attempts=attempts; throw e;
@@ -479,27 +475,33 @@ function renderUserPrompt(facts, narrativeText, promptText){
 RULES: preserve ALL substance from the analysis — never drop a section it covered and never invent one it didn't. Keep every string to ~1 line. Set meta.bias/regime/goNoGo/confidence from the analysis. summary = its 1-line top-line read.`;
 }
 
-const STAGE_B_CALL_MS = 20000;   // per render call (large boards take longer)
-const STAGE_B_WALK_MS = 62000;   // hard cap for the whole render walk
+const STAGE_B_CALL_MS = 18000;   // per render call — capped to stay under the ~30s isolate wall
+const STAGE_B_WALK_MS = 24000;   // whole render walk stays under the wall (never killed mid-render)
 async function runStageB(facts, narrative, promptText, env, opts={}){
   const sys=RENDER_SCHEMA, user=renderUserPrompt(facts,narrative,promptText);
   const attempts=[];
   const deadline = Date.now() + STAGE_B_WALK_MS;
   for(const tier of RENDER_CHAIN){
+    if(Date.now()+2000 > deadline) break;
     // when gemini just got throttled this build, don't waste calls on it — go
     // straight to nvidia/groq (avoids two guaranteed-429s + speeds render).
     if(opts.skipGemini && tier.provider==='gemini'){ attempts.push({model:'gemini:*',code:'SKIPPED_THROTTLED'}); continue; }
     for(const model of tier.models){
-      if(Date.now() > deadline){ attempts.push({model:`${tier.provider}:${model}`,code:'WALK_TIMEOUT'}); break; }
+      if(Date.now()+2000 > deadline){ attempts.push({model:`${tier.provider}:${model}`,code:'WALK_TIMEOUT'}); break; }
+      const started=Date.now();
+      const budget=Math.max(6000, Math.min(STAGE_B_CALL_MS, deadline-Date.now()));  // never exceed the walk
       try{
         let txt;
-        if(tier.provider==='gemini') txt=await callGemini(model,sys,user,env,STAGE_B_TOKENS,false,STAGE_B_CALL_MS);
-        else if(tier.provider==='nvidia') txt=await callNvidia(model,sys,user,env,STAGE_B_TOKENS,STAGE_B_CALL_MS);
-        else txt=await callGroq(model,sys,user,env,STAGE_B_TOKENS,STAGE_B_CALL_MS);
+        if(tier.provider==='gemini') txt=await callGemini(model,sys,user,env,STAGE_B_TOKENS,false,budget);
+        else if(tier.provider==='nvidia') txt=await callNvidia(model,sys,user,env,STAGE_B_TOKENS,budget);
+        else txt=await callGroq(model,sys,user,env,STAGE_B_TOKENS,budget);
         const obj=parseObj(txt);
         if(!Array.isArray(obj.blocks)||!obj.blocks.length) throw tagged('NO_BLOCKS','empty blocks');
         return { report:obj, model:`${tier.provider}:${model}`, attempts };
-      }catch(e){ attempts.push({model:`${tier.provider}:${model}`,code:e.code||'ERR',msg:(e.message||'').slice(0,80)}); }
+      }catch(e){
+        attempts.push({model:`${tier.provider}:${model}`,code:e.code||'ERR',msg:(e.message||'').slice(0,80)});
+        if(Date.now()-started > 9000) break;   // slow failure ate the budget → stop trying this tier's models
+      }
     }
   }
   const e=tagged('STAGE_B_FAILED','all render models failed'); e.attempts=attempts; throw e;
