@@ -7,10 +7,9 @@ compatibility_date = "2025-06-01"
 # A single UTC cron can't track DST to keep the same local time both seasons, and the
 # account is capped at 5 cron triggers total, so two-per-worker (one per offset) isn't
 # an option.
-# Fires every day (Cloudflare rejects a Sunday-inclusive DOW range like "0-5"); the
-# scheduled() handler branches on the day itself: Mon-Fri -> News pre-warm; Sun + Wed
-# -> Catalysts (Wed -> both); Saturday -> nothing (free no-op). Market holidays are
-# skipped inside scheduled().
+# Fires every day; the scheduled() handler branches on the day itself: News pre-warm
+# runs EVERY day (Mon-Sun); Sun + Wed additionally pre-warm Catalysts. News is not
+# holiday-gated (world/company news doesn't stop on market holidays).
 [triggers]
 crons = ["0 12 * * *"]
 
