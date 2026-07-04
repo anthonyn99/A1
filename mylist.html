@@ -1058,7 +1058,13 @@ async function sendToAI(payloadExtra){
     var body=Object.assign({ profile:activeProfile, mode:'edit', items:(l&&l.items)||[], stores:(l&&l.stores)||[] }, payloadExtra);
     var r=await fetch(API+'/list/parse',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     var d=await r.json();
-    if(d.ok && Array.isArray(d.items)){ applyParsed(ensureList(), d); $('voice-status') && ($('voice-status').textContent=''); toast(d.note||'List updated'); }
+    if(d.ok && Array.isArray(d.items)){
+      var lst=ensureList();
+      if(d.listName) lst.name=String(d.listName);
+      applyParsed(lst, d);
+      if(d.newList) createListFromAI(d.newList);
+      $('voice-status') && ($('voice-status').textContent=''); toast(d.note||'List updated');
+    }
     else { toast(d.error||'Could not understand', true); }
   }catch(e){ toast('Network error', true); }
 }
@@ -1078,10 +1084,23 @@ function applyParsed(l, d){
     return { id: prev?prev.id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'', desc:p.desc||(prev?prev.desc:'')||'',
              done: (typeof p.done==='boolean')?p.done:(prev?prev.done:false) };
   }).filter(function(x){return x.name;});
-  l.stores=l.stores||[];
+  // Worker output is authoritative for stores — replacing (not merging) lets
+  // voice commands REMOVE and RENAME stores, not just add them.
+  l.stores=[];
   function addStoreName(s){ if(s && l.stores.map(function(x){return x.toLowerCase();}).indexOf(String(s).toLowerCase())<0) l.stores.push(String(s)); }
   (d.stores||[]).forEach(addStoreName);
   l.items.forEach(function(it){ addStoreName(it.store); });
+  persist(); render();
+}
+// "create a new list called X with ..." — worker returns the new list's contents;
+// build it, keep the old list intact, and switch to the new one.
+function createListFromAI(nl){
+  var lst={ id:uid(), name:String(nl.name||'New List'),
+    stores:(nl.stores||[]).map(String),
+    items:(nl.items||[]).map(function(p){ return { id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'', desc:p.desc||'', done:!!p.done }; }).filter(function(x){return x.name;}),
+    createdAt:Date.now() };
+  lists().push(lst); activeListId=lst.id;
+  try{ localStorage.setItem('ml_last_list_'+activeProfile,lst.id); }catch(e){}
   persist(); render();
 }
 

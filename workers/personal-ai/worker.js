@@ -474,6 +474,8 @@ async function handleList(body, env) {
       if (out && Array.isArray(out.ops)) {
         const res = applyListOps(items, stores, out.ops);
         const resp = { ok: true, items: res.items, stores: res.stores, note: String(out.note || '').trim(), ops: out.ops.length, model };
+        if (res.listName) resp.listName = res.listName;
+        if (res.newList) resp.newList = res.newList;
         if (body.debug) resp.opsDetail = out.ops;
         return json(resp);
       }
@@ -770,7 +772,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 4, // bump when verifying a deploy went live
+        version: 5, // bump when verifying a deploy went live
         features: ['list', 'taskhub', 'journal'],
         models: MODELS,
         listModels: LIST_MODELS,
