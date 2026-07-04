@@ -1,17 +1,21 @@
 /**
  * MACROBOARD — Cloudflare Worker  (was: trade-dashboard / TradeBoard)
  * ────────────────────────────────────────────────────────────────────────────
- * Top-down MACRO engine. Replaces the old free-text "run any prompt → blocks"
- * runner (which HALLUCINATED the macro narrative because the AI chain had no web
- * access) with a FIXED pipeline that feeds the AI only REAL, fresh data:
+ * Top-down MACRO engine. Runs the USER'S SELECTED PROMPT (from the Control tab)
+ * but grounds it in REAL, fresh data so it can't hallucinate — the best of both:
+ * the user's own "daily prompt" drives the analysis, real facts + web search keep
+ * it accurate.
  *
  *   FACTS  → FRED (real macro series) + Yahoo (live index/commodity moves)
  *            + Finnhub earnings + deterministic macro calendar
- *   STAGE A → GROUNDED Gemini (google_search) synthesizes today's market-moving
- *             macro narrative (geopolitics / Trump / Fed / OPEC / data) — CITED,
- *             current. This is the fix: real story in, not training-data guess.
- *   STAGE B → fast non-grounded model renders narrative+data into the SAME block
- *             schema the front-end already draws (zero front-end change needed).
+ *   STAGE A → GROUNDED Gemini (google_search) follows the user's prompt and writes
+ *             today's analysis as clean plain text — CITED, current, anchored to the
+ *             real data above (never a training-data guess).
+ *   STAGE B → fast non-grounded model renders that analysis into the block schema
+ *             the front-end draws — organized to mirror the prompt's sections.
+ *
+ * The active prompt is stored in KV (td_active_prompt); the front-end pushes the
+ * Control-tab selection there, so BOTH manual /build and the weekday cron run it.
  *
  * I/O CONTRACT (unchanged — tradehub.html keeps working):
  *   GET  /                health
@@ -279,6 +283,39 @@ function json(d,s,req){ return new Response(JSON.stringify(d),{status:s||200,hea
 async function kvGet(env,k){ try{ return await env.TD_KV.get(k,'json'); }catch{ return null; } }
 async function kvPut(env,k,v,ttl){ await env.TD_KV.put(k,JSON.stringify(v), ttl?{expirationTtl:ttl}:undefined); }
 const todayUTC=()=>new Date().toISOString().slice(0,10);
+
+/* ════════════════════════ ACTIVE PROMPT ════════════════════════
+   MacroBoard runs whatever prompt the user selected in the Control tab. The
+   front-end pushes that selection to KV (POST /active-prompt); both manual /build
+   and the weekday cron read it here. Until anything is pushed, the built-in daily
+   macro prompt below is used so the cron still produces a useful board. */
+const DEFAULT_PROMPT = { name:'Daily MacroBoard', text:
+`Macro & Long-Only Trading Dashboard
+
+Give me a full premarket/market and macro update for today, with the latest, most up-to-date information for each of the following, and how it affects stocks. If today is a Monday or the first day back after a market holiday, include key developments from the days markets were closed.
+
+1. Market Snapshot — S&P 500, NASDAQ 100, Dow (trend + premarket direction); WTI & Brent crude (price + what's driving it + equity/inflation impact); US 10Y & 2Y Treasury yields; VIX (level + risk sentiment).
+2. Top Macro Drivers — Geopolitics (Iran / Strait of Hormuz / Middle East, China/Taiwan, Russia/Ukraine) with the ABSOLUTE latest and the market reaction; Trump statements/policy/tariffs that could move markets; central banks (Fed/ECB/BOJ); key economic data; major sector-moving news.
+3. Key Economic Events (forward-looking) — next Fed meeting & expectations, CPI/PPI/Jobs/GDP, Fed speakers, oil inventories/OPEC, major earnings.
+4. Market Regime & Bias — Overall Bias (Bullish/Bearish/Chop) and Condition (Risk-On/Risk-Off/Mixed), justified by oil/yields/VIX/macro.
+5. GO / NO-GO FILTER (long-only) — state "GO" or "NO-GO" + 1-2 line reason.
+6. Sector Strength — top 2 strongest sectors today and weak sectors to avoid for longs.
+7. Watchlist Analysis — classify each watchlist ticker Strong / Neutral / Weak.
+8. What NOT To Do Today — 2-3 mistakes to avoid given current conditions.
+9. Tier List — S/A/B/C of what's driving the tape (S = dominant driver).
+
+Be concise but include the important details. Prioritize actionable, accurate insight. Always include the live Iran/Middle East + Trump developments.` };
+
+async function getActivePrompt(env){
+  const p=await kvGet(env,'td_active_prompt');
+  if(p&&p.text&&String(p.text).trim()) return { name:p.name||'Prompt', text:String(p.text) };
+  return DEFAULT_PROMPT;
+}
+async function setActivePrompt(env, p){
+  const text=String(p&&p.text||'').trim(); if(!text) return false;
+  await kvPut(env,'td_active_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), updatedAt:Date.now() });
+  return true;
+}
 
 /* ── rate (manual builds only; cron uses its own cap) ── */
 async function getRate(env){ const r=await kvGet(env,'td_rate'); return (!r||r.day!==todayUTC())?{day:todayUTC(),used:0,lastRunMs:0}:r; }
