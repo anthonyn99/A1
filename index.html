@@ -24876,25 +24876,116 @@ function buildRuler(ctx) {
   startDrag(leftH, 'left');
   startDrag(rightH, 'right');
 }
+/* Vertical ruler — draggable TOP / BOTTOM margins (Batch 11 #1), mirroring the
+   horizontal ruler but along the left edge of the page. Lives inside the scroll
+   wrap so it stays glued to the sheet as the page scrolls. */
+function buildVRuler(ctx) {
+  var wrap = ctx.wrapEl;
+  if (!wrap) return;
+  var ruler = document.createElement('div');
+  ruler.className = 'docx-vruler';
+  ruler.innerHTML = '<div class="docx-vruler-page"></div>' +
+    '<div class="docx-vruler-marg top" title="Drag to set the top margin"></div>' +
+    '<div class="docx-vruler-marg bottom" title="Drag to set the bottom margin"></div>';
+  wrap.appendChild(ruler);   // after the editor → CSS sibling selector shows it in edit mode
+  ctx.vrulerEl = ruler;
+
+  var topH = ruler.querySelector('.docx-vruler-marg.top');
+  var botH = ruler.querySelector('.docx-vruler-marg.bottom');
+  function startDrag(handle, side) {
+    handle.addEventListener('dblclick', function(e) {
+      e.preventDefault();
+      var nm = marginsGet(ctx.app);
+      if (side === 'top') nm.mt = 96; else nm.mb = 96;
+      marginsSet(ctx.app, nm);
+    });
+    handle.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      handle.classList.add('drag');
+      var zi = _zoomFactor(ctx.app, wrap);
+      var ph = _pageHeight(ctx.app);
+      var startY = e.clientY;
+      var m = marginsGet(ctx.app);
+      var startVal = side === 'top' ? m.mt : m.mb;
+      function onMove(ev) {
+        var deltaPx = (ev.clientY - startY) / (zi || 1);
+        var next = side === 'top' ? startVal + deltaPx : startVal - deltaPx;
+        // clamp: 0 (text can reach the very top) .. leave at least 1.5in writable height
+        var other = side === 'top' ? m.mb : m.mt;
+        next = Math.max(0, Math.min(next, ph - other - 144));
+        if (Math.abs(next - 96) < 10) next = 96;   // snap to the 1-inch default
+        var nm = marginsGet(ctx.app);
+        if (side === 'top') nm.mt = Math.round(next); else nm.mb = Math.round(next);
+        marginsSet(ctx.app, nm);
+      }
+      function onUp() {
+        handle.classList.remove('drag');
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+  }
+  startDrag(topH, 'top');
+  startDrag(botH, 'bottom');
+
+  // Reposition as the sheet grows (typing) or the page scrolls — cheap, rAF-throttled.
+  var pending = false;
+  function reflow() { if (pending) return; pending = true; requestAnimationFrame(function() { pending = false; updateVRuler(ctx); }); }
+  wrap.addEventListener('scroll', reflow, { passive: true });
+  ctx.edEl.addEventListener('input', reflow);
+}
+function _pageHeight(app) {
+  var ps = psGet(app), dim = SIZES[ps.size] || SIZES.letter;
+  return ps.orient === 'landscape' ? dim[0] : dim[1];
+}
+function updateVRuler(ctx) {
+  var ruler = ctx.vrulerEl; if (!ruler) return;
+  var wrap = ctx.wrapEl, sheet = ctx.edEl;
+  if (!wrap || !sheet) return;
+  var wr = wrap.getBoundingClientRect(), sr = sheet.getBoundingClientRect();
+  if (!sr.height) return;
+  var topInWrap = sr.top - wr.top + wrap.scrollTop;
+  var leftInWrap = sr.left - wr.left + wrap.scrollLeft;
+  var H = sr.height;
+  var zi = _zoomFactor(ctx.app, wrap);
+  var m = marginsGet(ctx.app);
+  ruler.style.top = topInWrap + 'px';
+  ruler.style.left = Math.max(2, leftInWrap - ruler.offsetWidth - 5) + 'px';
+  ruler.style.height = H + 'px';
+  var mtPx = Math.round(m.mt * zi), mbPx = Math.round(m.mb * zi);
+  var pageEl = ruler.querySelector('.docx-vruler-page');
+  if (pageEl) { pageEl.style.top = mtPx + 'px'; pageEl.style.bottom = mbPx + 'px'; }
+  var topH = ruler.querySelector('.docx-vruler-marg.top');
+  var botH = ruler.querySelector('.docx-vruler-marg.bottom');
+  if (topH) topH.style.top = mtPx + 'px';
+  if (botH) botH.style.top = Math.max(mtPx + 24, H - mbPx) + 'px';
+}
 function updateRulers(app) {
   var cfg = APPS[app];
   var pw = _pageWidth(app);
   var m = marginsGet(app);
   cfg.ctxs.forEach(function(c) {
-    if (!c._ctx || !c._ctx.rulerEl) return;
+    if (!c._ctx) return;
     var wrap = $(c.wrap);
     var zi = _zoomFactor(app, wrap);
-    var inEl = c._ctx.rulerEl.querySelector('.docx-ruler-in');
-    if (!inEl) return;
-    var wPx = Math.round(pw * zi);
-    inEl.style.width = wPx + 'px';
-    var pageEl = inEl.querySelector('.docx-ruler-page');
-    var lPx = Math.round(m.ml * zi), rPx = Math.round(m.mr * zi);
-    if (pageEl) { pageEl.style.left = lPx + 'px'; pageEl.style.right = rPx + 'px'; }
-    var leftH = inEl.querySelector('.docx-ruler-marg.left');
-    var rightH = inEl.querySelector('.docx-ruler-marg.right');
-    if (leftH) leftH.style.left = lPx + 'px';
-    if (rightH) rightH.style.right = rPx + 'px';
+    if (c._ctx.rulerEl) {
+      var inEl = c._ctx.rulerEl.querySelector('.docx-ruler-in');
+      if (inEl) {
+        var wPx = Math.round(pw * zi);
+        inEl.style.width = wPx + 'px';
+        var pageEl = inEl.querySelector('.docx-ruler-page');
+        var lPx = Math.round(m.ml * zi), rPx = Math.round(m.mr * zi);
+        if (pageEl) { pageEl.style.left = lPx + 'px'; pageEl.style.right = rPx + 'px'; }
+        var leftH = inEl.querySelector('.docx-ruler-marg.left');
+        var rightH = inEl.querySelector('.docx-ruler-marg.right');
+        if (leftH) leftH.style.left = lPx + 'px';
+        if (rightH) rightH.style.right = rPx + 'px';
+      }
+    }
+    if (c._ctx.vrulerEl) updateVRuler(c._ctx);
   });
 }
 
@@ -27226,6 +27317,7 @@ function initApp(app) {
     injectRibbonExtras(ctx);
     rebindPageButtons(ctx);
     buildRuler(ctx);
+    buildVRuler(ctx);
     wireEditor(ctx);
     addFadingScrollbar(ctx);
     wireColorShortcuts(ctx);
