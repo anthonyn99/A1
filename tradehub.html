@@ -2884,11 +2884,40 @@ function TBPromptSelect({prompts,value,onChange,onGoToPrompts}){
   </div>;
 }
 
-/* Worker single-slot id — the worker keeps ONE prompt that mirrors whatever
-   Prompts-tab prompt is currently selected for TradeBoard. We overwrite this
-   slot on every run, so the worker always builds with the chosen prompt.
-   No worker-side changes needed. */
-const TD_SLOT_KEY="tb_tradeboard_worker_pid";
+/* ── Select-Prompt picker for MacroBoard ───────────────────────────────────
+   Mirrors Analysis's "Clipboard prompts": PICK-ONLY (no editing here — prompts are
+   owned by the Prompts tab). Shows each prompt's name + a short preview so you can
+   tell them apart. Whatever's selected is the prompt MacroBoard builds with. */
+function tdbPromptPreview(text){
+  const t=String(text||'').replace(/\s+/g,' ').trim();
+  return t.length>140?t.slice(0,140)+'…':(t||'No prompt text.');
+}
+function TBBoardPromptPicker({prompts,value,onChange,onGoToPrompts,isMobile}){
+  if(!prompts||prompts.length===0){
+    return <div className="tb-card" style={{marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",color:"var(--txm)",fontSize:13}}>
+      <span>No prompts yet — add one in the Prompts tab.</span>
+      {onGoToPrompts&&<button onClick={onGoToPrompts} style={{padding:"5px 12px",borderRadius:100,border:"1px solid var(--ac)",background:"transparent",color:"var(--ac)",fontSize:12,fontWeight:700,cursor:"pointer"}}>Open Prompts tab →</button>}
+    </div>;
+  }
+  const effective=prompts.some(p=>p.id===value)?value:prompts[0]?.id;
+  return <div className="tb-card" style={{marginBottom:16,padding:isMobile?14:16}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:11}}>
+      <div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:1.5,color:"var(--txm)"}}>⌘ Select Prompt</div>
+      {onGoToPrompts&&<button onClick={onGoToPrompts} title="Prompts are edited in the Prompts tab" style={{padding:"5px 12px",borderRadius:100,border:"1px solid var(--bd)",background:"transparent",color:"var(--txm)",fontSize:11.5,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>✎ Edit in Prompts</button>}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(230px,1fr))",gap:10}}>
+      {prompts.map(p=>{const on=p.id===effective;return(
+        <button key={p.id} onClick={()=>onChange(p.id)} title={p.name}
+          style={{textAlign:"left",padding:"12px 14px",borderRadius:12,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"rgba(224,96,122,0.10)":"var(--bgc)",cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",gap:6}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{width:15,height:15,borderRadius:"50%",border:`2px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"var(--ac)":"transparent",flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{on&&<span style={{width:5,height:5,borderRadius:"50%",background:"#fff"}}/>}</span>
+            <span style={{fontSize:14,fontWeight:800,color:on?"var(--ac)":"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</span>
+          </div>
+          <div style={{fontSize:11.5,color:"var(--txm)",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{tdbPromptPreview(p.text)}</div>
+        </button>);})}
+    </div>
+  </div>;
+}
 
 function TBDashboardBoard({prompts,boardPromptId,onSelectBoardPrompt,onGoToPrompts}){
   const [report,setReport]=useState(null);
