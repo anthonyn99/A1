@@ -548,30 +548,36 @@ body.dnd-active *{cursor:grabbing !important;}
     if (snap.exists()) window.dispatchEvent(new CustomEvent("ml-remote-update", { detail: snap.data() }));
   }, (err) => { console.warn("MyList snapshot err", err); window.dispatchEvent(new CustomEvent("ml-error")); });
 
-  // ── Recipes (Tony) — migrated from MealSuite; lives in dashboards/mealsuite (recipes field) ──
-  const MS_DOC = doc(db, "dashboards/mealsuite");
-  let recSaveTimer = null, recLastOwnSaveAt = 0;
-  window._mlLoadRecipes = async () => {
-    try { const snap = await getDoc(MS_DOC); return (snap.exists() && Array.isArray(snap.data().recipes)) ? snap.data().recipes : []; }
+  // ── Recipes (per profile) — Tony lives in dashboards/mealsuite, Veda in dashboards/mealsuite-veda.
+  //    Separate docs keep each person's recipes unique so they never clash. ──
+  const REC_DOCS = { tony: doc(db, "dashboards/mealsuite"), veda: doc(db, "dashboards/mealsuite-veda") };
+  const recSaveTimers = { tony:null, veda:null };
+  const recLastOwnSaveAt = { tony:0, veda:0 };
+  window._mlLoadRecipes = async (profile) => {
+    const ref = REC_DOCS[profile]; if(!ref) return [];
+    try { const snap = await getDoc(ref); return (snap.exists() && Array.isArray(snap.data().recipes)) ? snap.data().recipes : []; }
     catch(e){ console.warn("Recipes load failed:", e); return []; }
   };
-  window._mlSaveRecipes = (recipes) => {
-    recLastOwnSaveAt = Date.now();
+  window._mlSaveRecipes = (profile, recipes) => {
+    const ref = REC_DOCS[profile]; if(!ref) return;
+    recLastOwnSaveAt[profile] = Date.now();
     window.dispatchEvent(new CustomEvent("ml-syncing"));
-    if (recSaveTimer) clearTimeout(recSaveTimer);
-    recSaveTimer = setTimeout(async () => {
+    if (recSaveTimers[profile]) clearTimeout(recSaveTimers[profile]);
+    recSaveTimers[profile] = setTimeout(async () => {
       try {
-        recLastOwnSaveAt = Date.now();
-        await setDoc(MS_DOC, { recipes: recipes, savedAt: Date.now() });
-        recLastOwnSaveAt = Date.now();
+        recLastOwnSaveAt[profile] = Date.now();
+        await setDoc(ref, { recipes: recipes, savedAt: Date.now() });
+        recLastOwnSaveAt[profile] = Date.now();
         window.dispatchEvent(new CustomEvent("ml-saved"));
       } catch(e){ console.warn("Recipes save failed:", e); window.dispatchEvent(new CustomEvent("ml-error")); }
     }, 1200);
   };
-  onSnapshot(MS_DOC, (snap) => {
-    if (Date.now() - recLastOwnSaveAt < 8000) return;
-    if (snap.exists() && Array.isArray(snap.data().recipes)) window.dispatchEvent(new CustomEvent("ml-recipes-update", { detail: snap.data().recipes }));
-  }, (err) => { console.warn("Recipes snapshot err", err); });
+  ["tony","veda"].forEach((profile) => {
+    onSnapshot(REC_DOCS[profile], (snap) => {
+      if (Date.now() - recLastOwnSaveAt[profile] < 8000) return;
+      if (snap.exists() && Array.isArray(snap.data().recipes)) window.dispatchEvent(new CustomEvent("ml-recipes-update", { detail: { profile: profile, recipes: snap.data().recipes } }));
+    }, (err) => { console.warn("Recipes snapshot err", err); });
+  });
 
   window._mlReady = true;
   window.dispatchEvent(new CustomEvent("ml-ready"));
@@ -597,12 +603,14 @@ var manualOpen = false;
 var selectMode = false;
 var selected = {};
 var booted = false;
-// recipes (Tony only)
+// recipes (per profile — Tony & Veda each have their own unique set)
 var view = 'lists';              // 'lists' | 'recipes'
-var recipes = [];
+var recipesStore = { tony:[], veda:[] };   // each profile's recipes, kept separate
+var recipes = [];                // alias → active profile's recipes (via setRecipes)
 var recDetailId = null;
 var recEditingId = null;
-var recipesLoaded = false;
+var recipesLoaded = { tony:false, veda:false };
+function setRecipes(arr){ recipes = arr; if(activeProfile) recipesStore[activeProfile] = arr; }
 
 function uid(){ return Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
 function $(id){ return document.getElementById(id); }
@@ -661,7 +669,14 @@ if(window._mlReady) boot();
 
 function boot(){
   if(booted) return; booted=true;
-  if(window._mlLoadRecipes){ window._mlLoadRecipes().then(function(r){ recipes=r||[]; recipesLoaded=true; if(activeProfile==='tony' && view==='recipes') render(); }); }
+  if(window._mlLoadRecipes){
+    ['tony','veda'].forEach(function(p){
+      window._mlLoadRecipes(p).then(function(r){
+        recipesStore[p]=r||[]; recipesLoaded[p]=true;
+        if(activeProfile===p){ recipes=recipesStore[p]; if(view==='recipes') render(); }
+      });
+    });
+  }
   window._mlLoad().then(function(d){
     if(d) applyRemote(d);
     setSync('ok'); refreshProfileScreen();
@@ -671,8 +686,10 @@ function boot(){
   });
 }
 window.addEventListener('ml-recipes-update', function(e){
-  recipes = Array.isArray(e.detail) ? e.detail : []; recipesLoaded=true;
-  if(activeProfile==='tony' && view==='recipes') render();
+  var p=e.detail&&e.detail.profile, rr=(e.detail&&Array.isArray(e.detail.recipes))?e.detail.recipes:[];
+  if(!p||!recipesStore.hasOwnProperty(p)) return;
+  recipesStore[p]=rr; recipesLoaded[p]=true;
+  if(activeProfile===p){ recipes=recipesStore[p]; if(view==='recipes') render(); }
 });
 // ── help / instructions ──
 function showHelp(){ $('help-overlay').style.display='flex'; }
@@ -809,6 +826,7 @@ function toggleFav(p){
 function chooseProfile(p){ if(mlMustBlock(p)){ showLock(p,'unlock',function(){ enterProfile(p); }); return; } enterProfile(p); }
 function enterProfile(p){
   activeProfile=p; manualOpen=false; view='lists'; recDetailId=null; document.body.setAttribute('data-profile',p);
+  recipes = recipesStore[p] || (recipesStore[p]=[]);
   document.querySelector('meta[name=theme-color]').setAttribute('content', p==='veda'?'#1B1C1E':'#0f0f12');
   $('profile-overlay').style.display='none'; $('app').style.display='flex';
   var last = localStorage.getItem('ml_last_list_'+p); var L = lists();
@@ -1164,7 +1182,7 @@ document.addEventListener('pointerup', function(){ dragTA=null; });
 var REC_CATS=['Breakfast','Lunch','Dinner','Snack','Dessert','Other'];
 var EDIT_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 var DEL_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
-function persistRecipes(){ if(window._mlSaveRecipes) window._mlSaveRecipes(recipes.map(sanitize)); }
+function persistRecipes(){ if(window._mlSaveRecipes && activeProfile) window._mlSaveRecipes(activeProfile, recipes.map(sanitize)); }
 function setView(v){ view=v; recDetailId=null; manualOpen=false; render(); window.scrollTo(0,0); }
 function recCatStyle(cat){
   var c={Breakfast:'#e0658a',Lunch:'#5a9bd4',Dinner:'#9b8bd4',Snack:'#d49a5a',Dessert:'#d46a9b',Other:''};
