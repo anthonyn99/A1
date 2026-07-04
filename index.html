@@ -31375,9 +31375,11 @@ function toggleListPreserve(ctx, cmd) {
   var sizes = before.map(_blockTextSize);
   document.execCommand(cmd, false, null);
   var after = selBlocks(ctx);
+  // Always PIN the pre-toggle text size onto the resulting block, locking it so it can never
+  // drift back to the editor default (inner size spans, if any, still win over this block size).
   after.forEach(function(b, i) {
     var sz = sizes.length ? sizes[Math.min(i, sizes.length - 1)] : '';
-    if (b && sz && _blockTextSize(b) !== sz) b.style.fontSize = sz;
+    if (b && sz) b.style.fontSize = sz;
   });
   saveSel(ctx);
   fireInput(ctx.edEl);

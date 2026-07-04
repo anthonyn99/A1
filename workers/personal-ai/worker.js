@@ -299,12 +299,16 @@ function findItem(items, index, match) {
 }
 
 function applyListOps(items, stores, ops) {
-  let list = items.map(it => ({ ...it }));
-  const storeMap = new Map(); // lowercase → clean display name
-  const addStore = s => { const v = String(s || '').trim(); if (v && v.length <= 40) storeMap.set(v.toLowerCase(), v); };
-  stores.forEach(addStore);
+  // Ops apply to a "target" list — normally the current list, but a new_list op
+  // switches the target to a fresh empty list so the rest of the command builds it.
+  const mkTarget = (list, storeNames) => {
+    const t = { list, storeMap: new Map(), name: '' }; // storeMap: lowercase → clean display name
+    storeNames.forEach(s => addStore(t, s));
+    return t;
+  };
+  function addStore(t, s) { const v = String(s || '').trim(); if (v && v.length <= 40) t.storeMap.set(v.toLowerCase(), v); }
   // Prefer a saved store's exact spelling when the model names the same store.
-  const canonStore = s => { const v = String(s || '').trim(); return v ? (storeMap.get(v.toLowerCase()) || v) : ''; };
+  const canonStore = (t, s) => { const v = String(s || '').trim(); return v ? (t.storeMap.get(v.toLowerCase()) || v) : ''; };
   const whereMatch = (it, where) => {
     if (!where || typeof where !== 'object') return true;
     if (typeof where.store === 'string' && where.store.trim() &&
@@ -314,11 +318,11 @@ function applyListOps(items, stores, ops) {
   };
   // Apply only non-empty set fields — an empty string from the model must never
   // wipe a field the user didn't ask to clear.
-  const applySet = (it, set, allowRename) => {
+  const applySet = (t, it, set, allowRename) => {
     if (!set || typeof set !== 'object') return;
     if (allowRename && typeof set.name === 'string' && set.name.trim()) it.name = set.name.trim();
     if (typeof set.qty === 'string' && set.qty.trim()) it.qty = set.qty.trim();
-    if (typeof set.store === 'string' && set.store.trim()) { it.store = canonStore(set.store); addStore(it.store); }
+    if (typeof set.store === 'string' && set.store.trim()) { it.store = canonStore(t, set.store); addStore(t, it.store); }
     if (typeof set.desc === 'string' && set.desc.trim()) it.desc = set.desc.trim();
     if (typeof set.done === 'boolean') it.done = set.done;
   };
@@ -338,94 +342,116 @@ function applyListOps(items, stores, ops) {
     return w;
   };
 
+  const cur = mkTarget(items.map(it => ({ ...it })), stores);
+  let nl = null;   // new list target, once a new_list op appears
+  let t = cur;     // active target
+
   for (const op of (Array.isArray(ops) ? ops : [])) {
     if (!op || typeof op !== 'object') continue;
     switch (String(op.op || '')) {
+      case 'rename_list': {
+        const name = String(op.name || op.newName || '').trim();
+        if (name) t.name = name;
+        break;
+      }
+      case 'new_list': {
+        nl = mkTarget([], []);
+        nl.name = String(op.name || '').trim();
+        t = nl;
+        break;
+      }
       case 'add': {
         const name = String(op.name || '').trim();
         if (!name) break;
-        const store = canonStore(op.store);
-        if (store) addStore(store);
-        // Same item already on the list (and not checked off) → merge instead of duplicating.
-        const dup = list.find(it => !it.done && normName(it.name) === normName(name));
+        const store = canonStore(t, op.store);
+        if (store) addStore(t, store);
+        // Same item, same store (or no store involved) → merge instead of duplicating.
+        // A DIFFERENT store means the user wants a copy at that store — keep both.
+        const dup = t.list.find(it => !it.done && normName(it.name) === normName(name) &&
+          (!store || !it.store || normName(it.store) === normName(store)));
         if (dup) {
           if (String(op.qty || '').trim()) dup.qty = String(op.qty).trim();
           if (store) dup.store = store;
           if (String(op.desc || '').trim()) dup.desc = String(op.desc).trim();
         } else {
-          list.push({ name, qty: String(op.qty || '').trim(), store, desc: String(op.desc || '').trim(), done: false });
+          t.list.push({ name, qty: String(op.qty || '').trim(), store, desc: String(op.desc || '').trim(), done: false });
         }
         break;
       }
       case 'update': {
         const set = effSet(op, ['name', 'qty', 'store', 'desc', 'done']);
-        const it = findItem(list, op.index, op.match || op.name);
-        if (it) { applySet(it, set, true); break; }
+        const it = findItem(t.list, op.index, op.match || op.name);
+        if (it) { applySet(t, it, set, true); break; }
         // Target not found (e.g. user thinks it's on the list) — add it so the command still lands.
         const name = String(set.name || op.match || '').trim();
         if (name) {
           const fresh = { name, qty: '', store: '', desc: '', done: false };
-          applySet(fresh, set, true);
-          list.push(fresh);
+          applySet(t, fresh, set, true);
+          t.list.push(fresh);
         }
         break;
       }
       case 'remove': {
-        const it = findItem(list, op.index, op.match);
-        if (it) list = list.filter(x => x !== it);
+        const it = findItem(t.list, op.index, op.match);
+        if (it) t.list = t.list.filter(x => x !== it);
         break;
       }
       case 'move_all': {
         const from = normName(op.from);
-        const to = canonStore(op.to);
+        const to = canonStore(t, op.to);
         if (!to) break;
-        addStore(to);
-        for (const it of list) if (normName(it.store) === from) it.store = to;
+        addStore(t, to);
+        for (const it of t.list) if (normName(it.store) === from) it.store = to;
         break;
       }
       case 'check_all':
       case 'uncheck_all': {
         const done = op.op === 'check_all';
         const f = normName(op.store);
-        for (const it of list) if (!f || normName(it.store) === f) it.done = done;
+        for (const it of t.list) if (!f || normName(it.store) === f) it.done = done;
         break;
       }
       case 'update_all': { // legacy shape — kept in case a model emits it anyway
         const where = effWhere(op);
         const set = (op.set && typeof op.set === 'object') ? { ...op.set } : {};
         if (set.store === undefined && typeof op.to === 'string' && op.to.trim()) set.store = op.to;
-        for (const it of list) if (whereMatch(it, where)) applySet(it, set, false);
+        for (const it of t.list) if (whereMatch(it, where)) applySet(t, it, set, false);
         break;
       }
       case 'remove_all': {
         const where = effWhere(op);
-        list = list.filter(it => !whereMatch(it, where));
+        t.list = t.list.filter(it => !whereMatch(it, where));
         break;
       }
       case 'add_store': {
-        addStore(op.name);
+        addStore(t, op.name);
         break;
       }
       case 'remove_store': {
         const k = String(op.name || '').trim().toLowerCase();
         if (!k) break;
-        storeMap.delete(k);
-        list.forEach(it => { if (it.store.toLowerCase() === k) it.store = ''; });
+        t.storeMap.delete(k);
+        t.list.forEach(it => { if (it.store.toLowerCase() === k) it.store = ''; });
         break;
       }
       case 'rename_store': {
         const from = String(op.name || '').trim(), to = String(op.newName || '').trim();
         if (!from || !to) break;
-        storeMap.delete(from.toLowerCase());
-        addStore(to);
-        list.forEach(it => { if (it.store.toLowerCase() === from.toLowerCase()) it.store = canonStore(to); });
+        t.storeMap.delete(from.toLowerCase());
+        addStore(t, to);
+        t.list.forEach(it => { if (it.store.toLowerCase() === from.toLowerCase()) it.store = canonStore(t, to); });
         break;
       }
     }
   }
 
-  list.forEach(it => addStore(it.store));
-  return { items: list, stores: [...storeMap.values()] };
+  cur.list.forEach(it => addStore(cur, it.store));
+  const out = { items: cur.list, stores: [...cur.storeMap.values()], listName: cur.name };
+  if (nl) {
+    nl.list.forEach(it => addStore(nl, it.store));
+    out.newList = { name: nl.name, items: nl.list, stores: [...nl.storeMap.values()] };
+  }
+  return out;
 }
 
 async function handleList(body, env) {
