@@ -363,20 +363,22 @@ function applyListOps(items, stores, ops) {
         break;
       }
       case 'add': {
-        const name = String(op.name || '').trim();
+        // effSet: the model sometimes nests fields under "set" even on adds.
+        const f = effSet(op, ['name', 'qty', 'store', 'desc']);
+        const name = String(f.name || '').trim();
         if (!name) break;
-        const store = canonStore(t, op.store);
+        const store = canonStore(t, f.store);
         if (store) addStore(t, store);
         // Same item, same store (or no store involved) → merge instead of duplicating.
         // A DIFFERENT store means the user wants a copy at that store — keep both.
         const dup = t.list.find(it => !it.done && normName(it.name) === normName(name) &&
           (!store || !it.store || normName(it.store) === normName(store)));
         if (dup) {
-          if (String(op.qty || '').trim()) dup.qty = String(op.qty).trim();
+          if (String(f.qty || '').trim()) dup.qty = String(f.qty).trim();
           if (store) dup.store = store;
-          if (String(op.desc || '').trim()) dup.desc = String(op.desc).trim();
+          if (String(f.desc || '').trim()) dup.desc = String(f.desc).trim();
         } else {
-          t.list.push({ name, qty: String(op.qty || '').trim(), store, desc: String(op.desc || '').trim(), done: false });
+          t.list.push({ name, qty: String(f.qty || '').trim(), store, desc: String(f.desc || '').trim(), done: false });
         }
         break;
       }
@@ -774,7 +776,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 6, // bump when verifying a deploy went live
+        version: 7, // bump when verifying a deploy went live
         features: ['list', 'taskhub', 'journal'],
         models: MODELS,
         listModels: LIST_MODELS,
