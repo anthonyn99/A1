@@ -1308,9 +1308,8 @@ function recDelete(id){
     if(recDetailId===id) recDetailId=null; render();
   });
 }
-function renderViewSwitch(isTony){
+function renderViewSwitch(){
   var w=$('view-switch-wrap'); if(!w) return;
-  if(!isTony){ w.innerHTML=''; return; }
   w.innerHTML='<div id="view-switch"><button class="'+(view==='lists'?'on':'')+'" onclick="ML.setView(\'lists\')">Lists</button>'
     +'<button class="'+(view==='recipes'?'on':'')+'" onclick="ML.setView(\'recipes\')">Recipes</button></div>';
 }
@@ -1526,7 +1525,7 @@ var GRIP='<div class="resize-grip"><svg viewBox="0 0 16 16" fill="none" stroke="
 function render(){
   if(!activeProfile) return;
   updateLockBtn();
-  renderViewSwitch(true);
+  renderViewSwitch();
   // ── Recipes view (both profiles) ──
   if(view==='recipes'){
     $('lists-bar').style.display='none';
