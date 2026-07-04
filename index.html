@@ -4228,7 +4228,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   const EL_DOC_PATH = "dashboards/expenses";
   const ER_DOC_PATH = "dashboards/eventrec";
   const VD_DOC_PATH = "dashboards/vedasdash";
-  const MP_DOC_PATH = "dashboards/mealplan";
   const VT_DOC_PATH = "dashboards/vedatimeline";
   const KC_DOC_PATH = "dashboards/keychain";
   const VDKC_DOC_PATH = "dashboards/veda_links";
@@ -4244,7 +4243,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _elSaveTimer = null;
   let _erSaveTimer = null;
   let _vdSaveTimer = null;
-  let _mpSaveTimer = null;
   let _vtSaveTimer = null;
   let _kcSaveTimer = null;
   let _vdkcSaveTimer = null;
@@ -4259,7 +4257,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _erUnsubscribe  = null;
   let _vdUnsubscribe  = null;
   let _vtUnsubscribe  = null;
-  let _mpUnsubscribe  = null;
   let _kcUnsubscribe  = null;
   let _vdkcUnsubscribe = null;
   let _bjUnsubscribe  = null;
@@ -4274,7 +4271,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _elLastOwnSaveAt   = 0;
   let _erLastOwnSaveAt   = 0;
   let _vdLastOwnSaveAt   = 0;
-  let _mpLastOwnSaveAt   = 0;
   let _vtLastOwnSaveAt   = 0;
   let _kcLastOwnSaveAt   = 0;
   let _vdkcLastOwnSaveAt = 0;
@@ -5616,7 +5612,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_erUnsubscribe)  { _erUnsubscribe();  _erUnsubscribe  = null; }
     if (_vdUnsubscribe)  { _vdUnsubscribe();  _vdUnsubscribe  = null; }
     if (_vtUnsubscribe)  { _vtUnsubscribe();  _vtUnsubscribe  = null; }
-    if (_mpUnsubscribe)  { _mpUnsubscribe();  _mpUnsubscribe  = null; }
     if (_kcUnsubscribe)  { _kcUnsubscribe();  _kcUnsubscribe  = null; }
     if (_vdkcUnsubscribe){ _vdkcUnsubscribe();_vdkcUnsubscribe= null; }
     if (_bjUnsubscribe)  { _bjUnsubscribe();  _bjUnsubscribe  = null; }
@@ -10025,8 +10020,6 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
 
   function showVeda(){
     const vr=document.getElementById("veda-root");
-    const cv=document.getElementById("cooking-view");
-    if(cv){cv.classList.remove("active");}
     window._activeDash='task';
     if(vr){
       // Hide Tony's root and other fixed roots so they don't show through
@@ -10079,9 +10072,9 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     hideVeda();
     // Also hide Veda sub-programs in case user was in one
-    ["cooking-view","cooking-dashboard-wrapper","vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","el-root","ms-root","er-root","kc-root"].forEach(function(id){
+    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","el-root","ms-root","er-root","kc-root"].forEach(function(id){
       var el=document.getElementById(id);
-      if(el){if(id==="cooking-view")el.style.cssText="display:none;";else el.style.display="none";}
+      if(el){el.style.display="none";}
     });
     if(window._pvStopLiveSync)window._pvStopLiveSync();
     var _tjt=document.getElementById('tj-nav-title');if(_tjt)_tjt.parentNode.removeChild(_tjt);
@@ -10106,9 +10099,9 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     if(window._hideTonyNav)window._hideTonyNav();
     if(window._vedaCloseGita)window._vedaCloseGita();
-    ["cooking-view","cooking-dashboard-wrapper","vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","el-root","ms-root","er-root","kc-root"].forEach(function(id){
+    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","el-root","ms-root","er-root","kc-root"].forEach(function(id){
       var el=document.getElementById(id);
-      if(el){if(id==="cooking-view")el.style.cssText="display:none;";else el.style.display="none";}
+      if(el){el.style.display="none";}
     });
     if(window._pvStopLiveSync)window._pvStopLiveSync();
     var _tjt2=document.getElementById('tj-nav-title');if(_tjt2)_tjt2.parentNode.removeChild(_tjt2);
@@ -12660,11 +12653,10 @@ window.addEventListener('resize',()=>{
 
 // ── Show / Hide ──
 window._vdkcShow=function(){
-  ['veda-root','vt-root','cooking-dashboard-wrapper','bj-root','tj-root',
+  ['veda-root','vt-root','bj-root','tj-root',
    'root','el-root','ms-root','er-root','kc-root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
-  var cv=document.getElementById('cooking-view');if(cv)cv.style.cssText='display:none;';
   const vdkc=document.getElementById('vd-kc-root');
   if(vdkc){vdkc.style.display='block';if(typeof vdkc_applyTheme==='function')vdkc_applyTheme();}
 };
@@ -17587,10 +17579,9 @@ function _bjPdfSection(label, text) {
 window.showBrainstormJournal = function(caller) {
   window._bjCalledFrom = caller || (document.getElementById('veda-root') && document.getElementById('veda-root').style.display !== 'none' ? 'veda' : 'tony');
   ['root','veda-root','el-root','ms-root','er-root','kc-root','vt-root','tj-root',
-   'cooking-dashboard-wrapper','vd-kc-root'].forEach(function(id){
+   'vd-kc-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
-  var cv=document.getElementById('cooking-view');if(cv)cv.style.cssText='display:none;';
   var bj = document.getElementById('bj-root');
   bj.style.position='fixed'; bj.style.inset='0'; bj.style.zIndex='9999';
   bj.style.display='flex'; bj.style.flexDirection='column';
@@ -23358,7 +23349,7 @@ window._hideTonyNav = function() {
 window._tonyNav = function(app) {
   // Hide ALL tony + other app roots before switching
   if(app!=='proview'&&window._pvHide) window._pvHide();
-  ['root','el-root','ms-root','er-root','kc-root','tj-root','veda-root','vt-root','bj-root','cooking-dashboard-wrapper','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
+  ['root','el-root','ms-root','er-root','kc-root','tj-root','veda-root','vt-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.style.display='none';
   });
   if(app==='taskhub') {
@@ -23390,10 +23381,9 @@ window._tonyNav = function(app) {
 };
 window.showTonyJournal = function() {
   ['root','veda-root','el-root','ms-root','er-root','kc-root','vt-root','bj-root','mc-root','tradeboard-root',
-   'cooking-dashboard-wrapper','vd-kc-root'].forEach(function(id){
+   'vd-kc-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
-  var cv=document.getElementById('cooking-view');if(cv)cv.style.cssText='display:none;';
   var tj = document.getElementById('tj-root');
   if(!tj) return;
   tj.style.position='fixed'; tj.style.inset='0'; tj.style.zIndex='9999';
