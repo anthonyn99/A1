@@ -24030,6 +24030,8 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
 #tj-root.tj-page-fs #tj-toolbar, #tj-root.tj-page-fs #tj-mobile-header, #tj-root.tj-page-fs #tj-nav-header,
 #bj-root.bj-page-fs #bj-toolbar, #bj-root.bj-page-fs #bj-mobile-header, #bj-root.bj-page-fs #bj-nav-header { display: none !important; }
 #tj-root.tj-page-fs #tj-sidebar, #bj-root.bj-page-fs #bj-sidebar { display: none !important; }
+/* Body-level shared Tony app nav (outside the root) — hide it in page fullscreen. */
+body.docx-page-fs #tony-app-nav { display: none !important; }
 #tj-root.tj-page-fs #tj-main, #bj-root.bj-page-fs #bj-main {
   position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
   max-width: none !important; margin: 0 !important; z-index: 100000; background: #1a1b1e;
@@ -26228,6 +26230,10 @@ function setPageFullscreen(ctx, on) {
   var root = document.getElementById(ctx.app + '-root');
   if (!root) return;
   root.classList.toggle(_pageFsClass(ctx.app), !!on);
+  // Also hide the body-level shared app nav (Tony's #tony-app-nav sits OUTSIDE the
+  // root, in a higher stacking context, so the fixed overlay can't cover it).
+  var anyFs = ALLCTX.some(function (c) { var r = document.getElementById(c.app + '-root'); return r && r.classList.contains(_pageFsClass(c.app)); });
+  document.body.classList.toggle('docx-page-fs', anyFs);
   if (on) _ensureFsFloat(ctx);
   if (!on) {   // leaving fullscreen: also restore the document bar
     root.classList.remove(ctx.app + '-fs-nobar');
