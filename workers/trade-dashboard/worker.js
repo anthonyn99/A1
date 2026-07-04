@@ -454,24 +454,29 @@ Block is ONE of:
  {"type":"callout","tone":"good|warn|bad|neutral","title"?,"body"}
 RULES: valid JSON, no trailing commas. Concise (1 line/string). Fill every block with real content from the data — never template brackets, never empty blocks. Map green→good, yellow→warn, red→bad.`;
 
-function renderUserPrompt(facts, narrative){
-  const nb = narrative ? `MACRO NARRATIVE (grounded, today — use as the source of truth for the story):\n${JSON.stringify(narrative,null,1)}\n\n` : '(no grounded narrative available — derive read from the hard data below)\n\n';
-  return `${nb}HARD DATA (real numbers):\n${facts.text}\n\nRender the MacroBoard with these blocks IN THIS ORDER:
-1. callout — GO / NO-GO for long-only today (tone good=GO, bad=NO-GO) + 1-line reason.
-2. kpis — "Market Dashboard": SPX/NDX/Dow/SOXX/10Y/2Y/VIX/WTI/Brent/Dollar with value + tone.
-3. cards — "Top Macro Drivers": one card per driver (heading, body=the actual latest fact, tone).
-4. cards — "Geopolitics & Policy": Middle East/Iran, Trump/tariffs, central banks, energy (one card each, tone by risk).
-5. keyvalue — "Forward Calendar": next macro catalysts (date → event) from the calendar above.
-6. scoreboard — "Sector Strength": rate the SECTOR PROXIES above (good=strong today, bad=weak) and name the watchlist tickers each covers in the note. Order strongest→weakest.
-7. list — "What NOT To Do Today": 3 concrete mistakes given current conditions.
-8. tiers — "Tier List": S/A/B/C of what's driving the tape today (S=dominant driver).
-Set meta.bias/regime/goNoGo/confidence from the narrative's read. summary = the 1-line market read.`;
+function renderUserPrompt(facts, narrativeText, promptText){
+  const nb = narrativeText
+    ? `GROUNDED ANALYSIS (today — this is the SOURCE OF TRUTH; render THIS, don't add new claims):\n${narrativeText}\n\n`
+    : '(no grounded analysis available — derive the read directly from the hard data below)\n\n';
+  const ask = promptText
+    ? `The analysis answers the request below — MIRROR its sections/order when you lay out the blocks:\n${promptText}\n\n`
+    : '';
+  return `${nb}HARD DATA (real numbers — use for any dashboard/table blocks):\n${facts.text}\n\n${ask}Render the analysis into the block schema, one block per section of the analysis, IN THE SAME ORDER. Choose the block type that best fits each section:
+ • GO / NO-GO or a headline read → callout (tone good=GO/bullish, bad=NO-GO/bearish).
+ • Market snapshot / dashboard numbers → kpis (value + tone).
+ • Macro drivers, geopolitics, Trump, central banks, energy → cards (heading + the actual latest fact + tone).
+ • Forward calendar / scheduled events → keyvalue (date → event).
+ • Sector strength → scoreboard (good=strong, bad=weak).
+ • Per-ticker watchlist classification → table (columns like Ticker / Rating / Note) or scoreboard.
+ • "What NOT to do" / mistakes → list.
+ • Tier list → tiers (S/A/B/C).
+RULES: preserve ALL substance from the analysis — never drop a section it covered and never invent one it didn't. Keep every string to ~1 line. Set meta.bias/regime/goNoGo/confidence from the analysis. summary = its 1-line top-line read.`;
 }
 
-const STAGE_B_CALL_MS = 16000;   // per render call
-const STAGE_B_WALK_MS = 55000;   // hard cap for the whole render walk
-async function runStageB(facts, narrative, env, opts={}){
-  const sys=RENDER_SCHEMA, user=renderUserPrompt(facts,narrative);
+const STAGE_B_CALL_MS = 20000;   // per render call (large boards take longer)
+const STAGE_B_WALK_MS = 62000;   // hard cap for the whole render walk
+async function runStageB(facts, narrative, promptText, env, opts={}){
+  const sys=RENDER_SCHEMA, user=renderUserPrompt(facts,narrative,promptText);
   const attempts=[];
   const deadline = Date.now() + STAGE_B_WALK_MS;
   for(const tier of RENDER_CHAIN){
