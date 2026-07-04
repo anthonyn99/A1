@@ -1295,8 +1295,8 @@ function recSave(){
   if(!name){ $('rec-name').style.borderColor='var(--bad)'; setTimeout(function(){ $('rec-name').style.borderColor=''; },1500); return; }
   var data={ id:recEditingId||uid(), name:name, category:$('rec-cat').value, prepTime:$('rec-time').value.trim(),
              ingredients:recCollectIngs(), tools:recCollectTools(), instructions:$('rec-instr').value.trim() };
-  if(recEditingId){ recipes=recipes.map(function(r){ return r.id===recEditingId?data:r; }); }
-  else { recipes=recipes.concat([data]); }
+  if(recEditingId){ setRecipes(recipes.map(function(r){ return r.id===recEditingId?data:r; })); }
+  else { setRecipes(recipes.concat([data])); }
   persistRecipes(); recCloseModal();
   if(recDetailId) recDetailId=data.id;
   render();
