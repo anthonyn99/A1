@@ -31296,6 +31296,22 @@ function rebindPageButtons(ctx) {
     nf.addEventListener('mousedown', function() { saveSel(ctx); this._disp = this.value; this.value = ''; });
     nf.addEventListener('change', function() { var px = this.value; if (px) applyFontSize(ctx, px); else this.value = this._disp || ''; });
     nf.addEventListener('blur', function() { if (this.value === '') this.value = this._disp || ''; });
+    // Increase / Decrease font-size buttons — step every selected size run by a uniform delta,
+    // preserving the relative differences within the selection.
+    if (!tb.querySelector('.docx-fs-step')) {
+      var decB = document.createElement('button');
+      decB.className = 'pt-btn docx-fs-step'; decB.title = 'Decrease font size';
+      decB.innerHTML = '<span style="font-size:10px;font-weight:800;line-height:1;">A</span><span style="font-size:8px;margin-left:1px;">▼</span>';
+      var incB = document.createElement('button');
+      incB.className = 'pt-btn docx-fs-step'; incB.title = 'Increase font size';
+      incB.innerHTML = '<span style="font-size:14px;font-weight:800;line-height:1;">A</span><span style="font-size:8px;margin-left:1px;">▲</span>';
+      [decB, incB].forEach(function(b) { b.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); }); });
+      decB.addEventListener('click', function() { stepFontSize(ctx, -1); });
+      incB.addEventListener('click', function() { stepFontSize(ctx, 1); });
+      var frag = document.createDocumentFragment();
+      frag.appendChild(decB); frag.appendChild(incB);
+      if (nf.nextSibling) nf.parentNode.insertBefore(frag, nf.nextSibling); else nf.parentNode.appendChild(frag);
+    }
   }
   // list toggles — preserve the font size when un-listing (item 8)
   var ulB = replaceBtn('[id$="-pt-ul"]');
@@ -31462,6 +31478,74 @@ function applyFontSize(ctx, px) {
   }
   setFontSizeUI(ctx, px);
   saveSel(ctx);
+  fireInput(ctx.edEl);
+}
+// Clamp a stepped size to a sane range.
+function _stepSize(px, dir) { return Math.max(6, Math.min(200, Math.round(px) + dir)); }
+// All non-empty text nodes intersecting a range.
+function _textNodesInRange(range) {
+  var root = range.commonAncestorContainer;
+  if (root.nodeType === 3) return [root];
+  var nodes = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: function (n) {
+      if (!n.nodeValue.length) return NodeFilter.FILTER_REJECT;
+      return range.intersectsNode(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+    }
+  });
+  var n; while ((n = w.nextNode())) nodes.push(n);
+  return nodes;
+}
+// Set a single text node's font size to (current ± dir), reusing a wrapping size-only span if possible.
+function _adjustNodeSize(tn, dir) {
+  var parent = tn.parentElement; if (!parent) return;
+  var cur = Math.round(parseFloat(getComputedStyle(parent).fontSize) || 16);
+  var next = _stepSize(cur, dir);
+  if (next === cur) return;
+  var onlyFontSizeSpan = parent.tagName === 'SPAN' && parent.childNodes.length === 1 &&
+    parent.style.fontSize && !(parent.getAttribute('style') || '').replace(/font-size\s*:[^;]+;?/i, '').trim();
+  if (onlyFontSizeSpan) {
+    parent.style.fontSize = next + 'px';
+  } else {
+    var span = document.createElement('span'); span.style.fontSize = next + 'px';
+    tn.parentNode.insertBefore(span, tn); span.appendChild(tn);
+  }
+}
+// Increase (dir=+1) / Decrease (dir=-1) the font size of the selection. Each size run is shifted
+// by the SAME uniform delta, so relative size differences within the selection are preserved
+// (e.g. 12/16/20 → 13/17/21 on increase). Collapsed caret adjusts the active typing size.
+function stepFontSize(ctx, dir) {
+  restoreSel(ctx);
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  var range = sel.getRangeAt(0);
+  if (!ctx.edEl.contains(range.commonAncestorContainer)) return;
+  if (sel.isCollapsed || sel.toString() === ZWSP) {
+    var curActive = ctx._activeFontSize || 16;
+    applyFontSize(ctx, _stepSize(curActive, dir));
+    return;
+  }
+  // Align range boundaries to node edges so we only affect the selected portion.
+  var nodes = _textNodesInRange(range);
+  if (!nodes.length) return;
+  var last = nodes[nodes.length - 1];
+  if (last === range.endContainer && last.nodeType === 3 && range.endOffset > 0 && range.endOffset < last.length) {
+    last.splitText(range.endOffset);   // keep the in-range first half (still `last`)
+  }
+  var first = nodes[0];
+  if (first === range.startContainer && first.nodeType === 3 && range.startOffset > 0 && range.startOffset < first.length) {
+    nodes[0] = first.splitText(range.startOffset);   // in-range second half
+  }
+  nodes.forEach(function (tn) { _adjustNodeSize(tn, dir); });
+  // Re-select the same text so the buttons can be clicked repeatedly.
+  try {
+    var nr = document.createRange();
+    nr.setStart(nodes[0], 0);
+    var ln = nodes[nodes.length - 1];
+    nr.setEnd(ln, ln.length);
+    sel.removeAllRanges(); sel.addRange(nr);
+  } catch (e) {}
+  saveSel(ctx);
+  syncFontSizeUI(ctx);
   fireInput(ctx.edEl);
 }
 // Just set what the <select> DISPLAYS (px string, or '' for the "—" dash). Does not change
