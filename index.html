@@ -3094,7 +3094,7 @@ function Root(){
 }
 
 function App(){
-  const[isDark,setIsDark]=useState(()=>loadJ(SK.theme,true));
+  const[isDark,setIsDark]=useState(()=>true); // light mode removed — always dark
   const T=isDark?THEMES.dark:THEMES.light;
   const CC=isDark?CC_DARK:CC_LIGHT;
   useEffect(()=>{
