@@ -31263,8 +31263,11 @@ function rebindPageButtons(ctx) {
   if (fsSel) {
     var nf = fsSel.cloneNode(true);
     fsSel.parentNode.replaceChild(nf, fsSel);
-    nf.addEventListener('mousedown', function() { saveSel(ctx); });
-    nf.addEventListener('change', function() { var px = this.value; if (px) applyFontSize(ctx, px); });
+    // Reset to blank as the dropdown opens so picking the SAME value still fires 'change'
+    // (native selects don't fire change on an unchanged value) → item 6.
+    nf.addEventListener('mousedown', function() { saveSel(ctx); this._disp = this.value; this.value = ''; });
+    nf.addEventListener('change', function() { var px = this.value; if (px) applyFontSize(ctx, px); else this.value = this._disp || ''; });
+    nf.addEventListener('blur', function() { if (this.value === '') this.value = this._disp || ''; });
   }
   // list toggles — preserve the font size when un-listing (item 8)
   var ulB = replaceBtn('[id$="-pt-ul"]');

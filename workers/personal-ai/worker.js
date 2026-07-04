@@ -187,8 +187,10 @@ function buildListPrompt(transcript, items, stores, hasAudio) {
     `- BULK COMMANDS: one command often contains MANY changes ("move the milk to Costco, the eggs to Walmart, check off bread, and add paper towels" = 4 ops). Emit one op per change, never drop or merge any, never add extras.`,
     `- MOVING AN ITEM BETWEEN STORES: "move / switch / swap / put X (over) to/at STORE" → update with set:{store:"STORE"}. Only that item's store changes. "swap X and Y's stores" → two updates exchanging their stores.`,
     `- STORE NAMES: a store is a short proper retailer name in Title Case, max 3 words ("Costco", "Best Buy", "Trader Joe's"). When it's clearly one of the SAVED STORES, use that exact spelling. Vague places ("the store", "the mall", "online", "somewhere") are NOT stores — omit the field. Never write a sentence or explanation in a store field.`,
-    `- NEW ITEMS: "name" = clean Title Case product name, KEEPING any brand ("Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill"). Quantity goes in "qty" ("2", "1 gallon", "3 lbs", "a dozen") — never inside the name. Extra detail (size, color, flavor, "organic", "the big one", "for the party") goes in "desc", short, no repeats of name/qty.`,
-    `- ADD vs UPDATE: if the user "adds" something already on the list, they mean more of it → update that item with the new TOTAL qty (list has "Milk qty:1", user says "grab another milk" → set:{qty:"2"}). Anything not on the list is an add.`,
+    `- NEW ITEMS: "name" = clean Title Case product name (singular), KEEPING any brand ("Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill"). Quantity goes in "qty" ("2", "1 gallon", "3 lbs", "a dozen") — never inside the name.`,
+    `- AUTO-DESCRIPTIONS: the user never has to say "description" — ANY extra detail spoken with an item automatically goes in "desc": sizes/dimensions ("20 by 20 by 1" → "20×20×1"), model/part numbers, color, flavor, variety, material, "organic", "the big pack", "for the party", preferences. Summarize it short and telegraphic; never repeat the name or qty in desc. ("add 2 furnace air filters, 20 by 20 by 1" → name:"Furnace Air Filter", qty:"2", desc:"20×20×1").`,
+    `- ADD vs UPDATE: if the user "adds" more of something already on the list, update that item with the new TOTAL qty (list has "Milk qty:1", user says "grab another milk" → set:{qty:"2"}). Anything not on the list is an add.`,
+    `- DUPLICATE vs MOVE: "copy/duplicate X to STORE", "add X at STORE too/also/as well", "I also need X from STORE" → a NEW add op with that store (the original item stays untouched). Use update set:{store} ONLY when they say to MOVE/switch/change the item's store.`,
     `- CHECK-OFF: "got / bought / grabbed / picked up / already have / check off / done with X" → update set:{done:true}. "put X back / didn't get X / uncheck X" → set:{done:false}.`,
     `- Split run-on speech into separate ops. Ignore filler ("um", "uh", "like", "let me think", "and then").`,
     `- Do ONLY what was asked. If the command maps to no change, return ops: [].`,
@@ -200,6 +202,11 @@ function buildListPrompt(transcript, items, stores, hasAudio) {
     `"actually make it 3 avocados and get rid of the chips" → [{"op":"update","index":5,"match":"Avocados","set":{"qty":"3"}},{"op":"remove","index":7,"match":"Chips"}]`,
     `"move everything from Target to Walmart and clear out what I've already gotten" → [{"op":"move_all","from":"Target","to":"Walmart"},{"op":"remove_all","done":true}]`,
     `"add Walmart and Best Buy as stores" → [{"op":"add_store","name":"Walmart"},{"op":"add_store","name":"Best Buy"}]`,
+    `"change the name of the list to My Shopping List" → [{"op":"rename_list","name":"My Shopping List"}]`,
+    `"remove Home Depot as a store" → [{"op":"remove_store","name":"Home Depot"}]`,
+    `"copy the milk over to Walmart too" → [{"op":"add","name":"Milk","store":"Walmart"}]`,
+    `"start a new list called Weekend BBQ with burgers and hot dog buns from Costco" → [{"op":"new_list","name":"Weekend BBQ"},{"op":"add","name":"Burgers","store":"Costco"},{"op":"add","name":"Hot Dog Buns","store":"Costco"}]`,
+    `"add 2 furnace air filters, 20 by 20 by 1" → [{"op":"add","name":"Furnace Air Filter","qty":"2","desc":"20×20×1"}]`,
   ].join('\n');
 }
 
@@ -211,7 +218,7 @@ const LIST_OPS_SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          op:      { type: 'STRING', enum: ['add', 'update', 'remove', 'move_all', 'check_all', 'uncheck_all', 'remove_all', 'add_store', 'remove_store', 'rename_store'] },
+          op:      { type: 'STRING', enum: ['add', 'update', 'remove', 'move_all', 'check_all', 'uncheck_all', 'remove_all', 'add_store', 'remove_store', 'rename_store', 'rename_list', 'new_list'] },
           name:    { type: 'STRING' },
           qty:     { type: 'STRING' },
           store:   { type: 'STRING' },
