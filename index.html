@@ -31865,8 +31865,10 @@ function wireImageDelegation(ctx) {
         fireInput(ed);
       });
     }
-    // (re)attach the resize handle if a render wiped it
-    if (!m.querySelector(':scope > .docx-math-resize')) addMathResizeHandle(m);
+    // (Re)attach the resize handle if a render wiped it OR if it's a STALE handle that came back
+    // from saved HTML on document reload (persisted markup has no event listeners → can't drag).
+    var rh = m.querySelector(':scope > .docx-math-resize');
+    if (!rh || !rh._docxBound) { if (rh) rh.remove(); addMathResizeHandle(m); }
   }
   function rebindAll() {
     ed.querySelectorAll('.pg-img-wrap').forEach(function(w) {
