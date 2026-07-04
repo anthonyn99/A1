@@ -425,7 +425,13 @@ async function runStageA(facts, promptText, env){
         return { narrative:txt.trim(), model:`gemini:${model} (grounded)`, attempts };
       }catch(e){
         attempts.push({model:`gemini:${model}`,code:e.code||'ERR',retry,msg:(e.message||'').slice(0,80)});
-        if(e.code==='RATE_LIMIT'){ await kvPut(env,'qblock:'+model,'1',3600); break; }   // real quota → block 1h, next model
+        if(e.code==='RATE_LIMIT'){
+          // Real quota hit → step down to the next model. Block this one only for
+          // as long as the API says (Retry-After) so a brief per-minute throttle
+          // doesn't lock us out of the TOP model for an hour. Default 20 min.
+          const ttl = e.retryAfter>0 ? Math.min(3600, Math.max(60, Math.ceil(e.retryAfter))) : 1200;
+          await kvPut(env,'qblock:'+model,'1',ttl); break;
+        }
         const transient = e.code==='SERVER' || e.name==='TimeoutError' || e.code==='EMPTY';
         if(transient && retry<2 && Date.now()+3500<deadline){ await sleep(900+Math.random()*500); continue; }  // retry SAME model
         break;  // non-transient / out of retries → next model
