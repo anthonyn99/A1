@@ -17231,6 +17231,7 @@ function setEditMode(enabled) {
   // Sync bottom bar edit button label
   const bbEdit = document.getElementById('bj-bb-edit');
   if (bbEdit) bbEdit.textContent = enabled ? '✓ Done' : '✏ Edit';
+  if (enabled && window._docxRefreshRulers) window._docxRefreshRulers('bj');
 }
 
 /* ── Fast touch response for all BJ toolbar controls ──
@@ -22935,6 +22936,7 @@ function setEditMode(enabled) {
   // Sync bottom bar edit button label
   const bbEdit = document.getElementById('tj-bb-edit');
   if (bbEdit) bbEdit.textContent = enabled ? '✓ Done' : '✏ Edit';
+  if (enabled && window._docxRefreshRulers) window._docxRefreshRulers('tj');
 }
 
 /* ── Fast touch response for all TJ toolbar controls ──
@@ -24941,6 +24943,12 @@ function _pageHeight(app) {
   var ps = psGet(app), dim = SIZES[ps.size] || SIZES.letter;
   return ps.orient === 'landscape' ? dim[0] : dim[1];
 }
+// Re-measure the rulers for an app (called when edit mode turns on — the vertical
+// ruler is display:none in view mode, so its geometry can only be read once shown).
+window._docxRefreshRulers = function(app) {
+  if (!APPS[app]) return;
+  requestAnimationFrame(function() { try { updateRulers(app); } catch (e) {} });
+};
 function updateVRuler(ctx) {
   var ruler = ctx.vrulerEl; if (!ruler) return;
   var wrap = ctx.wrapEl, sheet = ctx.edEl;
