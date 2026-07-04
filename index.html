@@ -31297,6 +31297,7 @@ function rebindPageButtons(ctx) {
 // render the whole document (and convert any leftover $…$ text to math), so you can
 // unrender/re-render math freely at any time (item 6).
 function renderMarkdown(ctx) {
+  if (_docxFeatureLocked(ctx.app, 'renderMarkdown')) { _docxLockedToast(); return; }
   var ed = ctx.edEl;
   restoreSel(ctx);
   var sel = window.getSelection();
