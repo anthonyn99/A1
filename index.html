@@ -3941,7 +3941,6 @@ function App(){
           vxUndo&&React.createElement("button",{type:"button",key:"vx-undo",title:"Undo",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD,fontSize:15,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.undo()},"↶"),
           vxRedo&&React.createElement("button",{type:"button",key:"vx-redo",title:"Redo",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD,fontSize:15,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.redo()},"↷"),
           React.createElement("button",{type:"button",style:{...hbtn(false),background:showPomo?T.AC:T.BG,color:showPomo?"#000":T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>setShowPomo(p=>!p)},"⏱"),
-          React.createElement("button",{type:"button",style:{...hbtn(false),color:T.AC},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>{const nd=!isDark;setIsDark(nd);if(window._syncAllThemes)window._syncAllThemes(nd);}},isDark?React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"})):React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("circle",{cx:12,cy:12,r:5}),React.createElement("line",{x1:12,y1:1,x2:12,y2:3}),React.createElement("line",{x1:12,y1:21,x2:12,y2:23}),React.createElement("line",{x1:4.22,y1:4.22,x2:5.64,y2:5.64}),React.createElement("line",{x1:18.36,y1:18.36,x2:19.78,y2:19.78}),React.createElement("line",{x1:1,y1:12,x2:3,y2:12}),React.createElement("line",{x1:21,y1:12,x2:23,y2:12}),React.createElement("line",{x1:4.22,y1:19.78,x2:5.64,y2:18.36}),React.createElement("line",{x1:18.36,y1:5.64,x2:19.78,y2:4.22}))),
           React.createElement("div",{style:{...hbtn(false),cursor:"pointer",userSelect:"none",border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>setEdit(e=>!e)},
             React.createElement("div",{style:{width:26,height:14,borderRadius:7,background:edit?T.AC:T.BD,position:"relative",transition:"background .25s",flexShrink:0}},
               React.createElement("div",{style:{width:10,height:10,borderRadius:"50%",background:edit?"#fff":T.TXD,position:"absolute",top:"50%",transform:"translateY(-50%)",left:edit?13:2,transition:"left .25s",boxShadow:"0 1px 3px rgba(0,0,0,.25)"}})),
@@ -5972,7 +5971,7 @@ const CD=['#a8d8c0','#a0c8e8','#f5e88a','#f0a8c8','#c4a0e8','#40d8a8','#40a8f0',
 const COPY_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
 let isDark=true,isEdit=false;
-try{isDark=JSON.parse(localStorage.getItem('kc_theme')?? 'true');}catch{}
+isDark=true; // light mode removed — always dark
 function pal(){return CD;}
 function defC(){return CD[0];}
 
@@ -6682,7 +6681,7 @@ const _colSnapshot={};
 
   function loadExpLocal(){try{const v=localStorage.getItem(EL_DATA_KEY);return v?JSON.parse(v):null;}catch{return null;}}
   function saveExpLocal(l){try{localStorage.setItem(EL_DATA_KEY,JSON.stringify(l));}catch{}}
-  function elLoadTheme(){try{const v=localStorage.getItem(TH_THEME_KEY);return v!==null?JSON.parse(v):true;}catch{return true;}}
+  function elLoadTheme(){return true;} // light mode removed — always dark
   function elSaveTheme(d){try{localStorage.setItem(TH_THEME_KEY,JSON.stringify(d));}catch{}}
 
   // Seed localStorage on first run
@@ -11050,7 +11049,7 @@ const CD=['#a8d8c0','#a0c8e8','#f5e88a','#f0a8c8','#c4a0e8','#40d8a8','#40a8f0',
 const COPY_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
 let isDark=true,isEdit=false;
-try{isDark=JSON.parse(localStorage.getItem('kc_theme')?? 'true');}catch{}
+isDark=true; // light mode removed — always dark
 function pal(){return CD;}
 function defC(){return CD[0];}
 
@@ -11797,8 +11796,7 @@ function kcSwitchTo(app){
 window.kcSwitchTo=kcSwitchTo;
 window._kcSwitchTo=function(app){kcSwitchTo(app);if(app==='keychain'&&window._updateTonyNavActive)window._updateTonyNavActive('keychain');};
 window._kcApplyTheme=function(){
-  // Sync theme from shared td6_theme key
-  try{isDark=JSON.parse(localStorage.getItem('td6_theme')?? 'true');}catch{}
+  isDark=true; // light mode removed — always dark
   applyTheme();
 };
 
