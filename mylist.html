@@ -1304,7 +1304,7 @@ function recSave(){
 function recDelete(id){
   var r=recipes.filter(function(x){return x.id===id;})[0]; if(!r) return;
   confirmAsk('Delete recipe "'+r.name+'"?', function(){
-    recipes=recipes.filter(function(x){return x.id!==id;}); persistRecipes();
+    setRecipes(recipes.filter(function(x){return x.id!==id;})); persistRecipes();
     if(recDetailId===id) recDetailId=null; render();
   });
 }
