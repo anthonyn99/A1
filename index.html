@@ -34551,7 +34551,7 @@ function alUpdateTonyLockBtn() {
 }
 
 function alUpdateVedaLockBtns() {
-  ['veda_timeline','veda_cooking','veda_links','veda_journal','veda_study','veda_taskhub','veda_gita'].forEach(function(id) {
+  ['veda_timeline','veda_links','veda_journal','veda_study','veda_taskhub','veda_gita'].forEach(function(id) {
     var btn = _el('al-btn-' + id);
     if (!btn) return;
     var locked = alIsLocked(id);
@@ -35048,7 +35048,6 @@ var VEDA_DEFAULT = [
   {app:'taskhub',  label:'TaskHub'},
   {app:'study',    label:'Study'},
   {app:'gita',     label:'Gita'},
-  {app:'cooking',  label:'Cooking'},
   {app:'timeline', label:'Timeline'},
   {app:'journal',  label:'Journal'},
   {app:'links',    label:'Links'},
