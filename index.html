@@ -30682,6 +30682,7 @@ function aiFormat(ctx) {
 
 // Editable AI Format prompt (per journal) — opened from the Help menu.
 function aiPromptModal(app) {
+  if (_docxFeatureLocked(app, 'aiPrompt')) { _docxLockedToast(); return; }
   var veil = modal('✨  AI Format Prompt', function(b) {
     b.classList.add('docx-prompt-body');
     var note = document.createElement('div');
