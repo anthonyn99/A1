@@ -96,25 +96,19 @@
      and Firestore docs are all shared with index.html.
      ══════════════════════════════════════════════════════════════ -->
 <script>
-  /* Theme shim — mirrors index.html _syncAllThemes just enough that the
-     TradeHub light/dark toggle persists across reloads on this origin. */
-  window._syncAllThemes = function(isDark){
-    try{ localStorage.setItem("td6_theme", JSON.stringify(isDark)); }catch{}
-    var bg = isDark ? "#0f0f12" : "#EAE3E7";
-    document.body.style.background = bg;
-    document.documentElement.style.background = bg;
+  /* Light mode removed — TradeHub is always dark. */
+  window._syncAllThemes = function(){
+    document.body.style.background = "#0f0f12";
+    document.documentElement.style.background = "#0f0f12";
     var r = document.getElementById('tradeboard-root');
-    if(r) r.classList.toggle('tb-light', !isDark);
-    if(window._tbSyncTheme) window._tbSyncTheme(isDark);
+    if(r) r.classList.remove('tb-light');
+    if(window._tbSyncTheme) window._tbSyncTheme(true);
   };
-  // Apply persisted theme immediately (before React mounts)
-  try{
-    var _dark = JSON.parse(localStorage.getItem('td6_theme')||'true');
-    document.documentElement.style.background = _dark ? "#0f0f12" : "#EAE3E7";
-    document.body.style.background = _dark ? "#0f0f12" : "#EAE3E7";
-    var _r = document.getElementById('tradeboard-root');
-    if(_r) _r.classList.toggle('tb-light', !_dark);
-  }catch{}
+  // Force dark immediately (before React mounts)
+  document.documentElement.style.background = "#0f0f12";
+  document.body.style.background = "#0f0f12";
+  var _r = document.getElementById('tradeboard-root');
+  if(_r) _r.classList.remove('tb-light');
 </script>
 
 <script type="module">
@@ -3261,7 +3255,6 @@ function TBHeader({page,onNav,syncStatus,portfolioConnected,isDark,onToggleTheme
         <div style={{padding:'0 clamp(12px,3vw,24px) 0 8px',display:'flex',alignItems:'center',gap:6,height:42,flexShrink:0}}>
           <button id="tb-lock-btn-desktop" onClick={()=>window._tbManageLock&&window._tbManageLock()} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:4,color:'var(--ac)',padding:'0 8px',height:28,boxSizing:'border-box',cursor:'pointer',display:'inline-flex',alignItems:'center',fontSize:13,lineHeight:1,opacity:(window._tbAppIsLocked&&window._tbAppIsLocked())?1:0.55,transition:'border-color .15s, opacity .15s',flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--ac)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--bd)'} title="TradeHub lock (whole app)">{(window._tbAppIsLocked&&window._tbAppIsLocked())?'🔒':'🔓'}</button>
           <button onClick={()=>{const n=TB_NAV.find(x=>x.id===page)||TB_NAV[0];onManageTabLock&&onManageTabLock({id:n.id,label:n.label});}} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:4,color:'var(--ac)',padding:'0 8px',height:28,boxSizing:'border-box',cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',lineHeight:1,opacity:(window._tbTabLock&&window._tbTabLock.isLocked(page))?1:0.55,transition:'border-color .15s, opacity .15s',flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--ac)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--bd)'} title={(window._tbTabLock&&window._tbTabLock.isLocked(page))?'This tab is locked — manage':'Lock this tab'}><TBTabLockIcon locked={!!(window._tbTabLock&&window._tbTabLock.isLocked(page))}/></button>
-          <button onClick={onToggleTheme} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:4,color:'var(--ac)',padding:'0 8px',height:28,boxSizing:'border-box',cursor:'pointer',display:'inline-flex',alignItems:'center',transition:'border-color .15s',flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--ac)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--bd)'}>{isDark?moonSvg:sunSvg}</button>
         </div>
       </div>
     </div>
@@ -4520,7 +4513,7 @@ function TBApp(){
   const [fbLoaded,setFbLoaded]=useState(false);
   const [tbSyncStatus,setTbSyncStatus]=useState(''); // 'saving'|'saved'|'error'|''
   const [tbPortfolioOk,setTbPortfolioOk]=useState(false);
-  const [tbIsDark,setTbIsDark]=useState(()=>{try{return JSON.parse(localStorage.getItem('td6_theme')||'true');}catch{return true;}});
+  const [tbIsDark,setTbIsDark]=useState(true); // light mode removed — always dark
 
   /* Sync theme with rest of Tony apps */
   useEffect(()=>{
