@@ -516,8 +516,12 @@ async function kickStage(env, runId, phase){
 async function runBuild(env, opts={}){
   const runId=crypto.randomUUID();
   const startedAt=Date.now();
-  await kvPut(env,'td_report',{status:'building',report:null,error:null,generatedAt:null,model:null,runId,startedAt});
+  // Resolve the prompt to run: explicit override (from /build body) → active KV
+  // prompt (Control-tab selection) → built-in default.
+  const prompt = (opts.prompt&&opts.prompt.text) ? { name:opts.prompt.name||'Prompt', text:opts.prompt.text } : await getActivePrompt(env);
+  await kvPut(env,'td_report',{status:'building',report:null,error:null,generatedAt:null,model:null,runId,startedAt,promptName:prompt.name});
   const job={ runId, startedAt, phase:'facts', facts:null, narrative:null, narrativeModel:null,
+              promptText:prompt.text, promptName:prompt.name,
               cron:!!opts.cron, deadStageA:false };
   await kvPut(env,'td_job',job);
   await kickStage(env, runId, 'facts');
