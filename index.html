@@ -9919,8 +9919,8 @@ function App(){
           RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},"✦")),
       // Row 2: program-specific tools, right-aligned
       RC("div",{className:"veda-hbtns",style:{paddingTop:4}},
-        false&&RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:vxRec?"none":"0 2px 9px "+A+"66"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23}))),
-        false&&RC("button",{key:"vx-dev",title:"Input device",onClick:()=>window._THV&&window._THV.openDevicePicker(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
+        RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:vxRec?"none":"0 2px 9px "+A+"66"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23}))),
+        RC("button",{key:"vx-dev",title:"Input device",onClick:()=>window._THV&&window._THV.openDevicePicker(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
         vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↶"),
         vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↷"),
         RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
@@ -30534,11 +30534,11 @@ window._docxOpenTrash = function(app) {
 };
 
 /* ═══════════ Per-journal feature locks (reversible) ═══════════
-   Add/remove an app key or a feature name here to disable/enable it — nothing else in the
-   code needs to change. Currently Brainstorm Journal (bj) has AI Format, Render Markdown, and
-   the AI Format prompt editor disabled by request. To re-enable, remove 'bj' below (or just
-   the specific feature name from its list). */
-var DOCX_DISABLED_FEATURES = { bj: ['aiFormat', 'renderMarkdown', 'unrenderMarkdown', 'aiPrompt'] };
+   Add an app key + feature-name list here to disable features on that journal — nothing else
+   in the code needs to change. Example (Brainstorm/bj, currently RE-ENABLED per request):
+     { bj: ['aiFormat', 'renderMarkdown', 'unrenderMarkdown', 'aiPrompt'] }
+   Feature names: 'aiFormat', 'renderMarkdown', 'unrenderMarkdown', 'aiPrompt'. Empty = nothing locked. */
+var DOCX_DISABLED_FEATURES = {};
 function _docxFeatureLocked(app, feature) {
   return (DOCX_DISABLED_FEATURES[app] || []).indexOf(feature) !== -1;
 }
@@ -31475,13 +31475,13 @@ function _docxHtmlToMd(root) {
       case 'a': return '[' + kids(el) + '](' + (el.getAttribute('href') || '') + ')';
       case 'img': return '![' + (el.getAttribute('alt') || '') + '](' + (el.getAttribute('src') || '') + ')';
       case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
-        return '\n' + new Array(+tag[1] + 1).join('#') + ' ' + kids(el).replace(/\s+/g, ' ').trim() + '\n';
-      case 'blockquote': { var inr = kids(el).trim(); return '\n' + inr.split('\n').map(function (l) { return '> ' + l; }).join('\n') + '\n'; }
-      case 'hr': return '\n---\n';
-      case 'ul': return '\n' + listMd(el, false, 0) + '\n';
-      case 'ol': return '\n' + listMd(el, true, 0) + '\n';
+        return '\n\n' + new Array(+tag[1] + 1).join('#') + ' ' + kids(el).replace(/\s+/g, ' ').trim() + '\n\n';
+      case 'blockquote': { var inr = kids(el).trim(); return '\n\n' + inr.split('\n').map(function (l) { return '> ' + l; }).join('\n') + '\n\n'; }
+      case 'hr': return '\n\n---\n\n';
+      case 'ul': return '\n\n' + listMd(el, false, 0) + '\n\n';
+      case 'ol': return '\n\n' + listMd(el, true, 0) + '\n\n';
       case 'li': return kids(el);
-      case 'table': return '\n' + tableMd(el) + '\n';
+      case 'table': return '\n\n' + tableMd(el) + '\n\n';
       case 'p': case 'div': return kids(el) + '\n\n';
       case 'input': return '';
       default: return kids(el);   // span, font, etc. — just their text/markup
