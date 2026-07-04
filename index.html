@@ -10210,7 +10210,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     const main=localStorage.getItem("td6_mainDash");
     const thBtn=document.getElementById("th-setmain-btn");
     const vdBtn=document.getElementById("vd-setmain-btn");
-    const isDarkNow=(()=>{try{return JSON.parse(localStorage.getItem("td6_theme")||"true");}catch{return true;}})();
+    const isDarkNow=true; // light mode removed — always dark
     const thBg=isDarkNow?"#0f0f12":"#F2EEF0";
     const thBd=isDarkNow?"#252530":"#E8E0D4";
     const thAc=isDarkNow?"#E0607A":"#D4607A";
