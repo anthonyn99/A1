@@ -34259,7 +34259,6 @@ var AL_LABELS  = {
   veda_taskhub:   { label: 'TaskHub',    profile: 'veda', color: '#8D769A' },
   veda_study:     { label: 'StudyOS',    profile: 'veda', color: '#8D769A' },
   veda_gita:      { label: 'Gita',       profile: 'veda', color: '#8D769A' },
-  veda_cooking:   { label: 'Cooking',    profile: 'veda', color: '#8D769A' },
   veda_timeline:  { label: 'Timeline',   profile: 'veda', color: '#8D769A' },
   veda_journal:   { label: 'Journal',    profile: 'veda', color: '#8D769A' },
   veda_links:     { label: 'Links',      profile: 'veda', color: '#8D769A' },
@@ -34415,7 +34414,6 @@ var AL_APP_ROOTS = {
   tony_proview:   ['pv-root'],
   veda_taskhub:   ['veda-root'],
   veda_study:     ['study-root'],
-  veda_cooking:   ['cooking-dashboard-wrapper','cooking-view'],
   veda_timeline:  ['vt-root'],
   veda_journal:   ['bj-root'],
   veda_links:     ['vd-kc-root']
@@ -34524,7 +34522,7 @@ function alNavAppToId(profile, navApp) {
             keychain:'tony_keychain', brainstormjournal:'tony_myjournal',
             proview:'tony_proview', warroom:'tony_warroom' },
     veda: { taskhub:'veda_taskhub', study:'veda_study', gita:'veda_gita',
-            cooking:'veda_cooking', timeline:'veda_timeline',
+            timeline:'veda_timeline',
             journal:'veda_journal', links:'veda_links' }
   };
   return (map[profile] || {})[navApp] || null;
