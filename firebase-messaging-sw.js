@@ -20,7 +20,7 @@ firebase.initializeApp({
 // task) to REPLACE push #1 (e.g. an event) fired at the same minute, so only one
 // showed on mobile. Changing these bytes makes the browser install this build,
 // and skipWaiting + clients.claim below swap it in immediately.
-const SW_VERSION = '2026-07-05-desktop-installable-fetch';
+const SW_VERSION = '2026-06-18-dash-gate-os-notif';
 
 const messaging = firebase.messaging();
 
@@ -28,17 +28,6 @@ const messaging = firebase.messaging();
 // replaces any older cached service worker without needing a manual unregister.
 self.addEventListener('install', function(){ self.skipWaiting(); });
 self.addEventListener('activate', function(e){ e.waitUntil(self.clients.claim()); });
-
-// A `fetch` handler is REQUIRED for Chrome/Edge on DESKTOP to treat TaskHub as an
-// installable PWA. Desktop has no OS-level push daemon (unlike Android's Play
-// Services), so a reminder can only arrive while the app is CLOSED if TaskHub is
-// installed as a real PWA whose browser keeps a background push process alive —
-// and the browser only offers that install when the service worker has a fetch
-// listener. This is intentionally a NO-OP passthrough: we call neither
-// event.respondWith nor caches, so every request is handled normally by the
-// network and the app can NEVER serve stale cached code (matching the page's
-// no-cache headers). Its sole purpose is installability.
-self.addEventListener('fetch', function(event){ /* network passthrough — installability only */ });
 
 // Messages are DATA-ONLY, so this runs for EVERY message (no SDK auto-display
 // race) and we draw each with a UNIQUE tag → multiple same-minute reminders
