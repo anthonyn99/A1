@@ -1730,7 +1730,12 @@ async function buildCalendar(wl, env, days, diag){
 function geminiBody(model, prompt){
   const gc = {
     temperature: 0.2,
-    maxOutputTokens: 8192,
+    // gemini-3.5-flash is a heavy THINKING model — its thinking tokens count
+    // against maxOutputTokens, so an 8k budget gets fully consumed thinking and it
+    // returns EMPTY (finishReason=MAX_TOKENS). Give it much more room so the JSON
+    // survives. Other models don't think heavily and only generate what they need,
+    // so the larger cap is harmless for them (kept at 8192 to bound latency).
+    maxOutputTokens: model === 'gemini-3.5-flash' ? 24576 : 8192,
     responseMimeType: 'application/json',
     responseSchema: {
       type: 'ARRAY',
