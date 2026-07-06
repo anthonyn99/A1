@@ -3353,7 +3353,7 @@ function TBNavBar({items,page,onNav,onReorder,variant}){
     if(wasDragging){
       justDraggedRef.current=true;
       setTimeout(()=>{ justDraggedRef.current=false; },60);   // swallow the click that follows a drag
-      setLiveIds(cur=>{ onReorder&&onReorder(cur); return cur; });
+      if(onReorder && liveIdsRef.current) onReorder(liveIdsRef.current.slice());
     }
   };
 
