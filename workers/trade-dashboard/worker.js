@@ -51,13 +51,20 @@ const POLL_STALE_MS   = 150 * 1000;  // /poll marks a build dead after this
 
 /* Stage-B render chain — walked top→bottom. Grounding is Stage A only; B is a
    pure JSON formatter so a fast non-grounded model is ideal. */
+/* Stage-B render is a STRUCTURED-JSON task. gemini-3.5-flash is a thinking model
+   that lets its thinking eat the output budget → returns EMPTY on structured output
+   (verified on the News worker), so it is DROPPED here. Lead with the fast, reliable
+   3.1-flash-lite; nvidia/groq cover the rare all-Gemini-down case. */
 const RENDER_CHAIN = [
-  { provider:'gemini', models:['gemini-3.1-flash-lite','gemini-3.5-flash','gemini-2.5-flash-lite','gemini-2.5-flash'] },
+  { provider:'gemini', models:['gemini-3.1-flash-lite','gemini-2.5-flash','gemini-2.5-flash-lite','gemini-2.0-flash'] },
   { provider:'nvidia', models:['nvidia/llama-3.3-nemotron-super-49b-v1','meta/llama-3.3-70b-instruct'] },
   { provider:'groq',   models:['llama-3.3-70b-versatile'] },
 ];
-/* Stage-A grounded models (must support google_search tool). Newest first. */
-const GROUNDED_MODELS = ['gemini-3.5-flash','gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-flash-lite'];
+/* Stage-A grounded models (must support google_search). gemini-3.5-flash on grounded
+   calls either 429s (very low grounding quota) or lets thinking eat the output budget
+   → empty, so it is DEMOTED to a trailing fallback. Lead with gemini-2.5-flash, which
+   reliably returns a full grounded narrative. Only step down on genuine failure. */
+const GROUNDED_MODELS = ['gemini-2.5-flash','gemini-2.0-flash','gemini-2.5-flash-lite','gemini-3.5-flash'];
 
 /* ════════════════════════ FACTS: live data layer ════════════════════════ */
 const FH_BASE = 'https://finnhub.io/api/v1';
