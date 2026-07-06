@@ -3301,9 +3301,10 @@ function TBNavBar({items,page,onNav,onReorder,variant}){
   },[]);
 
   const clearTimer=()=>{ if(timerRef.current){ clearTimeout(timerRef.current); timerRef.current=null; } };
-  const beginDrag=(id,e)=>{
-    draggingRef.current=true; setDragId(id);
-    try{ e&&e.target&&e.target.setPointerCapture&&e.target.setPointerCapture(e.pointerId); }catch(_){}
+  const beginDrag=()=>{
+    const dr=dragRef.current; if(!dr) return;
+    draggingRef.current=true; setDragId(dr.id);
+    try{ dr.target&&dr.target.setPointerCapture&&dr.target.setPointerCapture(dr.pointerId); }catch(_){}
     try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){}
   };
   const reorderTo=(clientX)=>{
