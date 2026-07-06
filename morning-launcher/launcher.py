@@ -38,11 +38,18 @@ USAGE
 # ==============================================================================
 
 SCREEN_W = 5120
-SCREEN_H = 1440
+SCREEN_H = 1440   # native panel height. The ACTUAL window height is auto-reduced at
+                  # runtime to the work area (screen minus the Windows taskbar) so no
+                  # window content ever hides behind the taskbar. See _apply_work_area().
 
-WEBULL_POS   = [   0, 0, 1700, SCREEN_H]   # ← left   (~33 %)
-TRADEHUB_POS = [1700, 0, 1720, SCREEN_H]   # ← middle (~33 %)
-TASKHUB_POS  = [3420, 0, 1700, SCREEN_H]   # ← right  (~33 %)
+# Three equal columns that exactly tile the 5120-wide screen (widths sum to 5120, no
+# gaps). The height value here is a placeholder — _apply_work_area() overwrites it with
+# the real usable height at launch. The launcher also compensates for Windows' invisible
+# ~7px DWM window border (see _place) so the VISIBLE edges of the three windows sit
+# perfectly flush against each other and the screen edges.
+WEBULL_POS   = [   0, 0, 1707, SCREEN_H]   # ← left
+TRADEHUB_POS = [1707, 0, 1706, SCREEN_H]   # ← middle
+TASKHUB_POS  = [3413, 0, 1707, SCREEN_H]   # ← right
 
 # ==============================================================================
 #  URLs
