@@ -3248,17 +3248,146 @@ const TB_NAV=[
   {id:'analysis', label:'Analysis', icon:''},
 ];
 
+/* ── Nav order (user-draggable) — persisted per-device + synced via Firebase ── */
+const TB_NAV_ORDER_KEY='tb_nav_order_v1';
+function tbLoadNavOrder(){
+  try{ const r=localStorage.getItem(TB_NAV_ORDER_KEY); if(r){ const a=JSON.parse(r); if(Array.isArray(a)&&a.length) return a; } }catch{}
+  return TB_NAV.map(n=>n.id);
+}
+function tbSaveNavOrder(order){ try{ localStorage.setItem(TB_NAV_ORDER_KEY, JSON.stringify(order)); }catch{} }
+/* Merge a saved order with the canonical TB_NAV: honor saved order, append any NEW
+   tabs at the end, drop ids that no longer exist. Returns nav item objects in order. */
+function tbOrderedNav(order){
+  const byId={}; TB_NAV.forEach(n=>byId[n.id]=n);
+  const seen=new Set(); const out=[];
+  (order||[]).forEach(id=>{ if(byId[id]&&!seen.has(id)){ out.push(byId[id]); seen.add(id); } });
+  TB_NAV.forEach(n=>{ if(!seen.has(n.id)){ out.push(n); seen.add(n.id); } });
+  return out;
+}
+
+/* ── Shared reorderable nav bar (desktop + mobile) ──────────────────────────
+   • Desktop: click-drag a tab to reorder; a plain click still navigates.
+   • Mobile/tablet: HOLD (~300ms long-press) to pick a tab up, then drag; a plain
+     swipe still scrolls the header horizontally (native), and a tap navigates.
+   Self-contained (Pointer Events), no libraries. Order changes bubble via onReorder. */
+function TBNavBar({items,page,onNav,onReorder,variant}){
+  const isDesktop=variant==='desktop';
+  const containerRef=useRef(null);
+  const byId=useMemo(()=>{const m={};(items||[]).forEach(i=>m[i.id]=i);return m;},[items]);
+  const [liveIds,setLiveIds]=useState(()=>(items||[]).map(i=>i.id));
+  const [dragId,setDragId]=useState(null);
+  const draggingRef=useRef(false);
+  const dragRef=useRef(null);        // {id,startX,startY,pointerType}
+  const timerRef=useRef(null);
+  const justDraggedRef=useRef(false);
+
+  // Adopt external order changes only when NOT mid-drag (don't fight the user).
+  useEffect(()=>{ if(!draggingRef.current) setLiveIds((items||[]).map(i=>i.id)); },[items]);
+
+  // Block native scroll ONLY while actively dragging, so plain swipes still scroll.
+  useEffect(()=>{
+    const el=containerRef.current; if(!el) return;
+    const onTM=(ev)=>{ if(draggingRef.current) ev.preventDefault(); };
+    el.addEventListener('touchmove',onTM,{passive:false});
+    return ()=>el.removeEventListener('touchmove',onTM);
+  },[]);
+
+  const clearTimer=()=>{ if(timerRef.current){ clearTimeout(timerRef.current); timerRef.current=null; } };
+  const beginDrag=(id,e)=>{
+    draggingRef.current=true; setDragId(id);
+    try{ e&&e.target&&e.target.setPointerCapture&&e.target.setPointerCapture(e.pointerId); }catch(_){}
+    try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){}
+  };
+  const reorderTo=(clientX)=>{
+    const dr=dragRef.current, cont=containerRef.current; if(!dr||!cont) return;
+    setLiveIds(prev=>{
+      const without=prev.filter(x=>x!==dr.id);
+      let insert=without.length;
+      for(let k=0;k<without.length;k++){
+        const el=cont.querySelector('[data-navid="'+without[k]+'"]'); if(!el) continue;
+        const r=el.getBoundingClientRect();
+        if(clientX < r.left + r.width/2){ insert=k; break; }
+      }
+      const next=without.slice(); next.splice(insert,0,dr.id);
+      return next.join('|')===prev.join('|')?prev:next;
+    });
+  };
+  const onPointerDown=(e,id)=>{
+    if(e.button!=null && e.button!==0) return;      // left/primary only
+    const pt=e.pointerType||'mouse';
+    dragRef.current={id,startX:e.clientX,startY:e.clientY,pointerType:pt};
+    clearTimer();
+    if(pt!=='mouse'){                                // touch/pen → require a hold
+      timerRef.current=setTimeout(()=>{
+        timerRef.current=null;
+        if(dragRef.current && dragRef.current.id===id && !draggingRef.current) beginDrag(id,e);
+      },300);
+    }
+  };
+  const onPointerMove=(e)=>{
+    const dr=dragRef.current; if(!dr) return;
+    if(!draggingRef.current){
+      const dx=Math.abs(e.clientX-dr.startX), dy=Math.abs(e.clientY-dr.startY);
+      if(dr.pointerType==='mouse'){ if(dx>5||dy>5) beginDrag(dr.id,e); }   // desktop: small move starts drag
+      else if((dx>8||dy>8) && timerRef.current){ clearTimer(); dragRef.current=null; }  // touch moved before hold → let it scroll
+      if(!draggingRef.current) return;
+    }
+    reorderTo(e.clientX);
+  };
+  const endDrag=()=>{
+    clearTimer();
+    const wasDragging=draggingRef.current;
+    draggingRef.current=false; dragRef.current=null; setDragId(null);
+    if(wasDragging){
+      justDraggedRef.current=true;
+      setTimeout(()=>{ justDraggedRef.current=false; },60);   // swallow the click that follows a drag
+      setLiveIds(cur=>{ onReorder&&onReorder(cur); return cur; });
+    }
+  };
+
+  const renderBtn=(id)=>{
+    const item=byId[id]; if(!item) return null;
+    const isActive=page===item.id;
+    const isDrag=dragId===item.id;
+    const tabLocked=window._tbTabLock&&window._tbTabLock.isLocked(item.id);
+    const base = isDesktop
+      ? {display:'flex',alignItems:'center',gap:7,padding:'0 16px',height:'100%',fontSize:12}
+      : {flex:'0 0 auto',display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'10px 16px',fontSize:12};
+    return <button key={id} data-navid={id}
+      onPointerDown={e=>onPointerDown(e,id)} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}
+      onClick={e=>{ if(justDraggedRef.current){ e.preventDefault(); e.stopPropagation(); return; } onNav(item.id); }}
+      style={{...base,border:'none',borderBottom:`2px solid ${isActive?'var(--ac)':'transparent'}`,fontWeight:isActive?800:600,
+        background:isDrag?'var(--s2)':'transparent',color:isActive?'var(--ac)':'var(--txd)',cursor:isDrag?'grabbing':'pointer',
+        whiteSpace:'nowrap',transition:isDrag?'none':'background .15s,color .15s',transform:isDrag?'scale(1.05)':'none',
+        boxShadow:isDrag?'0 6px 18px rgba(0,0,0,0.28)':'none',borderRadius:isDrag?8:0,zIndex:isDrag?5:'auto',opacity:isDrag?0.95:1,
+        touchAction:'pan-x',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
+      {isDesktop&&item.icon?<span style={{fontSize:12}}>{item.icon}</span>:null}
+      <span>{item.label}</span>
+      {tabLocked?<span style={{fontSize:isDesktop?9:8}} title="Locked">🔒</span>:null}
+      {item.badge?<span style={{fontSize:isDesktop?8:7,background:'rgba(74,222,128,0.18)',color:'var(--tbb)',border:'1px solid rgba(74,222,128,0.35)',borderRadius:isDesktop?4:3,padding:'1px 5px',fontWeight:800,marginLeft:2}}>{item.badge}</span>:null}
+    </button>;
+  };
+
+  const wrapStyle = isDesktop
+    ? {display:'flex',alignItems:'stretch',height:42,gap:0,flex:1,overflowX:'auto',scrollbarWidth:'none',touchAction:dragId?'none':'pan-x'}
+    : {display:'flex',alignItems:'stretch',borderTop:'1px solid var(--bd)',overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',touchAction:dragId?'none':'pan-x'};
+
+  return isDesktop
+    ? <nav ref={containerRef} style={wrapStyle}>{liveIds.map(renderBtn)}</nav>
+    : <div ref={containerRef} style={wrapStyle}>{liveIds.map(renderBtn)}</div>;
+}
+
 /* TBTonyNavBar removed — global #tony-app-nav handles cross-app nav */
 
 /* ── Main header — logo + sync indicator + tabs ── */
-function TBHeader({page,onNav,syncStatus,portfolioConnected,isDark,onToggleTheme,onManageTabLock}){
+function TBHeader({page,onNav,syncStatus,portfolioConnected,isDark,onToggleTheme,onManageTabLock,navOrder,onReorderNav}){
   useTabLockVersion();
   /* Sync indicator: only visible when saving/saved/error; hidden on idle/live */
   const syncVisible=syncStatus==='saving'||syncStatus==='saved'||syncStatus==='error';
   const syncColor=syncStatus==='error'?'var(--tbr)':syncStatus==='saving'?'var(--txm)':'var(--tbb)';
   const syncLabel=syncStatus==='saving'?'Syncing…':syncStatus==='error'?'⚠ Sync failed':'✓ Synced';
-  /* Portfolio LIVE badge only when connected */
-  const navItems=TB_NAV.map(item=>item.id==='portfolio'?{...item,badge:portfolioConnected?'LIVE':null}:item);
+  /* Ordered nav (user-draggable) + Portfolio LIVE badge only when connected */
+  const navItems=tbOrderedNav(navOrder).map(item=>item.id==='portfolio'?{...item,badge:portfolioConnected?'LIVE':null}:item);
   const moonSvg=<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>;
   const sunSvg=<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>;
   return(<header className="tb-desktop-header" style={{background:'var(--bg)',borderBottom:'1px solid var(--bd)',display:'flex',flexDirection:'column',flexShrink:0,zIndex:50,position:'relative'}}>
@@ -3274,14 +3403,7 @@ function TBHeader({page,onNav,syncStatus,portfolioConnected,isDark,onToggleTheme
       </div>
       {/* Row 2: page tabs + theme toggle flush right */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 0 0 clamp(4px,1vw,8px)',marginTop:6}}>
-        <nav style={{display:'flex',alignItems:'stretch',height:42,gap:0,flex:1,overflowX:'auto',scrollbarWidth:'none'}}>
-          {navItems.map(item=>{const isActive=page===item.id;const tabLocked=window._tbTabLock&&window._tbTabLock.isLocked(item.id);return(<button key={item.id} onClick={()=>onNav(item.id)} style={{display:'flex',alignItems:'center',gap:7,padding:'0 16px',border:'none',borderBottom:`2px solid ${isActive?'var(--ac)':'transparent'}`,background:'transparent',color:isActive?'var(--ac)':'var(--txd)',fontSize:12,fontWeight:isActive?800:600,cursor:'pointer',transition:'all .15s',whiteSpace:'nowrap'}}>
-            <span style={{fontSize:12}}>{item.icon}</span>
-            <span>{item.label}</span>
-            {tabLocked&&<span style={{fontSize:9}} title="Locked">🔒</span>}
-            {item.badge&&<span style={{fontSize:8,background:'rgba(74,222,128,0.18)',color:'var(--tbb)',border:'1px solid rgba(74,222,128,0.35)',borderRadius:4,padding:'1px 5px',fontWeight:800,marginLeft:2}}>{item.badge}</span>}
-          </button>);})}
-        </nav>
+        <TBNavBar items={navItems} page={page} onNav={onNav} onReorder={onReorderNav} variant="desktop"/>
         <div style={{padding:'0 clamp(12px,3vw,24px) 0 8px',display:'flex',alignItems:'center',gap:6,height:42,flexShrink:0}}>
           <button id="tb-lock-btn-desktop" onClick={()=>window._tbManageLock&&window._tbManageLock()} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:4,color:'var(--ac)',padding:'0 8px',height:28,boxSizing:'border-box',cursor:'pointer',display:'inline-flex',alignItems:'center',fontSize:13,lineHeight:1,opacity:(window._tbAppIsLocked&&window._tbAppIsLocked())?1:0.55,transition:'border-color .15s, opacity .15s',flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--ac)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--bd)'} title="TradeHub lock (whole app)">{(window._tbAppIsLocked&&window._tbAppIsLocked())?'🔒':'🔓'}</button>
           <button onClick={()=>{const n=TB_NAV.find(x=>x.id===page)||TB_NAV[0];onManageTabLock&&onManageTabLock({id:n.id,label:n.label});}} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:4,color:'var(--ac)',padding:'0 8px',height:28,boxSizing:'border-box',cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',lineHeight:1,opacity:(window._tbTabLock&&window._tbTabLock.isLocked(page))?1:0.55,transition:'border-color .15s, opacity .15s',flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--ac)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--bd)'} title={(window._tbTabLock&&window._tbTabLock.isLocked(page))?'This tab is locked — manage':'Lock this tab'}><TBTabLockIcon locked={!!(window._tbTabLock&&window._tbTabLock.isLocked(page))}/></button>
@@ -3292,12 +3414,12 @@ function TBHeader({page,onNav,syncStatus,portfolioConnected,isDark,onToggleTheme
 }
 
 /* ── Mobile header (shown on ≤768px) — title + sync indicator + tabs ── */
-function TBMobileHeader({page,syncStatus,portfolioConnected,onNav,isDark,onToggleTheme,onManageTabLock}){
+function TBMobileHeader({page,syncStatus,portfolioConnected,onNav,isDark,onToggleTheme,onManageTabLock,navOrder,onReorderNav}){
   useTabLockVersion();
   const syncVisible=syncStatus==='saving'||syncStatus==='saved'||syncStatus==='error';
   const syncColor=syncStatus==='error'?'var(--tbr)':syncStatus==='saving'?'var(--txm)':'var(--tbb)';
   const syncLabel=syncStatus==='saving'?'Syncing…':syncStatus==='error'?'⚠ Sync failed':'✓ Synced';
-  const navItems=TB_NAV.map(item=>item.id==='portfolio'?{...item,badge:portfolioConnected?'LIVE':null}:item);
+  const navItems=tbOrderedNav(navOrder).map(item=>item.id==='portfolio'?{...item,badge:portfolioConnected?'LIVE':null}:item);
   const moonSvg=<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>;
   const sunSvg=<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>;
   return(<div className="tb-mobile-header">
@@ -3317,14 +3439,8 @@ function TBMobileHeader({page,syncStatus,portfolioConnected,onNav,isDark,onToggl
       <button id="tb-lock-btn-mobile" onClick={()=>window._tbManageLock&&window._tbManageLock()} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:4,color:'var(--ac)',padding:'0 8px',height:28,boxSizing:'border-box',cursor:'pointer',display:'inline-flex',alignItems:'center',fontSize:13,lineHeight:1,opacity:(window._tbAppIsLocked&&window._tbAppIsLocked())?1:0.55,transition:'border-color .15s, opacity .15s',flexShrink:0}} title="TradeHub lock">{(window._tbAppIsLocked&&window._tbAppIsLocked())?'🔒':'🔓'}</button>
       <button onClick={()=>{const n=TB_NAV.find(x=>x.id===page)||TB_NAV[0];onManageTabLock&&onManageTabLock({id:n.id,label:n.label});}} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:4,color:'var(--ac)',padding:'0 8px',height:28,boxSizing:'border-box',cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',lineHeight:1,opacity:(window._tbTabLock&&window._tbTabLock.isLocked(page))?1:0.55,transition:'border-color .15s, opacity .15s',flexShrink:0}} title={(window._tbTabLock&&window._tbTabLock.isLocked(page))?'This tab is locked — manage':'Lock this tab'}><TBTabLockIcon locked={!!(window._tbTabLock&&window._tbTabLock.isLocked(page))}/></button>
     </div>
-    {/* Row 3: tab nav */}
-    <div style={{display:'flex',alignItems:'stretch',borderTop:'1px solid var(--bd)',overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
-      {navItems.map(item=>{const isActive=page===item.id;const tabLocked=window._tbTabLock&&window._tbTabLock.isLocked(item.id);return(<button key={item.id} onClick={()=>onNav(item.id)} style={{flex:'0 0 auto',display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'10px 16px',border:'none',borderBottom:`2px solid ${isActive?'var(--ac)':'transparent'}`,background:'transparent',color:isActive?'var(--ac)':'var(--txd)',fontSize:12,fontWeight:isActive?800:600,cursor:'pointer',transition:'all .15s',whiteSpace:'nowrap'}}>
-        <span>{item.label}</span>
-        {tabLocked&&<span style={{fontSize:8}} title="Locked">🔒</span>}
-        {item.badge&&<span style={{fontSize:7,background:'rgba(74,222,128,0.18)',color:'var(--tbb)',border:'1px solid rgba(74,222,128,0.35)',borderRadius:3,padding:'1px 4px',fontWeight:800}}>{item.badge}</span>}
-      </button>);})}
-    </div>
+    {/* Row 3: tab nav — hold-drag to reorder, swipe to scroll */}
+    <TBNavBar items={navItems} page={page} onNav={onNav} onReorder={onReorderNav} variant="mobile"/>
     </div>{/* max-width inner */}
   </div>);
 }
@@ -4533,6 +4649,11 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
 
 function TBApp(){
   const [page,setPage]=useState('portfolio');
+  const [navOrder,setNavOrder]=useState(tbLoadNavOrder);
+  const onReorderNav=useCallback((ids)=>{
+    setNavOrder(ids); tbSaveNavOrder(ids);
+    if(window._fbSaveNavOrder) window._fbSaveNavOrder(ids);   // cross-device sync (best-effort)
+  },[]);
   const [tabLockManage,setTabLockManage]=useState(null);
   const [report,setReport]=useState(null);
   const [prompts,setPrompts]=useState(tbLoadPromptsLocal);
