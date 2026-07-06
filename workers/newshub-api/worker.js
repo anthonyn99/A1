@@ -1209,7 +1209,11 @@ ${lines}`;
 const CAL_TTL        = 12 * 3600;   // 12h cache — macro/earnings calendar barely moves
 const CAL_LOCK_TTL   = 120;         // build-lock auto-expiry
 const CAL_DAYS_MAX   = 31;          // clamp the lookahead window (front-end asks for 30)
-const CAL_MACRO_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.0-flash']; // grounded-search capable, newest first
+// Grounded-search calendar. gemini-3.5-flash is a thinking model that 429s (low
+// grounding quota) or lets thinking eat the small output budget → empty, so it is
+// DEMOTED to a trailing fallback; lead with the reliable 2.5-flash. (See the News
+// AI_CHAIN note — same lesson applied program-wide.)
+const CAL_MACRO_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.5-flash'];
 
 // Only these macro releases are accepted (whitelist kills hallucinated junk).
 // [regex, category]. First match wins.
@@ -1474,12 +1478,18 @@ Use the real published schedule. If unsure of an exact date, omit that item. Dat
     if (blocked){ diag&&diag.push(model+': KV-blocked'); continue; }
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`;
+      // Minimize thinking so the JSON isn't starved (3.x → thinkingLevel low; 2.5 →
+      // thinkingBudget 0). gemini-3.5-flash still thinks heavily, so give it a much
+      // larger output budget when reached so it doesn't return empty.
+      const gc = { temperature: 0.1, maxOutputTokens: model === 'gemini-3.5-flash' ? 8192 : 2048 };
+      if (model.startsWith('gemini-3')) gc.thinkingConfig = { thinkingLevel: 'low' };
+      else if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
       const body = JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         tools: [{ google_search: {} }],            // grounding
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+        generationConfig: gc,
       });
-      const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body });
+      const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body, signal: AbortSignal.timeout(20000) });
       if (r.status === 429){
         await env.NEWSHUB_CACHE.put('quota_block:'+model, '1', { expirationTtl: QUOTA_COOLDOWN }).catch(()=>{});
         diag&&diag.push(model+': 429 quota');
