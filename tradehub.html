@@ -3324,12 +3324,13 @@ function TBNavBar({items,page,onNav,onReorder,variant}){
   const onPointerDown=(e,id)=>{
     if(e.button!=null && e.button!==0) return;      // left/primary only
     const pt=e.pointerType||'mouse';
-    dragRef.current={id,startX:e.clientX,startY:e.clientY,pointerType:pt};
+    // Capture the values we need now — don't hold the (possibly-recycled) event.
+    dragRef.current={id,startX:e.clientX,startY:e.clientY,pointerType:pt,pointerId:e.pointerId,target:e.currentTarget};
     clearTimer();
     if(pt!=='mouse'){                                // touch/pen → require a hold
       timerRef.current=setTimeout(()=>{
         timerRef.current=null;
-        if(dragRef.current && dragRef.current.id===id && !draggingRef.current) beginDrag(id,e);
+        if(dragRef.current && dragRef.current.id===id && !draggingRef.current) beginDrag();
       },300);
     }
   };
@@ -3337,7 +3338,7 @@ function TBNavBar({items,page,onNav,onReorder,variant}){
     const dr=dragRef.current; if(!dr) return;
     if(!draggingRef.current){
       const dx=Math.abs(e.clientX-dr.startX), dy=Math.abs(e.clientY-dr.startY);
-      if(dr.pointerType==='mouse'){ if(dx>5||dy>5) beginDrag(dr.id,e); }   // desktop: small move starts drag
+      if(dr.pointerType==='mouse'){ if(dx>5||dy>5) beginDrag(); }          // desktop: small move starts drag
       else if((dx>8||dy>8) && timerRef.current){ clearTimer(); dragRef.current=null; }  // touch moved before hold → let it scroll
       if(!draggingRef.current) return;
     }
