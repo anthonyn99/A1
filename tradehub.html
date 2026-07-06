@@ -3283,9 +3283,11 @@ function TBNavBar({items,page,onNav,onReorder,variant}){
   const containerRef=useRef(null);
   const byId=useMemo(()=>{const m={};(items||[]).forEach(i=>m[i.id]=i);return m;},[items]);
   const [liveIds,setLiveIds]=useState(()=>(items||[]).map(i=>i.id));
+  const liveIdsRef=useRef(liveIds);
+  useEffect(()=>{ liveIdsRef.current=liveIds; },[liveIds]);
   const [dragId,setDragId]=useState(null);
   const draggingRef=useRef(false);
-  const dragRef=useRef(null);        // {id,startX,startY,pointerType}
+  const dragRef=useRef(null);        // {id,startX,startY,pointerType,pointerId,target}
   const timerRef=useRef(null);
   const justDraggedRef=useRef(false);
 
