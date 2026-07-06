@@ -346,7 +346,10 @@ async function callGemini(model, sys, user, env, maxTokens, grounded, timeoutMs)
     contents:[{role:'user',parts:[{text:user}]}],
     generationConfig:{
       temperature: grounded?0.3:0.4,
-      maxOutputTokens: maxTokens,
+      // gemini-3.5-flash is a heavy thinking model — its thinking tokens count
+      // against maxOutputTokens, so a small budget yields EMPTY output. Give it
+      // extra room wherever it's reached (it's only a trailing fallback now).
+      maxOutputTokens: model==='gemini-3.5-flash' ? Math.max(maxTokens, 16384) : maxTokens,
       // grounding CANNOT combine with responseMimeType:json → ask for JSON in text,
       // salvage-parse downstream. Non-grounded render uses strict JSON mode.
       ...(grounded?{}:{responseMimeType:'application/json'}),
