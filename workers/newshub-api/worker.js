@@ -335,12 +335,20 @@ const HOURS = 72;   // news lookback = 3 days.
 // Unified AI fallback chain — tried in order, first available wins.
 // Gemini uses Google's API; NIM entries use NVIDIA's OpenAI-compatible endpoint.
 // Format: { provider: 'gemini'|'nim', model: '...' }
+// ── AI fallback chain — tried in order, strongest-RELIABLE first ────────────
+// The first pass throws EVERY batch at avail[0], so the primary MUST return full
+// 8-event batches fast. gemini-3.5-flash is the flagship but a THINKING model:
+// even at thinkingLevel:low it spends ~10s+ and its thinking tokens eat the output
+// budget → it returns EMPTY on this rapid structured-batch task (verified via
+// /test-ai: 0/8 in 10.4s, vs 3.1-flash-lite 8/8 in 4s, 2.5-flash 8/8 in 5s). So it
+// is DEMOTED to a late gemini fallback; the fast, high-throughput models lead. Only
+// when a model is genuinely quota-exhausted (429) do we drop to the next.
 const AI_CHAIN = [
-  { provider:'gemini', model:'gemini-3.5-flash' },            // PRIMARY: newest/strongest free Flash, thinkingLevel:low keeps it quick
-  { provider:'gemini', model:'gemini-3.1-flash-lite' },       // newest Flash-Lite — 2.5-flash quality, very high RPD
-  { provider:'gemini', model:'gemini-2.5-flash' },            // proven fast Flash fallback
+  { provider:'gemini', model:'gemini-3.1-flash-lite' },       // PRIMARY: newest-gen Flash, full 8-event batches in ~4s, HIGHEST free daily quota — carries the load
+  { provider:'gemini', model:'gemini-2.5-flash' },            // proven full Flash — strong, ~5s/batch
   { provider:'gemini', model:'gemini-2.5-flash-lite' },       // high-RPD lite fallback
   { provider:'gemini', model:'gemini-2.0-flash' },            // older Gemini fallback
+  { provider:'gemini', model:'gemini-3.5-flash' },            // flagship but slow/thinky here → LAST-RESORT gemini (given extra output budget in geminiBody so it's usable when reached)
   { provider:'nim',    model:'meta/llama-3.1-8b-instruct' },  // cross-provider fallback: live NIM, fast (~8b), separate quota — immune to Gemini 503/daily-cap
   { provider:'nim',    model:'meta/llama-3.1-70b-instruct' }, // bigger NIM fallback
   { provider:'nim',    model:'meta/llama-3.3-70b-instruct', slow:true }, // salvage only — ~107s/batch
