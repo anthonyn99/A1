@@ -409,22 +409,23 @@ function renderStageAUser(facts, promptText){
   return `REAL LIVE DATA (authoritative — anchor ALL numbers to these):\n${facts.text}\n\n──────────\nMY ANALYSIS REQUEST (follow this exactly, in this order):\n${promptText}\n\nUsing live Google Search for the latest, write the full analysis now. Anchor every number to the DATA above; pull today's freshest developments for anything time-sensitive.`;
 }
 
-const STAGE_A_CALL_MS = 18000;   // per grounded call — capped so ONE call can't blow the ~30s isolate wall
-const STAGE_A_WALK_MS = 23000;   // whole Stage A stays comfortably under the wall (never gets killed → never hangs the build)
+const STAGE_A_CALL_MS = 22000;   // grounded search is SLOW; allow a near-full call. Stage A is its
+                                 // OWN staged invocation (~30s wall), so one 22s call + fallbacks fit.
+const STAGE_A_WALK_MS = 26000;   // whole Stage A walk stays just under the wall (never killed → never hangs)
 async function runStageA(facts, promptText, env){
   const user = renderStageAUser(facts, promptText || DEFAULT_PROMPT.text);
   const attempts=[];
   const deadline = Date.now() + STAGE_A_WALK_MS;
-  // GROUNDED_MODELS is ordered HIGHEST-capability first. ONE attempt per model.
-  // A 429 returns fast, so we can step DOWN to the next model within budget (this
-  // is the real fallback). A slow TIMEOUT eats the budget, so after one we STOP and
-  // let render proceed from the hard data — the isolate must return, never hang.
+  // Walk the chain (best reliable model first). Each call is capped to the time
+  // LEFT in the walk, so we never run past the isolate wall. We fall through to the
+  // next model on ANY failure — 429 (blocked + stepped down), empty, or timeout —
+  // as long as there's time for another grounded call. Whatever's left renders from
+  // the hard data if the whole walk fails (deadStageA), so the build never hangs.
   for(const model of GROUNDED_MODELS){
-    if(Date.now()+2000 > deadline) break;                        // out of time → render from data
+    if(deadline - Date.now() < 7000) break;                      // not enough time for another grounded call → render from data
     const blocked = await kvGet(env,'qblock:'+model).catch(()=>null);
     if(blocked){ attempts.push({model:`gemini:${model}`,code:'KV_BLOCKED'}); continue; }
-    const started=Date.now();
-    const budget=Math.max(6000, Math.min(STAGE_A_CALL_MS, deadline-Date.now()));  // never exceed the walk
+    const budget=Math.min(STAGE_A_CALL_MS, deadline-Date.now());  // never exceed the walk
     try{
       const txt=await callGemini(model, STAGE_A_SYS, user, env, STAGE_A_TOKENS, true, budget);
       if(!txt || txt.trim().length<60) throw tagged('EMPTY','analysis too short');
@@ -432,13 +433,12 @@ async function runStageA(facts, promptText, env){
     }catch(e){
       attempts.push({model:`gemini:${model}`,code:e.code||'ERR',msg:(e.message||'').slice(0,80)});
       if(e.code==='RATE_LIMIT'){
-        // Real quota hit → step down. Block this model only as long as the API says
-        // (Retry-After) so a brief per-minute throttle doesn't lock out the TOP model.
+        // Real quota hit → block this model only as long as the API says (Retry-After)
+        // so a brief per-minute throttle doesn't lock it out for an hour. Default 20m.
         const ttl = e.retryAfter>0 ? Math.min(3600, Math.max(60, Math.ceil(e.retryAfter))) : 1200;
-        await kvPut(env,'qblock:'+model,'1',ttl); continue;      // 429 is fast → try next model
+        await kvPut(env,'qblock:'+model,'1',ttl);
       }
-      if(Date.now()-started > 8000) break;                       // a SLOW failure ate the budget → stop, render from data
-      continue;                                                  // a quick error → try the next model
+      continue;   // fall through to the next model while the loop-top guard allows
     }
   }
   const e=tagged('STAGE_A_FAILED','grounded analysis failed'); e.attempts=attempts; throw e;
