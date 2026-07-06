@@ -243,10 +243,49 @@ def log(msg: str):
 # ──────────────────────────────────────────────────────────────────────────────
 
 _u32           = ctypes.windll.user32
+_dwm           = ctypes.windll.dwmapi
 _WNDENUMPROC   = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
 _SW_RESTORE    = 9
 _SWP_NOZORDER  = 0x0004
 _SWP_NOACTIVATE = 0x0010
+_SPI_GETWORKAREA = 0x0030
+_DWMWA_EXTENDED_FRAME_BOUNDS = 9
+
+
+def _work_area_height() -> int:
+    """Usable height of the primary monitor with the taskbar excluded, so windows
+    don't hide behind it. Falls back to the full screen height if the query fails."""
+    r = wt.RECT()
+    if _u32.SystemParametersInfoW(_SPI_GETWORKAREA, 0, ctypes.byref(r), 0):
+        h = r.bottom - r.top
+        if 0 < h <= SCREEN_H:
+            return h
+    return SCREEN_H
+
+
+def _apply_work_area():
+    """Reduce each window's height to the taskbar-free work area, in place."""
+    h = _work_area_height()
+    for pos in (WEBULL_POS, TRADEHUB_POS, TASKHUB_POS):
+        pos[3] = h
+    log(f"Usable height (taskbar excluded) = {h}px")
+
+
+def _get_window_rect(hwnd):
+    r = wt.RECT()
+    if _u32.GetWindowRect(hwnd, ctypes.byref(r)):
+        return r
+    return None
+
+
+def _get_frame_bounds(hwnd):
+    """The window's true VISIBLE rectangle (DWM extended frame), which excludes the
+    invisible resize border. Returns None if unavailable (older / custom-chrome windows)."""
+    r = wt.RECT()
+    res = _dwm.DwmGetWindowAttribute(
+        wt.HWND(hwnd), _DWMWA_EXTENDED_FRAME_BOUNDS,
+        ctypes.byref(r), ctypes.sizeof(r))
+    return r if res == 0 else None
 
 
 def _all_visible_hwnds() -> list:
