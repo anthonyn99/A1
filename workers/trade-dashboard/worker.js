@@ -40,7 +40,7 @@
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /* ════════════════════════ CONFIG ════════════════════════ */
-const VERSION         = '2026-07-04-macroboard-v3-notimeout';
+const VERSION         = '2026-07-06-macroboard-v4-models';
 const DAILY_LIMIT     = 12;          // manual fresh builds / UTC day
 const MIN_INTERVAL_S  = 15 * 60;     // 15-min cooldown between manual builds
 const CACHE_TTL_S     = 25 * 60;     // dedup identical builds 25 min
