@@ -313,9 +313,30 @@ def _hwnd_title(hwnd) -> str:
 
 
 def _place(hwnd, x: int, y: int, w: int, h: int):
+    """Position a window so its VISIBLE frame lands exactly on (x, y, w, h).
+
+    Windows draws an invisible ~7px resize border around most Chromium/Electron
+    windows (WeBull, Brave). SetWindowPos targets that invisible OUTER frame, so
+    tiling windows edge-to-edge leaves visible gaps. We place once, measure the
+    border via the DWM extended frame bounds, then re-place with compensation so the
+    visible edges sit flush against each other and the screen edges."""
     _u32.ShowWindow(hwnd, _SW_RESTORE)
     time.sleep(0.25)
     _u32.SetWindowPos(hwnd, 0, x, y, w, h, _SWP_NOZORDER | _SWP_NOACTIVATE)
+    time.sleep(0.15)
+
+    wr = _get_window_rect(hwnd)
+    fb = _get_frame_bounds(hwnd)
+    if wr and fb:
+        ml = fb.left   - wr.left      # invisible border widths (usually 0,0,7,7,7)
+        mt = fb.top    - wr.top
+        mr = wr.right  - fb.right
+        mb = wr.bottom - fb.bottom
+        if any(v > 0 for v in (ml, mt, mr, mb)):
+            _u32.SetWindowPos(hwnd, 0,
+                              x - ml, y - mt,
+                              w + ml + mr, h + mt + mb,
+                              _SWP_NOZORDER | _SWP_NOACTIVATE)
 
 
 def _wait_for_pid_window(pid: int, timeout: int = 40) -> int | None:
@@ -496,6 +517,7 @@ def open_taskhub_app():
 
 def _launch_all(test: bool):
     log("=== Morning launch starting ===" + (" [TEST]" if test else ""))
+    _apply_work_area()   # size windows to the taskbar-free height before opening them
     open_webull()
     open_tradehub()
     time.sleep(1.5)
