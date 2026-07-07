@@ -4198,7 +4198,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
-  import { initializeFirestore, memoryLocalCache, terminate, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, terminate, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -4219,9 +4219,13 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // Anon auth — gates Firestore rules without requiring a login screen
   const auth = getAuth(app);
   signInAnonymously(auth).catch(e => console.warn("Anon auth failed:", e));
-  // Memory-only cache: SDK never caches docs to IndexedDB, so on reconnect
-  // it only re-reads docs with ACTIVE listeners (not every doc ever fetched).
-  let db = initializeFirestore(app, { localCache: memoryLocalCache() });
+  // Persistent (IndexedDB) cache: survives full page reloads, so a cold
+  // launch (common on iOS, which discards backgrounded home-screen web apps
+  // far more aggressively than Android) can paint the last-synced data
+  // instantly instead of blocking on a network round-trip every time.
+  // Reconnect behavior is unaffected — the SDK still only re-syncs docs with
+  // ACTIVE listeners, not every doc ever fetched.
+  let db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
   const storage = getStorage(app);
   const DOC_PATH    = "dashboards/main";
   const EL_DOC_PATH = "dashboards/expenses";
@@ -5627,7 +5631,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // FCM module uses a separate Firestore instance — unaffected.
     try { await terminate(db); } catch(e) {}
     // Reinitialize so future saves/loads work after user returns
-    db = initializeFirestore(app, { localCache: memoryLocalCache() });
+    db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
     window._fbReady = false; // force init() to run on next interaction
   }
 
