@@ -34983,14 +34983,6 @@ function alShowManageMenu(appId) {
       var hr = await fetch(AL_WORKER+'/auth/journal/hint', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId2})});
       var hd = await hr.json();
       if (hd.noLock) { _el('applock-err').textContent='No lock on server. Try re-locking.'; _el('applock-forgot').disabled=false; _el('applock-forgot').textContent='Forgot password?'; return; }
-      // Veda's PROFILE hint is delivered to HER profile (shown right here on screen),
-      // not emailed. Tony's profile + all app locks still email the recovery address.
-      if (appId2 === 'profile_veda') {
-        _el('applock-sub').textContent = 'Hint: ' + (hd.hint && hd.hint.trim() ? hd.hint : '(no hint was set)');
-        _el('applock-forgot').textContent = 'Hint shown';
-        setTimeout(function(){ _el('applock-forgot').textContent='Forgot password?'; _el('applock-forgot').disabled=false; }, 4000);
-        return;
-      }
       var fp = await fetch(AL_FORM[meta.profile]||AL_FORM.tony,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:AL_EMAIL[meta.profile]||AL_EMAIL.tony,subject:'App Lock - Hint ('+meta.label+')',message:'Hint for "'+meta.label+'":\n\n'+(hd.hint||'(none)')+'\n\n- TaskHub'})});
       if (fp.ok) { _el('applock-forgot').textContent='Hint sent!'; setTimeout(function(){_el('applock-forgot').textContent='Forgot password?';_el('applock-forgot').disabled=false;},3000); }
       else { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
