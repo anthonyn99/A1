@@ -25786,7 +25786,6 @@ function aiExtractFragment(container, counter) {
   document.body.removeChild(container);
   return { text: (text || '').replace(/ /g, ' ').trim(), imgs: imgs };
 }
-function aiExtract(ed) { return aiExtractFragment(ed.cloneNode(true)); }
 // Restore [[IMGn]] / [[IMGn|size]] tokens in the AI's HTML back into the
 // original image/file/link HTML.
 function aiRestoreImages(html, imgs) {
