@@ -783,7 +783,7 @@ async function lockForgot(){
   try{
     var hd=await authFetch('/auth/journal/hint',{ journal:AUTH_JOURNAL, entryId:entryId(p) });
     if(hd.noLock){ $('lock-err').textContent='No lock on server.'; f.textContent='Forgot password?'; f.disabled=false; return; }
-    var fp=await fetch(FORMSPREE,{ method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+    var fp=await fetch(FORMSPREE[p]||FORMSPREE.tony,{ method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
       body:JSON.stringify({ email:EMAILS[p]||EMAILS.tony, subject:'MyList — Password Hint ('+PROFILE_META[p].label+')',
         message:'Your MyList password hint for '+PROFILE_META[p].label+':\n\n'+(hd.hint||'(no hint was set)')+'\n\n— MyList' }) });
     if(fp.ok){ f.textContent='Hint sent to email!'; } else { f.textContent='Send failed — try again'; f.disabled=false; return; }
