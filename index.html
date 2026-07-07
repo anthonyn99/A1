@@ -17901,7 +17901,7 @@ window.hideBrainstormJournal = function() {
       }
       var hint = hintData.hint || '(no hint set)';
       // Step 2: send hint via Formspree from browser (passes origin check)
-      var fp = await fetch('https://formspree.io/f/xeedkebo', {
+      var fp = await fetch('https://formspree.io/f/xzdlwaqg', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({
@@ -34490,6 +34490,7 @@ setInterval(()=>{
 var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
 var AL_JOURNAL = 'applock';
 var AL_EMAIL   = { tony: 'anthonypn99@gmail.com', veda: 'vedaapatel1605@gmail.com' };
+var AL_FORM    = { tony: 'https://formspree.io/f/xeedkebo', veda: 'https://formspree.io/f/xzdlwaqg' };
 var AL_LABELS  = {
   tony_taskhub:   { label: 'TaskHub',    profile: 'tony', color: '#E0607A' },
   tony_tradehub:  { label: 'TradeHub',   profile: 'tony', color: '#E0607A' },
@@ -34990,7 +34991,7 @@ function alShowManageMenu(appId) {
         setTimeout(function(){ _el('applock-forgot').textContent='Forgot password?'; _el('applock-forgot').disabled=false; }, 4000);
         return;
       }
-      var fp = await fetch('https://formspree.io/f/xeedkebo',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:AL_EMAIL[meta.profile]||AL_EMAIL.tony,subject:'App Lock - Hint ('+meta.label+')',message:'Hint for "'+meta.label+'":\n\n'+(hd.hint||'(none)')+'\n\n- TaskHub'})});
+      var fp = await fetch(AL_FORM[meta.profile]||AL_FORM.tony,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:AL_EMAIL[meta.profile]||AL_EMAIL.tony,subject:'App Lock - Hint ('+meta.label+')',message:'Hint for "'+meta.label+'":\n\n'+(hd.hint||'(none)')+'\n\n- TaskHub'})});
       if (fp.ok) { _el('applock-forgot').textContent='Hint sent!'; setTimeout(function(){_el('applock-forgot').textContent='Forgot password?';_el('applock-forgot').disabled=false;},3000); }
       else { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
     } catch(e) { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
