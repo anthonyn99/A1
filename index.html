@@ -25717,25 +25717,78 @@ function aiPromptSet(app, v) {
 var AI_COOLDOWN_MS = 6000;      // safe spacing between AI Format runs (protects the free tier)
 var _aiBusy = {}, _aiLastRun = {};
 
-// Turn the editor content into plain text with [[IMGn]] tokens where images/file-chips are,
-// so the AI can reposition them; returns { text, imgs } for later restoration.
-function aiExtract(ed) {
-  var clone = ed.cloneNode(true);
-  var imgs = [], n = 0;
-  Array.prototype.slice.call(clone.querySelectorAll('.pg-img-wrap, a.tj-file-chip, a[download]')).forEach(function(el) {
-    n++;
-    imgs.push({ n: n, html: el.outerHTML });
+// — "Already formatted" tracking --------------------------------------------
+// Every top-level block AI Format writes gets tagged data-ai-fmt="1" plus a
+// content hash (data-ai-hash). On the next whole-document run, a block whose
+// current markup still matches its hash is skipped ENTIRELY — never cloned,
+// never sent to the model, never rewritten — so previously-formatted text,
+// links, and structure cannot be altered by a later run. A block whose markup
+// no longer matches (the user edited it) is treated as new again.
+function _aiHash(s) {
+  var h = 5381;
+  for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+function _aiNodeHash(node) {
+  var c = node.cloneNode(true);
+  c.removeAttribute('data-ai-hash');
+  return _aiHash(c.outerHTML);
+}
+function _aiMarkNode(node) {
+  if (node.nodeType !== 1) return;
+  node.setAttribute('data-ai-fmt', '1');
+  node.setAttribute('data-ai-hash', _aiNodeHash(node));
+}
+function _aiIsUnchanged(node) {
+  return !!(node.nodeType === 1 && node.getAttribute('data-ai-fmt') === '1' &&
+    node.getAttribute('data-ai-hash') === _aiNodeHash(node));
+}
+// Run-length-encodes the editor's top-level children into alternating
+// {isNew, nodes} groups, so a contiguous run of new content can be sent as
+// one chunk while contiguous already-formatted runs are left untouched.
+function _aiSegmentRuns(ed) {
+  var runs = [];
+  Array.prototype.slice.call(ed.childNodes).forEach(function(node) {
+    var isNew = !_aiIsUnchanged(node);
+    var last = runs[runs.length - 1];
+    if (last && last.isNew === isNew) last.nodes.push(node);
+    else runs.push({ isNew: isNew, nodes: [node] });
+  });
+  return runs;
+}
+function _aiRunHasContent(nodes) {
+  return nodes.some(function(n) {
+    if (n.nodeType === 3) return /\S/.test(n.textContent || '');
+    if (n.nodeType !== 1) return false;
+    if (n.querySelector && n.querySelector('.pg-img-wrap, a.tj-file-chip, a[download], img')) return true;
+    return /\S/.test(n.textContent || '');
+  });
+}
+
+// Turn a DOM fragment into plain text with [[IMGn]] tokens standing in for
+// images, file chips, AND hyperlinks — so a link's href (which plain
+// innerText can't carry) survives the AI round-trip instead of collapsing to
+// bare anchor text and losing its destination. `counter` is shared across
+// multiple calls so tokens stay unique when several chunks go in one request.
+function aiExtractFragment(container, counter) {
+  counter = counter || { n: 0 };
+  var imgs = [];
+  Array.prototype.slice.call(container.querySelectorAll('.pg-img-wrap, a.tj-file-chip, a[download], a[href]')).forEach(function(el) {
+    counter.n++;
+    imgs.push({ n: counter.n, html: el.outerHTML });
     var ph = document.createElement('p');
-    ph.textContent = '[[IMG' + n + ']]';
+    ph.textContent = '[[IMG' + counter.n + ']]';
     if (el.parentNode) el.parentNode.replaceChild(ph, el);
   });
-  clone.style.cssText = 'position:absolute;left:-99999px;top:0;width:700px;white-space:pre-wrap;';
-  document.body.appendChild(clone);
-  var text = clone.innerText;
-  document.body.removeChild(clone);
+  container.style.cssText = 'position:absolute;left:-99999px;top:0;width:700px;white-space:pre-wrap;';
+  document.body.appendChild(container);
+  var text = container.innerText;
+  document.body.removeChild(container);
   return { text: (text || '').replace(/ /g, ' ').trim(), imgs: imgs };
 }
-// Restore [[IMGn]] / [[IMGn|size]] tokens in the AI's HTML back into real image/file HTML.
+function aiExtract(ed) { return aiExtractFragment(ed.cloneNode(true)); }
+// Restore [[IMGn]] / [[IMGn|size]] tokens in the AI's HTML back into the
+// original image/file/link HTML.
 function aiRestoreImages(html, imgs) {
   if (!imgs.length) return html;
   var map = {}; imgs.forEach(function(o) { map[o.n] = o; });
@@ -25754,6 +25807,42 @@ function aiRestoreImages(html, imgs) {
   });
 }
 
+// Shared network call for both the whole-document and selection paths. Keeps
+// a hard client-side timeout: without it, a stalled connection or a hung
+// worker leaves the fetch promise pending forever, so the overlay never
+// clears and the only way out is a page refresh. Aborting guarantees the UI
+// always recovers on its own. Normalizes every failure into a rejection
+// carrying { _timedOut }.
+function _aiPostFormat(app, text, prompt) {
+  var AI_TIMEOUT_MS = 90000;
+  var ac = new AbortController();
+  var timedOut = false;
+  var timer = setTimeout(function() { timedOut = true; ac.abort(); }, AI_TIMEOUT_MS);
+  return fetch(AI_FORMAT_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile: APPS[app].aiProfile, text: text, prompt: prompt }),
+    signal: ac.signal
+  }).then(function(r) {
+    return r.json().then(function(d) { d._status = r.status; return d; }).catch(function() { return { ok: false, error: 'bad response', _status: r.status }; });
+  }).then(function(data) {
+    clearTimeout(timer);
+    return data;
+  }).catch(function() {
+    clearTimeout(timer);
+    return Promise.reject({ _timedOut: timedOut });
+  });
+}
+function _aiFinish(app, ed, overlay, wasEditable) {
+  overlay.remove();
+  ed.contentEditable = wasEditable;
+  _aiBusy[app] = false;
+}
+
+var AI_SECTION_NOTE = '\n\nIMPORTANT — SECTION MARKERS: the document below is split into independent sections, each wrapped exactly like [[SEC0S]] ... [[SEC0E]], [[SEC1S]] ... [[SEC1E]], etc. Treat every section as its own separate document and format it using the rules above. Reproduce EVERY marker EXACTLY ONCE, in the same order, with only that section\'s formatted output between its own start/end marker — nothing outside any marker, nothing between one section\'s end marker and the next section\'s start marker.';
+var AI_PARTIAL_NOTE = '\n\nIMPORTANT — PARTIAL DOCUMENT: what follows is ONLY the newly-added or edited content that still needs formatting; everything already formatted has been deliberately left out and is not shown to you. Do not reference, summarize, or recreate anything from the rest of the document — just format exactly what is shown, as it will be reinserted in place.';
+var AI_EXCERPT_NOTE = '\n\nIMPORTANT — SELECTION: what follows is only a SELECTED EXCERPT copied out of a larger document, not the whole thing. Format only this excerpt using the rules above; do not add an introduction, summary, or any remark about it being an excerpt.';
+
 function aiFormat(ctx) {
   var ed = ctx.edEl, app = ctx.app;
   if (_docxFeatureLocked(app, 'aiFormat')) { _docxLockedToast(); return; }
@@ -25763,28 +25852,108 @@ function aiFormat(ctx) {
     docxToast('Please wait ' + Math.ceil((AI_COOLDOWN_MS - since) / 1000) + 's before running AI Format again.', true);
     return;
   }
-  var extracted = aiExtract(ed);
-  if (!extracted.text && !extracted.imgs.length) { docxToast('Nothing to format — the page is empty.'); return; }
+  // A non-collapsed selection inside this editor -> format ONLY the selection.
+  var sel = window.getSelection();
+  if (sel && sel.rangeCount && !sel.isCollapsed) {
+    var r = sel.getRangeAt(0);
+    if (ed.contains(r.commonAncestorContainer) && String(sel).trim()) {
+      aiFormatSelection(ctx, r);
+      return;
+    }
+  }
+  aiFormatWholeDoc(ctx);
+}
+
+// No selection: format the whole document, but skip any top-level block
+// that's already been AI-formatted and hasn't changed since (see
+// _aiSegmentRuns/_aiIsUnchanged above) — only new/edited runs are sent.
+function aiFormatWholeDoc(ctx) {
+  var ed = ctx.edEl, app = ctx.app;
+  var runs = _aiSegmentRuns(ed);
+  var newRuns = runs.filter(function(r) { return r.isNew && _aiRunHasContent(r.nodes); });
+  var hadSkipped = runs.some(function(r) { return !r.isNew && _aiRunHasContent(r.nodes); });
+
+  if (!newRuns.length) {
+    docxToast(hadSkipped ? 'Nothing new to format — already up to date.' : 'Nothing to format — the page is empty.');
+    return;
+  }
+
+  var counter = { n: 0 };
+  var chunks = newRuns.map(function(run) {
+    var wrap = document.createElement('div');
+    run.nodes.forEach(function(n) { wrap.appendChild(n.cloneNode(true)); });
+    return aiExtractFragment(wrap, counter);
+  });
+  var multi = chunks.length > 1;
+  var combinedText = multi
+    ? chunks.map(function(c, i) { return '[[SEC' + i + 'S]]\n' + c.text + '\n[[SEC' + i + 'E]]'; }).join('\n\n')
+    : chunks[0].text;
+  var allImgs = [].concat.apply([], chunks.map(function(c) { return c.imgs; }));
+  if (!combinedText.trim() && !allImgs.length) { docxToast('Nothing to format — the page is empty.'); return; }
+
+  var prompt = aiPromptGet(app) + (hadSkipped ? AI_PARTIAL_NOTE : '') + (multi ? AI_SECTION_NOTE : '');
+
   _aiBusy[app] = true; _aiLastRun[app] = Date.now();
   var overlay = aiOverlay();
-  // Hard client-side timeout: without this, a stalled connection or a hung
-  // worker leaves the fetch promise pending forever, so the overlay never
-  // clears and the only way out is a page refresh (which then still can't
-  // format, since the request is still occupying the free-tier quota).
-  // Aborting guarantees the UI always recovers on its own.
-  var AI_TIMEOUT_MS = 90000;
-  var ac = new AbortController();
-  var timedOut = false;
-  var timer = setTimeout(function() { timedOut = true; ac.abort(); }, AI_TIMEOUT_MS);
-  fetch(AI_FORMAT_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile: APPS[app].aiProfile, text: extracted.text, prompt: aiPromptGet(app) }),
-    signal: ac.signal
-  }).then(function(r) {
-    return r.json().then(function(d) { d._status = r.status; return d; }).catch(function() { return { ok: false, error: 'bad response', _status: r.status }; });
-  }).then(function(data) {
-    clearTimeout(timer); overlay.remove(); _aiBusy[app] = false;
+  var wasEditable = ed.contentEditable; ed.contentEditable = 'false';   // freeze edits while the request is in flight
+  _aiPostFormat(app, combinedText, prompt).then(function(data) {
+    _aiFinish(app, ed, overlay, wasEditable);
+    if (data && (data.exhausted || data._status === 429)) {
+      docxToast('AI Format is rate-limited right now (too many requests). Please wait a minute and try again.', true);
+      return;
+    }
+    if (!data || !data.ok || !data.html) { docxToast('AI Format failed: ' + ((data && data.error) || 'try again'), true); return; }
+    var restored = aiRestoreImages(data.html, allImgs);
+
+    var pieces;
+    if (multi) {
+      pieces = [];
+      for (var i = 0; i < chunks.length; i++) {
+        var re = new RegExp('\\[\\[SEC' + i + 'S\\]\\]([\\s\\S]*?)\\[\\[SEC' + i + 'E\\]\\]');
+        var m = restored.match(re);
+        if (!m) { docxToast('AI Format couldn\'t process multiple new sections at once — try formatting one section at a time (select it first).', true); return; }
+        pieces.push(m[1]);
+      }
+    } else {
+      pieces = [restored];
+    }
+
+    ctx.history.commit();          // snapshot the pre-format content (so Undo restores it)
+    for (var j = 0; j < newRuns.length; j++) {
+      var clean = window._docxCleanHTML(pieces[j]);
+      if (window._docxMathify) clean = window._docxMathify(clean);   // $...$ text -> math elements (after sanitize)
+      var tmp = document.createElement('div'); tmp.innerHTML = clean;
+      var newNodes = Array.prototype.slice.call(tmp.childNodes);
+      newNodes.forEach(function(n) { _aiMarkNode(n); });
+      var run = newRuns[j], anchor = run.nodes[0];
+      newNodes.forEach(function(n) { ed.insertBefore(n, anchor); });
+      run.nodes.forEach(function(n) { if (n.parentNode === ed) ed.removeChild(n); });
+    }
+    if (window._docxRenderMath) window._docxRenderMath(ed);   // render any $...$ / $$...$$ math
+    ctx.history.commit();          // snapshot the formatted content (discrete Redo step)
+    fireInput(ed);                 // autosave the new content
+    docxToast('Formatted ✓  — press Undo to revert.');
+  }).catch(function(e) {
+    _aiFinish(app, ed, overlay, wasEditable);
+    docxToast((e && e._timedOut) ? 'AI Format timed out — please try again.' : 'AI Format failed: network error.', true);
+  });
+}
+
+// Text is selected: format ONLY the selected range in place, leaving
+// everything else in the document completely untouched.
+function aiFormatSelection(ctx, range) {
+  var ed = ctx.edEl, app = ctx.app;
+  var wrap = document.createElement('div');
+  wrap.appendChild(range.cloneContents());
+  var extracted = aiExtractFragment(wrap);
+  if (!extracted.text.trim() && !extracted.imgs.length) { docxToast('Nothing selected to format.'); return; }
+
+  var prompt = aiPromptGet(app) + AI_EXCERPT_NOTE;
+  _aiBusy[app] = true; _aiLastRun[app] = Date.now();
+  var overlay = aiOverlay();
+  var wasEditable = ed.contentEditable; ed.contentEditable = 'false';   // freeze edits while the request is in flight
+  _aiPostFormat(app, extracted.text, prompt).then(function(data) {
+    _aiFinish(app, ed, overlay, wasEditable);
     if (data && (data.exhausted || data._status === 429)) {
       docxToast('AI Format is rate-limited right now (too many requests). Please wait a minute and try again.', true);
       return;
@@ -25792,17 +25961,30 @@ function aiFormat(ctx) {
     if (!data || !data.ok || !data.html) { docxToast('AI Format failed: ' + ((data && data.error) || 'try again'), true); return; }
     var restored = aiRestoreImages(data.html, extracted.imgs);
     var clean = window._docxCleanHTML(restored);
-    if (window._docxMathify) clean = window._docxMathify(clean);   // $…$ text → math elements (after sanitize)
-    if (!clean || !clean.trim()) { docxToast('AI Format returned nothing — text unchanged.', true); return; }
+    if (window._docxMathify) clean = window._docxMathify(clean);   // $...$ text -> math elements (after sanitize)
+    if (!clean || !clean.trim()) { docxToast('AI Format returned nothing — selection unchanged.', true); return; }
+
     ctx.history.commit();          // snapshot the pre-format content (so Undo restores it)
-    ed.innerHTML = clean;
-    if (window._docxRenderMath) window._docxRenderMath(ed);   // render any $…$ / $$…$$ math
+    var tmp = document.createElement('div'); tmp.innerHTML = clean;
+    var newNodes = Array.prototype.slice.call(tmp.childNodes);
+    newNodes.forEach(function(n) { _aiMarkNode(n); });
+    range.deleteContents();
+    var frag = document.createDocumentFragment();
+    var last = newNodes[newNodes.length - 1];
+    newNodes.forEach(function(n) { frag.appendChild(n); });
+    range.insertNode(frag);
+    if (window._docxRenderMath) window._docxRenderMath(ed);   // render any $...$ / $$...$$ math
+    if (last) {
+      var endRange = document.createRange();
+      endRange.setStartAfter(last); endRange.collapse(true);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(endRange);
+    }
     ctx.history.commit();          // snapshot the formatted content (discrete Redo step)
     fireInput(ed);                 // autosave the new content
-    docxToast('Formatted ✓  — press Undo to revert.');
-  }).catch(function() {
-    clearTimeout(timer); overlay.remove(); _aiBusy[app] = false;
-    docxToast(timedOut ? 'AI Format timed out — please try again.' : 'AI Format failed: network error.', true);
+    docxToast('Formatted selection ✓  — press Undo to revert.');
+  }).catch(function(e) {
+    _aiFinish(app, ed, overlay, wasEditable);
+    docxToast((e && e._timedOut) ? 'AI Format timed out — please try again.' : 'AI Format failed: network error.', true);
   });
 }
 
