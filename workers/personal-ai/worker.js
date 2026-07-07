@@ -89,6 +89,12 @@ function thinkingConfig(model) {
   return undefined;
 }
 
+// Per-attempt hard timeout. A stalled/hung upstream connection (rather than a
+// clean error) used to make the whole request wait indefinitely — the client
+// has no way to recover from that short of a page refresh. Aborting after this
+// many ms turns a hang into a normal retry/fallback, same as any other failure.
+const GEMINI_TIMEOUT_MS = 20000;
+
 // Single Gemini caller shared by all features. Returns the parsed JSON object,
 // or null if the model produced nothing usable (caller then falls to next model).
 async function callGemini(model, key, { prompt, schema, maxOutputTokens, feature, audio, mimeType }) {
@@ -107,13 +113,19 @@ async function callGemini(model, key, { prompt, schema, maxOutputTokens, feature
   const body = JSON.stringify({ contents: [{ parts }], generationConfig: gc });
 
   let lastStatus = 0;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // 2 attempts/model (was 3) so a bad model can't eat the whole client-side
+  // budget before the fallback chain even gets to a working one.
+  for (let attempt = 0; attempt < 2; attempt++) {
     let r;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), GEMINI_TIMEOUT_MS);
     try {
-      r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, signal: ac.signal });
     } catch (e) {
       await new Promise(res => setTimeout(res, 500 * (attempt + 1)));
       continue;
+    } finally {
+      clearTimeout(timer);
     }
     if (r.status === 429 || r.status >= 500) {
       // Quota/overload — retry briefly, then let the outer loop try the next model.
