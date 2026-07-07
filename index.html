@@ -25767,14 +25767,24 @@ function aiFormat(ctx) {
   if (!extracted.text && !extracted.imgs.length) { docxToast('Nothing to format — the page is empty.'); return; }
   _aiBusy[app] = true; _aiLastRun[app] = Date.now();
   var overlay = aiOverlay();
+  // Hard client-side timeout: without this, a stalled connection or a hung
+  // worker leaves the fetch promise pending forever, so the overlay never
+  // clears and the only way out is a page refresh (which then still can't
+  // format, since the request is still occupying the free-tier quota).
+  // Aborting guarantees the UI always recovers on its own.
+  var AI_TIMEOUT_MS = 90000;
+  var ac = new AbortController();
+  var timedOut = false;
+  var timer = setTimeout(function() { timedOut = true; ac.abort(); }, AI_TIMEOUT_MS);
   fetch(AI_FORMAT_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile: APPS[app].aiProfile, text: extracted.text, prompt: aiPromptGet(app) })
+    body: JSON.stringify({ profile: APPS[app].aiProfile, text: extracted.text, prompt: aiPromptGet(app) }),
+    signal: ac.signal
   }).then(function(r) {
     return r.json().then(function(d) { d._status = r.status; return d; }).catch(function() { return { ok: false, error: 'bad response', _status: r.status }; });
   }).then(function(data) {
-    overlay.remove(); _aiBusy[app] = false;
+    clearTimeout(timer); overlay.remove(); _aiBusy[app] = false;
     if (data && (data.exhausted || data._status === 429)) {
       docxToast('AI Format is rate-limited right now (too many requests). Please wait a minute and try again.', true);
       return;
@@ -25791,8 +25801,8 @@ function aiFormat(ctx) {
     fireInput(ed);                 // autosave the new content
     docxToast('Formatted ✓  — press Undo to revert.');
   }).catch(function() {
-    overlay.remove(); _aiBusy[app] = false;
-    docxToast('AI Format failed: network error.', true);
+    clearTimeout(timer); overlay.remove(); _aiBusy[app] = false;
+    docxToast(timedOut ? 'AI Format timed out — please try again.' : 'AI Format failed: network error.', true);
   });
 }
 
