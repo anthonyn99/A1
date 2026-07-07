@@ -93,7 +93,7 @@ function thinkingConfig(model) {
 // clean error) used to make the whole request wait indefinitely — the client
 // has no way to recover from that short of a page refresh. Aborting after this
 // many ms turns a hang into a normal retry/fallback, same as any other failure.
-const GEMINI_TIMEOUT_MS = 20000;
+const GEMINI_TIMEOUT_MS = 12000;
 
 // Single Gemini caller shared by all features. Returns the parsed JSON object,
 // or null if the model produced nothing usable (caller then falls to next model).
