@@ -270,6 +270,9 @@ def mark_ran():
     STATE_FILE.write_text(str(mountain_today()))
 
 
+_ECHO = False   # when True, log() also prints to the console (set by --test-chatgpt)
+
+
 def log(msg: str):
     try:
         ts = mountain_now().strftime("%Y-%m-%d %H:%M:%S MT")
@@ -278,6 +281,12 @@ def log(msg: str):
     line = f"[{ts}] {msg}\n"
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(line)
+    if _ECHO:
+        try:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+        except Exception:
+            pass
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -831,11 +840,18 @@ if __name__ == "__main__":
     parser.add_argument("--setup",     action="store_true", help="Install into Task Scheduler")
     parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler")
     parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time / market / once-per-day checks")
+    parser.add_argument("--test-chatgpt", action="store_true", help="Run ONLY the ChatGPT analysis step (fetch prompt + open ChatGPT auto-submitted + searches); prints progress to the console")
     args = parser.parse_args()
 
     if args.setup:
         setup()
     elif args.uninstall:
         uninstall()
+    elif args.test_chatgpt:
+        _ECHO = True
+        log("=== ChatGPT analysis test ===")
+        _apply_work_area()   # size the ChatGPT window to the taskbar-free height
+        open_chatgpt_analysis()
+        log("=== ChatGPT analysis test done ===")
     else:
         run_morning(test=args.test)
