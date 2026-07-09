@@ -5600,8 +5600,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
     window._fbLoadAppLocks = async () => {
       try {
-        const snap = await getDoc(alDocRef);
-        if (snap.exists()) { const d = snap.data(); return d.locks || {}; }
+        const snap = await _freshGet(alDocRef);
+        if (snap && snap.exists()) { const d = snap.data(); return d.locks || {}; }
       } catch(e) { console.warn('[AppLock] Firebase load failed:', e); }
       return null;
     };
@@ -5713,8 +5713,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   window.addEventListener("pagehide", () => { _teardown(); });
   document.addEventListener("freeze", () => { _teardown(); });
 
-  init();
-  _startIdleTimer(); // begin idle countdown on page load
+  // Wait for anon auth before wiring up listeners/loads so the very first
+  // reads carry a valid token and hit the server (fresh) instead of only the
+  // local cache (stale). Never block forever — if auth is slow/offline, proceed
+  // after 3s so the app still paints from the persistent cache. onAuthStateChanged
+  // restoring a persisted user is near-instant on warm launches.
+  Promise.race([
+    window._fbAuthReady,
+    new Promise(res => setTimeout(res, 3000))
+  ]).then(() => {
+    init();
+    _startIdleTimer(); // begin idle countdown on page load
+  });
 </script>
 <!-- ── KcFileStore: IndexedDB local file storage (shared by KC + VedaLinks) ── -->
 <script>
