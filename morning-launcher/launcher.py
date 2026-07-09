@@ -92,9 +92,9 @@ TD_WORKER_URL            = "https://trade-dashboard.av1.workers.dev"
 # Where the ChatGPT window lands. Defaults to the middle column (over TradeHub).
 CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
 
-# Seconds to let ChatGPT finish loading (and auto-focus its composer) before we
-# paste. Bump this if the paste sometimes lands before the page is ready.
-CHATGPT_LOAD_WAIT = 7
+# Seconds to let ChatGPT finish loading before we click its composer + paste.
+# Bump this if the paste sometimes lands before the page (and its text box) is ready.
+CHATGPT_LOAD_WAIT = 8
 
 # ==============================================================================
 #  TRIGGER WINDOW  (Mountain Time)
@@ -690,9 +690,28 @@ def _send_paste():
     _u32.keybd_event(_VK_CONTROL, 0, _KEYEVENTF_KEYUP, 0)
 
 
+def _click_composer(hwnd) -> bool:
+    """Left-click the ChatGPT composer (bottom-centre of the window) so the text box
+    actually has keyboard focus before we paste. Making the window foreground is NOT
+    enough — the web page's input still needs to be focused, and a click is the only
+    reliable way to do that. Returns True if we had a rectangle to click."""
+    r = _get_frame_bounds(hwnd) or _get_window_rect(hwnd)
+    if not r:
+        return False
+    cx = (r.left + r.right) // 2      # horizontal centre = the text area (buttons are at the edges)
+    cy = r.bottom - 100              # ~100px up from the bottom = inside the composer box
+    _u32.SetCursorPos(int(cx), int(cy))
+    time.sleep(0.15)
+    _u32.mouse_event(_MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    time.sleep(0.05)
+    _u32.mouse_event(_MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+    time.sleep(0.25)
+    return True
+
+
 def open_chatgpt_analysis():
-    """Open ChatGPT with the selected Analysis prompt already SUBMITTED, then open the
-    configured searches as tabs in that SAME window. Fully automated.
+    """Open the configured searches (in one window), THEN open ChatGPT with the selected
+    Analysis prompt already SUBMITTED. Fully automated.
 
     The prompt goes in via CLIPBOARD PASTE, not the ?q= URL: real prompts are far too
     long for the URL (ChatGPT returns HTTP 431 — request headers too large once the
@@ -715,13 +734,22 @@ def open_chatgpt_analysis():
     name     = cfg.get("name") or "Prompt"
     searches = cfg.get("searches") or []
 
-    # 1) Load the prompt onto the clipboard BEFORE opening the window.
+    # 1) Load the prompt onto the clipboard BEFORE opening anything.
     if not _set_clipboard_text(prompt):
         log("ChatGPT: could not set clipboard; aborting ChatGPT step.")
         return
     log(f"ChatGPT: prompt '{name}' ({len(prompt)} chars) copied to clipboard.")
 
-    # 2) Open a plain ChatGPT window (no query string → no 431).
+    # 2) Open ALL the searches FIRST, together in one window (skip any ChatGPT entry).
+    search_urls = [u for u in (_resolve_search_url(q) for q in searches)
+                   if u and not _is_chatgpt_url(u)]
+    if search_urls:
+        log(f"ChatGPT: opening {len(search_urls)} search tab(s) first...")
+        subprocess.Popen([brave, "--new-window"] + search_urls)
+        time.sleep(2.0)          # let the search window settle before ChatGPT opens on top
+
+    # 3) Open a plain ChatGPT window (no query string → no 431), in its own window so
+    #    we can focus it deterministically.
     x, y, w, h = CHATGPT_POS
     snapshot = set(_all_visible_hwnds())
     log("ChatGPT: launching...")
@@ -739,29 +767,22 @@ def open_chatgpt_analysis():
         _place(hwnd, x, y, w, h)
         log(f"ChatGPT window → ({x},{y}) {w}×{h}")
     else:
-        log("ChatGPT: new window not detected; skipping paste to avoid mis-typing.")
+        log("ChatGPT: new window not detected; skipping paste. Prompt is on the "
+            "clipboard — click the composer and press Ctrl+V then Enter.")
         return
 
-    # 3) Wait for the page to load (ChatGPT auto-focuses its composer), then focus the
-    #    window, paste, and press Enter to submit.
+    # 4) Wait for the page to load, then focus the window, CLICK the composer (a
+    #    foreground window is not enough — the text box needs focus), paste, and Enter.
     time.sleep(CHATGPT_LOAD_WAIT)
-    if _focus_window(hwnd):
-        _send_paste()
-        time.sleep(1.0)          # let the pasted text render in the composer
-        _tap(_VK_RETURN)         # submit
-        log("ChatGPT: pasted prompt and pressed Enter.")
-    else:
+    if not _focus_window(hwnd):
         log("ChatGPT: window not foreground — prompt is on the clipboard; "
             "click the composer and press Ctrl+V then Enter.")
-
-    # 4) Open the configured searches as tabs in the SAME (ChatGPT) window — no
-    #    --new-window, so Brave adds them to the current foreground window. Skip any
-    #    ChatGPT entry (already handled above).
-    search_urls = [u for u in (_resolve_search_url(q) for q in searches)
-                   if u and not _is_chatgpt_url(u)]
-    if search_urls:
-        log(f"ChatGPT: opening {len(search_urls)} search tab(s) in the same window...")
-        subprocess.Popen([brave] + search_urls)
+        return
+    _click_composer(hwnd)
+    _send_paste()
+    time.sleep(1.2)              # let the pasted text render in the composer
+    _tap(_VK_RETURN)            # submit
+    log("ChatGPT: clicked composer, pasted prompt, pressed Enter.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
