@@ -57,6 +57,32 @@ const TASKHUB_MODELS = [
   'gemini-2.0-flash',
 ];
 
+// Recipes split by task, because the two jobs want opposite things:
+//
+//  • TYPED / SHORT edits ("rename this", "change cook time to 45", "delete step 6")
+//    want minimum latency. 3.1-flash-lite is the fastest reliable structured-op
+//    model and, with the compact prompt (only the OPEN recipe is sent in full),
+//    these round-trips feel near-instant.
+const RECIPE_EDIT_MODELS = [
+  'gemini-3.1-flash-lite',  // fastest reliable structured editing
+  'gemini-2.5-flash-lite',  // high-RPD lite fallback
+  'gemini-2.5-flash',
+  'gemini-3.5-flash',
+  'gemini-2.0-flash',
+];
+//  • SPOKEN dictation of a recipe wants FAITHFULNESS over speed — capture every
+//    ingredient, time, temperature and prep detail and never over-summarize. The
+//    "lite" models distil/compress and were dropping content, so voice leads with
+//    the full 2.5-flash (thinking OFF via thinkingBudget:0 keeps it fast enough),
+//    then the 3.5-flash flagship for the hardest dictations.
+const RECIPE_VOICE_MODELS = [
+  'gemini-2.5-flash',       // capable + thinking-off → faithful AND reasonably fast
+  'gemini-3.5-flash',       // flagship fallback for the hardest/longest dictations
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+];
+
 function cors() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -828,19 +854,29 @@ function normRecipe(r, keepId) {
   return o;
 }
 
-function recForPrompt(recipes) {
+// SPEED: only the FOCUS recipe (the one open / being edited) is rendered in full.
+// Every other recipe is a compact one-liner (name + fields + ingredient names +
+// step count) — enough to rename / delete / move / match by name, but a fraction
+// of the tokens. This keeps single edits fast even with a large recipe book.
+function recForPrompt(recipes, focusIndex) {
   if (!recipes.length) return '(no recipes yet)';
   return recipes.map((r, i) => {
-    let head = `#${i + 1} "${r.name || '(untitled)'}"  [category: ${normCat(r.category)}]`;
+    const n = i + 1;
+    let head = `#${n} "${r.name || '(untitled)'}"  [category: ${normCat(r.category)}]`;
     if (r.prepTime) head += `  [cook time: ${r.prepTime}]`;
     if (r.servings) head += `  [servings: ${r.servings}]`;
-    const ings = (r.ingredients || []).length
-      ? (r.ingredients || []).map((x, j) => `    ${j + 1}) ${x.name}${x.qty ? ` — ${x.qty}` : ''}`).join('\n')
-      : '    (none)';
-    const tools = (r.tools || []).length ? `  tools: ${r.tools.join(', ')}` : '  tools: (none)';
     const steps = stepsOf(r.instructions);
-    const stepStr = steps.length ? steps.map((t, j) => `    ${j + 1}. ${t}`).join('\n') : '    (none)';
-    return `${head}\n  ingredients:\n${ings}\n${tools}\n  instructions:\n${stepStr}`;
+    if (focusIndex && n === focusIndex) {
+      const ings = (r.ingredients || []).length
+        ? (r.ingredients || []).map((x, j) => `    ${j + 1}) ${x.name}${x.qty ? ` — ${x.qty}` : ''}`).join('\n')
+        : '    (none)';
+      const tools = (r.tools || []).length ? `  tools: ${r.tools.join(', ')}` : '  tools: (none)';
+      const stepStr = steps.length ? steps.map((t, j) => `    ${j + 1}. ${t}`).join('\n') : '    (none)';
+      return `${head}\n  ingredients:\n${ings}\n${tools}\n  instructions:\n${stepStr}`;
+    }
+    const inames = (r.ingredients || []).map(x => x.name).filter(Boolean);
+    const ingLine = inames.length ? `  ingredients: ${inames.join(', ')}` : '  ingredients: (none)';
+    return `${head}\n${ingLine}\n  (${steps.length} step${steps.length !== 1 ? 's' : ''})`;
   }).join('\n\n');
 }
 
@@ -858,7 +894,7 @@ function buildRecipePrompt(transcript, recipes, openIndex, hasAudio) {
     hasAudio ? `` : `USER INPUT (may be messy or run-on): """${transcript}"""`,
     ``,
     `CURRENT RECIPES (numbered — "#N" is a recipe's index; ingredients and instruction steps are numbered within each recipe — use those numbers as "index"):`,
-    recForPrompt(recipes),
+    recForPrompt(recipes, openIndex),
     ``,
     openLine,
     ``,
@@ -882,10 +918,18 @@ function buildRecipePrompt(transcript, recipes, openIndex, hasAudio) {
     `FIELD RULES:`,
     `- name: clean Title Case dish name. category: EXACTLY one of ${REC_CATS.join(', ')}. prepTime: time in the user's words ("30 min"). servings: amount it makes ("4 servings", "makes 12").`,
     `- ingredient name = clean singular name; qty = the amount ("2 cups", "1 tsp", "3 large", "1 pinch").`,
-    `- INSTRUCTIONS (the marquee feature): for set_instructions / add_step / insert_step / update_step, take whatever the user says — even messy, run-on, spoken narrative — and turn it into clean, correctly-ordered, grammatical step text. Improve grammar, spelling and clarity while PRESERVING their exact intended meaning; never invent steps or drop details. For set_instructions put ONE step per line (do NOT add "N." numbers yourself — the app numbers them). For a single step op, "text" is just that one cleaned step. Use °F, standard units, imperative voice.`,
+    `- INSTRUCTIONS (the marquee feature): for set_instructions / add_step / insert_step / update_step, take whatever the user says — even messy, run-on, spoken narrative — and organize it into clean, correctly-ordered, numbered step text. For set_instructions put ONE step per line (do NOT add "N." numbers yourself — the app numbers them). For a single step op, "text" is just that one cleaned step. Use °F, standard units, imperative voice.`,
+    ``,
+    `COMPLETENESS — TOP PRIORITY for anything the user dictates (accuracy over brevity; when in doubt, KEEP more, not less):`,
+    `- Preserve EVERY ingredient the user mentions. If they name ingredients while narrating the steps and those ingredients are not already listed, ALSO capture them (in add_recipe's "ingredients", or via add_ingredient ops) — never let an ingredient go missing.`,
+    `- Preserve ALL cooking times, temperatures, measurements, quantities, and settings EXACTLY as said ("350°F", "for 30 minutes", "2 cups", "medium-high heat", "until golden brown"). Never round, drop, or merge them.`,
+    `- Preserve every preparation detail: preheating, mixing/whisking/folding, resting, marinating, chilling, greasing, seasoning, garnishing, cooling times, "set aside", etc.`,
+    `- Split the narration into logical numbered steps WITHOUT losing information — one action (or a few tightly-related actions) per step. Do NOT compress multiple distinct actions into one terse step, and do NOT skip steps.`,
+    `- Only fix grammar, spelling, punctuation, capitalization, and remove pure filler ("um", "uh", "like", "you know"). Do NOT paraphrase into something shorter or "cleaner" that loses specifics — stay close to the user's actual words and details.`,
+    `- If a step is ambiguous, make the SMALLEST reasonable correction; never invent steps/ingredients/amounts and never delete content to make it tidier.`,
     ``,
     `CRITICAL RULES:`,
-    `- DO ONLY WHAT IS ASKED. Each op changes exactly one thing. NEVER emit a field or op for something the user didn't mention. When the user gives only instructions, emit ONLY set_instructions — do NOT clear or re-send ingredients, tools, name, or category.`,
+    `- DO ONLY WHAT IS ASKED. Each op changes exactly one thing. NEVER emit a field or op for something the user didn't mention. When the user gives only instructions, emit ONLY set_instructions (plus add_ingredient ops for any newly-named ingredients) — do NOT clear or re-send name, category, or existing content.`,
     `- ADD vs EDIT: only "create/add/make a NEW recipe (called X)" is add_recipe. Everything else that references a recipe is an edit op (set_field / set_instructions / *_ingredient / *_tool / *_step / remove_recipe).`,
     `- A command may contain several changes to the same recipe ("add salt and rename it to X") → one op each, all targeting that recipe.`,
     `- If nothing maps to a change, return ops: [].`,
@@ -1107,8 +1151,10 @@ async function handleRecipe(body, env) {
   if (!key) return json({ ok: false, error: `no Gemini key configured for ${profile}` }, 500);
 
   const prompt = buildRecipePrompt(transcript, recipes, openIndex, !!audio);
+  // Voice → faithful chain (complete dictation); typed → fastest chain (instant edits).
+  const models = audio ? RECIPE_VOICE_MODELS : RECIPE_EDIT_MODELS;
   let lastErr = null;
-  for (const model of LIST_MODELS) {
+  for (const model of models) {
     try {
       const out = await callGemini(model, key, { prompt, schema: RECIPE_OPS_SCHEMA, maxOutputTokens: 8192, feature: 'recipe', audio, mimeType });
       if (out && Array.isArray(out.ops)) {
@@ -1135,10 +1181,12 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 9, // bump when verifying a deploy went live
+        version: 10, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'journal'],
         models: MODELS,
         listModels: LIST_MODELS,
+        recipeEditModels: RECIPE_EDIT_MODELS,
+        recipeVoiceModels: RECIPE_VOICE_MODELS,
         taskhubModels: TASKHUB_MODELS,
         tonyKey: !!env.TONY_GEMINI_KEY,
         vedaKey: !!env.VEDA_GEMINI_KEY,
