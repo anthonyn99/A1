@@ -189,6 +189,7 @@
     // Journal: load all trades
     window._fbLoadTBJournal = async () => {
       try {
+        if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} }
         let snap;
         try { snap = await getDocFromServer(tbJournalDocRef); }
         catch(netErr) { snap = await getDoc(tbJournalDocRef); }
@@ -461,7 +462,7 @@
     // ── TradeBoard (dashboard) — load / save / live-sync ──────────────────────
     const tbDashDocRef = doc(db, TB_DASH_PATH);
     window._fbLoadTBDash = async () => {
-      try { const snap = await getDoc(tbDashDocRef); return snap.exists() ? (snap.data()||null) : null; }
+      try { if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} } const snap = await getDoc(tbDashDocRef); return snap.exists() ? (snap.data()||null) : null; }
       catch(e){ console.warn('TBDash load failed:', e); return null; }
     };
     window._fbSaveTBDash = (payload) => {
