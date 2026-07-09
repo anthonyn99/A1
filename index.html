@@ -5502,8 +5502,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     const mcDocRef = doc(db, MC_DOC_PATH);
     window._fbLoadMotionCore = async () => {
       try {
-        const snap = await getDoc(mcDocRef);
-        if (snap.exists()) return snap.data();
+        const snap = await _freshGet(mcDocRef);
+        if (snap && snap.exists()) return snap.data();
         return null;
       } catch(e) {
         console.warn("Firebase MotionCore load failed:", e);
