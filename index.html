@@ -2726,6 +2726,11 @@ function dkey(y,m,d){return `${y}-${String(m+1).padStart(2,"0")}-${String(d).pad
 function gwk(y,m,d){const dt=new Date(y,m,d),dow=dt.getDay(),mo=dow===0?-6:1-dow;const mon=new Date(y,m,d+mo);const r=[];for(let i=0;i<7;i++){const dd=new Date(mon);dd.setDate(mon.getDate()+i);r.push({year:dd.getFullYear(),month:dd.getMonth(),day:dd.getDate()});}return r;}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function toMonIdx(jsd){return jsd===0?6:jsd-1;}
+// Max "Until" horizon per repeat mode (years from today). Daily is capped at 2yr
+// because every occurrence is pre-expanded into the single Firestore dashboard
+// doc (1 MiB limit) — 3yr of daily risks overflow. Weekly/monthly (few hundred /
+// few dozen rows) → 5yr; annual (≤10 rows) → 10yr.
+function thRepeatMaxYears(mode){return mode==="annually"?10:(mode==="weekly"||mode==="monthly")?5:mode==="daily"?2:1;}
 function getMondayKey(date){const d=new Date(date);const dow=d.getDay();const mo=dow===0?-6:1-dow;d.setDate(d.getDate()+mo);return dkey(d.getFullYear(),d.getMonth(),d.getDate());}
 
 const SK={data:"td6_data",habits:"td6_habits",hc:"td6_hc",goals:"td6_goals",mgoals:"td6_mgoals_monthly",seeded:"td6_seeded",weekKey:"td6_week",theme:"td6_theme"};
@@ -2775,12 +2780,12 @@ function CircleProgress({pct,color,size=50,strokeW=4.5,label,T}){
     React.createElement("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size>44?11:9,fontWeight:700,color:done?T.GRN:T.TXD}},done?"✓":(label||pct+"%")));
 }
 
-function DatePicker({value,onChange,label,T}){
+function DatePicker({value,onChange,label,T,maxYears=1}){
   const now=new Date(),curY=now.getFullYear(),curM=now.getMonth(),curD=now.getDate();
-  // Max date = exactly 1 year from today
-  const maxDate=new Date(curY+1,curM,curD);
-  const maxY=maxDate.getFullYear(); // will be curY+1
-  const years=[curY,maxY]; // only current year and next year
+  // Max date = exactly `maxYears` years from today
+  const maxDate=new Date(curY+maxYears,curM,curD);
+  const maxY=maxDate.getFullYear(); // curY+maxYears
+  const years=[];for(let y=curY;y<=maxY;y++)years.push(y);
   const selY=value?.year||curY,selM=value?.month!=null?value.month:curM,selD=value?.day||curD;
   // Cap days to max allowed in that month, also cap to maxDate
   const maxD=dimM(selY,selM);
@@ -2873,16 +2878,18 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
     else setAltSeqTitles(["","",""]);
     if(initial?.notifyAt){const nd=new Date(initial.notifyAt);const pad=n=>String(n).padStart(2,"0");setNotifyDate(nd.getFullYear()+"-"+pad(nd.getMonth()+1)+"-"+pad(nd.getDate()));setNotifyTime(pad(nd.getHours())+":"+pad(nd.getMinutes()));}else{setNotifyDate("");setNotifyTime("");}setNotifyRepeat(initial?.notifyRepeat||"none");setNotifyRepeatDays(initial?.notifyRepeatDays||[]);
 
-    // Default end date: today+14 days, capped at 1 year from today
+    // Default end date: today+14 days, capped at the horizon allowed for this
+    // repeat mode (daily 2y / weekly·monthly 5y / annual 10y).
     const now2=new Date();
-    const maxEnd=new Date(now2.getFullYear()+1,now2.getMonth(),now2.getDate());
+    const _my=thRepeatMaxYears(initial?.altSeqId?"altSeq":(initial?.repeat||"daily"));
+    const maxEnd=new Date(now2.getFullYear()+_my,now2.getMonth(),now2.getDate());
     if(startDateKey&&!initial?.repeatEndDate){
       const p=startDateKey.split("-");const sd=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));
       sd.setDate(sd.getDate()+14);
       const def=sd>maxEnd?maxEnd:sd;
       setEndDate({month:def.getMonth(),day:def.getDate(),year:def.getFullYear()});
     } else if(initial?.repeatEndDate){
-      // Clamp existing end date to 1 year max when re-opening
+      // Clamp existing end date to this mode's max horizon when re-opening
       const ed=new Date(initial.repeatEndDate.year,initial.repeatEndDate.month,initial.repeatEndDate.day);
       const clamped=ed>maxEnd?maxEnd:ed;
       setEndDate({month:clamped.getMonth(),day:clamped.getDate(),year:clamped.getFullYear()});
@@ -2965,6 +2972,8 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
           React.createElement("button",{type:"button",style:tb(repeat==="none",!!initial?.repeatId),onClick:()=>setRepeat("none")},"No repeat"),
           React.createElement("button",{type:"button",style:tb(repeat==="daily",false),onClick:()=>setRepeat("daily")},"Every day"),
           React.createElement("button",{type:"button",style:tb(repeat==="weekly",false),onClick:()=>setRepeat("weekly")},"Specific days"),
+          React.createElement("button",{type:"button",style:tb(repeat==="monthly",false),onClick:()=>setRepeat("monthly")},"Monthly"),
+          React.createElement("button",{type:"button",style:tb(repeat==="annually",false),onClick:()=>setRepeat("annually")},"Annually"),
           React.createElement("button",{type:"button",style:tb(repeat==="altSeq",false),onClick:()=>setRepeat("altSeq")},"Alternating Seq")),
         repeat==="weekly"&&React.createElement("div",{style:{marginBottom:12}},React.createElement("div",{style:lbl},"Repeat on"),React.createElement(DayPicker,{selected:repeatDays,onChange:setRepeatDays,T})),
         repeat==="altSeq"&&React.createElement("div",{style:{marginBottom:12}},
@@ -2975,7 +2984,8 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
             React.createElement("input",{style:{...mi,marginBottom:0},value:t,placeholder:"Step "+(i+1)+" title...",onChange:e=>{const a=[...altSeqTitles];a[i]=e.target.value;setAltSeqTitles(a);}}),
             altSeqTitles.length>2&&React.createElement("button",{type:"button",style:{background:"transparent",border:"1px solid "+T.ERR+"55",borderRadius:4,color:T.ERR,cursor:"pointer",fontSize:14,fontWeight:700,padding:"4px 8px",flexShrink:0},onClick:()=>setAltSeqTitles(altSeqTitles.filter((_,j)=>j!==i))},"×"))),
           React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,padding:"5px 14px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:"transparent",border:"1px solid "+T.BDL,color:T.AC,marginTop:4},onClick:()=>setAltSeqTitles([...altSeqTitles,""])},"+ Add Step")),
-        (repeat==="daily"||repeat==="weekly"||repeat==="altSeq")&&React.createElement(DatePicker,{value:endDate,onChange:setEndDate,label:"Until (max 1 year)",T})),
+        (repeat==="monthly"||repeat==="annually")&&React.createElement("div",{style:{fontSize:11,color:T.TXD,marginBottom:10,lineHeight:1.5}},repeat==="monthly"?("Repeats on day "+startDateKey.split("-")[2].replace(/^0/,"")+" of each month (clamped to the last day for shorter months)."):("Repeats every year on "+MOS[parseInt(startDateKey.split("-")[1])-1]+" "+startDateKey.split("-")[2].replace(/^0/,"")+".")),
+        (repeat==="daily"||repeat==="weekly"||repeat==="monthly"||repeat==="annually"||repeat==="altSeq")&&React.createElement(DatePicker,{value:endDate,onChange:setEndDate,label:"Until (max "+thRepeatMaxYears(repeat)+(thRepeatMaxYears(repeat)===1?" year":" years")+")",T,maxYears:thRepeatMaxYears(repeat)})),
 
       React.createElement("div",{style:{marginBottom:14,borderTop:"1px solid "+T.BD,paddingTop:14,marginTop:4}},
         React.createElement("div",{style:{...lbl,display:"flex",alignItems:"center",gap:6}},React.createElement("span",null,"🔔")," Remind me"),
@@ -2987,7 +2997,8 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
         notifyDate&&notifyTime&&React.createElement("div",{style:{marginTop:10,borderTop:"1px solid "+T.BD,paddingTop:10}},
           React.createElement("div",{style:{...lbl,marginBottom:6}},"Repeat notification"),
           React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},
-            [["none","Once"],["daily","Every day"],["weekly","Specific days"]].map(([v,l])=>React.createElement("button",{key:v,type:"button",style:{fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:notifyRepeat===v?T.AC:T.BG,color:notifyRepeat===v?T.BG:T.TXD,border:"1px solid "+(notifyRepeat===v?T.AC:T.BDL),transition:"all .15s"},onClick:()=>setNotifyRepeat(v)},l))),
+            [["none","Once"],["daily","Every day"],["weekly","Specific days"],["monthly","Monthly"],["annually","Annually"]].map(([v,l])=>React.createElement("button",{key:v,type:"button",style:{fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:notifyRepeat===v?T.AC:T.BG,color:notifyRepeat===v?T.BG:T.TXD,border:"1px solid "+(notifyRepeat===v?T.AC:T.BDL),transition:"all .15s"},onClick:()=>setNotifyRepeat(v)},l))),
+          (notifyRepeat==="monthly"||notifyRepeat==="annually")&&React.createElement("div",{style:{fontSize:10,color:T.TXD,marginTop:6,lineHeight:1.4}},notifyRepeat==="monthly"?"Fires on this day each month at this time.":"Fires on this date each year at this time."),
           notifyRepeat==="weekly"&&React.createElement("div",{style:{marginTop:8}},
             React.createElement("div",{style:{...lbl,marginBottom:5}},"Notify on"),
             React.createElement(DayPicker,{selected:notifyRepeatDays,onChange:setNotifyRepeatDays,T})))),
@@ -3617,12 +3628,22 @@ function App(){
           if(oIdx>=0)oArr.splice(oIdx,1);
           if(oArr.length)next[dk2]=oArr;else delete next[dk2];
         }
-        const c=new Date(sd);
-        while(c<=ed){
-          const ck=dkey(c.getFullYear(),c.getMonth(),c.getDate());let add=false;
-          if(ri.mode==="daily")add=true;else if(ri.mode==="weekly")add=ri.days.includes(toMonIdx(c.getDay()));
-          if(add){const arr=[...(next[ck]||[])];arr.push({...item,id:uid(),repeatId:rid,done:false,_originalId:undefined});next[ck]=arr;}
-          c.setDate(c.getDate()+1);
+        const pushOcc=(dt)=>{const ck=dkey(dt.getFullYear(),dt.getMonth(),dt.getDate());const arr=[...(next[ck]||[])];arr.push({...item,id:uid(),repeatId:rid,done:false,_originalId:undefined});next[ck]=arr;};
+        if(ri.mode==="daily"||ri.mode==="weekly"){
+          const c=new Date(sd);
+          while(c<=ed){
+            if(ri.mode==="daily"||ri.days.includes(toMonIdx(c.getDay())))pushOcc(c);
+            c.setDate(c.getDate()+1);
+          }
+        } else if(ri.mode==="monthly"){
+          // Repeat on the same day-of-month; clamp to the last day for shorter
+          // months, re-anchoring from the original day so there is no drift.
+          const anchorDay=sd.getDate();let y=sd.getFullYear(),m=sd.getMonth(),g=0;
+          while(g++<600){const dim=dimM(y,m);const dt=new Date(y,m,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);m++;if(m>11){m=0;y++;}}
+        } else if(ri.mode==="annually"){
+          // Repeat on the same month/day each year; clamp Feb-29 to Feb-28.
+          const anchorMonth=sd.getMonth(),anchorDay=sd.getDate();let y=sd.getFullYear(),g=0;
+          while(g++<50){const dim=dimM(y,anchorMonth);const dt=new Date(y,anchorMonth,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);y++;}
         }
       }
       return next;
@@ -9248,6 +9269,11 @@ function dkey(y,m,d){return`${y}-${String(m+1).padStart(2,"0")}-${String(d).padS
 function gwk(y,m,d){const dt=new Date(y,m,d),dow=dt.getDay(),mo=dow===0?-6:1-dow,mon=new Date(y,m,d+mo),r=[];for(let i=0;i<7;i++){const dd=new Date(mon);dd.setDate(mon.getDate()+i);r.push({year:dd.getFullYear(),month:dd.getMonth(),day:dd.getDate()});}return r;}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function toMonIdx(jsd){return jsd===0?6:jsd-1;}
+// Max "Until" horizon per repeat mode (years from today). Daily is capped at 2yr
+// because every occurrence is pre-expanded into the single Firestore dashboard
+// doc (1 MiB limit) — 3yr of daily risks overflow. Weekly/monthly (few hundred /
+// few dozen rows) → 5yr; annual (≤10 rows) → 10yr.
+function thRepeatMaxYears(mode){return mode==="annually"?10:(mode==="weekly"||mode==="monthly")?5:mode==="daily"?2:1;}
 function getMondayKey(date){const d=new Date(date);const dow=d.getDay();const mo=dow===0?-6:1-dow;d.setDate(d.getDate()+mo);return dkey(d.getFullYear(),d.getMonth(),d.getDate());}
 const SK={data:"td_data",habits:"td_habits",hc:"td_hc",goals:"td_mg",mgoals:"td_mg_short",seeded:"td_seeded",weekKey:"td_week"};
 function loadJ(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb;}catch(e){return fb;}}
@@ -9257,7 +9283,7 @@ const HAB_DEF=[{id:uid(),title:"Review daily progress"},{id:uid(),title:"Organiz
 const MG_DEF=[{id:uid(),title:"Review project roadmap",done:false},{id:uid(),title:"Prepare and send invoices",done:false},{id:uid(),title:"Evaluate expenses",done:true},{id:uid(),title:"Check and restock supplies",done:false},{id:uid(),title:"Audit finances",done:false},{id:uid(),title:"Update software stack",done:false}];
 function initData(){const now=new Date(),cw=getMondayKey(now);if(localStorage.getItem(SK.seeded)){let hcD=loadJ(SK.hc,{});const sw=localStorage.getItem(SK.weekKey);if(sw!==cw){hcD={};saveJ(SK.hc,hcD);localStorage.setItem(SK.weekKey,cw);}return{data:loadJ(SK.data,{}),habits:loadJ(SK.habits,[]),hc:hcD,goals:loadJ(SK.goals,[]),monthlyGoals:loadJ(SK.mgoals,[])};}else{const d=buildSeed();saveJ(SK.data,d);saveJ(SK.habits,HAB_DEF);saveJ(SK.hc,{});saveJ(SK.goals,MG_DEF);saveJ(SK.mgoals,[]);localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);return{data:d,habits:HAB_DEF,hc:{},goals:MG_DEF,monthlyGoals:[]};}}
 const Chk=({s=9})=>React.createElement("svg",{width:s,height:s,viewBox:"0 0 12 12",fill:"none"},React.createElement("path",{d:"M2 6.5L5 9.5L10 3",stroke:BG,strokeWidth:"2.5",strokeLinecap:"round",strokeLinejoin:"round"}));
-function DatePicker({value,onChange,label}){const now=new Date(),curY=now.getFullYear();const years=[];for(let y=curY;y<=curY+3;y++)years.push(y);const selY=value?.year||curY,selM=value?.month!=null?value.month:now.getMonth(),selD=value?.day||1;const maxD=dimM(selY,selM);const days=[];for(let d=1;d<=maxD;d++)days.push(d);const sel={background:BG,border:"1px solid "+BDL,borderRadius:4,color:TX,fontSize:12,fontWeight:600,padding:"5px 5px",fontFamily:"inherit",outline:"none",cursor:"pointer"};const update=(f,v)=>{const nv={month:selM,day:selD,year:selY,...(value||{}),[f]:parseInt(v)};const mx=dimM(nv.year,nv.month);if(nv.day>mx)nv.day=mx;onChange(nv);};return React.createElement("div",null,React.createElement("div",{style:{fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}},label),React.createElement("div",{style:{display:"flex",gap:5,alignItems:"center"}},React.createElement("select",{style:{...sel,minWidth:72},value:selM,onChange:e=>update("month",e.target.value)},MOS.map((m,i)=>React.createElement("option",{key:i,value:i},m))),React.createElement("select",{style:{...sel,minWidth:50},value:selD,onChange:e=>update("day",e.target.value)},days.map(d=>React.createElement("option",{key:d,value:d},d))),React.createElement("select",{style:{...sel,minWidth:66},value:selY,onChange:e=>update("year",e.target.value)},years.map(y=>React.createElement("option",{key:y,value:y},y)))));}
+function DatePicker({value,onChange,label,maxYears=1}){const now=new Date(),curY=now.getFullYear();const years=[];for(let y=curY;y<=curY+maxYears;y++)years.push(y);const selY=value?.year||curY,selM=value?.month!=null?value.month:now.getMonth(),selD=value?.day||1;const maxD=dimM(selY,selM);const days=[];for(let d=1;d<=maxD;d++)days.push(d);const sel={background:BG,border:"1px solid "+BDL,borderRadius:4,color:TX,fontSize:12,fontWeight:600,padding:"5px 5px",fontFamily:"inherit",outline:"none",cursor:"pointer"};const update=(f,v)=>{const nv={month:selM,day:selD,year:selY,...(value||{}),[f]:parseInt(v)};const mx=dimM(nv.year,nv.month);if(nv.day>mx)nv.day=mx;onChange(nv);};return React.createElement("div",null,React.createElement("div",{style:{fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}},label),React.createElement("div",{style:{display:"flex",gap:5,alignItems:"center"}},React.createElement("select",{style:{...sel,minWidth:72},value:selM,onChange:e=>update("month",e.target.value)},MOS.map((m,i)=>React.createElement("option",{key:i,value:i},m))),React.createElement("select",{style:{...sel,minWidth:50},value:selD,onChange:e=>update("day",e.target.value)},days.map(d=>React.createElement("option",{key:d,value:d},d))),React.createElement("select",{style:{...sel,minWidth:66},value:selY,onChange:e=>update("year",e.target.value)},years.map(y=>React.createElement("option",{key:y,value:y},y)))));}
 function VedaDayPicker({selected,onChange}){const toggle=i=>{if(selected.includes(i))onChange(selected.filter(x=>x!==i));else onChange([...selected,i].sort());};return React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},DS.map((d,i)=>React.createElement("button",{key:i,onClick:()=>toggle(i),style:{fontSize:11,fontWeight:selected.includes(i)?700:600,padding:"5px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:selected.includes(i)?A:BG,color:selected.includes(i)?BG:TXD,border:selected.includes(i)?"1px solid "+A:"1px solid "+BDL,transition:"all .15s"}},d)));}
 function ConfirmDeleteModal({open,onClose,onConfirm,onThis,isAltSeq}){if(!open)return null;return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},RC("div",{style:{background:S1,border:"1px solid #f85149",borderRadius:4,padding:24,width:400,maxWidth:"90vw"},onClick:e=>e.stopPropagation()},RC("div",{style:{fontSize:16,fontWeight:700,color:"#f85149",marginBottom:12}},isAltSeq?"Delete Sequence Occurrence":"Delete Repeating Task"),RC("div",{style:{fontSize:13,color:TXD,lineHeight:1.6,marginBottom:18}},isAltSeq?"Delete just this occurrence, or this and all future occurrences in the sequence?":"Delete just this occurrence, or this and all future repeats?"),RC("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},RC("button",{style:{flex:1,background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TX,cursor:"pointer",fontFamily:"inherit"},onClick:onThis},"This only"),RC("button",{style:{flex:1,background:"#f85149",color:BG,border:"none",borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:onConfirm},"This + all future"),RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
 function VdConfirmEditTitleModal({open,onClose,onThisOnly,onAllFuture,isAltSeq}){if(!open)return null;return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2100},onClick:onClose},RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:4,padding:24,width:400,maxWidth:"90vw"},onClick:e=>e.stopPropagation()},RC("div",{style:{fontSize:16,fontWeight:700,color:A,marginBottom:12}},isAltSeq?"Edit Alternating Sequence":"Edit Repeating Task"),RC("div",{style:{fontSize:13,color:TXD,lineHeight:1.6,marginBottom:18}},isAltSeq?"Apply changes to just this occurrence, or all future occurrences in the sequence?":"Update the title for just this day, or for all future repeats?"),RC("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},RC("button",{style:{flex:1,background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TX,cursor:"pointer",fontFamily:"inherit"},onClick:onThisOnly},"This day only"),RC("button",{style:{flex:1,background:A,color:BG,border:"none",borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:onAllFuture},isAltSeq?"All future in seq":"All future repeats"),RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
@@ -9329,8 +9355,9 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
         initial?.repeatId&&initial?.repeat&&initial.repeat!=="none"&&RC("div",{style:{fontSize:11,color:"#f85149",fontWeight:600,marginBottom:8,padding:"6px 10px",background:"rgba(248,81,73,.08)",borderRadius:4,border:"1px solid rgba(248,81,73,.2)"}},"⚠ This is a repeating task. Selecting \"No repeat\" will delete all future occurrences from this date onward."),
         initial?.altSeqId&&RC("div",{style:{fontSize:11,color:A,fontWeight:600,marginBottom:8,padding:"6px 10px",background:A+"18",borderRadius:4,border:"1px solid "+A+"40"}},"🔁 Part of an alternating sequence."),
         RC("div",{style:{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}},
-          [["none","No repeat"],["daily","Every day"],["weekly","Specific days"],["altSeq","Alternating Seq"]].map(([v,l])=>RC("button",{key:v,onClick:()=>setRepeat(v),style:tb(repeat===v,v==="none"&&!!(initial?.repeatId||initial?.altSeqId))},l))),
+          [["none","No repeat"],["daily","Every day"],["weekly","Specific days"],["monthly","Monthly"],["annually","Annually"],["altSeq","Alternating Seq"]].map(([v,l])=>RC("button",{key:v,onClick:()=>setRepeat(v),style:tb(repeat===v,v==="none"&&!!(initial?.repeatId||initial?.altSeqId))},l))),
         repeat==="weekly"&&RC("div",{style:{marginBottom:10}},RC("div",{style:lbl},"Repeat on"),RC(VedaDayPicker,{selected:repeatDays,onChange:setRepeatDays})),
+        (repeat==="monthly"||repeat==="annually")&&startDateKey&&RC("div",{style:{fontSize:11,color:TXD,marginBottom:10,lineHeight:1.5}},repeat==="monthly"?("Repeats on day "+startDateKey.split("-")[2].replace(/^0/,"")+" of each month (clamped to the last day for shorter months)."):("Repeats every year on "+MOS[parseInt(startDateKey.split("-")[1])-1]+" "+startDateKey.split("-")[2].replace(/^0/,"")+".")),
         repeat==="altSeq"&&RC("div",{style:{marginBottom:10}},
           RC("div",{style:lbl},"Sequence Steps"),
           RC("div",{style:{fontSize:11,color:TXD,marginBottom:10,lineHeight:1.5}},"Steps cycle in order from "+dateLabel+". Day 1 = step 1, day 2 = step 2, etc."),
@@ -9339,7 +9366,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
             RC("input",{style:{...mi,marginBottom:0,padding:"7px 10px",fontSize:13},value:t,placeholder:"Step "+(i+1)+" title...",onChange:e=>{const a=[...altSeqTitles];a[i]=e.target.value;setAltSeqTitles(a);}}),
             altSeqTitles.length>2&&RC("button",{type:"button",style:{background:"transparent",border:"1px solid rgba(248,81,73,.4)",borderRadius:4,color:"#f85149",cursor:"pointer",fontSize:14,fontWeight:700,padding:"4px 8px",flexShrink:0},onClick:()=>setAltSeqTitles(altSeqTitles.filter((_,j)=>j!==i))},"×"))),
           RC("button",{type:"button",style:{...tb(false,false),marginTop:4},onClick:()=>setAltSeqTitles([...altSeqTitles,""])},"+ Add Step")),
-        (repeat==="daily"||repeat==="weekly"||repeat==="altSeq")&&RC(DatePicker,{value:endDate,onChange:setEndDate,label:"Until (max 1 year)"})),
+        (repeat==="daily"||repeat==="weekly"||repeat==="monthly"||repeat==="annually"||repeat==="altSeq")&&RC(DatePicker,{value:endDate,onChange:setEndDate,label:"Until (max "+thRepeatMaxYears(repeat)+(thRepeatMaxYears(repeat)===1?" year":" years")+")",maxYears:thRepeatMaxYears(repeat)})),
       RC("div",{style:{marginBottom:14,borderTop:"1px solid "+BD,paddingTop:14,marginTop:4}},
         RC("div",{style:{fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}},"🔔 Remind me"),
         RC("div",{style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},
