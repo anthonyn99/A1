@@ -2984,7 +2984,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
             React.createElement("input",{style:{...mi,marginBottom:0},value:t,placeholder:"Step "+(i+1)+" title...",onChange:e=>{const a=[...altSeqTitles];a[i]=e.target.value;setAltSeqTitles(a);}}),
             altSeqTitles.length>2&&React.createElement("button",{type:"button",style:{background:"transparent",border:"1px solid "+T.ERR+"55",borderRadius:4,color:T.ERR,cursor:"pointer",fontSize:14,fontWeight:700,padding:"4px 8px",flexShrink:0},onClick:()=>setAltSeqTitles(altSeqTitles.filter((_,j)=>j!==i))},"×"))),
           React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,padding:"5px 14px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:"transparent",border:"1px solid "+T.BDL,color:T.AC,marginTop:4},onClick:()=>setAltSeqTitles([...altSeqTitles,""])},"+ Add Step")),
-        (repeat==="monthly"||repeat==="annually")&&React.createElement("div",{style:{fontSize:11,color:T.TXD,marginBottom:10,lineHeight:1.5}},repeat==="monthly"?("Repeats on day "+startDateKey.split("-")[2].replace(/^0/,"")+" of each month (clamped to the last day for shorter months)."):("Repeats every year on "+MOS[parseInt(startDateKey.split("-")[1])-1]+" "+startDateKey.split("-")[2].replace(/^0/,"")+".")),
+        (repeat==="monthly"||repeat==="annually")&&startDateKey&&React.createElement("div",{style:{fontSize:11,color:T.TXD,marginBottom:10,lineHeight:1.5}},repeat==="monthly"?("Repeats on day "+startDateKey.split("-")[2].replace(/^0/,"")+" of each month (clamped to the last day for shorter months)."):("Repeats every year on "+MOS[parseInt(startDateKey.split("-")[1])-1]+" "+startDateKey.split("-")[2].replace(/^0/,"")+".")),
         (repeat==="daily"||repeat==="weekly"||repeat==="monthly"||repeat==="annually"||repeat==="altSeq")&&React.createElement(DatePicker,{value:endDate,onChange:setEndDate,label:"Until (max "+thRepeatMaxYears(repeat)+(thRepeatMaxYears(repeat)===1?" year":" years")+")",T,maxYears:thRepeatMaxYears(repeat)})),
 
       React.createElement("div",{style:{marginBottom:14,borderTop:"1px solid "+T.BD,paddingTop:14,marginTop:4}},
@@ -10538,7 +10538,11 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   window._fcmScheduleNotif=async function(item){
     if(!item||!item.notifyAt||!item.id)return;
     const at=new Date(item.notifyAt).getTime();
-    if(isNaN(at)||at<Date.now()-10000)return;
+    if(isNaN(at))return;
+    // A past base time is fine for a REPEATING series — re-arm passes the original
+    // first-occurrence time and we expand forward from it, so the series keeps
+    // firing indefinitely. Only skip a past ONE-SHOT (nothing left to fire).
+    if((item.notifyRepeat||'none')==='none'&&at<Date.now()-10000)return;
 
     // Ensure permission + token FIRST so a phone that can't register surfaces
     // the reason instead of failing silently.
@@ -10559,39 +10563,53 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       // Single occurrence — use item's own id
       occurrences.push({id:item.id,notifyAt:item.notifyAt});
     } else {
-      // Expand only a SHORT rolling horizon of upcoming occurrences (not a
-      // full year). A year of pre-written docs is what let the Worker dump a
-      // whole backlog at once when a device was offline (the "fired all at
-      // once" bug) and bloated every Worker scan. The series re-arms itself
-      // each time the app is opened (scanAndRegister / re-schedule), so a
-      // short horizon still gives continuous coverage.
+      // Pre-expand upcoming occurrences client-side so the Worker fires each at
+      // its EXACT notifyAt (every doc carries notifyRepeat:'none'). This is what
+      // removed the Worker-side day-advance "1-day-early" bug. Only FUTURE
+      // occurrences are written, so the Worker can never accumulate a backlog of
+      // unfired past docs to dump at once. Deterministic ids (series+timestamp)
+      // mean re-scheduling OVERWRITES rather than duplicates.
+      //
+      // Daily/weekly use a ~3-week rolling horizon, re-armed on every app open.
+      // Sparse repeats (monthly/annually) can be far more than 3 weeks apart, so
+      // for those we ALWAYS keep at least the next few occurrences armed — they
+      // must never fall through the gap between app opens.
       const HORIZON_MS=21*24*60*60*1000; // ~3 weeks of lookahead
+      const horizonEnd=Math.max(at,now)+HORIZON_MS;
       const base=new Date(item.notifyAt);
-      const limit=new Date(Math.max(at,now)+HORIZON_MS);
       const baseH=base.getHours(),baseM=base.getMinutes();
-      const cur=new Date(Math.max(base.getTime(),now-24*60*60*1000));
-      cur.setHours(baseH,baseM,0,0);
-      while(cur<=limit){
-        let include=false;
-        if(repeat==='daily'){
-          include=true;
-        } else if(repeat==='weekly'){
+      const MAX_OCC=60;
+      const addOcc=(dt)=>{
+        if(dt.getTime()>=now-10000){
+          const occId=(repId||item.id)+'_'+dt.getTime();
+          occurrences.push({id:occId,notifyAt:dt.toISOString()});
+        }
+      };
+      if(repeat==='daily'||repeat==='weekly'){
+        const cur=new Date(Math.max(base.getTime(),now-24*60*60*1000));
+        cur.setHours(baseH,baseM,0,0);
+        while(cur.getTime()<=horizonEnd&&occurrences.length<MAX_OCC){
           // notifyRepeatDays stored as Mon-based (0=Mon…6=Sun)
-          include=repDays.includes(toMonIdxFCM(cur.getDay()));
-        }
-        if(include){
-          const ts=new Date(cur);ts.setHours(baseH,baseM,0,0);
-          // Only write occurrences that are still in the future (>= now).
-          // Past-due occurrences are never (re)written, so the Worker can
-          // never accumulate a backlog of unfired docs to dump at once.
-          if(ts.getTime()>=now-10000){
-            // Deterministic id keyed by series + timestamp → re-scheduling
-            // OVERWRITES the same docs instead of creating duplicates.
-            const occId=(repId||item.id)+'_'+ts.getTime();
-            occurrences.push({id:occId,notifyAt:ts.toISOString()});
+          if(repeat==='daily'||repDays.includes(toMonIdxFCM(cur.getDay()))){
+            const ts=new Date(cur);ts.setHours(baseH,baseM,0,0);
+            addOcc(ts);
           }
+          cur.setDate(cur.getDate()+1);
         }
-        cur.setDate(cur.getDate()+1);
+      } else if(repeat==='monthly'||repeat==='annually'){
+        const MIN_AHEAD=3; // keep the next 3 sparse occurrences armed at all times
+        const anchorDay=base.getDate(),anchorMonth=base.getMonth();
+        let y=base.getFullYear(),m=base.getMonth(),g=0;
+        while(occurrences.length<MAX_OCC&&g++<800){
+          let dt;
+          if(repeat==='monthly'){const dim=new Date(y,m+1,0).getDate();dt=new Date(y,m,Math.min(anchorDay,dim),baseH,baseM,0,0);}
+          else{const dim=new Date(y,anchorMonth+1,0).getDate();dt=new Date(y,anchorMonth,Math.min(anchorDay,dim),baseH,baseM,0,0);}
+          if(dt.getTime()>=now-10000){
+            addOcc(dt);
+            if(dt.getTime()>horizonEnd&&occurrences.length>=MIN_AHEAD)break;
+          }
+          if(repeat==='monthly'){m++;if(m>11){m=0;y++;}}else{y++;}
+        }
       }
       // If nothing matched (e.g. weekly but base day not in repDays), fall back to single
       if(!occurrences.length){
@@ -10916,20 +10934,41 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   function nextOcc(entry,afterMs){
     var repeat=entry.repeat;
     if(!repeat||repeat==='none')return null;
-    var base=new Date(entry.notifyAt);
+    // anchorAt preserves the ORIGINAL series anchor (day-of-month / month-day)
+    // so a clamped occurrence (e.g. a 31st landing on Feb 28) never drifts the
+    // series to the 28th on subsequent fires. Falls back to notifyAt if absent.
+    var base=new Date(entry.anchorAt||entry.notifyAt);
     var h=base.getHours(),m=base.getMinutes();
-    // Start from NEXT day — prevents same-day/1-day-early fire caused by
-    // setHours rewinding the clock to earlier that day then +1 landing wrong.
-    var cur=new Date(afterMs);
-    cur.setDate(cur.getDate()+1);
-    cur.setHours(h,m,0,0);
-    var limit=new Date(cur);limit.setFullYear(limit.getFullYear()+1);
-    while(cur<=limit){
-      var ok=false;
-      if(repeat==='daily'){ok=true;}
-      else if(repeat==='weekly'){var days=entry.repeatDays||[];for(var i=0;i<days.length;i++){if(days[i]===toMon(cur.getDay())){ok=true;break;}}}
-      if(ok){return cur.toISOString();}
+    if(repeat==='daily'||repeat==='weekly'){
+      // Start from NEXT day — prevents same-day/1-day-early fire caused by
+      // setHours rewinding the clock to earlier that day then +1 landing wrong.
+      var cur=new Date(afterMs);
       cur.setDate(cur.getDate()+1);
+      cur.setHours(h,m,0,0);
+      var limit=new Date(cur);limit.setFullYear(limit.getFullYear()+1);
+      while(cur<=limit){
+        var ok=false;
+        if(repeat==='daily'){ok=true;}
+        else{var days=entry.repeatDays||[];for(var i=0;i<days.length;i++){if(days[i]===toMon(cur.getDay())){ok=true;break;}}}
+        if(ok){return cur.toISOString();}
+        cur.setDate(cur.getDate()+1);
+      }
+      return null;
+    }
+    if(repeat==='monthly'||repeat==='annually'){
+      // Step by month/year from the anchor, clamping the day to the last day of
+      // short months; return the first occurrence strictly after afterMs. Exact
+      // local-time construction → never fires early.
+      var anchorDay=base.getDate(),anchorMonth=base.getMonth();
+      var y=base.getFullYear(),mo=base.getMonth(),g=0;
+      while(g++<800){
+        var dt;
+        if(repeat==='monthly'){var dim=new Date(y,mo+1,0).getDate();dt=new Date(y,mo,Math.min(anchorDay,dim),h,m,0,0);}
+        else{var dim2=new Date(y,anchorMonth+1,0).getDate();dt=new Date(y,anchorMonth,Math.min(anchorDay,dim2),h,m,0,0);}
+        if(dt.getTime()>afterMs)return dt.toISOString();
+        if(repeat==='monthly'){mo++;if(mo>11){mo=0;y++;}}else{y++;}
+      }
+      return null;
     }
     return null;
   }
@@ -11011,7 +11050,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         var nxt=nextOcc(entry,due);
         if(nxt){
           var nid='rp_'+Math.random().toString(36).slice(2)+Date.now().toString(36);
-          next.push({id:nid,baseId:entry.baseId||entry.id,title:entry.title,notifyAt:nxt,repeat:entry.repeat,repeatDays:entry.repeatDays||[],repeatId:entry.repeatId||null,dash:entry.dash});
+          next.push({id:nid,baseId:entry.baseId||entry.id,title:entry.title,notifyAt:nxt,anchorAt:entry.anchorAt||entry.notifyAt,repeat:entry.repeat,repeatDays:entry.repeatDays||[],repeatId:entry.repeatId||null,dash:entry.dash});
         }
       } else {next.push(entry);}
     }
@@ -11046,7 +11085,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
           }
           if(repeat==='none'&&hasFired(regId))return;
           var existing=getReg();for(var j=0;j<existing.length;j++){if(existing[j].id===regId)return;}
-          regUpsert({id:regId,baseId:item.id,title:item.title||'TaskHub Reminder',notifyAt:notifyAt,repeat:repeat,repeatDays:repDays,repeatId:item.notifyRepeatId||null,dash:src.dash});
+          regUpsert({id:regId,baseId:item.id,title:item.title||'TaskHub Reminder',notifyAt:notifyAt,anchorAt:item.notifyAt,repeat:repeat,repeatDays:repDays,repeatId:item.notifyRepeatId||null,dash:src.dash});
         });
       });
     });
@@ -11070,7 +11109,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       if(_ch)localStorage.setItem(CANCEL_KEY,JSON.stringify(_c));
     }catch(e){}
     // Local poll registration (shows banner when tab is open)
-    regUpsert({id:item.id,baseId:item.id,title:item.title||'TaskHub Reminder',notifyAt:item.notifyAt,repeat:item.notifyRepeat||'none',repeatDays:item.notifyRepeatDays||[],repeatId:item.notifyRepeatId||null,dash:item.dashboard||'all'});
+    regUpsert({id:item.id,baseId:item.id,title:item.title||'TaskHub Reminder',notifyAt:item.notifyAt,anchorAt:item.notifyAt,repeat:item.notifyRepeat||'none',repeatDays:item.notifyRepeatDays||[],repeatId:item.notifyRepeatId||null,dash:item.dashboard||'all'});
     // FCM push registration (delivers when tab is closed).
     // FCM module is <script type="module"> — loads async; may not have set
     // window._fcmScheduleNotif when user saves a task right after page load.
