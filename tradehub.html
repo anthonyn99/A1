@@ -3624,11 +3624,19 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       }catch(e){}
       if(navigator.clipboard) navigator.clipboard.writeText(selPromptText).catch(()=>{});
       res.push(ok?{ok:true,icon:'⌘',label:`Prompt copied — ${selPrompt.name}`}:{ok:false,icon:'⌘',label:'Copy failed — try the Prompts copy button'});
+      /* ── Open ChatGPT with the prompt prefilled in the composer ──
+         Cross-site window.open only prefills (browser security blocks a page from
+         auto-submitting another site) — press Enter to send. The morning-launcher
+         opens ChatGPT from the command line, which DOES auto-submit. */
+      window.open(tbChatGPTUrl(selPromptText),'_blank','noopener');
+      res.push({ok:true,icon:'✦',label:'ChatGPT opened — prompt prefilled (press Enter to send)'});
     }
-    /* ── Open each search in its own new tab ── */
+    /* ── Open each search in its own new tab (skip ChatGPT — handled above) ── */
     searches.forEach((q,i)=>{
       const t=(q||'').trim();if(!t)return;
-      window.open(resolveUrl(t),'_blank','noopener');
+      const u=resolveUrl(t);
+      if(tbIsChatGPTUrl(u))return;   // don't double-open ChatGPT
+      window.open(u,'_blank','noopener');
       res.push({ok:true,icon:numIcon(i),label:`Search ${i+1} opened`});
     });
     setResults(res);
