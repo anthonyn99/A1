@@ -25852,13 +25852,14 @@ function aiFormat(ctx) {
     return;
   }
   // A non-collapsed selection inside this editor -> format ONLY the selection.
-  var sel = window.getSelection();
-  if (sel && sel.rangeCount && !sel.isCollapsed) {
-    var r = sel.getRangeAt(0);
-    if (ed.contains(r.commonAncestorContainer) && String(sel).trim()) {
-      aiFormatSelection(ctx, r);
-      return;
-    }
+  // Read the MOUSEDOWN-captured selection (savedSelFor), not a live
+  // window.getSelection() -- by the time this click handler runs, clicking
+  // the button has already shifted focus and cleared/collapsed the live
+  // selection (same reason every other toolbar button uses saveSel/restoreSel).
+  var r = savedSelFor(ctx);
+  if (r && !r.collapsed && ed.contains(r.commonAncestorContainer) && r.toString().trim()) {
+    aiFormatSelection(ctx, r);
+    return;
   }
   aiFormatWholeDoc(ctx);
 }
@@ -26266,6 +26267,11 @@ function injectRibbonExtras(ctx) {
   var aiB = ptBtn(svg(IC.ai) + '<span style="margin-left:4px;font-weight:600;">AI Format</span>', 'AI Format — clean up formatting with AI');
   aiB.className = 'pt-btn docx-ai-btn';
   if (_docxFeatureLocked(ctx.app, 'aiFormat')) { aiB.classList.add('docx-feature-locked'); aiB.title = 'This feature has been disabled on your journal.'; }
+  // Clicking the button steals focus from the editor, which clears/collapses
+  // window.getSelection() before the click handler runs -- so a text
+  // selection must be captured on mousedown (same pattern as every other
+  // toolbar button) or aiFormat(ctx) always sees "no selection".
+  aiB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   aiB.addEventListener('click', function() { aiFormat(ctx); });
   var undoB = ptBtn(svg(IC.undo), 'Undo (Ctrl+Z)');
   undoB.classList.add('pt-disabled');
