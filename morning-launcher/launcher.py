@@ -294,6 +294,7 @@ def log(msg: str):
 # ──────────────────────────────────────────────────────────────────────────────
 
 _u32           = ctypes.windll.user32
+_k32           = ctypes.windll.kernel32
 _dwm           = ctypes.windll.dwmapi
 _WNDENUMPROC   = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
 _SW_RESTORE    = 9
@@ -302,7 +303,24 @@ _SWP_NOACTIVATE = 0x0010
 _SPI_GETWORKAREA = 0x0030
 _DWMWA_EXTENDED_FRAME_BOUNDS = 9
 _VK_RETURN       = 0x0D
+_VK_CONTROL      = 0x11
+_VK_MENU         = 0x12   # ALT
+_VK_V            = 0x56
 _KEYEVENTF_KEYUP = 0x0002
+_CF_UNICODETEXT  = 13
+_GMEM_MOVEABLE   = 0x0002
+
+# 64-bit-safe signatures — the default int return type truncates HANDLE/pointer
+# values, which corrupts the clipboard handles and crashes. Set once at import.
+_k32.GlobalAlloc.restype  = ctypes.c_void_p
+_k32.GlobalAlloc.argtypes = [ctypes.c_uint, ctypes.c_size_t]
+_k32.GlobalLock.restype   = ctypes.c_void_p
+_k32.GlobalLock.argtypes  = [ctypes.c_void_p]
+_k32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+_k32.GlobalFree.argtypes  = [ctypes.c_void_p]
+_u32.OpenClipboard.argtypes     = [ctypes.c_void_p]
+_u32.SetClipboardData.restype   = ctypes.c_void_p
+_u32.SetClipboardData.argtypes  = [ctypes.c_uint, ctypes.c_void_p]
 
 
 def _work_area_height() -> int:
