@@ -1172,6 +1172,67 @@ var EDIT_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke
 var DEL_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 function persistRecipes(){ if(window._mlSaveRecipes && activeProfile) window._mlSaveRecipes(activeProfile, recipes.map(sanitize)); }
 function setView(v){ view=v; recDetailId=null; manualOpen=false; render(); window.scrollTo(0,0); }
+
+// ── recipe undo / redo (per profile; covers manual AND voice/AI changes) ──
+var recUndoStack={}, recRedoStack={};
+function recSnap(){ return JSON.parse(JSON.stringify(recipes||[])); }
+function recPushUndo(){
+  var p=activeProfile; if(!p) return;
+  (recUndoStack[p]=recUndoStack[p]||[]).push(recSnap());
+  if(recUndoStack[p].length>30) recUndoStack[p].shift();
+  recRedoStack[p]=[];
+}
+function recUndoAvailable(){ var p=activeProfile; return !!(p && recUndoStack[p] && recUndoStack[p].length); }
+function recRedoAvailable(){ var p=activeProfile; return !!(p && recRedoStack[p] && recRedoStack[p].length); }
+function recUndo(){
+  var p=activeProfile; var st=p&&recUndoStack[p];
+  if(!st || !st.length){ toast('Nothing to undo'); return; }
+  (recRedoStack[p]=recRedoStack[p]||[]).push(recSnap());
+  setRecipes(st.pop());
+  if(recDetailId && !recipes.some(function(r){return r.id===recDetailId;})) recDetailId=null;
+  persistRecipes(); render(); toast('Undone');
+}
+function recRedo(){
+  var p=activeProfile; var st=p&&recRedoStack[p];
+  if(!st || !st.length){ toast('Nothing to redo'); return; }
+  (recUndoStack[p]=recUndoStack[p]||[]).push(recSnap());
+  setRecipes(st.pop());
+  if(recDetailId && !recipes.some(function(r){return r.id===recDetailId;})) recDetailId=null;
+  persistRecipes(); render(); toast('Redone');
+}
+
+// ── recipe voice/text AI ("type-to-action", same system as MyList) ──
+function recForAI(r){
+  return { id:r.id, name:r.name||'', category:r.category||'Other', prepTime:r.prepTime||'', servings:r.servings||'',
+    ingredients:(r.ingredients||[]).map(function(i){ return { name:i.name||'', qty:i.qty||'' }; }),
+    tools:(r.tools||[]).slice(), instructions:r.instructions||'' };
+}
+function normRecipeIn(r){
+  return { id:r.id||uid(), name:String(r.name||''), category:r.category||'Other',
+    prepTime:String(r.prepTime||''), servings:String(r.servings||''),
+    ingredients:Array.isArray(r.ingredients)?r.ingredients.map(function(i){ return { name:String(i.name||''), qty:String(i.qty||'') }; }).filter(function(i){return i.name;}):[],
+    tools:Array.isArray(r.tools)?r.tools.map(String).filter(Boolean):[],
+    instructions:String(r.instructions||'') };
+}
+async function sendRecipeToAI(payloadExtra){
+  if(!activeProfile) return;
+  try{
+    var openIndex = recDetailId ? (recipes.map(function(r){return r.id;}).indexOf(recDetailId)+1) : 0;
+    var body=Object.assign({ profile:activeProfile, recipes:recipes.map(recForAI), openIndex:openIndex }, payloadExtra);
+    var r=await fetch(API+'/recipe/parse',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    var d=await r.json();
+    if(d.ok && Array.isArray(d.recipes)){
+      if(d.ops>0){
+        recPushUndo();
+        setRecipes(d.recipes.map(normRecipeIn));
+        if(recDetailId && !recipes.some(function(x){return x.id===recDetailId;})) recDetailId=null;
+        persistRecipes(); render();
+      }
+      toast(d.note || (d.ops>0?'Recipes updated':'No changes'));
+    }
+    else { toast(d.error||'Could not understand', true); }
+  }catch(e){ toast('Network error', true); }
+}
 function recCatStyle(cat){
   // soft pastel pills — light pastel fill + darker ink text (reads well on the dark UI)
   var c={
