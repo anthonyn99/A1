@@ -84,9 +84,13 @@ TASKHUB_PROFILE_DIR   = "Default"
 import argparse
 import ctypes
 import ctypes.wintypes as wt
+import json
+import re
 import subprocess
 import sys
 import time
+import urllib.parse
+import urllib.request
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
