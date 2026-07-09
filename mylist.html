@@ -530,7 +530,7 @@ body.dnd-active *{cursor:grabbing !important;}
   let lastOwnSaveAt = 0;
 
   window._mlLoad = async () => {
-    try { const snap = await getDoc(ML_DOC); return snap.exists() ? snap.data() : null; }
+    try { await _whenAuthed(); const snap = await getDoc(ML_DOC); return snap.exists() ? snap.data() : null; }
     catch(e){ console.warn("MyList load failed:", e); return null; }
   };
   window._mlSave = (payload) => {
