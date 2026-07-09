@@ -1199,7 +1199,7 @@ function recRedo(){
   (recUndoStack[p]=recUndoStack[p]||[]).push(recSnap());
   setRecipes(st.pop());
   if(recDetailId && !recipes.some(function(r){return r.id===recDetailId;})) recDetailId=null;
-  persistRecipes(); render(); toast('Redone');
+  recEditingStep=null; persistRecipes(); render(); toast('Redone');
 }
 
 // ── recipe voice/text AI ("type-to-action", same system as MyList) ──

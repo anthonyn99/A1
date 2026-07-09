@@ -816,10 +816,11 @@ def _launch_all(test: bool):
     log("=== Morning launch starting ===" + (" [TEST]" if test else ""))
     _apply_work_area()   # size windows to the taskbar-free height before opening them
     open_webull()
-    open_tradehub()
+    tradehub_hwnd = open_tradehub()
     time.sleep(1.5)
     open_taskhub_app()
-    open_chatgpt_analysis()   # fetch selected Analysis prompt → open ChatGPT auto-submitted + searches
+    # Open ChatGPT + searches as tabs in the SAME TradeHub window, then paste+submit.
+    open_chatgpt_analysis(target_hwnd=tradehub_hwnd)
     if not test:
         mark_ran()
     log("=== Done ===")
