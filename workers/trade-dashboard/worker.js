@@ -324,6 +324,20 @@ async function setActivePrompt(env, p){
   return true;
 }
 
+/* Analysis-tab prompt — SEPARATE slot from the MacroBoard's active prompt above.
+   The front-end pushes the Analysis section's selector here; morning-launcher reads
+   it (GET /analysis-prompt) to open ChatGPT with that exact prompt and auto-submit. */
+async function getAnalysisPrompt(env){
+  const p=await kvGet(env,'td_analysis_prompt');
+  if(p&&p.text&&String(p.text).trim()) return { name:p.name||'Prompt', text:String(p.text) };
+  return null;
+}
+async function setAnalysisPrompt(env, p){
+  const text=String(p&&p.text||'').trim(); if(!text) return false;
+  await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), updatedAt:Date.now() });
+  return true;
+}
+
 /* ── rate (manual builds only; cron uses its own cap) ── */
 async function getRate(env){ const r=await kvGet(env,'td_rate'); return (!r||r.day!==todayUTC())?{day:todayUTC(),used:0,lastRunMs:0}:r; }
 async function rateStatus(env){
@@ -699,6 +713,21 @@ async function handle(request, env, ctx){
   }
   if(path==='/active-prompt'&&method==='GET'){
     const p=await getActivePrompt(env);
+    return json({ok:true,name:p.name,text:p.text},200,request);
+  }
+
+  // Analysis-tab prompt — the front-end pushes the Analysis selector here; the
+  // morning-launcher GETs it to open ChatGPT with that exact prompt and auto-submit.
+  if(path==='/analysis-prompt'&&method==='POST'){
+    const body=await request.json().catch(()=>({}));
+    const ok=await setAnalysisPrompt(env, body);
+    if(!ok) return json({ok:false,error:'prompt text required'},400,request);
+    const p=await getAnalysisPrompt(env);
+    return json({ok:true,name:p.name,preview:p.text.slice(0,160)},200,request);
+  }
+  if(path==='/analysis-prompt'&&method==='GET'){
+    const p=await getAnalysisPrompt(env);
+    if(!p) return json({ok:false,error:'no analysis prompt set'},404,request);
     return json({ok:true,name:p.name,text:p.text},200,request);
   }
 
