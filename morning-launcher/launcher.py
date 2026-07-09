@@ -724,8 +724,8 @@ def _click_composer(hwnd) -> bool:
 
 
 def open_chatgpt_analysis():
-    """Open the configured searches (in one window), THEN open ChatGPT with the selected
-    Analysis prompt already SUBMITTED. Fully automated.
+    """Open ONE Brave window containing the configured searches (left tabs) plus ChatGPT
+    (last tab), then submit the selected Analysis prompt into ChatGPT. Fully automated.
 
     The prompt goes in via CLIPBOARD PASTE, not the ?q= URL: real prompts are far too
     long for the URL (ChatGPT returns HTTP 431 — request headers too large once the
@@ -754,48 +754,47 @@ def open_chatgpt_analysis():
         return
     log(f"ChatGPT: prompt '{name}' ({len(prompt)} chars) copied to clipboard.")
 
-    # 2) Open ALL the searches FIRST, together in one window (skip any ChatGPT entry).
+    # 2) Open EVERYTHING in ONE window: searches first (left tabs), ChatGPT last (so it
+    #    ends as the rightmost tab). Single command = single window.
     search_urls = [u for u in (_resolve_search_url(q) for q in searches)
                    if u and not _is_chatgpt_url(u)]
-    if search_urls:
-        log(f"ChatGPT: opening {len(search_urls)} search tab(s) first...")
-        subprocess.Popen([brave, "--new-window"] + search_urls)
-        time.sleep(2.0)          # let the search window settle before ChatGPT opens on top
-
-    # 3) Open a plain ChatGPT window (no query string → no 431), in its own window so
-    #    we can focus it deterministically.
     x, y, w, h = CHATGPT_POS
     snapshot = set(_all_visible_hwnds())
-    log("ChatGPT: launching...")
+    log(f"ChatGPT: opening 1 window with {len(search_urls)} search tab(s) + ChatGPT...")
     subprocess.Popen([
         brave,
         f"--window-position={x},{y}",
         f"--window-size={w},{h}",
         "--new-window",
-        "https://chatgpt.com/",
-    ])
+    ] + search_urls + ["https://chatgpt.com/"])
 
     hwnd = _wait_for_new_window(snapshot, timeout=25)
-    if hwnd:
-        time.sleep(1)
-        _place(hwnd, x, y, w, h)
-        log(f"ChatGPT window → ({x},{y}) {w}×{h}")
-    else:
+    if not hwnd:
         log("ChatGPT: new window not detected; skipping paste. Prompt is on the "
-            "clipboard — click the composer and press Ctrl+V then Enter.")
+            "clipboard — switch to the ChatGPT tab, click the composer, Ctrl+V, Enter.")
         return
+    time.sleep(1)
+    _place(hwnd, x, y, w, h)
+    log(f"ChatGPT window → ({x},{y}) {w}×{h}")
 
-    # 4) Wait for the page to load, then focus the window, CLICK the composer (a
-    #    foreground window is not enough — the text box needs focus), paste, and Enter.
+    # 3) Focus the window and jump to the LAST tab (Ctrl+9) so ChatGPT is active — even
+    #    if Brave opened a search as the active tab.
+    _focus_window(hwnd)
+    _send_ctrl(_VK_9)            # Chrome/Brave: Ctrl+9 = last tab (= ChatGPT)
+
+    # 4) Wait for ChatGPT to load, re-assert focus, CLICK the composer (a foreground
+    #    window is not enough — the text box itself needs focus), paste, and Enter.
     time.sleep(CHATGPT_LOAD_WAIT)
-    if not _focus_window(hwnd):
-        log("ChatGPT: window not foreground — prompt is on the clipboard; "
+    _focus_window(hwnd)
+    _send_ctrl(_VK_9)            # re-assert last tab in case load shifted focus
+    time.sleep(0.3)
+    if not _click_composer(hwnd):
+        log("ChatGPT: could not locate the window to click; prompt is on the clipboard — "
             "click the composer and press Ctrl+V then Enter.")
         return
-    _click_composer(hwnd)
-    _send_paste()
-    time.sleep(1.2)              # let the pasted text render in the composer
-    _tap(_VK_RETURN)            # submit
+    _send_ctrl(_VK_V)           # paste
+    time.sleep(1.2)             # let the pasted text render in the composer
+    _tap(_VK_RETURN)           # submit
     log("ChatGPT: clicked composer, pasted prompt, pressed Enter.")
 
 
