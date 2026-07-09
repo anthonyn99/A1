@@ -679,11 +679,6 @@ window.addEventListener('ml-recipes-update', function(e){
   recipesStore[p]=rr; recipesLoaded[p]=true;
   if(activeProfile===p){ recipes=recipesStore[p]; if(view==='recipes') render(); }
 });
-// ── help / instructions ──
-function showHelp(){ $('help-overlay').style.display='flex'; }
-function closeHelp(){ $('help-overlay').style.display='none'; try{ localStorage.setItem('ml_seen_help','1'); }catch(e){} }
-function maybeFirstRunHelp(){ var seen; try{ seen=localStorage.getItem('ml_seen_help'); }catch(e){} if(!seen) setTimeout(showHelp, 350); }
-
 function pData(){ return state[activeProfile] || {lists:[]}; }
 function lists(){ return pData().lists; }
 function curList(){ return lists().filter(function(l){ return l.id===activeListId; })[0] || null; }
