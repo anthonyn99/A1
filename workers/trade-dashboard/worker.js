@@ -324,17 +324,21 @@ async function setActivePrompt(env, p){
   return true;
 }
 
-/* Analysis-tab prompt — SEPARATE slot from the MacroBoard's active prompt above.
-   The front-end pushes the Analysis section's selector here; morning-launcher reads
-   it (GET /analysis-prompt) to open ChatGPT with that exact prompt and auto-submit. */
-async function getAnalysisPrompt(env){
+/* Analysis-tab config — SEPARATE slot from the MacroBoard's active prompt above.
+   The front-end pushes the Analysis section's selection here: the selected prompt
+   PLUS the configured search/URL list. morning-launcher reads it (GET /analysis-config)
+   to open ChatGPT with that exact prompt (auto-submitted) and open each search. */
+async function getAnalysisConfig(env){
   const p=await kvGet(env,'td_analysis_prompt');
-  if(p&&p.text&&String(p.text).trim()) return { name:p.name||'Prompt', text:String(p.text) };
+  if(p&&p.text&&String(p.text).trim())
+    return { name:p.name||'Prompt', text:String(p.text), searches:Array.isArray(p.searches)?p.searches:[] };
   return null;
 }
-async function setAnalysisPrompt(env, p){
+async function setAnalysisConfig(env, p){
   const text=String(p&&p.text||'').trim(); if(!text) return false;
-  await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), updatedAt:Date.now() });
+  const searches=Array.isArray(p&&p.searches)
+    ? p.searches.map(s=>String(s||'').slice(0,500)).filter(Boolean).slice(0,20) : [];
+  await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), searches, updatedAt:Date.now() });
   return true;
 }
 
@@ -716,19 +720,20 @@ async function handle(request, env, ctx){
     return json({ok:true,name:p.name,text:p.text},200,request);
   }
 
-  // Analysis-tab prompt — the front-end pushes the Analysis selector here; the
-  // morning-launcher GETs it to open ChatGPT with that exact prompt and auto-submit.
-  if(path==='/analysis-prompt'&&method==='POST'){
+  // Analysis-tab config — the front-end pushes the Analysis selection (prompt +
+  // search list) here; the morning-launcher GETs it to open ChatGPT with that exact
+  // prompt (auto-submitted) and open each configured search.
+  if(path==='/analysis-config'&&method==='POST'){
     const body=await request.json().catch(()=>({}));
-    const ok=await setAnalysisPrompt(env, body);
+    const ok=await setAnalysisConfig(env, body);
     if(!ok) return json({ok:false,error:'prompt text required'},400,request);
-    const p=await getAnalysisPrompt(env);
-    return json({ok:true,name:p.name,preview:p.text.slice(0,160)},200,request);
+    const p=await getAnalysisConfig(env);
+    return json({ok:true,name:p.name,preview:p.text.slice(0,160),searches:p.searches.length},200,request);
   }
-  if(path==='/analysis-prompt'&&method==='GET'){
-    const p=await getAnalysisPrompt(env);
-    if(!p) return json({ok:false,error:'no analysis prompt set'},404,request);
-    return json({ok:true,name:p.name,text:p.text},200,request);
+  if(path==='/analysis-config'&&method==='GET'){
+    const p=await getAnalysisConfig(env);
+    if(!p) return json({ok:false,error:'no analysis config set'},404,request);
+    return json({ok:true,name:p.name,text:p.text,searches:p.searches},200,request);
   }
 
   // legacy prompts CRUD kept so old cached front-ends don't 404 (superseded by /active-prompt)

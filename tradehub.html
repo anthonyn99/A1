@@ -4872,19 +4872,22 @@ function TBApp(){
   /* Keep the parser's active watchlist in lockstep with state. */
   useEffect(()=>{tbSetWatchlist(watchlist);},[watchlist]);
 
-  /* ── Push the Analysis-tab selected prompt to the worker's analysis slot ───────
+  /* ── Push the Analysis-tab selection (prompt + searches) to the worker ─────────
      App-level (not inside the Analysis tab) so it stays in sync even when that tab
-     is never opened. morning-launcher GETs /analysis-prompt to open ChatGPT with
-     this exact prompt and auto-submit it. Deduped so we only POST on real changes. */
+     is never opened. morning-launcher GETs /analysis-config to open ChatGPT with this
+     exact prompt (auto-submitted) and open each search. Deduped so we only POST on
+     real changes. */
   const _tbAnalysisPushSig=useRef(null);
   useEffect(()=>{
     const sel=(prompts.find(p=>p.id===analysisCfg.analysisPromptId)||prompts[0])||null;
     if(!sel||!sel.text)return;
-    const sig=(sel.name||'')+' '+sel.text;
+    const searches=(Array.isArray(analysisCfg.searches)?analysisCfg.searches
+      :[analysisCfg.searchQuery1,analysisCfg.searchQuery2]).map(s=>(s||'').trim()).filter(Boolean);
+    const sig=(sel.name||'')+' '+sel.text+' | '+searches.join(' | ');
     if(_tbAnalysisPushSig.current===sig)return;
-    const push=()=>{fetch(TD_WORKER_URL+'/analysis-prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:sel.name||'Prompt',text:sel.text})}).then(r=>{if(r.ok)_tbAnalysisPushSig.current=sig;}).catch(()=>{});};
+    const push=()=>{fetch(TD_WORKER_URL+'/analysis-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:sel.name||'Prompt',text:sel.text,searches})}).then(r=>{if(r.ok)_tbAnalysisPushSig.current=sig;}).catch(()=>{});};
     if(window._fbReady)push(); else window.addEventListener('fb-ready',push,{once:true});
-  },[prompts,analysisCfg.analysisPromptId]);
+  },[prompts,analysisCfg.analysisPromptId,analysisCfg.searches]);
 
   const showToast=(msg,icon='✓')=>{setToast({msg,icon,k:Date.now()});};
 
