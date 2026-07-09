@@ -1191,7 +1191,7 @@ function recUndo(){
   (recRedoStack[p]=recRedoStack[p]||[]).push(recSnap());
   setRecipes(st.pop());
   if(recDetailId && !recipes.some(function(r){return r.id===recDetailId;})) recDetailId=null;
-  persistRecipes(); render(); toast('Undone');
+  recEditingStep=null; persistRecipes(); render(); toast('Undone');
 }
 function recRedo(){
   var p=activeProfile; var st=p&&recRedoStack[p];
