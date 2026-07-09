@@ -442,8 +442,9 @@ body.dnd-active *{cursor:grabbing !important;}
   <label class="field" style="margin-bottom:12px"><span class="lbl">Recipe name *</span><input id="rec-name" placeholder="e.g. Chicken Stir Fry"></label>
   <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <label class="field"><span class="lbl">Category</span><select id="rec-cat"><option>Breakfast</option><option>Lunch</option><option selected>Dinner</option><option>Snack</option><option>Dessert</option><option>Other</option></select></label>
-    <label class="field"><span class="lbl">Prep time</span><input id="rec-time" placeholder="e.g. 30 min"></label>
+    <label class="field"><span class="lbl">Cook time</span><input id="rec-time" placeholder="e.g. 30 min"></label>
   </div>
+  <label class="field" style="margin-bottom:12px"><span class="lbl">Servings</span><input id="rec-servings" placeholder="e.g. 4 servings"></label>
   <div class="field" style="margin-bottom:12px"><span class="lbl">Ingredients</span><div id="rec-ing-rows"></div><button class="rec-addrow" onclick="ML.recAddIng()">+ Add ingredient</button></div>
   <div class="field" style="margin-bottom:12px"><span class="lbl">Tools &amp; equipment</span><div id="rec-tool-rows"></div><button class="rec-addrow" onclick="ML.recAddTool()">+ Add tool</button></div>
   <label class="field" style="margin-bottom:16px"><span class="lbl">Step-by-step instructions</span><div class="ta-wrap"><textarea id="rec-instr" rows="4" placeholder="Write out the steps clearly…" style="max-height:300px" oninput="ML.autoGrow(this)"></textarea><div class="resize-grip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13 6 L6 13 M13 10 L10 13"/></svg></div></div></label>
