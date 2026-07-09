@@ -516,7 +516,13 @@ body.dnd-active *{cursor:grabbing !important;}
     initializeAppCheck(app, { provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'), isTokenAutoRefreshEnabled: true });
   } catch(e){ console.warn('AppCheck init', e); }
   const auth = getAuth(app);
+  // Awaitable auth (mirrors tradehub.html / index.html) so the first read waits
+  // for a valid token instead of racing it — avoids a slow first load on iOS
+  // cold launches where the getDoc would otherwise queue behind pending auth.
+  let _authResolve; const _fbAuthReady = new Promise(res => { _authResolve = res; });
+  onAuthStateChanged(auth, (user) => { if (user) { try { _authResolve && _authResolve(); } catch(e){} } });
   signInAnonymously(auth).catch(e => console.warn("Anon auth failed:", e));
+  const _whenAuthed = () => Promise.race([_fbAuthReady, new Promise(res => setTimeout(res, 3000))]);
   const db = initializeFirestore(app, { localCache: memoryLocalCache() });
   const ML_DOC = doc(db, "dashboards/mylist");
 
