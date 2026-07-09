@@ -561,7 +561,7 @@ body.dnd-active *{cursor:grabbing !important;}
   const recLastOwnSaveAt = { tony:0, veda:0 };
   window._mlLoadRecipes = async (profile) => {
     const ref = REC_DOCS[profile]; if(!ref) return [];
-    try { const snap = await getDoc(ref); return (snap.exists() && Array.isArray(snap.data().recipes)) ? snap.data().recipes : []; }
+    try { await _whenAuthed(); const snap = await getDoc(ref); return (snap.exists() && Array.isArray(snap.data().recipes)) ? snap.data().recipes : []; }
     catch(e){ console.warn("Recipes load failed:", e); return []; }
   };
   window._mlSaveRecipes = (profile, recipes) => {
