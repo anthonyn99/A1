@@ -328,6 +328,18 @@ body.dnd-active *{cursor:grabbing !important;}
 .rec-tool{background:var(--surface2);border:1px solid var(--border2);border-radius:18px;padding:6px 13px;font-size:12.5px;color:var(--textdim);font-weight:600;}
 .rec-instr{white-space:pre-wrap;line-height:1.65;color:var(--text);font-size:14.5px;}
 .rec-muted{font-size:13px;color:var(--textmute);font-style:italic;}
+/* editable instruction steps (detail view) */
+.rec-steps{display:flex;flex-direction:column;gap:1px;margin-bottom:4px;}
+.rec-step{display:flex;gap:10px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid var(--border);}
+.rec-step .rec-step-n{color:var(--accent);font-weight:700;font-size:14.5px;min-width:20px;line-height:1.55;flex-shrink:0;}
+.rec-step .rec-step-t{flex:1;min-width:0;color:var(--text);font-size:14.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word;}
+.rec-step .rec-step-acts{display:flex;gap:2px;flex-shrink:0;}
+.rec-step .rec-step-acts .ib{width:28px;height:28px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--textmute);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.rec-step .rec-step-acts .ib:hover{color:var(--accent);border-color:var(--border);}
+.rec-step .rec-step-acts .ib.del:hover{color:var(--bad);border-color:rgba(212,122,106,.4);}
+.rec-step.editing{flex-direction:row;align-items:flex-start;gap:8px;}
+.rec-step.editing .se-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
+.rec-step.editing .se-acts{display:flex;gap:8px;justify-content:flex-end;}
 
 /* recipe modal */
 #rec-modal{position:fixed;inset:0;z-index:9700;display:none;align-items:flex-start;justify-content:center;background:rgba(8,8,11,.84);backdrop-filter:blur(6px);padding:max(env(safe-area-inset-top,0px),16px) 14px 24px;overflow-y:auto;}
@@ -1285,7 +1297,7 @@ function recDetailHtml(){
   var tools=(r.tools||[]).length
     ? '<div class="rec-tools">'+r.tools.map(function(t){ return '<span class="rec-tool">'+esc(t)+'</span>'; }).join('')+'</div>'
     : '<div class="rec-muted">No tools listed.</div>';
-  var instr=r.instructions ? '<div class="rec-instr">'+esc(r.instructions)+'</div>' : '<div class="rec-muted">No instructions added.</div>';
+  var instr=recStepsEditorHtml(r);
   return '<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><button class="btn ghost sm" onclick="ML.recBack()">← Back to recipes</button><span style="flex:1"></span>'
     +(recUndoAvailable()?'<button class="btn ghost sm" onclick="ML.recUndo()" title="Undo">↶ Undo</button>':'')
     +(recRedoAvailable()?'<button class="btn ghost sm" onclick="ML.recRedo()" title="Redo">↷ Redo</button>':'')+'</div>'

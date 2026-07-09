@@ -521,7 +521,8 @@ def open_webull():
     log(f"WeBull → ({x},{y}) {w}×{h}")
 
 
-def _open_browser_window(browser: str, url: str, pos: list, known_before: set) -> set:
+def _open_browser_window(browser: str, url: str, pos: list, known_before: set):
+    """Open url in a new Brave window at pos and return its HWND (or None)."""
     x, y, w, h = pos
     snapshot = set(_all_visible_hwnds())   # snapshot just before launch
 
@@ -541,18 +542,20 @@ def _open_browser_window(browser: str, url: str, pos: list, known_before: set) -
     else:
         log(f"WARNING: browser window for {url} not detected in time.")
 
-    return set(_all_visible_hwnds())   # updated snapshot for next call
+    return hwnd
 
 
 def open_tradehub():
+    """Open TradeHub in its own Brave window and return that window's HWND, so the
+    ChatGPT + search tabs can be opened INTO the same window."""
     brave = _find_brave()
     if not brave:
         log("ERROR: Brave not found. Set BRAVE_EXE_OVERRIDE at the top of this file.")
-        return
+        return None
 
     before = set(_all_visible_hwnds())
     log("Opening TradeHub in Brave...")
-    _open_browser_window(brave, TRADEHUB_URL, TRADEHUB_POS, before)
+    return _open_browser_window(brave, TRADEHUB_URL, TRADEHUB_POS, before)
 
 
 def open_taskhub_app():
