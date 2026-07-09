@@ -303,13 +303,13 @@ _SWP_NOACTIVATE = 0x0010
 _SPI_GETWORKAREA = 0x0030
 _DWMWA_EXTENDED_FRAME_BOUNDS = 9
 _VK_RETURN       = 0x0D
+_VK_SHIFT        = 0x10
 _VK_CONTROL      = 0x11
 _VK_MENU         = 0x12   # ALT
+_VK_ESCAPE       = 0x1B
 _VK_V            = 0x56
 _VK_9            = 0x39
 _KEYEVENTF_KEYUP = 0x0002
-_MOUSEEVENTF_LEFTDOWN = 0x0002
-_MOUSEEVENTF_LEFTUP   = 0x0004
 _CF_UNICODETEXT  = 13
 _GMEM_MOVEABLE   = 0x0002
 
@@ -704,23 +704,11 @@ def _send_ctrl(vk):
     _u32.keybd_event(_VK_CONTROL, 0, _KEYEVENTF_KEYUP, 0)
 
 
-def _click_composer(hwnd) -> bool:
-    """Left-click the ChatGPT composer (bottom-centre of the window) so the text box
-    actually has keyboard focus before we paste. Making the window foreground is NOT
-    enough — the web page's input still needs to be focused, and a click is the only
-    reliable way to do that. Returns True if we had a rectangle to click."""
-    r = _get_frame_bounds(hwnd) or _get_window_rect(hwnd)
-    if not r:
-        return False
-    cx = (r.left + r.right) // 2      # horizontal centre = the text area (buttons are at the edges)
-    cy = r.bottom - 100              # ~100px up from the bottom = inside the composer box
-    _u32.SetCursorPos(int(cx), int(cy))
-    time.sleep(0.15)
-    _u32.mouse_event(_MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-    time.sleep(0.05)
-    _u32.mouse_event(_MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
-    time.sleep(0.25)
-    return True
+def _send_shift(vk):
+    """Shift+<vk>."""
+    _u32.keybd_event(_VK_SHIFT, 0, 0, 0)
+    _tap(vk)
+    _u32.keybd_event(_VK_SHIFT, 0, _KEYEVENTF_KEYUP, 0)
 
 
 def open_chatgpt_analysis():
@@ -778,24 +766,31 @@ def open_chatgpt_analysis():
     log(f"ChatGPT window → ({x},{y}) {w}×{h}")
 
     # 3) Focus the window and jump to the LAST tab (Ctrl+9) so ChatGPT is active — even
-    #    if Brave opened a search as the active tab.
-    _focus_window(hwnd)
+    #    if Brave opened a search as the active tab. If we can't get real foreground we
+    #    must NOT type (keystrokes could land in the wrong window) — bail with the prompt
+    #    left on the clipboard.
+    if not _focus_window(hwnd):
+        log("ChatGPT: could not bring the window to the foreground; prompt is on the "
+            "clipboard — click the ChatGPT tab's box and press Ctrl+V then Enter.")
+        return
     _send_ctrl(_VK_9)            # Chrome/Brave: Ctrl+9 = last tab (= ChatGPT)
 
-    # 4) Wait for ChatGPT to load, re-assert focus, CLICK the composer (a foreground
-    #    window is not enough — the text box itself needs focus), paste, and Enter.
+    # 4) Wait for ChatGPT to load, re-assert focus + last tab, then focus the composer
+    #    with ChatGPT's own Shift+Esc shortcut (position-independent — works whether the
+    #    box is centred on the new-chat screen or docked at the bottom), paste, Enter.
     time.sleep(CHATGPT_LOAD_WAIT)
-    _focus_window(hwnd)
-    _send_ctrl(_VK_9)            # re-assert last tab in case load shifted focus
-    time.sleep(0.3)
-    if not _click_composer(hwnd):
-        log("ChatGPT: could not locate the window to click; prompt is on the clipboard — "
-            "click the composer and press Ctrl+V then Enter.")
+    if not _focus_window(hwnd):
+        log("ChatGPT: lost foreground before paste; prompt is on the clipboard — "
+            "click the ChatGPT tab's box and press Ctrl+V then Enter.")
         return
-    _send_ctrl(_VK_V)           # paste
-    time.sleep(1.2)             # let the pasted text render in the composer
+    _send_ctrl(_VK_9)           # re-assert last tab in case load shifted focus
+    time.sleep(0.3)
+    _send_shift(_VK_ESCAPE)     # ChatGPT shortcut: focus the message box
+    time.sleep(0.3)
+    _send_ctrl(_VK_V)          # paste
+    time.sleep(1.2)            # let the pasted text render in the composer
     _tap(_VK_RETURN)           # submit
-    log("ChatGPT: clicked composer, pasted prompt, pressed Enter.")
+    log("ChatGPT: focused composer (Shift+Esc), pasted prompt, pressed Enter.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
