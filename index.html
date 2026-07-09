@@ -4196,9 +4196,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
-  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
-  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, terminate, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -4216,16 +4216,52 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'),
     isTokenAutoRefreshEnabled: true
   });
-  // Anon auth — gates Firestore rules without requiring a login screen
+  // Anon auth — gates Firestore rules without requiring a login screen.
+  // Expose an awaitable promise (mirrors tradehub.html) so the first reads/
+  // listeners carry a valid token instead of racing auth. When a read fires
+  // before auth resolves, Firestore can only answer from the local cache
+  // (stale) while the authenticated server fetch is blocked — the exact
+  // "shows base data, then slowly syncs" symptom seen on iOS cold launches.
   const auth = getAuth(app);
+  let _authResolve; window._fbAuthReady = new Promise(res => { _authResolve = res; });
+  onAuthStateChanged(auth, (user) => { if (user) { try { _authResolve && _authResolve(); } catch(e){} } });
   signInAnonymously(auth).catch(e => console.warn("Anon auth failed:", e));
+
+  // iOS home-screen PWAs (WebKit) are the slow case. The multi-tab persistence
+  // manager does cross-tab leader election through an IndexedDB "primary lease".
+  // iOS kills backgrounded PWAs without releasing that lease, so the next cold
+  // launch waits (sometimes indefinitely) for the stale lease to expire before
+  // it will sync from the server — that is why Veda's iPhone shows old/base data
+  // and "never finishes loading" while Android (Brave) is fine. The single-tab
+  // manager takes ownership immediately (no lease wait), and a home-screen PWA
+  // only ever runs one instance, so nothing is lost. Desktop/Android keep the
+  // multi-tab manager so multiple real browser tabs still share one cache.
+  const _isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+  const _makeCache = () => persistentLocalCache({
+    tabManager: _isIOS ? persistentSingleTabManager({ forceOwnership: true })
+                       : persistentMultipleTabManager()
+  });
   // Persistent (IndexedDB) cache: survives full page reloads, so a cold
-  // launch (common on iOS, which discards backgrounded home-screen web apps
-  // far more aggressively than Android) can paint the last-synced data
-  // instantly instead of blocking on a network round-trip every time.
-  // Reconnect behavior is unaffected — the SDK still only re-syncs docs with
-  // ACTIVE listeners, not every doc ever fetched.
-  let db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  // launch can paint the last-synced data instantly instead of blocking on a
+  // network round-trip every time. Reconnect behavior is unaffected — the SDK
+  // still only re-syncs docs with ACTIVE listeners, not every doc ever fetched.
+  let db = initializeFirestore(app, { localCache: _makeCache() });
+
+  // Initial-load helper: fetch the freshest server copy so the first open is
+  // never stale, but never hang — fall back to the cached copy if the server is
+  // slow/unreachable. The live onSnapshot listener still delivers any update
+  // that lands after this resolves. Same shape as tradehub.html's loaders.
+  async function _freshGet(ref) {
+    try {
+      return await Promise.race([
+        getDocFromServer(ref),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('fresh-timeout')), 3000))
+      ]);
+    } catch(e) {
+      try { return await getDoc(ref); } catch(_) { return null; }
+    }
+  }
   const storage = getStorage(app);
   const DOC_PATH    = "dashboards/main";
   const EL_DOC_PATH = "dashboards/expenses";
