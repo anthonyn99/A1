@@ -4372,7 +4372,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // ── Market Calendar (read-only; written by TradeHub Catalysts) ────────────
     const mcCalDocRef = doc(db, MC_CAL_PATH);
     window._fbLoadMarketCal = async () => {
-      try { const snap = await getDoc(mcCalDocRef); return (snap.exists() && Array.isArray(snap.data().events)) ? snap.data().events : []; }
+      try { const snap = await _freshGet(mcCalDocRef); return (snap && snap.exists() && Array.isArray(snap.data().events)) ? snap.data().events : []; }
       catch(e){ console.warn("MarketCal load failed:", e); return []; }
     };
     if (_mcCalUnsub) { _mcCalUnsub(); _mcCalUnsub = null; }
