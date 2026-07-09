@@ -5667,7 +5667,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // FCM module uses a separate Firestore instance — unaffected.
     try { await terminate(db); } catch(e) {}
     // Reinitialize so future saves/loads work after user returns
-    db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+    db = initializeFirestore(app, { localCache: _makeCache() });
     window._fbReady = false; // force init() to run on next interaction
   }
 
