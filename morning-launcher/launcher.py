@@ -554,7 +554,12 @@ def _fetch_analysis_config(attempts: int = 5, delay: float = 3.0):
     url = TD_WORKER_URL.rstrip("/") + "/analysis-config"
     for i in range(max(1, attempts)):
         try:
-            req = urllib.request.Request(url, headers={"Cache-Control": "no-cache"})
+            # A real User-Agent is required — Cloudflare's edge 403s the default
+            # "Python-urllib" agent before the request ever reaches the worker.
+            req = urllib.request.Request(url, headers={
+                "Cache-Control": "no-cache",
+                "User-Agent": "MorningLauncher/1.0 (+https://anthonyn99.github.io/A1)",
+            })
             with urllib.request.urlopen(req, timeout=15) as r:
                 data = json.loads(r.read().decode("utf-8"))
             if data.get("ok") and (data.get("text") or "").strip():
