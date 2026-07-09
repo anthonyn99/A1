@@ -6,6 +6,18 @@ wake / unlock / boot your laptop at or after 6 AM Mountain Time, it opens:
   - WeBull Desktop   →  left   panel
   - TradeHub         →  middle panel  (browser window)
   - TaskHub          →  right  panel  (Brave app shortcut)
+  - ChatGPT          →  your selected TradeHub "Analysis" prompt, AUTO-SUBMITTED,
+                        plus your configured Analysis search tabs
+
+The ChatGPT step is the automated equivalent of clicking "Launch Analysis": it
+fetches the prompt you picked in TradeHub's Analysis tab (TradeHub pushes it to the
+trade-dashboard Cloudflare worker) and opens ChatGPT with that prompt already sent —
+no manual paste / Enter. See the CHATGPT ANALYSIS AUTOMATION config block below.
+PRECONDITION: stay signed in to ChatGPT in Brave's default profile.
+
+NOTE: Editing this file's behavior does NOT require re-running --setup — Task
+Scheduler runs the script fresh each trigger. Only re-run --setup if the TRIGGERS
+or task settings change.
 
 It fires on ALL of these so nothing is missed on a laptop:
   - waking from sleep + unlocking the screen   (session-unlock trigger)
