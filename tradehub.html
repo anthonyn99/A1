@@ -3625,12 +3625,12 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       }catch(e){}
       if(navigator.clipboard) navigator.clipboard.writeText(selPromptText).catch(()=>{});
       res.push(ok?{ok:true,icon:'⌘',label:`Prompt copied — ${selPrompt.name}`}:{ok:false,icon:'⌘',label:'Copy failed — try the Prompts copy button'});
-      /* ── Open ChatGPT with the prompt prefilled in the composer ──
-         Cross-site window.open only prefills (browser security blocks a page from
-         auto-submitting another site) — press Enter to send. The morning-launcher
-         opens ChatGPT from the command line, which DOES auto-submit. */
-      window.open(tbChatGPTUrl(selPromptText),'_blank','noopener');
-      res.push({ok:true,icon:'✦',label:'ChatGPT opened — prompt prefilled (press Enter to send)'});
+      /* ── Open ChatGPT — prompt is on the clipboard; paste with Ctrl+V + Enter ──
+         A web page can't type into or submit another site (browser security), and
+         the prompt is too long for a ?q= URL (HTTP 431). The morning-launcher does
+         the paste + Enter for you automatically; here you paste once. */
+      window.open(TB_CHATGPT_URL,'_blank','noopener');
+      res.push({ok:ok,icon:'✦',label:ok?'ChatGPT opened — paste with Ctrl+V, then Enter':'ChatGPT opened — copy the prompt from Prompts, then paste'});
     }
     /* ── Open each search in its own new tab (skip ChatGPT — handled above) ── */
     searches.forEach((q,i)=>{
@@ -3660,7 +3660,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
   return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:0,padding:'32px clamp(12px,4vw,28px) 40px',maxWidth:680,margin:'0 auto',width:'100%'}}>
     {/* Header — white, consistent with other sections */}
     <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Analysis</div>
-    <div style={{fontSize:13,color:'var(--txm)',marginTop:2,marginBottom:24}}>Opens ChatGPT with your chosen prompt prefilled, copies it, and opens every search at once.</div>
+    <div style={{fontSize:13,color:'var(--txm)',marginTop:2,marginBottom:24}}>Copies your chosen prompt, opens ChatGPT (paste with Ctrl+V) and every search at once. The morning launcher pastes + submits it for you automatically.</div>
 
     {/* Prompt picker */}
     <div style={{marginBottom:20}}>
