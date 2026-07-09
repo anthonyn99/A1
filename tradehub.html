@@ -3571,13 +3571,14 @@ function tbResolveUrl(query){
   if(t.includes('.')&&!t.includes(' ')&&!t.includes('?')) return 'https://'+t;
   return 'https://www.google.com/search?q='+encodeURIComponent(t);
 }
-/* True if a resolved URL points at ChatGPT — we skip these on auto-launch because
-   the morning-launcher opens ChatGPT itself (with the prompt + auto-submit). */
+/* True if a resolved URL points at ChatGPT — we skip these when opening searches so
+   we don't double-open the ChatGPT tab. */
 function tbIsChatGPTUrl(u){ try{ return /(^|\.)chatgpt\.com$|(^|\.)chat\.openai\.com$/i.test(new URL(u).hostname); }catch{ return false; } }
-/* Build a ChatGPT URL that prefills the composer with the prompt. When opened via a
-   page's window.open (cross-site) ChatGPT prefills only; the launcher's command-line
-   open (Sec-Fetch-Site: none) also auto-submits. */
-function tbChatGPTUrl(prompt){ return 'https://chatgpt.com/?q='+encodeURIComponent(String(prompt||'').slice(0,8000)); }
+/* Plain ChatGPT URL. We deliberately do NOT use ?q=<prompt>: real prompts are long
+   enough that the URL + ChatGPT's auth cookies overflow its header limit (HTTP 431).
+   The prompt is copied to the clipboard instead — paste it with Ctrl+V. (The
+   morning-launcher submits automatically by pasting + Enter for you.) */
+const TB_CHATGPT_URL='https://chatgpt.com/';
 
 function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
   const [editing,setEditing]=React.useState(false);
