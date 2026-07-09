@@ -59,6 +59,32 @@ TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
 # TaskHub opens via its installed Brave app (app-id below) — no URL needed here
 
 # ==============================================================================
+#  CHATGPT ANALYSIS AUTOMATION
+#  After the morning windows open, fetch the prompt you selected in TradeHub's
+#  Analysis tab (TradeHub pushes it to this worker) and open ChatGPT with the
+#  prompt already submitted — no manual paste / Enter.
+#
+#  WHY THIS WORKS: launching the browser from the command line makes ChatGPT see
+#  Sec-Fetch-Site: none (same as typing the URL in the address bar), which lets
+#  its ?q= parameter AUTO-SUBMIT. A web page's window.open() is Sec-Fetch-Site:
+#  cross-site, which ChatGPT only prefills — so this MUST run from the launcher.
+#
+#  PRECONDITION: you must be signed in to ChatGPT in Brave's default profile.
+# ==============================================================================
+
+CHATGPT_ANALYSIS_ENABLED = True   # master switch for the whole ChatGPT step
+TD_WORKER_URL            = "https://trade-dashboard.av1.workers.dev"
+
+# Where the ChatGPT window lands. Defaults to the middle column (over TradeHub).
+CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
+
+# Belt-and-suspenders: after ChatGPT loads, focus it and press Enter ONCE. If the
+# ?q= auto-submit already fired, the composer is empty so this is a harmless no-op;
+# if OpenAI ever changes the auto-submit behavior, this still submits the prompt.
+CHATGPT_PRESS_ENTER_FALLBACK = True
+CHATGPT_LOAD_WAIT = 7   # seconds to let ChatGPT load before the Enter fallback
+
+# ==============================================================================
 #  TRIGGER WINDOW  (Mountain Time)
 # ==============================================================================
 
@@ -254,6 +280,8 @@ _SWP_NOZORDER  = 0x0004
 _SWP_NOACTIVATE = 0x0010
 _SPI_GETWORKAREA = 0x0030
 _DWMWA_EXTENDED_FRAME_BOUNDS = 9
+_VK_RETURN       = 0x0D
+_KEYEVENTF_KEYUP = 0x0002
 
 
 def _work_area_height() -> int:
@@ -270,7 +298,7 @@ def _work_area_height() -> int:
 def _apply_work_area():
     """Reduce each window's height to the taskbar-free work area, in place."""
     h = _work_area_height()
-    for pos in (WEBULL_POS, TRADEHUB_POS, TASKHUB_POS):
+    for pos in (WEBULL_POS, TRADEHUB_POS, TASKHUB_POS, CHATGPT_POS):
         pos[3] = h
     log(f"Usable height (taskbar excluded) = {h}px")
 
@@ -516,6 +544,130 @@ def open_taskhub_app():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# ChatGPT analysis automation
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _fetch_analysis_config(attempts: int = 5, delay: float = 3.0):
+    """GET the Analysis-tab selection (prompt + searches) that TradeHub pushed to the
+    worker. Retries a few times so a freshly-opened TradeHub has time to push on the
+    very first run. Returns the parsed dict, or None if never available."""
+    url = TD_WORKER_URL.rstrip("/") + "/analysis-config"
+    for i in range(max(1, attempts)):
+        try:
+            req = urllib.request.Request(url, headers={"Cache-Control": "no-cache"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = json.loads(r.read().decode("utf-8"))
+            if data.get("ok") and (data.get("text") or "").strip():
+                return data
+        except Exception as e:
+            log(f"ChatGPT: analysis-config fetch attempt {i+1} failed: {e}")
+        if i < attempts - 1:
+            time.sleep(delay)
+    return None
+
+
+def _resolve_search_url(query: str) -> str:
+    """Mirror TradeHub's tbResolveUrl: full URL passthrough, www. auto-scheme, else Google."""
+    t = (query or "").strip()
+    if re.match(r"^https?://", t, re.I):
+        return t
+    if re.match(r"^www\.", t, re.I):
+        return "https://" + t
+    if "." in t and " " not in t and "?" not in t:
+        return "https://" + t
+    return "https://www.google.com/search?q=" + urllib.parse.quote(t)
+
+
+def _is_chatgpt_url(u: str) -> bool:
+    try:
+        host = (urllib.parse.urlparse(u).hostname or "").lower()
+    except Exception:
+        return False
+    return host in ("chatgpt.com", "chat.openai.com") or host.endswith((".chatgpt.com", ".chat.openai.com"))
+
+
+def _focus_window(hwnd) -> bool:
+    """Bring hwnd to the foreground; return True only if it actually became foreground
+    (so we never send keystrokes to the wrong window)."""
+    _u32.ShowWindow(hwnd, _SW_RESTORE)
+    _u32.SetForegroundWindow(hwnd)
+    time.sleep(0.3)
+    return _u32.GetForegroundWindow() == hwnd
+
+
+def _press_enter():
+    _u32.keybd_event(_VK_RETURN, 0, 0, 0)
+    time.sleep(0.05)
+    _u32.keybd_event(_VK_RETURN, 0, _KEYEVENTF_KEYUP, 0)
+
+
+def open_chatgpt_analysis():
+    """Open ChatGPT with the selected Analysis prompt already SUBMITTED, then open the
+    configured search tabs. Fully automated — no manual paste / Enter."""
+    if not CHATGPT_ANALYSIS_ENABLED:
+        return
+
+    brave = _find_brave()
+    if not brave:
+        log("ChatGPT: Brave not found; skipping ChatGPT analysis.")
+        return
+
+    cfg = _fetch_analysis_config()
+    if not cfg:
+        log("ChatGPT: no analysis prompt available from worker yet — open TradeHub's "
+            "Analysis tab once so it syncs, then it'll work next time. Skipping.")
+        return
+
+    prompt   = (cfg.get("text") or "")[:8000]
+    name     = cfg.get("name") or "Prompt"
+    searches = cfg.get("searches") or []
+
+    # 1) Open ChatGPT. A command-line launch is a browser-initiated navigation
+    #    (Sec-Fetch-Site: none), so ChatGPT's ?q= parameter AUTO-SUBMITS the prompt.
+    x, y, w, h = CHATGPT_POS
+    url = "https://chatgpt.com/?q=" + urllib.parse.quote(prompt)
+    snapshot = set(_all_visible_hwnds())
+    log(f"ChatGPT: launching with prompt '{name}' ({len(prompt)} chars)...")
+    subprocess.Popen([
+        brave,
+        f"--window-position={x},{y}",
+        f"--window-size={w},{h}",
+        "--new-window",
+        url,
+    ])
+
+    hwnd = _wait_for_new_window(snapshot, timeout=25)
+    if hwnd:
+        time.sleep(1)
+        _place(hwnd, x, y, w, h)
+        log(f"ChatGPT window → ({x},{y}) {w}×{h}")
+    else:
+        log("ChatGPT: new window not detected in time; it may still have opened.")
+
+    # 2) Belt-and-suspenders Enter. If ?q= already auto-submitted, the composer is
+    #    empty and this is a no-op; otherwise it submits the prefilled prompt. Only
+    #    fires if the ChatGPT window is truly in the foreground, so we never mis-type.
+    if CHATGPT_PRESS_ENTER_FALLBACK and hwnd:
+        time.sleep(CHATGPT_LOAD_WAIT)
+        if _focus_window(hwnd):
+            _press_enter()
+            log("ChatGPT: sent Enter fallback.")
+        else:
+            log("ChatGPT: window not foreground — skipped Enter fallback to avoid mis-typing.")
+
+    # 3) Open the configured searches in one extra window (skip any ChatGPT entry —
+    #    already handled above). Command-line launch, so no popup-blocker issues.
+    search_urls = []
+    for q in searches:
+        u = _resolve_search_url(q)
+        if u and not _is_chatgpt_url(u):
+            search_urls.append(u)
+    if search_urls:
+        log(f"ChatGPT: opening {len(search_urls)} search tab(s)...")
+        subprocess.Popen([brave, "--new-window"] + search_urls)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Main morning routine
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -526,6 +678,7 @@ def _launch_all(test: bool):
     open_tradehub()
     time.sleep(1.5)
     open_taskhub_app()
+    open_chatgpt_analysis()   # fetch selected Analysis prompt → open ChatGPT auto-submitted + searches
     if not test:
         mark_ran()
     log("=== Done ===")
