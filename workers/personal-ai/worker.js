@@ -849,48 +849,58 @@ function buildRecipePrompt(transcript, recipes, openIndex, hasAudio) {
     ? `FIRST, listen carefully to the attached audio of the user speaking (US English) and work out what they said, using cooking context to correct obvious mishearings. Then act on it.`
     : `Act on the user's input below.`;
   const openLine = (Number.isInteger(openIndex) && openIndex >= 1 && openIndex <= recipes.length)
-    ? `THE CURRENTLY OPEN RECIPE is #${openIndex}. When the user says "this recipe", "the recipe", "it", "here", or gives an edit with no recipe named, they mean recipe #${openIndex} — set targetIndex:${openIndex}.`
-    : `The user is on the recipe list (no single recipe is open). Identify which recipe an edit refers to by name via targetMatch (and targetIndex if clear).`;
+    ? `THE CURRENTLY OPEN RECIPE is #${openIndex}. When the user edits WITHOUT naming a recipe ("this recipe", "it", "here", or just gives ingredients/steps/a field), they mean recipe #${openIndex}. You may leave targetIndex OFF for edit ops and it will default to #${openIndex}; set targetIndex only when the user points at a DIFFERENT recipe.`
+    : `The user is on the recipe list (no single recipe is open). For any EDIT op you MUST identify which recipe it targets by name via targetMatch (or targetIndex if the user gives a number).`;
 
   return [
-    `You are a world-class cooking-recipe assistant. The user manages their personal recipe book by voice or text. Convert their ONE command into a precise sequence of OPERATIONS ("ops") on the recipe book. Be fast, literal, and complete: capture EVERY change they ask for, and NEVER alter a recipe, field, ingredient, or step they did not mention.`,
+    `You are a world-class cooking-recipe assistant. The user manages their personal recipe book by voice or text. Convert their ONE command into a precise sequence of small, TARGETED OPERATIONS ("ops"). Be fast, literal, and complete: capture EVERY change they ask for, and NEVER touch a recipe, field, ingredient, or step they did not mention.`,
     source,
     hasAudio ? `` : `USER INPUT (may be messy or run-on): """${transcript}"""`,
     ``,
-    `CURRENT RECIPES (numbered — "#N" is a recipe's index; ingredients and instruction steps are numbered within each recipe):`,
+    `CURRENT RECIPES (numbered — "#N" is a recipe's index; ingredients and instruction steps are numbered within each recipe — use those numbers as "index"):`,
     recForPrompt(recipes),
     ``,
     openLine,
     ``,
+    `TARGETING: every EDIT op (anything except add_recipe) targets one recipe. Identify it with "targetIndex" (its #N) and/or "targetMatch" (its name). If the user doesn't name a recipe and one is open, omit both and it defaults to the open recipe.`,
+    ``,
     `OPS (emit one per distinct change, in the order the user said them):`,
-    `- {op:"upsert", recipe:{…}} — CREATE a brand-new recipe. Omit targetIndex/targetMatch. Fill EVERY field you can infer from what the user said.`,
-    `- {op:"upsert", targetIndex:N, targetMatch?:"name", recipe:{…THE COMPLETE UPDATED RECIPE…}} — EDIT an existing recipe (#N). You MUST reproduce the recipe's ENTIRE current state (all fields, ALL ingredients, ALL tools, the FULL instructions) with ONLY the requested change applied. Never drop anything the user didn't ask to remove.`,
-    `- {op:"delete", targetIndex:N, targetMatch?:"name"} — delete an entire recipe.`,
+    `- {op:"add_recipe", name, category?, prepTime?, servings?, ingredients?:[{name,qty}], tools?:[…], instructions?} — CREATE a brand-new recipe. Only for "create/add/make a NEW recipe". Fill every field you can infer.`,
+    `- {op:"remove_recipe", targetIndex?, targetMatch?} — delete an ENTIRE recipe ("delete this recipe", "remove the Pancakes recipe").`,
+    `- {op:"set_field", targetIndex?, targetMatch?, field:"name"|"category"|"prepTime"|"servings", value} — change ONE top-level field. "rename this to Chicken Alfredo" → field:"name". "change the cook time to 45 minutes" → field:"prepTime", value:"45 min". "make it serve 6" → field:"servings", value:"6 servings". "move this to Dinner" → field:"category", value:"Dinner".`,
+    `- {op:"set_instructions", targetIndex?, targetMatch?, instructions} — REPLACE the whole instructions with the user's spoken/typed steps, cleaned and numbered (see INSTRUCTIONS rule). Use this when the user narrates how to make the dish or says "set/replace the instructions to …".`,
+    `- {op:"add_ingredient", targetIndex?, targetMatch?, name, qty?} — "add one teaspoon of paprika" → name:"Paprika", qty:"1 tsp".`,
+    `- {op:"update_ingredient", targetIndex?, targetMatch?, index?, match?, set:{name?,qty?}} — change one existing ingredient. index = its number; match = its name. "change the flour to 3 cups" → set:{qty:"3 cups"}.`,
+    `- {op:"remove_ingredient", targetIndex?, targetMatch?, index?, match?} — "remove garlic" → match:"garlic". "delete ingredient number 4" → index:4.`,
+    `- {op:"add_tool", targetIndex?, targetMatch?, name} — "add a whisk" → name:"Whisk".`,
+    `- {op:"remove_tool", targetIndex?, targetMatch?, index?, match?}`,
+    `- {op:"add_step", targetIndex?, targetMatch?, text} — append one instruction step.`,
+    `- {op:"insert_step", targetIndex?, targetMatch?, after, text} — insert a step AFTER step number "after" (after:0 = new first step). "insert a step after step 2 …".`,
+    `- {op:"update_step", targetIndex?, targetMatch?, index, text} — "replace step 3 with …" → index:3, text:"…".`,
+    `- {op:"remove_step", targetIndex?, targetMatch?, index} — "delete step 6" → index:6.`,
     ``,
-    `RECIPE FIELDS (inside "recipe"):`,
-    `- name: clean Title Case dish name.`,
-    `- category: EXACTLY one of ${REC_CATS.join(', ')}. Infer the best fit. "move X to Dinner" / "make this a Dessert" → set category.`,
-    `- prepTime: the cook/prep time in the user's words ("30 min", "1 hr 15 min"). "change the cook time to 45 minutes" → "45 min".`,
-    `- servings: how many it serves / the recipe amount ("4 servings", "makes 12", "2 dozen cookies").`,
-    `- ingredients: array of {name, qty}. name = clean ingredient name, qty = amount ("2 cups", "1 tsp", "3 large"). "remove garlic" → return the list WITHOUT garlic. "add one teaspoon of paprika" → append {name:"Paprika", qty:"1 tsp"}. "delete ingredient number 4" → drop the 4th ingredient. "change the flour to 3 cups" → update that ingredient's qty.`,
-    `- tools: array of equipment name strings ("Oven", "Mixing Bowl", "Whisk").`,
-    `- instructions: THE MOST IMPORTANT FIELD. Take whatever the user says about how to make the dish — even messy, run-on, spoken narrative — and turn it into clean, correctly-ordered, NUMBERED steps. Improve grammar, spelling and clarity while PRESERVING their exact intended meaning; never invent steps or drop details. Output ONE step per line, each starting with "N. " (e.g. "1. Preheat the oven to 350°F."). Use °F, standard units, imperative voice. "replace step 3 with …" / "insert a step after step 2 …" / "delete step 6" → return the FULL renumbered instruction list with that single edit applied.`,
+    `FIELD RULES:`,
+    `- name: clean Title Case dish name. category: EXACTLY one of ${REC_CATS.join(', ')}. prepTime: time in the user's words ("30 min"). servings: amount it makes ("4 servings", "makes 12").`,
+    `- ingredient name = clean singular name; qty = the amount ("2 cups", "1 tsp", "3 large", "1 pinch").`,
+    `- INSTRUCTIONS (the marquee feature): for set_instructions / add_step / insert_step / update_step, take whatever the user says — even messy, run-on, spoken narrative — and turn it into clean, correctly-ordered, grammatical step text. Improve grammar, spelling and clarity while PRESERVING their exact intended meaning; never invent steps or drop details. For set_instructions put ONE step per line (do NOT add "N." numbers yourself — the app numbers them). For a single step op, "text" is just that one cleaned step. Use °F, standard units, imperative voice.`,
     ``,
-    `RULES:`,
-    `- ADD vs EDIT: "create / add / new / make a recipe (for) …" → a NEW upsert with NO target. "change / rename / update / edit / set / move / remove … from / add … to" aimed at an existing recipe → an upsert WITH targetIndex (returning the complete updated recipe), or a delete.`,
-    `- When editing, ALWAYS echo the recipe's complete current content (read it from CURRENT RECIPES above) and apply only the requested change. Combine several changes to the SAME recipe into ONE upsert.`,
-    `- Changes to DIFFERENT recipes → one op each. "delete the pancake recipe" → {op:"delete", targetMatch:"Pancakes"}.`,
-    `- Do ONLY what was asked. If nothing maps to a change, return ops: [].`,
-    `- "note": ≤10-word confirmation of what you did ("Added Chocolate Cake recipe.", "Removed garlic.", "Renamed to Chicken Alfredo.").`,
+    `CRITICAL RULES:`,
+    `- DO ONLY WHAT IS ASKED. Each op changes exactly one thing. NEVER emit a field or op for something the user didn't mention. When the user gives only instructions, emit ONLY set_instructions — do NOT clear or re-send ingredients, tools, name, or category.`,
+    `- ADD vs EDIT: only "create/add/make a NEW recipe (called X)" is add_recipe. Everything else that references a recipe is an edit op (set_field / set_instructions / *_ingredient / *_tool / *_step / remove_recipe).`,
+    `- A command may contain several changes to the same recipe ("add salt and rename it to X") → one op each, all targeting that recipe.`,
+    `- If nothing maps to a change, return ops: [].`,
+    `- "note": ≤10-word confirmation ("Updated the instructions.", "Removed garlic.", "Renamed to Chicken Alfredo.").`,
     ``,
     `EXAMPLES (command → ops):`,
-    `"add a new breakfast recipe called avocado toast, serves 2, ten minutes. you need two slices of sourdough, one avocado, and a pinch of red pepper flakes. first toast the bread, then mash the avocado and spread it on, then sprinkle the pepper on top" → [{"op":"upsert","recipe":{"name":"Avocado Toast","category":"Breakfast","prepTime":"10 min","servings":"2 servings","ingredients":[{"name":"Sourdough Bread","qty":"2 slices"},{"name":"Avocado","qty":"1"},{"name":"Red Pepper Flakes","qty":"1 pinch"}],"tools":["Toaster"],"instructions":"1. Toast the sourdough slices.\\n2. Mash the avocado and spread it onto the toast.\\n3. Sprinkle red pepper flakes on top."}}]`,
-    `"rename this recipe to Chicken Alfredo" → [{"op":"upsert","targetIndex":${openIndex || 1},"recipe":{…full recipe with name "Chicken Alfredo"…}}]`,
-    `"change the cook time to 45 minutes and make it serve 6" → [{"op":"upsert","targetIndex":${openIndex || 1},"recipe":{…full recipe with prepTime "45 min", servings "6 servings"…}}]`,
-    `"add one teaspoon of paprika and remove the garlic" → [{"op":"upsert","targetIndex":${openIndex || 1},"recipe":{…full recipe, ingredients list with Paprika added and Garlic removed…}}]`,
-    `"replace step 3 with pour the batter into a greased pan" → [{"op":"upsert","targetIndex":${openIndex || 1},"recipe":{…full recipe, instructions renumbered with step 3 changed…}}]`,
-    `"delete this recipe" → [{"op":"delete","targetIndex":${openIndex || 1}}]`,
-    `"move this recipe to Dinner" → [{"op":"upsert","targetIndex":${openIndex || 1},"recipe":{…full recipe with category "Dinner"…}}]`,
+    `"add a new breakfast recipe called avocado toast, serves 2, ten minutes. two slices of sourdough, one avocado, a pinch of red pepper flakes. toaster and a fork. first toast the bread, then mash the avocado and spread it on, then sprinkle the pepper on top" → [{"op":"add_recipe","name":"Avocado Toast","category":"Breakfast","prepTime":"10 min","servings":"2 servings","ingredients":[{"name":"Sourdough Bread","qty":"2 slices"},{"name":"Avocado","qty":"1"},{"name":"Red Pepper Flakes","qty":"1 pinch"}],"tools":["Toaster","Fork"],"instructions":"Toast the sourdough slices.\\nMash the avocado and spread it onto the toast.\\nSprinkle red pepper flakes on top."}]`,
+    `(open recipe) "first preheat the oven to 350, mix the flour eggs sugar and butter, pour into a pan, bake 30 minutes, let it cool 10 minutes before serving" → [{"op":"set_instructions","instructions":"Preheat the oven to 350°F.\\nMix the flour, eggs, sugar, and butter until well combined.\\nPour the mixture into a baking pan.\\nBake for 30 minutes.\\nLet cool for 10 minutes before serving."}]`,
+    `(open recipe) "rename this to Chicken Alfredo" → [{"op":"set_field","field":"name","value":"Chicken Alfredo"}]`,
+    `(open recipe) "change the cook time to 45 minutes and make it serve 6" → [{"op":"set_field","field":"prepTime","value":"45 min"},{"op":"set_field","field":"servings","value":"6 servings"}]`,
+    `(open recipe) "add one teaspoon of paprika and remove the garlic" → [{"op":"add_ingredient","name":"Paprika","qty":"1 tsp"},{"op":"remove_ingredient","match":"garlic"}]`,
+    `(open recipe) "replace step 3 with pour the batter into a greased pan" → [{"op":"update_step","index":3,"text":"Pour the batter into a greased pan."}]`,
+    `(open recipe) "delete step 6" → [{"op":"remove_step","index":6}]`,
+    `(open recipe) "move this recipe to Dinner" → [{"op":"set_field","field":"category","value":"Dinner"}]`,
+    `"delete the pancake recipe" → [{"op":"remove_recipe","targetMatch":"Pancakes"}]`,
   ].join('\n');
 }
 
@@ -902,24 +912,29 @@ const RECIPE_OPS_SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          op:          { type: 'STRING', enum: ['upsert', 'delete'] },
-          targetIndex: { type: 'INTEGER' },
-          targetMatch: { type: 'STRING' },
-          recipe: {
-            type: 'OBJECT',
-            properties: {
-              name:     { type: 'STRING' },
-              category: { type: 'STRING' },
-              prepTime: { type: 'STRING' },
-              servings: { type: 'STRING' },
-              ingredients: {
-                type: 'ARRAY',
-                items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, qty: { type: 'STRING' } }, required: ['name'] },
-              },
-              tools: { type: 'ARRAY', items: { type: 'STRING' } },
-              instructions: { type: 'STRING' },
-            },
+          op: {
+            type: 'STRING',
+            enum: ['add_recipe', 'remove_recipe', 'set_field', 'set_instructions',
+                   'add_ingredient', 'update_ingredient', 'remove_ingredient',
+                   'add_tool', 'remove_tool', 'add_step', 'insert_step', 'update_step', 'remove_step'],
           },
+          targetIndex:  { type: 'INTEGER' },
+          targetMatch:  { type: 'STRING' },
+          field:        { type: 'STRING' },
+          value:        { type: 'STRING' },
+          name:         { type: 'STRING' },
+          qty:          { type: 'STRING' },
+          index:        { type: 'INTEGER' },
+          match:        { type: 'STRING' },
+          after:        { type: 'INTEGER' },
+          text:         { type: 'STRING' },
+          instructions: { type: 'STRING' },
+          set:          { type: 'OBJECT', properties: { name: { type: 'STRING' }, qty: { type: 'STRING' } } },
+          category:     { type: 'STRING' },
+          prepTime:     { type: 'STRING' },
+          servings:     { type: 'STRING' },
+          ingredients:  { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, qty: { type: 'STRING' } }, required: ['name'] } },
+          tools:        { type: 'ARRAY', items: { type: 'STRING' } },
         },
         required: ['op'],
       },
@@ -929,12 +944,33 @@ const RECIPE_OPS_SCHEMA = {
   required: ['ops'],
 };
 
-function applyRecipeOps(recipes, ops) {
+// Fuzzy-locate an ingredient by 1-based index (preferred) or by name.
+function findIngIndex(ings, index, match) {
+  if (Number.isInteger(index) && index >= 1 && index <= ings.length) return index - 1;
+  const m = normName(match);
+  if (!m) return -1;
+  let best = -1, score = 0;
+  ings.forEach((it, i) => {
+    const n = normName(it.name);
+    const s = n === m ? 1 : ((n.includes(m) || m.includes(n)) ? 0.85 : tokenOverlap(n, m));
+    if (s > score) { score = s; best = i; }
+  });
+  return score >= 0.5 ? best : -1;
+}
+function renumberSteps(steps) {
+  const s = steps.map(x => String(x || '').trim()).filter(Boolean);
+  return s.length ? s.map((l, i) => `${i + 1}. ${l}`).join('\n') : '';
+}
+
+function applyRecipeOps(recipes, ops, openIndex) {
   const list = (Array.isArray(recipes) ? recipes : []).map(r => normRecipe(r, true));
+  // Resolve an edit op's target recipe. Priority: explicit index → name match →
+  // the open recipe (only when the user named nothing). Never guesses otherwise.
   const resolve = (op) => {
     if (Number.isInteger(op.targetIndex) && op.targetIndex >= 1 && op.targetIndex <= list.length) return op.targetIndex - 1;
-    const m = normName(op.targetMatch);
-    if (m) {
+    const hasMatch = op.targetMatch && String(op.targetMatch).trim();
+    if (hasMatch) {
+      const m = normName(op.targetMatch);
       let best = -1, score = 0;
       list.forEach((r, i) => {
         const n = normName(r.name);
@@ -943,30 +979,116 @@ function applyRecipeOps(recipes, ops) {
       });
       if (score >= 0.5) return best;
     }
+    if (Number.isInteger(openIndex) && openIndex >= 1 && openIndex <= list.length) return openIndex - 1;
     return -1;
   };
+  const target = (op) => { const ti = resolve(op); return ti >= 0 ? list[ti] : null; };
+
   let changed = 0;
   for (const op of (Array.isArray(ops) ? ops : [])) {
     if (!op || typeof op !== 'object') continue;
-    const kind = String(op.op || '');
-    if (kind === 'upsert') {
-      const inc = normRecipe(op.recipe || {}, false);
-      inc.instructions = numberSteps(inc.instructions);
-      const ti = resolve(op);
-      if (ti >= 0) {
-        // Edit: keep the recipe's id; never let an empty name blank it out.
-        if (list[ti].id) inc.id = list[ti].id;
-        if (!inc.name) inc.name = list[ti].name;
-        list[ti] = inc;
-        changed++;
-      } else if (inc.name) {
-        // New recipe (no id — the client assigns one).
-        list.push(inc);
-        changed++;
+    switch (String(op.op || '')) {
+      case 'add_recipe': {
+        const inc = normRecipe(op.recipe || op, false);
+        inc.instructions = numberSteps(inc.instructions);
+        if (inc.name) { list.push(inc); changed++; }
+        break;
       }
-    } else if (kind === 'delete') {
-      const ti = resolve(op);
-      if (ti >= 0) { list.splice(ti, 1); changed++; }
+      case 'remove_recipe': {
+        const ti = resolve(op);
+        if (ti >= 0) { list.splice(ti, 1); changed++; }
+        break;
+      }
+      case 'set_field': {
+        const t = target(op); if (!t) break;
+        const f = String(op.field || '').trim().toLowerCase();
+        const v = String(op.value != null ? op.value : '').trim();
+        if (f === 'name') { if (v) { t.name = v; changed++; } }
+        else if (f === 'category') { if (v) { t.category = normCat(v); changed++; } }
+        else if (f === 'preptime' || f === 'time' || f === 'cooktime' || f === 'cook time') { if (v) { t.prepTime = v; changed++; } }
+        else if (f === 'servings' || f === 'serving' || f === 'yield') { if (v) { t.servings = v; changed++; } }
+        break;
+      }
+      case 'set_instructions': {
+        const t = target(op); if (!t) break;
+        const ins = numberSteps(op.instructions);
+        if (ins) { t.instructions = ins; changed++; }   // never wipe on an empty/misheard result
+        break;
+      }
+      case 'add_ingredient': {
+        const t = target(op); if (!t) break;
+        const name = String((op.name != null ? op.name : (op.set && op.set.name) || '')).trim();
+        if (!name) break;
+        const qty = String((op.qty != null ? op.qty : (op.set && op.set.qty) || '')).trim();
+        t.ingredients.push({ name, qty });
+        changed++;
+        break;
+      }
+      case 'update_ingredient': {
+        const t = target(op); if (!t) break;
+        const i = findIngIndex(t.ingredients, op.index, op.match || op.name);
+        if (i < 0) break;
+        const set = (op.set && typeof op.set === 'object') ? op.set : op;
+        if (set.name != null && String(set.name).trim()) t.ingredients[i].name = String(set.name).trim();
+        if (set.qty != null && String(set.qty).trim()) t.ingredients[i].qty = String(set.qty).trim();
+        changed++;
+        break;
+      }
+      case 'remove_ingredient': {
+        const t = target(op); if (!t) break;
+        const i = findIngIndex(t.ingredients, op.index, op.match || op.name);
+        if (i >= 0) { t.ingredients.splice(i, 1); changed++; }
+        break;
+      }
+      case 'add_tool': {
+        const t = target(op); if (!t) break;
+        const name = String(op.name || op.value || '').trim();
+        if (name && !t.tools.some(x => x.toLowerCase() === name.toLowerCase())) { t.tools.push(name); changed++; }
+        break;
+      }
+      case 'remove_tool': {
+        const t = target(op); if (!t) break;
+        let i = -1;
+        if (Number.isInteger(op.index) && op.index >= 1 && op.index <= t.tools.length) i = op.index - 1;
+        else {
+          const m = normName(op.match || op.name);
+          if (m) i = t.tools.findIndex(x => { const n = normName(x); return n === m || n.includes(m) || m.includes(n); });
+        }
+        if (i >= 0) { t.tools.splice(i, 1); changed++; }
+        break;
+      }
+      case 'add_step': {
+        const t = target(op); if (!t) break;
+        const txt = String(op.text || '').trim(); if (!txt) break;
+        const steps = stepsOf(t.instructions); steps.push(txt);
+        t.instructions = renumberSteps(steps); changed++;
+        break;
+      }
+      case 'insert_step': {
+        const t = target(op); if (!t) break;
+        const txt = String(op.text || '').trim(); if (!txt) break;
+        const steps = stepsOf(t.instructions);
+        let after = Number.isInteger(op.after) ? op.after : steps.length;
+        if (after < 0) after = 0; if (after > steps.length) after = steps.length;
+        steps.splice(after, 0, txt);
+        t.instructions = renumberSteps(steps); changed++;
+        break;
+      }
+      case 'update_step': {
+        const t = target(op); if (!t) break;
+        const txt = String(op.text || '').trim();
+        const steps = stepsOf(t.instructions);
+        const i = Number.isInteger(op.index) ? op.index - 1 : -1;
+        if (i >= 0 && i < steps.length && txt) { steps[i] = txt; t.instructions = renumberSteps(steps); changed++; }
+        break;
+      }
+      case 'remove_step': {
+        const t = target(op); if (!t) break;
+        const steps = stepsOf(t.instructions);
+        const i = Number.isInteger(op.index) ? op.index - 1 : -1;
+        if (i >= 0 && i < steps.length) { steps.splice(i, 1); t.instructions = renumberSteps(steps); changed++; }
+        break;
+      }
     }
   }
   return { recipes: list, changed };
@@ -990,7 +1112,7 @@ async function handleRecipe(body, env) {
     try {
       const out = await callGemini(model, key, { prompt, schema: RECIPE_OPS_SCHEMA, maxOutputTokens: 8192, feature: 'recipe', audio, mimeType });
       if (out && Array.isArray(out.ops)) {
-        const res = applyRecipeOps(recipes, out.ops);
+        const res = applyRecipeOps(recipes, out.ops, openIndex);
         return json({ ok: true, recipes: res.recipes, note: String(out.note || '').trim(), ops: res.changed, model });
       }
     } catch (e) {
@@ -1013,7 +1135,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 8, // bump when verifying a deploy went live
+        version: 9, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'journal'],
         models: MODELS,
         listModels: LIST_MODELS,
