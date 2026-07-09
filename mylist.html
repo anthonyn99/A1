@@ -340,18 +340,6 @@ body.dnd-active *{cursor:grabbing !important;}
 .rec-addrow{background:transparent;border:1px dashed var(--border2);color:var(--accent);border-radius:9px;padding:9px;width:100%;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--font-btn);margin-top:4px;}
 .rec-addrow:hover{border-color:var(--accent);}
 
-/* ── Help / instructions modal ── */
-#help-overlay{position:fixed;inset:0;z-index:9750;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.84);backdrop-filter:blur(6px);padding:18px;}
-#help-box{width:100%;max-width:440px;max-height:86vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:24px 22px;}
-#help-box h2{font-family:var(--font-head);font-weight:var(--head-weight);font-size:24px;color:var(--accent);letter-spacing:var(--head-spacing);text-transform:var(--head-transform);margin-bottom:4px;}
-#help-box .hsub{font-size:13px;color:var(--textdim);margin-bottom:18px;}
-.help-row{display:flex;gap:12px;margin-bottom:15px;align-items:flex-start;}
-.help-row .hi{flex-shrink:0;width:34px;height:34px;border-radius:10px;background:var(--accent-soft);border:1px solid var(--accent);color:var(--accent);display:flex;align-items:center;justify-content:center;}
-.help-row .hi svg{width:18px;height:18px;}
-.help-row .ht{font-size:13.5px;color:var(--text);line-height:1.5;}
-.help-row .ht b{color:var(--accent);font-weight:800;}
-#help-box .hclose{width:100%;justify-content:center;margin-top:8px;}
-
 /* wrap safety — nothing pushed off-screen on any device */
 .list-head{flex-wrap:wrap;}
 .items-head{flex-wrap:wrap;}
