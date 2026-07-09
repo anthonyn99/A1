@@ -4394,8 +4394,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // ── ExpenseLog load ───────────────────────────────────────────────────────
     window._fbLoadExpenses = async () => {
       try {
-        const snap = await getDoc(elDocRef);
-        if (snap.exists() && Array.isArray(snap.data().expenses)) return { expenses: snap.data().expenses, cash: snap.data().cash ?? 0 };
+        const snap = await _freshGet(elDocRef);
+        if (snap && snap.exists() && Array.isArray(snap.data().expenses)) return { expenses: snap.data().expenses, cash: snap.data().cash ?? 0 };
         return null;
       } catch(e) {
         console.warn("Firebase expenses load failed:", e);
@@ -4438,8 +4438,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // ── EventRec load ─────────────────────────────────────────────────────────
     window._fbLoadEventRec = async () => {
       try {
-        const snap = await getDoc(erDocRef);
-        if (snap.exists() && Array.isArray(snap.data().events)) return snap.data().events;
+        const snap = await _freshGet(erDocRef);
+        if (snap && snap.exists() && Array.isArray(snap.data().events)) return snap.data().events;
         return null;
       } catch(e) {
         console.warn("Firebase EventRec load failed:", e);
@@ -4522,8 +4522,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // ── Veda Timeline load ────────────────────────────────────────────────────
     window._fbLoadVedaTimeline = async () => {
       try {
-        const snap = await getDoc(vtDocRef);
-        if (snap.exists()) return snap.data();
+        const snap = await _freshGet(vtDocRef);
+        if (snap && snap.exists()) return snap.data();
         return null;
       } catch(e) {
         console.warn("Firebase VedaTimeline load failed:", e);
@@ -4563,8 +4563,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     window._fbLoadKeychain = async () => {
       try {
-        const snap = await getDoc(kcDocRef);
-        if (snap.exists()) return snap.data();
+        const snap = await _freshGet(kcDocRef);
+        if (snap && snap.exists()) return snap.data();
         return null;
       } catch(e) {
         console.warn("Firebase Keychain load failed:", e);
@@ -4621,8 +4621,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     window._fbLoadVedaLinks = async () => {
       try {
-        const snap = await getDoc(vdkcDocRef);
-        if (snap.exists()) return snap.data();
+        const snap = await _freshGet(vdkcDocRef);
+        if (snap && snap.exists()) return snap.data();
         return null;
       } catch(e) {
         console.warn("Firebase Veda Links load failed:", e);
