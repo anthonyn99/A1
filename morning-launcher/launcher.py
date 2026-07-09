@@ -967,7 +967,12 @@ if __name__ == "__main__":
         _ECHO = True
         log("=== ChatGPT analysis test ===")
         _apply_work_area()   # size the ChatGPT window to the taskbar-free height
-        open_chatgpt_analysis()
+        # If TradeHub is already open, add the tabs to it (mirrors the morning run);
+        # otherwise open a standalone window.
+        th = _wait_for_title_window("tradehub", timeout=2)
+        if th:
+            log("ChatGPT test: found an open TradeHub window — using it.")
+        open_chatgpt_analysis(target_hwnd=th)
         log("=== ChatGPT analysis test done ===")
     else:
         run_morning(test=args.test)

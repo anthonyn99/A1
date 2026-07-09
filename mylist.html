@@ -1227,7 +1227,7 @@ async function sendRecipeToAI(payloadExtra){
         recPushUndo();
         setRecipes(d.recipes.map(normRecipeIn));
         if(recDetailId && !recipes.some(function(x){return x.id===recDetailId;})) recDetailId=null;
-        persistRecipes(); render();
+        recEditingStep=null; persistRecipes(); render();
       }
       toast(d.note || (d.ops>0?'Recipes updated':'No changes'));
     }
