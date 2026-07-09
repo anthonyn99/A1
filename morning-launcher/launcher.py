@@ -76,12 +76,14 @@ TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
 #  Analysis tab (TradeHub pushes it to this worker) and open ChatGPT with the
 #  prompt already submitted — no manual paste / Enter.
 #
-#  WHY THIS WORKS: launching the browser from the command line makes ChatGPT see
-#  Sec-Fetch-Site: none (same as typing the URL in the address bar), which lets
-#  its ?q= parameter AUTO-SUBMIT. A web page's window.open() is Sec-Fetch-Site:
-#  cross-site, which ChatGPT only prefills — so this MUST run from the launcher.
+#  HOW IT WORKS: the prompt goes in via CLIPBOARD PASTE — the launcher copies the
+#  prompt, opens a plain ChatGPT window, focuses it, then sends Ctrl+V + Enter.
+#  (We do NOT put the prompt in a chatgpt.com/?q=... URL: real prompts are long
+#  enough that the URL + ChatGPT's auth cookies overflow the server's header limit
+#  → HTTP 431. Pasting has no length cap.)
 #
-#  PRECONDITION: you must be signed in to ChatGPT in Brave's default profile.
+#  PRECONDITION: you must be signed in to ChatGPT in Brave's default profile, and
+#  ChatGPT should open straight to the composer (no blocking modal stealing focus).
 # ==============================================================================
 
 CHATGPT_ANALYSIS_ENABLED = True   # master switch for the whole ChatGPT step
@@ -90,11 +92,9 @@ TD_WORKER_URL            = "https://trade-dashboard.av1.workers.dev"
 # Where the ChatGPT window lands. Defaults to the middle column (over TradeHub).
 CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
 
-# Belt-and-suspenders: after ChatGPT loads, focus it and press Enter ONCE. If the
-# ?q= auto-submit already fired, the composer is empty so this is a harmless no-op;
-# if OpenAI ever changes the auto-submit behavior, this still submits the prompt.
-CHATGPT_PRESS_ENTER_FALLBACK = True
-CHATGPT_LOAD_WAIT = 7   # seconds to let ChatGPT load before the Enter fallback
+# Seconds to let ChatGPT finish loading (and auto-focus its composer) before we
+# paste. Bump this if the paste sometimes lands before the page is ready.
+CHATGPT_LOAD_WAIT = 7
 
 # ==============================================================================
 #  TRIGGER WINDOW  (Mountain Time)
