@@ -3601,14 +3601,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
 
   const numIcon=(i)=>{const n=i+1;return (n>=1&&n<=20)?String.fromCharCode(0x2460+(n-1)):('#'+n);};
 
-  /* Resolve query to URL — full URL passthrough, www. auto-scheme, else Google search */
-  const resolveUrl=(query)=>{
-    const t=(query||'').trim();
-    if(/^https?:\/\//i.test(t)) return t;
-    if(/^www\./i.test(t)) return 'https://'+t;
-    if(t.includes('.')&&!t.includes(' ')&&!t.includes('?')) return 'https://'+t;
-    return 'https://www.google.com/search?q='+encodeURIComponent(t);
-  };
+  const resolveUrl=tbResolveUrl;
 
   /* Warm up clipboard permission on mount so it's pre-granted before launch */
   React.useEffect(()=>{
