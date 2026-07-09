@@ -14629,14 +14629,24 @@ function _bjApplyRemote(remote) {
     var localUpdated  = local ? (local.updated || 0) : 0;
 
     if (local) {
-      // Resolve trash/recover by ACTION time: trashing stamps trashed=updated=ts;
-      // restoring clears trashed and bumps updated=ts. The newer action wins.
+      // Resolve trash vs recover by an explicit trash-action clock (trashChangedAt)
+      // that ONLY changes on delete/restore — never on content edits. This makes a
+      // delete or recover authoritative and immune to the content `updated` guard,
+      // to cross-device clock skew, and to a later content edit on a device that
+      // missed the action (which would otherwise resurrect a deleted entry).
       var _rT = remoteEntry.trashed || 0;
       var _lT = local.trashed || 0;
       if (_rT !== _lT) {
-        var _rAct = _rT || remoteUpdated;
-        var _lAct = _lT || localUpdated;
-        _winnerTrashed[remoteEntry.id] = (_rAct >= _lAct) ? _rT : _lT;
+        var _rC = remoteEntry.trashChangedAt || 0;
+        var _lC = local.trashChangedAt || 0;
+        var _rHas = _rC || _rT;   // remote has a trash-action signal (legacy: trashed w/o meta)
+        var _lHas = _lC || _lT;
+        var _win;
+        if (_rHas && _lHas)  _win = ((_rC || _rT) >= (_lC || _lT)) ? { t:_rT, c:_rC||_rT } : { t:_lT, c:_lC||_lT };
+        else if (_rHas)      _win = { t:_rT, c:_rC||_rT };   // only remote acted → it wins
+        else if (_lHas)      _win = { t:_lT, c:_lC||_lT };   // only local acted → keep local
+        else                 _win = (remoteUpdated >= localUpdated) ? { t:_rT, c:0 } : { t:_lT, c:0 };
+        _winnerTrashed[remoteEntry.id] = _win;
       }
     }
 
@@ -14723,13 +14733,13 @@ function _bjApplyRemote(remote) {
 
   // Apply the authoritative trash/recover winner to the merged entries so a
   // delete or recover on any device reflects live here, regardless of which
-  // content-merge branch ran or how the `updated` timestamps compared.
+  // content-merge branch ran or how the content `updated` timestamps compared.
   Object.keys(_winnerTrashed).forEach(function(id) {
     var m = localById[id];
     if (!m) return;
     var w = _winnerTrashed[id];
-    if (w) m.trashed = w;
-    else if (m.trashed) delete m.trashed;
+    if (w.t) m.trashed = w.t; else if (m.trashed) delete m.trashed;
+    if (w.c) m.trashChangedAt = w.c;   // converge the trash-action clock across devices
   });
 
   // Remove entries deleted on another device.
@@ -14844,8 +14854,10 @@ const BJ_TRASH_TTL = 30 * 24 * 60 * 60 * 1000;
 function deleteEntry(id) {
   const entry = state.entries.find(e => e.id === id);
   if (!entry) return;
-  entry.trashed = Date.now();
-  entry.updated = Date.now();
+  var _bjDelTs = Date.now();
+  entry.trashed = _bjDelTs;
+  entry.trashChangedAt = _bjDelTs;   // trash-action clock (drives cross-device delete sync)
+  entry.updated = _bjDelTs;
   if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
   saveState(); renderSidebar(); loadActiveEntry();
   // Push the trashed entry itself (it isn't the active one, so the debounced save skips it)
@@ -14869,7 +14881,7 @@ window._bjTrashAPI = {
   restore: (ids) => {
     (ids||[]).forEach(id => {
       const e = state.entries.find(x => x.id === id);
-      if (e) { delete e.trashed; e.updated = Date.now(); if (window._fbSaveJournalEntry) window._fbSaveJournalEntry(e, state.entries); }
+      if (e) { var _rTs = Date.now(); delete e.trashed; e.trashChangedAt = _rTs; e.updated = _rTs; if (window._fbSaveJournalEntry) window._fbSaveJournalEntry(e, state.entries); }
     });
     saveState(); renderSidebar();
   },
@@ -20116,14 +20128,24 @@ function _tjApplyRemote(remote) {
     var localUpdated  = local ? (local.updated || 0) : 0;
 
     if (local) {
-      // Resolve trash/recover by ACTION time: trashing stamps trashed=updated=ts;
-      // restoring clears trashed and bumps updated=ts. The newer action wins.
+      // Resolve trash vs recover by an explicit trash-action clock (trashChangedAt)
+      // that ONLY changes on delete/restore — never on content edits. This makes a
+      // delete or recover authoritative and immune to the content `updated` guard,
+      // to cross-device clock skew, and to a later content edit on a device that
+      // missed the action (which would otherwise resurrect a deleted entry).
       var _rT = remoteEntry.trashed || 0;
       var _lT = local.trashed || 0;
       if (_rT !== _lT) {
-        var _rAct = _rT || remoteUpdated;
-        var _lAct = _lT || localUpdated;
-        _winnerTrashed[remoteEntry.id] = (_rAct >= _lAct) ? _rT : _lT;
+        var _rC = remoteEntry.trashChangedAt || 0;
+        var _lC = local.trashChangedAt || 0;
+        var _rHas = _rC || _rT;   // remote has a trash-action signal (legacy: trashed w/o meta)
+        var _lHas = _lC || _lT;
+        var _win;
+        if (_rHas && _lHas)  _win = ((_rC || _rT) >= (_lC || _lT)) ? { t:_rT, c:_rC||_rT } : { t:_lT, c:_lC||_lT };
+        else if (_rHas)      _win = { t:_rT, c:_rC||_rT };   // only remote acted → it wins
+        else if (_lHas)      _win = { t:_lT, c:_lC||_lT };   // only local acted → keep local
+        else                 _win = (remoteUpdated >= localUpdated) ? { t:_rT, c:0 } : { t:_lT, c:0 };
+        _winnerTrashed[remoteEntry.id] = _win;
       }
     }
 
@@ -20361,8 +20383,10 @@ const TJ_TRASH_TTL = 30 * 24 * 60 * 60 * 1000;
 function deleteEntry(id) {
   const entry = state.entries.find(e => e.id === id);
   if (!entry) return;
-  entry.trashed = Date.now();
-  entry.updated = Date.now();
+  var _bjDelTs = Date.now();
+  entry.trashed = _bjDelTs;
+  entry.trashChangedAt = _bjDelTs;   // trash-action clock (drives cross-device delete sync)
+  entry.updated = _bjDelTs;
   if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
   saveState(); renderSidebar(); loadActiveEntry();
   // Push the trashed entry itself (it isn't the active one, so the debounced save skips it)
@@ -20386,7 +20410,7 @@ window._tjTrashAPI = {
   restore: (ids) => {
     (ids||[]).forEach(id => {
       const e = state.entries.find(x => x.id === id);
-      if (e) { delete e.trashed; e.updated = Date.now(); if (window._fbSaveTonyJournalEntry) window._fbSaveTonyJournalEntry(e, state.entries); }
+      if (e) { var _rTs = Date.now(); delete e.trashed; e.trashChangedAt = _rTs; e.updated = _rTs; if (window._fbSaveTonyJournalEntry) window._fbSaveTonyJournalEntry(e, state.entries); }
     });
     saveState(); renderSidebar();
   },
