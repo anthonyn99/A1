@@ -5560,8 +5560,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     window._fbLoadProView = async () => {
       try {
-        const snap = await getDoc(pvDocRef);
-        if (snap.exists()) {
+        const snap = await _freshGet(pvDocRef);
+        if (snap && snap.exists()) {
           const d = snap.data();
           return d.cfg ? JSON.parse(d.cfg) : null;
         }
