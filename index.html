@@ -25966,6 +25966,16 @@ function aiFormatSelection(ctx, range) {
 
     ctx.history.commit();          // snapshot the pre-format content (so Undo restores it)
     var tmp = document.createElement('div'); tmp.innerHTML = clean;
+    // If it formatted down to a single paragraph, insert its INLINE contents
+    // instead of the <p> itself -- the selection's range start/end usually sit
+    // INSIDE an existing block (e.g. a sentence selected within a paragraph),
+    // so inserting a block-level <p> there would nest a <p> inside a <p>
+    // (invalid markup the browser silently mangles). Mirrors renderMarkdown's
+    // identical selection-insert fix above.
+    if (tmp.children.length === 1 && tmp.firstElementChild.tagName === 'P' &&
+        !tmp.firstElementChild.querySelector('div,p,ul,ol,table,blockquote,pre,h1,h2,h3,h4,h5,h6')) {
+      var inner = document.createElement('div'); inner.innerHTML = tmp.firstElementChild.innerHTML; tmp = inner;
+    }
     var newNodes = Array.prototype.slice.call(tmp.childNodes);
     newNodes.forEach(function(n) { _aiMarkNode(n); });
     range.deleteContents();
