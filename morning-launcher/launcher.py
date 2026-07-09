@@ -630,24 +630,71 @@ def _is_chatgpt_url(u: str) -> bool:
     return host in ("chatgpt.com", "chat.openai.com") or host.endswith((".chatgpt.com", ".chat.openai.com"))
 
 
+def _set_clipboard_text(text: str) -> bool:
+    """Put text on the Windows clipboard as CF_UNICODETEXT (no external packages).
+    On success the OS owns the allocated handle, so we must NOT free it."""
+    try:
+        if not _u32.OpenClipboard(None):
+            return False
+        try:
+            _u32.EmptyClipboard()
+            data = text.encode("utf-16-le") + b"\x00\x00"
+            h = _k32.GlobalAlloc(_GMEM_MOVEABLE, len(data))
+            if not h:
+                return False
+            p = _k32.GlobalLock(h)
+            if not p:
+                _k32.GlobalFree(h)
+                return False
+            ctypes.memmove(p, data, len(data))
+            _k32.GlobalUnlock(h)
+            if not _u32.SetClipboardData(_CF_UNICODETEXT, h):
+                _k32.GlobalFree(h)
+                return False
+            return True
+        finally:
+            _u32.CloseClipboard()
+    except Exception as e:
+        log(f"ChatGPT: clipboard set failed: {e}")
+        return False
+
+
 def _focus_window(hwnd) -> bool:
-    """Bring hwnd to the foreground; return True only if it actually became foreground
-    (so we never send keystrokes to the wrong window)."""
-    _u32.ShowWindow(hwnd, _SW_RESTORE)
-    _u32.SetForegroundWindow(hwnd)
-    time.sleep(0.3)
-    return _u32.GetForegroundWindow() == hwnd
+    """Bring hwnd to the foreground and confirm it actually got focus, so we never
+    send keystrokes to the wrong window. Retries with an ALT tap, which relaxes
+    Windows' SetForegroundWindow restrictions."""
+    for _ in range(5):
+        _u32.ShowWindow(hwnd, _SW_RESTORE)
+        _u32.keybd_event(_VK_MENU, 0, 0, 0)                  # ALT down
+        _u32.keybd_event(_VK_MENU, 0, _KEYEVENTF_KEYUP, 0)   # ALT up
+        _u32.SetForegroundWindow(hwnd)
+        _u32.BringWindowToTop(hwnd)
+        time.sleep(0.4)
+        if _u32.GetForegroundWindow() == hwnd:
+            return True
+    return False
 
 
-def _press_enter():
-    _u32.keybd_event(_VK_RETURN, 0, 0, 0)
-    time.sleep(0.05)
-    _u32.keybd_event(_VK_RETURN, 0, _KEYEVENTF_KEYUP, 0)
+def _tap(vk):
+    _u32.keybd_event(vk, 0, 0, 0)
+    time.sleep(0.03)
+    _u32.keybd_event(vk, 0, _KEYEVENTF_KEYUP, 0)
+
+
+def _send_paste():
+    """Ctrl+V."""
+    _u32.keybd_event(_VK_CONTROL, 0, 0, 0)
+    _tap(_VK_V)
+    _u32.keybd_event(_VK_CONTROL, 0, _KEYEVENTF_KEYUP, 0)
 
 
 def open_chatgpt_analysis():
     """Open ChatGPT with the selected Analysis prompt already SUBMITTED, then open the
-    configured search tabs. Fully automated — no manual paste / Enter."""
+    configured searches as tabs in that SAME window. Fully automated.
+
+    The prompt goes in via CLIPBOARD PASTE, not the ?q= URL: real prompts are far too
+    long for the URL (ChatGPT returns HTTP 431 — request headers too large once the
+    long query is combined with its auth cookies). Pasting has no length limit."""
     if not CHATGPT_ANALYSIS_ENABLED:
         return
 
@@ -662,22 +709,26 @@ def open_chatgpt_analysis():
             "Analysis tab once so it syncs, then it'll work next time. Skipping.")
         return
 
-    prompt   = (cfg.get("text") or "")[:8000]
+    prompt   = (cfg.get("text") or "")[:16000]
     name     = cfg.get("name") or "Prompt"
     searches = cfg.get("searches") or []
 
-    # 1) Open ChatGPT. A command-line launch is a browser-initiated navigation
-    #    (Sec-Fetch-Site: none), so ChatGPT's ?q= parameter AUTO-SUBMITS the prompt.
+    # 1) Load the prompt onto the clipboard BEFORE opening the window.
+    if not _set_clipboard_text(prompt):
+        log("ChatGPT: could not set clipboard; aborting ChatGPT step.")
+        return
+    log(f"ChatGPT: prompt '{name}' ({len(prompt)} chars) copied to clipboard.")
+
+    # 2) Open a plain ChatGPT window (no query string → no 431).
     x, y, w, h = CHATGPT_POS
-    url = "https://chatgpt.com/?q=" + urllib.parse.quote(prompt)
     snapshot = set(_all_visible_hwnds())
-    log(f"ChatGPT: launching with prompt '{name}' ({len(prompt)} chars)...")
+    log("ChatGPT: launching...")
     subprocess.Popen([
         brave,
         f"--window-position={x},{y}",
         f"--window-size={w},{h}",
         "--new-window",
-        url,
+        "https://chatgpt.com/",
     ])
 
     hwnd = _wait_for_new_window(snapshot, timeout=25)
@@ -686,29 +737,29 @@ def open_chatgpt_analysis():
         _place(hwnd, x, y, w, h)
         log(f"ChatGPT window → ({x},{y}) {w}×{h}")
     else:
-        log("ChatGPT: new window not detected in time; it may still have opened.")
+        log("ChatGPT: new window not detected; skipping paste to avoid mis-typing.")
+        return
 
-    # 2) Belt-and-suspenders Enter. If ?q= already auto-submitted, the composer is
-    #    empty and this is a no-op; otherwise it submits the prefilled prompt. Only
-    #    fires if the ChatGPT window is truly in the foreground, so we never mis-type.
-    if CHATGPT_PRESS_ENTER_FALLBACK and hwnd:
-        time.sleep(CHATGPT_LOAD_WAIT)
-        if _focus_window(hwnd):
-            _press_enter()
-            log("ChatGPT: sent Enter fallback.")
-        else:
-            log("ChatGPT: window not foreground — skipped Enter fallback to avoid mis-typing.")
+    # 3) Wait for the page to load (ChatGPT auto-focuses its composer), then focus the
+    #    window, paste, and press Enter to submit.
+    time.sleep(CHATGPT_LOAD_WAIT)
+    if _focus_window(hwnd):
+        _send_paste()
+        time.sleep(1.0)          # let the pasted text render in the composer
+        _tap(_VK_RETURN)         # submit
+        log("ChatGPT: pasted prompt and pressed Enter.")
+    else:
+        log("ChatGPT: window not foreground — prompt is on the clipboard; "
+            "click the composer and press Ctrl+V then Enter.")
 
-    # 3) Open the configured searches in one extra window (skip any ChatGPT entry —
-    #    already handled above). Command-line launch, so no popup-blocker issues.
-    search_urls = []
-    for q in searches:
-        u = _resolve_search_url(q)
-        if u and not _is_chatgpt_url(u):
-            search_urls.append(u)
+    # 4) Open the configured searches as tabs in the SAME (ChatGPT) window — no
+    #    --new-window, so Brave adds them to the current foreground window. Skip any
+    #    ChatGPT entry (already handled above).
+    search_urls = [u for u in (_resolve_search_url(q) for q in searches)
+                   if u and not _is_chatgpt_url(u)]
     if search_urls:
-        log(f"ChatGPT: opening {len(search_urls)} search tab(s)...")
-        subprocess.Popen([brave, "--new-window"] + search_urls)
+        log(f"ChatGPT: opening {len(search_urls)} search tab(s) in the same window...")
+        subprocess.Popen([brave] + search_urls)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
