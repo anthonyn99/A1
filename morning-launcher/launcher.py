@@ -89,12 +89,13 @@ TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
 CHATGPT_ANALYSIS_ENABLED = True   # master switch for the whole ChatGPT step
 TD_WORKER_URL            = "https://trade-dashboard.av1.workers.dev"
 
-# Where the ChatGPT window lands. Defaults to the middle column (over TradeHub).
+# On the morning run, ChatGPT + searches open as TABS in the existing TradeHub window,
+# so this position is only used in the standalone --test-chatgpt case (its own window).
 CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
 
-# Seconds to let ChatGPT finish loading before we click its composer + paste.
-# Bump this if the paste sometimes lands before the page (and its text box) is ready.
-CHATGPT_LOAD_WAIT = 8
+# Seconds to let ChatGPT finish loading before we focus its box + paste. Lower = faster
+# but too low risks pasting before the page is ready. Bump it if the paste ever misses.
+CHATGPT_LOAD_WAIT = 4
 
 # ==============================================================================
 #  TRIGGER WINDOW  (Mountain Time)

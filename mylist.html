@@ -1314,8 +1314,67 @@ function recDetailHtml(){
       +'<button class="btn danger sm" onclick="ML.recDelete(\''+r.id+'\')">Delete</button></div>'
     +'</div>';
 }
-function recOpenDetail(id){ if(Date.now()-dndLastEnd<350) return; recDetailId=id; render(); window.scrollTo(0,0); }
-function recBack(){ recDetailId=null; render(); window.scrollTo(0,0); }
+function recOpenDetail(id){ if(Date.now()-dndLastEnd<350) return; recDetailId=id; recEditingStep=null; render(); window.scrollTo(0,0); }
+function recBack(){ recDetailId=null; recEditingStep=null; render(); window.scrollTo(0,0); }
+
+// ── inline instruction-step editing (detail view) ──
+// Each step is individually editable; changes renumber and save immediately to
+// the stored recipe (no full recreate), with undo support.
+var recEditingStep=null;   // index of the step being edited (===steps.length ⇒ a new step)
+function recCurrent(){ return recipes.filter(function(x){return x.id===recDetailId;})[0]||null; }
+function recStepsOf(t){
+  t=String(t||'').trim(); if(!t) return [];
+  return t.split(/\r?\n+/).map(function(l){ return l.replace(/^\s*(?:\d+[.)]|[-*•])\s*/,'').trim(); }).filter(Boolean);
+}
+function recRenumber(steps){
+  steps=steps.map(function(s){ return String(s||'').trim(); }).filter(Boolean);
+  return steps.length ? steps.map(function(l,i){ return (i+1)+'. '+l; }).join('\n') : '';
+}
+function recStepEditorRow(i, text){
+  return '<div class="rec-step editing"><span class="rec-step-n">'+(i+1)+'.</span>'
+    +'<div class="se-body"><div class="ta-wrap"><textarea id="rec-step-input" rows="1" placeholder="Describe this step…" oninput="ML.autoGrow(this)" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();ML.recSaveStep('+i+');}">'+esc(text||'')+'</textarea>'+GRIP+'</div>'
+    +'<div class="se-acts"><button class="btn ghost sm" onclick="ML.recCancelStep()">Cancel</button><button class="btn solid sm" onclick="ML.recSaveStep('+i+')">Save</button></div></div></div>';
+}
+function recStepsEditorHtml(r){
+  var steps=recStepsOf(r.instructions);
+  var h='';
+  if(!steps.length && recEditingStep===null) h+='<div class="rec-muted">No instructions yet — tap “Add step” or use the voice bar.</div>';
+  h+='<div class="rec-steps">';
+  for(var i=0;i<steps.length;i++){
+    if(recEditingStep===i){ h+=recStepEditorRow(i, steps[i]); continue; }
+    h+='<div class="rec-step"><span class="rec-step-n">'+(i+1)+'.</span>'
+      +'<span class="rec-step-t">'+esc(steps[i])+'</span>'
+      +'<span class="rec-step-acts">'
+        +'<button class="ib" onclick="ML.recEditStep('+i+')" title="Edit step">'+EDIT_SVG+'</button>'
+        +'<button class="ib del" onclick="ML.recDeleteStep('+i+')" title="Delete step">'+DEL_SVG+'</button>'
+      +'</span></div>';
+  }
+  if(recEditingStep===steps.length) h+=recStepEditorRow(steps.length, '');   // adding a new step
+  h+='</div>';
+  h+='<button class="rec-addrow" style="margin-top:8px" onclick="ML.recAddStep()">+ Add step</button>';
+  return h;
+}
+function recFocusStepInput(){ setTimeout(function(){ var el=$('rec-step-input'); if(el){ autoGrow(el); el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 40); }
+function recEditStep(i){ if(!recCurrent()) return; recEditingStep=i; render(); recFocusStepInput(); }
+function recAddStep(){ var r=recCurrent(); if(!r) return; recEditingStep=recStepsOf(r.instructions).length; render(); recFocusStepInput(); }
+function recCancelStep(){ recEditingStep=null; render(); }
+function recSaveStep(i){
+  var r=recCurrent(); if(!r){ recEditingStep=null; render(); return; }
+  var el=$('rec-step-input'); var v=el?(el.value||'').trim():'';
+  var steps=recStepsOf(r.instructions);
+  recPushUndo();
+  if(i>=steps.length){ if(v) steps.push(v); }          // new step (blank cancels)
+  else if(v){ steps[i]=v; }                            // edit existing
+  else { steps.splice(i,1); }                          // emptied ⇒ delete
+  r.instructions=recRenumber(steps);
+  recEditingStep=null; persistRecipes(); render();
+}
+function recDeleteStep(i){
+  var r=recCurrent(); if(!r) return;
+  var steps=recStepsOf(r.instructions); if(i<0||i>=steps.length) return;
+  recPushUndo(); steps.splice(i,1); r.instructions=recRenumber(steps);
+  recEditingStep=null; persistRecipes(); render();
+}
 // modal
 function recAddIng(name,qty){
   var d=document.createElement('div'); d.className='rec-ing-row';
