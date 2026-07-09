@@ -776,6 +776,231 @@ async function handleFormat(body, env) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// FEATURE 4 — MyList Recipes parser  (POST /recipe/parse)
+//
+// Same "type-to-action" system as the shopping list, but for the Recipes tab.
+// The model emits a small set of OPS ("upsert" a whole recipe / "delete" a
+// recipe) and the worker applies them to the client's recipe book. For edits the
+// model returns the COMPLETE updated recipe (all fields, ingredients, tools, and
+// numbered instructions) with just the requested change applied — this makes
+// natural-language edits ("remove garlic", "replace step 3", "change the cook
+// time") and the marquee feature (turn rambled spoken steps into clean numbered
+// instructions) uniform and reliable. Response: {ok, recipes, note, ops}.
+// ════════════════════════════════════════════════════════════════════════════
+const REC_CATS = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Dessert', 'Other'];
+
+function normCat(c) {
+  c = String(c || '').trim();
+  return REC_CATS.find(x => x.toLowerCase() === c.toLowerCase()) || 'Other';
+}
+// Split an instructions blob into an array of step texts (strip any existing
+// numbering / bullets), tolerant of both newline- and number-delimited input.
+function stepsOf(text) {
+  text = String(text || '').trim();
+  if (!text) return [];
+  let parts = text.split(/\r?\n+/);
+  if (parts.length <= 1) {
+    // one line but possibly "1. a 2. b 3. c" — split on inline step numbers
+    const m = text.split(/\s*(?=\d+[.)]\s)/);
+    if (m.length > 1) parts = m;
+  }
+  return parts.map(l => l.replace(/^\s*(?:\d+[.)]|[-*•])\s*/, '').trim()).filter(Boolean);
+}
+// Re-number steps as "1. …\n2. …" — the shape the app renders (pre-wrap text).
+function numberSteps(text) {
+  const s = stepsOf(text);
+  return s.length ? s.map((l, i) => `${i + 1}. ${l}`).join('\n') : '';
+}
+function normRecipe(r, keepId) {
+  r = r || {};
+  const o = {
+    name: String(r.name || '').trim(),
+    category: normCat(r.category),
+    prepTime: String(r.prepTime || '').trim(),
+    servings: String(r.servings || '').trim(),
+    ingredients: Array.isArray(r.ingredients)
+      ? r.ingredients.map(i => ({ name: String((i && i.name) || '').trim(), qty: String((i && i.qty) || '').trim() })).filter(i => i.name)
+      : [],
+    tools: Array.isArray(r.tools) ? r.tools.map(t => String(t || '').trim()).filter(Boolean) : [],
+    instructions: String(r.instructions || '').trim(),
+  };
+  if (keepId && r.id) o.id = String(r.id);
+  return o;
+}
+
+function recForPrompt(recipes) {
+  if (!recipes.length) return '(no recipes yet)';
+  return recipes.map((r, i) => {
+    let head = `#${i + 1} "${r.name || '(untitled)'}"  [category: ${normCat(r.category)}]`;
+    if (r.prepTime) head += `  [cook time: ${r.prepTime}]`;
+    if (r.servings) head += `  [servings: ${r.servings}]`;
+    const ings = (r.ingredients || []).length
+      ? (r.ingredients || []).map((x, j) => `    ${j + 1}) ${x.name}${x.qty ? ` — ${x.qty}` : ''}`).join('\n')
+      : '    (none)';
+    const tools = (r.tools || []).length ? `  tools: ${r.tools.join(', ')}` : '  tools: (none)';
+    const steps = stepsOf(r.instructions);
+    const stepStr = steps.length ? steps.map((t, j) => `    ${j + 1}. ${t}`).join('\n') : '    (none)';
+    return `${head}\n  ingredients:\n${ings}\n${tools}\n  instructions:\n${stepStr}`;
+  }).join('\n\n');
+}
+
+function buildRecipePrompt(transcript, recipes, openIndex, hasAudio) {
+  const source = hasAudio
+    ? `FIRST, listen carefully to the attached audio of the user speaking (US English) and work out what they said, using cooking context to correct obvious mishearings. Then act on it.`
+    : `Act on the user's input below.`;
+  const openLine = (Number.isInteger(openIndex) && openIndex >= 1 && openIndex <= recipes.length)
+    ? `THE CURRENTLY OPEN RECIPE is #${openIndex}. When the user says "this recipe", "the recipe", "it", "here", or gives an edit with no recipe named, they mean recipe #${openIndex} — set targetIndex:${openIndex}.`
+    : `The user is on the recipe list (no single recipe is open). Identify which recipe an edit refers to by name via targetMatch (and targetIndex if clear).`;
+
+  return [
+    `You are a world-class cooking-recipe assistant. The user manages their personal recipe book by voice or text. Convert their ONE command into a precise sequence of OPERATIONS ("ops") on the recipe book. Be fast, literal, and complete: capture EVERY change they ask for, and NEVER alter a recipe, field, ingredient, or step they did not mention.`,
+    source,
+    hasAudio ? `` : `USER INPUT (may be messy or run-on): """${transcript}"""`,
+    ``,
+    `CURRENT RECIPES (numbered — "#N" is a recipe's index; ingredients and instruction steps are numbered within each recipe):`,
+    recForPrompt(recipes),
+    ``,
+    openLine,
+    ``,
+    `OPS (emit one per distinct change, in the order the user said them):`,
+    `- {op:"upsert", recipe:{…}} — CREATE a brand-new recipe. Omit targetIndex/targetMatch. Fill EVERY field you can infer from what the user said.`,
+    `- {op:"upsert", targetIndex:N, targetMatch?:"name", recipe:{…THE COMPLETE UPDATED RECIPE…}} — EDIT an existing recipe (#N). You MUST reproduce the recipe's ENTIRE current state (all fields, ALL ingredients, ALL tools, the FULL instructions) with ONLY the requested change applied. Never drop anything the user didn't ask to remove.`,
+    `- {op:"delete", targetIndex:N, targetMatch?:"name"} — delete an entire recipe.`,
+    ``,
+    `RECIPE FIELDS (inside "recipe"):`,
+    `- name: clean Title Case dish name.`,
+    `- category: EXACTLY one of ${REC_CATS.join(', ')}. Infer the best fit. "move X to Dinner" / "make this a Dessert" → set category.`,
+    `- prepTime: the cook/prep time in the user's words ("30 min", "1 hr 15 min"). "change the cook time to 45 minutes" → "45 min".`,
+    `- servings: how many it serves / the recipe amount ("4 servings", "makes 12", "2 dozen cookies").`,
+    `- ingredients: array of {name, qty}. name = clean ingredient name, qty = amount ("2 cups", "1 tsp", "3 large"). "remove garlic" → return the list WITHOUT garlic. "add one teaspoon of paprika" → append {name:"Paprika", qty:"1 tsp"}. "delete ingredient number 4" → drop the 4th ingredient. "change the flour to 3 cups" → update that ingredient's qty.`,
+    `- tools: array of equipment name strings ("Oven", "Mixing Bowl", "Whisk").`,
+    `- instructions: THE MOST IMPORTANT FIELD. Take whatever the user says about how to make the dish — even messy, run-on, spoken narrative — and turn it into clean, correctly-ordered, NUMBERED steps. Improve grammar, spelling and clarity while PRESERVING their exact intended meaning; never invent steps or drop details. Output ONE step per line, each starting with "N. " (e.g. "1. Preheat the oven to 350°F."). Use °F, standard units, imperative voice. "replace step 3 with …" / "insert a step after step 2 …" / "delete step 6" → return the FULL renumbered instruction list with that single edit applied.`,
+    ``,
+    `RULES:`,
+    `- ADD vs EDIT: "create / add / new / make a recipe (for) …" → a NEW upsert with NO target. "change / rename / update / edit / set / move / remove … from / add … to" aimed at an existing recipe → an upsert WITH targetIndex (returning the complete updated recipe), or a delete.`,
+    `- When editing, ALWAYS echo the recipe's complete current content (read it from CURRENT RECIPES above) and apply only the requested change. Combine several changes to the SAME recipe into ONE upsert.`,
+    `- Changes to DIFFERENT recipes → one op each. "delete the pancake recipe" → {op:"delete", targetMatch:"Pancakes"}.`,
+    `- Do ONLY what was asked. If nothing maps to a change, return ops: [].`,
+    `- "note": ≤10-word confirmation of what you did ("Added Chocolate Cake recipe.", "Removed garlic.", "Renamed to Chicken Alfredo.").`,
+    ``,
+    `EXAMPLES (command → ops):`,
+    `"add a new breakfast recipe called avocado toast, serves 2, ten minutes. you need two slices of sourdough, one avocado, and a pinch of red pepper flakes. first toast the bread, then mash the avocado and spread it on, then sprinkle the pepper on top" → [{"op":"upsert","recipe":{"name":"Avocado Toast","category":"Breakfast","prepTime":"10 min","servings":"2 servings","ingredients":[{"name":"Sourdough Bread","qty":"2 slices"},{"name":"Avocado","qty":"1"},{"name":"Red Pepper Flakes","qty":"1 pinch"}],"tools":["Toaster"],"instructions":"1. Toast the sourdough slices.\\n2. Mash the avocado and spread it onto the toast.\\n3. Sprinkle red pepper flakes on top."}}]`,
+    `"rename this recipe to Chicken Alfredo" → [{"op":"upsert","targetIndex":${openIndex || 1},"recipe":{…full recipe with name "Chicken Alfredo"…}}]`,
+    `"change the cook time to 45 minutes and make it serve 6" → [{"op":"upsert","targetIndex":${openIndex || 1},"recipe":{…full recipe with prepTime "45 min", servings "6 servings"…}}]`,
+    `"add one teaspoon of paprika and remove the garlic" → [{"op":"upsert","targetIndex":${openIndex || 1},"recipe":{…full recipe, ingredients list with Paprika added and Garlic removed…}}]`,
+    `"replace step 3 with pour the batter into a greased pan" → [{"op":"upsert","targetIndex":${openIndex || 1},"recipe":{…full recipe, instructions renumbered with step 3 changed…}}]`,
+    `"delete this recipe" → [{"op":"delete","targetIndex":${openIndex || 1}}]`,
+    `"move this recipe to Dinner" → [{"op":"upsert","targetIndex":${openIndex || 1},"recipe":{…full recipe with category "Dinner"…}}]`,
+  ].join('\n');
+}
+
+const RECIPE_OPS_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    ops: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          op:          { type: 'STRING', enum: ['upsert', 'delete'] },
+          targetIndex: { type: 'INTEGER' },
+          targetMatch: { type: 'STRING' },
+          recipe: {
+            type: 'OBJECT',
+            properties: {
+              name:     { type: 'STRING' },
+              category: { type: 'STRING' },
+              prepTime: { type: 'STRING' },
+              servings: { type: 'STRING' },
+              ingredients: {
+                type: 'ARRAY',
+                items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, qty: { type: 'STRING' } }, required: ['name'] },
+              },
+              tools: { type: 'ARRAY', items: { type: 'STRING' } },
+              instructions: { type: 'STRING' },
+            },
+          },
+        },
+        required: ['op'],
+      },
+    },
+    note: { type: 'STRING' },
+  },
+  required: ['ops'],
+};
+
+function applyRecipeOps(recipes, ops) {
+  const list = (Array.isArray(recipes) ? recipes : []).map(r => normRecipe(r, true));
+  const resolve = (op) => {
+    if (Number.isInteger(op.targetIndex) && op.targetIndex >= 1 && op.targetIndex <= list.length) return op.targetIndex - 1;
+    const m = normName(op.targetMatch);
+    if (m) {
+      let best = -1, score = 0;
+      list.forEach((r, i) => {
+        const n = normName(r.name);
+        const s = n === m ? 1 : ((n.includes(m) || m.includes(n)) ? 0.85 : tokenOverlap(n, m));
+        if (s > score) { score = s; best = i; }
+      });
+      if (score >= 0.5) return best;
+    }
+    return -1;
+  };
+  let changed = 0;
+  for (const op of (Array.isArray(ops) ? ops : [])) {
+    if (!op || typeof op !== 'object') continue;
+    const kind = String(op.op || '');
+    if (kind === 'upsert') {
+      const inc = normRecipe(op.recipe || {}, false);
+      inc.instructions = numberSteps(inc.instructions);
+      const ti = resolve(op);
+      if (ti >= 0) {
+        // Edit: keep the recipe's id; never let an empty name blank it out.
+        if (list[ti].id) inc.id = list[ti].id;
+        if (!inc.name) inc.name = list[ti].name;
+        list[ti] = inc;
+        changed++;
+      } else if (inc.name) {
+        // New recipe (no id — the client assigns one).
+        list.push(inc);
+        changed++;
+      }
+    } else if (kind === 'delete') {
+      const ti = resolve(op);
+      if (ti >= 0) { list.splice(ti, 1); changed++; }
+    }
+  }
+  return { recipes: list, changed };
+}
+
+async function handleRecipe(body, env) {
+  const profile = body.profile === 'veda' ? 'veda' : 'tony';
+  const transcript = String(body.transcript || '').trim();
+  const audio = typeof body.audio === 'string' ? body.audio : '';
+  const mimeType = String(body.mimeType || 'audio/wav');
+  const recipes = Array.isArray(body.recipes) ? body.recipes : [];
+  const openIndex = Number.isInteger(body.openIndex) ? body.openIndex : 0;
+
+  if (!transcript && !audio) return json({ ok: false, error: 'no transcript or audio' }, 400);
+  const key = keyFor(env, profile);
+  if (!key) return json({ ok: false, error: `no Gemini key configured for ${profile}` }, 500);
+
+  const prompt = buildRecipePrompt(transcript, recipes, openIndex, !!audio);
+  let lastErr = null;
+  for (const model of LIST_MODELS) {
+    try {
+      const out = await callGemini(model, key, { prompt, schema: RECIPE_OPS_SCHEMA, maxOutputTokens: 8192, feature: 'recipe', audio, mimeType });
+      if (out && Array.isArray(out.ops)) {
+        const res = applyRecipeOps(recipes, out.ops);
+        return json({ ok: true, recipes: res.recipes, note: String(out.note || '').trim(), ops: res.changed, model });
+      }
+    } catch (e) {
+      lastErr = e.message || String(e);
+    }
+  }
+  return json({ ok: false, error: lastErr || 'all models failed' }, 502);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // Router
 // ════════════════════════════════════════════════════════════════════════════
 export default {
@@ -788,8 +1013,8 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 7, // bump when verifying a deploy went live
-        features: ['list', 'taskhub', 'journal'],
+        version: 8, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'journal'],
         models: MODELS,
         listModels: LIST_MODELS,
         taskhubModels: TASKHUB_MODELS,
@@ -804,6 +1029,7 @@ export default {
       try { body = await req.json(); } catch (e) { return json({ ok: false, error: 'bad json' }, 400); }
 
       if (path === '/list/parse')     return handleList(body, env);
+      if (path === '/recipe/parse')   return handleRecipe(body, env);
       if (path === '/taskhub/parse')  return handleTaskhub(body, env);
       if (path === '/journal/format') return handleFormat(body, env);
     }
