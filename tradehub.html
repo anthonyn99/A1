@@ -3560,6 +3560,25 @@ function tbLoadWatchlistLocal(){
 }
 function tbSaveWatchlistLocal(arr){try{localStorage.setItem(TB_WATCHLIST_KEY,JSON.stringify(arr));}catch{}}
 tbSetWatchlist(tbLoadWatchlistLocal()); // prime parser's active list before first parse
+
+/* ── Shared Analysis URL helpers (used by the Launch Analysis button AND the
+   app-level ?autoanalyze auto-run) ──────────────────────────────────────────── */
+/* Resolve a search entry → URL: full URL passthrough, www. auto-scheme, else Google. */
+function tbResolveUrl(query){
+  const t=(query||'').trim();
+  if(/^https?:\/\//i.test(t)) return t;
+  if(/^www\./i.test(t)) return 'https://'+t;
+  if(t.includes('.')&&!t.includes(' ')&&!t.includes('?')) return 'https://'+t;
+  return 'https://www.google.com/search?q='+encodeURIComponent(t);
+}
+/* True if a resolved URL points at ChatGPT — we skip these on auto-launch because
+   the morning-launcher opens ChatGPT itself (with the prompt + auto-submit). */
+function tbIsChatGPTUrl(u){ try{ return /(^|\.)chatgpt\.com$|(^|\.)chat\.openai\.com$/i.test(new URL(u).hostname); }catch{ return false; } }
+/* Build a ChatGPT URL that prefills the composer with the prompt. When opened via a
+   page's window.open (cross-site) ChatGPT prefills only; the launcher's command-line
+   open (Sec-Fetch-Site: none) also auto-submits. */
+function tbChatGPTUrl(prompt){ return 'https://chatgpt.com/?q='+encodeURIComponent(String(prompt||'').slice(0,8000)); }
+
 function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
   const [editing,setEditing]=React.useState(false);
   const [results,setResults]=React.useState([]);/* [{icon,label,ok}] */
