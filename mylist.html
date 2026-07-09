@@ -1262,7 +1262,7 @@ function recRowsHtml(){
     var ic=(r.ingredients||[]).length;
     return '<div class="rec-row" data-id="'+r.id+'" onclick="ML.recOpenDetail(\''+r.id+'\')">'
       +'<div class="rec-info"><div class="rec-name">'+esc(r.name)+'</div>'
-        +'<div class="rec-meta">'+(r.prepTime?'<span>'+esc(r.prepTime)+'</span>':'')+(ic?'<span>'+ic+' ingredient'+(ic!==1?'s':'')+'</span>':'')+'</div></div>'
+        +'<div class="rec-meta">'+(r.prepTime?'<span>'+esc(r.prepTime)+'</span>':'')+(r.servings?'<span>'+esc(r.servings)+'</span>':'')+(ic?'<span>'+ic+' ingredient'+(ic!==1?'s':'')+'</span>':'')+'</div></div>'
       +'<span class="rec-tag" style="'+recCatStyle(r.category||'Other')+'">'+esc(r.category||'Other')+'</span>'
       +'<div class="rec-acts">'
         +'<button class="ib" onclick="event.stopPropagation();ML.recOpenEdit(\''+r.id+'\')" title="Edit">'+EDIT_SVG+'</button>'
@@ -1298,11 +1298,14 @@ function recDetailHtml(){
     ? '<div class="rec-tools">'+r.tools.map(function(t){ return '<span class="rec-tool">'+esc(t)+'</span>'; }).join('')+'</div>'
     : '<div class="rec-muted">No tools listed.</div>';
   var instr=r.instructions ? '<div class="rec-instr">'+esc(r.instructions)+'</div>' : '<div class="rec-muted">No instructions added.</div>';
-  return '<div style="margin-bottom:12px"><button class="btn ghost sm" onclick="ML.recBack()">← Back to recipes</button></div>'
+  return '<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><button class="btn ghost sm" onclick="ML.recBack()">← Back to recipes</button><span style="flex:1"></span>'
+    +(recUndoAvailable()?'<button class="btn ghost sm" onclick="ML.recUndo()" title="Undo">↶ Undo</button>':'')
+    +(recRedoAvailable()?'<button class="btn ghost sm" onclick="ML.recRedo()" title="Redo">↷ Redo</button>':'')+'</div>'
     +'<div class="card">'
     +'<div class="rec-detail-name">'+esc(r.name)+'</div>'
     +'<div class="rec-detail-tags"><span class="rec-tag" style="'+recCatStyle(r.category||'Other')+'">'+esc(r.category||'Other')+'</span>'
-      +(r.prepTime?'<span class="rec-tag time">⏱ '+esc(r.prepTime)+'</span>':'')+'</div>'
+      +(r.prepTime?'<span class="rec-tag time">⏱ '+esc(r.prepTime)+'</span>':'')
+      +(r.servings?'<span class="rec-tag time">🍽 '+esc(r.servings)+'</span>':'')+'</div>'
     +'<div class="rec-sec">Ingredients</div>'+ing
     +'<div class="rec-sec">Tools &amp; equipment</div>'+tools
     +'<div class="rec-sec">Instructions</div>'+instr
@@ -1585,7 +1588,8 @@ function render(){
   // ── Recipes view (both profiles) ──
   if(view==='recipes'){
     $('lists-bar').style.display='none';
-    $('float-voice').classList.remove('show');
+    // same voice+type bar as Lists (no Manual button — that's a separate FAB, kept hidden here)
+    $('float-voice').classList.add('show');
     $('sel-bar').classList.remove('show');
     var mf=$('manual-fab'); if(mf) mf.style.display='none'; var mp=$('manual-pop'); if(mp) mp.classList.remove('show');
     $('list-view').innerHTML = renderRecipesView();
