@@ -14470,9 +14470,24 @@ function loadState() {
   });
 }
 
+// Write the local cache safely. localStorage is ONLY a fast cache — Firebase is the
+// real store. Whiteboard canvases are large base64 PNGs already saved under
+// BJ_CANVAS_KEY(id) and rehydrated by loadState, so omit them from the main blob to
+// stay under the ~5MB quota. A thrown QuotaExceededError here previously broke EVERY
+// document open + password lock (saveState runs inside saveCurrentEntry and the lock
+// system) and stalled Firebase sync — so swallow any storage error too.
+function _bjOmitCanvas(k, v) {
+  if (k === 'canvas' && typeof v === 'string' && v.length > 1024) return '';
+  return v;
+}
+function _bjWriteCache() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state, _bjOmitCanvas)); }
+  catch (e) { /* quota exceeded / private mode: keep last good cache; Firebase holds the full data */ }
+}
+
 function saveState() {
-  // Save full state (incl canvas) to localStorage — instant
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // Save full state to localStorage (minus bulky canvases) — instant, best-effort
+  _bjWriteCache();
   state.entries.forEach(entry => {
     if (entry.template === 'whiteboard' && entry.data && entry.data.canvas) {
       try { localStorage.setItem(BJ_CANVAS_KEY(entry.id), entry.data.canvas); } catch(e) {}
@@ -14694,7 +14709,7 @@ function _bjApplyRemote(remote) {
   state.entries.forEach(function(e) { if (remotePresentIds.has(e.id)) e._fbPushed = true; });
 
   // NEVER override local activeId — each device stays on its own entry
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  _bjWriteCache();
   renderSidebar();
   if (_activeWasUpdated) { var _ae = getActive(); if (_ae && _ae.template === 'mindmap') loadActiveEntry(); }
 }
@@ -14703,7 +14718,7 @@ function _bjApplyRemote(remote) {
 window.addEventListener('fb-bj-saved', function() {
   _bjSetSync('synced');
   // Mark active entry as confirmed pushed to Firebase
-  var ae = getActive(); if (ae) { ae._fbPushed = true; localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  var ae = getActive(); if (ae) { ae._fbPushed = true; _bjWriteCache(); }
 });
 window.addEventListener('fb-bj-synced', function() { _bjSetSync('synced'); });
 window.addEventListener('fb-bj-canvas-saved', function() { _bjSetSync('synced'); });
@@ -19915,9 +19930,22 @@ function loadState() {
   });
 }
 
+// Write the local cache safely — mirror of _bjWriteCache. localStorage is ONLY a fast
+// cache (Firebase is the real store); whiteboard canvases live under TJ_CANVAS_KEY(id)
+// and are rehydrated by loadState, so omit them from the main blob to stay under the
+// ~5MB quota, and swallow any QuotaExceededError so it can never break open/lock/sync.
+function _tjOmitCanvas(k, v) {
+  if (k === 'canvas' && typeof v === 'string' && v.length > 1024) return '';
+  return v;
+}
+function _tjWriteCache() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state, _tjOmitCanvas)); }
+  catch (e) { /* quota exceeded / private mode: keep last good cache; Firebase holds the full data */ }
+}
+
 function saveState() {
-  // Save full state (incl canvas) to localStorage — instant
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // Save full state to localStorage (minus bulky canvases) — instant, best-effort
+  _tjWriteCache();
   state.entries.forEach(entry => {
     if (entry.template === 'whiteboard' && entry.data && entry.data.canvas) {
       try { localStorage.setItem(TJ_CANVAS_KEY(entry.id), entry.data.canvas); } catch(e) {}
@@ -20177,7 +20205,7 @@ function _tjApplyRemote(remote) {
   state.entries.forEach(function(e) { if (remotePresentIds.has(e.id)) e._fbPushed = true; });
 
   // NEVER override local activeId — each device stays on its own entry
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  _tjWriteCache();
   renderSidebar();
   // Re-run lock check in case remote updated lock status on current entry
   if (window._tjLockCheck) window._tjLockCheck();
@@ -20187,7 +20215,7 @@ function _tjApplyRemote(remote) {
 window.addEventListener('fb-tj-saved', function() {
   _tjSetSync('synced');
   // Mark active entry as confirmed pushed to Firebase
-  var ae = getActive(); if (ae) { ae._fbPushed = true; localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  var ae = getActive(); if (ae) { ae._fbPushed = true; _tjWriteCache(); }
 });
 window.addEventListener('fb-tj-synced', function() { _tjSetSync('synced'); });
 window.addEventListener('fb-tj-canvas-saved', function() { _tjSetSync('synced'); });
