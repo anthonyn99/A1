@@ -306,6 +306,7 @@ _VK_RETURN       = 0x0D
 _VK_CONTROL      = 0x11
 _VK_MENU         = 0x12   # ALT
 _VK_V            = 0x56
+_VK_9            = 0x39
 _KEYEVENTF_KEYUP = 0x0002
 _MOUSEEVENTF_LEFTDOWN = 0x0002
 _MOUSEEVENTF_LEFTUP   = 0x0004
@@ -662,15 +663,28 @@ def _set_clipboard_text(text: str) -> bool:
 
 
 def _focus_window(hwnd) -> bool:
-    """Bring hwnd to the foreground and confirm it actually got focus, so we never
-    send keystrokes to the wrong window. Retries with an ALT tap, which relaxes
-    Windows' SetForegroundWindow restrictions."""
-    for _ in range(5):
-        _u32.ShowWindow(hwnd, _SW_RESTORE)
-        _u32.keybd_event(_VK_MENU, 0, 0, 0)                  # ALT down
-        _u32.keybd_event(_VK_MENU, 0, _KEYEVENTF_KEYUP, 0)   # ALT up
-        _u32.SetForegroundWindow(hwnd)
-        _u32.BringWindowToTop(hwnd)
+    """Bring hwnd to the true foreground. A background process (our launcher) is
+    normally BLOCKED from SetForegroundWindow — Windows just flashes the taskbar. The
+    reliable workaround is to briefly AttachThreadInput to the current foreground
+    window's thread, which lets our SetForegroundWindow succeed. Returns True if hwnd
+    actually became foreground."""
+    for _ in range(4):
+        try:
+            fg = _u32.GetForegroundWindow()
+            cur_tid = _k32.GetCurrentThreadId()
+            fg_tid = 0
+            if fg:
+                pid = wt.DWORD()
+                fg_tid = _u32.GetWindowThreadProcessId(fg, ctypes.byref(pid))
+            attached = bool(fg_tid) and fg_tid != cur_tid and \
+                bool(_u32.AttachThreadInput(cur_tid, fg_tid, True))
+            _u32.ShowWindow(hwnd, _SW_RESTORE)
+            _u32.BringWindowToTop(hwnd)
+            _u32.SetForegroundWindow(hwnd)
+            if attached:
+                _u32.AttachThreadInput(cur_tid, fg_tid, False)
+        except Exception as e:
+            log(f"ChatGPT: focus error: {e}")
         time.sleep(0.4)
         if _u32.GetForegroundWindow() == hwnd:
             return True
@@ -683,10 +697,10 @@ def _tap(vk):
     _u32.keybd_event(vk, 0, _KEYEVENTF_KEYUP, 0)
 
 
-def _send_paste():
-    """Ctrl+V."""
+def _send_ctrl(vk):
+    """Ctrl+<vk>."""
     _u32.keybd_event(_VK_CONTROL, 0, 0, 0)
-    _tap(_VK_V)
+    _tap(vk)
     _u32.keybd_event(_VK_CONTROL, 0, _KEYEVENTF_KEYUP, 0)
 
 
