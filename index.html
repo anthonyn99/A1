@@ -4336,8 +4336,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // ── TaskHub load ──────────────────────────────────────────────────────────
     window._fbLoad = async () => {
       try {
-        const snap = await getDoc(docRef);
-        if (snap.exists()) return snap.data();
+        const snap = await _freshGet(docRef);
+        if (snap && snap.exists()) return snap.data();
         return null;
       } catch(e) {
         console.warn("Firebase load failed:", e);
@@ -4476,8 +4476,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     window._fbLoadVeda = async () => {
       try {
-        const snap = await getDoc(vdDocRef);
-        if (snap.exists()) return snap.data();
+        const snap = await _freshGet(vdDocRef);
+        if (snap && snap.exists()) return snap.data();
         return null;
       } catch(e) {
         console.warn("Firebase Veda load failed:", e);
@@ -4768,8 +4768,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Load: reconstruct entries[] from flat "e_{id}" fields + legacy "entries" array
     window._fbLoadJournal = async () => {
       try {
-        const snap = await getDoc(bjDocRef);
-        if (!snap.exists()) return null;
+        const snap = await _freshGet(bjDocRef);
+        if (!snap || !snap.exists()) return null;
         const data = snap.data();
         // New per-entry field format
         const entries = [];
@@ -5228,8 +5228,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     window._fbLoadTonyJournal = async () => {
       try {
-        const snap = await getDoc(tjDocRef);
-        if (!snap.exists()) return null;
+        const snap = await _freshGet(tjDocRef);
+        if (!snap || !snap.exists()) return null;
         const data = snap.data();
         const entries = [];
         Object.entries(data).forEach(([k, v]) => {
