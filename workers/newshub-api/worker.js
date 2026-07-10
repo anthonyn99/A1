@@ -104,10 +104,19 @@ const THEMES = [
   // Memory / NAND / DRAM / HBM supply + pricing (SNDK, MU, WDC)
   { tickers:['SNDK','MU','WDC'], kw:[
     /\bsk[\s-]?hynix\b/, /\bhynix\b/, /\bkioxia\b/, /\bymtc\b/, /\bmicron\b/,
-    /\bnand\b/, /\bdram\b/, /\bhbm\d?\b/, /\bflash memory\b/, /\bnand flash\b/,
+    /\bnand\b/, /\bdram\b/, /\bhbm\d?e?\b/, /\bflash memory\b/, /\bnand flash\b/,
     /\bmemory (chip|chips|price|prices|pricing|market|glut|shortage|demand|supply|capex|expansion|output|production|oversupply|undersupply)\b/,
     /\bchip (glut|oversupply|shortage)\b/, /\bssd (price|pricing|shortage)\b/,
     /\bsamsung (electronics|memory|semiconductor|semiconductors|chip|chips)\b/,
+  ] },
+  // HBM / advanced-packaging — the AI-accelerator memory bottleneck. The memory
+  // theme above maps HBM news to the memory MAKERS (SNDK/MU/WDC); this maps the
+  // SAME supply signal through to the accelerator / interconnect names, so
+  // "SK Hynix qualifies HBM4 at Nvidia" or a CoWoS capacity crunch reads through
+  // to NVDA/AMD/MRVL/CRDO instead of only tagging the memory suppliers.
+  { tickers:['NVDA','AMD','MRVL','CRDO'], kw:[
+    /\bhbm\d?e?\b/, /\bhigh[- ]bandwidth memory\b/, /\bcowos\b/,
+    /\badvanced packaging\b/, /\bchip[- ]on[- ]wafer\b/,
   ] },
   // Broad semiconductor supply / equipment / trade policy (semis on the list).
   // SMH is the VanEck semis ETF — broad semi news moves it directly.
@@ -818,6 +827,65 @@ async function fetchFinnhubGeneral(env, wl, cutoff){
   } catch(e){ return []; }
 }
 
+// ─── Google News entity search (free, no key) ─────────────────────────────────
+// The biggest catalysts for our memory / AI-semi names often come from companies
+// that are NOT watchlist tickers: SK Hynix + Samsung Electronics (memory), Kioxia
+// (NAND), TSMC (foundry), Broadcom (AI silicon). Finnhub general only surfaces
+// them opportunistically. This does ONE Google News RSS search (1 subrequest) for
+// those entities in a semiconductor context, then attributes each story to the
+// affected watchlist tickers via ENTITY_MAP — so a Korea/Taiwan supply story that
+// names none of our companies still surfaces (tagged theme:true → NONE-reject
+// safety net). Fails open (→ []) so a Google hiccup never breaks a build.
+const ENTITY_MAP = [
+  { re:/\bsk[\s-]?hynix\b|\bhynix\b/i,           tickers:['MU','SNDK','WDC','NVDA'] },
+  { re:/\bsamsung\b/i,                            tickers:['MU','SNDK','WDC'] },
+  { re:/\bkioxia\b/i,                             tickers:['SNDK','WDC','MU'] },
+  { re:/\btsmc\b|\btaiwan semiconductor\b/i,      tickers:['NVDA','AMD','INTC','MU','CRDO','MRVL'] },
+  { re:/\bbroadcom\b|\bavgo\b/i,                  tickers:['NVDA','AMD','MRVL','CRDO'] },
+];
+const ENTITY_QUERY = '("SK Hynix" OR "Samsung Electronics" OR Kioxia OR TSMC OR "Taiwan Semiconductor" OR Broadcom) (semiconductor OR memory OR chip OR HBM OR DRAM OR NAND OR foundry OR wafer OR earnings OR capex)';
+function gnDecode(s){
+  return (s||'')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,'$1')
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')
+    .replace(/&#0?39;/g,"'").replace(/&apos;/g,"'").replace(/&amp;/g,'&');
+}
+async function fetchEntityNews(env, wl, cutoff){
+  try {
+    const wlSet = new Set(wl.map(t => t.toUpperCase()));
+    // Skip the request entirely if none of the mapped tickers are on this list.
+    const active = ENTITY_MAP.filter(m => m.tickers.some(t => wlSet.has(t)));
+    if (!active.length) return [];
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(ENTITY_QUERY)}&hl=en-US&gl=US&ceid=US:en`;
+    const r = await fetch(url, { headers:{ 'User-Agent':'Mozilla/5.0 (compatible; tradehub-newshub/1.0)' } });
+    if (!r.ok) return [];
+    const xml = await r.text();
+    const out = [];
+    for (const block of xml.split('<item>').slice(1)){
+      const title = gnDecode((block.match(/<title>([\s\S]*?)<\/title>/)||[])[1] || '').trim();
+      if (!title) continue;
+      const link = gnDecode((block.match(/<link>([\s\S]*?)<\/link>/)||[])[1] || '').trim();
+      const pub  = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)||[])[1] || '';
+      const ts   = pub ? Date.parse(pub) : Date.now();
+      if (!ts || ts < cutoff) continue;
+      const srcName = gnDecode((block.match(/<source[^>]*>([\s\S]*?)<\/source>/)||[])[1] || 'Google News').trim();
+      // Google News titles read "Headline - Publisher" — strip the trailing source.
+      let headline = title;
+      if (srcName && headline.endsWith(' - ' + srcName)) headline = headline.slice(0, -(srcName.length + 3)).trim();
+      // Attribute via the entity name in the headline; skip if it maps to nothing
+      // on this watchlist (avoids misattributing off-topic hits).
+      const tix = new Set();
+      for (const m of active){ if (m.re.test(headline)){ for (const t of m.tickers) if (wlSet.has(t)) tix.add(t); } }
+      if (!tix.size) continue;
+      for (const t of tix){
+        out.push({ feed:'gn', ticker:t, theme:true,
+          headline, summary:'', url: link || '#', source: srcName || 'Google News', ts });
+      }
+    }
+    return out;
+  } catch(e){ return []; }
+}
+
 // ─── Finnhub real-time quotes (free, 60/min). One call per ticker; the /quotes
 // route KV-caches the whole map ~60s so repeated News opens don't re-hit the API.
 // Powers the client's "Top Movers" strip + per-card % change (price-move
@@ -861,7 +929,7 @@ async function fetchAllSources(env, useLimitedAPIs, wl){
   const fromD = ymd(from), toD = ymd(now);
   const isoFrom = from.toISOString().slice(0,19);
 
-  let mx=[], sd=[], av=[], tg=[], fg=[], tt=[], ec=[];
+  let mx=[], sd=[], av=[], tg=[], fg=[], tt=[], ec=[], gn=[];
   const tasks = [];
   // ── Broad multi-symbol wires — run on EVERY build, budget-gated. ──
   const [mxOk, sdOk] = await Promise.all([ budgetAvailable(env,'marketaux'), budgetAvailable(env,'stockdata') ]);
@@ -877,6 +945,7 @@ async function fetchAllSources(env, useLimitedAPIs, wl){
   tasks.push(fetchFinnhubGeneral(env, wl, cutoff).then(r=>{fg=r;}));   // market-wide, attributed
   tasks.push(fetchTickerTickBulk(wl, cutoff).then(r=>{tt=r;}));        // 1 bulk OR-query for the WL
   tasks.push(fetchEdgar8K(env, wl, cutoff).then(r=>{ec=r;}));          // SEC 8-K material events
+  tasks.push(fetchEntityNews(env, wl, cutoff).then(r=>{gn=r;}));       // supply-chain entities (SK hynix/Samsung/TSMC/Kioxia/Broadcom)
   await Promise.all(tasks);
 
   // ── Per-ticker Finnhub company-news (richest per-company source). One
@@ -895,7 +964,7 @@ async function fetchAllSources(env, useLimitedAPIs, wl){
   }
   await Promise.all(Array.from({length:6}, worker));
 
-  const all = [...mx, ...sd, ...av, ...tg, ...fg, ...tt, ...ec, ...perTicker]
+  const all = [...mx, ...sd, ...av, ...tg, ...fg, ...tt, ...ec, ...gn, ...perTicker]
     .filter(a => a.headline && a.ts >= cutoff);
   // Theme broadening: re-attribute sector/supply-chain articles to every
   // affected watchlist ticker (e.g. an SK-Hynix memory story → SNDK+MU+WDC),
