@@ -93,9 +93,11 @@ TD_WORKER_URL            = "https://trade-dashboard.av1.workers.dev"
 # so this position is only used in the standalone --test-chatgpt case (its own window).
 CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
 
-# Seconds to let ChatGPT finish loading before we focus its box + paste. Lower = faster
-# but too low risks pasting before the page is ready. Bump it if the paste ever misses.
-CHATGPT_LOAD_WAIT = 4
+# MAX seconds to wait for the ChatGPT tab to come to the front + finish loading before
+# we paste. This is a cap, not a fixed delay — the launcher proceeds the instant the
+# window title confirms ChatGPT is the active tab (usually 1–3s), so raising it only
+# affects the slow/cold case. It never pastes until ChatGPT is confirmed in front.
+CHATGPT_LOAD_WAIT = 12
 
 # ==============================================================================
 #  TRIGGER WINDOW  (Mountain Time)
@@ -304,6 +306,7 @@ _SWP_NOACTIVATE = 0x0010
 _SPI_GETWORKAREA = 0x0030
 _DWMWA_EXTENDED_FRAME_BOUNDS = 9
 _VK_RETURN       = 0x0D
+_VK_TAB          = 0x09
 _VK_SHIFT        = 0x10
 _VK_CONTROL      = 0x11
 _VK_MENU         = 0x12   # ALT
@@ -715,6 +718,40 @@ def _send_shift(vk):
     _u32.keybd_event(_VK_SHIFT, 0, _KEYEVENTF_KEYUP, 0)
 
 
+def _active_tab_is_chatgpt(hwnd) -> bool:
+    """The window title reflects the ACTIVE tab's page title. ChatGPT's is 'ChatGPT'
+    (or 'chatgpt.com' while loading); the searches (finviz, Google, …) never contain
+    'chatgpt'. So this tells us whether ChatGPT is the tab currently in front."""
+    return "chatgpt" in _hwnd_title(hwnd).lower()
+
+
+def _activate_chatgpt_tab(hwnd, timeout: int) -> bool:
+    """Make the ChatGPT tab the ACTIVE tab and CONFIRM it via the window title, so we
+    never paste into a search tab. ChatGPT is opened last, so Ctrl+9 (jump to last tab)
+    is the fast path; if that isn't it (or it's still loading), we walk every tab with
+    Ctrl+Tab, checking the title each time. Returns as soon as ChatGPT is confirmed in
+    front (fast when it loads quickly), or False on timeout."""
+    deadline = time.time() + max(3, timeout)
+    while time.time() < deadline:
+        if not _focus_window(hwnd):
+            time.sleep(0.3)
+            continue
+        if _active_tab_is_chatgpt(hwnd):
+            return True
+        _send_ctrl(_VK_9)               # jump to the last tab (= ChatGPT by position)
+        time.sleep(0.45)
+        if _active_tab_is_chatgpt(hwnd):
+            return True
+        for _ in range(10):             # fallback: walk the tabs looking for ChatGPT
+            if time.time() >= deadline:
+                break
+            _send_ctrl(_VK_TAB)         # Ctrl+Tab = next tab
+            time.sleep(0.35)
+            if _active_tab_is_chatgpt(hwnd):
+                return True
+    return _active_tab_is_chatgpt(hwnd)
+
+
 def open_chatgpt_analysis(target_hwnd=None):
     """Open the configured searches (left tabs) plus ChatGPT (last tab) and submit the
     selected Analysis prompt into ChatGPT. Fully automated.
@@ -781,31 +818,26 @@ def open_chatgpt_analysis(target_hwnd=None):
         time.sleep(1)
         _place(hwnd, x, y, w, h)
 
-    # 3) Focus the window and jump to the LAST tab (Ctrl+9) so ChatGPT is active. If we
-    #    can't get real foreground we must NOT type (keystrokes could hit the wrong
-    #    window) — bail with the prompt left on the clipboard.
-    if not _focus_window(hwnd):
-        log("ChatGPT: could not bring the window to the foreground; prompt is on the "
-            "clipboard — click the ChatGPT tab's box and press Ctrl+V then Enter.")
+    # 3) Make ChatGPT the ACTIVE tab and CONFIRM it by the window title before typing —
+    #    this is what prevents pasting into a search tab. Returns as soon as ChatGPT is
+    #    in front (fast when warm). If we can't confirm it, we must NOT type — bail with
+    #    the prompt left on the clipboard.
+    time.sleep(1.0)             # let the tabs spawn
+    if not _activate_chatgpt_tab(hwnd, CHATGPT_LOAD_WAIT):
+        log("ChatGPT: couldn't confirm the ChatGPT tab is in front; prompt is on the "
+            "clipboard — switch to the ChatGPT tab, focus the box, Ctrl+V then Enter.")
         return
-    _send_ctrl(_VK_9)            # Chrome/Brave: Ctrl+9 = last tab (= ChatGPT)
 
-    # 4) Wait for ChatGPT to load, re-assert focus + last tab, focus the composer with
-    #    ChatGPT's own Shift+Esc shortcut (works whether the box is centred on the
-    #    new-chat screen or docked at the bottom), paste, Enter.
-    time.sleep(CHATGPT_LOAD_WAIT)
-    if not _focus_window(hwnd):
-        log("ChatGPT: lost foreground before paste; prompt is on the clipboard — "
-            "click the ChatGPT tab's box and press Ctrl+V then Enter.")
-        return
-    _send_ctrl(_VK_9)           # re-assert last tab in case load shifted focus
-    time.sleep(0.15)
+    # 4) ChatGPT is confirmed active. Focus its message box with ChatGPT's own Shift+Esc
+    #    shortcut (works whether the box is centred on the new-chat screen or docked at
+    #    the bottom), paste, and submit.
+    _focus_window(hwnd)
     _send_shift(_VK_ESCAPE)     # ChatGPT shortcut: focus the message box
     time.sleep(0.15)
     _send_ctrl(_VK_V)          # paste
     time.sleep(0.5)            # let the pasted text render in the composer
     _tap(_VK_RETURN)           # submit
-    log("ChatGPT: focused composer (Shift+Esc), pasted prompt, pressed Enter.")
+    log("ChatGPT: confirmed ChatGPT tab, focused box, pasted prompt, pressed Enter.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
