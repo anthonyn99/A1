@@ -5297,10 +5297,13 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       } catch(e) { console.warn("Firebase TonyJournal load failed:", e); return null; }
     };
 
-    // Save: write active entry + _order array + activeId
-    window._fbSaveTonyJournal = (getState) => {
-      if (_tjSaveTimer) clearTimeout(_tjSaveTimer);
-      _tjSaveTimer = setTimeout(async () => {
+    // Save: write active entry + _order array + activeId. FLUSHABLE — see BJ above.
+    let _tjPendingGetState = null;
+    let _tjSaveInFlight = null;
+    const _tjDoSave = async () => {
+      if (!_tjPendingGetState) return _tjSaveInFlight || undefined;
+      const getState = _tjPendingGetState; _tjPendingGetState = null;
+      _tjSaveInFlight = (async () => {
         try {
           const { entries, activeId } = getState();
           const activeEntry = entries.find(e => e.id === activeId);
@@ -5319,9 +5322,17 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         } catch(e) {
           console.error("Firebase TonyJournal save failed:", e.code, e.message, e);
           window.dispatchEvent(new CustomEvent("fb-tj-error"));
-        }
-      }, 300);
+        } finally { _tjSaveInFlight = null; }
+      })();
+      return _tjSaveInFlight;
     };
+    window._fbSaveTonyJournal = (getState) => {
+      _tjPendingGetState = getState;
+      if (_tjSaveTimer) clearTimeout(_tjSaveTimer);
+      _tjSaveTimer = setTimeout(_tjDoSave, 300);
+    };
+    // Flush any pending TJ save NOW (returns the write promise).
+    window._fbFlushTonyJournal = () => { if (_tjSaveTimer) { clearTimeout(_tjSaveTimer); _tjSaveTimer = null; } return _tjDoSave(); };
 
     // Dedicated order-only save (called on drag reorder)
     window._fbSaveJournalOrder = window._fbSaveJournalOrder || function() {};
