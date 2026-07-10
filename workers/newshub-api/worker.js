@@ -1811,6 +1811,7 @@ async function prewarmCalendar(env){
 const FB_PROJECT  = 'task-dashboard-d2b53';
 const FB_API_KEY  = 'AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4';
 const FB_DOC_PATH = 'dashboards/market_calendar';
+const FB_NEWS_PATH = 'dashboards/tradeboard_news';   // the doc the News tab reads
 
 function encodeFirestoreValue(v){
   if(v === null || v === undefined) return { nullValue: null };
@@ -1844,6 +1845,33 @@ async function pushMarketCalToFirebase(result){
   });
   if(!r.ok){ const t = await r.text().catch(()=>''); throw new Error(`Firestore ${r.status}: ${t.slice(0,120)}`); }
   console.log(`[cron] pushed ${events.length} calendar events to Firebase`);
+}
+
+// Push a finished NEWS build to the same Firestore doc the client's News tab reads.
+// The client subscribes to this doc at module level (onSnapshot, always active), so
+// this makes a completed build AUTO-DISPLAY — live when the News tab is open, and
+// already-loaded when the user returns to it — with no dependence on client polling.
+// Mirrors pushMarketCalToFirebase, but uses an updateMask so the user's saved filter
+// `settings` on the doc are preserved (a maskless PATCH would delete them).
+async function pushNewsToFirebase(result){
+  const now = Date.now();
+  const events = result.events || [];
+  const fields = {
+    events:      encodeFirestoreValue(events),
+    generatedAt: { integerValue: String(now) },
+    degraded:    { booleanValue: !!result.degraded },
+    savedAt:     { integerValue: String(now) },
+  };
+  const mask = ['events','generatedAt','degraded','savedAt'].map(f => 'updateMask.fieldPaths=' + f).join('&');
+  const url = `https://firestore.googleapis.com/v1/projects/${FB_PROJECT}/databases/(default)/documents/${FB_NEWS_PATH}?key=${FB_API_KEY}&${mask}`;
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if(!r.ok){ const t = await r.text().catch(()=>''); throw new Error(`Firestore news ${r.status}: ${t.slice(0,120)}`); }
+  console.log(`[news] pushed ${events.length} events to Firebase`);
 }
 
 async function buildCalendar(wl, env, days, diag){
@@ -2651,6 +2679,14 @@ async function buildAndCache(env, ctx, useLimitedAPIs, wl, sectors, cacheKey, lo
   const ttl = result.degraded ? 600 : CACHE_TTL; // 10min for raw, 6h for good
   await env.NEWSHUB_CACHE.put(cacheKey, body, { expirationTtl: ttl });
   await env.NEWSHUB_CACHE.delete(lockKey); // release build lock
+  // Push to Firebase so the client's onSnapshot auto-displays the finished build
+  // (whether the News tab is open or not) — no polling needed. Only push non-empty
+  // results so a failed/empty build never wipes the last good news. Fire-and-forget;
+  // a Firestore hiccup must never fail the build.
+  if (result.events && result.events.length){
+    const p = pushNewsToFirebase(result).catch(e => console.warn('[news] firebase push failed:', e.message));
+    if (ctx && ctx.waitUntil) ctx.waitUntil(p);
+  }
   console.log(`Pipeline done: ${result.events.length} events, degraded=${result.degraded}, ttl=${ttl}, wl=${wl.length}`);
   return body;
 }
