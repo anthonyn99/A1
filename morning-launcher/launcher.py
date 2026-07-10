@@ -604,7 +604,7 @@ def _click_at(x: int, y: int):
     _u32.mouse_event(_MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
 
-def webull_post_launch(hwnd):
+def webull_post_launch(hwnd, initial_delay=None):
     """After WeBull loads, switch it to the Trackers tab + the Individual Margin account
     via coordinate clicks (WeBull has no scripting API). Clicks are offset from the
     window's top-left, so they follow the window wherever it's placed."""
@@ -614,7 +614,8 @@ def webull_post_launch(hwnd):
         log("WeBull: window handle unknown — skipping tab/account switch.")
         return
 
-    time.sleep(WEBULL_ACTION_DELAY)   # let WeBull finish loading (accounts populated)
+    wait = WEBULL_ACTION_DELAY if initial_delay is None else initial_delay
+    time.sleep(wait)   # let WeBull finish loading (accounts populated)
     if not _focus_window(hwnd):
         log("WeBull: could not focus the window — skipping tab/account switch.")
         return
@@ -978,12 +979,14 @@ def open_chatgpt_analysis(target_hwnd=None):
 def _launch_all(test: bool):
     log("=== Morning launch starting ===" + (" [TEST]" if test else ""))
     _apply_work_area()   # size windows to the taskbar-free height before opening them
-    open_webull()
+    webull_hwnd = open_webull()
     tradehub_hwnd = open_tradehub()
     time.sleep(1.5)
     open_taskhub_app()
     # Open ChatGPT + searches as tabs in the SAME TradeHub window, then paste+submit.
     open_chatgpt_analysis(target_hwnd=tradehub_hwnd)
+    # WeBull has now had ~20s to load — switch it to Trackers + Individual Margin.
+    webull_post_launch(webull_hwnd)
     if not test:
         mark_ran()
     log("=== Done ===")
@@ -1120,12 +1123,22 @@ if __name__ == "__main__":
     parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler")
     parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time / market / once-per-day checks")
     parser.add_argument("--test-chatgpt", action="store_true", help="Run ONLY the ChatGPT analysis step (fetch prompt + open ChatGPT auto-submitted + searches); prints progress to the console")
+    parser.add_argument("--test-webull", action="store_true", help="Run ONLY the WeBull tab/account switch on an already-open WeBull window (for tuning the click coordinates); prints progress to the console")
     args = parser.parse_args()
 
     if args.setup:
         setup()
     elif args.uninstall:
         uninstall()
+    elif args.test_webull:
+        _ECHO = True
+        log("=== WeBull actions test ===")
+        wb = _wait_for_title_window("webull", timeout=3)
+        if not wb:
+            log("WeBull test: no open WeBull window found — open WeBull first.")
+        else:
+            webull_post_launch(wb, initial_delay=1)   # WeBull already loaded → short wait
+        log("=== WeBull actions test done ===")
     elif args.test_chatgpt:
         _ECHO = True
         log("=== ChatGPT analysis test ===")
