@@ -892,6 +892,8 @@ async function fetchEntityNews(env, wl, cutoff){
       const ts   = pub ? Date.parse(pub) : Date.now();
       if (!ts || ts < cutoff) continue;
       const srcName = gnDecode((block.match(/<source[^>]*>([\s\S]*?)<\/source>/)||[])[1] || 'Google News').trim();
+      // Drop low-tier reprints — keep only allowlisted quality/trade publishers.
+      if (!entitySourceAllowed(srcName)) continue;
       // Google News titles read "Headline - Publisher" — strip the trailing source.
       let headline = title;
       if (srcName && headline.endsWith(' - ' + srcName)) headline = headline.slice(0, -(srcName.length + 3)).trim();
