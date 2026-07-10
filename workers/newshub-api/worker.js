@@ -13,11 +13,13 @@
 // ============================================================================
 
 // ── Canonical default watchlist ───────────────────────────────────────────
-// MUST stay in sync with the client's TB_WATCHLIST (tradehub.html). When the
+// MUST stay in sync with the client's TB_WATCHLIST (tradehub.html:938). When the
 // client requests this exact set (the un-customized default), the worker uses
 // the shared 'events:v1' cache key, so the cron pre-warm is actually consumed
 // instead of being orphaned under a per-list key the client never reads.
-const WATCHLIST = ['SNDK','MU','WDC','INTC','AMD','LMT','CRWD','BE','GOOGL','PLTR','NVDA','CRDO','TSLA','AAPL','MSFT','NET','SCCO','ERO','WMT','AMZN','BABA','LMND','EXPE','NVS','MS','XOM','CVX','VLO','CNQ'];
+// Order-independent set equality is what matters (see wlHash / isCustom), so this
+// array must contain the SAME MEMBERS as the client list — kept identical below.
+const WATCHLIST = ['DRAM','SNDK','MU','INTC','WDC','AMD','CRWD','BE','GOOGL','PLTR','NVDA','MRVL','CRDO','TSLA','SPCX','AAPL','MSFT','NET','SCCO','ERO','WMT','AMZN','BABA'];
 
 // Sector inference table (mirrors client TB_TICKER_SECTORS). Unknown → 'Diversified'
 // so news still surfaces for tickers not listed here.
