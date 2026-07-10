@@ -4372,11 +4372,20 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
     };
 
-    // ── TaskHub save ──────────────────────────────────────────────────────────
-    window._fbSave = (payload) => {
-      _lastOwnSaveAt = Date.now();
-      if (_saveTimer) clearTimeout(_saveTimer);
-      _saveTimer = setTimeout(async () => {
+    // ── TaskHub save (flushable + echo-aware) ─────────────────────────────────
+    // _savePending stays true from the moment an edit is queued until the write is
+    // CONFIRMED, so the live listener below never overwrites an unpushed local edit.
+    // _lastWrittenSavedAt lets the listener recognise (and skip) our OWN write echoed
+    // back by Firestore, while applying genuine changes from other devices instantly.
+    let _pendingPayload = null;
+    let _savePending = false;
+    let _lastWrittenSavedAt = 0;
+    let _thSaveInFlight = null;
+    const _doTaskHubSave = () => {
+      if (!_pendingPayload) return _thSaveInFlight || Promise.resolve();
+      const payload = _pendingPayload; _pendingPayload = null;
+      _lastWrittenSavedAt = payload.savedAt || Date.now();
+      _thSaveInFlight = (async () => {
         try {
           _lastOwnSaveAt = Date.now();
           await setDoc(docRef, payload);
@@ -4385,15 +4394,35 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         } catch(e) {
           console.warn("Firebase save failed:", e);
           window.dispatchEvent(new CustomEvent("fb-error"));
+        } finally {
+          _savePending = false; _thSaveInFlight = null;
         }
-      }, 1500);
+      })();
+      return _thSaveInFlight;
     };
+    window._fbSave = (payload) => {
+      _pendingPayload = payload;
+      _savePending = true;
+      _lastOwnSaveAt = Date.now();
+      if (_saveTimer) clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(_doTaskHubSave, 1500);
+    };
+    // Flush a pending TaskHub write immediately (tab hide / navigate away / entry switch).
+    window._fbFlush = () => { if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; } return _doTaskHubSave(); };
 
-    // ── TaskHub real-time listener ────────────────────────────────────────────
+    // ── TaskHub real-time listener — live cross-device sync ────────────────────
+    // Old behaviour suppressed ALL remote updates for a flat 8s after any local save,
+    // which meant a change on device B could take up to 8s to appear on device A (and
+    // never, if A kept saving). Now we hold off ONLY while a local write is pending/
+    // in-flight (so an unpushed edit can't be clobbered); the instant it's confirmed we
+    // accept remote changes immediately — except the echo of our own write.
     if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
     _unsubscribe = onSnapshot(docRef, (snap) => {
-      if (Date.now() - _lastOwnSaveAt < 8000) return;
-      if (snap.exists()) window.dispatchEvent(new CustomEvent("fb-remote-update", { detail: snap.data() }));
+      if (!snap.exists()) return;
+      if (_savePending) return;                       // protect an unpushed/in-flight local edit
+      const d = snap.data();
+      if (_lastWrittenSavedAt !== 0 && (d.savedAt || 0) === _lastWrittenSavedAt) return; // our own echo
+      window.dispatchEvent(new CustomEvent("fb-remote-update", { detail: d }));
     });
 
     // ── Market Calendar (read-only; written by TradeHub Catalysts) ────────────
@@ -4512,11 +4541,16 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
     };
 
-    // ── Veda's TaskHub save (payload pattern, 500ms debounce) ──────────────────
-    window._fbSaveVeda = (payload) => {
-      _vdLastOwnSaveAt = Date.now();
-      if (_vdSaveTimer) clearTimeout(_vdSaveTimer);
-      _vdSaveTimer = setTimeout(async () => {
+    // ── Veda's TaskHub save (flushable + echo-aware) — mirrors the main TaskHub ──
+    let _vdPendingPayload = null;
+    let _vdSavePending = false;
+    let _vdLastWrittenSavedAt = 0;
+    let _vdSaveInFlight = null;
+    const _doVedaSave = () => {
+      if (!_vdPendingPayload) return _vdSaveInFlight || Promise.resolve();
+      const payload = _vdPendingPayload; _vdPendingPayload = null;
+      _vdLastWrittenSavedAt = payload.savedAt || Date.now();
+      _vdSaveInFlight = (async () => {
         try {
           _vdLastOwnSaveAt = Date.now();
           await setDoc(vdDocRef, payload);
@@ -4525,15 +4559,29 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         } catch(e) {
           console.error("Firebase Veda save failed:", e.code, e.message, e);
           window.dispatchEvent(new CustomEvent("fb-vd-error"));
-        }
-      }, 500);
+        } finally { _vdSavePending = false; _vdSaveInFlight = null; }
+      })();
+      return _vdSaveInFlight;
     };
+    window._fbSaveVeda = (payload) => {
+      _vdPendingPayload = payload;
+      _vdSavePending = true;
+      _vdLastOwnSaveAt = Date.now();
+      if (_vdSaveTimer) clearTimeout(_vdSaveTimer);
+      _vdSaveTimer = setTimeout(_doVedaSave, 500);
+    };
+    window._fbFlushVeda = () => { if (_vdSaveTimer) { clearTimeout(_vdSaveTimer); _vdSaveTimer = null; } return _doVedaSave(); };
 
-    // ── Veda's TaskHub real-time listener ─────────────────────────────────────
+    // ── Veda's TaskHub real-time listener — live cross-device sync ─────────────
+    // Hold off only while a local write is pending/in-flight; otherwise apply remote
+    // changes immediately (skipping the echo of our own write). See main TaskHub.
     if (_vdUnsubscribe) { _vdUnsubscribe(); _vdUnsubscribe = null; }
     _vdUnsubscribe = onSnapshot(vdDocRef, (snap) => {
-      if (Date.now() - _vdLastOwnSaveAt < 8000) return;
-      if (snap.exists()) window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: snap.data() }));
+      if (!snap.exists()) return;
+      if (_vdSavePending) return;
+      const d = snap.data();
+      if (_vdLastWrittenSavedAt !== 0 && (d.savedAt || 0) === _vdLastWrittenSavedAt) return;
+      window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: d }));
     });
 
     // ── Veda Timeline real-time listener ──────────────────────────────────────
@@ -17376,6 +17424,13 @@ document.getElementById('bj-page-editor').addEventListener('keydown', e => {
 /* AUTO-SAVE */
 let autoTimer=null;
 function autoSave() { _bjSetSync('syncing'); clearTimeout(autoTimer); autoTimer=setTimeout(saveCurrentEntry, 700); }
+// Persist the current entry synchronously RIGHT NOW: flush the pending autoSave
+// (DOM→state), then flush the pending Firebase write. Called on tab-hide/close so the
+// last few hundred ms of typing (still inside the debounce) can't be lost.
+window._bjPersistNow = function() {
+  try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
+  try { if (window._fbFlushJournal) return window._fbFlushJournal(); } catch(e) {}
+};
 document.getElementById('bj-entry-title-input').addEventListener('input', autoSave);
 document.getElementById('bj-page-editor').addEventListener('input', autoSave);
 ['bj-notes-main','bj-notes-links','bj-notes-questions','bj-cornell-topic','bj-cornell-cues-ta','bj-cornell-notes-ta','bj-cornell-summary-ta'].forEach(id => {
@@ -23119,6 +23174,27 @@ document.getElementById('tj-page-editor').addEventListener('keydown', e => {
 /* AUTO-SAVE */
 let autoTimer=null;
 function autoSave() { _tjSetSync('syncing'); clearTimeout(autoTimer); autoTimer=setTimeout(saveCurrentEntry, 500); }
+// Persist the current entry synchronously RIGHT NOW — see _bjPersistNow.
+window._tjPersistNow = function() {
+  try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
+  try { if (window._fbFlushTonyJournal) return window._fbFlushTonyJournal(); } catch(e) {}
+};
+// ── Global persistence safety net (wired once) ────────────────────────────────
+// On tab hide / close / mobile suspend, synchronously flush every pending debounced
+// write (both journals + the TaskHub) so anything typed in the last instant is saved.
+if (!window._fbUnloadFlushWired) {
+  window._fbUnloadFlushWired = true;
+  window._fbFlushAll = function() {
+    try { if (window._bjPersistNow) window._bjPersistNow(); } catch(e) {}
+    try { if (window._tjPersistNow) window._tjPersistNow(); } catch(e) {}
+    try { if (window._fbFlush) window._fbFlush(); } catch(e) {}      // Tony TaskHub
+    try { if (window._fbFlushVeda) window._fbFlushVeda(); } catch(e) {}  // Veda TaskHub
+  };
+  window.addEventListener('pagehide', window._fbFlushAll);
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') window._fbFlushAll();
+  });
+}
 document.getElementById('tj-entry-title-input').addEventListener('input', autoSave);
 document.getElementById('tj-page-editor').addEventListener('input', autoSave);
 // Journal Entries editor (contenteditable) — must listen for input to catch paste, typing, etc.
