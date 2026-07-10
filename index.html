@@ -15111,7 +15111,10 @@ function renderSidebar() {
     div.addEventListener('click', e => {
       if (e.target.classList.contains('entry-delete') || e.target.closest('.entry-delete')) return;
       if (e.target.classList.contains('entry-drag-handle') || e.target.closest('.entry-drag-handle')) return;
-      saveCurrentEntry(); state.activeId = entry.id; renderSidebar(); loadActiveEntry();
+      // Flush the just-edited entry to Firebase BEFORE changing activeId, so its
+      // pending debounced save can't be redirected to (or dropped in favour of) the
+      // entry we're switching to.
+      saveCurrentEntry(); if (window._fbFlushJournal) window._fbFlushJournal(); state.activeId = entry.id; renderSidebar(); loadActiveEntry();
     });
     div.querySelector('.entry-delete').addEventListener('click', e => {
       e.stopPropagation();
@@ -20643,7 +20646,8 @@ function renderSidebar() {
     div.addEventListener('click', e => {
       if (e.target.classList.contains('entry-delete') || e.target.closest('.entry-delete')) return;
       if (e.target.classList.contains('entry-drag-handle') || e.target.closest('.entry-drag-handle')) return;
-      saveCurrentEntry(); state.activeId = entry.id; renderSidebar(); loadActiveEntry();
+      // Flush the just-edited entry BEFORE changing activeId — see BJ sidebar handler.
+      saveCurrentEntry(); if (window._fbFlushTonyJournal) window._fbFlushTonyJournal(); state.activeId = entry.id; renderSidebar(); loadActiveEntry();
     });
     div.querySelector('.entry-delete').addEventListener('click', e => {
       e.stopPropagation();
