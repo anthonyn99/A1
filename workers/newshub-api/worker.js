@@ -1084,6 +1084,83 @@ function sliceTickers(wl){
 
 const MAX_SOURCES_PER_EVENT = 10;
 
+// ── Step 4 helper: semantic merge of near-duplicate events ─────────────────
+// Lexical clustering (URL / first-60-char headline) leaves many differently-
+// worded takes on the SAME big story as separate cards (e.g. 8 "SK Hynix $26.5B
+// US IPO" variants). This second pass folds them by salient-token overlap, GATED
+// on (a) a shared candidate ticker and (b) a shared STRONG token (proper noun or
+// number) — so genuinely distinct stories about the same company (SK Hynix IPO vs
+// SK Hynix HBM deal) and different analyst actions (Goldman $640 vs Stifel) stay
+// apart, while pure rewordings of one event collapse into a single multi-source card.
+const MERGE_STOP = new Set('the a an to in on of for and or at as is are its it has have had will be was were this that with from by up over into out new than more after before ahead amid set say says said could may can not no but how why what when who their they you your his her our we he she them then so if off per via'.split(' '));
+const MERGE_GENERIC = new Set('raises raised rises rise raise shares share record demand memory market markets price prices pricing chip chips stock stocks sector target targets billion million trillion offering deal deals report reports earnings growth giant firm maker makers plan plans launch launches company unveils buy sell hold rating ratings analyst analysts surge surges soar soars jump jumps fall falls drop drops gain gains debut open opens opening close closes week day quarter year years high low big data chipmaker semiconductor'.split(' '));
+function nhTokens(text){
+  const out = new Set();
+  const parts = (text||'').toLowerCase().replace(/[^a-z0-9.\s$%]/g,' ').split(/\s+/);
+  for (let t of parts){
+    t = t.replace(/^\$+/,'').replace(/[.%]+$/,'');
+    if (!t) continue;
+    const m = t.match(/^(\d[\d.]*)(bn|b|m|k|billion|million|trillion|t)?$/); // fold $26.5bn/26.5b/26.5billion → 26.5
+    if (m) t = m[1].replace(/\.+$/,'');
+    if (!t) continue;
+    if (MERGE_STOP.has(t)) continue;
+    if (/[a-z]/.test(t) && t.length < 3) continue; // drop tiny words, keep numeric tokens
+    out.add(t);
+  }
+  return out;
+}
+function isStrongTok(t){ return /\d/.test(t) || (t.length >= 4 && !MERGE_GENERIC.has(t)); }
+function nhEventTokens(ev){ return nhTokens((ev.sources||[]).slice(0,3).map(s=>s.headline||'').join(' ')); }
+function mergeSimilarEvents(events){
+  const n = events.length;
+  if (n < 2) return events;
+  const toks   = events.map(nhEventTokens);
+  const strong = toks.map(s => new Set([...s].filter(isStrongTok)));
+  const tset   = events.map(e => new Set((e.candidateTickers||[]).filter(t => t && t !== 'NONE')));
+  const parent = Array.from({length:n}, (_,i)=>i);
+  const find = x => { while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; } return x; };
+  const union = (a,b)=>{ const ra=find(a), rb=find(b); if(ra!==rb) parent[rb]=ra; };
+  const WIN = 36*3600*1000;                       // don't merge takes >36h apart
+  for (let i=0;i<n;i++){
+    for (let j=i+1;j<n;j++){
+      if (Math.abs((events[i].ts||0)-(events[j].ts||0)) > WIN) continue;
+      let shareTk=false; for (const t of tset[i]){ if (tset[j].has(t)){ shareTk=true; break; } }
+      if (!shareTk) continue;                      // must be about a common ticker
+      const a=toks[i], b=toks[j];
+      const small = a.size<=b.size ? a : b, big = a.size<=b.size ? b : a;
+      let shared=0, strongShared=0;
+      for (const t of small){ if (big.has(t)){ shared++; if (strong[i].has(t)&&strong[j].has(t)) strongShared++; } }
+      if (shared < 3 || strongShared < 1) continue; // need real + distinctive overlap
+      if (shared / Math.max(1, small.size) < 0.45) continue;
+      union(i,j);
+    }
+  }
+  const groups = new Map();
+  for (let i=0;i<n;i++){ const r=find(i); if(!groups.has(r)) groups.set(r,[]); groups.get(r).push(i); }
+  const merged = [];
+  for (const idxs of groups.values()){
+    if (idxs.length === 1){ merged.push(events[idxs[0]]); continue; }
+    // Representative = most-sourced, then newest — its summary/shape leads the card.
+    idxs.sort((x,y)=> (events[y].sourceCount||0)-(events[x].sourceCount||0) || (events[y].ts||0)-(events[x].ts||0));
+    const rep = events[idxs[0]];
+    const tix=new Set(), srcs=[], seen=new Set(); let ts=0, themed=false;
+    for (const i of idxs){
+      const e = events[i];
+      (e.candidateTickers||[]).forEach(t=>tix.add(t));
+      themed = themed || !!e.themed;
+      ts = Math.max(ts, e.ts||0);
+      for (const s of (e.sources||[])){
+        const key = (s.url && !s.url.includes('finnhub.io/api/news') ? stripUrl(s.url) : '') || normKey(s.headline).slice(0,70);
+        if (seen.has(key)) continue; seen.add(key); srcs.push(s);
+      }
+    }
+    srcs.sort((a,b)=>(b.ts||0)-(a.ts||0));
+    merged.push({ ...rep, candidateTickers:[...tix], themed, sources:srcs.slice(0,MAX_SOURCES_PER_EVENT), sourceCount:srcs.length, ts });
+  }
+  merged.sort((a,b)=>(b.ts||0)-(a.ts||0));
+  return merged.map((e,i)=>({ ...e, id:'evt_'+i })); // re-id so the AI batch mapping stays 1:1
+}
+
 function clusterArticles(articles){
   articles.sort((a,b) => b.ts - a.ts);
 
