@@ -1272,7 +1272,7 @@ function clusterArticles(articles){
     events.set('lone:'+i, { articles:[a], tickers:new Set([a.ticker]) });
   }
 
-  return [...events.values()].map((ev, idx) => {
+  const clustered = [...events.values()].map((ev, idx) => {
     ev.articles.sort((a,b) => b.ts - a.ts);
     const realCount = ev.articles.length;
     // Reclaim every ticker this event's URLs/headlines were attributed to
@@ -1299,6 +1299,8 @@ function clusterArticles(articles){
       ts: ev.articles[0].ts,
     };
   });
+  // Step 4: fold differently-worded takes on the same big story into one card.
+  return mergeSimilarEvents(clustered);
 }
 
 // ─── Gemini analyze (batched) ─────────────────────────────────────────────
