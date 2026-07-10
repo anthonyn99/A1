@@ -113,10 +113,10 @@ CHATGPT_LOAD_WAIT = 12
 WEBULL_AUTO_ACTIONS = True
 WEBULL_ACTION_DELAY = 9    # seconds to let WeBull finish loading (accounts populated) before clicking
 
-# (x, y) offsets from the WeBull window's top-left:
-WEBULL_TRACKERS_TAB   = (620, 54)    # the "Trackers" tab in the tab row
-WEBULL_ACCOUNT_BUTTON = (1460, 19)   # top-right account dropdown ("Individual Cash(…)")
-WEBULL_MARGIN_ITEM    = (1465, 146)  # "Individual Margin(…)" row in the opened dropdown
+# (x, y) offsets from the WeBull window's top-left (measured via --webull-coords):
+WEBULL_TRACKERS_TAB   = (626, 60)    # the "Trackers" tab in the tab row
+WEBULL_ACCOUNT_BUTTON = (1470, 18)   # top-right account dropdown ("Individual Cash(…)")
+WEBULL_MARGIN_ITEM    = (1452, 148)  # "Individual Margin(…)" row in the opened dropdown
 
 # ==============================================================================
 #  TRIGGER WINDOW  (Mountain Time)
