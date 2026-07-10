@@ -3941,9 +3941,14 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
     const onRemote=(e)=>{
       const d=e.detail;if(!d)return;
       if(Array.isArray(d.events)&&d.events.length>0){
+        // A finished build (worker pushes to Firebase on completion) — show it and
+        // tear down any in-flight polling / build spinner so it "just appears".
         setEvents(d.events);
         setDegraded(d.events.every(e=>e.aiAnalyzed===false));
         setBuilding(false);
+        setLoading(false);
+        setNotice('');
+        stopPolling();
       }
       if(d.generatedAt&&(!d.events||d.events.length>0))setGeneratedAt(d.generatedAt);
       if(d.settings){
