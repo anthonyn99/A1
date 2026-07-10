@@ -990,7 +990,7 @@ async function fetchSlice(env, wl, opts){
   const fromD = ymd(from), toD = ymd(now);
   const isoFrom = from.toISOString().slice(0,19);
 
-  let mx=[], sd=[], av=[], tg=[], fg=[];
+  let mx=[], sd=[], av=[], tg=[], fg=[], gn=[];
 
   // Limited-quota sources (multi-symbol, 1 subrequest each) — only on the slice
   // flagged includeLimited, and only on force-fresh. Scoped to the FULL watchlist
@@ -1014,6 +1014,7 @@ async function fetchSlice(env, wl, opts){
   // includeGeneral, attributed to any FULL-watchlist ticker it mentions.
   if (includeGeneral){
     fg = await fetchFinnhubGeneral(env, wl, cutoff);
+    gn = await fetchEntityNews(env, wl, cutoff);   // supply-chain entity search (1 subrequest)
   }
 
   // Per-ticker for THIS slice only (fh+tt+pg = 3 subrequests/ticker).
@@ -1032,7 +1033,7 @@ async function fetchSlice(env, wl, opts){
   }
   await Promise.all(Array.from({length:6}, worker));
 
-  const all = [...mx, ...sd, ...av, ...tg, ...fg, ...perTicker]
+  const all = [...mx, ...sd, ...av, ...tg, ...fg, ...gn, ...perTicker]
     .filter(a => a.headline && a.ts >= cutoff);
   return [...all, ...broadenByTheme(all, wl)];
 }
