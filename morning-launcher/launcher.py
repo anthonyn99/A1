@@ -111,7 +111,8 @@ CHATGPT_LOAD_WAIT = 12
 # ==============================================================================
 
 WEBULL_AUTO_ACTIONS = True
-WEBULL_ACTION_DELAY = 9    # seconds to let WeBull finish loading (accounts populated) before clicking
+WEBULL_ACTION_DELAY = 2    # seconds before clicking. WeBull opened first and has been up
+                           # ~25s by the time this runs, so it's already loaded — small buffer only.
 
 # (x, y) offsets from the WeBull window's top-left (measured via --webull-coords):
 WEBULL_TRACKERS_TAB   = (626, 60)    # the "Trackers" tab in the tab row
@@ -643,9 +644,9 @@ def webull_post_launch(hwnd, initial_delay=None):
     # 1) Switch account: open the top-right dropdown, then click "Individual Margin".
     #    Done first because switching account can reset the active tab.
     _click_at(ox + WEBULL_ACCOUNT_BUTTON[0], oy + WEBULL_ACCOUNT_BUTTON[1])
-    time.sleep(1.0)   # let the dropdown render
+    time.sleep(0.6)   # let the dropdown render
     _click_at(ox + WEBULL_MARGIN_ITEM[0], oy + WEBULL_MARGIN_ITEM[1])
-    time.sleep(1.2)   # let the account switch settle
+    time.sleep(0.5)   # let the account switch settle
 
     # 2) Switch to the Trackers tab (last, so it's the final visible state).
     _focus_window(hwnd)
