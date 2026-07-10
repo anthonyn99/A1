@@ -14646,7 +14646,11 @@ function saveState() {
   // Show syncing immediately — even before debounce fires
   _bjSetSync('syncing');
   if (window._fbSaveJournal) {
-    window._fbSaveJournal(() => ({ entries: state.entries, activeId: state.activeId }));
+    // Capture activeId NOW (not lazily at debounce-fire time). Switching entries
+    // within the 300ms window used to make the debounced save write whichever entry
+    // was active when the timer fired — silently dropping the edit to the one we left.
+    var _bjSid = state.activeId;
+    window._fbSaveJournal(() => ({ entries: state.entries, activeId: _bjSid }));
   }
 }
 
@@ -20146,7 +20150,10 @@ function saveState() {
   // Show syncing immediately — even before debounce fires
   _tjSetSync('syncing');
   if (window._fbSaveTonyJournal) {
-    window._fbSaveTonyJournal(() => ({ entries: state.entries, activeId: state.activeId }));
+    // Capture activeId NOW — see BJ saveState. Prevents an entry-switch inside the
+    // debounce window from redirecting the save to the wrong (newly-active) entry.
+    var _tjSid = state.activeId;
+    window._fbSaveTonyJournal(() => ({ entries: state.entries, activeId: _tjSid }));
   }
 }
 
