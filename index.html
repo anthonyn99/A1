@@ -10512,17 +10512,64 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     return stack;
   }
 
-  function showBanner(title){
+  // opts.action = {label, run} adds a tappable button. Its onclick fires run()
+  // SYNCHRONOUSLY so an iOS user-gesture (required for Notification.requestPermission)
+  // is preserved.
+  function showBanner(title,opts){
+    opts=opts||{};
     const stack=getStack();
     const item=document.createElement('div');item.className='th-banner-item';
-    item.innerHTML='<div style="flex:1;min-width:0;font-size:13px;font-weight:700;color:#e8e8ec;line-height:1.4">'+escHtml(title)+'</div>'+
-      '<button style="background:transparent;border:none;color:#aaa;font-size:22px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;font-weight:300">\u00d7</button>';
-    item.querySelector('button').onclick=()=>{
+    let actionHtml='';
+    if(opts.action&&opts.action.label){
+      actionHtml='<button class="th-banner-action" style="background:#6b5bd6;border:none;color:#fff;font-size:13px;font-weight:800;cursor:pointer;padding:8px 14px;border-radius:8px;flex-shrink:0;font-family:inherit">'+escHtml(opts.action.label)+'</button>';
+    }
+    item.innerHTML='<div style="flex:1;min-width:0;font-size:13px;font-weight:700;color:#e8e8ec;line-height:1.4">'+escHtml(title)+'</div>'+actionHtml+
+      '<button class="th-banner-close" style="background:transparent;border:none;color:#aaa;font-size:22px;cursor:pointer;padding:0;line-height:1;flex-shrink:0;font-weight:300">\u00d7</button>';
+    const close=()=>{
       item.style.animation='th-out .25s ease forwards';
       setTimeout(()=>{item.remove();if(!stack.children.length)stack.remove();},250);
     };
+    item.querySelector('.th-banner-close').onclick=close;
+    if(opts.action&&opts.action.label){
+      item.querySelector('.th-banner-action').onclick=()=>{
+        try{opts.action.run&&opts.action.run();}catch(e){}
+        close();
+      };
+    }
     stack.appendChild(item);
+    return item;
   }
+
+  // Tap-to-enable notifications. On iOS Safari / Home-Screen PWAs the
+  // Notification permission prompt ONLY appears when requestPermission() is
+  // called from inside a user gesture \u2014 the poll timer and the async save flow
+  // can't trigger it, which is why a phone silently ends up with no push token.
+  // This banner's Enable tap IS that gesture.
+  let _enableBannerUp=false;
+  function showEnableBanner(){
+    if(_enableBannerUp)return;
+    const denied=('Notification' in window)&&Notification.permission==='denied';
+    if(denied){
+      showBanner('\ud83d\udd15 Notifications are blocked for this app. To fix: long-press the app icon \u2192 or iOS Settings \u25b8 Notifications \u25b8 this app, and Allow.');
+      return;
+    }
+    _enableBannerUp=true;
+    showBanner('\ud83d\udd14 Reminder saved. Tap Enable so alerts reach you when the app is closed.',{action:{label:'Enable',run:function(){
+      // requestPermission() is the FIRST call in this gesture handler \u2014 do not
+      // await anything before it or iOS drops the prompt.
+      Promise.resolve(Notification.requestPermission()).then(function(r){
+        if(r==='granted'){
+          Promise.resolve(window._fcmEnsureToken?window._fcmEnsureToken():null).then(function(t){
+            showBanner(t?'\u2705 Notifications enabled \u2014 reminders will now alert even when the app is closed.':'\u26a0 Permission granted but token failed: '+(window._fcmLastError||'unknown'));
+          });
+        }else{
+          showBanner('\u26a0 Permission not granted ('+r+'). Reminders will only alert while the app is open.');
+        }
+      }).catch(function(e){showBanner('\u26a0 Could not enable notifications: '+(e&&e.message||e));})
+        .finally(function(){_enableBannerUp=false;});
+    }}});
+  }
+  window._thShowEnableBanner=showEnableBanner;
 
   // ── Firebase init (reuse existing app if already initialised) ─────────
   const FB_CONFIG={
@@ -10605,11 +10652,15 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 
   // ── Permission + token ────────────────────────────────────────────────
   async function ensurePermission(){
-    if(!('Notification' in window))return false;
-    if(Notification.permission==='denied')return false;
+    if(!('Notification' in window)){window._fcmLastError='no Notification API (browser lacks web push)';return false;}
+    if(Notification.permission==='denied'){window._fcmLastError='notifications blocked — allow in iOS Settings ▸ Notifications';return false;}
     if(Notification.permission!=='granted'){
-      const r=await Notification.requestPermission();
-      if(r!=='granted')return false;
+      // On iOS this call from the async save flow won't actually prompt (no
+      // gesture) and resolves to 'default' — the tappable Enable banner is what
+      // recovers it. Record a real reason either way.
+      let r;
+      try{r=await Notification.requestPermission();}catch(e){window._fcmLastError='requestPermission failed: '+(e&&e.message||e);return false;}
+      if(r!=='granted'){window._fcmLastError='permission not granted ('+r+') — tap Enable to allow';return false;}
     }
     return !!(await ensureFCMToken());
   }
@@ -10734,7 +10785,14 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     if(writeErr){
       showBanner('⚠ Reminder NOT synced to cloud: '+writeErr);
     } else if(!_tok){
-      showBanner('⚠ Reminder saved, but this device has NO push token — it will not receive alerts when closed. Reason: '+(window._fcmLastError||'unknown'));
+      // No token because permission isn't granted → give a tappable Enable
+      // banner (the only path that works on iOS). If permission IS granted the
+      // failure is a real token/network/App-Check error → show the reason.
+      if(('Notification' in window) && Notification.permission!=='granted'){
+        showEnableBanner();
+      } else {
+        showBanner('⚠ Reminder saved, but this device has NO push token — it will not receive alerts when closed. Reason: '+(window._fcmLastError||'unknown'));
+      }
     }
   };
 
@@ -11064,6 +11122,11 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     // Already granted: make sure a token exists (covers reload-after-grant).
     if(Notification.permission==='granted'){if(window._fcmEnsureToken)window._fcmEnsureToken();return;}
     if(Notification.permission==='denied')return;
+    // iOS (Home-Screen PWA) will NOT prompt from this timer context — no user
+    // gesture. Surface the tappable Enable banner instead so the grant happens
+    // inside a real tap. On desktop requestPermission from here still works, but
+    // the banner path is harmless there too.
+    if(window._thShowEnableBanner){window._thShowEnableBanner();return;}
     Notification.requestPermission().then(function(r){
       console.log('[TH Notif] permission:',r);
       // CRITICAL: register the FCM push token right after a fresh grant, or a
