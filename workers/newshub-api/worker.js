@@ -850,6 +850,29 @@ function gnDecode(s){
     .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')
     .replace(/&#0?39;/g,"'").replace(/&apos;/g,"'").replace(/&amp;/g,'&');
 }
+// Publisher allowlist for the entity feed — Google News surfaces a lot of low-tier
+// reprints (local papers, crypto blogs, AOL syndication). Reuses the TickerTick
+// quality tier PLUS the chip/foundry/Asia trade press entity search legitimately
+// turns up (Tom's Hardware, Taipei Times, DigiTimes, Korea Herald…). Matched as a
+// substring of the publisher name with spaces/punct stripped. Kept deliberately
+// broad on trade/Asia press so real memory scoops (e.g. HBM expansion) survive.
+const ENTITY_SOURCE_ALLOW = [
+  'reuters','bloomberg','wsj','wallstreetjournal','financialtimes','cnbc','marketwatch',
+  'barrons','seekingalpha','motleyfool','fool','benzinga','thestreet','investorplace',
+  'zacks','nasdaq','yahoo','businesswire','prnewswire','globenewswire','businessinsider',
+  'forbes','fortune','economist','morningstar','investing','investors','ibd',
+  'investorsbusinessdaily','streetinsider','thefly','marketbeat','tipranks','barchart',
+  '247wallst','wccftech','kiplinger','techcrunch','axios','theinformation','arstechnica',
+  'venturebeat','wired','apnews','bbc','nytimes','washingtonpost',
+  'tomshardware','theregister','digitimes','nikkei','semafor','taipeitimes','koreaherald',
+  'koreajoongangdaily','koreaeconomicdaily','kedglobal','chosunbiz','businesskorea','yonhap',
+  'trendforce','anandtech','servethehome','datacenterdynamics',
+];
+function entitySourceAllowed(name){
+  const n = (name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  if (!n) return false;
+  return ENTITY_SOURCE_ALLOW.some(a => n.includes(a));
+}
 async function fetchEntityNews(env, wl, cutoff){
   try {
     const wlSet = new Set(wl.map(t => t.toUpperCase()));
