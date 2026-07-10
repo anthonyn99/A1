@@ -267,7 +267,7 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 .dnd-ghost{position:fixed;left:0;top:0;margin:0;pointer-events:none;z-index:9999;opacity:.96;border-radius:12px;
   box-shadow:0 14px 38px rgba(0,0,0,.55),0 0 0 1.5px var(--accent);will-change:transform;}
 .dnd-src{opacity:.32;}
-.item,.rec-row{-webkit-touch-callout:none;}
+.item,.rec-row,.rec-step{-webkit-touch-callout:none;}
 .dnd-indicator{position:fixed;height:3px;background:var(--accent);border-radius:3px;z-index:9998;pointer-events:none;box-shadow:0 0 10px var(--accent);}
 body.dnd-active{cursor:grabbing;}
 body.dnd-active *{cursor:grabbing !important;}
@@ -1339,10 +1339,11 @@ function recStepsEditorHtml(r){
   var steps=recStepsOf(r.instructions);
   var h='';
   if(!steps.length && recEditingStep===null) h+='<div class="rec-muted">No instructions yet — tap “Add step” or use the voice bar.</div>';
-  h+='<div class="rec-steps">';
+  h+='<div class="rec-steps" id="rec-steps-container">';
   for(var i=0;i<steps.length;i++){
     if(recEditingStep===i){ h+=recStepEditorRow(i, steps[i]); continue; }
-    h+='<div class="rec-step"><span class="rec-step-n">'+(i+1)+'.</span>'
+    // data-id = the step's index; hold-to-drag reorders (same mechanic as items/recipes)
+    h+='<div class="rec-step" data-id="'+i+'"><span class="rec-step-n">'+(i+1)+'.</span>'
       +'<span class="rec-step-t">'+esc(steps[i])+'</span>'
       +'<span class="rec-step-acts">'
         +'<button class="ib" onclick="ML.recEditStep('+i+')" title="Edit step">'+EDIT_SVG+'</button>'
@@ -1604,6 +1605,20 @@ function applyDrop(kind, id, t){
     if(idx<0) idx=rest.length;
     rest.splice(idx,0,src); setRecipes(rest); persistRecipes(); render(); return;
   }
+  if(kind==='recstep'){
+    // reorder instruction steps (data-id = step index); renumber + save immediately
+    var rc=recCurrent(); if(!rc) return;
+    var steps=recStepsOf(rc.instructions);
+    var from=parseInt(id,10); if(isNaN(from)||from<0||from>=steps.length) return;
+    var arr=steps.map(function(tx,ix){ return {ix:ix, t:tx}; });
+    var rest3=arr.filter(function(x){ return x.ix!==from; });
+    var sidx = (t.beforeId!=null && t.beforeId!=='') ? rest3.findIndex(function(x){ return x.ix===parseInt(t.beforeId,10); }) : rest3.length;
+    if(sidx<0) sidx=rest3.length;
+    recPushUndo();
+    rest3.splice(sidx,0,{ix:from, t:steps[from]});
+    rc.instructions=recRenumber(rest3.map(function(x){ return x.t; }));
+    persistRecipes(); render(); return;
+  }
   // list items
   var l=curList(); if(!l) return;
   var item=(l.items||[]).filter(function(x){return x.id===id;})[0]; if(!item) return;
@@ -1653,6 +1668,7 @@ function render(){
     var mf=$('manual-fab'); if(mf) mf.style.display='none'; var mp=$('manual-pop'); if(mp) mp.classList.remove('show');
     $('list-view').innerHTML = renderRecipesView();
     if(!recDetailId){ var rl=$('rec-list-rows'); if(rl && recFiltered().length===recipes.length) enableDrag(rl, 'recipe'); }
+    else if(recEditingStep===null){ var rs=$('rec-steps-container'); if(rs) enableDrag(rs, 'recstep'); }
     return;
   }
   $('lists-bar').style.display='';
