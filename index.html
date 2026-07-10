@@ -17566,8 +17566,9 @@ document.getElementById('bj-template-modal').addEventListener('click', e => {
   const tmpl=card.dataset.template;
   document.getElementById('bj-template-modal').classList.remove('open');
   document.getElementById('bj-new-entry-btn')._creating=false;
-  // Always create a new entry — never mutate/wipe the current one
-  saveCurrentEntry(); createEntry(tmpl); saveState(); renderSidebar(); loadActiveEntry();
+  // Always create a new entry — never mutate/wipe the current one. Flush the entry
+  // we're leaving BEFORE createEntry reschedules the debounce onto the new one.
+  saveCurrentEntry(); if (window._fbFlushJournal) window._fbFlushJournal(); createEntry(tmpl); saveState(); renderSidebar(); loadActiveEntry();
   setEditMode(true);
 });
 document.getElementById('bj-new-entry-btn').addEventListener('click', () => {
@@ -23321,8 +23322,9 @@ document.getElementById('tj-template-modal').addEventListener('click', e => {
   const tmpl=card.dataset.template;
   document.getElementById('tj-template-modal').classList.remove('open');
   document.getElementById('tj-new-entry-btn')._creating=false;
-  // Always create a new entry — never mutate/wipe the current one
-  saveCurrentEntry(); createEntry(tmpl); saveState(); renderSidebar(); loadActiveEntry();
+  // Always create a new entry — never mutate/wipe the current one. Flush the entry
+  // we're leaving BEFORE createEntry reschedules the debounce onto the new one.
+  saveCurrentEntry(); if (window._fbFlushTonyJournal) window._fbFlushTonyJournal(); createEntry(tmpl); saveState(); renderSidebar(); loadActiveEntry();
   setEditMode(true);
 });
 document.getElementById('tj-new-entry-btn').addEventListener('click', () => {
