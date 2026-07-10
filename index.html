@@ -4826,10 +4826,17 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
     };
 
-    // Save: write active entry + _order array + activeId
-    window._fbSaveJournal = (getState) => {
-      if (_bjSaveTimer) clearTimeout(_bjSaveTimer);
-      _bjSaveTimer = setTimeout(async () => {
+    // Save: write active entry + _order array + activeId.
+    // Refactored to be FLUSHABLE: the pending getState is stored on a module var so a
+    // synchronous flush (entry switch / tab hide / navigate away) can persist it
+    // immediately instead of waiting out the 300ms debounce — which previously dropped
+    // the write entirely if the page unloaded or the active entry changed first.
+    let _bjPendingGetState = null;
+    let _bjSaveInFlight = null;
+    const _bjDoSave = async () => {
+      if (!_bjPendingGetState) return _bjSaveInFlight || undefined;
+      const getState = _bjPendingGetState; _bjPendingGetState = null;
+      _bjSaveInFlight = (async () => {
         try {
           const { entries, activeId } = getState();
           const activeEntry = entries.find(e => e.id === activeId);
@@ -4852,9 +4859,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         } catch(e) {
           console.error("Firebase Journal save failed:", e.code, e.message, e);
           window.dispatchEvent(new CustomEvent("fb-bj-error"));
-        }
-      }, 300);
+        } finally { _bjSaveInFlight = null; }
+      })();
+      return _bjSaveInFlight;
     };
+    window._fbSaveJournal = (getState) => {
+      _bjPendingGetState = getState;
+      if (_bjSaveTimer) clearTimeout(_bjSaveTimer);
+      _bjSaveTimer = setTimeout(_bjDoSave, 300);
+    };
+    // Flush any pending BJ save NOW (returns the write promise). Called before an entry
+    // switch and on tab-hide/navigate so an in-progress edit is never lost to the debounce.
+    window._fbFlushJournal = () => { if (_bjSaveTimer) { clearTimeout(_bjSaveTimer); _bjSaveTimer = null; } return _bjDoSave(); };
 
     // Dedicated order-only save (called on drag reorder — no active entry content needed)
     window._fbSaveJournalOrder = (entries) => {
