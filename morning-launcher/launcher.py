@@ -1147,17 +1147,21 @@ if __name__ == "__main__":
     elif args.uninstall:
         uninstall()
     elif args.webull_coords:
-        # Tuning aid: hover over each WeBull target and read its offset from the window
-        # top-left, then plug those into WEBULL_* at the top of this file.
+        # Tuning aid: put WeBull in its morning position (left panel), then hover over
+        # each target and read its offset from the window top-left.
         _ECHO = True
-        wb = _wait_for_title_window("webull", timeout=3)
+        _apply_work_area()
+        wb = _find_largest_title_window("webull")
         if not wb:
             log("No WeBull window found — open WeBull first.")
         else:
+            _place(wb, *WEBULL_POS)      # move it to the morning position so coords match
+            _focus_window(wb)
+            time.sleep(0.6)
             r = _get_frame_bounds(wb) or _get_window_rect(wb)
-            log(f"WeBull window top-left=({r.left},{r.top}) size={r.right-r.left}x{r.bottom-r.top}")
-            log("Hover over Trackers / the account dropdown / (after opening it) Individual "
-                "Margin. Offsets from the WeBull top-left print for 25s:")
+            log(f"WeBull placed at top-left=({r.left},{r.top}) size={r.right-r.left}x{r.bottom-r.top}")
+            log("WeBull is now the LEFT panel. Hover over Trackers / the account dropdown / "
+                "(after opening it) Individual Margin. Offsets print for 25s:")
             pt = wt.POINT()
             end = time.time() + 25
             last = None
@@ -1165,17 +1169,20 @@ if __name__ == "__main__":
                 if _u32.GetCursorPos(ctypes.byref(pt)):
                     off = (pt.x - r.left, pt.y - r.top)
                     if off != last:
-                        log(f"  offset-from-webull = {off}   (screen {pt.x},{pt.y})")
+                        inside = "" if (0 <= off[0] <= r.right - r.left and 0 <= off[1] <= r.bottom - r.top) else "   <-- OUTSIDE WeBull"
+                        log(f"  offset-from-webull = {off}   (screen {pt.x},{pt.y}){inside}")
                         last = off
                 time.sleep(0.4)
     elif args.test_webull:
         _ECHO = True
         log("=== WeBull actions test ===")
-        wb = _wait_for_title_window("webull", timeout=3)
+        _apply_work_area()
+        wb = _find_largest_title_window("webull")
         if not wb:
             log("WeBull test: no open WeBull window found — open WeBull first.")
         else:
-            webull_post_launch(wb, initial_delay=1)   # WeBull already loaded → short wait
+            _place(wb, *WEBULL_POS)      # move it to the morning position so coords match
+            webull_post_launch(wb, initial_delay=2)   # WeBull already loaded → short wait
         log("=== WeBull actions test done ===")
     elif args.test_chatgpt:
         _ECHO = True
