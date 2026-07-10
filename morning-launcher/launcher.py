@@ -329,6 +329,38 @@ _u32.OpenClipboard.argtypes     = [ctypes.c_void_p]
 _u32.SetClipboardData.restype   = ctypes.c_void_p
 _u32.SetClipboardData.argtypes  = [ctypes.c_uint, ctypes.c_void_p]
 
+# Process-name lookup (to make sure we only ever drive BRAVE windows — never VS Code,
+# a terminal, etc. — before sending any tab-switch / paste keystrokes).
+_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_k32.OpenProcess.restype  = ctypes.c_void_p
+_k32.OpenProcess.argtypes = [wt.DWORD, wt.BOOL, wt.DWORD]
+_k32.QueryFullProcessImageNameW.argtypes = [ctypes.c_void_p, wt.DWORD, wt.LPWSTR, ctypes.POINTER(wt.DWORD)]
+_k32.QueryFullProcessImageNameW.restype  = wt.BOOL
+_k32.CloseHandle.argtypes = [ctypes.c_void_p]
+
+
+def _hwnd_process_name(hwnd) -> str:
+    """Lower-case executable name that owns hwnd (e.g. 'brave.exe'), or '' on failure."""
+    pid = _hwnd_pid(hwnd)
+    if not pid:
+        return ""
+    h = _k32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not h:
+        return ""
+    try:
+        buf = ctypes.create_unicode_buffer(4096)
+        size = wt.DWORD(4096)
+        if _k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
+            return Path(buf.value).name.lower()
+        return ""
+    finally:
+        _k32.CloseHandle(h)
+
+
+def _is_brave_hwnd(hwnd) -> bool:
+    """True only if hwnd belongs to the Brave browser process."""
+    return bool(hwnd) and _hwnd_process_name(hwnd) == "brave.exe"
+
 
 def _work_area_height() -> int:
     """Usable height of the primary monitor with the taskbar excluded, so windows
@@ -437,6 +469,20 @@ def _wait_for_title_window(substr: str, timeout: int = 40) -> int | None:
             if sub in _hwnd_title(hwnd).lower():
                 return hwnd
         time.sleep(1)
+    return None
+
+
+def _find_brave_window_by_title(substr: str, timeout: int = 2) -> int | None:
+    """Return a visible BRAVE window whose title contains substr — used to find the
+    TradeHub browser window without matching a VS Code / editor window that merely has
+    'tradehub' in its title."""
+    sub = substr.lower()
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for hwnd in _all_visible_hwnds():
+            if sub in _hwnd_title(hwnd).lower() and _is_brave_hwnd(hwnd):
+                return hwnd
+        time.sleep(0.3)
     return None
 
 
@@ -730,7 +776,11 @@ def _activate_chatgpt_tab(hwnd, timeout: int) -> bool:
     never paste into a search tab. ChatGPT is opened last, so Ctrl+9 (jump to last tab)
     is the fast path; if that isn't it (or it's still loading), we walk every tab with
     Ctrl+Tab, checking the title each time. Returns as soon as ChatGPT is confirmed in
-    front (fast when it loads quickly), or False on timeout."""
+    front (fast when it loads quickly), or False on timeout.
+
+    SAFETY: every tab-switch keystroke is gated on the Brave window being the true
+    foreground window — so keystrokes can never leak into another app (VS Code, a
+    terminal, …)."""
     deadline = time.time() + max(3, timeout)
     while time.time() < deadline:
         if not _focus_window(hwnd):
@@ -738,13 +788,15 @@ def _activate_chatgpt_tab(hwnd, timeout: int) -> bool:
             continue
         if _active_tab_is_chatgpt(hwnd):
             return True
+        if _u32.GetForegroundWindow() != hwnd:
+            continue                    # not really in front → do NOT send keys
         _send_ctrl(_VK_9)               # jump to the last tab (= ChatGPT by position)
         time.sleep(0.45)
         if _active_tab_is_chatgpt(hwnd):
             return True
         for _ in range(10):             # fallback: walk the tabs looking for ChatGPT
-            if time.time() >= deadline:
-                break
+            if time.time() >= deadline or _u32.GetForegroundWindow() != hwnd:
+                break                   # focus left our window → stop sending keys
             _send_ctrl(_VK_TAB)         # Ctrl+Tab = next tab
             time.sleep(0.35)
             if _active_tab_is_chatgpt(hwnd):
@@ -791,7 +843,10 @@ def open_chatgpt_analysis(target_hwnd=None):
     tabs = [u for u in (_resolve_search_url(q) for q in searches)
             if u and not _is_chatgpt_url(u)] + ["https://chatgpt.com/"]
 
-    use_existing = bool(target_hwnd) and target_hwnd in set(_all_visible_hwnds())
+    # Only reuse target_hwnd if it's a real BRAVE window (never a lookalike like a
+    # VS Code window whose title happens to contain "tradehub").
+    use_existing = bool(target_hwnd) and target_hwnd in set(_all_visible_hwnds()) \
+        and _is_brave_hwnd(target_hwnd)
     if use_existing:
         # Open the tabs INTO the TradeHub window: focus it first so Brave adds the tabs
         # there (a bare `brave <urls>` goes to the last-focused browser window).
@@ -818,6 +873,12 @@ def open_chatgpt_analysis(target_hwnd=None):
         time.sleep(1)
         _place(hwnd, x, y, w, h)
 
+    # Safety: never drive a non-Brave window (guards the standalone path too).
+    if not _is_brave_hwnd(hwnd):
+        log("ChatGPT: target window is not Brave; refusing to send keystrokes. Prompt "
+            "is on the clipboard — switch to the ChatGPT tab, Ctrl+V then Enter.")
+        return
+
     # 3) Make ChatGPT the ACTIVE tab and CONFIRM it by the window title before typing —
     #    this is what prevents pasting into a search tab. Returns as soon as ChatGPT is
     #    in front (fast when warm). If we can't confirm it, we must NOT type — bail with
@@ -830,8 +891,12 @@ def open_chatgpt_analysis(target_hwnd=None):
 
     # 4) ChatGPT is confirmed active. Focus its message box with ChatGPT's own Shift+Esc
     #    shortcut (works whether the box is centred on the new-chat screen or docked at
-    #    the bottom), paste, and submit.
-    _focus_window(hwnd)
+    #    the bottom), paste, and submit — but ONLY while the Brave window is truly in
+    #    front, so keystrokes can't leak into another app.
+    if not _focus_window(hwnd) or _u32.GetForegroundWindow() != hwnd:
+        log("ChatGPT: lost the Brave window before paste; prompt is on the clipboard — "
+            "switch to the ChatGPT tab, focus the box, Ctrl+V then Enter.")
+        return
     _send_shift(_VK_ESCAPE)     # ChatGPT shortcut: focus the message box
     time.sleep(0.15)
     _send_ctrl(_VK_V)          # paste
@@ -999,11 +1064,12 @@ if __name__ == "__main__":
         _ECHO = True
         log("=== ChatGPT analysis test ===")
         _apply_work_area()   # size the ChatGPT window to the taskbar-free height
-        # If TradeHub is already open, add the tabs to it (mirrors the morning run);
-        # otherwise open a standalone window.
-        th = _wait_for_title_window("tradehub", timeout=2)
+        # If a TradeHub BRAVE window is already open, add the tabs to it (mirrors the
+        # morning run); otherwise open a standalone window. Only Brave windows match —
+        # never an editor/terminal window that happens to show "tradehub".
+        th = _find_brave_window_by_title("tradehub", timeout=2)
         if th:
-            log("ChatGPT test: found an open TradeHub window — using it.")
+            log("ChatGPT test: found an open TradeHub Brave window — using it.")
         open_chatgpt_analysis(target_hwnd=th)
         log("=== ChatGPT analysis test done ===")
     else:

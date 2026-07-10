@@ -34076,15 +34076,17 @@ const PV_WORKER='https://proview-api.av1.workers.dev';
 const LS_KEY='pv_cfg_v1';
 
 const WANTED_LEAGUES=[
-  {slug:'lck',         name:'LCK',         region:'KR'},
-  {slug:'lpl',         name:'LPL',         region:'CN'},
-  {slug:'lcs',         name:'LCS',         region:'NA'},
-  {slug:'lec',         name:'LEC',         region:'EU'},
-  {slug:'cblol',       name:'CBLOL',       region:'BR'},
-  {slug:'lcp',         name:'LCP',         region:'APAC'},
-  {slug:'worlds',      name:'Worlds',      region:'INT'},
-  {slug:'msi',         name:'MSI',         region:'INT'},
-  {slug:'first_stand', name:'First Stand', region:'INT'},
+  {slug:'ewc_lol',                name:'EWC',         region:'INT'},
+  {slug:'lck',                    name:'LCK',         region:'KR'},
+  {slug:'lck_challengers_league', name:'LCK CL',      region:'KR'},
+  {slug:'lpl',                    name:'LPL',         region:'CN'},
+  {slug:'lcs',                    name:'LCS',         region:'NA'},
+  {slug:'lec',                    name:'LEC',         region:'EU'},
+  {slug:'cblol',                  name:'CBLOL',       region:'BR'},
+  {slug:'lcp',                    name:'LCP',         region:'APAC'},
+  {slug:'worlds',                 name:'Worlds',      region:'INT'},
+  {slug:'msi',                    name:'MSI',         region:'INT'},
+  {slug:'first_stand',            name:'First Stand', region:'INT'},
 ];
 let KNOWN_LEAGUES=WANTED_LEAGUES.map(w=>({...w,id:null}));
 let _idsResolved=false;
@@ -34111,7 +34113,9 @@ async function resolveLeagueIds(){
     }
   }catch(e){
     KNOWN_LEAGUES=[
+      {id:'116838530616006090',slug:'ewc_lol',name:'EWC',region:'INT'},
       {id:'98767991302996019',slug:'lck',   name:'LCK',  region:'KR'},
+      {id:'98767991335774713',slug:'lck_challengers_league',name:'LCK CL',region:'KR'},
       {id:'98767991314006698',slug:'lpl',   name:'LPL',  region:'CN'},
       {id:'98767991299243165',slug:'lcs',   name:'LCS',  region:'NA'},
       {id:'98767991310872058',slug:'lec',   name:'LEC',  region:'EU'},
