@@ -493,6 +493,21 @@ def _wait_for_title_window(substr: str, timeout: int = 40) -> int | None:
     return None
 
 
+def _find_largest_title_window(substr: str) -> int | None:
+    """Return the LARGEST visible window whose title contains substr — i.e. the main
+    app window, not a helper/secondary window that shares the title."""
+    sub = substr.lower()
+    best, best_area = None, 0
+    for hwnd in _all_visible_hwnds():
+        if sub in _hwnd_title(hwnd).lower():
+            r = _get_window_rect(hwnd)
+            if r:
+                area = (r.right - r.left) * (r.bottom - r.top)
+                if area > best_area:
+                    best, best_area = hwnd, area
+    return best
+
+
 def _find_brave_window_by_title(substr: str, timeout: int = 2) -> int | None:
     """Return a visible BRAVE window whose title contains substr — used to find the
     TradeHub browser window without matching a VS Code / editor window that merely has
