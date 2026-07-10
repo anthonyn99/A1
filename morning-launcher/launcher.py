@@ -100,6 +100,25 @@ CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
 CHATGPT_LOAD_WAIT = 12
 
 # ==============================================================================
+#  WEBULL POST-LAUNCH ACTIONS
+#  After WeBull opens it lands on the Trading tab + Individual Cash account. These
+#  clicks switch it to the Trackers tab and the Individual Margin account.
+#
+#  WeBull is a native app with no scripting API, so this is COORDINATE clicking. The
+#  points below are pixel offsets from the WeBull window's TOP-LEFT corner, tuned for
+#  the left-panel (1707px-wide) placement. If a click ever misses (e.g. WeBull changes
+#  its layout), nudge these — or set WEBULL_AUTO_ACTIONS = False to disable.
+# ==============================================================================
+
+WEBULL_AUTO_ACTIONS = True
+WEBULL_ACTION_DELAY = 9    # seconds to let WeBull finish loading (accounts populated) before clicking
+
+# (x, y) offsets from the WeBull window's top-left:
+WEBULL_TRACKERS_TAB   = (620, 54)    # the "Trackers" tab in the tab row
+WEBULL_ACCOUNT_BUTTON = (1460, 19)   # top-right account dropdown ("Individual Cash(…)")
+WEBULL_MARGIN_ITEM    = (1465, 146)  # "Individual Margin(…)" row in the opened dropdown
+
+# ==============================================================================
 #  TRIGGER WINDOW  (Mountain Time)
 # ==============================================================================
 
@@ -314,6 +333,8 @@ _VK_ESCAPE       = 0x1B
 _VK_V            = 0x56
 _VK_9            = 0x39
 _KEYEVENTF_KEYUP = 0x0002
+_MOUSEEVENTF_LEFTDOWN = 0x0002
+_MOUSEEVENTF_LEFTUP   = 0x0004
 _CF_UNICODETEXT  = 13
 _GMEM_MOVEABLE   = 0x0002
 
@@ -547,10 +568,12 @@ def _find_chrome_proxy() -> str | None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def open_webull():
+    """Launch + position WeBull, returning its window HWND (or None) so post-launch
+    UI actions (tab + account switch) can drive it."""
     exe = _find_webull()
     if not exe:
         log("ERROR: WeBull not found. Set WEBULL_EXE_OVERRIDE at the top of this file.")
-        return
+        return None
 
     x, y, w, h = WEBULL_POS
     log("Launching WeBull...")
@@ -564,11 +587,54 @@ def open_webull():
 
     if hwnd is None:
         log("WARNING: WeBull window not found; it may not be positioned correctly.")
-        return
+        return None
 
     time.sleep(2)   # let WeBull finish painting before we resize it
     _place(hwnd, x, y, w, h)
     log(f"WeBull → ({x},{y}) {w}×{h}")
+    return hwnd
+
+
+def _click_at(x: int, y: int):
+    """Left-click at absolute screen coords (x, y)."""
+    _u32.SetCursorPos(int(x), int(y))
+    time.sleep(0.12)
+    _u32.mouse_event(_MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    time.sleep(0.05)
+    _u32.mouse_event(_MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+
+def webull_post_launch(hwnd):
+    """After WeBull loads, switch it to the Trackers tab + the Individual Margin account
+    via coordinate clicks (WeBull has no scripting API). Clicks are offset from the
+    window's top-left, so they follow the window wherever it's placed."""
+    if not WEBULL_AUTO_ACTIONS:
+        return
+    if not hwnd:
+        log("WeBull: window handle unknown — skipping tab/account switch.")
+        return
+
+    time.sleep(WEBULL_ACTION_DELAY)   # let WeBull finish loading (accounts populated)
+    if not _focus_window(hwnd):
+        log("WeBull: could not focus the window — skipping tab/account switch.")
+        return
+    r = _get_frame_bounds(hwnd) or _get_window_rect(hwnd)
+    if not r:
+        log("WeBull: no window rectangle — skipping tab/account switch.")
+        return
+    ox, oy = r.left, r.top
+
+    # 1) Switch account: open the top-right dropdown, then click "Individual Margin".
+    #    Done first because switching account can reset the active tab.
+    _click_at(ox + WEBULL_ACCOUNT_BUTTON[0], oy + WEBULL_ACCOUNT_BUTTON[1])
+    time.sleep(1.0)   # let the dropdown render
+    _click_at(ox + WEBULL_MARGIN_ITEM[0], oy + WEBULL_MARGIN_ITEM[1])
+    time.sleep(1.2)   # let the account switch settle
+
+    # 2) Switch to the Trackers tab (last, so it's the final visible state).
+    _focus_window(hwnd)
+    _click_at(ox + WEBULL_TRACKERS_TAB[0], oy + WEBULL_TRACKERS_TAB[1])
+    log("WeBull: switched to Individual Margin account + Trackers tab.")
 
 
 def _open_browser_window(browser: str, url: str, pos: list, known_before: set):
