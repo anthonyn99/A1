@@ -4440,8 +4440,12 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
           const sLabel=e.sentiment?.label||'neutral';
           const score=e.sentiment?.score||0;
           const sources=e.sources||[];
-          const shown=sources.slice(0,3);
-          const extra=sources.length-shown.length;
+          // Dedupe the SOURCES row by outlet so "Yahoo · Yahoo · Yahoo" collapses to
+          // a single link; show up to 3 distinct outlets, with "+N more" for the rest.
+          const uniqueSources=[];const seenNames=new Set();
+          for(const s of sources){const nm=(s.name||'').trim().toLowerCase();if(!nm||seenNames.has(nm))continue;seenNames.add(nm);uniqueSources.push(s);}
+          const shown=uniqueSources.slice(0,3);
+          const extra=uniqueSources.length-shown.length;
           const sentCls=sLabel==='bull'?'tb-badge-bull':sLabel==='bear'?'tb-badge-bear':'tb-badge-neutral';
           const q=quotes[e.primaryTicker];
           const hasPct=q&&q.dp!=null&&isFinite(q.dp);
@@ -4475,7 +4479,6 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
                     onMouseLeave={ev=>ev.currentTarget.style.color='var(--txd)'}>{s.name}</a>
                 </React.Fragment>))}
                 {extra>0&&<span>+ {extra} more</span>}
-                <span style={{marginLeft:'auto',fontFamily:"'IBM Plex Mono',monospace",fontSize:10,background:'var(--s2)',padding:'2px 7px',borderRadius:4}}>{sources.length} src</span>
               </div>
             </div>
           );
