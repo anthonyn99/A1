@@ -1124,12 +1124,35 @@ if __name__ == "__main__":
     parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time / market / once-per-day checks")
     parser.add_argument("--test-chatgpt", action="store_true", help="Run ONLY the ChatGPT analysis step (fetch prompt + open ChatGPT auto-submitted + searches); prints progress to the console")
     parser.add_argument("--test-webull", action="store_true", help="Run ONLY the WeBull tab/account switch on an already-open WeBull window (for tuning the click coordinates); prints progress to the console")
+    parser.add_argument("--webull-coords", action="store_true", help="Print the mouse cursor's offset from the WeBull window as you hover — use it to read exact click coordinates for the WEBULL_* settings")
     args = parser.parse_args()
 
     if args.setup:
         setup()
     elif args.uninstall:
         uninstall()
+    elif args.webull_coords:
+        # Tuning aid: hover over each WeBull target and read its offset from the window
+        # top-left, then plug those into WEBULL_* at the top of this file.
+        _ECHO = True
+        wb = _wait_for_title_window("webull", timeout=3)
+        if not wb:
+            log("No WeBull window found — open WeBull first.")
+        else:
+            r = _get_frame_bounds(wb) or _get_window_rect(wb)
+            log(f"WeBull window top-left=({r.left},{r.top}) size={r.right-r.left}x{r.bottom-r.top}")
+            log("Hover over Trackers / the account dropdown / (after opening it) Individual "
+                "Margin. Offsets from the WeBull top-left print for 25s:")
+            pt = wt.POINT()
+            end = time.time() + 25
+            last = None
+            while time.time() < end:
+                if _u32.GetCursorPos(ctypes.byref(pt)):
+                    off = (pt.x - r.left, pt.y - r.top)
+                    if off != last:
+                        log(f"  offset-from-webull = {off}   (screen {pt.x},{pt.y})")
+                        last = off
+                time.sleep(0.4)
     elif args.test_webull:
         _ECHO = True
         log("=== WeBull actions test ===")
