@@ -35,12 +35,12 @@ which a `chrome-extension://` page cannot do, even with a valid anonymous login.
 So Vault does **not** talk to Firestore directly. It talks to the **`keychain-sync`
 Cloudflare Worker** (`workers/keychain-sync`), whose Firebase **service account**
 bypasses App Check and security rules (the same pattern `taskhub-reminders` uses).
-The Worker reads/writes the shared document and returns plain JSON.
+The Worker reads the shared document and returns plain JSON.
 
 ```
-  Vault popup/options ──HTTPS(X-Vault-Key)──▶ keychain-sync Worker ──service acct──▶ Firestore
-                                                                                        │
-  Index app · Keychain  ◀────────────── onSnapshot live listener ──────────────────────┘
+  Vault popup ──HTTPS GET(X-Vault-Key)──▶ keychain-sync Worker ──service acct──▶ Firestore
+                                                                                     ▲
+  Index app · Keychain (all editing) ──────── writes ────────────────────────────────┘
 ```
 
 Files:
@@ -48,11 +48,11 @@ Files:
 | File | Role |
 |------|------|
 | `manifest.json` | MV3 manifest (name, icons, permissions) |
-| `popup.html` / `popup.js` | Quick view + launch (one / group / everything) + Passwords tab |
-| `options.html` / `options.js` | Full CRUD for groups, links, colours + Passwords placeholder |
-| `vault-sync.js` | Talks to the `keychain-sync` Worker (load/save/linksOf) |
+| `popup.html` / `popup.js` | View + launch (single link / whole group); Links & Passwords tabs |
+| `options.html` | Vault settings page — Passwords placeholder (no link management) |
+| `vault-sync.js` | Reads the shared doc via the `keychain-sync` Worker (load / linksOf) |
 | `background.js` | Service worker — opens the tabs |
-| `icons/` | 16/48/128 px keyhole icons |
+| `icons/` | 16/48/128 px all-pink keyhole icons |
 
 ---
 
