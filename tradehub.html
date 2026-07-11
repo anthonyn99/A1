@@ -5419,6 +5419,7 @@ window._tbTabLock = {
       worker: AL_WORKER,
       reqBody: { journal: AL_JOURNAL, entryId: tabAppId(tabId) },
       email: AL_EMAIL,
+      form: 'https://formspree.io/f/xeedkebo',
       appName: 'TradeHub',
       label: 'the "' + (tabLabel || 'tab') + '" tab',
       onSuccess: function(){ tabSetLock(tabId); tabMarkUnlocked(tabId); }
