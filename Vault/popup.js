@@ -70,18 +70,24 @@ function render() {
     const linkRows = links.length
       ? links.map(l => `
           <div class="link-row">
+            <img class="favicon" src="${faviconUrl(l.url)}" width="16" height="16" alt="" loading="lazy"
+                 onerror="this.style.visibility='hidden'">
             <span class="link-name" title="${esc(l.url)}">${esc(l.name)}</span>
             <button class="icon-btn visit" data-url="${esc(l.url)}">Visit</button>
             <button class="icon-btn copy" data-copy="${esc(l.url)}" title="Copy link">${COPY_SVG}</button>
           </div>`).join("")
       : `<div class="no-links">No links in this group.</div>`;
 
+    // Only offer a group-launch button when there are 2+ links — a single link
+    // is opened by its own Visit button.
+    const openGroupBtn = links.length > 1
+      ? `<button class="open-group" data-group="${ci}">Open ${links.length} tabs</button>`
+      : "";
+
     card.innerHTML = `
       <div class="card-top">
         <div class="card-name"><span class="card-dot"></span><span>${esc(conn.name || "Untitled")}</span></div>
-        <button class="open-group" data-group="${ci}" ${links.length ? "" : "disabled"}>
-          ${links.length ? `Open ${links.length} tab${links.length > 1 ? "s" : ""}` : "Empty"}
-        </button>
+        ${openGroupBtn}
       </div>
       ${linkRows}`;
     groupsEl.appendChild(card);
