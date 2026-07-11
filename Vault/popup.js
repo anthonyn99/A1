@@ -69,6 +69,29 @@ const COL2_MIN = 560;       // px width of #app at/above which we go to 2 column
 
 const COPY_SVG ='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
+// Map any stored color to the nearest pastel in CD by hue (non-destructive —
+// mirrors index.html's _pastelize so Vault matches Keychain/Links exactly).
+function pastelize(hex) {
+  if (!hex) return CD[0];
+  hex = String(hex).toLowerCase();
+  if (CD.indexOf(hex) >= 0) return hex;
+  const hs = (h) => {
+    h = h.replace("#", "");
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    const r = parseInt(h.slice(0,2),16)/255, g = parseInt(h.slice(2,4),16)/255, b = parseInt(h.slice(4,6),16)/255;
+    const mx = Math.max(r,g,b), mn = Math.min(r,g,b), d = mx-mn;
+    let H = 0;
+    if (d) { if (mx===r) H=((g-b)/d)%6; else if (mx===g) H=(b-r)/d+2; else H=(r-g)/d+4; H*=60; if (H<0) H+=360; }
+    return { h:H, s: mx?d/mx:0 };
+  };
+  let src;
+  try { src = hs(hex); } catch { return CD[0]; }
+  if (src.s < 0.08) return CD[0];
+  let best = CD[0], bd = 1e9;
+  for (const c of CD) { const t = hs(c); let dh = Math.abs(t.h-src.h); if (dh>180) dh=360-dh; if (dh<bd) { bd=dh; best=c; } }
+  return best;
+}
+
 // Official site icon (like a browser bookmark), via Google's favicon service.
 function faviconUrl(url) {
   try {
@@ -100,7 +123,7 @@ function toast(msg) {
 
 // Build one group card (original index `ci` is used for colmap + open-group).
 function buildCard(conn, ci) {
-  const color = conn.color || CD[ci % CD.length];
+  const color = conn.color ? pastelize(conn.color) : CD[ci % CD.length];
   const links = VaultDB.linksOf(conn);
 
   const card = document.createElement("div");
