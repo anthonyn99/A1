@@ -36,6 +36,7 @@
   #applock-submit:disabled{opacity:0.55;cursor:default;}
   #applock-cancel{background:transparent;border:none;color:#58586a;font-size:13px;cursor:pointer;font-family:'Nunito',sans-serif;padding:0;text-decoration:underline;}
   #applock-forgot{background:transparent;border:none;color:#58586a;font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif;padding:0;text-decoration:underline;}
+  #applock-reset{background:transparent;border:none;color:#58586a;font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif;padding:2px 0 0;text-decoration:underline;width:100%;text-align:center;}
 </style>
 
 <!-- React / ReactDOM / Babel (same CDN builds as the main suite) -->
@@ -63,6 +64,7 @@
         <button id="applock-forgot">Forgot password?</button>
         <button id="applock-cancel">Cancel</button>
       </div>
+      <button id="applock-reset">Reset password via email</button>
     </div>
   </div>
 </div>
@@ -5096,6 +5098,8 @@ function alShowOverlay(mode){
     // No cancel escape when content is gated — you must unlock to view TradeHub.
     _el('applock-cancel').style.display = alMustBlock() ? 'none' : '';
   }
+  // Reset link mirrors the "Forgot password?" link (hidden while setting a new password).
+  if (_el('applock-reset')) _el('applock-reset').style.display = _el('applock-forgot').style.display;
   _el('applock-overlay').style.display='flex';
   setTimeout(function(){_el('applock-pw').focus();},80);
 }

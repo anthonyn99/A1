@@ -24404,6 +24404,26 @@ window.tjSwitchTo = function(app) {
     }
   });
 
+  // Reset password via emailed security code (MyJournal → Tony's email).
+  resetBtn && resetBtn.addEventListener('click', async function() {
+    var entry = state.entries.find(function(e) { return e.id === state.activeId; });
+    if (!entry) return;
+    if (!tlGetLock(entry.id)) { errEl.textContent = 'No lock set on this entry.'; return; }
+    var prev = resetBtn.textContent; resetBtn.textContent = 'Sending code…'; resetBtn.disabled = true;
+    await window._pwReset({
+      worker: TJ_AUTH,
+      reqBody: { journal: 'tj', entryId: entry.id },
+      email: 'anthonypn99@gmail.com',
+      appName: 'MyJournal',
+      label: 'entry "' + (entry.title || 'Untitled') + '"',
+      onSuccess: function() {
+        tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn();
+        try { loadActiveEntry(); renderSidebar(); } catch(e) {}
+      }
+    });
+    resetBtn.textContent = prev; resetBtn.disabled = false;
+  });
+
   // Patch loadActiveEntry to run lock check after loading
   var _origLoadActive = loadActiveEntry;
   loadActiveEntry = function() {
@@ -35583,6 +35603,8 @@ function alShowOverlay(appId, mode, cb, onCancel) {
     _el('applock-forgot').style.display = '';
     _el('applock-cancel').style.display = '';
   }
+  // Reset link mirrors the "Forgot password?" link's visibility (hidden while setting a new password).
+  if (_el('applock-reset')) _el('applock-reset').style.display = _el('applock-forgot').style.display;
   _el('applock-overlay').style.display = 'flex';
   setTimeout(function() { _el('applock-pw').focus(); }, 80);
 }
@@ -35720,6 +35742,7 @@ function alShowManageMenu(appId) {
   _el('applock-title').style.color = meta.color;
   _el('applock-submit').style.display = 'none';
   _el('applock-forgot').style.display = 'none';
+  if (_el('applock-reset')) _el('applock-reset').style.display = 'none';
   _el('applock-cancel').style.display = '';
   _el('applock-sub').textContent = isUnlocked ? 'This app is locked. Manage:' : 'This app is locked. Choose:';
   var existing = _el('al-menu-btns'); if (existing) existing.remove();
@@ -35843,6 +35866,26 @@ function alShowManageMenu(appId) {
       if (fp.ok) { _el('applock-forgot').textContent='Hint sent!'; setTimeout(function(){_el('applock-forgot').textContent='Forgot password?';_el('applock-forgot').disabled=false;},3000); }
       else { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
     } catch(e) { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
+  });
+
+  // Reset password via emailed security code (routes to the app owner's email/form).
+  _el('applock-reset') && _el('applock-reset').addEventListener('click', async function() {
+    var appId3 = _alPendingAppId; if (!appId3) return;
+    var meta = AL_LABELS[appId3] || { label: appId3, profile: 'tony' };
+    var prev = _el('applock-reset').textContent; _el('applock-reset').textContent = 'Sending code…'; _el('applock-reset').disabled = true;
+    await window._pwReset({
+      worker: AL_WORKER,
+      reqBody: { journal: AL_JOURNAL, entryId: appId3 },
+      email: AL_EMAIL[meta.profile] || AL_EMAIL.tony,
+      appName: meta.isProfile ? (meta.label + ' profile') : meta.label,
+      label: meta.isProfile ? (meta.label + "'s profile") : ('the ' + meta.label + ' app'),
+      onSuccess: function() {
+        alSetLock(appId3); alMarkUnlocked(appId3); alHideOverlay();
+        alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
+        if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
+      }
+    });
+    _el('applock-reset').textContent = prev; _el('applock-reset').disabled = false;
   });
 
   // Sweep: hide+prompt for any currently-visible app that's locked on this device.
