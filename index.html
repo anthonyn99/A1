@@ -11074,6 +11074,8 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   };
   if(location.hash==='#notiftest'){setTimeout(()=>{window.thNotifTest();},1500);}
   if(location.hash==='#notifdiag'){setTimeout(()=>{window.thNotifDiag();},1500);}
+  // Deep link used by the Vault extension: open straight to Keychain.
+  if(location.hash==='#keychain'){setTimeout(()=>{try{window._kcSwitchTo&&window._kcSwitchTo('keychain');}catch(_){}},1200);}
 
   // ── Silently get token on load if permission already granted ──────────
   if(messaging&&Notification.permission==='granted'){

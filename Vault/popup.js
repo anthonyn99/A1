@@ -76,8 +76,6 @@ function render() {
     groupsEl.appendChild(card);
   });
 
-  openAllEl.classList.toggle("hidden", !anyLink);
-
   // Wire buttons (CSP-safe: no inline handlers).
   groupsEl.querySelectorAll(".icon-btn.visit").forEach(b =>
     b.addEventListener("click", () => openUrls([b.dataset.url])));

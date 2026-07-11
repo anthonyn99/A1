@@ -1,8 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Vault ⇄ Keychain shared backend (client side).
+// Vault ← Keychain shared backend (client side).
 //
-// Vault keeps NO database of its own. It reads and writes the single Firestore
-// document the Index app's Keychain uses:
+// Vault keeps NO database of its own and does NOT edit links — all link
+// management lives in TaskHub → Keychain. Vault only READS the single Firestore
+// document the Index app's Keychain uses, to display and open it:
 //
 //     dashboards/keychain  →  { connections, colmap, savedAt }
 //
@@ -33,20 +34,6 @@ const VaultDB = (() => {
     };
   }
 
-  async function save(state) {
-    const body = {
-      connections: Array.isArray(state.connections) ? state.connections : [],
-      colmap: Array.isArray(state.colmap) && state.colmap.length ? state.colmap : null
-    };
-    const r = await fetch(WORKER_URL, {
-      method: "PUT",
-      headers: { "X-Vault-Key": VAULT_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    if (!r.ok) throw new Error("Vault save failed: " + r.status + " " + (await safeText(r)));
-    return true;
-  }
-
   // Pull just the launchable link items out of a connection (group).
   function linksOf(conn) {
     return (conn.items || [])
@@ -56,7 +43,7 @@ const VaultDB = (() => {
 
   async function safeText(r) { try { return await r.text(); } catch { return ""; } }
 
-  return { load, save, linksOf };
+  return { load, linksOf };
 })();
 
 if (typeof window !== "undefined") window.VaultDB = VaultDB;
