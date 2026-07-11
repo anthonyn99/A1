@@ -5177,7 +5177,7 @@ _el('applock-submit').addEventListener('click', async function(){
   _el('applock-submit').disabled=true; _el('applock-submit').textContent='Checking…';
   try {
     if (_alMode==='setpw'){
-      var hint=window.prompt('Optional: enter a password hint for recovery email. Leave blank to skip.')||'';
+      var hint=(await window.uiPrompt('Optional: enter a password hint for the recovery email. Leave blank to skip.',{title:'Password hint'}))||'';
       var r1=await fetch(AL_WORKER+'/auth/journal/set-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw,hint:hint})});
       var d1=await r1.json();
       if (d1.ok){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
