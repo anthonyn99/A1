@@ -12455,15 +12455,17 @@ function vdkc_renderConns(){
 function vdkc_fullCard(c,i){
   const col=c.color||vdkc_defC();
   const items=(c.items||[]).map((item,ii)=>vdkc_renderItem(item,ii,i)).join('');
-  return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}">
+  const linkUrls=(c.items||[]).filter(x=>x&&x.type==='link'&&x.url).map(x=>x.url);
+  return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}" data-links="${vdkc_esc(JSON.stringify(linkUrls))}">
     <div class="kc-card-top">
       <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0;">
         <span class="kc-drag-handle kc-edit-only" data-role="vd-conn-handle" data-ci="${i}">⠿</span>
         <div class="kc-card-name">${c.name?vdkc_esc(c.name):''}</div>
       </div>
-      <div class="kc-card-actions kc-edit-only">
-        <button class="kc-icon-btn" onclick="vdkcOpenEdit(+this.closest('.kc-card').dataset.ci)">✎</button>
-        <button class="kc-icon-btn del-x" onclick="vdkcConfirmDelete(+this.closest('.kc-card').dataset.ci)">✕</button>
+      <div class="kc-card-actions">
+        ${linkUrls.length>1?`<button class="kc-icon-btn visit kc-open-group" title="Open all ${linkUrls.length} links" onclick="vdkcOpenGroup(+this.closest('.kc-card').dataset.ci)">Open all</button>`:''}
+        <button class="kc-icon-btn kc-edit-only" onclick="vdkcOpenEdit(+this.closest('.kc-card').dataset.ci)">✎</button>
+        <button class="kc-icon-btn del-x kc-edit-only" onclick="vdkcConfirmDelete(+this.closest('.kc-card').dataset.ci)">✕</button>
       </div>
     </div>
     <div class="kc-items" data-ci="${i}">${items}</div>
