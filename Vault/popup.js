@@ -92,6 +92,10 @@ function render() {
     groupsEl.appendChild(card);
   });
 
+  // Hide any favicon that fails to load (CSP-safe: no inline onerror).
+  groupsEl.querySelectorAll("img.favicon").forEach(img =>
+    img.addEventListener("error", () => { img.style.visibility = "hidden"; }));
+
   // Wire buttons (CSP-safe: no inline handlers).
   groupsEl.querySelectorAll(".icon-btn.visit").forEach(b =>
     b.addEventListener("click", () => openUrls([b.dataset.url])));
