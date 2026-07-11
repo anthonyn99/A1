@@ -702,9 +702,9 @@ function showLock(profile, mode, onSuccess){
   var pw=$('lock-pw'); pw.value=''; pw.classList.remove('error');
   var name = PROFILE_META[profile].label;
   $('lock-title').textContent = name;
-  $('lock-row').style.display=''; pw.style.display=''; $('lock-forgot').style.display='';
+  $('lock-row').style.display=''; pw.style.display=''; $('lock-forgot').style.display=''; $('lock-reset').style.display='';
   $('lock-submit').textContent = mode==='setpw'?'Set Password':mode==='remove'?'Remove Lock':mode==='changepw'?'Verify':'Unlock';
-  if(mode==='setpw'){ $('lock-icon').textContent='🔐'; $('lock-sub').textContent='Choose a password to lock '+name+"'s lists. Required once per device."; $('lock-forgot').style.display='none'; }
+  if(mode==='setpw'){ $('lock-icon').textContent='🔐'; $('lock-sub').textContent='Choose a password to lock '+name+"'s lists. Required once per device."; $('lock-forgot').style.display='none'; $('lock-reset').style.display='none'; }
   else if(mode==='remove'){ $('lock-icon').textContent='🔓'; $('lock-sub').textContent='Enter the password to remove the lock.'; }
   else if(mode==='changepw'){ $('lock-icon').textContent='🔑'; $('lock-sub').textContent='Enter your current password first.'; }
   else { $('lock-icon').textContent='🔒'; $('lock-sub').textContent='Enter your password to open '+name+"'s lists."; }
