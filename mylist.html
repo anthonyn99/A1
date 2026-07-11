@@ -776,6 +776,25 @@ async function lockForgot(){
     setTimeout(function(){ f.textContent='Forgot password?'; f.disabled=false; }, 3500);
   }catch(e){ f.textContent='Failed — try again'; f.disabled=false; }
 }
+// Reset password via emailed security code (worker generates + verifies the code).
+async function lockReset(){
+  var p=lockProfile; if(!p) return;
+  var r=$('lock-reset'); var prev=r.textContent; r.textContent='Sending code…'; r.disabled=true;
+  var ok=await window._pwReset({
+    worker:AUTH_WORKER,
+    reqBody:{ journal:AUTH_JOURNAL, entryId:entryId(p) },
+    email:EMAILS[p]||EMAILS.tony,
+    appName:'MyList',
+    label:(PROFILE_META[p].label)+"'s lists",
+    onSuccess:function(){
+      state.locks[p]=true; state.lockV[p]=Date.now(); mlMarkUnlocked(p);
+      persist(); hideLock(); refreshProfileScreen(); updateLockBtn();
+      var cb=lockOnSuccess; if(cb)cb();
+    }
+  });
+  r.textContent=prev; r.disabled=false;
+  if(!ok && $('lock-err')) { /* message already alerted */ }
+}
 function updateLockBtn(){
   var b=$('lock-mgr-btn'); if(!b||!activeProfile) return;
   var locked=mlIsLocked(activeProfile); b.style.opacity = locked?'1':'0.5';
