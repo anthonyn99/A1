@@ -14,6 +14,28 @@ const toastEl   = document.getElementById("toast");
 // otherwise a browser tab.
 const TASKHUB_KEYCHAIN_URL = "https://anthonyn99.github.io/A1/?goto=keychain";
 
+// ── Persisted, user-adjustable popup size ──
+// #app has CSS `resize:both`; drag its bottom-right corner to resize. We restore
+// the last size on open and save changes (debounced).
+const appEl = document.getElementById("app");
+const SIZE_KEY = "vault_popup_size";
+chrome.storage.local.get(SIZE_KEY, (d) => {
+  const s = d && d[SIZE_KEY];
+  if (s && s.w && s.h) {
+    appEl.style.width = s.w + "px";
+    appEl.style.height = s.h + "px";
+  }
+  let t = null;
+  new ResizeObserver(() => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => {
+      chrome.storage.local.set({
+        [SIZE_KEY]: { w: Math.round(appEl.offsetWidth), h: Math.round(appEl.offsetHeight) }
+      });
+    }, 300);
+  }).observe(appEl);
+});
+
 // Same palette Keychain uses for connection colours, for a consistent look.
 const CD = ['#a8d8c0','#a0c8e8','#f5e88a','#f0a8c8','#c4a0e8','#40d8a8','#40a8f0','#f5c800','#f04898','#f07020','#9b72cf','#50cc30','#10b8d0','#e03060','#ffd93d','#7b5ea7'];
 
