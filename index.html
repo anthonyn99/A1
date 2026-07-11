@@ -6222,7 +6222,7 @@ function renderConns(){
 }
 
 function fullCard(c,i){
-  const col=c.color||defC();
+  const col=window._pastelize?window._pastelize(c.color):(c.color||defC());
   const items=(c.items||[]).map((item,ii)=>renderItem(item,ii,i)).join('');
   const linkUrls=(c.items||[]).filter(x=>x&&x.type==='link'&&x.url).map(x=>x.url);
   return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}" data-links="${esc(JSON.stringify(linkUrls))}">
@@ -11480,7 +11480,7 @@ function renderConns(){
 }
 
 function fullCard(c,i){
-  const col=c.color||defC();
+  const col=window._pastelize?window._pastelize(c.color):(c.color||defC());
   const items=(c.items||[]).map((item,ii)=>renderItem(item,ii,i)).join('');
   const linkUrls=(c.items||[]).filter(x=>x&&x.type==='link'&&x.url).map(x=>x.url);
   return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}" data-links="${esc(JSON.stringify(linkUrls))}">
@@ -12474,7 +12474,7 @@ function vdkc_renderConns(){
 }
 
 function vdkc_fullCard(c,i){
-  const col=c.color||vdkc_defC();
+  const col=window._pastelize?window._pastelize(c.color):(c.color||vdkc_defC());
   const items=(c.items||[]).map((item,ii)=>vdkc_renderItem(item,ii,i)).join('');
   const linkUrls=(c.items||[]).filter(x=>x&&x.type==='link'&&x.url).map(x=>x.url);
   return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}" data-links="${vdkc_esc(JSON.stringify(linkUrls))}">
