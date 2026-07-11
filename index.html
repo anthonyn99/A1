@@ -12905,6 +12905,14 @@ window.vdkcExecuteDelete=function(){if(vdkc_delIdx!==null)vdkc_conns.splice(vdkc
 window.vdkcCloseConfirm=function(){vdkc_delIdx=null;document.getElementById('vd-kc-confirm-modal').style.display='none';};
 
 window.vdkcVisit=function(raw){let url=raw;if(!/^https?:\/\//i.test(url)&&url)url='https://'+url;const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';document.body.appendChild(a);a.click();document.body.removeChild(a);};
+// Group launch: open every link in a Veda Links card at once (view mode).
+window.vdkcOpenGroup=function(ci){
+  const card=document.querySelector('#vd-kc-conns-list .kc-card[data-ci="'+ci+'"]');
+  if(!card) return;
+  let urls=[];
+  try{ urls=JSON.parse(card.dataset.links||'[]'); }catch(_){}
+  urls.forEach(u=>{ if(u&&window.vdkcVisit) window.vdkcVisit(u); });
+};
 window.vdkcCopy=function(val){
   const show=()=>{const t=document.getElementById('vd-kc-toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);};
   navigator.clipboard?.writeText(val).then(show).catch(()=>{const ta=document.createElement('textarea');ta.value=val;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);show();});
