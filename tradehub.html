@@ -5193,10 +5193,12 @@ _el('applock-submit').addEventListener('click', async function(){
       var r3=await fetch(AL_WORKER+'/auth/journal/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
       var d3=await r3.json();
       if (d3.ok){
-        var np=window.prompt('Current password verified! Enter your NEW password:');
+        var chg=await window.uiForm({ title:'Change password', okLabel:'Change password',
+          fields:[ {name:'password',label:'New password',type:'password',required:true}, {name:'hint',label:'New password hint (optional)'} ] });
+        var np=chg?chg.password:'';
         if (!np||!np.trim()){ _el('applock-err').textContent='New password empty — not changed.'; }
         else {
-          var nh=window.prompt('Optional: hint for new password (leave blank to skip).')||'';
+          var nh=(chg.hint)||'';
           var rem=await fetch(AL_WORKER+'/auth/journal/remove-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
           var remD=await rem.json();
           if (remD.ok){
