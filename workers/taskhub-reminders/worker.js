@@ -97,36 +97,6 @@ export default {
       }
     }
 
-    // TEMP one-shot cleanup: delete two ORPHANED "Charge Car" reminder series that
-    // were tagged veda (no task behind them on either TaskHub). Hardcoded ids →
-    // idempotent + harmless to re-run. Removed after it runs once. See chat.
-    if (path === '/cleanup-orphan-chargecar') {
-      try {
-        const accessToken = await getGoogleAccessToken(env);
-        const projectId = env.FIREBASE_PROJECT_ID;
-        const baseUrl   = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
-        const authHdr   = { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
-        const ORPHANS = ['mq0bqo6s50rib', 'mouqlirq1icdm'];
-        const deleted = [];
-        for (const rid of ORPHANS) {
-          const qr = await fetch(`${baseUrl}:runQuery`, { method:'POST', headers:authHdr, body:JSON.stringify({ structuredQuery:{
-            from:[{ collectionId:'reminders' }],
-            where:{ fieldFilter:{ field:{ fieldPath:'notifyRepeatId' }, op:'EQUAL', value:{ stringValue:rid } } },
-            limit: 300
-          }})});
-          const raw = await qr.json();
-          const docs = Array.isArray(raw) ? raw.filter(r => r.document) : [];
-          for (const d of docs) {
-            await fetch(`https://firestore.googleapis.com/v1/${d.document.name}`, { method:'DELETE', headers:authHdr }).catch(()=>{});
-            deleted.push({ rid, id: (d.document.name||'').split('/').pop() });
-          }
-        }
-        return json({ ok:true, deletedCount: deleted.length, deleted }, origin);
-      } catch (e) {
-        return json({ ok:false, error: e.message || 'server error' }, origin, 500);
-      }
-    }
-
     if (path.startsWith('/auth/')) {
       try {
         return await handleAuth(path, request, env, origin);
