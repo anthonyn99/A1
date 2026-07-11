@@ -1835,7 +1835,7 @@ function TBJournalPage(){
 
   const [remerging,setRemerging]=useState(false);
   const doRemerge=async()=>{
-    if(!window.confirm('Re-merge all Webull trades from their fills using FIFO grouping? Fixes split/mismatched trades. Manual & CSV trades are not touched.'))return;
+    if(!(await window.uiConfirm('Re-merge all Webull trades from their fills using FIFO grouping? Fixes split/mismatched trades. Manual & CSV trades are not touched.',{title:'Re-merge trades',okLabel:'Re-merge'})))return;
     setRemerging(true);
     try{
       const res=await jHook.rebuild();
@@ -3201,7 +3201,7 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
     setBusy(true);setErr('');
     try{
       if(mode==='setpw'){
-        const hint=window.prompt('Optional: password hint for recovery email. Blank to skip.')||'';
+        const hint=(await window.uiPrompt('Optional: password hint for the recovery email. Blank to skip.',{title:'Password hint'}))||'';
         const d=await window._tbTabLock.setPw(tabId,p,hint);
         console.log('[TabLock] set-lock response for', tabId, ':', JSON.stringify(d));
         const ok = d && (d.ok===true || d.success===true || d.set===true);
@@ -3214,9 +3214,11 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
       } else if(mode==='changepw'){
         const d=await window._tbTabLock.verify(tabId,p);
         if(d.ok){
-          const np=window.prompt('Verified! Enter NEW password:');
+          const chg=await window.uiForm({ title:'Change password', okLabel:'Change password',
+            fields:[ {name:'password',label:'New password',type:'password',required:true}, {name:'hint',label:'New password hint (optional)'} ] });
+          const np=chg?chg.password:'';
           if(np&&np.trim()){
-            const nh=window.prompt('Optional hint for new password. Blank to skip.')||'';
+            const nh=(chg.hint)||'';
             const rem=await window._tbTabLock.removePw(tabId,p);
             if(rem.ok){ const set=await window._tbTabLock.setPw(tabId,np.trim(),nh);
               if(set.ok){ window._tbTabLock.setLock(tabId); window._tbTabLock.markUnlocked(tabId); onClose(); }
@@ -3482,8 +3484,8 @@ function TBDashboardPage({report,onImport,onSaveReport,reports,onUpdateReports})
   const derived=useMemo(()=>computeDerivedState(report),[report]);
   const goLabel=report.goNoGo==='go'?'GO':report.goNoGo==='no_go'?'NO-GO':'—';
   const bColor=tbBiasColor(report.marketBias);
-  const saveReport=()=>{
-    const name=prompt('Save report as:',`Report ${new Date().toLocaleDateString()}`);
+  const saveReport=async()=>{
+    const name=await window.uiPrompt('Save report as:',{title:'Save report',default:`Report ${new Date().toLocaleDateString()}`});
     if(!name)return;
     const updated=[{id:'r_'+Date.now(),name,savedAt:Date.now(),goNoGo:report.goNoGo,...report},...(reports||[])].slice(0,50);
     onUpdateReports(updated);if(window._fbSaveTBReports)window._fbSaveTBReports(updated);
