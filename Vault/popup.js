@@ -69,7 +69,7 @@ function render() {
       <div class="card-top">
         <div class="card-name"><span class="card-dot"></span><span>${esc(conn.name || "Untitled")}</span></div>
         <button class="open-group" data-group="${ci}" ${links.length ? "" : "disabled"}>
-          Open ${links.length || ""}${links.length ? " tabs" : "empty"}
+          ${links.length ? `Open ${links.length} tab${links.length > 1 ? "s" : ""}` : "Empty"}
         </button>
       </div>
       ${linkRows}`;
