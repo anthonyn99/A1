@@ -6214,15 +6214,17 @@ function renderConns(){
 function fullCard(c,i){
   const col=c.color||defC();
   const items=(c.items||[]).map((item,ii)=>renderItem(item,ii,i)).join('');
-  return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}">
+  const linkUrls=(c.items||[]).filter(x=>x&&x.type==='link'&&x.url).map(x=>x.url);
+  return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}" data-links="${esc(JSON.stringify(linkUrls))}">
     <div class="kc-card-top">
       <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0;">
         <span class="kc-drag-handle kc-edit-only" data-role="conn-handle" data-ci="${i}">⠿</span>
         <div class="kc-card-name">${c.name?esc(c.name):''}</div>
       </div>
-      <div class="kc-card-actions kc-edit-only">
-        <button class="kc-icon-btn" onclick="kcOpenEdit(${i})">✎</button>
-        <button class="kc-icon-btn del-x" onclick="kcConfirmDelete(${i})">✕</button>
+      <div class="kc-card-actions">
+        ${linkUrls.length?`<button class="kc-icon-btn visit kc-open-group" title="Open all ${linkUrls.length} link${linkUrls.length>1?'s':''}" onclick="kcOpenGroup(+this.closest('.kc-card').dataset.ci)">Open all</button>`:''}
+        <button class="kc-icon-btn kc-edit-only" onclick="kcOpenEdit(${i})">✎</button>
+        <button class="kc-icon-btn del-x kc-edit-only" onclick="kcConfirmDelete(${i})">✕</button>
       </div>
     </div>
     <div class="kc-items" data-ci="${i}">${items}</div>
@@ -11416,15 +11418,17 @@ function renderConns(){
 function fullCard(c,i){
   const col=c.color||defC();
   const items=(c.items||[]).map((item,ii)=>renderItem(item,ii,i)).join('');
-  return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}">
+  const linkUrls=(c.items||[]).filter(x=>x&&x.type==='link'&&x.url).map(x=>x.url);
+  return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}" data-links="${esc(JSON.stringify(linkUrls))}">
     <div class="kc-card-top">
       <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0;">
         <span class="kc-drag-handle kc-edit-only" data-role="conn-handle" data-ci="${i}">⠿</span>
         <div class="kc-card-name">${c.name?esc(c.name):''}</div>
       </div>
-      <div class="kc-card-actions kc-edit-only">
-        <button class="kc-icon-btn" onclick="kcOpenEdit(+this.closest('.kc-card').dataset.ci)">✎</button>
-        <button class="kc-icon-btn del-x" onclick="kcConfirmDelete(+this.closest('.kc-card').dataset.ci)">✕</button>
+      <div class="kc-card-actions">
+        ${linkUrls.length?`<button class="kc-icon-btn visit kc-open-group" title="Open all ${linkUrls.length} link${linkUrls.length>1?'s':''}" onclick="kcOpenGroup(+this.closest('.kc-card').dataset.ci)">Open all</button>`:''}
+        <button class="kc-icon-btn kc-edit-only" onclick="kcOpenEdit(+this.closest('.kc-card').dataset.ci)">✎</button>
+        <button class="kc-icon-btn del-x kc-edit-only" onclick="kcConfirmDelete(+this.closest('.kc-card').dataset.ci)">✕</button>
       </div>
     </div>
     <div class="kc-items" data-ci="${i}">${items}</div>
@@ -12063,6 +12067,18 @@ window._kcSwitchTo=function(app){kcSwitchTo(app);if(app==='keychain'&&window._up
 window._kcApplyTheme=function(){
   isDark=true; // light mode removed — always dark
   applyTheme();
+};
+
+// ── Group launch: open every link in a connection at once (view mode) ──
+// Reads the URLs cached on the card's data-links attribute so it works no
+// matter which render pass painted the card. Opens synchronously inside the
+// click gesture to give the browser the best chance of allowing all tabs.
+window.kcOpenGroup=function(ci){
+  const card=document.querySelector('#kc-conns-list .kc-card[data-ci="'+ci+'"]');
+  if(!card) return;
+  let urls=[];
+  try{ urls=JSON.parse(card.dataset.links||'[]'); }catch(_){}
+  urls.forEach(u=>{ if(u&&window.kcVisit) window.kcVisit(u); });
 };
 
 })();
