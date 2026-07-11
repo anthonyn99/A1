@@ -481,6 +481,73 @@ async function handleAuth(path, request, env, origin) {
     return json({ ok: true }, origin);
   }
 
+  // ── PASSWORD RESET VIA EMAILED CODE ──────────────────────────────────────
+  // request: generate a short code, store it (hashed, TTL) and email it to the
+  // account's inbox. confirm: check the pasted code and set the new password.
+  // Works for any journal/entryId lock (MyList, journals, app-locks, tab-locks)
+  // and for profile passwords. The code is generated + verified server-side and
+  // never returned to the client, so possessing the emailed code is required.
+  if (path === '/auth/reset/request') {
+    const key = resetKeyFor(body);
+    if (!key) return json({ ok: false, error: 'missing fields' }, origin, 400);
+    const lock = await getJSON(env, key);
+    if (!lock) return json({ ok: false, noLock: true }, origin);
+    const email = String(body.email || '').trim().toLowerCase();
+    const form = RESET_TARGETS[email];
+    if (!form) return json({ ok: false, error: 'bad email' }, origin, 400);
+    const code = genResetCode();
+    const codeRec = await makeHash(code);
+    await env.TOKEN_CACHE.put('reset:' + key,
+      JSON.stringify({ code: codeRec, exp: Date.now() + RESET_TTL * 1000, tries: 0 }),
+      { expirationTtl: RESET_TTL });
+    const appName = String(body.appName || 'App').slice(0, 40);
+    const label   = String(body.label || 'your account').slice(0, 80);
+    let sent;
+    try {
+      sent = await fetch(form, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          email,
+          subject: appName + ' — Password Reset Code',
+          message: 'Your password reset code for ' + label + ' is:\n\n    ' + code +
+                   '\n\nEnter this code in ' + appName + ' to set a new password. ' +
+                   'It expires in 15 minutes. If you did not request this, you can ignore this email.\n\n— ' + appName
+        })
+      });
+    } catch (e) { sent = { ok: false }; }
+    if (!sent || !sent.ok) return json({ ok: false, error: 'email failed' }, origin, 502);
+    return json({ ok: true }, origin);
+  }
+
+  if (path === '/auth/reset/confirm') {
+    const key = resetKeyFor(body);
+    const code = String(body.code || '').trim().toUpperCase();
+    const password = body.password;
+    if (!key || !code || !password) return json({ ok: false, error: 'missing fields' }, origin, 400);
+    const rr = await getJSON(env, 'reset:' + key);
+    if (!rr) return json({ ok: false, error: 'expired' }, origin);
+    if (Date.now() > (rr.exp || 0)) { await env.TOKEN_CACHE.delete('reset:' + key); return json({ ok: false, error: 'expired' }, origin); }
+    const good = await verifyHash(code, rr.code);
+    if (!good) {
+      rr.tries = (rr.tries || 0) + 1;
+      if (rr.tries >= RESET_MAX_TRIES) { await env.TOKEN_CACHE.delete('reset:' + key); return json({ ok: false, error: 'locked' }, origin); }
+      // Preserve the original TTL window rather than resetting it on each try.
+      const remainingTtl = Math.max(60, Math.ceil(((rr.exp || 0) - Date.now()) / 1000));
+      await env.TOKEN_CACHE.put('reset:' + key, JSON.stringify(rr), { expirationTtl: remainingTtl });
+      return json({ ok: false, error: 'badcode', remaining: RESET_MAX_TRIES - rr.tries }, origin);
+    }
+    const newRec = await makeHash(password);
+    if (body.profile) {
+      await env.TOKEN_CACHE.put(pKey(body.profile), JSON.stringify(newRec));
+    } else {
+      newRec.hint = typeof body.hint === 'string' ? body.hint : '';
+      await env.TOKEN_CACHE.put(jKey(body.journal, body.entryId), JSON.stringify(newRec));
+    }
+    await env.TOKEN_CACHE.delete('reset:' + key);
+    return json({ ok: true }, origin);
+  }
+
   return json({ ok: false, error: 'unknown route' }, origin, 404);
 }
 
@@ -522,6 +589,28 @@ async function verifyHash(password, rec) {
   let diff = 0;
   for (let i = 0; i < got.length; i++) diff |= got[i] ^ want[i];
   return diff === 0;
+}
+
+// ── Password-reset codes (emailed) ──────────────────────────────────────────
+const RESET_TTL = 15 * 60;      // seconds a code stays valid
+const RESET_MAX_TRIES = 6;      // wrong guesses before a code is burned
+// Only these inboxes may receive a reset code, each mapped to its Formspree form.
+// The map is server-side so a caller can never redirect a code to another address.
+const RESET_TARGETS = {
+  'anthonypn99@gmail.com':    'https://formspree.io/f/xeedkebo',
+  'vedaapatel1605@gmail.com': 'https://formspree.io/f/xzdlwaqg',
+};
+function resetKeyFor(body) {
+  if (body && body.profile) return pKey(body.profile);
+  if (body && body.journal && body.entryId) return jKey(body.journal, body.entryId);
+  return null;
+}
+function genResetCode() {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no I, L, O, 0, 1 (avoid confusion)
+  const r = crypto.getRandomValues(new Uint8Array(6));
+  let s = '';
+  for (let i = 0; i < 6; i++) s += alphabet[r[i] % alphabet.length];
+  return s;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
