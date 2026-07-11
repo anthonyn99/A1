@@ -18205,12 +18205,14 @@ window.hideBrainstormJournal = function() {
     submitBtn.style.display = '';
     cancelBtn.style.display = '';
     forgotBtn.style.display = '';
+    if (resetBtn) resetBtn.style.display = '';
     if (mode === 'setpw') {
       lockIcon.textContent = '🔐';
       lockTitle.textContent = 'Set a Password';
       lockSub.textContent = 'Choose a password for this entry. Unlock once on this device — it stays unlocked here until you re-lock it.';
       submitBtn.textContent = 'Set Password';
       forgotBtn.style.display = 'none';
+      if (resetBtn) resetBtn.style.display = 'none';
     } else if (mode === 'remove') {
       lockIcon.textContent = '🔓';
       lockTitle.textContent = 'Remove Lock';
@@ -18263,6 +18265,7 @@ window.hideBrainstormJournal = function() {
     lockSub.textContent = 'Manage lock for this entry.';
     if (inputWrap) inputWrap.style.display = 'none';
     forgotBtn.style.display = 'none';
+    if (resetBtn) resetBtn.style.display = 'none';
     var m = menuEl; m.innerHTML = ''; m.style.display = 'flex';
     if (!blIsUnlocked(entry.id)) {
       _blMenuBtn(m, '🔓  Unlock this device', '', function() { blShowOverlay('unlock'); });
@@ -18444,6 +18447,26 @@ window.hideBrainstormJournal = function() {
       forgotBtn.textContent = 'Failed - try again';
       forgotBtn.disabled = false;
     }
+  });
+
+  // Reset password via emailed security code (Brainstorm Journal → Veda's email).
+  resetBtn && resetBtn.addEventListener('click', async function() {
+    var entry = state.entries.find(function(e) { return e.id === state.activeId; });
+    if (!entry) return;
+    if (!blGetLock(entry.id)) { errEl.textContent = 'No lock set on this entry.'; return; }
+    var prev = resetBtn.textContent; resetBtn.textContent = 'Sending code…'; resetBtn.disabled = true;
+    await window._pwReset({
+      worker: BJ_AUTH,
+      reqBody: { journal: 'bj', entryId: entry.id },
+      email: 'vedaapatel1605@gmail.com',
+      appName: 'Brainstorm Journal',
+      label: 'entry "' + (entry.title || 'Untitled') + '"',
+      onSuccess: function() {
+        blSetLock(entry.id); blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn();
+        try { loadActiveEntry(); renderSidebar(); } catch(e) {}
+      }
+    });
+    resetBtn.textContent = prev; resetBtn.disabled = false;
   });
 
   // Patch loadActiveEntry to run lock check after loading
@@ -24062,10 +24085,14 @@ window.tjSwitchTo = function(app) {
     var entry = state.entries.find(function(e) { return e.id === id; });
     return (entry && entry.lock) ? entry.lock : null;
   }
-  function tlSetLock(id) {
+  function tlLockVersion(id) {
+    var entry = state.entries.find(function(e) { return e.id === id; });
+    return (entry && entry.lock && entry.lock.v) || 0;
+  }
+  function tlSetLock(id, v) {
     var entry = state.entries.find(function(e) { return e.id === id; });
     if (!entry) return;
-    entry.lock = { locked: true };
+    entry.lock = { locked: true, v: v || Date.now() };
     entry.updated = Date.now();
     saveState();
   }
@@ -24077,9 +24104,23 @@ window.tjSwitchTo = function(app) {
     saveState();
   }
   function tlUnlockedKey(id) { return 'tj_unlocked_' + id; }
-  function tlIsUnlocked(id) { return !!_tjUnlocked[id] || localStorage.getItem('tj_unlocked_'+id)==='1' || sessionStorage.getItem('tj_unlocked_'+id)==='1'; }
-  function tlMarkUnlocked(id) { _tjUnlocked[id] = true; try{localStorage.setItem('tj_unlocked_'+id,'1');}catch(e){} try{sessionStorage.setItem('tj_unlocked_'+id,'1');}catch(e){} }
-  function tlMarkLocked(id) { delete _tjUnlocked[id]; try{localStorage.removeItem('tj_unlocked_'+id);}catch(e){} try{sessionStorage.removeItem('tj_unlocked_'+id);}catch(e){} }
+  function tlIsUnlocked(id) {
+    var v = tlLockVersion(id);
+    if (!v) { return !!_tjUnlocked[id] || localStorage.getItem('tj_unlocked_'+id)==='1' || sessionStorage.getItem('tj_unlocked_'+id)==='1'; }
+    var want = 'v' + v;
+    return localStorage.getItem('tj_unlockedv_'+id)===want || sessionStorage.getItem('tj_unlockedv_'+id)===want;
+  }
+  function tlMarkUnlocked(id) {
+    _tjUnlocked[id] = true;
+    var v = tlLockVersion(id);
+    if (!v) { try{localStorage.setItem('tj_unlocked_'+id,'1');}catch(e){} try{sessionStorage.setItem('tj_unlocked_'+id,'1');}catch(e){} }
+    else { try{localStorage.setItem('tj_unlockedv_'+id,'v'+v);}catch(e){} try{sessionStorage.setItem('tj_unlockedv_'+id,'v'+v);}catch(e){} }
+  }
+  function tlMarkLocked(id) {
+    delete _tjUnlocked[id];
+    try{localStorage.removeItem('tj_unlocked_'+id);localStorage.removeItem('tj_unlockedv_'+id);}catch(e){}
+    try{sessionStorage.removeItem('tj_unlocked_'+id);sessionStorage.removeItem('tj_unlockedv_'+id);}catch(e){}
+  }
 
   // Simple hash (SHA-256 via subtle crypto)
   async function tlHash(str) {
@@ -24094,6 +24135,7 @@ window.tjSwitchTo = function(app) {
   var submitBtn = document.getElementById('tj-lock-submit');
   var errEl = document.getElementById('tj-lock-err');
   var forgotBtn = document.getElementById('tj-lock-forgot');
+  var resetBtn = document.getElementById('tj-lock-reset');
   var lockIcon = document.getElementById('tj-lock-icon');
   var lockTitle = document.getElementById('tj-lock-title');
   var lockSub = document.getElementById('tj-lock-sub');
@@ -24115,12 +24157,14 @@ window.tjSwitchTo = function(app) {
     submitBtn.style.display = '';
     cancelBtn.style.display = '';
     forgotBtn.style.display = '';
+    if (resetBtn) resetBtn.style.display = '';
     if (mode === 'setpw') {
       lockIcon.textContent = '🔐';
       lockTitle.textContent = 'Set a Password';
       lockSub.textContent = 'Choose a password for this entry. Unlock once on this device — it stays unlocked here until you re-lock it.';
       submitBtn.textContent = 'Set Password';
       forgotBtn.style.display = 'none';
+      if (resetBtn) resetBtn.style.display = 'none';
     } else if (mode === 'remove') {
       lockIcon.textContent = '🔓';
       lockTitle.textContent = 'Remove Lock';
@@ -24173,6 +24217,7 @@ window.tjSwitchTo = function(app) {
     lockSub.textContent = 'Manage lock for this entry.';
     if (inputWrap) inputWrap.style.display = 'none';
     forgotBtn.style.display = 'none';
+    if (resetBtn) resetBtn.style.display = 'none';
     var m = menuEl; m.innerHTML = ''; m.style.display = 'flex';
     if (!tlIsUnlocked(entry.id)) {
       _tlMenuBtn(m, '🔓  Unlock this device', '', function() { tlShowOverlay('unlock'); });
