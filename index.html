@@ -3629,7 +3629,16 @@ function App(){
           if(oIdx>=0)oArr.splice(oIdx,1);
           if(oArr.length)next[dk2]=oArr;else delete next[dk2];
         }
-        const pushOcc=(dt)=>{const ck=dkey(dt.getFullYear(),dt.getMonth(),dt.getDate());const arr=[...(next[ck]||[])];arr.push({...item,id:uid(),repeatId:rid,done:false,_originalId:undefined});next[ck]=arr;};
+        // The reminder (notifyAt/notifyRepeat/…) belongs to the SINGLE logical
+        // task, not to every calendar occurrence. Copying it onto every occurrence
+        // made the local banner scanner register one reminder PER occurrence — and
+        // when the notification itself wasn't repeating (notifyRepeatId=null) each
+        // occurrence got a DISTINCT dedup key, so one reminder fired N times. Keep
+        // the reminder ONLY on the first occurrence (reusing item.id so its scan
+        // registration dedups with the thScheduleNotif registration below); strip
+        // the reminder fields from every later occurrence.
+        let firstOcc=true;
+        const pushOcc=(dt)=>{const ck=dkey(dt.getFullYear(),dt.getMonth(),dt.getDate());const arr=[...(next[ck]||[])];const occ={...item,id:firstOcc?item.id:uid(),repeatId:rid,done:false,_originalId:undefined};if(!firstOcc){occ.notifyAt=null;occ.notifyRepeat="none";occ.notifyRepeatDays=[];occ.notifyRepeatId=null;}firstOcc=false;arr.push(occ);next[ck]=arr;};
         if(ri.mode==="daily"||ri.mode==="weekly"){
           const c=new Date(sd);
           while(c<=ed){
@@ -9762,7 +9771,12 @@ function App(){
       if(ri==="cancelRepeat"){const rid=item.repeatId||item.altSeqId;const cutoff=new Date(dk2);Object.keys(next).forEach(k=>{const kd=new Date(k);if(rid&&kd>=cutoff){next[k]=(next[k]||[]).filter(t=>(t.repeatId!==rid&&t.altSeqId!==rid)||t.id===item.id);}});const items=[...(next[dk2]||[])];const idx=items.findIndex(t=>t.id===item.id);const cleaned={...item,repeat:"none",repeatId:undefined,repeatDays:undefined,repeatEndDate:undefined,altSeqId:undefined,altSeqTitles:undefined,altSeqIdx:undefined,altSeqEndDate:undefined};if(idx>=0)items[idx]=cleaned;else items.push(cleaned);next[dk2]=items.filter(Boolean);}
       else if(!ri){const items=[...(next[dk2]||[])];const idx=items.findIndex(t=>t.id===item.id);if(idx>=0)items[idx]=item;else items.push(item);next[dk2]=items;}
       else if(ri.mode==="altSeq"){const seqId=uid();const parts=dk2.split("-");const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);const titles=ri.titles;let dayCount=0;const c=new Date(sd);while(c<=ed){const ck=dkey(c.getFullYear(),c.getMonth(),c.getDate());const seqIdx=dayCount%titles.length;const arr=[...(next[ck]||[])];arr.push({...item,id:uid(),title:titles[seqIdx],altSeqId:seqId,altSeqIdx:seqIdx,altSeqTitles:titles,altSeqEndDate:ri.endDate,done:false,_originalId:undefined,repeat:"none"});next[ck]=arr;c.setDate(c.getDate()+1);dayCount++;}}
-      else{const rid=uid();const parts=dk2.split("-");const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);const pushOcc=(dt)=>{const ck=dkey(dt.getFullYear(),dt.getMonth(),dt.getDate());const di=[...(next[ck]||[])];di.push({...item,id:uid(),repeatId:rid,done:false});next[ck]=di;};if(ri.mode==="daily"||ri.mode==="weekly"){const c=new Date(sd);while(c<=ed){if(ri.mode==="daily"||ri.days.includes(toMonIdx(c.getDay())))pushOcc(c);c.setDate(c.getDate()+1);}}else if(ri.mode==="monthly"){const anchorDay=sd.getDate();let y=sd.getFullYear(),m=sd.getMonth(),g=0;while(g++<600){const dim=dimM(y,m);const dt=new Date(y,m,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);m++;if(m>11){m=0;y++;}}}else if(ri.mode==="annually"){const anchorMonth=sd.getMonth(),anchorDay=sd.getDate();let y=sd.getFullYear(),g=0;while(g++<50){const dim=dimM(y,anchorMonth);const dt=new Date(y,anchorMonth,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);y++;}}}
+      else{const rid=uid();const parts=dk2.split("-");const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);
+        // Keep the reminder ONLY on the first occurrence (reusing item.id so its
+        // scan registration dedups with the thScheduleNotif call); strip the
+        // reminder fields from later occurrences so one reminder can't fire once
+        // per occurrence. See the matching comment in the Tony TaskHub above.
+        let firstOcc=true;const pushOcc=(dt)=>{const ck=dkey(dt.getFullYear(),dt.getMonth(),dt.getDate());const di=[...(next[ck]||[])];const occ={...item,id:firstOcc?item.id:uid(),repeatId:rid,done:false};if(!firstOcc){occ.notifyAt=null;occ.notifyRepeat="none";occ.notifyRepeatDays=[];occ.notifyRepeatId=null;}firstOcc=false;di.push(occ);next[ck]=di;};if(ri.mode==="daily"||ri.mode==="weekly"){const c=new Date(sd);while(c<=ed){if(ri.mode==="daily"||ri.days.includes(toMonIdx(c.getDay())))pushOcc(c);c.setDate(c.getDate()+1);}}else if(ri.mode==="monthly"){const anchorDay=sd.getDate();let y=sd.getFullYear(),m=sd.getMonth(),g=0;while(g++<600){const dim=dimM(y,m);const dt=new Date(y,m,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);m++;if(m>11){m=0;y++;}}}else if(ri.mode==="annually"){const anchorMonth=sd.getMonth(),anchorDay=sd.getDate();let y=sd.getFullYear(),g=0;while(g++<50){const dim=dimM(y,anchorMonth);const dt=new Date(y,anchorMonth,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);y++;}}}
     return next;});
   },[]);
   const titleEditThisOnly=useCallback(()=>{if(!titleEditConfirm)return;const{dateKey,item,isAltSeq}=titleEditConfirm;setData(prev=>{const arr=[...(prev[dateKey]||[])];const idx=arr.findIndex(t=>t.id===item.id);if(isAltSeq){const detached={...item,altSeqId:undefined,altSeqIdx:undefined,altSeqTitles:undefined,altSeqEndDate:undefined};if(idx>=0)arr[idx]=detached;else arr.push(detached);}else{const detached={...item,id:uid(),repeat:"none",repeatId:undefined,repeatDays:undefined,repeatEndDate:undefined};if(idx>=0)arr[idx]=detached;else arr.push(detached);}return{...prev,[dateKey]:arr};});setTitleEditConfirm(null);},[titleEditConfirm]);
@@ -10646,9 +10660,29 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // worker can't target it (the "desktop got it, phone didn't" bug).
   window._fcmEnsureToken=function(){return ensureFCMToken().catch(()=>null);};
 
+  // Tell the service worker this device's current main dashboard so its
+  // onBackgroundMessage scope gate (shouldShowForDash) can drop wrong-profile
+  // OS notifications when the app is CLOSED — the SW can't read localStorage at
+  // that moment. Nothing used to post this, so the SW's stored main stayed null
+  // and it showed EVERY push regardless of profile. Post to the active/waiting
+  // SW (controller may be null right after a hard reload).
+  async function tellSWMainDash(mainDash){
+    try{
+      if(!('serviceWorker' in navigator))return;
+      const reg=await navigator.serviceWorker.getRegistration('./');
+      const sw=(reg&&(reg.active||reg.waiting))||navigator.serviceWorker.controller;
+      if(sw)sw.postMessage({type:'th-set-maindash',mainDash:mainDash||'all'});
+    }catch(e){}
+  }
+  // Push the current main to the SW once on load (and retry shortly, since the SW
+  // may still be installing at first paint).
+  tellSWMainDash(localStorage.getItem('td6_mainDash')||'all');
+  setTimeout(function(){tellSWMainDash(localStorage.getItem('td6_mainDash')||'all');},4000);
+
   // Called when user changes main dashboard — updates Firestore token doc
   window._updateFCMMainDash=async function(mainDash){
     const devId=getDeviceId();
+    tellSWMainDash(mainDash||'all');
     try{await _authReady;await setDoc(doc(db,'fcm_tokens',devId),{mainDash,updatedAt:Date.now()},{merge:true});}catch(e){}
   };
 
@@ -10940,6 +10974,15 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     onMessage(messaging,payload=>{
       const id=payload.data?.id||'';
       const title=payload.notification?.body||payload.data?.title||'TaskHub Reminder';
+      // SCOPE GATE: a profile-scoped reminder (tony/veda) must NEVER banner on a
+      // device whose CURRENT main dashboard is the other profile. The Worker
+      // already filters sends by each token's mainDash, but that stored copy can
+      // be stale (device switched main while offline, or the token doc write
+      // failed), so a wrong-profile push can still arrive here. Re-check against
+      // live localStorage — mirrors the poll's shouldFire() and the SW's gate.
+      const dash=payload.data?.dash||'all';
+      const mainD=localStorage.getItem('td6_mainDash')||'all';
+      if(dash!=='all'&&mainD!==dash)return;
       // Dedup on the OCCURRENCE key (series+minute), shared with the polling
       // engine via the same fired-set, so one reminder can't fire from both
       // the foreground FCM push AND the poll loop. Falls back to raw id.
@@ -10962,6 +11005,10 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     navigator.serviceWorker.addEventListener('message',function(e){
       var msg=e.data||{};
       if(msg.type!=='th-notif-banner')return;
+      // Same profile scope gate as the foreground onMessage path (above).
+      var dash=msg.dash||'all';
+      var mainD=localStorage.getItem('td6_mainDash')||'all';
+      if(dash!=='all'&&mainD!==dash)return;
       var ok=fcmOccKey(msg.id)||msg.id;
       if(ok){ if(hasFired(ok))return; markFired(ok); }
       showBanner(msg.body||'TaskHub Reminder');
