@@ -5126,6 +5126,7 @@ function alShowManageMenu(){
   _el('applock-title').style.color=AC;
   _el('applock-submit').style.display='none';
   _el('applock-forgot').style.display='none';
+  if (_el('applock-reset')) _el('applock-reset').style.display='none';
   _el('applock-cancel').style.display='';
   _el('applock-sub').textContent = isUnlocked ? 'TradeHub is locked. Manage:' : 'TradeHub is locked. Choose:';
   var existing=_el('al-menu-btns'); if(existing) existing.remove();
