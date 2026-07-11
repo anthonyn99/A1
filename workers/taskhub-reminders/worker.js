@@ -576,12 +576,6 @@ async function verifyHash(password, rec) {
 // ── Password-reset codes (emailed) ──────────────────────────────────────────
 const RESET_TTL = 15 * 60;      // seconds a code stays valid
 const RESET_MAX_TRIES = 6;      // wrong guesses before a code is burned
-// Only these inboxes may receive a reset code, each mapped to its Formspree form.
-// The map is server-side so a caller can never redirect a code to another address.
-const RESET_TARGETS = {
-  'anthonypn99@gmail.com':    'https://formspree.io/f/xeedkebo',
-  'vedaapatel1605@gmail.com': 'https://formspree.io/f/xzdlwaqg',
-};
 function resetKeyFor(body) {
   if (body && body.profile) return pKey(body.profile);
   if (body && body.journal && body.entryId) return jKey(body.journal, body.entryId);
