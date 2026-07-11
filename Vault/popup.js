@@ -60,7 +60,7 @@ gripEl.addEventListener("pointerup", endGrip);
 gripEl.addEventListener("pointercancel", endGrip);
 
 // Same palette Keychain uses for connection colours, for a consistent look.
-const CD = ['#a8d8c0','#a0c8e8','#f5e88a','#f0a8c8','#c4a0e8','#40d8a8','#40a8f0','#f5c800','#f04898','#f07020','#9b72cf','#50cc30','#10b8d0','#e03060','#ffd93d','#7b5ea7'];
+const CD = ['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
 
 let connections = [];
 let colmap = null;          // Keychain's column map (index-aligned to connections)

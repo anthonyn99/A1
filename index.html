@@ -6128,7 +6128,7 @@ const THEMES={
   dark:{bg:'#0f0f12',s1:'#141418',s2:'#1a1a20',s3:'#202028',bd:'#252530',bdl:'#323240',tx:'#ececf0',txd:'#9898a8',txm:'#58586a',ac:'#E0607A',shadow:'rgba(0,0,0,.55)'},
   light:{bg:'#EAE3E7',s1:'#E5DCE0',s2:'#DDD4D8',s3:'#D4CAD0',bd:'#C8B8C0',bdl:'#BCA8B0',tx:'#2A1F24',txd:'#6B5560',txm:'#A0909A',ac:'#D4607A',shadow:'rgba(42,31,36,0.12)'}
 };
-const CD=['#a8d8c0','#a0c8e8','#f5e88a','#f0a8c8','#c4a0e8','#40d8a8','#40a8f0','#f5c800','#f04898','#f07020','#9b72cf','#50cc30','#10b8d0','#e03060','#ffd93d','#7b5ea7'];
+const CD=['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
 // CL removed — light mode uses same palette as dark mode
 const COPY_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
@@ -11375,7 +11375,7 @@ const THEMES={
   dark:{bg:'#0f0f12',s1:'#141418',s2:'#1a1a20',s3:'#202028',bd:'#252530',bdl:'#323240',tx:'#ececf0',txd:'#9898a8',txm:'#58586a',ac:'#E0607A',shadow:'rgba(0,0,0,.55)'},
   light:{bg:'#EAE3E7',s1:'#E5DCE0',s2:'#DDD4D8',s3:'#D4CAD0',bd:'#C8B8C0',bdl:'#BCA8B0',tx:'#2A1F24',txd:'#6B5560',txm:'#A0909A',ac:'#D4607A',shadow:'rgba(42,31,36,0.12)'}
 };
-const CD=['#a8d8c0','#a0c8e8','#f5e88a','#f0a8c8','#c4a0e8','#40d8a8','#40a8f0','#f5c800','#f04898','#f07020','#9b72cf','#50cc30','#10b8d0','#e03060','#ffd93d','#7b5ea7'];
+const CD=['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
 // CL removed — light mode uses same palette as dark mode
 const COPY_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
@@ -12155,6 +12155,27 @@ window.kcFavicon=function(u){
   }catch(_){ return ''; }
 };
 
+// Shared pastel palette + non-destructive remap. Existing connections keep their
+// stored color in Firestore, but display maps to the nearest pastel by hue so
+// Keychain/Links/Vault all look uniformly pastel. Re-picking saves a real pastel.
+window._KC_PALETTE=['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
+window._pastelize=function(hex){
+  var P=window._KC_PALETTE;
+  if(!hex) return P[0];
+  hex=String(hex).toLowerCase();
+  if(P.indexOf(hex)>=0) return hex;
+  function hs(h){h=h.replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;
+    var mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn,H=0;
+    if(d){if(mx===r)H=((g-b)/d)%6;else if(mx===g)H=(b-r)/d+2;else H=(r-g)/d+4;H*=60;if(H<0)H+=360;}
+    return {h:H,s:mx?d/mx:0};}
+  var src;try{src=hs(hex);}catch(_){return P[0];}
+  if(src.s<0.08) return P[0];
+  var best=P[0],bd=1e9;
+  for(var i=0;i<P.length;i++){var t=hs(P[i]);var dh=Math.abs(t.h-src.h);if(dh>180)dh=360-dh;if(dh<bd){bd=dh;best=P[i];}}
+  return best;
+};
+
 })();
 })();
 </script>
@@ -12350,7 +12371,7 @@ const VDKC_THEMES={
   dark:{bg:'#1B1C1E',s1:'#26272A',s2:'#303135',s3:'#3A3B40',bd:'#3D3E43',bdl:'#4A4B52',tx:'#ECECEE',txd:'#AFB0B5',txm:'#76777C',ac:'#8D769A',err:'#E74C3C',shadow:'rgba(0,0,0,0.55)'},
   light:{bg:'#1B1C1E',s1:'#26272A',s2:'#303135',s3:'#3A3B40',bd:'#3D3E43',bdl:'#4A4B52',tx:'#ECECEE',txd:'#AFB0B5',txm:'#76777C',ac:'#8D769A',err:'#E74C3C',shadow:'rgba(0,0,0,0.55)'}
 };
-const VDKC_CD=['#a8d8c0','#a0c8e8','#c8b0f0','#f0a8c8','#c4a0e8','#40d8a8','#40a8f0','#9050f0','#f04898','#f07020','#9b72cf','#50cc30','#10b8d0','#e03060','#7040e8','#7b5ea7'];
+const VDKC_CD=['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
 const VDKC_COPY_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
 let vdkc_isDark=true,vdkc_isEdit=false;
