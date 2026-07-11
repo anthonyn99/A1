@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vault</title>
+  <style>
+    /* Keychain dark palette (from index.html #kc-root) */
+    :root {
+      --bg:#0f0f12; --s1:#141418; --s2:#1a1a20; --s3:#202028;
+      --bd:#252530; --bdl:#323240; --tx:#ececf0; --txd:#9898a8;
+      --txm:#58586a; --ac:#E0607A; --shadow:rgba(0,0,0,.55);
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      width:344px; max-height:560px; overflow-y:auto;
+      background:var(--bg); color:var(--tx);
+      font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    body::-webkit-scrollbar { width:6px; }
+    body::-webkit-scrollbar-thumb { background:var(--bd); border-radius:3px; }
+
+    /* ── Header ── */
+    header {
+      position:sticky; top:0; z-index:5;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 16px 12px;
+      background:var(--bg); border-bottom:1px solid var(--bd);
+    }
+    .logo { font-size:19px; font-weight:800; letter-spacing:.3px; }
+    .logo .base { color:var(--tx); }
+    .logo .dot  { color:var(--ac); }
+    .sync {
+      font-size:10px; font-weight:600; color:var(--txd);
+      min-height:13px; margin-top:2px; white-space:nowrap;
+    }
+    .sync.saving { color:var(--ac); }
+    .sync.error  { color:#e07070; }
+    .gear {
+      background:none; border:none; color:var(--txd);
+      width:30px; height:30px; border-radius:8px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:background .15s,color .15s;
+    }
+    .gear:hover { background:var(--s2); color:var(--tx); }
+
+    /* ── Tabs ── */
+    .tabs { display:flex; gap:6px; padding:10px 16px 4px; }
+    .tab {
+      flex:1; background:var(--s1); border:1px solid var(--bd);
+      color:var(--txd); font-size:12px; font-weight:600;
+      padding:8px; border-radius:9px; cursor:pointer;
+      transition:all .15s;
+    }
+    .tab:hover { color:var(--tx); }
+    .tab.active { background:var(--s3); color:var(--tx); border-color:var(--bdl); }
+
+    .panel { padding:8px 16px 16px; }
+    .hidden { display:none; }
+
+    /* ── Group cards ── */
+    .card {
+      background:var(--s1); border:1px solid var(--bd);
+      border-left:3px solid var(--card-accent,var(--ac));
+      border-radius:12px; padding:11px 12px 10px; margin-bottom:10px;
+    }
+    .card-top {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:8px; margin-bottom:8px;
+    }
+    .card-name {
+      font-size:13px; font-weight:700; color:var(--tx);
+      display:flex; align-items:center; gap:7px; min-width:0;
+    }
+    .card-dot {
+      width:8px; height:8px; border-radius:50%;
+      background:var(--card-accent,var(--ac)); flex-shrink:0;
+    }
+    .card-name span {
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .open-group {
+      flex-shrink:0; background:var(--card-accent,var(--ac)); color:#12000a;
+      border:none; border-radius:7px; padding:5px 10px;
+      font-size:11px; font-weight:700; cursor:pointer;
+      transition:filter .15s,transform .05s; white-space:nowrap;
+    }
+    .open-group:hover { filter:brightness(1.12); }
+    .open-group:active { transform:scale(.97); }
+    .open-group:disabled { opacity:.35; cursor:not-allowed; }
+
+    .link-row {
+      display:flex; align-items:center; gap:8px;
+      padding:5px 0; min-width:0;
+    }
+    .link-name {
+      flex:1; font-size:12px; color:var(--txd);
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .icon-btn {
+      flex-shrink:0; background:var(--s3); border:1px solid var(--bd);
+      color:var(--txd); border-radius:6px; padding:3px 9px;
+      font-size:11px; font-weight:600; cursor:pointer; line-height:1.4;
+      display:inline-flex; align-items:center; justify-content:center;
+      transition:all .15s;
+    }
+    .icon-btn:hover { color:var(--tx); border-color:var(--bdl); }
+    .icon-btn.visit:hover { background:var(--ac); color:#12000a; border-color:var(--ac); }
+    .no-links { font-size:11px; color:var(--txm); padding:2px 0; }
+
+    /* ── Open everything ── */
+    .open-all {
+      width:100%; background:var(--ac); color:#12000a; border:none;
+      border-radius:11px; padding:11px; font-size:13px; font-weight:700;
+      cursor:pointer; margin-top:2px;
+      transition:filter .15s,transform .05s;
+    }
+    .open-all:hover { filter:brightness(1.1); }
+    .open-all:active { transform:scale(.99); }
+    .open-all:disabled { background:var(--s2); color:var(--txm); cursor:not-allowed; }
+
+    /* ── States ── */
+    .placeholder, .empty {
+      border:1px dashed var(--bd); border-radius:12px;
+      padding:26px 16px; text-align:center;
+      font-size:12px; color:var(--txd); line-height:1.7;
+    }
+    .placeholder .big { font-size:22px; display:block; margin-bottom:8px; }
+    .loading { text-align:center; color:var(--txm); font-size:12px; padding:30px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="logo"><span class="base">V</span><span class="dot">ault</span></div>
+      <div class="sync" id="sync"></div>
+    </div>
+    <button class="gear" id="gear" title="Manage links">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-links" data-panel="links">Links</button>
+    <button class="tab" id="tab-pw" data-panel="passwords">Passwords</button>
+  </div>
+
+  <div class="panel" id="panel-links">
+    <div class="loading" id="loading">Loading from Keychain…</div>
+    <div id="groups"></div>
+    <button class="open-all hidden" id="openAll">Open Everything</button>
+  </div>
+
+  <div class="panel hidden" id="panel-passwords">
+    <div class="placeholder">
+      <span class="big">🔒</span>
+      <strong>Passwords</strong><br />
+      Secure storage for usernames, passwords &amp; login info is coming in a
+      future update.
+    </div>
+  </div>
+
+  <div id="toast" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--s3);border:1px solid var(--bdl);color:var(--tx);font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;opacity:0;transition:all .2s;pointer-events:none;">Copied!</div>
+
+  <script src="firestore.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
