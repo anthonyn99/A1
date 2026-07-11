@@ -18373,6 +18373,7 @@ window.hideBrainstormJournal = function() {
   var inputWrap = document.getElementById('bj-lock-input-wrap');
   var bioEl = document.getElementById('bj-lock-bio');
   var blMode = 'unlock';
+  var _blRemoveBioId = null;   // when set to an entry id, a successful unlock removes that entry's biometric
 
   // ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
   // Primary unlock per entry; the password stays available as the fallback.
@@ -18407,10 +18408,26 @@ window.hideBrainstormJournal = function() {
     errEl.textContent = '';
     var id = state.activeId; if (!id || !window.Bio) return;
     window.Bio.authenticate('bj', id).then(function(r) {
-      if (r.ok) { blMarkUnlocked(id); blHideOverlay(); blUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} }
+      if (r.ok) {
+        if (_blRemoveBioId === id) { blDoRemoveBio(id); return; }
+        blMarkUnlocked(id); blHideOverlay(); blUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {}
+      }
       else if (r.error === 'notregistered') { blBioShowInput(true); }
       else { errEl.textContent = 'Biometric check failed — use your password.'; blBioShowInput(true); }
     });
+  }
+  // Verify identity (biometric OR password) before removing this entry's biometric.
+  function blBioRemovePrompt(id) {
+    blShowOverlay('unlock');
+    _blRemoveBioId = id;
+    lockIcon.textContent = '👤';
+    lockSub.textContent = 'Verify with ' + window.Bio.label() + ' or your password to remove biometrics from this device.';
+  }
+  function blDoRemoveBio(id) {
+    _blRemoveBioId = null;
+    window.Bio.unregister('bj', id);
+    blHideOverlay(); blUpdateLockBtn();
+    window.uiAlert('Biometrics removed from this device.');
   }
   function blBioRegister(id, closeAfter) {
     if (!window.Bio) return;
@@ -18423,7 +18440,7 @@ window.hideBrainstormJournal = function() {
     if (!window.Bio) return;
     window.Bio.available().then(function(avail) {
       if (!avail || window.Bio.isRegistered('bj', id)) return;
-      if (confirm('Register ' + window.Bio.label() + ' to unlock this entry on this device? Your password still works as a fallback.')) blBioRegister(id, false);
+      window.uiConfirm('Register ' + window.Bio.label() + ' to unlock this entry on this device? Your password still works as a fallback.', { title: 'Register ' + window.Bio.label(), okLabel: 'Register' }).then(function(ok) { if (ok) blBioRegister(id, false); });
     });
   }
 
@@ -18434,6 +18451,7 @@ window.hideBrainstormJournal = function() {
     if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
     if (inputWrap) inputWrap.style.display = '';
     if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
+    _blRemoveBioId = null;   // cleared on any normal open; blBioRemovePrompt re-sets it after
     errEl.textContent = '';
     pwInput.value = '';
     pwInput.style.display = '';   // restore in case a prior biometric prompt hid it
@@ -18474,6 +18492,7 @@ window.hideBrainstormJournal = function() {
     if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
     if (inputWrap) inputWrap.style.display = '';
     if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
+    _blRemoveBioId = null;
   }
 
   function blLockErr(msg) {
@@ -18518,7 +18537,7 @@ window.hideBrainstormJournal = function() {
     if (window.Bio) window.Bio.available().then(function(avail) {
       if (!avail || state.activeId !== entry.id) return;
       if (window.Bio.isRegistered('bj', entry.id))
-        _blMenuBtn(m, '👤  Remove biometrics', 'ghost', function() { window.Bio.unregister('bj', entry.id); blHideOverlay(); alert('Biometrics removed from this device.'); }, changeBtn);
+        _blMenuBtn(m, '👤  Remove biometrics', 'ghost', function() { blBioRemovePrompt(entry.id); }, changeBtn);
       else
         _blMenuBtn(m, '👤  Register ' + window.Bio.label(), '', function() { blBioRegister(entry.id, true); }, changeBtn);
     });
@@ -18638,8 +18657,8 @@ window.hideBrainstormJournal = function() {
         });
         var data4 = await res4.json();
         if (data4.ok) {
-          blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn();
-          try { loadActiveEntry(); renderSidebar(); } catch(e) {}
+          if (_blRemoveBioId === entry.id) { blDoRemoveBio(entry.id); }
+          else { blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} }
         } else blLockErr('Wrong password.');
       }
     } catch(e) { errEl.textContent = 'Network error. Try again.'; }
@@ -24396,6 +24415,7 @@ window.tjSwitchTo = function(app) {
   var inputWrap = document.getElementById('tj-lock-input-wrap');
   var bioEl = document.getElementById('tj-lock-bio');
   var tlMode = 'unlock';
+  var _tlRemoveBioId = null;   // when set to an entry id, a successful unlock removes that entry's biometric
 
   // ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
   // Primary unlock per entry; password stays as the fallback. Keyed by entry id
@@ -24431,10 +24451,26 @@ window.tjSwitchTo = function(app) {
     errEl.textContent = '';
     var entry = getActive(); if (!entry || !window.Bio) return; var id = entry.id;
     window.Bio.authenticate('tj', id).then(function(r) {
-      if (r.ok) { tlMarkUnlocked(id); tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} }
+      if (r.ok) {
+        if (_tlRemoveBioId === id) { tlDoRemoveBio(id); return; }
+        tlMarkUnlocked(id); tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {}
+      }
       else if (r.error === 'notregistered') { tlBioShowInput(true); }
       else { errEl.textContent = 'Biometric check failed — use your password.'; tlBioShowInput(true); }
     });
+  }
+  // Verify identity (biometric OR password) before removing this entry's biometric.
+  function tlBioRemovePrompt(id) {
+    tlShowOverlay('unlock');
+    _tlRemoveBioId = id;
+    lockIcon.textContent = '👤';
+    lockSub.textContent = 'Verify with ' + window.Bio.label() + ' or your password to remove biometrics from this device.';
+  }
+  function tlDoRemoveBio(id) {
+    _tlRemoveBioId = null;
+    window.Bio.unregister('tj', id);
+    tlHideOverlay(); tlUpdateLockBtn();
+    window.uiAlert('Biometrics removed from this device.');
   }
   function tlBioRegister(id, closeAfter) {
     if (!window.Bio) return;
@@ -24447,7 +24483,7 @@ window.tjSwitchTo = function(app) {
     if (!window.Bio) return;
     window.Bio.available().then(function(avail) {
       if (!avail || window.Bio.isRegistered('tj', id)) return;
-      if (confirm('Register ' + window.Bio.label() + ' to unlock this entry on this device? Your password still works as a fallback.')) tlBioRegister(id, false);
+      window.uiConfirm('Register ' + window.Bio.label() + ' to unlock this entry on this device? Your password still works as a fallback.', { title: 'Register ' + window.Bio.label(), okLabel: 'Register' }).then(function(ok) { if (ok) tlBioRegister(id, false); });
     });
   }
 
@@ -24458,6 +24494,7 @@ window.tjSwitchTo = function(app) {
     if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
     if (inputWrap) inputWrap.style.display = '';
     if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
+    _tlRemoveBioId = null;   // cleared on any normal open; tlBioRemovePrompt re-sets it after
     errEl.textContent = '';
     pwInput.value = '';
     pwInput.style.display = '';   // restore in case a prior biometric prompt hid it
@@ -24498,6 +24535,7 @@ window.tjSwitchTo = function(app) {
     if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
     if (inputWrap) inputWrap.style.display = '';
     if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
+    _tlRemoveBioId = null;
   }
 
   function tlLockErr(msg) {
@@ -24543,7 +24581,7 @@ window.tjSwitchTo = function(app) {
       var cur = getActive();
       if (!avail || !cur || cur.id !== entry.id) return;
       if (window.Bio.isRegistered('tj', entry.id))
-        _tlMenuBtn(m, '👤  Remove biometrics', 'ghost', function() { window.Bio.unregister('tj', entry.id); tlHideOverlay(); alert('Biometrics removed from this device.'); }, changeBtn);
+        _tlMenuBtn(m, '👤  Remove biometrics', 'ghost', function() { tlBioRemovePrompt(entry.id); }, changeBtn);
       else
         _tlMenuBtn(m, '👤  Register ' + window.Bio.label(), '', function() { tlBioRegister(entry.id, true); }, changeBtn);
     });
@@ -24665,8 +24703,8 @@ window.tjSwitchTo = function(app) {
         });
         var data4 = await res4.json();
         if (data4.ok) {
-          tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn();
-          try { loadActiveEntry(); renderSidebar(); } catch(e) {}
+          if (_tlRemoveBioId === entry.id) { tlDoRemoveBio(entry.id); }
+          else { tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} }
         } else tlLockErr('Wrong password.');
       }
     } catch(e) { errEl.textContent = 'Network error. Try again.'; }
@@ -35997,6 +36035,7 @@ var _alWasVisibleOnOpen = false;
 var _alMode         = 'unlock';
 var _alAttempts     = {};
 var _alCooldowns    = {};
+var _alRemoveBioFor = null;   // when set to an appId, a successful unlock removes that app's biometric instead of unlocking
 
 // appId → DOM root element id(s) that render the app's content. Used to HIDE
 // content so a locked app is never visible before the password is entered.
@@ -36035,6 +36074,7 @@ function alShowOverlay(appId, mode, cb, onCancel) {
   _alPendingCb    = cb || null;
   _alOnCancel     = onCancel || null;
   _alMode         = mode;
+  _alRemoveBioFor = null;   // stale remove-bio intent cleared; alBioRemovePrompt re-sets it after this returns
   // If the app is ALREADY on screen, this is a voluntary "manage/unlock" of the
   // current program — canceling must NOT hide it. If it's hidden, this is an
   // access gate — canceling keeps it hidden. Used by the cancel handler.
@@ -36094,6 +36134,7 @@ function alHideOverlay() {
   _alOnCancel     = null;
   var m = _el('al-menu-btns'); if (m) m.remove();
   var bio = _el('applock-bio'); if (bio) { bio.innerHTML = ''; bio.style.display = 'none'; }
+  _alRemoveBioFor = null;
 }
 
 // ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
@@ -36134,6 +36175,8 @@ function alBioUnlock(appId) {
   if (!window.Bio) return;
   window.Bio.authenticate('applock', appId).then(function(r) {
     if (r.ok) {
+      // Identity verified: either finish removing biometrics, or unlock as usual.
+      if (_alRemoveBioFor === appId) { alDoRemoveBio(appId); return; }
       alMarkUnlocked(appId); _alAttempts[appId] = 0;
       var cb = _alPendingCb; alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
       if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
@@ -36141,6 +36184,22 @@ function alBioUnlock(appId) {
     } else if (r.error === 'notregistered') { alBioShowPw(true); }
     else { _el('applock-err').textContent = 'Biometric check failed — use your password.'; alBioShowPw(true); }
   });
+}
+// Verify identity (biometric OR password) before removing this app's biometric.
+function alBioRemovePrompt(appId) {
+  _alRemoveBioFor = appId;
+  alShowOverlay(appId, 'unlock');
+  _alRemoveBioFor = appId;   // alShowOverlay cleared it via alHideOverlay path; re-set
+  var meta = AL_LABELS[appId] || { label: appId };
+  _el('applock-icon').textContent = '👤';
+  _el('applock-sub').textContent = 'Verify with ' + window.Bio.label() + ' or your password to remove biometrics from this device.';
+}
+function alDoRemoveBio(appId) {
+  _alRemoveBioFor = null;
+  window.Bio.unregister('applock', appId);
+  alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
+  if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
+  window.uiAlert('Biometrics removed from this device.');
 }
 function alBioRegister(appId, closeAfter) {
   if (!window.Bio) return;
@@ -36159,7 +36218,7 @@ function alMaybeOfferBio(appId) {
   window.Bio.available().then(function(avail) {
     if (!avail || window.Bio.isRegistered('applock', appId)) return;
     var meta = AL_LABELS[appId] || { label: appId };
-    if (confirm('Register ' + window.Bio.label() + ' to unlock ' + meta.label + ' on this device? Your password still works as a fallback.')) alBioRegister(appId, false);
+    window.uiConfirm('Register ' + window.Bio.label() + ' to unlock ' + meta.label + ' on this device? Your password still works as a fallback.', { title: 'Register ' + window.Bio.label(), okLabel: 'Register' }).then(function(ok) { if (ok) alBioRegister(appId, false); });
   });
 }
 
@@ -36316,7 +36375,7 @@ function alShowManageMenu(appId) {
     if (window.Bio.isRegistered('applock', appId)) {
       bb.textContent = '👤  Remove biometrics';
       bb.style.cssText = s + 'background:transparent;color:#9898a8;border:1px solid #323240;';
-      bb.onclick = function() { window.Bio.unregister('applock', appId); menu.remove(); _el('applock-submit').style.display=''; alHideOverlay(); alert('Biometrics removed from this device.'); };
+      bb.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alBioRemovePrompt(appId); };
     } else {
       bb.textContent = '👤  Register ' + window.Bio.label();
       bb.style.cssText = s + 'background:#252530;color:#ececf0;border:1px solid #323240;';
@@ -36388,7 +36447,11 @@ function alShowManageMenu(appId) {
       } else { // unlock
         var r4 = await fetch(AL_WORKER+'/auth/journal/verify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId,password:pw})});
         var d4 = await r4.json();
-        if (d4.ok) { alMarkUnlocked(appId); _alAttempts[appId]=0; var cb=_alPendingCb; alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if(cb) cb(); }
+        if (d4.ok) {
+          _alAttempts[appId]=0;
+          if (_alRemoveBioFor === appId) { alDoRemoveBio(appId); }
+          else { alMarkUnlocked(appId); var cb=_alPendingCb; alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if(cb) cb(); }
+        }
         else { _alAttempts[appId]=(_alAttempts[appId]||0)+1; if(_alAttempts[appId]>=5)_alCooldowns[appId]=Date.now()+30000; _alPwErr('Wrong password.'); }
       }
     } catch(e) { _el('applock-err').textContent = 'Network error. Try again.'; }

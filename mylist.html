@@ -764,8 +764,9 @@ function mlMarkLocked(p){ try{ localStorage.removeItem('ml_unlocked_'+p); }catch
 function mlMustBlock(p){ return mlIsLocked(p) && !mlIsUnlocked(p); }
 
 var lockMode='unlock', lockProfile=null, lockOnSuccess=null, lockAttempts=0;
+var mlRemoveBioFor=null;   // when set to a profile, a successful unlock removes that profile's biometric
 function showLock(profile, mode, onSuccess){
-  lockProfile=profile; lockMode=mode; lockOnSuccess=onSuccess||null;
+  lockProfile=profile; lockMode=mode; lockOnSuccess=onSuccess||null; mlRemoveBioFor=null;
   $('lock-menu').innerHTML=''; $('lock-err').textContent='';
   var pw=$('lock-pw'); pw.value=''; pw.classList.remove('error');
   var name = PROFILE_META[profile].label;
@@ -779,7 +780,7 @@ function showLock(profile, mode, onSuccess){
   $('lock-overlay').style.display='flex'; setTimeout(function(){ pw.focus(); }, 80);
   mlBioRender();
 }
-function hideLock(){ $('lock-overlay').style.display='none'; $('lock-bio').innerHTML=''; lockProfile=null; lockOnSuccess=null; }
+function hideLock(){ $('lock-overlay').style.display='none'; $('lock-bio').innerHTML=''; lockProfile=null; lockOnSuccess=null; mlRemoveBioFor=null; }
 
 // ── Biometrics (Face ID / Touch ID / fingerprint / Windows Hello) ──
 // Primary unlock method; password below stays available as the fallback.
@@ -815,10 +816,25 @@ function mlBioUnlock(){
   var p=lockProfile; if(!p) return;
   $('lock-err').textContent='';
   Bio.authenticate('mylist', mlBioKey(p)).then(function(r){
-    if(r.ok){ lockAttempts=0; mlMarkUnlocked(p); var cb=lockOnSuccess; hideLock(); updateLockBtn(); if(cb)cb(); }
+    if(r.ok){
+      if(mlRemoveBioFor===p){ mlDoRemoveBio(p); return; }
+      lockAttempts=0; mlMarkUnlocked(p); var cb=lockOnSuccess; hideLock(); updateLockBtn(); if(cb)cb();
+    }
     else if(r.error==='notregistered'){ mlShowPwArea(true); }
     else { $('lock-err').textContent='Biometric check failed — use your password.'; mlShowPwArea(true); }
   });
+}
+// Verify identity (biometric OR password) before removing this profile's biometric.
+function mlBioRemovePrompt(p){
+  showLock(p,'unlock');
+  mlRemoveBioFor=p;
+  $('lock-icon').textContent='👤';
+  $('lock-sub').textContent='Verify with '+Bio.label()+' or your password to remove biometrics from this device.';
+}
+function mlDoRemoveBio(p){
+  mlRemoveBioFor=null;
+  Bio.unregister('mylist', mlBioKey(p));
+  toast('Biometrics removed'); hideLock(); updateLockBtn();
 }
 function mlBioRegister(p){
   if(!window.Bio) return;
@@ -850,7 +866,7 @@ function manageLock(){
   if(window.Bio){ Bio.available().then(function(avail){
     if(!avail) return;
     if(Bio.isRegistered('mylist', mlBioKey(p)))
-      addMenuBtn(m,'👤  Remove biometrics','ghost',function(){ Bio.unregister('mylist', mlBioKey(p)); toast('Biometrics removed'); hideLock(); }, changeBtn);
+      addMenuBtn(m,'👤  Remove biometrics','ghost',function(){ mlBioRemovePrompt(p); }, changeBtn);
     else
       addMenuBtn(m,'👤  Register '+Bio.label(),'solid',function(){ mlBioRegister(p); }, changeBtn);
   }); }
@@ -940,7 +956,11 @@ async function lockSubmit(){
       } else { lockAttempts++; lockErr('Wrong password.'); }
     } else {
       var r4=await authFetch('/auth/journal/verify',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw });
-      if(r4.ok){ lockAttempts=0; mlMarkUnlocked(p); var cb=lockOnSuccess; hideLock(); updateLockBtn(); if(cb)cb(); }
+      if(r4.ok){
+        lockAttempts=0;
+        if(mlRemoveBioFor===p){ mlDoRemoveBio(p); }
+        else { mlMarkUnlocked(p); var cb=lockOnSuccess; hideLock(); updateLockBtn(); if(cb)cb(); }
+      }
       else { lockAttempts++; lockErr('Wrong password.'); }
     }
   }catch(e){ lockErr('Network error.'); }

@@ -3291,7 +3291,13 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
     if(r.ok){ window._tbTabLock.markUnlocked(tabId); setBioReg(true); onClose(); }
     else if(!(r.error==='cancelled'||r.error==='NotAllowedError')) setErr('Could not register biometrics.');
   };
-  const bioRemove=()=>{ window.Bio.unregister('tradehub-tab',tabId); setBioReg(false); onClose(); };
+  // Removing biometrics requires re-verifying identity — biometric OR password.
+  const bioVerifyRemove=async()=>{
+    setErr('');
+    const r=await window.Bio.authenticate('tradehub-tab',tabId);
+    if(r.ok){ window.Bio.unregister('tradehub-tab',tabId); setBioReg(false); onClose(); }
+    else if(!(r.error==='cancelled'||r.error==='NotAllowedError')) setErr('Biometric check failed — use your password.');
+  };
   const act=async()=>{
     const p=pw.trim(); if(!p){setErr('Password required.');return;}
     setBusy(true);setErr('');
@@ -3302,12 +3308,21 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
         console.log('[TabLock] set-lock response for', tabId, ':', JSON.stringify(d));
         const ok = d && (d.ok===true || d.success===true || d.set===true);
         if(ok){ window._tbTabLock.setLock(tabId); window._tbTabLock.markUnlocked(tabId);
-          if(window.Bio && bioAvail && !window.Bio.isRegistered('tradehub-tab',tabId) && confirm('Register '+window.Bio.label()+' to unlock '+tabLabel+' on this device? Your password still works as a fallback.')){ setBusy(false); await bioRegister(); return; }
+          if(window.Bio && bioAvail && !window.Bio.isRegistered('tradehub-tab',tabId)){
+            setBusy(false);
+            const okReg=await window.uiConfirm('Register '+window.Bio.label()+' to unlock '+tabLabel+' on this device? Your password still works as a fallback.',{title:'Register '+window.Bio.label(),okLabel:'Register'});
+            if(okReg){ await bioRegister(); return; }
+          }
           onClose(); }
         else setErr(d&&d.error?('Error: '+d.error):'Failed to set lock.');
       } else if(mode==='remove'){
         const d=await window._tbTabLock.removePw(tabId,p);
         if(d.ok){ window._tbTabLock.removeLock(tabId); window._tbTabLock.markLocked(tabId); onClose(); }
+        else setErr('Wrong password.');
+      } else if(mode==='removebio'){
+        const d=await window._tbTabLock.verify(tabId,p);
+        const ok = d && (d.ok===true || d.valid===true || d.success===true || d.match===true);
+        if(ok){ window.Bio.unregister('tradehub-tab',tabId); setBioReg(false); onClose(); }
         else setErr('Wrong password.');
       } else if(mode==='changepw'){
         const d=await window._tbTabLock.verify(tabId,p);
@@ -3328,9 +3343,9 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
     }catch(e){ setErr('Network error.'); }
     setBusy(false);
   };
-  const titleByMode={setpw:'Lock '+tabLabel,remove:'Remove lock',changepw:'Change password',menu:tabLabel+' lock'};
-  const subByMode={setpw:'Choose a password to lock this tab. Unlock once per device.',remove:'Enter password to remove the lock.',changepw:'Enter current password first.',menu:'This tab is locked. Choose an action.'};
-  const iconByMode={setpw:'🔐',remove:'🔓',changepw:'🔑',menu:'🔒'};
+  const titleByMode={setpw:'Lock '+tabLabel,remove:'Remove lock',changepw:'Change password',menu:tabLabel+' lock',removebio:'Remove biometrics'};
+  const subByMode={setpw:'Choose a password to lock this tab. Unlock once per device.',remove:'Enter password to remove the lock.',changepw:'Enter current password first.',menu:'This tab is locked. Choose an action.',removebio:'Verify with '+(window.Bio?window.Bio.label():'biometrics')+' or your password to remove biometrics from this device.'};
+  const iconByMode={setpw:'🔐',remove:'🔓',changepw:'🔑',menu:'🔒',removebio:'👤'};
   return <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:100000,background:'rgba(0,0,0,0.82)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
     <div onClick={e=>e.stopPropagation()} style={{background:'var(--s1,#141418)',border:'1px solid var(--bd)',borderRadius:20,padding:'32px 26px',width:340,maxWidth:'90vw',display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
       <div style={{fontSize:34}}>{iconByMode[mode]}</div>
@@ -3341,7 +3356,7 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
       {mode==='menu'?(
         <div style={{display:'flex',flexDirection:'column',gap:8,width:'100%'}}>
           {bioAvail&&(bioReg
-            ?<button onClick={bioRemove} style={{background:'transparent',color:'var(--txm)',border:'1px solid var(--bd)',borderRadius:8,padding:'11px 0',fontSize:13,fontWeight:700,cursor:'pointer'}}>👤  Remove biometrics</button>
+            ?<button onClick={()=>{setMode('removebio');setPw('');setErr('');}} style={{background:'transparent',color:'var(--txm)',border:'1px solid var(--bd)',borderRadius:8,padding:'11px 0',fontSize:13,fontWeight:700,cursor:'pointer'}}>👤  Remove biometrics</button>
             :<button onClick={bioRegister} style={{background:'var(--ac)',color:'#fff',border:'none',borderRadius:8,padding:'11px 0',fontSize:13,fontWeight:700,cursor:'pointer'}}>👤  Register {window.Bio.label()}</button>)}
           <button onClick={()=>{setMode('changepw');setPw('');setErr('');}} style={{background:'var(--s2)',color:'var(--tx)',border:'1px solid var(--bd)',borderRadius:8,padding:'11px 0',fontSize:13,fontWeight:700,cursor:'pointer'}}>🔑  Change password</button>
           <button onClick={()=>{setMode('remove');setPw('');setErr('');}} style={{background:'transparent',color:'var(--tbr)',border:'1px solid var(--tbr)',borderRadius:8,padding:'11px 0',fontSize:13,fontWeight:700,cursor:'pointer'}}>🗑  Remove lock</button>
@@ -3349,10 +3364,11 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
         </div>
       ):(
         <div style={{width:'100%',display:'flex',flexDirection:'column',gap:10}}>
+          {mode==='removebio'&&bioAvail&&<button onClick={bioVerifyRemove} style={{width:'100%',background:'var(--ac)',color:'#fff',border:'none',borderRadius:8,padding:'12px 0',fontSize:14,fontWeight:700,cursor:'pointer'}}>🔓  Use {window.Bio.label()}</button>}
           <input type="password" value={pw} autoFocus onChange={e=>{setPw(e.target.value);setErr('');}} onKeyDown={e=>{if(e.key==='Enter')act();}}
             placeholder="Password" style={{width:'100%',background:'var(--s2)',border:`1px solid ${err?'var(--tbr)':'var(--bd)'}`,borderRadius:8,color:'var(--tx)',fontSize:16,fontWeight:600,padding:'12px 16px',textAlign:'center',letterSpacing:4,outline:'none',boxSizing:'border-box'}}/>
           {err&&<div style={{fontSize:12,color:'var(--tbr)',fontWeight:700,textAlign:'center'}}>{err}</div>}
-          <button onClick={act} disabled={busy} style={{background:'var(--ac)',color:'#fff',border:'none',borderRadius:8,padding:'12px 0',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer',opacity:busy?0.6:1}}>{busy?'Working…':(mode==='setpw'?'Set Password':mode==='remove'?'Remove Lock':'Verify & Continue')}</button>
+          <button onClick={act} disabled={busy} style={{background:'var(--ac)',color:'#fff',border:'none',borderRadius:8,padding:'12px 0',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer',opacity:busy?0.6:1}}>{busy?'Working…':(mode==='setpw'?'Set Password':mode==='remove'?'Remove Lock':mode==='removebio'?'Remove biometrics':'Verify & Continue')}</button>
           <button onClick={onClose} style={{background:'transparent',color:'var(--txm)',border:'none',fontSize:13,cursor:'pointer',textDecoration:'underline'}}>Cancel</button>
         </div>
       )}
@@ -5166,6 +5182,7 @@ if (window._fbReady && window._fbLoadAppLocks) alOnFbReady();
 // ── OVERLAY ─────────────────────────────────────────────────────────────────
 var _alMode = 'unlock';
 var _alAttempts = 0, _alCooldown = 0;
+var _alRemoveBio = false;   // when true, a successful unlock removes TradeHub's biometric instead of unlocking
 
 function alShake(){
   var box=_el('applock-box'); box.classList.remove('shake'); void box.offsetWidth;
@@ -5179,6 +5196,7 @@ function _alPwErr(msg){
 
 function alShowOverlay(mode){
   _alMode = mode;
+  _alRemoveBio = false;   // cleared on any normal open; alBioRemovePrompt re-sets it after
   _el('applock-err').textContent='';
   _el('applock-pw').value='';
   _el('applock-pw').classList.remove('error');
@@ -5221,6 +5239,7 @@ function alHideOverlay(){
   _el('applock-overlay').style.display='none';
   var m=_el('al-menu-btns'); if(m) m.remove();
   var bio=_el('applock-bio'); if(bio){ bio.innerHTML=''; bio.style.display='none'; }
+  _alRemoveBio = false;
 }
 
 // ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
@@ -5257,10 +5276,26 @@ function alBioUnlock(){
   _el('applock-err').textContent='';
   if(!window.Bio) return;
   window.Bio.authenticate('tradehub', APPID).then(function(r){
-    if(r.ok){ alMarkUnlocked(); _alAttempts=0; alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+    if(r.ok){
+      if(_alRemoveBio){ alDoRemoveBio(); return; }
+      alMarkUnlocked(); _alAttempts=0; alShowRoot(); alHideOverlay(); alUpdateLockBtns();
+    }
     else if(r.error==='notregistered'){ alBioShowPw(true); }
     else { _el('applock-err').textContent='Biometric check failed — use your password.'; alBioShowPw(true); }
   });
+}
+// Verify identity (biometric OR password) before removing TradeHub's biometric.
+function alBioRemovePrompt(){
+  alShowOverlay('unlock');
+  _alRemoveBio = true;
+  _el('applock-icon').textContent='👤';
+  _el('applock-sub').textContent='Verify with '+window.Bio.label()+' or your password to remove biometrics from this device.';
+}
+function alDoRemoveBio(){
+  _alRemoveBio = false;
+  window.Bio.unregister('tradehub', APPID);
+  alHideOverlay(); alUpdateLockBtns();
+  window.uiAlert('Biometrics removed from this device.');
 }
 function alBioRegister(closeAfter){
   if(!window.Bio) return;
@@ -5274,7 +5309,7 @@ function alMaybeOfferBio(){
   if(!window.Bio) return;
   window.Bio.available().then(function(avail){
     if(!avail || window.Bio.isRegistered('tradehub', APPID)) return;
-    if(confirm('Register '+window.Bio.label()+' to unlock TradeHub on this device? Your password still works as a fallback.')) alBioRegister(false);
+    window.uiConfirm('Register '+window.Bio.label()+' to unlock TradeHub on this device? Your password still works as a fallback.', {title:'Register '+window.Bio.label(), okLabel:'Register'}).then(function(ok){ if(ok) alBioRegister(false); });
   });
 }
 
@@ -5324,7 +5359,7 @@ function alShowManageMenu(){
     if(window.Bio.isRegistered('tradehub', APPID)){
       bb.textContent='👤  Remove biometrics';
       bb.style.cssText=s+'background:transparent;color:#9898a8;border:1px solid #323240;';
-      bb.onclick=function(){ window.Bio.unregister('tradehub', APPID); menu.remove(); _el('applock-submit').style.display=''; alHideOverlay(); alert('Biometrics removed from this device.'); };
+      bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRemovePrompt(); };
     } else {
       bb.textContent='👤  Register '+window.Bio.label();
       bb.style.cssText=s+'background:#252530;color:#ececf0;border:1px solid #323240;';
@@ -5390,7 +5425,11 @@ _el('applock-submit').addEventListener('click', async function(){
     } else { // unlock
       var r4=await fetch(AL_WORKER+'/auth/journal/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
       var d4=await r4.json();
-      if (d4.ok){ alMarkUnlocked(); _alAttempts=0; alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+      if (d4.ok){
+        _alAttempts=0;
+        if(_alRemoveBio){ alDoRemoveBio(); }
+        else { alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+      }
       else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
     }
   } catch(e){ _el('applock-err').textContent='Network error. Try again.'; }
