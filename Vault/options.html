@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vault — Manage</title>
+  <style>
+    :root {
+      --bg:#0f0f12; --s1:#141418; --s2:#1a1a20; --s3:#202028;
+      --bd:#252530; --bdl:#323240; --tx:#ececf0; --txd:#9898a8;
+      --txm:#58586a; --ac:#E0607A; --shadow:rgba(0,0,0,.55);
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      background:var(--bg); color:var(--tx); min-height:100vh;
+      font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+      -webkit-font-smoothing:antialiased; padding:0 0 60px;
+    }
+    .wrap { max-width:760px; margin:0 auto; padding:0 20px; }
+
+    header {
+      position:sticky; top:0; z-index:5;
+      background:var(--bg); border-bottom:1px solid var(--bd);
+      padding:18px 0 16px; margin-bottom:22px;
+    }
+    header .wrap { display:flex; align-items:center; justify-content:space-between; }
+    .logo { font-size:24px; font-weight:800; letter-spacing:.3px; }
+    .logo .base { color:var(--tx); } .logo .dot { color:var(--ac); }
+    .subtitle { font-size:12px; color:var(--txd); margin-top:3px; }
+    .sync { font-size:11px; font-weight:600; color:var(--txd); }
+    .sync.saving { color:var(--ac); } .sync.saved { color:#5cc98a; } .sync.error { color:#e07070; }
+
+    .section-head {
+      display:flex; align-items:center; justify-content:space-between;
+      margin:8px 0 14px;
+    }
+    .section-title { font-size:14px; font-weight:700; letter-spacing:.3px; }
+    .btn {
+      background:var(--s2); border:1px solid var(--bd); color:var(--tx);
+      font-size:12px; font-weight:600; padding:8px 14px; border-radius:9px;
+      cursor:pointer; transition:all .15s;
+    }
+    .btn:hover { border-color:var(--bdl); background:var(--s3); }
+    .btn.accent { background:var(--ac); border-color:var(--ac); color:#12000a; }
+    .btn.accent:hover { filter:brightness(1.1); }
+    .btn.danger { color:#e07070; }
+    .btn.danger:hover { background:#2a1518; border-color:#e07070; }
+
+    /* Group block */
+    .group {
+      background:var(--s1); border:1px solid var(--bd);
+      border-left:3px solid var(--gc,var(--ac));
+      border-radius:14px; padding:14px 16px; margin-bottom:14px;
+    }
+    .group-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+    .group-name {
+      flex:1; background:var(--s3); border:1px solid var(--bd); color:var(--tx);
+      font-size:14px; font-weight:700; padding:8px 11px; border-radius:8px;
+      min-width:0;
+    }
+    .group-name:focus { outline:none; border-color:var(--ac); }
+    .icon-btn {
+      background:var(--s3); border:1px solid var(--bd); color:var(--txd);
+      width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:14px;
+      display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+      transition:all .15s;
+    }
+    .icon-btn:hover { color:var(--tx); border-color:var(--bdl); }
+    .icon-btn.del:hover { color:#e07070; border-color:#e07070; }
+    .icon-btn:disabled { opacity:.3; cursor:not-allowed; }
+
+    .palette { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+    .swatch { width:20px; height:20px; border-radius:50%; cursor:pointer; border:2px solid transparent; }
+    .swatch.sel { border-color:var(--tx); }
+
+    .link-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+    .link-row input {
+      background:var(--s2); border:1px solid var(--bd); color:var(--tx);
+      font-size:12px; padding:7px 10px; border-radius:7px; min-width:0;
+    }
+    .link-row input:focus { outline:none; border-color:var(--ac); }
+    .link-row .l-name { flex:0 0 34%; }
+    .link-row .l-url  { flex:1; }
+
+    .add-link { display:flex; gap:8px; margin-top:4px; }
+    .add-link input {
+      background:var(--s2); border:1px solid var(--bd); color:var(--tx);
+      font-size:12px; padding:7px 10px; border-radius:7px; min-width:0;
+    }
+    .add-link input:focus { outline:none; border-color:var(--ac); }
+    .add-link .a-name { flex:0 0 34%; }
+    .add-link .a-url { flex:1; }
+    .add-link button {
+      background:var(--s3); border:1px solid var(--bd); color:var(--tx);
+      font-size:12px; font-weight:600; padding:0 14px; border-radius:7px; cursor:pointer;
+      white-space:nowrap;
+    }
+    .add-link button:hover { border-color:var(--ac); color:var(--ac); }
+
+    .other-note {
+      font-size:11px; color:var(--txm); margin-top:10px;
+      padding-top:9px; border-top:1px dashed var(--bd);
+    }
+    .empty {
+      border:1px dashed var(--bd); border-radius:14px; padding:34px 16px;
+      text-align:center; color:var(--txd); font-size:13px; line-height:1.7;
+    }
+    .placeholder {
+      border:1px dashed var(--bd); border-radius:14px; padding:30px 20px;
+      text-align:center; color:var(--txd); font-size:13px; line-height:1.7;
+    }
+    .placeholder .big { font-size:26px; display:block; margin-bottom:10px; }
+    .divider { height:1px; background:var(--bd); margin:34px 0 26px; }
+    .field-err { color:#e07070; font-size:11px; margin-top:6px; min-height:14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div>
+        <div class="logo"><span class="base">V</span><span class="dot">ault</span></div>
+        <div class="subtitle">Shared source of truth with Keychain · changes sync both ways</div>
+      </div>
+      <div class="sync" id="sync"></div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-title">Groups &amp; Links</div>
+      <button class="btn accent" id="addGroup">+ New Group</button>
+    </div>
+    <div id="groupErr" class="field-err"></div>
+    <div id="list"></div>
+
+    <div class="divider"></div>
+
+    <div class="section-title" style="margin-bottom:14px;">Passwords</div>
+    <div class="placeholder">
+      <span class="big">🔒</span>
+      Secure storage for <strong>usernames, passwords &amp; login info</strong> is
+      planned for a future update. The section is reserved here now — no backend yet.
+    </div>
+  </div>
+
+  <script src="firestore.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
