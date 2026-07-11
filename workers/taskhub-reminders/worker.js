@@ -56,20 +56,28 @@ export default {
         const pid = env.FIREBASE_PROJECT_ID;
         const bu  = `https://firestore.googleapis.com/v1/projects/${pid}/databases/(default)/documents`;
         const ah  = { 'Authorization': `Bearer ${aT}`, 'Content-Type': 'application/json' };
+        // NOTE: a `fired==false` equality filter combined with `orderBy notifyAt`
+        // needs a composite index that isn't provisioned, so that query fails
+        // silently (returns a non-array error body → 0 results). Query with the
+        // equality filter ONLY (no orderBy → no composite index needed) and sort
+        // client-side. Optional ?title=<substr> filters by title (case-insensitive).
+        const wantTitle = (url.searchParams.get('title') || '').toLowerCase();
         const qr  = await fetch(`${bu}:runQuery`, { method:'POST', headers:ah, body:JSON.stringify({ structuredQuery: {
           from: [{ collectionId:'reminders' }],
           where: { fieldFilter: { field:{ fieldPath:'fired' }, op:'EQUAL', value:{ booleanValue:false } } },
-          orderBy: [{ field:{ fieldPath:'notifyAt' }, direction:'ASCENDING' }],
-          limit: 50
+          limit: 300
         }})});
         const raw  = await qr.json();
-        const docs = Array.isArray(raw) ? raw.filter(r => r.document) : [];
-        return json({ ok:true, now:new Date().toISOString(), count:docs.length,
-          reminders: docs.map(r => { const f=r.document.fields||{}; return {
-            id: f.id?.stringValue, notifyAt: f.notifyAt?.stringValue, dash: f.dashboard?.stringValue,
-            title: (f.title?.stringValue||'').slice(0,40), fired: f.fired?.booleanValue
-          };})
-        }, origin);
+        if (!Array.isArray(raw)) return json({ ok:false, queryError:(JSON.stringify(raw)||'').slice(0,600) }, origin, 500);
+        let docs = raw.filter(r => r.document);
+        let out = docs.map(r => { const f=r.document.fields||{}; return {
+          id: f.id?.stringValue, notifyAt: f.notifyAt?.stringValue, dash: f.dashboard?.stringValue,
+          title: (f.title?.stringValue||''), repeatId: f.notifyRepeatId?.stringValue||null, fired: f.fired?.booleanValue
+        };});
+        if (wantTitle) out = out.filter(r => (r.title||'').toLowerCase().includes(wantTitle));
+        out.sort((a,b) => String(a.notifyAt).localeCompare(String(b.notifyAt)));
+        return json({ ok:true, now:new Date().toISOString(), count:out.length,
+          reminders: out.map(r => ({ ...r, title: r.title.slice(0,50) })) }, origin);
       } catch(e) { return json({ok:false,error:e.message},origin,500); }
     }
 
