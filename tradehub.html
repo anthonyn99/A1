@@ -5263,15 +5263,22 @@ window._pwReset = window._pwReset || async function(opts){
     emailed = fp.ok;
   } catch(e){ emailed = false; }
   if (!emailed) { alert('Could not send the reset email. Please try again in a moment.'); return false; }
-  var code = window.prompt('A 6-character reset code was emailed to '+opts.email+'.\n\nPaste the exact code here (check spam if you don\'t see it within a minute):');
-  if (code==null) return false;
-  code = code.trim();
-  if (!code) { alert('No code entered.'); return false; }
-  var np = window.prompt('Enter your NEW password:');
-  if (np==null) return false;
-  np = String(np).trim();
-  if (!np) { alert('Password cannot be empty.'); return false; }
-  var nh = window.prompt('Optional hint for your new password (leave blank to skip):') || '';
+  var vals = await window.uiForm({
+    title:'Reset password',
+    message:'A 6-character code was emailed to '+opts.email+'. Enter it below (check spam if you don\'t see it within a minute), then choose a new password.',
+    okLabel:'Reset password',
+    fields:[
+      { name:'code', label:'Security code from email', placeholder:'6-character code', autocap:false, required:true },
+      { name:'password', label:'New password', type:'password', required:true },
+      { name:'hint', label:'New password hint (optional)' }
+    ]
+  });
+  if (!vals) return false;
+  var code = String(vals.code||'').trim();
+  var np = String(vals.password||'').trim();
+  var nh = vals.hint||'';
+  if (!code) { await window.uiAlert('No code entered.'); return false; }
+  if (!np) { await window.uiAlert('Password cannot be empty.'); return false; }
   var body = Object.assign({ code:code, password:np, hint:nh }, opts.reqBody);
   var cf;
   try { cf = await post('/auth/reset/confirm', body); }
@@ -5428,6 +5435,90 @@ window._tbTabLock = {
   onChange: function(cb){ _tabLockSubs.push(cb); return function(){ _tabLockSubs = _tabLockSubs.filter(function(f){return f!==cb;}); }; },
 };
 
+})();
+</script>
+
+<!-- ══ In-UI modal system (replaces native alert/confirm/prompt so dialogs live
+        INSIDE the app and never vanish when the browser window loses focus) ══ -->
+<script>
+(function(){
+  if (window.uiModal) return;
+  var ACCENT = '#E0607A';
+  var CSS =
+    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;}'
+  + '#uim-overlay.show{display:flex;}'
+  + '#uim-box{width:100%;max-width:370px;background:#17171c;border:1px solid #2c2c36;border-radius:16px;padding:22px 20px;box-shadow:0 20px 60px rgba(0,0,0,.55);box-sizing:border-box;font-family:\'Nunito\',system-ui,sans-serif;animation:uimIn .16s ease;}'
+  + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
+  + '#uim-title{font-size:17px;font-weight:800;color:#f2f2f6;margin-bottom:8px;line-height:1.25;}'
+  + '#uim-msg{font-size:14px;color:#c9c9d4;line-height:1.5;white-space:pre-wrap;margin-bottom:14px;}'
+  + '.uim-field{display:block;margin-bottom:12px;}'
+  + '.uim-label{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#8a8a99;margin:0 0 5px 2px;}'
+  + '.uim-input{width:100%;box-sizing:border-box;background:#0f0f13;border:1px solid #33333f;border-radius:9px;color:#f2f2f6;font-size:15px;padding:11px 13px;outline:none;font-family:inherit;}'
+  + '.uim-input:focus{border-color:#5a5a6a;}'
+  + '#uim-err{font-size:12px;color:#e0607a;font-weight:700;min-height:15px;margin-bottom:4px;}'
+  + '#uim-btns{display:flex;gap:9px;margin-top:6px;}'
+  + '#uim-btns button{flex:1;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;}'
+  + '#uim-cancel{background:#26262e;color:#d4d4dd;}'
+  + '#uim-ok{color:#fff;}';
+  var queue=[], active=null;
+  function el(id){ return document.getElementById(id); }
+  function inject(){
+    if (el('uim-overlay')) return;
+    var st=document.createElement('style'); st.id='uim-style'; st.textContent=CSS; document.head.appendChild(st);
+    var ov=document.createElement('div'); ov.id='uim-overlay';
+    ov.innerHTML='<form id="uim-box" autocomplete="off">'
+      +'<div id="uim-title"></div><div id="uim-msg"></div><div id="uim-fields"></div>'
+      +'<div id="uim-err"></div>'
+      +'<div id="uim-btns"><button type="button" id="uim-cancel"></button><button type="submit" id="uim-ok"></button></div></form>';
+    document.body.appendChild(ov);
+    el('uim-cancel').addEventListener('click', function(){ close(active&&active.kind==='confirm'?false:null); });
+    el('uim-box').addEventListener('submit', function(e){ e.preventDefault(); submit(); });
+    document.addEventListener('keydown', function(e){ if(active && e.key==='Escape'){ close(active.kind==='confirm'?false:null); } });
+  }
+  function render(cfg){
+    inject(); active=cfg;
+    el('uim-title').textContent=cfg.title||''; el('uim-title').style.display=cfg.title?'':'none';
+    el('uim-msg').textContent=cfg.message||''; el('uim-msg').style.display=cfg.message?'':'none';
+    var fw=el('uim-fields'); fw.innerHTML='';
+    (cfg.fields||[]).forEach(function(f){
+      var lab=document.createElement('label'); lab.className='uim-field';
+      if(f.label){ var sp=document.createElement('span'); sp.className='uim-label'; sp.textContent=f.label; lab.appendChild(sp); }
+      var inp=document.createElement('input'); inp.className='uim-input'; inp.type=f.type||'text';
+      inp.value=(f.value!=null?f.value:''); if(f.placeholder) inp.placeholder=f.placeholder; inp.setAttribute('data-name',f.name);
+      if(f.autocap===false){ inp.autocapitalize='off'; inp.setAttribute('autocorrect','off'); inp.spellcheck=false; }
+      lab.appendChild(inp); fw.appendChild(lab);
+    });
+    el('uim-err').textContent='';
+    var ok=el('uim-ok'), ca=el('uim-cancel');
+    ok.textContent=cfg.okLabel||'OK'; ok.style.background=cfg.danger?'#d9534f':ACCENT;
+    ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
+    el('uim-overlay').classList.add('show');
+    setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
+  }
+  function collect(){ var o={}; var ins=el('uim-fields').querySelectorAll('input'); Array.prototype.forEach.call(ins,function(i){ o[i.getAttribute('data-name')]=i.value; }); return o; }
+  function submit(){
+    if(!active) return; var cfg=active;
+    if(cfg.fields && cfg.fields.length){
+      var vals=collect(), ins=el('uim-fields').querySelectorAll('input');
+      for(var i=0;i<cfg.fields.length;i++){ var f=cfg.fields[i];
+        if(f.required && !String(vals[f.name]||'').trim()){ el('uim-err').textContent=(f.label||'This field')+' is required.'; if(ins[i]) ins[i].focus(); return; } }
+      close(cfg.kind==='prompt' ? String(vals[cfg.fields[0].name]) : vals);
+    } else { close(cfg.kind==='confirm'?true:undefined); }
+  }
+  function close(result){
+    var cfg=active; active=null;
+    var ov=el('uim-overlay'); if(ov) ov.classList.remove('show');
+    if(cfg && cfg.resolve) cfg.resolve(result);
+    if(queue.length){ render(queue.shift()); }
+  }
+  function open(cfg){ return new Promise(function(res){ cfg.resolve=res; if(active) queue.push(cfg); else render(cfg); }); }
+  window.uiModal=open;
+  window.uiAlert=function(m,o){ o=o||{}; return open({kind:'alert',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK'}); };
+  window.uiConfirm=function(m,o){ o=o||{}; return open({kind:'confirm',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',danger:o.danger}); };
+  window.uiPrompt=function(m,o){ o=o||{}; return open({kind:'prompt',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',
+    fields:[{name:'value',type:o.password?'password':'text',value:(o.default!=null?o.default:(o.value!=null?o.value:'')),placeholder:o.placeholder||'',autocap:o.autocap}]}); };
+  window.uiForm=function(cfg){ cfg=cfg||{}; return open({kind:'form',title:cfg.title,message:cfg.message,okLabel:cfg.okLabel||'Save',cancelLabel:cfg.cancelLabel||'Cancel',danger:cfg.danger,fields:cfg.fields||[]}); };
+  try { window.alert=function(m){ window.uiAlert(m==null?'':String(m)); }; } catch(e){}
 })();
 </script>
 
