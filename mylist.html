@@ -745,15 +745,22 @@ window._pwReset = window._pwReset || async function(opts){
     emailed = fp.ok;
   } catch(e){ emailed = false; }
   if (!emailed) { alert('Could not send the reset email. Please try again in a moment.'); return false; }
-  var code = window.prompt('A 6-character reset code was emailed to '+opts.email+'.\n\nPaste the exact code here (check spam if you don\'t see it within a minute):');
-  if (code==null) return false;
-  code = code.trim();
-  if (!code) { alert('No code entered.'); return false; }
-  var np = window.prompt('Enter your NEW password:');
-  if (np==null) return false;
-  np = String(np).trim();
-  if (!np) { alert('Password cannot be empty.'); return false; }
-  var nh = window.prompt('Optional hint for your new password (leave blank to skip):') || '';
+  var vals = await window.uiForm({
+    title:'Reset password',
+    message:'A 6-character code was emailed to '+opts.email+'. Enter it below (check spam if you don\'t see it within a minute), then choose a new password.',
+    okLabel:'Reset password',
+    fields:[
+      { name:'code', label:'Security code from email', placeholder:'6-character code', autocap:false, required:true },
+      { name:'password', label:'New password', type:'password', required:true },
+      { name:'hint', label:'New password hint (optional)' }
+    ]
+  });
+  if (!vals) return false;
+  var code = String(vals.code||'').trim();
+  var np = String(vals.password||'').trim();
+  var nh = vals.hint||'';
+  if (!code) { await window.uiAlert('No code entered.'); return false; }
+  if (!np) { await window.uiAlert('Password cannot be empty.'); return false; }
   var body = Object.assign({ code:code, password:np, hint:nh }, opts.reqBody);
   var cf;
   try { cf = await post('/auth/reset/confirm', body); }
