@@ -12,14 +12,25 @@
       --txm:#58586a; --ac:#E0607A; --shadow:rgba(0,0,0,.55);
     }
     * { box-sizing:border-box; margin:0; padding:0; }
-    body {
-      width:344px; max-height:560px; overflow-y:auto;
-      background:var(--bg); color:var(--tx);
+    html, body {
+      margin:0; padding:0; background:var(--bg); color:var(--tx);
       font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
       -webkit-font-smoothing:antialiased;
     }
-    body::-webkit-scrollbar { width:6px; }
-    body::-webkit-scrollbar-thumb { background:var(--bd); border-radius:3px; }
+    /* Resizable, size-persisting container. Drag the bottom-right corner to
+       resize the popup; the size is saved and restored on next open. Chrome
+       caps extension popups at 800x600, so we stay just under. */
+    #app {
+      width:344px; height:520px;
+      min-width:300px; min-height:240px;
+      max-width:780px; max-height:590px;
+      overflow-y:auto; overflow-x:hidden;
+      resize:both;
+    }
+    #app::-webkit-scrollbar { width:6px; }
+    #app::-webkit-scrollbar-thumb { background:var(--bd); border-radius:3px; }
+    /* Make the native resize grip visible against the dark theme. */
+    #app::-webkit-resizer { background:var(--bd); }
 
     /* ── Header ── */
     header {
