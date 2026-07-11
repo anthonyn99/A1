@@ -364,6 +364,73 @@ body.dnd-active *{cursor:grabbing !important;}
 </head>
 <body data-profile="tony">
 
+<!-- ══════════════ Biometric auth (WebAuthn / platform passkeys) ══════════════
+     Shared, dependency-free helper. Primary auth = the device's own biometric
+     (Face ID / Touch ID on iOS, fingerprint on Android/Samsung, Windows Hello on
+     Windows) through the OS secure framework. The app NEVER sees or stores raw
+     biometric data — WebAuthn returns only a public-key credential handle.
+     Credentials are keyed per (app,id) so every profile keeps its own isolated
+     credential: one profile's biometric can never satisfy another's unlock,
+     because each unlock only allows its own stored credential id. -->
+<script>
+(function(){
+  if (window.Bio) return;
+  var NS = 'bio_cred_';
+  function u8(buf){ return new Uint8Array(buf); }
+  function b64u(buf){ var b=u8(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+  function unb64u(str){ str=String(str).replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
+  function rand(n){ var a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
+  function keyOf(app,id){ return NS+app+'_'+id; }
+  function supported(){ return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
+  function available(){
+    if(!supported()) return Promise.resolve(false);
+    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
+    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
+  }
+  function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
+  function isRegistered(app,id){ var r=stored(app,id); return !!(r&&r.id); }
+  function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
+  function label(){
+    var ua=navigator.userAgent||'';
+    if(/iPhone|iPad|iPod/.test(ua)) return 'Face ID';
+    if(/Android/.test(ua)) return 'fingerprint';
+    if(/Windows/.test(ua)) return 'Windows Hello';
+    if(/Mac/.test(ua)) return (navigator.maxTouchPoints>1?'Touch ID':'Touch ID');
+    return 'biometrics';
+  }
+  function register(app,id,opts){
+    opts=opts||{};
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    return navigator.credentials.create({publicKey:{
+      challenge: rand(32),
+      rp:{ name: opts.rpName||document.title||'App', id: location.hostname||undefined },
+      user:{ id: rand(16), name: opts.userName||(app+':'+id), displayName: opts.displayName||opts.userName||id },
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred' },
+      timeout: 60000, attestation:'none'
+    }}).then(function(cred){
+      if(!cred) return {ok:false,error:'cancelled'};
+      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), label:opts.displayName||opts.userName||id }));
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
+  }
+  function authenticate(app,id){
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    var rec=stored(app,id);
+    if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
+    return navigator.credentials.get({publicKey:{
+      challenge: rand(32),
+      allowCredentials:[{ type:'public-key', id: unb64u(rec.id) }],
+      userVerification:'required', timeout:60000, rpId: location.hostname||undefined
+    }}).then(function(asr){
+      if(!asr) return {ok:false,error:'cancelled'};
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
+  }
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label };
+})();
+</script>
+
 <!-- ── Profile selection ── -->
 <div id="profile-overlay">
   <div class="pw-title">MyList</div>
@@ -469,6 +536,7 @@ body.dnd-active *{cursor:grabbing !important;}
   <div id="lock-icon">🔒</div>
   <div id="lock-title">Locked</div>
   <div id="lock-sub">Enter your password.</div>
+  <div id="lock-bio"></div>
   <div id="lock-menu"></div>
   <input id="lock-pw" type="password" placeholder="• • • •" autocomplete="off" inputmode="text">
   <div id="lock-err"></div>
@@ -709,8 +777,65 @@ function showLock(profile, mode, onSuccess){
   else if(mode==='changepw'){ $('lock-icon').textContent='🔑'; $('lock-sub').textContent='Enter your current password first.'; }
   else { $('lock-icon').textContent='🔒'; $('lock-sub').textContent='Enter your password to open '+name+"'s lists."; }
   $('lock-overlay').style.display='flex'; setTimeout(function(){ pw.focus(); }, 80);
+  mlBioRender();
 }
-function hideLock(){ $('lock-overlay').style.display='none'; lockProfile=null; lockOnSuccess=null; }
+function hideLock(){ $('lock-overlay').style.display='none'; $('lock-bio').innerHTML=''; lockProfile=null; lockOnSuccess=null; }
+
+// ── Biometrics (Face ID / Touch ID / fingerprint / Windows Hello) ──
+// Primary unlock method; password below stays available as the fallback.
+function mlBioKey(p){ return p; }        // app namespace = 'mylist'; id = profile
+function mlShowPwArea(show){
+  ['lock-pw','lock-row'].forEach(function(id){ var e=$(id); if(e) e.style.display = show?(id==='lock-row'?'flex':''):'none'; });
+  $('lock-forgot').style.display = show?'':'none';
+  $('lock-reset').style.display = show?'':'none';
+  if(show) setTimeout(function(){ $('lock-pw').focus(); }, 60);
+}
+function mlBioRender(){
+  var box=$('lock-bio'); if(!box) return; box.innerHTML=''; box.style.display='none';
+  var p=lockProfile; if(!p || !window.Bio || lockMode!=='unlock') return;
+  Bio.available().then(function(avail){
+    if($('lock-menu') && $('lock-menu').children.length) return;   // manage menu is showing → don't inject the unlock button
+    if(!(avail && Bio.isRegistered('mylist', mlBioKey(p)))) return;
+    box.style.display='block'; box.style.margin='0 0 4px';
+    var b=document.createElement('button');
+    b.className='btn solid'; b.style.width='100%'; b.style.justifyContent='center'; b.style.marginBottom='8px';
+    b.textContent='🔓  Unlock with '+Bio.label();
+    b.onclick=function(){ mlBioUnlock(); };
+    box.appendChild(b);
+    var link=document.createElement('button');
+    link.type='button';
+    link.style.cssText='background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;cursor:pointer;font-family:var(--font-btn);width:100%;';
+    link.textContent='Use password instead';
+    link.onclick=function(){ mlShowPwArea(true); link.style.display='none'; };
+    box.appendChild(link);
+    mlShowPwArea(false);
+  });
+}
+function mlBioUnlock(){
+  var p=lockProfile; if(!p) return;
+  $('lock-err').textContent='';
+  Bio.authenticate('mylist', mlBioKey(p)).then(function(r){
+    if(r.ok){ lockAttempts=0; mlMarkUnlocked(p); var cb=lockOnSuccess; hideLock(); updateLockBtn(); if(cb)cb(); }
+    else if(r.error==='notregistered'){ mlShowPwArea(true); }
+    else { $('lock-err').textContent='Biometric check failed — use your password.'; mlShowPwArea(true); }
+  });
+}
+function mlBioRegister(p){
+  if(!window.Bio) return;
+  Bio.register('mylist', mlBioKey(p), { rpName:'MyList', userName:'mylist-'+p, displayName:PROFILE_META[p].label+' — MyList' }).then(function(r){
+    if(r.ok){ mlMarkUnlocked(p); toast(Bio.label()+' registered'); hideLock(); updateLockBtn(); }
+    else if(r.error==='cancelled' || r.error==='NotAllowedError'){ toast('Registration cancelled', true); }
+    else toast('Could not register biometrics', true);
+  });
+}
+function mlMaybeOfferBio(p){
+  if(!window.Bio) return;
+  Bio.available().then(function(avail){
+    if(!avail || Bio.isRegistered('mylist', mlBioKey(p))) return;
+    confirmAsk('Register '+Bio.label()+' to unlock '+PROFILE_META[p].label+"'s lists on this device? Your password still works as a fallback.",
+      function(){ mlBioRegister(p); }, 'Register');
+  });
+}
 function manageLock(){
   var p=activeProfile; if(!p) return;
   if(!mlIsLocked(p)){ showLock(p,'setpw'); return; }
@@ -719,11 +844,18 @@ function manageLock(){
   $('lock-pw').style.display='none'; $('lock-row').style.display='none'; $('lock-forgot').style.display='none'; $('lock-reset').style.display='none';
   var m=$('lock-menu'); m.innerHTML='';
   if(!mlIsUnlocked(p)) addMenuBtn(m,'🔓  Unlock this device','solid',function(){ showLock(p,'unlock'); });
-  addMenuBtn(m,'🔑  Change password','ghost',function(){ showLock(p,'changepw'); });
+  var changeBtn=addMenuBtn(m,'🔑  Change password','ghost',function(){ showLock(p,'changepw'); });
   addMenuBtn(m,'🗑  Remove lock','danger',function(){ showLock(p,'remove'); });
   addMenuBtn(m,'Close','ghost',function(){ hideLock(); });
+  if(window.Bio){ Bio.available().then(function(avail){
+    if(!avail) return;
+    if(Bio.isRegistered('mylist', mlBioKey(p)))
+      addMenuBtn(m,'👤  Remove biometrics','ghost',function(){ Bio.unregister('mylist', mlBioKey(p)); toast('Biometrics removed'); hideLock(); }, changeBtn);
+    else
+      addMenuBtn(m,'👤  Register '+Bio.label(),'solid',function(){ mlBioRegister(p); }, changeBtn);
+  }); }
 }
-function addMenuBtn(parent,label,cls,fn){ var b=document.createElement('button'); b.className='btn '+cls; b.style.width='100%'; b.style.justifyContent='center'; b.textContent=label; b.onclick=fn; parent.appendChild(b); }
+function addMenuBtn(parent,label,cls,fn,beforeEl){ var b=document.createElement('button'); b.className='btn '+cls; b.style.width='100%'; b.style.justifyContent='center'; b.textContent=label; b.onclick=fn; if(beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b); return b; }
 function lockCancel(){ var mode=lockMode; hideLock(); if(mode==='unlock' && activeProfile && mlMustBlock(activeProfile)) goProfileSelect(); }
 async function authFetch(path, body){ var r=await fetch(AUTH_WORKER+path,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }); return r.json(); }
 
@@ -786,7 +918,7 @@ async function lockSubmit(){
     if(lockMode==='setpw'){
       var hint = (await window.uiPrompt('Optional password hint (sent to your email if you forget). Leave blank to skip:', {title:'Password hint'})) || '';
       var r=await authFetch('/auth/journal/set-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw, hint:hint });
-      if(r.ok){ state.locks[p]=true; state.lockV[p]=Date.now(); mlMarkUnlocked(p); persist(); hideLock(); refreshProfileScreen(); updateLockBtn(); toast('Lock set'); if(lockOnSuccess)lockOnSuccess(); }
+      if(r.ok){ state.locks[p]=true; state.lockV[p]=Date.now(); mlMarkUnlocked(p); persist(); hideLock(); refreshProfileScreen(); updateLockBtn(); toast('Lock set'); if(lockOnSuccess)lockOnSuccess(); mlMaybeOfferBio(p); }
       else lockErr('Failed to set lock.');
     } else if(lockMode==='remove'){
       var r2=await authFetch('/auth/journal/remove-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw });

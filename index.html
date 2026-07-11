@@ -4052,10 +4052,11 @@ function App(){
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:18,height:18,minWidth:18,borderRadius:4,border:"2px solid "+(t.done?T.AC:T.BDL),background:t.done?T.AC:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:9,col:T.BG})),
-                React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},t.title),
-                !edit&&React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
+                React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
+                !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   React.createElement("span",{style:{...ctag(t.category),opacity:t.done?0.6:1}},t.category),
                   t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:t.done?0.4:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},"🔔\u202f"+fmtNotif(t.notifyAt))),
+                React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word"}},t.title)),
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
               events.map(e=>e._pvMatch?React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:5,cursor:"default"}},
@@ -4073,10 +4074,11 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))
               :React.createElement("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:wkEvtPassed(e,k)?0.5:1,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
-                React.createElement("span",{style:{fontSize:14,fontWeight:600,color:T.TXD,lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
-                (e.time||e.notifyAt)&&React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
+                React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
+                (e.time||e.notifyAt)&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   e.time&&React.createElement("span",{style:{fontSize:11,fontWeight:600,color:T.TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},"🔔 "+fmtNotif(e.notifyAt)+"")),
+                React.createElement("span",{style:{fontSize:14,fontWeight:600,color:T.TXD,lineHeight:1.4,wordBreak:"break-word"}},e.title)),
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);}},"✎"),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"));
@@ -4118,10 +4120,11 @@ function App(){
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?T.AC:T.BDL),background:t.done?T.AC:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:7,col:T.BG})),
-                React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word",whiteSpace:"normal"}},t.title),
-                !edit&&React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
+                React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
+                !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   React.createElement("span",{style:{...ctag(t.category),opacity:t.done?0.6:1}},t.category),
                   t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:t.done?0.4:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},"🔔\u202f"+fmtNotif(t.notifyAt))),
+                React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,wordBreak:"break-word",whiteSpace:"normal"}},t.title)),
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,t.id)},"×"))),
               events.map(e=>e._pvMatch?React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:4,cursor:"default"}},
@@ -4139,10 +4142,11 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px"},onClick:()=>del(k,e.id)},"×"))
               :React.createElement("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:5,marginBottom:3,opacity:wkEvtPassed(e,k)?0.5:1,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{style:{width:5,height:5,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
-                React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word",whiteSpace:"normal"}},e.title),
-                (e.time||e.notifyAt)&&React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
+                React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
+                (e.time||e.notifyAt)&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   e.time&&React.createElement("span",{style:{fontSize:10,fontWeight:600,color:T.TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},"🔔 "+fmtNotif(e.notifyAt)+"")),
+                React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,wordBreak:"break-word",whiteSpace:"normal"}},e.title)),
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);}},"✎"),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"));
@@ -10229,19 +10233,22 @@ function App(){
               mcRender(mcByDay[k]||[]),
               ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{display:"flex",alignItems:"flex-start",gap:7,marginBottom:7,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
-                RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:TX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},t.title),
-                !edit&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
+                RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
+                !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},t._sosClassName):RC("span",{style:ctag(t.category)},t.category),
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},"🔔\u202f"+fmtNotif(t.notifyAt))),
+                RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:TX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word"}},t.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&RC("button",{style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:1,cursor:edit?"grab":"default"})},
                                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||"#58a6d4",marginTop:5,flexShrink:0}}),
-                RC("span",{style:{fontSize:14,fontWeight:600,color:"#58a6d4",lineHeight:1.4,flex:1,minWidth:0,wordBreak:"break-word"}},e.title),
+                RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
+                RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
+                !edit&&e._sosClassName&&RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(e._sosClassColor)||"#8b949e",background:(sosPastel(e._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(e._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},e._sosClassName),
                 (e.time||e.notifyAt)&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
                   e.time&&RC("span",{style:{fontSize:11,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
-                  !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},"🔔 "+fmtNotif(e.notifyAt)+"")),
-                !edit&&e._sosClassName&&RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(e._sosClassColor)||"#8b949e",background:(sosPastel(e._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(e._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",marginLeft:3,textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},e._sosClassName),
+                  !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},"🔔 "+fmtNotif(e.notifyAt)+""))),
+                RC("span",{style:{fontSize:14,fontWeight:600,color:"#58a6d4",lineHeight:1.4,wordBreak:"break-word"}},e.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);}},"✎"),
                 edit&&RC("button",{style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"));
@@ -10265,19 +10272,22 @@ function App(){
               mcRender(mcByDay[k]||[]),
               ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{display:"flex",alignItems:"flex-start",gap:6,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:8})),
-                RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:TX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word",overflowWrap:"break-word"}},t.title),
-                !edit&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
+                RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
+                !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},t._sosClassName):RC("span",{style:ctag(t.category)},t.category),
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},"🔔\u202f"+fmtNotif(t.notifyAt))),
+                RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:TX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,wordBreak:"break-word",overflowWrap:"break-word"}},t.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&RC("button",{style:dbtn,onClick:()=>del(k,t.id)},"×"))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:1,cursor:edit?"grab":"default"})},
                                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||"#58a6d4",marginTop:5,flexShrink:0}}),
-                RC("span",{style:{fontSize:12,fontWeight:600,color:"#58a6d4",lineHeight:1.35,flex:1}},e.title),
+                RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
+                RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
+                !edit&&e._sosClassName&&RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(e._sosClassColor)||"#8b949e",background:(sosPastel(e._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(e._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},e._sosClassName),
                 (e.time||e.notifyAt)&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
                   e.time&&RC("span",{style:{fontSize:10,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
-                  !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},"🔔 "+fmtNotif(e.notifyAt)+"")),
-                !edit&&e._sosClassName&&RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(e._sosClassColor)||"#8b949e",background:(sosPastel(e._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(e._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",marginLeft:3,textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},e._sosClassName),
+                  !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},"🔔 "+fmtNotif(e.notifyAt)+""))),
+                RC("span",{style:{fontSize:12,fontWeight:600,color:"#58a6d4",lineHeight:1.35,wordBreak:"break-word",overflowWrap:"break-word"}},e.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11},onClick:()=>{setEi(e);setMdt(k);setMo(true);}},"✎"),
                 edit&&RC("button",{style:dbtn,onClick:()=>del(k,e.id)},"×"))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"))}))),
@@ -14702,6 +14712,7 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
         <div class="tl-icon" id="bj-lock-icon">🔒</div>
         <div class="tl-title" id="bj-lock-title">Locked Entry</div>
         <div class="tl-sub" id="bj-lock-sub">Enter your password to unlock this entry.</div>
+        <div id="bj-lock-bio" style="display:none;"></div>
         <div class="tl-menu" id="bj-lock-menu" style="display:none;"></div>
         <div class="tl-input-wrap" id="bj-lock-input-wrap">
           <input class="tl-pw-input" id="bj-lock-pw" type="password" placeholder="• • • •" autocomplete="current-password" />
@@ -18360,7 +18371,61 @@ window.hideBrainstormJournal = function() {
   var boxEl = document.getElementById('bj-lock-box');
   var menuEl = document.getElementById('bj-lock-menu');
   var inputWrap = document.getElementById('bj-lock-input-wrap');
+  var bioEl = document.getElementById('bj-lock-bio');
   var blMode = 'unlock';
+
+  // ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
+  // Primary unlock per entry; the password stays available as the fallback.
+  // Keyed by entry id under the 'bj' namespace → each entry keeps its own credential.
+  function blBioShowInput(show) {
+    pwInput.style.display = show ? '' : 'none';
+    submitBtn.style.display = show ? '' : 'none';
+    forgotBtn.style.display = show ? '' : 'none';
+    if (resetBtn) resetBtn.style.display = show ? '' : 'none';
+    if (show) setTimeout(function() { pwInput.focus(); }, 60);
+  }
+  function blBioRender() {
+    if (!bioEl) return; bioEl.innerHTML = ''; bioEl.style.display = 'none';
+    if (!window.Bio || blMode !== 'unlock') return;
+    var id = state.activeId; if (!id) return;
+    window.Bio.available().then(function(avail) {
+      if (blMode !== 'unlock' || state.activeId !== id) return;
+      if (!(avail && window.Bio.isRegistered('bj', id))) return;
+      bioEl.style.display = 'flex'; bioEl.style.flexDirection = 'column'; bioEl.style.gap = '8px'; bioEl.style.marginBottom = '10px';
+      var b = document.createElement('button'); b.className = 'tl-btn';
+      b.textContent = '🔓  Unlock with ' + window.Bio.label();
+      b.onclick = function() { blBioUnlock(); };
+      bioEl.appendChild(b);
+      var link = document.createElement('button'); link.className = 'tl-forgot';
+      link.textContent = 'Use password instead';
+      link.onclick = function() { blBioShowInput(true); link.style.display = 'none'; };
+      bioEl.appendChild(link);
+      blBioShowInput(false);
+    });
+  }
+  function blBioUnlock() {
+    errEl.textContent = '';
+    var id = state.activeId; if (!id || !window.Bio) return;
+    window.Bio.authenticate('bj', id).then(function(r) {
+      if (r.ok) { blMarkUnlocked(id); blHideOverlay(); blUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} }
+      else if (r.error === 'notregistered') { blBioShowInput(true); }
+      else { errEl.textContent = 'Biometric check failed — use your password.'; blBioShowInput(true); }
+    });
+  }
+  function blBioRegister(id, closeAfter) {
+    if (!window.Bio) return;
+    window.Bio.register('bj', id, { rpName: 'Brainstorm Journal', userName: 'bj-' + id, displayName: 'Journal entry — Brainstorm Journal' }).then(function(r) {
+      if (r.ok) { blMarkUnlocked(id); if (closeAfter) { blHideOverlay(); blUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} } alert('Biometrics registered on this device. You can now unlock this entry with ' + window.Bio.label() + '.'); }
+      else if (!(r.error === 'cancelled' || r.error === 'NotAllowedError')) alert('Could not register biometrics on this device.');
+    });
+  }
+  function blMaybeOfferBio(id) {
+    if (!window.Bio) return;
+    window.Bio.available().then(function(avail) {
+      if (!avail || window.Bio.isRegistered('bj', id)) return;
+      if (confirm('Register ' + window.Bio.label() + ' to unlock this entry on this device? Your password still works as a fallback.')) blBioRegister(id, false);
+    });
+  }
 
   // modes: 'setpw' | 'unlock' | 'remove' | 'changepw'
   function blShowOverlay(mode) {
@@ -18368,8 +18433,10 @@ window.hideBrainstormJournal = function() {
     overlay.style.display = 'flex';
     if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
     if (inputWrap) inputWrap.style.display = '';
+    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
     errEl.textContent = '';
     pwInput.value = '';
+    pwInput.style.display = '';   // restore in case a prior biometric prompt hid it
     pwInput.classList.remove('error');
     submitBtn.style.display = '';
     cancelBtn.style.display = '';
@@ -18399,12 +18466,14 @@ window.hideBrainstormJournal = function() {
       submitBtn.textContent = 'Unlock';
     }
     setTimeout(function() { pwInput.focus(); }, 80);
+    blBioRender();
   }
 
   function blHideOverlay() {
     overlay.style.display = 'none';
     if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
     if (inputWrap) inputWrap.style.display = '';
+    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
   }
 
   function blLockErr(msg) {
@@ -18415,12 +18484,13 @@ window.hideBrainstormJournal = function() {
     setTimeout(function() { pwInput.classList.remove('error'); }, 450);
   }
 
-  function _blMenuBtn(parent, label, cls, fn) {
+  function _blMenuBtn(parent, label, cls, fn, beforeEl) {
     var b = document.createElement('button');
     b.className = 'tl-btn' + (cls ? ' ' + cls : '');
     b.textContent = label;
     b.onclick = fn;
-    parent.appendChild(b);
+    if (beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b);
+    return b;
   }
 
   // Manage menu shown when the entry is already locked (mirrors MyList)
@@ -18429,6 +18499,7 @@ window.hideBrainstormJournal = function() {
     errEl.textContent = '';
     pwInput.value = '';
     pwInput.classList.remove('error');
+    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
     lockIcon.textContent = '🔒';
     lockTitle.textContent = 'Locked Entry';
     lockSub.textContent = 'Manage lock for this entry.';
@@ -18441,9 +18512,16 @@ window.hideBrainstormJournal = function() {
     } else {
       _blMenuBtn(m, '🔒  Lock this device', '', function() { blMarkLocked(entry.id); blHideOverlay(); blUpdateLockBtn(); blCheckEntry(); });
     }
-    _blMenuBtn(m, '🔑  Change password', 'ghost', function() { blShowOverlay('changepw'); });
+    var changeBtn = _blMenuBtn(m, '🔑  Change password', 'ghost', function() { blShowOverlay('changepw'); });
     _blMenuBtn(m, '🗑  Remove lock', 'danger', function() { blShowOverlay('remove'); });
     _blMenuBtn(m, 'Close', 'ghost', function() { blDismiss(); });
+    if (window.Bio) window.Bio.available().then(function(avail) {
+      if (!avail || state.activeId !== entry.id) return;
+      if (window.Bio.isRegistered('bj', entry.id))
+        _blMenuBtn(m, '👤  Remove biometrics', 'ghost', function() { window.Bio.unregister('bj', entry.id); blHideOverlay(); alert('Biometrics removed from this device.'); }, changeBtn);
+      else
+        _blMenuBtn(m, '👤  Register ' + window.Bio.label(), '', function() { blBioRegister(entry.id, true); }, changeBtn);
+    });
   }
 
   // Dismiss the overlay — but if the entry is still locked & not unlocked on this
@@ -18517,7 +18595,7 @@ window.hideBrainstormJournal = function() {
           body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw, hint: hint })
         });
         var data = await res.json();
-        if (data.ok) { blSetLock(entry.id); blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); renderSidebar(); }
+        if (data.ok) { blSetLock(entry.id); blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); renderSidebar(); blMaybeOfferBio(entry.id); }
         else errEl.textContent = 'Failed to set lock. Try again.';
       } else if (blMode === 'remove') {
         var res2 = await fetch(BJ_AUTH + '/auth/journal/remove-lock', {
@@ -20213,6 +20291,7 @@ window.hideBrainstormJournal = function() {
         <div class="tl-icon" id="tj-lock-icon">🔒</div>
         <div class="tl-title" id="tj-lock-title">Locked Entry</div>
         <div class="tl-sub" id="tj-lock-sub">Enter your password to unlock this entry.</div>
+        <div id="tj-lock-bio" style="display:none;"></div>
         <div class="tl-menu" id="tj-lock-menu" style="display:none;"></div>
         <div class="tl-input-wrap" id="tj-lock-input-wrap">
           <input class="tl-pw-input" id="tj-lock-pw" type="password" placeholder="• • • •" autocomplete="current-password" />
@@ -24315,7 +24394,62 @@ window.tjSwitchTo = function(app) {
   var boxEl = document.getElementById('tj-lock-box');
   var menuEl = document.getElementById('tj-lock-menu');
   var inputWrap = document.getElementById('tj-lock-input-wrap');
+  var bioEl = document.getElementById('tj-lock-bio');
   var tlMode = 'unlock';
+
+  // ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
+  // Primary unlock per entry; password stays as the fallback. Keyed by entry id
+  // under the 'tj' namespace so each entry keeps its own isolated device credential.
+  function tlBioShowInput(show) {
+    pwInput.style.display = show ? '' : 'none';
+    submitBtn.style.display = show ? '' : 'none';
+    forgotBtn.style.display = show ? '' : 'none';
+    if (resetBtn) resetBtn.style.display = show ? '' : 'none';
+    if (show) setTimeout(function() { pwInput.focus(); }, 60);
+  }
+  function tlBioRender() {
+    if (!bioEl) return; bioEl.innerHTML = ''; bioEl.style.display = 'none';
+    if (!window.Bio || tlMode !== 'unlock') return;
+    var entry = getActive(); if (!entry) return; var id = entry.id;
+    window.Bio.available().then(function(avail) {
+      var cur = getActive();
+      if (tlMode !== 'unlock' || !cur || cur.id !== id) return;
+      if (!(avail && window.Bio.isRegistered('tj', id))) return;
+      bioEl.style.display = 'flex'; bioEl.style.flexDirection = 'column'; bioEl.style.gap = '8px'; bioEl.style.marginBottom = '10px';
+      var b = document.createElement('button'); b.className = 'tl-btn';
+      b.textContent = '🔓  Unlock with ' + window.Bio.label();
+      b.onclick = function() { tlBioUnlock(); };
+      bioEl.appendChild(b);
+      var link = document.createElement('button'); link.className = 'tl-forgot';
+      link.textContent = 'Use password instead';
+      link.onclick = function() { tlBioShowInput(true); link.style.display = 'none'; };
+      bioEl.appendChild(link);
+      tlBioShowInput(false);
+    });
+  }
+  function tlBioUnlock() {
+    errEl.textContent = '';
+    var entry = getActive(); if (!entry || !window.Bio) return; var id = entry.id;
+    window.Bio.authenticate('tj', id).then(function(r) {
+      if (r.ok) { tlMarkUnlocked(id); tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} }
+      else if (r.error === 'notregistered') { tlBioShowInput(true); }
+      else { errEl.textContent = 'Biometric check failed — use your password.'; tlBioShowInput(true); }
+    });
+  }
+  function tlBioRegister(id, closeAfter) {
+    if (!window.Bio) return;
+    window.Bio.register('tj', id, { rpName: 'Trade Journal', userName: 'tj-' + id, displayName: 'Journal entry — Trade Journal' }).then(function(r) {
+      if (r.ok) { tlMarkUnlocked(id); if (closeAfter) { tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} } alert('Biometrics registered on this device. You can now unlock this entry with ' + window.Bio.label() + '.'); }
+      else if (!(r.error === 'cancelled' || r.error === 'NotAllowedError')) alert('Could not register biometrics on this device.');
+    });
+  }
+  function tlMaybeOfferBio(id) {
+    if (!window.Bio) return;
+    window.Bio.available().then(function(avail) {
+      if (!avail || window.Bio.isRegistered('tj', id)) return;
+      if (confirm('Register ' + window.Bio.label() + ' to unlock this entry on this device? Your password still works as a fallback.')) tlBioRegister(id, false);
+    });
+  }
 
   // modes: 'setpw' | 'unlock' | 'remove' | 'changepw'
   function tlShowOverlay(mode) {
@@ -24323,8 +24457,10 @@ window.tjSwitchTo = function(app) {
     overlay.style.display = 'flex';
     if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
     if (inputWrap) inputWrap.style.display = '';
+    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
     errEl.textContent = '';
     pwInput.value = '';
+    pwInput.style.display = '';   // restore in case a prior biometric prompt hid it
     pwInput.classList.remove('error');
     submitBtn.style.display = '';
     cancelBtn.style.display = '';
@@ -24354,12 +24490,14 @@ window.tjSwitchTo = function(app) {
       submitBtn.textContent = 'Unlock';
     }
     setTimeout(function() { pwInput.focus(); }, 80);
+    tlBioRender();
   }
 
   function tlHideOverlay() {
     overlay.style.display = 'none';
     if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
     if (inputWrap) inputWrap.style.display = '';
+    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
   }
 
   function tlLockErr(msg) {
@@ -24370,12 +24508,13 @@ window.tjSwitchTo = function(app) {
     setTimeout(function() { pwInput.classList.remove('error'); }, 450);
   }
 
-  function _tlMenuBtn(parent, label, cls, fn) {
+  function _tlMenuBtn(parent, label, cls, fn, beforeEl) {
     var b = document.createElement('button');
     b.className = 'tl-btn' + (cls ? ' ' + cls : '');
     b.textContent = label;
     b.onclick = fn;
-    parent.appendChild(b);
+    if (beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b);
+    return b;
   }
 
   // Manage menu shown when the entry is already locked (mirrors MyList)
@@ -24384,6 +24523,7 @@ window.tjSwitchTo = function(app) {
     errEl.textContent = '';
     pwInput.value = '';
     pwInput.classList.remove('error');
+    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
     lockIcon.textContent = '🔒';
     lockTitle.textContent = 'Locked Entry';
     lockSub.textContent = 'Manage lock for this entry.';
@@ -24396,9 +24536,17 @@ window.tjSwitchTo = function(app) {
     } else {
       _tlMenuBtn(m, '🔒  Lock this device', '', function() { tlMarkLocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); tlCheckEntry(); });
     }
-    _tlMenuBtn(m, '🔑  Change password', 'ghost', function() { tlShowOverlay('changepw'); });
+    var changeBtn = _tlMenuBtn(m, '🔑  Change password', 'ghost', function() { tlShowOverlay('changepw'); });
     _tlMenuBtn(m, '🗑  Remove lock', 'danger', function() { tlShowOverlay('remove'); });
     _tlMenuBtn(m, 'Close', 'ghost', function() { tlDismiss(); });
+    if (window.Bio) window.Bio.available().then(function(avail) {
+      var cur = getActive();
+      if (!avail || !cur || cur.id !== entry.id) return;
+      if (window.Bio.isRegistered('tj', entry.id))
+        _tlMenuBtn(m, '👤  Remove biometrics', 'ghost', function() { window.Bio.unregister('tj', entry.id); tlHideOverlay(); alert('Biometrics removed from this device.'); }, changeBtn);
+      else
+        _tlMenuBtn(m, '👤  Register ' + window.Bio.label(), '', function() { tlBioRegister(entry.id, true); }, changeBtn);
+    });
   }
 
   // Dismiss the overlay — but if the entry is still locked & not unlocked on this
@@ -24475,7 +24623,7 @@ window.tjSwitchTo = function(app) {
           body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw, hint: hint })
         });
         var data = await res.json();
-        if (data.ok) { tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); }
+        if (data.ok) { tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); tlMaybeOfferBio(entry.id); }
         else errEl.textContent = 'Failed to set lock. Try again.';
       } else if (tlMode === 'remove') {
         var res2 = await fetch(TJ_AUTH + '/auth/journal/remove-lock', {
@@ -35598,6 +35746,73 @@ setInterval(()=>{
 @media(max-width:900px){ .tn-gear { display: none !important; } }
 </style>
 
+<!-- ══════════════ Biometric auth (WebAuthn / platform passkeys) ══════════════
+     Shared, dependency-free helper. Primary auth = the device's own biometric
+     (Face ID / Touch ID on iOS, fingerprint on Android/Samsung, Windows Hello on
+     Windows) through the OS secure framework. The app NEVER sees or stores raw
+     biometric data — WebAuthn returns only a public-key credential handle.
+     Credentials are keyed per (app,id) so every profile / app keeps its own
+     isolated credential: one profile's biometric can never satisfy another's
+     unlock, because each unlock only allows its own stored credential id. -->
+<script>
+(function(){
+  if (window.Bio) return;
+  var NS = 'bio_cred_';
+  function u8(buf){ return new Uint8Array(buf); }
+  function b64u(buf){ var b=u8(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+  function unb64u(str){ str=String(str).replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
+  function rand(n){ var a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
+  function keyOf(app,id){ return NS+app+'_'+id; }
+  function supported(){ return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
+  function available(){
+    if(!supported()) return Promise.resolve(false);
+    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
+    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
+  }
+  function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
+  function isRegistered(app,id){ var r=stored(app,id); return !!(r&&r.id); }
+  function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
+  function label(){
+    var ua=navigator.userAgent||'';
+    if(/iPhone|iPad|iPod/.test(ua)) return 'Face ID';
+    if(/Android/.test(ua)) return 'fingerprint';
+    if(/Windows/.test(ua)) return 'Windows Hello';
+    if(/Mac/.test(ua)) return 'Touch ID';
+    return 'biometrics';
+  }
+  function register(app,id,opts){
+    opts=opts||{};
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    return navigator.credentials.create({publicKey:{
+      challenge: rand(32),
+      rp:{ name: opts.rpName||document.title||'App', id: location.hostname||undefined },
+      user:{ id: rand(16), name: opts.userName||(app+':'+id), displayName: opts.displayName||opts.userName||id },
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred' },
+      timeout: 60000, attestation:'none'
+    }}).then(function(cred){
+      if(!cred) return {ok:false,error:'cancelled'};
+      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), label:opts.displayName||opts.userName||id }));
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
+  }
+  function authenticate(app,id){
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    var rec=stored(app,id);
+    if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
+    return navigator.credentials.get({publicKey:{
+      challenge: rand(32),
+      allowCredentials:[{ type:'public-key', id: unb64u(rec.id) }],
+      userVerification:'required', timeout:60000, rpId: location.hostname||undefined
+    }}).then(function(asr){
+      if(!asr) return {ok:false,error:'cancelled'};
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
+  }
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label };
+})();
+</script>
+
 <div id="applock-overlay">
   <div id="applock-box">
     <div id="applock-icon">🔒</div>
@@ -35606,6 +35821,7 @@ setInterval(()=>{
       <div id="applock-sub">Enter your password to open this app.</div>
     </div>
     <div style="width:100%;display:flex;flex-direction:column;gap:10px;">
+      <div id="applock-bio"></div>
       <input id="applock-pw" type="password" placeholder="Password" autocomplete="off" />
       <div id="applock-err"></div>
       <button id="applock-submit">Unlock</button>
@@ -35831,6 +36047,7 @@ function alShowOverlay(appId, mode, cb, onCancel) {
   _el('applock-title').style.color = meta.color;
   _el('applock-submit').style.background = meta.color;
   _el('applock-submit').style.display = '';
+  _el('applock-pw').style.display = '';   // restore in case a prior biometric prompt hid it
   // Remove any manage menu leftover
   var m = _el('al-menu-btns'); if (m) m.remove();
   var _noun = meta.isProfile ? 'profile' : 'app';
@@ -35867,6 +36084,7 @@ function alShowOverlay(appId, mode, cb, onCancel) {
   if (_el('applock-reset')) _el('applock-reset').style.display = _el('applock-forgot').style.display;
   _el('applock-overlay').style.display = 'flex';
   setTimeout(function() { _el('applock-pw').focus(); }, 80);
+  alBioRender(appId);
 }
 
 function alHideOverlay() {
@@ -35875,6 +36093,74 @@ function alHideOverlay() {
   _alPendingCb    = null;
   _alOnCancel     = null;
   var m = _el('al-menu-btns'); if (m) m.remove();
+  var bio = _el('applock-bio'); if (bio) { bio.innerHTML = ''; bio.style.display = 'none'; }
+}
+
+// ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
+// Primary unlock; the password below always remains the fallback. Keyed per
+// appId, so each profile / app carries its own isolated device credential —
+// one profile's biometric can never unlock another (allowCredentials is scoped).
+function alBioShowPw(show) {
+  _el('applock-pw').style.display = show ? '' : 'none';
+  _el('applock-submit').style.display = show ? '' : 'none';
+  _el('applock-forgot').style.display = show ? '' : 'none';
+  if (_el('applock-reset')) _el('applock-reset').style.display = show ? '' : 'none';
+  if (show) setTimeout(function() { _el('applock-pw').focus(); }, 60);
+}
+function alBioRender(appId) {
+  var box = _el('applock-bio'); if (!box) return;
+  box.innerHTML = ''; box.style.display = 'none';
+  if (!window.Bio || _alMode !== 'unlock') return;
+  window.Bio.available().then(function(avail) {
+    if (_alPendingAppId !== appId || _alMode !== 'unlock') return;
+    if (!(avail && window.Bio.isRegistered('applock', appId))) return;
+    var meta = AL_LABELS[appId] || { color: '#E0607A' };
+    box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '8px';
+    var b = document.createElement('button');
+    b.textContent = '🔓  Unlock with ' + window.Bio.label();
+    b.style.cssText = "border:none;border-radius:4px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;width:100%;background:" + meta.color + ";color:#fff;";
+    b.onclick = function() { alBioUnlock(appId); };
+    box.appendChild(b);
+    var link = document.createElement('button');
+    link.textContent = 'Use password instead';
+    link.style.cssText = 'background:transparent;border:none;color:#9898a8;font-size:12px;text-decoration:underline;cursor:pointer;';
+    link.onclick = function() { alBioShowPw(true); link.style.display = 'none'; };
+    box.appendChild(link);
+    alBioShowPw(false);
+  });
+}
+function alBioUnlock(appId) {
+  _el('applock-err').textContent = '';
+  if (!window.Bio) return;
+  window.Bio.authenticate('applock', appId).then(function(r) {
+    if (r.ok) {
+      alMarkUnlocked(appId); _alAttempts[appId] = 0;
+      var cb = _alPendingCb; alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
+      if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
+      if (cb) cb();
+    } else if (r.error === 'notregistered') { alBioShowPw(true); }
+    else { _el('applock-err').textContent = 'Biometric check failed — use your password.'; alBioShowPw(true); }
+  });
+}
+function alBioRegister(appId, closeAfter) {
+  if (!window.Bio) return;
+  var meta = AL_LABELS[appId] || { label: appId };
+  window.Bio.register('applock', appId, { rpName: 'Index', userName: 'index-' + appId, displayName: (meta.label) + (meta.isProfile ? ' profile' : '') + ' — Index' }).then(function(r) {
+    if (r.ok) {
+      alMarkUnlocked(appId); if (closeAfter) alHideOverlay();
+      alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
+      alert('Biometrics registered on this device. You can now unlock ' + meta.label + ' with ' + window.Bio.label() + '.');
+    } else if (r.error === 'cancelled' || r.error === 'NotAllowedError') { /* user backed out */ }
+    else alert('Could not register biometrics on this device.');
+  });
+}
+function alMaybeOfferBio(appId) {
+  if (!window.Bio) return;
+  window.Bio.available().then(function(avail) {
+    if (!avail || window.Bio.isRegistered('applock', appId)) return;
+    var meta = AL_LABELS[appId] || { label: appId };
+    if (confirm('Register ' + window.Bio.label() + ' to unlock ' + meta.label + ' on this device? Your password still works as a fallback.')) alBioRegister(appId, false);
+  });
 }
 
 function alShake() {
@@ -35995,6 +36281,7 @@ function alShowManageMenu(appId) {
   var isUnlocked = alIsUnlocked(appId);
   _alPendingAppId = appId;
   _el('applock-err').textContent = '';
+  var _mbio = _el('applock-bio'); if (_mbio) { _mbio.innerHTML = ''; _mbio.style.display = 'none'; }
   _el('applock-pw').value = '';
   _el('applock-pw').classList.remove('error');
   _el('applock-icon').textContent  = '🔒';
@@ -36022,6 +36309,21 @@ function alShowManageMenu(appId) {
   cb.style.cssText = s + 'background:#252530;color:#ececf0;border:1px solid #323240;';
   cb.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alShowOverlay(appId,'changepw',null); };
   menu.appendChild(cb);
+  // Register / remove biometrics for this app or profile (inserted above "Change password").
+  if (window.Bio) window.Bio.available().then(function(avail) {
+    if (!avail || _alPendingAppId !== appId) return;
+    var bb = document.createElement('button');
+    if (window.Bio.isRegistered('applock', appId)) {
+      bb.textContent = '👤  Remove biometrics';
+      bb.style.cssText = s + 'background:transparent;color:#9898a8;border:1px solid #323240;';
+      bb.onclick = function() { window.Bio.unregister('applock', appId); menu.remove(); _el('applock-submit').style.display=''; alHideOverlay(); alert('Biometrics removed from this device.'); };
+    } else {
+      bb.textContent = '👤  Register ' + window.Bio.label();
+      bb.style.cssText = s + 'background:#252530;color:#ececf0;border:1px solid #323240;';
+      bb.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alBioRegister(appId, true); };
+    }
+    menu.insertBefore(bb, cb);
+  });
   var rb = document.createElement('button');
   rb.textContent = '🗑  Remove lock';
   rb.style.cssText = s + 'background:transparent;color:#d47a6a;border:1px solid #d47a6a;';
@@ -36053,7 +36355,7 @@ function alShowManageMenu(appId) {
         var hint = (await window.uiPrompt('Optional: enter a password hint for the recovery email. Leave blank to skip.', {title:'Password hint'})) || '';
         var r1 = await fetch(AL_WORKER+'/auth/journal/set-lock', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId,password:pw,hint:hint})});
         var d1 = await r1.json();
-        if (d1.ok) { alSetLock(appId); if (appId.indexOf('profile_')===0) alMarkUnlocked(appId); alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if (window._alProfileRefreshBtns) window._alProfileRefreshBtns(); if (_alPendingCb) _alPendingCb(); }
+        if (d1.ok) { alSetLock(appId); if (appId.indexOf('profile_')===0) alMarkUnlocked(appId); alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if (window._alProfileRefreshBtns) window._alProfileRefreshBtns(); if (_alPendingCb) _alPendingCb(); alMaybeOfferBio(appId); }
         else { _el('applock-err').textContent = 'Failed to set lock. Try again.'; }
 
       } else if (_alMode === 'remove') {
