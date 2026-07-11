@@ -1,11 +1,15 @@
 // Vault popup — reads the shared Keychain document, renders each connection as
-// a group, and launches links (one, a whole group, or everything).
+// a group, and launches links (a single link or a whole group). Link editing
+// lives entirely in TaskHub → Keychain; Vault only displays and opens.
 
 const groupsEl  = document.getElementById("groups");
 const loadingEl = document.getElementById("loading");
-const openAllEl = document.getElementById("openAll");
 const syncEl    = document.getElementById("sync");
 const toastEl   = document.getElementById("toast");
+
+// TaskHub PWA, deep-linked straight to the Keychain program. Opens in the
+// installed desktop app if the browser routes it there, otherwise a browser tab.
+const TASKHUB_KEYCHAIN_URL = "https://anthonyn99.github.io/A1/#keychain";
 
 // Same palette Keychain uses for connection colours, for a consistent look.
 const CD = ['#a8d8c0','#a0c8e8','#f5e88a','#f0a8c8','#c4a0e8','#40d8a8','#40a8f0','#f5c800','#f04898','#f07020','#9b72cf','#50cc30','#10b8d0','#e03060','#ffd93d','#7b5ea7'];
@@ -40,17 +44,13 @@ function render() {
   groupsEl.innerHTML = "";
 
   if (!connections.length) {
-    groupsEl.innerHTML = `<div class="empty">No groups yet.<br />Click ⚙ to add links, or add them in Keychain — they sync both ways.</div>`;
-    openAllEl.classList.add("hidden");
+    groupsEl.innerHTML = `<div class="empty">No groups yet.<br />Add links in TaskHub → Keychain (⚙) — they sync here automatically.</div>`;
     return;
   }
-
-  let anyLink = false;
 
   connections.forEach((conn, ci) => {
     const color = conn.color || CD[ci % CD.length];
     const links = VaultDB.linksOf(conn);
-    if (links.length) anyLink = true;
 
     const card = document.createElement("div");
     card.className = "card";
