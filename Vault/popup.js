@@ -92,21 +92,32 @@ function render() {
     }));
 }
 
-openAllEl.addEventListener("click", () => {
-  const all = connections.flatMap(c => VaultDB.linksOf(c)).map(l => l.url);
-  openUrls(all);
-});
+// ── Tabs + tab-aware settings button ──
+// Links tab: the gear opens TaskHub → Keychain (all link management lives there).
+// Passwords tab: the gear opens Vault's own settings page.
+let activeTab = "links";
+const gearEl = document.getElementById("gear");
 
-// ── Tabs ──
+function setActiveTab(name) {
+  activeTab = name;
+  document.querySelectorAll(".tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.panel === name));
+  document.getElementById("panel-links").classList.toggle("hidden", name !== "links");
+  document.getElementById("panel-passwords").classList.toggle("hidden", name !== "passwords");
+  gearEl.title = name === "passwords" ? "Vault settings" : "Open Keychain in TaskHub";
+}
+
 document.querySelectorAll(".tab").forEach(tab =>
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    tab.classList.add("active");
-    document.getElementById("panel-links").classList.toggle("hidden", tab.dataset.panel !== "links");
-    document.getElementById("panel-passwords").classList.toggle("hidden", tab.dataset.panel !== "passwords");
-  }));
+  tab.addEventListener("click", () => setActiveTab(tab.dataset.panel)));
 
-document.getElementById("gear").addEventListener("click", () => chrome.runtime.openOptionsPage());
+gearEl.addEventListener("click", () => {
+  if (activeTab === "passwords") {
+    chrome.runtime.openOptionsPage();
+  } else {
+    chrome.tabs.create({ url: TASKHUB_KEYCHAIN_URL });
+    window.close();
+  }
+});
 
 // ── Load from the shared Keychain doc ──
 (async () => {
