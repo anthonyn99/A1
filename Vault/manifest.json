@@ -3,11 +3,9 @@
   "name": "Vault",
   "version": "1.0.0",
   "description": "Your links & groups, synced with Keychain. Launch an entire group of tabs in one click.",
-  "permissions": ["tabs", "storage"],
+  "permissions": ["tabs"],
   "host_permissions": [
-    "https://identitytoolkit.googleapis.com/*",
-    "https://securetoken.googleapis.com/*",
-    "https://firestore.googleapis.com/*"
+    "https://keychain-sync.av1.workers.dev/*"
   ],
   "action": {
     "default_popup": "popup.html",
