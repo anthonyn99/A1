@@ -1,9 +1,9 @@
 # Vault
 
-A browser extension that stores your links in **groups** and launches an entire
-group of tabs in one click — sharing a single source of truth with the **Keychain**
-program in your Index app. Add a site in Keychain and it shows up in Vault; add it
-in Vault and it shows up in Keychain. No separate database.
+A browser extension that displays your links in **groups** and launches an entire
+group of tabs in one click — reading a single source of truth from the **Keychain**
+program in your Index app. Add or edit a site in Keychain and it shows up in Vault
+automatically. No separate database.
 
 Rebuilt from the old *D2L Tabs Automate* class project (used only as a template).
 
@@ -13,14 +13,16 @@ Rebuilt from the old *D2L Tabs Automate* class project (used only as a template)
 
 - **Groups & links** — each Keychain "connection" is a group; its `link` items are
   the launchable links. Vault renders them as cards.
-- **Open one / open a group / open everything** — one click launches a single link,
-  every link in a group, or every link across all groups.
-- **Two-way sync** — reads and writes `dashboards/keychain` in Firestore, the exact
-  document Keychain uses. Changes flow both directions.
-- **Non-destructive** — Keychain-only item types (emails, phones, usernames, docs,
-  notes) are preserved untouched on every save; Vault just doesn't display/edit them.
-- **Passwords** — a placeholder section is reserved for future secure credential
-  storage (no backend yet, by design).
+- **Open one / open a group** — one click launches a single link or every link in a
+  group.
+- **Read-only mirror** — reads `dashboards/keychain` in Firestore, the exact document
+  Keychain uses, and reflects it live. **All editing** (add/remove links, groups,
+  colours, ordering) happens in **TaskHub → Keychain**; Vault only displays & opens.
+- **Tab-aware settings button** — on the **Links** tab the ⚙ opens TaskHub deep-linked
+  straight to Keychain (`…/A1/#keychain` — the installed PWA if the browser routes it,
+  otherwise a tab). On the **Passwords** tab the ⚙ opens Vault's own settings page.
+- **Passwords** — a placeholder section reserved for future secure credential storage
+  (no backend yet, by design), with its own settings separate from Keychain.
 
 ---
 
