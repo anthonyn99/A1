@@ -40,6 +40,25 @@ chrome.storage.local.get(SIZE_KEY, (d) => {
   }).observe(appEl);
 });
 
+// ── Big drag-to-resize grip ──
+// Uses screenX/Y deltas so resizing stays stable no matter how the popup window
+// re-anchors as it grows. The ResizeObserver above handles reflow + saving.
+const gripEl = document.getElementById("resize-grip");
+let grip = null;
+gripEl.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  grip = { sx: e.screenX, sy: e.screenY, w: appEl.offsetWidth, h: appEl.offsetHeight };
+  try { gripEl.setPointerCapture(e.pointerId); } catch (_) {}
+});
+gripEl.addEventListener("pointermove", (e) => {
+  if (!grip) return;
+  appEl.style.width  = Math.max(300, Math.min(780, grip.w + (e.screenX - grip.sx))) + "px";
+  appEl.style.height = Math.max(240, Math.min(590, grip.h + (e.screenY - grip.sy))) + "px";
+});
+const endGrip = (e) => { grip = null; try { gripEl.releasePointerCapture(e.pointerId); } catch (_) {} };
+gripEl.addEventListener("pointerup", endGrip);
+gripEl.addEventListener("pointercancel", endGrip);
+
 // Same palette Keychain uses for connection colours, for a consistent look.
 const CD = ['#a8d8c0','#a0c8e8','#f5e88a','#f0a8c8','#c4a0e8','#40d8a8','#40a8f0','#f5c800','#f04898','#f07020','#9b72cf','#50cc30','#10b8d0','#e03060','#ffd93d','#7b5ea7'];
 
