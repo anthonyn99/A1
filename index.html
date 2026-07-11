@@ -15810,10 +15810,10 @@ document.getElementById('bj-wb-canvas').addEventListener('pointerup', e => {
 document.getElementById('bj-wb-canvas').addEventListener('pointercancel', () => {
   wbDrawing = false; wbPoints = []; autoSave(); saveCanvas();
 });
-document.getElementById('bj-wb-canvas').addEventListener('click', e => {
+document.getElementById('bj-wb-canvas').addEventListener('click', async e => {
   if (wbTool !== 'text-tool') return;
   const pos = getPos(wbCanvas, e);
-  const text = prompt('Enter text:');
+  const text = await window.uiPrompt('Enter text:', {title:'Add text'});
   if (text) {
     pushHistory();
     wbCtx.fillStyle = wbColor;
@@ -15842,8 +15842,8 @@ document.getElementById('bj-wb-size').addEventListener('input', function() {
   wbSize = parseInt(this.value);
   document.getElementById('bj-wb-size-lbl').textContent = wbSize;
 });
-document.getElementById('bj-wb-clear').addEventListener('click', () => {
-  if (confirm('Clear the whiteboard?')) { pushHistory(); wbClearAll(); autoSave(); saveCanvas(); }
+document.getElementById('bj-wb-clear').addEventListener('click', async () => {
+  if (await window.uiConfirm('Clear the whiteboard?', {danger:true, okLabel:'Clear'})) { pushHistory(); wbClearAll(); autoSave(); saveCanvas(); }
 });
 document.getElementById('bj-wb-undo').addEventListener('click', () => {
   if (wbHistory.length === 0) return;
@@ -16396,8 +16396,8 @@ document.getElementById('bj-mm-delete-node').addEventListener('click', () => {
   mmEdges=mmEdges.filter(e=>e.from!==mmSelectedNode&&e.to!==mmSelectedNode);
   mmSelectedNode=null; renderMindmap(); autoSave();
 });
-document.getElementById('bj-mm-reset').addEventListener('click', () => {
-  if (!confirm('Reset the mind map?')) return;
+document.getElementById('bj-mm-reset').addEventListener('click', async () => {
+  if (!(await window.uiConfirm('Reset the mind map?', {danger:true, okLabel:'Reset'}))) return;
   const cx = mmCanvas ? mmCanvas.width/2 : 340;
   const cy = mmCanvas ? mmCanvas.height/2 : 240;
   mmNodes=[{id:1,x:cx,y:cy,label:'Central Idea',root:true}];
@@ -16759,8 +16759,8 @@ document.getElementById('bj-pt-alignC').addEventListener('click', () => pgCmd('j
 document.getElementById('bj-pt-alignR').addEventListener('click', () => pgCmd('justifyRight'));
 
 // Link
-document.getElementById('bj-pt-link').addEventListener('click', () => {
-  const url = prompt('Enter URL:');
+document.getElementById('bj-pt-link').addEventListener('click', async () => {
+  const url = await window.uiPrompt('Enter URL:', {title:'Insert link', placeholder:'https://…'});
   if (url) pgCmd('createLink', url);
 });
 
@@ -17370,8 +17370,8 @@ document.addEventListener('selectionchange', () => {
 });
 
 // Clear page
-document.getElementById('bj-pt-clear').addEventListener('click', () => {
-  if (!confirm('Clear all page content?')) return;
+document.getElementById('bj-pt-clear').addEventListener('click', async () => {
+  if (!(await window.uiConfirm('Clear all page content?', {danger:true, okLabel:'Clear'}))) return;
   document.getElementById('bj-page-editor').innerHTML = '';
   if (window._docxScrollToTop) window._docxScrollToTop('bj-page-editor');
   autoSave();
@@ -21462,10 +21462,10 @@ document.getElementById('tj-wb-canvas').addEventListener('pointerup', e => {
 document.getElementById('tj-wb-canvas').addEventListener('pointercancel', () => {
   wbDrawing = false; wbPoints = []; autoSave(); saveCanvas();
 });
-document.getElementById('tj-wb-canvas').addEventListener('click', e => {
+document.getElementById('tj-wb-canvas').addEventListener('click', async e => {
   if (wbTool !== 'text-tool') return;
   const pos = getPos(wbCanvas, e);
-  const text = prompt('Enter text:');
+  const text = await window.uiPrompt('Enter text:', {title:'Add text'});
   if (text) {
     pushHistory();
     wbCtx.fillStyle = wbColor;
@@ -21494,8 +21494,8 @@ document.getElementById('tj-wb-size').addEventListener('input', function() {
   wbSize = parseInt(this.value);
   document.getElementById('tj-wb-size-lbl').textContent = wbSize;
 });
-document.getElementById('tj-wb-clear').addEventListener('click', () => {
-  if (confirm('Clear the whiteboard?')) { pushHistory(); wbClearAll(); autoSave(); saveCanvas(); }
+document.getElementById('tj-wb-clear').addEventListener('click', async () => {
+  if (await window.uiConfirm('Clear the whiteboard?', {danger:true, okLabel:'Clear'})) { pushHistory(); wbClearAll(); autoSave(); saveCanvas(); }
 });
 document.getElementById('tj-wb-undo').addEventListener('click', () => {
   if (wbHistory.length === 0) return;
@@ -22048,8 +22048,8 @@ document.getElementById('tj-mm-delete-node').addEventListener('click', () => {
   mmEdges=mmEdges.filter(e=>e.from!==mmSelectedNode&&e.to!==mmSelectedNode);
   mmSelectedNode=null; renderMindmap(); autoSave();
 });
-document.getElementById('tj-mm-reset').addEventListener('click', () => {
-  if (!confirm('Reset the mind map?')) return;
+document.getElementById('tj-mm-reset').addEventListener('click', async () => {
+  if (!(await window.uiConfirm('Reset the mind map?', {danger:true, okLabel:'Reset'}))) return;
   const cx = mmCanvas ? mmCanvas.width/2 : 340;
   const cy = mmCanvas ? mmCanvas.height/2 : 240;
   mmNodes=[{id:1,x:cx,y:cy,label:'Central Idea',root:true}];
@@ -22411,8 +22411,8 @@ document.getElementById('tj-pt-alignC').addEventListener('click', () => pgCmd('j
 document.getElementById('tj-pt-alignR').addEventListener('click', () => pgCmd('justifyRight'));
 
 // Link
-document.getElementById('tj-pt-link').addEventListener('click', () => {
-  const url = prompt('Enter URL:');
+document.getElementById('tj-pt-link').addEventListener('click', async () => {
+  const url = await window.uiPrompt('Enter URL:', {title:'Insert link', placeholder:'https://…'});
   if (url) pgCmd('createLink', url);
 });
 
@@ -22778,8 +22778,8 @@ document.addEventListener('selectionchange', () => {
 });
 
 // Clear page
-document.getElementById('tj-pt-clear').addEventListener('click', () => {
-  if (!confirm('Clear all page content?')) return;
+document.getElementById('tj-pt-clear').addEventListener('click', async () => {
+  if (!(await window.uiConfirm('Clear all page content?', {danger:true, okLabel:'Clear'}))) return;
   document.getElementById('tj-page-editor').innerHTML = '';
   if (window._docxScrollToTop) window._docxScrollToTop('tj-page-editor');
   autoSave();
@@ -23049,12 +23049,12 @@ function _tjFindMarkAncestor(node, editorEl) {
 
     // Tab delete
     tabsEl.querySelectorAll('.je-tab-del').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
+      btn.addEventListener('click', async function(e) {
         e.stopPropagation();
         const key = btn.dataset.dateKey;
         const cur = _jeGetEntry();
         if (!cur) return;
-        if (!confirm('Delete entry for ' + _jeFormatDateLabel(key) + '?')) return;
+        if (!(await window.uiConfirm('Delete entry for ' + _jeFormatDateLabel(key) + '?', {danger:true, okLabel:'Delete'}))) return;
         delete cur.data.dates[key];
         cur.data.dateOrder = cur.data.dateOrder.filter(function(k) { return k !== key; });
         if (cur.data.activeDateKey === key) cur.data.activeDateKey = '';
@@ -23093,12 +23093,12 @@ function _tjFindMarkAncestor(node, editorEl) {
   // ── Add Date button ──
   var addDateBtn = document.getElementById('tj-je-add-date');
   if (addDateBtn) {
-    addDateBtn.addEventListener('click', function() {
+    addDateBtn.addEventListener('click', async function() {
       var entry = _jeGetEntry();
       if (!entry || entry.template !== 'journal-entries') return;
       // Prompt for date; default today
       var defaultKey = _jeTodayKey();
-      var input = prompt('Enter date (YYYY-MM-DD):', defaultKey);
+      var input = await window.uiPrompt('Enter date (YYYY-MM-DD):', {title:'Add date', default:defaultKey});
       if (!input) return;
       input = input.trim();
       // Validate format
@@ -23193,9 +23193,11 @@ function _tjFindMarkAncestor(node, editorEl) {
     jeEd.focus(); document.execCommand('insertHTML', false, '<hr>');
     if (typeof autoSave === 'function') autoSave();
   });
-  document.getElementById('tj-jept-table')    && document.getElementById('tj-jept-table').addEventListener('click', function() {
-    var rows = parseInt(prompt('Rows:', '3'), 10) || 3;
-    var cols = parseInt(prompt('Columns:', '3'), 10) || 3;
+  document.getElementById('tj-jept-table')    && document.getElementById('tj-jept-table').addEventListener('click', async function() {
+    var _dims = await window.uiForm({ title:'Insert table', okLabel:'Insert', fields:[ {name:'rows',label:'Rows',value:'3'}, {name:'cols',label:'Columns',value:'3'} ] });
+    if (!_dims) return;
+    var rows = parseInt(_dims.rows, 10) || 3;
+    var cols = parseInt(_dims.cols, 10) || 3;
     var th = Array.from({ length: cols }, function(_, i) { return '<th>Col ' + (i + 1) + '</th>'; }).join('');
     var td = Array.from({ length: cols }, function() { return '<td></td>'; }).join('');
     var tbody = Array.from({ length: rows }, function() { return '<tr>' + td + '</tr>'; }).join('');
@@ -23203,8 +23205,8 @@ function _tjFindMarkAncestor(node, editorEl) {
     jeEd.focus(); document.execCommand('insertHTML', false, tbl);
     if (typeof autoSave === 'function') autoSave();
   });
-  document.getElementById('tj-jept-clear')    && document.getElementById('tj-jept-clear').addEventListener('click', function() {
-    if (!confirm('Clear content for this date?')) return;
+  document.getElementById('tj-jept-clear')    && document.getElementById('tj-jept-clear').addEventListener('click', async function() {
+    if (!(await window.uiConfirm('Clear content for this date?', {danger:true, okLabel:'Clear'}))) return;
     jeEd.innerHTML = '';
     var cur = _jeGetEntry();
     if (cur && cur.data.activeDateKey) {
@@ -26245,8 +26247,8 @@ window._docxOpenTrash = function(app) {
           syncFooter();
         });
         row.querySelector('.res').addEventListener('click', function() { api.restore([e.id]); render(); });
-        row.querySelector('.del').addEventListener('click', function() {
-          if (confirm('Permanently delete "' + (e.title || 'Untitled') + '"? This cannot be undone.')) { api.purge([e.id]); render(); }
+        row.querySelector('.del').addEventListener('click', async function() {
+          if (await window.uiConfirm('Permanently delete "' + (e.title || 'Untitled') + '"? This cannot be undone.', {danger:true, okLabel:'Delete forever'})) { api.purge([e.id]); render(); }
         });
         b.appendChild(row);
       });
@@ -26277,10 +26279,10 @@ window._docxOpenTrash = function(app) {
     var del = document.createElement('button');
     del.className = 'docx-btn danger';
     del.textContent = 'Delete selected forever';
-    del.addEventListener('click', function() {
+    del.addEventListener('click', async function() {
       var ids = Object.keys(selected);
       if (!ids.length) return;
-      if (!confirm('Permanently delete ' + ids.length + ' item(s)? This cannot be undone.')) return;
+      if (!(await window.uiConfirm('Permanently delete ' + ids.length + ' item(s)? This cannot be undone.', {danger:true, okLabel:'Delete forever'}))) return;
       api.purge(ids);
       ids.forEach(function(id) { delete selected[id]; });
       body._render();
@@ -26288,10 +26290,10 @@ window._docxOpenTrash = function(app) {
     var empty = document.createElement('button');
     empty.className = 'docx-btn danger';
     empty.textContent = 'Empty Trash';
-    empty.addEventListener('click', function() {
+    empty.addEventListener('click', async function() {
       var ids = api.list().map(function(e) { return e.id; });
       if (!ids.length) return;
-      if (!confirm('Permanently delete ALL ' + ids.length + ' item(s) in Trash?')) return;
+      if (!(await window.uiConfirm('Permanently delete ALL ' + ids.length + ' item(s) in Trash?', {danger:true, okLabel:'Empty Trash'}))) return;
       api.purge(ids);
       body._render();
     });
@@ -26833,7 +26835,7 @@ function buildMenubar(ctx) {
   menu('Insert', function(p) {
     if (ctx.imgEl) p.appendChild(mi('Image/File…', function() { ctx.imgEl.click(); }));
     p.appendChild(mi('Table…', function() { tableGridPop(ctx, ctx.tbEl); }));
-    p.appendChild(mi('Link…', function() { var url = prompt('Link URL:'); if (url) exec(ctx, 'createLink', url); }));
+    p.appendChild(mi('Link…', async function() { var url = await window.uiPrompt('Link URL:', {title:'Insert link', placeholder:'https://…'}); if (url) exec(ctx, 'createLink', url); }));
     p.appendChild(mi('Horizontal divider', function() { exec(ctx, 'insertHorizontalRule'); }));
     p.appendChild(mi('Page break', function() { insertHTML(ctx, '<hr class="docx-pagebreak"><p><br></p>'); }));
     p.appendChild(mi('Code block', function() { exec(ctx, 'formatBlock', 'pre'); }));
@@ -27291,8 +27293,8 @@ function toggleLink(ctx) {
 function linkPopup(ctx, a) {
   showPop(ctx.tbEl.querySelector('[id$="-pt-link"]') || ctx.tbEl, function(p) {
     p.appendChild(mi('Open link', function() { window.open(a.href, '_blank', 'noopener'); }));
-    p.appendChild(mi('Edit link…', function() {
-      var url = prompt('Link URL:', a.href);
+    p.appendChild(mi('Edit link…', async function() {
+      var url = await window.uiPrompt('Link URL:', {title:'Edit link', default:a.href});
       if (url) { if (!/^(https?:|mailto:|tel:|#|\/)/i.test(url)) url = 'https://' + url; a.href = url; fireInput(ctx.edEl); }
     }));
     p.appendChild(mi('Remove link', function() { _unwrap(a); ctx.edEl.normalize(); fireInput(ctx.edEl); }));
