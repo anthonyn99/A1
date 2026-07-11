@@ -1937,7 +1937,7 @@ $('lock-pw').addEventListener('keydown', function(e){ if(e.key==='Enter') lockSu
       if(f.label){ var sp=document.createElement('span'); sp.className='uim-label'; sp.textContent=f.label; lab.appendChild(sp); }
       var inp=document.createElement('input'); inp.className='uim-input'; inp.type=f.type||'text';
       inp.value=(f.value!=null?f.value:''); if(f.placeholder) inp.placeholder=f.placeholder; inp.setAttribute('data-name',f.name);
-      if(f.autocap===false){ inp.autocapitalize='off'; inp.setAttribute('autocorrect','off'; ); inp.spellcheck=false; }
+      if(f.autocap===false){ inp.autocapitalize='off'; inp.setAttribute('autocorrect','off'); inp.spellcheck=false; }
       lab.appendChild(inp); fw.appendChild(lab);
     });
     el('uim-err').textContent='';
