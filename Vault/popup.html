@@ -70,7 +70,9 @@
     .panel { padding:8px 16px 16px; }
     .hidden { display:none; }
 
-    /* ── Group cards ── */
+    /* ── Group columns + cards ── */
+    #groups { display:flex; gap:10px; align-items:flex-start; }
+    .col { flex:1 1 0; min-width:0; }
     .card {
       background:var(--s1); border:1px solid var(--bd);
       border-left:3px solid var(--card-accent,var(--ac));
@@ -81,14 +83,7 @@
       gap:8px; margin-bottom:8px;
     }
     .card-name {
-      font-size:13px; font-weight:700; color:var(--tx);
-      display:flex; align-items:center; gap:7px; min-width:0;
-    }
-    .card-dot {
-      width:8px; height:8px; border-radius:50%;
-      background:var(--card-accent,var(--ac)); flex-shrink:0;
-    }
-    .card-name span {
+      font-size:13px; font-weight:700; color:var(--tx); min-width:0;
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     }
     .open-group {
@@ -131,6 +126,7 @@
       font-size:12px; color:var(--txd); line-height:1.7;
     }
     .placeholder .big { font-size:22px; display:block; margin-bottom:8px; }
+    .empty { flex:1 1 100%; }
     .loading { text-align:center; color:var(--txm); font-size:12px; padding:30px 0; }
   </style>
 </head>
