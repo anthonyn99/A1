@@ -18089,11 +18089,17 @@ window.hideBrainstormJournal = function() {
     // locked = entry has lock marker (no longer stores hash/plain locally)
     return (entry && entry.lock) ? entry.lock : null;
   }
-  // blSetLock now only marks the entry as locked (no local hash/plain)
-  function blSetLock(id) {
+  // Version stamp: bumped whenever the password is set/changed/reset so every other
+  // device must re-enter the new password once (like MyList / app-locks).
+  function blLockVersion(id) {
+    var entry = state.entries.find(function(e) { return e.id === id; });
+    return (entry && entry.lock && entry.lock.v) || 0;
+  }
+  // blSetLock marks the entry locked and stamps a version (fresh unless one is passed).
+  function blSetLock(id, v) {
     var entry = state.entries.find(function(e) { return e.id === id; });
     if (!entry) return;
-    entry.lock = { locked: true };
+    entry.lock = { locked: true, v: v || Date.now() };
     entry.updated = Date.now();
     saveState();
   }
@@ -18105,9 +18111,65 @@ window.hideBrainstormJournal = function() {
     saveState();
   }
   function blUnlockedKey(id) { return 'bj_unlocked_' + id; }
-  function blIsUnlocked(id) { return !!_bjUnlocked[id] || localStorage.getItem('bj_unlocked_'+id)==='1' || sessionStorage.getItem('bj_unlocked_'+id)==='1'; }
-  function blMarkUnlocked(id) { _bjUnlocked[id] = true; try{localStorage.setItem('bj_unlocked_'+id,'1');}catch(e){} try{sessionStorage.setItem('bj_unlocked_'+id,'1');}catch(e){} }
-  function blMarkLocked(id) { delete _bjUnlocked[id]; try{localStorage.removeItem('bj_unlocked_'+id);}catch(e){} try{sessionStorage.removeItem('bj_unlocked_'+id);}catch(e){} }
+  function blIsUnlocked(id) {
+    var v = blLockVersion(id);
+    if (!v) { // legacy lock with no version → simple per-device flag
+      return !!_bjUnlocked[id] || localStorage.getItem('bj_unlocked_'+id)==='1' || sessionStorage.getItem('bj_unlocked_'+id)==='1';
+    }
+    var want = 'v' + v;
+    return localStorage.getItem('bj_unlockedv_'+id)===want || sessionStorage.getItem('bj_unlockedv_'+id)===want;
+  }
+  function blMarkUnlocked(id) {
+    _bjUnlocked[id] = true;
+    var v = blLockVersion(id);
+    if (!v) { try{localStorage.setItem('bj_unlocked_'+id,'1');}catch(e){} try{sessionStorage.setItem('bj_unlocked_'+id,'1');}catch(e){} }
+    else { try{localStorage.setItem('bj_unlockedv_'+id,'v'+v);}catch(e){} try{sessionStorage.setItem('bj_unlockedv_'+id,'v'+v);}catch(e){} }
+  }
+  function blMarkLocked(id) {
+    delete _bjUnlocked[id];
+    try{localStorage.removeItem('bj_unlocked_'+id);localStorage.removeItem('bj_unlockedv_'+id);}catch(e){}
+    try{sessionStorage.removeItem('bj_unlocked_'+id);sessionStorage.removeItem('bj_unlockedv_'+id);}catch(e){}
+  }
+
+  // Shared password-reset flow (emailed 6-char code → verify → set new password).
+  // opts: { worker, reqBody:{journal,entryId}|{profile}, email, appName, label, onSuccess }
+  window._pwReset = window._pwReset || async function(opts){
+    function post(path, obj){ return fetch(opts.worker+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}).then(function(r){return r.json();}); }
+    var req = Object.assign({ email:opts.email, appName:opts.appName, label:opts.label }, opts.reqBody);
+    var rq;
+    try { rq = await post('/auth/reset/request', req); }
+    catch(e){ alert('Network error while sending the reset code. Check your connection and try again.'); return false; }
+    if (rq && rq.noLock) { alert('There is no password set on the server for this item.'); return false; }
+    if (!rq || !rq.ok) {
+      alert(rq && rq.error==='email failed' ? 'Could not send the email. Please try again in a moment.'
+          : rq && rq.error==='bad email' ? 'No recovery email is configured for this item.'
+          : 'Could not start the reset. Please try again.');
+      return false;
+    }
+    var code = window.prompt('A 6-character reset code was emailed to '+opts.email+'.\n\nPaste the exact code here (check spam if you don\'t see it within a minute):');
+    if (code==null) return false;
+    code = code.trim();
+    if (!code) { alert('No code entered.'); return false; }
+    var np = window.prompt('Enter your NEW password:');
+    if (np==null) return false;
+    np = String(np).trim();
+    if (!np) { alert('Password cannot be empty.'); return false; }
+    var nh = window.prompt('Optional hint for your new password (leave blank to skip):') || '';
+    var body = Object.assign({ code:code, password:np, hint:nh }, opts.reqBody);
+    var cf;
+    try { cf = await post('/auth/reset/confirm', body); }
+    catch(e){ alert('Network error while confirming the reset. Please try again.'); return false; }
+    if (cf && cf.ok) {
+      if (opts.onSuccess) { try { opts.onSuccess(); } catch(e){} }
+      alert('Password reset! It now syncs to all your devices. This device is unlocked; other devices will ask for the new password once.');
+      return true;
+    }
+    if (cf && cf.error==='badcode') alert('That code is not correct.'+(cf.remaining!=null?(' '+cf.remaining+' attempt(s) left before it expires.'):''));
+    else if (cf && cf.error==='expired') alert('That code has expired or was already used. Start the reset again to get a fresh code.');
+    else if (cf && cf.error==='locked') alert('Too many incorrect attempts. Start the reset again to get a fresh code.');
+    else alert('Reset failed. Please try again.');
+    return false;
+  };
 
   async function blHash(str) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
@@ -35188,6 +35250,11 @@ setInterval(()=>{
   background: transparent; border: none; color: #58586a;
   font-size: 12px; cursor: pointer; font-family: 'Nunito', sans-serif;
   padding: 0; text-decoration: underline;
+}
+#applock-reset {
+  background: transparent; border: none; color: #58586a;
+  font-size: 12px; cursor: pointer; font-family: 'Nunito', sans-serif;
+  padding: 2px 0 0; text-decoration: underline; width: 100%; text-align: center;
 }
 /* Lock icon on nav buttons */
 .tn-btn .applock-badge, .veda-nav-btn .applock-badge {
