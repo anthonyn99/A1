@@ -70,8 +70,7 @@ function render() {
     const linkRows = links.length
       ? links.map(l => `
           <div class="link-row">
-            <img class="favicon" src="${faviconUrl(l.url)}" width="16" height="16" alt="" loading="lazy"
-                 onerror="this.style.visibility='hidden'">
+            <img class="favicon" src="${faviconUrl(l.url)}" width="16" height="16" alt="" loading="lazy">
             <span class="link-name" title="${esc(l.url)}">${esc(l.name)}</span>
             <button class="icon-btn visit" data-url="${esc(l.url)}">Visit</button>
             <button class="icon-btn copy" data-copy="${esc(l.url)}" title="Copy link">${COPY_SVG}</button>
