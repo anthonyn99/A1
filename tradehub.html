@@ -3156,6 +3156,14 @@ function TBTabLockPrompt({tabId,tabLabel,onUnlocked}){
       setHintMsg(r.noLock?'No lock on server.':r.sent?'Hint sent to your email!':'Failed — try again.');
     }catch(e){ setHintMsg('Failed — try again.'); }
   };
+  const [resetMsg,setResetMsg]=useState('');
+  const reset=async()=>{
+    setResetMsg('Sending code…');
+    try{ const ok=await window._tbTabLock.resetPw(tabId,tabLabel);
+      setResetMsg('');
+      if(ok) onUnlocked();
+    }catch(e){ setResetMsg(''); }
+  };
   return <div className="tb-fade-in" style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:18,padding:'60px 20px',maxWidth:380,margin:'0 auto',textAlign:'center'}}>
     <div style={{fontSize:40}}>🔒</div>
     <div>
@@ -3167,6 +3175,7 @@ function TBTabLockPrompt({tabId,tabLabel,onUnlocked}){
     {err&&<div style={{fontSize:12,color:'var(--tbr)',fontWeight:700,minHeight:14}}>{err}</div>}
     <button onClick={submit} disabled={busy} style={{width:'100%',background:'var(--ac)',color:'#fff',border:'none',borderRadius:8,padding:'12px 0',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer',opacity:busy?0.6:1}}>{busy?'Checking…':'Unlock'}</button>
     <button onClick={forgot} style={{background:'transparent',border:'none',color:'var(--txm)',fontSize:12,cursor:'pointer',textDecoration:'underline'}}>{hintMsg||'Forgot password?'}</button>
+    <button onClick={reset} style={{background:'transparent',border:'none',color:'var(--txm)',fontSize:12,cursor:'pointer',textDecoration:'underline',marginTop:-8}}>{resetMsg||'Reset password via email'}</button>
   </div>;
 }
 
@@ -5236,6 +5245,60 @@ _el('applock-forgot').addEventListener('click', async function(){
   } catch(e){ _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
 });
 
+// Shared password-reset flow (emailed 6-char code → verify → set new password).
+// opts: { worker, reqBody:{journal,entryId}|{profile}, email, appName, label, onSuccess }
+window._pwReset = window._pwReset || async function(opts){
+  function post(path, obj){ return fetch(opts.worker+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}).then(function(r){return r.json();}); }
+  var req = Object.assign({ email:opts.email, appName:opts.appName, label:opts.label }, opts.reqBody);
+  var rq;
+  try { rq = await post('/auth/reset/request', req); }
+  catch(e){ alert('Network error while sending the reset code. Check your connection and try again.'); return false; }
+  if (rq && rq.noLock) { alert('There is no password set on the server for this item.'); return false; }
+  if (!rq || !rq.ok) {
+    alert(rq && rq.error==='email failed' ? 'Could not send the email. Please try again in a moment.'
+        : rq && rq.error==='bad email' ? 'No recovery email is configured for this item.'
+        : 'Could not start the reset. Please try again.');
+    return false;
+  }
+  var code = window.prompt('A 6-character reset code was emailed to '+opts.email+'.\n\nPaste the exact code here (check spam if you don\'t see it within a minute):');
+  if (code==null) return false;
+  code = code.trim();
+  if (!code) { alert('No code entered.'); return false; }
+  var np = window.prompt('Enter your NEW password:');
+  if (np==null) return false;
+  np = String(np).trim();
+  if (!np) { alert('Password cannot be empty.'); return false; }
+  var nh = window.prompt('Optional hint for your new password (leave blank to skip):') || '';
+  var body = Object.assign({ code:code, password:np, hint:nh }, opts.reqBody);
+  var cf;
+  try { cf = await post('/auth/reset/confirm', body); }
+  catch(e){ alert('Network error while confirming the reset. Please try again.'); return false; }
+  if (cf && cf.ok) {
+    if (opts.onSuccess) { try { opts.onSuccess(); } catch(e){} }
+    alert('Password reset! It now syncs to all your devices. This device is unlocked; other devices will ask for the new password once.');
+    return true;
+  }
+  if (cf && cf.error==='badcode') alert('That code is not correct.'+(cf.remaining!=null?(' '+cf.remaining+' attempt(s) left before it expires.'):''));
+  else if (cf && cf.error==='expired') alert('That code has expired or was already used. Start the reset again to get a fresh code.');
+  else if (cf && cf.error==='locked') alert('Too many incorrect attempts. Start the reset again to get a fresh code.');
+  else alert('Reset failed. Please try again.');
+  return false;
+};
+
+// TradeHub app-lock: reset password via emailed security code.
+_el('applock-reset') && _el('applock-reset').addEventListener('click', async function(){
+  var prev=_el('applock-reset').textContent; _el('applock-reset').textContent='Sending code…'; _el('applock-reset').disabled=true;
+  await window._pwReset({
+    worker:AL_WORKER,
+    reqBody:{ journal:AL_JOURNAL, entryId:APPID },
+    email:AL_EMAIL,
+    appName:'TradeHub',
+    label:'TradeHub',
+    onSuccess:function(){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+  });
+  _el('applock-reset').textContent=prev; _el('applock-reset').disabled=false;
+});
+
 // ── HEADER LOCK BUTTON STATE ────────────────────────────────────────────────
 // The React headers render a button with id 'tb-lock-btn-desktop' / 'tb-lock-btn-mobile'.
 function alUpdateLockBtns(){
@@ -5346,6 +5409,17 @@ window._tbTabLock = {
   setPw: tabSetPw,
   removePw: tabRemovePw,
   sendHint: tabSendHint,
+  // Reset this tab's password via an emailed security code. Resolves true on success.
+  resetPw: function(tabId, tabLabel){
+    return window._pwReset({
+      worker: AL_WORKER,
+      reqBody: { journal: AL_JOURNAL, entryId: tabAppId(tabId) },
+      email: AL_EMAIL,
+      appName: 'TradeHub',
+      label: 'the "' + (tabLabel || 'tab') + '" tab',
+      onSuccess: function(){ tabSetLock(tabId); tabMarkUnlocked(tabId); }
+    });
+  },
   onChange: function(cb){ _tabLockSubs.push(cb); return function(){ _tabLockSubs = _tabLockSubs.filter(function(f){return f!==cb;}); }; },
 };
 
