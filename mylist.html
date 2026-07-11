@@ -731,17 +731,20 @@ async function authFetch(path, body){ var r=await fetch(AUTH_WORKER+path,{ metho
 // opts: { worker, reqBody:{journal,entryId}|{profile}, email, appName, label, onSuccess }
 window._pwReset = window._pwReset || async function(opts){
   function post(path, obj){ return fetch(opts.worker+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}).then(function(r){return r.json();}); }
-  var req = Object.assign({ email:opts.email, appName:opts.appName, label:opts.label }, opts.reqBody);
   var rq;
-  try { rq = await post('/auth/reset/request', req); }
-  catch(e){ alert('Network error while sending the reset code. Check your connection and try again.'); return false; }
+  try { rq = await post('/auth/reset/request', opts.reqBody); }
+  catch(e){ alert('Network error while starting the reset. Check your connection and try again.'); return false; }
   if (rq && rq.noLock) { alert('There is no password set on the server for this item.'); return false; }
-  if (!rq || !rq.ok) {
-    alert(rq && rq.error==='email failed' ? 'Could not send the email. Please try again in a moment.'
-        : rq && rq.error==='bad email' ? 'No recovery email is configured for this item.'
-        : 'Could not start the reset. Please try again.');
-    return false;
-  }
+  if (!rq || !rq.ok || !rq.code) { alert('Could not start the reset. Please try again.'); return false; }
+  // Email the code through the same Formspree form used for hints (proven, browser-origin).
+  var emailed = false;
+  try {
+    var fp = await fetch(opts.form, { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({ email: opts.email, subject: opts.appName+' — Password Reset Code',
+        message: 'Your password reset code for '+opts.label+' is:\n\n    '+rq.code+'\n\nEnter this code in '+opts.appName+' to set a new password. It expires in 15 minutes. If you did not request this, you can ignore this email.\n\n— '+opts.appName }) });
+    emailed = fp.ok;
+  } catch(e){ emailed = false; }
+  if (!emailed) { alert('Could not send the reset email. Please try again in a moment.'); return false; }
   var code = window.prompt('A 6-character reset code was emailed to '+opts.email+'.\n\nPaste the exact code here (check spam if you don\'t see it within a minute):');
   if (code==null) return false;
   code = code.trim();
@@ -824,6 +827,7 @@ async function lockReset(){
     worker:AUTH_WORKER,
     reqBody:{ journal:AUTH_JOURNAL, entryId:entryId(p) },
     email:EMAILS[p]||EMAILS.tony,
+    form:FORMSPREE[p]||FORMSPREE.tony,
     appName:'MyList',
     label:(PROFILE_META[p].label)+"'s lists",
     onSuccess:function(){
