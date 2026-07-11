@@ -784,7 +784,7 @@ async function lockSubmit(){
   var sub=$('lock-submit'); sub.disabled=true; var prev=sub.textContent; sub.innerHTML='<span class="spin"></span>';
   try{
     if(lockMode==='setpw'){
-      var hint = window.prompt('Optional password hint (sent to your email if you forget). Leave blank to skip:') || '';
+      var hint = (await window.uiPrompt('Optional password hint (sent to your email if you forget). Leave blank to skip:', {title:'Password hint'})) || '';
       var r=await authFetch('/auth/journal/set-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw, hint:hint });
       if(r.ok){ state.locks[p]=true; state.lockV[p]=Date.now(); mlMarkUnlocked(p); persist(); hideLock(); refreshProfileScreen(); updateLockBtn(); toast('Lock set'); if(lockOnSuccess)lockOnSuccess(); }
       else lockErr('Failed to set lock.');
@@ -795,9 +795,11 @@ async function lockSubmit(){
     } else if(lockMode==='changepw'){
       var r3=await authFetch('/auth/journal/verify',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw });
       if(r3.ok){
-        var np=window.prompt('Verified! Enter your NEW password:');
+        var chg=await window.uiForm({ title:'Change password', okLabel:'Change password',
+          fields:[ {name:'password',label:'New password',type:'password',required:true}, {name:'hint',label:'New password hint (optional)'} ] });
+        var np=chg?chg.password:'';
         if(np && np.trim()){
-          var nh=window.prompt('Optional hint for the new password:')||'';
+          var nh=(chg.hint)||'';
           await authFetch('/auth/journal/remove-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw });
           var s=await authFetch('/auth/journal/set-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:np.trim(), hint:nh });
           if(s.ok){ state.locks[p]=true; state.lockV[p]=Date.now(); mlMarkUnlocked(p); persist(); hideLock(); updateLockBtn(); toast('Password changed'); }
@@ -903,8 +905,8 @@ function restoreScroll(){
 }
 
 // ════════ LIST / ITEM OPS ════════
-function addList(){
-  var name=(window.prompt('Name this list:','Groceries')||'').trim(); if(!name) return;
+async function addList(){
+  var name=((await window.uiPrompt('Name this list:', {title:'New list', default:'Groceries'}))||'').trim(); if(!name) return;
   var l={ id:uid(), name:name, stores:[], items:[], createdAt:Date.now() };
   lists().push(l); activeListId=l.id; exitSelect(); persist(); render();
 }
