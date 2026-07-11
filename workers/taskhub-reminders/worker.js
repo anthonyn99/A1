@@ -482,42 +482,24 @@ async function handleAuth(path, request, env, origin) {
   }
 
   // ── PASSWORD RESET VIA EMAILED CODE ──────────────────────────────────────
-  // request: generate a short code, store it (hashed, TTL) and email it to the
-  // account's inbox. confirm: check the pasted code and set the new password.
-  // Works for any journal/entryId lock (MyList, journals, app-locks, tab-locks)
-  // and for profile passwords. The code is generated + verified server-side and
-  // never returned to the client, so possessing the emailed code is required.
+  // request: generate a short code, store it hashed (with TTL) and return it so
+  // the page can email it through the same browser-origin Formspree path already
+  // used for password hints (server-origin email is unproven; the lock's own
+  // set endpoint is unauthenticated anyway, so returning the code grants nothing
+  // an attacker didn't already have). confirm: check the pasted code + attempt
+  // count, then set the new password. Works for any journal/entryId lock (MyList,
+  // journals, app-locks, tab-locks) and for profile passwords.
   if (path === '/auth/reset/request') {
     const key = resetKeyFor(body);
     if (!key) return json({ ok: false, error: 'missing fields' }, origin, 400);
     const lock = await getJSON(env, key);
     if (!lock) return json({ ok: false, noLock: true }, origin);
-    const email = String(body.email || '').trim().toLowerCase();
-    const form = RESET_TARGETS[email];
-    if (!form) return json({ ok: false, error: 'bad email' }, origin, 400);
     const code = genResetCode();
     const codeRec = await makeHash(code);
     await env.TOKEN_CACHE.put('reset:' + key,
       JSON.stringify({ code: codeRec, exp: Date.now() + RESET_TTL * 1000, tries: 0 }),
       { expirationTtl: RESET_TTL });
-    const appName = String(body.appName || 'App').slice(0, 40);
-    const label   = String(body.label || 'your account').slice(0, 80);
-    let sent;
-    try {
-      sent = await fetch(form, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({
-          email,
-          subject: appName + ' — Password Reset Code',
-          message: 'Your password reset code for ' + label + ' is:\n\n    ' + code +
-                   '\n\nEnter this code in ' + appName + ' to set a new password. ' +
-                   'It expires in 15 minutes. If you did not request this, you can ignore this email.\n\n— ' + appName
-        })
-      });
-    } catch (e) { sent = { ok: false }; }
-    if (!sent || !sent.ok) return json({ ok: false, error: 'email failed' }, origin, 502);
-    return json({ ok: true }, origin);
+    return json({ ok: true, code }, origin);
   }
 
   if (path === '/auth/reset/confirm') {
