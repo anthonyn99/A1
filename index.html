@@ -11075,7 +11075,20 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   if(location.hash==='#notiftest'){setTimeout(()=>{window.thNotifTest();},1500);}
   if(location.hash==='#notifdiag'){setTimeout(()=>{window.thNotifDiag();},1500);}
   // Deep link used by the Vault extension: open straight to Keychain.
-  if(location.hash==='#keychain'){setTimeout(()=>{try{window._kcSwitchTo&&window._kcSwitchTo('keychain');}catch(_){}},1200);}
+  // Supports ?goto=keychain (survives a full reload — used when the installed
+  // PWA is re-navigated via launch_handler) and #keychain, plus hashchange so an
+  // already-open window still routes. Hash/param is stripped after switching so
+  // a repeat launch re-fires.
+  window._gotoKeychain=function(){
+    try{ window._kcSwitchTo && window._kcSwitchTo('keychain'); }catch(_){}
+    try{ history.replaceState(null,'',location.pathname); }catch(_){}
+  };
+  (function(){
+    var wants=false;
+    try{ wants=new URLSearchParams(location.search).get('goto')==='keychain'; }catch(_){}
+    if(wants||location.hash==='#keychain'){ setTimeout(window._gotoKeychain,1200); }
+  })();
+  window.addEventListener('hashchange',function(){ if(location.hash==='#keychain') window._gotoKeychain(); });
 
   // ── Silently get token on load if permission already granted ──────────
   if(messaging&&Notification.permission==='granted'){

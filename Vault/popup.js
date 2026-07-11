@@ -7,9 +7,12 @@ const loadingEl = document.getElementById("loading");
 const syncEl    = document.getElementById("sync");
 const toastEl   = document.getElementById("toast");
 
-// TaskHub PWA, deep-linked straight to the Keychain program. Opens in the
-// installed desktop app if the browser routes it there, otherwise a browser tab.
-const TASKHUB_KEYCHAIN_URL = "https://anthonyn99.github.io/A1/#keychain";
+// TaskHub PWA, deep-linked straight to the Keychain program. The ?goto=keychain
+// query (not just a #hash) forces a real navigation so the deep link fires even
+// when the installed PWA is already open and gets re-navigated (launch_handler:
+// navigate-existing). Opens in the desktop app if the browser routes it there,
+// otherwise a browser tab.
+const TASKHUB_KEYCHAIN_URL = "https://anthonyn99.github.io/A1/?goto=keychain";
 
 // Same palette Keychain uses for connection colours, for a consistent look.
 const CD = ['#a8d8c0','#a0c8e8','#f5e88a','#f0a8c8','#c4a0e8','#40d8a8','#40a8f0','#f5c800','#f04898','#f07020','#9b72cf','#50cc30','#10b8d0','#e03060','#ffd93d','#7b5ea7'];
