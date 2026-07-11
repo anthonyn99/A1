@@ -27,6 +27,10 @@ chrome.storage.local.get(SIZE_KEY, (d) => {
   }
   let t = null;
   new ResizeObserver(() => {
+    // Re-flow into 1 or 2 columns as the width crosses the threshold.
+    const cols = appEl.offsetWidth >= COL2_MIN ? 2 : 1;
+    if (cols !== lastCols && connections.length) render();
+    // Debounced size save.
     if (t) clearTimeout(t);
     t = setTimeout(() => {
       chrome.storage.local.set({
@@ -75,47 +79,73 @@ function toast(msg) {
   }, 1300);
 }
 
+// Build one group card (original index `ci` is used for colmap + open-group).
+function buildCard(conn, ci) {
+  const color = conn.color || CD[ci % CD.length];
+  const links = VaultDB.linksOf(conn);
+
+  const card = document.createElement("div");
+  card.className = "card";
+  card.style.setProperty("--card-accent", color);
+
+  const linkRows = links.map(l => `
+    <div class="link-row">
+      <img class="favicon" src="${faviconUrl(l.url)}" width="16" height="16" alt="" loading="lazy">
+      <span class="link-name" title="${esc(l.url)}">${esc(l.name)}</span>
+      <button class="icon-btn visit" data-url="${esc(l.url)}">Visit</button>
+      <button class="icon-btn copy" data-copy="${esc(l.url)}" title="Copy link">${COPY_SVG}</button>
+    </div>`).join("");
+
+  // Group-launch button only for 2+ links — a single link has its own Visit.
+  const openGroupBtn = links.length > 1
+    ? `<button class="open-group" data-group="${ci}">Open ${links.length} tabs</button>`
+    : "";
+
+  card.innerHTML = `
+    <div class="card-top">
+      <div class="card-name">${esc(conn.name || "Untitled")}</div>
+      ${openGroupBtn}
+    </div>
+    ${linkRows}`;
+  return card;
+}
+
 function render() {
   loadingEl.style.display = "none";
   groupsEl.innerHTML = "";
 
-  if (!connections.length) {
-    groupsEl.innerHTML = `<div class="empty">No groups yet.<br />Add links in TaskHub → Keychain (⚙) — they sync here automatically.</div>`;
+  // Only groups that actually contain links, keeping their original index so
+  // colmap placement and open-group wiring stay correct.
+  const visible = connections
+    .map((conn, ci) => ({ conn, ci }))
+    .filter(({ conn }) => VaultDB.linksOf(conn).length > 0);
+
+  if (!visible.length) {
+    groupsEl.innerHTML = `<div class="empty">No link groups yet.<br />Add links in TaskHub → Keychain (⚙) — they sync here automatically.</div>`;
     return;
   }
 
-  connections.forEach((conn, ci) => {
-    const color = conn.color || CD[ci % CD.length];
-    const links = VaultDB.linksOf(conn);
-
-    const card = document.createElement("div");
-    card.className = "card";
-    card.style.setProperty("--card-accent", color);
-
-    const linkRows = links.length
-      ? links.map(l => `
-          <div class="link-row">
-            <img class="favicon" src="${faviconUrl(l.url)}" width="16" height="16" alt="" loading="lazy">
-            <span class="link-name" title="${esc(l.url)}">${esc(l.name)}</span>
-            <button class="icon-btn visit" data-url="${esc(l.url)}">Visit</button>
-            <button class="icon-btn copy" data-copy="${esc(l.url)}" title="Copy link">${COPY_SVG}</button>
-          </div>`).join("")
-      : `<div class="no-links">No links in this group.</div>`;
-
-    // Only offer a group-launch button when there are 2+ links — a single link
-    // is opened by its own Visit button.
-    const openGroupBtn = links.length > 1
-      ? `<button class="open-group" data-group="${ci}">Open ${links.length} tabs</button>`
-      : "";
-
-    card.innerHTML = `
-      <div class="card-top">
-        <div class="card-name"><span class="card-dot"></span><span>${esc(conn.name || "Untitled")}</span></div>
-        ${openGroupBtn}
-      </div>
-      ${linkRows}`;
-    groupsEl.appendChild(card);
+  // 1 column when narrow, 2 when widened — mirrors Keychain. When at 2 columns
+  // and Keychain saved a colmap, place cards in the exact same columns/order;
+  // otherwise fill top-to-bottom in reading order.
+  const cols = appEl.offsetWidth >= COL2_MIN ? 2 : 1;
+  lastCols = cols;
+  const colDivs = Array.from({ length: cols }, () => {
+    const d = document.createElement("div");
+    d.className = "col";
+    return d;
   });
+  const perCol = Math.ceil(visible.length / cols);
+  visible.forEach(({ conn, ci }, vi) => {
+    let colIdx;
+    if (cols === 2 && Array.isArray(colmap) && typeof colmap[ci] === "number") {
+      colIdx = Math.max(0, Math.min(colmap[ci], cols - 1));
+    } else {
+      colIdx = Math.min(Math.floor(vi / perCol), cols - 1);
+    }
+    colDivs[colIdx].appendChild(buildCard(conn, ci));
+  });
+  colDivs.forEach(d => groupsEl.appendChild(d));
 
   // Hide any favicon that fails to load (CSP-safe: no inline onerror).
   groupsEl.querySelectorAll("img.favicon").forEach(img =>
@@ -167,6 +197,7 @@ gearEl.addEventListener("click", () => {
   try {
     const data = await VaultDB.load();
     connections = Array.isArray(data.connections) ? data.connections : [];
+    colmap = Array.isArray(data.colmap) ? data.colmap : null;
     render();
     syncEl.textContent = "Synced with Keychain";
   } catch (e) {
