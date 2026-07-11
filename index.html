@@ -15350,36 +15350,33 @@ function renderSidebar() {
       // entry we're switching to.
       saveCurrentEntry(); if (window._fbFlushJournal) window._fbFlushJournal(); state.activeId = entry.id; renderSidebar(); loadActiveEntry();
     });
-    div.querySelector('.entry-delete').addEventListener('click', e => {
+    div.querySelector('.entry-delete').addEventListener('click', async e => {
       e.stopPropagation();
       // If entry is locked, require password before deleting
       var lock = entry.lock;
       if (lock) {
         if (!blIsUnlocked(entry.id)) {
-          var pw = prompt('This entry is locked. Enter password to delete:');
+          var pw = await window.uiPrompt('This entry is locked. Enter password to delete:', {title:'Locked entry', password:true});
           if (pw === null) return;
-          // Verify via Worker (async — wrap delete in async IIFE)
-          (async function() {
-            try {
-              var res = await fetch(BJ_AUTH + '/auth/journal/verify', {
+          try {
+            var res = await fetch(BJ_AUTH + '/auth/journal/verify', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
+            });
+            var data = await res.json();
+            if (!data.ok) { await window.uiAlert('Incorrect password. Entry not deleted.'); return; }
+            if (await window.uiConfirm('Delete "' + (entry.title || 'Untitled') + '"?', {danger:true, okLabel:'Delete'})) {
+              await fetch(BJ_AUTH + '/auth/journal/remove-lock', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
-              });
-              var data = await res.json();
-              if (!data.ok) { alert('Incorrect password. Entry not deleted.'); return; }
-              if (confirm('Delete "' + (entry.title || 'Untitled') + '"?')) {
-                await fetch(BJ_AUTH + '/auth/journal/remove-lock', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
-                }).catch(function(){});
-                deleteEntry(entry.id);
-              }
-            } catch(e) { alert('Network error. Try again.'); }
-          })();
-          return; // async path handles confirm+delete
+              }).catch(function(){});
+              deleteEntry(entry.id);
+            }
+          } catch(e) { await window.uiAlert('Network error. Try again.'); }
+          return;
         }
       }
-      if (confirm(`Delete "${entry.title || 'Untitled'}"?`)) deleteEntry(entry.id);
+      if (await window.uiConfirm(`Delete "${entry.title || 'Untitled'}"?`, {danger:true, okLabel:'Delete'})) deleteEntry(entry.id);
     });
     if (isDraggable) {
       div.addEventListener('dragstart', e => {
@@ -20991,36 +20988,34 @@ function renderSidebar() {
       // Flush the just-edited entry BEFORE changing activeId — see BJ sidebar handler.
       saveCurrentEntry(); if (window._fbFlushTonyJournal) window._fbFlushTonyJournal(); state.activeId = entry.id; renderSidebar(); loadActiveEntry();
     });
-    div.querySelector('.entry-delete').addEventListener('click', e => {
+    div.querySelector('.entry-delete').addEventListener('click', async e => {
       e.stopPropagation();
       // If entry is locked, require password before deleting
       var lock = window._tjGetLock && window._tjGetLock(entry.id);
       if (lock) {
         var alreadyUnlocked = window._tjIsUnlocked && window._tjIsUnlocked(entry.id);
         if (!alreadyUnlocked) {
-          var pw = prompt('This entry is locked. Enter password to delete:');
+          var pw = await window.uiPrompt('This entry is locked. Enter password to delete:', {title:'Locked entry', password:true});
           if (pw === null) return;
-          (async function() {
-            try {
-              var res = await fetch(TJ_AUTH + '/auth/journal/verify', {
+          try {
+            var res = await fetch(TJ_AUTH + '/auth/journal/verify', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
+            });
+            var data = await res.json();
+            if (!data.ok) { await window.uiAlert('Incorrect password. Entry not deleted.'); return; }
+            if (await window.uiConfirm('Delete "' + (entry.title || 'Untitled') + '"?', {danger:true, okLabel:'Delete'})) {
+              await fetch(TJ_AUTH + '/auth/journal/remove-lock', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
-              });
-              var data = await res.json();
-              if (!data.ok) { alert('Incorrect password. Entry not deleted.'); return; }
-              if (confirm('Delete "' + (entry.title || 'Untitled') + '"?')) {
-                await fetch(TJ_AUTH + '/auth/journal/remove-lock', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
-                }).catch(function(){});
-                deleteEntry(entry.id);
-              }
-            } catch(e) { alert('Network error. Try again.'); }
-          })();
+              }).catch(function(){});
+              deleteEntry(entry.id);
+            }
+          } catch(e) { await window.uiAlert('Network error. Try again.'); }
           return;
         }
       }
-      if (confirm(`Delete "${entry.title || 'Untitled'}"?`)) deleteEntry(entry.id);
+      if (await window.uiConfirm(`Delete "${entry.title || 'Untitled'}"?`, {danger:true, okLabel:'Delete'})) deleteEntry(entry.id);
     });
     if (isDraggable) {
       div.addEventListener('dragstart', e => {
