@@ -25,12 +25,19 @@
       min-width:300px; min-height:240px;
       max-width:780px; max-height:590px;
       overflow-y:auto; overflow-x:hidden;
-      resize:both;
     }
     #app::-webkit-scrollbar { width:6px; }
     #app::-webkit-scrollbar-thumb { background:var(--bd); border-radius:3px; }
-    /* Make the native resize grip visible against the dark theme. */
-    #app::-webkit-resizer { background:var(--bd); }
+    /* Big, obvious drag-to-resize grip in the bottom-right corner. */
+    #resize-grip {
+      position:fixed; right:0; bottom:0; width:22px; height:22px;
+      z-index:30; cursor:nwse-resize; touch-action:none;
+      color:var(--txm);
+      border-bottom-right-radius:3px;
+      background:linear-gradient(135deg, transparent 46%, var(--s3) 46%);
+    }
+    #resize-grip:hover { color:var(--ac); background:linear-gradient(135deg, transparent 44%, var(--s3) 44%); }
+    #resize-grip svg { position:absolute; right:3px; bottom:3px; display:block; pointer-events:none; }
 
     /* ── Header ── */
     header {
