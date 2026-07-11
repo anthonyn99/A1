@@ -12475,7 +12475,8 @@ function vdkc_renderItem(item,ii,ci){
   switch(item.type){
     case 'link':{
       const nm=vdkc_esc(item.name||item.url||'Link');
-      return `<div class="kc-item-row" data-ci="${ci}" data-ii="${ii}">${h}<span class="kc-link-name">${nm}</span>
+      const fav=item.url?`<img class="kc-favicon" src="${window.kcFavicon?window.kcFavicon(item.url):''}" width="16" height="16" alt="" onerror="this.style.visibility='hidden'">`:'';
+      return `<div class="kc-item-row" data-ci="${ci}" data-ii="${ii}">${h}${fav}<span class="kc-link-name">${nm}</span>
         <div class="kc-link-btns">
           ${item.url?`<button class="kc-icon-btn visit" onclick="vdkcVisit('${vdkc_esc(item.url)}')">Visit</button>`:''}
           ${item.url?`<button class="kc-icon-btn copy-btn" title="Copy" onclick="vdkcCopy('${vdkc_esc(item.url)}')">${VDKC_COPY_SVG}</button>`:''}
