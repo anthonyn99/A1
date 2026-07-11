@@ -632,6 +632,12 @@ def webull_post_launch(hwnd, initial_delay=None):
 
     wait = WEBULL_ACTION_DELAY if initial_delay is None else initial_delay
     time.sleep(wait)   # let WeBull finish loading (accounts populated)
+
+    # Re-resolve the CURRENT WeBull window rather than trusting the handle captured at
+    # launch — Electron apps can recreate their top-level window while loading, which
+    # would silently invalidate an old hwnd even though WeBull is still open. Falls back
+    # to the original hwnd if a fresh lookup somehow finds nothing.
+    hwnd = _find_largest_title_window("webull") or hwnd
     if not _focus_window(hwnd):
         log("WeBull: could not focus the window — skipping tab/account switch.")
         return
@@ -693,12 +699,23 @@ def open_tradehub():
 
 def open_taskhub_app():
     """Launch TaskHub as its installed Brave app shortcut, then position it."""
+    x, y, w, h = TASKHUB_POS
+
+    # If TaskHub is already open (e.g. left over from a prior --test run), just
+    # reposition it — relaunching would be an IPC round-trip to the already-running
+    # Brave process that can occasionally stall for tens of seconds, blocking every
+    # step after it (ChatGPT, the WeBull tab/account switch) for no reason.
+    existing = _find_brave_window_by_title("taskhub", timeout=1)
+    if existing:
+        _place(existing, x, y, w, h)
+        log(f"TaskHub: already open — repositioned → ({x},{y}) {w}×{h}")
+        return
+
     proxy = _find_chrome_proxy()
     if not proxy:
         log("ERROR: chrome_proxy.exe not found inside Brave's directory.")
         return
 
-    x, y, w, h = TASKHUB_POS
     snapshot = set(_all_visible_hwnds())
 
     log("Opening TaskHub as Brave app...")
@@ -708,10 +725,14 @@ def open_taskhub_app():
         f"--app-id={TASKHUB_APP_ID}",
     ])
 
-    hwnd = _wait_for_new_window(snapshot, timeout=25)
+    hwnd = _wait_for_new_window(snapshot, timeout=15)
     if hwnd is None:
         # Fallback: search by window title
-        hwnd = _wait_for_title_window("taskhub", timeout=15)
+        hwnd = _wait_for_title_window("taskhub", timeout=8)
+    if hwnd is None:
+        # Last resort: it may have opened without registering as "new" against the
+        # snapshot (a window-enumeration race) — one more direct sweep before giving up.
+        hwnd = _find_largest_title_window("taskhub")
 
     if hwnd:
         time.sleep(1)
