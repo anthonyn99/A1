@@ -27272,7 +27272,7 @@ function toggleInlineCode(ctx) {
   fireInput(ctx.edEl);
 }
 function linkAncestor(ctx) { return closestInEd(ctx, 'a'); }
-function toggleLink(ctx) {
+async function toggleLink(ctx) {
   restoreSel(ctx);
   var a = linkAncestor(ctx);
   if (a) {
@@ -27282,8 +27282,9 @@ function toggleLink(ctx) {
   }
   var sel = window.getSelection();
   if (!sel || !sel.rangeCount || sel.isCollapsed) { docxToast('Select text first to add a link.'); return; }
-  var url = prompt('Link URL:');
+  var url = await window.uiPrompt('Link URL:', {title:'Insert link', placeholder:'https://…'});
   if (!url) return;
+  restoreSel(ctx); // modal input stole focus/selection — put the saved range back before createLink
   if (!/^(https?:|mailto:|tel:|#|\/)/i.test(url)) url = 'https://' + url;
   document.execCommand('createLink', false, url);
   // mark new links to open in a new tab
@@ -30247,9 +30248,9 @@ function renderKsuModules() {
   });
 }
 
-function deleteKsuModule(modId) {
+async function deleteKsuModule(modId) {
   const mod = ksuData.modules.find(m => m.id === modId);
-  if (!confirm('Remove "' + (mod ? mod.name : 'this module') + '"?')) return;
+  if (!(await window.uiConfirm('Remove "' + (mod ? mod.name : 'this module') + '"?', {danger:true, okLabel:'Remove'}))) return;
   ksuData.modules = ksuData.modules.filter(m => m.id !== modId);
   persistKsu();
   renderKsuModules();
@@ -30659,10 +30660,10 @@ function saveEditClass() {
   showNotif('✏️', 'Class Updated', cls.name + ' saved.');
 }
 
-function deleteCurrentClass() {
+async function deleteCurrentClass() {
   if (!currentClassId) return;
   const cls = classes.find(c => c.id === currentClassId);
-  if (!confirm('Remove "' + (cls ? cls.name : '') + '" and all its modules?')) return;
+  if (!(await window.uiConfirm('Remove "' + (cls ? cls.name : '') + '" and all its modules?', {danger:true, okLabel:'Remove'}))) return;
   classes = classes.filter(c => c.id !== currentClassId);
   persist();
   renderClasses();
@@ -30702,9 +30703,9 @@ function renderClasses() {
   _sosEl('class-count').textContent = classes.length;
 }
 
-function removeClass(id) {
+async function removeClass(id) {
   const cls = classes.find(c => c.id === id);
-  if (!confirm('Remove "' + (cls ? cls.name : '') + '"?')) return;
+  if (!(await window.uiConfirm('Remove "' + (cls ? cls.name : '') + '"?', {danger:true, okLabel:'Remove'}))) return;
   classes = classes.filter(c => c.id !== id);
   persist();
   renderClasses();
@@ -30900,11 +30901,11 @@ function saveModule() {
   }
 }
 
-function deleteModule(classId, modId) {
+async function deleteModule(classId, modId) {
   const cls = findClassOrKsu(classId);
   if (!cls) return;
   const mod = cls.modules.find(m => m.id === modId);
-  if (!confirm('Remove "' + (mod ? mod.name : 'this module') + '"?')) return;
+  if (!(await window.uiConfirm('Remove "' + (mod ? mod.name : 'this module') + '"?', {danger:true, okLabel:'Remove'}))) return;
   cls.modules = cls.modules.filter(m => m.id !== modId);
   persist();
   renderModules(cls);
@@ -31606,14 +31607,14 @@ function addModuleNote(classId, modId) {
   setTimeout(() => { const t = _sosEl('modnote-title-' + modId); if (t) t.focus(); }, 50);
 }
 
-function deleteModuleNote(classId, modId) {
+async function deleteModuleNote(classId, modId) {
   const cls = findClassOrKsu(classId);
   if (!cls) return;
   const mod = cls.modules.find(m => m.id === modId);
   if (!mod) return;
   const noteId = currentModuleNoteId[modId];
   const note = mod.notes.find(n => n.id === noteId);
-  if (!confirm('Delete "' + (note?.title || 'Untitled') + '"?')) return;
+  if (!(await window.uiConfirm('Delete "' + (note?.title || 'Untitled') + '"?', {danger:true, okLabel:'Delete'}))) return;
   mod.notes = mod.notes.filter(n => n.id !== noteId);
   delete currentModuleNoteId[modId];
   persistForCls(cls);
@@ -31759,10 +31760,10 @@ function createNote() {
   setTimeout(() => _sosEl('note-title-input').focus(), 50);
 }
 
-function deleteCurrentNote() {
+async function deleteCurrentNote() {
   if (!currentNoteId) return;
   const n = notesList.find(x => x.id === currentNoteId);
-  if (!confirm('Delete "' + (n?.title || 'Untitled') + '"?')) return;
+  if (!(await window.uiConfirm('Delete "' + (n?.title || 'Untitled') + '"?', {danger:true, okLabel:'Delete'}))) return;
   notesList = notesList.filter(x => x.id !== currentNoteId);
   currentNoteId = null;
   persistNotes();
@@ -31966,7 +31967,7 @@ function saveEvent() {
   if (currentClassId) { const cls = classes.find(c => c.id === currentClassId); if (cls) renderClassEvents(cls); }
 }
 
-function deleteEditingEvent() {
+async function deleteEditingEvent() {
   if (!editingEventId) return;
   const deletedEvent = events.find(e => e.id === editingEventId);
   if (!deletedEvent) { editingEventId = null; return; }
@@ -31974,7 +31975,7 @@ function deleteEditingEvent() {
 
   if (deletedEvent.repeatId) {
     // Ask: delete this only, or all future?
-    const choice = confirm('This is a repeating event.\n\nOK = Delete this and all future occurrences\nCancel = Delete this occurrence only');
+    const choice = await window.uiConfirm('This is a repeating event. Delete all future occurrences, or only this one?', {title:'Delete repeating event', okLabel:'All future', cancelLabel:'This only'});
     if (choice) {
       // Delete this + all future
       const rid = deletedEvent.repeatId;
@@ -32596,13 +32597,13 @@ function saveTask() {
   if (cls) renderClassTasks(cls);
 }
 
-function deleteEditingTask() {
+async function deleteEditingTask() {
   if (!editingTaskId) return;
   const t = tasks.find(x => x.id === editingTaskId);
   if (!t) { editingTaskId = null; return; }
 
   if (t.repeatId) {
-    const choice = confirm('This is a repeating task.\n\nOK = Delete this and all future occurrences\nCancel = Delete this occurrence only');
+    const choice = await window.uiConfirm('This is a repeating task. Delete all future occurrences, or only this one?', {title:'Delete repeating task', okLabel:'All future', cancelLabel:'This only'});
     if (choice) {
       const rid = t.repeatId;
       const cutoff = new Date((t.dueDate || '9999') + 'T12:00:00');
@@ -32621,7 +32622,7 @@ function deleteEditingTask() {
       if (window._vedaRemoveTask) window._vedaRemoveTask('t_' + editingTaskId);
     }
   } else {
-    if (!confirm('Delete "' + t.name + '"?')) return;
+    if (!(await window.uiConfirm('Delete "' + t.name + '"?', {danger:true, okLabel:'Delete'}))) return;
     if (window.thCancelNotif) window.thCancelNotif('sos_task_' + editingTaskId, null);
     tasks = tasks.filter(x => x.id !== editingTaskId);
     if (window._vedaRemoveTask) window._vedaRemoveTask('t_' + editingTaskId);
@@ -32948,10 +32949,10 @@ function persistEvents()  { localStorage.setItem('studyos_events', JSON.stringif
 function persistTasks_()  { localStorage.setItem('studyos_tasks',  JSON.stringify(tasks));      _sosFirebaseSave(); }
 
 // ===== CONVERT EVENT ↔ TASK =====
-function convertEventToTask(evId) {
+async function convertEventToTask(evId) {
   const ev = events.find(e => e.id === evId);
   if (!ev) return;
-  if (!confirm('Convert "' + ev.name + '" from event to task?')) return;
+  if (!(await window.uiConfirm('Convert "' + ev.name + '" from event to task?', {okLabel:'Convert'}))) return;
 
   // Create task from event
   const newId = uid();
@@ -33003,10 +33004,10 @@ function convertEventToTask(evId) {
   showNotif('✅', 'Converted to Task', ev.name + ' is now a task.');
 }
 
-function convertTaskToEvent(taskId) {
+async function convertTaskToEvent(taskId) {
   const t = tasks.find(x => x.id === taskId);
   if (!t) return;
-  if (!confirm('Convert "' + t.name + '" from task to event?')) return;
+  if (!(await window.uiConfirm('Convert "' + t.name + '" from task to event?', {okLabel:'Convert'}))) return;
 
   // Create event from task
   const newId = uid();
@@ -33599,8 +33600,8 @@ function mcSaveCircuit() {
 }
 window.mcSaveCircuit = mcSaveCircuit;
 
-function mcDeleteCircuit(id) {
-  if(!confirm('Delete this circuit?')) return;
+async function mcDeleteCircuit(id) {
+  if(!(await window.uiConfirm('Delete this circuit?', {danger:true, okLabel:'Delete'}))) return;
   mcCircuits=mcCircuits.filter(function(c){return c.id!==id;});
   mcSave(); mcRenderCircuits();
 }
@@ -33696,8 +33697,8 @@ function mcSaveRoutine() {
 }
 window.mcSaveRoutine = mcSaveRoutine;
 
-function mcDeleteRoutine(id) {
-  if(!confirm('Delete this routine?')) return;
+async function mcDeleteRoutine(id) {
+  if(!(await window.uiConfirm('Delete this routine?', {danger:true, okLabel:'Delete'}))) return;
   mcRoutines=mcRoutines.filter(function(r){return r.id!==id;});
   mcSave(); mcRenderRoutines();
 }
@@ -37351,9 +37352,9 @@ function renderLinkList(container,profile){
     var edit=document.createElement('button'); edit.className='thset-mini'; edit.textContent='Edit';
     var del=document.createElement('button'); del.className='thset-mini danger'; del.textContent='Delete';
     edit.addEventListener('click',function(e){ e.stopPropagation(); startEdit(row,profile,l); });
-    del.addEventListener('click',function(e){
+    del.addEventListener('click',async function(e){
       e.stopPropagation();
-      if(window.confirm('Delete the "'+l.label+'" button?')){ if(window._navRemoveLink) window._navRemoveLink(profile,l.id); }
+      if(await window.uiConfirm('Delete the "'+l.label+'" button?', {danger:true, okLabel:'Delete'})){ if(window._navRemoveLink) window._navRemoveLink(profile,l.id); }
     });
 
     var actions=document.createElement('div'); actions.className='thset-actions';
