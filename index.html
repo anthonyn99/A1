@@ -2133,6 +2133,8 @@ body.light-mode input[type=time]{color-scheme:light;}
 .kc-btn-ghost{background:var(--s2);border:1px solid var(--bdl);border-radius:4px;padding:6px 16px;font-size:12px;font-weight:600;color:var(--txd);cursor:pointer;font-family:'Nunito',sans-serif;transition:all .15s;height:30px;display:inline-flex;align-items:center;}
 .kc-btn-ghost:hover{border-color:var(--ac);color:var(--ac);}
 .kc-modal-actions{display:flex;gap:10px;margin-top:20px;}
+.kc-vault-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--ac);color:var(--bg);font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-top:1px;}
+.kc-vault-num::before{content:counter(vstep);}
 .kc-confirm-msg{font-size:13px;color:var(--txd);line-height:1.6;margin-bottom:18px;}
 .kc-btn-danger{background:transparent;border:1px solid var(--err);border-radius:4px;padding:6px 18px;font-size:12px;font-weight:700;color:var(--err);cursor:pointer;font-family:'Nunito',sans-serif;transition:all .15s;height:30px;display:inline-flex;align-items:center;}
 .kc-btn-danger:hover{background:var(--err);color:#fff;}
@@ -6078,6 +6080,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
     </div>
     <div class="app-hbar-row2">
       <button class="kc-hbtn" id="kc-syncfiles-btn" onclick="kcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable & downloadable on every device">☁ Sync Files</button>
+      <button class="kc-hbtn" id="kc-vault-btn" onclick="kcOpenVaultSetup()" title="Download the Vault browser extension and set it up in your browser (no Web Store needed)">🧩 Install Vault</button>
       <button class="kc-hbtn kc-theme-hover" id="kc-theme-btn" onclick="kcToggleTheme()"></button>
       <div class="kc-hbtn kc-edit-hover" id="kc-edit-toggle" onclick="kcToggleMode()" style="cursor:pointer;user-select:none;">
         <div id="kc-toggle-track" style="width:26px;height:14px;border-radius:7px;background:var(--bd);position:relative;transition:background .25s;flex-shrink:0;"><div id="kc-toggle-thumb" style="width:10px;height:10px;border-radius:50%;background:var(--txd);position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .25s,background .25s;box-shadow:0 1px 3px rgba(0,0,0,.25);"></div></div>
@@ -6120,7 +6123,166 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
     <div class="kc-modal-actions"><button class="kc-btn-danger" onclick="kcExecuteDelete()">Delete</button><button class="kc-btn-ghost" onclick="kcCloseConfirm()">Cancel</button></div>
   </div>
 </div>
+<!-- Vault Setup Modal -->
+<div id="kc-vault-setup" class="kc-overlay" style="display:none" onclick="if(event.target===this)kcCloseVaultSetup()">
+  <div class="kc-modal" onclick="event.stopPropagation()" style="max-width:480px;">
+    <div class="kc-modal-title"><span style="background:var(--ac)"></span>Install Vault</div>
+    <p style="font-size:12px;line-height:1.6;color:var(--txd);margin:-8px 0 18px;">
+      Vault is the browser extension that opens your Keychain groups from the toolbar.
+      Browsers don't allow a website to install an extension silently, so this packages it
+      for you and walks you through the one-time load — no Chrome Web Store needed.
+    </p>
+
+    <ol style="list-style:none;counter-reset:vstep;padding:0;margin:0;">
+      <li style="counter-increment:vstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
+        <span class="kc-vault-num"></span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12.5px;font-weight:800;color:var(--tx);margin-bottom:8px;">Download the extension</div>
+          <button class="kc-btn-primary" style="height:34px;" onclick="kcDownloadVault(this)">⬇ Download Vault (.zip)</button>
+        </div>
+      </li>
+      <li style="counter-increment:vstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
+        <span class="kc-vault-num"></span>
+        <div style="flex:1;min-width:0;font-size:12.5px;color:var(--tx);line-height:1.55;">
+          <span style="font-weight:800;">Unzip it</span> to a folder you'll keep
+          (e.g. Documents). The extension runs from that folder — don't delete it after.
+        </div>
+      </li>
+      <li style="counter-increment:vstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
+        <span class="kc-vault-num"></span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12.5px;color:var(--tx);line-height:1.55;margin-bottom:8px;">
+            Open your browser's extensions page (<span id="kc-vault-browser" style="font-weight:800;color:var(--ac)">Chrome</span> — can't be opened by a click, so copy &amp; paste it):
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <code id="kc-vault-exturl" style="background:var(--s2);border:1px solid var(--bdl);border-radius:4px;padding:5px 10px;font-size:12px;color:var(--ac);font-family:monospace;">chrome://extensions</code>
+            <button class="kc-btn-ghost" style="height:28px;" onclick="kcCopyExtUrl()">Copy</button>
+          </div>
+          <div id="kc-vault-ff" style="display:none;margin-top:8px;font-size:11.5px;color:#e0a060;line-height:1.5;">
+            ⚠ Firefox needs a small manifest tweak first (see <code style="font-family:monospace;">Vault/README.md</code>) and loads via <code style="font-family:monospace;">about:debugging</code>. Brave / Chrome / Edge / Opera work as-is.
+          </div>
+        </div>
+      </li>
+      <li style="counter-increment:vstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
+        <span class="kc-vault-num"></span>
+        <div style="flex:1;min-width:0;font-size:12.5px;color:var(--tx);line-height:1.55;">
+          Turn on <span style="font-weight:800;">Developer mode</span> (toggle, top-right of that page).
+        </div>
+      </li>
+      <li style="counter-increment:vstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
+        <span class="kc-vault-num"></span>
+        <div style="flex:1;min-width:0;font-size:12.5px;color:var(--tx);line-height:1.55;">
+          Click <span style="font-weight:800;">Load unpacked</span> and select the unzipped
+          <span style="font-weight:800;">Vault</span> folder.
+        </div>
+      </li>
+      <li style="counter-increment:vstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:4px;">
+        <span class="kc-vault-num"></span>
+        <div style="flex:1;min-width:0;font-size:12.5px;color:var(--tx);line-height:1.55;">
+          <span style="font-weight:800;">Pin Vault</span> to your toolbar — click it and your
+          Keychain groups appear. Edits you make here sync to it automatically.
+        </div>
+      </li>
+    </ol>
+
+    <div class="kc-modal-actions"><button class="kc-btn-ghost" onclick="kcCloseVaultSetup()">Done</button></div>
+  </div>
+</div>
+
 <div id="kc-toast" class="kc-toast">Copied!</div>
+
+<script>
+/* ── Vault extension packaging + guided setup (Keychain "Install Vault") ──────
+   Browsers forbid a page from installing an extension, so we fetch the Vault
+   files that ship alongside this app, build a Store-method ZIP entirely in the
+   browser (no library, no CDN — keeps the single-file app self-contained), and
+   hand it to the user with Load-Unpacked steps. */
+(function(){
+  const VAULT_FILES=['manifest.json','background.js','popup.html','popup.js',
+    'options.html','vault-sync.js','README.md',
+    'icons/icon16.png','icons/icon48.png','icons/icon128.png'];
+
+  const _crcTable=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+  function _crc32(u8){let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=_crcTable[(c^u8[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+
+  // Minimal ZIP (no compression). files: [{name, data:Uint8Array}]
+  function _buildZip(files){
+    const enc=new TextEncoder(), chunks=[], central=[];
+    let offset=0;
+    const u16=n=>[n&0xFF,(n>>>8)&0xFF];
+    const u32=n=>[n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
+    for(const f of files){
+      const name=enc.encode(f.name), data=f.data, crc=_crc32(data), size=data.length;
+      const lh=new Uint8Array([].concat(
+        u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(0),u16(0),
+        u32(crc),u32(size),u32(size),u16(name.length),u16(0)));
+      chunks.push(lh,name,data);
+      central.push(new Uint8Array([].concat(
+        u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0),
+        u32(crc),u32(size),u32(size),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),
+        u32(offset))), name);
+      offset+=lh.length+name.length+data.length;
+    }
+    const cdStart=offset; let cdSize=0;
+    for(const c of central){ chunks.push(c); cdSize+=c.length; }
+    chunks.push(new Uint8Array([].concat(
+      u32(0x06054b50),u16(0),u16(0),u16(central.length/2),u16(central.length/2),
+      u32(cdSize),u32(cdStart),u16(0))));
+    return new Blob(chunks,{type:'application/zip'});
+  }
+
+  function _vToast(msg){
+    const t=document.getElementById('kc-toast'); if(!t)return;
+    const orig=t.textContent; t.textContent=msg; t.classList.add('show');
+    setTimeout(()=>{t.classList.remove('show'); setTimeout(()=>{t.textContent=orig;},260);},2400);
+  }
+
+  function _browserInfo(){
+    const ua=navigator.userAgent;
+    if(navigator.brave) return {name:'Brave', url:'brave://extensions'};
+    if(/Edg\//.test(ua)) return {name:'Edge', url:'edge://extensions'};
+    if(/OPR\//.test(ua)) return {name:'Opera', url:'opera://extensions'};
+    if(/Firefox\//.test(ua)) return {name:'Firefox', url:'about:debugging#/runtime/this-firefox', firefox:true};
+    return {name:'Chrome', url:'chrome://extensions'};
+  }
+
+  window.kcOpenVaultSetup=function(){
+    const info=_browserInfo();
+    document.getElementById('kc-vault-browser').textContent=info.name;
+    document.getElementById('kc-vault-exturl').textContent=info.url;
+    document.getElementById('kc-vault-ff').style.display=info.firefox?'block':'none';
+    document.getElementById('kc-vault-setup').style.display='flex';
+  };
+  window.kcCloseVaultSetup=function(){ document.getElementById('kc-vault-setup').style.display='none'; };
+
+  window.kcCopyExtUrl=function(){
+    const u=document.getElementById('kc-vault-exturl').textContent;
+    (navigator.clipboard&&navigator.clipboard.writeText(u)||Promise.reject())
+      .then(()=>_vToast('Copied — paste into a new tab'))
+      .catch(()=>_vToast('Copy failed — type it manually'));
+  };
+
+  window.kcDownloadVault=async function(btn){
+    const orig=btn.textContent; btn.disabled=true; btn.textContent='Packaging…';
+    try{
+      const files=[];
+      for(const name of VAULT_FILES){
+        const r=await fetch('Vault/'+name,{cache:'no-store'});
+        if(!r.ok) throw new Error(name+' ('+r.status+')');
+        files.push({name, data:new Uint8Array(await r.arrayBuffer())});
+      }
+      const url=URL.createObjectURL(_buildZip(files));
+      const a=document.createElement('a');
+      a.href=url; a.download='Vault-extension.zip';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),5000);
+      _vToast('Vault-extension.zip downloaded');
+    }catch(e){
+      _vToast('Couldn’t package Vault: '+e.message);
+    }finally{ btn.disabled=false; btn.textContent=orig; }
+  };
+})();
+</script>
 
 <script>
 (function(){
