@@ -4747,6 +4747,41 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }, 500);
     };
 
+    // ── Vault (Password Manager) — uses the SAME proven db/setDoc path as ──────
+    // Keychain so E2E-encrypted credentials sync reliably. Doc holds only
+    // ciphertext + wrapped keys: { config, items:{id->encDoc}, savedAt }.
+    const vaultDocRef = doc(db, "dashboards/vault_pw");
+    let _vaultLastOwnSaveAt = 0, _vaultSaveTimer = null;
+    onSnapshot(vaultDocRef, (snap) => {
+      if (Date.now() - _vaultLastOwnSaveAt < 6000) return; // skip our own echo
+      if (snap.exists()) window.dispatchEvent(new CustomEvent("fb-vault-remote-update", { detail: snap.data() }));
+    }, (err) => console.warn("Vault listener error:", err && err.code));
+    window._fbLoadVault = async () => {
+      try { const snap = await _freshGet(vaultDocRef); return (snap && snap.exists()) ? snap.data() : null; }
+      catch(e) { console.warn("Vault load failed:", e); return null; }
+    };
+    window._fbSaveVault = (getState) => {
+      _vaultLastOwnSaveAt = Date.now();
+      if (_vaultSaveTimer) clearTimeout(_vaultSaveTimer);
+      _vaultSaveTimer = setTimeout(async () => {
+        try {
+          // Strip only `undefined` (Firestore rejects it); keep null (tombstones).
+          const clean = obj => {
+            if (Array.isArray(obj)) return obj.map(clean);
+            if (obj && typeof obj === 'object') { const o = {}; Object.entries(obj).forEach(([k,v]) => { if (v !== undefined) o[k] = clean(v); }); return o; }
+            return obj;
+          };
+          _vaultLastOwnSaveAt = Date.now();
+          await setDoc(vaultDocRef, clean(getState()));
+          _vaultLastOwnSaveAt = Date.now();
+          window.dispatchEvent(new CustomEvent("fb-vault-saved"));
+        } catch(e) {
+          console.error("Vault save failed:", e.code, e.message, e);
+          window.dispatchEvent(new CustomEvent("fb-vault-error", { detail: (e && (e.code || e.message)) || 'error' }));
+        }
+      }, 350);
+    };
+
     // ── Veda Links load ───────────────────────────────────────────────────────
     const vdkcDocRef = doc(db, VDKC_DOC_PATH);
 

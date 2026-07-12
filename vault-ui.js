@@ -86,69 +86,56 @@
     return v;
   }
 
-  // ── Firebase adapter — reuse the app's initialised instance ────────────────
-  // Implements the vault-store.js backend contract against one Firestore doc.
+  // ── Firebase adapter — routes through index.html's proven db/setDoc path ────
+  // (window._fbSaveVault / _fbLoadVault + fb-vault-* events), the SAME mechanism
+  // Keychain/TaskHub use to write dashboards/* reliably. No separate Firestore
+  // instance, so nothing to diverge from the rest of the app.
   function makeFirebaseBackend() {
     var mirror = { config: null, items: {} };
-    var api = null, ready = null, docRef = null;
-    var lastOwnSave = 0, saveTimer = null, itemSubs = [];
+    var loaded = false, itemSubs = [], errShown = false;
 
-    async function ensure() {
-      if (ready) return ready;
-      ready = (async function () {
-        var appMod = await import('https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-app.js');
-        var apps = appMod.getApps();
-        if (!apps.length) throw new Error('firebase app not initialised yet');
-        var app = apps[0];
-        var fs = await import('https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-firestore.js');
-        try { if (window._fbAuthReady) await window._fbAuthReady; } catch (e) {}
-        var db = fs.getFirestore(app);
-        docRef = fs.doc(db, VAULT_DOC);
-        api = fs;
-        // Live subscription → merge remote items/config into mirror, notify store.
-        fs.onSnapshot(docRef, function (snap) {
-          if (Date.now() - lastOwnSave < 4000) return; // skip our own echo
-          var d = snap.data(); if (!d) return;
-          mirror.config = d.config || mirror.config;
-          mirror.items = d.items || {};
-          var list = Object.keys(mirror.items).map(function (k) { return mirror.items[k]; });
-          itemSubs.forEach(function (fn) { try { fn(list); } catch (e) {} });
-        });
-        // Initial fetch so first paint is fresh (falls back to cache).
-        try { var s = await fs.getDoc(docRef); var dd = s.data(); if (dd) { mirror.config = dd.config || null; mirror.items = dd.items || {}; } } catch (e) {}
-      })();
-      return ready;
+    function saveState() { return { config: mirror.config || null, items: mirror.items || {}, savedAt: Date.now() }; }
+    function fbReady() { return typeof window._fbLoadVault === 'function' && typeof window._fbSaveVault === 'function'; }
+    function waitForFb() {
+      if (fbReady()) return Promise.resolve();
+      return new Promise(function (res) {
+        var t = setInterval(function () { if (fbReady()) { clearInterval(t); res(); } }, 150);
+        setTimeout(function () { clearInterval(t); res(); }, 10000);
+      });
     }
-    var errShown = false;
+
+    // Remote updates from the shared Firestore listener → merge + notify store.
+    window.addEventListener('fb-vault-remote-update', function (e) {
+      var d = e.detail; if (!d) return;
+      mirror.config = d.config || mirror.config;
+      mirror.items = d.items || {};
+      var list = Object.keys(mirror.items).map(function (k) { return mirror.items[k]; });
+      itemSubs.forEach(function (fn) { try { fn(list); } catch (err) {} });
+    });
+    window.addEventListener('fb-vault-saved', function () { errShown = false; setVaultSync('saved'); });
+    window.addEventListener('fb-vault-error', function (e) {
+      setVaultSync('error');
+      if (!errShown) { errShown = true; toast('Sync failed (' + (e.detail || 'error') + ') — retrying'); }
+    });
+
+    async function ensureLoaded() {
+      await waitForFb();
+      if (loaded) return;
+      loaded = true;
+      try { var d = await window._fbLoadVault(); if (d) { mirror.config = d.config || null; mirror.items = d.items || {}; } } catch (e) {}
+    }
     function scheduleWrite() {
       setVaultSync('saving');
-      if (saveTimer) clearTimeout(saveTimer);
-      saveTimer = setTimeout(async function () {
-        try {
-          await ensure();
-          // Firestore hard-rejects `undefined` field values — strip them so a
-          // single stray field can never wedge sync in a fail→retry loop.
-          var payload = stripUndefined({ config: mirror.config || null, items: mirror.items || {}, savedAt: Date.now() });
-          lastOwnSave = Date.now();
-          await api.setDoc(docRef, payload);
-          lastOwnSave = Date.now();
-          saveTimer = null; errShown = false;
-          setVaultSync('saved');
-        } catch (e) {
-          var code = (e && (e.code || e.name)) || 'error';
-          console.error('[vault] save failed:', code, e && e.message, e);
-          setVaultSync('error');
-          if (!errShown) { errShown = true; toast('Sync failed (' + code + ') — retrying'); }
-          saveTimer = setTimeout(scheduleWrite, 4000); // keep retrying (offline-safe)
-        }
-      }, 300);
+      if (fbReady()) window._fbSaveVault(saveState);
+      else waitForFb().then(function () { if (fbReady()) window._fbSaveVault(saveState); });
     }
+
     return {
-      async loadConfig() { await ensure(); return mirror.config ? JSON.parse(JSON.stringify(mirror.config)) : null; },
-      async saveConfig(c) { await ensure(); mirror.config = JSON.parse(JSON.stringify(c)); scheduleWrite(); },
-      async listItems() { await ensure(); return Object.keys(mirror.items).map(function (k) { return JSON.parse(JSON.stringify(mirror.items[k])); }); },
-      async putItem(doc) { await ensure(); mirror.items[doc.id] = JSON.parse(JSON.stringify(doc)); scheduleWrite(); },
-      subscribe: function (onItems) { itemSubs.push(onItems); ensure(); return function () { itemSubs = itemSubs.filter(function (f) { return f !== onItems; }); }; },
+      async loadConfig() { await ensureLoaded(); return mirror.config ? JSON.parse(JSON.stringify(mirror.config)) : null; },
+      async saveConfig(c) { await ensureLoaded(); mirror.config = JSON.parse(JSON.stringify(c)); scheduleWrite(); },
+      async listItems() { await ensureLoaded(); return Object.keys(mirror.items).map(function (k) { return JSON.parse(JSON.stringify(mirror.items[k])); }); },
+      async putItem(doc) { await ensureLoaded(); mirror.items[doc.id] = JSON.parse(JSON.stringify(doc)); scheduleWrite(); },
+      subscribe: function (onItems) { itemSubs.push(onItems); ensureLoaded(); return function () { itemSubs = itemSubs.filter(function (f) { return f !== onItems; }); }; },
     };
   }
 
@@ -910,8 +897,15 @@
       '.vault-tabs{display:flex;gap:8px;padding:12px clamp(10px,3vw,24px) 0;max-width:1100px;margin:0 auto;width:100%}',
       '.vault-tab{flex:0 0 auto;background:var(--s1);border:1px solid var(--bd);color:var(--txd);font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;transition:all .15s}',
       '.vault-tab:hover{color:var(--tx)}.vault-tab.active{background:var(--s3);color:var(--tx);border-color:var(--bdl)}',
-      '.vault-panel{max-width:1100px;margin:0 auto;padding:14px clamp(10px,3vw,24px);width:100%}',
-      '.vault-toolbar{display:flex;gap:10px;margin-bottom:14px}',
+      // Each section is its own scroll area with a wide, grabbable scrollbar.
+      '.vault-panel{max-width:1100px;margin:0 auto;padding:6px clamp(10px,3vw,24px) 20px;width:100%;max-height:calc(100dvh - 118px);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--bdl) transparent}',
+      '.vault-panel::-webkit-scrollbar{width:14px}',
+      '.vault-panel::-webkit-scrollbar-track{background:transparent}',
+      '.vault-panel::-webkit-scrollbar-thumb{background:var(--bdl);border-radius:8px;border:3px solid var(--bg);min-height:40px}',
+      '.vault-panel::-webkit-scrollbar-thumb:hover{background:var(--ac)}',
+      '.vault-panel::-webkit-scrollbar-thumb:active{background:var(--ac)}',
+      // Keep search + Add pinned while the list scrolls.
+      '.vault-toolbar{display:flex;gap:10px;margin-bottom:14px;position:sticky;top:0;z-index:3;background:var(--bg);padding:10px 0 8px}',
       '.vault-search-wrap{position:relative;flex:1;display:flex}',
       '.vault-search{flex:1;background:var(--s1);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:10px 38px 10px 14px;font-size:14px;outline:none;width:100%}',
       '.vault-search:focus{border-color:var(--ac)}',
