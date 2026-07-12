@@ -219,7 +219,7 @@
     session = new VaultSession({
       backend: backend, bio: window.Bio || null,
       deviceStore: VaultSession.localStorageDeviceStore('vault.'),
-      appId: 'vault', autoLockMs: 60 * 60 * 1000, // lock after 1 hour idle (was 5 min)
+      appId: 'vault', autoLockMs: 30 * 60 * 1000, // lock after 30 min idle (resets on activity)
       onLock: function () { renderLock(); },
     });
     return session;
