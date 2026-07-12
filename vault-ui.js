@@ -75,6 +75,17 @@
     setTimeout(function () { try { navigator.clipboard.readText().then(function (cur) { if (cur === v) navigator.clipboard.writeText(''); }).catch(function () {}); } catch (e) {} }, 30000);
   }
 
+  // Deep-clone a value, dropping any `undefined` (Firestore rejects undefined).
+  function stripUndefined(v) {
+    if (Array.isArray(v)) return v.map(stripUndefined);
+    if (v && typeof v === 'object') {
+      var o = {};
+      for (var k in v) { if (v[k] !== undefined) o[k] = stripUndefined(v[k]); }
+      return o;
+    }
+    return v;
+  }
+
   // ── Firebase adapter — reuse the app's initialised instance ────────────────
   // Implements the vault-store.js backend contract against one Firestore doc.
   function makeFirebaseBackend() {
@@ -108,17 +119,28 @@
       })();
       return ready;
     }
+    var errShown = false;
     function scheduleWrite() {
       setVaultSync('saving');
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(async function () {
         try {
           await ensure();
+          // Firestore hard-rejects `undefined` field values — strip them so a
+          // single stray field can never wedge sync in a fail→retry loop.
+          var payload = stripUndefined({ config: mirror.config || null, items: mirror.items || {}, savedAt: Date.now() });
           lastOwnSave = Date.now();
-          await api.setDoc(docRef, { config: mirror.config, items: mirror.items, savedAt: Date.now() });
+          await api.setDoc(docRef, payload);
           lastOwnSave = Date.now();
+          saveTimer = null; errShown = false;
           setVaultSync('saved');
-        } catch (e) { console.error('[vault] save failed', e); setVaultSync('error'); saveTimer = setTimeout(scheduleWrite, 3000); }
+        } catch (e) {
+          var code = (e && (e.code || e.name)) || 'error';
+          console.error('[vault] save failed:', code, e && e.message, e);
+          setVaultSync('error');
+          if (!errShown) { errShown = true; toast('Sync failed (' + code + ') — retrying'); }
+          saveTimer = setTimeout(scheduleWrite, 4000); // keep retrying (offline-safe)
+        }
       }, 300);
     }
     return {
@@ -165,7 +187,7 @@
   }
 
   // ── controller ─────────────────────────────────────────────────────────────
-  var session = null, store = null, backend = null, activeTab = 'passwords', currentQuery = '';
+  var session = null, store = null, backend = null, activeTab = 'links', currentQuery = '';
 
   function ensureSession() {
     if (session) return session;
@@ -184,9 +206,9 @@
     injectShell();
     relabelNav();
     ensureSession();
-    if (session.isUnlocked()) { showTab(activeTab); return; }
-    var has = await session.hasVault();
-    renderLock(has);
+    // Default to the (non-secret) Keychain tab — no unlock needed to open Vault.
+    // Passwords / Sensitive still require unlock when their tab is selected.
+    showTab(activeTab);
   }
 
   // ── shell: tabs + lock overlay + panels injected into #kc-root ─────────────
@@ -199,7 +221,7 @@
     // Move the existing .kc-wrap (Connections) into the Links panel.
     var kcWrap = root.querySelector('.kc-wrap');
     var tabs = el('div', { id: 'vault-tabs', class: 'vault-tabs' }, [
-      tabBtn('passwords', '🔑 Passwords'), tabBtn('sensitive', '🗄 Sensitive Info'), tabBtn('links', '🔗 Keychain'),
+      tabBtn('links', '🔗 Keychain'), tabBtn('passwords', '🔑 Passwords'), tabBtn('sensitive', '🗄 Sensitive Info'),
     ]);
     if (hbar && hbar.nextSibling) root.insertBefore(tabs, hbar.nextSibling); else root.appendChild(tabs);
     var pwPanel = el('div', { id: 'vault-pw-panel', class: 'vault-panel' });
@@ -279,6 +301,13 @@
 
   function showRecovery(code, firstRun) {
     var pw = $('vault-pw-panel'); if (!pw) return;
+    // Force the passwords panel to be the visible one — otherwise, if Settings
+    // was opened from another tab, the new key would render into a hidden panel.
+    activeTab = 'passwords';
+    document.querySelectorAll('.vault-tab').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === 'passwords'); });
+    var sen = $('vault-sensitive-panel'), links = $('vault-links-panel');
+    if (sen) sen.style.display = 'none'; if (links) links.style.display = 'none';
+    pw.style.display = '';
     var codeBox = el('div', { class: 'vault-recovery-code' }, [code]);
     var copied = el('button', { class: 'vault-btn' }, ['Copy recovery key']);
     copied.addEventListener('click', function () { copyText(code, 'Recovery key copied'); });
@@ -427,9 +456,11 @@
 
   function toolbar(placeholder, kind) {
     var search = el('input', { class: 'vault-search', placeholder: placeholder, value: currentQuery });
-    search.addEventListener('input', function () { currentQuery = search.value; refreshList(kind); });
+    var clear = el('button', { class: 'vault-search-clear', title: 'Clear', html: '&times;', style: currentQuery ? '' : 'display:none' });
+    clear.addEventListener('click', function () { currentQuery = ''; search.value = ''; clear.style.display = 'none'; refreshList(kind); search.focus(); });
+    search.addEventListener('input', function () { currentQuery = search.value; clear.style.display = search.value ? '' : 'none'; refreshList(kind); });
     var add = el('button', { class: 'vault-btn primary sm', onclick: function () { openEditor(kind); } }, ['+ Add']);
-    return el('div', { class: 'vault-toolbar' }, [search, add]);
+    return el('div', { class: 'vault-toolbar' }, [el('div', { class: 'vault-search-wrap' }, [search, clear]), add]);
   }
   function emptyState(msg) { return el('div', { class: 'vault-empty' }, [msg]); }
 
@@ -452,37 +483,40 @@
     return wrap;
   }
 
-  // One field line: label + value on the left, a copy button on the right.
-  function fieldLine(label, value, copyLabel, icon) {
+  // One stacked value line: label + value (no inline buttons — all actions live
+  // in the single button row on the right).
+  function valLine(label, value, muted) {
     return el('div', { class: 'vault-acc-line' }, [
       el('div', { class: 'vault-acc-field' }, [
         el('span', { class: 'vault-acc-flabel' }, [label]),
-        el('span', { class: 'vault-acc-val' }, [value]),
+        el('span', { class: 'vault-acc-val' + (muted ? ' muted' : '') }, [value]),
       ]),
-      iconBtn('Copy ' + copyLabel, icon || copyIcon(), function () { copyText(value, (copyLabel.charAt(0).toUpperCase() + copyLabel.slice(1)) + ' copied'); }),
     ]);
   }
   function accountRow(it, indented) {
     var shown = false, revBtn;
     var pwText = el('span', { class: 'vault-pw-dots' }, ['••••••••••']);
     function toggle() { shown = !shown; pwText.textContent = shown ? (it.password || '') : '••••••••••'; if (revBtn) revBtn.innerHTML = shown ? eyeOff() : eye(); }
-    revBtn = el('button', { class: 'vault-icon', title: 'Reveal', onclick: toggle, html: eye() });
+    revBtn = el('button', { class: 'vault-icon', title: 'Reveal password', onclick: toggle, html: eye() });
 
     var main = el('div', { class: 'vault-acc-main' });
-    // Show BOTH username and email when present, each independently copyable.
-    if (it.username) main.appendChild(fieldLine('Username', it.username, 'username'));
-    if (it.email) main.appendChild(fieldLine('Email', it.email, 'email'));
-    if (!it.username && !it.email) main.appendChild(el('div', { class: 'vault-acc-line' }, [el('div', { class: 'vault-acc-field' }, [el('span', { class: 'vault-acc-val', style: 'color:var(--txm)' }, ['(no username)'])])]));
-    // Password line: masked value + reveal + copy.
+    if (it.username) main.appendChild(valLine('Username', it.username));
+    if (it.email) main.appendChild(valLine('Email', it.email));
+    if (!it.username && !it.email) main.appendChild(valLine('Username', '(none)', true));
     main.appendChild(el('div', { class: 'vault-acc-line' }, [
       el('div', { class: 'vault-acc-field' }, [el('span', { class: 'vault-acc-flabel' }, ['Password']), el('span', { class: 'vault-acc-pw' }, [pwText])]),
-      el('div', { class: 'vault-acc-line-btns' }, [revBtn, iconBtn('Copy password', keyIcon(), function () { copyText(it.password || '', 'Password copied'); })]),
     ]));
 
-    var actions = el('div', { class: 'vault-acc-actions' }, [
-      it.url ? iconBtn('Open site', extIcon(), function () { window.open(/^https?:/.test(it.url) ? it.url : 'https://' + it.url, '_blank', 'noopener'); }) : null,
-      iconBtn('Edit', editIcon(), function () { openEditor('login', it); }),
-    ]);
+    // ONE horizontal row of actions: copy username, copy email, copy password,
+    // reveal, open, edit.
+    var actions = el('div', { class: 'vault-acc-actions' });
+    if (it.username) actions.appendChild(iconBtn('Copy username', userIcon(), function () { copyText(it.username, 'Username copied'); }));
+    if (it.email) actions.appendChild(iconBtn('Copy email', mailIcon(), function () { copyText(it.email, 'Email copied'); }));
+    actions.appendChild(iconBtn('Copy password', keyIcon(), function () { copyText(it.password || '', 'Password copied'); }));
+    actions.appendChild(revBtn);
+    if (it.url) actions.appendChild(iconBtn('Open site', extIcon(), function () { window.open(/^https?:/.test(it.url) ? it.url : 'https://' + it.url, '_blank', 'noopener'); }));
+    actions.appendChild(iconBtn('Edit', editIcon(), function () { openEditor('login', it); }));
+
     return el('div', { class: 'vault-account' + (indented ? ' indented' : '') }, [main, actions]);
   }
 
@@ -505,17 +539,15 @@
       el('div', { class: 'vault-note-actions' }, [copyBtn]),
     ]);
     body.style.display = 'none';
-    var caret = el('span', { class: 'vault-caret', html: '▸' });
     var head = el('div', { class: 'vault-row', style: 'cursor:pointer' }, [
-      caret,
-      el('div', { class: 'vault-note-icon', html: '🗄️' }),
+      el('div', { class: 'vault-note-icon', html: '🗄' }),
       el('div', { class: 'vault-row-main' }, [
         el('div', { class: 'vault-row-title' }, [it.title || 'Untitled']),
         it.category ? el('div', { class: 'vault-row-sub' }, [it.category]) : null,
       ]),
       iconBtn('Edit', editIcon(), function (e) { e.stopPropagation(); openEditor('sensitive', it); }),
     ]);
-    head.addEventListener('click', function () { var open = body.style.display === 'none'; body.style.display = open ? '' : 'none'; caret.innerHTML = open ? '▾' : '▸'; });
+    head.addEventListener('click', function () { body.style.display = body.style.display === 'none' ? '' : 'none'; });
     return el('div', { class: 'vault-site' }, [head, body]);
   }
 
@@ -523,7 +555,7 @@
   function openEditor(kind, item) {
     item = item || {};
     var isLogin = kind === 'login';
-    var overlay = el('div', { class: 'vault-overlay', onclick: function (e) { if (e.target === overlay) close(); } });
+    var overlay = el('div', { class: 'vault-overlay' }); // no backdrop-close — avoids losing in-progress edits
     function close() { overlay.remove(); }
     var f = {};
     function field(label, key, opts) {
@@ -585,7 +617,7 @@
 
   // ── generator modal ────────────────────────────────────────────────────────
   function openGenerator(onUse) {
-    var overlay = el('div', { class: 'vault-overlay', onclick: function (e) { if (e.target === overlay) overlay.remove(); } });
+    var overlay = el('div', { class: 'vault-overlay' }); // no backdrop-close — avoids losing in-progress edits
     var mode = 'password';
     var out = el('div', { class: 'vault-gen-out' });
     var opts = { length: 20, lower: true, upper: true, num: true, sym: true, easy: false };
@@ -629,7 +661,8 @@
     useBtn.addEventListener('click', function () { onUse(out.textContent); overlay.remove(); });
     var copyBtn = el('button', { class: 'vault-btn', onclick: function () { copyText(out.textContent, 'Password copied'); } }, ['Copy']);
     var reBtn = el('button', { class: 'vault-btn', onclick: regen }, ['↻ Regenerate']);
-    body.appendChild(el('div', { class: 'vault-modal-actions' }, [useBtn, copyBtn, reBtn]));
+    var closeBtn = el('button', { class: 'vault-btn', onclick: function () { overlay.remove(); } }, ['Close']);
+    body.appendChild(el('div', { class: 'vault-modal-actions' }, [useBtn, copyBtn, reBtn, closeBtn]));
     buildOpts(); regen();
     overlay.appendChild(body); document.body.appendChild(overlay);
   }
@@ -642,7 +675,7 @@
     return el('div', { class: 'vault-footer' }, [settings, lock]);
   }
   function openSettings() {
-    var overlay = el('div', { class: 'vault-overlay', onclick: function (e) { if (e.target === overlay) overlay.remove(); } });
+    var overlay = el('div', { class: 'vault-overlay' }); // no backdrop-close — avoids losing in-progress edits
     var body = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, [el('div', { class: 'vault-modal-title' }, ['Vault Settings'])]);
     var rows = el('div', {});
     rows.appendChild(settingRow('Change master password', function () { overlay.remove(); openChangePassword(); }));
@@ -680,7 +713,6 @@
       var ok = el('button', { class: 'vault-btn primary', onclick: function () { if (!input.value) { err.textContent = 'Required'; return; } done(input.value); } }, [opts.okLabel || 'Confirm']);
       var cancel = el('button', { class: 'vault-btn', onclick: function () { done(null); } }, ['Cancel']);
       input.addEventListener('keydown', function (e) { if (e.key === 'Enter') ok.click(); });
-      overlay.addEventListener('click', function (e) { if (e.target === overlay) done(null); });
       var boxKids = [el('div', { class: 'vault-modal-title' }, [title])];
       if (opts.sub) boxKids.push(el('p', { class: 'vault-sub', style: 'text-align:left;margin-bottom:12px' }, [opts.sub]));
       boxKids.push(input, err, el('div', { class: 'vault-modal-actions' }, [ok, cancel]));
@@ -700,9 +732,16 @@
     toast('Incorrect password'); return false;
   }
 
+  // Wrap a password input with a show/hide eye toggle.
+  function revealField(input) {
+    var shown = false;
+    var btn = el('button', { class: 'vault-icon', type: 'button', title: 'Show', html: eye() });
+    btn.addEventListener('click', function () { shown = !shown; input.type = shown ? 'text' : 'password'; btn.innerHTML = shown ? eyeOff() : eye(); });
+    return el('div', { class: 'vault-pw-input' }, [input, btn]);
+  }
   // Change master password — real in-app form with verified current password.
   function openChangePassword() {
-    var overlay = el('div', { class: 'vault-overlay', onclick: function (e) { if (e.target === overlay) overlay.remove(); } });
+    var overlay = el('div', { class: 'vault-overlay' }); // no backdrop-close — avoids losing in-progress edits
     var cur = el('input', { type: 'password', class: 'vault-input', placeholder: 'Current master password', autocomplete: 'current-password' });
     var nw = el('input', { type: 'password', class: 'vault-input', placeholder: 'New master password', autocomplete: 'new-password' });
     var cf = el('input', { type: 'password', class: 'vault-input', placeholder: 'Confirm new password', autocomplete: 'new-password' });
@@ -725,9 +764,9 @@
     });
     var box = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, [
       el('div', { class: 'vault-modal-title' }, ['Change Master Password']),
-      el('label', { class: 'vault-flabel' }, ['Current password']), cur,
-      el('label', { class: 'vault-flabel' }, ['New password']), nw, meter,
-      el('label', { class: 'vault-flabel' }, ['Confirm new password']), cf,
+      el('label', { class: 'vault-flabel' }, ['Current password']), revealField(cur),
+      el('label', { class: 'vault-flabel' }, ['New password']), revealField(nw), meter,
+      el('label', { class: 'vault-flabel' }, ['Confirm new password']), revealField(cf),
       err, el('div', { class: 'vault-modal-actions' }, [save, el('button', { class: 'vault-btn', onclick: function () { overlay.remove(); } }, ['Cancel'])]),
     ]);
     overlay.appendChild(box); document.body.appendChild(overlay);
@@ -740,6 +779,8 @@
   function eye() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'; }
   function eyeOff() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10 10 0 0 1 12 20c-7 0-11-8-11-8a18 18 0 0 1 5.06-5.94M9.9 4.24A9 9 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'; }
   function copyIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'; }
+  function userIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'; }
+  function mailIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>'; }
   function keyIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>'; }
   function extIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'; }
   function editIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'; }
@@ -753,8 +794,10 @@
       '.vault-tab:hover{color:var(--tx)}.vault-tab.active{background:var(--s3);color:var(--tx);border-color:var(--bdl)}',
       '.vault-panel{max-width:1100px;margin:0 auto;padding:14px clamp(10px,3vw,24px);width:100%}',
       '.vault-toolbar{display:flex;gap:10px;margin-bottom:14px}',
-      '.vault-search{flex:1;background:var(--s1);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:10px 14px;font-size:14px;outline:none}',
+      '.vault-search-wrap{position:relative;flex:1;display:flex}',
+      '.vault-search{flex:1;background:var(--s1);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:10px 38px 10px 14px;font-size:14px;outline:none;width:100%}',
       '.vault-search:focus{border-color:var(--ac)}',
+      '.vault-search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;border:none;background:var(--s3);color:var(--txd);border-radius:50%;font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}.vault-search-clear:hover{color:var(--tx);background:var(--bdl)}',
       '.vault-list{display:flex;flex-direction:column;gap:8px}',
       '.vault-site{background:var(--s1);border:1px solid var(--bd);border-radius:12px;overflow:hidden}',
       '.vault-row{display:flex;align-items:center;gap:12px;padding:12px 14px}',
@@ -764,17 +807,15 @@
       '.vault-row-sub{font-size:12px;color:var(--txd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}',
       '.vault-tag{background:var(--s3);color:var(--txd);font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;flex-shrink:0}',
       '.vault-accounts{border-top:1px solid var(--bd)}',
-      '.vault-account{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border-top:1px solid var(--bd)}.vault-account:first-child{border-top:none}',
+      '.vault-account{display:flex;align-items:center;gap:12px;padding:11px 14px;border-top:1px solid var(--bd)}.vault-account:first-child{border-top:none}',
       '.vault-account.indented{padding-left:22px;background:var(--bg)}',
-      '.vault-acc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}',
-      '.vault-acc-line{display:flex;align-items:center;gap:8px;justify-content:space-between}',
+      '.vault-acc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}',
+      '.vault-acc-line{display:flex;align-items:center;gap:8px}',
       '.vault-acc-field{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}',
       '.vault-acc-flabel{font-size:9.5px;font-weight:700;color:var(--txm);text-transform:uppercase;letter-spacing:.5px}',
-      '.vault-acc-val{font-size:13px;color:var(--tx);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.vault-acc-val{font-size:13px;color:var(--tx);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vault-acc-val.muted{color:var(--txm);font-weight:400}',
       '.vault-acc-pw{font-size:13px;color:var(--txd);font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vault-pw-dots{letter-spacing:2px}',
-      '.vault-acc-line-btns{display:flex;gap:4px;flex-shrink:0}',
-      '.vault-acc-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0}',
-      '.vault-caret{color:var(--txm);font-size:11px;width:10px;flex-shrink:0;text-align:center}',
+      '.vault-acc-actions{display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;flex-shrink:0;justify-content:flex-end;max-width:50%}',
       '.vault-note-body{padding:0 14px 14px 40px}',
       '.vault-note-text{color:var(--tx);font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px}',
       '.vault-note-actions{display:flex;justify-content:flex-end;margin-top:8px}',

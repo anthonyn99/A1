@@ -135,6 +135,13 @@
       return scored.sort((a, b) => b.s - a.s || (b.it.updatedAt - a.it.updatedAt)).map((x) => x.it);
     }
 
+    // Monotonic clock for LOCAL writes: guarantees each new write gets a strictly
+    // greater `updatedAt` than the previous one — even two writes in the same
+    // millisecond (e.g. edit-then-delete). Without this, _ingest's `>=` staleness
+    // guard would reject the second write and the change (e.g. a delete) would be
+    // silently lost.
+    _now() { this._clock = Math.max(Date.now(), (this._clock || 0) + 1); return this._clock; }
+
     // ── Writes ───────────────────────────────────────────────────────────────
     // Create/replace an item. `body` is the plaintext object (everything except
     // id/kind/updatedAt/deleted). Returns the stored decrypted item.
@@ -144,8 +151,9 @@
       const body = { ...item };
       delete body.id; delete body.kind; delete body.updatedAt; delete body.deleted;
       if (!body.createdAt) body.createdAt = (this._items.get(id) || {}).createdAt || Date.now();
-      body.modifiedAt = Date.now();
-      const doc = { id, kind, enc: await VC.encrypt(this.dek, body), updatedAt: Date.now(), deleted: false };
+      const ts = this._now();
+      body.modifiedAt = ts;
+      const doc = { id, kind, enc: await VC.encrypt(this.dek, body), updatedAt: ts, deleted: false };
       await this.backend.putItem(doc);
       await this._ingest(doc);
       this._emit();
@@ -154,7 +162,7 @@
 
     // Soft-delete (tombstone) so the deletion syncs to other devices.
     async remove(id) {
-      const doc = { id, kind: (this._raw.get(id) || {}).kind || 'login', enc: null, updatedAt: Date.now(), deleted: true };
+      const doc = { id, kind: (this._raw.get(id) || {}).kind || 'login', enc: null, updatedAt: this._now(), deleted: true };
       await this.backend.putItem(doc);
       await this._ingest(doc);
       this._emit();

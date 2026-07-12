@@ -67,6 +67,7 @@ function ok(name, cond) { if (cond) { pass++; console.log('  ✓', name); } else
   const B = new VaultStore(s3backend, dek); await B.load();
   A.startLive((list) => { liveCount = list.length; });
   const made = await B.save({ kind: 'login', title: 'Live', username: 'x', password: 'y' });
+  await new Promise((r) => setTimeout(r, 30)); // let A's async decrypt-on-ingest settle
   ok('device A got live push from device B', liveCount === 1 && A.get(made.id));
 
   // Concurrent edit: newer updatedAt must win regardless of ingest order.
