@@ -61,6 +61,19 @@ const ok = (n, c) => { c ? (pass++, console.log('  ✓', n)) : (fail++, console.
   ok('expired session does not resume', !(await VP3.restoreSession()) && !VP3.isUnlocked());
   ok('expired session cleared from storage', !store.vpwSession);
 
+  // security stamp: if the master password changed elsewhere (new stamp in the
+  // fetched config), a resumed session must NOT unlock.
+  delete require.cache[corePath];
+  const VP4 = require('./vault-pw-core.js');
+  // put a valid session back, but the served config now has a different stamp
+  store.vpwSession = { dek: store.vpwSession ? store.vpwSession.dek : null, at: Date.now(), stamp: 'OLD-STAMP' };
+  if (!store.vpwSession.dek) { // rebuild a dek if the expired test cleared it
+    const raw = await crypto.subtle.exportKey('raw', dek);
+    store.vpwSession = { dek: VC.bytesToB64(new Uint8Array(raw)), at: Date.now(), stamp: 'OLD-STAMP' };
+  }
+  ok('stamp mismatch blocks resume', !(await VP4.restoreSession()) && !VP4.isUnlocked());
+  ok('mismatched session cleared', !store.vpwSession);
+
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();

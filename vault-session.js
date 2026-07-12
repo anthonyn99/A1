@@ -117,6 +117,7 @@
 
     lock() {
       this._dek = null; this._store = null;
+      this._config = null; // drop cached config so the next unlock reloads fresh (e.g. after a remote password change)
       if (this._lockTimer) { clearTimeout(this._lockTimer); this._lockTimer = null; }
     }
 
@@ -201,7 +202,15 @@
     }
 
     // ── internals ────────────────────────────────────────────────────────────
-    _afterUnlock() { this._store = null; this._armAutoLock(); }
+    _afterUnlock() { this._store = null; this._stamp = (this._config && this._config.securityStamp) || null; this._armAutoLock(); }
+    // If the cloud config's securityStamp changed (e.g. master password changed
+    // on another device), this session's cached DEK is stale-by-policy → lock.
+    enforceStamp(latestConfig) {
+      if (!this._dek) return false;
+      const cur = latestConfig && latestConfig.securityStamp;
+      if (cur && this._stamp && cur !== this._stamp) { this.lock(); return true; }
+      return false;
+    }
     _requireUnlocked() { if (!this._dek) throw new Error('locked'); }
     async _ensureConfig() { if (!this._config) this._config = await this.backend.loadConfig(); if (!this._config) throw new Error('no-vault'); }
     async _deviceId() {

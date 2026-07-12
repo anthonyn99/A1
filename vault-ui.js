@@ -109,6 +109,8 @@
       var d = e.detail; if (!d) return;
       mirror.config = d.config || mirror.config;
       mirror.items = d.items || {};
+      // Master password changed elsewhere → re-lock this device immediately.
+      try { if (session && mirror.config && session.enforceStamp(mirror.config)) { renderLock(true); return; } } catch (err) {}
       var list = Object.keys(mirror.items).map(function (k) { return mirror.items[k]; });
       itemSubs.forEach(function (fn) { try { fn(list); } catch (err) {} });
     });
@@ -336,8 +338,12 @@
     }
     updateStickyOffset();
   }
-  // Pin the toolbar exactly below the (variable-height) sticky tabs.
+  // Measure the sticky header heights so the tabs pin below the app-hbar and the
+  // toolbar pins below the tabs (both app-hbar and tabs are position:sticky).
   function updateStickyOffset() {
+    var root = $('kc-root');
+    var hbar = root && root.querySelector('.app-hbar');
+    if (hbar) document.documentElement.style.setProperty('--vhbar-h', hbar.offsetHeight + 'px');
     var t = $('vault-tabs'); if (t) document.documentElement.style.setProperty('--vtabs-h', t.offsetHeight + 'px');
   }
 
@@ -908,7 +914,10 @@
       save.disabled = true; save.textContent = 'Verifying…';
       try {
         await session.changeMasterPassword(cur.value, nw.value); // throws bad-password if current is wrong
-        toast('Master password changed'); overlay.remove();
+        overlay.remove();
+        // Re-lock this device too — you'll unlock again with the new password.
+        session.lock(); renderLock(true);
+        toast('Master password changed — please unlock with your new password');
       } catch (e) {
         err.textContent = e.message === 'bad-password' ? 'Current password is incorrect.' : ('Failed: ' + e.message);
         save.disabled = false; save.textContent = 'Change password';
@@ -1127,17 +1136,21 @@
       // tabs + toolbar are position:sticky INSIDE it, so they pin while the list
       // scrolls beneath — and it carries a wide, grabbable scrollbar. (Also set
       // inline in activate() so nothing can override it.)
+      'body.vault-active{overflow:hidden}', // only #kc-root scrolls (no competing body scroll)
       '#kc-root{height:100dvh;overflow-y:auto;overflow-x:clip;scrollbar-width:auto;scrollbar-color:#4a4a58 var(--s1)}',
       '#kc-root::-webkit-scrollbar{width:15px}',
       '#kc-root::-webkit-scrollbar-track{background:var(--s1)}',
       '#kc-root::-webkit-scrollbar-thumb{background:#4a4a58;border-radius:8px;border:3px solid var(--bg);min-height:50px}',
       '#kc-root::-webkit-scrollbar-thumb:hover,#kc-root::-webkit-scrollbar-thumb:active{background:var(--ac)}',
-      '.vault-tabs{display:flex;gap:8px;padding:12px clamp(10px,3vw,24px) 10px;max-width:1100px;margin:0 auto;width:100%;position:sticky;top:0;z-index:6;background:var(--bg)}',
+      // The app-hbar (branding) is already sticky top:0; the tabs stick BELOW it,
+      // and the toolbar below the tabs — offsets measured live in updateStickyOffset.
+      '#kc-root .app-hbar{position:sticky;top:0;z-index:7}',
+      '.vault-tabs{display:flex;gap:8px;padding:12px clamp(10px,3vw,24px) 10px;max-width:1100px;margin:0 auto;width:100%;position:sticky;top:var(--vhbar-h,60px);z-index:6;background:var(--bg)}',
       '.vault-tab{flex:0 0 auto;background:var(--s1);border:1px solid var(--bd);color:var(--txd);font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;transition:all .15s}',
       '.vault-tab:hover{color:var(--tx)}.vault-tab.active{background:var(--s3);color:var(--tx);border-color:var(--bdl)}',
       '.vault-panel{max-width:1100px;margin:0 auto;padding:0 clamp(10px,3vw,24px) 28px;width:100%}',
       // Search + Add + Settings + Lock stay pinned just below the tabs.
-      '.vault-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;position:sticky;top:var(--vtabs-h,54px);z-index:5;background:var(--bg);padding:8px 0 10px}',
+      '.vault-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;position:sticky;top:calc(var(--vhbar-h,60px) + var(--vtabs-h,54px));z-index:5;background:var(--bg);padding:8px 0 10px}',
       '.vault-toolbar .vault-icon{width:38px;height:38px}',
       '.vault-search-wrap{position:relative;flex:1;display:flex}',
       '.vault-search{flex:1;background:var(--s1);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:10px 38px 10px 14px;font-size:14px;outline:none;width:100%}',

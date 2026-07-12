@@ -64,6 +64,11 @@ async function throws(name, fn, msg) {
   ok('serialized config never contains item plaintext', !serialized.includes('anthony'));
   ok('config JSON survives a stringify/parse round-trip', await VC.verify(JSON.parse(serialized), await VC.unlockWithPassword(JSON.parse(serialized), 'Correct-Horse-Battery-Staple-9!')));
 
+  console.log('\n── security stamp (re-lock signal) ──');
+  ok('new vault has a securityStamp', !!config.securityStamp);
+  const changedStamp = await VC.changeMasterPassword(config, dek, 'Another-New-PW-1!');
+  ok('changeMasterPassword bumps securityStamp', changedStamp.securityStamp && changedStamp.securityStamp !== config.securityStamp);
+
   console.log('\n── uniqueness / randomness ──');
   const a = await VC.createVault('same-pw'); const b = await VC.createVault('same-pw');
   ok('two vaults with same password have different salts', a.config.master.salt !== b.config.master.salt);

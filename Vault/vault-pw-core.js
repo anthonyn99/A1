@@ -83,7 +83,7 @@
     if (!dek || !hasSession()) return;
     try {
       const raw = await crypto.subtle.exportKey("raw", dek);
-      await sesSet({ dek: VC.bytesToB64(new Uint8Array(raw)), at: Date.now() });
+      await sesSet({ dek: VC.bytesToB64(new Uint8Array(raw)), at: Date.now(), stamp: (config && config.securityStamp) || null });
     } catch (e) {}
   }
   async function touchSession() {
@@ -98,9 +98,12 @@
     if (!s || !s.dek) return false;
     if (Date.now() - (s.at || 0) > IDLE_MS) { await sesDel(); return false; }
     try {
+      // Fetch the current config first so we can honor a securityStamp change
+      // (master password changed elsewhere → this cached DEK must be dropped).
+      await fetchVault();
+      if (s.stamp && config && config.securityStamp && s.stamp !== config.securityStamp) { await sesDel(); return false; }
       dek = await crypto.subtle.importKey("raw", VC.b64ToBytes(s.dek), { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
-      await ensureLoaded();
-      await sesSet({ dek: s.dek, at: Date.now() }); // reset idle window on resume
+      await sesSet({ dek: s.dek, at: Date.now(), stamp: (config && config.securityStamp) || s.stamp }); // reset idle window on resume
       return true;
     } catch (e) { dek = null; return false; }
   }

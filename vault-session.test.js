@@ -99,6 +99,27 @@ function fakeBio() {
   await sRec.unlockWithRecovery(recoveryCode);
   ok('original recovery key still valid after password change', sRec.isUnlocked());
 
+  console.log('\n── security stamp: master-password change re-locks other sessions ──');
+  {
+    const be2 = VaultStore.memoryBackend();
+    const A = new VaultSession({ backend: be2, autoLockMs: 0 });
+    const { } = await A.setup('stamp-pw');
+    const cfgA = A.getConfig();
+    // Device B unlocks with the same vault.
+    const B = new VaultSession({ backend: be2, autoLockMs: 0 });
+    await B.unlockWithPassword('stamp-pw');
+    ok('B unlocked', B.isUnlocked());
+    // A changes the master password (bumps securityStamp).
+    await A.changeMasterPassword('stamp-pw', 'stamp-pw-2');
+    const newCfg = A.getConfig();
+    ok('stamp changed after password change', newCfg.securityStamp !== cfgA.securityStamp);
+    // B sees the new config and must re-lock.
+    ok('B.enforceStamp locks B', B.enforceStamp(newCfg) === true && !B.isUnlocked());
+    // Same stamp is a no-op.
+    await B.unlockWithPassword('stamp-pw-2');
+    ok('enforceStamp no-op on same stamp', B.enforceStamp(newCfg) === false && B.isUnlocked());
+  }
+
   console.log('\n── rotate recovery ──');
   const rot = await sNew.rotateRecovery();
   ok('rotation returns a new, different code', rot.recoveryCode && rot.recoveryCode !== recoveryCode);

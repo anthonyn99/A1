@@ -187,6 +187,9 @@
       recovery: recoverySlot,
       biometrics: {},                 // deviceId -> { wrap, addedAt, label }
       verifier: await encrypt(dek, VERIFIER_PLAINTEXT),
+      // Bumped on master-password change so other unlocked sessions (whose
+      // cached DEK still works) detect the change and re-lock themselves.
+      securityStamp: bytesToB64(randomBytes(16)),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -270,6 +273,7 @@
     return {
       ...config,
       master: { kdf: { ...KDF }, salt: bytesToB64(salt), wrap: await wrapDEK(dek, kek) },
+      securityStamp: bytesToB64(randomBytes(16)), // force other sessions to re-lock
       updatedAt: Date.now(),
     };
   }
