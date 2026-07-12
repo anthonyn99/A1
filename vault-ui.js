@@ -540,7 +540,7 @@
     ]);
     body.style.display = 'none';
     var head = el('div', { class: 'vault-row', style: 'cursor:pointer' }, [
-      el('div', { class: 'vault-note-icon', html: '🗄' }),
+      el('div', { class: 'vault-note-icon', html: cabinetIcon() }),
       el('div', { class: 'vault-row-main' }, [
         el('div', { class: 'vault-row-title' }, [it.title || 'Untitled']),
         it.category ? el('div', { class: 'vault-row-sub' }, [it.category]) : null,
@@ -678,6 +678,7 @@
     var overlay = el('div', { class: 'vault-overlay' }); // no backdrop-close — avoids losing in-progress edits
     var body = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, [el('div', { class: 'vault-modal-title' }, ['Vault Settings'])]);
     var rows = el('div', {});
+    rows.appendChild(settingRow('Import / Export & Backup', function () { overlay.remove(); openImportExport(); }));
     rows.appendChild(settingRow('Change master password', function () { overlay.remove(); openChangePassword(); }));
     rows.appendChild(settingRow('Rotate recovery key', async function () {
       if (!(await confirmUI('Generate a NEW recovery key? Your old one stops working immediately.', { title: 'Rotate recovery key', okLabel: 'Generate new', danger: true }))) return;
@@ -773,6 +774,122 @@
     setTimeout(function () { cur.focus(); }, 50);
   }
 
+  // ── import / export / backup ───────────────────────────────────────────────
+  function dateStamp() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function download(filename, text, mime) {
+    var blob = new Blob([text], { type: mime || 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = el('a', { href: url, download: filename });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+  }
+  // RFC-4180-ish CSV parser (handles quotes, escaped quotes, CRLF).
+  function parseCSV(text) {
+    var rows = [], row = [], cur = '', inQ = false;
+    text = String(text).replace(/^﻿/, ''); // strip BOM
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i];
+      if (inQ) {
+        if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+        else cur += c;
+      } else if (c === '"') inQ = true;
+      else if (c === ',') { row.push(cur); cur = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cur); rows.push(row); row = []; cur = ''; }
+      else cur += c;
+    }
+    if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+    return rows.filter(function (r) { return !(r.length === 1 && r[0].trim() === ''); });
+  }
+  function csvCell(v) { v = String(v == null ? '' : v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function toCSV(rows) { return rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n'); }
+
+  // Import logins from a Chrome/Edge/Firefox or Bitwarden CSV. Returns count.
+  async function importFromCSV(text) {
+    var rows = parseCSV(text);
+    if (rows.length < 2) throw new Error('No rows found');
+    var header = rows[0].map(function (h) { return h.trim().toLowerCase(); });
+    function col() { for (var i = 0; i < arguments.length; i++) { var j = header.indexOf(arguments[i]); if (j >= 0) return j; } return -1; }
+    var ci = {
+      title: col('name', 'title'), url: col('url', 'login_uri', 'website', 'uri', 'hostname'),
+      username: col('username', 'login_username'), password: col('password', 'login_password'),
+      email: col('email'), notes: col('notes', 'note'), totp: col('login_totp', 'totp', 'otpauth'),
+    };
+    if (ci.password < 0 && ci.username < 0) throw new Error('Unrecognised CSV — no username/password columns');
+    var count = 0;
+    for (var r = 1; r < rows.length; r++) {
+      var row = rows[r];
+      var g = function (i) { return i >= 0 && i < row.length ? row[i] : ''; };
+      var title = g(ci.title), url = g(ci.url), user = g(ci.username), pass = g(ci.password);
+      if (!title && !url && !user && !pass) continue;
+      await store.save({ kind: 'login', title: title || url || user || 'Imported', url: url, username: user, email: g(ci.email), password: pass, notes: g(ci.notes), totp: g(ci.totp), category: 'Other' });
+      count++;
+    }
+    return count;
+  }
+
+  function openImportExport() {
+    var overlay = el('div', { class: 'vault-overlay' });
+    var status = el('div', { class: 'vault-err', style: 'color:var(--txd)' });
+
+    // hidden file inputs
+    var csvInput = el('input', { type: 'file', accept: '.csv,text/csv', style: 'display:none' });
+    csvInput.addEventListener('change', async function () {
+      var f = csvInput.files[0]; csvInput.value = ''; if (!f) return;
+      status.textContent = 'Importing…';
+      try { var n = await importFromCSV(await f.text()); status.style.color = 'var(--txd)'; status.textContent = 'Imported ' + n + ' login' + (n === 1 ? '' : 's') + '.'; toast('Imported ' + n); renderPasswords(); }
+      catch (e) { status.style.color = '#e07070'; status.textContent = 'Import failed: ' + e.message; }
+    });
+    var backupInput = el('input', { type: 'file', accept: '.json,application/json', style: 'display:none' });
+    backupInput.addEventListener('change', async function () {
+      var f = backupInput.files[0]; backupInput.value = ''; if (!f) return;
+      try {
+        var data = JSON.parse(await f.text());
+        if (data.format !== 'vault-encrypted-backup' || !data.config) throw new Error('Not a Vault backup file');
+        if (!(await confirmUI('Restore this backup? It MERGES the backup\'s ' + ((data.items || []).length) + ' item(s) into this vault, and replaces your master password/keys with the backup\'s. You will unlock with the backup\'s master password.', { title: 'Restore backup', okLabel: 'Restore', danger: true }))) return;
+        await backend.saveConfig(data.config);
+        for (var i = 0; i < (data.items || []).length; i++) await backend.putItem(data.items[i]);
+        overlay.remove(); session.lock(); toast('Backup restored — unlock with its master password'); renderLock(true);
+      } catch (e) { status.style.color = '#e07070'; status.textContent = 'Restore failed: ' + e.message; }
+    });
+
+    function row(title, desc, btnLabel, danger, onClick) {
+      var btn = el('button', { class: 'vault-btn' + (danger ? ' danger' : ''), style: 'width:auto;margin:0;flex-shrink:0', onclick: onClick }, [btnLabel]);
+      return el('div', { class: 'vault-ie-row' }, [
+        el('div', { style: 'flex:1;min-width:0' }, [el('div', { class: 'vault-ie-title' }, [title]), el('div', { class: 'vault-ie-desc' }, [desc])]),
+        btn,
+      ]);
+    }
+
+    var box = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, [
+      el('div', { class: 'vault-modal-title' }, ['Import / Export & Backup']),
+      row('Import from CSV', 'Chrome, Edge, Firefox, or Bitwarden password export.', 'Import CSV', false, function () { csvInput.click(); }),
+      row('Encrypted backup', 'Download an encrypted, zero-knowledge backup file. Safe to store anywhere — needs your master password to open.', 'Export backup', false, exportBackup),
+      row('Restore backup', 'Load a previously exported encrypted backup file.', 'Restore', false, function () { backupInput.click(); }),
+      row('Plain CSV export', 'UNENCRYPTED — anyone who opens the file can read every password. Use only for migrating, then delete it.', 'Export CSV', true, exportCSVUnencrypted),
+      status,
+      el('div', { class: 'vault-modal-actions' }, [el('button', { class: 'vault-btn', onclick: function () { overlay.remove(); } }, ['Close'])]),
+    ]);
+    box.appendChild(csvInput); box.appendChild(backupInput);
+    overlay.appendChild(box); document.body.appendChild(overlay);
+
+    async function exportBackup() {
+      try {
+        var data = { format: 'vault-encrypted-backup', version: 1, exportedAt: Date.now(), config: session.getConfig(), items: await backend.listItems() };
+        download('vault-backup-' + dateStamp() + '.json', JSON.stringify(data), 'application/json');
+        status.style.color = 'var(--txd)'; status.textContent = 'Encrypted backup downloaded.';
+      } catch (e) { status.style.color = '#e07070'; status.textContent = 'Export failed: ' + e.message; }
+    }
+    async function exportCSVUnencrypted() {
+      if (!(await confirmUI('This exports every login as PLAIN TEXT — passwords readable by anyone with the file. Continue?', { title: 'Unencrypted export', okLabel: 'Export anyway', danger: true }))) return;
+      var logins = store.byKind('login');
+      var rows = [['name', 'url', 'username', 'email', 'password', 'notes']];
+      logins.forEach(function (it) { rows.push([it.title || '', it.url || '', it.username || '', it.email || '', it.password || '', it.notes || '']); });
+      download('vault-passwords-UNENCRYPTED-' + dateStamp() + '.csv', toCSV(rows), 'text/csv');
+      status.style.color = '#e0a060'; status.textContent = 'Exported ' + logins.length + ' logins as PLAIN TEXT — delete the file when done.';
+    }
+  }
+
   // ── small SVG/icon helpers ─────────────────────────────────────────────────
   function favicon(url) { var i = el('img', { class: 'vault-favicon', src: faviconUrl(url), loading: 'lazy', alt: '' }); i.addEventListener('error', function () { i.style.visibility = 'hidden'; }); return i; }
   function iconBtn(title, svg, fn) { return el('button', { class: 'vault-icon', title: title, html: svg, onclick: fn }); }
@@ -781,6 +898,7 @@
   function copyIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'; }
   function userIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'; }
   function mailIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>'; }
+  function cabinetIcon() { return '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="10" y1="7.5" x2="14" y2="7.5"/><line x1="10" y1="16.5" x2="14" y2="16.5"/></svg>'; }
   function keyIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>'; }
   function extIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'; }
   function editIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'; }
@@ -802,7 +920,8 @@
       '.vault-site{background:var(--s1);border:1px solid var(--bd);border-radius:12px;overflow:hidden}',
       '.vault-row{display:flex;align-items:center;gap:12px;padding:12px 14px}',
       '.vault-favicon{width:26px;height:26px;border-radius:6px;object-fit:contain;background:var(--s3);flex-shrink:0}',
-      '.vault-note-icon,.vault-lock-icon{font-size:22px}.vault-note-icon{width:26px;text-align:center}',
+      '.vault-lock-icon{font-size:22px}',
+      '.vault-note-icon{width:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--ac)}',
       '.vault-row-main{flex:1;min-width:0}.vault-row-title{font-size:14px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.vault-row-sub{font-size:12px;color:var(--txd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}',
       '.vault-tag{background:var(--s3);color:var(--txd);font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;flex-shrink:0}',
@@ -849,6 +968,8 @@
       '.vault-pw-input{display:flex;gap:6px}.vault-pw-input .vault-input{flex:1}',
       '.vault-modal-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.vault-modal-actions .vault-btn{width:auto;flex:1;margin:0}',
       '.vault-setting-row{display:block;width:100%;text-align:left;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:13px 15px;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:8px}.vault-setting-row:hover{border-color:var(--ac)}',
+      '.vault-ie-row{display:flex;align-items:center;gap:12px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:8px}',
+      '.vault-ie-title{font-size:13px;font-weight:700;color:var(--tx)}.vault-ie-desc{font-size:11px;color:var(--txd);line-height:1.5;margin-top:2px}',
       // generator
       '.vault-gen-out{font-family:ui-monospace,monospace;font-size:16px;color:var(--ac);background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:16px;word-break:break-all;text-align:center;margin-bottom:14px;min-height:24px}',
       '.vault-gen-tabs,.vault-gen-len{display:flex;gap:8px;margin-bottom:12px}.vault-gen-len{align-items:center;justify-content:space-between;font-size:12px;color:var(--txd)}',
@@ -893,5 +1014,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.Vault = { activate: activate, session: function () { return session; }, genPassword: genPassword, genPassphrase: genPassphrase, strength: strength };
+  window.Vault = { activate: activate, session: function () { return session; }, genPassword: genPassword, genPassphrase: genPassphrase, strength: strength, parseCSV: parseCSV, toCSV: toCSV, importFromCSV: importFromCSV, _setStore: function (s) { store = s; } };
 })();
