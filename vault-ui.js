@@ -413,7 +413,6 @@
     var list = el('div', { class: 'vault-list' });
     fillLoginList(list);
     panel.appendChild(list);
-    panel.appendChild(footerBar());
   }
   function fillLoginList(list) {
     list.innerHTML = '';
@@ -447,7 +446,11 @@
     clear.addEventListener('click', function () { currentQuery = ''; search.value = ''; clear.style.display = 'none'; refreshList(kind); search.focus(); });
     search.addEventListener('input', function () { currentQuery = search.value; clear.style.display = search.value ? '' : 'none'; refreshList(kind); });
     var add = el('button', { class: 'vault-btn primary sm', onclick: function () { openEditor(kind); } }, ['+ Add']);
-    return el('div', { class: 'vault-toolbar' }, [el('div', { class: 'vault-search-wrap' }, [search, clear]), add]);
+    // Settings + Lock live here (top of the section) so they're always reachable
+    // without scrolling to the bottom.
+    var settings = iconBtn('Settings', gearIcon(), openSettings);
+    var lock = iconBtn('Lock now', lockIcon(), function () { session.lock(); renderLock(true); });
+    return el('div', { class: 'vault-toolbar' }, [el('div', { class: 'vault-search-wrap' }, [search, clear]), add, settings, lock]);
   }
   function emptyState(msg) { return el('div', { class: 'vault-empty' }, [msg]); }
 
@@ -517,7 +520,6 @@
     var list = el('div', { class: 'vault-list' });
     fillSensitiveList(list);
     panel.appendChild(list);
-    panel.appendChild(footerBar());
   }
   function sensitiveRow(it) {
     var copyBtn = iconBtn('Copy details', copyIcon(), function (e) { e.stopPropagation(); copyText(it.notes || '', 'Details copied'); });
@@ -886,6 +888,8 @@
   function userIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'; }
   function mailIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>'; }
   function cabinetIcon() { return '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="10" y1="7.5" x2="14" y2="7.5"/><line x1="10" y1="16.5" x2="14" y2="16.5"/></svg>'; }
+  function gearIcon() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'; }
+  function lockIcon() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'; }
   function keyIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>'; }
   function extIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'; }
   function editIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'; }
@@ -894,18 +898,20 @@
   function injectStyles() {
     if ($('vault-ui-styles')) return;
     var css = [
-      '.vault-tabs{display:flex;gap:8px;padding:12px clamp(10px,3vw,24px) 0;max-width:1100px;margin:0 auto;width:100%}',
+      // #kc-root is the single full-width scroll area (so the wheel scrolls no
+      // matter where the cursor is), with a wide grabbable scrollbar.
+      '#kc-root{height:100dvh;overflow-y:auto;overflow-x:clip;scrollbar-width:auto;scrollbar-color:var(--bdl) var(--s1)}',
+      '#kc-root::-webkit-scrollbar{width:15px}',
+      '#kc-root::-webkit-scrollbar-track{background:var(--s1)}',
+      '#kc-root::-webkit-scrollbar-thumb{background:var(--bdl);border-radius:8px;border:3px solid var(--bg);min-height:48px}',
+      '#kc-root::-webkit-scrollbar-thumb:hover,#kc-root::-webkit-scrollbar-thumb:active{background:var(--ac)}',
+      // Tabs pinned to the top while the list scrolls beneath them.
+      '.vault-tabs{display:flex;gap:8px;padding:12px clamp(10px,3vw,24px) 10px;max-width:1100px;margin:0 auto;width:100%;position:sticky;top:0;z-index:6;background:var(--bg)}',
       '.vault-tab{flex:0 0 auto;background:var(--s1);border:1px solid var(--bd);color:var(--txd);font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;transition:all .15s}',
       '.vault-tab:hover{color:var(--tx)}.vault-tab.active{background:var(--s3);color:var(--tx);border-color:var(--bdl)}',
-      // Each section is its own scroll area with a wide, grabbable scrollbar.
-      '.vault-panel{max-width:1100px;margin:0 auto;padding:6px clamp(10px,3vw,24px) 20px;width:100%;max-height:calc(100dvh - 118px);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--bdl) transparent}',
-      '.vault-panel::-webkit-scrollbar{width:14px}',
-      '.vault-panel::-webkit-scrollbar-track{background:transparent}',
-      '.vault-panel::-webkit-scrollbar-thumb{background:var(--bdl);border-radius:8px;border:3px solid var(--bg);min-height:40px}',
-      '.vault-panel::-webkit-scrollbar-thumb:hover{background:var(--ac)}',
-      '.vault-panel::-webkit-scrollbar-thumb:active{background:var(--ac)}',
-      // Keep search + Add pinned while the list scrolls.
-      '.vault-toolbar{display:flex;gap:10px;margin-bottom:14px;position:sticky;top:0;z-index:3;background:var(--bg);padding:10px 0 8px}',
+      '.vault-panel{max-width:1100px;margin:0 auto;padding:0 clamp(10px,3vw,24px) 28px;width:100%}',
+      '.vault-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}',
+      '.vault-toolbar .vault-icon{width:38px;height:38px}',
       '.vault-search-wrap{position:relative;flex:1;display:flex}',
       '.vault-search{flex:1;background:var(--s1);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:10px 38px 10px 14px;font-size:14px;outline:none;width:100%}',
       '.vault-search:focus{border-color:var(--ac)}',
