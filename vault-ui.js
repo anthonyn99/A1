@@ -33,6 +33,9 @@
       else if (k === 'class') e.className = attrs[k];
       else if (k === 'html') e.innerHTML = attrs[k];
       else if (k.slice(0, 2) === 'on' && typeof attrs[k] === 'function') e.addEventListener(k.slice(2), attrs[k]);
+      // `value` MUST be set as a property, not an attribute — otherwise <textarea>
+      // initial content never populates (attributes don't work for textareas).
+      else if (k === 'value') e.value = attrs[k] == null ? '' : attrs[k];
       else if (attrs[k] != null) e.setAttribute(k, attrs[k]);
     }
     (kids || []).forEach(function (c) { if (c == null) return; e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
@@ -44,6 +47,17 @@
     var t = $('kc-toast'); if (!t) { t = el('div', { id: 'vault-toast', style: 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--s3,#202028);border:1px solid var(--bdl,#323240);color:var(--tx,#ececf0);font-size:13px;font-weight:600;padding:9px 16px;border-radius:9px;z-index:99999;box-shadow:0 8px 30px rgba(0,0,0,.5)' }); document.body.appendChild(t); }
     t.textContent = msg; t.style.opacity = '1'; t.classList.add('show');
     clearTimeout(t._h); t._h = setTimeout(function () { t.style.opacity = '0'; t.classList.remove('show'); }, 1400);
+  }
+  // Drive the sync-status pill under the Vault title (reuses #kc-sync-status).
+  var _syncClearTimer = null;
+  function setVaultSync(state) {
+    var e = $('kc-sync-status'); if (!e) return;
+    clearTimeout(_syncClearTimer);
+    e.style.visibility = 'visible'; e.style.display = 'block';
+    if (state === 'saving') { e.textContent = 'Syncing…'; e.style.color = 'var(--ac)'; }
+    else if (state === 'saved') { e.textContent = '✓ Synced'; e.style.color = 'var(--txd)'; _syncClearTimer = setTimeout(function () { e.style.visibility = 'hidden'; }, 2000); }
+    else if (state === 'error') { e.textContent = '⚠ Sync failed — retrying'; e.style.color = '#e07070'; }
+    else if (state === 'synced') { e.textContent = '✓ Synced'; e.style.color = 'var(--txd)'; _syncClearTimer = setTimeout(function () { e.style.visibility = 'hidden'; }, 1500); }
   }
   // Prefer the app's in-app modal (window.uiConfirm) over the browser's native
   // confirm dialog; fall back to native only if it's unavailable.
@@ -95,6 +109,7 @@
       return ready;
     }
     function scheduleWrite() {
+      setVaultSync('saving');
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(async function () {
         try {
@@ -102,8 +117,9 @@
           lastOwnSave = Date.now();
           await api.setDoc(docRef, { config: mirror.config, items: mirror.items, savedAt: Date.now() });
           lastOwnSave = Date.now();
-        } catch (e) { console.error('[vault] save failed', e); toast('Sync error — will retry'); if (saveTimer == null) scheduleWrite(); }
-      }, 400);
+          setVaultSync('saved');
+        } catch (e) { console.error('[vault] save failed', e); setVaultSync('error'); saveTimer = setTimeout(scheduleWrite, 3000); }
+      }, 300);
     }
     return {
       async loadConfig() { await ensure(); return mirror.config ? JSON.parse(JSON.stringify(mirror.config)) : null; },
@@ -157,7 +173,7 @@
     session = new VaultSession({
       backend: backend, bio: window.Bio || null,
       deviceStore: VaultSession.localStorageDeviceStore('vault.'),
-      appId: 'vault', autoLockMs: 5 * 60 * 1000,
+      appId: 'vault', autoLockMs: 60 * 60 * 1000, // lock after 1 hour idle (was 5 min)
       onLock: function () { renderLock(); },
     });
     return session;
@@ -340,9 +356,19 @@
   async function afterUnlock() {
     store = session.getStore();
     await store.load();
-    store.startLive(function () { if (activeTab === 'passwords') renderPasswords(); else if (activeTab === 'sensitive') renderSensitive(); });
+    store.startLive(function () { setVaultSync('synced'); if (activeTab === 'passwords') renderPasswords(); else if (activeTab === 'sensitive') renderSensitive(); });
+    bindActivity();
     maybeOfferBiometric();
     showTab(activeTab === 'links' ? 'passwords' : activeTab);
+  }
+  // Reset the idle auto-lock timer on user activity (throttled) so the 1-hour
+  // lock is measured from the last interaction, not from unlock.
+  var _activityBound = false, _lastTouch = 0;
+  function bindActivity() {
+    if (_activityBound) return; _activityBound = true;
+    ['click', 'keydown', 'pointerdown'].forEach(function (ev) {
+      document.addEventListener(ev, function () { var now = Date.now(); if (session && session.isUnlocked() && now - _lastTouch > 10000) { _lastTouch = now; session.touch(); } }, true);
+    });
   }
   async function maybeOfferBiometric() {
     try {
@@ -359,43 +385,62 @@
   }
 
   // ── passwords panel ────────────────────────────────────────────────────────
+  // The toolbar (with the search box) is built ONCE per full render; typing only
+  // re-fills the list container via refreshList(), so the search input keeps
+  // focus and never "stops after one character".
   function renderPasswords() {
     var panel = $('vault-pw-panel'); if (!panel) return;
     if (!session || !session.isUnlocked()) { renderLock(); return; }
     if (!store) { afterUnlock(); return; } // store not ready yet — bootstrap then re-render
+    panel.innerHTML = '';
+    panel.appendChild(toolbar('Search logins…', 'login'));
+    var list = el('div', { class: 'vault-list' });
+    fillLoginList(list);
+    panel.appendChild(list);
+    panel.appendChild(footerBar());
+  }
+  function fillLoginList(list) {
+    list.innerHTML = '';
     var items = currentQuery ? store.search(currentQuery).filter(function (i) { return i.kind === 'login'; }) : store.byKind('login');
-    // group multiple accounts under the same site (by normalized url/title)
     var groups = {};
     items.forEach(function (it) {
       var key = (it.url || it.title || 'other').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
       (groups[key] = groups[key] || { key: key, sample: it, items: [] }).items.push(it);
     });
     var groupList = Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return (a.sample.title || a.key).localeCompare(b.sample.title || b.key); });
-
-    panel.innerHTML = '';
-    panel.appendChild(toolbar('Search logins…', function () { openEditor('login'); }));
-    var list = el('div', { class: 'vault-list' });
-    if (!groupList.length) list.appendChild(emptyState(currentQuery ? 'No matches.' : 'No logins yet. Add your first one, or import from Chrome/Bitwarden later.'));
+    if (!groupList.length) { list.appendChild(emptyState(currentQuery ? 'No matches.' : 'No logins yet. Add your first one, or import from Chrome/Bitwarden later.')); return; }
     groupList.forEach(function (g) { list.appendChild(siteRow(g)); });
-    panel.appendChild(list);
-    panel.appendChild(footerBar());
+  }
+  function fillSensitiveList(list) {
+    list.innerHTML = '';
+    var items = currentQuery ? store.search(currentQuery).filter(function (i) { return i.kind === 'sensitive'; }) : store.byKind('sensitive');
+    if (!items.length) { list.appendChild(emptyState('No secure notes yet. Store Wi-Fi passwords, lock combos, recovery codes, license keys…')); return; }
+    items.forEach(function (it) { list.appendChild(sensitiveRow(it)); });
+  }
+  // Re-fill just the list for the active kind (used on every keystroke).
+  function refreshList(kind) {
+    var panel = $(kind === 'login' ? 'vault-pw-panel' : 'vault-sensitive-panel'); if (!panel) return;
+    var list = panel.querySelector('.vault-list');
+    if (!list) { (kind === 'login' ? renderPasswords : renderSensitive)(); return; }
+    (kind === 'login' ? fillLoginList : fillSensitiveList)(list);
   }
 
-  function toolbar(placeholder, onAdd) {
+  function toolbar(placeholder, kind) {
     var search = el('input', { class: 'vault-search', placeholder: placeholder, value: currentQuery });
-    search.addEventListener('input', function () { currentQuery = search.value; var cur = search.selectionStart; (activeTab === 'passwords' ? renderPasswords : renderSensitive)(); var ns = $('vault-pw-panel') && $('vault-pw-panel').querySelector('.vault-search') || $('vault-sensitive-panel').querySelector('.vault-search'); if (ns) { ns.focus(); try { ns.setSelectionRange(cur, cur); } catch (e) {} } });
-    var add = el('button', { class: 'vault-btn primary sm', onclick: onAdd }, ['+ Add']);
+    search.addEventListener('input', function () { currentQuery = search.value; refreshList(kind); });
+    var add = el('button', { class: 'vault-btn primary sm', onclick: function () { openEditor(kind); } }, ['+ Add']);
     return el('div', { class: 'vault-toolbar' }, [search, add]);
   }
   function emptyState(msg) { return el('div', { class: 'vault-empty' }, [msg]); }
 
   function siteRow(g) {
     var multi = g.items.length > 1;
+    var subText = multi ? g.items.length + ' accounts' : (g.sample.username || g.sample.email || g.key);
     var head = el('div', { class: 'vault-row' }, [
       favicon(g.sample.url),
       el('div', { class: 'vault-row-main' }, [
         el('div', { class: 'vault-row-title' }, [g.sample.title || g.key]),
-        el('div', { class: 'vault-row-sub' }, [multi ? g.items.length + ' accounts' : (g.sample.username || g.sample.email || g.key)]),
+        el('div', { class: 'vault-row-sub' }, [subText]),
       ]),
       g.sample.category ? el('span', { class: 'vault-tag' }, [g.sample.category]) : null,
     ]);
@@ -406,50 +451,72 @@
     wrap.appendChild(body);
     return wrap;
   }
-  function accountRow(it, indented) {
-    var reveal = el('button', { class: 'vault-icon', title: 'Reveal' , html: eye() });
-    var pwText = el('span', { class: 'vault-pw-dots' }, ['••••••••••']);
-    var shown = false;
-    reveal.addEventListener('click', function () { shown = !shown; pwText.textContent = shown ? (it.password || '') : '••••••••••'; reveal.innerHTML = shown ? eyeOff() : eye(); });
-    return el('div', { class: 'vault-account' + (indented ? ' indented' : '') }, [
-      el('div', { class: 'vault-acc-main' }, [
-        el('div', { class: 'vault-acc-user' }, [it.username || it.email || '(no username)']),
-        el('div', { class: 'vault-acc-pw' }, [pwText]),
+
+  // One field line: label + value on the left, a copy button on the right.
+  function fieldLine(label, value, copyLabel, icon) {
+    return el('div', { class: 'vault-acc-line' }, [
+      el('div', { class: 'vault-acc-field' }, [
+        el('span', { class: 'vault-acc-flabel' }, [label]),
+        el('span', { class: 'vault-acc-val' }, [value]),
       ]),
-      el('div', { class: 'vault-acc-actions' }, [
-        it.username || it.email ? iconBtn('Copy username', copyIcon(), function () { copyText(it.username || it.email, 'Username copied'); }) : null,
-        iconBtn('Copy password', keyIcon(), function () { copyText(it.password || '', 'Password copied'); }),
-        el('button', { class: 'vault-icon', title: 'Reveal', onclick: function () { shown = !shown; pwText.textContent = shown ? (it.password || '') : '••••••••••'; reveal.innerHTML = shown ? eyeOff() : eye(); } , html: shown ? eyeOff() : eye() }),
-        it.url ? iconBtn('Open site', extIcon(), function () { window.open(/^https?:/.test(it.url) ? it.url : 'https://' + it.url, '_blank', 'noopener'); }) : null,
-        iconBtn('Edit', editIcon(), function () { openEditor('login', it); }),
-      ]),
+      iconBtn('Copy ' + copyLabel, icon || copyIcon(), function () { copyText(value, (copyLabel.charAt(0).toUpperCase() + copyLabel.slice(1)) + ' copied'); }),
     ]);
   }
+  function accountRow(it, indented) {
+    var shown = false, revBtn;
+    var pwText = el('span', { class: 'vault-pw-dots' }, ['••••••••••']);
+    function toggle() { shown = !shown; pwText.textContent = shown ? (it.password || '') : '••••••••••'; if (revBtn) revBtn.innerHTML = shown ? eyeOff() : eye(); }
+    revBtn = el('button', { class: 'vault-icon', title: 'Reveal', onclick: toggle, html: eye() });
 
-  // ── sensitive info panel (basic; expanded in a later increment) ────────────
+    var main = el('div', { class: 'vault-acc-main' });
+    // Show BOTH username and email when present, each independently copyable.
+    if (it.username) main.appendChild(fieldLine('Username', it.username, 'username'));
+    if (it.email) main.appendChild(fieldLine('Email', it.email, 'email'));
+    if (!it.username && !it.email) main.appendChild(el('div', { class: 'vault-acc-line' }, [el('div', { class: 'vault-acc-field' }, [el('span', { class: 'vault-acc-val', style: 'color:var(--txm)' }, ['(no username)'])])]));
+    // Password line: masked value + reveal + copy.
+    main.appendChild(el('div', { class: 'vault-acc-line' }, [
+      el('div', { class: 'vault-acc-field' }, [el('span', { class: 'vault-acc-flabel' }, ['Password']), el('span', { class: 'vault-acc-pw' }, [pwText])]),
+      el('div', { class: 'vault-acc-line-btns' }, [revBtn, iconBtn('Copy password', keyIcon(), function () { copyText(it.password || '', 'Password copied'); })]),
+    ]));
+
+    var actions = el('div', { class: 'vault-acc-actions' }, [
+      it.url ? iconBtn('Open site', extIcon(), function () { window.open(/^https?:/.test(it.url) ? it.url : 'https://' + it.url, '_blank', 'noopener'); }) : null,
+      iconBtn('Edit', editIcon(), function () { openEditor('login', it); }),
+    ]);
+    return el('div', { class: 'vault-account' + (indented ? ' indented' : '') }, [main, actions]);
+  }
+
+  // ── sensitive info panel ───────────────────────────────────────────────────
   function renderSensitive() {
     var panel = $('vault-sensitive-panel'); if (!panel) return;
     if (!session || !session.isUnlocked()) { renderLock(); return; }
     if (!store) { afterUnlock(); return; } // store not ready yet — bootstrap then re-render
-    var items = currentQuery ? store.search(currentQuery).filter(function (i) { return i.kind === 'sensitive'; }) : store.byKind('sensitive');
     panel.innerHTML = '';
-    panel.appendChild(toolbar('Search secure notes…', function () { openEditor('sensitive'); }));
+    panel.appendChild(toolbar('Search secure notes…', 'sensitive'));
     var list = el('div', { class: 'vault-list' });
-    if (!items.length) list.appendChild(emptyState('No secure notes yet. Store Wi-Fi passwords, lock combos, recovery codes, license keys…'));
-    items.forEach(function (it) {
-      var body = el('div', { class: 'vault-note-body', style: 'display:none;white-space:pre-wrap' }, [it.notes || '']);
-      var row = el('div', { class: 'vault-site' }, [
-        el('div', { class: 'vault-row', style: 'cursor:pointer' , onclick: function () { body.style.display = body.style.display === 'none' ? '' : 'none'; } }, [
-          el('div', { class: 'vault-note-icon', html: '🗄' }),
-          el('div', { class: 'vault-row-main' }, [el('div', { class: 'vault-row-title' }, [it.title || 'Untitled']), it.category ? el('div', { class: 'vault-row-sub' }, [it.category]) : null]),
-          iconBtn('Edit', editIcon(), function (e) { e.stopPropagation(); openEditor('sensitive', it); }),
-        ]),
-        body,
-      ]);
-      list.appendChild(row);
-    });
+    fillSensitiveList(list);
     panel.appendChild(list);
     panel.appendChild(footerBar());
+  }
+  function sensitiveRow(it) {
+    var copyBtn = iconBtn('Copy details', copyIcon(), function (e) { e.stopPropagation(); copyText(it.notes || '', 'Details copied'); });
+    var body = el('div', { class: 'vault-note-body' }, [
+      el('div', { class: 'vault-note-text' }, [it.notes || '(empty)']),
+      el('div', { class: 'vault-note-actions' }, [copyBtn]),
+    ]);
+    body.style.display = 'none';
+    var caret = el('span', { class: 'vault-caret', html: '▸' });
+    var head = el('div', { class: 'vault-row', style: 'cursor:pointer' }, [
+      caret,
+      el('div', { class: 'vault-note-icon', html: '🗄️' }),
+      el('div', { class: 'vault-row-main' }, [
+        el('div', { class: 'vault-row-title' }, [it.title || 'Untitled']),
+        it.category ? el('div', { class: 'vault-row-sub' }, [it.category]) : null,
+      ]),
+      iconBtn('Edit', editIcon(), function (e) { e.stopPropagation(); openEditor('sensitive', it); }),
+    ]);
+    head.addEventListener('click', function () { var open = body.style.display === 'none'; body.style.display = open ? '' : 'none'; caret.innerHTML = open ? '▾' : '▸'; });
+    return el('div', { class: 'vault-site' }, [head, body]);
   }
 
   // ── editor modal ───────────────────────────────────────────────────────────
@@ -578,20 +645,22 @@
     var overlay = el('div', { class: 'vault-overlay', onclick: function (e) { if (e.target === overlay) overlay.remove(); } });
     var body = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, [el('div', { class: 'vault-modal-title' }, ['Vault Settings'])]);
     var rows = el('div', {});
-    // change master password
-    rows.appendChild(settingRow('Change master password', function () {
-      var oldp = prompt('Current master password:'); if (oldp == null) return;
-      var newp = prompt('New master password (min 8 chars):'); if (!newp || newp.length < 8) { toast('Too short'); return; }
-      session.changeMasterPassword(oldp, newp).then(function () { toast('Master password changed'); }).catch(function (e) { toast(e.message === 'bad-password' ? 'Current password wrong' : 'Failed'); });
-    }));
-    rows.appendChild(settingRow('Show / rotate recovery key', async function () {
-      if (!(await confirmUI('Generate a NEW recovery key? Your old one stops working.', { title: 'Rotate recovery key', okLabel: 'Generate new', danger: true }))) return;
-      session.rotateRecovery().then(function (r) { overlay.remove(); showRecovery(r.recoveryCode); });
+    rows.appendChild(settingRow('Change master password', function () { overlay.remove(); openChangePassword(); }));
+    rows.appendChild(settingRow('Rotate recovery key', async function () {
+      if (!(await confirmUI('Generate a NEW recovery key? Your old one stops working immediately.', { title: 'Rotate recovery key', okLabel: 'Generate new', danger: true }))) return;
+      // Require identity before minting a new recovery key.
+      if (!(await verifyIdentity('rotate your recovery key'))) return;
+      session.rotateRecovery().then(function (r) { overlay.remove(); showRecovery(r.recoveryCode); }).catch(function (e) { toast('Failed: ' + e.message); });
     }));
     session.biometricEnabled().then(function (on) {
-      rows.appendChild(settingRow(on ? 'Disable biometric unlock (this device)' : 'Enable biometric unlock (this device)', function () {
-        if (on) session.disableBiometric().then(function () { toast('Biometrics disabled'); overlay.remove(); });
-        else session.enableBiometric(window.Bio && window.Bio.label ? window.Bio.label() : 'biometrics').then(function () { toast('Biometrics enabled'); overlay.remove(); }).catch(function (e) { toast('Failed: ' + e.message); });
+      rows.appendChild(settingRow(on ? 'Disable biometric unlock (this device)' : 'Enable biometric unlock (this device)', async function () {
+        if (on) {
+          // Verify identity (biometric scan or password) BEFORE disabling.
+          if (!(await verifyIdentity('disable biometric unlock'))) return;
+          session.disableBiometric().then(function () { toast('Biometrics disabled'); overlay.remove(); });
+        } else {
+          session.enableBiometric(window.Bio && window.Bio.label ? window.Bio.label() : 'biometrics').then(function () { toast('Biometrics enabled'); overlay.remove(); }).catch(function (e) { if (e.message !== 'cancelled') toast('Failed: ' + e.message); });
+        }
       }));
     });
     body.appendChild(rows);
@@ -599,6 +668,71 @@
     overlay.appendChild(body); document.body.appendChild(overlay);
   }
   function settingRow(label, onClick) { return el('button', { class: 'vault-setting-row', onclick: onClick }, [label]); }
+
+  // In-app password prompt → resolves to the typed value or null (cancel).
+  function promptSecret(title, opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      var overlay = el('div', { class: 'vault-overlay' });
+      var input = el('input', { type: 'password', class: 'vault-input', placeholder: opts.placeholder || 'Master password', autocomplete: 'current-password' });
+      var err = el('div', { class: 'vault-err' });
+      function done(v) { overlay.remove(); resolve(v); }
+      var ok = el('button', { class: 'vault-btn primary', onclick: function () { if (!input.value) { err.textContent = 'Required'; return; } done(input.value); } }, [opts.okLabel || 'Confirm']);
+      var cancel = el('button', { class: 'vault-btn', onclick: function () { done(null); } }, ['Cancel']);
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') ok.click(); });
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) done(null); });
+      var boxKids = [el('div', { class: 'vault-modal-title' }, [title])];
+      if (opts.sub) boxKids.push(el('p', { class: 'vault-sub', style: 'text-align:left;margin-bottom:12px' }, [opts.sub]));
+      boxKids.push(input, err, el('div', { class: 'vault-modal-actions' }, [ok, cancel]));
+      var box = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, boxKids);
+      overlay.appendChild(box); document.body.appendChild(overlay);
+      setTimeout(function () { input.focus(); }, 50);
+    });
+  }
+
+  // Confirm the user's identity on an already-unlocked vault: biometric scan if
+  // enabled, otherwise master-password entry. Returns true only on success.
+  async function verifyIdentity(actionLabel) {
+    try { if (window.Bio && (await session.biometricEnabled())) { if (await session.confirmBiometric()) return true; } } catch (e) {}
+    var pw = await promptSecret('Confirm it\'s you', { sub: 'Enter your master password to ' + actionLabel + '.', okLabel: 'Confirm' });
+    if (pw == null) return false;
+    if (await session.verifyPassword(pw)) return true;
+    toast('Incorrect password'); return false;
+  }
+
+  // Change master password — real in-app form with verified current password.
+  function openChangePassword() {
+    var overlay = el('div', { class: 'vault-overlay', onclick: function (e) { if (e.target === overlay) overlay.remove(); } });
+    var cur = el('input', { type: 'password', class: 'vault-input', placeholder: 'Current master password', autocomplete: 'current-password' });
+    var nw = el('input', { type: 'password', class: 'vault-input', placeholder: 'New master password', autocomplete: 'new-password' });
+    var cf = el('input', { type: 'password', class: 'vault-input', placeholder: 'Confirm new password', autocomplete: 'new-password' });
+    var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
+    nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#e05252', '#e0a052', '#e0d052', '#a0d052', '#52e075'][s]; });
+    var err = el('div', { class: 'vault-err' });
+    var save = el('button', { class: 'vault-btn primary' }, ['Change password']);
+    save.addEventListener('click', async function () {
+      err.textContent = '';
+      if (nw.value.length < 8) { err.textContent = 'New password must be at least 8 characters.'; return; }
+      if (nw.value !== cf.value) { err.textContent = 'New passwords do not match.'; return; }
+      save.disabled = true; save.textContent = 'Verifying…';
+      try {
+        await session.changeMasterPassword(cur.value, nw.value); // throws bad-password if current is wrong
+        toast('Master password changed'); overlay.remove();
+      } catch (e) {
+        err.textContent = e.message === 'bad-password' ? 'Current password is incorrect.' : ('Failed: ' + e.message);
+        save.disabled = false; save.textContent = 'Change password';
+      }
+    });
+    var box = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, [
+      el('div', { class: 'vault-modal-title' }, ['Change Master Password']),
+      el('label', { class: 'vault-flabel' }, ['Current password']), cur,
+      el('label', { class: 'vault-flabel' }, ['New password']), nw, meter,
+      el('label', { class: 'vault-flabel' }, ['Confirm new password']), cf,
+      err, el('div', { class: 'vault-modal-actions' }, [save, el('button', { class: 'vault-btn', onclick: function () { overlay.remove(); } }, ['Cancel'])]),
+    ]);
+    overlay.appendChild(box); document.body.appendChild(overlay);
+    setTimeout(function () { cur.focus(); }, 50);
+  }
 
   // ── small SVG/icon helpers ─────────────────────────────────────────────────
   function favicon(url) { var i = el('img', { class: 'vault-favicon', src: faviconUrl(url), loading: 'lazy', alt: '' }); i.addEventListener('error', function () { i.style.visibility = 'hidden'; }); return i; }
@@ -630,11 +764,20 @@
       '.vault-row-sub{font-size:12px;color:var(--txd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}',
       '.vault-tag{background:var(--s3);color:var(--txd);font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;flex-shrink:0}',
       '.vault-accounts{border-top:1px solid var(--bd)}',
-      '.vault-account{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--bd)}.vault-account:first-child{border-top:none}',
-      '.vault-account.indented{padding-left:28px;background:var(--bg)}',
-      '.vault-acc-main{flex:1;min-width:0}.vault-acc-user{font-size:13px;color:var(--tx);font-weight:600}',
-      '.vault-acc-pw{font-size:12px;color:var(--txd);font-family:ui-monospace,monospace;margin-top:2px}.vault-pw-dots{letter-spacing:1px}',
-      '.vault-acc-actions{display:flex;gap:4px;flex-shrink:0}',
+      '.vault-account{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border-top:1px solid var(--bd)}.vault-account:first-child{border-top:none}',
+      '.vault-account.indented{padding-left:22px;background:var(--bg)}',
+      '.vault-acc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}',
+      '.vault-acc-line{display:flex;align-items:center;gap:8px;justify-content:space-between}',
+      '.vault-acc-field{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}',
+      '.vault-acc-flabel{font-size:9.5px;font-weight:700;color:var(--txm);text-transform:uppercase;letter-spacing:.5px}',
+      '.vault-acc-val{font-size:13px;color:var(--tx);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.vault-acc-pw{font-size:13px;color:var(--txd);font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vault-pw-dots{letter-spacing:2px}',
+      '.vault-acc-line-btns{display:flex;gap:4px;flex-shrink:0}',
+      '.vault-acc-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0}',
+      '.vault-caret{color:var(--txm);font-size:11px;width:10px;flex-shrink:0;text-align:center}',
+      '.vault-note-body{padding:0 14px 14px 40px}',
+      '.vault-note-text{color:var(--tx);font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px}',
+      '.vault-note-actions{display:flex;justify-content:flex-end;margin-top:8px}',
       '.vault-icon{background:var(--s3);border:1px solid var(--bd);color:var(--txd);width:30px;height:30px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;padding:0}',
       '.vault-icon:hover{color:var(--tx);border-color:var(--ac)}',
       '.vault-empty{border:1px dashed var(--bd);border-radius:12px;padding:34px 20px;text-align:center;color:var(--txd);font-size:13px;line-height:1.7}',
@@ -672,6 +815,23 @@
       '.vault-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.vault-gen-opt{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--txd);cursor:pointer}',
       '.vault-range{width:100%;accent-color:var(--ac)}.vault-gen-len .vault-range{flex:1;margin-left:12px}',
       '.vault-toast.show{opacity:1!important}',
+      // ── mobile ──
+      '@media (max-width:640px){',
+      '  .vault-panel{padding:12px 12px 28px}',
+      '  .vault-tabs{padding:10px 12px 0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}',
+      '  .vault-tabs::-webkit-scrollbar{display:none}',
+      '  .vault-tab{font-size:12px;padding:8px 13px;white-space:nowrap}',
+      '  .vault-row{gap:10px;padding:12px}',
+      '  .vault-account{flex-wrap:wrap;gap:8px}',
+      '  .vault-acc-actions{flex-direction:row;width:100%;justify-content:flex-end}',
+      '  .vault-modal{width:100%;border-radius:14px;padding:18px 16px;max-height:92vh}',
+      '  .vault-modal-actions{gap:8px}',
+      '  .vault-card{padding:24px 18px}',
+      '  .vault-icon{width:34px;height:34px}',        // bigger touch targets
+      '  .vault-search{font-size:16px}',              // 16px stops iOS input zoom
+      '  .vault-input{font-size:16px}',
+      '  .vault-note-body{padding-left:22px}',
+      '}',
     ].join('');
     document.head.appendChild(el('style', { id: 'vault-ui-styles', html: css }));
   }

@@ -157,6 +157,22 @@
       return true;
     }
 
+    // ── Identity verification (for sensitive actions on an unlocked vault) ───
+    // Verify the master password WITHOUT changing the session (returns bool).
+    async verifyPassword(pw) {
+      await this._ensureConfig();
+      try { await VC.unlockWithPassword(this._config, pw); return true; } catch (e) { return false; }
+    }
+    // Run a live biometric (WebAuthn) assertion against this device's credential.
+    async confirmBiometric() {
+      await this._ensureConfig();
+      if (!this.bio) return false;
+      const deviceId = await this._deviceId();
+      if (!this.bio.isRegistered(this.appId, deviceId)) return false;
+      const r = await this.bio.authenticate(this.appId, deviceId);
+      return !!(r && r.ok);
+    }
+
     // ── Master password / recovery rotation (requires unlocked) ──────────────
     async changeMasterPassword(oldPassword, newPassword) {
       this._requireUnlocked();
