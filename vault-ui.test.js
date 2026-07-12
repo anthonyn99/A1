@@ -1,4 +1,5 @@
 const g = globalThis; g.window = g;
+g.addEventListener = function(){}; g.removeEventListener = function(){};
 require('./vault-crypto.js');
 g.VaultStore = function(){}; g.VaultSession = function(){}; g.VaultSession.localStorageDeviceStore=()=>({});
 const noEl = { style:{}, setAttribute(){}, addEventListener(){}, appendChild(){}, removeChild(){}, querySelector(){return null}, querySelectorAll(){return []}, insertBefore(){}, remove(){}, classList:{add(){},remove(){},toggle(){}}, click(){}, focus(){} };
@@ -39,6 +40,29 @@ ok('roundtrip', V.parseCSV(csv)[0][1]==='b,c' && V.parseCSV(csv)[1][0]==='d"e');
   saved.length=0;
   const n3 = await V.importFromCSV('name,username,password\n,,\nX,u,p\n');
   ok('skips empty rows', n3===1);
+  // ── password health ──
+  const now = Date.now();
+  const YEAR = 365*24*3600*1000;
+  const logins = [
+    { id:'a', title:'Strong', password:'Xk9$mLp2@qRt7!zW', modifiedAt: now },
+    { id:'b', title:'Weak', password:'abc', modifiedAt: now },
+    { id:'c', title:'ReuseA', url:'x.com', username:'u1', password:'Repeat1!ng', modifiedAt: now },
+    { id:'d', title:'ReuseB', url:'y.com', username:'u2', password:'Repeat1!ng', modifiedAt: now },
+    { id:'e', title:'Old', password:'Qw8&nBv3#tYu6!aS', modifiedAt: now - 2*YEAR },
+    { id:'f', title:'NoPass', username:'z' },
+    { id:'g', title:'Dup', url:'dup.com', username:'same', password:'Zz9$kk22longenough', modifiedAt: now },
+    { id:'h', title:'Dup2', url:'dup.com', username:'same', password:'Pp3@mn88differliong', modifiedAt: now },
+  ];
+  const H = V.analyzeHealth(logins, now);
+  ok('weak detected', H.weak.some(l=>l.id==='b') && H.weak.length===1);
+  ok('reused detected (2)', H.reusedCount===2 && H.reusedGroups.length===1);
+  ok('old detected', H.old.some(l=>l.id==='e') && H.old.length===1);
+  ok('missing password detected', H.missing.some(l=>l.id==='f') && H.missing.length===1);
+  ok('duplicate accounts detected', H.duplicates.length===1 && H.duplicates[0].length===2);
+  ok('score is 0-100', H.score>=0 && H.score<=100);
+  ok('all-healthy scores 100', V.analyzeHealth([{id:'x',title:'ok',password:'Xk9$mLp2@qRt7!zW',modifiedAt:now}], now).score===100);
+  ok('empty vault does not crash', V.analyzeHealth([], now).score>=0);
+
   console.log('\n  '+pass+' passed, '+fail+' failed');
   process.exit(fail?1:0);
 })();

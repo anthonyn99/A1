@@ -40,6 +40,20 @@ function ok(name, cond) { if (cond) { pass++; console.log('  ✓', name); } else
   ok('search by tag', store.search('work').some((i) => i.title === 'GitHub'));
   ok('nonsense returns nothing', store.search('zzzqqq').length === 0);
 
+  console.log('\n── search ranking (best match first) ──');
+  const rk = VaultStore.memoryBackend(); const rs = new VaultStore(rk, dek); await rs.load();
+  await rs.save({ kind: 'login', title: 'Facebook', username: 'a', password: 'p' });     // fuzzy "fb"
+  await rs.save({ kind: 'login', title: 'FB Marketplace', username: 'b', password: 'p' }); // prefix "fb"
+  await rs.save({ kind: 'login', title: 'Work', username: 'x', password: 'p', notes: 'fb backup codes' }); // notes only
+  const r = rs.search('fb');
+  ok('exact/prefix title ranks above notes-only match', r[0].title === 'FB Marketplace');
+  ok('all three matched', r.length === 3);
+  ok('notes-only match ranks last', r[r.length - 1].title === 'Work');
+  await rs.save({ kind: 'login', title: 'Gmail', username: 'me@gmail.com', password: 'p' });
+  await rs.save({ kind: 'login', title: 'Randalls', username: 'shopper', password: 'p', url: 'gmailish.com' });
+  const r2 = rs.search('gmail');
+  ok('exact title "Gmail" outranks url substring', r2[0].title === 'Gmail');
+
   console.log('\n── edit preserves createdAt, updates modifiedAt ──');
   const createdAt = store.get(g1.id).createdAt;
   await new Promise((r) => setTimeout(r, 5));

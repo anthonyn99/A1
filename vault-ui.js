@@ -173,6 +173,43 @@
     return Math.min(4, s);
   }
 
+  // ── password health analysis (pure, testable) ─────────────────────────────
+  var HEALTH_OLD_MS = 365 * 24 * 3600 * 1000; // "old" = not changed in ~1 year
+  function analyzeHealth(logins, now) {
+    now = now || Date.now();
+    logins = logins || [];
+    var withPw = logins.filter(function (l) { return l.password; });
+    var missing = logins.filter(function (l) { return !l.password; });
+    var weak = withPw.filter(function (l) { return strength(l.password) <= 1; });
+    // reused: same password across 2+ logins
+    var byPw = {};
+    withPw.forEach(function (l) { (byPw[l.password] = byPw[l.password] || []).push(l); });
+    var reusedGroups = Object.keys(byPw).filter(function (k) { return byPw[k].length > 1; }).map(function (k) { return byPw[k]; });
+    var reusedSet = {}; reusedGroups.forEach(function (g) { g.forEach(function (l) { reusedSet[l.id] = true; }); });
+    // old: not modified in a year
+    var old = withPw.filter(function (l) { return l.modifiedAt && (now - l.modifiedAt) > HEALTH_OLD_MS; });
+    // duplicate accounts: same site + same username/email
+    var byKey = {};
+    logins.forEach(function (l) {
+      var site = String(l.url || l.title || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+      var who = String(l.username || l.email || '').toLowerCase();
+      if (!site && !who) return;
+      var k = site + '|' + who;
+      (byKey[k] = byKey[k] || []).push(l);
+    });
+    var duplicates = Object.keys(byKey).filter(function (k) { return byKey[k].length > 1; }).map(function (k) { return byKey[k]; });
+    // score: % of passworded logins that are strong, unique, and not old.
+    var healthy = withPw.filter(function (l) { return strength(l.password) >= 3 && !reusedSet[l.id] && !(l.modifiedAt && (now - l.modifiedAt) > HEALTH_OLD_MS); });
+    var denom = logins.length || 1;
+    var score = Math.round(100 * healthy.length / denom);
+    return {
+      score: score, total: logins.length,
+      weak: weak, missing: missing, old: old,
+      reusedGroups: reusedGroups, reusedCount: Object.keys(reusedSet).length,
+      duplicates: duplicates,
+    };
+  }
+
   // ── controller ─────────────────────────────────────────────────────────────
   var session = null, store = null, backend = null, activeTab = 'links', currentQuery = '';
 
@@ -244,6 +281,11 @@
       if (!session || !session.isUnlocked()) { renderLock(); return; }
       if (id === 'passwords') renderPasswords(); else renderSensitive();
     }
+    updateStickyOffset();
+  }
+  // Pin the toolbar exactly below the (variable-height) sticky tabs.
+  function updateStickyOffset() {
+    var t = $('vault-tabs'); if (t) document.documentElement.style.setProperty('--vtabs-h', t.offsetHeight + 'px');
   }
 
   // ── lock / setup screens ───────────────────────────────────────────────────
@@ -448,9 +490,11 @@
     var add = el('button', { class: 'vault-btn primary sm', onclick: function () { openEditor(kind); } }, ['+ Add']);
     // Settings + Lock live here (top of the section) so they're always reachable
     // without scrolling to the bottom.
-    var settings = iconBtn('Settings', gearIcon(), openSettings);
-    var lock = iconBtn('Lock now', lockIcon(), function () { session.lock(); renderLock(true); });
-    return el('div', { class: 'vault-toolbar' }, [el('div', { class: 'vault-search-wrap' }, [search, clear]), add, settings, lock]);
+    var kids = [el('div', { class: 'vault-search-wrap' }, [search, clear]), add];
+    if (kind === 'login') kids.push(iconBtn('Password health', shieldIcon(), openHealth));
+    kids.push(iconBtn('Settings', gearIcon(), openSettings));
+    kids.push(iconBtn('Lock now', lockIcon(), function () { session.lock(); renderLock(true); }));
+    return el('div', { class: 'vault-toolbar' }, kids);
   }
   function emptyState(msg) { return el('div', { class: 'vault-empty' }, [msg]); }
 
@@ -763,6 +807,68 @@
     setTimeout(function () { cur.focus(); }, 50);
   }
 
+  // ── password health dashboard ──────────────────────────────────────────────
+  function openHealth() {
+    var overlay = el('div', { class: 'vault-overlay' });
+    var box = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } });
+    var h = analyzeHealth(store.byKind('login'));
+    var color = h.score >= 80 ? '#52e075' : h.score >= 50 ? '#e0d052' : '#e05252';
+
+    // score ring
+    var circ = 2 * Math.PI * 34;
+    var ring = '<svg width="92" height="92" viewBox="0 0 80 80" style="transform:rotate(-90deg)">' +
+      '<circle cx="40" cy="40" r="34" stroke="var(--bd)" stroke-width="7" fill="none"/>' +
+      '<circle cx="40" cy="40" r="34" stroke="' + color + '" stroke-width="7" fill="none" stroke-linecap="round" stroke-dasharray="' + circ + '" stroke-dashoffset="' + (circ * (1 - h.score / 100)) + '"/></svg>';
+    var scoreEl = el('div', { class: 'vault-health-score' }, [
+      el('div', { class: 'vault-health-ring', html: ring }),
+      el('div', { class: 'vault-health-num', style: 'color:' + color }, [String(h.score)]),
+    ]);
+    box.appendChild(el('div', { class: 'vault-modal-title' }, ['Password Health']));
+    box.appendChild(el('div', { class: 'vault-health-top' }, [
+      scoreEl,
+      el('div', {}, [
+        el('div', { class: 'vault-health-label' }, [h.score >= 80 ? 'Looking good' : h.score >= 50 ? 'Room to improve' : 'Needs attention']),
+        el('div', { class: 'vault-health-sub' }, [h.total + ' login' + (h.total === 1 ? '' : 's') + ' analyzed']),
+      ]),
+    ]));
+
+    function section(title, items, tone, describe) {
+      if (!items.length) return;
+      var listWrap = el('div', { class: 'vault-health-items', style: 'display:none' });
+      // items may be a flat list of logins OR groups (arrays)
+      var flat = Array.isArray(items[0]) ? [].concat.apply([], items) : items;
+      flat.forEach(function (it) {
+        listWrap.appendChild(el('div', { class: 'vault-health-item', onclick: function () { overlay.remove(); openEditor('login', it); } }, [
+          favicon(it.url),
+          el('div', { class: 'vault-row-main' }, [
+            el('div', { class: 'vault-row-title' }, [it.title || it.url || '(untitled)']),
+            el('div', { class: 'vault-row-sub' }, [it.username || it.email || '']),
+          ]),
+          el('span', { class: 'vault-mini-edit', html: editIcon() }),
+        ]));
+      });
+      var count = Array.isArray(items[0]) ? flat.length : items.length;
+      var head = el('div', { class: 'vault-health-cat vault-health-' + tone }, [
+        el('span', { class: 'vault-health-dot' }),
+        el('div', { style: 'flex:1' }, [el('div', { class: 'vault-health-cat-title' }, [title + ' · ' + count]), el('div', { class: 'vault-health-cat-desc' }, [describe])]),
+        el('span', { class: 'vault-health-chev', html: '▾' }),
+      ]);
+      head.addEventListener('click', function () { listWrap.style.display = listWrap.style.display === 'none' ? '' : 'none'; });
+      box.appendChild(head); box.appendChild(listWrap);
+    }
+
+    var anyIssue = h.weak.length || h.reusedCount || h.old.length || h.missing.length || h.duplicates.length;
+    if (!anyIssue) box.appendChild(el('div', { class: 'vault-empty', style: 'margin-top:8px' }, ['No issues found. Every login has a strong, unique, recent password. 🎉']));
+    section('Weak', h.weak, 'bad', 'Short or low-complexity — easy to crack. Generate a stronger one.');
+    section('Reused', h.reusedGroups, 'bad', 'The same password on multiple sites — one breach exposes them all.');
+    section('Old', h.old, 'warn', 'Not changed in over a year — consider rotating.');
+    section('Missing password', h.missing, 'warn', 'No password saved on this entry.');
+    section('Duplicate accounts', h.duplicates, 'warn', 'Same site and username saved more than once.');
+
+    box.appendChild(el('div', { class: 'vault-modal-actions' }, [el('button', { class: 'vault-btn', onclick: function () { overlay.remove(); } }, ['Close'])]));
+    overlay.appendChild(box); document.body.appendChild(overlay);
+  }
+
   // ── import / export / backup ───────────────────────────────────────────────
   function dateStamp() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -890,6 +996,7 @@
   function cabinetIcon() { return '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="10" y1="7.5" x2="14" y2="7.5"/><line x1="10" y1="16.5" x2="14" y2="16.5"/></svg>'; }
   function gearIcon() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'; }
   function lockIcon() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'; }
+  function shieldIcon() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>'; }
   function keyIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>'; }
   function extIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'; }
   function editIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'; }
@@ -910,7 +1017,8 @@
       '.vault-tab{flex:0 0 auto;background:var(--s1);border:1px solid var(--bd);color:var(--txd);font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;transition:all .15s}',
       '.vault-tab:hover{color:var(--tx)}.vault-tab.active{background:var(--s3);color:var(--tx);border-color:var(--bdl)}',
       '.vault-panel{max-width:1100px;margin:0 auto;padding:0 clamp(10px,3vw,24px) 28px;width:100%}',
-      '.vault-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}',
+      // Search + Add + Settings + Lock stay pinned just below the tabs.
+      '.vault-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;position:sticky;top:var(--vtabs-h,54px);z-index:5;background:var(--bg);padding:8px 0 10px}',
       '.vault-toolbar .vault-icon{width:38px;height:38px}',
       '.vault-search-wrap{position:relative;flex:1;display:flex}',
       '.vault-search{flex:1;background:var(--s1);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:10px 38px 10px 14px;font-size:14px;outline:none;width:100%}',
@@ -970,6 +1078,20 @@
       '.vault-setting-row{display:block;width:100%;text-align:left;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:13px 15px;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:8px}.vault-setting-row:hover{border-color:var(--ac)}',
       '.vault-ie-row{display:flex;align-items:center;gap:12px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:8px}',
       '.vault-ie-title{font-size:13px;font-weight:700;color:var(--tx)}.vault-ie-desc{font-size:11px;color:var(--txd);line-height:1.5;margin-top:2px}',
+      // health dashboard
+      '.vault-health-top{display:flex;align-items:center;gap:16px;margin-bottom:18px}',
+      '.vault-health-score{position:relative;width:92px;height:92px;flex-shrink:0}',
+      '.vault-health-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800}',
+      '.vault-health-label{font-size:16px;font-weight:800;color:var(--tx)}.vault-health-sub{font-size:12px;color:var(--txd);margin-top:2px}',
+      '.vault-health-cat{display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:11px 13px;margin-bottom:6px;cursor:pointer}',
+      '.vault-health-cat:hover{border-color:var(--bdl)}',
+      '.vault-health-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}',
+      '.vault-health-bad .vault-health-dot{background:#e05252}.vault-health-warn .vault-health-dot{background:#e0a052}',
+      '.vault-health-cat-title{font-size:13px;font-weight:700;color:var(--tx)}.vault-health-cat-desc{font-size:11px;color:var(--txd);margin-top:2px;line-height:1.5}',
+      '.vault-health-chev{color:var(--txd);font-size:12px}',
+      '.vault-health-items{margin:0 0 8px}',
+      '.vault-health-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer}.vault-health-item:hover{background:var(--s2)}',
+      '.vault-mini-edit{color:var(--txd);display:flex}',
       // generator
       '.vault-gen-out{font-family:ui-monospace,monospace;font-size:16px;color:var(--ac);background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:16px;word-break:break-all;text-align:center;margin-bottom:14px;min-height:24px}',
       '.vault-gen-tabs,.vault-gen-len{display:flex;gap:8px;margin-bottom:12px}.vault-gen-len{align-items:center;justify-content:space-between;font-size:12px;color:var(--txd)}',
@@ -1007,6 +1129,7 @@
     // Poll for visibility (the nav toggles #kc-root display); cheap + robust
     // against the many code paths that can switch programs.
     setInterval(tick, 500);
+    window.addEventListener('resize', updateStickyOffset);
     // Also hook the known switch fn if present.
     var orig = window._kcSwitchTo;
     if (typeof orig === 'function') window._kcSwitchTo = function () { var r = orig.apply(this, arguments); setTimeout(activate, 60); return r; };
@@ -1014,5 +1137,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.Vault = { activate: activate, session: function () { return session; }, genPassword: genPassword, genPassphrase: genPassphrase, strength: strength, parseCSV: parseCSV, toCSV: toCSV, importFromCSV: importFromCSV, _setStore: function (s) { store = s; } };
+  window.Vault = { activate: activate, session: function () { return session; }, genPassword: genPassword, genPassphrase: genPassphrase, strength: strength, analyzeHealth: analyzeHealth, parseCSV: parseCSV, toCSV: toCSV, importFromCSV: importFromCSV, _setStore: function (s) { store = s; } };
 })();

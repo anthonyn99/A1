@@ -120,16 +120,16 @@
     // Fuzzy, zero-plaintext-in-cloud search — runs entirely on decrypted memory.
     // Matches across the fields relevant to logins & notes, subsequence-fuzzy so
     // "gh" matches "github". Returns items ranked by match quality.
+    // Ranked, zero-plaintext-in-cloud search — runs entirely on decrypted
+    // memory. Each field is scored by MATCH QUALITY (exact > prefix > word-start
+    // > substring > subsequence-fuzzy) and FIELD IMPORTANCE (title weighs most,
+    // notes least), so the best match sorts first.
     search(query) {
       const q = String(query || '').trim().toLowerCase();
       if (!q) return this.all();
       const scored = [];
       for (const it of this.all()) {
-        const hay = [it.title, it.url, it.username, it.email, it.notes, it.category,
-          ...(Array.isArray(it.tags) ? it.tags : []),
-          ...(Array.isArray(it.customFields) ? it.customFields.map((f) => (f && f.label) + ' ' + (f && f.value)) : [])]
-          .filter(Boolean).join('  ').toLowerCase();
-        const s = fuzzyScore(hay, q);
+        const s = scoreItem(it, q);
         if (s > 0) scored.push({ it, s });
       }
       return scored.sort((a, b) => b.s - a.s || (b.it.updatedAt - a.it.updatedAt)).map((x) => x.it);
@@ -174,6 +174,33 @@
     destroy() { if (this._unsub) { this._unsub(); this._unsub = null; } this._listeners.clear(); }
   }
 
+  // Field-weighted relevance scorer. Returns the best weighted match across an
+  // item's fields; 0 = no match. Higher = better.
+  function scoreItem(it, q) {
+    const fields = [
+      [it.title, 20], [it.username, 9], [it.email, 9], [it.url, 7],
+      [it.category, 4], [Array.isArray(it.tags) ? it.tags.join(' ') : '', 4],
+      [Array.isArray(it.customFields) ? it.customFields.map((f) => (f && f.label) + ' ' + (f && f.value)).join(' ') : '', 3],
+      [it.notes, 2],
+    ];
+    let best = 0;
+    for (const [val, weight] of fields) {
+      if (!val) continue;
+      const f = String(val).toLowerCase();
+      let s = 0;
+      if (f === q) s = 100;                                   // exact field match
+      else if (f.startsWith(q)) s = 82;                       // field prefix
+      else {
+        const words = f.split(/[\s._@/\-]+/).filter(Boolean);
+        if (words.some((w) => w.startsWith(q))) s = 66;       // a word starts with q
+        else if (f.includes(q)) s = 52 - Math.min(20, f.indexOf(q)); // substring (earlier=better)
+        else { const fz = fuzzyScore(f, q); if (fz > 0) s = Math.min(28, 8 + fz / 3); } // fuzzy
+      }
+      if (s > 0) { const ws = s * weight; if (ws > best) best = ws; }
+    }
+    return best;
+  }
+
   // Subsequence-fuzzy score: rewards contiguous runs and word-start hits.
   function fuzzyScore(hay, q) {
     if (hay.includes(q)) return 1000 - hay.indexOf(q); // exact substring wins
@@ -210,6 +237,7 @@
   global.VaultStore.memoryBackend = memoryBackend;
   global.VaultStore.newId = newId;
   global.VaultStore._fuzzyScore = fuzzyScore;
+  global.VaultStore._scoreItem = scoreItem;
 
   if (typeof module !== 'undefined' && module.exports) module.exports = global.VaultStore;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
