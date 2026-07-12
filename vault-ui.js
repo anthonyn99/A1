@@ -176,7 +176,7 @@
     // Move the existing .kc-wrap (Connections) into the Links panel.
     var kcWrap = root.querySelector('.kc-wrap');
     var tabs = el('div', { id: 'vault-tabs', class: 'vault-tabs' }, [
-      tabBtn('passwords', '🔑 Passwords'), tabBtn('sensitive', '🗄 Sensitive Info'), tabBtn('links', '🔗 Links'),
+      tabBtn('passwords', '🔑 Passwords'), tabBtn('sensitive', '🗄 Sensitive Info'), tabBtn('links', '🔗 Keychain'),
     ]);
     if (hbar && hbar.nextSibling) root.insertBefore(tabs, hbar.nextSibling); else root.appendChild(tabs);
     var pwPanel = el('div', { id: 'vault-pw-panel', class: 'vault-panel' });
@@ -195,7 +195,7 @@
     // Rename "Keychain" → "Vault" in the logo + nav without editing index.html.
     try {
       var logo = document.querySelector('#kc-root .kc-logo');
-      if (logo && !logo._vaulted) { logo.innerHTML = '<span class="base">V</span><span class="dot">ault</span>'; logo._vaulted = true; }
+      if (logo && !logo._vaulted) { logo.innerHTML = '<span class="dot" style="color:var(--ac)">Vault</span>'; logo._vaulted = true; }
       document.querySelectorAll('[data-app="keychain"]').forEach(function (b) { if (/keychain/i.test(b.textContent)) b.textContent = 'Vault'; });
       document.querySelectorAll('option[value="keychain"]').forEach(function (o) { if (/keychain/i.test(o.textContent)) o.textContent = 'Vault'; });
     } catch (e) {}
@@ -262,7 +262,14 @@
     var chk = el('input', { type: 'checkbox', id: 'vault-rec-ack' });
     var cont = el('button', { class: 'vault-btn primary', disabled: 'disabled' }, ['I saved it — continue']);
     chk.addEventListener('change', function () { cont.disabled = !chk.checked; });
-    cont.addEventListener('click', function () { showTab('passwords'); });
+    // First run: the store hasn't been initialised yet — afterUnlock() sets it
+    // up, loads items, starts live sync, then shows the list. Rotate-recovery
+    // (already unlocked): just return to the current tab.
+    cont.addEventListener('click', async function () {
+      cont.disabled = true;
+      if (!store) { await afterUnlock(); }
+      else { showTab(activeTab === 'links' ? 'passwords' : activeTab); }
+    });
     var host = el('div', { class: 'vault-lock' }, [
       card('Your Recovery Key',
         'This is the ONLY way back in if you forget your master password AND lose your biometric devices. Write it down or store it in a safe place. It will not be shown again.',
@@ -346,6 +353,8 @@
   // ── passwords panel ────────────────────────────────────────────────────────
   function renderPasswords() {
     var panel = $('vault-pw-panel'); if (!panel) return;
+    if (!session || !session.isUnlocked()) { renderLock(); return; }
+    if (!store) { afterUnlock(); return; } // store not ready yet — bootstrap then re-render
     var items = currentQuery ? store.search(currentQuery).filter(function (i) { return i.kind === 'login'; }) : store.byKind('login');
     // group multiple accounts under the same site (by normalized url/title)
     var groups = {};
@@ -412,7 +421,8 @@
   // ── sensitive info panel (basic; expanded in a later increment) ────────────
   function renderSensitive() {
     var panel = $('vault-sensitive-panel'); if (!panel) return;
-    if (!session.isUnlocked()) { renderLock(); return; }
+    if (!session || !session.isUnlocked()) { renderLock(); return; }
+    if (!store) { afterUnlock(); return; } // store not ready yet — bootstrap then re-render
     var items = currentQuery ? store.search(currentQuery).filter(function (i) { return i.kind === 'sensitive'; }) : store.byKind('sensitive');
     panel.innerHTML = '';
     panel.appendChild(toolbar('Search secure notes…', function () { openEditor('sensitive'); }));
