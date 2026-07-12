@@ -45,6 +45,13 @@
     t.textContent = msg; t.style.opacity = '1'; t.classList.add('show');
     clearTimeout(t._h); t._h = setTimeout(function () { t.style.opacity = '0'; t.classList.remove('show'); }, 1400);
   }
+  // Prefer the app's in-app modal (window.uiConfirm) over the browser's native
+  // confirm dialog; fall back to native only if it's unavailable.
+  function confirmUI(message, opts) {
+    opts = opts || {};
+    if (typeof window.uiConfirm === 'function') return window.uiConfirm(message, { title: opts.title, okLabel: opts.okLabel, cancelLabel: opts.cancelLabel, danger: opts.danger });
+    return Promise.resolve(window.confirm(message));
+  }
   function faviconUrl(url) {
     try { var host = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname; return 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host); } catch (e) { return ''; }
   }
@@ -344,7 +351,8 @@
       if (!(await session.biometricSupported())) return;
       if (localStorage.getItem('vault.bioDeclined')) return;
       var label = window.Bio.label ? window.Bio.label() : 'biometrics';
-      var ok = window.confirm('Enable ' + label + ' to unlock your Vault on this device? Your master password still works as a fallback.');
+      var ok = await confirmUI('Enable ' + label + ' to unlock your Vault on this device? Your master password still works as a fallback.',
+        { title: 'Enable ' + label, okLabel: 'Enable', cancelLabel: 'Not now' });
       if (!ok) { localStorage.setItem('vault.bioDeclined', '1'); return; }
       await session.enableBiometric(label); toast(label + ' enabled on this device');
     } catch (e) { console.warn('[vault] biometric enroll skipped', e); }
@@ -494,7 +502,7 @@
       catch (e) { err.textContent = 'Save failed: ' + e.message; save.disabled = false; save.textContent = 'Save'; }
     });
     var actions = [save, el('button', { class: 'vault-btn', onclick: close }, ['Cancel'])];
-    if (item.id) { var del = el('button', { class: 'vault-btn danger', onclick: async function () { if (window.confirm('Delete this item? This cannot be undone.')) { await store.remove(item.id); close(); (isLogin ? renderPasswords : renderSensitive)(); toast('Deleted'); } } }, ['Delete']); actions.push(del); }
+    if (item.id) { var del = el('button', { class: 'vault-btn danger', onclick: async function () { if (await confirmUI('Delete this item? This cannot be undone.', { title: 'Delete item', okLabel: 'Delete', danger: true })) { await store.remove(item.id); close(); (isLogin ? renderPasswords : renderSensitive)(); toast('Deleted'); } } }, ['Delete']); actions.push(del); }
     body.appendChild(err);
     body.appendChild(el('div', { class: 'vault-modal-actions' }, actions));
     overlay.appendChild(body); document.body.appendChild(overlay);
@@ -576,8 +584,8 @@
       var newp = prompt('New master password (min 8 chars):'); if (!newp || newp.length < 8) { toast('Too short'); return; }
       session.changeMasterPassword(oldp, newp).then(function () { toast('Master password changed'); }).catch(function (e) { toast(e.message === 'bad-password' ? 'Current password wrong' : 'Failed'); });
     }));
-    rows.appendChild(settingRow('Show / rotate recovery key', function () {
-      if (!window.confirm('Generate a NEW recovery key? Your old one stops working.')) return;
+    rows.appendChild(settingRow('Show / rotate recovery key', async function () {
+      if (!(await confirmUI('Generate a NEW recovery key? Your old one stops working.', { title: 'Rotate recovery key', okLabel: 'Generate new', danger: true }))) return;
       session.rotateRecovery().then(function (r) { overlay.remove(); showRecovery(r.recoveryCode); });
     }));
     session.biometricEnabled().then(function (on) {
