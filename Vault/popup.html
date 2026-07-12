@@ -135,6 +135,36 @@
     .placeholder .big { font-size:22px; display:block; margin-bottom:8px; }
     .empty { flex:1 1 100%; }
     .loading { text-align:center; color:var(--txm); font-size:12px; padding:30px 0; }
+
+    /* ── Passwords panel ── */
+    .pw-msg { text-align:center; color:var(--txd); font-size:12px; line-height:1.7; padding:26px 12px; border:1px dashed var(--bd); border-radius:12px; }
+    .pw-msg.err { color:#e07070; }
+    .pw-lock { text-align:center; padding:22px 8px; }
+    .pw-lock-icon { font-size:30px; }
+    .pw-lock-title { font-size:15px; font-weight:800; color:var(--tx); margin:8px 0 4px; }
+    .pw-lock-sub { font-size:11.5px; color:var(--txd); line-height:1.6; margin-bottom:14px; }
+    .pw-input, .pw-search { width:100%; background:var(--s2); border:1px solid var(--bd); color:var(--tx); border-radius:9px; padding:10px 12px; font-size:13px; outline:none; }
+    .pw-input:focus, .pw-search:focus { border-color:var(--ac); }
+    .pw-input { margin-bottom:9px; }
+    .pw-err { color:#e07070; font-size:11px; min-height:14px; margin-bottom:6px; }
+    .pw-btn { width:100%; background:var(--s3); border:1px solid var(--bd); color:var(--tx); border-radius:9px; padding:10px; font-size:13px; font-weight:700; cursor:pointer; }
+    .pw-btn.primary { background:var(--ac); color:#1a0008; border-color:var(--ac); }
+    .pw-btn.primary:disabled { opacity:.5; cursor:not-allowed; }
+    .pw-toolbar { display:flex; gap:6px; margin-bottom:10px; }
+    .pw-icon { flex-shrink:0; background:var(--s3); border:1px solid var(--bd); color:var(--txd); width:30px; height:30px; border-radius:7px; cursor:pointer; font-size:13px; line-height:1; }
+    .pw-icon:hover { color:var(--tx); border-color:var(--ac); }
+    .pw-list { display:flex; flex-direction:column; gap:6px; }
+    .pw-section-h { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; color:var(--txm); margin:8px 2px 3px; }
+    .pw-row { display:flex; align-items:center; gap:9px; background:var(--s1); border:1px solid var(--bd); border-radius:10px; padding:9px 10px; }
+    .pw-row.match { border-color:var(--ac); }
+    .pw-fav { flex-shrink:0; width:16px; height:16px; border-radius:3px; background:var(--s3); }
+    .pw-main { flex:1; min-width:0; }
+    .pw-title { font-size:12.5px; font-weight:700; color:var(--tx); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pw-user { font-size:11px; color:var(--txd); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pw-pw { font-size:11px; color:var(--txm); font-family:ui-monospace,monospace; }
+    .pw-actions { display:flex; gap:3px; flex-shrink:0; }
+    .pw-fill { background:var(--ac); color:#1a0008; border:none; border-radius:7px; padding:0 10px; height:30px; font-size:11px; font-weight:800; cursor:pointer; }
+    .pw-fill:hover { filter:brightness(1.08); }
   </style>
 </head>
 <body>
@@ -160,12 +190,7 @@
   </div>
 
   <div class="panel hidden" id="panel-passwords">
-    <div class="placeholder">
-      <span class="big">🔒</span>
-      <strong>Passwords</strong><br />
-      Secure storage for usernames, passwords &amp; login info is coming in a
-      future update.
-    </div>
+    <div class="loading">Loading…</div>
   </div>
 
   <div id="toast" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--s3);border:1px solid var(--bdl);color:var(--tx);font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;opacity:0;transition:all .2s;pointer-events:none;z-index:10;">Copied!</div>
@@ -181,6 +206,8 @@
  </div>
 
   <script src="vault-sync.js"></script>
+  <script src="vault-crypto.js"></script>
+  <script src="vault-pw.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

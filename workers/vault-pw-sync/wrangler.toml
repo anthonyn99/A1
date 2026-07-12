@@ -1,0 +1,19 @@
+name = "vault-pw-sync"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[observability]
+enabled = false
+
+# Reuses the same KV namespace as taskhub-reminders / keychain-sync purely to
+# cache the short-lived Google access token (key "gat"). Safe to share.
+[[kv_namespaces]]
+binding = "TOKEN_CACHE"
+id = "b51e916cf3bf4f37ad146af5ca031575"
+
+# Secrets (set via `wrangler secret put <NAME>` — never commit values):
+#   FIREBASE_PROJECT_ID    — task-dashboard-d2b53   (same as keychain-sync)
+#   FIREBASE_CLIENT_EMAIL  — service-account email  (same as keychain-sync)
+#   FIREBASE_PRIVATE_KEY   — service-account private key (same as keychain-sync)
+#   VAULT_KEY              — shared secret the Vault extension sends in X-Vault-Key
+#                           (reuse the SAME value already in keychain-sync/vault-sync.js)

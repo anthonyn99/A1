@@ -3,7 +3,7 @@ g.addEventListener = function(){}; g.removeEventListener = function(){};
 require('./vault-crypto.js');
 g.VaultStore = function(){}; g.VaultSession = function(){}; g.VaultSession.localStorageDeviceStore=()=>({});
 const noEl = { style:{}, setAttribute(){}, addEventListener(){}, appendChild(){}, removeChild(){}, querySelector(){return null}, querySelectorAll(){return []}, insertBefore(){}, remove(){}, classList:{add(){},remove(){},toggle(){}}, click(){}, focus(){} };
-g.document = { readyState:'complete', addEventListener(){}, head:{appendChild(){}}, body:{appendChild(){},removeChild(){}}, getElementById(){return null}, createElement(){return Object.assign({},noEl)}, querySelector(){return null}, querySelectorAll(){return []} };
+g.document = { readyState:'complete', addEventListener(){}, head:{appendChild(){}}, body:{appendChild(){},removeChild(){},classList:{add(){},remove(){},toggle(){}}}, documentElement:{style:{setProperty(){}}}, getElementById(){return null}, createElement(){return Object.assign({},noEl)}, querySelector(){return null}, querySelectorAll(){return []} };
 g.localStorage = { getItem(){return null}, setItem(){}, removeItem(){} };
 require('./vault-ui.js');
 const V = g.Vault; let pass=0, fail=0;

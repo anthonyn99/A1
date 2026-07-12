@@ -21,8 +21,27 @@ Rebuilt from the old *D2L Tabs Automate* class project (used only as a template)
 - **Tab-aware settings button** — on the **Links** tab the ⚙ opens TaskHub deep-linked
   straight to Keychain (`…/A1/#keychain` — the installed PWA if the browser routes it,
   otherwise a tab). On the **Passwords** tab the ⚙ opens Vault's own settings page.
-- **Passwords** — a placeholder section reserved for future secure credential storage
-  (no backend yet, by design), with its own settings separate from Keychain.
+- **Passwords** — an end-to-end **encrypted** credential vault with **autofill**. The
+  popup fetches the encrypted `dashboards/vault_pw` document through the
+  **`vault-pw-sync`** Worker, unlocks locally with your **master password**
+  (`vault-crypto.js`), lists your logins (matches for the current site first), and
+  **fills** username/password into the active tab via `chrome.scripting`. Zero-knowledge:
+  the Worker and DB only ever see ciphertext. Create/edit credentials in
+  TaskHub → **Vault** (the PWA); the extension is a read + autofill client.
+
+### Passwords Worker setup (one-time)
+
+`workers/vault-pw-sync` auto-deploys on push (see `deploy-workers.yml`). Set its
+secrets once (the three `FIREBASE_*` are identical to `keychain-sync`; `VAULT_KEY`
+is the same shared key already in `vault-sync.js` / `vault-pw.js`):
+
+```bash
+cd workers/vault-pw-sync
+wrangler secret put FIREBASE_PROJECT_ID     # task-dashboard-d2b53
+wrangler secret put FIREBASE_CLIENT_EMAIL   # same as keychain-sync
+wrangler secret put FIREBASE_PRIVATE_KEY    # same as keychain-sync
+wrangler secret put VAULT_KEY               # vh-Ou55y3rGmjUn_ZGFTdSIFph2xN_OK
+```
 
 ---
 

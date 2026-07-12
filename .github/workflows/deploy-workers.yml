@@ -27,6 +27,7 @@ jobs:
       vaultfiles: ${{ steps.filter.outputs.vaultfiles }}
       proview: ${{ steps.filter.outputs.proview }}
       keychainsync: ${{ steps.filter.outputs.keychainsync }}
+      vaultpwsync: ${{ steps.filter.outputs.vaultpwsync }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -53,6 +54,8 @@ jobs:
               - 'workers/proview-api/**'
             keychainsync:
               - 'workers/keychain-sync/**'
+            vaultpwsync:
+              - 'workers/vault-pw-sync/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -176,3 +179,14 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/keychain-sync
+
+  deploy-vault-pw-sync:
+    needs: changes
+    if: ${{ needs.changes.outputs.vaultpwsync == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/vault-pw-sync

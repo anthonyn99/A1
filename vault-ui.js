@@ -1005,14 +1005,15 @@
   function injectStyles() {
     if ($('vault-ui-styles')) return;
     var css = [
-      // #kc-root is the single full-width scroll area (so the wheel scrolls no
-      // matter where the cursor is), with a wide grabbable scrollbar.
-      '#kc-root{height:100dvh;overflow-y:auto;overflow-x:clip;scrollbar-width:auto;scrollbar-color:var(--bdl) var(--s1)}',
-      '#kc-root::-webkit-scrollbar{width:15px}',
-      '#kc-root::-webkit-scrollbar-track{background:var(--s1)}',
-      '#kc-root::-webkit-scrollbar-thumb{background:var(--bdl);border-radius:8px;border:3px solid var(--bg);min-height:48px}',
-      '#kc-root::-webkit-scrollbar-thumb:hover,#kc-root::-webkit-scrollbar-thumb:active{background:var(--ac)}',
-      // Tabs pinned to the top while the list scrolls beneath them.
+      // The page body is the scroller (so the wheel works anywhere). We do NOT
+      // make #kc-root a scroll container — its overflow-x:clip does not capture
+      // sticky, so the tabs/toolbar below pin to the viewport as the body scrolls.
+      // Wide, grabbable page scrollbar (scoped to when Vault is active via body class).
+      'body.vault-active::-webkit-scrollbar{width:15px}',
+      'body.vault-active::-webkit-scrollbar-track{background:var(--s1,#141418)}',
+      'body.vault-active::-webkit-scrollbar-thumb{background:#3a3a48;border-radius:8px;border:3px solid #0f0f12;min-height:48px}',
+      'body.vault-active::-webkit-scrollbar-thumb:hover,body.vault-active::-webkit-scrollbar-thumb:active{background:#E0607A}',
+      // Tabs pinned to the top of the viewport while the list scrolls beneath.
       '.vault-tabs{display:flex;gap:8px;padding:12px clamp(10px,3vw,24px) 10px;max-width:1100px;margin:0 auto;width:100%;position:sticky;top:0;z-index:6;background:var(--bg)}',
       '.vault-tab{flex:0 0 auto;background:var(--s1);border:1px solid var(--bd);color:var(--txd);font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;transition:all .15s}',
       '.vault-tab:hover{color:var(--tx)}.vault-tab.active{background:var(--s3);color:var(--tx);border-color:var(--bdl)}',
@@ -1122,7 +1123,11 @@
 
   // ── activation: watch for the Keychain/Vault view becoming visible ─────────
   function isVaultVisible() { var r = $('kc-root'); return r && r.style.display !== 'none' && r.offsetParent !== null; }
-  function tick() { if (isVaultVisible() && !$('vault-tabs')) activate(); }
+  function tick() {
+    var vis = isVaultVisible();
+    document.body.classList.toggle('vault-active', !!vis); // scopes the wide page scrollbar to Vault
+    if (vis && !$('vault-tabs')) activate();
+  }
   function boot() {
     if (!window.VaultCrypto || !window.VaultStore || !window.VaultSession) { return setTimeout(boot, 200); }
     VC = window.VaultCrypto; VaultStore = window.VaultStore; VaultSession = window.VaultSession;

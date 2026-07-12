@@ -220,6 +220,8 @@ function setActiveTab(name) {
   document.getElementById("panel-links").classList.toggle("hidden", name !== "links");
   document.getElementById("panel-passwords").classList.toggle("hidden", name !== "passwords");
   gearEl.title = name === "passwords" ? "Vault settings" : "Open Keychain in TaskHub";
+  // Render the Passwords panel (unlock / list / autofill) on first open.
+  if (name === "passwords" && window.VaultPWPanel) window.VaultPWPanel.render();
 }
 
 document.querySelectorAll(".tab").forEach(tab =>
