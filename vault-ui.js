@@ -1,0 +1,678 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * vault-ui.js — Vault Password Manager · UI + Firebase adapter (PWA)
+ *
+ * Self-contained and self-injecting: it hooks into the existing Keychain view
+ * (#kc-root) and turns it into "Vault" with three tabs — Passwords · Sensitive
+ * Info · Links — WITHOUT requiring edits to the 38k-line index.html beyond a
+ * single <script src> include. It reuses the app's already-initialised Firebase
+ * instance (App Check + anon auth + offline cache) via getApps(), and the
+ * existing window.Bio biometric helper.
+ *
+ * Depends on (loaded before it): vault-crypto.js, vault-store.js, vault-session.js
+ *
+ * Data lives E2E-encrypted in a single Firestore doc `dashboards/vault_pw`:
+ *     { config:<wrapped-keys/salts/verifier>, items:{ id -> encDoc }, savedAt }
+ * The DB only ever sees ciphertext + a routing `kind`. See vault-crypto.js.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+(function () {
+  'use strict';
+  if (window.__vaultUiLoaded) return; window.__vaultUiLoaded = true;
+
+  var VC = window.VaultCrypto, VaultStore = window.VaultStore, VaultSession = window.VaultSession;
+  var FB_VER = '12.12.0';
+  var VAULT_DOC = 'dashboards/vault_pw';
+  var CATEGORIES = ['Social', 'Banking', 'Finance', 'Shopping', 'Work', 'School', 'Gaming',
+    'Utilities', 'Streaming', 'Development', 'Email', 'Other'];
+
+  // ── tiny DOM helpers ───────────────────────────────────────────────────────
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag); attrs = attrs || {};
+    for (var k in attrs) {
+      if (k === 'style') e.style.cssText = attrs[k];
+      else if (k === 'class') e.className = attrs[k];
+      else if (k === 'html') e.innerHTML = attrs[k];
+      else if (k.slice(0, 2) === 'on' && typeof attrs[k] === 'function') e.addEventListener(k.slice(2), attrs[k]);
+      else if (attrs[k] != null) e.setAttribute(k, attrs[k]);
+    }
+    (kids || []).forEach(function (c) { if (c == null) return; e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return e;
+  }
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function toast(msg) {
+    var t = $('kc-toast'); if (!t) { t = el('div', { id: 'vault-toast', style: 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--s3,#202028);border:1px solid var(--bdl,#323240);color:var(--tx,#ececf0);font-size:13px;font-weight:600;padding:9px 16px;border-radius:9px;z-index:99999;box-shadow:0 8px 30px rgba(0,0,0,.5)' }); document.body.appendChild(t); }
+    t.textContent = msg; t.style.opacity = '1'; t.classList.add('show');
+    clearTimeout(t._h); t._h = setTimeout(function () { t.style.opacity = '0'; t.classList.remove('show'); }, 1400);
+  }
+  function faviconUrl(url) {
+    try { var host = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname; return 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host); } catch (e) { return ''; }
+  }
+  function copyText(v, label) { try { navigator.clipboard.writeText(v).then(function () { toast((label || 'Copied') + ' — clears in 30s'); scheduleClipboardClear(v); }); } catch (e) { toast('Copy failed'); } }
+  // Clear the clipboard after 30s if it still holds the secret we copied.
+  function scheduleClipboardClear(v) {
+    setTimeout(function () { try { navigator.clipboard.readText().then(function (cur) { if (cur === v) navigator.clipboard.writeText(''); }).catch(function () {}); } catch (e) {} }, 30000);
+  }
+
+  // ── Firebase adapter — reuse the app's initialised instance ────────────────
+  // Implements the vault-store.js backend contract against one Firestore doc.
+  function makeFirebaseBackend() {
+    var mirror = { config: null, items: {} };
+    var api = null, ready = null, docRef = null;
+    var lastOwnSave = 0, saveTimer = null, itemSubs = [];
+
+    async function ensure() {
+      if (ready) return ready;
+      ready = (async function () {
+        var appMod = await import('https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-app.js');
+        var apps = appMod.getApps();
+        if (!apps.length) throw new Error('firebase app not initialised yet');
+        var app = apps[0];
+        var fs = await import('https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-firestore.js');
+        try { if (window._fbAuthReady) await window._fbAuthReady; } catch (e) {}
+        var db = fs.getFirestore(app);
+        docRef = fs.doc(db, VAULT_DOC);
+        api = fs;
+        // Live subscription → merge remote items/config into mirror, notify store.
+        fs.onSnapshot(docRef, function (snap) {
+          if (Date.now() - lastOwnSave < 4000) return; // skip our own echo
+          var d = snap.data(); if (!d) return;
+          mirror.config = d.config || mirror.config;
+          mirror.items = d.items || {};
+          var list = Object.keys(mirror.items).map(function (k) { return mirror.items[k]; });
+          itemSubs.forEach(function (fn) { try { fn(list); } catch (e) {} });
+        });
+        // Initial fetch so first paint is fresh (falls back to cache).
+        try { var s = await fs.getDoc(docRef); var dd = s.data(); if (dd) { mirror.config = dd.config || null; mirror.items = dd.items || {}; } } catch (e) {}
+      })();
+      return ready;
+    }
+    function scheduleWrite() {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(async function () {
+        try {
+          await ensure();
+          lastOwnSave = Date.now();
+          await api.setDoc(docRef, { config: mirror.config, items: mirror.items, savedAt: Date.now() });
+          lastOwnSave = Date.now();
+        } catch (e) { console.error('[vault] save failed', e); toast('Sync error — will retry'); if (saveTimer == null) scheduleWrite(); }
+      }, 400);
+    }
+    return {
+      async loadConfig() { await ensure(); return mirror.config ? JSON.parse(JSON.stringify(mirror.config)) : null; },
+      async saveConfig(c) { await ensure(); mirror.config = JSON.parse(JSON.stringify(c)); scheduleWrite(); },
+      async listItems() { await ensure(); return Object.keys(mirror.items).map(function (k) { return JSON.parse(JSON.stringify(mirror.items[k])); }); },
+      async putItem(doc) { await ensure(); mirror.items[doc.id] = JSON.parse(JSON.stringify(doc)); scheduleWrite(); },
+      subscribe: function (onItems) { itemSubs.push(onItems); ensure(); return function () { itemSubs = itemSubs.filter(function (f) { return f !== onItems; }); }; },
+    };
+  }
+
+  // ── password generator ─────────────────────────────────────────────────────
+  var GEN = {
+    lower: 'abcdefghijkmnpqrstuvwxyz', upper: 'ABCDEFGHJKMNPQRSTUVWXYZ',
+    num: '23456789', sym: '!@#$%^&*-_=+?', ambiguousNum: '01', ambiguousSym: "{}[]()/\\'\"`~,;:.<>",
+  };
+  function genPassword(o) {
+    o = o || {}; var len = o.length || 20, pool = '', req = [];
+    if (o.lower !== false) { var s = GEN.lower + (o.easy ? '' : 'lo'); pool += s; req.push(s); }
+    if (o.upper !== false) { var u = GEN.upper + (o.easy ? '' : 'IO'); pool += u; req.push(u); }
+    if (o.num !== false) { var n = GEN.num + (o.easy ? '' : GEN.ambiguousNum); pool += n; req.push(n); }
+    if (o.sym) { pool += GEN.sym; req.push(GEN.sym); }
+    if (!pool) pool = GEN.lower;
+    var rnd = VC.randomBytes(len * 2), out = [], i, ri = 0;
+    for (i = 0; i < len; i++) out.push(pool[rnd[ri++ % rnd.length] % pool.length]);
+    // guarantee at least one of each required class
+    req.forEach(function (cls, idx) { if (idx < len) out[rnd[(ri++) % rnd.length] % len] = cls[rnd[(ri++) % rnd.length] % cls.length]; });
+    return out.join('');
+  }
+  function genPassphrase(words, sep) {
+    var LIST = ('able acid aged also area army away baby back ball band bank base bath bear beat been bell belt best bird blow blue boat body bone book born both bowl bulk burn bush busy calm came camp card care case cash cast cell chat chip city clay club coal coat code cold come cook cool cope copy corn cost crew crop dark data date dawn days dead deal dean dear debt deep deny desk dial dirt dish dock does done door dose down draw drew drop drug drum dual duck dust duty each earn ease east easy edge else even ever evil exit face fact fade fail fair fall farm fast fate fear feed feel feet fell felt file fill film find fine fire firm fish five flag flat flow food foot ford form fort four free frog fuel full fund gain game gate gave gear gene gift girl give glad goal goat gold golf gone good gray grew grey grid grip grow gulf hair half hall hand hang hard harm hate have hawk head heal heap hear heat held hell helm help herb herd here hero hide high hill hint hire hold hole holy home hope horn hose host hour huge hull hung hunt hurt icon idea idle inch iron item jack jade jail jazz jean join joke joth jump june junk jury just keel keen keep kept kick kind king kiss kite knee knew knot know lace lack lady laid lake lamb lamp land lane last late lawn lazy lead leaf leak lean leap left lend lens less life lift like limb lime line link lion list live load loan lock loft logo lone long look loop lord lose loss lost loud love luck lump lung made mail main make male mall many mark mars mask mass mast mate math maze meal mean meat meet melt menu mere mesh mild mile milk mill mind mine mint miss mist mode mold mole monk mood moon more moss most moth move much mule name navy near neat neck need neon nest news next nice nick node none noon norm nose note noun nova nude oath obey odds ohio once only onto open oral oval oven over pace pack page paid pain pair pale palm park part pass past path peak pear peer pile pill pine pink pint pipe plan play plot plug plum poem poet pole poll pond pony pool poor pope pore port pose post pour pray prep prey prod prom prop pull pump punk pure push quit race rack rage raid rail rain rank rare rate read real reap rear reef reel rely rent rest rice rich ride ring riot rise risk road roar robe rock rode role roll roof room root rope rose ruby rude rule rush rust sack safe sage said sail sake sale salt same sand save scan seal seat seed seek seem seen self sell send sent ship shoe shop shot show shut side sign silk sing sink site size skin slid slim slip slot slow snap snow soak soap sock soda sofa soft soil sold sole solo some song sons soon sort soul soup sour span spin spot star stay stem step stir stop stow such suit sung sunk sure surf swap tail take tale talk tall tank tape task team tear teen tell tend tent term test text than that thaw them then they thin this thus tick tide tidy tied tile till time tiny tips toll tone tool torn tour town trap tray tree trim trip true tube tuna tune turn twin type unit upon urge used user vary vast veil vein verb very vest veto vice view vine visa vita void vote wade wage wait wake walk wall wand want ward ware warm warn wash wave weak wear webs week weld well went were west what when whip whom wide wife wild will wind wine wing wink wire wise wish with wolf wood wool word wore work worm worn wrap yard yarn yeah year yoga zero zinc zone zoom').split(' ');
+    words = words || 4; sep = sep == null ? '-' : sep;
+    var rnd = VC.randomBytes(words * 2), out = [];
+    for (var i = 0; i < words; i++) { var w = LIST[(rnd[i * 2] << 8 | rnd[i * 2 + 1]) % LIST.length]; out.push(w.charAt(0).toUpperCase() + w.slice(1)); }
+    return out.join(sep) + sep + (VC.randomBytes(1)[0] % 90 + 10);
+  }
+  // Rough strength score 0..4 for the meter.
+  function strength(pw) {
+    if (!pw) return 0; var s = 0; pw = String(pw);
+    if (pw.length >= 8) s++; if (pw.length >= 12) s++; if (pw.length >= 16) s++;
+    var classes = (/[a-z]/.test(pw) ? 1 : 0) + (/[A-Z]/.test(pw) ? 1 : 0) + (/[0-9]/.test(pw) ? 1 : 0) + (/[^a-zA-Z0-9]/.test(pw) ? 1 : 0);
+    if (classes >= 3) s++; if (classes >= 4 && pw.length >= 12) s++;
+    return Math.min(4, s);
+  }
+
+  // ── controller ─────────────────────────────────────────────────────────────
+  var session = null, store = null, backend = null, activeTab = 'passwords', currentQuery = '';
+
+  function ensureSession() {
+    if (session) return session;
+    backend = makeFirebaseBackend();
+    session = new VaultSession({
+      backend: backend, bio: window.Bio || null,
+      deviceStore: VaultSession.localStorageDeviceStore('vault.'),
+      appId: 'vault', autoLockMs: 5 * 60 * 1000,
+      onLock: function () { renderLock(); },
+    });
+    return session;
+  }
+
+  // Called whenever the Keychain/Vault view becomes visible.
+  async function activate() {
+    injectShell();
+    relabelNav();
+    ensureSession();
+    if (session.isUnlocked()) { showTab(activeTab); return; }
+    var has = await session.hasVault();
+    renderLock(has);
+  }
+
+  // ── shell: tabs + lock overlay + panels injected into #kc-root ─────────────
+  function injectShell() {
+    var root = $('kc-root'); if (!root || $('vault-tabs')) return;
+    injectStyles();
+    // Wrap existing Keychain content (everything after the header) as the Links tab.
+    var hbar = root.querySelector('.app-hbar');
+    var linksWrap = el('div', { id: 'vault-links-panel', class: 'vault-panel' });
+    // Move the existing .kc-wrap (Connections) into the Links panel.
+    var kcWrap = root.querySelector('.kc-wrap');
+    var tabs = el('div', { id: 'vault-tabs', class: 'vault-tabs' }, [
+      tabBtn('passwords', '🔑 Passwords'), tabBtn('sensitive', '🗄 Sensitive Info'), tabBtn('links', '🔗 Links'),
+    ]);
+    if (hbar && hbar.nextSibling) root.insertBefore(tabs, hbar.nextSibling); else root.appendChild(tabs);
+    var pwPanel = el('div', { id: 'vault-pw-panel', class: 'vault-panel' });
+    var senPanel = el('div', { id: 'vault-sensitive-panel', class: 'vault-panel', style: 'display:none' });
+    root.appendChild(pwPanel); root.appendChild(senPanel);
+    if (kcWrap) { kcWrap.parentNode.removeChild(kcWrap); linksWrap.appendChild(kcWrap); }
+    linksWrap.style.display = 'none'; root.appendChild(linksWrap);
+    // Lock overlay (covers everything but tabs stay to switch to Links which is non-secret? No — links are also under Vault; lock gates pw+sensitive only).
+    var lock = el('div', { id: 'vault-lock', class: 'vault-lock', style: 'display:none' });
+    pwPanel.appendChild(lock);
+  }
+  function tabBtn(id, label) {
+    return el('button', { class: 'vault-tab' + (id === activeTab ? ' active' : ''), 'data-tab': id, onclick: function () { showTab(id); } }, [label]);
+  }
+  function relabelNav() {
+    // Rename "Keychain" → "Vault" in the logo + nav without editing index.html.
+    try {
+      var logo = document.querySelector('#kc-root .kc-logo');
+      if (logo && !logo._vaulted) { logo.innerHTML = '<span class="base">V</span><span class="dot">ault</span>'; logo._vaulted = true; }
+      document.querySelectorAll('[data-app="keychain"]').forEach(function (b) { if (/keychain/i.test(b.textContent)) b.textContent = 'Vault'; });
+      document.querySelectorAll('option[value="keychain"]').forEach(function (o) { if (/keychain/i.test(o.textContent)) o.textContent = 'Vault'; });
+    } catch (e) {}
+  }
+
+  function showTab(id) {
+    activeTab = id;
+    document.querySelectorAll('.vault-tab').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === id); });
+    var pw = $('vault-pw-panel'), sen = $('vault-sensitive-panel'), links = $('vault-links-panel');
+    if (pw) pw.style.display = id === 'passwords' ? '' : 'none';
+    if (sen) sen.style.display = id === 'sensitive' ? '' : 'none';
+    if (links) links.style.display = id === 'links' ? '' : 'none';
+    if ((id === 'passwords' || id === 'sensitive')) {
+      if (!session || !session.isUnlocked()) { renderLock(); return; }
+      if (id === 'passwords') renderPasswords(); else renderSensitive();
+    }
+  }
+
+  // ── lock / setup screens ───────────────────────────────────────────────────
+  async function renderLock(hasVault) {
+    var pw = $('vault-pw-panel'); if (!pw) return;
+    if (hasVault == null) { try { hasVault = await session.hasVault(); } catch (e) { hasVault = false; } }
+    var host = el('div', { class: 'vault-lock' });
+    if (!hasVault) { renderSetup(host); }
+    else { renderUnlock(host); }
+    pw.innerHTML = ''; pw.appendChild(host);
+    var sen = $('vault-sensitive-panel'); if (sen) sen.innerHTML = '';
+  }
+
+  function card(title, sub, kids) {
+    return el('div', { class: 'vault-card' }, [
+      el('div', { class: 'vault-lock-icon', html: '🔐' }),
+      el('h2', { class: 'vault-h2' }, [title]),
+      sub ? el('p', { class: 'vault-sub' }, [sub]) : null,
+    ].concat(kids || []));
+  }
+
+  function renderSetup(host) {
+    var pw1 = el('input', { type: 'password', class: 'vault-input', placeholder: 'Create master password', autocomplete: 'new-password' });
+    var pw2 = el('input', { type: 'password', class: 'vault-input', placeholder: 'Confirm master password', autocomplete: 'new-password' });
+    var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
+    var err = el('div', { class: 'vault-err' });
+    pw1.addEventListener('input', function () { var s = strength(pw1.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#e05252', '#e0a052', '#e0d052', '#a0d052', '#52e075'][s]; });
+    var btn = el('button', { class: 'vault-btn primary' }, ['Create Vault']);
+    btn.addEventListener('click', async function () {
+      err.textContent = '';
+      if (pw1.value.length < 8) { err.textContent = 'Use at least 8 characters (a passphrase is best).'; return; }
+      if (pw1.value !== pw2.value) { err.textContent = 'Passwords do not match.'; return; }
+      btn.disabled = true; btn.textContent = 'Encrypting…';
+      try { var r = await session.setup(pw1.value); showRecovery(r.recoveryCode, true); }
+      catch (e) { err.textContent = 'Setup failed: ' + (e.message || e); btn.disabled = false; btn.textContent = 'Create Vault'; }
+    });
+    host.appendChild(card('Set up your Vault',
+      'Your master password encrypts everything on this device before it syncs. It is never sent to the cloud and cannot be recovered by anyone — choose a strong passphrase you will remember.',
+      [pw1, meter, pw2, err, btn,
+        el('p', { class: 'vault-fine' }, ['End-to-end encrypted · AES-256-GCM · PBKDF2 600k · zero-knowledge'])]));
+  }
+
+  function showRecovery(code, firstRun) {
+    var pw = $('vault-pw-panel'); if (!pw) return;
+    var codeBox = el('div', { class: 'vault-recovery-code' }, [code]);
+    var copied = el('button', { class: 'vault-btn' }, ['Copy recovery key']);
+    copied.addEventListener('click', function () { copyText(code, 'Recovery key copied'); });
+    var chk = el('input', { type: 'checkbox', id: 'vault-rec-ack' });
+    var cont = el('button', { class: 'vault-btn primary', disabled: 'disabled' }, ['I saved it — continue']);
+    chk.addEventListener('change', function () { cont.disabled = !chk.checked; });
+    cont.addEventListener('click', function () { showTab('passwords'); });
+    var host = el('div', { class: 'vault-lock' }, [
+      card('Your Recovery Key',
+        'This is the ONLY way back in if you forget your master password AND lose your biometric devices. Write it down or store it in a safe place. It will not be shown again.',
+        [codeBox, copied,
+          el('label', { class: 'vault-ack' }, [chk, el('span', {}, ['I have saved my recovery key somewhere safe'])]),
+          cont]),
+    ]);
+    pw.innerHTML = ''; pw.appendChild(host);
+  }
+
+  async function renderUnlock(host) {
+    var pwIn = el('input', { type: 'password', class: 'vault-input', placeholder: 'Master password', autocomplete: 'current-password' });
+    var err = el('div', { class: 'vault-err' });
+    var unlockBtn = el('button', { class: 'vault-btn primary' }, ['Unlock']);
+    async function tryPw() {
+      err.textContent = ''; unlockBtn.disabled = true; unlockBtn.textContent = 'Unlocking…';
+      try { await session.unlockWithPassword(pwIn.value); afterUnlock(); }
+      catch (e) { err.textContent = e.message === 'bad-password' ? 'Incorrect master password.' : ('Error: ' + e.message); unlockBtn.disabled = false; unlockBtn.textContent = 'Unlock'; }
+    }
+    unlockBtn.addEventListener('click', tryPw);
+    pwIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryPw(); });
+
+    var kids = [pwIn, err, unlockBtn];
+    // Biometric button if this device has a slot registered.
+    var deviceHasBio = false;
+    try { deviceHasBio = await session.biometricEnabled(); } catch (e) {}
+    if (deviceHasBio && window.Bio) {
+      var bioBtn = el('button', { class: 'vault-btn' }, ['🔓  Unlock with ' + (window.Bio.label ? window.Bio.label() : 'biometrics')]);
+      bioBtn.addEventListener('click', async function () {
+        err.textContent = '';
+        try { await session.unlockWithBiometric(); afterUnlock(); }
+        catch (e) { if (e.message !== 'cancelled') err.textContent = 'Biometric unlock failed — use your password.'; }
+      });
+      kids.splice(2, 0, bioBtn);
+      // Auto-prompt biometrics on open for a Face-ID-like feel.
+      setTimeout(function () { bioBtn.click(); }, 250);
+    }
+    var recov = el('button', { class: 'vault-link-btn' }, ['Use recovery key instead']);
+    recov.addEventListener('click', function () { renderRecoveryUnlock(); });
+    kids.push(recov);
+    host.appendChild(card('Vault is locked', 'Unlock with your ' + (deviceHasBio ? 'biometrics or ' : '') + 'master password.', kids));
+    setTimeout(function () { pwIn.focus(); }, 60);
+  }
+
+  function renderRecoveryUnlock() {
+    var pw = $('vault-pw-panel'); if (!pw) return;
+    var input = el('textarea', { class: 'vault-input', rows: '2', placeholder: 'Enter your recovery key (dashes optional)' });
+    var err = el('div', { class: 'vault-err' });
+    var btn = el('button', { class: 'vault-btn primary' }, ['Recover access']);
+    btn.addEventListener('click', async function () {
+      err.textContent = ''; btn.disabled = true; btn.textContent = 'Verifying…';
+      try { await session.unlockWithRecovery(input.value); toast('Recovered — set a new master password in settings'); afterUnlock(); }
+      catch (e) { err.textContent = 'That recovery key did not match.'; btn.disabled = false; btn.textContent = 'Recover access'; }
+    });
+    var back = el('button', { class: 'vault-link-btn' }, ['← Back']);
+    back.addEventListener('click', function () { renderLock(true); });
+    var host = el('div', { class: 'vault-lock' }, [card('Recovery', 'Enter the one-time recovery key you saved when you created the vault.', [input, err, btn, back])]);
+    pw.innerHTML = ''; pw.appendChild(host);
+  }
+
+  async function afterUnlock() {
+    store = session.getStore();
+    await store.load();
+    store.startLive(function () { if (activeTab === 'passwords') renderPasswords(); else if (activeTab === 'sensitive') renderSensitive(); });
+    maybeOfferBiometric();
+    showTab(activeTab === 'links' ? 'passwords' : activeTab);
+  }
+  async function maybeOfferBiometric() {
+    try {
+      if (!window.Bio) return;
+      if (await session.biometricEnabled()) return;
+      if (!(await session.biometricSupported())) return;
+      if (localStorage.getItem('vault.bioDeclined')) return;
+      var label = window.Bio.label ? window.Bio.label() : 'biometrics';
+      var ok = window.confirm('Enable ' + label + ' to unlock your Vault on this device? Your master password still works as a fallback.');
+      if (!ok) { localStorage.setItem('vault.bioDeclined', '1'); return; }
+      await session.enableBiometric(label); toast(label + ' enabled on this device');
+    } catch (e) { console.warn('[vault] biometric enroll skipped', e); }
+  }
+
+  // ── passwords panel ────────────────────────────────────────────────────────
+  function renderPasswords() {
+    var panel = $('vault-pw-panel'); if (!panel) return;
+    var items = currentQuery ? store.search(currentQuery).filter(function (i) { return i.kind === 'login'; }) : store.byKind('login');
+    // group multiple accounts under the same site (by normalized url/title)
+    var groups = {};
+    items.forEach(function (it) {
+      var key = (it.url || it.title || 'other').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+      (groups[key] = groups[key] || { key: key, sample: it, items: [] }).items.push(it);
+    });
+    var groupList = Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return (a.sample.title || a.key).localeCompare(b.sample.title || b.key); });
+
+    panel.innerHTML = '';
+    panel.appendChild(toolbar('Search logins…', function () { openEditor('login'); }));
+    var list = el('div', { class: 'vault-list' });
+    if (!groupList.length) list.appendChild(emptyState(currentQuery ? 'No matches.' : 'No logins yet. Add your first one, or import from Chrome/Bitwarden later.'));
+    groupList.forEach(function (g) { list.appendChild(siteRow(g)); });
+    panel.appendChild(list);
+    panel.appendChild(footerBar());
+  }
+
+  function toolbar(placeholder, onAdd) {
+    var search = el('input', { class: 'vault-search', placeholder: placeholder, value: currentQuery });
+    search.addEventListener('input', function () { currentQuery = search.value; var cur = search.selectionStart; (activeTab === 'passwords' ? renderPasswords : renderSensitive)(); var ns = $('vault-pw-panel') && $('vault-pw-panel').querySelector('.vault-search') || $('vault-sensitive-panel').querySelector('.vault-search'); if (ns) { ns.focus(); try { ns.setSelectionRange(cur, cur); } catch (e) {} } });
+    var add = el('button', { class: 'vault-btn primary sm', onclick: onAdd }, ['+ Add']);
+    return el('div', { class: 'vault-toolbar' }, [search, add]);
+  }
+  function emptyState(msg) { return el('div', { class: 'vault-empty' }, [msg]); }
+
+  function siteRow(g) {
+    var multi = g.items.length > 1;
+    var head = el('div', { class: 'vault-row' }, [
+      favicon(g.sample.url),
+      el('div', { class: 'vault-row-main' }, [
+        el('div', { class: 'vault-row-title' }, [g.sample.title || g.key]),
+        el('div', { class: 'vault-row-sub' }, [multi ? g.items.length + ' accounts' : (g.sample.username || g.sample.email || g.key)]),
+      ]),
+      g.sample.category ? el('span', { class: 'vault-tag' }, [g.sample.category]) : null,
+    ]);
+    var wrap = el('div', { class: 'vault-site' }, [head]);
+    var body = el('div', { class: 'vault-accounts' });
+    g.items.forEach(function (it) { body.appendChild(accountRow(it, multi)); });
+    if (multi) { head.style.cursor = 'pointer'; body.style.display = 'none'; head.addEventListener('click', function () { body.style.display = body.style.display === 'none' ? '' : 'none'; }); }
+    wrap.appendChild(body);
+    return wrap;
+  }
+  function accountRow(it, indented) {
+    var reveal = el('button', { class: 'vault-icon', title: 'Reveal' , html: eye() });
+    var pwText = el('span', { class: 'vault-pw-dots' }, ['••••••••••']);
+    var shown = false;
+    reveal.addEventListener('click', function () { shown = !shown; pwText.textContent = shown ? (it.password || '') : '••••••••••'; reveal.innerHTML = shown ? eyeOff() : eye(); });
+    return el('div', { class: 'vault-account' + (indented ? ' indented' : '') }, [
+      el('div', { class: 'vault-acc-main' }, [
+        el('div', { class: 'vault-acc-user' }, [it.username || it.email || '(no username)']),
+        el('div', { class: 'vault-acc-pw' }, [pwText]),
+      ]),
+      el('div', { class: 'vault-acc-actions' }, [
+        it.username || it.email ? iconBtn('Copy username', copyIcon(), function () { copyText(it.username || it.email, 'Username copied'); }) : null,
+        iconBtn('Copy password', keyIcon(), function () { copyText(it.password || '', 'Password copied'); }),
+        el('button', { class: 'vault-icon', title: 'Reveal', onclick: function () { shown = !shown; pwText.textContent = shown ? (it.password || '') : '••••••••••'; reveal.innerHTML = shown ? eyeOff() : eye(); } , html: shown ? eyeOff() : eye() }),
+        it.url ? iconBtn('Open site', extIcon(), function () { window.open(/^https?:/.test(it.url) ? it.url : 'https://' + it.url, '_blank', 'noopener'); }) : null,
+        iconBtn('Edit', editIcon(), function () { openEditor('login', it); }),
+      ]),
+    ]);
+  }
+
+  // ── sensitive info panel (basic; expanded in a later increment) ────────────
+  function renderSensitive() {
+    var panel = $('vault-sensitive-panel'); if (!panel) return;
+    if (!session.isUnlocked()) { renderLock(); return; }
+    var items = currentQuery ? store.search(currentQuery).filter(function (i) { return i.kind === 'sensitive'; }) : store.byKind('sensitive');
+    panel.innerHTML = '';
+    panel.appendChild(toolbar('Search secure notes…', function () { openEditor('sensitive'); }));
+    var list = el('div', { class: 'vault-list' });
+    if (!items.length) list.appendChild(emptyState('No secure notes yet. Store Wi-Fi passwords, lock combos, recovery codes, license keys…'));
+    items.forEach(function (it) {
+      var body = el('div', { class: 'vault-note-body', style: 'display:none;white-space:pre-wrap' }, [it.notes || '']);
+      var row = el('div', { class: 'vault-site' }, [
+        el('div', { class: 'vault-row', style: 'cursor:pointer' , onclick: function () { body.style.display = body.style.display === 'none' ? '' : 'none'; } }, [
+          el('div', { class: 'vault-note-icon', html: '🗄' }),
+          el('div', { class: 'vault-row-main' }, [el('div', { class: 'vault-row-title' }, [it.title || 'Untitled']), it.category ? el('div', { class: 'vault-row-sub' }, [it.category]) : null]),
+          iconBtn('Edit', editIcon(), function (e) { e.stopPropagation(); openEditor('sensitive', it); }),
+        ]),
+        body,
+      ]);
+      list.appendChild(row);
+    });
+    panel.appendChild(list);
+    panel.appendChild(footerBar());
+  }
+
+  // ── editor modal ───────────────────────────────────────────────────────────
+  function openEditor(kind, item) {
+    item = item || {};
+    var isLogin = kind === 'login';
+    var overlay = el('div', { class: 'vault-overlay', onclick: function (e) { if (e.target === overlay) close(); } });
+    function close() { overlay.remove(); }
+    var f = {};
+    function field(label, key, opts) {
+      opts = opts || {};
+      var input = el(opts.textarea ? 'textarea' : 'input', { class: 'vault-input', type: opts.type || 'text', value: item[key] || '', placeholder: opts.ph || '' });
+      f[key] = input;
+      var row = [el('label', { class: 'vault-flabel' }, [label]), input];
+      if (opts.after) row.push(opts.after);
+      return el('div', { class: 'vault-field' }, row);
+    }
+    var body = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } });
+    body.appendChild(el('div', { class: 'vault-modal-title' }, [(item.id ? 'Edit ' : 'Add ') + (isLogin ? 'Login' : 'Secure Note')]));
+    if (isLogin) {
+      body.appendChild(field('Name', 'title', { ph: 'e.g. GitHub' }));
+      body.appendChild(field('Website / URL', 'url', { ph: 'github.com' }));
+      body.appendChild(field('Username', 'username', { ph: 'username' }));
+      body.appendChild(field('Email', 'email', { ph: 'you@example.com' }));
+      // password with reveal + generate
+      var pwInput = el('input', { class: 'vault-input', type: 'password', value: item.password || '', placeholder: 'password' }); f.password = pwInput;
+      var gen = el('button', { class: 'vault-icon', title: 'Generate', html: '🎲', type: 'button' });
+      var rev = el('button', { class: 'vault-icon', title: 'Reveal', html: eye(), type: 'button' });
+      var showp = false; rev.addEventListener('click', function () { showp = !showp; pwInput.type = showp ? 'text' : 'password'; rev.innerHTML = showp ? eyeOff() : eye(); });
+      gen.addEventListener('click', function () { openGenerator(function (v) { pwInput.value = v; pwInput.type = 'text'; showp = true; rev.innerHTML = eyeOff(); }); });
+      body.appendChild(el('div', { class: 'vault-field' }, [el('label', { class: 'vault-flabel' }, ['Password']), el('div', { class: 'vault-pw-input' }, [pwInput, rev, gen])]));
+      body.appendChild(catField(f, item));
+      body.appendChild(field('TOTP secret (optional)', 'totp', { ph: 'For authenticator codes — future-ready' }));
+      body.appendChild(field('Tags (comma-separated)', 'tags', { ph: 'work, personal' }));
+      body.appendChild(field('Notes', 'notes', { textarea: true }));
+    } else {
+      body.appendChild(field('Title', 'title', { ph: 'e.g. Home Wi-Fi, Safe combo' }));
+      body.appendChild(catField(f, item));
+      body.appendChild(field('Details', 'notes', { textarea: true, ph: 'The secret info you want to keep safe…' }));
+    }
+    var err = el('div', { class: 'vault-err' });
+    var save = el('button', { class: 'vault-btn primary' }, [item.id ? 'Save' : 'Add']);
+    save.addEventListener('click', async function () {
+      var out = { id: item.id, kind: kind, createdAt: item.createdAt };
+      Object.keys(f).forEach(function (k) { out[k] = f[k].value; });
+      if (out.tags != null) out.tags = String(out.tags).split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      if (isLogin ? (!out.title && !out.url) : !out.title) { err.textContent = 'Give it a name.'; return; }
+      save.disabled = true; save.textContent = 'Saving…';
+      try { await store.save(out); close(); (isLogin ? renderPasswords : renderSensitive)(); toast('Saved'); }
+      catch (e) { err.textContent = 'Save failed: ' + e.message; save.disabled = false; save.textContent = 'Save'; }
+    });
+    var actions = [save, el('button', { class: 'vault-btn', onclick: close }, ['Cancel'])];
+    if (item.id) { var del = el('button', { class: 'vault-btn danger', onclick: async function () { if (window.confirm('Delete this item? This cannot be undone.')) { await store.remove(item.id); close(); (isLogin ? renderPasswords : renderSensitive)(); toast('Deleted'); } } }, ['Delete']); actions.push(del); }
+    body.appendChild(err);
+    body.appendChild(el('div', { class: 'vault-modal-actions' }, actions));
+    overlay.appendChild(body); document.body.appendChild(overlay);
+    setTimeout(function () { var first = body.querySelector('input,textarea'); if (first) first.focus(); }, 50);
+  }
+  function catField(f, item) {
+    var sel = el('select', { class: 'vault-input' });
+    var cats = CATEGORIES.slice(); if (item.category && cats.indexOf(item.category) < 0) cats.unshift(item.category);
+    cats.forEach(function (c) { var o = el('option', { value: c }, [c]); if (item.category === c) o.selected = true; sel.appendChild(o); });
+    f.category = sel;
+    return el('div', { class: 'vault-field' }, [el('label', { class: 'vault-flabel' }, ['Category']), sel]);
+  }
+
+  // ── generator modal ────────────────────────────────────────────────────────
+  function openGenerator(onUse) {
+    var overlay = el('div', { class: 'vault-overlay', onclick: function (e) { if (e.target === overlay) overlay.remove(); } });
+    var mode = 'password';
+    var out = el('div', { class: 'vault-gen-out' });
+    var opts = { length: 20, lower: true, upper: true, num: true, sym: true, easy: false };
+    var pass = { words: 4 };
+    function regen() { out.textContent = mode === 'password' ? genPassword(opts) : genPassphrase(pass.words); }
+    function toggleRow(label, key, obj) {
+      var cb = el('input', { type: 'checkbox' }); cb.checked = !!obj[key];
+      cb.addEventListener('change', function () { obj[key] = cb.checked; regen(); });
+      return el('label', { class: 'vault-gen-opt' }, [cb, el('span', {}, [label])]);
+    }
+    var body = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, [
+      el('div', { class: 'vault-modal-title' }, ['Password Generator']),
+      el('div', { class: 'vault-gen-tabs' }, [
+        genTab('Password', function () { mode = 'password'; buildOpts(); regen(); }, true),
+        genTab('Passphrase', function () { mode = 'passphrase'; buildOpts(); regen(); }, false),
+      ]),
+      out,
+    ]);
+    var optWrap = el('div', { class: 'vault-gen-opts' });
+    function buildOpts() {
+      optWrap.innerHTML = '';
+      if (mode === 'password') {
+        var lenLabel = el('span', {}, ['Length: ' + opts.length]);
+        var slider = el('input', { type: 'range', min: '8', max: '64', value: String(opts.length), class: 'vault-range' });
+        slider.addEventListener('input', function () { opts.length = +slider.value; lenLabel.textContent = 'Length: ' + opts.length; regen(); });
+        optWrap.appendChild(el('div', { class: 'vault-gen-len' }, [lenLabel, slider]));
+        optWrap.appendChild(el('div', { class: 'vault-gen-grid' }, [
+          toggleRow('a-z', 'lower', opts), toggleRow('A-Z', 'upper', opts),
+          toggleRow('0-9', 'num', opts), toggleRow('!@#$', 'sym', opts),
+          toggleRow('Easy to read', 'easy', opts),
+        ]));
+      } else {
+        var wl = el('span', {}, ['Words: ' + pass.words]);
+        var ws = el('input', { type: 'range', min: '3', max: '8', value: String(pass.words), class: 'vault-range' });
+        ws.addEventListener('input', function () { pass.words = +ws.value; wl.textContent = 'Words: ' + pass.words; regen(); });
+        optWrap.appendChild(el('div', { class: 'vault-gen-len' }, [wl, ws]));
+      }
+    }
+    body.appendChild(optWrap);
+    var useBtn = el('button', { class: 'vault-btn primary' }, ['Use']);
+    useBtn.addEventListener('click', function () { onUse(out.textContent); overlay.remove(); });
+    var copyBtn = el('button', { class: 'vault-btn', onclick: function () { copyText(out.textContent, 'Password copied'); } }, ['Copy']);
+    var reBtn = el('button', { class: 'vault-btn', onclick: regen }, ['↻ Regenerate']);
+    body.appendChild(el('div', { class: 'vault-modal-actions' }, [useBtn, copyBtn, reBtn]));
+    buildOpts(); regen();
+    overlay.appendChild(body); document.body.appendChild(overlay);
+  }
+  function genTab(label, onClick, active) { var b = el('button', { class: 'vault-gen-tab' + (active ? ' active' : ''), onclick: function () { body_setActive(b); onClick(); } }, [label]); return b; }
+  function body_setActive(b) { var p = b.parentNode; p.querySelectorAll('.vault-gen-tab').forEach(function (x) { x.classList.remove('active'); }); b.classList.add('active'); }
+
+  function footerBar() {
+    var lock = el('button', { class: 'vault-link-btn', onclick: function () { session.lock(); renderLock(true); } }, ['🔒 Lock now']);
+    var settings = el('button', { class: 'vault-link-btn', onclick: openSettings }, ['⚙ Settings']);
+    return el('div', { class: 'vault-footer' }, [settings, lock]);
+  }
+  function openSettings() {
+    var overlay = el('div', { class: 'vault-overlay', onclick: function (e) { if (e.target === overlay) overlay.remove(); } });
+    var body = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, [el('div', { class: 'vault-modal-title' }, ['Vault Settings'])]);
+    var rows = el('div', {});
+    // change master password
+    rows.appendChild(settingRow('Change master password', function () {
+      var oldp = prompt('Current master password:'); if (oldp == null) return;
+      var newp = prompt('New master password (min 8 chars):'); if (!newp || newp.length < 8) { toast('Too short'); return; }
+      session.changeMasterPassword(oldp, newp).then(function () { toast('Master password changed'); }).catch(function (e) { toast(e.message === 'bad-password' ? 'Current password wrong' : 'Failed'); });
+    }));
+    rows.appendChild(settingRow('Show / rotate recovery key', function () {
+      if (!window.confirm('Generate a NEW recovery key? Your old one stops working.')) return;
+      session.rotateRecovery().then(function (r) { overlay.remove(); showRecovery(r.recoveryCode); });
+    }));
+    session.biometricEnabled().then(function (on) {
+      rows.appendChild(settingRow(on ? 'Disable biometric unlock (this device)' : 'Enable biometric unlock (this device)', function () {
+        if (on) session.disableBiometric().then(function () { toast('Biometrics disabled'); overlay.remove(); });
+        else session.enableBiometric(window.Bio && window.Bio.label ? window.Bio.label() : 'biometrics').then(function () { toast('Biometrics enabled'); overlay.remove(); }).catch(function (e) { toast('Failed: ' + e.message); });
+      }));
+    });
+    body.appendChild(rows);
+    body.appendChild(el('div', { class: 'vault-modal-actions' }, [el('button', { class: 'vault-btn', onclick: function () { overlay.remove(); } }, ['Close'])]));
+    overlay.appendChild(body); document.body.appendChild(overlay);
+  }
+  function settingRow(label, onClick) { return el('button', { class: 'vault-setting-row', onclick: onClick }, [label]); }
+
+  // ── small SVG/icon helpers ─────────────────────────────────────────────────
+  function favicon(url) { var i = el('img', { class: 'vault-favicon', src: faviconUrl(url), loading: 'lazy', alt: '' }); i.addEventListener('error', function () { i.style.visibility = 'hidden'; }); return i; }
+  function iconBtn(title, svg, fn) { return el('button', { class: 'vault-icon', title: title, html: svg, onclick: fn }); }
+  function eye() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'; }
+  function eyeOff() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10 10 0 0 1 12 20c-7 0-11-8-11-8a18 18 0 0 1 5.06-5.94M9.9 4.24A9 9 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'; }
+  function copyIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'; }
+  function keyIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>'; }
+  function extIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'; }
+  function editIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'; }
+
+  // ── styles ─────────────────────────────────────────────────────────────────
+  function injectStyles() {
+    if ($('vault-ui-styles')) return;
+    var css = [
+      '.vault-tabs{display:flex;gap:8px;padding:12px clamp(10px,3vw,24px) 0;max-width:1100px;margin:0 auto;width:100%}',
+      '.vault-tab{flex:0 0 auto;background:var(--s1);border:1px solid var(--bd);color:var(--txd);font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;transition:all .15s}',
+      '.vault-tab:hover{color:var(--tx)}.vault-tab.active{background:var(--s3);color:var(--tx);border-color:var(--bdl)}',
+      '.vault-panel{max-width:1100px;margin:0 auto;padding:14px clamp(10px,3vw,24px);width:100%}',
+      '.vault-toolbar{display:flex;gap:10px;margin-bottom:14px}',
+      '.vault-search{flex:1;background:var(--s1);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:10px 14px;font-size:14px;outline:none}',
+      '.vault-search:focus{border-color:var(--ac)}',
+      '.vault-list{display:flex;flex-direction:column;gap:8px}',
+      '.vault-site{background:var(--s1);border:1px solid var(--bd);border-radius:12px;overflow:hidden}',
+      '.vault-row{display:flex;align-items:center;gap:12px;padding:12px 14px}',
+      '.vault-favicon{width:26px;height:26px;border-radius:6px;object-fit:contain;background:var(--s3);flex-shrink:0}',
+      '.vault-note-icon,.vault-lock-icon{font-size:22px}.vault-note-icon{width:26px;text-align:center}',
+      '.vault-row-main{flex:1;min-width:0}.vault-row-title{font-size:14px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.vault-row-sub{font-size:12px;color:var(--txd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}',
+      '.vault-tag{background:var(--s3);color:var(--txd);font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;flex-shrink:0}',
+      '.vault-accounts{border-top:1px solid var(--bd)}',
+      '.vault-account{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--bd)}.vault-account:first-child{border-top:none}',
+      '.vault-account.indented{padding-left:28px;background:var(--bg)}',
+      '.vault-acc-main{flex:1;min-width:0}.vault-acc-user{font-size:13px;color:var(--tx);font-weight:600}',
+      '.vault-acc-pw{font-size:12px;color:var(--txd);font-family:ui-monospace,monospace;margin-top:2px}.vault-pw-dots{letter-spacing:1px}',
+      '.vault-acc-actions{display:flex;gap:4px;flex-shrink:0}',
+      '.vault-icon{background:var(--s3);border:1px solid var(--bd);color:var(--txd);width:30px;height:30px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;padding:0}',
+      '.vault-icon:hover{color:var(--tx);border-color:var(--ac)}',
+      '.vault-empty{border:1px dashed var(--bd);border-radius:12px;padding:34px 20px;text-align:center;color:var(--txd);font-size:13px;line-height:1.7}',
+      '.vault-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--bd)}',
+      '.vault-link-btn{background:none;border:none;color:var(--txd);font-size:12px;font-weight:600;cursor:pointer;padding:4px 8px}.vault-link-btn:hover{color:var(--ac)}',
+      // lock/setup
+      '.vault-lock{display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;min-height:300px}',
+      '.vault-card{background:var(--s1);border:1px solid var(--bd);border-radius:16px;padding:30px 26px;max-width:400px;width:100%;text-align:center}',
+      '.vault-lock-icon{font-size:38px;margin-bottom:6px}',
+      '.vault-h2{font-size:19px;font-weight:800;color:var(--tx);margin:6px 0}',
+      '.vault-sub{font-size:12.5px;color:var(--txd);line-height:1.6;margin-bottom:18px}',
+      '.vault-input{width:100%;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:11px 13px;font-size:14px;outline:none;margin-bottom:10px;font-family:inherit}',
+      '.vault-input:focus{border-color:var(--ac)}textarea.vault-input{resize:vertical;min-height:52px}',
+      '.vault-btn{width:100%;background:var(--s3);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;transition:all .15s}',
+      '.vault-btn:hover{border-color:var(--bdl)}.vault-btn.primary{background:var(--ac);color:#1a0008;border-color:var(--ac)}.vault-btn.primary:hover{filter:brightness(1.08)}',
+      '.vault-btn.primary:disabled{opacity:.5;cursor:not-allowed}.vault-btn.sm{width:auto;padding:10px 16px;margin:0}.vault-btn.danger{background:transparent;color:#e07070;border-color:#e0707044}',
+      '.vault-err{color:#e07070;font-size:12px;min-height:16px;margin-bottom:6px;text-align:left}',
+      '.vault-fine{font-size:10px;color:var(--txm);margin-top:8px;letter-spacing:.3px}',
+      '.vault-meter{height:5px;background:var(--s3);border-radius:3px;overflow:hidden;margin-bottom:10px}.vault-meter-fill{height:100%;width:0;background:#e05252;transition:width .2s,background .2s}',
+      '.vault-recovery-code{font-family:ui-monospace,monospace;font-size:16px;font-weight:700;color:var(--ac);background:var(--s2);border:1px dashed var(--bdl);border-radius:10px;padding:16px;letter-spacing:1px;word-break:break-all;margin-bottom:12px;line-height:1.7}',
+      '.vault-ack{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--txd);margin:12px 0;text-align:left;cursor:pointer}',
+      // modal
+      '.vault-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:99998;padding:16px}',
+      '.vault-modal{background:var(--s1);border:1px solid var(--bd);border-radius:16px;padding:22px;width:440px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 24px 70px rgba(0,0,0,.6)}',
+      '.vault-modal-title{font-size:16px;font-weight:800;color:var(--tx);margin-bottom:16px}',
+      '.vault-field{margin-bottom:12px}.vault-flabel{display:block;font-size:11px;font-weight:700;color:var(--txd);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}',
+      '.vault-field .vault-input{margin-bottom:0}select.vault-input{cursor:pointer}',
+      '.vault-pw-input{display:flex;gap:6px}.vault-pw-input .vault-input{flex:1}',
+      '.vault-modal-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.vault-modal-actions .vault-btn{width:auto;flex:1;margin:0}',
+      '.vault-setting-row{display:block;width:100%;text-align:left;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:10px;padding:13px 15px;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:8px}.vault-setting-row:hover{border-color:var(--ac)}',
+      // generator
+      '.vault-gen-out{font-family:ui-monospace,monospace;font-size:16px;color:var(--ac);background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:16px;word-break:break-all;text-align:center;margin-bottom:14px;min-height:24px}',
+      '.vault-gen-tabs,.vault-gen-len{display:flex;gap:8px;margin-bottom:12px}.vault-gen-len{align-items:center;justify-content:space-between;font-size:12px;color:var(--txd)}',
+      '.vault-gen-tab{flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--txd);border-radius:8px;padding:8px;font-size:12px;font-weight:700;cursor:pointer}.vault-gen-tab.active{background:var(--s3);color:var(--tx);border-color:var(--ac)}',
+      '.vault-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.vault-gen-opt{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--txd);cursor:pointer}',
+      '.vault-range{width:100%;accent-color:var(--ac)}.vault-gen-len .vault-range{flex:1;margin-left:12px}',
+      '.vault-toast.show{opacity:1!important}',
+    ].join('');
+    document.head.appendChild(el('style', { id: 'vault-ui-styles', html: css }));
+  }
+
+  // ── activation: watch for the Keychain/Vault view becoming visible ─────────
+  function isVaultVisible() { var r = $('kc-root'); return r && r.style.display !== 'none' && r.offsetParent !== null; }
+  function tick() { if (isVaultVisible() && !$('vault-tabs')) activate(); }
+  function boot() {
+    if (!window.VaultCrypto || !window.VaultStore || !window.VaultSession) { return setTimeout(boot, 200); }
+    VC = window.VaultCrypto; VaultStore = window.VaultStore; VaultSession = window.VaultSession;
+    // Poll for visibility (the nav toggles #kc-root display); cheap + robust
+    // against the many code paths that can switch programs.
+    setInterval(tick, 500);
+    // Also hook the known switch fn if present.
+    var orig = window._kcSwitchTo;
+    if (typeof orig === 'function') window._kcSwitchTo = function () { var r = orig.apply(this, arguments); setTimeout(activate, 60); return r; };
+    tick();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+  window.Vault = { activate: activate, session: function () { return session; }, genPassword: genPassword, genPassphrase: genPassphrase, strength: strength };
+})();

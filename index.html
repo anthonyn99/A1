@@ -4051,7 +4051,7 @@ function App(){
                     React.createElement("span",{style:{fontSize:13,fontWeight:800,color:T.TX,lineHeight:1}},e._pvTeam2||"TBD")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
-                                React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:18,height:18,minWidth:18,borderRadius:4,border:"2px solid "+(t.done?T.AC:T.BDL),background:t.done?T.AC:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:9,col:T.BG})),
+                                React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:18,height:18,minWidth:18,borderRadius:4,border:"2px solid "+(t.done?T.AC:T.BDL),background:t.done?T.AC:"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:9,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   React.createElement("span",{style:{...ctag(t.category),opacity:t.done?0.6:1}},t.category),
@@ -4119,7 +4119,7 @@ function App(){
                     React.createElement("span",{style:{fontSize:11,fontWeight:800,color:T.TX,lineHeight:1}},e._pvTeam2||"TBD")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
-                                React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?T.AC:T.BDL),background:t.done?T.AC:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:7,col:T.BG})),
+                                React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?T.AC:T.BDL),background:t.done?T.AC:"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:7,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   React.createElement("span",{style:{...ctag(t.category),opacity:t.done?0.6:1}},t.category),
@@ -5854,11 +5854,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_bjUnsubscribe)  { _bjUnsubscribe();  _bjUnsubscribe  = null; }
     if (_mjUnsubscribe)  { _mjUnsubscribe();  _mjUnsubscribe  = null; }
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
-    // Re-arm the stale-overwrite guard: after this teardown the reconnecting
-    // listener (re-attached by init() on next interaction) must re-confirm the
-    // real server state before any journal write is permitted again.
-    _bjServerSeen = false; _bjPendingWrites = [];
-    _tjServerSeen = false; _tjPendingWrites = [];
     if (_sosUnsubscribe) { _sosUnsubscribe(); _sosUnsubscribe = null; }
     if (_mcUnsubscribe)  { _mcUnsubscribe();  _mcUnsubscribe  = null; }
     if (_pvUnsubscribe)  { _pvUnsubscribe();  _pvUnsubscribe  = null; }
@@ -34901,6 +34896,15 @@ window._THV={
   try { window.alert=function(m){ window.uiAlert(m==null?'':String(m)); }; } catch(e){}
 })();
 </script>
+
+<!-- ── Vault Password Manager ── zero-knowledge (E2E) credential vault.
+     Self-contained modules; vault-ui.js injects the Passwords / Sensitive Info /
+     Links tabs into the Keychain (#kc-root) view and reuses the initialised
+     Firebase app + window.Bio biometrics. Order matters: core → store → session → ui. -->
+<script src="vault-crypto.js"></script>
+<script src="vault-store.js"></script>
+<script src="vault-session.js"></script>
+<script src="vault-ui.js"></script>
 
 </body>
 </html>
