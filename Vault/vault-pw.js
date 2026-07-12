@@ -35,6 +35,15 @@
     i.addEventListener("error", () => { i.style.visibility = "hidden"; });
     return i;
   }
+  // Tell every tab's content script the lock state changed, so open Autofill
+  // dropdowns update instantly (no page reload).
+  function broadcastLockState(unlocked) {
+    try {
+      chrome.tabs.query({}, (tabs) => {
+        (tabs || []).forEach((t) => { if (t && t.id != null) { try { chrome.tabs.sendMessage(t.id, { action: "vaultLockChanged", unlocked: unlocked }, () => void chrome.runtime.lastError); } catch (e) {} } });
+      });
+    } catch (e) {}
+  }
   async function getActiveHost() {
     return new Promise((res) => {
       try { chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => { const u = tabs && tabs[0] && tabs[0].url; res(u ? VP.hostFromUrl(u) : ""); }); }
@@ -95,7 +104,7 @@
     const btn = el("button", { class: "pw-btn primary" }, ["Unlock"]);
     async function go() {
       err.textContent = ""; btn.disabled = true; btn.textContent = "Unlocking…";
-      try { await VP.unlock(pwIn.value); renderList(); }
+      try { await VP.unlock(pwIn.value); broadcastLockState(true); renderList(); }
       catch (e) { err.textContent = e.message === "bad-password" ? "Incorrect master password." : ("Error: " + e.message); btn.disabled = false; btn.textContent = "Unlock"; }
     }
     btn.addEventListener("click", go);
@@ -120,7 +129,7 @@
 
     const search = el("input", { class: "pw-search", placeholder: "Search logins…" });
     const listWrap = el("div", { class: "pw-list" });
-    const lockBtn = el("button", { class: "pw-icon", title: "Lock now", html: "🔒", onclick: async () => { await VP.lock(); renderUnlock(); } });
+    const lockBtn = el("button", { class: "pw-icon", title: "Lock now", html: "🔒", onclick: async () => { await VP.lock(); broadcastLockState(false); renderUnlock(); } });
     panel.appendChild(el("div", { class: "pw-toolbar" }, [search, lockBtn]));
     panel.appendChild(listWrap);
 

@@ -210,6 +210,56 @@
     };
   }
 
+  // ── TOTP (RFC 6238) — live 2FA codes from a stored secret ──────────────────
+  function base32Decode(s) {
+    s = String(s || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
+    if (!s) return new Uint8Array(0);
+    var A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567', bits = 0, val = 0, out = [];
+    for (var i = 0; i < s.length; i++) {
+      var idx = A.indexOf(s[i]); if (idx < 0) continue;
+      val = (val << 5) | idx; bits += 5;
+      if (bits >= 8) { out.push((val >>> (bits - 8)) & 0xff); bits -= 8; }
+    }
+    return new Uint8Array(out);
+  }
+  // Accept a raw base32 secret OR an otpauth:// URI.
+  function totpSecretOf(field) {
+    if (!field) return '';
+    var m = /[?&]secret=([^&]+)/i.exec(field);
+    return m ? decodeURIComponent(m[1]) : field;
+  }
+  async function totpNow(secretField, opts) {
+    opts = opts || {};
+    var key = base32Decode(totpSecretOf(secretField));
+    if (!key.length) return null;
+    var period = opts.period || 30, digits = opts.digits || 6;
+    var epoch = typeof opts.now === 'number' ? opts.now : Math.floor(Date.now() / 1000);
+    var counter = Math.floor(epoch / period);
+    var cbuf = new Uint8Array(8), c = counter;
+    for (var i = 7; i >= 0; i--) { cbuf[i] = c & 0xff; c = Math.floor(c / 256); }
+    var ck = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+    var h = new Uint8Array(await crypto.subtle.sign('HMAC', ck, cbuf));
+    var off = h[h.length - 1] & 0xf;
+    var bin = ((h[off] & 0x7f) << 24) | (h[off + 1] << 16) | (h[off + 2] << 8) | h[off + 3];
+    var code = String(bin % Math.pow(10, digits)).padStart(digits, '0');
+    return { code: code, remaining: period - (epoch % period), period: period };
+  }
+  // Live ticker: refresh every visible TOTP element once a second.
+  var _totpTicker = false;
+  async function refreshTotps() {
+    var els = document.querySelectorAll('.vault-totp');
+    for (var i = 0; i < els.length; i++) {
+      var w = els[i], secret = w.__totpSecret; if (!secret) continue;
+      var t = await totpNow(secret);
+      var codeEl = w.querySelector('.vault-totp-code'), barEl = w.querySelector('.vault-totp-bar > div');
+      if (!t) { if (codeEl) codeEl.textContent = 'invalid secret'; continue; }
+      if (codeEl) codeEl.textContent = t.code.replace(/(\d{3})(\d+)/, '$1 $2');
+      if (barEl) { barEl.style.width = (t.remaining / t.period * 100) + '%'; barEl.style.background = t.remaining <= 5 ? '#e05252' : 'var(--ac)'; }
+      w.__totpCode = t.code;
+    }
+  }
+  function ensureTotpTicker() { if (_totpTicker) return; _totpTicker = true; setInterval(refreshTotps, 1000); }
+
   // ── controller ─────────────────────────────────────────────────────────────
   var session = null, store = null, backend = null, activeTab = 'links', currentQuery = '';
 
@@ -467,6 +517,7 @@
     var groupList = Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return (a.sample.title || a.key).localeCompare(b.sample.title || b.key); });
     if (!groupList.length) { list.appendChild(emptyState(currentQuery ? 'No matches.' : 'No logins yet. Add your first one, or import from Chrome/Bitwarden later.')); return; }
     groupList.forEach(function (g) { list.appendChild(siteRow(g)); });
+    if (list.querySelector('.vault-totp')) { ensureTotpTicker(); refreshTotps(); }
   }
   function fillSensitiveList(list) {
     list.innerHTML = '';
@@ -527,6 +578,17 @@
       ]),
     ]);
   }
+  // A self-updating TOTP line (the ticker refreshes .vault-totp elements).
+  function totpLineEl(secret) {
+    var codeEl = el('span', { class: 'vault-totp-code' }, ['······']);
+    var bar = el('div', { class: 'vault-totp-bar' }, [el('div', {})]);
+    var wrap = el('div', { class: 'vault-acc-line vault-totp' }, [
+      el('div', { class: 'vault-acc-field' }, [el('span', { class: 'vault-acc-flabel' }, ['One-time code (2FA)']), el('div', { class: 'vault-totp-main' }, [codeEl, bar])]),
+      iconBtn('Copy code', copyIcon(), function () { copyText(wrap.__totpCode || '', 'Code copied'); }),
+    ]);
+    wrap.__totpSecret = secret;
+    return wrap;
+  }
   function accountRow(it, indented) {
     var shown = false, revBtn;
     var pwText = el('span', { class: 'vault-pw-dots' }, ['••••••••••']);
@@ -540,6 +602,16 @@
     main.appendChild(el('div', { class: 'vault-acc-line' }, [
       el('div', { class: 'vault-acc-field' }, [el('span', { class: 'vault-acc-flabel' }, ['Password']), el('span', { class: 'vault-acc-pw' }, [pwText])]),
     ]));
+    // Live TOTP code (if a 2FA secret is stored).
+    if (it.totp) main.appendChild(totpLineEl(it.totp));
+    // Custom fields (each independently copyable).
+    (Array.isArray(it.customFields) ? it.customFields : []).forEach(function (cf) {
+      if (!cf || (!cf.label && !cf.value)) return;
+      main.appendChild(el('div', { class: 'vault-acc-line' }, [
+        el('div', { class: 'vault-acc-field' }, [el('span', { class: 'vault-acc-flabel' }, [cf.label || 'Field']), el('span', { class: 'vault-acc-val' }, [cf.value || ''])]),
+        iconBtn('Copy ' + (cf.label || 'value'), copyIcon(), function () { copyText(cf.value || '', (cf.label || 'Value') + ' copied'); }),
+      ]));
+    });
 
     // ONE horizontal row of actions: copy username, copy email, copy password,
     // reveal, open, edit.
@@ -567,8 +639,15 @@
   }
   function sensitiveRow(it) {
     var copyBtn = iconBtn('Copy details', copyIcon(), function (e) { e.stopPropagation(); copyText(it.notes || '', 'Details copied'); });
+    var cfKids = (Array.isArray(it.customFields) ? it.customFields : []).filter(function (cf) { return cf && (cf.label || cf.value); }).map(function (cf) {
+      return el('div', { class: 'vault-acc-line' }, [
+        el('div', { class: 'vault-acc-field' }, [el('span', { class: 'vault-acc-flabel' }, [cf.label || 'Field']), el('span', { class: 'vault-acc-val' }, [cf.value || ''])]),
+        iconBtn('Copy ' + (cf.label || 'value'), copyIcon(), function () { copyText(cf.value || '', (cf.label || 'Value') + ' copied'); }),
+      ]);
+    });
     var body = el('div', { class: 'vault-note-body' }, [
       el('div', { class: 'vault-note-text' }, [it.notes || '(empty)']),
+      cfKids.length ? el('div', { class: 'vault-note-cf' }, cfKids) : null,
       el('div', { class: 'vault-note-actions' }, [copyBtn]),
     ]);
     body.style.display = 'none';
@@ -614,7 +693,7 @@
       gen.addEventListener('click', function () { openGenerator(function (v) { pwInput.value = v; pwInput.type = 'text'; showp = true; rev.innerHTML = eyeOff(); }); });
       body.appendChild(el('div', { class: 'vault-field' }, [el('label', { class: 'vault-flabel' }, ['Password']), el('div', { class: 'vault-pw-input' }, [pwInput, rev, gen])]));
       body.appendChild(catField(f, item));
-      body.appendChild(field('TOTP secret (optional)', 'totp', { ph: 'For authenticator codes — future-ready' }));
+      body.appendChild(field('Authenticator (2FA) secret', 'totp', { ph: 'base32 secret or otpauth:// — shows a live code' }));
       body.appendChild(field('Tags (comma-separated)', 'tags', { ph: 'work, personal' }));
       body.appendChild(field('Notes', 'notes', { textarea: true }));
     } else {
@@ -622,12 +701,46 @@
       body.appendChild(catField(f, item));
       body.appendChild(field('Details', 'notes', { textarea: true, ph: 'The secret info you want to keep safe…' }));
     }
+
+    // ── custom fields (both kinds) ──
+    var customFields = (Array.isArray(item.customFields) ? item.customFields : []).map(function (c) { return { label: c.label || '', value: c.value || '' }; });
+    var cfWrap = el('div', {});
+    function renderCF() {
+      cfWrap.innerHTML = '';
+      customFields.forEach(function (cf, i) {
+        var lbl = el('input', { class: 'vault-input', placeholder: 'Label', value: cf.label, style: 'margin:0' });
+        var val = el('input', { class: 'vault-input', placeholder: 'Value', value: cf.value, style: 'margin:0' });
+        lbl.addEventListener('input', function () { customFields[i].label = lbl.value; });
+        val.addEventListener('input', function () { customFields[i].value = val.value; });
+        var rm = el('button', { class: 'vault-icon', type: 'button', title: 'Remove', html: '&times;', onclick: function () { customFields.splice(i, 1); renderCF(); } });
+        cfWrap.appendChild(el('div', { class: 'vault-cf-row' }, [lbl, val, rm]));
+      });
+    }
+    renderCF();
+    var addCf = el('button', { class: 'vault-btn', type: 'button', style: 'width:auto;margin:2px 0 0;padding:8px 12px', onclick: function () { customFields.push({ label: '', value: '' }); renderCF(); } }, ['+ Add custom field']);
+    body.appendChild(el('div', { class: 'vault-field' }, [el('label', { class: 'vault-flabel' }, ['Custom fields']), cfWrap, addCf]));
+
+    // ── password history (login; view-only) ──
+    if (isLogin && Array.isArray(item.passwordHistory) && item.passwordHistory.length) {
+      var histWrap = el('div', { class: 'vault-hist', style: 'display:none' });
+      item.passwordHistory.forEach(function (h) {
+        histWrap.appendChild(el('div', { class: 'vault-hist-row' }, [
+          el('span', { class: 'vault-hist-pw' }, [h.password]),
+          el('span', { class: 'vault-hist-date' }, [h.at ? new Date(h.at).toLocaleDateString() : '']),
+          iconBtn('Copy old password', copyIcon(), function () { copyText(h.password, 'Old password copied'); }),
+        ]));
+      });
+      var histToggle = el('button', { class: 'vault-link-btn', type: 'button', style: 'padding:4px 0', onclick: function () { histWrap.style.display = histWrap.style.display === 'none' ? '' : 'none'; } }, ['Previous passwords (' + item.passwordHistory.length + ')']);
+      body.appendChild(el('div', { class: 'vault-field' }, [histToggle, histWrap]));
+    }
+
     var err = el('div', { class: 'vault-err' });
     var save = el('button', { class: 'vault-btn primary' }, [item.id ? 'Save' : 'Add']);
     save.addEventListener('click', async function () {
       var out = { id: item.id, kind: kind, createdAt: item.createdAt };
       Object.keys(f).forEach(function (k) { out[k] = f[k].value; });
       if (out.tags != null) out.tags = String(out.tags).split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      out.customFields = customFields.filter(function (c) { return (c.label || '').trim() || (c.value || '').trim(); });
       if (isLogin ? (!out.title && !out.url) : !out.title) { err.textContent = 'Give it a name.'; return; }
       save.disabled = true; save.textContent = 'Saving…';
       try { await store.save(out); close(); (isLogin ? renderPasswords : renderSensitive)(); toast('Saved'); }
@@ -1093,6 +1206,16 @@
       '.vault-health-items{margin:0 0 8px}',
       '.vault-health-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer}.vault-health-item:hover{background:var(--s2)}',
       '.vault-mini-edit{color:var(--txd);display:flex}',
+      // totp / custom fields / history
+      '.vault-totp-main{display:flex;align-items:center;gap:8px}',
+      '.vault-totp-code{font-family:ui-monospace,monospace;font-size:15px;font-weight:700;letter-spacing:1px;color:var(--ac)}',
+      '.vault-totp-bar{width:34px;height:4px;background:var(--s3);border-radius:2px;overflow:hidden;flex-shrink:0}.vault-totp-bar>div{height:100%;width:100%;background:var(--ac);transition:width 1s linear}',
+      '.vault-cf-row{display:flex;gap:6px;margin-bottom:6px}.vault-cf-row .vault-input{flex:1;min-width:0}',
+      '.vault-hist-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--bd)}',
+      '.vault-hist-pw{flex:1;font-family:ui-monospace,monospace;font-size:12px;color:var(--txd);word-break:break-all}',
+      '.vault-hist-date{font-size:10px;color:var(--txm);flex-shrink:0}',
+      '.vault-note-cf{margin-top:10px;display:flex;flex-direction:column;gap:6px}',
+      '.vault-note-cf .vault-acc-flabel{color:var(--txm)}',
       // generator
       '.vault-gen-out{font-family:ui-monospace,monospace;font-size:16px;color:var(--ac);background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:16px;word-break:break-all;text-align:center;margin-bottom:14px;min-height:24px}',
       '.vault-gen-tabs,.vault-gen-len{display:flex;gap:8px;margin-bottom:12px}.vault-gen-len{align-items:center;justify-content:space-between;font-size:12px;color:var(--txd)}',
@@ -1142,5 +1265,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.Vault = { activate: activate, session: function () { return session; }, genPassword: genPassword, genPassphrase: genPassphrase, strength: strength, analyzeHealth: analyzeHealth, parseCSV: parseCSV, toCSV: toCSV, importFromCSV: importFromCSV, _setStore: function (s) { store = s; } };
+  window.Vault = { activate: activate, session: function () { return session; }, genPassword: genPassword, genPassphrase: genPassphrase, strength: strength, analyzeHealth: analyzeHealth, totpNow: totpNow, parseCSV: parseCSV, toCSV: toCSV, importFromCSV: importFromCSV, _setStore: function (s) { store = s; } };
 })();

@@ -150,7 +150,17 @@
       const kind = item.kind || 'login';
       const body = { ...item };
       delete body.id; delete body.kind; delete body.updatedAt; delete body.deleted;
-      if (!body.createdAt) body.createdAt = (this._items.get(id) || {}).createdAt || Date.now();
+      const prev = this._items.get(id);
+      if (!body.createdAt) body.createdAt = (prev || {}).createdAt || Date.now();
+      // Password history: when the password changes on an existing item, keep the
+      // old one (capped at 10). Carry the existing history forward otherwise.
+      if (prev && prev.password && body.password && prev.password !== body.password) {
+        const hist = Array.isArray(prev.passwordHistory) ? prev.passwordHistory.slice() : [];
+        hist.unshift({ password: prev.password, at: prev.modifiedAt || prev.createdAt || Date.now() });
+        body.passwordHistory = hist.slice(0, 10);
+      } else if (prev && Array.isArray(prev.passwordHistory) && !body.passwordHistory) {
+        body.passwordHistory = prev.passwordHistory;
+      }
       const ts = this._now();
       body.modifiedAt = ts;
       const doc = { id, kind, enc: await VC.encrypt(this.dek, body), updatedAt: ts, deleted: false };

@@ -62,6 +62,18 @@ function ok(name, cond) { if (cond) { pass++; console.log('  ✓', name); } else
   ok('modifiedAt advanced', edited.modifiedAt > createdAt);
   ok('password updated', edited.password === 'newpass');
 
+  console.log('\n── password history ──');
+  const ph1 = await store.save({ kind: 'login', title: 'Hist', username: 'u', password: 'first' });
+  await new Promise((r) => setTimeout(r, 3));
+  const ph2 = await store.save({ ...store.get(ph1.id), password: 'second' });
+  ok('history records the old password', Array.isArray(ph2.passwordHistory) && ph2.passwordHistory[0].password === 'first');
+  await new Promise((r) => setTimeout(r, 3));
+  const ph3 = await store.save({ ...store.get(ph1.id), password: 'third' });
+  ok('history grows newest-first', ph3.passwordHistory[0].password === 'second' && ph3.passwordHistory[1].password === 'first');
+  const ph4 = await store.save({ ...store.get(ph1.id), username: 'changed' });
+  ok('non-password edit keeps history unchanged', ph4.passwordHistory.length === 2);
+  await store.remove(ph1.id); // clean up so later live-item counts stay stable
+
   console.log('\n── delete tombstones + propagate ──');
   await store.remove(g1.id);
   ok('item gone from list', !store.get(g1.id));

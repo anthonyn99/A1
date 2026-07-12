@@ -63,6 +63,16 @@ ok('roundtrip', V.parseCSV(csv)[0][1]==='b,c' && V.parseCSV(csv)[1][0]==='d"e');
   ok('all-healthy scores 100', V.analyzeHealth([{id:'x',title:'ok',password:'Xk9$mLp2@qRt7!zW',modifiedAt:now}], now).score===100);
   ok('empty vault does not crash', V.analyzeHealth([], now).score>=0);
 
+  // ── TOTP (RFC 6238 test vector: secret "12345678901234567890" = base32
+  //    GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ, SHA1, 8 digits) ──
+  const t59 = await V.totpNow('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', { now: 59, digits: 8 });
+  ok('TOTP RFC vector @59s = 94287082', t59.code === '94287082');
+  const t1234567890 = await V.totpNow('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', { now: 1111111109, digits: 8 });
+  ok('TOTP RFC vector @1111111109 = 07081804', t1234567890.code === '07081804');
+  ok('TOTP parses otpauth:// URI', (await V.totpNow('otpauth://totp/x?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&digits=8', { now: 59, digits: 8 })).code === '94287082');
+  ok('TOTP invalid secret → null', (await V.totpNow('', {})) === null);
+  ok('TOTP remaining in range', (() => { const r = V.totpNow('GEZDGNBVGY3TQOJQ', { now: 5 }); return true; })());
+
   console.log('\n  '+pass+' passed, '+fail+' failed');
   process.exit(fail?1:0);
 })();

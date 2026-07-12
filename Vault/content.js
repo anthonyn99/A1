@@ -13,25 +13,31 @@
   if (window.__vaultAutofillLoaded) return; window.__vaultAutofillLoaded = true;
 
   const host = location.hostname.replace(/^www\./, "");
-  let credsCache = null;   // null=unknown, {unlocked, creds}
   let box = null, shadow = null, anchor = null, hideTimer = null;
 
-  // ── credential fetch (cached per page load) ────────────────────────────────
+  // Ask the background for live matches on EVERY focus (no persistent cache), so
+  // a just-unlocked vault works without reloading and a lock takes effect on the
+  // next focus. `chrome.storage.session.onChanged` does NOT fire in content
+  // scripts (untrusted context), which is why we don't rely on it.
   function getCreds() {
-    if (credsCache) return Promise.resolve(credsCache);
     return new Promise((res) => {
       try {
         chrome.runtime.sendMessage({ action: "vaultGetCreds", host }, (resp) => {
-          if (chrome.runtime.lastError || !resp) { credsCache = { unlocked: false, creds: [] }; return res(credsCache); }
-          credsCache = { unlocked: !!resp.unlocked, creds: resp.creds || [] };
-          res(credsCache);
+          if (chrome.runtime.lastError || !resp) return res({ unlocked: false, creds: [] });
+          res({ unlocked: !!resp.unlocked, creds: resp.creds || [] });
         });
-      } catch (e) { credsCache = { unlocked: false, creds: [] }; res(credsCache); }
+      } catch (e) { res({ unlocked: false, creds: [] }); }
     });
   }
-  // Invalidate the cache when the popup unlocks/locks so the dropdown updates.
+  // The popup broadcasts here when you unlock/lock so an OPEN dropdown updates
+  // instantly (hide on lock; re-render on unlock if a field is focused).
   try {
-    chrome.storage.onChanged.addListener((changes, area) => { if (area === "session" && changes.vpwSession) credsCache = null; });
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (!msg || msg.action !== "vaultLockChanged") return;
+      if (!msg.unlocked) { hide(); return; }
+      const active = document.activeElement;
+      if (active && isLoginField(active)) show(active);
+    });
   } catch (e) {}
 
   // ── field detection ────────────────────────────────────────────────────────
