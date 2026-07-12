@@ -13,6 +13,10 @@ const toastEl   = document.getElementById("toast");
 // navigate-existing). Opens in the desktop app if the browser routes it there,
 // otherwise a browser tab.
 const TASKHUB_KEYCHAIN_URL = "https://anthonyn99.github.io/A1/?goto=keychain";
+// Deep-link straight to Vault → Passwords in the TaskHub PWA (where credentials
+// are created/edited). The ?goto=keychain query opens the Vault program and
+// vaulttab=passwords selects the Passwords tab (handled by vault-ui.js).
+const TASKHUB_VAULT_PW_URL = "https://anthonyn99.github.io/A1/?goto=keychain&vaulttab=passwords";
 
 // ── Persisted, user-adjustable popup size ──
 // #app has CSS `resize:both`; drag its bottom-right corner to resize. We restore
@@ -219,7 +223,7 @@ function setActiveTab(name) {
     t.classList.toggle("active", t.dataset.panel === name));
   document.getElementById("panel-links").classList.toggle("hidden", name !== "links");
   document.getElementById("panel-passwords").classList.toggle("hidden", name !== "passwords");
-  gearEl.title = name === "passwords" ? "Vault settings" : "Open Keychain in TaskHub";
+  gearEl.title = name === "passwords" ? "Manage passwords in TaskHub → Vault" : "Open Keychain in TaskHub";
   // Render the Passwords panel (unlock / list / autofill) on first open.
   if (name === "passwords" && window.VaultPWPanel) window.VaultPWPanel.render();
 }
@@ -228,12 +232,10 @@ document.querySelectorAll(".tab").forEach(tab =>
   tab.addEventListener("click", () => setActiveTab(tab.dataset.panel)));
 
 gearEl.addEventListener("click", () => {
-  if (activeTab === "passwords") {
-    chrome.runtime.openOptionsPage();
-  } else {
-    chrome.tabs.create({ url: TASKHUB_KEYCHAIN_URL });
-    window.close();
-  }
+  // Passwords tab → open TaskHub → Vault → Passwords (where you manage them).
+  // Links tab → open TaskHub → Keychain. (No more unused options page.)
+  chrome.tabs.create({ url: activeTab === "passwords" ? TASKHUB_VAULT_PW_URL : TASKHUB_KEYCHAIN_URL });
+  window.close();
 });
 
 // ── Load from the shared Keychain doc ──

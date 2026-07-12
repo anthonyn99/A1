@@ -6318,7 +6318,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
    hand it to the user with Load-Unpacked steps. */
 (function(){
   const VAULT_FILES=['manifest.json','background.js','popup.html','popup.js',
-    'options.html','vault-sync.js','README.md',
+    'vault-sync.js','vault-crypto.js','vault-pw-core.js','vault-pw.js','content.js','README.md',
     'icons/icon16.png','icons/icon48.png','icons/icon128.png'];
 
   const _crcTable=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();

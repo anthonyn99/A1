@@ -67,10 +67,13 @@ Files:
 | File | Role |
 |------|------|
 | `manifest.json` | MV3 manifest (name, icons, permissions) |
-| `popup.html` / `popup.js` | View + launch (single link / whole group); Links & Passwords tabs |
-| `options.html` | Vault settings page — Passwords placeholder (no link management) |
-| `vault-sync.js` | Reads the shared doc via the `keychain-sync` Worker (load / linksOf) |
-| `background.js` | Service worker — opens the tabs |
+| `popup.html` / `popup.js` | View + launch links; Links & Passwords tabs. The Passwords ⚙ opens TaskHub → Vault → Passwords (where credentials are managed) |
+| `vault-sync.js` | Reads the shared Keychain doc via the `keychain-sync` Worker (load / linksOf) |
+| `vault-crypto.js` | Zero-knowledge crypto core (PBKDF2 + AES-GCM); decrypts locally after unlock |
+| `vault-pw-core.js` | Password data layer: fetch (via `vault-pw-sync` Worker), unlock, decrypt, domain match, 30-min idle session |
+| `vault-pw.js` | Passwords popup UI (unlock, list, copy/reveal, autofill) |
+| `content.js` | Inline "Vault Autofill" dropdown on login pages |
+| `background.js` | Service worker — opens tabs; decrypts matches for the content script |
 | `icons/` | 16/48/128 px all-pink keyhole icons |
 
 ---

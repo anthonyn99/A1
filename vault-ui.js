@@ -1272,6 +1272,9 @@
   function boot() {
     if (!window.VaultCrypto || !window.VaultStore || !window.VaultSession) { return setTimeout(boot, 200); }
     VC = window.VaultCrypto; VaultStore = window.VaultStore; VaultSession = window.VaultSession;
+    // Deep link: ?vaulttab=passwords|sensitive (e.g. from the Vault extension's
+    // gear) opens Vault directly on that tab.
+    try { var vt = new URLSearchParams(location.search).get('vaulttab'); if (vt === 'passwords' || vt === 'sensitive') activeTab = vt; } catch (e) {}
     // Poll for visibility (the nav toggles #kc-root display); cheap + robust
     // against the many code paths that can switch programs.
     setInterval(tick, 500);
