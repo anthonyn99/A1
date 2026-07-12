@@ -12,6 +12,11 @@
 (function () {
   if (window.__vaultAutofillLoaded) return; window.__vaultAutofillLoaded = true;
 
+  // NEVER offer autofill on the Vault app itself — filling the vault's own
+  // master-password field would be a security hole.
+  const VAULT_APP_HOSTS = ["anthonyn99.github.io"];
+  if (VAULT_APP_HOSTS.some((h) => location.hostname === h || location.hostname.endsWith("." + h))) return;
+
   const host = location.hostname.replace(/^www\./, "");
   let box = null, shadow = null, anchor = null, hideTimer = null;
 

@@ -24,10 +24,14 @@
       width:344px; height:520px;
       min-width:300px; min-height:240px;
       max-width:780px; max-height:590px;
-      overflow-y:auto; overflow-x:hidden;
+      display:flex; flex-direction:column; overflow:hidden;
     }
-    #app::-webkit-scrollbar { width:6px; }
-    #app::-webkit-scrollbar-thumb { background:var(--bd); border-radius:3px; }
+    /* header + tabs stay fixed; only #scroll scrolls */
+    #scroll { flex:1; overflow-y:auto; overflow-x:hidden; }
+    #scroll::-webkit-scrollbar { width:11px; }
+    #scroll::-webkit-scrollbar-track { background:var(--s1); }
+    #scroll::-webkit-scrollbar-thumb { background:#3a3a48; border-radius:6px; border:2px solid var(--bg); min-height:36px; }
+    #scroll::-webkit-scrollbar-thumb:hover { background:var(--ac); }
     /* Big, obvious drag-to-resize grip in the bottom-right corner. */
     #resize-grip {
       position:fixed; right:0; bottom:0; width:22px; height:22px;
@@ -150,7 +154,7 @@
     .pw-btn { width:100%; background:var(--s3); border:1px solid var(--bd); color:var(--tx); border-radius:9px; padding:10px; font-size:13px; font-weight:700; cursor:pointer; }
     .pw-btn.primary { background:var(--ac); color:#1a0008; border-color:var(--ac); }
     .pw-btn.primary:disabled { opacity:.5; cursor:not-allowed; }
-    .pw-toolbar { display:flex; gap:6px; margin-bottom:10px; }
+    .pw-toolbar { display:flex; gap:6px; margin-bottom:10px; position:sticky; top:0; z-index:3; background:var(--bg); padding:8px 0; }
     .pw-icon { flex-shrink:0; background:var(--s3); border:1px solid var(--bd); color:var(--txd); width:30px; height:30px; border-radius:7px; cursor:pointer; font-size:13px; line-height:1; }
     .pw-icon:hover { color:var(--tx); border-color:var(--ac); }
     .pw-list { display:flex; flex-direction:column; gap:6px; }
@@ -184,13 +188,15 @@
     <button class="tab" id="tab-pw" data-panel="passwords">Passwords</button>
   </div>
 
-  <div class="panel" id="panel-links">
-    <div class="loading" id="loading">Loading from Keychain…</div>
-    <div id="groups"></div>
-  </div>
+  <div id="scroll">
+    <div class="panel" id="panel-links">
+      <div class="loading" id="loading">Loading from Keychain…</div>
+      <div id="groups"></div>
+    </div>
 
-  <div class="panel hidden" id="panel-passwords">
-    <div class="loading">Loading…</div>
+    <div class="panel hidden" id="panel-passwords">
+      <div class="loading">Loading…</div>
+    </div>
   </div>
 
   <div id="toast" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--s3);border:1px solid var(--bdl);color:var(--tx);font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;opacity:0;transition:all .2s;pointer-events:none;z-index:10;">Copied!</div>

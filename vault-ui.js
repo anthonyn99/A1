@@ -279,6 +279,9 @@
   async function activate() {
     injectShell();
     relabelNav();
+    // Guarantee #kc-root is the scroll container (so the sticky tabs/toolbar pin
+    // and the wide scrollbar shows), regardless of any base/app styles.
+    var r = $('kc-root'); if (r) { r.style.height = '100dvh'; r.style.overflowY = 'auto'; r.style.overflowX = 'clip'; }
     ensureSession();
     // Default to the (non-secret) Keychain tab — no unlock needed to open Vault.
     // Passwords / Sensitive still require unlock when their tab is selected.
@@ -638,18 +641,20 @@
     panel.appendChild(list);
   }
   function sensitiveRow(it) {
-    var copyBtn = iconBtn('Copy details', copyIcon(), function (e) { e.stopPropagation(); copyText(it.notes || '', 'Details copied'); });
+    var hasNotes = !!(it.notes && String(it.notes).trim());
     var cfKids = (Array.isArray(it.customFields) ? it.customFields : []).filter(function (cf) { return cf && (cf.label || cf.value); }).map(function (cf) {
       return el('div', { class: 'vault-acc-line' }, [
         el('div', { class: 'vault-acc-field' }, [el('span', { class: 'vault-acc-flabel' }, [cf.label || 'Field']), el('span', { class: 'vault-acc-val' }, [cf.value || ''])]),
         iconBtn('Copy ' + (cf.label || 'value'), copyIcon(), function () { copyText(cf.value || '', (cf.label || 'Value') + ' copied'); }),
       ]);
     });
-    var body = el('div', { class: 'vault-note-body' }, [
-      el('div', { class: 'vault-note-text' }, [it.notes || '(empty)']),
-      cfKids.length ? el('div', { class: 'vault-note-cf' }, cfKids) : null,
-      el('div', { class: 'vault-note-actions' }, [copyBtn]),
-    ]);
+    // Only show the details box + its copy button when there's actually a note.
+    var bodyKids = [];
+    if (hasNotes) bodyKids.push(el('div', { class: 'vault-note-text' }, [it.notes]));
+    if (cfKids.length) bodyKids.push(el('div', { class: 'vault-note-cf' }, cfKids));
+    if (hasNotes) bodyKids.push(el('div', { class: 'vault-note-actions' }, [iconBtn('Copy details', copyIcon(), function (e) { e.stopPropagation(); copyText(it.notes, 'Details copied'); })]));
+    if (!bodyKids.length) bodyKids.push(el('div', { class: 'vault-note-text', style: 'color:var(--txm)' }, ['No details yet — tap edit to add.']));
+    var body = el('div', { class: 'vault-note-body' }, bodyKids);
     body.style.display = 'none';
     var head = el('div', { class: 'vault-row', style: 'cursor:pointer' }, [
       el('div', { class: 'vault-note-icon', html: cabinetIcon() }),
@@ -1118,15 +1123,15 @@
   function injectStyles() {
     if ($('vault-ui-styles')) return;
     var css = [
-      // The page body is the scroller (so the wheel works anywhere). We do NOT
-      // make #kc-root a scroll container — its overflow-x:clip does not capture
-      // sticky, so the tabs/toolbar below pin to the viewport as the body scrolls.
-      // Wide, grabbable page scrollbar (scoped to when Vault is active via body class).
-      'body.vault-active::-webkit-scrollbar{width:15px}',
-      'body.vault-active::-webkit-scrollbar-track{background:var(--s1,#141418)}',
-      'body.vault-active::-webkit-scrollbar-thumb{background:#3a3a48;border-radius:8px;border:3px solid #0f0f12;min-height:48px}',
-      'body.vault-active::-webkit-scrollbar-thumb:hover,body.vault-active::-webkit-scrollbar-thumb:active{background:#E0607A}',
-      // Tabs pinned to the top of the viewport while the list scrolls beneath.
+      // #kc-root is the vault view's scroll container (a viewport-tall box). The
+      // tabs + toolbar are position:sticky INSIDE it, so they pin while the list
+      // scrolls beneath — and it carries a wide, grabbable scrollbar. (Also set
+      // inline in activate() so nothing can override it.)
+      '#kc-root{height:100dvh;overflow-y:auto;overflow-x:clip;scrollbar-width:auto;scrollbar-color:#4a4a58 var(--s1)}',
+      '#kc-root::-webkit-scrollbar{width:15px}',
+      '#kc-root::-webkit-scrollbar-track{background:var(--s1)}',
+      '#kc-root::-webkit-scrollbar-thumb{background:#4a4a58;border-radius:8px;border:3px solid var(--bg);min-height:50px}',
+      '#kc-root::-webkit-scrollbar-thumb:hover,#kc-root::-webkit-scrollbar-thumb:active{background:var(--ac)}',
       '.vault-tabs{display:flex;gap:8px;padding:12px clamp(10px,3vw,24px) 10px;max-width:1100px;margin:0 auto;width:100%;position:sticky;top:0;z-index:6;background:var(--bg)}',
       '.vault-tab{flex:0 0 auto;background:var(--s1);border:1px solid var(--bd);color:var(--txd);font-size:13px;font-weight:600;padding:9px 16px;border-radius:10px;cursor:pointer;transition:all .15s}',
       '.vault-tab:hover{color:var(--tx)}.vault-tab.active{background:var(--s3);color:var(--tx);border-color:var(--bdl)}',
