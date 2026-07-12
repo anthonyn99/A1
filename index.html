@@ -4296,14 +4296,23 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // slow/unreachable. The live onSnapshot listener still delivers any update
   // that lands after this resolves. Same shape as tradehub.html's loaders.
   async function _freshGet(ref) {
-    try {
-      return await Promise.race([
-        getDocFromServer(ref),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('fresh-timeout')), 3000))
-      ]);
-    } catch(e) {
-      try { return await getDoc(ref); } catch(_) { return null; }
+    // Try the SERVER a few times before ever falling back to the local cache.
+    // A single slow round-trip used to time out at 3s and return the (possibly
+    // stale) cached copy, which is how a hard refresh could surface an OLD version
+    // of a journal. Retrying with a longer budget makes a genuinely-fresh load the
+    // overwhelmingly likely outcome; the cache is a true last resort for offline.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await Promise.race([
+          getDocFromServer(ref),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('fresh-timeout')), 5000))
+        ]);
+      } catch(e) {
+        if (attempt < 2) { await new Promise(r => setTimeout(r, 300 * (attempt + 1))); continue; }
+        try { return await getDoc(ref); } catch(_) { return null; }
+      }
     }
+    return null;
   }
   const storage = getStorage(app);
   const DOC_PATH    = "dashboards/main";
@@ -4364,6 +4373,47 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _tjLastWrittenSavedAt = 0;   // same pattern for TonyJournal
   let _sosLastOwnSaveAt  = 0;
   let _mcLastOwnSaveAt   = 0;
+
+  // ── Stale-overwrite guard for the two journals (MyJournal=tj, Brainstorm=bj) ──
+  // ROOT CAUSE this fixes: on a hard refresh where the server read times out, the
+  // loader used to fall back to the stale IndexedDB cache, show an OLD version, and
+  // then let the debounced autosave write that OLD version back over the newer
+  // server copy — permanently destroying progress.
+  //
+  // GUARANTEE: a session may NOT write to Firestore until it has confirmed the real
+  // server state at least once (a live snapshot with metadata.fromCache === false,
+  // OR a loader read that came straight from the server). Until then every save is
+  // QUEUED (never dropped) and flushed only AFTER the incoming server data has been
+  // merged — so a stale-cache-only session can never clobber fresh remote data, and
+  // no genuine local edit is ever lost.
+  let _bjServerSeen = false, _bjPendingWrites = [], _bjLastAppliedSavedAt = 0;
+  let _tjServerSeen = false, _tjPendingWrites = [], _tjLastAppliedSavedAt = 0;
+  function _bjMarkServerSeen() {
+    if (_bjServerSeen) return;
+    _bjServerSeen = true;
+    const q = _bjPendingWrites; _bjPendingWrites = [];
+    q.forEach(fn => { try { fn(); } catch(e) { console.warn('BJ deferred write failed:', e && e.message); } });
+  }
+  function _bjWhenServerSeen(fn) {
+    if (_bjServerSeen) return fn();
+    // Dedupe identical refs (the debounced _bjDoSave) so a long offline session can't
+    // grow this queue without bound; distinct closures (order/entry/delete) still queue.
+    if (_bjPendingWrites.indexOf(fn) === -1) _bjPendingWrites.push(fn);
+    return Promise.resolve();
+  }
+  function _tjMarkServerSeen() {
+    if (_tjServerSeen) return;
+    _tjServerSeen = true;
+    const q = _tjPendingWrites; _tjPendingWrites = [];
+    q.forEach(fn => { try { fn(); } catch(e) { console.warn('TJ deferred write failed:', e && e.message); } });
+  }
+  function _tjWhenServerSeen(fn) {
+    if (_tjServerSeen) return fn();
+    // Dedupe identical refs (the debounced _tjDoSave) so a long offline session can't
+    // grow this queue without bound; distinct closures (order/entry/delete) still queue.
+    if (_tjPendingWrites.indexOf(fn) === -1) _tjPendingWrites.push(fn);
+    return Promise.resolve();
+  }
 
   // Expose to React app via window
   window._fbReady = false;
@@ -4860,6 +4910,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     window._fbLoadJournal = async () => {
       try {
         const snap = await _freshGet(bjDocRef);
+        // A server-sourced read confirms the true remote state → writes are now safe.
+        if (snap && snap.metadata && !snap.metadata.fromCache) _bjMarkServerSeen();
         if (!snap || !snap.exists()) return null;
         const data = snap.data();
         // New per-entry field format
@@ -4930,25 +4982,28 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     window._fbSaveJournal = (getState) => {
       _bjPendingGetState = getState;
       if (_bjSaveTimer) clearTimeout(_bjSaveTimer);
-      _bjSaveTimer = setTimeout(_bjDoSave, 300);
+      // Gate the actual write on server-confirmation. If the server hasn't been seen
+      // yet the edit stays in _bjPendingGetState and is flushed the moment it is —
+      // never written blind over data we haven't reconciled with.
+      _bjSaveTimer = setTimeout(() => _bjWhenServerSeen(_bjDoSave), 300);
     };
     // Flush any pending BJ save NOW (returns the write promise). Called before an entry
     // switch and on tab-hide/navigate so an in-progress edit is never lost to the debounce.
-    window._fbFlushJournal = () => { if (_bjSaveTimer) { clearTimeout(_bjSaveTimer); _bjSaveTimer = null; } return _bjDoSave(); };
+    window._fbFlushJournal = () => { if (_bjSaveTimer) { clearTimeout(_bjSaveTimer); _bjSaveTimer = null; } return _bjWhenServerSeen(_bjDoSave); };
 
     // Dedicated order-only save (called on drag reorder — no active entry content needed)
-    window._fbSaveJournalOrder = (entries) => {
+    window._fbSaveJournalOrder = (entries) => _bjWhenServerSeen(() => {
       const _order = entries.map(e => e.id);
       const _bjOrdTs = Date.now();
       _bjLastOwnSaveAt = _bjOrdTs;
       _bjLastWrittenSavedAt = _bjOrdTs;
-      _fbUpsert(bjDocRef, { _order, savedAt: _bjOrdTs }, 'BJ order')
+      return _fbUpsert(bjDocRef, { _order, savedAt: _bjOrdTs }, 'BJ order')
         .catch(err => console.warn('BJ order save failed:', err.message));
-    };
+    });
 
     // Save ONE specific entry's field immediately (used for trash/restore of a
     // non-active entry — the debounced _fbSaveJournal only writes the active one).
-    window._fbSaveJournalEntry = async (entry, allEntries) => {
+    window._fbSaveJournalEntry = (entry, allEntries) => _bjWhenServerSeen(async () => {
       if (!entry || !entry.id) return;
       try {
         const { entry: stripped, imageUploadPromises } = await _bjStripEntry(entry);
@@ -4961,9 +5016,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         await _fbUpsert(bjDocRef, payload, 'BJ save-one');
         window.dispatchEvent(new CustomEvent('fb-bj-saved'));
       } catch(e) { console.warn('BJ save-one failed:', e.message); }
-    };
+    });
 
-    window._fbDeleteJournalEntry = async (entryId) => {
+    window._fbDeleteJournalEntry = (entryId) => _bjWhenServerSeen(async () => {
       try {
         const _delTs = Date.now();
         _bjLastOwnSaveAt = _delTs;
@@ -4971,10 +5026,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         await _fbWriteRetry(() => updateDoc(bjDocRef, { ["e_" + entryId]: deleteField(), savedAt: _delTs }), 'BJ delete');
       }
       catch(e) { if (e.code !== "not-found") console.warn("BJ delete failed:", e.message); }
-    };
+    });
 
     // Migrate legacy data: write each entry as its own field, remove old entries[] array
-    window._fbMigrateJournalIfNeeded = async (legacyEntries) => {
+    window._fbMigrateJournalIfNeeded = (legacyEntries) => _bjWhenServerSeen(async () => {
       if (!Array.isArray(legacyEntries) || legacyEntries.length === 0) return;
       try {
         const payload = { savedAt: Date.now() };
@@ -4987,7 +5042,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       } catch(err) {
         console.warn('BJ migration failed:', err.message);
       }
-    };
+    });
 
     // ── Rehydrate page HTML: replace bj-fbimg:// placeholders with actual data URIs ──────────────
     window._fbRehydratePageImages = async (html) => {
@@ -5011,9 +5066,13 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
 
     // ── Brainstorm Journal real-time listener ─────────────────────────────────
+    // includeMetadataChanges:true so we reliably observe the fromCache→server
+    // transition even when the cached and server data are identical; that transition
+    // is what unlocks writes (see the stale-overwrite guard above).
     if (_bjUnsubscribe) { _bjUnsubscribe(); _bjUnsubscribe = null; }
-    _bjUnsubscribe = onSnapshot(bjDocRef, (snap) => {
-      if (!snap.exists()) return;
+    _bjUnsubscribe = onSnapshot(bjDocRef, { includeMetadataChanges: true }, (snap) => {
+      const _fromCache = !!(snap.metadata && snap.metadata.fromCache);
+      if (!snap.exists()) { if (!_fromCache) _bjMarkServerSeen(); return; }
       const data = snap.data();
       const _bjSnapSavedAt = data.savedAt || 0;
       // Echo detection: skip ONLY when savedAt is exactly what WE wrote AND within 3s.
@@ -5023,7 +5082,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       const isOwnEcho = _bjSnapSavedAt > 0
         && _bjSnapSavedAt === _bjLastWrittenSavedAt
         && (Date.now() - _bjLastOwnSaveAt) < 3000;
-      if (isOwnEcho) return;
+      if (isOwnEcho) { if (!_fromCache) _bjMarkServerSeen(); return; }
+      // Metadata-only refire (same data we already merged): confirm the server and
+      // drop out without re-running the merge / re-rendering the sidebar.
+      if (_bjSnapSavedAt > 0 && _bjSnapSavedAt === _bjLastAppliedSavedAt) { if (!_fromCache) _bjMarkServerSeen(); return; }
+      _bjLastAppliedSavedAt = _bjSnapSavedAt;
       const entries = [];
       const _allPresentIds = [];
       Object.entries(data).forEach(([k, v]) => {
@@ -5046,6 +5109,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
       window.dispatchEvent(new CustomEvent("fb-bj-remote-update", { detail: { entries, activeId: data.activeId || null, _order: data._order || null, _fbHasData: true, _allPresentIds } }));
       window.dispatchEvent(new CustomEvent("fb-bj-synced"));
+      // Confirm server AFTER the merge above has been applied, so any writes that were
+      // queued while offline flush against the already-reconciled state (never clobber).
+      if (!_fromCache) _bjMarkServerSeen();
     });
 
     // ── Brainstorm Journal — Canvas sync (per-entry, separate doc) ───────────    // ── Brainstorm Journal — Canvas sync (per-entry, separate doc) ───────────
@@ -5336,6 +5402,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     window._fbLoadTonyJournal = async () => {
       try {
         const snap = await _freshGet(tjDocRef);
+        // A server-sourced read confirms the true remote state → writes are now safe.
+        if (snap && snap.metadata && !snap.metadata.fromCache) _tjMarkServerSeen();
         if (!snap || !snap.exists()) return null;
         const data = snap.data();
         const entries = [];
@@ -5393,25 +5461,27 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     window._fbSaveTonyJournal = (getState) => {
       _tjPendingGetState = getState;
       if (_tjSaveTimer) clearTimeout(_tjSaveTimer);
-      _tjSaveTimer = setTimeout(_tjDoSave, 300);
+      // Gate the write on server-confirmation (see the stale-overwrite guard above):
+      // an edit made before the true server state is known stays queued, never blind-written.
+      _tjSaveTimer = setTimeout(() => _tjWhenServerSeen(_tjDoSave), 300);
     };
     // Flush any pending TJ save NOW (returns the write promise).
-    window._fbFlushTonyJournal = () => { if (_tjSaveTimer) { clearTimeout(_tjSaveTimer); _tjSaveTimer = null; } return _tjDoSave(); };
+    window._fbFlushTonyJournal = () => { if (_tjSaveTimer) { clearTimeout(_tjSaveTimer); _tjSaveTimer = null; } return _tjWhenServerSeen(_tjDoSave); };
 
     // Dedicated order-only save (called on drag reorder)
     window._fbSaveJournalOrder = window._fbSaveJournalOrder || function() {};
-    window._fbSaveTonyJournalOrder = (entries) => {
+    window._fbSaveTonyJournalOrder = (entries) => _tjWhenServerSeen(() => {
       const _order = entries.map(e => e.id);
       const _tjOrdTs = Date.now();
       _tjLastOwnSaveAt = _tjOrdTs;
       _tjLastWrittenSavedAt = _tjOrdTs;
-      _fbUpsert(tjDocRef, { _order, savedAt: _tjOrdTs }, 'TJ order')
+      return _fbUpsert(tjDocRef, { _order, savedAt: _tjOrdTs }, 'TJ order')
         .catch(err => console.warn('TJ order save failed:', err.message));
-    };
+    });
 
     // Save ONE specific entry's field immediately (used for trash/restore of a
     // non-active entry — the debounced _fbSaveTonyJournal only writes the active one).
-    window._fbSaveTonyJournalEntry = async (entry, allEntries) => {
+    window._fbSaveTonyJournalEntry = (entry, allEntries) => _tjWhenServerSeen(async () => {
       if (!entry || !entry.id) return;
       try {
         const { entry: stripped, imageUploadPromises } = await _tjStripEntry(entry);
@@ -5424,9 +5494,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         await _fbUpsert(tjDocRef, payload, 'TJ save-one');
         window.dispatchEvent(new CustomEvent('fb-tj-saved'));
       } catch(e) { console.warn('TJ save-one failed:', e.message); }
-    };
+    });
 
-    window._fbDeleteTonyJournalEntry = async (entryId) => {
+    window._fbDeleteTonyJournalEntry = (entryId) => _tjWhenServerSeen(async () => {
       try {
         const _delTs = Date.now();
         _tjLastOwnSaveAt = _delTs;
@@ -5434,9 +5504,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         await _fbWriteRetry(() => updateDoc(tjDocRef, { ["e_" + entryId]: deleteField(), savedAt: _delTs }), 'TJ delete');
       }
       catch(e) { if (e.code !== "not-found") console.warn("TJ delete failed:", e.message); }
-    };
+    });
 
-    window._fbMigrateTonyJournalIfNeeded = async (legacyEntries) => {
+    window._fbMigrateTonyJournalIfNeeded = (legacyEntries) => _tjWhenServerSeen(async () => {
       if (!Array.isArray(legacyEntries) || legacyEntries.length === 0) return;
       try {
         const payload = { savedAt: Date.now() };
@@ -5446,7 +5516,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         }
         await _fbWriteRetry(() => setDoc(tjDocRef, payload), 'TJ migrate');
       } catch(err) { console.warn('TJ migration failed:', err.message); }
-    };
+    });
 
     window._fbRehydrateTonyPageImages = async (html) => {
       if (!html || !html.includes('tj-fbimg://')) return html;
@@ -5465,9 +5535,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
 
     // ── Tony's Journal real-time listener ────────────────────────────────────
+    // includeMetadataChanges:true so the fromCache→server transition reliably fires
+    // and unlocks writes (see the stale-overwrite guard above).
     if (_tjUnsubscribe) { _tjUnsubscribe(); _tjUnsubscribe = null; }
-    _tjUnsubscribe = onSnapshot(tjDocRef, (snap) => {
-      if (!snap.exists()) return;
+    _tjUnsubscribe = onSnapshot(tjDocRef, { includeMetadataChanges: true }, (snap) => {
+      const _fromCache = !!(snap.metadata && snap.metadata.fromCache);
+      if (!snap.exists()) { if (!_fromCache) _tjMarkServerSeen(); return; }
       const data = snap.data();
       const _tjSnapSavedAt = data.savedAt || 0;
       // Echo detection: exact timestamp match + within 3s only. deleteField() writes
@@ -5475,7 +5548,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       const isOwnEcho = _tjSnapSavedAt > 0
         && _tjSnapSavedAt === _tjLastWrittenSavedAt
         && (Date.now() - _tjLastOwnSaveAt) < 3000;
-      if (isOwnEcho) return;
+      if (isOwnEcho) { if (!_fromCache) _tjMarkServerSeen(); return; }
+      // Metadata-only refire (same data we already merged): confirm the server and
+      // drop out without re-running the merge / re-rendering the sidebar.
+      if (_tjSnapSavedAt > 0 && _tjSnapSavedAt === _tjLastAppliedSavedAt) { if (!_fromCache) _tjMarkServerSeen(); return; }
+      _tjLastAppliedSavedAt = _tjSnapSavedAt;
       const entries = [];
       const _allPresentIds = [];
       Object.entries(data).forEach(([k, v]) => {
@@ -5497,6 +5574,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
       window.dispatchEvent(new CustomEvent("fb-tj-remote-update", { detail: { entries, activeId: data.activeId || null, _order: data._order || null, _fbHasData: true, _allPresentIds } }));
       window.dispatchEvent(new CustomEvent("fb-tj-synced"));
+      // Confirm server AFTER the merge above has been applied, so any writes that were
+      // queued while offline flush against the already-reconciled state (never clobber).
+      if (!_fromCache) _tjMarkServerSeen();
     });
 
     let _tjCanvasSaveTimers = {};
@@ -5774,6 +5854,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_bjUnsubscribe)  { _bjUnsubscribe();  _bjUnsubscribe  = null; }
     if (_mjUnsubscribe)  { _mjUnsubscribe();  _mjUnsubscribe  = null; }
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
+    // Re-arm the stale-overwrite guard: after this teardown the reconnecting
+    // listener (re-attached by init() on next interaction) must re-confirm the
+    // real server state before any journal write is permitted again.
+    _bjServerSeen = false; _bjPendingWrites = [];
+    _tjServerSeen = false; _tjPendingWrites = [];
     if (_sosUnsubscribe) { _sosUnsubscribe(); _sosUnsubscribe = null; }
     if (_mcUnsubscribe)  { _mcUnsubscribe();  _mcUnsubscribe  = null; }
     if (_pvUnsubscribe)  { _pvUnsubscribe();  _pvUnsubscribe  = null; }
