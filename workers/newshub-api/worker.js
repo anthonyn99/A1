@@ -1649,6 +1649,53 @@ async function fetchEarningsAlphaVantage(wl, env, fromD, toD, diag){
   } catch(e){ diag&&diag.push('av-earn: EXC '+e.message); return []; }
 }
 
+// ── Earnings via Nasdaq calendar (covers foreign ADRs Finnhub/AV miss) ────────
+// Finnhub + AlphaVantage are US-domestic-focused and OMIT foreign ADRs that file
+// a 6-K instead of a 10-Q — TSM, BABA, NVS, etc. returned NO earnings from either.
+// Nasdaq's public earnings calendar DOES list them. It's per-DATE (no range, no
+// symbol filter), so we scan the weekdays in the window and filter to the
+// watchlist. No API key — just needs a User-Agent. Bounded concurrency; the whole
+// /calendar endpoint is 12h-cached so this scan runs rarely. If Nasdaq blocks the
+// request the source simply returns [] and Finnhub/AV still stand.
+async function fetchEarningsNasdaq(wl, env, fromD, toD, diag){
+  const set = new Set(wl);
+  const dates = [];
+  for (let t = Date.parse(fromD+'T00:00:00Z'); t <= Date.parse(toD+'T00:00:00Z'); t += 86400000){
+    const dow = new Date(t).getUTCDay();
+    if (dow === 0 || dow === 6) continue;                 // markets closed → no reports
+    dates.push(new Date(t).toISOString().slice(0,10));
+  }
+  const out = [];
+  const CONC = 6;
+  let idx = 0, ok = 0, err = 0;
+  async function drain(){
+    while (idx < dates.length){
+      const date = dates[idx++];
+      try {
+        const r = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${date}`, {
+          headers: { 'User-Agent': 'tradehub-newshub/1.0', 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!r.ok){ err++; continue; }
+        const j = await r.json();
+        const rows = ((j && j.data) || {}).rows || [];
+        ok++;
+        for (const row of rows){
+          const sym = (row.symbol || '').toUpperCase();
+          if (!set.has(sym)) continue;
+          const tm = (row.time || '').toLowerCase();
+          const when = tm.includes('pre-market') ? 'bmo' : tm.includes('after-hours') ? 'amc' : null;
+          const epsRaw = String(row.epsForecast || '').replace(/[^0-9.\-]/g,'');
+          out.push({ ticker: sym, date, when, epsEst: epsRaw ? parseFloat(epsRaw) : null });
+        }
+      } catch(e){ err++; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONC, dates.length) }, drain));
+  diag&&diag.push('nasdaq: '+out.length+' earnings across '+ok+'/'+dates.length+' dates'+(err?', '+err+' errs':''));
+  return out;
+}
+
 // ── Macro via grounded Gemini (Google Search) ────────────────────────────────
 // Grounding can't be combined with responseSchema, so we ask for a JSON array in
 // the text and parse + salvage it, then hard-filter against the whitelist+window.
@@ -1896,26 +1943,41 @@ async function buildCalendar(wl, env, days, diag){
   const authMacro = authoritativeMacro(fromD, toD);
   diag && diag.push('authoritative macro: ' + authMacro.length + ' events');
 
-  // 2) Earnings (Finnhub, real) + Gemini macro (supplement only) + AlphaVantage
-  //    earnings as an independent cross-check source.
-  const [earn, aiMacro, avEarn] = await Promise.all([
+  // 2) Earnings from THREE independent sources — Finnhub + Nasdaq + AlphaVantage —
+  //    plus Gemini macro (supplement only). Nasdaq covers foreign ADRs (TSM, BABA,
+  //    NVS…) that the other two omit, so ANY watchlist ticker gets its date.
+  const [earn, aiMacro, avEarn, nasEarn] = await Promise.all([
     fetchEarningsCalendar(wl, env, fromD, toD, diag),
     fetchMacroCalendar(env, fromD, toD, diag),
     fetchEarningsAlphaVantage(wl, env, fromD, toD, diag),
+    fetchEarningsNasdaq(wl, env, fromD, toD, diag),
   ]);
 
-  // 2b) Cross-check earnings dates across the two sources. Both agreeing on the
-  //     exact day = confirmed; single-source or conflicting dates = estimated
-  //     (front-end shows an "EST" tag). AV-only tickers fill Finnhub's gaps.
-  const avByTicker = new Map();
-  for (const a of avEarn){ if(!avByTicker.has(a.ticker)) avByTicker.set(a.ticker, new Set()); avByTicker.get(a.ticker).add(a.date); }
-  const finnTickers = new Set(earn.map(e => e.ticker));
-  for (const e of earn){ const d = avByTicker.get(e.ticker); e.confirmed = !!(d && d.has(e.date)); }
-  for (const a of avEarn){
-    if (finnTickers.has(a.ticker)) continue;   // Finnhub already has this name
-    earn.push({ kind:'earnings', ticker:a.ticker, name:`${a.ticker} Earnings`, date:a.date, category:'earnings', when:null, epsEst:null, confirmed:false });
-  }
-  diag && diag.push('earnings: '+earn.filter(e=>e.confirmed).length+' confirmed / '+earn.length+' total');
+  // 2b) Merge earnings across all three sources by ticker+date. Finnhub & Nasdaq
+  //     carry the report time + EPS estimate; we keep the richest value seen. A
+  //     (ticker,date) confirmed by ≥2 independent sources drops the "EST" tag;
+  //     single-source dates stay flagged estimated on the front-end.
+  const earnMap   = new Map();   // ticker|date → merged event
+  const dateVotes = new Map();   // ticker|date → Set(source)
+  const addEarn = (src, ev) => {
+    if (!ev || !ev.ticker || !ev.date) return;
+    const key = ev.ticker + '|' + ev.date;
+    if (!dateVotes.has(key)) dateVotes.set(key, new Set());
+    dateVotes.get(key).add(src);
+    const prev = earnMap.get(key);
+    if (!prev){
+      earnMap.set(key, { kind:'earnings', ticker:ev.ticker, name:`${ev.ticker} Earnings`, date:ev.date, category:'earnings', when:ev.when||null, epsEst:(ev.epsEst ?? null) });
+    } else {
+      if (!prev.when && ev.when) prev.when = ev.when;
+      if (prev.epsEst == null && ev.epsEst != null) prev.epsEst = ev.epsEst;
+    }
+  };
+  for (const e of earn)    addEarn('finnhub', e);
+  for (const e of nasEarn) addEarn('nasdaq',  e);
+  for (const a of avEarn)  addEarn('av',      a);
+  const earnOut = [];
+  for (const [key, ev] of earnMap){ ev.confirmed = (dateVotes.get(key) || new Set()).size >= 2; earnOut.push(ev); }
+  diag && diag.push('earnings: '+earnOut.filter(e=>e.confirmed).length+' confirmed / '+earnOut.length+' total (3 sources)');
 
   // 3) Merge: authoritative wins. The hardcoded table only covers certain YEARS
   //    (see HARDCODED_YEARS). For those years, AI guesses of hardcoded release
@@ -1948,10 +2010,10 @@ async function buildCalendar(wl, env, days, diag){
   // 4) Market holidays / half-days in-window — so Catalysts + both TaskHubs show
   //    which upcoming days the market is closed (and why).
   const holidays = marketHolidayEvents(fromD, toD, diag);
-  const events = [...earn, ...macro, ...holidays]
+  const events = [...earnOut, ...macro, ...holidays]
     .map(ev => ({ ...ev, id: calEventId(ev), ...(ev.kind === 'macro' ? { importance: macroImportance(ev.name) } : {}) }))
     .sort((a,b) => a.date.localeCompare(b.date));
-  return { events, generatedAt: Date.now(), from: fromD, to: toD, degraded: !earn.length && !events.length };
+  return { events, generatedAt: Date.now(), from: fromD, to: toD, degraded: !earnOut.length && !events.length };
 }
 
 
