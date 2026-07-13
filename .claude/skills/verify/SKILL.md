@@ -24,7 +24,7 @@ global `WebSocket` (Node 22+):
 2. Get a **page** target's websocket URL from `http://127.0.0.1:9333/json/list`
    (find `{type:"page"}`) — NOT `/json/version`, which returns the
    browser-level target and doesn't support `Page.enable`/navigation.
-3. `Page.navigate` to `file:///c:/Users/antho/Desktop/A1/index.html`
+3. `Page.navigate` to `file:///c:/Users/antho/OneDrive/Desktop/A1/index.html`
    (forward slashes, no URL-encoding needed for this path).
 4. `Runtime.evaluate` with `returnByValue:true` to drive/inspect the page.
 
