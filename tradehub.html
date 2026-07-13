@@ -2469,7 +2469,7 @@ function TBPortfolioPage(){
 /* ── Watchlist Editor ── (Control tab) — single shared ticker list that drives
    News fetch, report parsing, sector inference, and the catalysts calendar.
    Same UX the News settings panel used to have; now the one source of truth. */
-function TBWatchlistEditor({watchlist=[],onChange}){
+function TBWatchlistEditor({watchlist=[],onChange,onToast}){
   const [tickerInput,setTickerInput]=React.useState('');
   // Bump on async AI-sector arrival so chips repaint from 'Diversified' → real sector.
   const [sectorTick,setSectorTick]=React.useState(0);
@@ -2487,7 +2487,9 @@ function TBWatchlistEditor({watchlist=[],onChange}){
     setTickerInput('');
   };
   const removeTicker=(t)=>onChange(watchlist.filter(x=>x!==t));
-  const resetTickers=()=>onChange([...TB_WATCHLIST]);
+  const resetTickers=()=>onChange(tbGetDefaultWatchlist());
+  // Persist the CURRENT list as the new default (what "Reset to default" restores).
+  const setAsDefault=()=>{if(!watchlist.length)return;tbSetDefaultWatchlist(watchlist);onToast&&onToast(`Saved ${watchlist.length} ticker${watchlist.length!==1?'s':''} as your default watchlist`,'✓');};
   const canAdd=(tickerInput||'').split(/[,\s\[\]]+/).map(normTicker).filter(Boolean).length>0;
 
   return(<div className="tb-card tb-wl-card" style={{padding:'clamp(16px,4vw,24px)',marginBottom:18,maxWidth:900,margin:'0 auto 18px',width:'100%',boxSizing:'border-box'}}>
@@ -2497,10 +2499,16 @@ function TBWatchlistEditor({watchlist=[],onChange}){
         <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Watchlist</div>
         <div style={{fontSize:13,color:'var(--txm)',marginTop:2,lineHeight:1.5}}>{watchlist.length} ticker{watchlist.length!==1?'s':''} · drives News, Catalysts, MacroBoard &amp; report parsing</div>
       </div>
-      <button onClick={resetTickers} title="Reset to default watchlist"
-        style={{flexShrink:0,padding:'7px 14px',borderRadius:100,border:'1px solid var(--bd)',background:'transparent',color:'var(--txd)',fontSize:12,fontWeight:700,cursor:'pointer',transition:'all .15s'}}
-        onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--ac)';e.currentTarget.style.color='var(--ac)';}}
-        onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--bd)';e.currentTarget.style.color='var(--txd)';}}>↺ Reset to default</button>
+      <div style={{display:'flex',gap:8,flexShrink:0,flexWrap:'wrap'}}>
+        <button onClick={setAsDefault} disabled={!watchlist.length} title="Save the current watchlist as your default — this is what Reset to default restores"
+          style={{padding:'7px 14px',borderRadius:100,border:'1px solid var(--bd)',background:'transparent',color:'var(--txd)',fontSize:12,fontWeight:700,cursor:watchlist.length?'pointer':'default',opacity:watchlist.length?1:0.4,transition:'all .15s'}}
+          onMouseEnter={e=>{if(!watchlist.length)return;e.currentTarget.style.borderColor='var(--ac)';e.currentTarget.style.color='var(--ac)';}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--bd)';e.currentTarget.style.color='var(--txd)';}}>★ Set current as default</button>
+        <button onClick={resetTickers} title="Reset to default watchlist"
+          style={{padding:'7px 14px',borderRadius:100,border:'1px solid var(--bd)',background:'transparent',color:'var(--txd)',fontSize:12,fontWeight:700,cursor:'pointer',transition:'all .15s'}}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--ac)';e.currentTarget.style.color='var(--ac)';}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--bd)';e.currentTarget.style.color='var(--txd)';}}>↺ Reset to default</button>
+      </div>
     </div>
 
     {/* Add row — stacks on mobile, inline on desktop */}
@@ -2541,7 +2549,7 @@ function TBWatchlistEditor({watchlist=[],onChange}){
 /* ── Control Page ── watchlist editor + prompt manager in one place. */
 function TBControlPage({prompts,onSavePrompts,onToast,watchlist,onSaveWatchlist}){
   return(<div style={{width:'100%'}}>
-    <TBWatchlistEditor watchlist={watchlist} onChange={onSaveWatchlist}/>
+    <TBWatchlistEditor watchlist={watchlist} onChange={onSaveWatchlist} onToast={onToast}/>
     <TBPromptPage prompts={prompts} onSave={onSavePrompts} onToast={onToast}/>
   </div>);
 }
@@ -3689,6 +3697,14 @@ function tbLoadWatchlistLocal(){
   try{const a=JSON.parse(localStorage.getItem(TB_WATCHLIST_KEY)||'null');return (Array.isArray(a)&&a.length)?a:[...TB_WATCHLIST];}catch{return [...TB_WATCHLIST];}
 }
 function tbSaveWatchlistLocal(arr){try{localStorage.setItem(TB_WATCHLIST_KEY,JSON.stringify(arr));}catch{}}
+/* User-overridable default watchlist. "Set current as default" (Control tab)
+   stores the live list here; "Reset to default" restores it. Falls back to the
+   hardcoded TB_WATCHLIST when the user hasn't set their own default yet. */
+const TB_WATCHLIST_DEFAULT_KEY = 'td6_watchlist_default';
+function tbGetDefaultWatchlist(){
+  try{const a=JSON.parse(localStorage.getItem(TB_WATCHLIST_DEFAULT_KEY)||'null');return (Array.isArray(a)&&a.length)?a:[...TB_WATCHLIST];}catch{return [...TB_WATCHLIST];}
+}
+function tbSetDefaultWatchlist(arr){try{if(Array.isArray(arr)&&arr.length)localStorage.setItem(TB_WATCHLIST_DEFAULT_KEY,JSON.stringify(arr));}catch{}}
 tbSetWatchlist(tbLoadWatchlistLocal()); // prime parser's active list before first parse
 
 /* ── Shared Analysis URL helpers (used by the Launch Analysis button AND the

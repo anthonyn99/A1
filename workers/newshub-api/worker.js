@@ -1572,34 +1572,48 @@ function etDateStr(offsetDays = 0){
 }
 
 // ── Earnings via Finnhub /calendar/earnings ──────────────────────────────────
+// PER-SYMBOL queries (not one bulk call). The bulk /calendar/earnings response is
+// hard-capped at ~1500 rows, so for a 30-day window across ALL US names our
+// watchlist tickers fall past the cap and silently vanish (this is exactly why
+// newly-added names like TSM returned NO earnings). Querying &symbol=<ticker>
+// returns only that name's report and is immune to the cap, so ANY ticker in the
+// Control watchlist gets its earnings fetched. Bounded concurrency keeps us under
+// Finnhub's 60 req/min; the whole endpoint is cached 12h so this runs rarely.
 async function fetchEarningsCalendar(wl, env, fromD, toD, diag){
   if (!env.FINNHUB_KEY){ diag&&diag.push('finnhub: NO KEY'); return []; }
-  try {
-    const r = await fetch(`https://finnhub.io/api/v1/calendar/earnings?from=${fromD}&to=${toD}&token=${env.FINNHUB_KEY}`);
-    if (!r.ok){ const eb=(await r.text()).slice(0,200); diag&&diag.push('finnhub: HTTP '+r.status+' '+eb); return []; }
-    const j = await r.json();
-    const rows = Array.isArray(j.earningsCalendar) ? j.earningsCalendar : [];
-    diag&&diag.push('finnhub: '+rows.length+' rows in window');
-    const set = new Set(wl);
-    const out = [];
-    for (const e of rows){
-      const sym = (e.symbol || '').toUpperCase();
-      if (!set.has(sym)) continue;
-      if (!e.date || e.date < fromD || e.date > toD) continue;
-      // hour: 'bmo' before-open | 'amc' after-close | 'dmh' during
-      const when = (e.hour || '').toLowerCase();
-      out.push({
-        kind: 'earnings',
-        ticker: sym,
-        name: `${sym} Earnings`,
-        date: e.date,
-        category: 'earnings',
-        when: when || null,
-        epsEst: (e.epsEstimate ?? null),
-      });
+  const out = [];
+  const CONC = 6;
+  let idx = 0, httpErr = 0;
+  async function drain(){
+    while (idx < wl.length){
+      const sym = wl[idx++];
+      try {
+        const r = await fetch(`https://finnhub.io/api/v1/calendar/earnings?from=${fromD}&to=${toD}&symbol=${encodeURIComponent(sym)}&token=${env.FINNHUB_KEY}`);
+        if (!r.ok){ httpErr++; continue; }
+        const j = await r.json();
+        const rows = Array.isArray(j.earningsCalendar) ? j.earningsCalendar : [];
+        for (const e of rows){
+          const esym = (e.symbol || sym).toUpperCase();
+          if (esym !== sym) continue;                       // symbol-scoped, but guard anyway
+          if (!e.date || e.date < fromD || e.date > toD) continue;
+          // hour: 'bmo' before-open | 'amc' after-close | 'dmh' during
+          const when = (e.hour || '').toLowerCase();
+          out.push({
+            kind: 'earnings',
+            ticker: sym,
+            name: `${sym} Earnings`,
+            date: e.date,
+            category: 'earnings',
+            when: when || null,
+            epsEst: (e.epsEstimate ?? null),
+          });
+        }
+      } catch(e){ httpErr++; }
     }
-    return out;
-  } catch(e){ console.warn('earnings cal err', e.message); return []; }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONC, wl.length) }, drain));
+  diag&&diag.push('finnhub: '+out.length+' earnings across '+wl.length+' symbols (per-symbol'+(httpErr?', '+httpErr+' errs':'')+')');
+  return out;
 }
 
 // ── Earnings cross-check via AlphaVantage EARNINGS_CALENDAR ───────────────────
