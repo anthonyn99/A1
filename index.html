@@ -4031,12 +4031,10 @@ function App(){
         React.createElement("div",{style:{height:"clamp(8px,2vw,16px)",flexShrink:0}}))),
 
     // Quote Banner
-    React.createElement("div",{style:{flexShrink:0,textAlign:"center",padding:"14px clamp(16px,4vw,60px)",position:"relative"}},
-      React.createElement("p",{style:{fontFamily:"'Lora',serif",fontSize:"clamp(15px,1.5vw,17px)",fontWeight:400,fontStyle:"italic",color:T.TXD,lineHeight:1.7,maxWidth:820,margin:"0 auto"}},"\u201c"+tgLesson.text+"\u201d"),
-      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",maxWidth:820,margin:"10px auto 0",gap:4}},
-        React.createElement("span",{style:{fontFamily:"'Lora',serif",fontSize:12,color:T.TXM,fontStyle:"italic",letterSpacing:0.3,flex:1,textAlign:"right"}},"— "+tgLesson.author),
-        React.createElement("button",{type:"button",onClick:tgNext,title:"Next quote",style:{background:"transparent",border:"none",cursor:"pointer",padding:"2px 4px 2px 8px",color:T.TXM,fontSize:13,lineHeight:1,opacity:0.45,transition:"opacity .15s",fontFamily:"inherit"},onMouseEnter:function(e){e.currentTarget.style.opacity="0.85";},onMouseLeave:function(e){e.currentTarget.style.opacity="0.45";}},"↻"),
-        React.createElement("button",{type:"button",onClick:()=>setTgShowAll(true),title:"View all quotes",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",fontFamily:"inherit",letterSpacing:0.5,opacity:0.6,transition:"all .15s"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},"\u2630"))),
+    React.createElement("div",{style:{flexShrink:0,background:T.S2,border:"1px solid "+T.BD,borderLeft:"3px solid "+T.AC,borderRadius:6,padding:"8px 14px",position:"relative",cursor:"pointer"},onClick:()=>setTgShowAll(true)},
+      React.createElement("p",{style:{fontFamily:"'Lora',serif",fontSize:13,fontWeight:400,fontStyle:"italic",color:T.TXD,lineHeight:1.5,margin:0,textAlign:"center"}},"\u201c"+tgLesson.text+"\u201d"),
+      React.createElement("div",{style:{fontFamily:"'Lora',serif",fontSize:10,color:T.TXM,fontStyle:"italic",letterSpacing:0.3,textAlign:"center",marginTop:3}},"— "+tgLesson.author),
+      React.createElement("button",{type:"button",onClick:function(e){e.stopPropagation();tgNext();},title:"Next quote",style:{position:"absolute",bottom:6,right:8,background:"transparent",border:"none",cursor:"pointer",padding:"2px 4px",color:T.TXM,fontSize:13,lineHeight:1,opacity:0.4,transition:"opacity .15s",fontFamily:"inherit"},onMouseEnter:function(e){e.currentTarget.style.opacity="0.8";},onMouseLeave:function(e){e.currentTarget.style.opacity="0.4";}},"↻")),
 
     // Weekly
     React.createElement("div",{style:{...sec,flexShrink:0}},
