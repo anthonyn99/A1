@@ -3111,15 +3111,15 @@ export default {
     // Branch on the DAY OF WEEK, not the exact cron string. Robust to any future
     // cron-time change (DST shift, 6:30→6:00, etc.): whatever UTC time fires, the
     // day decides what builds.
-    //   EVERY day (Mon-Sun) → News pre-warm
-    //   Sun (0) + Wed (3)   → Catalysts pre-warm (in ADDITION to news)
-    const day = new Date().getUTCDay();              // 0=Sun … 6=Sat
-    const isCatalystDay = day === 0 || day === 3;
+    //   EVERY day (Mon-Sun) → News pre-warm AND Catalysts pre-warm
+    // Catalysts now pre-warms every morning (was Sun + Wed only) so opening TradeHub
+    // any trading morning shows a freshly-built earnings+macro calendar, matching the
+    // News cadence. Not day/holiday-gated: forward earnings/macro dates shift daily and
+    // the client only ever surfaces the forward 30-day window, so a daily rebuild keeps
+    // it current with zero user action.
 
-    // ── Catalysts pre-warm (Sun + Wed) → KV + Firebase push for TaskHub ──
-    if (isCatalystDay){
-      ctx.waitUntil(prewarmCalendar(env).catch(e => console.error('Cron calendar failed:', e.message)));
-    }
+    // ── Catalysts pre-warm (every day) → KV + Firebase push for TaskHub ──
+    ctx.waitUntil(prewarmCalendar(env).catch(e => console.error('Cron calendar failed:', e.message)));
 
     // ── News pre-warm — EVERY day (Mon-Sun) at ~6am Mountain so opening TradeHub any
     //    morning shows freshly-built news. World/company news doesn't stop on weekends

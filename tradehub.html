@@ -560,9 +560,12 @@
     // Nav-order (draggable header tabs) — tiny merge write, doesn't touch the report.
     window._fbSaveNavOrder = (order) => {
       if (!Array.isArray(order)) return;
+      window.dispatchEvent(new CustomEvent('fb-tb-saving'));   // show the syncing indicator under the TradeHub title
       _tbDashLastOwnSaveAt = Date.now();   // suppress our own echo in the snapshot below
       const attempt = async () => { if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} } _tbDashLastOwnSaveAt = Date.now(); return setDoc(doc(db, TB_DASH_PATH), { navOrder: order }, { merge: true }); };
-      attempt().catch(e => console.warn('[navOrder save]', e && e.message));
+      attempt()
+        .then(() => { _tbDashLastOwnSaveAt = Date.now(); window.dispatchEvent(new CustomEvent('fb-tb-dash-saved')); })   // → 'synced' indicator
+        .catch(e => { console.warn('[navOrder save]', e && e.message); window.dispatchEvent(new CustomEvent('fb-tb-dash-error')); });
     };
     if (_tbDashUnsub) { _tbDashUnsub(); _tbDashUnsub = null; }
     _tbDashUnsub = onSnapshot(tbDashDocRef, (snap) => {
@@ -1190,6 +1193,8 @@ function useTBJournal(){
      SELLs chain as new legs onto the most-recent open BUY entry for the same
      ticker instead of creating a separate top-level entry. */
   const sync=useCallback(async()=>{
+    if(window._tbSyncInFlight)return;       // dedupe concurrent syncs (morning orchestrator + tab-mount auto-sync)
+    window._tbSyncInFlight=true;
     setSyncing(true);
     window._tbBuildUntil=Date.now()+120000; // keep Firestore alive through sync write
     try{
@@ -1340,6 +1345,7 @@ function useTBJournal(){
     localStorage.setItem(TB_SYNC_TS_KEY,String(nowTs));
     if(window._fbSaveTBSyncMeta)window._fbSaveTBSyncMeta({lastWebullSync:nowTs});
     window._tbBuildUntil=0;
+    window._tbSyncInFlight=false;
     setSyncing(false);
   },[]);
 
@@ -1395,22 +1401,27 @@ function useTBJournal(){
   },[]);
 
   /* Auto-sync: only runs on the "main" device (td6_mainDash==='tony') so phones
-     never trigger an independent sync that races with desktop and causes dupes. */
+     never trigger an independent sync that races with desktop and causes dupes.
+     Also exposes sync() at window level so the app-level morning orchestrator can
+     kick a 6am Webull sync even while the Journal tab is open. */
   useEffect(()=>{
-    if(localStorage.getItem('td6_mainDash')!=='tony')return; /* non-main: skip */
+    window._tbJournalSync=sync;                      // let the morning orchestrator drive it
+    if(localStorage.getItem('td6_mainDash')!=='tony')return; /* non-main: skip auto-sync */
     const doAutoSync=async()=>{
       try{
         const last=parseInt(localStorage.getItem(TB_SYNC_TS_KEY)||'0',10);
-        if(Date.now()-last<86400000)return; /* <24h ago, skip */
+        const slot=tbLastTradingMorningSlot();
+        // Sync on the first Journal open each trading morning (last sync predates
+        // today's 6am slot). Off-hours / weekends fall back to a 24h guard so a
+        // stale journal still refreshes when reopened. sync() records the timestamp.
+        if(slot ? last>=slot : (Date.now()-last<86400000)) return;
         await sync();
-        const now=Date.now();
-        localStorage.setItem(TB_SYNC_TS_KEY,String(now));
-        if(window._fbSaveTBSyncMeta)window._fbSaveTBSyncMeta({lastWebullSync:now});
       }catch(e){console.warn('TB auto-sync failed',e);}
     };
     const tryOnce=()=>{if(!window._fbReady){window.addEventListener('fb-ready',tryOnce,{once:true});return;}doAutoSync();};
     tryOnce();
-  },[]); // eslint-disable-line react-hooks/exhaustive-deps
+    return()=>{ if(window._tbJournalSync===sync) window._tbJournalSync=null; };
+  },[sync]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* CSV import (Stonk Journal format) — dedup by ticker+date+entryPrice+qty */
   const importCSV=useCallback(async(csvText)=>{
@@ -1605,6 +1616,13 @@ function useTBPortfolio(){
   useEffect(()=>{
     if(!_tbPortfolioCache.fetched){_tbPortfolioCache.fetched=true;refresh();}
   },[]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The app-level morning orchestrator pre-loads the portfolio into the shared cache
+  // at 6am; reflect that here so an already-open Portfolio tab updates live.
+  useEffect(()=>{
+    const onRefreshed=()=>{ if(_tbPortfolioCache.data){ setData(_tbPortfolioCache.data); setLastFetch(_tbPortfolioCache.lastFetch); setError(null); } };
+    window.addEventListener('tb-portfolio-refreshed',onRefreshed);
+    return()=>window.removeEventListener('tb-portfolio-refreshed',onRefreshed);
+  },[]);
   return{data,loading,error,lastFetch,refresh};
 }
 
@@ -2533,6 +2551,20 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast}){
             onMouseLeave={ev=>ev.currentTarget.style.color='var(--txm)'}>×</span>
         </span>
       ))}
+    </div>
+
+    {/* Bracket list — the watchlist in [A, B, C] form with a one-tap copy. Kept in
+        add-order (not sorted) so it mirrors exactly what you typed. */}
+    <div style={{fontSize:11,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:10}}>Copy list</div>
+    <div style={{display:'flex',alignItems:'stretch',gap:8,marginBottom:22,flexWrap:'wrap'}}>
+      <div style={{flex:'1 1 240px',minWidth:0,fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:'var(--txd)',background:'var(--s1)',border:'1px solid var(--bd)',borderRadius:10,padding:'11px 14px',wordBreak:'break-word',lineHeight:1.6}}>
+        {watchlist.length?('['+watchlist.join(', ')+']'):'[]'}
+      </div>
+      <button onClick={()=>{const s='['+watchlist.join(', ')+']';const done=()=>onToast&&onToast('Copied '+watchlist.length+' ticker'+(watchlist.length!==1?'s':''),'📋');try{navigator.clipboard.writeText(s).then(done).catch(()=>{const ta=document.createElement('textarea');ta.value=s;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);done();});}catch(e){}}}
+        disabled={!watchlist.length}
+        style={{flex:'0 0 auto',alignSelf:'flex-start',padding:'11px 20px',borderRadius:10,border:'1px solid var(--bd)',background:'transparent',color:'var(--txd)',fontSize:13,fontWeight:700,cursor:watchlist.length?'pointer':'default',opacity:watchlist.length?1:0.4,transition:'all .15s'}}
+        onMouseEnter={e=>{if(!watchlist.length)return;e.currentTarget.style.borderColor='var(--ac)';e.currentTarget.style.color='var(--ac)';}}
+        onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--bd)';e.currentTarget.style.color='var(--txd)';}}>⧉ Copy</button>
     </div>
 
     {/* Derived sectors */}
@@ -3805,8 +3837,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
 
   return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:0,padding:'32px clamp(12px,4vw,28px) 40px',maxWidth:680,margin:'0 auto',width:'100%'}}>
     {/* Header — white, consistent with other sections */}
-    <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Analysis</div>
-    <div style={{fontSize:13,color:'var(--txm)',marginTop:2,marginBottom:24}}>Copies your chosen prompt, opens ChatGPT (paste with Ctrl+V) and every search at once. The morning launcher pastes + submits it for you automatically.</div>
+    <div style={{fontSize:20,fontWeight:800,color:'var(--tx)',marginBottom:24}}>Analysis</div>
 
     {/* Prompt picker */}
     <div style={{marginBottom:20}}>
@@ -4698,14 +4729,17 @@ async function tbBuildCalendar(wl,opts){
   return {future,degraded:!!(j&&j.degraded)};
 }
 
-// Most-recent scheduled auto-force slot: Wed & Sun at 6:00 AM America/Denver
-// (Mountain), at or before now. Returns a ms timestamp, or 0 if none found.
-function tbLastScheduledForce(){
+// Most-recent trading-morning auto-refresh slot: 6:00 AM America/Denver (Mountain)
+// on an NYSE trading day, at or before now. Returns a ms timestamp, or 0 if none in
+// the last ~8 days. Powers the app-level morning orchestrator (Catalysts + Portfolio
+// + Journal) so opening TradeHub at/after 6am any trading morning finds it all ready.
+function tbLastTradingMorningSlot(){
   const now=Date.now();
   for(let back=0;back<8;back++){
-    const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',weekday:'short',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(now-back*86400000)).reduce((a,x)=>{a[x.type]=x.value;return a},{});
-    if(p.weekday==='Wed'||p.weekday==='Sun'){
-      const ts=new Date(tbZonedISO(`${p.year}-${p.month}-${p.day}`,6,0)).getTime();
+    const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(now-back*86400000)).reduce((a,x)=>{a[x.type]=x.value;return a},{});
+    const ds=`${p.year}-${p.month}-${p.day}`;
+    if(tbMktIsTradingDay(ds)){
+      const ts=new Date(tbZonedISO(ds,6,0)).getTime();
       if(ts<=now) return ts;
     }
   }
@@ -4714,59 +4748,81 @@ function tbLastScheduledForce(){
 let _tbAutoForceInFlight=false;
 let _tbLastCheckedSlot=0;
 
+// ── Module-level catalyst build manager ──────────────────────────────────────
+// Force / Refresh runs HERE (not inside the React component) so a build KEEPS
+// RUNNING when you leave the Catalysts tab — and the buttons stay locked until
+// it finishes, even after you navigate away and back (the tab remounts but reads
+// this live state). On completion it saves to Firebase; a mounted tab reflects
+// the result via its subscription, a remounted tab loads it from Firebase.
+const _tbCatBuild = {
+  building:false,
+  listeners:new Set(),
+  sub(fn){ this.listeners.add(fn); return ()=>this.listeners.delete(fn); },
+  emit(evt){ this.listeners.forEach(fn=>{ try{ fn(evt); }catch(e){} }); },
+};
+async function tbRunCatBuild(wl, force){
+  if(_tbCatBuild.building) return;                     // one build at a time
+  wl=(wl&&wl.length)?wl:NH_DEFAULT_TICKERS;
+  _tbCatBuild.building=true; _tbCatBuild.emit({type:'start'});
+  try{
+    const {future,degraded}=await tbBuildCalendar(wl,{force});
+    if(future&&future.length){
+      const now=Date.now();
+      if(window._fbSaveMarketCal) window._fbSaveMarketCal({events:future,generatedAt:now,savedAt:now});
+    }
+    _tbCatBuild.emit({type:'done',future:future||[],degraded:!!degraded});
+  }catch(e){
+    _tbCatBuild.emit({type:'error',error:e});
+  }finally{
+    _tbCatBuild.building=false; _tbCatBuild.emit({type:'end'});
+  }
+}
 
 function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
   const [events,setEvents]=useState([]);
-  const [loading,setLoading]=useState(false);
+  // Init from the module-level manager so buttons are locked on remount if a
+  // background build is still running.
+  const [loading,setLoading]=useState(()=>_tbCatBuild.building);
   const [notice,setNotice]=useState('');
   const [lastSync,setLastSync]=useState(null);
-  const eventsRef=useRef([]); const wlRef=useRef(watchlist); const refreshTok=useRef(0); const didAuto=useRef(false);
+  const eventsRef=useRef([]); const wlRef=useRef(watchlist); const didAuto=useRef(false);
   useEffect(()=>{eventsRef.current=events;},[events]);
   // Keep the ref in sync with the shared watchlist prop (used by refresh()).
   useEffect(()=>{wlRef.current=watchlist;},[watchlist]);
 
-  const commit=useCallback(async(future)=>{
-    // Stamp events for commit — no notifyAt/reminder fields needed anymore.
-    const enriched=future.map(ev=>({...ev}));
-    const sig=a=>a.map(e=>e.id+'@'+e.date).sort().join('|');
-    if(sig(eventsRef.current||[])===sig(enriched)){ return; } // unchanged → no writes
-    const oldIds=new Set((eventsRef.current||[]).map(e=>e.id));
-    const newIds=new Set(enriched.map(e=>e.id));
-    // Notifications removed: macros now show as TaskHub banners only (Tony + Veda),
-    // no 6:30 AM push. Purge any catalyst reminder docs (old + new ids) so the
-    // taskhub-reminders worker has nothing left to fire. No new reminder writes.
-    if(window._fbDeleteReminder){const purge=new Set([...oldIds,...newIds]);for(const id of purge){try{await window._fbDeleteReminder(id);}catch(e){}}}
-    const now=Date.now();
-    setEvents(enriched); eventsRef.current=enriched;
-    if(window._fbSaveMarketCal)window._fbSaveMarketCal({events:enriched,generatedAt:now,savedAt:now});
-    setLastSync(now);
-  },[]);
-
+  // Refresh / Force just kick the module-level manager — it keeps running even if
+  // this component unmounts (tab switch). Results arrive via the subscription below.
   const refresh=useCallback((force,wlOverride)=>{
     const wl=wlOverride||wlRef.current||NH_DEFAULT_TICKERS;
-    const tok=++refreshTok.current;
-    setLoading(true);setNotice('');
-    tbBuildCalendar(wl,{force}).then(async({future,degraded})=>{
-      if(tok!==refreshTok.current)return;                 // a newer refresh superseded this one
-      const today=tbEtDate(0);
-      const prevCount=(eventsRef.current||[]).filter(e=>e&&e.date>=today).length;
-      // Guard: if the worker came back DEGRADED with fewer events than we already
-      // have cached, it likely only returned partial (e.g. earnings but macro
-      // source was empty). Keep the richer cached set instead of wiping it.
-      if(degraded&&future.length<prevCount){
-        setLoading(false);
-        setNotice('Sources partial right now — kept your last full calendar. Try Force again in a bit.');
-        return;
+    tbRunCatBuild(wl,force);
+  },[]);
+
+  // Subscribe to the manager: keep the buttons locked while a build runs and apply
+  // the result when it finishes (whether this tab was mounted the whole time or not).
+  useEffect(()=>{
+    setLoading(_tbCatBuild.building);
+    return _tbCatBuild.sub((evt)=>{
+      if(evt.type==='start'){ setLoading(true); setNotice(''); }
+      else if(evt.type==='end'){ setLoading(false); }
+      else if(evt.type==='done'){
+        const today=tbEtDate(0);
+        const prevCount=(eventsRef.current||[]).filter(e=>e&&e.date>=today).length;
+        // Guard: a DEGRADED build with fewer events than we already have is likely
+        // partial — keep the richer cached set instead of wiping it.
+        if(evt.degraded&&evt.future.length<prevCount){
+          setNotice('Sources partial right now — kept your last full calendar. Try Force again in a bit.');
+          return;
+        }
+        const fut=(evt.future||[]).filter(e=>e&&e.date>=today);
+        setEvents(fut); eventsRef.current=fut; setLastSync(Date.now());
+        if(!fut.length)setNotice(evt.degraded?'Sources empty right now — try Force in a bit.':'No catalysts in the next 30 days.');
       }
-      await commit(future);
-      setLoading(false);
-      if(!future.length)setNotice(degraded?'Sources empty right now — try Force in a bit.':'No catalysts in the next 30 days.');
-    }).catch(e=>{
-      if(tok!==refreshTok.current)return;
-      setLoading(false);
-      setNotice(e.rateLimited?e.message:e.timedOut?e.message:'Network error: '+e.message);
+      else if(evt.type==='error'){
+        const e=evt.error||{};
+        setNotice(e.rateLimited?e.message:e.timedOut?e.message:'Network error: '+(e.message||'unknown'));
+      }
     });
-  },[commit]);
+  },[]);
 
   useEffect(()=>{
     const doLoad=async()=>{
@@ -4932,38 +4988,70 @@ function TBApp(){
     return()=>{window._tbSetPortfolioOk=null;};
   },[]);
 
-  /* ── Auto-force the market calendar on Wed & Sun at 6:00 AM Mountain ──────────
-     Runs at the APP level (not the Catalysts tab) so simply opening TradeHub is
-     enough — no tab visit, no manual Refresh.
-     Cost note: the 5-min tick is almost entirely local. tbLastScheduledForce()
-     is pure date math (free); we only touch Firebase (one getDoc) the FIRST time
-     we see a given 6 AM slot — once confirmed/handled we remember it in
-     _tbLastCheckedSlot and every later tick short-circuits with ZERO reads until
-     the next Wed/Sun boundary. Cloudflare is hit only when a force actually fires
-     (≤ once per slot across all devices — first writer wins via generatedAt). */
+  /* ── Morning orchestrator: every TRADING morning at/after 6:00 AM Mountain, make
+     sure Catalysts, Portfolio, and the Journal Webull sync are ALL ready the moment
+     TradeHub opens — no tab visit, no manual action. Runs at the APP level so it's
+     independent of which tab is showing. A 5-min tick re-checks; each piece is
+     guarded so it fires at most once per morning slot. News + MacroBoard already
+     pre-warm via the worker cron, so they aren't repeated here.
+     Cost note: tbLastTradingMorningSlot() is pure date math (free); each piece only
+     touches the network the first time a new 6 AM trading slot is seen, then
+     short-circuits on its per-slot guard until the next trading morning. */
   useEffect(()=>{
     let stop=false, timer=null;
     const check=async()=>{
-      if(stop||_tbAutoForceInFlight||!window._fbLoadMarketCal||!window._fbSaveMarketCal)return;
-      const slot=tbLastScheduledForce();
-      if(!slot||slot===_tbLastCheckedSlot)return;           // no slot, or already handled → 0 Firebase reads
+      if(stop)return;
+      const slot=tbLastTradingMorningSlot();
+      if(!slot)return;                                      // off-hours / weekend / holiday → nothing to do
+
+      // ── Catalysts: pull the cron-built calendar (free cache HIT, never force) and
+      //    publish to Firebase so every device shows it. The gen-check skips work if
+      //    another device (or the cron's own push) already refreshed this slot. ──
+      if(!_tbAutoForceInFlight && slot!==_tbLastCheckedSlot && window._fbLoadMarketCal && window._fbSaveMarketCal){
+        try{
+          const d=await window._fbLoadMarketCal();
+          const gen=(d&&(d.generatedAt||d.savedAt))||0;
+          if(gen>=slot){ _tbLastCheckedSlot=slot; }
+          else{
+            _tbAutoForceInFlight=true;
+            // NON-fresh pull: the 6am cron already did the expensive fresh rebuild and
+            // warmed the worker cache, so this is a free HIT — force=1 shares the daily
+            // counter with News forces, so we must NOT force here.
+            const {future}=await tbBuildCalendar(tbLoadWatchlistLocal(),{force:false});
+            if(future&&future.length){ const now=Date.now(); window._fbSaveMarketCal({events:future,generatedAt:now,savedAt:now}); }
+            _tbLastCheckedSlot=slot;
+          }
+        }catch(e){}finally{ _tbAutoForceInFlight=false; }
+      }
+
+      // ── Portfolio: auto-load the Webull account (read-only, safe on any device) into
+      //    the shared cache so the Portfolio tab is ready the moment it's opened. The
+      //    Webull worker already holds the auth token, so this "auto-connects" without
+      //    a manual Connect. Once per slot; only marked done on success. ──
       try{
-        const d=await window._fbLoadMarketCal();            // one read, only when a new 6 AM slot needs confirming
-        const gen=(d&&(d.generatedAt||d.savedAt))||0;
-        if(gen>=slot){_tbLastCheckedSlot=slot;return;}      // already refreshed since this slot (maybe by another device)
-        _tbAutoForceInFlight=true;
-        // NON-fresh pull: the 6am cron already did the expensive fresh rebuild and
-        // warmed the worker's calendar cache, so this is a free cache HIT — it must
-        // NOT force (force=fresh=1 shares the SAME daily counter as News forces, so a
-        // failing/retrying auto-force here would silently drain your News forces).
-        const {future}=await tbBuildCalendar(tbLoadWatchlistLocal(),{force:false});
-        // Only overwrite when we actually got events — never wipe a good cache with empties.
-        if(future&&future.length){
-          const now=Date.now();
-          window._fbSaveMarketCal({events:future,generatedAt:now,savedAt:now});
+        const pKey='tb_morning_portfolio_slot';
+        if(parseInt(localStorage.getItem(pKey)||'0',10)<slot){
+          const r=await fetch(`${TB_API_BASE}/api/portfolio/summary`);
+          const j=await r.json().catch(()=>null);
+          if(j&&j.ok){
+            _tbPortfolioCache.data=j.data; _tbPortfolioCache.lastFetch=new Date(); _tbPortfolioCache.error=null; _tbPortfolioCache.fetched=true;
+            if(window._tbSetPortfolioOk)window._tbSetPortfolioOk(true);
+            window.dispatchEvent(new CustomEvent('tb-portfolio-refreshed'));   // update the tab if it's already open
+            localStorage.setItem(pKey,String(slot));
+          }
         }
-        _tbLastCheckedSlot=slot;                            // mark handled so we don't re-fetch this slot again
-      }catch(e){}finally{_tbAutoForceInFlight=false;}       // a thrown fetch/network error leaves the slot unmarked → retried next tick
+      }catch(e){}
+
+      // ── Journal: Webull sync (MAIN device only — cross-device syncs race and dupe).
+      //    sync() records TB_SYNC_TS_KEY, so last-sync ≥ slot means this morning is done.
+      //    Runs live if the Journal tab is open; otherwise the tab's own slot-gated
+      //    auto-sync covers the first time it's opened this morning. ──
+      try{
+        if(localStorage.getItem('td6_mainDash')==='tony' && typeof window._tbJournalSync==='function'){
+          const last=parseInt(localStorage.getItem(TB_SYNC_TS_KEY)||'0',10);
+          if(last<slot) await window._tbJournalSync();
+        }
+      }catch(e){}
     };
     const start=()=>{check();timer=setInterval(check,5*60*1000);};
     if(window._fbReady)start();
