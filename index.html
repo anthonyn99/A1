@@ -2057,7 +2057,7 @@ body.light-mode input[type=time]{color-scheme:light;}
 #kc-root.view-mode .kc-edit-only{display:none!important;}
 .kc-section{display:flex;flex-direction:column;gap:10px;}
 .kc-section-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid var(--bd);}
-.kc-section-title{font-family:'Lora',serif;font-size:13px;font-weight:800;color:var(--tx);text-transform:uppercase;letter-spacing:1.2px;}
+.kc-section-title{font-family:'Lora',serif;font-size:13px;font-weight:800;color:var(--tx);letter-spacing:0.3px;}
 /* 2-col flex layout */
 #kc-conns-list{display:flex;gap:10px;align-items:flex-start;min-height:48px;}
 .kc-col{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0;}
@@ -3998,11 +3998,11 @@ function App(){
     React.createElement("div",{style:{position:"sticky",top:0,left:0,right:0,zIndex:200,background:T.BG,borderBottom:"1px solid "+T.BD,backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",transition:"background .4s,border-color .4s"}},
       React.createElement("div",{id:"th-main-header-row",style:{maxWidth:2000,margin:"0 auto",padding:"calc(env(safe-area-inset-top, 0px) + 10px) clamp(12px,3vw,24px) 10px",display:"flex",flexDirection:"column",gap:6,minWidth:0,width:"100%"}},
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0,minHeight:30}},
-          React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2,minWidth:0}},
+          React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2,minWidth:0,position:"relative"}},
             React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
               React.createElement("div",{style:{fontFamily:"'Lora',serif",fontSize:"clamp(19px,2.8vw,26px)",fontWeight:700,letterSpacing:-0.3,whiteSpace:"nowrap"}},React.createElement("span",{style:{color:T.TX}},"Tony's "),React.createElement("span",{style:{color:T.AC,fontStyle:"italic"}},"TaskHub")),
               React.createElement("button",{type:"button",onClick:()=>{localStorage.setItem("td6_mainDash","tony");window._updateMainDashBtn&&window._updateMainDashBtn();},id:"th-setmain-btn",onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;},style:{background:localStorage.getItem("td6_mainDash")==="tony"?T.AC:T.BG,color:localStorage.getItem("td6_mainDash")==="tony"?"#000":T.AC,border:"1px solid "+T.BD,borderRadius:4,fontSize:10,fontWeight:800,padding:"0 10px",height:"28px",boxSizing:"border-box",cursor:"pointer",fontFamily:"'Nunito',sans-serif",letterSpacing:0.5,whiteSpace:"nowrap",transition:"all .2s"}},localStorage.getItem("td6_mainDash")==="tony"?"★ Main":"Set as main")),
-            React.createElement("span",{style:{fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?T.TXM:syncStatus==="error"?T.ERR:T.GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"⚠ Sync failed":"✓ Synced")),
+            React.createElement("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?T.TXM:syncStatus==="error"?T.ERR:T.GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"⚠ Sync failed":"✓ Synced")),
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}})),
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,minWidth:0,width:"100%",flexWrap:"wrap"}},
           React.createElement("button",{type:"button",key:"vx-voice",title:"Voice control",style:{...hbtn(false),background:vxRec?"#e05a5a":T.AC,color:"#fff",border:"1px solid "+(vxRec?"#e05a5a":T.AC),fontWeight:800,boxShadow:vxRec?"none":"0 2px 10px "+T.AC+"66"},onClick:()=>window._THV&&window._THV.toggleVoice()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
@@ -10323,11 +10323,11 @@ function App(){
 
     // ── Header ──
     RC("div",{style:{display:"flex",flexDirection:vrMobile?"column":"row",alignItems:vrMobile?"stretch":"flex-start",justifyContent:"space-between",gap:vrMobile?6:12,flexShrink:0}},
-      RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,flexShrink:0,paddingTop:2}},
+      RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,flexShrink:0,paddingTop:2,position:"relative"}},
         RC("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:8}},
           RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?18:26,fontWeight:900,color:A,letterSpacing:1,textTransform:"uppercase",lineHeight:1}},"Veda's TaskHub"),
           RC("button",{id:"vd-setmain-btn",onClick:()=>{localStorage.setItem("td6_mainDash","veda");window._updateMainDashBtn&&window._updateMainDashBtn();},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:localStorage.getItem("td6_mainDash")==="veda"?A:"transparent",color:localStorage.getItem("td6_mainDash")==="veda"?BG:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:800,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:0.5,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0}},localStorage.getItem("td6_mainDash")==="veda"?"★ Main":"Set as main")),
-        RC("span",{style:{fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?TXD:syncStatus==="error"?"#f85149":GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"⚠ Sync failed":"✓ Synced")),
+        RC("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?TXD:syncStatus==="error"?"#f85149":GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"⚠ Sync failed":"✓ Synced")),
       RC("div",{style:{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flex:vrMobile?undefined:1,minWidth:0,minHeight:vrMobile?undefined:60}},
       RC("div",{className:"veda-hbtns"},
           RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:{background:A,color:BG,border:"1px solid "+A,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"TaskHub"),
@@ -12550,7 +12550,7 @@ window._pastelize=function(hex){
 /* Section */
 #vd-kc-root .kc-section { display: flex; flex-direction: column; gap: 10px; }
 #vd-kc-root .kc-section-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--bd); }
-#vd-kc-root .kc-section-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; color: var(--txd); text-transform: uppercase; letter-spacing: 2px; }
+#vd-kc-root .kc-section-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; color: var(--txd); letter-spacing: 0.5px; }
 /* Columns */
 #vd-kc-root #vd-kc-conns-list { display: flex; gap: 12px; }
 #vd-kc-root .kc-col { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
