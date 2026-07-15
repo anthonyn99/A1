@@ -26,6 +26,7 @@ const WATCHLIST = ['DRAM','SNDK','MU','INTC','WDC','AMD','CRWD','BE','GOOGL','PL
 const SECTOR_LOOKUP = {
   SNDK:'Storage', MU:'Semiconductor/Memory', WDC:'Storage', INTC:'Semiconductor',
   AMD:'Semiconductor', CRDO:'Semiconductor', MRVL:'AI/Semiconductor', DRAM:'Semiconductor/Memory',
+  SKHY:'Semiconductor/Memory', // SK Hynix ADR — Nasdaq-listed Jul 2026 (HBM/DRAM/NAND leader)
   LMT:'Defense', CRWD:'Cybersecurity', NET:'Cybersecurity', BE:'Clean Energy',
   GOOGL:'Tech/Mega-Cap', AAPL:'Tech/Mega-Cap', MSFT:'Tech/Mega-Cap',
   PLTR:'AI/Software', NVDA:'AI/Semiconductor', TSLA:'EV/Auto', SPCX:'Space/SPAC',
@@ -47,6 +48,7 @@ function inferSector(t){ return SECTOR_LOOKUP[t] || SECTOR_DERIVED[t] || 'Divers
 // More aliases = more legitimate headlines caught when ticker symbol isn't in headline.
 const ALIASES = {
   DRAM:['dram'],
+  SKHY:['sk hynix','hynix','sk hynix inc','skhynix'],
   SNDK:['sandisk'],
   MU:['micron','sanjay mehrotra','hbm3','hbm4'],
   INTC:['intel','pat gelsinger','lip-bu tan','gaudi','foundry','18a'],
@@ -101,8 +103,8 @@ function aliasesFor(t){ return ALIASES[t] || ALIASES_DERIVED[t] || []; }
 // Keep keywords SPECIFIC (industry/supply/pricing/policy terms) so we widen
 // coverage of real sector news without dragging in generic noise.
 const THEMES = [
-  // Memory / NAND / DRAM / HBM supply + pricing (SNDK, MU, WDC)
-  { tickers:['SNDK','MU','WDC'], kw:[
+  // Memory / NAND / DRAM / HBM supply + pricing (SKHY, SNDK, MU, WDC)
+  { tickers:['SKHY','SNDK','MU','WDC'], kw:[
     /\bsk[\s-]?hynix\b/, /\bhynix\b/, /\bkioxia\b/, /\bymtc\b/, /\bmicron\b/,
     /\bnand\b/, /\bdram\b/, /\bhbm\d?e?\b/, /\bflash memory\b/, /\bnand flash\b/,
     /\bmemory (chip|chips|price|prices|pricing|market|glut|shortage|demand|supply|capex|expansion|output|production|oversupply|undersupply)\b/,
@@ -120,7 +122,7 @@ const THEMES = [
   ] },
   // Broad semiconductor supply / equipment / trade policy (semis on the list).
   // SMH is the VanEck semis ETF — broad semi news moves it directly.
-  { tickers:['INTC','AMD','NVDA','CRDO','MU','MRVL','SMH'], kw:[
+  { tickers:['SKHY','INTC','AMD','NVDA','CRDO','MU','MRVL','SMH'], kw:[
     /\btsmc\b/, /\btaiwan semiconductor\b/, /\basml\b/, /\bapplied materials\b/,
     /\bchip (export|exports|tariff|tariffs|ban|bans|curb|curbs|control|controls)\b/,
     /\bsemiconductor (tariff|tariffs|export|exports|subsid|shortage|glut)\b/,
@@ -837,7 +839,7 @@ async function fetchFinnhubGeneral(env, wl, cutoff){
 // names none of our companies still surfaces (tagged theme:true → NONE-reject
 // safety net). Fails open (→ []) so a Google hiccup never breaks a build.
 const ENTITY_MAP = [
-  { re:/\bsk[\s-]?hynix\b|\bhynix\b/i,           tickers:['MU','SNDK','WDC','NVDA'] },
+  { re:/\bsk[\s-]?hynix\b|\bhynix\b/i,           tickers:['SKHY','MU','SNDK','WDC','NVDA'] },
   { re:/\bsamsung\b/i,                            tickers:['MU','SNDK','WDC'] },
   { re:/\bkioxia\b/i,                             tickers:['SNDK','WDC','MU'] },
   { re:/\btsmc\b|\btaiwan semiconductor\b/i,      tickers:['NVDA','AMD','INTC','MU','CRDO','MRVL'] },
@@ -1441,14 +1443,14 @@ const MACRO_RELEASES_2026 = {
   jobs: ['2026-01-09','2026-02-11','2026-03-06','2026-04-03','2026-05-08','2026-06-05','2026-07-02','2026-08-07','2026-09-04','2026-10-02','2026-11-06','2026-12-04'],
   // CPI — BLS
   cpi:  ['2026-01-13','2026-02-13','2026-03-11','2026-04-10','2026-05-12','2026-06-10','2026-07-14','2026-08-12','2026-09-11','2026-10-14','2026-11-10','2026-12-10'],
-  // PPI — BLS (typically day after CPI; verified pattern)
-  ppi:  ['2026-01-15','2026-02-19','2026-03-12','2026-04-14','2026-05-14','2026-06-11','2026-07-16','2026-08-13','2026-09-15','2026-10-15','2026-11-13','2026-12-11'],
+  // PPI — BLS (official 2026 dates per OMB PFEI schedule / bls.gov/schedule)
+  ppi:  ['2026-01-15','2026-02-19','2026-03-12','2026-04-14','2026-05-14','2026-06-11','2026-07-15','2026-08-13','2026-09-10','2026-10-15','2026-11-13','2026-12-15'],
   // Personal Income & Outlays = PCE — BEA (PFEI 2026)
   pce:  ['2026-01-29','2026-02-26','2026-03-27','2026-04-30','2026-05-28','2026-06-25','2026-07-30','2026-08-26','2026-09-30','2026-10-29','2026-11-25','2026-12-23'],
   // GDP — BEA (advance/2nd/3rd estimates, PFEI 2026)
   gdp:  ['2026-01-29','2026-02-26','2026-03-27','2026-04-30','2026-05-28','2026-06-25','2026-07-30','2026-08-26','2026-09-30','2026-10-29','2026-11-25','2026-12-23'],
-  // Retail Sales — Census (mid-month, ~15th-17th)
-  retail: ['2026-01-16','2026-02-17','2026-03-16','2026-04-15','2026-05-15','2026-06-16','2026-07-16','2026-08-14','2026-09-16','2026-10-16','2026-11-17','2026-12-15'],
+  // Retail Sales — Census Advance Monthly Retail (official 2026 dates per OMB PFEI)
+  retail: ['2026-01-16','2026-02-17','2026-03-16','2026-04-15','2026-05-15','2026-06-16','2026-07-16','2026-08-14','2026-09-16','2026-10-15','2026-11-17','2026-12-16'],
   // FOMC rate decision (2nd day of meeting) — Federal Reserve
   fomc: ['2026-01-28','2026-03-18','2026-04-29','2026-06-17','2026-07-29','2026-09-16','2026-10-28','2026-12-09'],
   // JOLTS (Job Openings & Labor Turnover) — BLS. Released ~10am ET, reports the
@@ -3010,6 +3012,15 @@ async function handleStage(env, ctx, req, buildId, stage, sliceIdx){
       const ttl = degraded ? 600 : CACHE_TTL;
       await env.NEWSHUB_CACHE.put(meta.cacheKey, body, { expirationTtl: ttl });
       await env.NEWSHUB_CACHE.delete(meta.lockKey).catch(()=>{});
+      // Push to Firebase so the client's onSnapshot AUTO-DISPLAYS the finished build
+      // with no polling. The staged path (large watchlists) usually outlasts the
+      // client's poll cap, so without this the News tab only updates on a tab
+      // remount. Mirrors buildAndCache; only push non-empty results so a failed
+      // build never wipes the last good news. Fire-and-forget.
+      if (finalEvents && finalEvents.length){
+        ctx.waitUntil(pushNewsToFirebase({ events: finalEvents, degraded })
+          .catch(e => console.warn('[news] staged firebase push failed:', e.message)));
+      }
     } catch(e){
       await stashStageError(env, 'aifin', buildId, e, enrichedList.length);
       await writeRawFallback(env, meta, null, events);
