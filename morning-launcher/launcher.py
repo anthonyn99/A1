@@ -127,6 +127,14 @@ TRIGGER_HOUR = 6    # Earliest launch time. Open before this → it waits until 
 LATEST_HOUR  = 12   # If your FIRST open of the day is at/after this hour (noon MT),
                     # it won't auto-launch — assumes you're not starting a trading day.
 
+# WiFi/network gate. Opening the laptop lid fires the unlock trigger INSTANTLY, but
+# WiFi takes a few seconds to reconnect after sleep — and everything here (WeBull,
+# TradeHub, ChatGPT, the worker) needs the internet. So before launching we wait for a
+# REAL connection. If it never comes within CONNECTIVITY_WAIT seconds we bail WITHOUT
+# marking the day done, so the next wake/unlock simply retries. (Normal WiFi reconnect
+# is well under 30s; the generous cap only matters if the network is truly slow/down.)
+CONNECTIVITY_WAIT = 300   # max seconds to wait for internet after the laptop wakes
+
 # ==============================================================================
 #  EXECUTABLE PATHS  (auto-detected — override here if detection fails)
 # ==============================================================================
@@ -147,6 +155,7 @@ import ctypes
 import ctypes.wintypes as wt
 import json
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -196,6 +205,42 @@ def seconds_until_trigger() -> float:
     now    = mountain_now()
     target = now.replace(hour=TRIGGER_HOUR, minute=0, second=0, microsecond=0)
     return max((target - now).total_seconds(), 0.0)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Network connectivity  (don't launch until WiFi is actually up)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def has_internet(timeout: float = 3.0) -> bool:
+    """True only if the machine can REALLY reach the internet — not just 'an adapter
+    is up'. We open a TCP connection to a well-known host on 443, which exercises DNS
+    resolution + routing + a real handshake, so it can't be fooled by a half-up WiFi
+    link that has an IP but no working uplink yet. Tries two hosts so one being down
+    doesn't produce a false negative."""
+    for host in ("www.google.com", "1.1.1.1"):
+        try:
+            with socket.create_connection((host, 443), timeout=timeout):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def wait_for_connectivity(timeout: int = CONNECTIVITY_WAIT, interval: float = 3.0) -> bool:
+    """Block until the laptop has a real internet connection, up to `timeout` seconds.
+    Returns True as soon as it's online (usually within a few seconds of opening the
+    lid), or False if it never connected in time."""
+    if has_internet():
+        return True
+    log("No internet yet (WiFi still reconnecting?) — waiting for a connection...")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        time.sleep(interval)
+        if has_internet():
+            waited = timeout - (deadline - time.time())
+            log(f"Internet connected after ~{waited:.0f}s — proceeding.")
+            return True
+    return False
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1054,6 +1099,14 @@ def run_morning(test: bool = False):
         log(f"First open of the day at {now:%H:%M} MT is past the morning window "
             f"({TRIGGER_HOUR}:00–{LATEST_HOUR}:00 MT) — not auto-launching. "
             f"Run 'python launcher.py --test' to open manually.")
+        return
+
+    # WiFi gate: everything below needs the internet. Wait for a real connection first,
+    # and if it never comes, return WITHOUT marking the day done — so the next wake /
+    # unlock (once WiFi is up) retries instead of the morning being silently lost.
+    if not wait_for_connectivity():
+        log(f"Still no internet after {CONNECTIVITY_WAIT}s — NOT launching. Today stays "
+            f"unmarked, so the next wake/unlock will retry once WiFi is connected.")
         return
 
     _launch_all(test=False)
