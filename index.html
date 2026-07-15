@@ -192,7 +192,7 @@ body.light-mode input[type=time]{color-scheme:light;}
   /* Veda safe area */
   #veda-root{box-sizing:border-box;height:100%;}
   /* Veda universal header layout */
-  .veda-hdr-outer{background:#1B1C1E;font-family:'IBM Plex Mono',monospace;box-sizing:border-box;}
+  .veda-hdr-outer{background:#1B1C1E;font-family:'IBM Plex Mono',monospace;box-sizing:border-box;position:sticky;top:0;z-index:200;flex-shrink:0;}
   .veda-hdr-inner{max-width:2000px;margin:0 auto;width:100%;display:flex;flex-direction:row;align-items:flex-start;justify-content:space-between;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 4px) 14px 4px;box-sizing:border-box;}
   .veda-hdr-left{display:flex;flex-direction:column;gap:1px;min-width:0;flex-shrink:0;padding-top:2px;}
   .veda-hdr-right{display:flex;flex-direction:column;gap:4px;align-items:flex-end;min-width:0;flex:1;}
@@ -10321,7 +10321,8 @@ function App(){
   return RC("div",{style:{background:BG,minHeight:"100%"}},
     RC("div",{style:{maxWidth:2000,margin:"0 auto",color:TX,fontFamily:"'IBM Plex Mono',monospace",fontSize:14,padding:"calc(env(safe-area-inset-top,0px) + 4px) 14px calc(env(safe-area-inset-bottom,0px) + 20px)",boxSizing:"border-box",lineHeight:1.5,display:"flex",flexDirection:"column",gap:8}},
 
-    // ── Header ──
+    // ── Header (sticky) ──
+    RC("div",{style:{position:"sticky",top:0,zIndex:50,background:BG,marginLeft:-14,marginRight:-14,paddingLeft:14,paddingRight:14,paddingBottom:4}},
     RC("div",{style:{display:"flex",flexDirection:vrMobile?"column":"row",alignItems:vrMobile?"stretch":"flex-start",justifyContent:"space-between",gap:vrMobile?6:12,flexShrink:0}},
       RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,flexShrink:0,paddingTop:2,position:"relative"}},
         RC("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:8}},
@@ -10347,7 +10348,7 @@ function App(){
         RC("div",{style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
           RC("span",{style:{fontSize:10,color:A,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},edit?"Edit":"View"),
           RC("div",{style:{width:34,height:18,borderRadius:9,background:edit?A:BD,border:"1px solid "+BDL,position:"relative",transition:"background .25s"}},RC("div",{style:{width:13,height:13,borderRadius:"50%",background:edit?BG:TXD,position:"absolute",top:"50%",transform:"translateY(-50%)",left:edit?18:2,transition:"left .25s, background .25s"}}))),
-        RC("button",{onClick:toggleFullscreen,title:isFullscreen?"Exit Fullscreen":"Fullscreen",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=isFullscreen?A:BDL;},style:{background:isFullscreen?A:"transparent",color:isFullscreen?BG:A,border:"1px solid "+(isFullscreen?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},isFullscreen?"Exit":"⛶")))),
+        RC("button",{onClick:toggleFullscreen,title:isFullscreen?"Exit Fullscreen":"Fullscreen",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=isFullscreen?A:BDL;},style:{background:isFullscreen?A:"transparent",color:isFullscreen?BG:A,border:"1px solid "+(isFullscreen?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},isFullscreen?"Exit":"⛶"))))),
 
     // ── GITA DAILY QUOTE BANNER ──
     RC("div",{className:"gita-banner",style:{position:"relative"},onClick:openGitaFromBanner},
