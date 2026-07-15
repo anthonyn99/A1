@@ -85,6 +85,22 @@ Files:
 | `background.js` | Service worker — opens tabs; decrypts matches for the content script; stores the synced biometric link |
 | `icons/` | 16/48/128 px all-pink keyhole icons |
 
+The extension ships only the files listed above (see `VAULT_FILES` in the Index
+app's packager). This folder also holds the **Index app's PWA vault modules**,
+which the extension does not package but which live here so both the app and the
+extension share a single `vault-crypto.js` (identical crypto core):
+
+| File | Role |
+|------|------|
+| `vault-crypto.js` | Shared crypto core — loaded by the extension **and** by `index.html` |
+| `vault-store.js` | PWA: encrypted storage + sync layer (Index app only) |
+| `vault-session.js` | PWA: session & auth orchestration (Index app only) |
+| `vault-ui.js` | PWA: Passwords / Sensitive Info / Links tabs injected into Keychain (Index app only) |
+| `vault-*.test.js` | Node verification for the modules above (`node vault-crypto.test.js`, …) |
+
+`index.html` loads these via `<script src="Vault/…">`; the extension loads its
+copy of `vault-crypto.js` locally from this same folder.
+
 ---
 
 ## One-time setup

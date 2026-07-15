@@ -104,8 +104,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
-          # Note the double-nested path — this matches your repo layout
-          workingDirectory: workers/warroom-api/warroom-api
+          workingDirectory: workers/warroom-api
 
   deploy-trade-dashboard:
     needs: changes
