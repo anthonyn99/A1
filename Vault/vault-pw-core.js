@@ -53,6 +53,72 @@
   async function lock() { dek = null; await sesDel(); }
   function isUnlocked() { return !!dek; }
 
+  // ── biometric unlock — reuses the SAME WebAuthn credential + device key ────
+  // registered on this device by Index (see vault-bio-sync.js). We never
+  // enroll a separate credential here: the content script relays this
+  // device's { deviceId, deviceKeyB64, credId } from Index's localStorage,
+  // and Chrome 122+ lets an extension assert Index's own RP ID (its
+  // hostname) for WebAuthn as long as it holds host_permissions for that
+  // site (declared in manifest.json). A live biometric assertion is still
+  // required every time — the synced device key alone unlocks nothing.
+  const BIO_RP_ID = "anthonyn99.github.io";
+  function bioHasSession() { try { return !!(root.chrome && chrome.storage && chrome.storage.local); } catch (e) { return false; } }
+  function getBioLink() {
+    return new Promise((res) => {
+      if (!bioHasSession()) return res(null);
+      try { chrome.storage.local.get("vaultBioLink", (d) => res((d && d.vaultBioLink) || null)); }
+      catch (e) { res(null); }
+    });
+  }
+  function unb64u(str) {
+    str = String(str).replace(/-/g, "+").replace(/_/g, "/");
+    while (str.length % 4) str += "=";
+    const bin = atob(str), b = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+    return b.buffer;
+  }
+  function bioSupported() {
+    return !!(root.PublicKeyCredential && root.navigator && root.navigator.credentials && root.navigator.credentials.get);
+  }
+  async function biometricAvailable() {
+    if (!bioSupported()) return false;
+    const link = await getBioLink();
+    if (!link || !link.deviceId || !link.deviceKeyB64 || !link.credId) return false;
+    await ensureLoaded();
+    return !!(config && config.biometrics && config.biometrics[link.deviceId]);
+  }
+  function biometricLabel(link) {
+    if (link && link.label) return link.label;
+    const ua = (root.navigator && root.navigator.userAgent) || "";
+    if (/Windows/.test(ua)) return "Windows Hello";
+    if (/Mac/.test(ua)) return "Touch ID";
+    if (/iPhone|iPad|iPod/.test(ua)) return "Face ID";
+    if (/Android/.test(ua)) return "fingerprint";
+    return "biometrics";
+  }
+  async function unlockWithBiometric() {
+    if (!bioSupported()) throw new Error("bio-unavailable");
+    const link = await getBioLink();
+    if (!link || !link.deviceId || !link.deviceKeyB64 || !link.credId) throw new Error("no-biometric-slot");
+    await ensureLoaded();
+    if (!config) throw new Error("no-vault");
+    if (!(config.biometrics && config.biometrics[link.deviceId])) throw new Error("no-biometric-slot");
+    let asr;
+    try {
+      asr = await root.navigator.credentials.get({
+        publicKey: {
+          challenge: root.crypto.getRandomValues(new Uint8Array(32)),
+          allowCredentials: [{ type: "public-key", id: unb64u(link.credId) }],
+          userVerification: "required", timeout: 60000, rpId: BIO_RP_ID,
+        },
+      });
+    } catch (e) { throw new Error(e && e.name === "NotAllowedError" ? "cancelled" : "bio-failed"); }
+    if (!asr) throw new Error("cancelled");
+    dek = await VC.unlockWithBiometric(config, link.deviceId, link.deviceKeyB64); // throws 'bad-biometric'
+    await saveSession();
+    return true;
+  }
+
   async function credentials() {
     if (!dek) throw new Error("locked");
     const out = [];
@@ -108,7 +174,10 @@
     } catch (e) { dek = null; return false; }
   }
 
-  const api = { fetchVault, hasVault, unlock, lock, isUnlocked, credentials, matchDomain, hostFromUrl, saveSession, touchSession, restoreSession, IDLE_MS };
+  const api = {
+    fetchVault, hasVault, unlock, lock, isUnlocked, credentials, matchDomain, hostFromUrl, saveSession, touchSession, restoreSession, IDLE_MS,
+    biometricAvailable, biometricLabel, unlockWithBiometric, getBioLink,
+  };
   root.VaultPWCore = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof self !== "undefined" ? self : (typeof globalThis !== "undefined" ? globalThis : this));

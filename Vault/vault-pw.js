@@ -97,7 +97,7 @@
     return renderList();
   }
 
-  function renderUnlock() {
+  async function renderUnlock() {
     clear();
     const pwIn = el("input", { type: "password", class: "pw-input", placeholder: "Master password", autocomplete: "current-password" });
     const err = el("div", { class: "pw-err" });
@@ -109,12 +109,31 @@
     }
     btn.addEventListener("click", go);
     pwIn.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+
+    const kids = [pwIn, err, btn];
+    // Biometric unlock — only offered when this device already has biometrics
+    // registered for the vault in TaskHub → Vault (Index); reuses that same
+    // Windows Hello / Touch ID / Face ID / fingerprint credential.
+    let hasBio = false;
+    try { hasBio = await VP.biometricAvailable(); } catch (e) {}
+    if (hasBio) {
+      const link = await VP.getBioLink();
+      const label = VP.biometricLabel(link);
+      const bioBtn = el("button", { class: "pw-btn" }, ["🔓  Unlock with " + label]);
+      bioBtn.addEventListener("click", async () => {
+        err.textContent = "";
+        try { await VP.unlockWithBiometric(); broadcastLockState(true); renderList(); }
+        catch (e) { if (e.message !== "cancelled") err.textContent = label + " unlock failed — use your password."; }
+      });
+      kids.splice(2, 0, bioBtn);
+    }
     panel.appendChild(el("div", { class: "pw-lock" }, [
       el("div", { class: "pw-lock-icon", html: "🔐" }),
       el("div", { class: "pw-lock-title" }, ["Vault is locked"]),
       el("div", { class: "pw-lock-sub" }, ["Unlock to view and autofill your logins. Stays unlocked for 30 min of activity."]),
-      pwIn, err, btn,
+      ...kids,
     ]));
+    if (hasBio) { const b = panel.querySelector(".pw-btn:not(.primary)"); if (b) setTimeout(() => b.click(), 250); }
     setTimeout(() => pwIn.focus(), 60);
   }
 

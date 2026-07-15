@@ -28,6 +28,14 @@ Rebuilt from the old *D2L Tabs Automate* class project (used only as a template)
   **fills** username/password into the active tab via `chrome.scripting`. Zero-knowledge:
   the Worker and DB only ever see ciphertext. Create/edit credentials in
   TaskHub → **Vault** (the PWA); the extension is a read + autofill client.
+- **Biometric unlock** — if you've registered Windows Hello / Touch ID / Face ID /
+  fingerprint for the vault in TaskHub → Vault (Index), the popup offers the same
+  unlock here. `vault-bio-sync.js` (a content script scoped to the Index origin)
+  relays this device's `{deviceId, deviceKeyB64, credId}` into `chrome.storage.local`;
+  `vault-pw-core.js` then asserts Index's own WebAuthn credential (Chrome 122+ lets
+  an extension claim a site's RP ID once it holds `host_permissions` for it — see
+  manifest.json) and, only on success, unwraps the vault with the synced device key.
+  No separate enrollment, and a live biometric check is still required every time.
 
 ### Passwords Worker setup (one-time)
 
@@ -70,10 +78,11 @@ Files:
 | `popup.html` / `popup.js` | View + launch links; Links & Passwords tabs. The Passwords ⚙ opens TaskHub → Vault → Passwords (where credentials are managed) |
 | `vault-sync.js` | Reads the shared Keychain doc via the `keychain-sync` Worker (load / linksOf) |
 | `vault-crypto.js` | Zero-knowledge crypto core (PBKDF2 + AES-GCM); decrypts locally after unlock |
-| `vault-pw-core.js` | Password data layer: fetch (via `vault-pw-sync` Worker), unlock, decrypt, domain match, 30-min idle session |
-| `vault-pw.js` | Passwords popup UI (unlock, list, copy/reveal, autofill) |
+| `vault-pw-core.js` | Password data layer: fetch (via `vault-pw-sync` Worker), unlock, decrypt, domain match, 30-min idle session, biometric unlock |
+| `vault-pw.js` | Passwords popup UI (unlock, list, copy/reveal, autofill, biometric button) |
+| `vault-bio-sync.js` | Content script on the Index origin only — relays this device's biometric link (deviceId/deviceKey/credential id) into `chrome.storage.local` |
 | `content.js` | Inline "Vault Autofill" dropdown on login pages |
-| `background.js` | Service worker — opens tabs; decrypts matches for the content script |
+| `background.js` | Service worker — opens tabs; decrypts matches for the content script; stores the synced biometric link |
 | `icons/` | 16/48/128 px all-pink keyhole icons |
 
 ---

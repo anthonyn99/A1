@@ -843,6 +843,26 @@
       if (!(await verifyIdentity('rotate your recovery key'))) return;
       session.rotateRecovery().then(function (r) { overlay.remove(); showRecovery(r.recoveryCode); }).catch(function (e) { toast('Failed: ' + e.message); });
     }));
+    rows.appendChild(settingRow('Delete all Passwords', async function () {
+      var items = store.byKind('login');
+      if (!items.length) { toast('No passwords to delete'); return; }
+      var n = items.length;
+      var ok = await confirmUI('Permanently delete all ' + n + ' saved password' + (n === 1 ? '' : 's') + '? This cannot be undone.',
+        { title: 'Delete all Passwords', okLabel: 'Delete all', danger: true });
+      if (!ok) return;
+      for (var i = 0; i < items.length; i++) await store.remove(items[i].id);
+      overlay.remove(); toast('All passwords deleted'); refreshList('login');
+    }));
+    rows.appendChild(settingRow('Delete all Sensitive Info', async function () {
+      var items = store.byKind('sensitive');
+      if (!items.length) { toast('No sensitive info to delete'); return; }
+      var n = items.length;
+      var ok = await confirmUI('Permanently delete all ' + n + ' secure note' + (n === 1 ? '' : 's') + '? This cannot be undone.',
+        { title: 'Delete all Sensitive Info', okLabel: 'Delete all', danger: true });
+      if (!ok) return;
+      for (var i = 0; i < items.length; i++) await store.remove(items[i].id);
+      overlay.remove(); toast('All sensitive info deleted'); refreshList('sensitive');
+    }));
     session.biometricEnabled().then(function (on) {
       rows.appendChild(settingRow(on ? 'Disable biometric unlock (this device)' : 'Enable biometric unlock (this device)', async function () {
         if (on) {

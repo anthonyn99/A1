@@ -26,6 +26,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  // ── biometric link sync from Index (vault-bio-sync.js content script) ──
+  if (message.action === "vaultBioSync") {
+    try { chrome.storage.local.set({ vaultBioLink: message.link || null }, () => sendResponse({ ok: true })); }
+    catch (e) { sendResponse({ ok: false }); }
+    return true;
+  }
+
   // ── inline autofill: return decrypted matches for a domain ──
   if (message.action === "vaultGetCreds") {
     (async () => {

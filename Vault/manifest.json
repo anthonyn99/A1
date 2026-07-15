@@ -6,7 +6,8 @@
   "permissions": ["tabs", "storage", "scripting", "activeTab"],
   "host_permissions": [
     "https://keychain-sync.av1.workers.dev/*",
-    "https://vault-pw-sync.av1.workers.dev/*"
+    "https://vault-pw-sync.av1.workers.dev/*",
+    "https://anthonyn99.github.io/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -25,6 +26,11 @@
       "matches": ["<all_urls>"],
       "exclude_matches": ["https://anthonyn99.github.io/*"],
       "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://anthonyn99.github.io/*"],
+      "js": ["vault-bio-sync.js"],
       "run_at": "document_idle"
     }
   ],
