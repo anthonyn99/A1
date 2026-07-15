@@ -2365,6 +2365,14 @@ body.light-mode input[type=time]{color-scheme:light;}
 </style>
 </head>
 <body>
+<!-- ── Boot loading screen: covers everything until profile routing + initial Firebase data are ready ── -->
+<div id="th-boot-loader" style="position:fixed;inset:0;z-index:999999;background:#0f0f12;display:flex;align-items:center;justify-content:center;transition:opacity .4s ease;">
+  <div style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,0.1);border-top-color:#E0607A;animation:th-boot-spin .8s linear infinite;"></div>
+</div>
+<style>
+@keyframes th-boot-spin{to{transform:rotate(360deg);}}
+#th-boot-loader.th-boot-hide{opacity:0;pointer-events:none;}
+</style>
 <!-- ── Shared Tony App Nav Bar ── -->
 <div id="tony-app-nav">
   <div id="tony-app-nav-inner">
@@ -10240,6 +10248,9 @@ function App(){
   // Events get the same card treatment (mirror of Tony's wkEventCard): bordered card,
   // category-colored left stripe, fading once both event time and reminder have passed.
   const vdEventCard=(cat,passed)=>({background:passed?"#0f1014":"#1b1c23",border:"1px solid "+(passed?"#1d1e25":"#32333d"),borderLeft:"3px solid "+(passed?"#33343d":(CC[cat]||"#58a6d4")),borderRadius:10,padding:vrMobile?"4px 12px":"3px 10px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
+  // Plain tasks get a minimal outlined container — no fill, no shadow — kept
+  // compact so the week stays dense and legible.
+  const vdTaskCard=done=>({background:"transparent",border:"1px solid "+(done?"#26262c":"#33333b"),borderRadius:6,padding:vrMobile?"4px 8px":"3px 7px"});
   const vdEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
   // Macro release time in the viewer's LOCAL zone (CO→Mountain, GA→Eastern…). "" if unknown.
   const mcTimeLocal=(e)=>{const t=mcMacroET(e);if(!t)return"";try{const ts=thZonedTs(e.date,t.hh,t.mm,"America/New_York");return new Date(ts).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});}catch(_){return"";}};
@@ -10346,7 +10357,7 @@ function App(){
                 ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px",flexShrink:0}},l===0?"✓ Done":l+" left")),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[]),
-              ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{display:"flex",alignItems:"flex-start",gap:7,marginBottom:7,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
+              ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
@@ -10385,7 +10396,7 @@ function App(){
                 ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px"}},l===0?"✓ Done":l+" left")),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[]),
-              ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{display:"flex",alignItems:"flex-start",gap:6,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
+              ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:8})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
@@ -10738,16 +10749,33 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     const open=function(who){ return !(window.alMustBlock && window.alMustBlock("profile_"+who)); };
     // Main dash takes priority — skip profile chooser entirely (only if that profile
     // isn't password-locked on this device; otherwise show chooser so they can unlock).
+    let autoDash=false;
     if(main==="tony"&&open("tony")){
-      goTony();
+      autoDash=true; goTony();
     } else if(main==="veda"&&open("veda")){
-      goVeda();
+      autoDash=true; goVeda();
     } else if(last==="tony"&&open("tony")){
-      goTony();
+      autoDash=true; goTony();
     } else if(last==="veda"&&open("veda")){
-      goVeda();
+      autoDash=true; goVeda();
     } else {
       renderProfile();
+    }
+    // Reveal the app: if a dashboard auto-loaded, wait for the initial Firebase
+    // sync so we don't flash stale/cached data; the profile chooser itself
+    // needs no data, so it can be revealed right away.
+    const hideBootLoader=function(){
+      const el=document.getElementById("th-boot-loader");
+      if(!el)return;
+      el.classList.add("th-boot-hide");
+      setTimeout(function(){el.remove();},450);
+    };
+    if(autoDash){
+      if(window._fbReady)hideBootLoader();
+      else window.addEventListener("fb-ready",hideBootLoader,{once:true});
+      setTimeout(hideBootLoader,4000);
+    } else {
+      hideBootLoader();
     }
   });
 })();
