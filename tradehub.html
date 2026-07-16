@@ -1012,7 +1012,7 @@ const TB_STYLES=`
    and inherits this styling, since the sanitizer drops the source's own inline
    styles. That's what makes a paste land clean instead of importing a foreign
    theme. ── */
-#tradeboard-root .tb-pb-doc{font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.75;color:var(--txd);word-wrap:break-word;overflow-wrap:break-word;}
+#tradeboard-root .tb-pb-doc{font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.75;color:var(--tx);word-wrap:break-word;overflow-wrap:break-word;}
 #tradeboard-root .tb-pb-doc:focus{outline:none;}
 #tradeboard-root .tb-pb-doc>*:first-child{margin-top:0;}
 #tradeboard-root .tb-pb-doc h1,#tradeboard-root .tb-pb-doc h2,#tradeboard-root .tb-pb-doc h3,
@@ -1044,6 +1044,31 @@ const TB_STYLES=`
 /* Placeholder — driven by a data attr, not :empty, because contentEditable keeps
    a stray <br> in an "empty" doc and :empty would never match. */
 #tradeboard-root .tb-pb-doc[data-empty="1"]::before{content:attr(data-placeholder);color:var(--txm);font-style:italic;pointer-events:none;}
+/* The Playbook is the one tab that shows a real scrollbar: its pages are long
+   documents, and a grabbable thumb is the only way to move through one quickly.
+   Scoped to this container so every other tab keeps the app-wide hidden bars. */
+/* Styled with the ::-webkit-scrollbar pseudo-elements and NOT the standard
+   scrollbar-width/scrollbar-color: setting either standard property makes
+   Chromium ignore these rules outright and fall back to its stock scrollbar
+   (arrow buttons, square thumb). Firefox has no ::-webkit- support and simply
+   shows its own scrollbar here, which is what we want anyway — visible and
+   draggable. Only Chromium hides scrollbars app-wide, so only it needs opting
+   back in. */
+#tradeboard-root .tb-pb-scroll::-webkit-scrollbar{display:block;width:14px;height:14px;}
+#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-track{background:transparent;}
+/* A transparent border + padding-box clip makes the thumb read as a floating
+   pill instead of filling the gutter; min-height keeps it grabbable on a long
+   page. background-COLOR (not the shorthand) so :hover/:active don't reset the
+   clip back to border-box and square the pill off. */
+#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-thumb{background-color:rgba(152,152,168,0.45);background-clip:padding-box;border:4px solid transparent;border-radius:10px;min-height:48px;}
+#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-thumb:hover{background-color:rgba(152,152,168,0.75);}
+#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-thumb:active{background-color:var(--ac);}
+#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-button{display:none;height:0;width:0;}
+#tradeboard-root .tb-pb-scroll::-webkit-scrollbar-corner{background:transparent;}
+/* Sidebar + document header hold their position while the page scrolls. */
+#tradeboard-root .tb-pb-side{position:sticky;top:0;align-self:start;z-index:2;background:var(--bg);padding-top:10px;max-height:100vh;overflow-y:auto;scrollbar-width:none;}
+#tradeboard-root .tb-pb-side::-webkit-scrollbar{display:none;}
+#tradeboard-root .tb-pb-head{position:sticky;top:0;z-index:3;background:var(--bg);padding-top:10px;padding-bottom:10px;}
 #tradeboard-root .tb-pb-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;cursor:pointer;color:var(--txd);font-size:13.5px;font-weight:600;transition:background .15s,color .15s,border-color .15s;}
 #tradeboard-root .tb-pb-item:hover{background:var(--s2);color:var(--tx);}
 #tradeboard-root .tb-pb-item.active{background:var(--acg);border-color:var(--ac);color:var(--ac);font-weight:800;}
@@ -5097,11 +5122,34 @@ function tbMdToHtml(md){
    dangerouslySetInnerHTML — so it is sanitized on the way IN and again on the
    way OUT. Allowlist-based: unknown tags are unwrapped (their text survives),
    dangerous tags are dropped whole, and every attribute not explicitly allowed
-   goes — including all `on*` handlers and `style`. Dropping `style` is what
-   makes a paste inherit the Playbook's own look instead of the source page's. */
+   goes — including all `on*` handlers. */
 const TB_PB_TAGS=new Set(['p','br','hr','h1','h2','h3','h4','h5','h6','strong','b','em','i','u','s','del','ins','mark','small','sub','sup','ul','ol','li','blockquote','pre','code','kbd','samp','table','thead','tbody','tfoot','tr','th','td','caption','a','img','span','div','figure','figcaption']);
 const TB_PB_DROP=new Set(['script','style','iframe','object','embed','link','meta','form','input','button','select','textarea','noscript','svg','math','base','title','head']);
 const TB_PB_ATTRS={a:['href','title'],img:['src','alt','title'],th:['colspan','rowspan'],td:['colspan','rowspan'],ol:['start']};
+
+/* `style` is FILTERED rather than dropped. A browser puts the source's computed
+   typography inline on the clipboard fragment, so discarding the whole attribute
+   made every paste snap to this doc's own sizes — 11px source text arriving as
+   15px. Keeping these properties is what makes a paste match where it came from.
+   COLOUR is deliberately absent: pasting from a light-background document would
+   carry black text into this dark theme and render it invisible. */
+const TB_PB_STYLE_PROPS=['font-size','font-weight','font-style','font-family','line-height','text-decoration-line','text-align','vertical-align'];
+
+function tbPbKeepStyle(el){
+  let out='';
+  try{
+    const s=el.style;
+    if(!s || !s.length) return '';
+    for(const p of TB_PB_STYLE_PROPS){
+      const v=s.getPropertyValue(p);
+      // The CSSOM already rejected anything unparseable; this drops the values
+      // that parse but can still fetch or inject (url(), expression(), …).
+      if(!v || /url\(|expression|javascript:|[<>]/i.test(v)) continue;
+      out+=p+':'+v+';';
+    }
+  }catch(e){}
+  return out;
+}
 
 function tbPbSafeUrl(u,isImg){
   const s=String(u||'').trim();
@@ -5139,6 +5187,8 @@ function tbSanitizeHtml(html){
       el.remove();
       continue;
     }
+    // Read the typography off the style attribute BEFORE the loop below strips it.
+    const keepStyle=tbPbKeepStyle(el);
     const allowed=TB_PB_ATTRS[tag]||[];
     for(const attr of Array.from(el.attributes)){
       const n=attr.name.toLowerCase();
@@ -5146,6 +5196,7 @@ function tbSanitizeHtml(html){
       if(n==='href'){ const u=tbPbSafeUrl(attr.value,false); if(u) el.setAttribute('href',u); else el.removeAttribute('href'); }
       else if(n==='src'){ const u=tbPbSafeUrl(attr.value,true); if(u) el.setAttribute('src',u); else el.remove(); }
     }
+    if(keepStyle && root.contains(el)) el.setAttribute('style',keepStyle);
     if(tag==='a' && el.getAttribute('href')){ el.setAttribute('target','_blank'); el.setAttribute('rel','noopener noreferrer'); }
   }
   return root.innerHTML;
@@ -5367,7 +5418,7 @@ function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
   };
 
   return(<div style={{display:'flex',flexDirection:'column',gap:14,minWidth:0}}>
-    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+    <div className="tb-pb-head" style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
       {isMobile&&<button className="tb-btn-ghost" onClick={onBack} style={{padding:'6px 14px',fontSize:12}}>‹ Pages</button>}
       <input value={page.title||''} onChange={e=>onChange({...page,title:e.target.value,updatedAt:Date.now()})}
         placeholder="Page title" spellCheck={false}
@@ -5376,7 +5427,7 @@ function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
       {isDaily&&<span title="morning-launcher shows this page before it opens anything"
         style={{fontSize:8.5,background:'rgba(74,222,128,0.18)',color:'var(--tbb)',border:'1px solid rgba(74,222,128,0.35)',
           borderRadius:4,padding:'3px 7px',fontWeight:800,letterSpacing:.6,whiteSpace:'nowrap'}}>AUTOLAUNCH</span>}
-      <button className="tb-btn-ghost" onClick={copyMd} style={{padding:'6px 14px',fontSize:12}} title="Copy this page as Markdown">⧉ Markdown</button>
+      <button className="tb-btn-ghost" onClick={copyMd} style={{padding:'6px 14px',fontSize:12}} title="Copy this page as Markdown">⧉ Copy</button>
       {!isDaily&&(!confirmDel
         ?<button className="tb-btn-danger" onClick={()=>setConfirmDel(true)} style={{padding:'6px 14px',fontSize:12}}>🗑 Delete</button>
         :<div style={{display:'flex',gap:7,alignItems:'center'}}>
@@ -5428,7 +5479,7 @@ function TBPlaybookPage({pages,onSavePages,onToast}){
     onToast&&onToast('Page deleted','🗑');
   };
 
-  const sidebar=(<div style={{display:'flex',flexDirection:'column',gap:6,minWidth:0}}>
+  const sidebar=(<div className={isMobile?undefined:'tb-pb-side'} style={{display:'flex',flexDirection:'column',gap:6,minWidth:0}}>
     <div className="tb-section-label" style={{padding:'0 2px 6px'}}>Pages</div>
     {list.map(p=>(
       <button key={p.id} className={'tb-pb-item'+(p.id===selId&&!isMobile?' active':'')}
@@ -5445,11 +5496,8 @@ function TBPlaybookPage({pages,onSavePages,onToast}){
   const editor=<TBPlaybookEditor key={sel.id} page={sel} onChange={updatePage} onDelete={()=>deletePage(sel.id)}
     onBack={()=>setMobileEditing(false)} isMobile={isMobile} onToast={onToast}/>;
 
-  return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:16}}>
-    <div>
-      <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Playbook</div>
-      <div style={{fontSize:13,color:'var(--txm)'}}>{list.length} page{list.length===1?'':'s'} · rules, strategies &amp; checklists</div>
-    </div>
+  return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:8}}>
+    <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Playbook</div>
     {isMobile
       ? (mobileEditing?editor:sidebar)
       : <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:22,alignItems:'start'}}>{sidebar}{editor}</div>}
@@ -5778,7 +5826,9 @@ function TBApp(){
   return(<div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',background:'var(--bg)'}}>
     <TBHeader page={page} onNav={setPage} syncStatus={tbSyncStatus} portfolioConnected={tbPortfolioOk} isDark={tbIsDark} onToggleTheme={toggleTbTheme} onManageTabLock={setTabLockManage} navOrder={navOrder} onReorderNav={onReorderNav}/>
     <TBMobileHeader page={page} syncStatus={tbSyncStatus} portfolioConnected={tbPortfolioOk} onNav={setPage} isDark={tbIsDark} onToggleTheme={toggleTbTheme} onManageTabLock={setTabLockManage} navOrder={navOrder} onReorderNav={onReorderNav}/>
-    <div style={{flex:1,overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch'}}>
+    {/* Playbook pages are long documents, so this is the one tab that gets a real,
+        draggable scrollbar — every other tab keeps the app's hidden bars. */}
+    <div className={page==='playbook'?'tb-pb-scroll':undefined} style={{flex:1,overflowY:'auto',overflowX:'hidden',WebkitOverflowScrolling:'touch'}}>
       <div style={{maxWidth:2000,margin:'0 auto',width:'100%',padding:'18px clamp(12px,3vw,24px) calc(env(safe-area-inset-bottom,0px) + 60px)'}}>
         <TBTabGate tabId={page} tabLabel={curNav.label}>
           {pageMap[page]||pageMap.portfolio}
