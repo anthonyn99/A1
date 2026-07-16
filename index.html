@@ -28049,8 +28049,13 @@ function _docxHtmlToMd(root) {
     });
     return lines.join('\n');
   }
+  // Escape characters that _mdToHtml treats as markdown syntax, so literal text that merely
+  // CONTAINS them (e.g. from a doc where they were originally backslash-escaped, or from typed
+  // symbols like "50% * 2") round-trips back to identical literal text instead of being
+  // reinterpreted as emphasis/heading/code/quote/table syntax on the next Render.
+  function mdEscText(s) { return String(s).replace(/​/g, '').replace(/[\\`*_~^=#>|[\]]/g, '\\$&'); }
   function ser(node) {
-    if (node.nodeType === 3) return node.nodeValue.replace(/​/g, '');
+    if (node.nodeType === 3) return mdEscText(node.nodeValue);
     if (node.nodeType !== 1) return '';
     var el = node, tag = el.tagName.toLowerCase();
     if (el.classList) {
@@ -28066,7 +28071,7 @@ function _docxHtmlToMd(root) {
       case 'sub': return '~' + kids(el) + '~';
       case 'sup': return '^' + kids(el) + '^';
       case 'u': return '<u>' + kids(el) + '</u>';
-      case 'code': return '`' + kids(el) + '`';
+      case 'code': return '`' + el.textContent.replace(/​/g, '') + '`';
       case 'pre': return '\n```\n' + el.textContent.replace(/​/g, '').replace(/\n$/, '') + '\n```\n';
       case 'a': return '[' + kids(el) + '](' + (el.getAttribute('href') || '') + ')';
       case 'img': return '![' + (el.getAttribute('alt') || '') + '](' + (el.getAttribute('src') || '') + ')';
