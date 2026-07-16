@@ -5229,7 +5229,17 @@ function tbHtmlIsPlain(html){
 
 /* ── HTML → Markdown ──────────────────────────────────────────────────────────
    Pages are authored as HTML, but morning-launcher renders the Daily Reminder in
-   a plain Tk dialog, so it is pushed a Markdown copy. */
+   a plain Tk dialog, so it is pushed a Markdown copy.
+
+   This has to cope with real editor markup, which nests block content in places
+   the content model forbids — a <ul> inside an <h1> is the common one, and the
+   HTML parser keeps it there because it only auto-closes a heading on ANOTHER
+   heading. So no element is assumed to hold only inline content: runs of inline
+   nodes are grouped into one block and block-level children always keep their
+   own shape. Flattening a heading's subtree into its text instead turned a whole
+   rules list into one giant run-on heading. */
+const TB_MD_BLOCK=/^(address|article|aside|blockquote|div|dl|dd|dt|figure|figcaption|footer|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)$/;
+
 function tbHtmlToMd(html){
   const raw=String(html||'');
   if(!raw.trim()) return '';
@@ -5237,20 +5247,34 @@ function tbHtmlToMd(html){
   const root=doc.getElementById('tb-md-root');
   if(!root) return '';
 
+  /* Format ONE node as inline markdown. Split out from inl() so callers that walk
+     children themselves (emitMixed) still get a <code>/<a> wrapped properly —
+     handing the element to inl() would return its contents with the backticks or
+     link syntax silently dropped. */
+  const fmtNode=(c)=>{
+    if(c.nodeType===3) return c.nodeValue.replace(/\s+/g,' ');
+    if(c.nodeType!==1) return '';
+    const t=c.tagName.toLowerCase(), inner=inl(c), core=inner.trim();
+    if(t==='br') return '\n';
+    if((t==='strong'||t==='b')&&core) return '**'+core+'**';
+    if((t==='em'||t==='i')&&core) return '*'+core+'*';
+    if((t==='del'||t==='s')&&core) return '~~'+core+'~~';
+    if(t==='code') return '`'+inner+'`';
+    if(t==='a'){ const h=c.getAttribute('href')||''; return (h&&core)?'['+core+']('+h+')':inner; }
+    if(t==='img') return '['+(c.getAttribute('alt')||'image')+']';
+    return inner;
+  };
+
   const inl=(n)=>{
     let s='';
     n.childNodes.forEach(c=>{
-      if(c.nodeType===3){ s+=c.nodeValue.replace(/\s+/g,' '); return; }
-      if(c.nodeType!==1) return;
-      const t=c.tagName.toLowerCase(), inner=inl(c), core=inner.trim();
-      if(t==='br') s+='\n';
-      else if((t==='strong'||t==='b')&&core) s+='**'+core+'**';
-      else if((t==='em'||t==='i')&&core) s+='*'+core+'*';
-      else if((t==='del'||t==='s')&&core) s+='~~'+core+'~~';
-      else if(t==='code') s+='`'+inner+'`';
-      else if(t==='a'){ const h=c.getAttribute('href')||''; s+=(h&&core)?'['+core+']('+h+')':inner; }
-      else if(t==='img'){ s+='['+(c.getAttribute('alt')||'image')+']'; }
-      else s+=inner;
+      const piece=fmtNode(c);
+      if(!piece) return;
+      // A block child reached here (inside an <li>, say) still ends a line of
+      // prose, so keep a separator — otherwise "…profits." and "Steady growth…"
+      // fuse into one word.
+      if(c.nodeType===1 && TB_MD_BLOCK.test(c.tagName.toLowerCase()) && s && !/\s$/.test(s)) s+=' ';
+      s+=piece;
     });
     return s;
   };
@@ -5276,29 +5300,50 @@ function tbHtmlToMd(html){
   };
 
   const blocks=[];
+
+  /* Emit an element's children IN ORDER: consecutive inline nodes are gathered
+     into one block via wrap(), and any block-level child is emitted on its own.
+     This is what keeps a list nested inside a heading a real list. */
+  const emitMixed=(el,wrap)=>{
+    let buf='';
+    const flush=()=>{ const s=buf.trim(); buf=''; if(s) blocks.push(wrap(s)); };
+    el.childNodes.forEach(c=>{
+      if(c.nodeType===3){ buf+=c.nodeValue.replace(/\s+/g,' '); return; }
+      if(c.nodeType!==1) return;
+      if(TB_MD_BLOCK.test(c.tagName.toLowerCase())){ flush(); emitNode(c); }
+      else buf+=fmtNode(c);
+    });
+    flush();
+  };
+
+  const emitNode=(c)=>{
+    const t=c.tagName.toLowerCase();
+    if(/^h[1-6]$/.test(t)){ const n=parseInt(t[1],10); emitMixed(c,s=>'#'.repeat(n)+' '+s); return; }
+    if(t==='p'){ emitMixed(c,s=>s); return; }
+    if(t==='hr'){ blocks.push('---'); return; }
+    if(t==='br'){ return; }   // block separator — the join already handles it
+    if(t==='pre'){ blocks.push('```\n'+(c.textContent||'').replace(/\n+$/,'')+'\n```'); return; }
+    if(t==='blockquote'){ const s=tbHtmlToMd(c.innerHTML); if(s) blocks.push(s.split('\n').map(l=>l?'> '+l:'>').join('\n')); return; }
+    if(t==='ul'||t==='ol'){ const s=listMd(c,0); if(s) blocks.push(s); return; }
+    if(t==='table'){
+      const rows=Array.from(c.querySelectorAll('tr'));
+      if(!rows.length) return;
+      const cellsOf=r=>Array.from(r.children).map(td=>inl(td).trim().replace(/\|/g,'\\|')||' ');
+      const head=cellsOf(rows[0]);
+      if(!head.length) return;
+      const lines=['| '+head.join(' | ')+' |','|'+head.map(()=>' --- ').join('|')+'|'];
+      rows.slice(1).forEach(r=>{ const cs=cellsOf(r); while(cs.length<head.length) cs.push(' '); lines.push('| '+cs.slice(0,head.length).join(' | ')+' |'); });
+      blocks.push(lines.join('\n'));
+      return;
+    }
+    walk(c);   // div/section/figure wrappers — descend
+  };
+
   const walk=(n)=>{
     n.childNodes.forEach(c=>{
       if(c.nodeType===3){ const tx=c.nodeValue.trim(); if(tx) blocks.push(tx); return; }
       if(c.nodeType!==1) return;
-      const t=c.tagName.toLowerCase();
-      if(/^h[1-6]$/.test(t)){ const s=inl(c).trim(); if(s) blocks.push('#'.repeat(parseInt(t[1],10))+' '+s); }
-      else if(t==='p'){ const s=inl(c).trim(); if(s) blocks.push(s); }
-      else if(t==='hr') blocks.push('---');
-      else if(t==='br'){ /* block separator — the join already handles it */ }
-      else if(t==='pre') blocks.push('```\n'+(c.textContent||'').replace(/\n+$/,'')+'\n```');
-      else if(t==='blockquote'){ const s=tbHtmlToMd(c.innerHTML); if(s) blocks.push(s.split('\n').map(l=>l?'> '+l:'>').join('\n')); }
-      else if(t==='ul'||t==='ol'){ const s=listMd(c,0); if(s) blocks.push(s); }
-      else if(t==='table'){
-        const rows=Array.from(c.querySelectorAll('tr'));
-        if(!rows.length) return;
-        const cellsOf=r=>Array.from(r.children).map(td=>inl(td).trim().replace(/\|/g,'\\|')||' ');
-        const head=cellsOf(rows[0]);
-        if(!head.length) return;
-        const lines=['| '+head.join(' | ')+' |','|'+head.map(()=>' --- ').join('|')+'|'];
-        rows.slice(1).forEach(r=>{ const cs=cellsOf(r); while(cs.length<head.length) cs.push(' '); lines.push('| '+cs.slice(0,head.length).join(' | ')+' |'); });
-        blocks.push(lines.join('\n'));
-      }
-      else walk(c);   // div/span/figure wrappers — descend
+      emitNode(c);
     });
   };
   walk(root);
