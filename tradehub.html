@@ -5347,7 +5347,17 @@ function tbHtmlToMd(html){
     });
   };
   walk(root);
-  return blocks.join('\n\n').replace(/\n{3,}/g,'\n\n').trim();
+  /* Editors often emit each bullet as its own single-item <ul>. Those arrive here
+     as separate blocks and would be joined by a blank line, rendering as a loose,
+     airy list even though the source looks like one tight list. Fuse neighbouring
+     lists back into one. */
+  const isList=b=>/^\s*([-*+]|\d{1,9}\.)\s/.test(b);
+  const merged=[];
+  for(const b of blocks){
+    if(merged.length && isList(b) && isList(merged[merged.length-1])) merged[merged.length-1]+='\n'+b;
+    else merged.push(b);
+  }
+  return merged.join('\n\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 
 /* ── Playbook pages ── */

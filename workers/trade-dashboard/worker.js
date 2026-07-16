@@ -288,7 +288,9 @@ function cors(req){
   else allow=ALLOWED[0];
   return {'Access-Control-Allow-Origin':allow,'Access-Control-Allow-Methods':'GET,POST,DELETE,OPTIONS','Access-Control-Allow-Headers':'Content-Type, Cache-Control, Pragma','Vary':'Origin'};
 }
-function json(d,s,req){ return new Response(JSON.stringify(d),{status:s||200,headers:{'Content-Type':'application/json',...cors(req)}}); }
+// charset is explicit: without it a client is free to guess, and PowerShell's
+// Invoke-RestMethod guesses latin-1 and turns every em-dash into mojibake.
+function json(d,s,req){ return new Response(JSON.stringify(d),{status:s||200,headers:{'Content-Type':'application/json; charset=utf-8',...cors(req)}}); }
 async function kvGet(env,k){ try{ return await env.TD_KV.get(k,'json'); }catch{ return null; } }
 async function kvPut(env,k,v,ttl){ await env.TD_KV.put(k,JSON.stringify(v), ttl?{expirationTtl:ttl}:undefined); }
 const todayUTC=()=>new Date().toISOString().slice(0,10);
