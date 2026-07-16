@@ -24,6 +24,8 @@
  *   POST /build           { force? } → kicks async build
  *   GET  /calendar        Catalysts feed (deterministic macro + Finnhub earnings)
  *   GET  /diag            last-build snapshot
+ *   GET/POST /daily-reminder   TradeHub Playbook's "Daily Reminder" page (Markdown);
+ *                              morning-launcher blocks the morning launch on it
  *   POST /_stage          internal staged hop (gated by STAGE_SECRET)
  *   GET/POST/DELETE /prompts*  legacy CRUD (kept; no longer drives the build)
  *
@@ -36,7 +38,7 @@
  *   FRED_KEY       FRED API key (free: fred.stlouisfed.org/docs/api/api_key.html)
  *   STAGE_SECRET   long random string; gates /_stage
  *
- * KV (TD_KV):  td_report · td_job · td_rate · td_cron · td_prompts
+ * KV (TD_KV):  td_report · td_job · td_rate · td_cron · td_prompts · td_daily_reminder
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /* ════════════════════════ CONFIG ════════════════════════ */
@@ -339,6 +341,27 @@ async function setAnalysisConfig(env, p){
   const searches=Array.isArray(p&&p.searches)
     ? p.searches.map(s=>String(s||'').slice(0,500)).filter(Boolean).slice(0,20) : [];
   await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), searches, updatedAt:Date.now() });
+  return true;
+}
+
+/* Daily Reminder — the TradeHub Playbook page the trader must acknowledge before
+   the morning workspace opens. TradeHub authors it as HTML and pushes a Markdown
+   copy here; morning-launcher GETs /daily-reminder and blocks the launch on a
+   Confirm click. Kept in a slot of its own so it can never be clobbered by the
+   prompt/analysis writers above. */
+async function getDailyReminder(env){
+  const r=await kvGet(env,'td_daily_reminder');
+  if(r&&r.markdown&&String(r.markdown).trim())
+    return { title:r.title||'Daily Reminder', markdown:String(r.markdown), updatedAt:r.updatedAt||null };
+  return null;
+}
+async function setDailyReminder(env, p){
+  const markdown=String(p&&p.markdown||'').trim(); if(!markdown) return false;
+  await kvPut(env,'td_daily_reminder',{
+    title:String(p&&p.title||'Daily Reminder').slice(0,120),
+    markdown:markdown.slice(0,20000),
+    updatedAt:Date.now(),
+  });
   return true;
 }
 
@@ -734,6 +757,22 @@ async function handle(request, env, ctx){
     const p=await getAnalysisConfig(env);
     if(!p) return json({ok:false,error:'no analysis config set'},404,request);
     return json({ok:true,name:p.name,text:p.text,searches:p.searches},200,request);
+  }
+
+  // Daily Reminder — TradeHub (Playbook → Daily Reminder) pushes the page here;
+  // morning-launcher GETs it and won't open the trading workspace until it's
+  // acknowledged.
+  if(path==='/daily-reminder'&&method==='POST'){
+    const body=await request.json().catch(()=>({}));
+    const ok=await setDailyReminder(env, body);
+    if(!ok) return json({ok:false,error:'markdown required'},400,request);
+    const p=await getDailyReminder(env);
+    return json({ok:true,title:p.title,chars:p.markdown.length,updatedAt:p.updatedAt},200,request);
+  }
+  if(path==='/daily-reminder'&&method==='GET'){
+    const p=await getDailyReminder(env);
+    if(!p) return json({ok:false,error:'no daily reminder set'},404,request);
+    return json({ok:true,title:p.title,markdown:p.markdown,updatedAt:p.updatedAt},200,request);
   }
 
   // legacy prompts CRUD kept so old cached front-ends don't 404 (superseded by /active-prompt)

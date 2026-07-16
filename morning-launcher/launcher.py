@@ -2,12 +2,21 @@
 Morning Launcher
 ================
 On every market weekday (Mon–Fri, skipping NYSE holidays), the FIRST time you
-wake / unlock / boot your laptop at or after 6 AM Mountain Time, it opens:
+wake / unlock / boot your laptop at or after 6 AM Mountain Time, it first makes you
+confirm your Daily Reminder, and only then opens:
   - WeBull Desktop   →  left   panel
-  - TradeHub         →  middle panel  (browser window)
+  - TradeHub         →  middle panel  (a BRAND-NEW Brave window, never mixed in
+                        with your existing browser windows)
   - TaskHub          →  right  panel  (Brave app shortcut)
   - ChatGPT          →  your selected TradeHub "Analysis" prompt, AUTO-SUBMITTED,
-                        plus your configured Analysis search tabs
+                        plus your configured Analysis search tabs — all as tabs in
+                        that same new TradeHub window
+
+THE DAILY REMINDER GATE runs before any of that (after the WiFi check): it fetches
+TradeHub → Playbook → Daily Reminder and shows it in a scrollable dialog. Nothing
+launches until you click Confirm; closing it cancels the launch and leaves the day
+unmarked, so the next wake/unlock asks again. See the DAILY REMINDER GATE config
+block below.
 
 The ChatGPT step is the automated equivalent of clicking "Launch Analysis": it
 fetches the prompt you picked in TradeHub's Analysis tab (TradeHub pushes it to the
@@ -36,7 +45,9 @@ USAGE
   3. Done. Runs silently from now on.
 
   To remove:   python launcher.py --uninstall
-  Test now:    python launcher.py --test      (opens everything immediately)
+  Test now:    python launcher.py --test           (runs the full flow immediately,
+                                                    reminder gate included)
+  Reminder:    python launcher.py --test-reminder  (just the gate — launches nothing)
   Logs:        morning-launcher/launcher.log
 
   NOTE: If you had an older version installed, you MUST re-run --setup so the new
@@ -100,6 +111,25 @@ CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
 CHATGPT_LOAD_WAIT = 12
 
 # ==============================================================================
+#  DAILY REMINDER GATE
+#  Before ANY trading app opens, the launcher shows you the TradeHub Playbook page
+#  "Daily Reminder" (Playbook → Daily Reminder) and waits for you to click Confirm.
+#  Nothing — WeBull, TradeHub, TaskHub, ChatGPT, searches — opens until you do.
+#  The point is to force a review of your rules and mindset before the session.
+#
+#  HOW IT WORKS: TradeHub pushes that page to the trade-dashboard worker as Markdown
+#  (POST /daily-reminder) whenever you edit it; the launcher GETs it here and renders
+#  it in a scrollable dialog. Closing the dialog WITHOUT confirming cancels the whole
+#  launch and leaves the day unmarked, so the next wake/unlock asks again.
+#
+#  If the reminder can't be fetched (worker down, or you've never written the page),
+#  the dialog still appears with a notice — the gate is never silently skipped.
+# ==============================================================================
+
+DAILY_REMINDER_ENABLED = True   # master switch for the pre-launch confirmation gate
+DAILY_REMINDER_FETCH_ATTEMPTS = 3    # GET retries before showing the fallback notice
+
+# ==============================================================================
 #  WEBULL POST-LAUNCH ACTIONS
 #  After WeBull opens it lands on the Trading tab + Individual Cash account. These
 #  clicks switch it to the Trackers tab and the Individual Margin account.
@@ -159,6 +189,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
@@ -580,6 +611,30 @@ def _wait_for_new_window(known: set, timeout: int = 25) -> int | None:
     return None
 
 
+def _all_brave_hwnds() -> set:
+    """Every visible Brave browser window right now."""
+    return {h for h in _all_visible_hwnds() if _is_brave_hwnd(h)}
+
+
+def _wait_for_new_brave_window(known: set, timeout: int = 20) -> int | None:
+    """Return the BRAVE window that appeared after `known` was snapshotted.
+
+    Stricter than _wait_for_new_window on purpose: the morning workspace must land
+    in a real Brave browser window, so a random popup/tooltip from another app can
+    never be mistaken for it. When Brave spawns more than one window we take the
+    largest — the browser frame, not a transient child."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        new = _all_brave_hwnds() - known
+        if new:
+            def area(h):
+                r = _get_window_rect(h)
+                return (r.right - r.left) * (r.bottom - r.top) if r else 0
+            return max(new, key=area)
+        time.sleep(0.5)
+    return None
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Executable detection
 # ──────────────────────────────────────────────────────────────────────────────
@@ -705,41 +760,64 @@ def webull_post_launch(hwnd, initial_delay=None):
     log("WeBull: switched to Individual Margin account + Trackers tab.")
 
 
-def _open_browser_window(browser: str, url: str, pos: list, known_before: set):
-    """Open url in a new Brave window at pos and return its HWND (or None)."""
+def _open_browser_window(browser: str, url: str, pos: list):
+    """Open url in a BRAND-NEW Brave window at pos and return its HWND (or None).
+
+    The trading workspace gets a window of its OWN — it must never be bolted on as
+    tabs to whatever Brave window happens to be open (email, personal browsing).
+    Everything else the launcher opens in the browser (ChatGPT + the searches) is
+    then added to the window returned here, so the whole session lives in one
+    dedicated window.
+
+    Brave is asked for a new window with --new-window, but that isn't something we
+    can just assume worked: when an instance is already running, the request is
+    handed to it over IPC and can be answered by reusing an existing window — which
+    is exactly how the workspace used to end up mixed in with other tabs. So we
+    VERIFY a genuinely new Brave window appeared and ask once more if it didn't."""
     x, y, w, h = pos
-    snapshot = set(_all_visible_hwnds())   # snapshot just before launch
+    before = _all_brave_hwnds()
 
-    subprocess.Popen([
-        browser,
-        f"--window-position={x},{y}",
-        f"--window-size={w},{h}",
-        "--new-window",
-        url,
-    ])
+    for attempt in (1, 2):
+        # Before asking again, check whether attempt 1's window simply arrived late
+        # (a very slow cold start can outrun the wait below). Without this the retry
+        # would spawn a SECOND window and orphan the first.
+        late = _all_brave_hwnds() - before
+        if late:
+            hwnd = max(late, key=lambda h_: (lambda r: (r.right - r.left) * (r.bottom - r.top) if r else 0)(_get_window_rect(h_)))
+            log("Brave's window showed up late — using it instead of opening another.")
+        else:
+            subprocess.Popen([
+                browser,
+                f"--window-position={x},{y}",
+                f"--window-size={w},{h}",
+                "--new-window",
+                url,
+            ])
+            # A cold start (no Brave running) has to boot the whole browser, so give
+            # the first attempt a long look before concluding it never came.
+            hwnd = _wait_for_new_brave_window(before, timeout=25 if attempt == 1 else 12)
+        if hwnd:
+            time.sleep(1)
+            _place(hwnd, x, y, w, h)
+            return hwnd
+        log(f"No NEW Brave window appeared for {url} (attempt {attempt}/2)"
+            + (" — asking Brave again." if attempt == 1 else "."))
 
-    # Force-place the new window even if the flags were ignored (Chrome single-instance)
-    hwnd = _wait_for_new_window(snapshot, timeout=20)
-    if hwnd:
-        time.sleep(1)
-        _place(hwnd, x, y, w, h)
-    else:
-        log(f"WARNING: browser window for {url} not detected in time.")
-
-    return hwnd
+    log(f"WARNING: could not open a dedicated Brave window for {url}. Its tabs may "
+        f"land in an existing window.")
+    return None
 
 
 def open_tradehub():
-    """Open TradeHub in its own Brave window and return that window's HWND, so the
-    ChatGPT + search tabs can be opened INTO the same window."""
+    """Open TradeHub in a brand-new Brave window and return that window's HWND, so
+    the ChatGPT + search tabs can be opened INTO the same window."""
     brave = _find_brave()
     if not brave:
         log("ERROR: Brave not found. Set BRAVE_EXE_OVERRIDE at the top of this file.")
         return None
 
-    before = set(_all_visible_hwnds())
-    log("Opening TradeHub in Brave...")
-    return _open_browser_window(brave, TRADEHUB_URL, TRADEHUB_POS, before)
+    log("Opening TradeHub in a new Brave window...")
+    return _open_browser_window(brave, TRADEHUB_URL, TRADEHUB_POS)
 
 
 def open_taskhub_app():
@@ -1006,7 +1084,7 @@ def open_chatgpt_analysis(target_hwnd=None):
     else:
         # Standalone: one dedicated new window (searches + ChatGPT as tabs).
         x, y, w, h = CHATGPT_POS
-        snapshot = set(_all_visible_hwnds())
+        snapshot = _all_brave_hwnds()
         log(f"ChatGPT: opening 1 window with {len(tabs)-1} search tab(s) + ChatGPT...")
         subprocess.Popen([
             brave,
@@ -1014,7 +1092,7 @@ def open_chatgpt_analysis(target_hwnd=None):
             f"--window-size={w},{h}",
             "--new-window",
         ] + tabs)
-        hwnd = _wait_for_new_window(snapshot, timeout=25)
+        hwnd = _wait_for_new_brave_window(snapshot, timeout=25)
         if not hwnd:
             log("ChatGPT: new window not detected; skipping paste. Prompt is on the "
                 "clipboard — switch to the ChatGPT tab, focus the box, Ctrl+V, Enter.")
@@ -1055,11 +1133,330 @@ def open_chatgpt_analysis(target_hwnd=None):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Daily Reminder gate  (mandatory confirmation before anything launches)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _fetch_daily_reminder(attempts: int = DAILY_REMINDER_FETCH_ATTEMPTS, delay: float = 2.0):
+    """GET the Playbook's Daily Reminder page that TradeHub pushed to the worker.
+    Returns {'title','markdown'} or None if it never came."""
+    url = TD_WORKER_URL.rstrip("/") + "/daily-reminder"
+    for i in range(max(1, attempts)):
+        try:
+            # A real User-Agent is required — Cloudflare's edge 403s "Python-urllib"
+            # before the request ever reaches the worker.
+            req = urllib.request.Request(url, headers={
+                "Cache-Control": "no-cache",
+                "User-Agent": "MorningLauncher/1.0 (+https://anthonyn99.github.io/A1)",
+            })
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = json.loads(r.read().decode("utf-8"))
+            if data.get("ok") and (data.get("markdown") or "").strip():
+                return {"title": data.get("title") or "Daily Reminder",
+                        "markdown": data["markdown"]}
+            log("Daily Reminder: worker returned no content.")
+            return None
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                log("Daily Reminder: none set yet — write the TradeHub → Playbook → "
+                    "Daily Reminder page and it'll show here tomorrow.")
+                return None
+            log(f"Daily Reminder: fetch attempt {i+1} failed: HTTP {e.code}")
+        except Exception as e:
+            log(f"Daily Reminder: fetch attempt {i+1} failed: {e}")
+        if i < attempts - 1:
+            time.sleep(delay)
+    return None
+
+
+# Dialog palette — mirrors TradeHub's dark theme so the gate feels like the app.
+_RD_BG, _RD_SURF, _RD_BORDER = "#0f0f12", "#141418", "#252530"
+_RD_TX, _RD_DIM, _RD_ACCENT  = "#ececf0", "#9898a8", "#E0607A"
+
+# Inline markdown: bold / italic / code / links. Split-capturing, so the text
+# between matches survives in the same pass.
+_RD_INLINE_RE = re.compile(
+    r"(\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|_[^_\n]+_|`[^`]+`|\[[^\]]+\]\([^)\s]+\))")
+
+
+def _rd_insert_inline(t, s: str, base: str):
+    """Insert `s` into the Text widget, styling inline markdown as it goes.
+
+    Tk resolves competing tags by priority rather than merging them, so a styled
+    run carries exactly one font tag ('b'/'i'/'codespan') — these are created
+    after the body tags so they win. That's also why headings don't come through
+    here: bold inside a heading would render at body size. See _rd_strip_inline."""
+    for part in _RD_INLINE_RE.split(s):
+        if not part:
+            continue
+        if len(part) > 4 and (part.startswith("**") and part.endswith("**")
+                              or part.startswith("__") and part.endswith("__")):
+            t.insert("end", part[2:-2], (base, "b"))
+        elif len(part) > 2 and part.startswith("`") and part.endswith("`"):
+            t.insert("end", part[1:-1], (base, "codespan"))
+        elif part.startswith("[") and "](" in part:
+            t.insert("end", part[1:part.index("](")], (base, "link"))
+        elif len(part) > 2 and (part.startswith("*") and part.endswith("*")
+                                or part.startswith("_") and part.endswith("_")):
+            t.insert("end", part[1:-1], (base, "i"))
+        else:
+            t.insert("end", part, base)
+
+
+def _rd_strip_inline(s: str) -> str:
+    """Drop inline markdown markers — for headings, which render at one size."""
+    s = re.sub(r"\*\*([^*]+)\*\*", r"\1", s)
+    s = re.sub(r"__([^_]+)__", r"\1", s)
+    s = re.sub(r"\*([^*\n]+)\*", r"\1", s)
+    s = re.sub(r"`([^`]+)`", r"\1", s)
+    s = re.sub(r"\[([^\]]+)\]\([^)\s]+\)", r"\1", s)
+    return s
+
+
+def _rd_render_markdown(t, md: str):
+    """Render the reminder's Markdown into a Tk Text widget: headings, bullets,
+    numbered lists, blockquotes, rules, fenced code and tables. Tables and code
+    go in as monospace lines — enough to read a reminder at a glance."""
+    t.configure(state="normal")
+    t.delete("1.0", "end")
+    lines = md.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    in_code, code_buf = False, []
+    blanks = 0            # collapse runs of blank lines to one
+
+    for line in lines:
+        stripped = line.strip()
+
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            if in_code:
+                t.insert("end", "\n".join(code_buf) + "\n", "code")
+                code_buf, in_code = [], False
+            else:
+                in_code = True
+            blanks = 0
+            continue
+        if in_code:
+            code_buf.append(line)
+            continue
+
+        if not stripped:
+            # The heading/quote tags already carry their own spacing, so a run of
+            # blank lines would just push the reminder off the first screen.
+            if blanks == 0 and t.index("end-1c") != "1.0":
+                t.insert("end", "\n")
+            blanks += 1
+            continue
+        blanks = 0
+
+        if re.fullmatch(r"(\s*[-*_]\s*){3,}", stripped):
+            t.insert("end", "─" * 72 + "\n", "hr")
+            continue
+
+        m = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if m:
+            lvl = len(m.group(1))
+            tag = "h1" if lvl == 1 else "h2" if lvl == 2 else "h3"
+            t.insert("end", _rd_strip_inline(m.group(2)).rstrip("# ") + "\n", tag)
+            continue
+
+        if stripped.startswith(">"):
+            # The bar goes in under its own upright tag — tagging it 'quote' would
+            # slant it with the italic font and it reads as a slash.
+            t.insert("end", "▌  ", "quotebar")
+            _rd_insert_inline(t, stripped.lstrip("> ").strip(), "quote")
+            t.insert("end", "\n")
+            continue
+
+        # A table row — kept monospace so the columns still line up. The
+        # |---|---| delimiter under the header is structure, not content, so it's
+        # dropped rather than printed at the reader.
+        if stripped.startswith("|") and stripped.endswith("|"):
+            if not re.fullmatch(r"\|[\s:|-]*\|", stripped):
+                t.insert("end", stripped + "\n", "code")
+            continue
+
+        m = re.match(r"^(\s*)[-*+]\s+(.*)$", line)
+        if m:
+            t.insert("end", "    " * (len(m.group(1)) // 2) + "   •  ", "bullet")
+            _rd_insert_inline(t, m.group(2), "body")
+            t.insert("end", "\n")
+            continue
+
+        m = re.match(r"^(\s*)(\d{1,9})[.)]\s+(.*)$", line)
+        if m:
+            t.insert("end", "    " * (len(m.group(1)) // 2) + "   " + m.group(2) + ".  ", "bullet")
+            _rd_insert_inline(t, m.group(3), "body")
+            t.insert("end", "\n")
+            continue
+
+        _rd_insert_inline(t, stripped, "body")
+        t.insert("end", "\n")
+
+    if in_code and code_buf:          # unterminated fence — don't lose the content
+        t.insert("end", "\n".join(code_buf) + "\n", "code")
+    t.configure(state="disabled")
+
+
+def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
+    """Show the reminder and BLOCK until the user answers. True only on Confirm.
+
+    Raises if Tk is unavailable — the caller decides what that means (it cancels
+    the launch; the gate is never skipped just because the dialog failed)."""
+    import tkinter as tk
+
+    result = {"confirmed": False}
+    root = tk.Tk()
+    root.title("Daily Reminder — TradeHub")
+    root.configure(bg=_RD_BG)
+
+    # Centre on the primary monitor's work area. On the 5120-wide ultrawide a
+    # full-width dialog would be unreadable, so it stays a comfortable column.
+    w, h = 940, min(820, max(520, _work_area_height() - 160))
+    sw = _u32.GetSystemMetrics(0) or SCREEN_W
+    sh = _u32.GetSystemMetrics(1) or SCREEN_H
+    root.geometry(f"{w}x{h}+{max(0,(sw-w)//2)}+{max(0,(sh-h)//2)}")
+    root.minsize(560, 420)
+
+    # ── header ──
+    head = tk.Frame(root, bg=_RD_BG)
+    head.pack(fill="x", padx=28, pady=(22, 0))
+    tk.Label(head, text=title or "Daily Reminder", bg=_RD_BG, fg=_RD_TX,
+             font=("Segoe UI", 17, "bold"), anchor="w").pack(fill="x")
+    tk.Label(head, text="Review before the session — nothing opens until you confirm.",
+             bg=_RD_BG, fg=_RD_ACCENT, font=("Segoe UI", 9, "bold"), anchor="w").pack(fill="x", pady=(3, 0))
+    if notice:
+        tk.Label(head, text=notice, bg=_RD_BG, fg=_RD_DIM, font=("Segoe UI", 9),
+                 anchor="w", justify="left", wraplength=w - 70).pack(fill="x", pady=(9, 0))
+    tk.Frame(head, bg=_RD_BORDER, height=1).pack(fill="x", pady=(16, 0))
+
+    # ── scrollable body ──
+    body = tk.Frame(root, bg=_RD_BG)
+    body.pack(fill="both", expand=True, padx=28, pady=(14, 0))
+    scroll = tk.Scrollbar(body)
+    scroll.pack(side="right", fill="y")
+    txt = tk.Text(body, bg=_RD_SURF, fg=_RD_DIM, bd=0, highlightthickness=1,
+                  highlightbackground=_RD_BORDER, highlightcolor=_RD_BORDER,
+                  wrap="word", padx=24, pady=20, spacing1=2, spacing3=5,
+                  yscrollcommand=scroll.set, cursor="arrow")
+    txt.pack(side="left", fill="both", expand=True)
+    scroll.config(command=txt.yview)
+
+    # Body text is Arial to match the Playbook editor; headings use the UI face.
+    txt.tag_configure("body",   font=("Arial", 11),               foreground=_RD_DIM,    lmargin1=2, lmargin2=2)
+    txt.tag_configure("h1",     font=("Segoe UI", 16, "bold"),    foreground=_RD_TX,     spacing1=10, spacing3=4)
+    txt.tag_configure("h2",     font=("Segoe UI", 14, "bold"),    foreground=_RD_TX,     spacing1=9,  spacing3=3)
+    txt.tag_configure("h3",     font=("Segoe UI", 12, "bold"),    foreground=_RD_TX,     spacing1=7,  spacing3=2)
+    txt.tag_configure("quote",  font=("Arial", 11, "italic"),     foreground=_RD_ACCENT, lmargin1=6, lmargin2=28)
+    txt.tag_configure("quotebar", font=("Segoe UI", 11),          foreground=_RD_ACCENT, lmargin1=6)
+    txt.tag_configure("bullet", font=("Arial", 11),               foreground=_RD_ACCENT)
+    txt.tag_configure("hr",     foreground=_RD_BORDER)
+    txt.tag_configure("code",   font=("Consolas", 10),            foreground=_RD_TX,     lmargin1=12, lmargin2=12)
+    # Created AFTER the block tags so they win Tk's tag-priority contest.
+    txt.tag_configure("b",        font=("Arial", 11, "bold"),   foreground=_RD_TX)
+    txt.tag_configure("i",        font=("Arial", 11, "italic"))
+    txt.tag_configure("codespan", font=("Consolas", 10),        foreground=_RD_ACCENT)
+    txt.tag_configure("link",     font=("Arial", 11, "underline"), foreground=_RD_ACCENT)
+
+    _rd_render_markdown(txt, markdown)
+    # Read-only, but keep the keyboard/wheel scrolling that state="disabled" leaves intact.
+    txt.bind("<MouseWheel>", lambda e: (txt.yview_scroll(int(-1 * (e.delta / 120)), "units"), "break")[1])
+
+    # ── footer ──
+    foot = tk.Frame(root, bg=_RD_BG)
+    foot.pack(fill="x", padx=28, pady=(14, 22))
+
+    def confirm():
+        result["confirmed"] = True
+        root.destroy()
+
+    def cancel():
+        result["confirmed"] = False
+        root.destroy()
+
+    tk.Label(foot, text="Closing without confirming cancels the launch.",
+             bg=_RD_BG, fg=_RD_DIM, font=("Segoe UI", 9)).pack(side="left")
+    btn = tk.Button(foot, text="  Confirm — I've read this  ", command=confirm,
+                    bg=_RD_ACCENT, fg="#ffffff", activebackground="#e0405e",
+                    activeforeground="#ffffff", bd=0, relief="flat",
+                    font=("Segoe UI", 11, "bold"), cursor="hand2", padx=16, pady=9)
+    btn.pack(side="right")
+    tk.Button(foot, text="  Not now  ", command=cancel, bg=_RD_BG, fg=_RD_DIM,
+              activebackground=_RD_BG, activeforeground=_RD_TX, bd=0, relief="flat",
+              font=("Segoe UI", 9), cursor="hand2", padx=12, pady=9).pack(side="right", padx=(0, 10))
+
+    # The X and Escape mean "not now" — deliberately NOT a confirm. Enter is left
+    # unbound so a stray keypress can't dismiss the gate you're meant to read.
+    root.protocol("WM_DELETE_WINDOW", cancel)
+    root.bind("<Escape>", lambda e: cancel())
+
+    # We're a background task, so Windows won't hand us the foreground for free:
+    # -topmost guarantees it's visible, and the AttachThreadInput dance in
+    # _focus_window is what actually puts the caret/keyboard on it.
+    root.attributes("-topmost", True)
+    root.update_idletasks()
+    root.lift()
+    try:
+        root.focus_force()
+        frame = root.wm_frame()
+        if frame:
+            _focus_window(int(frame, 16))
+    except Exception:
+        pass
+    btn.focus_set()
+
+    root.mainloop()
+    return result["confirmed"]
+
+
+def daily_reminder_gate() -> bool:
+    """Show the Daily Reminder and return True only once it's confirmed.
+
+    This is the hard gate in front of the whole morning launch. It returns False on
+    "Not now", on a closed window, and if the dialog itself can't be shown — in
+    every one of those cases the caller must launch NOTHING."""
+    if not DAILY_REMINDER_ENABLED:
+        return True
+
+    r = _fetch_daily_reminder()
+    if r:
+        title, markdown, notice = r["title"], r["markdown"], ""
+    else:
+        # Still gate the morning — just say why the page is missing.
+        title = "Daily Reminder"
+        markdown = ("## Your Daily Reminder couldn't be loaded\n\n"
+                    "The launcher couldn't reach the reminder you wrote in "
+                    "**TradeHub → Playbook → Daily Reminder**.\n\n"
+                    "- Open that page in TradeHub and it'll sync for tomorrow.\n"
+                    "- Take a moment now to run through your rules from memory.\n\n"
+                    "> Capital preservation comes before profits. There will always "
+                    "be another opportunity.")
+        notice = "Showing a fallback — the reminder page couldn't be fetched."
+        log("Daily Reminder: showing fallback notice (page unavailable).")
+
+    try:
+        confirmed = _show_reminder_dialog(title, markdown, notice)
+    except Exception as e:
+        log(f"Daily Reminder: could not show the dialog ({e}) — cancelling the launch "
+            f"rather than skipping the gate.")
+        return False
+
+    log("Daily Reminder: confirmed — continuing with the launch." if confirmed
+        else "Daily Reminder: NOT confirmed — launch cancelled.")
+    return confirmed
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Main morning routine
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _launch_all(test: bool):
     log("=== Morning launch starting ===" + (" [TEST]" if test else ""))
+
+    # HARD GATE: review the Daily Reminder first. Nothing below runs until it's
+    # confirmed. On refusal we return WITHOUT mark_ran(), so the next wake/unlock
+    # asks again rather than the morning being silently skipped.
+    if not daily_reminder_gate():
+        log("=== Cancelled at the Daily Reminder — nothing was launched ===")
+        return
+
     _apply_work_area()   # size windows to the taskbar-free height before opening them
     webull_hwnd = open_webull()
     tradehub_hwnd = open_tradehub()
@@ -1213,6 +1610,7 @@ if __name__ == "__main__":
     parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler")
     parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time / market / once-per-day checks")
     parser.add_argument("--test-chatgpt", action="store_true", help="Run ONLY the ChatGPT analysis step (fetch prompt + open ChatGPT auto-submitted + searches); prints progress to the console")
+    parser.add_argument("--test-reminder", action="store_true", help="Run ONLY the Daily Reminder gate (fetch TradeHub → Playbook → Daily Reminder + show the confirm dialog); launches nothing")
     parser.add_argument("--test-webull", action="store_true", help="Run ONLY the WeBull tab/account switch on an already-open WeBull window (for tuning the click coordinates); prints progress to the console")
     parser.add_argument("--webull-coords", action="store_true", help="Print the mouse cursor's offset from the WeBull window as you hover — use it to read exact click coordinates for the WEBULL_* settings")
     args = parser.parse_args()
@@ -1259,6 +1657,12 @@ if __name__ == "__main__":
             _place(wb, *WEBULL_POS)      # move it to the morning position so coords match
             webull_post_launch(wb, initial_delay=2)   # WeBull already loaded → short wait
         log("=== WeBull actions test done ===")
+    elif args.test_reminder:
+        _ECHO = True
+        log("=== Daily Reminder gate test ===")
+        ok = daily_reminder_gate()
+        log(f"Result: {'CONFIRMED — the real run would launch now.' if ok else 'NOT confirmed — the real run would launch nothing.'}")
+        log("=== Daily Reminder gate test done ===")
     elif args.test_chatgpt:
         _ECHO = True
         log("=== ChatGPT analysis test ===")

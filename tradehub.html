@@ -218,6 +218,7 @@
   const TB_WATCHLIST_PATH= "dashboards/tradeboard_watchlist";
   const MARKET_CAL_PATH  = "dashboards/market_calendar";
   const TB_DASH_PATH     = "dashboards/tradeboard_dashboard";
+  const TB_PLAYBOOK_PATH = "dashboards/tradeboard_playbook";
 
   let _tbJournalSaveTimer = null;
   let _tbPromptsSaveTimer = null;
@@ -235,6 +236,9 @@
   let _tbWatchlistSaveTimer = null;
   let _tbWatchlistLastOwnSaveAt = 0;
   let _tbWatchlistUnsub = null;
+  let _tbPlaybookSaveTimer = null;
+  let _tbPlaybookLastOwnSaveAt = 0;
+  let _tbPlaybookUnsub = null;
 
   let _tbAppLockSaveTimer = null;
   let _tbAppLockLastOwnSaveAt = 0;
@@ -253,6 +257,7 @@
     const tbReportsDocRef = doc(db, TB_REPORTS_PATH);
     const tbAnalysisDocRef = doc(db, TB_ANALYSIS_PATH);
     const tbWatchlistDocRef = doc(db, TB_WATCHLIST_PATH);
+    const tbPlaybookDocRef = doc(db, TB_PLAYBOOK_PATH);
     const tbAppLockDocRef = doc(db, "dashboards/applock");
 
     // Journal: load all trades
@@ -476,6 +481,43 @@
       }, 800);
     };
 
+    // Playbook: load (pages of trading documentation — rules, strategies, checklists)
+    // Returns pages[] · null = nothing stored yet (caller seeds) · false = the read
+    // FAILED. Those last two must stay distinguishable: on a failed read the caller
+    // must not seed, because seeding writes, and that write would overwrite the
+    // real playbook with starter content just because the network blipped.
+    window._fbLoadTBPlaybook = async () => {
+      try {
+        if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} }
+        const snap = await getDoc(tbPlaybookDocRef);
+        if (!snap.exists()) return null;
+        const data = snap.data();
+        return Array.isArray(data.pages) ? data.pages : null;
+      } catch(e) { console.warn('Firebase TBPlaybook load failed:', e); return false; }
+    };
+    // Playbook: save (800ms debounce, same shape as the watchlist/analysis writers)
+    window._fbSaveTBPlaybook = (pages) => {
+      _tbPlaybookLastOwnSaveAt = Date.now();
+      window.dispatchEvent(new CustomEvent('fb-tb-saving'));
+      if (_tbPlaybookSaveTimer) clearTimeout(_tbPlaybookSaveTimer);
+      _tbPlaybookSaveTimer = setTimeout(async () => {
+        const attempt = async () => {
+          if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} }
+          _tbPlaybookLastOwnSaveAt = Date.now();
+          await setDoc(doc(db, TB_PLAYBOOK_PATH), { pages: JSON.parse(JSON.stringify(pages||[])), savedAt: Date.now() });
+        };
+        // Retry with backoff — pages can be large, and a cold auth/App-Check token
+        // shouldn't silently drop the user's writing.
+        let ok=false, lastErr=null;
+        for (let i=0;i<3 && !ok;i++){
+          try { if(i>0) await new Promise(r=>setTimeout(r, 1200*i)); await attempt(); ok=true; }
+          catch(e){ lastErr=e; }
+        }
+        if (ok){ _tbPlaybookLastOwnSaveAt = Date.now(); window.dispatchEvent(new CustomEvent('fb-tb-playbook-saved')); }
+        else { console.warn('[TBPlaybook save FAILED]', lastErr&&(lastErr.code||''), lastErr&&lastErr.message); window.dispatchEvent(new CustomEvent('fb-tb-playbook-error')); }
+      }, 800);
+    };
+
     // Analysis cfg: save (800ms debounce)
     window._fbSaveTBAnalysis = (cfg) => {
       _tbAnalysisLastOwnSaveAt = Date.now();
@@ -655,6 +697,16 @@
       }
     });
 
+    if (_tbPlaybookUnsub) { _tbPlaybookUnsub(); _tbPlaybookUnsub = null; }
+    _tbPlaybookUnsub = onSnapshot(tbPlaybookDocRef, (snap) => {
+      if (!snap.exists()) return;
+      if (Date.now() - _tbPlaybookLastOwnSaveAt < 8000) return;
+      const data = snap.data();
+      if (Array.isArray(data.pages)) {
+        window.dispatchEvent(new CustomEvent('fb-tb-playbook-remote', { detail: data.pages }));
+      }
+    });
+
     // ── AppLock locked-set sync — which apps are locked, shared across ALL devices.
     //    Same dashboards/applock doc the main suite (index.html) uses, so locking
     //    TradeHub here or there stays in sync everywhere. ──
@@ -714,6 +766,7 @@
     if (_tbNewsUnsub)    { _tbNewsUnsub();    _tbNewsUnsub    = null; }
     if (_tbAnalysisUnsub){ _tbAnalysisUnsub();_tbAnalysisUnsub= null; }
     if (_tbWatchlistUnsub){ _tbWatchlistUnsub();_tbWatchlistUnsub= null; }
+    if (_tbPlaybookUnsub){ _tbPlaybookUnsub();_tbPlaybookUnsub= null; }
     if (_tbAppLockUnsub) { _tbAppLockUnsub(); _tbAppLockUnsub = null; }
     try { await terminate(db); } catch(e) {}
     db = initializeFirestore(app, { localCache: memoryLocalCache() });
@@ -953,6 +1006,47 @@ const TB_STYLES=`
 #tradeboard-root .tb-md-block li{font-size:15px;color:var(--txd);line-height:1.85;font-family:'Lora',serif;margin-bottom:5px;}
 #tradeboard-root .tb-md-block strong,#tradeboard-root .tb-md-block b{color:var(--tx);font-weight:700;}
 #tradeboard-root .tb-md-block code{font-family:'IBM Plex Mono',monospace;font-size:12px;background:var(--s2);padding:2px 6px;border-radius:4px;color:var(--ac);}
+/* ── Playbook document — the editor surface AND the read-only render share this
+   class so what you type is exactly what you see. Typed text defaults to Arial
+   (per spec); pasted content keeps its STRUCTURE (headings/lists/tables/code)
+   and inherits this styling, since the sanitizer drops the source's own inline
+   styles. That's what makes a paste land clean instead of importing a foreign
+   theme. ── */
+#tradeboard-root .tb-pb-doc{font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.75;color:var(--txd);word-wrap:break-word;overflow-wrap:break-word;}
+#tradeboard-root .tb-pb-doc:focus{outline:none;}
+#tradeboard-root .tb-pb-doc>*:first-child{margin-top:0;}
+#tradeboard-root .tb-pb-doc h1,#tradeboard-root .tb-pb-doc h2,#tradeboard-root .tb-pb-doc h3,
+#tradeboard-root .tb-pb-doc h4,#tradeboard-root .tb-pb-doc h5,#tradeboard-root .tb-pb-doc h6{color:var(--tx);line-height:1.3;margin:22px 0 10px;font-weight:700;}
+#tradeboard-root .tb-pb-doc h1{font-size:25px;letter-spacing:.3px;border-bottom:1px solid var(--bd);padding-bottom:9px;}
+#tradeboard-root .tb-pb-doc h2{font-size:21px;letter-spacing:.2px;}
+#tradeboard-root .tb-pb-doc h3{font-family:'Lora',serif;font-size:18px;}
+#tradeboard-root .tb-pb-doc h4{font-size:15px;text-transform:uppercase;letter-spacing:1.4px;color:var(--txd);}
+#tradeboard-root .tb-pb-doc h5,#tradeboard-root .tb-pb-doc h6{font-size:14px;color:var(--txd);}
+#tradeboard-root .tb-pb-doc p{margin:10px 0;}
+#tradeboard-root .tb-pb-doc ul,#tradeboard-root .tb-pb-doc ol{padding-left:26px;margin:10px 0;}
+#tradeboard-root .tb-pb-doc li{margin:5px 0;}
+#tradeboard-root .tb-pb-doc li::marker{color:var(--ac);}
+#tradeboard-root .tb-pb-doc strong,#tradeboard-root .tb-pb-doc b{color:var(--tx);font-weight:700;}
+#tradeboard-root .tb-pb-doc em,#tradeboard-root .tb-pb-doc i{font-style:italic;}
+#tradeboard-root .tb-pb-doc a{color:var(--ac);text-decoration:underline;text-underline-offset:2px;}
+#tradeboard-root .tb-pb-doc blockquote{margin:14px 0;padding:12px 18px;border-left:3px solid var(--ac);background:var(--acg);border-radius:0 8px 8px 0;color:var(--txd);font-style:italic;}
+#tradeboard-root .tb-pb-doc blockquote p{margin:4px 0;}
+#tradeboard-root .tb-pb-doc hr{border:none;border-top:1px solid var(--bd);margin:24px 0;}
+#tradeboard-root .tb-pb-doc code{font-family:'IBM Plex Mono',monospace;font-size:13px;background:var(--s2);padding:2px 6px;border-radius:4px;color:var(--ac);}
+#tradeboard-root .tb-pb-doc pre{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;margin:14px 0;overflow-x:auto;}
+#tradeboard-root .tb-pb-doc pre code{background:none;padding:0;color:var(--tx);font-size:12.5px;line-height:1.65;}
+/* Tables scroll inside their own wrapper so a wide paste never breaks the page. */
+#tradeboard-root .tb-pb-doc table{border-collapse:collapse;margin:14px 0;font-size:14px;display:block;overflow-x:auto;max-width:100%;}
+#tradeboard-root .tb-pb-doc th,#tradeboard-root .tb-pb-doc td{border:1px solid var(--bd);padding:8px 12px;text-align:left;vertical-align:top;}
+#tradeboard-root .tb-pb-doc th{background:var(--s2);color:var(--tx);font-weight:700;white-space:nowrap;}
+#tradeboard-root .tb-pb-doc img{max-width:100%;height:auto;border-radius:8px;margin:10px 0;}
+#tradeboard-root .tb-pb-doc mark{background:rgba(224,96,122,0.22);color:var(--tx);border-radius:3px;padding:0 3px;}
+/* Placeholder — driven by a data attr, not :empty, because contentEditable keeps
+   a stray <br> in an "empty" doc and :empty would never match. */
+#tradeboard-root .tb-pb-doc[data-empty="1"]::before{content:attr(data-placeholder);color:var(--txm);font-style:italic;pointer-events:none;}
+#tradeboard-root .tb-pb-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;cursor:pointer;color:var(--txd);font-size:13.5px;font-weight:600;transition:background .15s,color .15s,border-color .15s;}
+#tradeboard-root .tb-pb-item:hover{background:var(--s2);color:var(--tx);}
+#tradeboard-root .tb-pb-item.active{background:var(--acg);border-color:var(--ac);color:var(--ac);font-weight:800;}
 /* mobile bottom nav removed — tab nav in TBMobileHeader */
 #tradeboard-root .tb-mobile-header{display:none;background:var(--bg);border-bottom:1px solid var(--bd);flex-shrink:0;position:relative;z-index:50;}
 @media(max-width:768px){
@@ -3421,6 +3515,7 @@ const TB_NAV=[
   {id:'portfolio',label:'Portfolio',icon:'◑',badge:'LIVE'},
   {id:'journal',  label:'Journal',  icon:'◎'},
   {id:'catalysts',label:'Catalysts',icon:'◆'},
+  {id:'playbook', label:'Playbook', icon:'▤'},
   {id:'prompt',   label:'Control',  icon:'⌘'},
   {id:'news',     label:'News',     icon:'⊹'},
   {id:'dashboard',label:'MacroBoard',icon:'▦'},
@@ -4891,6 +4986,476 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
   </div>);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   PLAYBOOK — editable pages of trading documentation (rules, strategies, notes).
+   Pages are stored as sanitized HTML and synced through the same Firebase +
+   "Syncing / Synced" pipeline as the rest of TradeHub.
+
+   Three converters power it, all self-contained (the app ships no markdown lib):
+     tbMdToHtml    — markdown SOURCE text → HTML   (pasting raw markdown)
+     tbSanitizeHtml— untrusted HTML → safe HTML    (pasting rendered content)
+     tbHtmlToMd    — stored HTML → markdown        (what morning-launcher shows)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+const tbEscHtml=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+/* Inline markdown: code spans are extracted FIRST so their contents are never
+   re-parsed for emphasis (`**x**` inside code must stay literal). */
+function tbMdInline(src){
+  let t=tbEscHtml(src);
+  const spans=[];
+  t=t.replace(/`([^`]+)`/g,(m,c)=>{spans.push(c);return '\u0000'+(spans.length-1)+'\u0000';});
+  t=t.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g,(m,alt,src2)=>'<img src="'+src2+'" alt="'+alt+'">');
+  t=t.replace(/\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g,'<a href="$2">$1</a>');
+  t=t.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g,'$1<a href="$2">$2</a>');
+  t=t.replace(/\*\*\*([^*]+)\*\*\*/g,'<strong><em>$1</em></strong>');
+  t=t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  t=t.replace(/(^|[^\w*])\*([^*\n]+)\*(?!\*)/g,'$1<em>$2</em>');
+  t=t.replace(/___([^_]+)___/g,'<strong><em>$1</em></strong>');
+  t=t.replace(/__([^_]+)__/g,'<strong>$1</strong>');
+  t=t.replace(/(^|[^\w_])_([^_\n]+)_(?!_)/g,'$1<em>$2</em>');
+  t=t.replace(/~~([^~]+)~~/g,'<del>$1</del>');
+  t=t.replace(/\u0000(\d+)\u0000/g,(m,i)=>'<code>'+spans[+i]+'</code>');
+  return t;
+}
+
+/* Block-level markdown. Covers what a pasted trading doc actually contains:
+   headings, fenced code, tables, blockquotes, rules, nested bullet/numbered
+   lists, paragraphs. Output always goes through tbSanitizeHtml before it hits
+   the DOM, so this function never has to be defensive about the input. */
+function tbMdToHtml(md){
+  const lines=String(md||'').replace(/\r\n?/g,'\n').replace(/\t/g,'    ').split('\n');
+  const out=[];
+  const stack=[];              // open lists: {tag,indent}
+  let para=[];
+  const flushPara=()=>{ if(para.length){ out.push('<p>'+tbMdInline(para.join('\n')).replace(/\n/g,'<br>')+'</p>'); para=[]; } };
+  const closeAll=()=>{ while(stack.length) out.push('</'+stack.pop().tag+'>'); };
+
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i], trimmed=line.trim();
+
+    const fence=/^(```|~~~)/.exec(trimmed);
+    if(fence){
+      flushPara(); closeAll();
+      const marker=fence[1], buf=[];
+      for(i++;i<lines.length && lines[i].trim().indexOf(marker)!==0;i++) buf.push(lines[i]);
+      out.push('<pre><code>'+tbEscHtml(buf.join('\n'))+'</code></pre>');
+      continue;
+    }
+    if(!trimmed){ flushPara(); closeAll(); continue; }
+    if(/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(trimmed)){ flushPara(); closeAll(); out.push('<hr>'); continue; }
+
+    const h=/^(#{1,6})\s+(.*)$/.exec(trimmed);
+    if(h){ flushPara(); closeAll(); const l=h[1].length; out.push('<h'+l+'>'+tbMdInline(h[2].replace(/\s+#+\s*$/,''))+'</h'+l+'>'); continue; }
+
+    // Table — only when the NEXT line is a |---|---| delimiter row.
+    if(trimmed.indexOf('|')!==-1 && i+1<lines.length &&
+       /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[i+1])){
+      flushPara(); closeAll();
+      const cells=r=>r.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(c=>c.trim());
+      const head=cells(trimmed);
+      let t='<table><thead><tr>'+head.map(c=>'<th>'+tbMdInline(c)+'</th>').join('')+'</tr></thead><tbody>';
+      for(i++;i+1<lines.length && lines[i+1].trim() && lines[i+1].indexOf('|')!==-1;){
+        i++;
+        const row=cells(lines[i]);
+        while(row.length<head.length) row.push('');
+        t+='<tr>'+row.slice(0,head.length).map(c=>'<td>'+tbMdInline(c)+'</td>').join('')+'</tr>';
+      }
+      out.push(t+'</tbody></table>');
+      continue;
+    }
+
+    if(/^>\s?/.test(trimmed)){
+      flushPara(); closeAll();
+      const buf=[];
+      for(;i<lines.length && /^\s*>\s?/.test(lines[i]);i++) buf.push(lines[i].replace(/^\s*>\s?/,''));
+      i--;
+      out.push('<blockquote>'+tbMdToHtml(buf.join('\n'))+'</blockquote>');
+      continue;
+    }
+
+    const li=/^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/.exec(line);
+    if(li){
+      flushPara();
+      const indent=li[1].length, tag=/^\d/.test(li[2])?'ol':'ul';
+      while(stack.length && stack[stack.length-1].indent>indent) out.push('</'+stack.pop().tag+'>');
+      const top=stack[stack.length-1];
+      if(!top || top.indent<indent){ stack.push({tag,indent}); out.push('<'+tag+'>'); }
+      else if(top.tag!==tag){ out.push('</'+stack.pop().tag+'>'); stack.push({tag,indent}); out.push('<'+tag+'>'); }
+      out.push('<li>'+tbMdInline(li[3])+'</li>');
+      continue;
+    }
+
+    para.push(trimmed);
+  }
+  flushPara(); closeAll();
+  return out.join('');
+}
+
+/* ── Sanitizer ────────────────────────────────────────────────────────────────
+   Pasted HTML comes from arbitrary pages, and stored HTML is re-inserted with
+   dangerouslySetInnerHTML — so it is sanitized on the way IN and again on the
+   way OUT. Allowlist-based: unknown tags are unwrapped (their text survives),
+   dangerous tags are dropped whole, and every attribute not explicitly allowed
+   goes — including all `on*` handlers and `style`. Dropping `style` is what
+   makes a paste inherit the Playbook's own look instead of the source page's. */
+const TB_PB_TAGS=new Set(['p','br','hr','h1','h2','h3','h4','h5','h6','strong','b','em','i','u','s','del','ins','mark','small','sub','sup','ul','ol','li','blockquote','pre','code','kbd','samp','table','thead','tbody','tfoot','tr','th','td','caption','a','img','span','div','figure','figcaption']);
+const TB_PB_DROP=new Set(['script','style','iframe','object','embed','link','meta','form','input','button','select','textarea','noscript','svg','math','base','title','head']);
+const TB_PB_ATTRS={a:['href','title'],img:['src','alt','title'],th:['colspan','rowspan'],td:['colspan','rowspan'],ol:['start']};
+
+function tbPbSafeUrl(u,isImg){
+  const s=String(u||'').trim();
+  if(/^(https?:|mailto:|tel:)/i.test(s)) return s;
+  // Pasted screenshots arrive as base64 data URLs. svg+xml is excluded on purpose
+  // — it can carry markup — and every other scheme (javascript:, data:text/html,
+  // vbscript:, blob:) is rejected by falling through.
+  if(isImg && /^data:image\/(png|jpe?g|gif|webp|bmp);base64,[a-z0-9+/=\s]+$/i.test(s)) return s;
+  return '';
+}
+
+function tbSanitizeHtml(html){
+  const raw=String(html||'');
+  if(!raw.trim()) return '';
+  // DOMParser does not execute scripts or load resources — safe to parse first.
+  const doc=new DOMParser().parseFromString('<body><div id="tb-pb-root">'+raw+'</div></body>','text/html');
+  const root=doc.getElementById('tb-pb-root');
+  if(!root) return '';
+
+  // Comments carry Office/Word conditional markup and survive an element-only
+  // walk, so strip them explicitly.
+  const cw=doc.createTreeWalker(root,NodeFilter.SHOW_COMMENT);
+  const comments=[]; while(cw.nextNode()) comments.push(cw.currentNode);
+  comments.forEach(c=>{ try{ c.remove(); }catch(e){} });
+
+  // Snapshot in document order. Unwrapped children stay in the tree, so they are
+  // still visited; anything under a dropped ancestor fails the contains() guard.
+  for(const el of Array.from(root.querySelectorAll('*'))){
+    if(!root.contains(el)) continue;
+    const tag=el.tagName.toLowerCase();
+    if(TB_PB_DROP.has(tag)){ el.remove(); continue; }
+    if(!TB_PB_TAGS.has(tag)){
+      const parent=el.parentNode;
+      if(parent){ while(el.firstChild) parent.insertBefore(el.firstChild,el); }
+      el.remove();
+      continue;
+    }
+    const allowed=TB_PB_ATTRS[tag]||[];
+    for(const attr of Array.from(el.attributes)){
+      const n=attr.name.toLowerCase();
+      if(!allowed.includes(n)){ el.removeAttribute(attr.name); continue; }
+      if(n==='href'){ const u=tbPbSafeUrl(attr.value,false); if(u) el.setAttribute('href',u); else el.removeAttribute('href'); }
+      else if(n==='src'){ const u=tbPbSafeUrl(attr.value,true); if(u) el.setAttribute('src',u); else el.remove(); }
+    }
+    if(tag==='a' && el.getAttribute('href')){ el.setAttribute('target','_blank'); el.setAttribute('rel','noopener noreferrer'); }
+  }
+  return root.innerHTML;
+}
+
+/* Plain text → HTML, with NO markdown interpretation: blank lines split
+   paragraphs, single newlines become breaks, and every markdown-ish character is
+   inert because the text is HTML-escaped. Used for a text/plain paste that isn't
+   markdown, so "-5% stop" lands as typed instead of being second-guessed. */
+function tbTextToHtml(text){
+  return String(text||'').replace(/\r\n?/g,'\n').split(/\n{2,}/)
+    .map(b=>b.trim()).filter(Boolean)
+    .map(b=>'<p>'+tbEscHtml(b).replace(/\n/g,'<br>')+'</p>').join('');
+}
+
+/* Does this plain text read as markdown? Decides whether a text/plain paste gets
+   rendered or inserted literally. */
+function tbLooksLikeMd(t){
+  const s=String(t||'');
+  return /^\s{0,3}#{1,6}\s+\S/m.test(s) || /\*\*[^*\n]+\*\*/.test(s) || /^\s*[-*+]\s+\S/m.test(s)
+      || /^\s*\d{1,9}[.)]\s+\S/m.test(s) || /^\s*>\s+\S/m.test(s) || /```/.test(s)
+      || /^\s*\|.*\|\s*$/m.test(s) || /\[[^\]]+\]\(https?:[^)]+\)/.test(s);
+}
+/* True when HTML carries no structure worth preserving — e.g. copying from a
+   plain textarea, which still puts a bare <div>/<span> wrapper on the clipboard.
+   In that case the plain-text branch (markdown) gives the better result. */
+function tbHtmlIsPlain(html){
+  return !/<(h[1-6]|ul|ol|li|table|tr|td|th|pre|code|blockquote|strong|b|em|i|a|img|hr)[\s>]/i.test(String(html||''));
+}
+
+/* ── HTML → Markdown ──────────────────────────────────────────────────────────
+   Pages are authored as HTML, but morning-launcher renders the Daily Reminder in
+   a plain Tk dialog, so it is pushed a Markdown copy. */
+function tbHtmlToMd(html){
+  const raw=String(html||'');
+  if(!raw.trim()) return '';
+  const doc=new DOMParser().parseFromString('<body><div id="tb-md-root">'+raw+'</div></body>','text/html');
+  const root=doc.getElementById('tb-md-root');
+  if(!root) return '';
+
+  const inl=(n)=>{
+    let s='';
+    n.childNodes.forEach(c=>{
+      if(c.nodeType===3){ s+=c.nodeValue.replace(/\s+/g,' '); return; }
+      if(c.nodeType!==1) return;
+      const t=c.tagName.toLowerCase(), inner=inl(c), core=inner.trim();
+      if(t==='br') s+='\n';
+      else if((t==='strong'||t==='b')&&core) s+='**'+core+'**';
+      else if((t==='em'||t==='i')&&core) s+='*'+core+'*';
+      else if((t==='del'||t==='s')&&core) s+='~~'+core+'~~';
+      else if(t==='code') s+='`'+inner+'`';
+      else if(t==='a'){ const h=c.getAttribute('href')||''; s+=(h&&core)?'['+core+']('+h+')':inner; }
+      else if(t==='img'){ s+='['+(c.getAttribute('alt')||'image')+']'; }
+      else s+=inner;
+    });
+    return s;
+  };
+
+  // A list renders as ONE block so its items stay on consecutive lines.
+  const listMd=(el,depth)=>{
+    const ordered=el.tagName.toLowerCase()==='ol';
+    let idx=parseInt(el.getAttribute('start')||'1',10)||1;
+    const lines=[];
+    Array.from(el.children).forEach(ch=>{
+      const ct=ch.tagName.toLowerCase();
+      // A nested list can be a sibling of the <li> (the shape tbMdToHtml emits)
+      // or a child of it (the shape most editors emit) — handle both.
+      if(ct==='ul'||ct==='ol'){ const s=listMd(ch,depth+1); if(s) lines.push(s); return; }
+      if(ct!=='li') return;
+      const clone=ch.cloneNode(true), subs=[];
+      Array.from(clone.children).forEach(k=>{ const kt=k.tagName.toLowerCase(); if(kt==='ul'||kt==='ol'){ subs.push(k); k.remove(); } });
+      const text=inl(clone).trim();
+      lines.push('  '.repeat(depth)+(ordered?(idx++)+'. ':'- ')+text);
+      subs.forEach(s=>{ const m=listMd(s,depth+1); if(m) lines.push(m); });
+    });
+    return lines.filter(Boolean).join('\n');
+  };
+
+  const blocks=[];
+  const walk=(n)=>{
+    n.childNodes.forEach(c=>{
+      if(c.nodeType===3){ const tx=c.nodeValue.trim(); if(tx) blocks.push(tx); return; }
+      if(c.nodeType!==1) return;
+      const t=c.tagName.toLowerCase();
+      if(/^h[1-6]$/.test(t)){ const s=inl(c).trim(); if(s) blocks.push('#'.repeat(parseInt(t[1],10))+' '+s); }
+      else if(t==='p'){ const s=inl(c).trim(); if(s) blocks.push(s); }
+      else if(t==='hr') blocks.push('---');
+      else if(t==='br'){ /* block separator — the join already handles it */ }
+      else if(t==='pre') blocks.push('```\n'+(c.textContent||'').replace(/\n+$/,'')+'\n```');
+      else if(t==='blockquote'){ const s=tbHtmlToMd(c.innerHTML); if(s) blocks.push(s.split('\n').map(l=>l?'> '+l:'>').join('\n')); }
+      else if(t==='ul'||t==='ol'){ const s=listMd(c,0); if(s) blocks.push(s); }
+      else if(t==='table'){
+        const rows=Array.from(c.querySelectorAll('tr'));
+        if(!rows.length) return;
+        const cellsOf=r=>Array.from(r.children).map(td=>inl(td).trim().replace(/\|/g,'\\|')||' ');
+        const head=cellsOf(rows[0]);
+        if(!head.length) return;
+        const lines=['| '+head.join(' | ')+' |','|'+head.map(()=>' --- ').join('|')+'|'];
+        rows.slice(1).forEach(r=>{ const cs=cellsOf(r); while(cs.length<head.length) cs.push(' '); lines.push('| '+cs.slice(0,head.length).join(' | ')+' |'); });
+        blocks.push(lines.join('\n'));
+      }
+      else walk(c);   // div/span/figure wrappers — descend
+    });
+  };
+  walk(root);
+  return blocks.join('\n\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+
+/* ── Playbook pages ── */
+const TB_PB_DAILY_ID='daily-reminder';   // fixed id — morning-launcher reads THIS page
+const TB_PLAYBOOK_KEY='tb_playbook_v1';
+const tbPbNewId=()=>'pb_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
+
+const TB_PB_DAILY_SEED=
+`## Before I place a single trade
+
+> "If you have capital, you have a chance. If you have no capital, you have no chance."
+
+- Capital preservation comes before profits.
+- Position sizing is everything.
+- I do not need to be perfect. I need to be consistently profitable.
+- Good traders do **not** trade every day — only when quality setups exist.
+- There will always be another opportunity.
+
+**Max capital at risk: 40% · Max position: $2,000**`;
+
+function tbPbDefaultPages(){
+  return [{ id:TB_PB_DAILY_ID, title:'Daily Reminder', body:tbMdToHtml(TB_PB_DAILY_SEED),
+            createdAt:Date.now(), updatedAt:Date.now() }];
+}
+function tbLoadPlaybookLocal(){
+  try{ const r=localStorage.getItem(TB_PLAYBOOK_KEY); if(r){ const a=JSON.parse(r); if(Array.isArray(a)&&a.length) return a; } }catch(e){}
+  return tbPbDefaultPages();
+}
+function tbSavePlaybookLocal(pages){ try{ localStorage.setItem(TB_PLAYBOOK_KEY,JSON.stringify(pages)); }catch(e){} }
+/* Daily Reminder is pinned first and always exists — morning-launcher depends on it. */
+function tbPbNormalize(pages){
+  const arr=Array.isArray(pages)?pages.filter(p=>p&&p.id):[];
+  const daily=arr.find(p=>p.id===TB_PB_DAILY_ID)||tbPbDefaultPages()[0];
+  return [daily,...arr.filter(p=>p.id!==TB_PB_DAILY_ID)];
+}
+
+/* ── Page editor — contentEditable so typing and pasting share one surface ──
+   Deliberately UNCONTROLLED: re-rendering innerHTML on every keystroke would
+   reset the caret to the top of the document. React owns the initial html (and
+   remote updates that land while unfocused); the DOM owns it while typing. */
+function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
+  const ref=useRef(null);
+  const isDaily=page.id===TB_PB_DAILY_ID;
+  const [confirmDel,setConfirmDel]=useState(false);   // inline two-step, like the Journal's delete
+
+  const syncEmpty=useCallback(()=>{
+    const el=ref.current; if(!el) return;
+    const empty=!el.textContent.trim() && !el.querySelector('img,table,hr');
+    el.setAttribute('data-empty',empty?'1':'0');
+  },[]);
+
+  // What this device last wrote up. Anything matching it is our OWN edit echoing
+  // back through state — never a remote change — so the DOM must be left alone.
+  const lastEmitted=useRef(null);
+
+  // Mount: seed the DOM once from the saved html.
+  useEffect(()=>{
+    const el=ref.current; if(!el) return;
+    el.innerHTML=tbSanitizeHtml(page.body||'');
+    lastEmitted.current=el.innerHTML;
+    syncEmpty();
+  },[page.id]);
+
+  // Remote edit from another device: adopt it only when this device isn't the one
+  // typing, so an incoming snapshot can never yank the caret mid-sentence. The
+  // lastEmitted check matters beyond that: editing the TITLE re-renders with the
+  // editor unfocused, and without it every title keystroke would re-parse and
+  // re-assign the body's innerHTML, blowing away its native undo history.
+  useEffect(()=>{
+    const el=ref.current; if(!el) return;
+    if(document.activeElement===el) return;
+    if(page.body===lastEmitted.current) return;
+    const next=tbSanitizeHtml(page.body||'');
+    if(el.innerHTML!==next){ el.innerHTML=next; lastEmitted.current=next; syncEmpty(); }
+  },[page.body,page.id]);
+
+  const emit=useCallback(()=>{
+    const el=ref.current; if(!el) return;
+    syncEmpty();
+    lastEmitted.current=el.innerHTML;
+    onChange({...page,body:el.innerHTML,updatedAt:Date.now()});
+  },[page,onChange,syncEmpty]);
+
+  const onPaste=useCallback((e)=>{
+    const dt=e.clipboardData; if(!dt) return;
+    const html=dt.getData('text/html');
+    const text=dt.getData('text/plain');
+    let out='';
+    // Rendered source (ChatGPT, a web page, Word) → keep its structure.
+    if(html && html.trim() && !tbHtmlIsPlain(html)) out=tbSanitizeHtml(html);
+    // Raw markdown text → render it. Anything else → in verbatim, unparsed.
+    else if(text && text.trim()) out=tbSanitizeHtml(tbLooksLikeMd(text)?tbMdToHtml(text):tbTextToHtml(text));
+    if(!out) return;
+    e.preventDefault();
+    // execCommand is deprecated but remains the only cross-browser way to insert
+    // rich HTML at the caret with native undo support.
+    document.execCommand('insertHTML',false,out);
+    emit();
+  },[emit]);
+
+  // Enter inside a contentEditable div creates a <div> per line in Chromium;
+  // <p> matches the markdown output and this doc's styling.
+  useEffect(()=>{ try{ document.execCommand('defaultParagraphSeparator',false,'p'); }catch(e){} },[]);
+
+  const copyMd=()=>{
+    const md=tbHtmlToMd(ref.current?ref.current.innerHTML:page.body);
+    // writeText rejects asynchronously (denied permission, unfocused document),
+    // so the toast has to hang off the promise or it would always claim success.
+    Promise.resolve()
+      .then(()=>navigator.clipboard.writeText(md))
+      .then(()=>onToast&&onToast('Markdown copied','⧉'))
+      .catch(()=>onToast&&onToast('Copy failed — clipboard blocked','⚠'));
+  };
+
+  return(<div style={{display:'flex',flexDirection:'column',gap:14,minWidth:0}}>
+    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+      {isMobile&&<button className="tb-btn-ghost" onClick={onBack} style={{padding:'6px 14px',fontSize:12}}>‹ Pages</button>}
+      <input value={page.title||''} onChange={e=>onChange({...page,title:e.target.value,updatedAt:Date.now()})}
+        placeholder="Page title" spellCheck={false}
+        style={{flex:1,minWidth:120,background:'transparent',border:'none',borderBottom:'1px solid var(--bd)',color:'var(--tx)',
+          fontFamily:"'Lora',serif",fontSize:isMobile?19:23,fontWeight:700,padding:'6px 2px',outline:'none'}}/>
+      {isDaily&&<span title="morning-launcher shows this page before it opens anything"
+        style={{fontSize:8.5,background:'rgba(74,222,128,0.18)',color:'var(--tbb)',border:'1px solid rgba(74,222,128,0.35)',
+          borderRadius:4,padding:'3px 7px',fontWeight:800,letterSpacing:.6,whiteSpace:'nowrap'}}>AUTOLAUNCH</span>}
+      <button className="tb-btn-ghost" onClick={copyMd} style={{padding:'6px 14px',fontSize:12}} title="Copy this page as Markdown">⧉ Markdown</button>
+      {!isDaily&&(!confirmDel
+        ?<button className="tb-btn-danger" onClick={()=>setConfirmDel(true)} style={{padding:'6px 14px',fontSize:12}}>🗑 Delete</button>
+        :<div style={{display:'flex',gap:7,alignItems:'center'}}>
+          <span style={{fontSize:12,color:'var(--tbe)',whiteSpace:'nowrap'}}>Delete page?</span>
+          <button onClick={onDelete} style={{padding:'6px 14px',borderRadius:100,border:'none',background:'var(--tbr)',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer'}}>Yes</button>
+          <button className="tb-btn-ghost" onClick={()=>setConfirmDel(false)} style={{padding:'6px 14px',fontSize:12}}>No</button>
+        </div>)}
+    </div>
+
+    <div className="tb-card" style={{padding:0,overflow:'hidden'}}>
+      <div ref={ref} className="tb-pb-doc" contentEditable suppressContentEditableWarning
+        data-placeholder="Type your notes, or paste from ChatGPT / a doc — formatting is preserved."
+        onInput={emit} onPaste={onPaste} onBlur={emit}
+        spellCheck={true}
+        style={{minHeight:isMobile?300:420,padding:isMobile?'18px 16px':'26px 30px'}}/>
+    </div>
+
+    <div style={{fontSize:11,color:'var(--txm)',paddingLeft:2}}>
+      {isDaily
+        ? 'AutoLaunch shows this page every trading morning and waits for you to confirm it before opening anything.'
+        : 'Saves automatically. Paste keeps headings, bold, lists, tables, code and links.'}
+    </div>
+  </div>);
+}
+
+function TBPlaybookPage({pages,onSavePages,onToast}){
+  const list=tbPbNormalize(pages);
+  const [selId,setSelId]=useState(list[0].id);
+  const [mobileEditing,setMobileEditing]=useState(false);
+  const isMobile=useIsMobile();
+
+  const sel=list.find(p=>p.id===selId)||list[0];
+
+  const updatePage=useCallback((next)=>{
+    onSavePages(tbPbNormalize(list.map(p=>p.id===next.id?next:p)));
+  },[list,onSavePages]);
+
+  const addPage=()=>{
+    const p={id:tbPbNewId(),title:'Untitled page',body:'',createdAt:Date.now(),updatedAt:Date.now()};
+    onSavePages(tbPbNormalize([...list,p]));
+    setSelId(p.id); setMobileEditing(true);
+    onToast&&onToast('Page added','＋');
+  };
+  const deletePage=(id)=>{
+    if(id===TB_PB_DAILY_ID) return;                       // AutoLaunch depends on it
+    const next=tbPbNormalize(list.filter(x=>x.id!==id));
+    onSavePages(next);
+    setSelId(next[0].id); setMobileEditing(false);
+    onToast&&onToast('Page deleted','🗑');
+  };
+
+  const sidebar=(<div style={{display:'flex',flexDirection:'column',gap:6,minWidth:0}}>
+    <div className="tb-section-label" style={{padding:'0 2px 6px'}}>Pages</div>
+    {list.map(p=>(
+      <button key={p.id} className={'tb-pb-item'+(p.id===selId&&!isMobile?' active':'')}
+        onClick={()=>{setSelId(p.id);setMobileEditing(true);}}>
+        <span style={{fontSize:12,opacity:.75}}>{p.id===TB_PB_DAILY_ID?'☀':'▤'}</span>
+        <span style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.title||'Untitled page'}</span>
+        {p.id===TB_PB_DAILY_ID&&<span style={{fontSize:7.5,background:'rgba(74,222,128,0.18)',color:'var(--tbb)',
+          border:'1px solid rgba(74,222,128,0.35)',borderRadius:3,padding:'2px 5px',fontWeight:800,letterSpacing:.4}}>AUTO</span>}
+      </button>
+    ))}
+    <button className="tb-btn-ghost" onClick={addPage} style={{marginTop:8,justifyContent:'center',padding:'8px 14px',fontSize:12.5}}>＋ New page</button>
+  </div>);
+
+  const editor=<TBPlaybookEditor key={sel.id} page={sel} onChange={updatePage} onDelete={()=>deletePage(sel.id)}
+    onBack={()=>setMobileEditing(false)} isMobile={isMobile} onToast={onToast}/>;
+
+  return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:16}}>
+    <div>
+      <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Playbook</div>
+      <div style={{fontSize:13,color:'var(--txm)'}}>{list.length} page{list.length===1?'':'s'} · rules, strategies &amp; checklists</div>
+    </div>
+    {isMobile
+      ? (mobileEditing?editor:sidebar)
+      : <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:22,alignItems:'start'}}>{sidebar}{editor}</div>}
+  </div>);
+}
+
 function TBApp(){
   const [page,setPage]=useState('portfolio');
   const [navOrder,setNavOrder]=useState(tbLoadNavOrder);
@@ -4912,6 +5477,7 @@ function TBApp(){
   const [prompts,setPrompts]=useState(tbLoadPromptsLocal);
   const [analysisCfg,setAnalysisCfg]=useState(tbLoadAnalysisCfg);
   const [watchlist,setWatchlist]=useState(tbLoadWatchlistLocal);
+  const [playbook,setPlaybook]=useState(tbLoadPlaybookLocal);
   const [toast,setToast]=useState(null);
   const [fbLoaded,setFbLoaded]=useState(false);
   const [tbSyncStatus,setTbSyncStatus]=useState(''); // 'saving'|'saved'|'error'|''
@@ -4950,6 +5516,7 @@ function TBApp(){
     window.addEventListener('fb-tb-news-saved',onSaved);
     window.addEventListener('fb-tb-analysis-saved',onSaved);
     window.addEventListener('fb-tb-watchlist-saved',onSaved);
+    window.addEventListener('fb-tb-playbook-saved',onSaved);
     window.addEventListener('fb-tb-dash-saved',onSaved);
     window.addEventListener('fb-tb-marketcal-saved',onSaved);
     window.addEventListener('fb-tb-journal-error',onError);
@@ -4957,6 +5524,7 @@ function TBApp(){
     window.addEventListener('fb-tb-news-error',onError);
     window.addEventListener('fb-tb-analysis-error',onError);
     window.addEventListener('fb-tb-watchlist-error',onError);
+    window.addEventListener('fb-tb-playbook-error',onError);
     window.addEventListener('fb-tb-dash-error',onError);
     window.addEventListener('fb-tb-marketcal-error',onError);
     window.addEventListener('fb-tb-saving',onSaving);
@@ -4967,6 +5535,7 @@ function TBApp(){
       window.removeEventListener('fb-tb-news-saved',onSaved);
       window.removeEventListener('fb-tb-analysis-saved',onSaved);
       window.removeEventListener('fb-tb-watchlist-saved',onSaved);
+      window.removeEventListener('fb-tb-playbook-saved',onSaved);
       window.removeEventListener('fb-tb-dash-saved',onSaved);
       window.removeEventListener('fb-tb-marketcal-saved',onSaved);
       window.removeEventListener('fb-tb-journal-error',onError);
@@ -4974,6 +5543,7 @@ function TBApp(){
       window.removeEventListener('fb-tb-news-error',onError);
       window.removeEventListener('fb-tb-analysis-error',onError);
       window.removeEventListener('fb-tb-watchlist-error',onError);
+      window.removeEventListener('fb-tb-playbook-error',onError);
       window.removeEventListener('fb-tb-dash-error',onError);
       window.removeEventListener('fb-tb-marketcal-error',onError);
       window.removeEventListener('fb-tb-saving',onSaving);
@@ -5074,6 +5644,18 @@ function TBApp(){
         const fw=await window._fbLoadTBWatchlist();
         if(Array.isArray(fw)&&fw.length){setWatchlist(fw);tbSaveWatchlistLocal(fw);tbSetWatchlist(fw);}
       }
+      /* Playbook. Nothing stored yet (first device / fresh account) → seed the
+         Daily Reminder so AutoLaunch always has a page to show. The id is fixed,
+         so two devices seeding at once converge instead of duplicating.
+         A FAILED read (false) is left alone: seeding would write, and that write
+         would clobber the real playbook over a transient network error. The live
+         listener picks the pages up once the connection recovers. */
+      if(window._fbLoadTBPlaybook){
+        const fpb=await window._fbLoadTBPlaybook();
+        if(fpb===false){ /* read failed — keep what's on this device, write nothing */ }
+        else if(Array.isArray(fpb)&&fpb.length){ const n=tbPbNormalize(fpb); setPlaybook(n); tbSavePlaybookLocal(n); }
+        else { const seed=tbPbNormalize(tbLoadPlaybookLocal()); setPlaybook(seed); tbSavePlaybookLocal(seed); if(window._fbSaveTBPlaybook) window._fbSaveTBPlaybook(seed); }
+      }
       /* One-time: force every device to the new canonical default watchlist. */
       try{
         const seed=parseInt(localStorage.getItem(TB_WATCHLIST_SEED_KEY)||'0',10);
@@ -5112,6 +5694,13 @@ function TBApp(){
     return()=>window.removeEventListener('fb-tb-watchlist-remote',onRemote);
   },[]);
 
+  /* Live sync: apply remote playbook pages from other devices */
+  useEffect(()=>{
+    const onRemote=(e)=>{if(Array.isArray(e.detail)&&e.detail.length){const n=tbPbNormalize(e.detail);setPlaybook(n);tbSavePlaybookLocal(n);}}
+    window.addEventListener('fb-tb-playbook-remote',onRemote);
+    return()=>window.removeEventListener('fb-tb-playbook-remote',onRemote);
+  },[]);
+
   /* Keep the parser's active watchlist in lockstep with state. */
   useEffect(()=>{tbSetWatchlist(watchlist);},[watchlist]);
 
@@ -5132,11 +5721,36 @@ function TBApp(){
     if(window._fbReady)push(); else window.addEventListener('fb-ready',push,{once:true});
   },[prompts,analysisCfg.analysisPromptId,analysisCfg.searches]);
 
+  /* ── Push Playbook → Daily Reminder to the worker ─────────────────────────────
+     morning-launcher GETs /daily-reminder and makes you confirm it before it opens
+     anything, so it must reflect the CURRENT page. Pages are authored as HTML;
+     the launcher renders Markdown, so push a converted copy. Debounced (this runs
+     on every keystroke) and deduped so we only POST on real changes.
+     An empty page is never pushed — that would silently blank the morning gate. */
+  const _tbReminderPushSig=useRef(null);
+  useEffect(()=>{
+    if(!fbLoaded)return;
+    const p=(playbook||[]).find(x=>x.id===TB_PB_DAILY_ID);
+    if(!p)return;
+    const markdown=tbHtmlToMd(p.body||'');
+    if(!markdown.trim())return;
+    const title=(p.title||'Daily Reminder').trim();
+    const sig=title+' | '+markdown;
+    if(_tbReminderPushSig.current===sig)return;
+    const t=setTimeout(()=>{
+      const push=()=>{fetch(TD_WORKER_URL+'/daily-reminder',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({title,markdown})}).then(r=>{if(r.ok)_tbReminderPushSig.current=sig;}).catch(()=>{});};
+      if(window._fbReady)push(); else window.addEventListener('fb-ready',push,{once:true});
+    },1500);
+    return()=>clearTimeout(t);
+  },[playbook,fbLoaded]);
+
   const showToast=(msg,icon='✓')=>{setToast({msg,icon,k:Date.now()});};
 
   const savePrompts=arr=>{setPrompts(arr);tbSavePromptsLocal(arr);};
   const saveAnalysisCfg=cfg=>{setAnalysisCfg(cfg);try{localStorage.setItem(TB_ANALYSIS_KEY,JSON.stringify(cfg));}catch{} if(window._fbSaveTBAnalysis)window._fbSaveTBAnalysis(cfg);};
   const saveWatchlist=arr=>{const wl=Array.isArray(arr)?arr:[];setWatchlist(wl);tbSaveWatchlistLocal(wl);tbSetWatchlist(wl);if(window._fbSaveTBWatchlist)window._fbSaveTBWatchlist(wl);};
+  const savePlaybook=pages=>{const n=tbPbNormalize(pages);setPlaybook(n);tbSavePlaybookLocal(n);if(window._fbSaveTBPlaybook)window._fbSaveTBPlaybook(n);};
 
 
 
@@ -5152,6 +5766,7 @@ function TBApp(){
   const pageMap={
     portfolio:<TBPortfolioPage/>,
     journal:  <TBJournalPage/>,
+    playbook: <TBPlaybookPage pages={playbook} onSavePages={savePlaybook} onToast={showToast}/>,
     news:     <TBNewsPage watchlist={watchlist}/>,
     catalysts:<TBCatalystsPage watchlist={watchlist}/>,
     prompt:   <TBControlPage prompts={prompts} onSavePrompts={savePrompts} onToast={showToast} watchlist={watchlist} onSaveWatchlist={saveWatchlist}/>,
