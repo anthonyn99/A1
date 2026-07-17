@@ -1169,6 +1169,520 @@ async function handleRecipe(body, env) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// FEATURE 5 — MyList "Price Watch"   (POST /watch/check, /watch/resolve + daily cron)
+//
+// Tracks the price of items at six stores and pushes a notification when one
+// drops. Two integration classes:
+//   • Kroger / King Soopers → official Products API (source:"verified").
+//   • Walmart / Amazon / CVS / Walgreens → Gemini-grounded Google Search, and a
+//     price is ONLY stored if a supporting citation URL came back
+//     (source:"ai-estimated"); otherwise source:"unavailable", never a guess.
+//
+// The server-side Firestore + FCM stack below is the SAME pattern the TaskHub
+// reminders worker uses — service-account JWT → Google OAuth2 token, Firestore
+// REST, and a data-only FCM send scoped by device mainDash. It is reused here so
+// there is ONE notification/credential pipeline, not a second, different one.
+//
+// SECRETS required on THIS worker (wrangler secret put <NAME>):
+//   FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY   (same
+//     service account as taskhub-reminders — re-put them here)
+//   KROGER_CLIENT_ID, KROGER_CLIENT_SECRET   (register a free app at
+//     developer.kroger.com — MANUAL step; module returns "unavailable" until set)
+// VARS required (wrangler.toml [vars]) for the Kroger chains:
+//   KROGER_LOCATION_ID, KINGSOOPERS_LOCATION_ID   (real store location IDs from
+//     Tony — never hardcoded/guessed; module reports which is missing until set)
+// KV binding required: TOKEN_CACHE   (shared namespace with taskhub-reminders)
+// ════════════════════════════════════════════════════════════════════════════
+
+const STORE_LABELS = {
+  kroger: 'Kroger', kingsoopers: 'King Soopers', walmart: 'Walmart',
+  amazon: 'Amazon', cvs: 'CVS', walgreens: 'Walgreens',
+};
+const KROGER_STORE_KEYS = new Set(['kroger', 'kingsoopers']);
+const AI_STORES = new Set(['walmart', 'amazon', 'cvs', 'walgreens']);
+
+// AI-search price lookups use ONLY these two models: they get free Google Search
+// grounding (shared 500 req/day pool, NO billing account). Do NOT add a 3.x model
+// here — grounding is not free for the 3.x family without billing enabled.
+const WATCH_AI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+// Grounded multi-search calls are much slower than the instant-parse features
+// above, so this path gets a longer per-attempt timeout and a single attempt per
+// model (no stacked retry loop — the latency doesn't leave room for it).
+const WATCH_GEMINI_TIMEOUT_MS = 28000;
+
+// ── Firestore-REST value <-> plain JS converters (the price-watch doc has nested
+//    arrays/maps, so we need a general encoder, unlike the reminders worker which
+//    only PATCHes scalar fields). ──────────────────────────────────────────────
+function fsEncode(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (typeof v === 'string') return { stringValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(fsEncode) } };
+  if (typeof v === 'object') {
+    const fields = {};
+    for (const k of Object.keys(v)) if (v[k] !== undefined) fields[k] = fsEncode(v[k]);
+    return { mapValue: { fields } };
+  }
+  return { stringValue: String(v) };
+}
+function fsDecode(val) {
+  if (!val || typeof val !== 'object') return null;
+  if ('nullValue' in val) return null;
+  if ('booleanValue' in val) return val.booleanValue;
+  if ('integerValue' in val) return parseInt(val.integerValue, 10);
+  if ('doubleValue' in val) return val.doubleValue;
+  if ('stringValue' in val) return val.stringValue;
+  if ('timestampValue' in val) return val.timestampValue;
+  if ('arrayValue' in val) return (val.arrayValue.values || []).map(fsDecode);
+  if ('mapValue' in val) {
+    const o = {}, f = val.mapValue.fields || {};
+    for (const k of Object.keys(f)) o[k] = fsDecode(f[k]);
+    return o;
+  }
+  return null;
+}
+
+async function fsReadPriceWatch(env, token, docPath) {
+  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${docPath}`;
+  const r = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+  if (r.status === 404) return { items: [], savedAt: 0 };
+  if (!r.ok) throw new Error(`firestore read ${docPath} ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  const doc = await r.json();
+  const f = doc.fields || {};
+  const items = f.items ? fsDecode(f.items) : [];
+  return { items: Array.isArray(items) ? items : [] };
+}
+
+// Full-document overwrite — mirrors the client's setDoc(ref, {items, savedAt}).
+// The cron calls this after EACH item so a mid-run crash still persists the
+// already-checked items (last-write-wins vs. a concurrent UI edit — collisions
+// are effectively nil given the daily 4am fire time).
+async function fsWritePriceWatch(env, token, docPath, items) {
+  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${docPath}`;
+  const body = JSON.stringify({ fields: { items: fsEncode(items), savedAt: { integerValue: String(Date.now()) } } });
+  const r = await fetch(url, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body });
+  if (!r.ok) throw new Error(`firestore write ${docPath} ${r.status}: ${(await r.text()).slice(0, 200)}`);
+}
+
+async function fsFetchTokens(env, token) {
+  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/fcm_tokens`;
+  const r = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+  if (!r.ok) return [];
+  const data = await r.json();
+  const seen = new Set();
+  return (data.documents || []).filter(d => {
+    const t = d.fields?.token?.stringValue;
+    if (!t || seen.has(t)) return false;
+    seen.add(t); return true;
+  });
+}
+
+// Data-only FCM send — identical structure to the TaskHub reminders worker so
+// firebase-messaging-sw.js draws it exactly the same way (title/body/id/dash;
+// unique Topic so same-instant pushes can't coalesce). No new notification type.
+async function sendFCM(projectId, token, title, body, id, accessToken, dash) {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: {
+        token,
+        data: { id: String(id || ''), title: String(title || 'Price Watch'), body: String(body || title || ''), dash: String(dash || 'all') },
+        android: { priority: 'high' },
+        webpush: { headers: { Urgency: 'high', TTL: '600', Topic: crypto.randomUUID().replace(/-/g, '') } },
+      },
+    }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error?.message || res.status);
+}
+
+// ── Service-account access token (ported from taskhub-reminders). Cached in
+//    memory + KV under a price-watch-specific key so it can't clobber the
+//    reminders worker's 'gat' entry even though both share the KV namespace. ──
+let _pwGoogleToken = null;
+async function getGoogleAccessToken(env) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (_pwGoogleToken && _pwGoogleToken.expiresAt > nowSec + 300) return _pwGoogleToken.token;
+  if (env.TOKEN_CACHE) {
+    try {
+      const kv = await env.TOKEN_CACHE.get('pw_gat', 'json');
+      if (kv && kv.expiresAt > nowSec + 300) { _pwGoogleToken = kv; return kv.token; }
+    } catch (e) { console.warn('KV read error:', e.message); }
+  }
+  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claim = b64url(JSON.stringify({
+    iss: env.FIREBASE_CLIENT_EMAIL, sub: env.FIREBASE_CLIENT_EMAIL,
+    aud: 'https://oauth2.googleapis.com/token', iat: nowSec, exp: nowSec + 3600,
+    scope: 'https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/datastore',
+  }));
+  const payload = `${header}.${claim}`;
+  let raw = (env.FIREBASE_PRIVATE_KEY || '')
+    .replace(/\\n/g, '\n').replace(/\\r/g, '').replace(/^['"]|['"]$/g, '');
+  const pemBody = raw
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '').replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/').trim();
+  if (!pemBody || pemBody.length < 100) throw new Error('FIREBASE_PRIVATE_KEY empty/too short after parsing — re-upload the secret');
+  const keyBytes = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('pkcs8', keyBytes.buffer, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(payload));
+  const jwt = `${payload}.${b64url(sig)}`;
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+  });
+  if (!res.ok) throw new Error(`Token exchange failed: ${await res.text()}`);
+  const j = await res.json();
+  const entry = { token: j.access_token, expiresAt: nowSec + 3600 };
+  _pwGoogleToken = entry;
+  if (env.TOKEN_CACHE) {
+    try { await env.TOKEN_CACHE.put('pw_gat', JSON.stringify(entry), { expirationTtl: 3300 }); } catch (e) { console.warn('KV write error:', e.message); }
+  }
+  return entry.token;
+}
+function b64url(data) {
+  const b = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data);
+  let s = ''; b.forEach(x => s += String.fromCharCode(x));
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// STORE MODULE 3a — Kroger / King Soopers  (official Products API, no AI)
+//
+// Same API for both chains; the chain is chosen by filter.locationId. The OAuth2
+// client-credentials token is short-lived, so it is cached (memory + KV) and
+// reused across a whole cron run. See STORE_NOTES.md → "Kroger / King Soopers".
+// ────────────────────────────────────────────────────────────────────────────
+let _krogerTok = null;
+async function krogerToken(env) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (_krogerTok && _krogerTok.expiresAt > nowSec + 60) return _krogerTok.token;
+  if (env.TOKEN_CACHE) {
+    try { const kv = await env.TOKEN_CACHE.get('kroger_tok', 'json'); if (kv && kv.expiresAt > nowSec + 60) { _krogerTok = kv; return kv.token; } } catch (e) {}
+  }
+  const basic = btoa(`${env.KROGER_CLIENT_ID}:${env.KROGER_CLIENT_SECRET}`);
+  const r = await fetch('https://api.kroger.com/v1/connect/oauth2/token', {
+    method: 'POST',
+    headers: { 'Authorization': `Basic ${basic}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=client_credentials&scope=product.compact',
+  });
+  if (!r.ok) throw new Error(`kroger token ${r.status}: ${(await r.text()).slice(0, 150)}`);
+  const j = await r.json();
+  const entry = { token: j.access_token, expiresAt: nowSec + (j.expires_in || 1800) };
+  _krogerTok = entry;
+  if (env.TOKEN_CACHE) { try { await env.TOKEN_CACHE.put('kroger_tok', JSON.stringify(entry), { expirationTtl: Math.max(60, (j.expires_in || 1800) - 60) }); } catch (e) {} }
+  return entry.token;
+}
+
+// Returns { ok, items:[{krogerProductId,name,brand,size,price}] } or, when config
+// is absent, { ok:false, configMissing:[...] } so callers report exactly what
+// Tony still needs to set (never a fabricated location ID or price).
+async function krogerSearch(env, storeKey, { term, productId }) {
+  const locVar = storeKey === 'kingsoopers' ? 'KINGSOOPERS_LOCATION_ID' : 'KROGER_LOCATION_ID';
+  const locId = env[locVar];
+  const missing = [];
+  if (!env.KROGER_CLIENT_ID || !env.KROGER_CLIENT_SECRET) missing.push('KROGER_CLIENT_ID/KROGER_CLIENT_SECRET (secrets)');
+  if (!locId) missing.push(`${locVar} (var)`);
+  if (missing.length) return { ok: false, configMissing: missing };
+
+  const tok = await krogerToken(env);
+  const qs = new URLSearchParams();
+  qs.set('filter.locationId', locId);
+  // A resolved productId pins us to the EXACT product (no fuzzy drift); otherwise
+  // a fuzzy term search returns the top few candidates for confirm-on-add.
+  if (productId) qs.set('filter.productId', productId);
+  else { qs.set('filter.term', term); qs.set('filter.limit', '8'); }
+  const r = await fetch(`https://api.kroger.com/v1/products?${qs.toString()}`, { headers: { 'Authorization': `Bearer ${tok}`, 'Accept': 'application/json' } });
+  if (!r.ok) return { ok: false, error: `kroger products ${r.status}` };
+  const j = await r.json();
+  const items = (j.data || []).map(p => {
+    const it = (p.items && p.items[0]) || {};
+    const price = it.price || {};
+    const val = (typeof price.promo === 'number' && price.promo > 0) ? price.promo : price.regular;
+    return {
+      krogerProductId: p.productId || '',
+      name: p.description || '',
+      brand: p.brand || '',
+      size: it.size || '',
+      price: typeof val === 'number' ? val : null,
+    };
+  });
+  return { ok: true, items };
+}
+
+async function checkKroger(env, storeKey, item) {
+  const productId = (item.productRef && item.productRef.krogerProductId) || '';
+  const term = item.brandLock ? `${item.brandLock} ${item.itemName}` : item.itemName;
+  let res;
+  try { res = await krogerSearch(env, storeKey, { term, productId }); }
+  catch (e) { return { ok: true, source: 'unavailable', price: null, note: e.message || 'kroger error' }; }
+  if (!res.ok) {
+    if (res.configMissing) return { ok: true, source: 'unavailable', price: null, note: `Kroger not configured — missing ${res.configMissing.join(', ')}` };
+    return { ok: true, source: 'unavailable', price: null, note: res.error || 'kroger lookup failed' };
+  }
+  const hit = res.items.find(x => x.price != null) || res.items[0];
+  if (!hit || hit.price == null) return { ok: true, source: 'unavailable', price: null, note: 'no price returned by Kroger' };
+  return {
+    ok: true, source: 'verified', price: hit.price,
+    note: hit.name + (hit.size ? ` (${hit.size})` : ''),
+    krogerProductId: hit.krogerProductId, foundBrand: hit.brand,
+  };
+}
+
+async function resolveKroger(env, storeKey, item) {
+  const term = item.brandLock ? `${item.brandLock} ${item.itemName}` : item.itemName;
+  let res;
+  try { res = await krogerSearch(env, storeKey, { term }); }
+  catch (e) { return { ok: false, error: e.message || 'kroger error' }; }
+  if (!res.ok) return res.configMissing ? { ok: false, configMissing: res.configMissing } : { ok: false, error: res.error };
+  return { ok: true, candidates: res.items.slice(0, 6) };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// STORE MODULE 3b — Walmart / Amazon / CVS / Walgreens  (Gemini-grounded, cited)
+//
+// One function, parameterized by store label. Two calls:
+//   1) grounded (google_search + url_context) free-text lookup.
+//   2) a plain no-tools 2.5-flash-lite reshape into strict JSON (this second call
+//      does NOT touch the grounding quota).
+// A price is accepted ONLY if the grounded response carried a supporting citation
+// URL AND the reshape returned a real number; otherwise source:"unavailable".
+// See STORE_NOTES.md for per-store notes.
+// ────────────────────────────────────────────────────────────────────────────
+function buildWatchGroundedPrompt(storeLabel, item) {
+  const lines = [
+    `You are a precise retail price researcher. Find TODAY'S current price for one product at ${storeLabel} (in the United States), using Google Search and, when given, the provided product page.`,
+    ``,
+    `PRODUCT: "${item.itemName}"`,
+  ];
+  if (item.brandLock) {
+    lines.push(`BRAND/PRODUCT LOCK: You MUST price the specific product "${item.brandLock} ${item.itemName}" — that exact brand and product, nothing else.`);
+  } else {
+    lines.push(`BRAND: any brand. Find the CHEAPEST identical or directly comparable product at ${storeLabel} across any brand.`);
+  }
+  if (item.productRef && item.productRef.url) {
+    lines.push(`DIRECT PRODUCT PAGE (fetch this first with url_context, treat it as the primary source): ${item.productRef.url}`);
+  }
+  if (item.productRef && item.productRef.foundTitle) {
+    lines.push(`CONFIRM SAME PRODUCT: a previous check tracked "${item.productRef.foundTitle}". Confirm you are pricing that same product/variant, not a different size or bundle.`);
+  }
+  lines.push(
+    ``,
+    `STRICT RULES:`,
+    `- Report the price ONLY at ${storeLabel} (${storeLabel}'s own site/listing), not a different retailer.`,
+    `- If you CANNOT find a reliably sourced price at ${storeLabel}, say exactly "no reliable price found" — do NOT estimate, guess, or infer a number.`,
+    `- State which page/URL you got the price from.`,
+    `- Give the numeric price in USD, the brand/exact product title you priced, and that source URL.`,
+  );
+  return lines.join('\n');
+}
+
+function buildWatchReshapePrompt(groundedText) {
+  return [
+    `Extract structured data from the price-lookup answer below. Output JSON only.`,
+    `- If the answer states a reliably sourced price, set found:true, price:<number in USD>, url:<the source page URL it cited>, foundBrand:<brand/exact product title>, note:<≤12-word summary>.`,
+    `- If the answer says "no reliable price found" or gives no sourced number, set found:false and OMIT price.`,
+    `- Never invent a price or URL that is not present in the answer.`,
+    ``,
+    `ANSWER:`,
+    `"""`,
+    String(groundedText || '').slice(0, 6000),
+    `"""`,
+  ].join('\n');
+}
+
+const WATCH_JSON_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    found: { type: 'BOOLEAN' },
+    price: { type: 'NUMBER' },
+    url: { type: 'STRING' },
+    foundBrand: { type: 'STRING' },
+    note: { type: 'STRING' },
+  },
+  required: ['found'],
+};
+
+// Low-level grounded call (callGemini can't do this — it forces JSON-only, no
+// tools). Returns { text, citationUrls } gathered from every citation channel.
+async function geminiGrounded(model, key, prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    tools: [{ google_search: {} }, { url_context: {} }],
+    generationConfig: { temperature: 0 },
+  });
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), WATCH_GEMINI_TIMEOUT_MS);
+  let r;
+  try { r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, signal: ac.signal }); }
+  finally { clearTimeout(timer); }
+  if (!r.ok) throw new Error(`grounded ${model} ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  const data = await r.json();
+  const cand = data?.candidates?.[0] || {};
+  const text = cand?.content?.parts?.map(p => p.text || '').join('') || '';
+  const urls = [];
+  const gm = cand.groundingMetadata || {};
+  (gm.groundingChunks || []).forEach(c => { const u = c?.web?.uri; if (u) urls.push(u); });
+  const cm = cand.citationMetadata || {};
+  (cm.citationSources || []).forEach(c => { if (c?.uri) urls.push(c.uri); });
+  const um = cand.urlContextMetadata || {};
+  (um.urlMetadata || []).forEach(u => { const v = u?.retrievedUrl || u?.retrieved_url; if (v) urls.push(v); });
+  return { text, citationUrls: urls };
+}
+
+async function checkAiStore(env, storeKey, item, profile) {
+  const key = keyFor(env, profile);
+  if (!key) return { ok: true, source: 'unavailable', price: null, note: `no Gemini key for ${profile}` };
+  const storeLabel = STORE_LABELS[storeKey] || storeKey;
+  const prompt = buildWatchGroundedPrompt(storeLabel, item);
+
+  let grounded = null, lastErr = null;
+  for (const model of WATCH_AI_MODELS) {           // one attempt per model
+    try { grounded = await geminiGrounded(model, key, prompt); if (grounded && grounded.text) break; }
+    catch (e) { lastErr = e.message || String(e); grounded = null; }
+  }
+  if (!grounded || !grounded.text) return { ok: true, source: 'unavailable', price: null, note: lastErr || 'grounded lookup failed' };
+
+  let shaped = null;
+  try { shaped = await callGemini('gemini-2.5-flash-lite', key, { prompt: buildWatchReshapePrompt(grounded.text), schema: WATCH_JSON_SCHEMA, maxOutputTokens: 1024, feature: 'watch' }); }
+  catch (e) { lastErr = e.message || String(e); }
+
+  if (!shaped || !shaped.found || typeof shaped.price !== 'number' || !(shaped.price > 0)) {
+    return { ok: true, source: 'unavailable', price: null, note: (shaped && shaped.note) || 'no reliable price found' };
+  }
+  // Citation gate — no supporting URL means we do NOT trust the number.
+  if (!grounded.citationUrls.length) {
+    return { ok: true, source: 'unavailable', price: null, note: 'price found but no supporting citation' };
+  }
+  return {
+    ok: true, source: 'ai-estimated', price: shaped.price,
+    note: shaped.note || '', url: shaped.url || grounded.citationUrls[0],
+    foundBrand: shaped.foundBrand || '', foundTitle: shaped.foundBrand || '',
+  };
+}
+
+// ── Dispatch by store ────────────────────────────────────────────────────────
+async function checkWatchItem(env, profile, item) {
+  const store = String(item.store || '').toLowerCase();
+  if (KROGER_STORE_KEYS.has(store)) return checkKroger(env, store, item);
+  if (AI_STORES.has(store)) return checkAiStore(env, store, item, profile);
+  return { ok: false, error: `unknown store: ${store}` };
+}
+
+async function resolveWatchItem(env, profile, item) {
+  const store = String(item.store || '').toLowerCase();
+  if (KROGER_STORE_KEYS.has(store)) return resolveKroger(env, store, item);
+  if (AI_STORES.has(store)) {
+    const res = await checkAiStore(env, store, item, profile);
+    if (res.source === 'unavailable') return { ok: false, error: res.note || 'no reliable price found' };
+    return { ok: true, candidates: [{ name: res.foundTitle || item.itemName, brand: res.foundBrand || '', price: res.price, url: res.url || '', source: res.source, note: res.note }] };
+  }
+  return { ok: false, error: `unknown store: ${store}` };
+}
+
+async function handleWatchCheck(body, env) {
+  const profile = body.profile === 'veda' ? 'veda' : 'tony';
+  const item = body.item;
+  if (!item || !item.store || !item.itemName) return json({ ok: false, error: 'missing item {store, itemName}' }, 400);
+  try { return json(await checkWatchItem(env, profile, item)); }
+  catch (e) { return json({ ok: false, error: e.message || String(e) }, 502); }
+}
+
+async function handleWatchResolve(body, env) {
+  const profile = body.profile === 'veda' ? 'veda' : 'tony';
+  const item = body.item;
+  if (!item || !item.store || !item.itemName) return json({ ok: false, error: 'missing item {store, itemName}' }, 400);
+  try { return json(await resolveWatchItem(env, profile, item)); }
+  catch (e) { return json({ ok: false, error: e.message || String(e) }, 502); }
+}
+
+// ── Daily cron (§4) ──────────────────────────────────────────────────────────
+// Reads both pricewatch docs, checks each item, appends to priceHistory, writes
+// back AFTER EACH item (crash-safe), and pushes a drop notification when the new
+// price is lower by >= max(5%, $0.50). To stay under Cloudflare's 50-subrequest-
+// per-invocation cap (the same wall newshub-api hit), it processes at most
+// PW_MAX_ITEMS_PER_RUN items per run and advances a KV round-robin cursor, so a
+// large combined watchlist rotates fully across successive daily runs while a
+// small one is fully covered every day.
+const PW_DOCS = [
+  { profile: 'tony', path: 'dashboards/pricewatch' },
+  { profile: 'veda', path: 'dashboards/pricewatch-veda' },
+];
+const PW_MAX_ITEMS_PER_RUN = 12;
+
+async function runPriceWatchCron(env) {
+  let token;
+  try { token = await getGoogleAccessToken(env); }
+  catch (e) { console.error('[pricewatch] auth failed:', e.message); return; }
+
+  const docs = {};
+  const flat = [];
+  for (const d of PW_DOCS) {
+    try {
+      const data = await fsReadPriceWatch(env, token, d.path);
+      docs[d.path] = data;
+      data.items.forEach((it, idx) => flat.push({ profile: d.profile, path: d.path, idx, item: it }));
+    } catch (e) { console.warn('[pricewatch] read', d.path, e.message); docs[d.path] = { items: [] }; }
+  }
+  if (!flat.length) { console.log('[pricewatch] no items'); return; }
+
+  let cursor = 0;
+  try { const c = await env.TOKEN_CACHE.get('pw_cron_cursor'); cursor = c ? (parseInt(c, 10) || 0) : 0; } catch (e) {}
+  if (cursor >= flat.length) cursor = 0;
+  const slice = flat.slice(cursor, cursor + PW_MAX_ITEMS_PER_RUN);
+  const nextCursor = (cursor + PW_MAX_ITEMS_PER_RUN >= flat.length) ? 0 : cursor + PW_MAX_ITEMS_PER_RUN;
+  try { await env.TOKEN_CACHE.put('pw_cron_cursor', String(nextCursor)); } catch (e) {}
+  console.log(`[pricewatch] checking ${slice.length}/${flat.length} item(s) (cursor ${cursor}→${nextCursor})`);
+
+  let tokenDocsCache = null;
+  const today = new Date().toISOString().slice(0, 10);
+
+  for (const entry of slice) {
+    const it = entry.item;
+    let res;
+    try { res = await checkWatchItem(env, entry.profile, it); }
+    catch (e) { res = { ok: false, source: 'unavailable', price: null, note: e.message || 'check failed' }; }
+    const source = res.source || (typeof res.price === 'number' ? 'ai-estimated' : 'unavailable');
+    const prevPrice = typeof it.lastPrice === 'number' ? it.lastPrice : null;
+
+    if (!Array.isArray(it.priceHistory)) it.priceHistory = [];
+    it.priceHistory.push({ date: today, price: source === 'unavailable' ? null : res.price, source, note: res.note || '' });
+    it.lastChecked = new Date().toISOString();
+    if (source !== 'unavailable' && typeof res.price === 'number') {
+      it.lastPrice = res.price;
+      if (!it.productRef) it.productRef = { krogerProductId: '', url: '' };
+      if (res.krogerProductId && !it.productRef.krogerProductId) it.productRef.krogerProductId = res.krogerProductId;
+      if (res.foundTitle && !it.productRef.foundTitle) it.productRef.foundTitle = res.foundTitle;
+    }
+
+    // Write the whole doc back NOW so a mid-run crash keeps already-checked items.
+    try { await fsWritePriceWatch(env, token, entry.path, docs[entry.path].items); }
+    catch (e) { console.warn('[pricewatch] write', entry.path, e.message); }
+
+    // Notify only on a genuine drop; never on "unavailable" (silent, logged only).
+    if (source !== 'unavailable' && typeof res.price === 'number' && prevPrice != null && res.price < prevPrice) {
+      const drop = prevPrice - res.price;
+      const threshold = Math.max(prevPrice * 0.05, 0.50);   // 5% or $0.50, whichever is larger
+      if (drop >= threshold) {
+        if (!tokenDocsCache) tokenDocsCache = await fsFetchTokens(env, token);
+        const dash = entry.profile;   // 'tony' | 'veda' — strict device-main scoping (no 'all' escape)
+        const targets = tokenDocsCache.filter(d => (d.fields?.mainDash?.stringValue || 'all') === dash);
+        const estNote = source === 'ai-estimated' ? ' — worth double-checking' : '';
+        const storeLabel = STORE_LABELS[String(it.store).toLowerCase()] || it.store;
+        const bodyTxt = `${it.itemName}: $${prevPrice.toFixed(2)} → $${res.price.toFixed(2)} at ${storeLabel}${estNote}`;
+        const occId = `pw_${dash}_${it.id || entry.idx}_${Date.now()}`;
+        await Promise.allSettled(targets.map(d =>
+          sendFCM(env.FIREBASE_PROJECT_ID, d.fields.token.stringValue, 'Price drop', bodyTxt, occId, token, dash)
+            .catch(e => console.warn('[pricewatch] fcm', e.message))
+        ));
+        console.log(`[pricewatch] drop ${bodyTxt} → ${targets.length} device(s)`);
+      }
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // Router
 // ════════════════════════════════════════════════════════════════════════════
 export default {
@@ -1181,15 +1695,18 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 10, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'journal'],
+        version: 11, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'journal', 'watch'],
         models: MODELS,
         listModels: LIST_MODELS,
         recipeEditModels: RECIPE_EDIT_MODELS,
         recipeVoiceModels: RECIPE_VOICE_MODELS,
         taskhubModels: TASKHUB_MODELS,
+        watchAiModels: WATCH_AI_MODELS,
         tonyKey: !!env.TONY_GEMINI_KEY,
         vedaKey: !!env.VEDA_GEMINI_KEY,
+        firestore: !!(env.FIREBASE_PROJECT_ID && env.FIREBASE_CLIENT_EMAIL && env.FIREBASE_PRIVATE_KEY),
+        krogerConfigured: !!(env.KROGER_CLIENT_ID && env.KROGER_CLIENT_SECRET),
         time: new Date().toISOString(),
       });
     }
@@ -1202,8 +1719,15 @@ export default {
       if (path === '/recipe/parse')   return handleRecipe(body, env);
       if (path === '/taskhub/parse')  return handleTaskhub(body, env);
       if (path === '/journal/format') return handleFormat(body, env);
+      if (path === '/watch/check')    return handleWatchCheck(body, env);
+      if (path === '/watch/resolve')  return handleWatchResolve(body, env);
     }
 
     return json({ ok: false, error: 'not found' }, 404);
+  },
+
+  // Daily price-watch cron (see wrangler.toml [triggers]).
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runPriceWatchCron(env));
   },
 };

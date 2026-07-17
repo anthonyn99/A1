@@ -2,8 +2,31 @@ name = "personal-ai"
 main = "worker.js"
 compatibility_date = "2025-06-01"
 
+# ── Price Watch daily cron ───────────────────────────────────────────────────
+# 10:00 UTC. DST CAVEAT (Cloudflare Cron Triggers run on FIXED UTC and never
+# shift for daylight saving): "0 10 * * *" is 4:00am Mountain / 6:00am Eastern
+# WHILE DST is in effect (~mid-March to early November). After clocks fall back
+# it fires at 3:00am MT / 5:00am ET instead, and returns to 4/6 when DST resumes
+# in spring. This is a known, accepted tradeoff — NOT something to silently patch
+# each DST change. Revisit in November if the earlier fire time is a problem.
+[triggers]
+crons = ["0 10 * * *"]
+
 [vars]
 WORKER_ORIGIN = "https://personal-ai.av1.workers.dev"
+# Kroger store location IDs — REQUIRED for the Kroger/King Soopers price checks.
+# These are NOT secrets; add the REAL location IDs (from Tony) here and redeploy.
+# Until present, the Kroger module returns source:"unavailable" naming the missing
+# var (it never guesses or hardcodes a placeholder ID).
+#   KROGER_LOCATION_ID      = "<real Kroger store location id>"
+#   KINGSOOPERS_LOCATION_ID = "<real King Soopers store location id>"
+
+# ── KV: shared with taskhub-reminders (price-watch uses distinct keys:
+#    pw_gat, kroger_tok, pw_cron_cursor — so it can't clobber the reminders
+#    worker's 'gat' entry). ─────────────────────────────────────────────────────
+[[kv_namespaces]]
+binding = "TOKEN_CACHE"
+id = "b51e916cf3bf4f37ad146af5ca031575"
 
 # ONE Gemini key per person, shared across ALL three personal features
 # (MyList shopping lists, TaskHub voice, Journal AI Format). Stored as Cloudflare
@@ -16,3 +39,15 @@ WORKER_ORIGIN = "https://personal-ai.av1.workers.dev"
 # Secrets persist across deploys, so CI auto-deploy keeps working without them in git.
 #
 # This worker REPLACES the old mylist-api / taskhub-voice / journal-ai workers.
+#
+# ── Price Watch secrets (feature 5) ──────────────────────────────────────────
+# Firebase service account — SAME account taskhub-reminders uses; re-put here so
+# this worker can read/write Firestore and send FCM for the price-drop cron:
+#   wrangler secret put FIREBASE_PROJECT_ID
+#   wrangler secret put FIREBASE_CLIENT_EMAIL
+#   wrangler secret put FIREBASE_PRIVATE_KEY
+# Kroger Products API (register a free app at developer.kroger.com — MANUAL step;
+# no billing needed). Until both are set the Kroger module reports "unavailable":
+#   wrangler secret put KROGER_CLIENT_ID
+#   wrangler secret put KROGER_CLIENT_SECRET
+# (Kroger store LOCATION IDs are non-secret vars — see [vars] above.)
