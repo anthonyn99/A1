@@ -1376,9 +1376,16 @@ async function krogerToken(env) {
 
 // Returns { ok, items:[{krogerProductId,name,brand,size,price}] } or, when config
 // is absent, { ok:false, configMissing:[...] } so callers report exactly what
-// Tony still needs to set (never a fabricated location ID or price).
-async function krogerSearch(env, storeKey, { term, productId }) {
-  const locVar = storeKey === 'kingsoopers' ? 'KINGSOOPERS_LOCATION_ID' : 'KROGER_LOCATION_ID';
+// still needs to be set (never a fabricated location ID or price).
+//
+// Location IDs are PER-PROFILE (Tony and Veda shop different regions — Tony=CO
+// King Soopers, Veda=GA Kroger), so the var is <BANNER>_LOCATION_ID_<PROFILE>.
+// A profile+banner with no nearby store (e.g. Tony+Kroger, Veda+KingSoopers)
+// simply has no var set → that combo reports "unavailable", which is correct.
+async function krogerSearch(env, storeKey, profile, { term, productId }) {
+  const banner = storeKey === 'kingsoopers' ? 'KINGSOOPERS' : 'KROGER';
+  const prof = profile === 'veda' ? 'VEDA' : 'TONY';
+  const locVar = `${banner}_LOCATION_ID_${prof}`;
   const locId = env[locVar];
   const missing = [];
   if (!env.KROGER_CLIENT_ID || !env.KROGER_CLIENT_SECRET) missing.push('KROGER_CLIENT_ID/KROGER_CLIENT_SECRET (secrets)');
@@ -1410,11 +1417,11 @@ async function krogerSearch(env, storeKey, { term, productId }) {
   return { ok: true, items };
 }
 
-async function checkKroger(env, storeKey, item) {
+async function checkKroger(env, storeKey, profile, item) {
   const productId = (item.productRef && item.productRef.krogerProductId) || '';
   const term = item.brandLock ? `${item.brandLock} ${item.itemName}` : item.itemName;
   let res;
-  try { res = await krogerSearch(env, storeKey, { term, productId }); }
+  try { res = await krogerSearch(env, storeKey, profile, { term, productId }); }
   catch (e) { return { ok: true, source: 'unavailable', price: null, note: e.message || 'kroger error' }; }
   if (!res.ok) {
     if (res.configMissing) return { ok: true, source: 'unavailable', price: null, note: `Kroger not configured — missing ${res.configMissing.join(', ')}` };
@@ -1429,10 +1436,10 @@ async function checkKroger(env, storeKey, item) {
   };
 }
 
-async function resolveKroger(env, storeKey, item) {
+async function resolveKroger(env, storeKey, profile, item) {
   const term = item.brandLock ? `${item.brandLock} ${item.itemName}` : item.itemName;
   let res;
-  try { res = await krogerSearch(env, storeKey, { term }); }
+  try { res = await krogerSearch(env, storeKey, profile, { term }); }
   catch (e) { return { ok: false, error: e.message || 'kroger error' }; }
   if (!res.ok) return res.configMissing ? { ok: false, configMissing: res.configMissing } : { ok: false, error: res.error };
   return { ok: true, candidates: res.items.slice(0, 6) };
@@ -1565,14 +1572,14 @@ async function checkAiStore(env, storeKey, item, profile) {
 // ── Dispatch by store ────────────────────────────────────────────────────────
 async function checkWatchItem(env, profile, item) {
   const store = String(item.store || '').toLowerCase();
-  if (KROGER_STORE_KEYS.has(store)) return checkKroger(env, store, item);
+  if (KROGER_STORE_KEYS.has(store)) return checkKroger(env, store, profile, item);
   if (AI_STORES.has(store)) return checkAiStore(env, store, item, profile);
   return { ok: false, error: `unknown store: ${store}` };
 }
 
 async function resolveWatchItem(env, profile, item) {
   const store = String(item.store || '').toLowerCase();
-  if (KROGER_STORE_KEYS.has(store)) return resolveKroger(env, store, item);
+  if (KROGER_STORE_KEYS.has(store)) return resolveKroger(env, store, profile, item);
   if (AI_STORES.has(store)) {
     const res = await checkAiStore(env, store, item, profile);
     if (res.source === 'unavailable') return { ok: false, error: res.note || 'no reliable price found' };
@@ -1707,6 +1714,10 @@ export default {
         vedaKey: !!env.VEDA_GEMINI_KEY,
         firestore: !!(env.FIREBASE_PROJECT_ID && env.FIREBASE_CLIENT_EMAIL && env.FIREBASE_PRIVATE_KEY),
         krogerConfigured: !!(env.KROGER_CLIENT_ID && env.KROGER_CLIENT_SECRET),
+        krogerLocations: {
+          tony:  { kingsoopers: !!env.KINGSOOPERS_LOCATION_ID_TONY, kroger: !!env.KROGER_LOCATION_ID_TONY },
+          veda:  { kingsoopers: !!env.KINGSOOPERS_LOCATION_ID_VEDA, kroger: !!env.KROGER_LOCATION_ID_VEDA },
+        },
         time: new Date().toISOString(),
       });
     }

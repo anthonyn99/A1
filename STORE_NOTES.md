@@ -16,31 +16,34 @@ Two integration classes:
 
 ## Kroger / King Soopers
 Method: Official Products API (OAuth2 client-credentials)
-Last verified working: (not yet — pending credentials, see below)
+Last verified working: 2026-07-17 (live prices returned for both profiles)
 Notes:
-- Same API serves both chains; the chain is selected by `filter.locationId`. Kroger
-  and King Soopers are **different location IDs**.
-- **MANUAL STEPS REQUIRED (Tony) before this module returns real prices:**
-  1. Register a free app at https://developer.kroger.com and set the two secrets on
-     the `personal-ai` worker:
-     `wrangler secret put KROGER_CLIENT_ID`
-     `wrangler secret put KROGER_CLIENT_SECRET`
-  2. Provide the two real location IDs and set them as **vars** in
-     `workers/personal-ai/wrangler.toml`:
-     `KROGER_LOCATION_ID` (the Kroger store) and
-     `KINGSOOPERS_LOCATION_ID` (the King Soopers store).
-  Until all four are present the module returns `source: "unavailable"` with a
-  `note` explaining which config is missing — it never fabricates a price or a
-  placeholder location ID.
-- OAuth2 token (`product.compact` scope) is short-lived; it is cached in-memory +
-  in the `TOKEN_CACHE` KV (key `kroger_tok`) and reused across a whole cron run so
-  we don't re-auth per item.
+- Same API serves both chains; the chain/store is selected by `filter.locationId`.
+- **Location IDs are PER PROFILE** — var name `<BANNER>_LOCATION_ID_<PROFILE>`.
+  Tony shops Colorado (King Soopers), Veda shops Georgia (Kroger), and the two
+  banners don't overlap by region, so only the store that actually exists near
+  each ZIP is set:
+    - `KINGSOOPERS_LOCATION_ID_TONY = 62000102`  (King Soopers – Pace Street, Longmont; ZIP 80504)
+    - `KROGER_LOCATION_ID_VEDA      = 01100446`  (Kroger – Shiloh Square, Kennesaw; ZIP 30144)
+  The other two combos (Tony+Kroger, Veda+KingSoopers) are intentionally UNSET —
+  no such store exists near those ZIPs — so those report `source:"unavailable"`
+  naming the missing var. To add a store, query the Locations API
+  (`/v1/locations?filter.zipCode.near=<zip>&filter.chain=<KROGER|KINGSOOPERS>`)
+  and set the new var in `wrangler.toml`.
+- Credentials (set as secrets on the `personal-ai` worker): `KROGER_CLIENT_ID`,
+  `KROGER_CLIENT_SECRET` (Personal App registered at developer.kroger.com,
+  Production env, Products + Locations public APIs). Verified: token endpoint
+  returns a 30-min token.
+- OAuth2 token (`product.compact` scope) is cached in-memory + in the
+  `TOKEN_CACHE` KV (key `kroger_tok`) and reused across a whole cron run.
+- The location price (`items[].price.promo` when > 0, else `.regular`) is the
+  store's price, which also drives that store's online pickup/delivery — so a
+  single locationId covers both in-store and online-at-that-store.
 - `filter.term` is a **fuzzy** search and can drift to a different product over
   time, so on add we resolve the exact `productId` once (confirm-on-add) and pin
   every later check to that id via `filter.productId`.
-- Price fields read from the response: `items[].price.regular` and
-  `items[].price.promo` (promo wins when > 0). Requires a `locationId` — without
-  one the API returns no price data.
+- Observed quirk: the token-endpoint response reports `scope` empty even though
+  `product.compact` was granted — Products calls still succeed, so this is benign.
 
 ## Walmart
 Method: Gemini-grounded (gemini-2.5-flash + gemini-2.5-flash-lite, google_search + url_context)

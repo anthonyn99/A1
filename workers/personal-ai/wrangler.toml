@@ -14,12 +14,17 @@ crons = ["0 10 * * *"]
 
 [vars]
 WORKER_ORIGIN = "https://personal-ai.av1.workers.dev"
-# Kroger store location IDs — REQUIRED for the Kroger/King Soopers price checks.
-# These are NOT secrets; add the REAL location IDs (from Tony) here and redeploy.
-# Until present, the Kroger module returns source:"unavailable" naming the missing
-# var (it never guesses or hardcodes a placeholder ID).
-#   KROGER_LOCATION_ID      = "<real Kroger store location id>"
-#   KINGSOOPERS_LOCATION_ID = "<real King Soopers store location id>"
+# Kroger store location IDs — PER PROFILE (not secrets). Var name is
+# <BANNER>_LOCATION_ID_<PROFILE>. Tony shops CO (King Soopers), Veda shops GA
+# (Kroger), so only the banner that actually exists near each ZIP is set; the
+# other combo intentionally stays unset → that store reports "unavailable".
+# Resolved from the Locations API on 2026-07-17:
+#   Tony  80504 → King Soopers – Pace Street, Longmont
+#   Veda  30144 → Kroger – Shiloh Square, Kennesaw
+KINGSOOPERS_LOCATION_ID_TONY = "62000102"
+KROGER_LOCATION_ID_VEDA      = "01100446"
+# (KROGER_LOCATION_ID_TONY and KINGSOOPERS_LOCATION_ID_VEDA are deliberately
+#  unset — no such store exists near those ZIPs.)
 
 # ── KV: shared with taskhub-reminders (price-watch uses distinct keys:
 #    pw_gat, kroger_tok, pw_cron_cursor — so it can't clobber the reminders
