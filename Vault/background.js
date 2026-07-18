@@ -67,29 +67,6 @@ async function openLinksAsGroup(urls, groupName, colorHex) {
   return ids.length;
 }
 
-// Emulated "split view": open two links as two normal windows snapped to the
-// left and right halves of the screen. Native browser split view (Brave/Edge)
-// has no extension API, so side-by-side windows are the closest we can drive.
-// `screen` carries the popup's window.screen.avail* bounds (the usable desktop).
-async function openSplit(urls, screen) {
-  const s = screen || {};
-  const left = Math.round(s.left || 0),
-        top = Math.round(s.top || 0),
-        W = Math.round(s.width || 1280),
-        H = Math.round(s.height || 800);
-  const halfL = Math.floor(W / 2), halfR = W - halfL;
-  const panes = [
-    { url: urls[0], left, top, width: halfL, height: H, focused: false },
-    { url: urls[1], left: left + halfL, top, width: halfR, height: H, focused: true },
-  ];
-  for (const p of panes) {
-    if (!p.url) continue;
-    await chrome.windows.create({ url: p.url, type: "normal", state: "normal",
-      left: p.left, top: p.top, width: p.width, height: p.height, focused: p.focused });
-  }
-  return panes.filter((p) => p.url).length;
-}
-
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return;
 
@@ -103,13 +80,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       urls.forEach((url, i) => chrome.tabs.create({ url, active: i === 0 }));
       sendResponse({ opened: urls.length });
     }
-    return true;
-  }
-
-  // ── split-launch (Links) — two links side by side as half-screen windows ──
-  if (message.action === "openSplit") {
-    const urls = (Array.isArray(message.urls) ? message.urls : []).map(normalize).filter(Boolean).slice(0, 2);
-    openSplit(urls, message.screen).then((n) => sendResponse({ opened: n }));
     return true;
   }
 
