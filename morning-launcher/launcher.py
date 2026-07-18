@@ -10,7 +10,12 @@ confirm your Daily Reminder, and only then opens:
   - TaskHub          →  right  panel  (Brave app shortcut)
   - ChatGPT          →  your selected TradeHub "Analysis" prompt, AUTO-SUBMITTED,
                         plus your configured Analysis search tabs — all as tabs in
-                        that same new TradeHub window
+                        that same new TradeHub window, which the Vault browser
+                        extension then wraps into one named tab group ("Trade
+                        Analysis", teal by default — both configurable in TradeHub →
+                        Analysis). TradeHub is opened with ?morning=1 to trigger this;
+                        the launcher can't create a tab group itself (extension-only
+                        API), so if Vault isn't installed the tabs just open ungrouped.
 
 THE DAILY REMINDER GATE runs before any of that (after the WiFi check): it fetches
 TradeHub → Playbook → Daily Reminder and shows it in a scrollable dialog. Nothing
@@ -810,14 +815,23 @@ def _open_browser_window(browser: str, url: str, pos: list):
 
 def open_tradehub():
     """Open TradeHub in a brand-new Brave window and return that window's HWND, so
-    the ChatGPT + search tabs can be opened INTO the same window."""
+    the ChatGPT + search tabs can be opened INTO the same window.
+
+    We open it with ?morning=1 so TradeHub knows this is the morning launch and
+    asks the Vault extension to wrap this whole window (TradeHub + searches +
+    ChatGPT) into one named "Trade Analysis" tab group. Creating a tab GROUP is
+    only possible via the extension API — the launcher can't do it from the CLI —
+    so the page → Vault extension hand-off is how the group gets made. Harmless if
+    the extension isn't installed: the tabs simply open ungrouped as before."""
     brave = _find_brave()
     if not brave:
         log("ERROR: Brave not found. Set BRAVE_EXE_OVERRIDE at the top of this file.")
         return None
 
-    log("Opening TradeHub in a new Brave window...")
-    return _open_browser_window(brave, TRADEHUB_URL, TRADEHUB_POS)
+    sep = "&" if "?" in TRADEHUB_URL else "?"
+    url = TRADEHUB_URL + sep + "morning=1"
+    log("Opening TradeHub in a new Brave window (morning tab-group signal on)...")
+    return _open_browser_window(brave, url, TRADEHUB_POS)
 
 
 def open_taskhub_app():
@@ -1059,6 +1073,13 @@ def open_chatgpt_analysis(target_hwnd=None):
     prompt   = (cfg.get("text") or "")[:16000]
     name     = cfg.get("name") or "Prompt"
     searches = cfg.get("searches") or []
+
+    # The window is grouped into a "Trade Analysis" tab group by the Vault extension
+    # (triggered by TradeHub's ?morning=1). Log what TradeHub configured so the
+    # grouping is visible in the launcher log even though the extension does the work.
+    g_name  = cfg.get("groupName") or "Trade Analysis"
+    g_color = cfg.get("groupColor") or "cyan"
+    log(f"ChatGPT: tabs will be grouped as '{g_name}' ({g_color}) by the Vault extension.")
 
     # 1) Load the prompt onto the clipboard BEFORE opening anything.
     if not _set_clipboard_text(prompt):

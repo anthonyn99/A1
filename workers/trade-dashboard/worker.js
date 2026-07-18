@@ -332,17 +332,23 @@ async function setActivePrompt(env, p){
    The front-end pushes the Analysis section's selection here: the selected prompt
    PLUS the configured search/URL list. morning-launcher reads it (GET /analysis-config)
    to open ChatGPT with that exact prompt (auto-submitted) and open each search. */
+/* Browser tab groups only support these 9 fixed colors. Anything else → teal. */
+const TD_GROUP_COLORS=['grey','blue','red','yellow','green','pink','purple','cyan','orange'];
+function tdGroupColor(c){c=String(c||'').toLowerCase();if(c==='teal')c='cyan';if(c==='gray')c='grey';return TD_GROUP_COLORS.includes(c)?c:'cyan';}
+
 async function getAnalysisConfig(env){
   const p=await kvGet(env,'td_analysis_prompt');
   if(p&&p.text&&String(p.text).trim())
-    return { name:p.name||'Prompt', text:String(p.text), searches:Array.isArray(p.searches)?p.searches:[] };
+    return { name:p.name||'Prompt', text:String(p.text), searches:Array.isArray(p.searches)?p.searches:[],
+             groupName:p.groupName||'Trade Analysis', groupColor:tdGroupColor(p.groupColor) };
   return null;
 }
 async function setAnalysisConfig(env, p){
   const text=String(p&&p.text||'').trim(); if(!text) return false;
   const searches=Array.isArray(p&&p.searches)
     ? p.searches.map(s=>String(s||'').slice(0,500)).filter(Boolean).slice(0,20) : [];
-  await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), searches, updatedAt:Date.now() });
+  await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), searches,
+    groupName:String(p&&p.groupName||'Trade Analysis').slice(0,60), groupColor:tdGroupColor(p&&p.groupColor), updatedAt:Date.now() });
   return true;
 }
 
@@ -758,7 +764,7 @@ async function handle(request, env, ctx){
   if(path==='/analysis-config'&&method==='GET'){
     const p=await getAnalysisConfig(env);
     if(!p) return json({ok:false,error:'no analysis config set'},404,request);
-    return json({ok:true,name:p.name,text:p.text,searches:p.searches},200,request);
+    return json({ok:true,name:p.name,text:p.text,searches:p.searches,groupName:p.groupName,groupColor:p.groupColor},200,request);
   }
 
   // Daily Reminder — TradeHub (Playbook → Daily Reminder) pushes the page here;

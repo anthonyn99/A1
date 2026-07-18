@@ -59,4 +59,22 @@
   document.addEventListener('visibilitychange', function () { if (!document.hidden) sync(); });
   window.addEventListener('storage', sync);
   window.addEventListener('pagehide', function () { clearInterval(poll); });
+
+  // ── Morning-launcher tab grouping relay ──
+  // When TradeHub is opened by the morning-launcher (?morning=1) it asks, via a
+  // same-origin window.postMessage, for its Brave window to be wrapped into one
+  // named tab group. A page can't call chrome.tabs.group, but this content script
+  // can hand the request to the background service worker, which does the grouping.
+  window.addEventListener('message', function (e) {
+    if (e.source !== window) return;                       // same document only
+    if (e.origin && e.origin.indexOf('https://anthonyn99.github.io') !== 0) return;
+    var d = e.data;
+    if (!d || d.source !== 'tradehub-vault' || d.action !== 'groupMorningTabs') return;
+    try {
+      chrome.runtime.sendMessage(
+        { action: 'groupMorningTabs', name: d.name || 'Trade Analysis', color: d.color || 'cyan' },
+        function () { void chrome.runtime.lastError; }
+      );
+    } catch (err) {}
+  });
 })();

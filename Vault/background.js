@@ -67,8 +67,86 @@ async function openLinksAsGroup(urls, groupName, colorHex) {
   return ids.length;
 }
 
+// ── Morning-launcher tab grouping ──────────────────────────────────────────
+// The morning-launcher (Python) opens TradeHub + its searches + ChatGPT as tabs
+// in a fresh Brave window, but it can't create a tab GROUP (only this extension
+// API can). So TradeHub, when opened with ?morning=1, asks us (via the
+// vault-bio-sync content script) to wrap that whole window into one named group.
+//
+// The launcher's tabs arrive staggered over a few seconds, so we DEBOUNCE: each
+// new tab in the target window resets a short quiet-timer, and we only group once
+// the tabs stop arriving (or a hard cap elapses). Keyed per-window so repeat
+// signals from the page never double-group.
+const VALID_GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
+function normalizeGroupColor(c) {
+  c = String(c || "").toLowerCase();
+  if (c === "teal") return "cyan";      // friendly alias
+  if (c === "gray") return "grey";
+  return VALID_GROUP_COLORS.includes(c) ? c : "cyan"; // default: elegant teal
+}
+
+const GROUP_QUIET_MS = 4000;   // group once no new tab has opened for this long
+const GROUP_HARD_CAP_MS = 30000;
+const pendingGroup = new Map(); // windowId -> { name, color, timer, hardTimer, done }
+
+function scheduleMorningGroup(windowId, name, color) {
+  if (windowId == null) return;
+  let st = pendingGroup.get(windowId);
+  if (st && st.done) return;            // already grouped this window
+  if (!st) {
+    st = { name, color, timer: null, hardTimer: null, done: false };
+    pendingGroup.set(windowId, st);
+    st.hardTimer = setTimeout(() => finalizeMorningGroup(windowId), GROUP_HARD_CAP_MS);
+  } else {
+    st.name = name; st.color = color;   // keep the latest values
+  }
+  if (st.timer) clearTimeout(st.timer);
+  st.timer = setTimeout(() => finalizeMorningGroup(windowId), GROUP_QUIET_MS);
+}
+
+async function finalizeMorningGroup(windowId) {
+  const st = pendingGroup.get(windowId);
+  if (!st || st.done) return;
+  st.done = true;
+  if (st.timer) clearTimeout(st.timer);
+  if (st.hardTimer) clearTimeout(st.hardTimer);
+  try {
+    const tabs = await chrome.tabs.query({ windowId });
+    const ids = tabs.map((t) => t.id).filter((id) => id != null);
+    if (chrome.tabs.group && ids.length) {
+      const groupId = await chrome.tabs.group({ tabIds: ids });
+      if (chrome.tabGroups && chrome.tabGroups.update) {
+        await chrome.tabGroups.update(groupId, {
+          title: (st.name || "Trade Analysis").slice(0, 60),
+          color: normalizeGroupColor(st.color),
+        });
+      }
+    }
+  } catch (_) { /* window/tabs gone or API unavailable — nothing to do */ }
+  // Keep the "done" marker briefly so late duplicate signals are ignored.
+  setTimeout(() => pendingGroup.delete(windowId), 60000);
+}
+
+// A launcher tab appeared in a window we're about to group → extend the quiet
+// window so we wait for the rest (searches, ChatGPT) before grouping.
+chrome.tabs.onCreated.addListener((tab) => {
+  const st = tab && tab.windowId != null ? pendingGroup.get(tab.windowId) : null;
+  if (st && !st.done) {
+    if (st.timer) clearTimeout(st.timer);
+    st.timer = setTimeout(() => finalizeMorningGroup(tab.windowId), GROUP_QUIET_MS);
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return;
+
+  // ── morning-launch grouping request (relayed by vault-bio-sync from TradeHub) ──
+  if (message.action === "groupMorningTabs") {
+    const wid = _sender && _sender.tab ? _sender.tab.windowId : null;
+    scheduleMorningGroup(wid, message.name, message.color);
+    sendResponse({ ok: true });
+    return true;
+  }
 
   // ── group-launch (Links) — opens tabs and auto-creates a tab group ──
   if (message.action === "openLinks") {
