@@ -3620,6 +3620,20 @@ function App(){
       setMo(false);setEi(null);
       return;
     }
+    // Effective reminder cadence for a repeating-task expansion. A repeating task
+    // must keep its reminder on EVERY future occurrence, not just the first. The
+    // reminder recurs together with the task: if the user set an explicit notify
+    // repeat we honour it, otherwise the reminder inherits the task's own cadence
+    // (weekly-Friday task → weekly-Friday reminder). Used both to arm the push
+    // series and to stamp each occurrence's displayed time below.
+    let effNotify=null;
+    if(ri&&ri.mode&&["daily","weekly","monthly","annually"].includes(ri.mode)&&item.notifyAt){
+      const _nb=new Date(item.notifyAt);
+      const _userSet=item.notifyRepeat&&item.notifyRepeat!=="none";
+      const _map={daily:"daily",weekly:"weekly",monthly:"monthly",annually:"annually"};
+      const _nr=_userSet?item.notifyRepeat:_map[ri.mode];
+      effNotify={h:_nb.getHours(),m:_nb.getMinutes(),notifyRepeat:_nr,notifyRepeatDays:_nr==="weekly"?(_userSet?(item.notifyRepeatDays||[]):(ri.days||[])):[],notifyRepeatId:item.notifyRepeatId||uid()};
+    }
     setData(prev=>{
       const next={...prev};
       if(ri==="cancelRepeat"){
@@ -3662,16 +3676,23 @@ function App(){
           if(oIdx>=0)oArr.splice(oIdx,1);
           if(oArr.length)next[dk2]=oArr;else delete next[dk2];
         }
-        // The reminder (notifyAt/notifyRepeat/…) belongs to the SINGLE logical
-        // task, not to every calendar occurrence. Copying it onto every occurrence
-        // made the local banner scanner register one reminder PER occurrence — and
-        // when the notification itself wasn't repeating (notifyRepeatId=null) each
-        // occurrence got a DISTINCT dedup key, so one reminder fired N times. Keep
-        // the reminder ONLY on the first occurrence (reusing item.id so its scan
-        // registration dedups with the thScheduleNotif registration below); strip
-        // the reminder fields from every later occurrence.
+        // Reminder handling for a repeating task. The FIRST occurrence carries a
+        // REPEATING notification (effNotify) so the push engine pre-expands a cloud
+        // reminder for every future date and the local poll re-arms it — that alone
+        // fires the reminder on every occurrence, closed-app or open. Each LATER
+        // occurrence also gets its OWN date/time stamped on notifyAt so the 8:00 PM
+        // badge shows on every future occurrence (the bug being fixed: subsequent
+        // dates used to lose the time entirely). Those later stamps are DISPLAY
+        // ONLY (_notifyView) — every scanner skips them, so a task can never fire
+        // its reminder more than once per occurrence.
         let firstOcc=true;
-        const pushOcc=(dt)=>{const ck=dkey(dt.getFullYear(),dt.getMonth(),dt.getDate());const arr=[...(next[ck]||[])];const occ={...item,id:firstOcc?item.id:uid(),repeatId:rid,done:false,_originalId:undefined};if(!firstOcc){occ.notifyAt=null;occ.notifyRepeat="none";occ.notifyRepeatDays=[];occ.notifyRepeatId=null;}firstOcc=false;arr.push(occ);next[ck]=arr;};
+        const pushOcc=(dt)=>{const ck=dkey(dt.getFullYear(),dt.getMonth(),dt.getDate());const arr=[...(next[ck]||[])];const occ={...item,id:firstOcc?item.id:uid(),repeatId:rid,done:false,_originalId:undefined};
+          if(effNotify){
+            occ.notifyAt=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate(),effNotify.h,effNotify.m,0,0).toISOString();
+            if(firstOcc){occ.notifyRepeat=effNotify.notifyRepeat;occ.notifyRepeatDays=effNotify.notifyRepeatDays;occ.notifyRepeatId=effNotify.notifyRepeatId;}
+            else{occ.notifyRepeat="none";occ.notifyRepeatDays=[];occ.notifyRepeatId=null;occ._notifyView=true;}
+          }
+          firstOcc=false;arr.push(occ);next[ck]=arr;};
         if(ri.mode==="daily"||ri.mode==="weekly"){
           const c=new Date(sd);
           while(c<=ed){
@@ -3694,7 +3715,7 @@ function App(){
     // Reschedule if a reminder is still set (deterministic ids overwrite the old
     // docs); otherwise CANCEL so a removed reminder's pre-expanded occurrence
     // docs are deleted from Firestore instead of firing at the original time.
-    if(item.notifyAt&&window.thScheduleNotif){window.thScheduleNotif({...item,dashboard:'tony'});}
+    if(item.notifyAt&&window.thScheduleNotif){window.thScheduleNotif(effNotify?{...item,notifyRepeat:effNotify.notifyRepeat,notifyRepeatDays:effNotify.notifyRepeatDays,notifyRepeatId:effNotify.notifyRepeatId,dashboard:'tony'}:{...item,dashboard:'tony'});}
     else if(window.thCancelNotif){try{window.thCancelNotif(item.id,item.notifyRepeatId);}catch(e){}}
   },[setData]);
 
@@ -9729,6 +9750,16 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
       return;
     }
     const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,...(type==="event"?{time,tz:time?Intl.DateTimeFormat().resolvedOptions().timeZone:null}:{}),...(repeat!=="none"?{repeat,repeatDays,repeatEndDate:endDate,repeatId:initial?.repeatId||uid()}:{repeat:"none"}),...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null})};
+    // A repeating task must keep its reminder on EVERY future occurrence. If the
+    // user didn't set an explicit notify repeat, the reminder inherits the task's
+    // own cadence so the push series is pre-expanded for every date (and each
+    // occurrence keeps its 8:00 PM badge — see the expansion in savItem).
+    if(repeat!=="none"&&item.notifyAt){
+      const _userSet=item.notifyRepeat&&item.notifyRepeat!=="none";
+      const _map={daily:"daily",weekly:"weekly",monthly:"monthly",annually:"annually"};
+      const _nr=_userSet?item.notifyRepeat:(_map[repeat]||"none");
+      if(_nr!=="none"){item.notifyRepeat=_nr;item.notifyRepeatDays=_nr==="weekly"?(_userSet?(item.notifyRepeatDays||[]):(repeatDays||[])):[];item.notifyRepeatId=item.notifyRepeatId||uid();}
+    }
     const wasAltSeq=!!(initial?.altSeqId);
     const wasRepeating=(initial?.repeatId&&initial?.repeat&&initial.repeat!=="none")||wasAltSeq;
     const nowCancelled=repeat==="none";
@@ -10085,11 +10116,18 @@ function App(){
       else if(!ri){const items=[...(next[dk2]||[])];const idx=items.findIndex(t=>t.id===item.id);if(idx>=0)items[idx]=item;else items.push(item);next[dk2]=items;}
       else if(ri.mode==="altSeq"){const seqId=uid();const parts=dk2.split("-");const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);const titles=ri.titles;let dayCount=0;const c=new Date(sd);while(c<=ed){const ck=dkey(c.getFullYear(),c.getMonth(),c.getDate());const seqIdx=dayCount%titles.length;const arr=[...(next[ck]||[])];arr.push({...item,id:uid(),title:titles[seqIdx],altSeqId:seqId,altSeqIdx:seqIdx,altSeqTitles:titles,altSeqEndDate:ri.endDate,done:false,_originalId:undefined,repeat:"none"});next[ck]=arr;c.setDate(c.getDate()+1);dayCount++;}}
       else{const rid=uid();const parts=dk2.split("-");const sd=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));const ed=new Date(ri.endDate.year,ri.endDate.month,ri.endDate.day);
-        // Keep the reminder ONLY on the first occurrence (reusing item.id so its
-        // scan registration dedups with the thScheduleNotif call); strip the
-        // reminder fields from later occurrences so one reminder can't fire once
-        // per occurrence. See the matching comment in the Tony TaskHub above.
-        let firstOcc=true;const pushOcc=(dt)=>{const ck=dkey(dt.getFullYear(),dt.getMonth(),dt.getDate());const di=[...(next[ck]||[])];const occ={...item,id:firstOcc?item.id:uid(),repeatId:rid,done:false};if(!firstOcc){occ.notifyAt=null;occ.notifyRepeat="none";occ.notifyRepeatDays=[];occ.notifyRepeatId=null;}firstOcc=false;di.push(occ);next[ck]=di;};if(ri.mode==="daily"||ri.mode==="weekly"){const c=new Date(sd);while(c<=ed){if(ri.mode==="daily"||ri.days.includes(toMonIdx(c.getDay())))pushOcc(c);c.setDate(c.getDate()+1);}}else if(ri.mode==="monthly"){const anchorDay=sd.getDate();let y=sd.getFullYear(),m=sd.getMonth(),g=0;while(g++<600){const dim=dimM(y,m);const dt=new Date(y,m,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);m++;if(m>11){m=0;y++;}}}else if(ri.mode==="annually"){const anchorMonth=sd.getMonth(),anchorDay=sd.getDate();let y=sd.getFullYear(),g=0;while(g++<50){const dim=dimM(y,anchorMonth);const dt=new Date(y,anchorMonth,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);y++;}}}
+        // The FIRST occurrence carries the REPEATING notification (item already
+        // inherited the task's cadence in the modal), so the push engine pre-expands
+        // a cloud reminder for every future date and the local poll re-arms it —
+        // that fires the reminder on every occurrence. Each LATER occurrence also
+        // gets its OWN date/time stamped for DISPLAY (_notifyView) so its 8:00 PM
+        // badge shows; scanners skip _notifyView so it never fires a duplicate.
+        // See the matching comment in the Tony TaskHub above.
+        let effNotify=null;
+        if(item.notifyAt){const _nb=new Date(item.notifyAt);const _userSet=item.notifyRepeat&&item.notifyRepeat!=="none";const _map={daily:"daily",weekly:"weekly",monthly:"monthly",annually:"annually"};const _nr=_userSet?item.notifyRepeat:(_map[ri.mode]||"none");effNotify={h:_nb.getHours(),m:_nb.getMinutes(),notifyRepeat:_nr,notifyRepeatDays:_nr==="weekly"?(_userSet?(item.notifyRepeatDays||[]):(ri.days||[])):[],notifyRepeatId:item.notifyRepeatId||(_nr!=="none"?uid():null)};}
+        let firstOcc=true;const pushOcc=(dt)=>{const ck=dkey(dt.getFullYear(),dt.getMonth(),dt.getDate());const di=[...(next[ck]||[])];const occ={...item,id:firstOcc?item.id:uid(),repeatId:rid,done:false};
+          if(effNotify){occ.notifyAt=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate(),effNotify.h,effNotify.m,0,0).toISOString();if(firstOcc){occ.notifyRepeat=effNotify.notifyRepeat;occ.notifyRepeatDays=effNotify.notifyRepeatDays;occ.notifyRepeatId=effNotify.notifyRepeatId;}else{occ.notifyRepeat="none";occ.notifyRepeatDays=[];occ.notifyRepeatId=null;occ._notifyView=true;}}
+          firstOcc=false;di.push(occ);next[ck]=di;};if(ri.mode==="daily"||ri.mode==="weekly"){const c=new Date(sd);while(c<=ed){if(ri.mode==="daily"||ri.days.includes(toMonIdx(c.getDay())))pushOcc(c);c.setDate(c.getDate()+1);}}else if(ri.mode==="monthly"){const anchorDay=sd.getDate();let y=sd.getFullYear(),m=sd.getMonth(),g=0;while(g++<600){const dim=dimM(y,m);const dt=new Date(y,m,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);m++;if(m>11){m=0;y++;}}}else if(ri.mode==="annually"){const anchorMonth=sd.getMonth(),anchorDay=sd.getDate();let y=sd.getFullYear(),g=0;while(g++<50){const dim=dimM(y,anchorMonth);const dt=new Date(y,anchorMonth,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);y++;}}}
     return next;});
   },[]);
   const titleEditThisOnly=useCallback(()=>{if(!titleEditConfirm)return;const{dateKey,item,isAltSeq}=titleEditConfirm;setData(prev=>{const arr=[...(prev[dateKey]||[])];const idx=arr.findIndex(t=>t.id===item.id);if(isAltSeq){const detached={...item,altSeqId:undefined,altSeqIdx:undefined,altSeqTitles:undefined,altSeqEndDate:undefined};if(idx>=0)arr[idx]=detached;else arr.push(detached);}else{const detached={...item,id:uid(),repeat:"none",repeatId:undefined,repeatDays:undefined,repeatEndDate:undefined};if(idx>=0)arr[idx]=detached;else arr.push(detached);}return{...prev,[dateKey]:arr};});setTitleEditConfirm(null);},[titleEditConfirm]);
@@ -10568,6 +10606,12 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
 
   function goTony(){
     localStorage.setItem("td6_lastDash","tony");
+    // Auto-associate this device with the profile actually used on it when no main
+    // has been chosen yet. Reminders are strictly scoped to devices whose main
+    // equals the reminder's profile, so without this an unconfigured device would
+    // receive NONE of its own profile's reminders (and legacy broadcasts could leak
+    // the other profile's). Only fills an unset value — an explicit choice wins.
+    if(!localStorage.getItem("td6_mainDash")){localStorage.setItem("td6_mainDash","tony");if(window._updateMainDashBtn)window._updateMainDashBtn();}
     window._activeProfile="tony";
     const ov=document.getElementById("profile-overlay");
     if(ov)ov.style.display="none";
@@ -10595,6 +10639,9 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
 
   function goVeda(){
     localStorage.setItem("td6_lastDash","veda");
+    // See goTony: claim an unconfigured device for the profile actually used on it
+    // so strict reminder scoping delivers to the right devices with no cross-leak.
+    if(!localStorage.getItem("td6_mainDash")){localStorage.setItem("td6_mainDash","veda");if(window._updateMainDashBtn)window._updateMainDashBtn();}
     window._activeProfile="veda";
     const ov=document.getElementById("profile-overlay");
     if(ov)ov.style.display="none";
@@ -11209,6 +11256,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
           for(var i=0;i<arr.length;i++){
             var it=arr[i];
             if(!it||!it.notifyAt||!it.id)continue;
+            if(it._notifyView)continue; // display-only occurrence badge — never schedule a push
             if(!it.notifyRepeat||it.notifyRepeat==='none')continue;
             var key=it.notifyRepeatId||it.id;
             if(seen[key])continue;seen[key]=1;
@@ -11248,6 +11296,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
           for(var i=0;i<arr.length;i++){
             var it=arr[i];
             if(!it||!it.notifyAt||!it.id)continue;
+            if(it._notifyView)continue; // display-only occurrence badge — never schedule a push
             // Skip anything already fully in the past with no repeat — nothing to fix.
             var rep=it.notifyRepeat||'none';
             if(rep==='none'&&new Date(it.notifyAt).getTime()<nowT-10000)continue;
@@ -11621,6 +11670,10 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         if(!Array.isArray(arr))return;
         arr.forEach(function(item){
           if(!item||!item.notifyAt||!item.id)return;
+          // Display-only occurrence badge (a later date of a repeating task). Its
+          // reminder time is shown in the row, but firing is owned by the repeating
+          // first occurrence — never register it, or the task fires once per date.
+          if(item._notifyView)return;
           // ProView match cards live in the TaskHub data but must NEVER fire a
           // notification (cards only). Skip them in the local banner scan.
           if(item._pvMatch||(typeof item.id==='string'&&item.id.indexOf('pv_')===0))return;
