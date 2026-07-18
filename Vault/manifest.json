@@ -3,7 +3,7 @@
   "name": "Vault",
   "version": "1.0.0",
   "description": "Your links & groups, synced with Keychain. Launch an entire group of tabs in one click.",
-  "permissions": ["tabs", "storage", "scripting", "activeTab"],
+  "permissions": ["tabs", "tabGroups", "storage", "scripting", "activeTab"],
   "host_permissions": [
     "https://keychain-sync.av1.workers.dev/*",
     "https://vault-pw-sync.av1.workers.dev/*",

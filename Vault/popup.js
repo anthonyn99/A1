@@ -72,6 +72,8 @@ let lastCols = 0;           // last-rendered column count (to re-render on width
 const COL2_MIN = 560;       // px width of #app at/above which we go to 2 columns
 
 const COPY_SVG ='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+// Split-view glyph: two panes side by side.
+const SPLIT_SVG ='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/></svg>';
 
 // Map any stored color to the nearest pastel in CD by hue (non-destructive —
 // mirrors index.html's _pastelize so Vault matches Keychain/Links exactly).
@@ -109,10 +111,31 @@ function esc(s) {
     .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 }
 
-function openUrls(urls) {
+// Open one or more links. When `group` is set (a multi-link group launch), the
+// background wraps them in a named, color-matched browser tab group.
+function openUrls(urls, group) {
   const clean = urls.filter(Boolean);
   if (!clean.length) return;
-  chrome.runtime.sendMessage({ action: "openLinks", urls: clean }, () => window.close());
+  const msg = { action: "openLinks", urls: clean };
+  if (group) { msg.group = true; msg.groupName = group.name || ""; msg.groupColor = group.color || ""; }
+  chrome.runtime.sendMessage(msg, () => window.close());
+}
+
+// The usable desktop bounds, read here (the popup has window.screen; the service
+// worker doesn't) so the background can snap the split windows to each half.
+function screenBox() {
+  const s = window.screen || {};
+  return {
+    left: s.availLeft || 0, top: s.availTop || 0,
+    width: s.availWidth || 1280, height: s.availHeight || 800,
+  };
+}
+
+// Open the first two links of a group side by side (emulated split view).
+function openSplit(urls) {
+  const clean = urls.filter(Boolean).slice(0, 2);
+  if (clean.length < 2) return;
+  chrome.runtime.sendMessage({ action: "openSplit", urls: clean, screen: screenBox() }, () => window.close());
 }
 
 function toast(msg) {
@@ -142,15 +165,20 @@ function buildCard(conn, ci) {
       <button class="icon-btn copy" data-copy="${esc(l.url)}" title="Copy link">${COPY_SVG}</button>
     </div>`).join("");
 
-  // Group-launch button only for 2+ links — a single link has its own Visit.
-  const openGroupBtn = links.length > 1
-    ? `<button class="open-group" data-group="${ci}">Open ${links.length} tabs</button>`
+  // Group-launch buttons only for 2+ links — a single link has its own Visit.
+  // "Open group" wraps every link in one browser tab group; "Split" opens the
+  // first two links side by side (half-screen windows).
+  const groupBtns = links.length > 1
+    ? `<div class="card-btns">
+         <button class="split-group" data-group="${ci}" title="Open the first two links side by side">${SPLIT_SVG} Split</button>
+         <button class="open-group" data-group="${ci}" title="Open all ${links.length} links as a tab group">Open ${links.length} tabs</button>
+       </div>`
     : "";
 
   card.innerHTML = `
     <div class="card-top">
       <div class="card-name">${esc(conn.name || "Untitled")}</div>
-      ${openGroupBtn}
+      ${groupBtns}
     </div>
     ${linkRows}`;
   return card;
@@ -206,8 +234,15 @@ function render() {
     }));
   groupsEl.querySelectorAll(".open-group").forEach(b =>
     b.addEventListener("click", () => {
+      const conn = connections[+b.dataset.group];
+      const links = VaultDB.linksOf(conn);
+      const color = conn.color ? pastelize(conn.color) : CD[(+b.dataset.group) % CD.length];
+      openUrls(links.map(l => l.url), { name: conn.name || "Group", color });
+    }));
+  groupsEl.querySelectorAll(".split-group").forEach(b =>
+    b.addEventListener("click", () => {
       const links = VaultDB.linksOf(connections[+b.dataset.group]);
-      openUrls(links.map(l => l.url));
+      openSplit(links.map(l => l.url));
     }));
 }
 
