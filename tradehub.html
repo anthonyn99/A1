@@ -1044,6 +1044,28 @@ const TB_STYLES=`
 /* Placeholder — driven by a data attr, not :empty, because contentEditable keeps
    a stray <br> in an "empty" doc and :empty would never match. */
 #tradeboard-root .tb-pb-doc[data-empty="1"]::before{content:attr(data-placeholder);color:var(--txm);font-style:italic;pointer-events:none;}
+/* ── Formatting toolbar ──────────────────────────────────────────────────────
+   Every control preventDefaults its mousedown so the editor keeps its selection,
+   then runs an execCommand on it — the standard rich-text pattern, and cleaner
+   than a save/restore-range dance. */
+#tradeboard-root .tb-pb-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:7px 4px 0;border-top:1px solid var(--bd);margin-top:8px;}
+#tradeboard-root .tb-pb-tool{display:inline-flex;align-items:center;justify-content:center;gap:3px;min-width:30px;height:30px;padding:0 7px;background:transparent;border:1px solid transparent;border-radius:7px;color:var(--txd);font-size:13px;font-weight:600;cursor:pointer;transition:background .12s,color .12s,border-color .12s;white-space:nowrap;}
+#tradeboard-root .tb-pb-tool:hover{background:var(--s2);color:var(--tx);}
+#tradeboard-root .tb-pb-tool.active{background:var(--acg);border-color:var(--ac);color:var(--ac);}
+#tradeboard-root .tb-pb-tool .tb-pb-caret{font-size:8px;opacity:.6;margin-left:1px;}
+#tradeboard-root .tb-pb-div{width:1px;align-self:stretch;background:var(--bd);margin:4px 4px;}
+#tradeboard-root .tb-pb-menuwrap{position:relative;display:inline-flex;}
+#tradeboard-root .tb-pb-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:var(--s1);border:1px solid var(--bdl);border-radius:9px;box-shadow:0 10px 30px rgba(0,0,0,0.4);padding:5px;display:flex;flex-direction:column;gap:1px;max-height:320px;overflow-y:auto;}
+#tradeboard-root .tb-pb-menu-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;border:none;border-radius:6px;padding:7px 12px;color:var(--txd);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s;}
+#tradeboard-root .tb-pb-menu-item:hover{background:var(--s2);color:var(--tx);}
+#tradeboard-root .tb-pb-menu-item.active{color:var(--ac);}
+#tradeboard-root .tb-pb-menu-item .tb-pb-check{margin-left:auto;color:var(--ac);font-size:12px;}
+#tradeboard-root .tb-pb-swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;padding:3px;}
+#tradeboard-root .tb-pb-swatch{width:24px;height:24px;border-radius:6px;border:1px solid var(--bdl);cursor:pointer;padding:0;transition:transform .1s;}
+#tradeboard-root .tb-pb-swatch:hover{transform:scale(1.12);}
+#tradeboard-root .tb-pb-linkrow{display:flex;align-items:center;gap:6px;padding:2px;}
+#tradeboard-root .tb-pb-linkrow input{background:var(--s2);border:1px solid var(--bd);border-radius:7px;color:var(--tx);font-size:13px;padding:7px 10px;width:230px;outline:none;}
+#tradeboard-root .tb-pb-linkrow input:focus{border-color:var(--ac);}
 /* The Playbook is the one tab that shows a real scrollbar: its pages are long
    documents, and a grabbable thumb is the only way to move through one quickly.
    Scoped to this container so every other tab keeps the app-wide hidden bars. */
@@ -5123,24 +5145,27 @@ function tbMdToHtml(md){
    way OUT. Allowlist-based: unknown tags are unwrapped (their text survives),
    dangerous tags are dropped whole, and every attribute not explicitly allowed
    goes — including all `on*` handlers. */
-const TB_PB_TAGS=new Set(['p','br','hr','h1','h2','h3','h4','h5','h6','strong','b','em','i','u','s','del','ins','mark','small','sub','sup','ul','ol','li','blockquote','pre','code','kbd','samp','table','thead','tbody','tfoot','tr','th','td','caption','a','img','span','div','figure','figcaption']);
+const TB_PB_TAGS=new Set(['p','br','hr','h1','h2','h3','h4','h5','h6','strong','b','em','i','u','s','strike','del','ins','mark','small','sub','sup','ul','ol','li','blockquote','pre','code','kbd','samp','table','thead','tbody','tfoot','tr','th','td','caption','a','img','span','div','figure','figcaption']);
 const TB_PB_DROP=new Set(['script','style','iframe','object','embed','link','meta','form','input','button','select','textarea','noscript','svg','math','base','title','head']);
 const TB_PB_ATTRS={a:['href','title'],img:['src','alt','title'],th:['colspan','rowspan'],td:['colspan','rowspan'],ol:['start']};
 
 /* `style` is FILTERED rather than dropped. A browser puts the source's computed
    typography inline on the clipboard fragment, so discarding the whole attribute
    made every paste snap to this doc's own sizes — 11px source text arriving as
-   15px. Keeping these properties is what makes a paste match where it came from.
-   COLOUR is deliberately absent: pasting from a light-background document would
-   carry black text into this dark theme and render it invisible. */
-const TB_PB_STYLE_PROPS=['font-size','font-weight','font-style','font-family','line-height','text-decoration-line','text-align','vertical-align'];
+   15px. Keeping these properties is what makes a paste match where it came from. */
+const TB_PB_STYLE_PROPS=['font-size','font-weight','font-style','font-family','line-height','text-decoration-line','text-align','vertical-align','margin-left','margin-right'];
+/* COLOUR props are kept when the user chose them with the toolbar (load path) but
+   DROPPED from a paste: pasting from a light-background document would carry black
+   text into this dark theme and render it invisible. See tbSanitizeHtml(dropColor). */
+const TB_PB_COLOR_PROPS=['color','background-color'];
 
-function tbPbKeepStyle(el){
+function tbPbKeepStyle(el,dropColor){
   let out='';
   try{
     const s=el.style;
     if(!s || !s.length) return '';
-    for(const p of TB_PB_STYLE_PROPS){
+    const props=dropColor?TB_PB_STYLE_PROPS:TB_PB_STYLE_PROPS.concat(TB_PB_COLOR_PROPS);
+    for(const p of props){
       const v=s.getPropertyValue(p);
       // The CSSOM already rejected anything unparseable; this drops the values
       // that parse but can still fetch or inject (url(), expression(), …).
@@ -5161,7 +5186,11 @@ function tbPbSafeUrl(u,isImg){
   return '';
 }
 
-function tbSanitizeHtml(html){
+/* dropColor: true on the PASTE path (foreign colours are dropped so black-on-white
+   source text can't land invisible on this dark theme); false/omitted on load, so
+   colours the user picked with the toolbar are preserved. */
+function tbSanitizeHtml(html,opts){
+  const dropColor=!!(opts&&opts.dropColor);
   const raw=String(html||'');
   if(!raw.trim()) return '';
   // DOMParser does not execute scripts or load resources — safe to parse first.
@@ -5188,7 +5217,7 @@ function tbSanitizeHtml(html){
       continue;
     }
     // Read the typography off the style attribute BEFORE the loop below strips it.
-    const keepStyle=tbPbKeepStyle(el);
+    const keepStyle=tbPbKeepStyle(el,dropColor);
     const allowed=TB_PB_ATTRS[tag]||[];
     for(const attr of Array.from(el.attributes)){
       const n=attr.name.toLowerCase();
@@ -5258,7 +5287,7 @@ function tbHtmlToMd(html){
     if(t==='br') return '\n';
     if((t==='strong'||t==='b')&&core) return '**'+core+'**';
     if((t==='em'||t==='i')&&core) return '*'+core+'*';
-    if((t==='del'||t==='s')&&core) return '~~'+core+'~~';
+    if((t==='del'||t==='s'||t==='strike')&&core) return '~~'+core+'~~';
     if(t==='code') return '`'+inner+'`';
     if(t==='a'){ const h=c.getAttribute('href')||''; return (h&&core)?'['+core+']('+h+')':inner; }
     if(t==='img') return '['+(c.getAttribute('alt')||'image')+']';
@@ -5394,6 +5423,259 @@ function tbPbNormalize(pages){
   return [daily,...arr.filter(p=>p.id!==TB_PB_DAILY_ID)];
 }
 
+/* ── Formatting toolbar ───────────────────────────────────────────────────────
+   Word-processor controls over the shared contentEditable. Every button/menu-item
+   preventDefaults its mousedown so the editor keeps its live selection, then runs
+   an execCommand against it — the standard rich-text-toolbar trick, and simpler
+   than saving/restoring a Range. `run` focuses, toggles styleWithCSS as needed,
+   execs, and re-fires the editor's onInput (via emit) so the change syncs. */
+const TB_PB_FONTS=[
+  ['Arial','Arial, Helvetica, sans-serif'],
+  ['Georgia','Georgia, serif'],
+  ['Times','\'Times New Roman\', Times, serif'],
+  ['Courier','\'Courier New\', monospace'],
+  ['System','system-ui, sans-serif'],
+  ['Lora','Lora, Georgia, serif'],
+];
+const TB_PB_SIZES=[12,14,16,18,20,24,28,32];
+const TB_PB_BLOCKS=[['p','Normal text'],['h1','Heading 1'],['h2','Heading 2'],['h3','Heading 3'],['blockquote','Quote'],['pre','Code block']];
+// Text colours: theme-aware, all readable on the dark surface. First entry resets.
+const TB_PB_TEXT_COLORS=['','#ececf0','#9898a8','#E0607A','#4ade80','#f87171','#fbbf24','#7dd3fc','#c084fc','#fb923c'];
+// Highlights: translucent so text stays legible. First entry clears.
+const TB_PB_HL_COLORS=['','rgba(224,96,122,0.30)','rgba(74,222,128,0.28)','rgba(251,191,36,0.30)','rgba(125,211,252,0.28)','rgba(192,132,252,0.28)'];
+
+/* Hoisted so their identity is stable across toolbar re-renders (inline components
+   would remount their subtrees, e.g. dropping focus from an open menu). */
+function TBpTool({title,onClick,children,active}){
+  return(<button type="button" className={'tb-pb-tool'+(active?' active':'')} title={title}
+    onMouseDown={e=>e.preventDefault()} onClick={onClick}>{children}</button>);
+}
+function TBpDiv(){ return <span className="tb-pb-div"/>; }
+function TBpItem({onClick,close,active,children}){
+  return(<button type="button" className={'tb-pb-menu-item'+(active?' active':'')}
+    onMouseDown={e=>e.preventDefault()} onClick={()=>{onClick();close();}}>
+    {children}{active?<span className="tb-pb-check">✓</span>:null}</button>);
+}
+
+function TBPbMenu({id,openId,setOpenId,title,label,width,children}){
+  const open=openId===id;
+  return(<div className="tb-pb-menuwrap">
+    <button type="button" className={'tb-pb-tool'+(open?' active':'')} title={title}
+      onMouseDown={e=>e.preventDefault()} onClick={()=>setOpenId(open?null:id)}>
+      {label}<span className="tb-pb-caret">▾</span>
+    </button>
+    {open&&<div className="tb-pb-menu" style={width?{minWidth:width}:null} onMouseDown={e=>e.preventDefault()}>
+      {children(()=>setOpenId(null))}
+    </div>}
+  </div>);
+}
+
+function TBPlaybookToolbar({editorRef,emit}){
+  const [openId,setOpenId]=useState(null);
+  const [linkUrl,setLinkUrl]=useState('');
+  const barRef=useRef(null);
+  const linkRange=useRef(null);
+
+  // Close any open menu on an outside click or Escape.
+  useEffect(()=>{
+    if(!openId) return;
+    const onDown=(e)=>{ if(barRef.current && !barRef.current.contains(e.target)) setOpenId(null); };
+    const onKey=(e)=>{ if(e.key==='Escape') setOpenId(null); };
+    document.addEventListener('pointerdown',onDown,true);
+    document.addEventListener('keydown',onKey);
+    return()=>{ document.removeEventListener('pointerdown',onDown,true); document.removeEventListener('keydown',onKey); };
+  },[openId]);
+
+  const focusEd=()=>{ const el=editorRef.current; if(el) el.focus(); return el; };
+
+  // Core: run an execCommand against the editor's current selection, then sync.
+  // A null value is passed as OMITTED, not as the string "null" — insertHorizontalRule
+  // treats its value arg as the new element's id, so run('insertHorizontalRule')
+  // must not hand it one.
+  const run=(cmd,val=null,css=false)=>{
+    const el=focusEd(); if(!el) return;
+    try{ document.execCommand('styleWithCSS',false,css); }catch(e){}
+    try{ if(val==null) document.execCommand(cmd,false); else document.execCommand(cmd,false,val); }catch(e){}
+    emit();
+  };
+
+  const setBlock=(tag)=>{ run('formatBlock',tag,false); };
+  const setFont=(css)=>{ run('fontName',css,true); };
+  const setColor=(c)=>{
+    if(c){ run('foreColor',c,true); return; }
+    // Reset = re-apply the theme's default text colour, so ONLY the colour clears
+    // — removeFormat would also strip the selection's bold/italic/size.
+    const root=document.getElementById('tradeboard-root');
+    const def=(root&&getComputedStyle(root).getPropertyValue('--tx').trim())||'#ececf0';
+    run('foreColor',def,true);
+  };
+  const setHighlight=(c)=>{ run('hiliteColor',c||'transparent',true); };
+
+  // Font size: execCommand('fontSize','7') creates <font size=7> around the
+  // selection (reliable cross-browser); we then remap those to a px span. This is
+  // the same technique index.html's editor uses.
+  const setSize=(px)=>{
+    const el=focusEd(); if(!el) return;
+    try{ document.execCommand('styleWithCSS',false,false); }catch(e){}
+    try{ document.execCommand('fontSize',false,'7'); }catch(e){}
+    el.querySelectorAll('font[size="7"]').forEach(f=>{
+      const span=document.createElement('span');
+      span.style.fontSize=px+'px';
+      while(f.firstChild) span.appendChild(f.firstChild);
+      f.replaceWith(span);
+    });
+    emit();
+  };
+
+  // Inline code: wrap the selection in <code>, or unwrap if already inside one.
+  const toggleCode=()=>{
+    const el=focusEd(); if(!el) return;
+    const sel=window.getSelection();
+    if(!sel||!sel.rangeCount){ return; }
+    let n=sel.anchorNode; if(n&&n.nodeType===3) n=n.parentElement;
+    const existing=n&&n.closest?n.closest('code'):null;
+    if(existing&&el.contains(existing)){
+      const p=existing.parentNode;
+      while(existing.firstChild) p.insertBefore(existing.firstChild,existing);
+      p.removeChild(existing); el.normalize(); emit(); return;
+    }
+    if(sel.isCollapsed){ return; }
+    const range=sel.getRangeAt(0);
+    const code=document.createElement('code');
+    code.textContent=range.toString();
+    range.deleteContents(); range.insertNode(code);
+    const r2=document.createRange(); r2.selectNodeContents(code); r2.collapse(false);
+    sel.removeAllRanges(); sel.addRange(r2);
+    emit();
+  };
+
+  // Link: capture the selection when the button is pressed (its mousedown is
+  // prevented, so the range is still live), reveal an input, then createLink onto
+  // the restored range. A collapsed caret inserts the URL as its own link text.
+  const openLink=()=>{
+    const el=focusEd(); if(!el) return;
+    const sel=window.getSelection();
+    let a=null, n=sel&&sel.anchorNode;
+    if(n&&n.nodeType===3) n=n.parentElement;
+    if(n&&n.closest) a=n.closest('a');
+    if(a&&el.contains(a)){ setLinkUrl(a.getAttribute('href')||''); }
+    else setLinkUrl('');
+    linkRange.current=(sel&&sel.rangeCount&&el.contains(sel.anchorNode))?sel.getRangeAt(0).cloneRange():null;
+    setOpenId(openId==='link'?null:'link');
+  };
+  const applyLink=(close)=>{
+    let url=(linkUrl||'').trim(); if(!url){ close(); return; }
+    if(!/^(https?:|mailto:|tel:|#|\/)/i.test(url)) url='https://'+url;
+    const el=focusEd(); if(!el){ close(); return; }
+    const sel=window.getSelection();
+    if(linkRange.current){ sel.removeAllRanges(); sel.addRange(linkRange.current); }
+    if(!sel.rangeCount){ close(); return; }   // nothing to anchor to
+    if(sel.isCollapsed){
+      // No selection → drop the URL in as a linked chunk of text.
+      const a=document.createElement('a'); a.href=url; a.textContent=url;
+      a.target='_blank'; a.rel='noopener noreferrer';
+      sel.getRangeAt(0).insertNode(a);
+    }else{
+      try{ document.execCommand('createLink',false,url); }catch(e){}
+      el.querySelectorAll('a[href="'+url+'"]').forEach(x=>{ x.setAttribute('target','_blank'); x.setAttribute('rel','noopener noreferrer'); });
+    }
+    emit(); close();
+  };
+
+  const Tool=TBpTool, Div=TBpDiv;
+
+  // Which block/font the caret currently sits in — computed when a menu opens, so
+  // the menu can tick the active option without a global selectionchange listener.
+  const curBlock=()=>{
+    const el=editorRef.current, sel=window.getSelection();
+    if(!el||!sel||!sel.rangeCount) return 'p';
+    let n=sel.anchorNode; if(n&&n.nodeType===3) n=n.parentElement;
+    while(n&&n!==el){ const t=n.tagName&&n.tagName.toLowerCase(); if(/^(p|h1|h2|h3|h4|h5|h6|blockquote|pre|li)$/.test(t||'')) return t; n=n.parentElement; }
+    return 'p';
+  };
+
+  return(<div className="tb-pb-toolbar" ref={barRef}>
+    <Tool title="Undo (Ctrl+Z)" onClick={()=>run('undo')}>↶</Tool>
+    <Tool title="Redo (Ctrl+Y)" onClick={()=>run('redo')}>↷</Tool>
+    <Div/>
+    <TBpMenuBlock openId={openId} setOpenId={setOpenId} curBlock={curBlock} setBlock={setBlock}/>
+    <TBpMenuFont openId={openId} setOpenId={setOpenId} setFont={setFont}/>
+    <TBpMenuSize openId={openId} setOpenId={setOpenId} setSize={setSize}/>
+    <Div/>
+    <Tool title="Bold (Ctrl+B)" onClick={()=>run('bold')}><b>B</b></Tool>
+    <Tool title="Italic (Ctrl+I)" onClick={()=>run('italic')}><i>I</i></Tool>
+    <Tool title="Underline (Ctrl+U)" onClick={()=>run('underline')}><u>U</u></Tool>
+    <Tool title="Strikethrough" onClick={()=>run('strikeThrough')}><s>S</s></Tool>
+    <Tool title="Inline code" onClick={toggleCode}><span style={{fontFamily:'monospace',fontSize:12}}>{'<>'}</span></Tool>
+    <Div/>
+    <TBpMenuSwatch id="color" openId={openId} setOpenId={setOpenId} title="Text colour"
+      label={<span style={{borderBottom:'3px solid var(--ac)',lineHeight:1,paddingBottom:1}}>A</span>}
+      colors={TB_PB_TEXT_COLORS} onPick={setColor}/>
+    <TBpMenuSwatch id="hl" openId={openId} setOpenId={setOpenId} title="Highlight"
+      label={<span style={{background:'rgba(251,191,36,0.4)',borderRadius:2,padding:'0 2px',lineHeight:1}}>H</span>}
+      colors={TB_PB_HL_COLORS} onPick={setHighlight} swatchBg={true}/>
+    <Div/>
+    <Tool title="Bulleted list" onClick={()=>run('insertUnorderedList')}>•≡</Tool>
+    <Tool title="Numbered list" onClick={()=>run('insertOrderedList')}>1.≡</Tool>
+    <Tool title="Decrease indent" onClick={()=>run('outdent',null,true)}>⇤</Tool>
+    <Tool title="Increase indent" onClick={()=>run('indent',null,true)}>⇥</Tool>
+    <Div/>
+    <div className="tb-pb-menuwrap">
+      <button type="button" className={'tb-pb-tool'+(openId==='link'?' active':'')} title="Insert link"
+        onMouseDown={e=>e.preventDefault()} onClick={openLink}>🔗</button>
+      {openId==='link'&&<div className="tb-pb-menu" onMouseDown={e=>e.preventDefault()}>
+        <div className="tb-pb-linkrow">
+          <input autoFocus value={linkUrl} placeholder="https://…" spellCheck={false}
+            onChange={e=>setLinkUrl(e.target.value)}
+            onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); applyLink(()=>setOpenId(null)); } }}/>
+          <button type="button" className="tb-pb-tool active" onMouseDown={e=>e.preventDefault()}
+            onClick={()=>applyLink(()=>setOpenId(null))}>Add</button>
+        </div>
+      </div>}
+    </div>
+    <Tool title="Horizontal rule" onClick={()=>run('insertHorizontalRule')}>―</Tool>
+    <Tool title="Clear formatting" onClick={()=>run('removeFormat')}>⨯</Tool>
+  </div>);
+}
+
+function TBpMenuBlock({openId,setOpenId,curBlock,setBlock}){
+  const cur=openId==='block'?curBlock():null;
+  return(<TBPbMenu id="block" openId={openId} setOpenId={setOpenId} title="Paragraph style" label="Style" width={170}>
+    {close=>TB_PB_BLOCKS.map(([tag,name])=>
+      <TBpItem key={tag} onClick={()=>setBlock(tag)} close={close} active={cur===tag}>{name}</TBpItem>)}
+  </TBPbMenu>);
+}
+function TBpMenuFont({openId,setOpenId,setFont}){
+  return(<TBPbMenu id="font" openId={openId} setOpenId={setOpenId} title="Font" label="Font" width={160}>
+    {close=>TB_PB_FONTS.map(([name,css])=>
+      <TBpItem key={name} onClick={()=>setFont(css)} close={close}><span style={{fontFamily:css}}>{name}</span></TBpItem>)}
+  </TBPbMenu>);
+}
+function TBpMenuSize({openId,setOpenId,setSize}){
+  return(<TBPbMenu id="size" openId={openId} setOpenId={setOpenId} title="Font size" label="Size" width={90}>
+    {close=>TB_PB_SIZES.map(px=>
+      <TBpItem key={px} onClick={()=>setSize(px)} close={close}>{px}px</TBpItem>)}
+  </TBPbMenu>);
+}
+function TBpMenuSwatch({id,openId,setOpenId,title,label,colors,onPick,swatchBg}){
+  const open=openId===id;
+  return(<div className="tb-pb-menuwrap">
+    <button type="button" className={'tb-pb-tool'+(open?' active':'')} title={title}
+      onMouseDown={e=>e.preventDefault()} onClick={()=>setOpenId(open?null:id)}>{label}<span className="tb-pb-caret">▾</span></button>
+    {open&&<div className="tb-pb-menu" onMouseDown={e=>e.preventDefault()}>
+      <div className="tb-pb-swatches">
+        {colors.map((c,i)=>(
+          <button key={i} type="button" className="tb-pb-swatch" title={c?(i===0?'':c):'None'}
+            onMouseDown={e=>e.preventDefault()}
+            onClick={()=>{ onPick(c); setOpenId(null); }}
+            style={c?(swatchBg?{background:c}:{background:'var(--s2)',color:c,fontWeight:800,fontSize:13,display:'flex',alignItems:'center',justifyContent:'center'})
+                    :{background:'var(--s2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'var(--txm)'}}>
+            {c?(swatchBg?'':'A'):'⌫'}</button>))}
+      </div>
+    </div>}
+  </div>);
+}
+
 /* ── Page editor — contentEditable so typing and pasting share one surface ──
    Deliberately UNCONTROLLED: re-rendering innerHTML on every keystroke would
    reset the caret to the top of the document. React owns the initial html (and
@@ -5446,10 +5728,11 @@ function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
     const html=dt.getData('text/html');
     const text=dt.getData('text/plain');
     let out='';
-    // Rendered source (ChatGPT, a web page, Word) → keep its structure.
-    if(html && html.trim() && !tbHtmlIsPlain(html)) out=tbSanitizeHtml(html);
+    // Rendered source (ChatGPT, a web page, Word) → keep its structure. dropColor:
+    // foreign text colours are stripped so black-on-white can't land invisible here.
+    if(html && html.trim() && !tbHtmlIsPlain(html)) out=tbSanitizeHtml(html,{dropColor:true});
     // Raw markdown text → render it. Anything else → in verbatim, unparsed.
-    else if(text && text.trim()) out=tbSanitizeHtml(tbLooksLikeMd(text)?tbMdToHtml(text):tbTextToHtml(text));
+    else if(text && text.trim()) out=tbSanitizeHtml(tbLooksLikeMd(text)?tbMdToHtml(text):tbTextToHtml(text),{dropColor:true});
     if(!out) return;
     e.preventDefault();
     // execCommand is deprecated but remains the only cross-browser way to insert
@@ -5473,23 +5756,26 @@ function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
   };
 
   return(<div style={{display:'flex',flexDirection:'column',gap:14,minWidth:0}}>
-    <div className="tb-pb-head" style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-      {isMobile&&<button className="tb-btn-ghost" onClick={onBack} style={{padding:'6px 14px',fontSize:12}}>‹ Pages</button>}
-      <input value={page.title||''} onChange={e=>onChange({...page,title:e.target.value,updatedAt:Date.now()})}
-        placeholder="Page title" spellCheck={false}
-        style={{flex:1,minWidth:120,background:'transparent',border:'none',borderBottom:'1px solid var(--bd)',color:'var(--tx)',
-          fontFamily:"'Lora',serif",fontSize:isMobile?19:23,fontWeight:700,padding:'6px 2px',outline:'none'}}/>
-      {isDaily&&<span title="morning-launcher shows this page before it opens anything"
-        style={{fontSize:8.5,background:'rgba(74,222,128,0.18)',color:'var(--tbb)',border:'1px solid rgba(74,222,128,0.35)',
-          borderRadius:4,padding:'3px 7px',fontWeight:800,letterSpacing:.6,whiteSpace:'nowrap'}}>AUTOLAUNCH</span>}
-      <button className="tb-btn-ghost" onClick={copyMd} style={{padding:'6px 14px',fontSize:12}} title="Copy this page as Markdown">⧉ Copy</button>
-      {!isDaily&&(!confirmDel
-        ?<button className="tb-btn-danger" onClick={()=>setConfirmDel(true)} style={{padding:'6px 14px',fontSize:12}}>🗑 Delete</button>
-        :<div style={{display:'flex',gap:7,alignItems:'center'}}>
-          <span style={{fontSize:12,color:'var(--tbe)',whiteSpace:'nowrap'}}>Delete page?</span>
-          <button onClick={onDelete} style={{padding:'6px 14px',borderRadius:100,border:'none',background:'var(--tbr)',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer'}}>Yes</button>
-          <button className="tb-btn-ghost" onClick={()=>setConfirmDel(false)} style={{padding:'6px 14px',fontSize:12}}>No</button>
-        </div>)}
+    <div className="tb-pb-head" style={{display:'flex',flexDirection:'column'}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+        {isMobile&&<button className="tb-btn-ghost" onClick={onBack} style={{padding:'6px 14px',fontSize:12}}>‹ Pages</button>}
+        <input value={page.title||''} onChange={e=>onChange({...page,title:e.target.value,updatedAt:Date.now()})}
+          placeholder="Page title" spellCheck={false}
+          style={{flex:1,minWidth:120,background:'transparent',border:'none',borderBottom:'1px solid var(--bd)',color:'var(--tx)',
+            fontFamily:"'Lora',serif",fontSize:isMobile?19:23,fontWeight:700,padding:'6px 2px',outline:'none'}}/>
+        {isDaily&&<span title="morning-launcher shows this page before it opens anything"
+          style={{fontSize:8.5,background:'rgba(74,222,128,0.18)',color:'var(--tbb)',border:'1px solid rgba(74,222,128,0.35)',
+            borderRadius:4,padding:'3px 7px',fontWeight:800,letterSpacing:.6,whiteSpace:'nowrap'}}>AUTOLAUNCH</span>}
+        <button className="tb-btn-ghost" onClick={copyMd} style={{padding:'6px 14px',fontSize:12}} title="Copy this page as Markdown">⧉ Copy</button>
+        {!isDaily&&(!confirmDel
+          ?<button className="tb-btn-danger" onClick={()=>setConfirmDel(true)} style={{padding:'6px 14px',fontSize:12}}>🗑 Delete</button>
+          :<div style={{display:'flex',gap:7,alignItems:'center'}}>
+            <span style={{fontSize:12,color:'var(--tbe)',whiteSpace:'nowrap'}}>Delete page?</span>
+            <button onClick={onDelete} style={{padding:'6px 14px',borderRadius:100,border:'none',background:'var(--tbr)',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer'}}>Yes</button>
+            <button className="tb-btn-ghost" onClick={()=>setConfirmDel(false)} style={{padding:'6px 14px',fontSize:12}}>No</button>
+          </div>)}
+      </div>
+      <TBPlaybookToolbar editorRef={ref} emit={emit}/>
     </div>
 
     <div className="tb-card" style={{padding:0,overflow:'hidden'}}>
