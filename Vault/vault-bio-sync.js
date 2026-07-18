@@ -71,6 +71,7 @@
     var d = e.data;
     if (!d || d.source !== 'tradehub-vault' || d.action !== 'groupMorningTabs') return;
     try {
+      console.log('[Vault] relaying groupMorningTabs →', d.name, d.color);
       chrome.runtime.sendMessage(
         { action: 'groupMorningTabs', name: d.name || 'Trade Analysis', color: d.color || 'cyan' },
         function () { void chrome.runtime.lastError; }

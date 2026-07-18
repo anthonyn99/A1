@@ -6179,7 +6179,7 @@ function TBApp(){
     if(!params||!params.has('morning'))return;
     const name=analysisCfg.groupName!=null?analysisCfg.groupName:TB_GROUP_NAME_DEFAULT;
     const color=analysisCfg.groupColor||TB_GROUP_COLOR_DEFAULT;
-    const send=()=>{try{window.postMessage({source:'tradehub-vault',action:'groupMorningTabs',name,color},location.origin);}catch{}};
+    const send=()=>{try{console.log('[TradeHub] morning tab-group signal →',name,color);window.postMessage({source:'tradehub-vault',action:'groupMorningTabs',name,color},location.origin);}catch{}};
     send();
     const t1=setTimeout(send,1500),t2=setTimeout(send,4000);
     return()=>{clearTimeout(t1);clearTimeout(t2);};

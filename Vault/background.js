@@ -73,10 +73,13 @@ async function openLinksAsGroup(urls, groupName, colorHex) {
 // API can). So TradeHub, when opened with ?morning=1, asks us (via the
 // vault-bio-sync content script) to wrap that whole window into one named group.
 //
-// The launcher's tabs arrive staggered over a few seconds, so we DEBOUNCE: each
-// new tab in the target window resets a short quiet-timer, and we only group once
-// the tabs stop arriving (or a hard cap elapses). Keyed per-window so repeat
-// signals from the page never double-group.
+// The launcher's tabs arrive SPREAD OUT over many seconds (TradeHub first, then —
+// after a config fetch — the searches + ChatGPT), and an MV3 service worker can be
+// torn down between those events. So we do NOT rely on an in-memory timer. Instead
+// we persist the request in chrome.storage.session (survives worker restarts) and
+// re-group INCREMENTALLY: the moment the request arrives we group whatever tabs
+// exist, and every new tab that appears in that window (until a deadline) is added
+// to the same group. State lives in storage, so a restarted worker just resumes.
 const VALID_GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
 function normalizeGroupColor(c) {
   c = String(c || "").toLowerCase();
@@ -85,56 +88,68 @@ function normalizeGroupColor(c) {
   return VALID_GROUP_COLORS.includes(c) ? c : "cyan"; // default: elegant teal
 }
 
-const GROUP_QUIET_MS = 4000;   // group once no new tab has opened for this long
-const GROUP_HARD_CAP_MS = 30000;
-const pendingGroup = new Map(); // windowId -> { name, color, timer, hardTimer, done }
+const PENDING_KEY = "morningGroupPending";   // storage.session: { [windowId]: {name,color,groupId,deadline} }
+const GROUP_WINDOW_MS = 90000;               // keep adding new tabs to the group for this long
 
-function scheduleMorningGroup(windowId, name, color) {
-  if (windowId == null) return;
-  let st = pendingGroup.get(windowId);
-  if (st && st.done) return;            // already grouped this window
-  if (!st) {
-    st = { name, color, timer: null, hardTimer: null, done: false };
-    pendingGroup.set(windowId, st);
-    st.hardTimer = setTimeout(() => finalizeMorningGroup(windowId), GROUP_HARD_CAP_MS);
-  } else {
-    st.name = name; st.color = color;   // keep the latest values
-  }
-  if (st.timer) clearTimeout(st.timer);
-  st.timer = setTimeout(() => finalizeMorningGroup(windowId), GROUP_QUIET_MS);
+async function loadPending() {
+  try { const d = await chrome.storage.session.get(PENDING_KEY); return d[PENDING_KEY] || {}; }
+  catch (_) { return {}; }
+}
+async function savePending(map) {
+  try { await chrome.storage.session.set({ [PENDING_KEY]: map }); } catch (_) {}
 }
 
-async function finalizeMorningGroup(windowId) {
-  const st = pendingGroup.get(windowId);
-  if (!st || st.done) return;
-  st.done = true;
-  if (st.timer) clearTimeout(st.timer);
-  if (st.hardTimer) clearTimeout(st.hardTimer);
+// Serialize regroup passes so two near-simultaneous tab events can't each spawn a
+// separate group (they'd race on the not-yet-persisted groupId).
+let _regroupChain = Promise.resolve();
+function regroupWindow(windowId) {
+  _regroupChain = _regroupChain.then(() => _regroupWindow(windowId)).catch(() => {});
+  return _regroupChain;
+}
+
+async function _regroupWindow(windowId) {
+  const key = String(windowId);
+  const map = await loadPending();
+  const st = map[key];
+  if (!st) return;                                  // this window isn't pending
+  if (Date.now() > st.deadline) { delete map[key]; await savePending(map); return; }
+
+  let tabs;
+  try { tabs = await chrome.tabs.query({ windowId }); } catch (_) { return; }
+  const allIds = tabs.map((t) => t.id).filter((id) => id != null);
+  if (!allIds.length || !chrome.tabs.group) return;
+
   try {
-    const tabs = await chrome.tabs.query({ windowId });
-    const ids = tabs.map((t) => t.id).filter((id) => id != null);
-    if (chrome.tabs.group && ids.length) {
-      const groupId = await chrome.tabs.group({ tabIds: ids });
-      if (chrome.tabGroups && chrome.tabGroups.update) {
-        await chrome.tabGroups.update(groupId, {
-          title: (st.name || "Trade Analysis").slice(0, 60),
-          color: normalizeGroupColor(st.color),
-        });
-      }
+    const groupStillExists = st.groupId != null && tabs.some((t) => t.groupId === st.groupId);
+    let gid;
+    if (!groupStillExists) {
+      // First pass (or the group was closed) → group every tab into a fresh group.
+      gid = await chrome.tabs.group({ tabIds: allIds });
+    } else {
+      // Group exists → fold in any tabs that aren't in it yet (the new arrivals).
+      gid = st.groupId;
+      const toAdd = tabs.filter((t) => t.groupId !== gid).map((t) => t.id).filter((id) => id != null);
+      if (toAdd.length) await chrome.tabs.group({ groupId: gid, tabIds: toAdd });
     }
-  } catch (_) { /* window/tabs gone or API unavailable — nothing to do */ }
-  // Keep the "done" marker briefly so late duplicate signals are ignored.
-  setTimeout(() => pendingGroup.delete(windowId), 60000);
+    if (chrome.tabGroups && chrome.tabGroups.update) {
+      await chrome.tabGroups.update(gid, {
+        title: (st.name || "Trade Analysis").slice(0, 60),
+        color: normalizeGroupColor(st.color),
+      });
+    }
+    st.groupId = gid;
+    map[key] = st;
+    await savePending(map);
+    console.log("[Vault] grouped", allIds.length, "tab(s) in window", windowId, "→", st.name, normalizeGroupColor(st.color));
+  } catch (_) {
+    // The group may have been closed mid-pass — forget the id so the next pass rebuilds it.
+    st.groupId = null; map[key] = st; await savePending(map);
+  }
 }
 
-// A launcher tab appeared in a window we're about to group → extend the quiet
-// window so we wait for the rest (searches, ChatGPT) before grouping.
+// Every new tab in a still-pending window gets folded into its group.
 chrome.tabs.onCreated.addListener((tab) => {
-  const st = tab && tab.windowId != null ? pendingGroup.get(tab.windowId) : null;
-  if (st && !st.done) {
-    if (st.timer) clearTimeout(st.timer);
-    st.timer = setTimeout(() => finalizeMorningGroup(tab.windowId), GROUP_QUIET_MS);
-  }
+  if (tab && tab.windowId != null) regroupWindow(tab.windowId);
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -143,9 +158,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   // ── morning-launch grouping request (relayed by vault-bio-sync from TradeHub) ──
   if (message.action === "groupMorningTabs") {
     const wid = _sender && _sender.tab ? _sender.tab.windowId : null;
-    scheduleMorningGroup(wid, message.name, message.color);
-    sendResponse({ ok: true });
-    return true;
+    console.log("[Vault] groupMorningTabs request, window =", wid, message.name, message.color);
+    if (wid == null) { sendResponse({ ok: false }); return true; }
+    (async () => {
+      const map = await loadPending();
+      const prev = map[String(wid)];
+      map[String(wid)] = {
+        name: message.name || "Trade Analysis",
+        color: message.color || "cyan",
+        groupId: prev && prev.groupId != null ? prev.groupId : null,  // reuse across repeat signals
+        deadline: Date.now() + GROUP_WINDOW_MS,
+      };
+      await savePending(map);
+      await regroupWindow(wid);           // group whatever's open right now
+      sendResponse({ ok: true });
+    })();
+    return true;                          // async response
   }
 
   // ── group-launch (Links) — opens tabs and auto-creates a tab group ──
