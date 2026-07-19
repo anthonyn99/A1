@@ -303,42 +303,53 @@ body.dnd-active *{cursor:grabbing !important;}
 #view-switch{display:flex;gap:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px;}
 #view-switch button{flex:1;border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:12px;font-family:var(--font-btn);padding:8px 12px;border-radius:16px;cursor:pointer;transition:all .15s;text-transform:var(--head-transform);letter-spacing:var(--head-spacing);}
 #view-switch button.on{background:var(--accent);color:var(--accent-ink);}
-/* ── Price Watch (integrated into lists) ── */
-.pw-toggle-row{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;}
-.pw-toggle{border:1px solid var(--border);background:var(--surface2);color:var(--textdim);font-weight:800;font-size:12px;font-family:var(--font-btn);padding:6px 12px;border-radius:16px;cursor:pointer;}
-.pw-toggle.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
-.pw-toggle-note{font-size:11px;color:var(--textmute);}
-.pw-sort{display:flex;align-items:center;gap:6px;margin-right:8px;}
-.pw-sort-lbl{font-size:11px;font-weight:700;color:var(--textmute);text-transform:uppercase;letter-spacing:.4px;}
-.pw-sort select{font-size:12px;padding:4px 6px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);}
-.pw-badge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;white-space:nowrap;}
+/* ── Price Watch ── */
+.pw-add-title{font-weight:800;font-size:15px;margin-bottom:10px;color:var(--text);}
+.pw-confirm{margin-top:12px;border-top:1px solid var(--border);padding-top:12px;}
+.pw-confirm-h{font-weight:700;font-size:13px;color:var(--textdim);margin-bottom:8px;}
+.pw-cand{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+.pw-cand:last-of-type{border-bottom:none;}
+.pw-cand-info{flex:1;min-width:0;}
+.pw-cand-name{font-weight:700;font-size:14px;color:var(--text);}
+.pw-cand-sub{font-size:12px;color:var(--textdim);margin-top:2px;}
+.pw-confirm-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}
+.pw-list{display:flex;flex-direction:column;gap:8px;}
+.pw-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.pw-row.open{border-color:var(--accent);}
+.pw-main{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;}
+.pw-info{flex:1;min-width:0;}
+.pw-name{font-weight:800;font-size:15px;color:var(--text);}
+.pw-brand{font-weight:600;font-size:11px;color:var(--textdim);background:var(--surface2);padding:1px 6px;border-radius:8px;margin-left:4px;}
+.pw-meta{font-size:12px;color:var(--textdim);margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
+.pw-badge{font-size:11px;font-weight:700;padding:1px 6px;border-radius:8px;}
 .pw-badge.verified{color:var(--good);background:rgba(95,191,143,0.14);}
 .pw-badge.est{color:var(--textdim);background:var(--surface2);}
-.pw-line{font-size:12px;color:var(--textdim);margin-top:4px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
-.pw-best{font-weight:800;font-size:14px;color:var(--text);}
-.pw-at{color:var(--textdim);}
-.pw-none{color:var(--textmute);font-style:italic;}
-.pw-checked{color:var(--textmute);}
-.pw-delta{font-size:12px;font-weight:800;}
+.pw-priceblock{text-align:right;flex-shrink:0;}
+.pw-price{font-weight:800;font-size:17px;color:var(--text);}
+.pw-delta{font-size:12px;font-weight:800;display:inline-block;margin-top:2px;}
 .pw-delta.down{color:var(--good);}
 .pw-delta.up{color:var(--bad);}
-.pw-brand{font-weight:700;font-size:10px;color:var(--textdim);background:var(--surface2);padding:1px 6px;border-radius:8px;}
-.ib.pw-check{font-weight:800;color:var(--accent);}
-.pw-detail{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);margin:2px 0 8px;padding:10px 12px;}
-.pw-bd-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--textmute);margin:4px 0 6px;}
-.pw-bd{display:flex;flex-direction:column;gap:2px;margin-bottom:6px;}
+.pw-acts{display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:0 14px 12px;}
+.pw-acts .ib.del{background:transparent;border:none;color:var(--bad);font-size:16px;cursor:pointer;padding:4px 8px;border-radius:8px;}
+.pw-hist{display:flex;flex-direction:column;gap:2px;}
+.pw-hist-row{display:flex;gap:10px;align-items:baseline;font-size:12px;padding:2px 0;color:var(--textdim);}
+.pw-hist-date{width:74px;flex-shrink:0;color:var(--textdim);}
+.pw-hist-price{font-weight:700;color:var(--text);width:78px;flex-shrink:0;}
+.pw-hist-note{flex:1;min-width:0;color:var(--textmute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pw-hist-empty{font-size:12px;color:var(--textmute);}
+.pw-sort{display:flex;align-items:center;gap:6px;}
+.pw-sort-lbl{font-size:11px;font-weight:700;color:var(--textmute);text-transform:uppercase;letter-spacing:.4px;}
+.pw-sort select{font-size:12px;padding:4px 6px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);}
+.pw-qty{font-weight:600;font-size:11px;color:var(--textdim);}
+.pw-detail{border-top:1px solid var(--border);background:var(--surface2);padding:10px 14px 12px;}
+.pw-bd-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--textmute);margin:2px 0 6px;}
+.pw-bd{display:flex;flex-direction:column;gap:2px;margin-bottom:8px;}
 .pw-bd-row{display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 6px;border-radius:8px;color:var(--textdim);}
 .pw-bd-row.best{background:rgba(95,191,143,0.12);}
 .pw-bd-store{flex:1;min-width:0;display:flex;gap:6px;align-items:center;}
 .pw-bd-price{font-weight:800;color:var(--text);}
 .pw-bd-row.best .pw-bd-price{color:var(--good);}
 .pw-link{text-decoration:none;color:var(--accent);font-weight:800;}
-.pw-hist{display:flex;flex-direction:column;gap:2px;}
-.pw-hist-row{display:flex;gap:10px;align-items:baseline;font-size:12px;padding:2px 0;color:var(--textdim);}
-.pw-hist-date{width:74px;flex-shrink:0;}
-.pw-hist-price{font-weight:700;color:var(--text);width:78px;flex-shrink:0;}
-.pw-hist-note{flex:1;min-width:0;color:var(--textmute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.pw-hist-empty{font-size:12px;color:var(--textmute);}
 
 /* ── Recipes ── */
 .rec-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
@@ -675,22 +686,39 @@ body.dnd-active *{cursor:grabbing !important;}
     }, (err) => { console.warn("Recipes snapshot err", err); });
   });
 
-  // ── Price Watch now rides ENTIRELY on dashboards/mylist (the list object gained
-  //    a priceWatch flag; watched items gained price fields). No separate doc/sync.
-  //    These two helpers exist ONLY to migrate the first build's standalone
-  //    dashboards/pricewatch(-veda) docs into the lists, then tombstone them
-  //    (items:[] so a repeat migration is a no-op). Unmatched items are preserved
-  //    in the tombstone rather than discarded. ──
-  const OLD_PW_DOCS = { tony: doc(db, "dashboards/pricewatch"), veda: doc(db, "dashboards/pricewatch-veda") };
-  window._mlLoadOldPriceWatch = async (profile) => {
-    const ref = OLD_PW_DOCS[profile]; if(!ref) return [];
+  // ── Price Watch (per profile) — Tony lives in dashboards/pricewatch, Veda in
+  //    dashboards/pricewatch-veda. Mirrors the REC_DOCS pattern exactly: same
+  //    1200ms debounce-save, same ml-syncing/ml-saved/ml-error events, and a
+  //    per-profile onSnapshot dispatching ml-pricewatch-update. The daily cron
+  //    worker writes back to these same docs. ──
+  const PW_DOCS = { tony: doc(db, "dashboards/pricewatch"), veda: doc(db, "dashboards/pricewatch-veda") };
+  const pwSaveTimers = { tony:null, veda:null };
+  const pwLastOwnSaveAt = { tony:0, veda:0 };
+  window._mlLoadPriceWatch = async (profile) => {
+    const ref = PW_DOCS[profile]; if(!ref) return [];
     try { await _whenAuthed(); const snap = await getDoc(ref); return (snap.exists() && Array.isArray(snap.data().items)) ? snap.data().items : []; }
-    catch(e){ return []; }
+    catch(e){ console.warn("PriceWatch load failed:", e); return []; }
   };
-  window._mlTombstoneOldPriceWatch = async (profile, unmatched) => {
-    const ref = OLD_PW_DOCS[profile]; if(!ref) return;
-    try { await setDoc(ref, { items: [], unmatched: unmatched || [], migratedAt: Date.now() }); } catch(e){}
+  window._mlSavePriceWatch = (profile, items) => {
+    const ref = PW_DOCS[profile]; if(!ref) return;
+    pwLastOwnSaveAt[profile] = Date.now();
+    window.dispatchEvent(new CustomEvent("ml-syncing"));
+    if (pwSaveTimers[profile]) clearTimeout(pwSaveTimers[profile]);
+    pwSaveTimers[profile] = setTimeout(async () => {
+      try {
+        pwLastOwnSaveAt[profile] = Date.now();
+        await setDoc(ref, { items: items, savedAt: Date.now() });
+        pwLastOwnSaveAt[profile] = Date.now();
+        window.dispatchEvent(new CustomEvent("ml-saved"));
+      } catch(e){ console.warn("PriceWatch save failed:", e); window.dispatchEvent(new CustomEvent("ml-error")); }
+    }, 1200);
   };
+  ["tony","veda"].forEach((profile) => {
+    onSnapshot(PW_DOCS[profile], (snap) => {
+      if (Date.now() - pwLastOwnSaveAt[profile] < 8000) return;
+      if (snap.exists() && Array.isArray(snap.data().items)) window.dispatchEvent(new CustomEvent("ml-pricewatch-update", { detail: { profile: profile, items: snap.data().items } }));
+    }, (err) => { console.warn("PriceWatch snapshot err", err); });
+  });
 
   window._mlReady = true;
   window.dispatchEvent(new CustomEvent("ml-ready"));
@@ -724,14 +752,22 @@ var recDetailId = null;
 var recEditingId = null;
 var recipesLoaded = { tony:false, veda:false };
 function setRecipes(arr){ recipes = arr; if(activeProfile) recipesStore[activeProfile] = arr; }
-// Price Watch — integrated into the regular lists (a list with priceWatch:true
-// has all its items tracked; item price fields live on the item). No separate store.
-var pwExpandedId = null;      // which watched item is expanded to show breakdown/history
-var pwBusy = null;            // item id currently being checked (spinner)
+// Price Watch (per profile — Tony & Veda each have their own tracked items).
+// Every item is priced at ALL 6 stores; the item stores a per-store breakdown +
+// a computed daily best. Lives in its own docs (dashboards/pricewatch[-veda]).
+var pwStore = { tony:[], veda:[] };
+var pwLoaded = { tony:false, veda:false };
+var pwExpandedId = null;      // which watch row is expanded to show breakdown/history
+var pwAdding = false;         // resolve() in flight (spinner on "Find product")
+var pwCandidates = null;      // {draft, res} — pending consolidated confirm-on-add
+var pwBusy = null;            // item id currently being checked (spinner on "Check now")
 var pwSort = localStorage.getItem('ml_pw_sort') || 'name';   // persisted sort key
 var PW_STORES = [['kroger','Kroger'],['kingsoopers','King Soopers'],['walmart','Walmart'],['amazon','Amazon'],['cvs','CVS'],['walgreens','Walgreens']];
 function pwVerified(store){ return store==='kroger' || store==='kingsoopers'; }
 function pwStoreLabel(store){ var m=PW_STORES.filter(function(s){return s[0]===store;})[0]; return m?m[1]:(store||''); }
+function pwItems(){ return (activeProfile && pwStore[activeProfile]) || []; }
+function persistWatch(){ if(window._mlSavePriceWatch && activeProfile) window._mlSavePriceWatch(activeProfile, pwItems().map(sanitize)); }
+function pwFind(id){ return pwItems().filter(function(x){return x.id===id;})[0]; }
 function normNm(s){ return String(s==null?'':s).toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim(); }
 
 function uid(){ return Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
@@ -799,12 +835,19 @@ function boot(){
       });
     });
   }
+  if(window._mlLoadPriceWatch){
+    ['tony','veda'].forEach(function(p){
+      window._mlLoadPriceWatch(p).then(function(items){
+        pwStore[p]=items||[]; pwLoaded[p]=true;
+        if(activeProfile===p && view==='watch') render();
+      });
+    });
+  }
   window._mlLoad().then(function(d){
     if(d) applyRemote(d);
     setSync('ok'); refreshProfileScreen();
     var fav = localStorage.getItem('ml_fav_profile');
     if(fav && PROFILE_META[fav]) chooseProfile(fav); else goProfileSelect();
-    pwMigrate();   // one-time: fold the old standalone Price Watch docs into the lists
   });
 }
 window.addEventListener('ml-recipes-update', function(e){
@@ -812,6 +855,12 @@ window.addEventListener('ml-recipes-update', function(e){
   if(!p||!recipesStore.hasOwnProperty(p)) return;
   recipesStore[p]=rr; recipesLoaded[p]=true;
   if(activeProfile===p){ recipes=recipesStore[p]; if(view==='recipes') render(); }
+});
+window.addEventListener('ml-pricewatch-update', function(e){
+  var p=e.detail&&e.detail.profile, items=(e.detail&&Array.isArray(e.detail.items))?e.detail.items:[];
+  if(!p||!pwStore.hasOwnProperty(p)) return;
+  pwStore[p]=items; pwLoaded[p]=true;
+  if(activeProfile===p && view==='watch') render();
 });
 function pData(){ return state[activeProfile] || {lists:[]}; }
 function lists(){ return pData().lists; }
@@ -1175,7 +1224,6 @@ function saveEdit(id){
   it.qty=($('edit-qty-'+id).value||'').trim();
   if($('edit-store-'+id)) it.store=ensureStore(l, $('edit-store-'+id).value);
   if($('edit-desc-'+id)) it.desc=($('edit-desc-'+id).value||'').trim();
-  if($('edit-brand-'+id)) it.brandLock=($('edit-brand-'+id).value||'').trim();  // Price Watch: pin/unpin brand
   editingItemId=null; persist(); render();
 }
 function cancelEdit(){ editingItemId=null; render(); }
@@ -1462,7 +1510,7 @@ var REC_CATS=['Breakfast','Lunch','Dinner','Snack','Dessert','Other'];
 var EDIT_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 var DEL_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 function persistRecipes(){ if(window._mlSaveRecipes && activeProfile) window._mlSaveRecipes(activeProfile, recipes.map(sanitize)); }
-function setView(v){ view=v; recDetailId=null; recEditingStep=null; manualOpen=false; render(); window.scrollTo(0,0); }
+function setView(v){ view=v; recDetailId=null; recEditingStep=null; manualOpen=false; pwCandidates=null; pwAdding=false; render(); window.scrollTo(0,0); }
 
 // ── recipe undo / redo (per profile; covers manual AND voice/AI changes) ──
 var recUndoStack={}, recRedoStack={};
@@ -1719,7 +1767,8 @@ function recDelete(id){
 function renderViewSwitch(){
   var w=$('view-switch-wrap'); if(!w) return;
   w.innerHTML='<div id="view-switch"><button class="'+(view==='lists'?'on':'')+'" onclick="ML.setView(\'lists\')">Lists</button>'
-    +'<button class="'+(view==='recipes'?'on':'')+'" onclick="ML.setView(\'recipes\')">Recipes</button></div>';
+    +'<button class="'+(view==='recipes'?'on':'')+'" onclick="ML.setView(\'recipes\')">Recipes</button>'
+    +'<button class="'+(view==='watch'?'on':'')+'" onclick="ML.setView(\'watch\')">Price Watch</button></div>';
 }
 
 // ════════ DRAG & DROP (floating ghost + insertion line, no reflow) ════════
@@ -1961,6 +2010,15 @@ function render(){
     else if(recEditingStep===null){ var rs=$('rec-steps-container'); if(rs) enableDrag(rs, 'recstep'); }
     return;
   }
+  // ── Price Watch view (both profiles) ──
+  if(view==='watch'){
+    $('lists-bar').style.display='none';
+    $('float-voice').classList.remove('show');   // no voice on this view
+    $('sel-bar').classList.remove('show');
+    var mfb=$('manual-fab'); if(mfb) mfb.style.display='none'; var mpp=$('manual-pop'); if(mpp) mpp.classList.remove('show');
+    $('list-view').innerHTML = renderWatchView();
+    return;
+  }
   $('lists-bar').style.display='';
   renderListsBar();
   // voice/type bar is available within a profile, but hidden during Select mode
@@ -1981,13 +2039,10 @@ function render(){
   h+='<div class="list-head"><input class="ttl" id="list-title" value="'+esc(l.name)+'" onchange="ML.renameList(\''+l.id+'\',this.value)">'
     +'<button class="btn danger sm" onclick="ML.deleteList(\''+l.id+'\')">Delete list</button></div>';
   h+='<div class="list-meta">'+items.length+' item'+(items.length!==1?'s':'')+' · '+doneCount+' done</div>';
-  h+='<div class="pw-toggle-row"><button class="pw-toggle'+(l.priceWatch?' on':'')+'" onclick="ML.togglePriceWatch(\''+l.id+'\')">'
-    +(l.priceWatch?'🔔 Price Watch: On':'🔕 Price Watch: Off')+'</button>'
-    +(l.priceWatch?'<span class="pw-toggle-note">every item priced daily at all 6 stores</span>':'')+'</div>';
   h+='</div>';
 
-  // items header + (sort when watched) + undo/redo + clear + select toggle
-  h+='<div class="items-head"><span class="ih-title">Items</span>'+(l.priceWatch?pwSortControlHtml():'')+'<span class="sp"></span>';
+  // items header + undo/redo + clear + select toggle
+  h+='<div class="items-head"><span class="ih-title">Items</span><span class="sp"></span>';
   if(undoAvailable()) h+='<button class="btn ghost sm" onclick="ML.undoLast()" title="Undo">↶ Undo</button>';
   if(redoAvailable()) h+='<button class="btn ghost sm" onclick="ML.redoLast()" title="Redo">↷ Redo</button>';
   if(doneCount) h+='<button class="btn ghost sm" onclick="ML.clearDone()">Clear done</button>';
@@ -2048,12 +2103,7 @@ function renderItems(l){
   // ONE flat container with interleaved store headers + item rows → enables
   // smooth cross-store drag (an item's store = the header above it on drop).
   var h='<div id="items-container">';
-  if(l.priceWatch){
-    // Watched list: one flat list ordered by the chosen sort (the item.store
-    // grouping is a shopping aid; here "best store" is the cheapest of 6, so a
-    // single ordered list is what the sort control acts on). item.store untouched.
-    h+=pwSortItems(items).map(itemHtml).join('');
-  } else if(stores.length){
+  if(stores.length){
     stores.forEach(function(s){
       h+=storeHeaderHtml(s);
       h+=sortItems(items.filter(function(x){return x.store===s;})).map(itemHtml).join('');
@@ -2068,19 +2118,16 @@ function renderItems(l){
 }
 function sortItems(arr){ return arr.slice().sort(function(a,b){ return (a.done?1:0)-(b.done?1:0); }); }
 function itemHtml(it){
-  var cl=curList(); var pw = !!(cl && cl.priceWatch);
   if(!selectMode && it.id===editingItemId){
-    var eh='<div class="item editing">'
+    return '<div class="item editing">'
       +'<label class="field"><span class="lbl">Item name</span><input id="edit-name-'+it.id+'" value="'+esc(it.name)+'" placeholder="Name"></label>'
       +'<div class="edit-grid"><div class="row2">'
         +'<label class="field"><span class="lbl">Quantity</span><input id="edit-qty-'+it.id+'" value="'+esc(it.qty||'')+'" placeholder="Qty"></label>'
         +'<label class="field"><span class="lbl">Store</span>'+storeFieldInner('edit-store-'+it.id, it.store||'')+'</label>'
-      +'</div></div>';
-    if(pw) eh+='<label class="field"><span class="lbl">Brand lock (optional — blank = cheapest any brand)</span><input id="edit-brand-'+it.id+'" value="'+esc(it.brandLock||'')+'" placeholder="e.g. Fairlife"></label>';
-    eh+='<label class="field"><span class="lbl">Description</span><div class="ta-wrap"><textarea id="edit-desc-'+it.id+'" rows="1" placeholder="Add a description…" oninput="ML.autoGrow(this)">'+esc(it.desc||'')+'</textarea>'+GRIP+'</div></label>'
+      +'</div></div>'
+      +'<label class="field"><span class="lbl">Description</span><div class="ta-wrap"><textarea id="edit-desc-'+it.id+'" rows="1" placeholder="Add a description…" oninput="ML.autoGrow(this)">'+esc(it.desc||'')+'</textarea>'+GRIP+'</div></label>'
       +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost sm" onclick="ML.cancelEdit()">Cancel</button><button class="btn solid sm" onclick="ML.saveEdit(\''+it.id+'\')">Save</button></div>'
     +'</div>';
-    return eh;
   }
   if(selectMode){
     var on=!!selected[it.id];
@@ -2090,20 +2137,13 @@ function itemHtml(it){
       +'<div class="chk" aria-hidden="true">'+(it.done?ck:'')+'</div>'
       +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+'</div></div>';
   }
-  var acts='<div class="acts">';
-  if(pw){
-    acts+='<button class="ib pw-check" onclick="ML.pwCheckItem(\''+it.id+'\')" title="Check price now"'+(pwBusy===it.id?' disabled':'')+'>'+(pwBusy===it.id?'…':'$')+'</button>'
-      +'<button class="ib" onclick="ML.pwToggleItem(\''+it.id+'\')" title="Price details">'+(pwExpandedId===it.id?'▲':'▼')+'</button>';
-  }
-  acts+='<button class="ib" onclick="ML.startEdit(\''+it.id+'\')" title="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
-    +'<button class="ib del" onclick="ML.delItem(\''+it.id+'\')" title="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>'
-    +'</div>';
-  var row='<div class="item'+(it.done?' done':'')+'" data-id="'+it.id+'">'
+  return '<div class="item'+(it.done?' done':'')+'" data-id="'+it.id+'">'
     +'<div class="chk" onclick="ML.toggleDone(\''+it.id+'\')">'+(it.done?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
-    +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+(pw?pwItemLineHtml(it):'')+'</div>'
-    +acts+'</div>';
-  if(pw && pwExpandedId===it.id) row+=pwItemDetailHtml(it);
-  return row;
+    +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+'</div>'
+    +'<div class="acts">'
+      +'<button class="ib" onclick="ML.startEdit(\''+it.id+'\')" title="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
+      +'<button class="ib del" onclick="ML.delItem(\''+it.id+'\')" title="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>'
+    +'</div></div>';
 }
 function itemSubHtml(it){
   var sub=''; if(it.qty) sub+='<span class="qty-tag">×'+esc(it.qty)+'</span>';
@@ -2113,11 +2153,11 @@ function itemSubHtml(it){
 }
 function toggleManual(){ if(!manualVisible()) return; manualOpen=!manualOpen; renderManualPop(); }
 
-// ════════ PRICE WATCH (integrated into lists) ════════
+// ════════ PRICE WATCH (each item priced at all 6 stores) ════════
 function pwBadge(store){ return pwVerified(store) ? '<span class="pw-badge verified">✓ verified</span>' : '<span class="pw-badge est">🔍 estimated</span>'; }
-function pwShortDate(iso){ try{ var d=new Date(iso); return (d.getMonth()+1)+'/'+d.getDate(); }catch(e){ return ''; } }
+function pwDateShort(iso){ try{ var d=new Date(iso); return (d.getMonth()+1)+'/'+d.getDate(); }catch(e){ return ''; } }
 // Day-over-day change in an item's BEST price (last two dated checks).
-function pwItemBestDelta(it){
+function pwDelta(it){
   var hs=(it.priceHistory||[]).filter(function(h){ return typeof h.bestPrice==='number'; });
   if(hs.length<2) return null;
   var cur=hs[hs.length-1].bestPrice, prev=hs[hs.length-2].bestPrice, d=cur-prev;
@@ -2127,9 +2167,9 @@ function pwItemBestDelta(it){
 
 // ── Sort (persisted) ──
 function pwSetSort(key){ pwSort=key; try{ localStorage.setItem('ml_pw_sort', key); }catch(e){} render(); }
-function pwNum(v){ return typeof v==='number' ? v : Infinity; }         // unpriced sinks on price sort
+function pwNum(v){ return typeof v==='number' ? v : Infinity; }        // unpriced sinks on price sort
 function pwTime(iso){ var t=Date.parse(iso||''); return isNaN(t)?0:t; }
-function pwDropVal(it){ var d=pwItemBestDelta(it); return (d&&d.dir==='down')?d.amt:0; }
+function pwDropVal(it){ var d=pwDelta(it); return (d&&d.dir==='down')?d.amt:0; }
 function pwSortItems(items){
   var arr=items.slice();
   arr.sort(function(a,b){
@@ -2137,57 +2177,90 @@ function pwSortItems(items){
     if(pwSort==='qty')     return String(a.qty||'').localeCompare(String(b.qty||''), undefined, {numeric:true});
     if(pwSort==='checked') return pwTime(b.lastChecked)-pwTime(a.lastChecked);
     if(pwSort==='drop')    return pwDropVal(b)-pwDropVal(a);
-    return normNm(a.name).localeCompare(normNm(b.name)); // 'name' default
+    return normNm(a.itemName).localeCompare(normNm(b.itemName)); // 'name' default
   });
   return arr;
 }
 function pwSortControlHtml(){
   var opts=[['name','Name'],['price','Price'],['qty','Quantity'],['checked','Last checked'],['drop','Biggest drop']];
   return '<div class="pw-sort"><span class="pw-sort-lbl">Sort</span><select onchange="ML.pwSetSort(this.value)">'
-    +opts.map(function(o){ return '<option value="'+o[0]+'"'+(pwSort===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')
-    +'</select></div>';
+    +opts.map(function(o){ return '<option value="'+o[0]+'"'+(pwSort===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select></div>';
 }
 
-// ── List-level toggle ──
-function togglePriceWatch(listId){
-  var l=lists().filter(function(x){return x.id===listId;})[0]; if(!l) return;
-  l.priceWatch=!l.priceWatch; persist(); render();
-  toast(l.priceWatch ? 'Price Watch on — items checked daily at all 6 stores' : 'Price Watch off (price history kept)');
+function renderWatchView(){
+  var h='';
+  // ── Add-watch card (NO store picker — every item tracks all 6 stores) ──
+  h+='<div class="card pw-add">';
+  h+='<div class="pw-add-title">Add a price watch</div>';
+  h+='<div class="add-grid">';
+  h+='<label class="field"><span class="lbl">Item name</span><input id="pw-name" placeholder="e.g. hydrocolloid pimple patches"></label>';
+  h+='<div class="row2">';
+  h+='<label class="field"><span class="lbl">Brand (optional)</span><input id="pw-brand" placeholder="blank = cheapest any brand"></label>';
+  h+='<label class="field"><span class="lbl">Quantity (optional)</span><input id="pw-qty" placeholder="e.g. 2 boxes"></label>';
+  h+='</div>';
+  h+='<label class="field"><span class="lbl">Product link (optional)</span><input id="pw-url" placeholder="https://… (hint for the AI-search stores)"></label>';
+  h+='<div class="actions">'+(pwAdding?'<button class="btn solid" disabled>Searching all 6 stores…</button>':'<button class="btn solid" onclick="ML.pwAddFind()">Find product</button>')+'</div>';
+  h+='</div>';
+  if(pwCandidates) h+=pwCandidatesHtml();
+  h+='</div>';
+  // ── Watch list ──
+  var items=pwItems();
+  if(!items.length){ h+='<div class="card"><div class="empty">No price watches yet.<br><br>Add one above — each item is priced at all 6 stores daily, and you\'ll get a push when the best price drops by more than $1.</div></div>'; return h; }
+  h+='<div class="items-head"><span class="ih-title">Watching '+items.length+' item'+(items.length!==1?'s':'')+'</span>'+pwSortControlHtml()+'</div>';
+  h+='<div class="pw-list">'+pwSortItems(items).map(pwRowHtml).join('')+'</div>';
+  return h;
 }
-
-// ── Per-item price UI (rendered inside the normal list item when the list is watched) ──
-function pwItemLineHtml(it){
-  var d=pwItemBestDelta(it), delta='';
-  if(d && d.dir==='down') delta=' <span class="pw-delta down">▼$'+d.amt.toFixed(2)+'</span>';
-  else if(d && d.dir==='up') delta=' <span class="pw-delta up">▲$'+d.amt.toFixed(2)+'</span>';
-  var h='<div class="pw-line">';
-  if(typeof it.bestPrice==='number'){
-    h+='<span class="pw-best">$'+it.bestPrice.toFixed(2)+'</span> <span class="pw-at">at '+esc(pwStoreLabel(it.bestStore))+'</span> '+pwBadge(it.bestStore)+delta;
-    if(it.lastChecked) h+=' <span class="pw-checked">· '+esc(pwShortDate(it.lastChecked))+'</span>';
-  } else if(it.lastChecked){
-    h+='<span class="pw-none">no price found</span> <span class="pw-checked">· '+esc(pwShortDate(it.lastChecked))+'</span>';
+// Per-store breakdown rows (shared by the confirm panel and the row detail).
+function pwBreakdownRows(breakdown, bestStore){
+  var bd=breakdown||[];
+  return PW_STORES.map(function(s){
+    var e=bd.filter(function(x){return x.store===s[0];})[0];
+    var price=(e && typeof e.price==='number')?('$'+e.price.toFixed(2)):'—';
+    var isBest = e && bestStore===s[0] && typeof e.price==='number';
+    var link=(e&&e.url)?' <a href="'+esc(e.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">↗</a>':'';
+    return '<div class="pw-bd-row'+(isBest?' best':'')+'"><span class="pw-bd-store">'+esc(s[1])+' '+pwBadge(s[0])+'</span><span class="pw-bd-price">'+price+'</span>'+link+'</div>';
+  }).join('');
+}
+function pwCandidatesHtml(){
+  var res=pwCandidates.res;
+  var h='<div class="pw-confirm">';
+  if(res && res.ok && res.foundCount>0){
+    var summary='Found at '+res.foundCount+' of '+(res.storeCount||6)+' stores · cheapest <b>$'+res.bestPrice.toFixed(2)+'</b> at '+esc(pwStoreLabel(res.bestStore))+(res.bestBrand?(' ('+esc(res.bestBrand)+')'):'');
+    h+='<div class="pw-confirm-h">'+summary+'</div>';
+    h+='<div class="pw-bd">'+pwBreakdownRows(res.breakdown, res.bestStore)+'</div>';
+    h+='<div class="pw-confirm-foot"><button class="btn ghost sm" onclick="ML.pwCancelAdd()">Cancel</button><button class="btn solid sm" onclick="ML.pwTrack()">Track this</button></div>';
   } else {
-    h+='<span class="pw-none">not checked yet</span>';
+    var msg=(res&&res.error)?('Lookup issue — '+esc(res.error)+'.'):'No sourced price found at any of the 6 stores right now.';
+    h+='<div class="pw-confirm-h">'+msg+' You can still watch it — the daily check keeps trying.</div>';
+    h+='<div class="pw-confirm-foot"><button class="btn ghost sm" onclick="ML.pwCancelAdd()">Cancel</button><button class="btn solid sm" onclick="ML.pwSaveAnyway()">Watch anyway</button></div>';
   }
-  if(it.brandLock) h+=' <span class="pw-brand" title="Brand locked">🔒 '+esc(it.brandLock)+'</span>';
   h+='</div>';
   return h;
 }
-function pwItemDetailHtml(it){
-  var h='<div class="pw-detail">';
-  h+='<div class="pw-bd-h">Today · all stores</div><div class="pw-bd">';
-  var bd=it.perStoreBreakdown||[];
-  if(!bd.length){ h+='<div class="pw-hist-empty">Not checked yet — tap “Check now”.</div>'; }
-  else {
-    PW_STORES.forEach(function(s){
-      var e=bd.filter(function(x){return x.store===s[0];})[0];
-      var price=(e && typeof e.price==='number')?('$'+e.price.toFixed(2)):(e&&e.source==='unavailable'?'—':'—');
-      var isBest = e && it.bestStore===s[0] && typeof e.price==='number';
-      var link = (e&&e.url)?' <a href="'+esc(e.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">↗</a>':'';
-      h+='<div class="pw-bd-row'+(isBest?' best':'')+'"><span class="pw-bd-store">'+esc(s[1])+' '+pwBadge(s[0])+'</span><span class="pw-bd-price">'+price+'</span>'+link+'</div>';
-    });
-  }
+function pwRowHtml(it){
+  var expanded = pwExpandedId===it.id;
+  var price = (typeof it.bestPrice==='number') ? ('$'+it.bestPrice.toFixed(2)) : '—';
+  var atStore = (typeof it.bestPrice==='number') ? ('best at '+esc(pwStoreLabel(it.bestStore))+' '+pwBadge(it.bestStore)) : (it.lastChecked?'no price found':'not checked yet');
+  var d=pwDelta(it), delta='';
+  if(d && d.dir==='down') delta='<span class="pw-delta down">▼$'+d.amt.toFixed(2)+'</span>';
+  else if(d && d.dir==='up') delta='<span class="pw-delta up">▲$'+d.amt.toFixed(2)+'</span>';
+  var checked = it.lastChecked ? ('checked '+pwDateShort(it.lastChecked)) : 'never checked';
+  var h='<div class="pw-row'+(expanded?' open':'')+'" data-id="'+it.id+'">';
+  h+='<div class="pw-main" onclick="ML.pwToggle(\''+it.id+'\')">';
+  h+='<div class="pw-info"><div class="pw-name">'+esc(it.itemName)+(it.qty?' <span class="pw-qty">×'+esc(it.qty)+'</span>':'')+(it.brandLock?'<span class="pw-brand">🔒 '+esc(it.brandLock)+'</span>':'')+'</div>';
+  h+='<div class="pw-meta">'+atStore+' · '+esc(checked)+'</div></div>';
+  h+='<div class="pw-priceblock"><div class="pw-price">'+price+'</div>'+delta+'</div>';
   h+='</div>';
+  h+='<div class="pw-acts"><button class="btn ghost sm" onclick="ML.pwCheckNow(\''+it.id+'\')"'+(pwBusy===it.id?' disabled':'')+'>'+(pwBusy===it.id?'Checking…':'Check now')+'</button>'
+    +'<button class="ib del" onclick="ML.pwDelete(\''+it.id+'\')" title="Remove">✕</button></div>';
+  if(expanded) h+=pwDetailHtml(it);
+  h+='</div>';
+  return h;
+}
+function pwDetailHtml(it){
+  var h='<div class="pw-detail">';
+  h+='<div class="pw-bd-h">Today · all stores</div>';
+  h+='<div class="pw-bd">'+((it.perStoreBreakdown&&it.perStoreBreakdown.length)?pwBreakdownRows(it.perStoreBreakdown, it.bestStore):'<div class="pw-hist-empty">Not checked yet — tap “Check now”.</div>')+'</div>';
   var hs=(it.priceHistory||[]).slice().reverse();
   if(hs.length){
     h+='<div class="pw-bd-h">History (daily best)</div><div class="pw-hist">';
@@ -2200,7 +2273,47 @@ function pwItemDetailHtml(it){
   h+='</div>';
   return h;
 }
-function pwToggleItem(id){ pwExpandedId=(pwExpandedId===id)?null:id; render(); }
+function pwToggle(id){ pwExpandedId=(pwExpandedId===id)?null:id; render(); }
+// Send the minimal item the worker needs (name, brandLock, product-link hint, and
+// prior breakdown so per-store pins carry forward).
+function pwProbe(o){ return { name:o.itemName, brandLock:o.brandLock||'', productRef:{ url:(o.productRef&&o.productRef.url)||'' }, perStoreBreakdown:o.perStoreBreakdown||[] }; }
+function pwAddFind(){
+  var name=(($('pw-name')&&$('pw-name').value)||'').trim();
+  var brand=(($('pw-brand')&&$('pw-brand').value)||'').trim();
+  var qty=(($('pw-qty')&&$('pw-qty').value)||'').trim();
+  var url=(($('pw-url')&&$('pw-url').value)||'').trim();
+  if(!name){ toast('Enter an item name', true); return; }
+  var draft={ itemName:name, qty:qty, brandLock:brand, productRef:{ url:url } };
+  pwAdding=true; pwCandidates=null; render();
+  fetch(API+'/watch/resolve',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ profile:activeProfile, item:pwProbe(draft) }) })
+    .then(function(r){ return r.json(); })
+    .then(function(res){ pwAdding=false; pwCandidates={ draft:draft, res:res||{ok:false} }; render(); })
+    .catch(function(){ pwAdding=false; pwCandidates={ draft:draft, res:{ok:false,error:'network error'} }; render(); });
+}
+function pwNewItem(draft, res, today){
+  var it={ id:uid(), itemName:draft.itemName, qty:draft.qty||'', brandLock:draft.brandLock||'',
+    productRef:{ url:(draft.productRef&&draft.productRef.url)||'' },
+    perStoreBreakdown:[], priceHistory:[], bestPrice:null, bestStore:null, lastChecked:null, createdAt:Date.now() };
+  if(res && res.ok && typeof res.bestPrice==='number'){
+    it.perStoreBreakdown=res.breakdown||[];
+    it.bestPrice=res.bestPrice; it.bestStore=res.bestStore;
+    it.lastChecked=new Date().toISOString();
+    it.priceHistory.push({ date:today, bestPrice:res.bestPrice, bestStore:res.bestStore, breakdown:res.breakdown||[] });
+  }
+  return it;
+}
+function pwTrack(){
+  if(!pwCandidates) return;
+  var it=pwNewItem(pwCandidates.draft, pwCandidates.res, new Date().toISOString().slice(0,10));
+  pwItems().push(it); persistWatch();
+  pwCandidates=null; pwExpandedId=null; render(); toast('Now watching '+it.itemName);
+}
+function pwSaveAnyway(){
+  if(!pwCandidates) return;
+  var it=pwNewItem(pwCandidates.draft, {ok:false}, new Date().toISOString().slice(0,10));
+  pwItems().push(it); persistWatch(); pwCandidates=null; render(); toast('Watch added — no price yet');
+}
+function pwCancelAdd(){ pwCandidates=null; pwAdding=false; render(); }
 function pwApplyResult(it, res){
   var today=new Date().toISOString().slice(0,10);
   it.perStoreBreakdown = Array.isArray(res.breakdown) ? res.breakdown : [];
@@ -2210,56 +2323,27 @@ function pwApplyResult(it, res){
   if(!Array.isArray(it.priceHistory)) it.priceHistory=[];
   it.priceHistory.push({ date:today, bestPrice:it.bestPrice, bestStore:it.bestStore, breakdown:it.perStoreBreakdown });
 }
-function pwCheckItem(id){
-  var l=curList(); if(!l) return;
-  var it=(l.items||[]).filter(function(x){return x.id===id;})[0]; if(!it) return;
-  if(pwBusy) return;
+function pwCheckNow(id){
+  var it=pwFind(id); if(!it || pwBusy) return;
   pwBusy=id; render();
-  fetch(API+'/watch/check',{ method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({ profile:activeProfile, item:{ name:it.name, brandLock:it.brandLock||'', perStoreBreakdown:it.perStoreBreakdown||[] } }) })
+  fetch(API+'/watch/check',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ profile:activeProfile, item:pwProbe(it) }) })
     .then(function(r){ return r.json(); })
     .then(function(res){
       pwBusy=null;
       if(!res || res.ok===false){ toast((res&&res.error)?('Check failed: '+res.error):'Check failed', true); render(); return; }
-      pwApplyResult(it, res); persist(); render();
-      if(typeof res.bestPrice==='number') toast(it.name+': best $'+res.bestPrice.toFixed(2)+' at '+pwStoreLabel(res.bestStore)+' ('+res.foundCount+'/'+res.storeCount+' stores)');
+      pwApplyResult(it, res); persistWatch(); render();
+      if(typeof res.bestPrice==='number') toast(it.itemName+': best $'+res.bestPrice.toFixed(2)+' at '+pwStoreLabel(res.bestStore)+' ('+res.foundCount+'/'+res.storeCount+')');
       else toast('No price found at any store', true);
     })
     .catch(function(){ pwBusy=null; toast('Check failed', true); render(); });
 }
-
-// ── One-time migration: old standalone Price Watch docs → list items ──
-function pwMigrate(){
-  if(!window._mlLoadOldPriceWatch) return;
-  ['tony','veda'].forEach(function(profile){
-    window._mlLoadOldPriceWatch(profile).then(function(oldItems){
-      if(!oldItems || !oldItems.length) return;
-      var pl=(state[profile]&&state[profile].lists)||[];
-      var matched=0, unmatched=[];
-      oldItems.forEach(function(oi){
-        var nm=normNm(oi.itemName||''); if(!nm){ unmatched.push(oi.itemName||'(unnamed)'); return; }
-        var found=null, foundList=null;
-        pl.forEach(function(l){ (l.items||[]).forEach(function(it){ if(!found && normNm(it.name)===nm){ found=it; foundList=l; } }); });
-        if(!found || !foundList){ unmatched.push(oi.itemName||'(unnamed)'); return; }
-        foundList.priceWatch=true;
-        if(oi.brandLock && !found.brandLock) found.brandLock=oi.brandLock;
-        // Only seed price data once (idempotent if migration re-runs before tombstone).
-        if(!Array.isArray(found.priceHistory) || !found.priceHistory.length){
-          var conv=(oi.priceHistory||[]).filter(function(h){ return typeof h.price==='number'; }).map(function(h){
-            return { date:h.date, bestPrice:h.price, bestStore:(oi.store||''), breakdown:[{ store:(oi.store||''), price:h.price, source:h.source||'ai-estimated' }] };
-          });
-          if(conv.length) found.priceHistory=conv;
-          if(typeof oi.lastPrice==='number'){ found.bestPrice=oi.lastPrice; found.bestStore=oi.store||''; }
-          if(oi.lastChecked) found.lastChecked=oi.lastChecked;
-        }
-        matched++;
-      });
-      if(matched){ persist(); if(activeProfile===profile) render(); }
-      if(window._mlTombstoneOldPriceWatch) window._mlTombstoneOldPriceWatch(profile, unmatched);
-      if(unmatched.length){ console.warn('[pricewatch migration] '+profile+': '+unmatched.length+' item(s) had no matching list item (preserved in old doc):', unmatched); if(activeProfile===profile) toast(unmatched.length+' old watch item(s) couldn\'t be matched — see console', true); }
-      else if(matched && activeProfile===profile){ toast('Migrated '+matched+' price-watch item(s) into your lists'); }
-    });
-  });
+function pwDelete(id){
+  var it=pwFind(id); if(!it) return;
+  confirmAsk('Remove the price watch for “'+it.itemName+'”?', function(){
+    if(activeProfile) pwStore[activeProfile]=pwItems().filter(function(x){ return x.id!==id; });
+    if(pwExpandedId===id) pwExpandedId=null;
+    persistWatch(); render();
+  }, 'Remove');
 }
 
 window.ML = {
@@ -2274,7 +2358,7 @@ window.ML = {
   recBack:recBack, recAddIng:recAddIng, recAddTool:recAddTool, recSave:recSave, recCloseModal:recCloseModal, recDelete:recDelete,
   recUndo:recUndo, recRedo:recRedo,
   recEditStep:recEditStep, recAddStep:recAddStep, recSaveStep:recSaveStep, recCancelStep:recCancelStep, recDeleteStep:recDeleteStep,
-  togglePriceWatch:togglePriceWatch, pwCheckItem:pwCheckItem, pwToggleItem:pwToggleItem, pwSetSort:pwSetSort,
+  pwAddFind:pwAddFind, pwTrack:pwTrack, pwSaveAnyway:pwSaveAnyway, pwCancelAdd:pwCancelAdd, pwCheckNow:pwCheckNow, pwDelete:pwDelete, pwToggle:pwToggle, pwSetSort:pwSetSort,
   openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker, pickDevice:pickDevice,
   manageLock:manageLock, lockSubmit:lockSubmit, lockCancel:lockCancel, lockForgot:lockForgot, lockReset:lockReset
 };

@@ -1260,11 +1260,10 @@ async function fsReadDoc(env, token, path) {
   return o;
 }
 
-// Full-document overwrite from a plain JS object. Price Watch now rides on the
-// existing `dashboards/mylist` doc (same doc the client's setDoc/onSnapshot sync
-// uses), so the cron writes the WHOLE doc back after EACH item — a mid-run crash
-// still persists already-checked items. Last-write-wins vs. a concurrent UI edit,
-// collisions effectively nil given the daily ~4am fire time.
+// Full-document overwrite from a plain JS object. The cron writes the whole
+// Price Watch doc back after EACH item (crash-safe — already-checked items
+// persist). Last-write-wins vs. a concurrent UI edit; collisions effectively nil
+// given the daily ~4am fire time.
 async function fsWriteDoc(env, token, path, obj) {
   const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${path}`;
   const fields = {};
@@ -1593,9 +1592,10 @@ async function checkAllStores(env, profile, item) {
   // All six stores are priced CONCURRENTLY — sequentially this is 6 × up-to-28s
   // (~2 min/item); in parallel it's ~one grounded round-trip. Same total
   // subrequest count (concurrency doesn't change the per-invocation cap).
+  const hintUrl = (item.productRef && item.productRef.url) || '';   // user-provided link, hints AI stores
   const breakdown = await Promise.all(ALL_WATCH_STORES.map(async (store) => {
     const p = prev[store] || {};
-    const probe = { itemName, brandLock, productRef: { krogerProductId: p.krogerProductId || '', url: p.url || '', foundTitle: p.foundTitle || '' } };
+    const probe = { itemName, brandLock, productRef: { krogerProductId: p.krogerProductId || '', url: p.url || hintUrl, foundTitle: p.foundTitle || '' } };
     let res;
     try {
       res = KROGER_STORE_KEYS.has(store) ? await checkKroger(env, store, profile, probe) : await checkAiStore(env, store, probe, profile);
@@ -1638,23 +1638,22 @@ async function handleWatchCheck(body, env) {
 }
 const handleWatchResolve = handleWatchCheck;
 
-// ── Daily cron (§4, refactored) ──────────────────────────────────────────────
-// Rides on the SINGLE `dashboards/mylist` doc (both profiles live there as
-// {tony:{lists}, veda:{lists}, ...}). Collects every item in a list whose
-// `priceWatch === true`, prices it at ALL SIX stores, records the per-store
-// breakdown + daily best into the item, writes the whole doc back AFTER EACH
-// item (crash-safe), and pushes a notification when today's best beats the
-// previous best by more than a flat $1.00.
+// ── Daily cron ───────────────────────────────────────────────────────────────
+// Reads the two standalone Price Watch docs (one per profile), prices EACH item
+// at ALL SIX stores, records the per-store breakdown + daily best into the item,
+// writes the doc back AFTER EACH item (crash-safe), and pushes a notification
+// when today's best beats the previous best by more than a flat $1.00.
 //
-// SUBREQUEST CAP re-verified for the all-6-stores refactor: each item now costs
-// ~9–13 subrequests (2 Kroger banners: 1 real + 1 skipped-before-fetch when the
-// out-of-region banner has no location; 4 AI stores × 2–3 Gemini calls) — a ~6×
-// jump from the single-store version. So PW_MAX_ITEMS_PER_RUN drops from 12 to 3
-// (3 × ~13 + overhead + writes ≈ 45 < 50). The KV round-robin cursor still
-// rotates a larger combined watchlist across successive daily runs; coverage
-// latency is ceil(totalItems / 3) days, which is the accepted tradeoff for
-// staying on the free plan without hitting the cap that broke newshub-api.
-const MYLIST_DOC = 'dashboards/mylist';
+// SUBREQUEST CAP (all-6-stores): each item costs ~9–13 subrequests (1 real Kroger
+// banner + 1 skipped-before-fetch out-of-region; 4 AI stores × 2–3 Gemini calls) —
+// so PW_MAX_ITEMS_PER_RUN is 3 (3 × ~13 + overhead + writes ≈ 45 < 50). A KV
+// round-robin cursor rotates a larger combined watchlist across successive daily
+// runs (coverage latency ≈ ceil(totalItems / 3) days) — the accepted tradeoff for
+// the free plan and the cap that broke newshub-api.
+const PW_DOCS = [
+  { profile: 'tony', path: 'dashboards/pricewatch' },
+  { profile: 'veda', path: 'dashboards/pricewatch-veda' },
+];
 const PW_MAX_ITEMS_PER_RUN = 3;
 
 async function runPriceWatchCron(env) {
@@ -1662,20 +1661,17 @@ async function runPriceWatchCron(env) {
   try { token = await getGoogleAccessToken(env); }
   catch (e) { console.error('[pricewatch] auth failed:', e.message); return; }
 
-  let doc;
-  try { doc = await fsReadDoc(env, token, MYLIST_DOC); }
-  catch (e) { console.error('[pricewatch] read mylist failed:', e.message); return; }
-  if (!doc) { console.log('[pricewatch] no mylist doc'); return; }
-
-  // Collect items from every priceWatch-enabled list, across both profiles.
-  // Skip done/checked-off items (no point pricing something already bought).
+  // Read both docs; build a flat list of {profile, path, doc, item} across them.
+  const docs = {};
   const flat = [];
-  for (const profile of ['tony', 'veda']) {
-    const lists = (doc[profile] && Array.isArray(doc[profile].lists)) ? doc[profile].lists : [];
-    for (const list of lists) {
-      if (!list || list.priceWatch !== true || !Array.isArray(list.items)) continue;
-      for (const item of list.items) if (item && !item.done) flat.push({ profile, item });
-    }
+  for (const d of PW_DOCS) {
+    let data;
+    try { data = await fsReadDoc(env, token, d.path); }
+    catch (e) { console.warn('[pricewatch] read', d.path, e.message); continue; }
+    const items = (data && Array.isArray(data.items)) ? data.items : [];
+    docs[d.path] = data || { items: [] };
+    if (!docs[d.path].items) docs[d.path].items = items;
+    items.forEach(item => { if (item) flat.push({ profile: d.profile, path: d.path, item }); });
   }
   if (!flat.length) { console.log('[pricewatch] no watched items'); return; }
 
@@ -1704,26 +1700,26 @@ async function runPriceWatchCron(env) {
     if (!Array.isArray(it.priceHistory)) it.priceHistory = [];
     it.priceHistory.push({ date: today, bestPrice: res.bestPrice, bestStore: res.bestStore, breakdown: res.breakdown || [] });
 
-    // Write the WHOLE mylist doc back NOW (crash-safe). `it` is a live reference
-    // inside `doc`, so its mutations are already in the object we serialize.
-    doc.savedAt = Date.now();
-    try { await fsWriteDoc(env, token, MYLIST_DOC, doc); }
-    catch (e) { console.warn('[pricewatch] write failed:', e.message); }
+    // Write the whole doc back NOW (crash-safe). `it` is a live reference inside
+    // docs[path].items, so its mutation is already in the object we serialize.
+    const d = docs[entry.path];
+    try { await fsWriteDoc(env, token, entry.path, { items: d.items, savedAt: Date.now() }); }
+    catch (e) { console.warn('[pricewatch] write', entry.path, e.message); }
 
     // Notify only on a real drop of MORE THAN a flat $1.00 (no percentage).
     // Never notify when today's best is unavailable (bestPrice null).
     if (prevBest != null && typeof res.bestPrice === 'number' && (prevBest - res.bestPrice) > 1.00) {
       if (!tokenDocsCache) tokenDocsCache = await fsFetchTokens(env, token);
       const dash = entry.profile;   // 'tony' | 'veda' — strict device-main scoping
-      const targets = tokenDocsCache.filter(d => (d.fields?.mainDash?.stringValue || 'all') === dash);
+      const targets = tokenDocsCache.filter(d2 => (d2.fields?.mainDash?.stringValue || 'all') === dash);
       const bestEntry = (res.breakdown || []).find(e => e.store === res.bestStore) || {};
       const estNote = bestEntry.source === 'ai-estimated' ? ' — worth double-checking' : '';
       const storeLabel = STORE_LABELS[res.bestStore] || res.bestStore;
-      const nm = it.name || it.itemName || 'Item';
+      const nm = it.itemName || it.name || 'Item';
       const bodyTxt = `${nm}: $${prevBest.toFixed(2)} → $${res.bestPrice.toFixed(2)} at ${storeLabel}${estNote}`;
       const occId = `pw_${dash}_${it.id || ''}_${Date.now()}`;
-      await Promise.allSettled(targets.map(d =>
-        sendFCM(env.FIREBASE_PROJECT_ID, d.fields.token.stringValue, 'Price drop', bodyTxt, occId, token, dash)
+      await Promise.allSettled(targets.map(d2 =>
+        sendFCM(env.FIREBASE_PROJECT_ID, d2.fields.token.stringValue, 'Price drop', bodyTxt, occId, token, dash)
           .catch(e => console.warn('[pricewatch] fcm', e.message))
       ));
       console.log(`[pricewatch] drop ${bodyTxt} → ${targets.length} device(s)`);
