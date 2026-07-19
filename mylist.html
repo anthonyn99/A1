@@ -360,6 +360,13 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-variant-title{font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .pw-variant-sub{font-size:12px;color:var(--textdim);margin-top:1px;}
 .pw-variant-price{font-weight:800;color:var(--text);}
+.pw-stores-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.pw-store-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.pw-store-chip{display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:4px 10px;font-size:12px;font-weight:700;color:var(--text);}
+.pw-store-chip .x{cursor:pointer;color:var(--bad);font-weight:800;font-size:15px;line-height:1;padding-left:2px;}
+.pw-store-add{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.pw-store-add input{flex:1;min-width:120px;}
+.pw-store-note{font-size:11px;color:var(--textmute);margin-top:8px;}
 
 /* ── Recipes ── */
 .rec-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
@@ -704,29 +711,40 @@ body.dnd-active *{cursor:grabbing !important;}
   const PW_DOCS = { tony: doc(db, "dashboards/pricewatch"), veda: doc(db, "dashboards/pricewatch-veda") };
   const pwSaveTimers = { tony:null, veda:null };
   const pwLastOwnSaveAt = { tony:0, veda:0 };
+  // The pricewatch doc holds BOTH the tracked items and the per-profile `stores`
+  // list. Loads/saves return {items, stores}; store-list edits can save immediately
+  // (skip the 1200ms debounce) so they propagate in real time across devices.
   window._mlLoadPriceWatch = async (profile) => {
-    const ref = PW_DOCS[profile]; if(!ref) return [];
-    try { await _whenAuthed(); const snap = await getDoc(ref); return (snap.exists() && Array.isArray(snap.data().items)) ? snap.data().items : []; }
-    catch(e){ console.warn("PriceWatch load failed:", e); return []; }
+    const ref = PW_DOCS[profile]; if(!ref) return { items:[], stores:null };
+    try {
+      await _whenAuthed(); const snap = await getDoc(ref);
+      if(!snap.exists()) return { items:[], stores:null };
+      const d = snap.data();
+      return { items: Array.isArray(d.items)?d.items:[], stores: Array.isArray(d.stores)?d.stores:null };
+    } catch(e){ console.warn("PriceWatch load failed:", e); return { items:[], stores:null }; }
   };
-  window._mlSavePriceWatch = (profile, items) => {
+  window._mlSavePriceWatch = (profile, payload, immediate) => {
     const ref = PW_DOCS[profile]; if(!ref) return;
     pwLastOwnSaveAt[profile] = Date.now();
     window.dispatchEvent(new CustomEvent("ml-syncing"));
-    if (pwSaveTimers[profile]) clearTimeout(pwSaveTimers[profile]);
-    pwSaveTimers[profile] = setTimeout(async () => {
+    const doSave = async () => {
       try {
         pwLastOwnSaveAt[profile] = Date.now();
-        await setDoc(ref, { items: items, savedAt: Date.now() });
+        const body = { items: (payload && payload.items) || [], savedAt: Date.now() };
+        if (payload && Array.isArray(payload.stores)) body.stores = payload.stores;
+        await setDoc(ref, body);
         pwLastOwnSaveAt[profile] = Date.now();
         window.dispatchEvent(new CustomEvent("ml-saved"));
       } catch(e){ console.warn("PriceWatch save failed:", e); window.dispatchEvent(new CustomEvent("ml-error")); }
-    }, 1200);
+    };
+    if (pwSaveTimers[profile]) clearTimeout(pwSaveTimers[profile]);
+    if (immediate) { pwSaveTimers[profile]=null; doSave(); }
+    else pwSaveTimers[profile] = setTimeout(doSave, 1200);
   };
   ["tony","veda"].forEach((profile) => {
     onSnapshot(PW_DOCS[profile], (snap) => {
       if (Date.now() - pwLastOwnSaveAt[profile] < 8000) return;
-      if (snap.exists() && Array.isArray(snap.data().items)) window.dispatchEvent(new CustomEvent("ml-pricewatch-update", { detail: { profile: profile, items: snap.data().items } }));
+      if (snap.exists()) { const d = snap.data(); window.dispatchEvent(new CustomEvent("ml-pricewatch-update", { detail: { profile: profile, items: Array.isArray(d.items)?d.items:[], stores: Array.isArray(d.stores)?d.stores:null } })); }
     }, (err) => { console.warn("PriceWatch snapshot err", err); });
   });
 
@@ -762,21 +780,41 @@ var recDetailId = null;
 var recEditingId = null;
 var recipesLoaded = { tony:false, veda:false };
 function setRecipes(arr){ recipes = arr; if(activeProfile) recipesStore[activeProfile] = arr; }
-// Price Watch (per profile — Tony & Veda each have their own tracked items).
-// Every item is priced at ALL 6 stores; the item stores a per-store breakdown +
-// a computed daily best. Lives in its own docs (dashboards/pricewatch[-veda]).
-var pwStore = { tony:[], veda:[] };
+// Price Watch (per profile). Items priced at every ENABLED store; each item keeps a
+// per-store breakdown + a computed daily best. Doc dashboards/pricewatch[-veda] =
+// { items, stores }. The store list is dynamic (add/remove retailers at runtime).
+var DEFAULT_STORES = [
+  { key:'kroger', name:'Kroger', type:'kroger' },
+  { key:'kingsoopers', name:'King Soopers', type:'kroger' },
+  { key:'walmart', name:'Walmart', domain:'walmart.com', type:'ai' },
+  { key:'amazon', name:'Amazon', domain:'amazon.com', type:'ai' },
+  { key:'cvs', name:'CVS', domain:'cvs.com', type:'ai' },
+  { key:'walgreens', name:'Walgreens', domain:'walgreens.com', type:'ai' }
+];
+var pwStore = { tony:[], veda:[] };            // tracked items per profile
+var pwStoresState = { tony:null, veda:null };  // per-profile store list (null → DEFAULT_STORES)
 var pwLoaded = { tony:false, veda:false };
 var pwExpandedId = null;      // which watch row is expanded to show breakdown/history
-var pwAdding = false;         // resolve() in flight (spinner on "Find product")
-var pwCandidates = null;      // {draft, res} — pending consolidated confirm-on-add
+var pwManageOpen = false;     // store-manager panel open
 var pwBusy = null;            // item id currently being checked (spinner on "Check now")
 var pwSort = localStorage.getItem('ml_pw_sort') || 'name';   // persisted sort key
-var PW_STORES = [['kroger','Kroger'],['kingsoopers','King Soopers'],['walmart','Walmart'],['amazon','Amazon'],['cvs','CVS'],['walgreens','Walgreens']];
-function pwVerified(store){ return store==='kroger' || store==='kingsoopers'; }
-function pwStoreLabel(store){ var m=PW_STORES.filter(function(s){return s[0]===store;})[0]; return m?m[1]:(store||''); }
+// Search state persists PER PROFILE — survives tab switches; resets only on a new
+// search or Clear.
+var pwCandByProfile = { tony:null, veda:null };     // {draft,res} pending confirm
+var pwAddingByProfile = { tony:false, veda:false };  // search in flight
+var pwFormByProfile = { tony:{name:'',brand:'',qty:'',url:''}, veda:{name:'',brand:'',qty:'',url:''} };
+function pwCand(){ return activeProfile ? pwCandByProfile[activeProfile] : null; }
+function pwSetCand(v){ if(activeProfile) pwCandByProfile[activeProfile]=v; }
+function pwAddingNow(){ return activeProfile ? pwAddingByProfile[activeProfile] : false; }
+function pwSetAdding(v){ if(activeProfile) pwAddingByProfile[activeProfile]=v; }
+function pwForm(){ return (activeProfile && pwFormByProfile[activeProfile]) || {name:'',brand:'',qty:'',url:''}; }
+function pwStores(){ var s = activeProfile ? pwStoresState[activeProfile] : null; return (Array.isArray(s) && s.length) ? s : DEFAULT_STORES; }
+function pwStoreObj(key){ return pwStores().filter(function(x){return x.key===key;})[0] || null; }
+function pwVerified(key){ var o=pwStoreObj(key); return o ? o.type==='kroger' : (key==='kroger'||key==='kingsoopers'); }
+function pwStoreLabel(key){ var o=pwStoreObj(key); return o ? o.name : String(key||''); }
 function pwItems(){ return (activeProfile && pwStore[activeProfile]) || []; }
-function persistWatch(){ if(window._mlSavePriceWatch && activeProfile) window._mlSavePriceWatch(activeProfile, pwItems().map(sanitize)); }
+function persistWatch(){ if(window._mlSavePriceWatch && activeProfile) window._mlSavePriceWatch(activeProfile, { items: pwItems().map(sanitize), stores: pwStoresState[activeProfile] }); }
+function persistStores(){ if(window._mlSavePriceWatch && activeProfile) window._mlSavePriceWatch(activeProfile, { items: pwItems().map(sanitize), stores: pwStoresState[activeProfile] }, true); }
 function pwFind(id){ return pwItems().filter(function(x){return x.id===id;})[0]; }
 function normNm(s){ return String(s==null?'':s).toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim(); }
 
@@ -847,8 +885,8 @@ function boot(){
   }
   if(window._mlLoadPriceWatch){
     ['tony','veda'].forEach(function(p){
-      window._mlLoadPriceWatch(p).then(function(items){
-        pwStore[p]=items||[]; pwLoaded[p]=true;
+      window._mlLoadPriceWatch(p).then(function(res){
+        pwStore[p]=(res&&res.items)||[]; pwStoresState[p]=(res&&res.stores)||null; pwLoaded[p]=true;
         if(activeProfile===p && view==='watch') render();
       });
     });
@@ -869,7 +907,7 @@ window.addEventListener('ml-recipes-update', function(e){
 window.addEventListener('ml-pricewatch-update', function(e){
   var p=e.detail&&e.detail.profile, items=(e.detail&&Array.isArray(e.detail.items))?e.detail.items:[];
   if(!p||!pwStore.hasOwnProperty(p)) return;
-  pwStore[p]=items; pwLoaded[p]=true;
+  pwStore[p]=items; pwStoresState[p]=(e.detail&&Array.isArray(e.detail.stores))?e.detail.stores:pwStoresState[p]; pwLoaded[p]=true;
   if(activeProfile===p && view==='watch') render();
 });
 function pData(){ return state[activeProfile] || {lists:[]}; }
@@ -1520,7 +1558,9 @@ var REC_CATS=['Breakfast','Lunch','Dinner','Snack','Dessert','Other'];
 var EDIT_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 var DEL_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 function persistRecipes(){ if(window._mlSaveRecipes && activeProfile) window._mlSaveRecipes(activeProfile, recipes.map(sanitize)); }
-function setView(v){ view=v; recDetailId=null; recEditingStep=null; manualOpen=false; pwCandidates=null; pwAdding=false; render(); window.scrollTo(0,0); }
+function setView(v){ view=v; recDetailId=null; recEditingStep=null; manualOpen=false; render(); window.scrollTo(0,0); }
+// NOTE: Price Watch search state (form + results) is deliberately NOT reset here —
+// it persists per profile across tab switches; only a new search or Clear resets it.
 
 // ── recipe undo / redo (per profile; covers manual AND voice/AI changes) ──
 var recUndoStack={}, recRedoStack={};
@@ -2198,62 +2238,79 @@ function pwSortControlHtml(){
 }
 
 function renderWatchView(){
+  var f=pwForm(), stores=pwStores();
   var h='';
-  // ── Add-watch card (NO store picker — every item tracks all 6 stores) ──
+  // ── Store manager (add/remove retailers — synced instantly, applies to all searches) ──
+  h+='<div class="card pw-stores">';
+  h+='<div class="pw-stores-head"><span class="pw-add-title">Stores ('+stores.length+')</span>'
+    +'<button class="btn ghost sm" onclick="ML.pwToggleManage()">'+(pwManageOpen?'Done':'Manage')+'</button></div>';
+  h+='<div class="pw-store-chips">'+stores.map(function(s){
+      return '<span class="pw-store-chip">'+esc(s.name)+' '+pwBadge(s.key)
+        +(pwManageOpen?'<span class="x" onclick="ML.pwRemoveStore(\''+s.key+'\')" title="Remove">×</span>':'')+'</span>';
+    }).join('')+'</div>';
+  if(pwManageOpen){
+    h+='<div class="pw-store-add"><input id="pw-store-name" placeholder="Store name (e.g. Target)"><input id="pw-store-domain" placeholder="website (e.g. target.com)" onkeydown="if(event.key===\'Enter\')ML.pwAddStore()"><button class="btn solid sm" onclick="ML.pwAddStore()">Add</button></div>';
+    h+='<div class="pw-store-note">New stores are AI-searched by their website. Every search uses the enabled stores above.</div>';
+  }
+  h+='</div>';
+  // ── Search card (searches ALL enabled stores; inputs persist after search) ──
   h+='<div class="card pw-add">';
-  h+='<div class="pw-add-title">Add a price watch</div>';
+  h+='<div class="pw-add-title">Search a product to watch</div>';
   h+='<div class="add-grid">';
-  h+='<label class="field"><span class="lbl">Item name</span><input id="pw-name" placeholder="e.g. hydrocolloid pimple patches"></label>';
+  h+='<label class="field"><span class="lbl">Item name</span><input id="pw-name" value="'+esc(f.name)+'" oninput="ML.pwFormInput()" placeholder="e.g. La Roche-Posay face wash"></label>';
   h+='<div class="row2">';
-  h+='<label class="field"><span class="lbl">Brand (optional)</span><input id="pw-brand" placeholder="blank = cheapest any brand"></label>';
-  h+='<label class="field"><span class="lbl">Quantity (optional)</span><input id="pw-qty" placeholder="e.g. 2 boxes"></label>';
+  h+='<label class="field"><span class="lbl">Brand (optional)</span><input id="pw-brand" value="'+esc(f.brand)+'" oninput="ML.pwFormInput()" placeholder="blank = any brand"></label>';
+  h+='<label class="field"><span class="lbl">Quantity (optional)</span><input id="pw-qty" value="'+esc(f.qty)+'" oninput="ML.pwFormInput()" placeholder="e.g. 2 boxes"></label>';
   h+='</div>';
-  h+='<label class="field"><span class="lbl">Product link (optional)</span><input id="pw-url" placeholder="https://… (hint for the AI-search stores)"></label>';
-  h+='<div class="actions">'+(pwAdding?'<button class="btn solid" disabled>Searching all 6 stores…</button>':'<button class="btn solid" onclick="ML.pwAddFind()">Find product</button>')+'</div>';
+  h+='<label class="field"><span class="lbl">Product link (optional)</span><input id="pw-url" value="'+esc(f.url)+'" oninput="ML.pwFormInput()" placeholder="https://… (hint for the AI-search stores)"></label>';
+  h+='<div class="actions">'
+    +(pwAddingNow()?'<button class="btn solid" disabled>Searching '+stores.length+' stores…</button>':'<button class="btn solid" onclick="ML.pwAddFind()">Search</button>')
+    +((pwCand()||f.name||f.brand||f.qty||f.url)?'<button class="btn ghost" onclick="ML.pwClearSearch()">Clear</button>':'')
+    +'</div>';
   h+='</div>';
-  if(pwCandidates) h+=pwCandidatesHtml();
+  if(pwCand()) h+=pwCandidatesHtml();
   h+='</div>';
   // ── Watch list ──
   var items=pwItems();
-  if(!items.length){ h+='<div class="card"><div class="empty">No price watches yet.<br><br>Add one above — each item is priced at all 6 stores daily, and you\'ll get a push when the best price drops by more than $1.</div></div>'; return h; }
+  if(!items.length){ h+='<div class="card"><div class="empty">No price watches yet.<br><br>Search a product above and pick one to track — it\'ll be priced at every enabled store daily, and you\'ll get a push when the best price drops by more than $1.</div></div>'; return h; }
   h+='<div class="items-head"><span class="ih-title">Watching '+items.length+' item'+(items.length!==1?'s':'')+'</span>'+pwSortControlHtml()+'</div>';
   h+='<div class="pw-list">'+pwSortItems(items).map(pwRowHtml).join('')+'</div>';
   return h;
 }
-// Per-store breakdown rows (shared by the confirm panel and the row detail).
+// Per-store breakdown rows (shared by the confirm panel and the row detail). Driven
+// by the breakdown entries themselves so it covers any dynamically-added store.
 function pwBreakdownRows(breakdown, bestStore){
-  var bd=breakdown||[];
-  return PW_STORES.map(function(s){
-    var e=bd.filter(function(x){return x.store===s[0];})[0];
-    var price=(e && typeof e.price==='number')?('$'+e.price.toFixed(2)):'—';
-    var isBest = e && bestStore===s[0] && typeof e.price==='number';
-    var link=(e&&e.url)?' <a href="'+esc(e.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">↗</a>':'';
-    return '<div class="pw-bd-row'+(isBest?' best':'')+'"><span class="pw-bd-store">'+esc(s[1])+' '+pwBadge(s[0])+'</span><span class="pw-bd-price">'+price+'</span>'+link+'</div>';
+  return (breakdown||[]).map(function(e){
+    var price=(typeof e.price==='number')?('$'+e.price.toFixed(2)):'—';
+    var isBest = bestStore===e.store && typeof e.price==='number';
+    var link=(e.url)?' <a href="'+esc(e.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">↗</a>':'';
+    return '<div class="pw-bd-row'+(isBest?' best':'')+'"><span class="pw-bd-store">'+esc(e.storeName||pwStoreLabel(e.store))+' '+pwBadge(e.store)+'</span><span class="pw-bd-price">'+price+'</span>'+link+'</div>';
   }).join('');
 }
 function pwCandidatesHtml(){
-  var res=pwCandidates.res;
+  var c=pwCand(); if(!c) return '';
+  var res=c.res, total=(res&&res.storeCount)||pwStores().length;
   var h='<div class="pw-confirm">';
   if(res && res.ok && res.foundCount>0){
-    var summary='Found at '+res.foundCount+' of '+(res.storeCount||6)+' stores · cheapest <b>$'+res.bestPrice.toFixed(2)+'</b> at '+esc(pwStoreLabel(res.bestStore))+(res.bestBrand?(' ('+esc(res.bestBrand)+')'):'');
+    var summary='Found at '+res.foundCount+' of '+total+' stores · cheapest <b>$'+res.bestPrice.toFixed(2)+'</b> at '+esc(pwStoreLabel(res.bestStore))+(res.bestBrand?(' ('+esc(res.bestBrand)+')'):'');
     h+='<div class="pw-confirm-h">'+summary+'</div>';
     h+='<div class="pw-confirm-actions"><button class="btn solid sm" onclick="ML.pwTrack()">Track cheapest (any brand)</button><button class="btn ghost sm" onclick="ML.pwCancelAdd()">Cancel</button></div>';
     h+='<div class="pw-confirm-sub">…or pick a specific product to track:</div>';
     (res.breakdown||[]).forEach(function(e){
       var vs=e.variants||[];
       if(!vs.length) return;
-      h+='<div class="pw-vgroup"><div class="pw-vstore">'+esc(pwStoreLabel(e.store))+' '+pwBadge(e.store)+'</div>';
+      h+='<div class="pw-vgroup"><div class="pw-vstore">'+esc(e.storeName||pwStoreLabel(e.store))+' '+pwBadge(e.store)+'</div>';
       vs.forEach(function(v,i){
         var sub=[v.brand,v.size].filter(Boolean).join(' · ');
         var link=(v.url)?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">↗</a>':'';
-        h+='<div class="pw-variant"><div class="pw-variant-info"><div class="pw-variant-title">'+esc(v.title||pwCandidates.draft.itemName)+'</div>'
+        h+='<div class="pw-variant"><div class="pw-variant-info"><div class="pw-variant-title">'+esc(v.title||c.draft.itemName)+'</div>'
           +'<div class="pw-variant-sub"><span class="pw-variant-price">$'+v.price.toFixed(2)+'</span>'+(sub?' · '+esc(sub):'')+link+'</div></div>'
           +'<button class="btn ghost sm" onclick="ML.pwTrackVariant(\''+e.store+'\','+i+')">Track</button></div>';
       });
       h+='</div>';
     });
   } else {
-    var msg=(res&&res.error)?('Lookup issue — '+esc(res.error)+'.'):'No sourced price found at any of the 6 stores right now.';
+    var msg=(res&&res.error)?('Lookup issue — '+esc(res.error)+'.'):'No sourced price found at any enabled store right now.';
     h+='<div class="pw-confirm-h">'+msg+' You can still watch it — the daily check keeps trying.</div>';
     h+='<div class="pw-confirm-foot"><button class="btn ghost sm" onclick="ML.pwCancelAdd()">Cancel</button><button class="btn solid sm" onclick="ML.pwSaveAnyway()">Watch anyway</button></div>';
   }
@@ -2275,8 +2332,8 @@ function pwSlim(breakdown){
 }
 // Track ONE specific variant: pins brand/title/url so future checks anchor to it.
 function pwTrackVariant(store, i){
-  if(!pwCandidates) return;
-  var res=pwCandidates.res, draft=pwCandidates.draft;
+  var c=pwCand(); if(!c) return;
+  var res=c.res, draft=c.draft;
   var e=(res.breakdown||[]).filter(function(x){return x.store===store;})[0];
   var v=e && e.variants && e.variants[i]; if(!v) return;
   var today=new Date().toISOString().slice(0,10);
@@ -2288,7 +2345,7 @@ function pwTrackVariant(store, i){
   if(seed){ seed.price=v.price; if(v.url)seed.url=v.url; if(v.title)seed.foundTitle=v.title; if(v.krogerProductId)seed.krogerProductId=v.krogerProductId; if(v.brand)seed.brand=v.brand; }
   it.priceHistory.push({ date:today, bestPrice:it.bestPrice, bestStore:it.bestStore, breakdown:it.perStoreBreakdown });
   pwItems().push(it); persistWatch();
-  pwCandidates=null; pwExpandedId=null; render(); toast('Tracking '+(v.title||it.itemName));
+  pwSetCand(null); pwClearForm(); pwExpandedId=null; render(); toast('Tracking '+(v.title||it.itemName));
 }
 function pwRowHtml(it){
   var expanded = pwExpandedId===it.id;
@@ -2328,20 +2385,32 @@ function pwDetailHtml(it){
 }
 function pwToggle(id){ pwExpandedId=(pwExpandedId===id)?null:id; render(); }
 // Send the minimal item the worker needs (name, brandLock, product-link hint, and
-// prior breakdown so per-store pins carry forward).
+// prior breakdown so per-store pins carry forward), plus the enabled store list.
 function pwProbe(o){ return { name:o.itemName, brandLock:o.brandLock||'', productRef:{ url:(o.productRef&&o.productRef.url)||'' }, perStoreBreakdown:o.perStoreBreakdown||[] }; }
+function pwReqBody(item){ return JSON.stringify({ profile:activeProfile, item:pwProbe(item), stores:pwStores() }); }
+// oninput keeps the form state current WITHOUT re-rendering (no focus loss); value=
+// repopulates it on the next render, so inputs survive a search & tab switches.
+function pwFormInput(){
+  if(!activeProfile) return;
+  var f=pwFormByProfile[activeProfile];
+  if($('pw-name')) f.name=$('pw-name').value;
+  if($('pw-brand')) f.brand=$('pw-brand').value;
+  if($('pw-qty')) f.qty=$('pw-qty').value;
+  if($('pw-url')) f.url=$('pw-url').value;
+}
+function pwClearForm(){ if(activeProfile) pwFormByProfile[activeProfile]={name:'',brand:'',qty:'',url:''}; }
+function pwClearSearch(){ pwSetCand(null); pwSetAdding(false); pwClearForm(); render(); }
 function pwAddFind(){
-  var name=(($('pw-name')&&$('pw-name').value)||'').trim();
-  var brand=(($('pw-brand')&&$('pw-brand').value)||'').trim();
-  var qty=(($('pw-qty')&&$('pw-qty').value)||'').trim();
-  var url=(($('pw-url')&&$('pw-url').value)||'').trim();
+  pwFormInput();
+  var f=pwForm();
+  var name=(f.name||'').trim();
   if(!name){ toast('Enter an item name', true); return; }
-  var draft={ itemName:name, qty:qty, brandLock:brand, productRef:{ url:url } };
-  pwAdding=true; pwCandidates=null; render();
-  fetch(API+'/watch/resolve',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ profile:activeProfile, item:pwProbe(draft) }) })
+  var draft={ itemName:name, qty:(f.qty||'').trim(), brandLock:(f.brand||'').trim(), productRef:{ url:(f.url||'').trim() } };
+  pwSetAdding(true); pwSetCand(null); render();
+  fetch(API+'/watch/resolve',{ method:'POST', headers:{'Content-Type':'application/json'}, body:pwReqBody(draft) })
     .then(function(r){ return r.json(); })
-    .then(function(res){ pwAdding=false; pwCandidates={ draft:draft, res:res||{ok:false} }; render(); })
-    .catch(function(){ pwAdding=false; pwCandidates={ draft:draft, res:{ok:false,error:'network error'} }; render(); });
+    .then(function(res){ pwSetAdding(false); pwSetCand({ draft:draft, res:res||{ok:false} }); render(); })
+    .catch(function(){ pwSetAdding(false); pwSetCand({ draft:draft, res:{ok:false,error:'network error'} }); render(); });
 }
 function pwNewItem(draft, res, today){
   var it={ id:uid(), itemName:draft.itemName, qty:draft.qty||'', brandLock:draft.brandLock||'',
@@ -2357,17 +2426,17 @@ function pwNewItem(draft, res, today){
   return it;
 }
 function pwTrack(){
-  if(!pwCandidates) return;
-  var it=pwNewItem(pwCandidates.draft, pwCandidates.res, new Date().toISOString().slice(0,10));
+  var c=pwCand(); if(!c) return;
+  var it=pwNewItem(c.draft, c.res, new Date().toISOString().slice(0,10));
   pwItems().push(it); persistWatch();
-  pwCandidates=null; pwExpandedId=null; render(); toast('Now watching '+it.itemName);
+  pwSetCand(null); pwClearForm(); pwExpandedId=null; render(); toast('Now watching '+it.itemName);
 }
 function pwSaveAnyway(){
-  if(!pwCandidates) return;
-  var it=pwNewItem(pwCandidates.draft, {ok:false}, new Date().toISOString().slice(0,10));
-  pwItems().push(it); persistWatch(); pwCandidates=null; render(); toast('Watch added — no price yet');
+  var c=pwCand(); if(!c) return;
+  var it=pwNewItem(c.draft, {ok:false}, new Date().toISOString().slice(0,10));
+  pwItems().push(it); persistWatch(); pwSetCand(null); pwClearForm(); render(); toast('Watch added — no price yet');
 }
-function pwCancelAdd(){ pwCandidates=null; pwAdding=false; render(); }
+function pwCancelAdd(){ pwSetCand(null); pwSetAdding(false); render(); }
 function pwApplyResult(it, res){
   var today=new Date().toISOString().slice(0,10);
   it.perStoreBreakdown = pwSlim(res.breakdown);
@@ -2380,7 +2449,7 @@ function pwApplyResult(it, res){
 function pwCheckNow(id){
   var it=pwFind(id); if(!it || pwBusy) return;
   pwBusy=id; render();
-  fetch(API+'/watch/check',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ profile:activeProfile, item:pwProbe(it) }) })
+  fetch(API+'/watch/check',{ method:'POST', headers:{'Content-Type':'application/json'}, body:pwReqBody(it) })
     .then(function(r){ return r.json(); })
     .then(function(res){
       pwBusy=null;
@@ -2399,6 +2468,26 @@ function pwDelete(id){
     persistWatch(); render();
   }, 'Remove');
 }
+// ── Store management (dynamic, synced instantly) ──
+function pwToggleManage(){ pwManageOpen=!pwManageOpen; render(); }
+function pwAddStore(){
+  if(!activeProfile) return;
+  var name=(($('pw-store-name')&&$('pw-store-name').value)||'').trim();
+  var domain=(($('pw-store-domain')&&$('pw-store-domain').value)||'').trim().toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').replace(/\/.*$/,'');
+  if(!name){ toast('Enter a store name', true); return; }
+  if(!domain || domain.indexOf('.')<0){ toast('Enter the store website (e.g. target.com)', true); return; }
+  var key=name.toLowerCase().replace(/[^a-z0-9]+/g,'').slice(0,40) || domain.replace(/[^a-z0-9]+/g,'').slice(0,40);
+  var cur=pwStores().slice();
+  if(cur.some(function(s){ return s.key===key || s.domain===domain; })){ toast('That store is already added'); return; }
+  cur.push({ key:key, name:name.slice(0,40), domain:domain, type:'ai' });
+  pwStoresState[activeProfile]=cur; persistStores(); render(); toast('Added '+name);
+}
+function pwRemoveStore(key){
+  if(!activeProfile) return;
+  var cur=pwStores().filter(function(s){ return s.key!==key; });
+  if(!cur.length){ toast('Keep at least one store', true); return; }
+  pwStoresState[activeProfile]=cur; persistStores(); render();
+}
 
 window.ML = {
   chooseProfile:chooseProfile, toggleFav:toggleFav, goProfileSelect:goProfileSelect,
@@ -2413,6 +2502,7 @@ window.ML = {
   recUndo:recUndo, recRedo:recRedo,
   recEditStep:recEditStep, recAddStep:recAddStep, recSaveStep:recSaveStep, recCancelStep:recCancelStep, recDeleteStep:recDeleteStep,
   pwAddFind:pwAddFind, pwTrack:pwTrack, pwTrackVariant:pwTrackVariant, pwSaveAnyway:pwSaveAnyway, pwCancelAdd:pwCancelAdd, pwCheckNow:pwCheckNow, pwDelete:pwDelete, pwToggle:pwToggle, pwSetSort:pwSetSort,
+  pwFormInput:pwFormInput, pwClearSearch:pwClearSearch, pwToggleManage:pwToggleManage, pwAddStore:pwAddStore, pwRemoveStore:pwRemoveStore,
   openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker, pickDevice:pickDevice,
   manageLock:manageLock, lockSubmit:lockSubmit, lockCancel:lockCancel, lockForgot:lockForgot, lockReset:lockReset
 };

@@ -1463,37 +1463,83 @@ async function krogerVariants(env, storeKey, profile, item) {
 // groundingMetadata chunks, which were often empty even for real products).
 // See STORE_NOTES.md for per-store notes.
 // ────────────────────────────────────────────────────────────────────────────
-const STORE_DOMAINS = { walmart: 'walmart.com', amazon: 'amazon.com', cvs: 'cvs.com', walgreens: 'walgreens.com' };
-const AI_STORE_LIST = ['walmart', 'amazon', 'cvs', 'walgreens'];
+// Default retailer set. Users can add/remove AI-type retailers at runtime (the
+// list syncs via the pricewatch doc's `stores` field); the search auto-adapts to
+// any of them BY DOMAIN with no per-store code. Kroger-type stores use the
+// official API and are limited to the two configured banners.
+const DEFAULT_STORES = [
+  { key: 'kroger', name: 'Kroger', type: 'kroger' },
+  { key: 'kingsoopers', name: 'King Soopers', type: 'kroger' },
+  { key: 'walmart', name: 'Walmart', domain: 'walmart.com', type: 'ai' },
+  { key: 'amazon', name: 'Amazon', domain: 'amazon.com', type: 'ai' },
+  { key: 'cvs', name: 'CVS', domain: 'cvs.com', type: 'ai' },
+  { key: 'walgreens', name: 'Walgreens', domain: 'walgreens.com', type: 'ai' },
+];
+const KROGER_BANNERS = new Set(['kroger', 'kingsoopers']);   // only these have API location vars
+function cleanDomain(d) { return String(d || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, ''); }
+function normStores(input) {
+  if (!Array.isArray(input) || !input.length) return DEFAULT_STORES.slice();
+  const out = [], seen = new Set();
+  for (const s of input) {
+    if (!s || !s.key) continue;
+    const key = String(s.key).toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 40);
+    if (!key || seen.has(key)) continue; seen.add(key);
+    const type = (s.type === 'kroger' || KROGER_BANNERS.has(key)) ? 'kroger' : 'ai';
+    out.push({ key, name: String(s.name || key).slice(0, 40), domain: cleanDomain(s.domain), type });
+  }
+  return out.length ? out : DEFAULT_STORES.slice();
+}
+// Relevance of a product to the query (0..~1.3): token overlap of query(+brandLock)
+// vs the product's brand+title, plus a full-phrase bonus — so "face wash" ranks
+// face washes above other same-brand items, and partial tokens still count.
+function relevanceScore(query, brandLock, text) {
+  const q = normName((brandLock ? brandLock + ' ' : '') + (query || ''));
+  const t = normName(text || '');
+  if (!q || !t) return 0;
+  const qt = q.split(' ').filter(Boolean);
+  const tset = new Set(t.split(' ').filter(Boolean));
+  const ta = [...tset];
+  let hit = 0;
+  qt.forEach(w => {
+    if (tset.has(w)) hit += 1;
+    else if (w.length >= 3 && ta.some(x => x.indexOf(w) >= 0 || w.indexOf(x) >= 0)) hit += 0.5;
+  });
+  let score = qt.length ? hit / qt.length : 0;
+  if (t.indexOf(normName(query)) >= 0) score += 0.3;   // exact phrase present
+  return score;
+}
 
 // ONE grounded call covers ALL FOUR AI stores. Firing four separate grounded
 // calls (×2 attempts) per item blew the free-tier per-minute grounding limit
 // (429) and burned 4× the shared 500/day pool; one combined call fixes both and
 // lets the model compare across retailers in a single search.
-function buildAiPrompt(item) {
-  const stores = AI_STORE_LIST.map(s => `${STORE_LABELS[s]} (${STORE_DOMAINS[s]})`).join(', ');
+function buildAiPrompt(item, aiStores) {
+  const list = aiStores.map(s => `${s.name} (${s.domain})`).join(', ');
+  const q = item.itemName;
   const lines = [
-    `You are a shopping researcher. Using Google Search AND url_context, find products CURRENTLY SOLD at these four US retailers: ${stores}.`,
-    `Item to match: "${item.itemName}".`,
+    `You are an expert shopping researcher. Using Google Search AND url_context, find products CURRENTLY SOLD at these US retailers: ${list}.`,
+    `Shopper's query: "${q}".`,
   ];
-  if (item.brandLock) lines.push(`Restrict to this brand/product only: "${item.brandLock} ${item.itemName}".`);
-  else lines.push(`Include the closest-matching products across brands — each store's own brand AND national brands, common sizes/counts.`);
+  if (item.brandLock) lines.push(`Focus on this brand/product: "${item.brandLock} ${q}".`);
   if (item.productRef && item.productRef.url) lines.push(`One relevant product page (fetch with url_context): ${item.productRef.url}`);
-  if (item.productRef && item.productRef.foundTitle) lines.push(`A product previously tracked was "${item.productRef.foundTitle}" — include it where still sold.`);
   lines.push(
     ``,
-    `For EACH of the four retailers, list UP TO 4 real products actually sold there. For every product give: which retailer, the exact product title, its size/count, the brand, the CURRENT price in US dollars, and the product-page URL on THAT retailer's own domain.`,
-    `Read each price from that retailer's own product page. Every product MUST have a real URL on that retailer's domain — do NOT invent products, prices, or URLs, and never attribute one retailer's product to another.`,
-    `These retailers carry very broad catalogs, so search each thoroughly (e.g. "site:walmart.com ${item.itemName}") before concluding an item isn't sold there. It's normal for a common item to be available at all four.`,
+    `Interpret the query INTELLIGENTLY — use fuzzy and partial matching, do NOT require an exact title match:`,
+    `- If the query names a SPECIFIC product or type (e.g. "La Roche-Posay Face Wash"), put the closest EXACT matches first, then also include closely related products (same brand/line, or a similar type) so there are always useful results.`,
+    `- If the query is BROAD (e.g. just a brand like "La Roche-Posay"), return a representative range of that brand's popular products at each retailer.`,
+    ``,
+    `For EACH retailer above, list UP TO 5 real products actually sold there, MOST RELEVANT FIRST. For every product give: which retailer, the exact product title, size/count, the brand, the CURRENT US price, and the product-page URL on THAT retailer's own domain.`,
+    `Read each price from that retailer's own product page. Every product MUST have a real URL on that retailer's domain — never invent products, prices, or URLs, and never attribute one retailer's product to another. These retailers carry very broad catalogs, so search each thoroughly (e.g. "site:<domain> ${q}") before concluding an item isn't sold there.`,
   );
   return lines.join('\n');
 }
 
-function buildAiReshape(groundedText) {
+function buildAiReshape(groundedText, aiStores) {
+  const domains = aiStores.map(s => s.domain).filter(Boolean).join(', ');
   return [
-    `From the shopping-research answer below, extract EVERY distinct product it lists, grouped by retailer, as JSON.`,
-    `"store" must be one of: walmart, amazon, cvs, walgreens. For each product: title, size, brand, price (a USD number), url (its product-page URL on that retailer's domain).`,
-    `Include a product ONLY if the answer gives BOTH a numeric price AND a matching-domain URL for it. Drop anything missing either. Never invent values.`,
+    `From the shopping-research answer below, extract EVERY distinct product it lists, as JSON.`,
+    `For each product: store (the retailer name it belongs to), title, size, brand, price (a USD number), url (its product-page URL — must be on one of these domains: ${domains}).`,
+    `Include a product ONLY if it has BOTH a numeric price AND a URL on one of those domains. Drop anything missing either. Never invent values.`,
     ``,
     `ANSWER:`,
     `"""`,
@@ -1551,87 +1597,89 @@ async function geminiGrounded(model, key, prompt) {
   return { text, citationUrls: urls };
 }
 
-// ONE grounded call for all four AI stores → { walmart:{source,variants}, ... }.
-// Recall-first citation gate: a variant survives if it has a price AND a URL on
-// its own store's domain. Per store, empty variants → source:"unavailable".
-async function aiAllStores(env, item, profile) {
+// ONE grounded call for ALL AI stores in the list → { <key>:{source,variants}, ... }.
+// Each returned product is assigned to a store by matching its URL host to that
+// store's domain (robust — doesn't trust the model's store label), which is also
+// the citation gate: price>0 AND URL on one of the configured domains.
+async function aiAllStores(env, item, profile, aiStores) {
   const out = {};
-  AI_STORE_LIST.forEach(s => { out[s] = { source: 'unavailable', variants: [], note: '' }; });
+  aiStores.forEach(s => { out[s.key] = { source: 'unavailable', variants: [], note: '' }; });
+  if (!aiStores.length) return out;
   const key = keyFor(env, profile);
-  if (!key) { AI_STORE_LIST.forEach(s => out[s].note = `no Gemini key for ${profile}`); return out; }
-  const prompt = buildAiPrompt(item);
+  if (!key) { aiStores.forEach(s => out[s.key].note = `no Gemini key for ${profile}`); return out; }
+  const prompt = buildAiPrompt(item, aiStores);
 
   let grounded = null, lastErr = null;
   for (const model of WATCH_AI_MODELS) {   // 2.5-flash → 2.0-flash on failure/429
     try { const g = await geminiGrounded(model, key, prompt); if (g && g.text) { grounded = g; break; } }
     catch (e) { lastErr = e.message || String(e); }
   }
-  if (!grounded || !grounded.text) { AI_STORE_LIST.forEach(s => out[s].note = lastErr || 'grounded lookup failed'); return out; }
+  if (!grounded || !grounded.text) { aiStores.forEach(s => out[s.key].note = lastErr || 'grounded lookup failed'); return out; }
 
   let shaped = null;
-  try { shaped = await callGemini(WATCH_RESHAPE_MODEL, key, { prompt: buildAiReshape(grounded.text), schema: AI_VARIANTS_SCHEMA, maxOutputTokens: 4096, feature: 'watch' }); }
-  catch (e) { lastErr = e.message || String(e); AI_STORE_LIST.forEach(s => out[s].note = lastErr); }
+  try { shaped = await callGemini(WATCH_RESHAPE_MODEL, key, { prompt: buildAiReshape(grounded.text, aiStores), schema: AI_VARIANTS_SCHEMA, maxOutputTokens: 4096, feature: 'watch' }); }
+  catch (e) { lastErr = e.message || String(e); aiStores.forEach(s => out[s.key].note = lastErr); }
 
   const raw = (shaped && Array.isArray(shaped.products)) ? shaped.products : [];
+  const byDomain = {};
+  aiStores.forEach(s => { if (s.domain) byDomain[s.domain] = s.key; });
   const seen = {};
   for (const v of raw) {
-    const store = String(v.store || '').toLowerCase();
-    if (!out[store]) continue;
-    const domain = STORE_DOMAINS[store] || '';
     const price = typeof v.price === 'number' ? v.price : parseFloat(v.price);
     const url = String(v.url || '').trim();
-    if (!(price > 0)) continue;
-    if (!url || (domain && url.toLowerCase().indexOf(domain) < 0)) continue;   // citation gate
-    const dedupe = store + '|' + (String(v.title || '').toLowerCase().slice(0, 40)) + '|' + price.toFixed(2);
+    if (!(price > 0) || !url) continue;
+    const lu = url.toLowerCase();
+    let sk = null;
+    for (const dom in byDomain) { if (lu.indexOf(dom) >= 0) { sk = byDomain[dom]; break; } }   // derive store from URL domain
+    if (!sk || !out[sk]) continue;
+    const dedupe = sk + '|' + String(v.title || '').toLowerCase().slice(0, 40) + '|' + price.toFixed(2);
     if (seen[dedupe]) continue;
     seen[dedupe] = 1;
-    if (out[store].variants.length >= 5) continue;
-    out[store].variants.push({ store, source: 'ai-estimated', title: String(v.title || '').slice(0, 140), size: String(v.size || '').slice(0, 40), brand: String(v.brand || '').slice(0, 60), price: Math.round(price * 100) / 100, url });
+    if (out[sk].variants.length >= 6) continue;
+    out[sk].variants.push({ store: sk, source: 'ai-estimated', title: String(v.title || '').slice(0, 140), size: String(v.size || '').slice(0, 40), brand: String(v.brand || '').slice(0, 60), price: Math.round(price * 100) / 100, url });
   }
-  AI_STORE_LIST.forEach(s => {
-    if (out[s].variants.length) { out[s].source = 'ai-estimated'; out[s].variants.sort((a, b) => a.price - b.price); }
-    else if (!out[s].note) out[s].note = 'no cited product/price found';
-  });
+  aiStores.forEach(s => { if (out[s.key].variants.length) out[s.key].source = 'ai-estimated'; else if (!out[s.key].note) out[s.key].note = 'no cited product/price found'; });
   return out;
 }
 
 // ── ALL-STORE CHECK ──────────────────────────────────────────────────────────
-// Every watched item is priced at ALL SIX stores each check. Returns a per-store
-// breakdown plus the computed best (cheapest) price/store for the day.
-//   brandLock empty → each store finds the cheapest comparable product.
-//   brandLock set   → each store prices that specific product.
-// Per-store pins (resolved Kroger productId, AI product url/title) are carried
-// forward from the item's previous breakdown so later checks stay on the same
-// product instead of re-drifting. NOTE: this is item.store-agnostic — the
-// grocery-list `store` field (used for grouping) is never read here.
-const ALL_WATCH_STORES = ['kroger', 'kingsoopers', 'walmart', 'amazon', 'cvs', 'walgreens'];
-
-async function checkAllStores(env, profile, item) {
+// Prices an item at EVERY store in the (dynamic) `stores` list and returns a
+// per-store breakdown of variants + the computed best (cheapest) across stores.
+// Kroger-type banners hit the API in parallel with ONE combined AI grounded call
+// for ALL ai-type stores (so cost is ~1 grounded request regardless of how many
+// AI retailers are enabled — the pipeline stays performant as stores are added).
+// Variants are ranked by relevance to the query, then price. Per-store pins
+// (Kroger productId / AI url+title) carry forward from the item's prior breakdown.
+async function checkAllStores(env, profile, item, storesInput) {
+  const stores = normStores(storesInput);
   const itemName = item.name || item.itemName || '';
   const brandLock = item.brandLock || '';
   const prev = {};
   (Array.isArray(item.perStoreBreakdown) ? item.perStoreBreakdown : []).forEach(e => { if (e && e.store) prev[e.store] = e; });
-
-  // Two Kroger banners (cheap API calls) run in parallel with ONE combined AI
-  // grounded call for all four AI stores — so per item there is just 1 grounded
-  // request (not 4), which keeps us under the free-tier per-minute + 500/day
-  // grounding limits. Each store yields a LIST of variants; the store's headline
-  // price is its cheapest.
   const hintUrl = (item.productRef && item.productRef.url) || '';
-  const aiItem = { itemName, brandLock, productRef: { url: hintUrl, foundTitle: (prev.walmart && prev.walmart.foundTitle) || '' } };
-  const [krogerRes, kingsoopersRes, aiRes] = await Promise.all([
-    krogerVariants(env, 'kroger', profile, { itemName, brandLock, productRef: { krogerProductId: (prev.kroger && prev.kroger.krogerProductId) || '' } }).catch(e => ({ source: 'unavailable', variants: [], note: e.message || 'error' })),
-    krogerVariants(env, 'kingsoopers', profile, { itemName, brandLock, productRef: { krogerProductId: (prev.kingsoopers && prev.kingsoopers.krogerProductId) || '' } }).catch(e => ({ source: 'unavailable', variants: [], note: e.message || 'error' })),
-    aiAllStores(env, aiItem, profile).catch(() => ({})),
-  ]);
-  const perStore = { kroger: krogerRes, kingsoopers: kingsoopersRes };
-  AI_STORE_LIST.forEach(s => { perStore[s] = (aiRes && aiRes[s]) || { source: 'unavailable', variants: [] }; });
 
-  const breakdown = ALL_WATCH_STORES.map((store) => {
-    const res = perStore[store] || { source: 'unavailable', variants: [] };
+  const krogerStores = stores.filter(s => s.type === 'kroger');
+  const aiStores = stores.filter(s => s.type === 'ai' && s.domain);
+  const aiItem = { itemName, brandLock, productRef: { url: hintUrl, foundTitle: (aiStores[0] && prev[aiStores[0].key] && prev[aiStores[0].key].foundTitle) || '' } };
+
+  const [krogerResults, aiRes] = await Promise.all([
+    Promise.all(krogerStores.map(s =>
+      krogerVariants(env, s.key, profile, { itemName, brandLock, productRef: { krogerProductId: (prev[s.key] && prev[s.key].krogerProductId) || '' } })
+        .catch(e => ({ source: 'unavailable', variants: [], note: e.message || 'error' })))),
+    aiAllStores(env, aiItem, profile, aiStores).catch(() => ({})),
+  ]);
+  const perStore = {};
+  krogerStores.forEach((s, i) => { perStore[s.key] = krogerResults[i]; });
+  aiStores.forEach(s => { perStore[s.key] = (aiRes && aiRes[s.key]) || { source: 'unavailable', variants: [] }; });
+
+  const breakdown = stores.map((s) => {
+    const res = perStore[s.key] || { source: 'unavailable', variants: [] };
     const variants = Array.isArray(res.variants) ? res.variants : [];
-    const cheapest = variants.length ? variants[0] : null;   // sorted ascending
-    const entry = { store, source: cheapest ? res.source : 'unavailable', variants };
+    variants.forEach(v => { v.score = relevanceScore(itemName, brandLock, (v.brand || '') + ' ' + (v.title || '')); });
+    variants.sort((a, b) => (b.score - a.score) || (a.price - b.price));   // relevance, then price
+    let cheapest = null;
+    variants.forEach(v => { if (typeof v.price === 'number' && (cheapest === null || v.price < cheapest.price)) cheapest = v; });
+    const entry = { store: s.key, storeName: s.name, source: cheapest ? res.source : 'unavailable', variants };
     if (cheapest) {
       entry.price = cheapest.price;
       if (cheapest.url) entry.url = cheapest.url;
@@ -1650,18 +1698,21 @@ async function checkAllStores(env, profile, item) {
     ok: true, breakdown,
     bestPrice: best ? best.price : null,
     bestStore: best ? best.store : null,
+    bestStoreName: best ? (best.storeName || best.store) : null,
     bestBrand: best ? (best.brand || '') : '',
     foundCount: breakdown.filter(e => typeof e.price === 'number').length,
-    storeCount: ALL_WATCH_STORES.length,
+    storeCount: stores.length,
+    stores: stores.map(s => ({ key: s.key, name: s.name, type: s.type, domain: s.domain || '' })),
   };
 }
 
-// Strip the per-store `variants` list before persisting to Firestore — variants
-// are for the live confirm UI only; storing them on every item/day would bloat
-// the doc. Keeps the pins (url/krogerProductId/foundTitle) so later checks anchor.
+// Strip the per-store `variants` list (+ transient score) before persisting to
+// Firestore — variants are for the live confirm UI only; storing them per item/day
+// would bloat the doc. Keeps the pins + storeName so later checks/labels work.
 function slimBreakdown(breakdown) {
   return (breakdown || []).map(e => {
     const o = { store: e.store, source: e.source };
+    if (e.storeName) o.storeName = e.storeName;
     if (typeof e.price === 'number') o.price = e.price;
     if (e.url) o.url = e.url;
     if (e.krogerProductId) o.krogerProductId = e.krogerProductId;
@@ -1679,7 +1730,7 @@ async function handleWatchCheck(body, env) {
   const profile = body.profile === 'veda' ? 'veda' : 'tony';
   const item = body.item;
   if (!item || !(item.name || item.itemName)) return json({ ok: false, error: 'missing item name' }, 400);
-  try { return json(await checkAllStores(env, profile, item)); }
+  try { return json(await checkAllStores(env, profile, item, body.stores)); }
   catch (e) { return json({ ok: false, error: e.message || String(e) }, 502); }
 }
 const handleWatchResolve = handleWatchCheck;
@@ -1717,7 +1768,8 @@ async function runPriceWatchCron(env) {
     const items = (data && Array.isArray(data.items)) ? data.items : [];
     docs[d.path] = data || { items: [] };
     if (!docs[d.path].items) docs[d.path].items = items;
-    items.forEach(item => { if (item) flat.push({ profile: d.profile, path: d.path, item }); });
+    const stores = (data && Array.isArray(data.stores)) ? data.stores : null;   // per-profile store list
+    items.forEach(item => { if (item) flat.push({ profile: d.profile, path: d.path, item, stores }); });
   }
   if (!flat.length) { console.log('[pricewatch] no watched items'); return; }
 
@@ -1735,7 +1787,7 @@ async function runPriceWatchCron(env) {
   for (const entry of slice) {
     const it = entry.item;
     let res;
-    try { res = await checkAllStores(env, entry.profile, it); }
+    try { res = await checkAllStores(env, entry.profile, it, entry.stores); }
     catch (e) { res = { ok: false, breakdown: [], bestPrice: null, bestStore: null }; }
 
     const prevBest = typeof it.bestPrice === 'number' ? it.bestPrice : null;
@@ -1750,7 +1802,8 @@ async function runPriceWatchCron(env) {
     // Write the whole doc back NOW (crash-safe). `it` is a live reference inside
     // docs[path].items, so its mutation is already in the object we serialize.
     const d = docs[entry.path];
-    try { await fsWriteDoc(env, token, entry.path, { items: d.items, savedAt: Date.now() }); }
+    // Preserve the doc's `stores` list on write (never wipe the user's store config).
+    try { await fsWriteDoc(env, token, entry.path, { items: d.items, stores: d.stores, savedAt: Date.now() }); }
     catch (e) { console.warn('[pricewatch] write', entry.path, e.message); }
 
     // Notify only on a real drop of MORE THAN a flat $1.00 (no percentage).
@@ -1761,7 +1814,7 @@ async function runPriceWatchCron(env) {
       const targets = tokenDocsCache.filter(d2 => (d2.fields?.mainDash?.stringValue || 'all') === dash);
       const bestEntry = (res.breakdown || []).find(e => e.store === res.bestStore) || {};
       const estNote = bestEntry.source === 'ai-estimated' ? ' — worth double-checking' : '';
-      const storeLabel = STORE_LABELS[res.bestStore] || res.bestStore;
+      const storeLabel = res.bestStoreName || bestEntry.storeName || STORE_LABELS[res.bestStore] || res.bestStore;
       const nm = it.itemName || it.name || 'Item';
       const bodyTxt = `${nm}: $${prevBest.toFixed(2)} → $${res.bestPrice.toFixed(2)} at ${storeLabel}${estNote}`;
       const occId = `pw_${dash}_${it.id || ''}_${Date.now()}`;

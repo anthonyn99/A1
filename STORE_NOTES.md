@@ -45,10 +45,27 @@ Notes:
 - Observed quirk: the token-endpoint response reports `scope` empty even though
   `product.compact` was granted — Products calls still succeed, so this is benign.
 
-## Walmart / Amazon / CVS / Walgreens  (shared AI-search design)
-Method: Gemini-grounded — ONE combined call for all four AI stores
-Last verified working: 2026-07-17 (grounding returns cited variants; see quota note)
+## AI-search retailers (Walmart / Amazon / CVS / Walgreens + any user-added)  (shared design)
+Method: Gemini-grounded — ONE combined call for ALL enabled AI retailers
+Last verified working: 2026-07-17 (Kroger dynamic-store path verified; grounding path pending quota reset)
 Notes:
+- **DYNAMIC STORE LIST:** the retailer set is no longer hardcoded. It lives per
+  profile in the pricewatch doc's `stores` field (`{key,name,domain,type}`), and
+  the client sends it on every /watch/check + /watch/resolve; the cron reads it
+  from the doc. Users add/remove AI retailers at runtime (name + website domain) —
+  the search adapts by DOMAIN with no per-store code. Kroger-type is limited to the
+  two API banners. `normStores()` sanitizes; `DEFAULT_STORES` is the fallback.
+- **ONE grounded call for ALL enabled AI retailers** (not one per store) — cost is
+  ~1 grounded request regardless of how many AI retailers are enabled, so the
+  pipeline stays performant as stores are added. Each returned product is assigned
+  to a store by matching its URL host to a configured domain (also the citation
+  gate). Reshape splits results back per store.
+- **Relevance ranking:** `relevanceScore(query, brandLock, brand+title)` (token
+  overlap + full-phrase bonus + partial-token credit) ranks variants; sorted by
+  relevance then price. A specific query ("La Roche-Posay Face Wash") surfaces face
+  washes first; a broad query ("La Roche-Posay") returns a representative range.
+  The prompt also instructs broad-vs-specific handling + fuzzy matching.
+- Returns MULTIPLE variants per store; the confirm UI lists them, each trackable.
 - **ONE grounded call covers all four AI stores** (`aiAllStores`), not one per
   store. Four separate grounded calls (×2 attempts) per item blew the free-tier
   per-minute grounding limit (429) and burned 4× the shared daily pool. The single
