@@ -1201,13 +1201,18 @@ const STORE_LABELS = {
 const KROGER_STORE_KEYS = new Set(['kroger', 'kingsoopers']);
 const AI_STORES = new Set(['walmart', 'amazon', 'cvs', 'walgreens']);
 
-// AI-search price lookups use ONLY these two models: they get free Google Search
+// AI-search price lookups use ONLY gemini-2.5-flash: it gets free Google Search
 // grounding (shared 500 req/day pool, NO billing account). Do NOT add a 3.x model
 // here — grounding is not free for the 3.x family without billing enabled.
-const WATCH_AI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
-// Grounded multi-search calls are much slower than the instant-parse features
-// above, so this path gets a longer per-attempt timeout and a single attempt per
-// model (no stacked retry loop — the latency doesn't leave room for it).
+// NOTE: gemini-2.5-flash-lite was in the plan, but this project's API key returns
+// 404 "no longer available to new users" for it (both grounded AND the reshape
+// call), so it is dropped entirely — flash is the only usable free-grounding model
+// here. Reshape (WATCH_RESHAPE_MODEL) therefore also uses flash; that's a plain
+// no-tools call, so it does NOT consume the grounding quota.
+const WATCH_AI_MODELS = ['gemini-2.5-flash'];
+const WATCH_RESHAPE_MODEL = 'gemini-2.5-flash';
+// Grounded multi-search calls are slow; with only one usable model we allow a
+// second attempt on it (see checkAiStore) instead of a cross-model fallback.
 const WATCH_GEMINI_TIMEOUT_MS = 28000;
 
 // ── Firestore-REST value <-> plain JS converters (the price-watch doc has nested
@@ -1243,26 +1248,29 @@ function fsDecode(val) {
   return null;
 }
 
-async function fsReadPriceWatch(env, token, docPath) {
-  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${docPath}`;
+// Read a whole Firestore doc → plain JS object (null if it doesn't exist).
+async function fsReadDoc(env, token, path) {
+  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${path}`;
   const r = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-  if (r.status === 404) return { items: [], savedAt: 0 };
-  if (!r.ok) throw new Error(`firestore read ${docPath} ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`firestore read ${path} ${r.status}: ${(await r.text()).slice(0, 200)}`);
   const doc = await r.json();
-  const f = doc.fields || {};
-  const items = f.items ? fsDecode(f.items) : [];
-  return { items: Array.isArray(items) ? items : [] };
+  const f = doc.fields || {}, o = {};
+  for (const k of Object.keys(f)) o[k] = fsDecode(f[k]);
+  return o;
 }
 
-// Full-document overwrite — mirrors the client's setDoc(ref, {items, savedAt}).
-// The cron calls this after EACH item so a mid-run crash still persists the
-// already-checked items (last-write-wins vs. a concurrent UI edit — collisions
-// are effectively nil given the daily 4am fire time).
-async function fsWritePriceWatch(env, token, docPath, items) {
-  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${docPath}`;
-  const body = JSON.stringify({ fields: { items: fsEncode(items), savedAt: { integerValue: String(Date.now()) } } });
-  const r = await fetch(url, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body });
-  if (!r.ok) throw new Error(`firestore write ${docPath} ${r.status}: ${(await r.text()).slice(0, 200)}`);
+// Full-document overwrite from a plain JS object. Price Watch now rides on the
+// existing `dashboards/mylist` doc (same doc the client's setDoc/onSnapshot sync
+// uses), so the cron writes the WHOLE doc back after EACH item — a mid-run crash
+// still persists already-checked items. Last-write-wins vs. a concurrent UI edit,
+// collisions effectively nil given the daily ~4am fire time.
+async function fsWriteDoc(env, token, path, obj) {
+  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${path}`;
+  const fields = {};
+  for (const k of Object.keys(obj)) if (obj[k] !== undefined) fields[k] = fsEncode(obj[k]);
+  const r = await fetch(url, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+  if (!r.ok) throw new Error(`firestore write ${path} ${r.status}: ${(await r.text()).slice(0, 200)}`);
 }
 
 async function fsFetchTokens(env, token) {
@@ -1436,15 +1444,6 @@ async function checkKroger(env, storeKey, profile, item) {
   };
 }
 
-async function resolveKroger(env, storeKey, profile, item) {
-  const term = item.brandLock ? `${item.brandLock} ${item.itemName}` : item.itemName;
-  let res;
-  try { res = await krogerSearch(env, storeKey, profile, { term }); }
-  catch (e) { return { ok: false, error: e.message || 'kroger error' }; }
-  if (!res.ok) return res.configMissing ? { ok: false, configMissing: res.configMissing } : { ok: false, error: res.error };
-  return { ok: true, candidates: res.items.slice(0, 6) };
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // STORE MODULE 3b — Walmart / Amazon / CVS / Walgreens  (Gemini-grounded, cited)
 //
@@ -1545,14 +1544,19 @@ async function checkAiStore(env, storeKey, item, profile) {
   const prompt = buildWatchGroundedPrompt(storeLabel, item);
 
   let grounded = null, lastErr = null;
-  for (const model of WATCH_AI_MODELS) {           // one attempt per model
-    try { grounded = await geminiGrounded(model, key, prompt); if (grounded && grounded.text) break; }
-    catch (e) { lastErr = e.message || String(e); grounded = null; }
+  // Up to 2 attempts on the single usable model (transient grounded failures are
+  // common on hard stores like Amazon; there is no second model to fall back to).
+  for (const model of WATCH_AI_MODELS) {
+    for (let attempt = 0; attempt < 2 && !grounded; attempt++) {
+      try { const g = await geminiGrounded(model, key, prompt); if (g && g.text) { grounded = g; } }
+      catch (e) { lastErr = e.message || String(e); }
+    }
+    if (grounded) break;
   }
   if (!grounded || !grounded.text) return { ok: true, source: 'unavailable', price: null, note: lastErr || 'grounded lookup failed' };
 
   let shaped = null;
-  try { shaped = await callGemini('gemini-2.5-flash-lite', key, { prompt: buildWatchReshapePrompt(grounded.text), schema: WATCH_JSON_SCHEMA, maxOutputTokens: 1024, feature: 'watch' }); }
+  try { shaped = await callGemini(WATCH_RESHAPE_MODEL, key, { prompt: buildWatchReshapePrompt(grounded.text), schema: WATCH_JSON_SCHEMA, maxOutputTokens: 1024, feature: 'watch' }); }
   catch (e) { lastErr = e.message || String(e); }
 
   if (!shaped || !shaped.found || typeof shaped.price !== 'number' || !(shaped.price > 0)) {
@@ -1569,70 +1573,111 @@ async function checkAiStore(env, storeKey, item, profile) {
   };
 }
 
-// ── Dispatch by store ────────────────────────────────────────────────────────
-async function checkWatchItem(env, profile, item) {
-  const store = String(item.store || '').toLowerCase();
-  if (KROGER_STORE_KEYS.has(store)) return checkKroger(env, store, profile, item);
-  if (AI_STORES.has(store)) return checkAiStore(env, store, item, profile);
-  return { ok: false, error: `unknown store: ${store}` };
+// ── ALL-STORE CHECK ──────────────────────────────────────────────────────────
+// Every watched item is priced at ALL SIX stores each check. Returns a per-store
+// breakdown plus the computed best (cheapest) price/store for the day.
+//   brandLock empty → each store finds the cheapest comparable product.
+//   brandLock set   → each store prices that specific product.
+// Per-store pins (resolved Kroger productId, AI product url/title) are carried
+// forward from the item's previous breakdown so later checks stay on the same
+// product instead of re-drifting. NOTE: this is item.store-agnostic — the
+// grocery-list `store` field (used for grouping) is never read here.
+const ALL_WATCH_STORES = ['kroger', 'kingsoopers', 'walmart', 'amazon', 'cvs', 'walgreens'];
+
+async function checkAllStores(env, profile, item) {
+  const itemName = item.name || item.itemName || '';
+  const brandLock = item.brandLock || '';
+  const prev = {};
+  (Array.isArray(item.perStoreBreakdown) ? item.perStoreBreakdown : []).forEach(e => { if (e && e.store) prev[e.store] = e; });
+
+  // All six stores are priced CONCURRENTLY — sequentially this is 6 × up-to-28s
+  // (~2 min/item); in parallel it's ~one grounded round-trip. Same total
+  // subrequest count (concurrency doesn't change the per-invocation cap).
+  const breakdown = await Promise.all(ALL_WATCH_STORES.map(async (store) => {
+    const p = prev[store] || {};
+    const probe = { itemName, brandLock, productRef: { krogerProductId: p.krogerProductId || '', url: p.url || '', foundTitle: p.foundTitle || '' } };
+    let res;
+    try {
+      res = KROGER_STORE_KEYS.has(store) ? await checkKroger(env, store, profile, probe) : await checkAiStore(env, store, probe, profile);
+    } catch (e) { res = { source: 'unavailable', note: e.message || 'error' }; }
+    const source = res.source || 'unavailable';
+    const entry = { store, source };
+    if (source !== 'unavailable' && typeof res.price === 'number') {
+      entry.price = res.price;
+      if (res.url) entry.url = res.url;
+      if (res.krogerProductId) entry.krogerProductId = res.krogerProductId;
+      if (res.foundTitle) entry.foundTitle = res.foundTitle;
+      if (res.foundBrand) entry.brand = res.foundBrand;
+    } else if (res.note) {
+      entry.note = res.note;
+    }
+    return entry;
+  }));
+
+  let best = null;
+  breakdown.forEach(e => { if (typeof e.price === 'number' && (best === null || e.price < best.price)) best = e; });
+  return {
+    ok: true, breakdown,
+    bestPrice: best ? best.price : null,
+    bestStore: best ? best.store : null,
+    bestBrand: best ? (best.brand || '') : '',
+    foundCount: breakdown.filter(e => typeof e.price === 'number').length,
+    storeCount: ALL_WATCH_STORES.length,
+  };
 }
 
-async function resolveWatchItem(env, profile, item) {
-  const store = String(item.store || '').toLowerCase();
-  if (KROGER_STORE_KEYS.has(store)) return resolveKroger(env, store, profile, item);
-  if (AI_STORES.has(store)) {
-    const res = await checkAiStore(env, store, item, profile);
-    if (res.source === 'unavailable') return { ok: false, error: res.note || 'no reliable price found' };
-    return { ok: true, candidates: [{ name: res.foundTitle || item.itemName, brand: res.foundBrand || '', price: res.price, url: res.url || '', source: res.source, note: res.note }] };
-  }
-  return { ok: false, error: `unknown store: ${store}` };
-}
-
+// /watch/check and /watch/resolve are the SAME all-store lookup — resolve is just
+// the on-add call (client shows one consolidated "found at N of 6" confirm), and
+// check is the on-demand / cron call. Body item may use `name` or `itemName`.
 async function handleWatchCheck(body, env) {
   const profile = body.profile === 'veda' ? 'veda' : 'tony';
   const item = body.item;
-  if (!item || !item.store || !item.itemName) return json({ ok: false, error: 'missing item {store, itemName}' }, 400);
-  try { return json(await checkWatchItem(env, profile, item)); }
+  if (!item || !(item.name || item.itemName)) return json({ ok: false, error: 'missing item name' }, 400);
+  try { return json(await checkAllStores(env, profile, item)); }
   catch (e) { return json({ ok: false, error: e.message || String(e) }, 502); }
 }
+const handleWatchResolve = handleWatchCheck;
 
-async function handleWatchResolve(body, env) {
-  const profile = body.profile === 'veda' ? 'veda' : 'tony';
-  const item = body.item;
-  if (!item || !item.store || !item.itemName) return json({ ok: false, error: 'missing item {store, itemName}' }, 400);
-  try { return json(await resolveWatchItem(env, profile, item)); }
-  catch (e) { return json({ ok: false, error: e.message || String(e) }, 502); }
-}
-
-// ── Daily cron (§4) ──────────────────────────────────────────────────────────
-// Reads both pricewatch docs, checks each item, appends to priceHistory, writes
-// back AFTER EACH item (crash-safe), and pushes a drop notification when the new
-// price is lower by >= max(5%, $0.50). To stay under Cloudflare's 50-subrequest-
-// per-invocation cap (the same wall newshub-api hit), it processes at most
-// PW_MAX_ITEMS_PER_RUN items per run and advances a KV round-robin cursor, so a
-// large combined watchlist rotates fully across successive daily runs while a
-// small one is fully covered every day.
-const PW_DOCS = [
-  { profile: 'tony', path: 'dashboards/pricewatch' },
-  { profile: 'veda', path: 'dashboards/pricewatch-veda' },
-];
-const PW_MAX_ITEMS_PER_RUN = 12;
+// ── Daily cron (§4, refactored) ──────────────────────────────────────────────
+// Rides on the SINGLE `dashboards/mylist` doc (both profiles live there as
+// {tony:{lists}, veda:{lists}, ...}). Collects every item in a list whose
+// `priceWatch === true`, prices it at ALL SIX stores, records the per-store
+// breakdown + daily best into the item, writes the whole doc back AFTER EACH
+// item (crash-safe), and pushes a notification when today's best beats the
+// previous best by more than a flat $1.00.
+//
+// SUBREQUEST CAP re-verified for the all-6-stores refactor: each item now costs
+// ~9–13 subrequests (2 Kroger banners: 1 real + 1 skipped-before-fetch when the
+// out-of-region banner has no location; 4 AI stores × 2–3 Gemini calls) — a ~6×
+// jump from the single-store version. So PW_MAX_ITEMS_PER_RUN drops from 12 to 3
+// (3 × ~13 + overhead + writes ≈ 45 < 50). The KV round-robin cursor still
+// rotates a larger combined watchlist across successive daily runs; coverage
+// latency is ceil(totalItems / 3) days, which is the accepted tradeoff for
+// staying on the free plan without hitting the cap that broke newshub-api.
+const MYLIST_DOC = 'dashboards/mylist';
+const PW_MAX_ITEMS_PER_RUN = 3;
 
 async function runPriceWatchCron(env) {
   let token;
   try { token = await getGoogleAccessToken(env); }
   catch (e) { console.error('[pricewatch] auth failed:', e.message); return; }
 
-  const docs = {};
+  let doc;
+  try { doc = await fsReadDoc(env, token, MYLIST_DOC); }
+  catch (e) { console.error('[pricewatch] read mylist failed:', e.message); return; }
+  if (!doc) { console.log('[pricewatch] no mylist doc'); return; }
+
+  // Collect items from every priceWatch-enabled list, across both profiles.
+  // Skip done/checked-off items (no point pricing something already bought).
   const flat = [];
-  for (const d of PW_DOCS) {
-    try {
-      const data = await fsReadPriceWatch(env, token, d.path);
-      docs[d.path] = data;
-      data.items.forEach((it, idx) => flat.push({ profile: d.profile, path: d.path, idx, item: it }));
-    } catch (e) { console.warn('[pricewatch] read', d.path, e.message); docs[d.path] = { items: [] }; }
+  for (const profile of ['tony', 'veda']) {
+    const lists = (doc[profile] && Array.isArray(doc[profile].lists)) ? doc[profile].lists : [];
+    for (const list of lists) {
+      if (!list || list.priceWatch !== true || !Array.isArray(list.items)) continue;
+      for (const item of list.items) if (item && !item.done) flat.push({ profile, item });
+    }
   }
-  if (!flat.length) { console.log('[pricewatch] no items'); return; }
+  if (!flat.length) { console.log('[pricewatch] no watched items'); return; }
 
   let cursor = 0;
   try { const c = await env.TOKEN_CACHE.get('pw_cron_cursor'); cursor = c ? (parseInt(c, 10) || 0) : 0; } catch (e) {}
@@ -1648,43 +1693,40 @@ async function runPriceWatchCron(env) {
   for (const entry of slice) {
     const it = entry.item;
     let res;
-    try { res = await checkWatchItem(env, entry.profile, it); }
-    catch (e) { res = { ok: false, source: 'unavailable', price: null, note: e.message || 'check failed' }; }
-    const source = res.source || (typeof res.price === 'number' ? 'ai-estimated' : 'unavailable');
-    const prevPrice = typeof it.lastPrice === 'number' ? it.lastPrice : null;
+    try { res = await checkAllStores(env, entry.profile, it); }
+    catch (e) { res = { ok: false, breakdown: [], bestPrice: null, bestStore: null }; }
 
-    if (!Array.isArray(it.priceHistory)) it.priceHistory = [];
-    it.priceHistory.push({ date: today, price: source === 'unavailable' ? null : res.price, source, note: res.note || '' });
+    const prevBest = typeof it.bestPrice === 'number' ? it.bestPrice : null;
+    it.perStoreBreakdown = res.breakdown || [];
+    it.bestPrice = res.bestPrice;   // may be null (all stores unavailable)
+    it.bestStore = res.bestStore;   // may be null
     it.lastChecked = new Date().toISOString();
-    if (source !== 'unavailable' && typeof res.price === 'number') {
-      it.lastPrice = res.price;
-      if (!it.productRef) it.productRef = { krogerProductId: '', url: '' };
-      if (res.krogerProductId && !it.productRef.krogerProductId) it.productRef.krogerProductId = res.krogerProductId;
-      if (res.foundTitle && !it.productRef.foundTitle) it.productRef.foundTitle = res.foundTitle;
-    }
+    if (!Array.isArray(it.priceHistory)) it.priceHistory = [];
+    it.priceHistory.push({ date: today, bestPrice: res.bestPrice, bestStore: res.bestStore, breakdown: res.breakdown || [] });
 
-    // Write the whole doc back NOW so a mid-run crash keeps already-checked items.
-    try { await fsWritePriceWatch(env, token, entry.path, docs[entry.path].items); }
-    catch (e) { console.warn('[pricewatch] write', entry.path, e.message); }
+    // Write the WHOLE mylist doc back NOW (crash-safe). `it` is a live reference
+    // inside `doc`, so its mutations are already in the object we serialize.
+    doc.savedAt = Date.now();
+    try { await fsWriteDoc(env, token, MYLIST_DOC, doc); }
+    catch (e) { console.warn('[pricewatch] write failed:', e.message); }
 
-    // Notify only on a genuine drop; never on "unavailable" (silent, logged only).
-    if (source !== 'unavailable' && typeof res.price === 'number' && prevPrice != null && res.price < prevPrice) {
-      const drop = prevPrice - res.price;
-      const threshold = Math.max(prevPrice * 0.05, 0.50);   // 5% or $0.50, whichever is larger
-      if (drop >= threshold) {
-        if (!tokenDocsCache) tokenDocsCache = await fsFetchTokens(env, token);
-        const dash = entry.profile;   // 'tony' | 'veda' — strict device-main scoping (no 'all' escape)
-        const targets = tokenDocsCache.filter(d => (d.fields?.mainDash?.stringValue || 'all') === dash);
-        const estNote = source === 'ai-estimated' ? ' — worth double-checking' : '';
-        const storeLabel = STORE_LABELS[String(it.store).toLowerCase()] || it.store;
-        const bodyTxt = `${it.itemName}: $${prevPrice.toFixed(2)} → $${res.price.toFixed(2)} at ${storeLabel}${estNote}`;
-        const occId = `pw_${dash}_${it.id || entry.idx}_${Date.now()}`;
-        await Promise.allSettled(targets.map(d =>
-          sendFCM(env.FIREBASE_PROJECT_ID, d.fields.token.stringValue, 'Price drop', bodyTxt, occId, token, dash)
-            .catch(e => console.warn('[pricewatch] fcm', e.message))
-        ));
-        console.log(`[pricewatch] drop ${bodyTxt} → ${targets.length} device(s)`);
-      }
+    // Notify only on a real drop of MORE THAN a flat $1.00 (no percentage).
+    // Never notify when today's best is unavailable (bestPrice null).
+    if (prevBest != null && typeof res.bestPrice === 'number' && (prevBest - res.bestPrice) > 1.00) {
+      if (!tokenDocsCache) tokenDocsCache = await fsFetchTokens(env, token);
+      const dash = entry.profile;   // 'tony' | 'veda' — strict device-main scoping
+      const targets = tokenDocsCache.filter(d => (d.fields?.mainDash?.stringValue || 'all') === dash);
+      const bestEntry = (res.breakdown || []).find(e => e.store === res.bestStore) || {};
+      const estNote = bestEntry.source === 'ai-estimated' ? ' — worth double-checking' : '';
+      const storeLabel = STORE_LABELS[res.bestStore] || res.bestStore;
+      const nm = it.name || it.itemName || 'Item';
+      const bodyTxt = `${nm}: $${prevBest.toFixed(2)} → $${res.bestPrice.toFixed(2)} at ${storeLabel}${estNote}`;
+      const occId = `pw_${dash}_${it.id || ''}_${Date.now()}`;
+      await Promise.allSettled(targets.map(d =>
+        sendFCM(env.FIREBASE_PROJECT_ID, d.fields.token.stringValue, 'Price drop', bodyTxt, occId, token, dash)
+          .catch(e => console.warn('[pricewatch] fcm', e.message))
+      ));
+      console.log(`[pricewatch] drop ${bodyTxt} → ${targets.length} device(s)`);
     }
   }
 }
@@ -1702,7 +1744,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 11, // bump when verifying a deploy went live
+        version: 12, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'journal', 'watch'],
         models: MODELS,
         listModels: LIST_MODELS,
