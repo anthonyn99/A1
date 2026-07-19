@@ -1209,10 +1209,17 @@ const AI_STORES = new Set(['walmart', 'amazon', 'cvs', 'walgreens']);
 // call), so it is dropped entirely — flash is the only usable free-grounding model
 // here. Reshape (WATCH_RESHAPE_MODEL) therefore also uses flash; that's a plain
 // no-tools call, so it does NOT consume the grounding quota.
-const WATCH_AI_MODELS = ['gemini-2.5-flash'];
-const WATCH_RESHAPE_MODEL = 'gemini-2.5-flash';
+// Grounded models tried in order (one attempt each) — both get FREE Google Search
+// grounding with NO billing, and sit in SEPARATE daily quota buckets, so a
+// 2.5-flash 429 falls through to 2.0-flash instead of killing the AI stores.
+// (2.5-flash-lite is excluded — 404 "no longer available" on this key.)
+const WATCH_AI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+// The reshape is a PLAIN (no-tools) call, so it does NOT consume grounding quota
+// and need not be a 2.5 model — using the high-RPD 3.1-flash-lite keeps the
+// scarce 2.5-flash budget for the grounded call itself.
+const WATCH_RESHAPE_MODEL = 'gemini-3.1-flash-lite';
 // Grounded multi-search calls are slow; with only one usable model we allow a
-// second attempt on it (see checkAiStore) instead of a cross-model fallback.
+// second attempt on it (see aiAllStores) instead of a cross-model fallback.
 const WATCH_GEMINI_TIMEOUT_MS = 28000;
 
 // ── Firestore-REST value <-> plain JS converters (the price-watch doc has nested
@@ -1424,88 +1431,96 @@ async function krogerSearch(env, storeKey, profile, { term, productId }) {
   return { ok: true, items };
 }
 
-async function checkKroger(env, storeKey, profile, item) {
-  const productId = (item.productRef && item.productRef.krogerProductId) || '';
+// Returns { source, variants:[{store,source,title,size,brand,price,krogerProductId}] }.
+// Fuzzy term search returns SEVERAL real products (variants) with prices — all of
+// them are surfaced so the confirm UI can show multiple to track.
+async function krogerVariants(env, storeKey, profile, item) {
   const term = item.brandLock ? `${item.brandLock} ${item.itemName}` : item.itemName;
   let res;
-  try { res = await krogerSearch(env, storeKey, profile, { term, productId }); }
-  catch (e) { return { ok: true, source: 'unavailable', price: null, note: e.message || 'kroger error' }; }
+  try { res = await krogerSearch(env, storeKey, profile, { term }); }
+  catch (e) { return { source: 'unavailable', variants: [], note: e.message || 'kroger error' }; }
   if (!res.ok) {
-    if (res.configMissing) return { ok: true, source: 'unavailable', price: null, note: `Kroger not configured — missing ${res.configMissing.join(', ')}` };
-    return { ok: true, source: 'unavailable', price: null, note: res.error || 'kroger lookup failed' };
+    if (res.configMissing) return { source: 'unavailable', variants: [], configMissing: res.configMissing, note: `not configured — missing ${res.configMissing.join(', ')}` };
+    return { source: 'unavailable', variants: [], note: res.error || 'kroger lookup failed' };
   }
-  const hit = res.items.find(x => x.price != null) || res.items[0];
-  if (!hit || hit.price == null) return { ok: true, source: 'unavailable', price: null, note: 'no price returned by Kroger' };
-  return {
-    ok: true, source: 'verified', price: hit.price,
-    note: hit.name + (hit.size ? ` (${hit.size})` : ''),
-    krogerProductId: hit.krogerProductId, foundBrand: hit.brand,
-  };
+  const variants = res.items
+    .filter(x => typeof x.price === 'number' && x.price > 0)
+    .map(x => ({ store: storeKey, source: 'verified', title: x.name, size: x.size, brand: x.brand, price: x.price, krogerProductId: x.krogerProductId }))
+    .sort((a, b) => a.price - b.price)
+    .slice(0, 6);
+  if (!variants.length) return { source: 'unavailable', variants: [], note: 'no priced products found' };
+  return { source: 'verified', variants };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 // STORE MODULE 3b — Walmart / Amazon / CVS / Walgreens  (Gemini-grounded, cited)
 //
-// One function, parameterized by store label. Two calls:
-//   1) grounded (google_search + url_context) free-text lookup.
-//   2) a plain no-tools 2.5-flash-lite reshape into strict JSON (this second call
-//      does NOT touch the grounding quota).
-// A price is accepted ONLY if the grounded response carried a supporting citation
-// URL AND the reshape returned a real number; otherwise source:"unavailable".
+// Returns MULTIPLE product variants per store (not one price). Two calls:
+//   1) grounded (google_search + url_context) — asked for a LIST of real products.
+//   2) a plain no-tools reshape into a strict variants array.
+// A variant is kept ONLY if it has a numeric price AND a product-page URL ON THE
+// STORE'S OWN DOMAIN (that URL is the citation — much higher recall than requiring
+// groundingMetadata chunks, which were often empty even for real products).
 // See STORE_NOTES.md for per-store notes.
 // ────────────────────────────────────────────────────────────────────────────
-function buildWatchGroundedPrompt(storeLabel, item) {
+const STORE_DOMAINS = { walmart: 'walmart.com', amazon: 'amazon.com', cvs: 'cvs.com', walgreens: 'walgreens.com' };
+const AI_STORE_LIST = ['walmart', 'amazon', 'cvs', 'walgreens'];
+
+// ONE grounded call covers ALL FOUR AI stores. Firing four separate grounded
+// calls (×2 attempts) per item blew the free-tier per-minute grounding limit
+// (429) and burned 4× the shared 500/day pool; one combined call fixes both and
+// lets the model compare across retailers in a single search.
+function buildAiPrompt(item) {
+  const stores = AI_STORE_LIST.map(s => `${STORE_LABELS[s]} (${STORE_DOMAINS[s]})`).join(', ');
   const lines = [
-    `You are a precise retail price researcher. Find TODAY'S current price for one product at ${storeLabel} (in the United States), using Google Search and, when given, the provided product page.`,
-    ``,
-    `PRODUCT: "${item.itemName}"`,
+    `You are a shopping researcher. Using Google Search AND url_context, find products CURRENTLY SOLD at these four US retailers: ${stores}.`,
+    `Item to match: "${item.itemName}".`,
   ];
-  if (item.brandLock) {
-    lines.push(`BRAND/PRODUCT LOCK: You MUST price the specific product "${item.brandLock} ${item.itemName}" — that exact brand and product, nothing else.`);
-  } else {
-    lines.push(`BRAND: any brand. Find the CHEAPEST identical or directly comparable product at ${storeLabel} across any brand.`);
-  }
-  if (item.productRef && item.productRef.url) {
-    lines.push(`DIRECT PRODUCT PAGE (fetch this first with url_context, treat it as the primary source): ${item.productRef.url}`);
-  }
-  if (item.productRef && item.productRef.foundTitle) {
-    lines.push(`CONFIRM SAME PRODUCT: a previous check tracked "${item.productRef.foundTitle}". Confirm you are pricing that same product/variant, not a different size or bundle.`);
-  }
+  if (item.brandLock) lines.push(`Restrict to this brand/product only: "${item.brandLock} ${item.itemName}".`);
+  else lines.push(`Include the closest-matching products across brands — each store's own brand AND national brands, common sizes/counts.`);
+  if (item.productRef && item.productRef.url) lines.push(`One relevant product page (fetch with url_context): ${item.productRef.url}`);
+  if (item.productRef && item.productRef.foundTitle) lines.push(`A product previously tracked was "${item.productRef.foundTitle}" — include it where still sold.`);
   lines.push(
     ``,
-    `STRICT RULES:`,
-    `- Report the price ONLY at ${storeLabel} (${storeLabel}'s own site/listing), not a different retailer.`,
-    `- If you CANNOT find a reliably sourced price at ${storeLabel}, say exactly "no reliable price found" — do NOT estimate, guess, or infer a number.`,
-    `- State which page/URL you got the price from.`,
-    `- Give the numeric price in USD, the brand/exact product title you priced, and that source URL.`,
+    `For EACH of the four retailers, list UP TO 4 real products actually sold there. For every product give: which retailer, the exact product title, its size/count, the brand, the CURRENT price in US dollars, and the product-page URL on THAT retailer's own domain.`,
+    `Read each price from that retailer's own product page. Every product MUST have a real URL on that retailer's domain — do NOT invent products, prices, or URLs, and never attribute one retailer's product to another.`,
+    `These retailers carry very broad catalogs, so search each thoroughly (e.g. "site:walmart.com ${item.itemName}") before concluding an item isn't sold there. It's normal for a common item to be available at all four.`,
   );
   return lines.join('\n');
 }
 
-function buildWatchReshapePrompt(groundedText) {
+function buildAiReshape(groundedText) {
   return [
-    `Extract structured data from the price-lookup answer below. Output JSON only.`,
-    `- If the answer states a reliably sourced price, set found:true, price:<number in USD>, url:<the source page URL it cited>, foundBrand:<brand/exact product title>, note:<≤12-word summary>.`,
-    `- If the answer says "no reliable price found" or gives no sourced number, set found:false and OMIT price.`,
-    `- Never invent a price or URL that is not present in the answer.`,
+    `From the shopping-research answer below, extract EVERY distinct product it lists, grouped by retailer, as JSON.`,
+    `"store" must be one of: walmart, amazon, cvs, walgreens. For each product: title, size, brand, price (a USD number), url (its product-page URL on that retailer's domain).`,
+    `Include a product ONLY if the answer gives BOTH a numeric price AND a matching-domain URL for it. Drop anything missing either. Never invent values.`,
     ``,
     `ANSWER:`,
     `"""`,
-    String(groundedText || '').slice(0, 6000),
+    String(groundedText || '').slice(0, 12000),
     `"""`,
   ].join('\n');
 }
 
-const WATCH_JSON_SCHEMA = {
+const AI_VARIANTS_SCHEMA = {
   type: 'OBJECT',
   properties: {
-    found: { type: 'BOOLEAN' },
-    price: { type: 'NUMBER' },
-    url: { type: 'STRING' },
-    foundBrand: { type: 'STRING' },
-    note: { type: 'STRING' },
+    products: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          store: { type: 'STRING' },
+          title: { type: 'STRING' },
+          size: { type: 'STRING' },
+          brand: { type: 'STRING' },
+          price: { type: 'NUMBER' },
+          url: { type: 'STRING' },
+        },
+      },
+    },
   },
-  required: ['found'],
+  required: ['products'],
 };
 
 // Low-level grounded call (callGemini can't do this — it forces JSON-only, no
@@ -1536,40 +1551,48 @@ async function geminiGrounded(model, key, prompt) {
   return { text, citationUrls: urls };
 }
 
-async function checkAiStore(env, storeKey, item, profile) {
+// ONE grounded call for all four AI stores → { walmart:{source,variants}, ... }.
+// Recall-first citation gate: a variant survives if it has a price AND a URL on
+// its own store's domain. Per store, empty variants → source:"unavailable".
+async function aiAllStores(env, item, profile) {
+  const out = {};
+  AI_STORE_LIST.forEach(s => { out[s] = { source: 'unavailable', variants: [], note: '' }; });
   const key = keyFor(env, profile);
-  if (!key) return { ok: true, source: 'unavailable', price: null, note: `no Gemini key for ${profile}` };
-  const storeLabel = STORE_LABELS[storeKey] || storeKey;
-  const prompt = buildWatchGroundedPrompt(storeLabel, item);
+  if (!key) { AI_STORE_LIST.forEach(s => out[s].note = `no Gemini key for ${profile}`); return out; }
+  const prompt = buildAiPrompt(item);
 
   let grounded = null, lastErr = null;
-  // Up to 2 attempts on the single usable model (transient grounded failures are
-  // common on hard stores like Amazon; there is no second model to fall back to).
-  for (const model of WATCH_AI_MODELS) {
-    for (let attempt = 0; attempt < 2 && !grounded; attempt++) {
-      try { const g = await geminiGrounded(model, key, prompt); if (g && g.text) { grounded = g; } }
-      catch (e) { lastErr = e.message || String(e); }
-    }
-    if (grounded) break;
+  for (const model of WATCH_AI_MODELS) {   // 2.5-flash → 2.0-flash on failure/429
+    try { const g = await geminiGrounded(model, key, prompt); if (g && g.text) { grounded = g; break; } }
+    catch (e) { lastErr = e.message || String(e); }
   }
-  if (!grounded || !grounded.text) return { ok: true, source: 'unavailable', price: null, note: lastErr || 'grounded lookup failed' };
+  if (!grounded || !grounded.text) { AI_STORE_LIST.forEach(s => out[s].note = lastErr || 'grounded lookup failed'); return out; }
 
   let shaped = null;
-  try { shaped = await callGemini(WATCH_RESHAPE_MODEL, key, { prompt: buildWatchReshapePrompt(grounded.text), schema: WATCH_JSON_SCHEMA, maxOutputTokens: 1024, feature: 'watch' }); }
-  catch (e) { lastErr = e.message || String(e); }
+  try { shaped = await callGemini(WATCH_RESHAPE_MODEL, key, { prompt: buildAiReshape(grounded.text), schema: AI_VARIANTS_SCHEMA, maxOutputTokens: 4096, feature: 'watch' }); }
+  catch (e) { lastErr = e.message || String(e); AI_STORE_LIST.forEach(s => out[s].note = lastErr); }
 
-  if (!shaped || !shaped.found || typeof shaped.price !== 'number' || !(shaped.price > 0)) {
-    return { ok: true, source: 'unavailable', price: null, note: (shaped && shaped.note) || 'no reliable price found' };
+  const raw = (shaped && Array.isArray(shaped.products)) ? shaped.products : [];
+  const seen = {};
+  for (const v of raw) {
+    const store = String(v.store || '').toLowerCase();
+    if (!out[store]) continue;
+    const domain = STORE_DOMAINS[store] || '';
+    const price = typeof v.price === 'number' ? v.price : parseFloat(v.price);
+    const url = String(v.url || '').trim();
+    if (!(price > 0)) continue;
+    if (!url || (domain && url.toLowerCase().indexOf(domain) < 0)) continue;   // citation gate
+    const dedupe = store + '|' + (String(v.title || '').toLowerCase().slice(0, 40)) + '|' + price.toFixed(2);
+    if (seen[dedupe]) continue;
+    seen[dedupe] = 1;
+    if (out[store].variants.length >= 5) continue;
+    out[store].variants.push({ store, source: 'ai-estimated', title: String(v.title || '').slice(0, 140), size: String(v.size || '').slice(0, 40), brand: String(v.brand || '').slice(0, 60), price: Math.round(price * 100) / 100, url });
   }
-  // Citation gate — no supporting URL means we do NOT trust the number.
-  if (!grounded.citationUrls.length) {
-    return { ok: true, source: 'unavailable', price: null, note: 'price found but no supporting citation' };
-  }
-  return {
-    ok: true, source: 'ai-estimated', price: shaped.price,
-    note: shaped.note || '', url: shaped.url || grounded.citationUrls[0],
-    foundBrand: shaped.foundBrand || '', foundTitle: shaped.foundBrand || '',
-  };
+  AI_STORE_LIST.forEach(s => {
+    if (out[s].variants.length) { out[s].source = 'ai-estimated'; out[s].variants.sort((a, b) => a.price - b.price); }
+    else if (!out[s].note) out[s].note = 'no cited product/price found';
+  });
+  return out;
 }
 
 // ── ALL-STORE CHECK ──────────────────────────────────────────────────────────
@@ -1589,30 +1612,37 @@ async function checkAllStores(env, profile, item) {
   const prev = {};
   (Array.isArray(item.perStoreBreakdown) ? item.perStoreBreakdown : []).forEach(e => { if (e && e.store) prev[e.store] = e; });
 
-  // All six stores are priced CONCURRENTLY — sequentially this is 6 × up-to-28s
-  // (~2 min/item); in parallel it's ~one grounded round-trip. Same total
-  // subrequest count (concurrency doesn't change the per-invocation cap).
-  const hintUrl = (item.productRef && item.productRef.url) || '';   // user-provided link, hints AI stores
-  const breakdown = await Promise.all(ALL_WATCH_STORES.map(async (store) => {
-    const p = prev[store] || {};
-    const probe = { itemName, brandLock, productRef: { krogerProductId: p.krogerProductId || '', url: p.url || hintUrl, foundTitle: p.foundTitle || '' } };
-    let res;
-    try {
-      res = KROGER_STORE_KEYS.has(store) ? await checkKroger(env, store, profile, probe) : await checkAiStore(env, store, probe, profile);
-    } catch (e) { res = { source: 'unavailable', note: e.message || 'error' }; }
-    const source = res.source || 'unavailable';
-    const entry = { store, source };
-    if (source !== 'unavailable' && typeof res.price === 'number') {
-      entry.price = res.price;
-      if (res.url) entry.url = res.url;
-      if (res.krogerProductId) entry.krogerProductId = res.krogerProductId;
-      if (res.foundTitle) entry.foundTitle = res.foundTitle;
-      if (res.foundBrand) entry.brand = res.foundBrand;
+  // Two Kroger banners (cheap API calls) run in parallel with ONE combined AI
+  // grounded call for all four AI stores — so per item there is just 1 grounded
+  // request (not 4), which keeps us under the free-tier per-minute + 500/day
+  // grounding limits. Each store yields a LIST of variants; the store's headline
+  // price is its cheapest.
+  const hintUrl = (item.productRef && item.productRef.url) || '';
+  const aiItem = { itemName, brandLock, productRef: { url: hintUrl, foundTitle: (prev.walmart && prev.walmart.foundTitle) || '' } };
+  const [krogerRes, kingsoopersRes, aiRes] = await Promise.all([
+    krogerVariants(env, 'kroger', profile, { itemName, brandLock, productRef: { krogerProductId: (prev.kroger && prev.kroger.krogerProductId) || '' } }).catch(e => ({ source: 'unavailable', variants: [], note: e.message || 'error' })),
+    krogerVariants(env, 'kingsoopers', profile, { itemName, brandLock, productRef: { krogerProductId: (prev.kingsoopers && prev.kingsoopers.krogerProductId) || '' } }).catch(e => ({ source: 'unavailable', variants: [], note: e.message || 'error' })),
+    aiAllStores(env, aiItem, profile).catch(() => ({})),
+  ]);
+  const perStore = { kroger: krogerRes, kingsoopers: kingsoopersRes };
+  AI_STORE_LIST.forEach(s => { perStore[s] = (aiRes && aiRes[s]) || { source: 'unavailable', variants: [] }; });
+
+  const breakdown = ALL_WATCH_STORES.map((store) => {
+    const res = perStore[store] || { source: 'unavailable', variants: [] };
+    const variants = Array.isArray(res.variants) ? res.variants : [];
+    const cheapest = variants.length ? variants[0] : null;   // sorted ascending
+    const entry = { store, source: cheapest ? res.source : 'unavailable', variants };
+    if (cheapest) {
+      entry.price = cheapest.price;
+      if (cheapest.url) entry.url = cheapest.url;
+      if (cheapest.krogerProductId) entry.krogerProductId = cheapest.krogerProductId;
+      if (cheapest.brand) entry.brand = cheapest.brand;
+      if (cheapest.title) entry.foundTitle = cheapest.title;
     } else if (res.note) {
       entry.note = res.note;
     }
     return entry;
-  }));
+  });
 
   let best = null;
   breakdown.forEach(e => { if (typeof e.price === 'number' && (best === null || e.price < best.price)) best = e; });
@@ -1624,6 +1654,22 @@ async function checkAllStores(env, profile, item) {
     foundCount: breakdown.filter(e => typeof e.price === 'number').length,
     storeCount: ALL_WATCH_STORES.length,
   };
+}
+
+// Strip the per-store `variants` list before persisting to Firestore — variants
+// are for the live confirm UI only; storing them on every item/day would bloat
+// the doc. Keeps the pins (url/krogerProductId/foundTitle) so later checks anchor.
+function slimBreakdown(breakdown) {
+  return (breakdown || []).map(e => {
+    const o = { store: e.store, source: e.source };
+    if (typeof e.price === 'number') o.price = e.price;
+    if (e.url) o.url = e.url;
+    if (e.krogerProductId) o.krogerProductId = e.krogerProductId;
+    if (e.brand) o.brand = e.brand;
+    if (e.foundTitle) o.foundTitle = e.foundTitle;
+    if (e.note) o.note = e.note;
+    return o;
+  });
 }
 
 // /watch/check and /watch/resolve are the SAME all-store lookup — resolve is just
@@ -1693,12 +1739,13 @@ async function runPriceWatchCron(env) {
     catch (e) { res = { ok: false, breakdown: [], bestPrice: null, bestStore: null }; }
 
     const prevBest = typeof it.bestPrice === 'number' ? it.bestPrice : null;
-    it.perStoreBreakdown = res.breakdown || [];
+    const slim = slimBreakdown(res.breakdown);
+    it.perStoreBreakdown = slim;
     it.bestPrice = res.bestPrice;   // may be null (all stores unavailable)
     it.bestStore = res.bestStore;   // may be null
     it.lastChecked = new Date().toISOString();
     if (!Array.isArray(it.priceHistory)) it.priceHistory = [];
-    it.priceHistory.push({ date: today, bestPrice: res.bestPrice, bestStore: res.bestStore, breakdown: res.breakdown || [] });
+    it.priceHistory.push({ date: today, bestPrice: res.bestPrice, bestStore: res.bestStore, breakdown: slim });
 
     // Write the whole doc back NOW (crash-safe). `it` is a live reference inside
     // docs[path].items, so its mutation is already in the object we serialize.

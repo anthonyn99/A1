@@ -45,47 +45,54 @@ Notes:
 - Observed quirk: the token-endpoint response reports `scope` empty even though
   `product.compact` was granted — Products calls still succeed, so this is benign.
 
-## Walmart
-Method: Gemini-grounded (gemini-2.5-flash ONLY, google_search + url_context)
-Last verified working: 2026-07-17 (returned a cited estimate)
+## Walmart / Amazon / CVS / Walgreens  (shared AI-search design)
+Method: Gemini-grounded — ONE combined call for all four AI stores
+Last verified working: 2026-07-17 (grounding returns cited variants; see quota note)
 Notes:
-- **MODEL CONSTRAINT DISCOVERED 2026-07-17:** this project's Gemini key returns
-  404 "gemini-2.5-flash-lite is no longer available to new users" — for BOTH the
-  grounded call and the reshape call. So flash-lite is dropped entirely and BOTH
-  the grounded lookup and the reshape now run on **gemini-2.5-flash** (the reshape
-  is a no-tools call, so it still doesn't touch the grounding quota). Do NOT
-  reintroduce flash-lite here, and do NOT switch to 3.x (grounding isn't free for
-  3.x without billing). If a lighter free-grounding model becomes available to the
-  key later, it can be added back.
-- With only one usable model there's no cross-model fallback, so the grounded call
-  gets up to 2 attempts on flash (hard stores like Amazon fail transiently).
-- All 6 stores per item are priced CONCURRENTLY (Promise.all) — a single item
-  check is ~30-45s instead of ~2min sequential.
-- Two-call shape: (1) grounded free-text lookup, (2) plain no-tools gemini-2.5-flash
-  reshape into `{found,price,url,foundBrand,note}`; a price is stored only if the
-  grounded response carried a citation URL.
-- Watch out: grounded estimates can latch onto a multipack/case price (saw a
-  "Cheerios" lookup return $18 from a variety pack). The citation gate passes it,
-  so it's stored as `ai-estimated` and the notification says "worth double-checking".
+- **ONE grounded call covers all four AI stores** (`aiAllStores`), not one per
+  store. Four separate grounded calls (×2 attempts) per item blew the free-tier
+  per-minute grounding limit (429) and burned 4× the shared daily pool. The single
+  call also lets the model compare across retailers in one search. Reshape then
+  splits the result back per store.
+- **Returns MULTIPLE VARIANTS per store** (up to ~4–5 products each: title, size,
+  brand, price, product URL). The confirm UI lists them so the user can track a
+  specific variant, or "track cheapest (any brand)".
+- **Citation gate (recall-first):** a variant is kept only if it has a numeric
+  price AND a product-page URL **on that store's own domain** (walmart.com etc).
+  This replaced the old groundingMetadata-chunks gate, which was rejecting real
+  products (e.g. Walmart brown eggs) whenever the chunks array came back empty.
+- **Models:** grounded call tries `gemini-2.5-flash` → `gemini-2.0-flash` (both
+  FREE Google Search grounding, no billing, SEPARATE daily quota buckets). The
+  **reshape** is a plain no-tools call on `gemini-3.1-flash-lite` (high RPD, no
+  grounding cost) — keeps the scarce 2.5-flash budget for grounding only.
+  `gemini-2.5-flash-lite` is EXCLUDED (404 "no longer available to new users" on
+  this key). Never use 3.x for the GROUNDED call (grounding isn't free there).
+- **FREE-TIER QUOTA REALITY (important):** grounding shares the same free Gemini
+  quota as MyList voice / TaskHub / Journal on the per-profile keys. Heavy same-day
+  use (or repeated manual testing) can exhaust `gemini-2.5-flash` and return 429,
+  after which the four AI stores show `unavailable` until the daily reset. Kroger /
+  King Soopers (verified API) are unaffected. Normal load is tiny (cron checks 3
+  items/day); the 429s seen on 2026-07-17 were from bulk testing. Do NOT "fix" a
+  429 by enabling billing — it's the expected free-lane tradeoff; just let it reset.
+- Watch out: grounded estimates can latch onto a multipack/case price (a "Cheerios"
+  lookup returned $18 from a variety pack). Stored as `ai-estimated`; the drop
+  notification says "worth double-checking".
 
 ## Amazon
-Method: Gemini-grounded (gemini-2.5-flash ONLY, google_search + url_context)
-Last verified working: 2026-07-17 (grounded call runs; no cited price in test items)
+Method: Gemini-grounded — part of the shared AI-search design (see Walmart section)
 Notes:
 - Prices change intra-day and by seller; the model is told to prefer the primary
   buy-box / "Sold by Amazon" price and to say "no reliable price found" rather than
   guess when it can't cite one.
 
 ## CVS
-Method: Gemini-grounded (gemini-2.5-flash ONLY, google_search + url_context)
-Last verified working: 2026-07-17 (grounded call runs; no cited price in test items)
+Method: Gemini-grounded — part of the shared AI-search design (see Walmart section)
 Notes:
 - Store/online prices differ and often require a ZIP; the model is told to report
   the online price and note if it looks store-only.
 
 ## Walgreens
-Method: Gemini-grounded (gemini-2.5-flash ONLY, google_search + url_context)
-Last verified working: 2026-07-17 (grounded call runs; no cited price in test items)
+Method: Gemini-grounded — part of the shared AI-search design (see Walmart section)
 Notes:
 - Same shared grounded function as the other three AI stores, parameterized by
   store name only.

@@ -350,6 +350,16 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-bd-price{font-weight:800;color:var(--text);}
 .pw-bd-row.best .pw-bd-price{color:var(--good);}
 .pw-link{text-decoration:none;color:var(--accent);font-weight:800;}
+.pw-confirm-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.pw-confirm-sub{font-size:12px;font-weight:700;color:var(--textmute);margin:4px 0 8px;}
+.pw-vgroup{margin-bottom:10px;}
+.pw-vstore{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--textdim);margin-bottom:4px;display:flex;gap:6px;align-items:center;}
+.pw-variant{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);}
+.pw-variant:last-child{border-bottom:none;}
+.pw-variant-info{flex:1;min-width:0;}
+.pw-variant-title{font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pw-variant-sub{font-size:12px;color:var(--textdim);margin-top:1px;}
+.pw-variant-price{font-weight:800;color:var(--text);}
 
 /* ── Recipes ── */
 .rec-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
@@ -2227,8 +2237,21 @@ function pwCandidatesHtml(){
   if(res && res.ok && res.foundCount>0){
     var summary='Found at '+res.foundCount+' of '+(res.storeCount||6)+' stores · cheapest <b>$'+res.bestPrice.toFixed(2)+'</b> at '+esc(pwStoreLabel(res.bestStore))+(res.bestBrand?(' ('+esc(res.bestBrand)+')'):'');
     h+='<div class="pw-confirm-h">'+summary+'</div>';
-    h+='<div class="pw-bd">'+pwBreakdownRows(res.breakdown, res.bestStore)+'</div>';
-    h+='<div class="pw-confirm-foot"><button class="btn ghost sm" onclick="ML.pwCancelAdd()">Cancel</button><button class="btn solid sm" onclick="ML.pwTrack()">Track this</button></div>';
+    h+='<div class="pw-confirm-actions"><button class="btn solid sm" onclick="ML.pwTrack()">Track cheapest (any brand)</button><button class="btn ghost sm" onclick="ML.pwCancelAdd()">Cancel</button></div>';
+    h+='<div class="pw-confirm-sub">…or pick a specific product to track:</div>';
+    (res.breakdown||[]).forEach(function(e){
+      var vs=e.variants||[];
+      if(!vs.length) return;
+      h+='<div class="pw-vgroup"><div class="pw-vstore">'+esc(pwStoreLabel(e.store))+' '+pwBadge(e.store)+'</div>';
+      vs.forEach(function(v,i){
+        var sub=[v.brand,v.size].filter(Boolean).join(' · ');
+        var link=(v.url)?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">↗</a>':'';
+        h+='<div class="pw-variant"><div class="pw-variant-info"><div class="pw-variant-title">'+esc(v.title||pwCandidates.draft.itemName)+'</div>'
+          +'<div class="pw-variant-sub"><span class="pw-variant-price">$'+v.price.toFixed(2)+'</span>'+(sub?' · '+esc(sub):'')+link+'</div></div>'
+          +'<button class="btn ghost sm" onclick="ML.pwTrackVariant(\''+e.store+'\','+i+')">Track</button></div>';
+      });
+      h+='</div>';
+    });
   } else {
     var msg=(res&&res.error)?('Lookup issue — '+esc(res.error)+'.'):'No sourced price found at any of the 6 stores right now.';
     h+='<div class="pw-confirm-h">'+msg+' You can still watch it — the daily check keeps trying.</div>';
@@ -2236,6 +2259,36 @@ function pwCandidatesHtml(){
   }
   h+='</div>';
   return h;
+}
+// Strip the per-store variants list before persisting (they're for the confirm UI
+// only); keep the slim entry incl. pins so later checks anchor to the product.
+function pwSlim(breakdown){
+  return (breakdown||[]).map(function(e){
+    var o={ store:e.store, source:e.source };
+    if(typeof e.price==='number') o.price=e.price;
+    if(e.url) o.url=e.url;
+    if(e.krogerProductId) o.krogerProductId=e.krogerProductId;
+    if(e.brand) o.brand=e.brand;
+    if(e.foundTitle) o.foundTitle=e.foundTitle;
+    return o;
+  });
+}
+// Track ONE specific variant: pins brand/title/url so future checks anchor to it.
+function pwTrackVariant(store, i){
+  if(!pwCandidates) return;
+  var res=pwCandidates.res, draft=pwCandidates.draft;
+  var e=(res.breakdown||[]).filter(function(x){return x.store===store;})[0];
+  var v=e && e.variants && e.variants[i]; if(!v) return;
+  var today=new Date().toISOString().slice(0,10);
+  var it={ id:uid(), itemName:draft.itemName, qty:draft.qty||'', brandLock:(v.brand||draft.brandLock||''),
+    productRef:{ url:v.url||((draft.productRef&&draft.productRef.url)||''), foundTitle:v.title||'', krogerProductId:v.krogerProductId||'' },
+    perStoreBreakdown:pwSlim(res.breakdown), priceHistory:[], bestPrice:v.price, bestStore:store, lastChecked:new Date().toISOString(), createdAt:Date.now() };
+  // Anchor the picked store's slim entry to the exact chosen variant.
+  var seed=it.perStoreBreakdown.filter(function(x){return x.store===store;})[0];
+  if(seed){ seed.price=v.price; if(v.url)seed.url=v.url; if(v.title)seed.foundTitle=v.title; if(v.krogerProductId)seed.krogerProductId=v.krogerProductId; if(v.brand)seed.brand=v.brand; }
+  it.priceHistory.push({ date:today, bestPrice:it.bestPrice, bestStore:it.bestStore, breakdown:it.perStoreBreakdown });
+  pwItems().push(it); persistWatch();
+  pwCandidates=null; pwExpandedId=null; render(); toast('Tracking '+(v.title||it.itemName));
 }
 function pwRowHtml(it){
   var expanded = pwExpandedId===it.id;
@@ -2295,10 +2348,11 @@ function pwNewItem(draft, res, today){
     productRef:{ url:(draft.productRef&&draft.productRef.url)||'' },
     perStoreBreakdown:[], priceHistory:[], bestPrice:null, bestStore:null, lastChecked:null, createdAt:Date.now() };
   if(res && res.ok && typeof res.bestPrice==='number'){
-    it.perStoreBreakdown=res.breakdown||[];
+    var slim=pwSlim(res.breakdown);
+    it.perStoreBreakdown=slim;
     it.bestPrice=res.bestPrice; it.bestStore=res.bestStore;
     it.lastChecked=new Date().toISOString();
-    it.priceHistory.push({ date:today, bestPrice:res.bestPrice, bestStore:res.bestStore, breakdown:res.breakdown||[] });
+    it.priceHistory.push({ date:today, bestPrice:res.bestPrice, bestStore:res.bestStore, breakdown:slim });
   }
   return it;
 }
@@ -2316,7 +2370,7 @@ function pwSaveAnyway(){
 function pwCancelAdd(){ pwCandidates=null; pwAdding=false; render(); }
 function pwApplyResult(it, res){
   var today=new Date().toISOString().slice(0,10);
-  it.perStoreBreakdown = Array.isArray(res.breakdown) ? res.breakdown : [];
+  it.perStoreBreakdown = pwSlim(res.breakdown);
   it.bestPrice = (typeof res.bestPrice==='number') ? res.bestPrice : null;
   it.bestStore = res.bestStore || null;
   it.lastChecked = new Date().toISOString();
@@ -2358,7 +2412,7 @@ window.ML = {
   recBack:recBack, recAddIng:recAddIng, recAddTool:recAddTool, recSave:recSave, recCloseModal:recCloseModal, recDelete:recDelete,
   recUndo:recUndo, recRedo:recRedo,
   recEditStep:recEditStep, recAddStep:recAddStep, recSaveStep:recSaveStep, recCancelStep:recCancelStep, recDeleteStep:recDeleteStep,
-  pwAddFind:pwAddFind, pwTrack:pwTrack, pwSaveAnyway:pwSaveAnyway, pwCancelAdd:pwCancelAdd, pwCheckNow:pwCheckNow, pwDelete:pwDelete, pwToggle:pwToggle, pwSetSort:pwSetSort,
+  pwAddFind:pwAddFind, pwTrack:pwTrack, pwTrackVariant:pwTrackVariant, pwSaveAnyway:pwSaveAnyway, pwCancelAdd:pwCancelAdd, pwCheckNow:pwCheckNow, pwDelete:pwDelete, pwToggle:pwToggle, pwSetSort:pwSetSort,
   openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker, pickDevice:pickDevice,
   manageLock:manageLock, lockSubmit:lockSubmit, lockCancel:lockCancel, lockForgot:lockForgot, lockReset:lockReset
 };
