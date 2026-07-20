@@ -1491,9 +1491,28 @@ function applyParsed(l, d){
   var byName={}, byId={}; (l.items||[]).forEach(function(it){ byName[it.name.toLowerCase()]=it; if(it.id) byId[it.id]=it; });
   l.items = parsed.map(function(p){
     var prev=(p.id&&byId[p.id])||byName[(p.name||'').toLowerCase()];
-    return { id: prev?prev.id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'', desc:p.desc||(prev?prev.desc:'')||'',
+    var o = { id: prev?prev.id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'', desc:p.desc||(prev?prev.desc:'')||'',
              done: (typeof p.done==='boolean')?p.done:(prev?prev.done:false) };
+    // PRESERVE the Price Watch link (the worker strips non-standard fields, so we
+    // re-attach it from the matched previous item). Store/reorder/unrelated edits
+    // keep the same item identity → keep watching + its cached prices.
+    if(prev && prev.watchId) o.watchId = prev.watchId;
+    return o;
   }).filter(function(x){return x.name;});
+  // Keep each linked watch entry's name/qty in step with its (possibly renamed)
+  // list item WITHOUT touching its fetched prices, so it keeps monitoring the right
+  // product with no manual re-enable. Guarded on pwLoaded so we never unlink just
+  // because the watch data hasn't finished loading yet.
+  if(activeProfile && pwLoaded[activeProfile]){
+    var wDirty=false;
+    l.items.forEach(function(it){
+      if(!it.watchId) return;
+      var w=pwItems().filter(function(x){return x.id===it.watchId;})[0];
+      if(!w){ delete it.watchId; return; }
+      if(w.itemName!==it.name || (w.qty||'')!==(it.qty||'')){ w.itemName=it.name; w.qty=it.qty||''; wDirty=true; }
+    });
+    if(wDirty) persistWatch();
+  }
   // Worker output is authoritative for stores — replacing (not merging) lets
   // voice commands REMOVE and RENAME stores, not just add them.
   l.stores=[];
