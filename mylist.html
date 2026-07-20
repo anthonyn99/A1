@@ -367,6 +367,12 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-store-add{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
 .pw-store-add input{flex:1;min-width:120px;}
 .pw-store-note{font-size:11px;color:var(--textmute);margin-top:8px;}
+/* Integrated per-item watch (Lists) */
+.li-watch-btn.on{color:var(--accent);}
+.li-watch-line{font-size:12px;color:var(--textdim);margin-top:3px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+.li-watch-line .eye{font-size:12px;}
+.li-watch-line b{color:var(--text);}
+.li-watch-at{color:var(--textmute);}
 
 /* ── Recipes ── */
 .rec-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
@@ -1263,7 +1269,12 @@ function addItem(){
 function toggleDone(id){ var l=curList(); if(!l) return; var it=l.items.filter(function(x){return x.id===id;})[0]; if(it){ it.done=!it.done; persist(); render(); } }
 function delItem(id){
   var l=curList(); if(!l) return; var it=l.items.filter(function(x){return x.id===id;})[0]; if(!it) return;
-  confirmAsk('Delete "'+it.name+'"?', function(){ pushUndo(l); l.items=l.items.filter(function(x){return x.id!==id;}); persist(); render(); });
+  confirmAsk('Delete "'+it.name+'"?', function(){
+    pushUndo(l);
+    // Remove any linked Price Watch entry so it doesn't orphan in the watch box.
+    if(it.watchId && activeProfile){ pwStore[activeProfile]=pwItems().filter(function(x){return x.id!==it.watchId;}); persistWatch(); }
+    l.items=l.items.filter(function(x){return x.id!==id;}); persist(); render();
+  });
 }
 function startEdit(id){ editingItemId=id; render(); }
 function saveEdit(id){
@@ -2191,6 +2202,7 @@ function itemHtml(it){
     +'<div class="chk" onclick="ML.toggleDone(\''+it.id+'\')">'+(it.done?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
     +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+'</div>'
     +'<div class="acts">'
+      +pwWatchToggleBtn(it)
       +'<button class="ib" onclick="ML.startEdit(\''+it.id+'\')" title="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
       +'<button class="ib del" onclick="ML.delItem(\''+it.id+'\')" title="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>'
     +'</div></div>';
@@ -2199,7 +2211,42 @@ function itemSubHtml(it){
   var sub=''; if(it.qty) sub+='<span class="qty-tag">×'+esc(it.qty)+'</span>';
   var s = sub?'<div class="sub">'+sub+'</div>':'';
   if(it.desc) s+='<div class="desc">'+esc(it.desc)+'</div>';
+  s += itemWatchLine(it);
   return s;
+}
+// ── Integrated Price Watch: enable price tracking on a list item directly. It
+// creates a linked entry in the SAME Price Watch box (dashboards/pricewatch),
+// seeded from the item, so it shows in the Price Watch tab and is tracked by the
+// daily cron — no re-typing. ──
+function pwWatchForItem(it){ return (it && it.watchId) ? pwItems().filter(function(x){return x.id===it.watchId;})[0] : null; }
+function itemWatchLine(it){
+  var w=pwWatchForItem(it);
+  if(!w) return '';
+  if(typeof w.bestPrice==='number')
+    return '<div class="li-watch-line"><span class="eye">👁</span> best <b>$'+w.bestPrice.toFixed(2)+'</b> <span class="li-watch-at">at '+esc(pwStoreLabel(w.bestStore))+'</span></div>';
+  return '<div class="li-watch-line"><span class="eye">👁</span> <span class="li-watch-at">watching — no price yet</span></div>';
+}
+function pwWatchToggleBtn(it){
+  var on=!!pwWatchForItem(it);
+  return '<button class="ib li-watch-btn'+(on?' on':'')+'" onclick="event.stopPropagation();ML.pwToggleListWatch(\''+it.id+'\')" title="'+(on?'Stop watching price':'Watch this item\'s price')+'">'
+    +'<svg width="15" height="15" viewBox="0 0 24 24" fill="'+(on?'currentColor':'none')+'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3" fill="'+(on?'var(--surface)':'none')+'"/></svg></button>';
+}
+function pwToggleListWatch(itemId){
+  var l=curList(); if(!l) return;
+  var it=(l.items||[]).filter(function(x){return x.id===itemId;})[0]; if(!it) return;
+  var w=pwWatchForItem(it);
+  if(w){
+    if(activeProfile) pwStore[activeProfile]=pwItems().filter(function(x){return x.id!==w.id;});
+    delete it.watchId;
+    persistWatch(); persist(); render(); toast('Stopped watching '+it.name);
+  } else {
+    var wid=uid();
+    pwItems().push({ id:wid, itemName:it.name, qty:it.qty||'', brandLock:'', productRef:{ url:'' },
+      perStoreBreakdown:[], priceHistory:[], bestPrice:null, bestStore:null, lastChecked:null, createdAt:Date.now(),
+      fromList:{ listId:l.id, itemId:it.id } });
+    it.watchId=wid;
+    persistWatch(); persist(); render(); toast('Now watching '+it.name+' — see the Price Watch tab');
+  }
 }
 function toggleManual(){ if(!manualVisible()) return; manualOpen=!manualOpen; renderManualPop(); }
 
@@ -2357,7 +2404,7 @@ function pwRowHtml(it){
   var checked = it.lastChecked ? ('checked '+pwDateShort(it.lastChecked)) : 'never checked';
   var h='<div class="pw-row'+(expanded?' open':'')+'" data-id="'+it.id+'">';
   h+='<div class="pw-main" onclick="ML.pwToggle(\''+it.id+'\')">';
-  h+='<div class="pw-info"><div class="pw-name">'+esc(it.itemName)+(it.qty?' <span class="pw-qty">×'+esc(it.qty)+'</span>':'')+(it.brandLock?'<span class="pw-brand">🔒 '+esc(it.brandLock)+'</span>':'')+'</div>';
+  h+='<div class="pw-info"><div class="pw-name">'+esc(it.itemName)+(it.qty?' <span class="pw-qty">×'+esc(it.qty)+'</span>':'')+(it.brandLock?'<span class="pw-brand">🔒 '+esc(it.brandLock)+'</span>':'')+(it.fromList?'<span class="pw-brand">📋 from list</span>':'')+'</div>';
   h+='<div class="pw-meta">'+atStore+' · '+esc(checked)+'</div></div>';
   h+='<div class="pw-priceblock"><div class="pw-price">'+price+'</div>'+delta+'</div>';
   h+='</div>';
@@ -2502,7 +2549,7 @@ window.ML = {
   recUndo:recUndo, recRedo:recRedo,
   recEditStep:recEditStep, recAddStep:recAddStep, recSaveStep:recSaveStep, recCancelStep:recCancelStep, recDeleteStep:recDeleteStep,
   pwAddFind:pwAddFind, pwTrack:pwTrack, pwTrackVariant:pwTrackVariant, pwSaveAnyway:pwSaveAnyway, pwCancelAdd:pwCancelAdd, pwCheckNow:pwCheckNow, pwDelete:pwDelete, pwToggle:pwToggle, pwSetSort:pwSetSort,
-  pwFormInput:pwFormInput, pwClearSearch:pwClearSearch, pwToggleManage:pwToggleManage, pwAddStore:pwAddStore, pwRemoveStore:pwRemoveStore,
+  pwFormInput:pwFormInput, pwClearSearch:pwClearSearch, pwToggleManage:pwToggleManage, pwAddStore:pwAddStore, pwRemoveStore:pwRemoveStore, pwToggleListWatch:pwToggleListWatch,
   openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker, pickDevice:pickDevice,
   manageLock:manageLock, lockSubmit:lockSubmit, lockCancel:lockCancel, lockForgot:lockForgot, lockReset:lockReset
 };
