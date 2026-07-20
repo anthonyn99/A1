@@ -3862,7 +3862,7 @@ function tbLoadAnalysisCfg(){
   try{return JSON.parse(localStorage.getItem(TB_ANALYSIS_KEY)||'{}');}catch{return {};}
 }
 
-/* Morning tab-group settings — the name + color the morning-launcher's Brave
+/* Morning tab-group settings — the name + color the Trading Auto Launcher's Brave
    window is wrapped into (via the Vault extension). Browser tab groups only
    support 9 FIXED colors (grey/blue/red/yellow/green/pink/purple/cyan/orange),
    so these are the only options; `id` is the exact value handed to the browser,
@@ -3878,9 +3878,15 @@ const TB_GROUP_COLORS = [
   {id:'red',    label:'Ruby',     hex:'#F28B82'},
   {id:'grey',   label:'Slate',    hex:'#9AA0A6'},
 ];
-const TB_GROUP_NAME_DEFAULT = 'Trade Analysis';
+const TB_GROUP_NAME_DEFAULT = 'Trading Analysis';
 const TB_GROUP_COLOR_DEFAULT = 'cyan';
 function tbGroupColorLabel(id){const c=TB_GROUP_COLORS.find(x=>x.id===id);return c?c.label:'Teal';}
+/* Custom URL protocol the Trading Auto Launcher registers (launcher.py --setup).
+   The Deploy button navigates here to run the whole flow natively. */
+const TB_AUTOLAUNCH_PROTOCOL = 'tradingautolauncher://deploy';
+/* Ask the Vault extension to group THIS window's launcher tabs into the named group.
+   Only the current TradeHub tab (the seed) + tabs opened afterward are grouped. */
+function tbSignalGroup(name,color){try{window.postMessage({source:'tradehub-vault',action:'groupTradingTabs',name:name||TB_GROUP_NAME_DEFAULT,color:color||TB_GROUP_COLOR_DEFAULT},location.origin);}catch(e){}}
 /* Shared watchlist — single ticker list driving News, parsing, sectors, catalysts. */
 const TB_WATCHLIST_KEY = 'td6_watchlist';
 /* Bump this when TB_WATCHLIST default changes and you want every device's
@@ -3917,7 +3923,7 @@ function tbIsChatGPTUrl(u){ try{ return /(^|\.)chatgpt\.com$|(^|\.)chat\.openai\
 /* Plain ChatGPT URL. We deliberately do NOT use ?q=<prompt>: real prompts are long
    enough that the URL + ChatGPT's auth cookies overflow its header limit (HTTP 431).
    The prompt is copied to the clipboard instead — paste it with Ctrl+V. (The
-   morning-launcher submits automatically by pasting + Enter for you.) */
+   Trading Auto Launcher submits automatically by pasting + Enter for you.) */
 const TB_CHATGPT_URL='https://chatgpt.com/';
 
 function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
@@ -3975,7 +3981,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       res.push(ok?{ok:true,icon:'⌘',label:`Prompt copied — ${selPrompt.name}`}:{ok:false,icon:'⌘',label:'Copy failed — try the Prompts copy button'});
       /* ── Open ChatGPT — prompt is on the clipboard; paste with Ctrl+V + Enter ──
          A web page can't type into or submit another site (browser security), and
-         the prompt is too long for a ?q= URL (HTTP 431). The morning-launcher does
+         the prompt is too long for a ?q= URL (HTTP 431). The Trading Auto Launcher does
          the paste + Enter for you automatically; here you paste once. */
       window.open(TB_CHATGPT_URL,'_blank','noopener');
       res.push({ok:ok,icon:'✦',label:ok?'ChatGPT opened — paste with Ctrl+V, then Enter':'ChatGPT opened — copy the prompt from Prompts, then paste'});
@@ -3989,6 +3995,25 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       res.push({ok:true,icon:numIcon(i),label:`Search ${i+1} opened`});
     });
     setResults(res);
+  };
+
+  // Deploy the ENTIRE Trading Auto Launcher (reminder gate → WeBull → TaskHub →
+  // windows → ChatGPT + searches). Because TradeHub is already open here, the native
+  // launcher reuses THIS window: we signal the Vault extension to group this window's
+  // launcher tabs (the current TradeHub tab is the seed; the searches + ChatGPT it
+  // opens are folded in), then trigger the launcher via its URL protocol. The Python
+  // side does the reminder gate + WeBull/TaskHub and copies/pastes the prompt itself.
+  // We keep re-sending the group signal for a few minutes so a slow reminder-gate
+  // read never lets the grouping window lapse before the search/ChatGPT tabs open.
+  const deployIvRef=React.useRef(null);
+  React.useEffect(()=>()=>{if(deployIvRef.current)clearInterval(deployIvRef.current);},[]);
+  const handleDeploy=()=>{
+    const name=groupName,color=groupColor;
+    tbSignalGroup(name,color);
+    if(deployIvRef.current)clearInterval(deployIvRef.current);
+    let n=0; deployIvRef.current=setInterval(()=>{tbSignalGroup(name,color);if(++n>=16){clearInterval(deployIvRef.current);deployIvRef.current=null;}},30000); // ~8 min
+    try{window.location.href=TB_AUTOLAUNCH_PROTOCOL;}catch(e){}
+    setResults([{ok:true,icon:'🚀',label:'Deploying Trading Auto Launcher — confirm the browser prompt if it appears'}]);
   };
 
   const isEmpty=!selPromptText&&activeSearches.length===0;
@@ -4039,9 +4064,9 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       ))}
     </div>
 
-    {/* Morning tab group — name + color for the group the launcher opens into */}
+    {/* Trading Analysis tab group — name + color for the group the launcher opens into */}
     <div style={{marginBottom:24}}>
-      <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8}}>◧ Morning tab group</div>
+      <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8}}>◧ Trading Analysis tab group</div>
       <div style={{display:'flex',flexDirection:'column',gap:14,padding:'16px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--bgc)'}}>
         <div>
           <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:6}}>Group name</div>
@@ -4061,7 +4086,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             ))}
           </div>
         </div>
-        <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>Every market morning the launcher opens TradeHub, your searches (left→right) and ChatGPT in one Brave window, then the Vault extension wraps them into this group. Browser tab groups support these 9 colors only.</div>
+        <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>Every market morning the Trading Auto Launcher opens TradeHub, your searches (left→right) and ChatGPT, then the Vault extension wraps just those tabs into this group (restored tabs stay out). Browser tab groups support these 9 colors only.</div>
       </div>
     </div>
 
@@ -4106,6 +4131,19 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       <button className="tb-btn-ghost" onClick={()=>{setEditing(e=>!e);setDraft(getSearches(cfg));setResults([]);}}>
         {editing?'✕ Cancel':'✎ Edit Searches'}
       </button>
+    </div>
+
+    {/* Full deploy — runs the native Trading Auto Launcher from the beginning */}
+    <div style={{marginTop:18,paddingTop:18,borderTop:'1px solid var(--bd)'}}>
+      <button onClick={handleDeploy}
+        style={{display:'inline-flex',alignItems:'center',gap:9,background:'transparent',color:'var(--tx)',border:'1.5px solid var(--ac)',borderRadius:8,padding:'12px 24px',fontSize:14,fontWeight:800,cursor:'pointer',transition:'all .15s'}}
+        onMouseEnter={e=>{e.currentTarget.style.background='var(--ac)';e.currentTarget.style.color='#000';}}
+        onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='var(--tx)';}}>
+        🚀 Deploy Trading Auto Launcher
+      </button>
+      <div style={{fontSize:11,color:'var(--txd)',marginTop:8,lineHeight:1.5,maxWidth:560}}>
+        Runs the whole flow — Daily Reminder → WeBull → TaskHub → window layout — then opens ChatGPT + your searches <b>next to this TradeHub window</b> and groups them as “{groupName}”. Requires the desktop app installed once (<code style={{fontFamily:'monospace'}}>launcher.py --setup</code>); Brave asks permission the first time.
+      </div>
     </div>
 
     {/* Per-action result pills */}
@@ -5095,7 +5133,7 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
    Three converters power it, all self-contained (the app ships no markdown lib):
      tbMdToHtml    — markdown SOURCE text → HTML   (pasting raw markdown)
      tbSanitizeHtml— untrusted HTML → safe HTML    (pasting rendered content)
-     tbHtmlToMd    — stored HTML → markdown        (what morning-launcher shows)
+     tbHtmlToMd    — stored HTML → markdown        (what Trading Auto Launcher shows)
    ══════════════════════════════════════════════════════════════════════════════ */
 
 const tbEscHtml=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -5311,7 +5349,7 @@ function tbHtmlIsPlain(html){
 }
 
 /* ── HTML → Markdown ──────────────────────────────────────────────────────────
-   Pages are authored as HTML, but morning-launcher renders the Daily Reminder in
+   Pages are authored as HTML, but Trading Auto Launcher renders the Daily Reminder in
    a plain Tk dialog, so it is pushed a Markdown copy.
 
    This has to cope with real editor markup, which nests block content in places
@@ -5444,7 +5482,7 @@ function tbHtmlToMd(html){
 }
 
 /* ── Playbook pages ── */
-const TB_PB_DAILY_ID='daily-reminder';   // fixed id — morning-launcher reads THIS page
+const TB_PB_DAILY_ID='daily-reminder';   // fixed id — Trading Auto Launcher reads THIS page
 const TB_PLAYBOOK_KEY='tb_playbook_v1';
 const tbPbNewId=()=>'pb_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
 
@@ -5470,7 +5508,7 @@ function tbLoadPlaybookLocal(){
   return tbPbDefaultPages();
 }
 function tbSavePlaybookLocal(pages){ try{ localStorage.setItem(TB_PLAYBOOK_KEY,JSON.stringify(pages)); }catch(e){} }
-/* Daily Reminder is pinned first and always exists — morning-launcher depends on it. */
+/* Daily Reminder is pinned first and always exists — Trading Auto Launcher depends on it. */
 function tbPbNormalize(pages){
   const arr=Array.isArray(pages)?pages.filter(p=>p&&p.id):[];
   const daily=arr.find(p=>p.id===TB_PB_DAILY_ID)||tbPbDefaultPages()[0];
@@ -5817,7 +5855,7 @@ function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
           placeholder="Page title" spellCheck={false}
           style={{flex:1,minWidth:120,background:'transparent',border:'none',borderBottom:'1px solid var(--bd)',color:'var(--tx)',
             fontFamily:"'Lora',serif",fontSize:isMobile?19:23,fontWeight:700,padding:'6px 2px',outline:'none'}}/>
-        {isDaily&&<span title="morning-launcher shows this page before it opens anything"
+        {isDaily&&<span title="Trading Auto Launcher shows this page before it opens anything"
           style={{fontSize:8.5,background:'rgba(74,222,128,0.18)',color:'var(--tbb)',border:'1px solid rgba(74,222,128,0.35)',
             borderRadius:4,padding:'3px 7px',fontWeight:800,letterSpacing:.6,whiteSpace:'nowrap'}}>AUTOLAUNCH</span>}
         <button className="tb-btn-ghost" onClick={copyMd} style={{padding:'6px 14px',fontSize:12}} title="Copy this page as Markdown">⧉ Copy</button>
@@ -5842,7 +5880,7 @@ function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
 
     <div style={{fontSize:11,color:'var(--txm)',paddingLeft:2}}>
       {isDaily
-        ? 'AutoLaunch shows this page every trading morning and waits for you to confirm it before opening anything.'
+        ? 'The Trading Auto Launcher shows this page every trading morning and waits for you to confirm it before opening anything.'
         : 'Saves automatically. Paste keeps headings, bold, lists, tables, code and links.'}
     </div>
   </div>);
@@ -6149,7 +6187,7 @@ function TBApp(){
 
   /* ── Push the Analysis-tab selection (prompt + searches) to the worker ─────────
      App-level (not inside the Analysis tab) so it stays in sync even when that tab
-     is never opened. morning-launcher GETs /analysis-config to open ChatGPT with this
+     is never opened. Trading Auto Launcher GETs /analysis-config to open ChatGPT with this
      exact prompt (auto-submitted) and open each search. Deduped so we only POST on
      real changes. */
   const _tbAnalysisPushSig=useRef(null);
@@ -6166,27 +6204,27 @@ function TBApp(){
     if(window._fbReady)push(); else window.addEventListener('fb-ready',push,{once:true});
   },[prompts,analysisCfg.analysisPromptId,analysisCfg.searches,analysisCfg.groupName,analysisCfg.groupColor]);
 
-  /* ── Morning tab-group signal ─────────────────────────────────────────────────
-     The morning-launcher opens this page with ?morning=1 as the first tab of a new
-     Brave window, then adds the search + ChatGPT tabs. A page can't create a tab
-     GROUP, so we ask the Vault extension to: it wraps that whole window into one
-     named, colored group (see Vault/vault-bio-sync.js → background.js). We post the
-     name + color from the Analysis config; the extension debounces until all tabs
-     have opened, so re-posting a few times just guards against a late-ready
+  /* ── Trading Auto Launcher tab-group signal ───────────────────────────────────
+     The Trading Auto Launcher opens this page with ?autolaunch=1 as the first tab of
+     a new Brave window, then adds the search + ChatGPT tabs. A page can't create a
+     tab GROUP, so we ask the Vault extension to: it wraps ONLY the launcher's tabs
+     into one named, colored group (see Vault/vault-bio-sync.js → background.js). We
+     post the name + color from the Analysis config; the extension folds in each new
+     tab as it opens, so re-posting a few times just guards against a late-ready
      content script. No-op in any normal (non-launcher) open. */
   useEffect(()=>{
     let params;try{params=new URLSearchParams(location.search);}catch{return;}
-    if(!params||!params.has('morning'))return;
+    if(!params||!params.has('autolaunch'))return;
     const name=analysisCfg.groupName!=null?analysisCfg.groupName:TB_GROUP_NAME_DEFAULT;
     const color=analysisCfg.groupColor||TB_GROUP_COLOR_DEFAULT;
-    const send=()=>{try{console.log('[TradeHub] morning tab-group signal →',name,color);window.postMessage({source:'tradehub-vault',action:'groupMorningTabs',name,color},location.origin);}catch{}};
+    const send=()=>{console.log('[TradeHub] auto-launch tab-group signal →',name,color);tbSignalGroup(name,color);};
     send();
     const t1=setTimeout(send,1500),t2=setTimeout(send,4000);
     return()=>{clearTimeout(t1);clearTimeout(t2);};
   },[]);
 
   /* ── Push Playbook → Daily Reminder to the worker ─────────────────────────────
-     morning-launcher GETs /daily-reminder and makes you confirm it before it opens
+     Trading Auto Launcher GETs /daily-reminder and makes you confirm it before it opens
      anything, so it must reflect the CURRENT page. Pages are authored as HTML;
      the launcher renders Markdown, so push a converted copy. Debounced (this runs
      on every keystroke) and deduped so we only POST on real changes.

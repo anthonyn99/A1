@@ -1,21 +1,29 @@
 """
-Morning Launcher
-================
+Trading Auto Launcher
+=====================
 On every market weekday (Mon–Fri, skipping NYSE holidays), the FIRST time you
 wake / unlock / boot your laptop at or after 6 AM Mountain Time, it first makes you
 confirm your Daily Reminder, and only then opens:
   - WeBull Desktop   →  left   panel
   - TradeHub         →  middle panel  (a BRAND-NEW Brave window, never mixed in
-                        with your existing browser windows)
+                        with your existing browser windows — even on a cold start,
+                        where Brave's session restore is kept in its OWN windows)
   - TaskHub          →  right  panel  (Brave app shortcut)
   - ChatGPT          →  your selected TradeHub "Analysis" prompt, AUTO-SUBMITTED,
                         plus your configured Analysis search tabs — all as tabs in
                         that same new TradeHub window, which the Vault browser
-                        extension then wraps into one named tab group ("Trade
+                        extension then wraps into one named tab group ("Trading
                         Analysis", teal by default — both configurable in TradeHub →
-                        Analysis). TradeHub is opened with ?morning=1 to trigger this;
-                        the launcher can't create a tab group itself (extension-only
-                        API), so if Vault isn't installed the tabs just open ungrouped.
+                        Analysis). TradeHub is opened with ?autolaunch=1 to trigger
+                        this; the launcher can't create a tab group itself
+                        (extension-only API), so if Vault isn't installed the tabs
+                        just open ungrouped. Only the launcher's own tabs are
+                        grouped — restored session tabs are never pulled in.
+
+You can also deploy this whole flow ON DEMAND from TradeHub → Analysis → "Deploy
+Trading Auto Launcher". Because TradeHub is already open there, it reuses that
+window instead of opening a new one (see --from-tradehub). That button reaches this
+script through the tradingautolauncher:// URL protocol registered by --setup.
 
 THE DAILY REMINDER GATE runs before any of that (after the WiFi check): it fetches
 TradeHub → Playbook → Daily Reminder and shows it in a scrollable dialog. Nothing
@@ -53,7 +61,7 @@ USAGE
   Test now:    python launcher.py --test           (runs the full flow immediately,
                                                     reminder gate included)
   Reminder:    python launcher.py --test-reminder  (just the gate — launches nothing)
-  Logs:        morning-launcher/launcher.log
+  Logs:        trading-auto-launcher/launcher.log
 
   NOTE: If you had an older version installed, you MUST re-run --setup so the new
   battery / unlock / market-day behavior takes effect.
@@ -203,8 +211,12 @@ from pathlib import Path
 SCRIPT_PATH = Path(__file__).resolve()
 STATE_FILE  = SCRIPT_PATH.parent / ".last_run"
 LOG_FILE    = SCRIPT_PATH.parent / "launcher.log"
-TASK_NAME   = "MorningLauncher"
+TASK_NAME   = "TradingAutoLauncher"
 TASK_FOLDER = "\\Custom\\"
+LEGACY_TASK_NAME = "MorningLauncher"   # removed on --setup / --uninstall for a clean rename
+# Custom URL protocol the TradeHub "Deploy" button uses to launch this script
+# on-demand (registered under HKCU by --setup). e.g. tradingautolauncher://deploy
+PROTOCOL = "tradingautolauncher"
 
 try:
     from zoneinfo import ZoneInfo
@@ -621,6 +633,32 @@ def _all_brave_hwnds() -> set:
     return {h for h in _all_visible_hwnds() if _is_brave_hwnd(h)}
 
 
+def _wait_for_any_brave_window(timeout: int = 40) -> bool:
+    """Block until at least one Brave window exists (used on a cold start)."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if _all_brave_hwnds():
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def _settle_brave_restore(quiet: float = 2.5, timeout: int = 20):
+    """After a cold start, Brave may open several restored-session windows one after
+    another. Wait until that stops — i.e. the Brave window count holds steady for
+    `quiet` seconds (or `timeout` elapses) — so those restored windows are all
+    accounted for BEFORE we ask for our own dedicated window."""
+    deadline = time.time() + timeout
+    last_count, stable_since = -1, time.time()
+    while time.time() < deadline:
+        c = len(_all_brave_hwnds())
+        if c != last_count:
+            last_count, stable_since = c, time.time()
+        elif time.time() - stable_since >= quiet:
+            return
+        time.sleep(0.5)
+
+
 def _wait_for_new_brave_window(known: set, timeout: int = 20) -> int | None:
     """Return the BRAVE window that appeared after `known` was snapshotted.
 
@@ -778,8 +816,25 @@ def _open_browser_window(browser: str, url: str, pos: list):
     can just assume worked: when an instance is already running, the request is
     handed to it over IPC and can be answered by reusing an existing window — which
     is exactly how the workspace used to end up mixed in with other tabs. So we
-    VERIFY a genuinely new Brave window appeared and ask once more if it didn't."""
+    VERIFY a genuinely new Brave window appeared and ask once more if it didn't.
+
+    COLD START: if Brave is fully closed, launching `--new-window url` boots Brave,
+    which then ALSO runs its own session restore — and the restored window can
+    swallow our url, landing the whole workspace in yesterday's browsing session.
+    To prevent that we first start Brave plainly, let its session restore finish in
+    its OWN window(s), and only THEN ask for a dedicated new window (with Brave now
+    running, --new-window reliably makes a fresh, separate window)."""
     x, y, w, h = pos
+
+    if not _all_brave_hwnds():
+        log("Brave is closed — starting it first so its session restore lands in its "
+            "OWN window(s), kept separate from the trading workspace...")
+        subprocess.Popen([browser])          # plain start → restores previous session if configured
+        if _wait_for_any_brave_window(timeout=40):
+            _settle_brave_restore()          # wait until restored windows stop appearing
+        else:
+            log("Brave didn't come up in time on cold start — continuing anyway.")
+
     before = _all_brave_hwnds()
 
     for attempt in (1, 2):
@@ -817,20 +872,20 @@ def open_tradehub():
     """Open TradeHub in a brand-new Brave window and return that window's HWND, so
     the ChatGPT + search tabs can be opened INTO the same window.
 
-    We open it with ?morning=1 so TradeHub knows this is the morning launch and
-    asks the Vault extension to wrap this whole window (TradeHub + searches +
-    ChatGPT) into one named "Trade Analysis" tab group. Creating a tab GROUP is
-    only possible via the extension API — the launcher can't do it from the CLI —
-    so the page → Vault extension hand-off is how the group gets made. Harmless if
-    the extension isn't installed: the tabs simply open ungrouped as before."""
+    We open it with ?autolaunch=1 so TradeHub knows this is an auto-launch and asks
+    the Vault extension to wrap the launcher's tabs (TradeHub + searches + ChatGPT)
+    into one named "Trading Analysis" tab group. Creating a tab GROUP is only
+    possible via the extension API — the launcher can't do it from the CLI — so the
+    page → Vault extension hand-off is how the group gets made. Harmless if the
+    extension isn't installed: the tabs simply open ungrouped as before."""
     brave = _find_brave()
     if not brave:
         log("ERROR: Brave not found. Set BRAVE_EXE_OVERRIDE at the top of this file.")
         return None
 
     sep = "&" if "?" in TRADEHUB_URL else "?"
-    url = TRADEHUB_URL + sep + "morning=1"
-    log("Opening TradeHub in a new Brave window (morning tab-group signal on)...")
+    url = TRADEHUB_URL + sep + "autolaunch=1"
+    log("Opening TradeHub in a new Brave window (auto-launch tab-group signal on)...")
     return _open_browser_window(brave, url, TRADEHUB_POS)
 
 
@@ -894,7 +949,7 @@ def _fetch_analysis_config(attempts: int = 5, delay: float = 3.0):
             # "Python-urllib" agent before the request ever reaches the worker.
             req = urllib.request.Request(url, headers={
                 "Cache-Control": "no-cache",
-                "User-Agent": "MorningLauncher/1.0 (+https://anthonyn99.github.io/A1)",
+                "User-Agent": "TradingAutoLauncher/1.0 (+https://anthonyn99.github.io/A1)",
             })
             with urllib.request.urlopen(req, timeout=15) as r:
                 data = json.loads(r.read().decode("utf-8"))
@@ -1074,10 +1129,11 @@ def open_chatgpt_analysis(target_hwnd=None):
     name     = cfg.get("name") or "Prompt"
     searches = cfg.get("searches") or []
 
-    # The window is grouped into a "Trade Analysis" tab group by the Vault extension
-    # (triggered by TradeHub's ?morning=1). Log what TradeHub configured so the
-    # grouping is visible in the launcher log even though the extension does the work.
-    g_name  = cfg.get("groupName") or "Trade Analysis"
+    # The launcher's tabs are grouped into a "Trading Analysis" tab group by the Vault
+    # extension (triggered by TradeHub's ?autolaunch=1 or its Deploy button). Log what
+    # TradeHub configured so the grouping is visible in the log even though the
+    # extension does the actual work.
+    g_name  = cfg.get("groupName") or "Trading Analysis"
     g_color = cfg.get("groupColor") or "cyan"
     log(f"ChatGPT: tabs will be grouped as '{g_name}' ({g_color}) by the Vault extension.")
 
@@ -1167,7 +1223,7 @@ def _fetch_daily_reminder(attempts: int = DAILY_REMINDER_FETCH_ATTEMPTS, delay: 
             # before the request ever reaches the worker.
             req = urllib.request.Request(url, headers={
                 "Cache-Control": "no-cache",
-                "User-Agent": "MorningLauncher/1.0 (+https://anthonyn99.github.io/A1)",
+                "User-Agent": "TradingAutoLauncher/1.0 (+https://anthonyn99.github.io/A1)",
             })
             with urllib.request.urlopen(req, timeout=15) as r:
                 data = json.loads(r.read().decode("utf-8"))
@@ -1465,22 +1521,46 @@ def daily_reminder_gate() -> bool:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Main morning routine
+# Main routine
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _launch_all(test: bool):
-    log("=== Morning launch starting ===" + (" [TEST]" if test else ""))
+def _find_open_tradehub_window() -> int | None:
+    """The already-open TradeHub Brave window (for --from-tradehub deploys). Matches
+    only a real Brave window, never an editor tab that merely has 'tradehub' in its
+    title."""
+    return _find_brave_window_by_title("tradehub", timeout=10)
+
+
+def _launch_all(test: bool, from_tradehub: bool = False):
+    label = " [DEPLOY-FROM-TRADEHUB]" if from_tradehub else (" [TEST]" if test else "")
+    log("=== Trading Auto Launcher starting ===" + label)
 
     # HARD GATE: review the Daily Reminder first. Nothing below runs until it's
     # confirmed. On refusal we return WITHOUT mark_ran(), so the next wake/unlock
-    # asks again rather than the morning being silently skipped.
+    # asks again rather than the launch being silently skipped.
     if not daily_reminder_gate():
         log("=== Cancelled at the Daily Reminder — nothing was launched ===")
         return
 
     _apply_work_area()   # size windows to the taskbar-free height before opening them
     webull_hwnd = open_webull()
-    tradehub_hwnd = open_tradehub()
+
+    if from_tradehub:
+        # Deployed from the TradeHub button: TradeHub is ALREADY open (it's the page
+        # that launched us). Reuse that window instead of opening a new one, so the
+        # searches + ChatGPT open next to it and the existing TradeHub tab is the
+        # group's seed. The Deploy button already sent the group signal to Vault.
+        tradehub_hwnd = _find_open_tradehub_window()
+        if tradehub_hwnd:
+            _place(tradehub_hwnd, *TRADEHUB_POS)     # move it to the middle panel
+            log("Deploy-from-TradeHub: reusing the already-open TradeHub window.")
+        else:
+            log("Deploy-from-TradeHub: couldn't find the open TradeHub window — "
+                "opening a fresh one instead.")
+            tradehub_hwnd = open_tradehub()
+    else:
+        tradehub_hwnd = open_tradehub()
+
     time.sleep(1.5)
     open_taskhub_app()
     # Open ChatGPT + searches as tabs in the SAME TradeHub window, then paste+submit.
@@ -1490,6 +1570,19 @@ def _launch_all(test: bool):
     if not test:
         mark_ran()
     log("=== Done ===")
+
+
+def deploy_from_tradehub():
+    """On-demand deploy triggered by the TradeHub Analysis "Deploy" button (via the
+    tradingautolauncher:// URL protocol). Runs the full flow — reminder gate, WeBull,
+    TaskHub, window layout — but reuses the already-open TradeHub window. Bypasses the
+    time/market/once-per-day gates (you asked for it explicitly) and marks the day
+    done so a later auto-trigger won't double-launch."""
+    log("Triggered via TradeHub Deploy button")
+    if not wait_for_connectivity(timeout=60):
+        log("Deploy-from-TradeHub: no internet — aborting.")
+        return
+    _launch_all(test=False, from_tradehub=True)
 
 
 def run_morning(test: bool = False):
@@ -1538,6 +1631,43 @@ def _pythonw() -> str:
     exe = Path(sys.executable)
     pw  = exe.parent / "pythonw.exe"
     return str(pw) if pw.exists() else str(exe)
+
+
+def _register_protocol():
+    """Register the tradingautolauncher:// URL protocol (HKCU — no admin needed) so
+    the TradeHub Analysis "Deploy" button can launch this script. Clicking that button
+    navigates to tradingautolauncher://deploy, which runs us with --from-tradehub."""
+    pw     = _pythonw()
+    script = str(SCRIPT_PATH)
+    cmd_value = f'"{pw}" "{script}" --from-tradehub "%1"'
+    ps = f"""
+$root = 'HKCU:\\Software\\Classes\\{PROTOCOL}'
+New-Item -Path $root -Force | Out-Null
+New-ItemProperty -Path $root -Name '(Default)' -Value 'URL:Trading Auto Launcher' -PropertyType String -Force | Out-Null
+New-ItemProperty -Path $root -Name 'URL Protocol' -Value '' -PropertyType String -Force | Out-Null
+$cmd = "$root\\shell\\open\\command"
+New-Item -Path $cmd -Force | Out-Null
+New-ItemProperty -Path $cmd -Name '(Default)' -Value '{cmd_value}' -PropertyType String -Force | Out-Null
+Write-Host 'Protocol registered.'
+"""
+    r = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True)
+    if r.returncode == 0:
+        print(f"Registered URL protocol '{PROTOCOL}://' → TradeHub Deploy button will work.")
+    else:
+        print(f"WARNING: could not register the '{PROTOCOL}://' protocol (Deploy button "
+              f"won't launch the app until this succeeds):\n{r.stderr}")
+
+
+def _unregister_protocol():
+    ps = f"Remove-Item -Path 'HKCU:\\Software\\Classes\\{PROTOCOL}' -Recurse -Force -ErrorAction SilentlyContinue"
+    subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True)
+
+
+def _remove_task(name: str):
+    """Best-effort removal of a scheduled task by name (used to drop the legacy one)."""
+    ps = (f"Unregister-ScheduledTask -TaskName '{name}' -TaskPath '{TASK_FOLDER}' "
+          f"-Confirm:$false -ErrorAction SilentlyContinue")
+    subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True)
 
 
 def setup():
@@ -1612,12 +1742,19 @@ Write-Host 'Registered.'
     print("Triggers: session-unlock (open laptop) | logon (boot) | daily 6 AM | wake event.")
     print("Runs on battery, only on market weekdays, once per day. Logs -> " + str(LOG_FILE))
 
+    # Drop the pre-rename task so we don't leave a dead "MorningLauncher" behind.
+    _remove_task(LEGACY_TASK_NAME)
+    # Register the URL protocol used by the TradeHub Deploy button.
+    _register_protocol()
+
 
 def uninstall():
     ps = (f"Unregister-ScheduledTask -TaskName '{TASK_NAME}' "
           f"-TaskPath '{TASK_FOLDER}' -Confirm:$false")
     r = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
                        capture_output=True, text=True)
+    _remove_task(LEGACY_TASK_NAME)   # also clear the legacy task if it lingers
+    _unregister_protocol()
     print("Removed." if r.returncode == 0 else f"Error: {r.stderr}")
 
 
@@ -1626,20 +1763,26 @@ def uninstall():
 # ──────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Morning Launcher")
-    parser.add_argument("--setup",     action="store_true", help="Install into Task Scheduler")
-    parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler")
+    parser = argparse.ArgumentParser(description="Trading Auto Launcher")
+    parser.add_argument("--setup",     action="store_true", help="Install into Task Scheduler + register the tradingautolauncher:// protocol")
+    parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler + unregister the protocol")
     parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time / market / once-per-day checks")
+    parser.add_argument("--from-tradehub", action="store_true", help="On-demand deploy from the TradeHub button: run the full flow but reuse the already-open TradeHub window")
     parser.add_argument("--test-chatgpt", action="store_true", help="Run ONLY the ChatGPT analysis step (fetch prompt + open ChatGPT auto-submitted + searches); prints progress to the console")
     parser.add_argument("--test-reminder", action="store_true", help="Run ONLY the Daily Reminder gate (fetch TradeHub → Playbook → Daily Reminder + show the confirm dialog); launches nothing")
     parser.add_argument("--test-webull", action="store_true", help="Run ONLY the WeBull tab/account switch on an already-open WeBull window (for tuning the click coordinates); prints progress to the console")
     parser.add_argument("--webull-coords", action="store_true", help="Print the mouse cursor's offset from the WeBull window as you hover — use it to read exact click coordinates for the WEBULL_* settings")
+    # The protocol handler invokes us as `... --from-tradehub "tradingautolauncher://deploy"`,
+    # so accept (and ignore) a trailing URL argument rather than erroring on it.
+    parser.add_argument("protocol_url", nargs="?", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     if args.setup:
         setup()
     elif args.uninstall:
         uninstall()
+    elif args.from_tradehub:
+        deploy_from_tradehub()
     elif args.webull_coords:
         # Tuning aid: put WeBull in its morning position (left panel), then hover over
         # each target and read its offset from the window top-left.

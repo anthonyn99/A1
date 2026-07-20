@@ -60,20 +60,21 @@
   window.addEventListener('storage', sync);
   window.addEventListener('pagehide', function () { clearInterval(poll); });
 
-  // ── Morning-launcher tab grouping relay ──
-  // When TradeHub is opened by the morning-launcher (?morning=1) it asks, via a
-  // same-origin window.postMessage, for its Brave window to be wrapped into one
-  // named tab group. A page can't call chrome.tabs.group, but this content script
-  // can hand the request to the background service worker, which does the grouping.
+  // ── Trading Auto Launcher tab grouping relay ──
+  // When TradeHub is opened by the Trading Auto Launcher (?autolaunch=1) or its
+  // in-app Deploy button, it asks — via a same-origin window.postMessage — for its
+  // launcher tabs to be wrapped into one named tab group. A page can't call
+  // chrome.tabs.group, but this content script hands the request to the background
+  // service worker, which does the grouping (of ONLY the launcher tabs).
   window.addEventListener('message', function (e) {
     if (e.source !== window) return;                       // same document only
     if (e.origin && e.origin.indexOf('https://anthonyn99.github.io') !== 0) return;
     var d = e.data;
-    if (!d || d.source !== 'tradehub-vault' || d.action !== 'groupMorningTabs') return;
+    if (!d || d.source !== 'tradehub-vault' || d.action !== 'groupTradingTabs') return;
     try {
-      console.log('[Vault] relaying groupMorningTabs →', d.name, d.color);
+      console.log('[Vault] relaying groupTradingTabs →', d.name, d.color);
       chrome.runtime.sendMessage(
-        { action: 'groupMorningTabs', name: d.name || 'Trade Analysis', color: d.color || 'cyan' },
+        { action: 'groupTradingTabs', name: d.name || 'Trading Analysis', color: d.color || 'cyan' },
         function () { void chrome.runtime.lastError; }
       );
     } catch (err) {}

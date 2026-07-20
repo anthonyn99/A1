@@ -67,19 +67,23 @@ async function openLinksAsGroup(urls, groupName, colorHex) {
   return ids.length;
 }
 
-// ── Morning-launcher tab grouping ──────────────────────────────────────────
-// The morning-launcher (Python) opens TradeHub + its searches + ChatGPT as tabs
-// in a fresh Brave window, but it can't create a tab GROUP (only this extension
-// API can). So TradeHub, when opened with ?morning=1, asks us (via the
-// vault-bio-sync content script) to wrap that whole window into one named group.
+// ── Trading Auto Launcher tab grouping ─────────────────────────────────────
+// The Trading Auto Launcher (Python) opens TradeHub + its searches + ChatGPT as
+// tabs, but it can't create a tab GROUP (only this extension API can). So
+// TradeHub, when opened with ?autolaunch=1 (or via the in-app Deploy button),
+// asks us — through the vault-bio-sync content script — to wrap ONLY those
+// launcher tabs into one named group.
 //
-// The launcher's tabs arrive SPREAD OUT over many seconds (TradeHub first, then —
-// after a config fetch — the searches + ChatGPT), and an MV3 service worker can be
-// torn down between those events. So we do NOT rely on an in-memory timer. Instead
-// we persist the request in chrome.storage.session (survives worker restarts) and
-// re-group INCREMENTALLY: the moment the request arrives we group whatever tabs
-// exist, and every new tab that appears in that window (until a deadline) is added
-// to the same group. State lives in storage, so a restarted worker just resumes.
+// CRITICAL: we group ONLY the tabs the launcher created, never pre-existing /
+// session-restored tabs that happen to share the window. We do that by tracking
+// MEMBERS: the seed is the TradeHub tab that sent the signal, and every tab
+// created in that window AFTER the signal (the searches + ChatGPT) is added.
+// Tabs that already existed when the signal arrived are never members, so a
+// restored session stays out of the group.
+//
+// The launcher's tabs arrive spread out over many seconds and an MV3 service
+// worker can be torn down between events, so we persist state in
+// chrome.storage.session (survives restarts) and re-group incrementally.
 const VALID_GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
 function normalizeGroupColor(c) {
   c = String(c || "").toLowerCase();
@@ -88,8 +92,9 @@ function normalizeGroupColor(c) {
   return VALID_GROUP_COLORS.includes(c) ? c : "cyan"; // default: elegant teal
 }
 
-const PENDING_KEY = "morningGroupPending";   // storage.session: { [windowId]: {name,color,groupId,deadline} }
-const GROUP_WINDOW_MS = 90000;               // keep adding new tabs to the group for this long
+const GROUP_DEFAULT_NAME = "Trading Analysis";
+const PENDING_KEY = "tradingGroupPending"; // storage.session: { [windowId]: {name,color,groupId,deadline,members:{id:1}} }
+const GROUP_WINDOW_MS = 240000;            // keep folding new launcher tabs into the group for this long (covers a slow reminder gate)
 
 async function loadPending() {
   try { const d = await chrome.storage.session.get(PENDING_KEY); return d[PENDING_KEY] || {}; }
@@ -113,64 +118,79 @@ async function _regroupWindow(windowId) {
   const st = map[key];
   if (!st) return;                                  // this window isn't pending
   if (Date.now() > st.deadline) { delete map[key]; await savePending(map); return; }
+  if (!chrome.tabs.group) return;
 
   let tabs;
   try { tabs = await chrome.tabs.query({ windowId }); } catch (_) { return; }
-  const allIds = tabs.map((t) => t.id).filter((id) => id != null);
-  if (!allIds.length || !chrome.tabs.group) return;
+  const liveIds = new Set(tabs.map((t) => t.id));
+  // Only our tracked members that still exist — restored tabs are never members.
+  const memberIds = Object.keys(st.members || {}).map(Number).filter((id) => liveIds.has(id));
+  if (!memberIds.length) return;
+  const byId = new Map(tabs.map((t) => [t.id, t]));
 
   try {
     const groupStillExists = st.groupId != null && tabs.some((t) => t.groupId === st.groupId);
     let gid;
     if (!groupStillExists) {
-      // First pass (or the group was closed) → group every tab into a fresh group.
-      gid = await chrome.tabs.group({ tabIds: allIds });
+      gid = await chrome.tabs.group({ tabIds: memberIds });    // first pass → new group from members
     } else {
-      // Group exists → fold in any tabs that aren't in it yet (the new arrivals).
       gid = st.groupId;
-      const toAdd = tabs.filter((t) => t.groupId !== gid).map((t) => t.id).filter((id) => id != null);
+      const toAdd = memberIds.filter((id) => byId.get(id).groupId !== gid);  // fold in new members only
       if (toAdd.length) await chrome.tabs.group({ groupId: gid, tabIds: toAdd });
     }
     if (chrome.tabGroups && chrome.tabGroups.update) {
       await chrome.tabGroups.update(gid, {
-        title: (st.name || "Trade Analysis").slice(0, 60),
+        title: (st.name || GROUP_DEFAULT_NAME).slice(0, 60),
         color: normalizeGroupColor(st.color),
       });
     }
     st.groupId = gid;
     map[key] = st;
     await savePending(map);
-    console.log("[Vault] grouped", allIds.length, "tab(s) in window", windowId, "→", st.name, normalizeGroupColor(st.color));
+    console.log("[Vault] grouped", memberIds.length, "launcher tab(s) in window", windowId, "→", st.name, normalizeGroupColor(st.color));
   } catch (_) {
-    // The group may have been closed mid-pass — forget the id so the next pass rebuilds it.
-    st.groupId = null; map[key] = st; await savePending(map);
+    st.groupId = null; map[key] = st; await savePending(map);   // group closed mid-pass → rebuild next time
   }
 }
 
-// Every new tab in a still-pending window gets folded into its group.
+// A tab created in a still-pending window is a launcher tab → make it a member.
 chrome.tabs.onCreated.addListener((tab) => {
-  if (tab && tab.windowId != null) regroupWindow(tab.windowId);
+  if (!tab || tab.windowId == null || tab.id == null) return;
+  (async () => {
+    const map = await loadPending();
+    const st = map[String(tab.windowId)];
+    if (!st || Date.now() > st.deadline) return;
+    st.members = st.members || {};
+    st.members[tab.id] = 1;
+    map[String(tab.windowId)] = st;
+    await savePending(map);
+    regroupWindow(tab.windowId);
+  })();
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return;
 
-  // ── morning-launch grouping request (relayed by vault-bio-sync from TradeHub) ──
-  if (message.action === "groupMorningTabs") {
+  // ── Trading Auto Launcher grouping request (relayed by vault-bio-sync) ──
+  if (message.action === "groupTradingTabs") {
     const wid = _sender && _sender.tab ? _sender.tab.windowId : null;
-    console.log("[Vault] groupMorningTabs request, window =", wid, message.name, message.color);
+    const seedTab = _sender && _sender.tab ? _sender.tab.id : null;   // the TradeHub tab itself is the first member
+    console.log("[Vault] groupTradingTabs request, window =", wid, "seed =", seedTab, message.name, message.color);
     if (wid == null) { sendResponse({ ok: false }); return true; }
     (async () => {
       const map = await loadPending();
       const prev = map[String(wid)];
+      const members = (prev && prev.members) || {};
+      if (seedTab != null) members[seedTab] = 1;
       map[String(wid)] = {
-        name: message.name || "Trade Analysis",
+        name: message.name || GROUP_DEFAULT_NAME,
         color: message.color || "cyan",
         groupId: prev && prev.groupId != null ? prev.groupId : null,  // reuse across repeat signals
         deadline: Date.now() + GROUP_WINDOW_MS,
+        members,
       };
       await savePending(map);
-      await regroupWindow(wid);           // group whatever's open right now
+      await regroupWindow(wid);
       sendResponse({ ok: true });
     })();
     return true;                          // async response
