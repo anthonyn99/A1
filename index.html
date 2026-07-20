@@ -4292,7 +4292,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
-  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, clearIndexedDbPersistence, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -4341,6 +4341,92 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // network round-trip every time. Reconnect behavior is unaffected — the SDK
   // still only re-syncs docs with ACTIVE listeners, not every doc ever fetched.
   let db = initializeFirestore(app, { localCache: _makeCache() });
+
+  // ── Write-pipeline safety: oversized-write guard + auto-recovery ───────────
+  // With persistentLocalCache the offline mutation queue lives in IndexedDB and is
+  // strictly FIFO. A single write the backend PERMANENTLY rejects — most often a
+  // document pushed over Firestore's 1 MiB limit (here, a burst of ProView match
+  // cards injected into a TaskHub doc) — sticks at the head of that queue and is
+  // retried forever, so every later upload on THIS device (Tony, Veda, journals,
+  // every feature, all sharing this one instance/queue) is blocked behind it,
+  // while the separate listen stream keeps delivering remote updates. That is the
+  // exact "one device can receive but never upload, permanently" signature: the
+  // poison lives in IndexedDB, so it survives reloads and even terminate()+reinit
+  // (both reopen the SAME database) — which is why only the offending device is
+  // stuck while others stay healthy. Two defenses below: (1) never enqueue an
+  // oversized write in the first place; (2) if writes keep failing while online,
+  // wipe the local queue and reinitialize automatically — no manual step needed.
+  const FB_MAX_WRITE_BYTES = 900000; // ~900 KB — safe margin under the 1,048,576 hard limit
+  let _fbWriteFailStreak = 0;
+  let _fbRecovering = false;
+  function _fbByteSize(obj){
+    try { return new Blob([JSON.stringify(obj)]).size; }
+    catch(e){ try { return unescape(encodeURIComponent(JSON.stringify(obj))).length; } catch(_){ return 0; } }
+  }
+  // Wipe the poisoned persistent queue and stand a fresh instance back up. Server
+  // data is untouched (it's the source of truth and re-streams via listeners);
+  // only the un-syncable local queue — the stuck write and anything trapped behind
+  // it — is discarded, which is exactly what unblocks uploads.
+  async function _fbRecover(){
+    if (_fbRecovering) return;
+    _fbRecovering = true;
+    console.warn('[Firebase] Upload pipeline wedged — clearing local mutation queue and reinitializing…');
+    try {
+      try { await _teardown(); } catch(e){}              // detach all listeners; terminates + reinits db, _fbReady=false
+      try { await terminate(db); } catch(e){}            // terminate the instance _teardown just recreated
+      try { await clearIndexedDbPersistence(app); }      // drop the poisoned queue (fails only if other tabs hold the DB)
+      catch(e){ console.warn('[Firebase] clearIndexedDbPersistence failed (other tabs open?):', e && (e.code||e.message)); }
+      db = initializeFirestore(app, { localCache: _makeCache() });
+      _fbWriteFailStreak = 0;
+      window._fbReady = false;
+      try { await init(); } catch(e){ console.warn('[Firebase] re-init after recovery failed:', e); }
+      // Notifications ride a SEPARATE (non-poisoned) fcm instance and re-arm from
+      // localStorage, so they weren't blocked by this queue — but refresh them
+      // anyway so the recovered device is guaranteed to have its push token
+      // registered and every locally-set reminder (re)written server-side.
+      try { window._fcmEnsureToken && window._fcmEnsureToken(); } catch(e){}
+      try { window._fcmRearmSeries && window._fcmRearmSeries(true); } catch(e){}
+      try { window._fcmFixDashboards && window._fcmFixDashboards(true); } catch(e){}
+      console.warn('[Firebase] Recovery complete — uploads restored.');
+    } finally { _fbRecovering = false; }
+  }
+  window._fbForceRecover = _fbRecover; // manual escape hatch (console/debug)
+  // Guarded write for the large shared docs: blocks oversized payloads before they
+  // can poison the queue, times out a stuck write, and auto-heals after a run of
+  // failures that happen while we're actually online. Returns true on success.
+  async function _guardedWrite(ref, payload, label){
+    const bytes = _fbByteSize(payload);
+    if (bytes > FB_MAX_WRITE_BYTES) {
+      console.error('[Firebase] '+label+' write blocked: '+bytes+' bytes over safe limit — not submitting (would wedge sync). Data kept locally.');
+      return false;
+    }
+    // Genuinely offline: let the write queue and settle-on-reconnect exactly as
+    // before (no timeout, no false failure, no recovery). navigator.onLine===false
+    // is reliable for "definitely offline"; a queued offline edit is not a poison.
+    if (navigator.onLine === false) {
+      try { await setDoc(ref, payload); _fbWriteFailStreak = 0; return true; }
+      catch(e){ console.warn('[Firebase] '+label+' write failed (offline):', e && (e.code||e.message||e)); return false; }
+    }
+    const writeP = setDoc(ref, payload);
+    writeP.catch(()=>{}); // swallow late rejection if the timeout wins the race (no unhandled rejection)
+    let to;
+    const timeoutP = new Promise((_, rej) => { to = setTimeout(() => rej(new Error('fb-write-timeout')), 12000); });
+    try {
+      await Promise.race([writeP, timeoutP]);
+      clearTimeout(to);
+      _fbWriteFailStreak = 0;
+      return true;
+    } catch(e){
+      clearTimeout(to);
+      console.warn('[Firebase] '+label+' write failed:', e && (e.code||e.message||e));
+      // Online but the write won't land — a run of these means the queue is wedged.
+      if (!_fbRecovering) {
+        _fbWriteFailStreak++;
+        if (_fbWriteFailStreak >= 3) _fbRecover();
+      }
+      return false;
+    }
+  }
 
   // Initial-load helper: fetch the freshest server copy so the first open is
   // never stale, but never hang — fall back to the cached copy if the server is
@@ -4505,12 +4591,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _thSaveInFlight = (async () => {
         try {
           _lastOwnSaveAt = Date.now();
-          await setDoc(docRef, payload);
+          const ok = await _guardedWrite(docRef, payload, 'TaskHub');
           _lastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-saved"));
-        } catch(e) {
-          console.warn("Firebase save failed:", e);
-          window.dispatchEvent(new CustomEvent("fb-error"));
+          window.dispatchEvent(new CustomEvent(ok ? "fb-saved" : "fb-error"));
         } finally {
           _savePending = false; _thSaveInFlight = null;
         }
@@ -4670,12 +4753,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _vdSaveInFlight = (async () => {
         try {
           _vdLastOwnSaveAt = Date.now();
-          await setDoc(vdDocRef, payload);
+          const ok = await _guardedWrite(vdDocRef, payload, 'Veda');
           _vdLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-vd-saved"));
-        } catch(e) {
-          console.error("Firebase Veda save failed:", e.code, e.message, e);
-          window.dispatchEvent(new CustomEvent("fb-vd-error"));
+          window.dispatchEvent(new CustomEvent(ok ? "fb-vd-saved" : "fb-vd-error"));
         } finally { _vdSavePending = false; _vdSaveInFlight = null; }
       })();
       return _vdSaveInFlight;
@@ -5846,17 +5926,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           _pvSaveTimer = null;
           const myResolve = _pvSaveResolve; _pvSaveResolve = null;
           _pvSaveInFlight = Promise.resolve(_pvSaveInFlight).then(async () => {
-            try {
-              _pvLastOwnSaveAt = Date.now();
-              await setDoc(pvDocRef, { cfg: JSON.stringify(cfg), savedAt: Date.now() });
-              _pvLastOwnSaveAt = Date.now();
-              window.dispatchEvent(new CustomEvent('fb-pv-synced'));
-              if (myResolve) myResolve(true);
-            } catch(e) {
-              console.warn('[ProView] Firebase save failed:', e);
-              window.dispatchEvent(new CustomEvent('fb-pv-error'));
-              if (myResolve) myResolve(false);
-            }
+            _pvLastOwnSaveAt = Date.now();
+            const ok = await _guardedWrite(pvDocRef, { cfg: JSON.stringify(cfg), savedAt: Date.now() }, 'ProView');
+            _pvLastOwnSaveAt = Date.now();
+            window.dispatchEvent(new CustomEvent(ok ? 'fb-pv-synced' : 'fb-pv-error'));
+            if (myResolve) myResolve(ok);
           });
         }, 1200);
       });
@@ -5989,7 +6063,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
   // Any real user interaction resets idle timer + reinits if needed
   function _onUserActivity() {
-    if (!_unsubscribe) init();
+    if (!_fbRecovering && !_unsubscribe) init();
     _startIdleTimer();
   }
 
