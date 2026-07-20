@@ -47,15 +47,44 @@ function nearestGroupColor(hex) {
 // Open a set of links and wrap them in a single named, colored tab group in the
 // current window — the browser auto-creates the group so the user doesn't have
 // to. Falls back to plain tabs if the tabGroups API is unavailable.
+//
+// Two things matter to keep each launch its own independent group, even when
+// another group already sits in the window (and across several launches in the
+// same session):
+//
+//  1. New tabs are opened INACTIVE and pinned to explicit indices at the very
+//     end of the tab strip. Without an explicit index, Chrome inserts a new tab
+//     next to the currently *active* tab — if that active tab belongs to an
+//     existing group, the new tabs land adjacent to (or inside) that group's
+//     index range before we ever call tabs.group().
+//  2. The group is created from a SINGLE tab first (a fresh, unambiguous
+//     groupId), then the rest of the tabs are folded into that specific
+//     groupId one call at a time — never a single tabs.group() call spanning
+//     the whole batch. Grouping the whole batch at once, right after those tabs
+//     were appended next to a pre-existing group, is what lets the browser fold
+//     them into that neighboring group instead of making a new one. This
+//     mirrors the same single-tab-first pattern _regroupWindow() below already
+//     relies on for the Trading Auto Launcher.
 async function openLinksAsGroup(urls, groupName, colorHex) {
+  let win;
+  try { win = await chrome.windows.getCurrent(); } catch (_) { win = null; }
+  const windowId = win ? win.id : undefined;
+
+  const existing = await chrome.tabs.query(windowId != null ? { windowId } : { currentWindow: true });
+  let nextIndex = existing.length;
+
   const ids = [];
   for (let i = 0; i < urls.length; i++) {
-    const tab = await chrome.tabs.create({ url: urls[i], active: i === 0 });
+    const createProps = { url: urls[i], active: false, index: nextIndex++ };
+    if (windowId != null) createProps.windowId = windowId;
+    const tab = await chrome.tabs.create(createProps);
     if (tab && tab.id != null) ids.push(tab.id);
   }
+
   if (chrome.tabs.group && ids.length) {
     try {
-      const groupId = await chrome.tabs.group({ tabIds: ids });
+      const groupId = await chrome.tabs.group({ tabIds: [ids[0]] });
+      if (ids.length > 1) await chrome.tabs.group({ groupId, tabIds: ids.slice(1) });
       if (chrome.tabGroups && chrome.tabGroups.update) {
         await chrome.tabGroups.update(groupId, {
           title: (groupName || "Group").slice(0, 60),
@@ -64,6 +93,8 @@ async function openLinksAsGroup(urls, groupName, colorHex) {
       }
     } catch (_) { /* grouping unsupported — tabs already opened */ }
   }
+
+  try { await chrome.tabs.update(ids[0], { active: true }); } catch (_) {}
   return ids.length;
 }
 
