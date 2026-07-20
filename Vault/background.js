@@ -104,12 +104,15 @@ async function savePending(map) {
   try { await chrome.storage.session.set({ [PENDING_KEY]: map }); } catch (_) {}
 }
 
-// Serialize regroup passes so two near-simultaneous tab events can't each spawn a
-// separate group (they'd race on the not-yet-persisted groupId).
-let _regroupChain = Promise.resolve();
-function regroupWindow(windowId) {
-  _regroupChain = _regroupChain.then(() => _regroupWindow(windowId)).catch(() => {});
-  return _regroupChain;
+// A single mutex for ALL pending-state work. Every read-modify-write of the
+// storage.session map — adding a member, recording the group id, regrouping — runs
+// through this one chain, so two near-simultaneous tab events (e.g. a search tab and
+// the ChatGPT tab opening together) can never clobber each other's membership. This
+// is what fixes launcher tabs being left out of the group.
+let _opChain = Promise.resolve();
+function runSerial(fn) {
+  _opChain = _opChain.then(fn).catch((e) => { console.warn("[Vault] group op failed:", e); });
+  return _opChain;
 }
 
 async function _regroupWindow(windowId) {
@@ -153,10 +156,11 @@ async function _regroupWindow(windowId) {
   }
 }
 
-// A tab created in a still-pending window is a launcher tab → make it a member.
+// A tab created in a still-pending window is a launcher tab → make it a member,
+// then regroup. Serialized so concurrent tab-opens can't drop each other's id.
 chrome.tabs.onCreated.addListener((tab) => {
   if (!tab || tab.windowId == null || tab.id == null) return;
-  (async () => {
+  runSerial(async () => {
     const map = await loadPending();
     const st = map[String(tab.windowId)];
     if (!st || Date.now() > st.deadline) return;
@@ -164,8 +168,8 @@ chrome.tabs.onCreated.addListener((tab) => {
     st.members[tab.id] = 1;
     map[String(tab.windowId)] = st;
     await savePending(map);
-    regroupWindow(tab.windowId);
-  })();
+    await _regroupWindow(tab.windowId);
+  });
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -177,7 +181,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const seedTab = _sender && _sender.tab ? _sender.tab.id : null;   // the TradeHub tab itself is the first member
     console.log("[Vault] groupTradingTabs request, window =", wid, "seed =", seedTab, message.name, message.color);
     if (wid == null) { sendResponse({ ok: false }); return true; }
-    (async () => {
+    runSerial(async () => {
       const map = await loadPending();
       const prev = map[String(wid)];
       const members = (prev && prev.members) || {};
@@ -190,9 +194,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         members,
       };
       await savePending(map);
-      await regroupWindow(wid);
-      sendResponse({ ok: true });
-    })();
+      await _regroupWindow(wid);
+    }).then(() => sendResponse({ ok: true }));
     return true;                          // async response
   }
 
