@@ -369,6 +369,8 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-store-note{font-size:11px;color:var(--textmute);margin-top:8px;}
 /* Integrated per-item watch (Lists) */
 .li-watch-btn.on{color:var(--accent);}
+.li-check-btn{color:var(--accent);}
+.li-spin{font-weight:800;}
 .li-watch-line{font-size:12px;color:var(--textdim);margin-top:3px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
 .li-watch-line .eye{font-size:12px;}
 .li-watch-line b{color:var(--text);}
@@ -2203,6 +2205,7 @@ function itemHtml(it){
     +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+'</div>'
     +'<div class="acts">'
       +pwWatchToggleBtn(it)
+      +pwCheckBtn(it)
       +'<button class="ib" onclick="ML.startEdit(\''+it.id+'\')" title="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
       +'<button class="ib del" onclick="ML.delItem(\''+it.id+'\')" title="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>'
     +'</div></div>';
@@ -2245,8 +2248,22 @@ function pwToggleListWatch(itemId){
       perStoreBreakdown:[], priceHistory:[], bestPrice:null, bestStore:null, lastChecked:null, createdAt:Date.now(),
       fromList:{ listId:l.id, itemId:it.id } });
     it.watchId=wid;
-    persistWatch(); persist(); render(); toast('Now watching '+it.name+' — see the Price Watch tab');
+    persistWatch(); persist(); render(); toast('Now watching '+it.name+' — tap ↻ to check prices');
   }
+}
+// "Check now" button on a watched list item — runs the same all-store check as the
+// Price Watch tab (updates the linked watch entry, so the inline price refreshes).
+function pwCheckBtn(it){
+  var w=pwWatchForItem(it); if(!w) return '';
+  var busy = pwBusy===w.id;
+  return '<button class="ib li-check-btn" onclick="event.stopPropagation();ML.pwCheckListItem(\''+it.id+'\')"'+(busy?' disabled':'')+' title="Check prices now">'
+    +(busy?'<span class="li-spin">…</span>':'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>')+'</button>';
+}
+function pwCheckListItem(listItemId){
+  var l=curList(); if(!l) return;
+  var it=(l.items||[]).filter(function(x){return x.id===listItemId;})[0]; if(!it) return;
+  var w=pwWatchForItem(it); if(!w){ toast('Enable watch first', true); return; }
+  pwCheckNow(w.id);   // shared check flow; render() updates the inline price line
 }
 function toggleManual(){ if(!manualVisible()) return; manualOpen=!manualOpen; renderManualPop(); }
 
@@ -2549,7 +2566,7 @@ window.ML = {
   recUndo:recUndo, recRedo:recRedo,
   recEditStep:recEditStep, recAddStep:recAddStep, recSaveStep:recSaveStep, recCancelStep:recCancelStep, recDeleteStep:recDeleteStep,
   pwAddFind:pwAddFind, pwTrack:pwTrack, pwTrackVariant:pwTrackVariant, pwSaveAnyway:pwSaveAnyway, pwCancelAdd:pwCancelAdd, pwCheckNow:pwCheckNow, pwDelete:pwDelete, pwToggle:pwToggle, pwSetSort:pwSetSort,
-  pwFormInput:pwFormInput, pwClearSearch:pwClearSearch, pwToggleManage:pwToggleManage, pwAddStore:pwAddStore, pwRemoveStore:pwRemoveStore, pwToggleListWatch:pwToggleListWatch,
+  pwFormInput:pwFormInput, pwClearSearch:pwClearSearch, pwToggleManage:pwToggleManage, pwAddStore:pwAddStore, pwRemoveStore:pwRemoveStore, pwToggleListWatch:pwToggleListWatch, pwCheckListItem:pwCheckListItem,
   openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker, pickDevice:pickDevice,
   manageLock:manageLock, lockSubmit:lockSubmit, lockCancel:lockCancel, lockForgot:lockForgot, lockReset:lockReset
 };
