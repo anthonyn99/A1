@@ -224,6 +224,7 @@ function buildListPrompt(transcript, items, stores, hasAudio) {
     `RULES:`,
     `- BULK COMMANDS: one command often contains MANY changes ("move the milk to Costco, the eggs to Walmart, check off bread, and add paper towels" = 4 ops). Emit one op per change, never drop or merge any, never add extras.`,
     `- MOVING AN ITEM BETWEEN STORES: "move / switch / swap / put X (over) to/at STORE" → update with set:{store:"STORE"}. Only that item's store changes. "swap X and Y's stores" → two updates exchanging their stores.`,
+    `- REMOVING AN ITEM FROM ITS STORE (no new store named): "take X out of STORE", "move X out of the store", "put X on its own / by itself", "X isn't at any store", "remove X's store", "un-assign / uncategorize X", "move X to Other" → update with set:{store:"__NONE__"}. This UNASSIGNS the store (the item stays on the list, shown under "Other") — it is NOT a delete, and it does NOT change quantity/name. Use "__NONE__" ONLY when no real store is named; to move to an actual store use that store's name. Likewise "move everything out of STORE" / "empty STORE" → {"op":"move_all","from":"STORE","to":"__NONE__"}.`,
     `- STORE NAMES: a store is a short proper retailer name in Title Case, max 3 words ("Costco", "Best Buy", "Trader Joe's"). When it's clearly one of the SAVED STORES, use that exact spelling. Vague places ("the store", "the mall", "online", "somewhere") are NOT stores — omit the field. Never write a sentence or explanation in a store field.`,
     `- NEW ITEMS: "name" = clean Title Case product name (singular), KEEPING any brand ("Fairlife Whole Milk", "Oreo Cookies", "DeWalt 20V Drill"). Quantity goes in "qty" ("2", "1 gallon", "3 lbs", "a dozen") — never inside the name.`,
     `- AUTO-DESCRIPTIONS (never drop details!): the user never has to say the word "description" — EVERY extra detail spoken with an item goes in that item's "desc", automatically: sizes/dimensions ("20 by 20 by 1" → "20×20×1"), model/part numbers, color, flavor, variety, material, "organic", "the big pack", purposes ("for the party", "for the bathroom trim"), preferences ("the cheap one"). Before finishing, re-check the command: if the user said something about an item that is not captured in name/qty/store, it MUST be in desc. Keep desc short and telegraphic; never repeat the name or qty in it.`,
@@ -243,6 +244,8 @@ function buildListPrompt(transcript, items, stores, hasAudio) {
     `"change the name of the list to My Shopping List" → [{"op":"rename_list","name":"My Shopping List"}]`,
     `"remove Home Depot as a store" → [{"op":"remove_store","name":"Home Depot"}]`,
     `"copy the milk over to Walmart too" → [{"op":"add","name":"Milk","store":"Walmart"}]`,
+    `"take the milk out of Costco" / "put the milk on its own" → [{"op":"update","index":1,"match":"Milk","set":{"store":"__NONE__"}}]`,
+    `"move everything out of Target" → [{"op":"move_all","from":"Target","to":"__NONE__"}]`,
     `"start a new list called Weekend BBQ with burgers and hot dog buns from Costco" → [{"op":"new_list","name":"Weekend BBQ"},{"op":"add","name":"Burgers","store":"Costco"},{"op":"add","name":"Hot Dog Buns","store":"Costco"}]`,
     `"add 2 furnace air filters, 20 by 20 by 1" → [{"op":"add","name":"Furnace Air Filter","qty":"2","desc":"20×20×1"}]`,
     `"a can of white semi-gloss paint for the bathroom trim" → [{"op":"add","name":"White Semi-Gloss Paint","qty":"1 can","desc":"bathroom trim"}]`,
@@ -349,6 +352,12 @@ function applyListOps(items, stores, ops) {
   function addStore(t, s) { const v = String(s || '').trim(); if (v && v.length <= 40) t.storeMap.set(v.toLowerCase(), v); }
   // Prefer a saved store's exact spelling when the model names the same store.
   const canonStore = (t, s) => { const v = String(s || '').trim(); return v ? (t.storeMap.get(v.toLowerCase()) || v) : ''; };
+  // Explicit "unassign this item's store" sentinel(s) — "move it out on its own".
+  // Distinct from an empty string (which means "no change"), so a deliberate
+  // unassign works WITHOUT letting stray blanks wipe stores. "other" maps here so
+  // "move it to Other" drops the item into the implicit uncategorized group rather
+  // than creating a literal store named Other.
+  const noStore = (s) => /^(__none__|\(none\)|\(no ?store\)|no ?store|none|unassigned|uncategor(?:ized|ised)|other)$/i.test(String(s || '').trim());
   const whereMatch = (it, where) => {
     if (!where || typeof where !== 'object') return true;
     if (typeof where.store === 'string' && where.store.trim() &&
@@ -362,7 +371,7 @@ function applyListOps(items, stores, ops) {
     if (!set || typeof set !== 'object') return;
     if (allowRename && typeof set.name === 'string' && set.name.trim()) it.name = set.name.trim();
     if (typeof set.qty === 'string' && set.qty.trim()) it.qty = set.qty.trim();
-    if (typeof set.store === 'string' && set.store.trim()) { it.store = canonStore(t, set.store); addStore(t, it.store); }
+    if (typeof set.store === 'string' && set.store.trim()) { it.store = noStore(set.store) ? '' : canonStore(t, set.store); if (it.store) addStore(t, it.store); }
     if (typeof set.desc === 'string' && set.desc.trim()) it.desc = set.desc.trim();
     if (typeof set.done === 'boolean') it.done = set.done;
   };
@@ -405,7 +414,7 @@ function applyListOps(items, stores, ops) {
         const f = effSet(op, ['name', 'qty', 'store', 'desc']);
         const name = String(f.name || '').trim();
         if (!name) break;
-        const store = canonStore(t, f.store);
+        const store = noStore(f.store) ? '' : canonStore(t, f.store);
         if (store) addStore(t, store);
         // Same item, same store (or no store involved) → merge instead of duplicating.
         // A DIFFERENT store means the user wants a copy at that store — keep both.
@@ -440,9 +449,10 @@ function applyListOps(items, stores, ops) {
       }
       case 'move_all': {
         const from = normName(op.from);
-        const to = canonStore(t, op.to);
-        if (!to) break;
-        addStore(t, to);
+        const none = noStore(op.to);
+        const to = none ? '' : canonStore(t, op.to);
+        if (!to && !none) break;   // no destination given → ignore (but "__NONE__" = unassign all)
+        if (to) addStore(t, to);
         for (const it of t.list) if (normName(it.store) === from) it.store = to;
         break;
       }
