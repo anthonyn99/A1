@@ -5826,20 +5826,40 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // ── ProView save/load ─────────────────────────────────────────────────────
     let _pvSaveTimer = null;
     let _pvLastOwnSaveAt = 0;
+    let _pvSaveResolve = null;   // resolver of the currently-debounced save promise
+    let _pvSaveInFlight = null;  // tail of the serial write chain (never runs two setDocs at once)
     const pvDocRef = doc(db, PV_DOC_PATH);
 
+    // Returns a promise that settles (true=written, false=failed) when THIS save
+    // completes. Writes are serialized: a new save never starts its setDoc until the
+    // previous one has finished, so rapid favoriting can't fire concurrent writes.
     window._fbSaveProView = (cfg) => {
       _pvLastOwnSaveAt = Date.now();
-      if (_pvSaveTimer) clearTimeout(_pvSaveTimer);
+      // A newer save supersedes the still-debounced one — resolve its waiter so
+      // nobody awaiting it hangs, then reschedule with the latest cfg.
+      if (_pvSaveTimer) { clearTimeout(_pvSaveTimer); _pvSaveTimer = null; }
+      if (_pvSaveResolve) { const r = _pvSaveResolve; _pvSaveResolve = null; r(true); }
       window.dispatchEvent(new CustomEvent('fb-pv-syncing'));
-      _pvSaveTimer = setTimeout(async () => {
-        try {
-          _pvLastOwnSaveAt = Date.now();
-          await setDoc(pvDocRef, { cfg: JSON.stringify(cfg), savedAt: Date.now() });
-          _pvLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent('fb-pv-synced'));
-        } catch(e) { console.warn('[ProView] Firebase save failed:', e); window.dispatchEvent(new CustomEvent('fb-pv-error')); }
-      }, 1200);
+      return new Promise((resolve) => {
+        _pvSaveResolve = resolve;
+        _pvSaveTimer = setTimeout(() => {
+          _pvSaveTimer = null;
+          const myResolve = _pvSaveResolve; _pvSaveResolve = null;
+          _pvSaveInFlight = Promise.resolve(_pvSaveInFlight).then(async () => {
+            try {
+              _pvLastOwnSaveAt = Date.now();
+              await setDoc(pvDocRef, { cfg: JSON.stringify(cfg), savedAt: Date.now() });
+              _pvLastOwnSaveAt = Date.now();
+              window.dispatchEvent(new CustomEvent('fb-pv-synced'));
+              if (myResolve) myResolve(true);
+            } catch(e) {
+              console.warn('[ProView] Firebase save failed:', e);
+              window.dispatchEvent(new CustomEvent('fb-pv-error'));
+              if (myResolve) myResolve(false);
+            }
+          });
+        }, 1200);
+      });
     };
 
     window._fbLoadProView = async () => {
@@ -35129,6 +35149,7 @@ let _cfg={leagues:[],favorites:[],favLeagues:[],leagueData:{},lastFetch:{}};
 let _mounted=false,_el=null,_isDark=true,_pvActive=false;
 let _activeTab='schedule',_activeLeague=null;
 let _revealedScores=new Set(),_syncing=false;
+let _favSyncBusy=false; // true while a favorite/unfavorite sync is in flight — locks out concurrent taps
 const _pvUnlocked=true; // always unlocked
 
 // ── Theme ──────────────────────────────────────────────────────────────────
@@ -35148,7 +35169,8 @@ function saveCfg(){
   const snap={leagues:_cfg.leagues,favorites:_cfg.favorites,favLeagues:_cfg.favLeagues||[]};
   try{localStorage.setItem(LS_KEY,JSON.stringify(snap));}catch(e){}
   if(window._pvShowSyncing) window._pvShowSyncing();
-  if(window._fbSaveProView)window._fbSaveProView(snap);
+  if(window._fbSaveProView) return window._fbSaveProView(snap);
+  return Promise.resolve(true);
 }
 
 // Persist schedule data across page reloads so we don't re-hit the API every open
@@ -35325,15 +35347,15 @@ function toggleFav(team){
   } else {
     _cfg.favorites.push(slug);
   }
-  saveCfg();syncToTaskHub();render();
+  syncToTaskHub();const p=saveCfg();render();return p;
 }
 
 function isFavLeague(leagueId){
   return (_cfg.favLeagues||[]).includes(leagueId);
 }
 
-function toggleFavLeague(league){
-  if(!league||!league.id) return;
+async function toggleFavLeague(league){
+  if(!league||!league.id) return Promise.resolve(true);
   _cfg.favLeagues=_cfg.favLeagues||[];
   const was=isFavLeague(league.id);
   if(was){
@@ -35342,12 +35364,34 @@ function toggleFavLeague(league){
     if(window._thRemoveLeagueItems) window._thRemoveLeagueItems(league.id);
   } else {
     _cfg.favLeagues.push(league.id);
-    // Fetch data if not loaded yet
+    // Fetch data if not loaded yet — awaited inline so the whole action stays
+    // inside one serialized sync instead of spawning a detached async chain.
     if(!_cfg.leagueData[league.id]||!_cfg.leagueData[league.id].schedule){
-      fetchLeagueData(league.id).then(()=>{syncToTaskHub();render();});
+      await fetchLeagueData(league.id);
     }
   }
-  saveCfg();syncToTaskHub();render();
+  syncToTaskHub();const p=saveCfg();render();return p;
+}
+
+// ── Serialized favorite/unfavorite sync ─────────────────────────────────────
+// Rapid favoriting previously fired many overlapping fetch→inject→save chains at
+// once, flooding Firebase with concurrent writes and wedging both ProView and
+// TaskHub in a Syncing→Failed loop. We now run at most ONE fav/unfav sync at a
+// time: while one is in flight the star buttons are disabled and a spinner shows;
+// the next tap is accepted only after this one fully settles (success or failure).
+async function runFavSync(mutate){
+  if(_favSyncBusy) return;                 // lock — swallow concurrent fav/unfav taps
+  _favSyncBusy=true;
+  render();                                // reflect disabled buttons + spinner
+  try{
+    const pvSave = await mutate();         // mutate _cfg + inject TaskHub cards + kick off ProView save
+    // Let React commit the _thAddItem/_thRemoveItem state updates, then flush
+    // TaskHub's own debounced write so we truly wait for BOTH documents.
+    await new Promise(r=>setTimeout(r,0));
+    const thFlush = (typeof window._fbFlush==='function') ? window._fbFlush() : Promise.resolve();
+    await Promise.all([ Promise.resolve(pvSave), Promise.resolve(thFlush) ]);
+  }catch(e){ console.warn('[ProView] fav sync failed',e); }
+  finally{ _favSyncBusy=false; render(); }
 }
 
 // ── DOM micro-helpers ──────────────────────────────────────────────────────
@@ -35425,12 +35469,12 @@ function render(){
         color:_lgFaved?T.acl:T.txd,
         border:'1px solid '+(_lgFaved?'rgba(167,139,250,0.6)':'rgba(167,139,250,0.25)'),
         borderRadius:20,padding:'0 12px',height:'28px',fontSize:11,fontWeight:700,
-        cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
+        cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1,whiteSpace:'nowrap',flexShrink:0,
         fontFamily:"'Syne','Nunito',sans-serif",letterSpacing:'0.3px',
         transition:'all .15s',
-      },(_lgFaved?'★ ':'☆ ')+(_activeLg.name||'League'),
-      ()=>{toggleFavLeague(_activeLg);});
-      _lgStar.title=_lgFaved?'Unfavorite league (removes all cards from TaskHub)':'Favorite league (all matches → TaskHub)';
+      },(_favSyncBusy?'⏳ ':(_lgFaved?'★ ':'☆ '))+(_activeLg.name||'League'),
+      ()=>{ if(!_favSyncBusy) runFavSync(()=>toggleFavLeague(_activeLg)); });
+      _lgStar.title=_favSyncBusy?'Syncing…':(_lgFaved?'Unfavorite league (removes all cards from TaskHub)':'Favorite league (all matches → TaskHub)');
       hrow1.appendChild(_lgStar);
     }
   }
@@ -35761,9 +35805,9 @@ function matchCard(T,ev,league){
     if(!nm||nm==='TBD') return null;
     return B({background:fav?T.ac:'transparent',color:fav?'#fff':T.txd,
       border:'1px solid '+(fav?T.ac:T.bd),borderRadius:4,
-      padding:'2px 9px',fontSize:9,fontWeight:700,cursor:'pointer'},
-      (fav?'★ ':'☆ ')+nm,
-      (e)=>{e.stopPropagation();toggleFav(team);});
+      padding:'2px 9px',fontSize:9,fontWeight:700,cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1},
+      (_favSyncBusy?'⏳ ':(fav?'★ ':'☆ '))+nm,
+      (e)=>{e.stopPropagation(); if(!_favSyncBusy) runFavSync(()=>toggleFav(team));});
   };
   const r3=D({display:'flex',justifyContent:'space-between',marginTop:6});
   const r3L=D({flex:1});const _fb1=mkFB(t1,t1f);if(_fb1)r3L.appendChild(_fb1);
@@ -35811,7 +35855,9 @@ function showLeagueMgr(){
       lgFaved?'★':'☆',
       (e)=>{
         e.stopPropagation();
-        toggleFavLeague(added?_cfg.leagues.find(l=>l.id===lg.id)||lg:lg);
+        if(_favSyncBusy) return;
+        const target=added?_cfg.leagues.find(l=>l.id===lg.id)||lg:lg;
+        runFavSync(()=>toggleFavLeague(target));
         overlay.parentNode&&overlay.parentNode.removeChild(overlay);
         showLeagueMgr();
       }
