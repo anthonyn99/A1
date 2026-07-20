@@ -3805,7 +3805,7 @@ function App(){
   const wkEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
   const MC_PASTEL={earnings:"#e7a6b4",inflation:"#e3c794",fed:"#c9b3ec",jobs:"#a6c8e6",growth:"#a6dcb2",macro:"#c0c6cd",rates:"#c9b3ec",gdp:"#a6dcb2",retail:"#a6dcb2",housing:"#a3dcc6",sentiment:"#e3cb98",trade:"#edb2a6",oil:"#e3bd96",holiday:"#b0b9cc"};
   const MC_IMP={high:{c:"#f85149",t:"High"},medium:{c:"#E2C285",t:"Med"},low:{c:"#8b949e",t:"Low"}};
-  const wkCatalystCard=cat=>({background:isDark?"#101319":T.S2,border:"1px solid "+(isDark?"#243042":T.BD),borderLeft:"3px solid #8b949e",borderRadius:10,padding:isMobile?"3px 11px":"2px 9px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
+  const wkCatalystCard=cat=>({background:isDark?"linear-gradient(135deg,#1d1c21,#151419)":"linear-gradient(135deg,"+T.S2+","+T.S1+")",border:"1px solid "+(isDark?"#2c2a34":T.BD),borderLeft:"3px solid "+(isDark?"#7d6b76":T.BDL),borderRadius:10,padding:isMobile?"3px 11px":"2px 9px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
 
   // Touch reorder for habits and goals
   const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habits,setHabits,"tony","habit");
@@ -4097,9 +4097,9 @@ function App(){
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:10,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:"linear-gradient(90deg,"+T.ACD+","+T.ACL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay),
               pvMatches.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:5,cursor:"default",display:"flex",alignItems:"center",gap:5}},
-                React.createElement("div",{style:{border:"1px solid rgba(167,139,250,0.35)",borderRadius:6,background:"rgba(167,139,250,0.06)",padding:"6px 10px",flex:1,minWidth:0}},
+                React.createElement("div",{style:{border:"1px solid rgba(196,181,253,0.45)",borderRadius:6,background:"rgba(196,181,253,0.1)",padding:"6px 10px",flex:1,minWidth:0}},
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
-                    React.createElement("span",{style:{fontSize:12,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"rgba(167,139,250,0.9)",lineHeight:1}},e._pvLeague),
+                    React.createElement("span",{style:{fontSize:12,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"rgba(201,189,255,0.95)",lineHeight:1}},e._pvLeague),
                     e.time&&React.createElement("span",{style:{fontSize:12,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto"}},fmt12h(e.time,k,e.tz))),
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5}},
                     e._pvTeam1Img&&React.createElement("img",{src:e._pvTeam1Img,style:{width:26,height:26,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
@@ -4118,9 +4118,9 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
               events.map(e=>e._pvMatch?React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:5,cursor:"default"}},
-                React.createElement("div",{style:{border:"1px solid rgba(167,139,250,0.35)",borderRadius:6,background:"rgba(167,139,250,0.06)",padding:"6px 10px",width:"100%"}},
+                React.createElement("div",{style:{border:"1px solid rgba(196,181,253,0.45)",borderRadius:6,background:"rgba(196,181,253,0.1)",padding:"6px 10px",width:"100%"}},
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:5}},
-                    React.createElement("span",{style:{fontSize:12,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"rgba(167,139,250,0.9)",lineHeight:1}},e._pvLeague),
+                    React.createElement("span",{style:{fontSize:12,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"rgba(201,189,255,0.95)",lineHeight:1}},e._pvLeague),
                     e.time&&React.createElement("span",{style:{fontSize:12,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto"}},fmt12h(e.time,k,e.tz))),
                   React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:10}},
                     e._pvTeam1Img&&React.createElement("img",{src:e._pvTeam1Img,style:{width:36,height:36,objectFit:"contain",borderRadius:3},onError:ev=>ev.target.style.display="none"}),
@@ -4166,9 +4166,9 @@ function App(){
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:"linear-gradient(90deg,"+T.ACD+","+T.ACL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay),
               pvMatches.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:4,cursor:"default",display:"flex",alignItems:"center",gap:4}},
-                React.createElement("div",{style:{border:"1px solid rgba(167,139,250,0.35)",borderRadius:5,background:"rgba(167,139,250,0.06)",padding:"5px 7px",flex:1,minWidth:0}},
+                React.createElement("div",{style:{border:"1px solid rgba(196,181,253,0.45)",borderRadius:5,background:"rgba(196,181,253,0.1)",padding:"5px 7px",flex:1,minWidth:0}},
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:3,marginBottom:3}},
-                    React.createElement("span",{style:{fontSize:10,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"rgba(167,139,250,0.9)",lineHeight:1}},e._pvLeague),
+                    React.createElement("span",{style:{fontSize:10,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"rgba(201,189,255,0.95)",lineHeight:1}},e._pvLeague),
                     e.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto"}},fmt12h(e.time,k,e.tz))),
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4}},
                     e._pvTeam1Img&&React.createElement("img",{src:e._pvTeam1Img,style:{width:20,height:20,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
@@ -4187,9 +4187,9 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,t.id)},"×"))),
               events.map(e=>e._pvMatch?React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:4,cursor:"default"}},
-                React.createElement("div",{style:{border:"1px solid rgba(167,139,250,0.35)",borderRadius:5,background:"rgba(167,139,250,0.06)",padding:"5px 8px",width:"100%"}},
+                React.createElement("div",{style:{border:"1px solid rgba(196,181,253,0.45)",borderRadius:5,background:"rgba(196,181,253,0.1)",padding:"5px 8px",width:"100%"}},
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:3,marginBottom:4}},
-                    React.createElement("span",{style:{fontSize:10,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"rgba(167,139,250,0.9)",lineHeight:1}},e._pvLeague),
+                    React.createElement("span",{style:{fontSize:10,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"rgba(201,189,255,0.95)",lineHeight:1}},e._pvLeague),
                     e.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto"}},fmt12h(e.time,k,e.tz))),
                   React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6}},
                     e._pvTeam1Img&&React.createElement("img",{src:e._pvTeam1Img,style:{width:26,height:26,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
@@ -4208,7 +4208,8 @@ function App(){
                 React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,wordBreak:"break-word",whiteSpace:"normal"}},e.title)),
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);}},"✎"),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
-              !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"));
+              !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
+              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           }))),
 
     React.createElement("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"minmax(0,4fr) minmax(0,2.4fr) minmax(0,4fr)",gap:"clamp(6px,1vw,10px)",flexShrink:0,alignItems:"start"}},
@@ -10452,7 +10453,7 @@ function App(){
   const vdCatalystCard=cat=>({background:"#1f1b24",border:"1px solid #342f3b",borderLeft:"3px solid #8b949e",borderRadius:10,padding:vrMobile?"3px 11px":"2px 9px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
   // Events get the same card treatment (mirror of Tony's wkEventCard): bordered card,
   // category-colored left stripe, fading once both event time and reminder have passed.
-  const vdEventCard=(cat,passed)=>({background:passed?"#0f1014":"#1b1c23",border:"1px solid "+(passed?"#1d1e25":"#32333d"),borderLeft:"3px solid "+(passed?"#33343d":(CC[cat]||"#58a6d4")),borderRadius:10,padding:vrMobile?"4px 12px":"3px 10px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
+  const vdEventCard=(cat,passed)=>({background:passed?"#0f1014":"#1b1c23",border:"1px solid "+(passed?"#1d1e25":"#32333d"),borderLeft:"3px solid "+(passed?"#33343d":(CC[cat]||AL)),borderRadius:10,padding:vrMobile?"4px 12px":"3px 10px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
   // Plain tasks get a minimal outlined container — no fill, no shadow — kept
   // compact so the week stays dense and legible.
   // `today` cells have a lighter #303135 background, so tasks there need a
@@ -10575,14 +10576,14 @@ function App(){
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&RC("button",{style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:1,cursor:edit?"grab":"default"})},
-                                RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||"#58a6d4",marginTop:5,flexShrink:0}}),
+                                RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||AL,marginTop:5,flexShrink:0}}),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                 !edit&&e._sosClassName&&RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(e._sosClassColor)||"#8b949e",background:(sosPastel(e._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(e._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},e._sosClassName),
                 (e.time||e.notifyAt)&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
                   e.time&&RC("span",{style:{fontSize:11,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},"🔔 "+fmtNotif(e.notifyAt)+""))),
-                RC("span",{style:{fontSize:14,fontWeight:600,color:"#58a6d4",lineHeight:1.4,wordBreak:"break-word"}},e.title)),
+                RC("span",{style:{fontSize:14,fontWeight:600,color:"#C3B2D0",lineHeight:1.4,wordBreak:"break-word"}},e.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);}},"✎"),
                 edit&&RC("button",{style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
@@ -10615,17 +10616,18 @@ function App(){
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},"✎"),
                 edit&&RC("button",{style:dbtn,onClick:()=>del(k,t.id)},"×"))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:1,cursor:edit?"grab":"default"})},
-                                RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||"#58a6d4",marginTop:5,flexShrink:0}}),
+                                RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||AL,marginTop:5,flexShrink:0}}),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                 !edit&&e._sosClassName&&RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(e._sosClassColor)||"#8b949e",background:(sosPastel(e._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(e._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},e._sosClassName),
                 (e.time||e.notifyAt)&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
                   e.time&&RC("span",{style:{fontSize:10,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},"🔔 "+fmtNotif(e.notifyAt)+""))),
-                RC("span",{style:{fontSize:12,fontWeight:600,color:"#58a6d4",lineHeight:1.35,wordBreak:"break-word",overflowWrap:"break-word"}},e.title)),
+                RC("span",{style:{fontSize:12,fontWeight:600,color:"#C3B2D0",lineHeight:1.35,wordBreak:"break-word",overflowWrap:"break-word"}},e.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11},onClick:()=>{setEi(e);setMdt(k);setMo(true);}},"✎"),
                 edit&&RC("button",{style:dbtn,onClick:()=>del(k,e.id)},"×"))),
-              !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"))}))),
+              !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
+              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"))}))),
 
     // ── Bottom panels ──
     RC("div",{style:{display:"grid",gridTemplateColumns:vrMobile?"1fr":"minmax(0,4fr) minmax(0,2.5fr) minmax(0,4fr)",gap:10}},
