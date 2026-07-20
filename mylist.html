@@ -895,7 +895,9 @@ function boot(){
     ['tony','veda'].forEach(function(p){
       window._mlLoadPriceWatch(p).then(function(res){
         pwStore[p]=(res&&res.items)||[]; pwStoresState[p]=(res&&res.stores)||null; pwLoaded[p]=true;
-        if(activeProfile===p && view==='watch') render();
+        // Re-render on ANY view (Lists shows inline watch prices too) so watched
+        // items don't stay blank until a manual tab switch after a refresh.
+        if(activeProfile===p) render();
       });
     });
   }
@@ -916,7 +918,9 @@ window.addEventListener('ml-pricewatch-update', function(e){
   var p=e.detail&&e.detail.profile, items=(e.detail&&Array.isArray(e.detail.items))?e.detail.items:[];
   if(!p||!pwStore.hasOwnProperty(p)) return;
   pwStore[p]=items; pwStoresState[p]=(e.detail&&Array.isArray(e.detail.stores))?e.detail.stores:pwStoresState[p]; pwLoaded[p]=true;
-  if(activeProfile===p && view==='watch') render();
+  // Re-render on ANY view so Lists' inline watch prices refresh live (from the
+  // daily cron or another device) — not only when the Price Watch tab is open.
+  if(activeProfile===p) render();
 });
 function pData(){ return state[activeProfile] || {lists:[]}; }
 function lists(){ return pData().lists; }
