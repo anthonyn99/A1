@@ -4913,7 +4913,7 @@ function tbZonedISO(dateStr,hh,mm){
   const asTz=Date.UTC(+p.year,+p.month-1,+p.day,hr,+p.minute);
   return new Date(utcGuess-(asTz-utcGuess)).toISOString();
 }
-const TB_CAT_COLORS={earnings:'#e7a6b4',inflation:'#e3c794',fed:'#c9b3ec',jobs:'#a6c8e6',growth:'#a6dcb2',macro:'#c0c6cd',rates:'#c9b3ec',gdp:'#a6dcb2',retail:'#a6dcb2',housing:'#a3dcc6',sentiment:'#e3cb98',trade:'#edb2a6',oil:'#e3bd96',holiday:'#b0b9cc'};
+const TB_CAT_COLORS={earnings:'#e7a6b4',inflation:'#e3c794',fed:'#c9b3ec',jobs:'#a6c8e6',growth:'#a6dcb2',macro:'#c0c6cd',rates:'#c9b3ec',gdp:'#a6dcb2',retail:'#a6dcb2',housing:'#a3dcc6',sentiment:'#e3cb98',trade:'#edb2a6',oil:'#e3bd96',ecb:'#9db1e8',holiday:'#b0b9cc'};
 const tbCatColor=c=>TB_CAT_COLORS[String(c||'').toLowerCase()]||'#8b949e';
 // Macro market-impact pill (importance tier from the worker). high→red, med→amber, low→gray.
 const TB_IMP={high:{c:'#f85149',t:'HIGH'},medium:{c:'#d29922',t:'MED'},low:{c:'#8b949e',t:'LOW'}};

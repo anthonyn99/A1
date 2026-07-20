@@ -1399,7 +1399,7 @@ const MACRO_WHITELIST = [
   [/\bcpi\b|consumer price/i,                         'inflation'],
   [/\bppi\b|producer price/i,                         'inflation'],
   [/\bpce\b|personal consumption/i,                   'inflation'],
-  [/\bfomc\b|fed(eral)? (reserve|funds)|rate decision|powell|interest rate decision|fomc minutes/i, 'fed'],
+  [/\bfomc\b|fed(eral)? (reserve|funds)|rate decision|powell|warsh|interest rate decision|fomc minutes|jackson hole|semiannual monetary policy|monetary policy report|(fed|federal reserve)[^.]*(speech|remarks|testimony|speaks|keynote)|(chair|vice chair|governor|president)[^.]*(speech|remarks|testimony|speaks)/i, 'fed'],
   [/nonfarm|non-farm|\bnfp\b|jobs report|payroll|unemployment rate/i, 'jobs'],
   [/\bjolts\b|job openings|labor turnover/i,           'jobs'],
   [/\badp\b|adp (national )?employment/i,              'jobs'],
@@ -1424,9 +1424,9 @@ function macroCategory(name){
 function macroImportance(name){
   const n = name || '';
   if (/fomc minutes/i.test(n)) return 'medium';
-  if (/\bcpi\b|consumer price|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|\bpce\b|personal consumption|\bgdp\b|gross domestic/i.test(n)) return 'high';
-  if (/\bppi\b|producer price|retail sales|\bjolts\b|job openings|\bism\b|\badp\b|jobless claims|initial claims|consumer confidence/i.test(n)) return 'medium';
-  return 'low'; // michigan, chicago pmi, durable goods, housing, home sales, trade
+  if (/\bcpi\b|consumer price|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|\bpce\b|personal consumption|\bgdp\b|gross domestic|\becb\b|european central bank|jackson hole|semiannual|monetary policy report|humphrey/i.test(n)) return 'high';
+  if (/\bppi\b|producer price|retail sales|\bjolts\b|job openings|\bism\b|\badp\b|jobless claims|initial claims|consumer confidence|flash pmi|s&p global flash/i.test(n)) return 'medium';
+  return 'low'; // michigan, chicago pmi, durable goods, housing, home sales, trade, ad-hoc Fed speeches
 }
 
 // ── AUTHORITATIVE macro release calendar ─────────────────────────────────────
@@ -1458,6 +1458,12 @@ const MACRO_RELEASES_2026 = {
   // H1); forward dates confirmed via BLS/TradingCalendar. Past months left sparse
   // since only the forward 30-day window is ever surfaced.
   jolts: ['2026-02-03','2026-05-05','2026-06-02','2026-06-30','2026-08-04','2026-09-01','2026-09-29','2026-11-03','2026-12-01'],
+  // S&P Global US Flash PMI (Manufacturing + Services + Composite) — the EARLIEST
+  // read on the CURRENT month's economy (~3 wks before ISM covers it). Official
+  // S&P Global Market Intelligence release-dates schedule (pmi.spglobal.com). The
+  // release day-of-week VARIES month to month (no fixed rule), so dates are
+  // hardcoded and cross-checked against multiple calendars.
+  flashpmi: ['2026-01-23','2026-02-20','2026-03-24','2026-04-23','2026-05-21','2026-06-23','2026-07-24','2026-08-21','2026-09-23','2026-10-23','2026-11-23','2026-12-16'],
 };
 const MON_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 // Set of years we have hardcoded (auto-derived from the table above, so adding a
@@ -1466,6 +1472,39 @@ const MON_NAMES = ['January','February','March','April','May','June','July','Aug
 const HARDCODED_YEARS = new Set(
   Object.values(MACRO_RELEASES_2026).flat().map(d => String(d).slice(0,4))
 );
+
+// ── Non-US central bank + marquee Fed events ─────────────────────────────────
+// Kept in SEPARATE tables (NOT inside MACRO_RELEASES_2026) on purpose: that
+// object auto-derives HARDCODED_YEARS, which gates the grounded-AI fallback for
+// the US series. ECB spans 2026–2027; letting 2027 leak into HARDCODED_YEARS
+// would mark 2027 "trusted" and DROP the AI fallback for every not-yet-hardcoded
+// 2027 US release (CPI, jobs, FOMC…). These tables are emitted directly by
+// authoritativeMacro regardless of HARDCODED_YEARS, so they never affect it.
+//
+// ECB Governing Council MONETARY POLICY meeting decision days (the 2nd/final day,
+// when the rate is announced at 14:15 CET). 8 meetings/year, ~6 weeks apart.
+// Source: ECB press calendar (ecb.europa.eu/press/calendars). Non-US, but a major
+// driver of US rates, USD and global risk sentiment. Maintained by year.
+const ECB_DECISIONS = [
+  // 2026 — forward only (H1 meetings already passed; only a 30-day window surfaces)
+  '2026-07-23','2026-09-10','2026-10-29','2026-12-17',
+  // 2027 — full year, per the ECB's published calendar
+  '2027-02-04','2027-03-18','2027-04-29','2027-06-10','2027-07-22','2027-09-09','2027-10-28','2027-12-16',
+];
+// Marquee, pre-scheduled Fed-Chair events with FIXED dates that reliably move
+// markets — distinct from ad-hoc FOMC-member speeches (grounded Gemini supplies
+// those best-effort). The FOMC press conference (where the Chair speaks) is
+// already covered by the FOMC Rate Decision entries, so it's not repeated here.
+//   • Jackson Hole = Fed Chair keynote day (Fri) of the KC Fed symposium.
+//   • Testimony = semiannual Monetary Policy Report to Congress (House + Senate).
+// NOTE: the Fed Chair from May 2026 is Warsh (not Powell) — names kept generic.
+// Maintained by year; testimony dates are set ~2 wks ahead by the committees, so
+// only confirmed ones are listed and future years fall back to grounded AI.
+const FED_CHAIR_EVENTS = [
+  { date:'2026-07-14', name:'Fed Chair Semiannual Testimony (House)' },
+  { date:'2026-07-15', name:'Fed Chair Semiannual Testimony (Senate)' },
+  { date:'2026-08-28', name:'Jackson Hole Symposium — Fed Chair Keynote' },
+];
 // Reference month label: most reports cover the PRIOR month; GDP covers a quarter.
 function prevMonthLabel(dateStr){
   const m = parseInt(dateStr.slice(5,7),10) - 1; // 0-based this month
@@ -1558,6 +1597,12 @@ function authoritativeMacro(fromD, toD){
   for (const d of MACRO_RELEASES_2026.fomc)   add(d, 'FOMC Rate Decision', 'fed');
   // JOLTS — released ~5-6 weeks after its reference month; label that month.
   for (const d of MACRO_RELEASES_2026.jolts)  add(d, `${MON_NAMES[+addDaysIso(d,-38).slice(5,7)-1]} JOLTS Job Openings`, 'jobs');
+  // Flash PMI reports the CURRENT month (preliminary), so label with the RELEASE month.
+  for (const d of MACRO_RELEASES_2026.flashpmi) add(d, `${MON_NAMES[+d.slice(5,7)-1]} S&P Global Flash PMI`, 'growth');
+  // ECB rate decisions (non-US) and marquee Fed-Chair events — own tables, emitted
+  // directly (see the note by ECB_DECISIONS on why they're not in the US table).
+  for (const d of ECB_DECISIONS)              add(d, 'ECB Rate Decision', 'ecb');
+  for (const e of FED_CHAIR_EVENTS)           add(e.date, e.name, 'fed');
   // Rule-based releases (ISM, Consumer Confidence, Michigan, Chicago PMI, ADP,
   // FOMC Minutes, jobless claims) — computed, exact by construction.
   out.push(...computedMacro(fromD, toD));
@@ -1705,7 +1750,7 @@ async function fetchMacroCalendar(env, fromD, toD, diag){
   const prompt =
 `You are a financial calendar API. Using Google Search, list scheduled US macroeconomic data releases and Federal Reserve events between ${fromD} and ${toD} (inclusive), US Eastern dates.
 
-Include ONLY these release types if they fall in the window: CPI, PPI, PCE, FOMC rate decision / Fed meeting, FOMC Minutes, Nonfarm Payrolls (jobs report), ADP Employment, JOLTS Job Openings, weekly Initial Jobless Claims, GDP, Retail Sales, ISM/PMI, Durable Goods, Consumer Confidence, Michigan Consumer Sentiment, Housing Starts, Building Permits, Existing Home Sales, New Home Sales, Trade Balance.
+Include ONLY these release types if they fall in the window: CPI, PPI, PCE, FOMC rate decision / Fed meeting, FOMC Minutes, Nonfarm Payrolls (jobs report), ADP Employment, JOLTS Job Openings, weekly Initial Jobless Claims, GDP, Retail Sales, ISM/PMI, S&P Global Flash PMI, Durable Goods, Consumer Confidence, Michigan Consumer Sentiment, Housing Starts, Building Permits, Existing Home Sales, New Home Sales, Trade Balance, officially-scheduled Federal Reserve Chair/Vice-Chair/Governor speeches and testimony (incl. semiannual Monetary Policy Report to Congress and the Jackson Hole symposium).
 
 Return ONLY a JSON array, no prose, no markdown fences. Each item:
 {"name":"<official release name incl. month/period, e.g. 'May CPI Report'>","date":"YYYY-MM-DD"}
@@ -1991,7 +2036,7 @@ async function buildCalendar(wl, env, days, diag){
   // NOT listed (so AI's real-dated versions survive): durable goods, housing
   // starts/permits, home sales, trade balance — those have no fixed rule and
   // aren't hardcoded, so grounded Gemini supplies them.
-  const HARDCODED_NAME = /\bcpi\b|\bppi\b|\bpce\b|personal consumption|\bgdp\b|gross domestic|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|retail sales|\bjolts\b|job openings|\badp\b|\bism\b|chicago pmi|chicago business|consumer confidence|consumer sentiment|michigan|jobless claims|initial claims/i;
+  const HARDCODED_NAME = /\bcpi\b|\bppi\b|\bpce\b|personal consumption|\bgdp\b|gross domestic|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|retail sales|\bjolts\b|job openings|\badp\b|\bism\b|chicago pmi|chicago business|consumer confidence|consumer sentiment|michigan|jobless claims|initial claims|flash pmi|s&p global flash|jackson hole|semiannual|monetary policy report/i;
   const authKey = new Set(authMacro.map(e => e.category + '|' + e.date));
   const extraMacro = [];
   for (const e of aiMacro){
