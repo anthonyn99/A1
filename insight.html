@@ -189,6 +189,7 @@
   .field { margin-bottom: 13px; }
   .field label { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
   .field input, .field select, .field textarea { width: 100%; }
+  .field textarea { resize: none; }
   .fieldrow { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
   .seg { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
   .seg button {
@@ -357,13 +358,7 @@
     </div>
     <div class="field"><label>Name</label><input type="text" id="mName" placeholder="Coffee, side gig, PayPal refund…"></div>
     <div class="field"><label>Category</label>
-      <select id="mCategory">
-        <option>Food &amp; Drink</option><option>Groceries</option><option>Transportation</option>
-        <option>Travel</option><option>Shopping</option><option>Entertainment</option>
-        <option>Bills &amp; Utilities</option><option>Subscriptions</option><option>Rent</option>
-        <option>Health</option><option>Personal Care</option><option>Loan Payments</option>
-        <option>Income</option><option>Transfer</option><option>Other</option>
-      </select>
+      <select id="mCategory"></select>
     </div>
     <div class="field"><label>Note <span style="text-transform:none;letter-spacing:0;color:var(--faint)">(optional)</span></label><textarea id="mNote" rows="2"></textarea></div>
     <div class="modalacts">
@@ -581,10 +576,28 @@
   $('mCancel').addEventListener('click', () => $('manualModal').classList.remove('open'));
   $('manualModal').addEventListener('click', e => { if (e.target === $('manualModal')) $('manualModal').classList.remove('open'); });
 
+  // Separate category vocabularies — how money is spent vs how it arrives.
+  const EXPENSE_CATS = ['Food & Drink', 'Groceries', 'Transportation', 'Travel', 'Shopping',
+    'Entertainment', 'Bills & Utilities', 'Subscriptions', 'Rent', 'Health', 'Personal Care',
+    'Loan Payments', 'Transfer Out', 'Other'];
+  const INCOME_CATS = ['Paycheck', 'Side Gig', 'Freelance', 'Refund', 'Reimbursement', 'Gift',
+    'Interest', 'Investment Income', 'Cashback & Rewards', 'Sold Item', 'Transfer In', 'Other'];
+
+  function setCats(type, selected) {
+    const cats = type === 'income' ? INCOME_CATS : EXPENSE_CATS;
+    const sel = $('mCategory');
+    sel.innerHTML = cats.map(c => `<option${c === selected ? ' selected' : ''}>${esc(c)}</option>`).join('');
+    if (selected && !cats.includes(selected)) {
+      sel.insertAdjacentHTML('beforeend', `<option selected>${esc(selected)}</option>`);
+    }
+    if (!selected) sel.value = 'Other';
+  }
+
   $('typeSeg').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     manualType = b.dataset.t;
     document.querySelectorAll('#typeSeg button').forEach(x => x.classList.toggle('on', x === b));
+    setCats(manualType);
   });
 
   function openManual(t) {
@@ -595,10 +608,7 @@
     $('mAmount').value = t ? Math.abs(t.amount) : '';
     $('mDate').value = t ? t.date : new Date().toISOString().slice(0, 10);
     $('mName').value = t ? (t.merchant || t.name || '') : '';
-    $('mCategory').value = t && t.category ? t.category : 'Other';
-    if (t && t.category && ![...$('mCategory').options].some(o => o.value === t.category)) {
-      $('mCategory').insertAdjacentHTML('beforeend', `<option selected>${esc(t.category)}</option>`);
-    }
+    setCats(manualType, t ? t.category : null);
     $('mNote').value = t ? (t.note || '') : '';
     $('manualModal').classList.add('open');
     setTimeout(() => $('mAmount').focus(), 60);
@@ -635,16 +645,25 @@
     toast(editingId ? 'Entry updated' : 'Entry added', true);
   });
 
-  // ── Sync now ─────────────────────────────────────────────────────────────
+  // ── Bank sync ────────────────────────────────────────────────────────────
+  // Two different "syncs" exist and only one ever needed the button:
+  //   • App-side edits (manual entries, CSV imports, deletes) write straight
+  //     to Firestore the moment they happen — nothing to trigger.
+  //   • Bank data has to be PULLED from Plaid by the worker. That now runs
+  //     automatically on every page open (below) plus the daily 11:00 UTC
+  //     cron; the button remains as a manual refresh for mid-session checks.
+  async function pullBankData(quiet) {
+    const r = await fetch(API + '/sync', { method: 'POST' }).then(x => x.json());
+    if (!r.ok) { if (!quiet) toast('Sync failed: ' + (r.error || 'unknown')); return; }
+    const added = (r.results || []).reduce((s, x) => s + (x.added || 0), 0);
+    if (added) toast(`${added} new transaction${added === 1 ? '' : 's'} synced`, true);
+    else if (!quiet) toast('Synced — up to date', true);
+  }
+  pullBankData(true).catch(() => {});   // auto-refresh on open, silent unless news
+
   $('syncNowBtn').addEventListener('click', async () => {
     const b = $('syncNowBtn'); b.disabled = true; b.textContent = 'Syncing…';
-    try {
-      const r = await fetch(API + '/sync', { method: 'POST' }).then(x => x.json());
-      if (r.ok) {
-        const added = (r.results || []).reduce((s, x) => s + (x.added || 0), 0);
-        toast(added ? `Synced — ${added} new transaction${added === 1 ? '' : 's'}` : 'Synced — up to date', true);
-      } else toast('Sync failed: ' + (r.error || 'unknown'));
-    } catch (e) { toast('Sync failed: ' + e.message); }
+    try { await pullBankData(false); } catch (e) { toast('Sync failed: ' + e.message); }
     b.disabled = false; b.textContent = 'Sync now';
   });
 
