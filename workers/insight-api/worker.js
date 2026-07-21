@@ -50,6 +50,11 @@
 
 const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
 
+// Must be registered verbatim under Plaid Dashboard → Developers → API →
+// Allowed redirect URIs before OAuth banks (Chase, Capital One, Wells Fargo)
+// can be linked. See the fallback in /link/token/create.
+const REDIRECT_URI = 'https://anthonyn99.github.io/A1/insight.html';
+
 function corsHeaders(origin) {
   const allow = origin === ALLOWED_ORIGIN ? origin : ALLOWED_ORIGIN;
   return {
@@ -525,19 +530,29 @@ export default {
         if (!(await verifyLockOrToken(env, body))) {
           return json({ ok: false, error: 'app lock required', lockRequired: true }, origin, 401);
         }
-        const data = await plaidPost(env, '/link/token/create', {
+        const base = {
           user: { client_user_id: 'tony' },
           client_name: 'Insight',
           products: ['transactions'],
           transactions: { days_requested: 90 },   // plan: 90-day initial history
           country_codes: ['US'],
-          language: 'en',
-          // OAuth institutions (Chase, Capital One, Wells Fargo…) redirect the
-          // browser to the bank and back — this URI must also be registered as
-          // an Allowed Redirect URI in the Plaid Dashboard (API settings).
-          redirect_uri: 'https://anthonyn99.github.io/A1/insight.html'
-        });
-        return json({ ok: true, link_token: data.link_token, expiration: data.expiration }, origin);
+          language: 'en'
+        };
+        // OAuth institutions (Chase, Capital One, Wells Fargo…) redirect the
+        // browser to the bank and back, which requires this URI to be
+        // registered under Allowed Redirect URIs in the Plaid Dashboard.
+        // If it isn't registered yet, Plaid rejects the whole request — so
+        // fall back to a redirect-less token, which still connects every
+        // non-OAuth bank. `oauthReady:false` tells the UI to say so.
+        let data, oauthReady = true;
+        try {
+          data = await plaidPost(env, '/link/token/create', { ...base, redirect_uri: REDIRECT_URI });
+        } catch (e) {
+          if (e.plaid?.code !== 'INVALID_FIELD') throw e;
+          oauthReady = false;
+          data = await plaidPost(env, '/link/token/create', base);
+        }
+        return json({ ok: true, link_token: data.link_token, expiration: data.expiration, oauthReady }, origin);
       }
 
       if (path === '/link/exchange' && request.method === 'POST') {

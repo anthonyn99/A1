@@ -1378,7 +1378,11 @@
       }).then(x => x.json());
       if (r.lockRequired) { st.textContent = ''; showLock(); return; }
       if (!r.ok) { st.textContent = r.error || 'Link token failed'; return; }
-      st.textContent = '';
+      // Redirect URI not yet registered in the Plaid Dashboard → OAuth banks
+      // (Chase, Capital One, Wells Fargo) can't complete; the rest still can.
+      st.textContent = r.oauthReady === false
+        ? 'Note: redirect URI not registered in Plaid yet — OAuth banks (Chase, Capital One, Wells Fargo) will fail until it is.'
+        : '';
       // OAuth institutions (Chase, Capital One, Wells Fargo…) leave the page
       // and redirect back with ?oauth_state_id=… — the link_token must survive
       // that round trip to resume the session (see boot check below).
