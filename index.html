@@ -104,7 +104,7 @@ body{overflow-y:auto;overflow-x:clip;-webkit-overflow-scrolling:touch;}
 /* Tony's root flows in body — body is scroll container = pull-to-refresh works */
 #root{min-height:100%;overflow-y:visible;overflow-x:clip;padding-bottom:env(safe-area-inset-bottom,0px);}
 /* Other app roots: fixed+hidden when not active so they don't bleed into body scroll */
-#el-root,#ms-root,#er-root,#tj-root{position:fixed;inset:0;overflow:hidden;display:none;}
+#ms-root,#er-root,#tj-root{position:fixed;inset:0;overflow:hidden;display:none;}
 #tradeboard-root{position:fixed;inset:0;overflow:hidden;display:none;background:#0f0f12;}
 body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;}
 button{touch-action:manipulation;}
@@ -119,71 +119,9 @@ body.light-mode input[type=time]{color-scheme:light;}
 @keyframes td-spin{to{transform:rotate(360deg)}}
 @keyframes td-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 /* ── App shell ── */
-#el-root{display:flex;flex-direction:column;}
 #er-root{display:flex;flex-direction:column;}
 #er-root input[type=date]{color-scheme:dark;}
 #er-root.er-light input[type=date]{color-scheme:light;}
-/* ── ExpenseLog scoped styles ── */
-#el-root .el-inner{max-width:720px;width:100%;margin:0 auto;padding:clamp(10px,2vw,24px) clamp(12px,3vw,32px) clamp(10px,1.5vw,16px);display:flex;flex-direction:column;gap:clamp(10px,1.5vw,16px);flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
-#el-root .el-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:8px;min-width:0;}
-#el-root .el-logo{font-family:'Lora',serif;font-size:clamp(18px,3vw,28px);font-weight:700;letter-spacing:-0.3px;white-space:nowrap;flex-shrink:0;}
-#el-root .el-logo .base{color:var(--el-tx);}
-#el-root .el-logo .accent{color:var(--el-ac);font-style:italic;}
-#el-root .el-hbtns{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:nowrap;}
-#el-root .el-btn{background:var(--el-bg);border:1px solid var(--el-bd);border-radius:4px;padding:0 10px;height:28px;box-sizing:border-box;font-size:12px;font-weight:800;color:var(--el-ac);display:inline-flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap;flex-shrink:0;cursor:pointer;font-family:'Nunito',sans-serif;}
-#el-root .el-btn:hover{border-color:var(--el-ac);color:var(--el-ac);}
-#el-root .el-btn.active{background:var(--el-bg);border-color:var(--el-bd);color:var(--el-ac);}
-#el-root .el-switcher{background:var(--el-bg);border:1px solid var(--el-bd);border-radius:4px;color:var(--el-ac);font-size:11px;font-weight:700;padding:0 8px;height:30px;box-sizing:border-box;font-family:'Nunito',sans-serif;outline:none;cursor:pointer;}#el-root .el-switcher:hover{border-color:var(--el-ac);}#el-root .el-switcher option{background:#0f0f12;color:#E0607A;}
-#el-root.el-light .el-switcher option{background:#EAE3E7;color:#D4607A;}
-#el-root #el-root .el-profile-btn{background:var(--el-bg);border:1px solid var(--el-bd);border-radius:4px;color:var(--el-ac);font-weight:700;padding:0 8px;height:30px;box-sizing:border-box;cursor:pointer;line-height:1;flex-shrink:0;display:inline-flex;align-items:center;transition:border-color .15s;}
-#el-root .el-profile-btn:hover{border-color:var(--el-ac);}
-#el-root .el-toggle-track{width:26px;height:14px;border-radius:7px;background:var(--el-bd);position:relative;transition:background .2s;flex-shrink:0;}
-#el-root .el-toggle-track.on{background:var(--el-ac);}
-#el-root .el-toggle-thumb{width:10px;height:10px;border-radius:50%;background:var(--el-txd);position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .2s,background .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
-#el-root .el-toggle-thumb.on{left:14px;background:#fff;}
-#el-root .el-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,1.5vw,12px);}
-#el-root .el-content-row{display:flex;flex-direction:column;gap:16px;}
-#el-root .el-card-expenses{width:100%;}
-#el-root .el-card-cash{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px 18px;}
-#el-root .el-cash-label{font-size:12px;font-weight:700;color:var(--el-txd);letter-spacing:0.3px;text-transform:uppercase;}
-#el-root .el-cash-amount{font-family:'Lora',serif;font-size:clamp(24px,3vw,34px);font-weight:700;color:var(--el-ac);line-height:1;}
-#el-root .el-cash-input{width:100%;background:var(--el-s2);border:1px solid var(--el-ac);border-radius:4px;color:var(--el-tx);font-size:22px;font-weight:700;text-align:center;padding:4px 8px;box-sizing:border-box;outline:none;font-family:'Lora',serif;transition:border-color .15s;}
-#el-root .el-cash-input:focus{border-color:var(--el-ac);box-shadow:0 0 0 2px var(--el-acg);}
-#el-root .el-summary-card{background:var(--el-s1);border:1px solid var(--el-bd);border-radius:4px;padding:14px 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center;}
-#el-root .el-summary-label{font-size:12px;font-weight:700;color:var(--el-txd);white-space:nowrap;}
-#el-root .el-summary-amount{font-family:'Lora',serif;font-size:clamp(22px,3vw,32px);font-weight:700;color:var(--el-ac);line-height:1;white-space:nowrap;}
-#el-root .el-card{background:var(--el-s1);border:1px solid var(--el-bd);border-radius:4px;padding:14px 18px;}
-#el-root .el-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--el-bd);padding-bottom:9px;}
-#el-root .el-card-title{font-family:'Lora',serif;font-size:13px;font-weight:700;color:var(--el-tx);letter-spacing:0.2px;margin:0;}
-#el-root .el-expense-row{display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid var(--el-bd);}
-#el-root .el-expense-row:last-child{border-bottom:none;}
-#el-root .th-drag-handle{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:5px;cursor:grab;color:var(--el-txm);flex-shrink:0;touch-action:none;transition:color .15s,background .15s;-webkit-tap-highlight-color:transparent;user-select:none;align-self:center;}
-#el-root .th-drag-handle:hover{color:var(--el-txd);background:var(--el-s2);}
-#el-root .th-drag-handle:active{cursor:grabbing;}
-#el-root .th-drag-placeholder{border:2px dashed var(--el-ac);border-radius:6px;background:color-mix(in srgb,var(--el-ac) 5%,transparent);flex-shrink:0;}
-#el-root .el-expense-name{font-size:14px;font-weight:600;color:var(--el-tx);flex:1;min-width:0;word-break:break-word;line-height:1.4;white-space:normal;}
-#el-root .el-expense-costs{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
-#el-root .el-cost-pill{font-size:14px;font-weight:600;color:var(--el-txd);white-space:nowrap;}
-#el-root .el-actions{display:flex;gap:2px;align-items:center;flex-shrink:0;}
-#el-root .el-icon-btn{background:transparent;border:none;padding:4px 6px;border-radius:4px;font-size:14px;line-height:1;transition:background .12s;cursor:pointer;}
-#el-root .el-icon-btn.edit{color:var(--el-txd);}
-#el-root .el-icon-btn.edit:hover{background:var(--el-s2);}
-#el-root .el-icon-btn.del{color:var(--el-err);font-weight:700;font-size:16px;}
-#el-root .el-empty{font-size:13px;color:var(--el-txm);font-style:italic;text-align:center;padding:28px 0;}
-#el-root .el-btn-primary{background:var(--el-ac);color:var(--el-bg);border:none;border-radius:4px;padding:7px 16px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;transition:opacity .15s;}
-#el-root .el-btn-primary:hover{opacity:.85;}
-#el-root .el-btn-secondary{background:var(--el-s2);border:1px solid var(--el-bdl);border-radius:4px;padding:9px 20px;font-size:13px;font-weight:600;color:var(--el-txd);cursor:pointer;font-family:'Nunito',sans-serif;transition:all .15s;}
-#el-root .el-btn-secondary:hover{border-color:var(--el-ac);color:var(--el-ac);}
-#el-root .el-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9000;padding:16px;}
-#el-root .el-modal{background:var(--el-s1);border:1px solid var(--el-bdl);border-radius:6px;padding:28px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;box-shadow:0 30px 80px var(--el-shadow);}
-#el-root .el-modal-title{font-family:'Lora',serif;font-size:17px;font-weight:700;color:var(--el-ac);margin-bottom:22px;}
-#el-root .el-field{margin-bottom:16px;}
-#el-root .el-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--el-txd);margin-bottom:6px;}
-#el-root .el-field input{width:100%;background:var(--el-s2);border:1px solid var(--el-bdl);border-radius:4px;color:var(--el-tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;font-family:'Nunito',sans-serif;}
-#el-root .el-field input:focus{border-color:var(--el-ac);}
-#el-root .el-hint{font-size:11px;color:var(--el-txd);line-height:1.55;background:var(--el-s2);border-radius:4px;padding:9px 12px;margin-bottom:20px;}
-#el-root .el-modal-actions{display:flex;gap:10px;}
-@media(max-width:480px){#el-root .el-expense-costs{flex-direction:row;gap:8px;align-items:center;}}
   /* Veda's TaskHub mobile */
   @media(max-width:1000px){
     #vr-root .gita-quote-line{white-space:normal;}
@@ -2409,7 +2347,6 @@ body.light-mode input[type=time]{color-scheme:light;}
     <option value="taskhub">Tony's TaskHub</option>
     <option value="tradeboard">TradeHub</option>
     <option value="health">MotionCore</option>
-    <option value="expenselog">ExpenseLog</option>
     <option value="eventrec">EventRec</option>
     <option value="keychain">Vault</option>
     <option value="brainstormjournal">MyJournal</option>
@@ -2419,7 +2356,6 @@ body.light-mode input[type=time]{color-scheme:light;}
   <button class="tn-btn" data-app="taskhub" onclick="window._tonyNav&&window._tonyNav('taskhub')">TaskHub</button>
   <button class="tn-btn" id="thub-nav-btn" data-app="tradeboard" onclick="window._thubClick&&window._thubClick()">TradeHub</button>
   <button class="tn-btn" data-app="health" onclick="window._tonyNav&&window._tonyNav('health')">MotionCore</button>
-  <button class="tn-btn" data-app="expenselog" onclick="window._tonyNav&&window._tonyNav('expenselog')">ExpenseLog</button>
   <button class="tn-btn" data-app="eventrec" onclick="window._tonyNav&&window._tonyNav('eventrec')">EventRec</button>
   <button class="tn-btn" data-app="keychain" onclick="window._tonyNav&&window._tonyNav('keychain')">Vault</button>
   <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
@@ -4519,7 +4455,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   }
   const storage = getStorage(app);
   const DOC_PATH    = "dashboards/main";
-  const EL_DOC_PATH = "dashboards/expenses";
   const ER_DOC_PATH = "dashboards/eventrec";
   const VD_DOC_PATH = "dashboards/vedasdash";
   const VT_DOC_PATH = "dashboards/vedatimeline";
@@ -4534,7 +4469,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   const MC_CAL_PATH      = "dashboards/market_calendar";
 
   let _saveTimer = null;
-  let _elSaveTimer = null;
   let _erSaveTimer = null;
   let _vdSaveTimer = null;
   let _vtSaveTimer = null;
@@ -4547,7 +4481,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _mcSaveTimer   = null;
   let _unsubscribe    = null;
   let _mcCalUnsub     = null;
-  let _elUnsubscribe  = null;
   let _erUnsubscribe  = null;
   let _vdUnsubscribe  = null;
   let _vtUnsubscribe  = null;
@@ -4562,7 +4495,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _alUnsubscribe  = null;
   window._alSaveTimer = null;
   let _lastOwnSaveAt     = 0;
-  let _elLastOwnSaveAt   = 0;
   let _erLastOwnSaveAt   = 0;
   let _vdLastOwnSaveAt   = 0;
   let _vtLastOwnSaveAt   = 0;
@@ -4625,7 +4557,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
   async function init() {
     const docRef   = doc(db, DOC_PATH);
-    const elDocRef = doc(db, EL_DOC_PATH);
     const erDocRef = doc(db, ER_DOC_PATH);
     const vtDocRef = doc(db, VT_DOC_PATH);
 
@@ -4702,50 +4633,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (snap.exists() && Array.isArray(snap.data().events))
         window.dispatchEvent(new CustomEvent("fb-marketcal-update", { detail: snap.data().events }));
     });
-
-    // ── ExpenseLog real-time listener ─────────────────────────────────────────
-    if (_elUnsubscribe) { _elUnsubscribe(); _elUnsubscribe = null; }
-    _elUnsubscribe = onSnapshot(elDocRef, (snap) => {
-      if (Date.now() - _elLastOwnSaveAt < 8000) return;
-      if (snap.exists() && Array.isArray(snap.data().expenses)) {
-        window.dispatchEvent(new CustomEvent("fb-el-remote-update", { detail: { expenses: snap.data().expenses, cash: snap.data().cash ?? 0 } }));
-        window.dispatchEvent(new CustomEvent("fb-el-synced"));
-      }
-    });
-
-    // ── ExpenseLog load ───────────────────────────────────────────────────────
-    window._fbLoadExpenses = async () => {
-      try {
-        const snap = await _freshGet(elDocRef);
-        if (snap && snap.exists() && Array.isArray(snap.data().expenses)) return { expenses: snap.data().expenses, cash: snap.data().cash ?? 0 };
-        return null;
-      } catch(e) {
-        console.warn("Firebase expenses load failed:", e);
-        return null;
-      }
-    };
-
-    // ── ExpenseLog save ───────────────────────────────────────────────────────
-    window._fbSaveExpenses = (expenseList, cashAmt) => {
-      _elLastOwnSaveAt = Date.now();
-      if (_elSaveTimer) clearTimeout(_elSaveTimer);
-      _elSaveTimer = setTimeout(async () => {
-        try {
-          const sanitized = expenseList.map(e => {
-            const out = {};
-            Object.entries(e).forEach(([k,v]) => { if(v !== null && v !== undefined) out[k] = v; });
-            return out;
-          });
-          _elLastOwnSaveAt = Date.now();
-          await setDoc(elDocRef, { expenses: sanitized, cash: cashAmt ?? 0, savedAt: Date.now() });
-          _elLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-el-saved"));
-        } catch(e) {
-          console.error("Firebase expenses save failed:", e.code, e.message, e);
-          window.dispatchEvent(new CustomEvent("fb-el-error"));
-        }
-      }, 1500);
-    };
 
     // ── EventRec real-time listener ───────────────────────────────────────────
     if (_erUnsubscribe) { _erUnsubscribe(); _erUnsubscribe = null; }
@@ -6091,7 +5978,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     clearTimeout(_hideTimer); clearTimeout(_idleTimer);
     _hideTimer = null; _idleTimer = null;
     if (_unsubscribe)    { _unsubscribe();    _unsubscribe    = null; }
-    if (_elUnsubscribe)  { _elUnsubscribe();  _elUnsubscribe  = null; }
     if (_erUnsubscribe)  { _erUnsubscribe();  _erUnsubscribe  = null; }
     if (_vdUnsubscribe)  { _vdUnsubscribe();  _vdUnsubscribe  = null; }
     if (_vtUnsubscribe)  { _vtUnsubscribe();  _vtUnsubscribe  = null; }
@@ -7271,386 +7157,6 @@ const _colSnapshot={};
 
 </div>
 
-<!-- ── ExpenseLog App ─────────────────────────────────────────── -->
-<div id="el-root" style="display:none">
-  <div class="app-hbar" style="background:var(--el-bg);border-bottom:1px solid var(--el-bd);transition:background .4s,border-color .4s;">
-    <div class="app-hbar-inner">
-      <div class="app-hbar-row1">
-        <div style="display:flex;flex-direction:column;gap:2px;">
-          <div class="el-logo"><span class="base">Expense</span><span class="accent">Log</span></div>
-          <span id="el-sync-status" style="font-size:10px;font-weight:600;white-space:nowrap;visibility:hidden;display:block;min-height:14px;line-height:1.4;"></span>
-        </div>
-      </div>
-      <div class="app-hbar-row2">
-        <button class="el-btn" id="el-theme-btn" style="color:var(--el-txd);" onmouseenter="this.style.borderColor='var(--el-ac)'" onmouseleave="this.style.borderColor='var(--el-bd)'"></button>
-        <button class="el-btn" id="el-edit-toggle" onmouseenter="this.style.borderColor='var(--el-ac)'" onmouseleave="this.style.borderColor='var(--el-bd)'">
-          <div class="el-toggle-track" id="el-track"><div class="el-toggle-thumb" id="el-thumb"></div></div>
-          <span id="el-edit-label" class="eye-icon-lbl" style="color:var(--el-ac);font-size:0;line-height:1;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;"></span>
-        </button>
-      </div>
-    </div>
-  </div>
-  <div class="el-inner" style="padding-top:clamp(10px,1.5vw,16px);">
-    <div class="el-summary-grid" id="el-summary"></div>
-    <div class="el-content-row">
-      <div class="el-card el-card-expenses">
-        <div class="el-card-header">
-          <div class="el-card-title">Expenses</div>
-          <button class="el-btn-primary" id="el-add-btn" style="display:none;">+ Add</button>
-        </div>
-        <div id="el-list"></div>
-      </div>
-      <div class="el-card el-card-cash" id="el-cash-card"></div>
-    </div>
-  </div>
-  <div class="el-overlay" id="el-overlay" style="display:none;">
-    <div class="el-modal">
-      <div class="el-modal-title" id="el-modal-title">New Expense</div>
-      <div class="el-field"><label>Name</label><input id="el-fname" type="text" placeholder="e.g. Netflix, Gym, Rent…" autocomplete="off"></div>
-      <div class="el-field"><label>Monthly Cost <span style="font-size:9px;text-transform:none;letter-spacing:0;font-weight:400;">(optional)</span></label><input id="el-fmonthly" type="number" min="0" step="0.01" placeholder="e.g. 9.99"></div>
-      <div class="el-field"><label>Annual Cost <span style="font-size:9px;text-transform:none;letter-spacing:0;font-weight:400;">(optional)</span></label><input id="el-fannual" type="number" min="0" step="0.01" placeholder="e.g. 99.00"></div>
-      <div class="el-hint">Fill in monthly, annual, or both — or leave both empty for a bill with no set amount yet.</div>
-      <div class="el-modal-actions">
-        <button class="el-btn-primary" id="el-modal-save">Save</button>
-        <button class="el-btn-secondary" id="el-modal-cancel">Cancel</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-(function(){
-  const TH_THEME_KEY = 'td6_theme';
-  const EL_DATA_KEY  = 'el_expenses';
-  const EL_SEED_KEY  = 'el_seeded';
-  const EL_CASH_KEY  = 'el_cash';
-
-  function elUid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
-
-  const SEED=[
-    {id:elUid(),name:"Rent / Mortgage",monthly:null,annual:null},
-    {id:elUid(),name:"Electricity",monthly:80,annual:null},
-    {id:elUid(),name:"Internet",monthly:60,annual:null},
-    {id:elUid(),name:"Spotify",monthly:null,annual:99},
-    {id:elUid(),name:"Gym Membership",monthly:40,annual:null},
-    {id:elUid(),name:"Car Insurance",monthly:null,annual:1200},
-  ];
-
-  function loadExpLocal(){try{const v=localStorage.getItem(EL_DATA_KEY);return v?JSON.parse(v):null;}catch{return null;}}
-  function saveExpLocal(l){try{localStorage.setItem(EL_DATA_KEY,JSON.stringify(l));}catch{}}
-  function elLoadTheme(){return true;} // light mode removed — always dark
-  function elSaveTheme(d){try{localStorage.setItem(TH_THEME_KEY,JSON.stringify(d));}catch{}}
-
-  // Seed localStorage on first run
-  if(!localStorage.getItem(EL_SEED_KEY)){
-    saveExpLocal(SEED.map(e=>({...e,id:elUid()})));
-    localStorage.setItem(EL_SEED_KEY,'1');
-  }
-
-  function loadCashLocal(){try{const v=localStorage.getItem(EL_CASH_KEY);return v!==null?parseFloat(v):0;}catch{return 0;}}
-  function saveCashLocal(n){try{localStorage.setItem(EL_CASH_KEY,String(n));}catch{}}
-
-  let expenses = (loadExpLocal()||SEED.map(e=>({...e,id:elUid()}))).map(normalizeExpense);
-  let elCash = loadCashLocal();
-  let elEditMode = false;
-  let elModalState = null;
-  let elSyncTimer = null;
-
-  // ── Theme ────────────────────────────────────────────────────────────────────
-  const EL_DARK  = {bg:'#0f0f12',s1:'#141418',s2:'#1a1a20',bd:'#252530',bdl:'#323240',tx:'#ececf0',txd:'#9898a8',txm:'#58586a',ac:'#E0607A',err:'#d47a6a',shadow:'rgba(0,0,0,0.5)',acg:'rgba(224,96,122,0.12)',grn:'#5BAD82'};
-  const EL_LIGHT = {bg:'#EAE3E7',s1:'#E5DCE0',s2:'#DDD4D8',bd:'#C8B8C0',bdl:'#BCA8B0',tx:'#2A1F24',txd:'#6B5560',txm:'#A0909A',ac:'#D4607A',err:'#C0392B',shadow:'rgba(42,31,36,0.12)',acg:'rgba(212,96,122,0.1)',grn:'#4A9E68'};
-
-  function elApplyTheme(){
-    const isDark=elLoadTheme();
-    const t=isDark?EL_DARK:EL_LIGHT;
-    const root=document.getElementById('el-root');
-    if(!root)return;
-    root.classList.toggle('el-light',!isDark);
-    Object.entries({'--el-bg':t.bg,'--el-s1':t.s1,'--el-s2':t.s2,'--el-bd':t.bd,'--el-bdl':t.bdl,'--el-tx':t.tx,'--el-txd':t.txd,'--el-txm':t.txm,'--el-ac':t.ac,'--el-err':t.err,'--el-shadow':t.shadow,'--el-acg':t.acg,'--el-grn':t.grn}).forEach(([k,v])=>root.style.setProperty(k,v));
-    root.style.background=t.bg;
-    if(root.style.display!=='none'){document.body.style.background=t.bg;document.documentElement.style.background=t.bg;}
-    const btn=document.getElementById('el-theme-btn');
-    if(btn){btn.innerHTML=isDark?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';btn.style.color='var(--el-ac)';}
-  }
-
-  // ── Sync status badge ────────────────────────────────────────────────────────
-  function elSetSync(status){
-    const el=document.getElementById('el-sync-status');
-    if(!el)return;
-    const isDark=elLoadTheme();
-    const t=isDark?EL_DARK:EL_LIGHT;
-    if(status==='saving'){el.style.visibility='visible';el.style.color=t.txm;el.textContent='Syncing…';}
-    else if(status==='saved'){el.style.visibility='visible';el.style.color=t.grn;el.textContent='✓ Synced';if(elSyncTimer)clearTimeout(elSyncTimer);elSyncTimer=setTimeout(()=>{el.style.visibility='hidden';},2500);}
-    else if(status==='error'){el.style.visibility='visible';el.style.color=t.err;el.textContent='⚠ Sync failed';}
-    else{el.style.visibility='hidden';}
-  }
-
-  // ── Save: localStorage + Firebase ───────────────────────────────────────────
-  function elSaveAll(list){
-    saveExpLocal(list);
-    saveCashLocal(elCash);
-    if(window._fbSaveExpenses){
-      elSetSync('saving');
-      window._fbSaveExpenses(list, elCash);
-    }
-  }
-
-  function elSaveCash(val){
-    elCash=isNaN(val)?0:val;
-    saveCashLocal(elCash);
-    if(window._fbSaveExpenses){
-      elSetSync('saving');
-      window._fbSaveExpenses(expenses, elCash);
-    }
-  }
-
-  // ── Firebase events ──────────────────────────────────────────────────────────
-  function elInitFirebase(){
-    // Load from Firebase on ready
-    const doLoad=async()=>{
-      if(!window._fbLoadExpenses)return;
-      const remote=await window._fbLoadExpenses();
-      if(remote&&Array.isArray(remote.expenses)){
-        const restored=remote.expenses.map(e=>normalizeExpense({monthly:null,annual:null,...e}));
-        expenses=restored;
-        elCash=remote.cash??0;
-        saveExpLocal(expenses);
-        saveCashLocal(elCash);
-        localStorage.setItem(EL_SEED_KEY,'1');
-        elRender();
-      }
-    };
-    if(window._fbReady)doLoad();
-    else window.addEventListener('fb-ready',doLoad,{once:true});
-
-    // Saved confirmation
-    window.addEventListener('fb-el-saved',()=>elSetSync('saved'));
-    window.addEventListener('fb-el-synced',()=>elSetSync('saved'));
-    window.addEventListener('fb-el-error',()=>elSetSync('error'));
-
-    window.addEventListener('fb-el-remote-update',(ev)=>{
-      if(!ev.detail||!Array.isArray(ev.detail.expenses))return;
-      const restored=ev.detail.expenses.map(e=>normalizeExpense({monthly:null,annual:null,...e}));
-      expenses=restored;
-      elCash=ev.detail.cash??0;
-      saveExpLocal(expenses);
-      saveCashLocal(elCash);
-      elRender();
-      elSetSync('saved');
-    });
-  }
-
-  function elFmt(v){return '$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-
-  function normalizeExpense(e){
-    return{
-      ...e,
-      monthly:e.monthly!=null&&e.monthly!==''?parseFloat(e.monthly):null,
-      annual: e.annual!=null&&e.annual!==''?parseFloat(e.annual):null,
-    };
-  }
-
-  function elCalcTotals(list){
-    let mo=0,an=0;
-    list.forEach(e=>{
-      const m=e.monthly!=null?parseFloat(e.monthly):null;
-      const a=e.annual!=null?parseFloat(e.annual):null;
-      const hasM=m!=null&&!isNaN(m);
-      const hasA=a!=null&&!isNaN(a);
-      if(hasM)mo+=m;
-      if(hasA)an+=a;
-      if(!hasM&&hasA)mo+=a/12;
-    });
-    return{mo,an};
-  }
-
-  function elEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-
-  function elRender(){
-    elApplyTheme();
-    const{mo,an}=elCalcTotals(expenses);
-
-    const sum=document.getElementById('el-summary');
-    if(sum)sum.innerHTML=`
-      <div class="el-summary-card">
-        <span class="el-summary-label">Monthly Total</span>
-        <span class="el-summary-amount">$${mo.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
-      </div>
-      <div class="el-summary-card">
-        <span class="el-summary-label">Annual Total</span>
-        <span class="el-summary-amount">$${an.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
-      </div>`;
-
-    const cashCard=document.getElementById('el-cash-card');
-    if(cashCard){
-      cashCard.innerHTML=`
-        <span class="el-cash-label">Cash Tracker</span>
-        ${elEditMode
-          ? `<input id="el-cash-input" class="el-cash-input" type="number" min="0" step="0.01" value="${elCash}" autocomplete="off">`
-          : `<span class="el-cash-amount">$${elCash.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>`
-        }`;
-      if(elEditMode){
-        const ci=document.getElementById('el-cash-input');
-        if(ci){
-          ci.addEventListener('change',()=>{elSaveCash(parseFloat(ci.value));});
-          ci.addEventListener('blur',()=>{elSaveCash(parseFloat(ci.value));elRender();});
-        }
-      }
-    }
-
-    const list=document.getElementById('el-list');
-    if(list){
-      if(expenses.length===0){
-        list.innerHTML='<div class="el-empty">No expenses yet. Toggle edit mode to add one.</div>';
-      } else {
-        list.innerHTML=expenses.map(e=>`
-          <div class="el-expense-row" data-id="${elEsc(e.id)}" style="position:relative;">
-            ${elEditMode?`<div class="th-drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="3.5" cy="2" r="1.1" fill="currentColor"/><circle cx="8.5" cy="2" r="1.1" fill="currentColor"/><circle cx="3.5" cy="6" r="1.1" fill="currentColor"/><circle cx="8.5" cy="6" r="1.1" fill="currentColor"/><circle cx="3.5" cy="10" r="1.1" fill="currentColor"/><circle cx="8.5" cy="10" r="1.1" fill="currentColor"/></svg></div>`:''}
-            <div class="el-expense-name">${elEsc(e.name)}</div>
-            <div class="el-expense-costs">
-              ${e.monthly!=null?`<span class="el-cost-pill">${elFmt(e.monthly)}<span style="color:var(--el-txm);font-weight:500">/mo</span></span>`:''}
-              ${e.annual!=null?`<span class="el-cost-pill">${elFmt(e.annual)}<span style="color:var(--el-txm);font-weight:500">/yr</span></span>`:''}
-              ${e.monthly==null&&e.annual==null?`<span style="font-size:11px;color:var(--el-txm);font-style:italic">—</span>`:''}
-            </div>
-            ${elEditMode?`<div class="el-actions">
-              <button class="el-icon-btn edit" data-edit="${elEsc(e.id)}" title="Edit">✎</button>
-              <button class="el-icon-btn del" data-del="${elEsc(e.id)}" title="Delete">×</button>
-            </div>`:''}
-          </div>`).join('');
-        // ── MotionCore-style pointer-event drag reorder ──
-        if(elEditMode && window.thDragList){
-          window.thDragList(
-            list,
-            ()=>expenses,
-            arr=>{expenses=arr;},
-            ()=>{elSaveAll(expenses);},
-            'var(--el-ac)',
-            'th-drag-placeholder',
-            document.getElementById('el-root')
-          );
-        }
-        list.querySelectorAll('[data-edit]').forEach(b=>{
-          b.addEventListener('click',()=>{const exp=expenses.find(x=>x.id===b.dataset.edit);if(exp){elModalState={mode:'edit',expense:{...exp}};elOpenModal();}});
-        });
-        list.querySelectorAll('[data-del]').forEach(b=>{
-          b.addEventListener('click',()=>{expenses=expenses.filter(x=>x.id!==b.dataset.del);elSaveAll(expenses);elRender();});
-        });
-      }
-    }
-
-    const track=document.getElementById('el-track'),thumb=document.getElementById('el-thumb'),lbl=document.getElementById('el-edit-label');
-    if(track){track.classList.toggle('on',elEditMode);thumb.classList.toggle('on',elEditMode);}
-    if(lbl){if(elEditMode){lbl.textContent='✎';lbl.style.fontSize='12px';}else{lbl.innerHTML='<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>';lbl.style.fontSize='0';}}
-    const tog=document.getElementById('el-edit-toggle');
-    if(tog)tog.classList.toggle('active',elEditMode);
-    const addBtn=document.getElementById('el-add-btn');
-    if(addBtn)addBtn.style.display=elEditMode?'':'none';
-  }
-
-  function elOpenModal(){
-    const ov=document.getElementById('el-overlay');
-    const title=document.getElementById('el-modal-title');
-    const fname=document.getElementById('el-fname');
-    const fmo=document.getElementById('el-fmonthly');
-    const fan=document.getElementById('el-fannual');
-    if(!ov||!fname)return;
-    const isEdit=elModalState?.mode==='edit';
-    const e=isEdit?elModalState.expense:null;
-    if(title)title.textContent=(isEdit?'Edit':'New')+' Expense';
-    fname.value=isEdit?e.name:'';
-    fmo.value=isEdit&&e.monthly!=null?e.monthly:'';
-    fan.value=isEdit&&e.annual!=null?e.annual:'';
-    ov.style.display='flex';
-    setTimeout(()=>fname.focus(),40);
-  }
-
-  function elCloseModal(){
-    const ov=document.getElementById('el-overlay');
-    if(ov)ov.style.display='none';
-    elModalState=null;
-  }
-
-  function elHandleSave(){
-    const name=(document.getElementById('el-fname')?.value||'').trim();
-    const moV=document.getElementById('el-fmonthly')?.value.trim();
-    const anV=document.getElementById('el-fannual')?.value.trim();
-    if(!name)return;
-    const mo=moV&&!isNaN(parseFloat(moV))?parseFloat(moV):null;
-    const an=anV&&!isNaN(parseFloat(anV))?parseFloat(anV):null;
-    if(elModalState?.mode==='edit'){
-      expenses=expenses.map(e=>e.id===elModalState.expense.id?{...e,name,monthly:mo,annual:an}:e);
-    } else {
-      expenses=[...expenses,{id:elUid(),name,monthly:mo,annual:an}];
-    }
-    elSaveAll(expenses);elCloseModal();elRender();
-  }
-
-  function elSwitchTo(app){
-    const thRoot=document.getElementById('root');
-    const elRoot=document.getElementById('el-root');
-    const msRoot=document.getElementById('ms-root');
-    const erRoot=document.getElementById('er-root');
-    if(app==='expenselog'){
-      if(thRoot)thRoot.style.display='none';
-      if(msRoot)msRoot.style.display='none';
-      if(erRoot)erRoot.style.display='none';
-      if(elRoot)elRoot.style.display='flex';
-      elApplyTheme();elRender();
-      const sw=document.getElementById('el-app-switcher');if(sw)sw.value='expenselog';
-    } else if(app==='mealsuite'){
-      if(thRoot)thRoot.style.display='none';
-      if(elRoot)elRoot.style.display='none';
-      if(erRoot)erRoot.style.display='none';
-      if(window._msSwitchTo)window._msSwitchTo('mealsuite');
-    } else if(app==='eventrec'){
-      if(thRoot)thRoot.style.display='none';
-      if(elRoot)elRoot.style.display='none';
-      if(msRoot)msRoot.style.display='none';
-      if(window._erSwitchTo)window._erSwitchTo('eventrec');
-    } else if(app==='brainstormjournal'){
-      if(elRoot)elRoot.style.display='none';
-      if(msRoot)msRoot.style.display='none';
-      if(erRoot)erRoot.style.display='none';
-      const sw=document.getElementById('el-app-switcher');if(sw)sw.value='expenselog';
-      if(window.showTonyJournal)window.showTonyJournal();
-    } else {
-      if(elRoot)elRoot.style.display='none';
-      if(msRoot)msRoot.style.display='none';
-      if(erRoot)erRoot.style.display='none';
-      if(thRoot)thRoot.style.display='';
-      const isDark=elLoadTheme();
-      const bg=isDark?'#0f0f12':'#F2EEF0';
-      document.body.style.background=bg;document.documentElement.style.background=bg;
-      document.body.classList.toggle('light-mode',!isDark);
-      const sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
-    }
-  }
-  window._elSwitchTo=function(app){elSwitchTo(app);if(app==='expenselog'&&window._updateTonyNavActive)window._updateTonyNavActive('expenselog');};
-  window._elApplyTheme=elApplyTheme;
-
-  function elBind(){
-    document.getElementById('el-theme-btn')?.addEventListener('click',()=>{
-      const isDark=elLoadTheme();
-      const newDark=!isDark;
-      if(window._syncAllThemes)window._syncAllThemes(newDark);
-      else{elSaveTheme(newDark);elApplyTheme();}
-    });
-    document.getElementById('el-edit-toggle')?.addEventListener('click',()=>{elEditMode=!elEditMode;elRender();});
-    document.getElementById('el-add-btn')?.addEventListener('click',()=>{elModalState={mode:'add'};elOpenModal();});
-    document.getElementById('el-modal-save')?.addEventListener('click',elHandleSave);
-    document.getElementById('el-modal-cancel')?.addEventListener('click',elCloseModal);
-    document.getElementById('el-overlay')?.addEventListener('click',ev=>{if(ev.target===document.getElementById('el-overlay'))elCloseModal();});
-    document.getElementById('el-fname')?.addEventListener('keydown',e=>{if(e.key==='Enter')elHandleSave();});
-    document.getElementById('el-app-switcher')?.addEventListener('change',e=>{if(e.target.value==='vedasHub'&&window._switchToVeda){e.target.blur();window._switchToVeda();}else if(e.target.value==='keychain'&&window._kcSwitchTo){e.target.blur();window._kcSwitchTo('keychain');}else if(e.target.value==='brainstormjournal'){e.target.value='expenselog';e.target.blur();if(window.showTonyJournal)window.showTonyJournal();}else{e.target.blur();elSwitchTo(e.target.value);}});
-  }
-
-  // Init
-  elApplyTheme();
-  elRender();
-  elBind();
-  elInitFirebase();
-})();
-</script>
 
 <script>
 // ── Shared MotionCore-style pointer-event drag-to-reorder ──────────────────────
@@ -7815,7 +7321,6 @@ body.light-mode select#th-app-switcher option{background:#EAE3E7;color:#D4607A;}
 
 #er-root .er-theme-btn{background:var(--er-bg);border:1px solid var(--er-bd);border-radius:4px;padding:0 10px;height:28px;box-sizing:border-box;font-size:12px;font-weight:800;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;color:var(--er-ac);font-family:'Nunito',sans-serif;outline:none;flex-shrink:0;white-space:nowrap;gap:4px;}
 #er-root .er-theme-btn:hover{border-color:var(--er-ac);color:var(--er-ac);}
-#el-root .el-hbtns>button:hover{border-color:var(--el-ac)!important;}
 #er-root .er-hbtns>button:hover{border-color:var(--er-ac)!important;}
 #er-root .er-card{background:var(--er-s1);border:1px solid var(--er-bd);border-radius:4px;padding:18px 20px;}
 #er-root .er-card-title{font-family:'Lora',serif;font-size:13px;font-weight:700;color:var(--er-tx);margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--er-bd);letter-spacing:.2px;}
@@ -8123,19 +7628,14 @@ function erInitFirebase(){
 // ── App switching ──────────────────────────────────────────────────────────────
 function erSwitchTo(app){
   const thRoot=document.getElementById('root');
-  const elRoot=document.getElementById('el-root');
   const msRoot=document.getElementById('ms-root');
   const erRoot=document.getElementById('er-root');
   if(app==='eventrec'){
     if(thRoot)thRoot.style.display='none';
-    if(elRoot)elRoot.style.display='none';
     if(msRoot)msRoot.style.display='none';
     if(erRoot)erRoot.style.display='flex';
     erApplyTheme();erRender();
     const sw=document.getElementById('er-app-switcher');if(sw)sw.value='eventrec';
-  } else if(app==='expenselog'){
-    if(erRoot)erRoot.style.display='none';
-    if(window._elSwitchTo)window._elSwitchTo('expenselog');
   } else if(app==='mealsuite'){
     if(erRoot)erRoot.style.display='none';
     if(window._msSwitchTo)window._msSwitchTo('mealsuite');
@@ -8758,7 +8258,7 @@ function vtSaveEdit(){
 // ── Universal Veda navigation ────────────────────────────────────────────────
 window._vedaNav=function(target){
   ['task-view','vt-root','vd-kc-root','bj-root','tj-root',
-   'root','el-root','ms-root','er-root','kc-root','study-root'].forEach(function(id){
+   'root','ms-root','er-root','kc-root','study-root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   if(window._vedaCloseGita)window._vedaCloseGita();
@@ -10748,7 +10248,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
       // Hide Tony's root and other fixed roots so they don't show through
       const root=document.getElementById("root");
       if(root)root.style.display="none";
-      ["el-root","ms-root","er-root","kc-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
+      ["ms-root","er-root","kc-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
       // Let veda-root flow in body (no fixed) so Chrome pull-to-refresh works
       vr.style.display="block";
       vr.style.position="";
@@ -10801,7 +10301,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     hideVeda();
     // Also hide Veda sub-programs in case user was in one
-    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","el-root","ms-root","er-root","kc-root"].forEach(function(id){
+    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","ms-root","er-root","kc-root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -10809,7 +10309,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     var _tjt=document.getElementById('tj-nav-title');if(_tjt)_tjt.parentNode.removeChild(_tjt);
     const root=document.getElementById("root");
     if(root)root.style.display="";
-    ["el-root","ms-root","er-root","kc-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
+    ["ms-root","er-root","kc-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
     const sw=document.getElementById("th-app-switcher");if(sw)sw.value="taskhub";
     // Restore Tony body bg from saved theme
     document.body.style.background="#0f0f12";document.documentElement.style.background="#0f0f12"; // light mode removed — always dark
@@ -10831,7 +10331,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     if(window._hideTonyNav)window._hideTonyNav();
     if(window._vedaCloseGita)window._vedaCloseGita();
-    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","el-root","ms-root","er-root","kc-root"].forEach(function(id){
+    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","ms-root","er-root","kc-root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -10974,7 +10474,6 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.body.style.background=bg;
     document.documentElement.style.background=bg;
     document.body.classList.toggle("light-mode",!isDark);
-    if(window._elApplyTheme)window._elApplyTheme();
     if(window._msApplyTheme)window._msApplyTheme();
     if(window._erApplyTheme)window._erApplyTheme();
     if(window._kcApplyTheme)window._kcApplyTheme();
@@ -12673,16 +12172,12 @@ window.addEventListener('resize',()=>{
 function kcSwitchTo(app){
   const kcRoot=document.getElementById('kc-root');
   const thRoot=document.getElementById('root');
-  const elRoot=document.getElementById('el-root');
   const msRoot=document.getElementById('ms-root');
   const erRoot=document.getElementById('er-root');
   if(app==='keychain'){
-    [thRoot,elRoot,msRoot,erRoot].forEach(r=>{if(r)r.style.display='none';});
+    [thRoot,msRoot,erRoot].forEach(r=>{if(r)r.style.display='none';});
     if(kcRoot){kcRoot.style.display='block';applyTheme();}
     const sw=document.getElementById('kc-app-switcher');if(sw)sw.value='keychain';
-  } else if(app==='expenselog'){
-    if(kcRoot)kcRoot.style.display='none';
-    if(window._elSwitchTo)window._elSwitchTo('expenselog');
   } else if(app==='mealsuite'){
     if(kcRoot)kcRoot.style.display='none';
     if(window._msSwitchTo)window._msSwitchTo('mealsuite');
@@ -13614,7 +13109,7 @@ window.addEventListener('resize',()=>{
 // ── Show / Hide ──
 window._vdkcShow=function(){
   ['veda-root','vt-root','bj-root','tj-root',
-   'root','el-root','ms-root','er-root','kc-root'].forEach(function(id){
+   'root','ms-root','er-root','kc-root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   const vdkc=document.getElementById('vd-kc-root');
@@ -18624,7 +18119,7 @@ function _bjPdfSection(label, text) {
 
 window.showBrainstormJournal = function(caller) {
   window._bjCalledFrom = caller || (document.getElementById('veda-root') && document.getElementById('veda-root').style.display !== 'none' ? 'veda' : 'tony');
-  ['root','veda-root','el-root','ms-root','er-root','kc-root','vt-root','tj-root',
+  ['root','veda-root','ms-root','er-root','kc-root','vt-root','tj-root',
    'vd-kc-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
@@ -24668,7 +24163,7 @@ window._hideTonyNav = function() {
 window._tonyNav = function(app) {
   // Hide ALL tony + other app roots before switching
   if(app!=='proview'&&window._pvHide) window._pvHide();
-  ['root','el-root','ms-root','er-root','kc-root','tj-root','veda-root','vt-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
+  ['root','ms-root','er-root','kc-root','tj-root','veda-root','vt-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.style.display='none';
   });
   if(app==='taskhub') {
@@ -24680,8 +24175,6 @@ window._tonyNav = function(app) {
     return; // TradeHub is a separate page (tradehub.html) — opens in a new tab
   } else if(app==='health' && window._mcSwitchTo) {
     window._mcSwitchTo('health');
-  } else if(app==='expenselog' && window._elSwitchTo) {
-    window._elSwitchTo('expenselog');
   } else if(app==='mealsuite' && window._msSwitchTo) {
     window._msSwitchTo('mealsuite');
   } else if(app==='eventrec' && window._erSwitchTo) {
@@ -24699,7 +24192,7 @@ window._tonyNav = function(app) {
   window._updateTonyNavActive(app);
 };
 window.showTonyJournal = function() {
-  ['root','veda-root','el-root','ms-root','er-root','kc-root','vt-root','bj-root','mc-root','tradeboard-root',
+  ['root','veda-root','ms-root','er-root','kc-root','vt-root','bj-root','mc-root','tradeboard-root',
    'vd-kc-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
@@ -24739,7 +24232,6 @@ window.tjSwitchTo = function(app) {
   var te=document.getElementById('tj-nav-title');if(te)te.parentNode.removeChild(te);
   if(window._updateTonyNavActive) window._updateTonyNavActive(app);
   if(app==='taskhub'){var r=document.getElementById('root');if(r)r.style.display='';var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';}
-  else if(app==='expenselog'&&window._elSwitchTo){window._elSwitchTo('expenselog');}
   else if(app==='mealsuite'&&window._msSwitchTo){window._msSwitchTo('mealsuite');}
   else if(app==='eventrec'&&window._erSwitchTo){window._erSwitchTo('eventrec');}
   else if(app==='keychain'&&window._kcSwitchTo){window._kcSwitchTo('keychain');}
@@ -36338,7 +35830,6 @@ var AL_LABELS  = {
   tony_taskhub:   { label: 'TaskHub',    profile: 'tony', color: '#E0607A' },
   tony_tradehub:  { label: 'TradeHub',   profile: 'tony', color: '#E0607A' },
   tony_health:    { label: 'MotionCore', profile: 'tony', color: '#E0607A' },
-  tony_expenselog:{ label: 'ExpenseLog', profile: 'tony', color: '#E0607A' },
   tony_eventrec:  { label: 'EventRec',   profile: 'tony', color: '#E0607A' },
   tony_keychain:  { label: 'Vault',      profile: 'tony', color: '#E0607A' },
   tony_myjournal: { label: 'MyJournal',  profile: 'tony', color: '#E0607A' },
@@ -36496,7 +35987,6 @@ var _alRemoveBioFor = null;   // when set to an appId, a successful unlock remov
 var AL_APP_ROOTS = {
   tony_taskhub:   ['root'],
   tony_health:    ['mc-root'],
-  tony_expenselog:['el-root'],
   tony_eventrec:  ['er-root'],
   tony_keychain:  ['kc-root'],
   tony_myjournal: ['tj-root'],
@@ -36699,7 +36189,7 @@ function alGate(appId, cb, onCancel) {
 function alNavAppToId(profile, navApp) {
   var map = {
     tony: { taskhub:'tony_taskhub', tradeboard:'tony_tradehub', health:'tony_health',
-            expenselog:'tony_expenselog', eventrec:'tony_eventrec',
+            eventrec:'tony_eventrec',
             keychain:'tony_keychain', brainstormjournal:'tony_myjournal',
             proview:'tony_proview', warroom:'tony_warroom' },
     veda: { taskhub:'veda_taskhub', study:'veda_study', gita:'veda_gita',
@@ -37070,7 +36560,6 @@ function _alWrapSwitch(fnName, appId) {
   };
 }
 _alWrapSwitch('_mcSwitchTo', 'tony_health');
-_alWrapSwitch('_elSwitchTo', 'tony_expenselog');
 _alWrapSwitch('_erSwitchTo', 'tony_eventrec');
 _alWrapSwitch('_kcSwitchTo', 'tony_keychain');
 _alWrapSwitch('_vdkcShow',   'veda_links');
@@ -37248,7 +36737,6 @@ var TONY_DEFAULT = [
   {app:'taskhub',          label:'TaskHub'},
   {app:'tradeboard',       label:'TradeHub'},
   {app:'health',           label:'MotionCore'},
-  {app:'expenselog',       label:'ExpenseLog'},
   {app:'eventrec',         label:'EventRec'},
   {app:'keychain',         label:'Vault'},
   {app:'brainstormjournal',label:'MyJournal'},
@@ -37257,7 +36745,7 @@ var TONY_DEFAULT = [
 ];
 var TONY_SELECT_LABELS = {
   taskhub:"Tony's TaskHub", tradeboard:'TradeHub', health:'MotionCore',
-  expenselog:'ExpenseLog', eventrec:'EventRec',
+  eventrec:'EventRec',
   keychain:'Vault', brainstormjournal:'MyJournal', proview:'ProView', warroom:'WarRoom'
 };
 
