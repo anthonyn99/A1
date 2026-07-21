@@ -530,7 +530,6 @@
     const L = lockEl('lockLinks'); L.innerHTML = '';
     const link = (label, fn) => { const s = document.createElement('span'); s.textContent = label; s.addEventListener('click', fn); L.appendChild(s); };
     if (mode === 'unlock') {
-      if (lockHint) link('Show hint', () => lockMsg('Hint: ' + lockHint, true));
       link('Email me the hint', emailHint);
       link('Forgot password?', startReset);
     } else if (mode === 'reset') {
@@ -1332,7 +1331,11 @@
   // ── Add Account (Plaid Link) ─────────────────────────────────────────────
   async function refreshItems() {
     try {
-      const r = await fetch(API + '/items').then(x => x.json());
+      const r = await fetch(API + '/items', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: lockSession?.token })
+      }).then(x => x.json());
+      if (r.lockRequired) { showLock(); return; }
       $('itemList').innerHTML = r.count
         ? r.items.map(i => `<div style="padding:7px 0;border-bottom:1px solid var(--border-soft)">
             <b style="color:var(--text)">${esc(i.institution_name || i.institution_id || i.item_id)}</b>
@@ -1341,6 +1344,30 @@
         : 'No institutions connected yet.';
     } catch (e) { $('itemList').textContent = 'Could not reach the Insight server.'; }
   }
+
+  async function linkOnSuccess(public_token, metadata) {
+    const st = $('linkStatus');
+    st.textContent = 'Finishing connection…';
+    const ex = await fetch(API + '/link/exchange', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: lockSession?.token,
+        public_token,
+        institution_id: metadata.institution?.institution_id || null,
+        institution_name: metadata.institution?.name || null
+      })
+    }).then(x => x.json());
+    if (ex.lockRequired) { st.textContent = ''; showLock(); return; }
+    if (ex.ok) {
+      st.textContent = '';
+      sessionStorage.removeItem('insight_link_token');
+      toast(`Connected ${metadata.institution?.name || 'institution'} — syncing…`, true);
+      refreshItems();
+      fetch(API + '/sync', { method: 'POST' }).catch(() => {});
+    } else st.textContent = ex.error || 'Exchange failed';
+  }
+
+  const linkOnExit = (err) => { $('linkStatus').textContent = err ? (err.display_message || err.error_code || 'Link closed') : ''; };
 
   $('linkBtn').addEventListener('click', async () => {
     const st = $('linkStatus'); st.textContent = 'Preparing…';
@@ -1352,31 +1379,28 @@
       if (r.lockRequired) { st.textContent = ''; showLock(); return; }
       if (!r.ok) { st.textContent = r.error || 'Link token failed'; return; }
       st.textContent = '';
-      const handler = Plaid.create({
-        token: r.link_token,
-        onSuccess: async (public_token, metadata) => {
-          st.textContent = 'Finishing connection…';
-          const ex = await fetch(API + '/link/exchange', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              token: lockSession?.token,
-              public_token,
-              institution_id: metadata.institution?.institution_id || null,
-              institution_name: metadata.institution?.name || null
-            })
-          }).then(x => x.json());
-          if (ex.ok) {
-            st.textContent = '';
-            toast(`Connected ${metadata.institution?.name || 'institution'} — syncing…`, true);
-            refreshItems();
-            fetch(API + '/sync', { method: 'POST' }).catch(() => {});
-          } else st.textContent = ex.error || 'Exchange failed';
-        },
-        onExit: (err) => { st.textContent = err ? (err.display_message || err.error_code || 'Link closed') : ''; }
-      });
-      handler.open();
+      // OAuth institutions (Chase, Capital One, Wells Fargo…) leave the page
+      // and redirect back with ?oauth_state_id=… — the link_token must survive
+      // that round trip to resume the session (see boot check below).
+      sessionStorage.setItem('insight_link_token', r.link_token);
+      Plaid.create({ token: r.link_token, onSuccess: linkOnSuccess, onExit: linkOnExit }).open();
     } catch (e) { st.textContent = 'Failed: ' + e.message; }
   });
+
+  // Resume a Plaid OAuth redirect (bank login happened on the bank's site).
+  if (new URLSearchParams(location.search).get('oauth_state_id')) {
+    const lt = sessionStorage.getItem('insight_link_token');
+    if (lt) {
+      document.querySelector('[data-view="addaccount"]')?.click();
+      Plaid.create({
+        token: lt,
+        receivedRedirectUri: window.location.href,
+        onSuccess: linkOnSuccess,
+        onExit: linkOnExit
+      }).open();
+    }
+    history.replaceState(null, '', location.pathname);   // clean the URL either way
+  }
 </script>
 </body>
 </html>

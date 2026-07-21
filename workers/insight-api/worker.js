@@ -4,10 +4,10 @@
  *  that become the "Add Account" flow, Firestore schema + daily cron sync).
  *
  * Environments:
- *   PLAID_ENV var selects sandbox|production. Production is HARD-BLOCKED in
- *   code (see prodGate) until the app-lock gate is wired in build step 7 —
- *   the Sandbox pipeline must be proven end-to-end before any real account
- *   is touched.
+ *   PLAID_ENV var selects sandbox|production. The build-phase production
+ *   hard-block is retired (Sandbox pipeline proven, app-lock enforced
+ *   server-side); /sandbox/* and the /transactions debug read-back stay
+ *   sandbox-only via sandboxOnly().
  *
  * Token storage (KV binding INSIGHT_KV — never Firestore, never client-side):
  *   plaid:item:<item_id>   → { access_token, item_id, institution_id,
@@ -40,7 +40,7 @@
  *                              /transactions/sync → normalize → Firestore.
  *                              Same code path the daily cron runs.
  *   GET  /transactions       → read back recent txs from Firestore (debug /
- *                              verification; sandbox-mode only via prodGate)
+ *                              verification; sandbox-mode only)
  *
  * Cron: daily 11:00 UTC → same full pipeline as POST /sync.
  *
@@ -78,22 +78,24 @@ function plaidSecret(env) {
   return plaidEnv(env) === 'production' ? env.PLAID_SECRET_PRODUCTION : env.PLAID_SECRET_SANDBOX;
 }
 
-// Every Plaid-touching route passes through this. Production mode stays
-// unreachable until the Sandbox pipeline is validated AND the app-lock gate
-// (build step 7) exists — this is the plan's "don't touch real accounts
-// before Sandbox is proven" rule, enforced in code rather than by promise.
-function prodGate(env, origin) {
-  if (plaidEnv(env) === 'production') {
-    return json({
-      ok: false,
-      error: 'production mode is disabled until the app-lock gate is wired (build step 7). Sandbox only for now.'
-    }, origin, 403);
-  }
+// The former production hard-block is retired: its two conditions are met
+// (Sandbox pipeline proven end-to-end; app-lock enforced server-side on the
+// connect flow). What remains: a secrets-presence check for every Plaid
+// route, and a sandbox-only guard for test/debug endpoints so they vanish
+// in production.
+function secretsGate(env, origin) {
   if (!env.PLAID_CLIENT_ID || !plaidSecret(env)) {
     return json({
       ok: false,
       error: `Plaid secrets not set for ${plaidEnv(env)} — run: wrangler secret put PLAID_CLIENT_ID / PLAID_SECRET_${plaidEnv(env).toUpperCase()} --name insight-api`
     }, origin, 500);
+  }
+  return null;
+}
+
+function sandboxOnly(env, origin) {
+  if (plaidEnv(env) !== 'sandbox') {
+    return json({ ok: false, error: 'sandbox-only endpoint' }, origin, 403);
   }
   return null;
 }
@@ -516,7 +518,7 @@ export default {
       }
 
       if (path === '/link/token/create' && request.method === 'POST') {
-        const blocked = prodGate(env, origin);
+        const blocked = secretsGate(env, origin);
         if (blocked) return blocked;
         let body = {};
         try { body = await request.json(); } catch { body = {}; }
@@ -529,13 +531,17 @@ export default {
           products: ['transactions'],
           transactions: { days_requested: 90 },   // plan: 90-day initial history
           country_codes: ['US'],
-          language: 'en'
+          language: 'en',
+          // OAuth institutions (Chase, Capital One, Wells Fargo…) redirect the
+          // browser to the bank and back — this URI must also be registered as
+          // an Allowed Redirect URI in the Plaid Dashboard (API settings).
+          redirect_uri: 'https://anthonyn99.github.io/A1/insight.html'
         });
         return json({ ok: true, link_token: data.link_token, expiration: data.expiration }, origin);
       }
 
       if (path === '/link/exchange' && request.method === 'POST') {
-        const blocked = prodGate(env, origin);
+        const blocked = secretsGate(env, origin);
         if (blocked) return blocked;
         let body = {};
         try { body = await request.json(); } catch { return json({ ok: false, error: 'bad json' }, origin, 400); }
@@ -557,7 +563,13 @@ export default {
         return json({ ok: true, item_id: ex.item_id, institution: item.institution_name }, origin);
       }
 
-      if (path === '/items' && request.method === 'GET') {
+      // POST + lock-gated: in production this lists your real institutions.
+      if (path === '/items' && request.method === 'POST') {
+        let body = {};
+        try { body = await request.json(); } catch { body = {}; }
+        if (!(await verifyLockOrToken(env, body))) {
+          return json({ ok: false, error: 'app lock required', lockRequired: true }, origin, 401);
+        }
         const items = await listItems(env);
         return json({
           ok: true,
@@ -572,12 +584,56 @@ export default {
         }, origin);
       }
 
+      // TEMP (remove after use): pre-production cleanup — deletes the sandbox
+      // Plaid items/cursors from KV and every sandbox-sourced doc from
+      // Firestore so production starts from a clean slate. Sandbox-mode only.
+      if (path === '/admin/wipe-sandbox-data' && request.method === 'POST') {
+        const blocked = sandboxOnly(env, origin);
+        if (blocked) return blocked;
+        let deletedKV = 0;
+        for (const prefix of ['plaid:item:', 'plaid:cursor:']) {
+          let cursor;
+          do {
+            const page = await env.INSIGHT_KV.list({ prefix, cursor });
+            for (const k of page.keys) { await env.INSIGHT_KV.delete(k.name); deletedKV++; }
+            cursor = page.list_complete ? null : page.cursor;
+          } while (cursor);
+        }
+        let deletedFs = 0;
+        if (fsConfigured(env)) {
+          const token = await getGoogleAccessToken(env);
+          const root = fsDocRoot(env);
+          for (const coll of ['plaid_transactions', 'accounts']) {
+            let pageToken = null;
+            do {
+              const listUrl = new URL(`https://firestore.googleapis.com/v1/${root}/dashboards/insight/${coll}`);
+              listUrl.searchParams.set('pageSize', '300');
+              if (pageToken) listUrl.searchParams.set('pageToken', pageToken);
+              const res = await fetch(listUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+              if (!res.ok) break;
+              const data = await res.json();
+              const docs = data.documents || [];
+              pageToken = data.nextPageToken || null;
+              if (docs.length) {
+                await fsBatchWrite(env, token, docs.map(d => ({ delete: d.name })));
+                deletedFs += docs.length;
+              }
+            } while (pageToken);
+          }
+          // Clear the sync-meta stamp too (subcollections incl. meta/expenselog persist).
+          await fetch(`https://firestore.googleapis.com/v1/${root}/dashboards/insight`, {
+            method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
+          });
+        }
+        return json({ ok: true, deletedKV, deletedFs }, origin);
+      }
+
       // Sandbox-only: wipe sync cursors so the next /sync re-pulls full
       // history. Needed when the Firestore layer (or any downstream change)
       // arrives after a cursor already consumed the history — re-pulled txs
       // upsert by transaction_id, so this is always idempotent.
       if (path === '/sandbox/reset-cursors' && request.method === 'POST') {
-        const blocked = prodGate(env, origin);
+        const blocked = sandboxOnly(env, origin) || secretsGate(env, origin);
         if (blocked) return blocked;
         const items = await listItems(env);
         for (const i of items) await env.INSIGHT_KV.delete(cursorKey(i.item_id));
@@ -585,16 +641,16 @@ export default {
       }
 
       if (path === '/sync' && request.method === 'POST') {
-        const blocked = prodGate(env, origin);
+        const blocked = secretsGate(env, origin);
         if (blocked) return blocked;
         return json(await runFullSync(env, 'manual'), origin);
       }
 
-      // Debug/verification read-back: newest Firestore transactions. Runs
-      // through prodGate, so it disappears along with sandbox mode — the real
-      // frontend reads Firestore directly via onSnapshot instead.
+      // Debug/verification read-back: newest Firestore transactions.
+      // Sandbox-only — in production the frontend reads Firestore directly
+      // via onSnapshot and no transaction data is exposed on this worker.
       if (path === '/transactions' && request.method === 'GET') {
-        const blocked = prodGate(env, origin);
+        const blocked = sandboxOnly(env, origin) || secretsGate(env, origin);
         if (blocked) return blocked;
         if (!fsConfigured(env)) return json({ ok: false, error: 'FIREBASE_* secrets not set' }, origin, 500);
         const limit = Math.min(parseInt(url.searchParams.get('limit') || '10', 10) || 10, 100);
@@ -636,12 +692,7 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    // Daily incremental sync (plan §3). Never runs in production mode until
-    // the step-7 gate work flips PLAID_ENV — prodGate logic mirrored here.
-    if (plaidEnv(env) !== 'sandbox' ) {
-      console.log('[cron] production mode blocked until app-lock gate (step 7)');
-      return;
-    }
+    // Daily incremental sync (plan §3) — runs in whichever env is active.
     ctx.waitUntil(
       runFullSync(env, 'cron')
         .then(r => console.log(`[cron] synced ${r.synced} item(s):`,
@@ -657,11 +708,8 @@ export default {
 // KV storage → accounts → transactions sync to completion. Response is a
 // stage-by-stage report so a failure pinpoints exactly where the chain broke.
 async function handleSandboxE2E(env, origin) {
-  const blocked = prodGate(env, origin);
+  const blocked = sandboxOnly(env, origin) || secretsGate(env, origin);
   if (blocked) return blocked;
-  if (plaidEnv(env) !== 'sandbox') {
-    return json({ ok: false, error: '/sandbox/e2e is sandbox-only' }, origin, 403);
-  }
 
   const report = { ok: false, env: 'sandbox', stages: {} };
 
