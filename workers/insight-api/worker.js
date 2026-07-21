@@ -515,6 +515,19 @@ export default {
         return json({ ok: true, token, expiresAt: Date.now() + 3600 * 1000 }, origin);
       }
 
+      // Extends a live session's TTL. The page calls this while you're active
+      // so the server session tracks INACTIVITY (lock after an idle hour)
+      // rather than expiring an hour after unlocking regardless of use.
+      if (path === '/lock/refresh' && request.method === 'POST') {
+        let body = {};
+        try { body = await request.json(); } catch { body = {}; }
+        if (!body.token) return json({ ok: false, error: 'missing token' }, origin, 400);
+        const live = await env.INSIGHT_KV.get('locktok:' + body.token);
+        if (!live) return json({ ok: false, expired: true }, origin, 401);
+        await env.INSIGHT_KV.put('locktok:' + body.token, '1', { expirationTtl: 3600 });
+        return json({ ok: true, expiresAt: Date.now() + 3600 * 1000 }, origin);
+      }
+
       if (path === '/lock/end' && request.method === 'POST') {
         let body = {};
         try { body = await request.json(); } catch { body = {}; }
