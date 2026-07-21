@@ -73,9 +73,9 @@
     // ── First-run setup ──────────────────────────────────────────────────────
     // Creates the vault, persists the cloud-safe config, unlocks the session,
     // and returns the one-time recovery code to display to the user ONCE.
-    async setup(masterPassword) {
+    async setup(masterPassword, hint) {
       if (await this.hasVault()) throw new Error('vault-exists');
-      const { config, dek, recoveryCode } = await VC.createVault(masterPassword);
+      const { config, dek, recoveryCode } = await VC.createVault(masterPassword, { hint: hint });
       this._config = config; this._dek = dek; this._store = null;
       await this.backend.saveConfig(config);
       this._armAutoLock();
@@ -175,13 +175,35 @@
     }
 
     // ── Master password / recovery rotation (requires unlocked) ──────────────
-    async changeMasterPassword(oldPassword, newPassword) {
+    async changeMasterPassword(oldPassword, newPassword, hint) {
       this._requireUnlocked();
       // Re-verify the old password before allowing a change.
       await VC.unlockWithPassword(this._config, oldPassword);
-      this._config = await VC.changeMasterPassword(this._config, this._dek, newPassword);
+      this._config = await VC.changeMasterPassword(this._config, this._dek, newPassword, hint);
       await this.backend.saveConfig(this._config);
       return true;
+    }
+
+    // Forgot the master password: prove ownership with the recovery key instead,
+    // set a new one, and leave the session UNLOCKED (the recovery key already
+    // yielded a live DEK, so making the user re-type the password they just set
+    // would be pure friction). Works whether or not the vault is currently
+    // unlocked. Throws 'bad-recovery' if the key doesn't match.
+    async resetMasterPasswordWithRecovery(recoveryCode, newPassword, hint) {
+      await this._ensureConfig();
+      const { config, dek } = await VC.resetMasterPasswordWithRecovery(
+        this._config, recoveryCode, newPassword, hint);
+      this._config = config; this._dek = dek;
+      await this.backend.saveConfig(config);
+      this._afterUnlock();
+      return true;
+    }
+
+    // The plaintext password hint, readable WITHOUT unlocking — that's the whole
+    // point (it's shown/mailed to someone who is locked out). '' when unset.
+    async getHint() {
+      await this._ensureConfig();
+      return String((this._config && this._config.hint) || '');
     }
     async rotateRecovery() {
       this._requireUnlocked();

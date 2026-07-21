@@ -167,7 +167,11 @@
 
   // Create a brand-new vault. Returns the cloud-safe `config`, the live in-
   // memory `dek`, and the one-time `recoveryCode.display` to show the user ONCE.
-  async function createVault(masterPassword) {
+  // `opts.hint` is an OPTIONAL reminder phrase. It is stored in plaintext (it is
+  // mailed to the owner on "forgot password"), so it must never be, or encode,
+  // the password itself — the UI says as much.
+  async function createVault(masterPassword, opts) {
+    opts = opts || {};
     if (!masterPassword || String(masterPassword).length < 1)
       throw new Error('master password required');
     const dek = await generateDEK();
@@ -184,6 +188,7 @@
     const config = {
       schema: 1,
       master,
+      hint: String(opts.hint || ''),  // plaintext reminder — never the password
       recovery: recoverySlot,
       biometrics: {},                 // deviceId -> { wrap, addedAt, label }
       verifier: await encrypt(dek, VERIFIER_PLAINTEXT),
@@ -267,15 +272,32 @@
   // Requires a live DEK (i.e. the vault is already unlocked). Only re-wraps the
   // small key; the encrypted items are untouched. Any existing biometric slots
   // stay valid because they wrap the same DEK.
-  async function changeMasterPassword(config, dek, newPassword) {
+  // `hint` is tri-state on purpose: undefined leaves the stored hint untouched
+  // (so upgradeKdf and other internal re-wraps never clobber it), while any
+  // string — including '' — replaces it.
+  async function changeMasterPassword(config, dek, newPassword, hint) {
     const salt = randomBytes(KDF.saltBytes);
     const kek = await deriveKEK(newPassword, salt, KDF);
     return {
       ...config,
       master: { kdf: { ...KDF }, salt: bytesToB64(salt), wrap: await wrapDEK(dek, kek) },
+      hint: hint === undefined ? String(config.hint || '') : String(hint || ''),
       securityStamp: bytesToB64(randomBytes(16)), // force other sessions to re-lock
       updatedAt: Date.now(),
     };
+  }
+
+  // Reset the master password using the RECOVERY KEY instead of the old password
+  // — the "I forgot it" path. The recovery key proves ownership by unwrapping the
+  // DEK, exactly as unlockWithRecovery does, so this is no weaker than an unlock:
+  // whoever holds the key can already read the vault. Throws 'bad-recovery' on a
+  // wrong key. The recovery key itself is NOT rotated (the caller can offer that
+  // separately), and every biometric slot stays valid — same DEK throughout.
+  async function resetMasterPasswordWithRecovery(config, recoveryCode, newPassword, hint) {
+    if (!newPassword || String(newPassword).length < 1)
+      throw new Error('master password required');
+    const dek = await unlockWithRecovery(config, recoveryCode);
+    return { config: await changeMasterPassword(config, dek, newPassword, hint), dek };
   }
 
   // Rotate the recovery key (invalidates the old one). Returns updated config +
@@ -310,7 +332,7 @@
     unlockWithPassword, unlockWithRecovery, unlockWithBiometric,
     // key management
     addBiometricSlot, removeBiometricSlot,
-    changeMasterPassword, rotateRecoveryKey, upgradeKdf,
+    changeMasterPassword, resetMasterPasswordWithRecovery, rotateRecoveryKey, upgradeKdf,
     // utilities
     generateRecoveryCode, normalizeRecovery,
     bytesToB64, b64ToBytes, randomBytes,

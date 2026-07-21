@@ -75,6 +75,38 @@
     setTimeout(function () { try { navigator.clipboard.readText().then(function (cur) { if (cur === v) navigator.clipboard.writeText(''); }).catch(function () {}); } catch (e) {} }, 30000);
   }
 
+  // ── master-password hint email ─────────────────────────────────────────────
+  // The hint is a plaintext reminder stored beside the (still zero-knowledge)
+  // vault config — never the password itself. "Forgot password?" mails it to the
+  // owner's inbox through the SAME browser-origin Formspree form index.html uses
+  // for the MyJournal / TaskHub hints, so there's no Worker in this path.
+  var HINT_EMAIL = 'anthonypn99@gmail.com';
+  var HINT_FORM = 'https://formspree.io/f/xeedkebo';
+  async function emailMasterHint(btn) {
+    var prev = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    function fail(msg) { toast(msg); btn.textContent = prev; btn.disabled = false; }
+    try {
+      var hint = await session.getHint();
+      if (!hint) { fail('No hint was saved for this vault'); return; }
+      var r = await fetch(HINT_FORM, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          email: HINT_EMAIL,
+          subject: 'Vault - Master Password Hint',
+          message: 'Your Vault master password hint:\n\n' + hint +
+            '\n\nThis is only the reminder you saved — the password itself is never stored ' +
+            'or sent anywhere. If you still can\'t recall it, open Vault and choose ' +
+            '"Use recovery key instead" on the lock screen to set a new master password.\n\n- Vault',
+        }),
+      });
+      if (!r.ok) { fail('Couldn\'t send — try again'); return; }
+      btn.textContent = 'Hint sent to your email';
+      setTimeout(function () { btn.textContent = prev; btn.disabled = false; }, 3000);
+    } catch (e) { fail('Network error — try again'); }
+  }
+
   // Deep-clone a value, dropping any `undefined` (Firestore rejects undefined).
   function stripUndefined(v) {
     if (Array.isArray(v)) return v.map(stripUndefined);
@@ -369,6 +401,7 @@
   function renderSetup(host) {
     var pw1 = el('input', { type: 'password', class: 'vault-input', placeholder: 'Create master password', autocomplete: 'new-password' });
     var pw2 = el('input', { type: 'password', class: 'vault-input', placeholder: 'Confirm master password', autocomplete: 'new-password' });
+    var hint = el('input', { type: 'text', class: 'vault-input', placeholder: 'Password hint (optional)', autocomplete: 'off', maxlength: '160' });
     var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
     var err = el('div', { class: 'vault-err' });
     pw1.addEventListener('input', function () { var s = strength(pw1.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#e05252', '#e0a052', '#e0d052', '#a0d052', '#52e075'][s]; });
@@ -378,12 +411,15 @@
       if (pw1.value.length < 8) { err.textContent = 'Use at least 8 characters (a passphrase is best).'; return; }
       if (pw1.value !== pw2.value) { err.textContent = 'Passwords do not match.'; return; }
       btn.disabled = true; btn.textContent = 'Encrypting…';
-      try { var r = await session.setup(pw1.value); showRecovery(r.recoveryCode, true); }
+      try { var r = await session.setup(pw1.value, hint.value.trim()); showRecovery(r.recoveryCode, true); }
       catch (e) { err.textContent = 'Setup failed: ' + (e.message || e); btn.disabled = false; btn.textContent = 'Create Vault'; }
     });
     host.appendChild(card('Set up your Vault',
       'Your master password encrypts everything on this device before it syncs. It is never sent to the cloud and cannot be recovered by anyone — choose a strong passphrase you will remember.',
-      [pw1, meter, pw2, err, btn,
+      [pw1, meter, pw2, hint,
+        el('p', { class: 'vault-fine', style: 'text-align:left;margin:-4px 0 12px;text-transform:none;letter-spacing:0;font-size:11px;line-height:1.5' },
+          ['The hint is emailed to you if you tap “Forgot password?”. It is stored in plain text — make it jog your memory, never the password itself.']),
+        err, btn,
         el('p', { class: 'vault-fine' }, ['End-to-end encrypted · AES-256-GCM · PBKDF2 600k · zero-knowledge'])]));
   }
 
@@ -449,7 +485,9 @@
     }
     var recov = el('button', { class: 'vault-link-btn' }, ['Use recovery key instead']);
     recov.addEventListener('click', function () { renderRecoveryUnlock(); });
-    kids.push(recov);
+    var forgot = el('button', { class: 'vault-link-btn' }, ['Forgot password?']);
+    forgot.addEventListener('click', function () { emailMasterHint(forgot); });
+    kids.push(el('div', { style: 'display:flex;justify-content:center;gap:4px;flex-wrap:wrap' }, [recov, forgot]));
     host.appendChild(card('Vault is locked', 'Unlock with your ' + (deviceHasBio ? 'biometrics or ' : '') + 'master password.', kids));
     setTimeout(function () { pwIn.focus(); }, 60);
   }
@@ -461,21 +499,84 @@
     var btn = el('button', { class: 'vault-btn primary' }, ['Recover access']);
     btn.addEventListener('click', async function () {
       err.textContent = ''; btn.disabled = true; btn.textContent = 'Verifying…';
-      try { await session.unlockWithRecovery(input.value); toast('Recovered — set a new master password in settings'); afterUnlock(); }
+      try {
+        var code = input.value;
+        await session.unlockWithRecovery(code);
+        await afterUnlock();
+        // You're here because the master password is gone — offer to replace it
+        // right away, with the key you just proved you hold. Skippable.
+        openResetWithRecovery({ code: code, skippable: true });
+      }
       catch (e) { err.textContent = 'That recovery key did not match.'; btn.disabled = false; btn.textContent = 'Recover access'; }
     });
     var back = el('button', { class: 'vault-link-btn' }, ['← Back']);
     back.addEventListener('click', function () { renderLock(true); });
-    var host = el('div', { class: 'vault-lock' }, [card('Recovery', 'Enter the one-time recovery key you saved when you created the vault.', [input, err, btn, back])]);
+    var host = el('div', { class: 'vault-lock' }, [card('Recovery', 'Enter the one-time recovery key you saved when you created the vault. You can set a new master password right after.', [input, err, btn, back])]);
     pw.innerHTML = ''; pw.appendChild(host);
   }
 
-  async function afterUnlock() {
+  // Reset the master password using the RECOVERY KEY instead of the old one.
+  // Two entry points: straight after a recovery unlock (opts.code is already
+  // known, so the key field is hidden) and the "forgot it" link inside Change
+  // Master Password (key typed here). opts.skippable adds a "Later" escape.
+  function openResetWithRecovery(opts) {
+    opts = opts || {};
+    var overlay = el('div', { class: 'vault-overlay' }); // no backdrop-close — avoids losing in-progress edits
+    var key = el('textarea', { class: 'vault-input', rows: '2', placeholder: 'Recovery key (dashes optional)' });
+    var nw = el('input', { type: 'password', class: 'vault-input', placeholder: 'New master password', autocomplete: 'new-password' });
+    var cf = el('input', { type: 'password', class: 'vault-input', placeholder: 'Confirm new password', autocomplete: 'new-password' });
+    var hintIn = el('input', { type: 'text', class: 'vault-input', placeholder: 'Password hint (optional)', autocomplete: 'off', maxlength: '160', value: currentHint() });
+    var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
+    nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#e05252', '#e0a052', '#e0d052', '#a0d052', '#52e075'][s]; });
+    var err = el('div', { class: 'vault-err' });
+    var save = el('button', { class: 'vault-btn primary' }, ['Set new password']);
+    save.addEventListener('click', async function () {
+      err.textContent = '';
+      var code = opts.code || key.value;
+      if (!String(code).trim()) { err.textContent = 'Enter your recovery key.'; return; }
+      if (nw.value.length < 8) { err.textContent = 'New password must be at least 8 characters.'; return; }
+      if (nw.value !== cf.value) { err.textContent = 'New passwords do not match.'; return; }
+      save.disabled = true; save.textContent = 'Saving…';
+      try {
+        await session.resetMasterPasswordWithRecovery(code, nw.value, hintIn.value.trim());
+        overlay.remove();
+        toast('Master password reset — your recovery key still works');
+        // The recovery key already handed us a live DEK, so the session stays
+        // unlocked: just make sure the item list is up and showing.
+        if (!store) await afterUnlock(); else showTab(activeTab === 'links' ? 'passwords' : activeTab);
+      } catch (e) {
+        err.textContent = e.message === 'bad-recovery' ? 'That recovery key did not match.' : ('Failed: ' + (e.message || e));
+        save.disabled = false; save.textContent = 'Set new password';
+      }
+    });
+    var closeBtn = el('button', { class: 'vault-btn', onclick: function () { overlay.remove(); if (opts.onClose) opts.onClose(); } }, [opts.skippable ? 'Later' : 'Cancel']);
+    var kids = [
+      el('div', { class: 'vault-modal-title' }, ['Reset Master Password']),
+      el('p', { class: 'vault-sub', style: 'text-align:left' }, [opts.code
+        ? 'Your recovery key checked out. Choose a new master password — the same recovery key and any biometric unlocks keep working.'
+        : 'Forgot your current password? Enter your recovery key instead and pick a new master password.']),
+    ];
+    if (!opts.code) kids.push(el('label', { class: 'vault-flabel' }, ['Recovery key']), key);
+    kids.push(
+      el('label', { class: 'vault-flabel' }, ['New password']), revealField(nw), meter,
+      el('label', { class: 'vault-flabel' }, ['Confirm new password']), revealField(cf),
+      el('label', { class: 'vault-flabel' }, ['Password hint (optional)']), hintIn,
+      err, el('div', { class: 'vault-modal-actions' }, [save, closeBtn]));
+    var box = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, kids);
+    overlay.appendChild(box); document.body.appendChild(overlay);
+    setTimeout(function () { (opts.code ? nw : key).focus(); }, 50);
+  }
+  // The hint currently stored on the config (blank if none / vault not loaded).
+  function currentHint() { try { return (session.getConfig() || {}).hint || ''; } catch (e) { return ''; } }
+
+  async function afterUnlock(opts) {
     store = session.getStore();
     await store.load();
     store.startLive(function () { setVaultSync('synced'); if (activeTab === 'passwords') renderPasswords(); else if (activeTab === 'sensitive') renderSensitive(); });
     bindActivity();
-    maybeOfferBiometric();
+    // Suppressed on the recovery path so the enrol prompt doesn't collide with
+    // the "set a new master password" modal; it re-offers on the next unlock.
+    if (!(opts && opts.skipBioOffer)) maybeOfferBiometric();
     showTab(activeTab === 'links' ? 'passwords' : activeTab);
   }
   // Reset the idle auto-lock timer on user activity (throttled) so the 1-hour
@@ -923,6 +1024,7 @@
     var cur = el('input', { type: 'password', class: 'vault-input', placeholder: 'Current master password', autocomplete: 'current-password' });
     var nw = el('input', { type: 'password', class: 'vault-input', placeholder: 'New master password', autocomplete: 'new-password' });
     var cf = el('input', { type: 'password', class: 'vault-input', placeholder: 'Confirm new password', autocomplete: 'new-password' });
+    var hintIn = el('input', { type: 'text', class: 'vault-input', placeholder: 'Password hint (optional)', autocomplete: 'off', maxlength: '160', value: currentHint() });
     var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
     nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#e05252', '#e0a052', '#e0d052', '#a0d052', '#52e075'][s]; });
     var err = el('div', { class: 'vault-err' });
@@ -933,7 +1035,7 @@
       if (nw.value !== cf.value) { err.textContent = 'New passwords do not match.'; return; }
       save.disabled = true; save.textContent = 'Verifying…';
       try {
-        await session.changeMasterPassword(cur.value, nw.value); // throws bad-password if current is wrong
+        await session.changeMasterPassword(cur.value, nw.value, hintIn.value.trim()); // throws bad-password if current is wrong
         overlay.remove();
         // Re-lock this device too — you'll unlock again with the new password.
         session.lock(); renderLock(true);
@@ -943,11 +1045,17 @@
         save.disabled = false; save.textContent = 'Change password';
       }
     });
+    var forgot = el('button', { class: 'vault-link-btn', style: 'display:block;margin:2px 0 0;padding-left:0' },
+      ['Forgot your current password? Use your recovery key →']);
+    forgot.addEventListener('click', function () { overlay.remove(); openResetWithRecovery({}); });
     var box = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, [
       el('div', { class: 'vault-modal-title' }, ['Change Master Password']),
-      el('label', { class: 'vault-flabel' }, ['Current password']), revealField(cur),
-      el('label', { class: 'vault-flabel' }, ['New password']), revealField(nw), meter,
+      el('label', { class: 'vault-flabel' }, ['Current password']), revealField(cur), forgot,
+      el('label', { class: 'vault-flabel', style: 'margin-top:12px' }, ['New password']), revealField(nw), meter,
       el('label', { class: 'vault-flabel' }, ['Confirm new password']), revealField(cf),
+      el('label', { class: 'vault-flabel', style: 'margin-top:12px' }, ['Password hint (optional)']), hintIn,
+      el('p', { class: 'vault-fine', style: 'text-align:left;margin:-4px 0 4px;letter-spacing:0;line-height:1.5' },
+        ['Emailed to you from the lock screen’s “Forgot password?” — stored in plain text, so never put the password in it.']),
       err, el('div', { class: 'vault-modal-actions' }, [save, el('button', { class: 'vault-btn', onclick: function () { overlay.remove(); } }, ['Cancel'])]),
     ]);
     overlay.appendChild(box); document.body.appendChild(overlay);
