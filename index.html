@@ -2768,6 +2768,12 @@ function getMondayKey(date){const d=new Date(date);const dow=d.getDay();const mo
 
 const SK={data:"td6_data",habits:"td6_habits",hc:"td6_hc",goals:"td6_goals",mgoals:"td6_mgoals_monthly",seeded:"td6_seeded",weekKey:"td6_week",theme:"td6_theme",goalPrefs:"td6_goalprefs"};
 const GOAL_PREFS_DEF={hideShort:false,hideLong:false};
+// A checked-off goal is permanently deleted 30 days after it was completed (unless removed
+// manually first). completedAt is (re)stamped on each check and cleared on uncheck, so a
+// check→uncheck→re-check restarts the 30-day clock. Goals completed before this existed have
+// no completedAt and are never auto-removed until checked again.
+const DONE_GOAL_TTL=30*24*60*60*1000;
+function pruneDoneGoals(list){return Array.isArray(list)?list.filter(function(g){return !(g&&g.done&&g.completedAt&&(Date.now()-g.completedAt)>DONE_GOAL_TTL);}):list;}
 function loadJ(k,fb){try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch(e){return fb;}}
 function saveJ(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 
@@ -3312,7 +3318,7 @@ function App(){
       Object.entries(d).forEach(([dk,arr])=>{out[dk]=Array.isArray(arr)?arr.map(restoreItem):arr;});
       return out;
     };
-    const d=restoreData(remote.data)||{},h=remote.habits||HAB_DEF,g=remote.goals||MG_DEF,gm=remote.monthlyGoals||[];
+    const d=restoreData(remote.data)||{},h=remote.habits||HAB_DEF,g=pruneDoneGoals(remote.goals||MG_DEF),gm=pruneDoneGoals(remote.monthlyGoals||[]);
     const gp=remote.goalPrefs?{...GOAL_PREFS_DEF,...remote.goalPrefs}:{...stateRef.current.goalPrefs};
     setDataState(d);setHabitsState(h);setHcState(hcD);setMgState(g);setMgMonthlyState(gm);setGoalPrefsState(gp);
     stateRef.current={data:d,habits:h,hc:hcD,goals:g,monthlyGoals:gm,goalPrefs:gp};
@@ -3320,6 +3326,16 @@ function App(){
     localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);
     if(vxHist&&vxHist.current){vxHist.current.applying=true;vxHist.current.base=null;}
   },[]);
+
+  // Auto-delete goals completed 30+ days ago. Runs shortly after load (once Firebase
+  // has settled) and hourly; only writes when something actually expires, so the prune
+  // propagates to Firebase and other devices. Uses stateRef for always-current lists.
+  useEffect(()=>{
+    const run=()=>{const g=stateRef.current.goals||[],gm=stateRef.current.monthlyGoals||[];const ng=pruneDoneGoals(g),ngm=pruneDoneGoals(gm);if(ng.length!==g.length)setMg(ng);if(ngm.length!==gm.length)setMgMonthly(ngm);};
+    const t0=setTimeout(run,8000);
+    const iv=setInterval(run,3600000);
+    return()=>{clearTimeout(t0);clearInterval(iv);};
+  },[setMg,setMgMonthly]);
 
   // On Firebase ready: initial load
   useEffect(()=>{
@@ -3929,12 +3945,12 @@ function App(){
 
   // Toggling done: when a goal is FIRST checked off, auto-move it to the bottom of the list.
   // Unchecking leaves it in place (manual position preserved). Manual drags always win afterward.
-  const togM=useCallback(id=>{setMg(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done,ng={...g,done:nd};if(nd){const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}const cp=[...prev];cp[i]=ng;return cp;});},[setMg]);
+  const togM=useCallback(id=>{setMg(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...prev];cp[i]=ng;return cp;});},[setMg]);
   const delM=useCallback(id=>setMg(prev=>prev.filter(g=>g.id!==id)),[setMg]);
   const addM=useCallback(()=>{if(!nmt.trim())return;setMg(prev=>[...prev,{id:uid(),title:nmt.trim(),done:false}]);setNmt("");},[nmt,setMg]);
   const renameM=useCallback((id,title)=>setMg(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMg]);
 
-  const togMM=useCallback(id=>{setMgMonthly(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done,ng={...g,done:nd};if(nd){const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}const cp=[...prev];cp[i]=ng;return cp;});},[setMgMonthly]);
+  const togMM=useCallback(id=>{setMgMonthly(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...prev];cp[i]=ng;return cp;});},[setMgMonthly]);
   const delMM=useCallback(id=>setMgMonthly(prev=>prev.filter(g=>g.id!==id)),[setMgMonthly]);
   const addMM=useCallback(()=>{if(!nmmt.trim())return;setMgMonthly(prev=>[...prev,{id:uid(),title:nmmt.trim(),done:false}]);setNmmt("");},[nmmt,setMgMonthly]);
   const renameMM=useCallback((id,title)=>setMgMonthly(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMgMonthly]);
@@ -9847,6 +9863,9 @@ function thRepeatMaxYears(mode){return mode==="annually"?10:(mode==="weekly"||mo
 function getMondayKey(date){const d=new Date(date);const dow=d.getDay();const mo=dow===0?-6:1-dow;d.setDate(d.getDate()+mo);return dkey(d.getFullYear(),d.getMonth(),d.getDate());}
 const SK={data:"td_data",habits:"td_habits",hc:"td_hc",goals:"td_mg",mgoals:"td_mg_short",seeded:"td_seeded",weekKey:"td_week",goalPrefs:"td_goalprefs"};
 const GOAL_PREFS_DEF={hideShort:false,hideLong:false};
+// Auto-delete a checked-off goal 30 days after completion (see Tony's TaskHub for details).
+const DONE_GOAL_TTL=30*24*60*60*1000;
+function pruneDoneGoals(list){return Array.isArray(list)?list.filter(function(g){return !(g&&g.done&&g.completedAt&&(Date.now()-g.completedAt)>DONE_GOAL_TTL);}):list;}
 function loadJ(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb;}catch(e){return fb;}}
 function saveJ(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 function buildSeed(){const n=new Date(),y=n.getFullYear(),m=n.getMonth(),d=n.getDate(),data={},w=gwk(y,m,d);const s=[[{id:uid(),type:"task",title:"Review project notes",category:"work",done:true},{id:uid(),type:"task",title:"Check email & reply",category:"work",done:false},{id:uid(),type:"event",title:"Stand-up meeting",category:"work",time:"09:00"}],[{id:uid(),type:"task",title:"Update roadmap",category:"work",done:false},{id:uid(),type:"task",title:"Exercise (30 min)",category:"health",done:true},{id:uid(),type:"event",title:"Client call",category:"work",time:"14:00"}],[{id:uid(),type:"task",title:"Morning run",category:"health",done:true},{id:uid(),type:"task",title:"Work on assignment",category:"study",done:false},{id:uid(),type:"event",title:"Study group",category:"study",time:"16:00"}],[{id:uid(),type:"task",title:"Shop for groceries",category:"personal",done:false},{id:uid(),type:"task",title:"Update roadmap",category:"work",done:false},{id:uid(),type:"event",title:"Client call",category:"work",time:"11:00"}],[{id:uid(),type:"task",title:"Presentation prep",category:"work",done:false},{id:uid(),type:"task",title:"Wrap-up meeting",category:"work",done:true},{id:uid(),type:"event",title:"Team retrospective",category:"work",time:"15:00"}],[{id:uid(),type:"task",title:"Family time",category:"personal",done:false},{id:uid(),type:"task",title:"Weekly review",category:"personal",done:false}],[{id:uid(),type:"task",title:"Meal prep",category:"health",done:false},{id:uid(),type:"task",title:"Rest & recharge",category:"personal",done:false}]];w.forEach((wd,i)=>{if(s[i])data[dkey(wd.year,wd.month,wd.day)]=s[i];});return data;}
@@ -10155,7 +10174,7 @@ function App(){
     let hcD=remote.hc||{};if((remote.weekKey||"")!==cw)hcD={};
     const restoreItem=item=>{if(!item)return item;const out={...item};if(out.repeat&&out.repeat!=="none"&&!Array.isArray(out.repeatDays))out.repeatDays=[];return out;};
     const restoreData=d=>{if(!d)return{};const out={};Object.entries(d).forEach(([dk,arr])=>{out[dk]=Array.isArray(arr)?arr.map(restoreItem):arr;});return out;};
-    const d=restoreData(remote.data)||{},h=remote.habits||[],g=remote.goals||[],gm=remote.monthlyGoals||[];
+    const d=restoreData(remote.data)||{},h=remote.habits||[],g=pruneDoneGoals(remote.goals||[]),gm=pruneDoneGoals(remote.monthlyGoals||[]);
     const gp=remote.goalPrefs?{...GOAL_PREFS_DEF,...remote.goalPrefs}:{...vdRef.current.goalPrefs};
     setDataState(d);setHabitsState(h);setHcState(hcD);setMgState(g);setMgMonthlyState(gm);setGoalPrefsState(gp);
     vdRef.current={data:d,habits:h,hc:hcD,goals:g,monthlyGoals:gm,goalPrefs:gp};
@@ -10163,6 +10182,14 @@ function App(){
     localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);
     if(vxHist&&vxHist.current){vxHist.current.applying=true;vxHist.current.base=null;}
   },[]);
+
+  // Auto-delete goals completed 30+ days ago (see Tony's TaskHub). Runs after load and hourly.
+  useEffect(()=>{
+    const run=()=>{const g=vdRef.current.goals||[],gm=vdRef.current.monthlyGoals||[];const ng=pruneDoneGoals(g),ngm=pruneDoneGoals(gm);if(ng.length!==g.length)setMg(ng);if(ngm.length!==gm.length)setMgMonthly(ngm);};
+    const t0=setTimeout(run,8000);
+    const iv=setInterval(run,3600000);
+    return()=>{clearTimeout(t0);clearInterval(iv);};
+  },[setMg,setMgMonthly]);
 
   // ── Firebase: initial load on ready ──────────────────────────────────────────
   useEffect(()=>{
@@ -10406,11 +10433,11 @@ function App(){
   const renameM=useCallback((id,title)=>setMg(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMg]);
 
   // When a goal is FIRST checked off, auto-move it to the bottom; unchecking leaves it in place.
-  const togM=useCallback(id=>{setMg(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done,ng={...g,done:nd};if(nd){const rest=p.filter(x=>x.id!==id);return[...rest,ng];}const cp=[...p];cp[i]=ng;return cp;});},[]);
+  const togM=useCallback(id=>{setMg(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...p];cp[i]=ng;return cp;});},[]);
   const delM=useCallback(id=>{setMg(p=>p.filter(g=>g.id!==id));},[]);
   const addM=useCallback(()=>{if(!nmt.trim())return;setMg(p=>[...p,{id:uid(),title:nmt.trim(),done:false}]);setNmt("");},[nmt]);
   const renameMM=useCallback((id,title)=>setMgMonthly(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMgMonthly]);
-  const togMM=useCallback(id=>{setMgMonthly(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done,ng={...g,done:nd};if(nd){const rest=p.filter(x=>x.id!==id);return[...rest,ng];}const cp=[...p];cp[i]=ng;return cp;});},[setMgMonthly]);
+  const togMM=useCallback(id=>{setMgMonthly(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...p];cp[i]=ng;return cp;});},[setMgMonthly]);
   const delMM=useCallback(id=>{setMgMonthly(p=>p.filter(g=>g.id!==id));},[setMgMonthly]);
   const addMM=useCallback(()=>{if(!nmmt.trim())return;setMgMonthly(p=>[...p,{id:uid(),title:nmmt.trim(),done:false}]);setNmmt("");},[nmmt,setMgMonthly]);
   const calcCells=useMemo(()=>{const d=dimM(vy,vm),f=fdow(vy,vm),c=[];for(let i=0;i<f;i++)c.push(null);for(let i=1;i<=d;i++)c.push(i);return c;},[vy,vm]);
