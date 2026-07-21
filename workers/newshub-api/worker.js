@@ -478,6 +478,10 @@ function cors() {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    // Cross-origin JS can't read a response header unless it's exposed here. The
+    // News tab reads X-Cache to tell a finished build from a still-building one;
+    // without this it always read null, so a completed build never auto-displayed.
+    'Access-Control-Expose-Headers': 'X-Cache, X-Building, X-Rate-Limited',
   };
 }
 function ymd(d){ return d.toISOString().slice(0,10); }
@@ -1921,6 +1925,20 @@ const FB_API_KEY  = 'AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4';
 const FB_DOC_PATH = 'dashboards/market_calendar';
 const FB_NEWS_PATH = 'dashboards/tradeboard_news';   // the doc the News tab reads
 
+// ⚠ THE PUSHES BELOW CANNOT SUCCEED FROM A WORKER — verified 2026-07-21.
+// This project enforces Firebase App Check on Firestore, and App Check tokens come
+// from reCAPTCHA v3 in a real browser, so REST from here is rejected no matter what
+// credential is attached. Measured: anonymous signUp returns 200 and a valid ID
+// token, but the very next Firestore REST call still returns 403 PERMISSION_DENIED
+// (with or without a bearer token). So every "push to Firebase so the client
+// auto-displays" call below has ALWAYS failed silently into its .catch.
+// Consequence for the front-end: it must NEVER depend on a worker push to display a
+// finished build. TradeHub now polls the worker cache itself (News tab) and pulls +
+// publishes the morning build from the app-level orchestrator, which runs in the
+// browser where App Check works. Leave these calls in place (harmless, one-line
+// warn) — but if you're debugging "the build finished and nothing showed up", this
+// is not the mechanism to fix. Re-enabling it needs an App Check debug/service
+// token, or the rules relaxed for this specific doc.
 function encodeFirestoreValue(v){
   if(v === null || v === undefined) return { nullValue: null };
   if(typeof v === 'boolean') return { booleanValue: v };
@@ -3176,7 +3194,30 @@ export default {
       const useLimited = !already;                 // first tick of the hour → rich
       if (!already) ctx.waitUntil(env.NEWSHUB_CACHE.put(richKey, '1', { expirationTtl: 7200 }));
       const { wl, sectors, cacheKey, lockKey } = await resolveCronWatchlist(env);
-      ctx.waitUntil(buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey).catch(e => console.error('Cron news failed:', e.message)));
+      // Breadcrumb: "did the 6am build actually run, and what came out?" was
+      // previously unanswerable — a cron that never fired and one whose build got
+      // killed mid-flight look identical from outside (both leave an empty cache,
+      // so opening TradeHub just starts a build). Recorded for a week; read it at
+      // /_stage-debug → cronLastRun / cronLastNews.
+      ctx.waitUntil(env.NEWSHUB_CACHE.put('cron:lastrun',
+        JSON.stringify({ at: Date.now(), rich: useLimited, wl: wl.length }),
+        { expirationTtl: 7*86400 }).catch(()=>{}));
+      ctx.waitUntil(
+        buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey)
+          .then(body => {
+            let events = 0, degraded = null;
+            try { const j = JSON.parse(body); events = (j.events||[]).length; degraded = !!j.degraded; } catch(e){}
+            return env.NEWSHUB_CACHE.put('cron:lastnews',
+              JSON.stringify({ at: Date.now(), events, degraded, rich: useLimited }),
+              { expirationTtl: 7*86400 }).catch(()=>{});
+          })
+          .catch(e => {
+            console.error('Cron news failed:', e.message);
+            return env.NEWSHUB_CACHE.put('cron:lastnews',
+              JSON.stringify({ at: Date.now(), error: String(e.message).slice(0,200) }),
+              { expirationTtl: 7*86400 }).catch(()=>{});
+          })
+      );
     }
   },
 
@@ -3328,6 +3369,11 @@ export default {
       try { const le = await env.NEWSHUB_CACHE.get('stage:lasterror'); out.lastError = le ? JSON.parse(le) : null; } catch(e){ out.lastError = 'err:'+e.message; }
       try { const ws = await env.NEWSHUB_CACHE.get('stage:winstatus'); out.lastWindowStatus = ws ? JSON.parse(ws) : null; } catch(e){ out.lastWindowStatus = 'err'; }
       try { const ai = await env.NEWSHUB_CACHE.get('stage:aistats'); out.aiStats = ai ? JSON.parse(ai) : null; } catch(e){ out.aiStats = 'err'; }
+      // Did the 6am cron fire, and what did its build produce? null on either line
+      // means that cron tick never ran at all (vs. ran and failed, which records
+      // an error). Kept 7 days.
+      try { const cr = await env.NEWSHUB_CACHE.get('cron:lastrun');  out.cronLastRun  = cr ? JSON.parse(cr) : null; } catch(e){ out.cronLastRun  = 'err'; }
+      try { const cn = await env.NEWSHUB_CACHE.get('cron:lastnews'); out.cronLastNews = cn ? JSON.parse(cn) : null; } catch(e){ out.cronLastNews = 'err'; }
       // List every cached events:* key + size, so a cacheKey mismatch (build wrote
       // one key, client reads another) is immediately visible.
       try {

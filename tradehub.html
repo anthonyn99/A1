@@ -4318,8 +4318,10 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   /* ── Load from Firebase on mount ── */
   useEffect(()=>{
     const doLoad=async()=>{
+      let fbDoc=null;
       if(window._fbLoadTBNews){
         const d=await window._fbLoadTBNews();
+        fbDoc=d;
         if(d){
           if(Array.isArray(d.events)&&d.events.length>0){setEvents(d.events);}
           if(d.generatedAt&&(!d.events||d.events.length>0))setGeneratedAt(d.generatedAt);
@@ -4337,11 +4339,10 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       hydrated.current=true;
       // Always fetch rate status on mount
       fetchRateStatus();
-      // Auto-display the 6am cron pre-warm: pull the worker's cache (non-fresh =
-      // free cache HIT, NO force burn) so opening TradeHub shows the freshly-built
-      // news without the user having to click Refresh. On a cache miss this kicks a
-      // cheap Finnhub-only build (also free of the daily force budget).
-      refresh(false);
+      // Show what's ALREADY built — opening the tab must not start a build. See
+      // peekOrBuild: keeping the feed current every trading morning is now the
+      // app-level orchestrator's job (TBApp), which runs whichever tab is open.
+      peekOrBuild(fbDoc);
     };
     if(window._fbReady)doLoad();
     else{const h=()=>doLoad();window.addEventListener('fb-ready',h,{once:true});return()=>window.removeEventListener('fb-ready',h);}
@@ -4352,7 +4353,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
     const onRemote=(e)=>{
       const d=e.detail;if(!d)return;
       if(Array.isArray(d.events)&&d.events.length>0){
-        // A finished build (worker pushes to Firebase on completion) — show it and
+        // Another device collected a finished build and published it — show it and
         // tear down any in-flight polling / build spinner so it "just appears".
         setEvents(d.events);
         setDegraded(d.events.every(e=>e.aiAnalyzed===false));
@@ -4400,7 +4401,15 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       if(!r.ok){stopPolling();setBuilding(false);setLoading(false);return;}
       const j=await r.json().catch(()=>({}));
       const evs=j.events||[];
-      const gotResult = (r.headers.get('X-Cache')==='HIT') && !j._cacheMiss;
+      // Detect "build finished" from the BODY, not the X-Cache header. X-Cache is a
+      // cross-origin response header, so the browser hides it from JS unless the
+      // worker sends Access-Control-Expose-Headers — it didn't, so this read was
+      // always null and the poller NEVER recognised a finished build. It just spun
+      // to the poll cap while the completed news sat in cache, which is why the
+      // events only appeared after leaving the tab and coming back (a remount
+      // re-reads Firebase). cacheOnly=1 sets _cacheMiss on a miss and returns the
+      // real payload on a hit, so the body alone is a reliable signal.
+      const gotResult = !j._cacheMiss && Array.isArray(j.events);
       if(gotResult){
         // Build finished and wrote a result (even if 0 events).
         setEvents(evs);
@@ -4495,6 +4504,79 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       setLoading(false);
     }
   },[pollForEvents,hours,sentFilter,impFilter,selTickers,selSectors,sortBy,newsTickers,fetchRateStatus]);
+
+  /* ── Mount: show what's already built, never kick a build just because the tab
+     was opened. cacheOnly=1 is a pure PEEK — it never builds, never takes the
+     lock, never spends quota. Order of preference: the worker's cache (freshest,
+     written by the 6am cron) → the Firebase copy (already applied above) → an
+     actual build, and that last one ONLY when there is nothing at all to show.
+     Before this, mount always called refresh(false), which on a cache miss kicked
+     a pipeline — that's why opening the News tab was what started the build. ── */
+  const peekOrBuild=useCallback(async(fbDoc)=>{
+    const fbGen=(fbDoc&&fbDoc.generatedAt)||0;
+    const fbCount=(fbDoc&&Array.isArray(fbDoc.events))?fbDoc.events.length:0;
+    try{
+      const r=await fetch(NH_WORKER_URL+'/news?cacheOnly=1&tickers='+encodeURIComponent(newsTickers.join(',')));
+      if(r.ok){
+        const j=await r.json().catch(()=>({}));
+        if(j&&!j._cacheMiss&&Array.isArray(j.events)){
+          // Cache HIT. Adopt it when it's at least as new as the Firebase copy.
+          if(j.events.length&&(j.generatedAt||0)>=fbGen){
+            setEvents(j.events);
+            setGeneratedAt(j.generatedAt||Date.now());
+            setDegraded(!!j.degraded||j.events.every(e=>e.aiAnalyzed===false));
+            // Publish only a genuinely newer build, and keep the saved filters —
+            // the doc write is a full overwrite, so dropping settings would reset
+            // the user's filters on every open.
+            if(window._fbSaveTBNews&&(j.generatedAt||0)>fbGen){
+              const settings=(fbDoc&&fbDoc.settings)||{hours,sentFilter,impFilter,selTickers,selSectors,sortBy};
+              window._fbSaveTBNews({events:j.events,generatedAt:j.generatedAt||Date.now(),settings});
+            }
+          }
+          return;
+        }
+      }
+    }catch(e){}
+    // Worker cache is empty. Build only if the page would otherwise be blank —
+    // an empty News tab is worse than a background build.
+    if(!fbCount){ refresh(false); return; }
+    // We have news to show, but the cache is empty because the orchestrator's
+    // background build is still running — join it so the result lands here.
+    if(Date.now()-_tbNewsBuildKickedAt<5*60*1000) startWatchingBuild();
+  },[newsTickers,refresh,hours,sentFilter,impFilter,selTickers,selSectors,sortBy]);
+
+  /* ── Attach to a build this tab didn't start (kicked by the app-level morning
+     orchestrator). Polling from here is what makes a finished build appear on its
+     own: the worker's own "push to Firebase" can't work (App Check blocks worker
+     REST writes — see workers/newshub-api/worker.js), so the browser is the only
+     thing that can notice the build landed. ── */
+  const startWatchingBuild=useCallback(()=>{
+    if(pollTimer.current)return;                 // already watching
+    setBuilding(true);
+    pollCount.current=0;
+    pollTimer.current=setTimeout(pollForEvents,NH_POLL_INTERVAL);
+  },[pollForEvents]);
+  useEffect(()=>{
+    const onKick=()=>startWatchingBuild();
+    /* The orchestrator collected a finished build and wrote it to Firebase. That
+       write is this device's OWN, so the cross-device listener deliberately skips
+       it — take the events straight off the event instead. */
+    const onBuilt=(e)=>{
+      const j=e.detail;
+      if(!j||!Array.isArray(j.events)||!j.events.length)return;
+      setEvents(j.events);
+      setGeneratedAt(j.generatedAt||Date.now());
+      setDegraded(!!j.degraded||j.events.every(x=>x.aiAnalyzed===false));
+      setBuilding(false);setLoading(false);setNotice('');
+      stopPolling();
+    };
+    window.addEventListener('tb-news-building',onKick);
+    window.addEventListener('tb-news-built',onBuilt);
+    return()=>{
+      window.removeEventListener('tb-news-building',onKick);
+      window.removeEventListener('tb-news-built',onBuilt);
+    };
+  },[startWatchingBuild]);
 
   useEffect(()=>()=>stopPolling(),[]);
 
@@ -4981,6 +5063,10 @@ function tbLastTradingMorningSlot(){
 }
 let _tbAutoForceInFlight=false;
 let _tbLastCheckedSlot=0;
+// When the morning orchestrator kicked a background news build (ms). Lets the News
+// tab pick the build up — spinner + polling — whether it was already open when the
+// kick happened or is opened while it's still running.
+let _tbNewsBuildKickedAt=0;
 
 // ── Module-level catalyst build manager ──────────────────────────────────────
 // Force / Refresh runs HERE (not inside the React component) so a build KEEPS
@@ -6043,8 +6129,10 @@ function TBApp(){
      sure Catalysts, Portfolio, and the Journal Webull sync are ALL ready the moment
      TradeHub opens — no tab visit, no manual action. Runs at the APP level so it's
      independent of which tab is showing. A 5-min tick re-checks; each piece is
-     guarded so it fires at most once per morning slot. News + MacroBoard already
-     pre-warm via the worker cron, so they aren't repeated here.
+     guarded so it fires at most once per morning slot. News is included: the
+     worker cron pre-warms it at 6am, but nothing pulled that build into the app
+     until the News tab was opened — so the tab, not the morning, was what made
+     the news appear (and kicked a fresh build whenever the pre-warm had lapsed).
      Cost note: tbLastTradingMorningSlot() is pure date math (free); each piece only
      touches the network the first time a new 6 AM trading slot is seen, then
      short-circuits on its per-slot guard until the next trading morning. */
@@ -6074,6 +6162,59 @@ function TBApp(){
           }
         }catch(e){}finally{ _tbAutoForceInFlight=false; }
       }
+
+      // ── News: get the morning build INTO the app before the News tab is ever
+      //    opened — the tab must never be what starts the build. The worker's own
+      //    "push the finished build to Firebase" path does NOT work (App Check is
+      //    enforced on Firestore, so worker REST writes 403 — see the note in
+      //    workers/newshub-api/worker.js), so the browser has to do this pull:
+      //      • Peek the worker cache — cacheOnly=1 is free, never builds, never
+      //        takes the build lock. Built at/after this slot → publish it to
+      //        Firebase and every device renders it instantly on open.
+      //      • Nothing usable (6am cron failed, or its 6h cache TTL lapsed before
+      //        this open) → kick ONE non-fresh build here, in the background at
+      //        app open. Non-fresh = Finnhub-only, so it costs nothing from the
+      //        daily force-fresh budget.
+      //    The slot is only marked DONE once real events are published, so the
+      //    5-min tick keeps peeking until the kicked build lands and publishes it —
+      //    that's what makes the news show up on its own. _tbNewsBuildKickedAt
+      //    stops those follow-up ticks from kicking a second build. ──
+      try{
+        const nKey='tb_morning_news_slot';
+        if(parseInt(localStorage.getItem(nKey)||'0',10)<slot && window._fbLoadTBNews){
+          const d=await window._fbLoadTBNews();
+          const haveFresh=d&&(d.generatedAt||0)>=slot&&Array.isArray(d.events)&&d.events.length>0;
+          if(haveFresh){ localStorage.setItem(nKey,String(slot)); }
+          else{
+            const tq='tickers='+encodeURIComponent(tbLoadWatchlistLocal().join(','));
+            let warmed=null;
+            try{
+              const r=await fetch(NH_WORKER_URL+'/news?cacheOnly=1&'+tq);
+              if(r.ok){
+                const j=await r.json().catch(()=>null);
+                if(j&&!j._cacheMiss&&Array.isArray(j.events)&&j.events.length&&(j.generatedAt||0)>=slot) warmed=j;
+              }
+            }catch(e){}
+            if(warmed){
+              if(window._fbSaveTBNews){
+                // Full-overwrite write — carry the saved filters through.
+                const payload={events:warmed.events,generatedAt:warmed.generatedAt||Date.now()};
+                if(d&&d.settings) payload.settings=d.settings;
+                window._fbSaveTBNews(payload);
+              }
+              // Live-update the News tab if it's the one on screen (its own Firebase
+              // listener ignores echoes of a write this device just made).
+              window.dispatchEvent(new CustomEvent('tb-news-built',{detail:warmed}));
+              localStorage.setItem(nKey,String(slot));   // done for this morning
+            }else if(Date.now()-_tbNewsBuildKickedAt>10*60*1000){
+              fetch(NH_WORKER_URL+'/news?'+tq).catch(()=>{});   // fire-and-forget build
+              _tbNewsBuildKickedAt=Date.now();
+              window.dispatchEvent(new CustomEvent('tb-news-building'));
+              // NOT marked done — the next 5-min tick collects the result above.
+            }
+          }
+        }
+      }catch(e){}
 
       // ── Portfolio: auto-load the Webull account (read-only, safe on any device) into
       //    the shared cache so the Portfolio tab is ready the moment it's opened. The
