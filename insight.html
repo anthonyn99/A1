@@ -189,7 +189,7 @@
   .field { margin-bottom: 13px; }
   .field label { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
   .field input, .field select, .field textarea { width: 100%; }
-  .field textarea { resize: none; }
+  .field textarea { resize: vertical; min-height: 58px; max-height: 180px; }
   .fieldrow { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
   .seg { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
   .seg button {
@@ -246,7 +246,7 @@
         <span class="env-badge" id="envBadge" style="display:none">Sandbox</span>
         <span class="dot" id="syncDot" style="display:none"></span>
         <span id="lastSync">connecting…</span>
-        <button class="btn" id="syncNowBtn">Sync now</button>
+        <button class="btn" id="syncNowBtn" title="Your own edits save instantly — this pulls new transactions from your banks">Refresh bank data</button>
       </div>
     </div>
   </header>
@@ -256,8 +256,8 @@
     <div class="tab" data-view="accounts">Accounts</div>
     <div class="tab" data-view="import">Import</div>
     <div class="tab" data-view="addaccount">Add Account</div>
-    <div class="tab" data-view="recurring">Recurring<span class="soon">soon</span></div>
-    <div class="tab" data-view="cash">Cash<span class="soon">soon</span></div>
+    <div class="tab" data-view="recurring">Recurring</div>
+    <div class="tab" data-view="cash">Cash</div>
   </nav>
 
   <!-- ═══ Transactions ═══ -->
@@ -333,12 +333,31 @@
     </div>
   </section>
 
-  <!-- ═══ Placeholders (ExpenseLog migration — build step 5) ═══ -->
+  <!-- ═══ Recurring (migrated from ExpenseLog) ═══ -->
   <section class="view" id="view-recurring">
-    <div class="empty"><div class="big">Recurring transactions</div>Arriving with the ExpenseLog migration.</div>
+    <div class="stats" style="grid-template-columns:1fr 1fr">
+      <div class="stat"><div class="lbl">Monthly total</div><div class="val gold" id="recMo">—</div></div>
+      <div class="stat"><div class="lbl">Annual total</div><div class="val" id="recAn">—</div></div>
+    </div>
+    <div class="filters" style="justify-content:flex-end">
+      <button class="btn gold" id="addRecBtn">+ Add recurring</button>
+    </div>
+    <div id="recList"></div>
   </section>
+
+  <!-- ═══ Cash tracker (migrated from ExpenseLog) ═══ -->
   <section class="view" id="view-cash">
-    <div class="empty"><div class="big">Cash tracker</div>Arriving with the ExpenseLog migration.</div>
+    <div class="panel" style="text-align:center;padding:40px 22px">
+      <div class="stat" style="border:none;background:none;padding:0">
+        <div class="lbl" style="font-size:12px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)">Cash on hand</div>
+        <div class="val gold" id="cashAmt" style="font-family:'Fraunces',serif;font-size:52px;margin:8px 0 18px;font-variant-numeric:tabular-nums">—</div>
+      </div>
+      <div style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap">
+        <input type="number" id="cashInput" min="0" step="0.01" placeholder="New amount" inputmode="decimal"
+               style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;color:var(--text);font:500 14px 'Inter',sans-serif;padding:10px 14px;outline:none;width:160px;text-align:center">
+        <button class="btn gold" id="cashSave">Update</button>
+      </div>
+    </div>
   </section>
 </div>
 
@@ -368,13 +387,30 @@
   </div>
 </div>
 
+<!-- ═══ Recurring entry modal ═══ -->
+<div class="modalback" id="recModal">
+  <div class="modal">
+    <h3 id="recTitle">Add recurring</h3>
+    <div class="field"><label>Name</label><input type="text" id="rName" placeholder="Netflix, Rent, Car Insurance…"></div>
+    <div class="fieldrow">
+      <div class="field"><label>Monthly cost</label><input type="number" id="rMonthly" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
+      <div class="field"><label>Annual cost</label><input type="number" id="rAnnual" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
+    </div>
+    <p class="help" style="margin:2px 0 0;color:var(--faint);font-size:12px">Fill in monthly, annual, or both — or neither for a bill with no set amount yet.</p>
+    <div class="modalacts">
+      <button class="btn" id="rCancel">Cancel</button>
+      <button class="btn gold" id="rSave">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
-  import { initializeFirestore, memoryLocalCache, collection, query, orderBy, limit, onSnapshot, doc, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { initializeFirestore, memoryLocalCache, collection, query, orderBy, limit, onSnapshot, doc, getDoc, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 
   const API = 'https://insight-api.av1.workers.dev';
 
@@ -402,6 +438,8 @@
 
   // ── State ────────────────────────────────────────────────────────────────
   let plaidTxs = [], manualTxs = [], accounts = [], meta = {};
+  let recurring = [], cashBal = 0;   // migrated ExpenseLog state
+  let editingRecId = null;
   let activeView = 'transactions';
   let editingId = null;          // manual entry being edited (null = new)
   let manualType = 'expense';
@@ -424,7 +462,7 @@
   onSnapshot(doc(db, ROOT), snap => {
     meta = snap.data() || {};
     const at = meta.lastSyncAt;
-    $('lastSync').textContent = at ? 'synced ' + relTime(at) : 'never synced';
+    $('lastSync').textContent = at ? 'banks updated ' + relTime(at) : 'no bank data yet';
     $('syncDot').style.display = at ? '' : 'none';
     if (meta.env && meta.env !== 'production') { $('envBadge').style.display = ''; }
   }, e => console.warn('meta listen failed:', e));
@@ -444,6 +482,56 @@
     renderAccounts();
     renderFilterOptions();
   }, e => console.warn('accounts listen failed:', e));
+
+  // ── Recurring + Cash (migrated from TaskHub's ExpenseLog) ────────────────
+  // One doc mirrors ExpenseLog's old shape: dashboards/insight/meta/expenselog
+  // = { recurring: [{id,name,monthly,annual}], cash, savedAt }. Kept OFF the
+  // dashboards/insight parent doc because the worker's sync stamp overwrites
+  // that doc wholesale.
+  const elRef = doc(db, ROOT, 'meta', 'expenselog');
+
+  onSnapshot(elRef, snap => {
+    if (!snap.exists()) return;
+    const d = snap.data();
+    recurring = Array.isArray(d.recurring) ? d.recurring : [];
+    cashBal = typeof d.cash === 'number' ? d.cash : 0;
+    renderRecurring();
+    renderCash();
+  }, e => console.warn('expenselog listen failed:', e));
+
+  // One-time migration from the legacy ExpenseLog doc (dashboards/expenses).
+  // Runs only while the new doc doesn't exist; the legacy doc is left intact
+  // until the migration is verified and TaskHub's ExpenseLog is retired
+  // (INSIGHT_PLAN.md step 6).
+  (async () => {
+    try {
+      const cur = await getDoc(elRef);
+      if (cur.exists()) return;
+      const old = await getDoc(doc(db, 'dashboards', 'expenses'));
+      if (old.exists() && Array.isArray(old.data().expenses)) {
+        const norm = v => (v === null || v === undefined || v === '' ? null : parseFloat(v));
+        await setDoc(elRef, {
+          recurring: old.data().expenses.map(e => ({
+            id: e.id || ('r_' + Math.random().toString(36).slice(2, 10)),
+            name: e.name || '(unnamed)',
+            monthly: norm(e.monthly),
+            annual: norm(e.annual)
+          })),
+          cash: typeof old.data().cash === 'number' ? old.data().cash : 0,
+          migratedAt: Date.now(),
+          migratedFrom: 'dashboards/expenses',
+          savedAt: Date.now()
+        });
+        toast('ExpenseLog data migrated into Insight', true);
+      } else {
+        await setDoc(elRef, { recurring: [], cash: 0, savedAt: Date.now() });
+      }
+    } catch (e) { console.warn('expenselog migration failed:', e); }
+  })();
+
+  async function saveExpenselog() {
+    await setDoc(elRef, { recurring, cash: cashBal, savedAt: Date.now() }, { merge: true });
+  }
 
   function relTime(ms) {
     const m = Math.round((Date.now() - ms) / 60000);
@@ -662,9 +750,9 @@
   pullBankData(true).catch(() => {});   // auto-refresh on open, silent unless news
 
   $('syncNowBtn').addEventListener('click', async () => {
-    const b = $('syncNowBtn'); b.disabled = true; b.textContent = 'Syncing…';
+    const b = $('syncNowBtn'); b.disabled = true; b.textContent = 'Pulling from banks…';
     try { await pullBankData(false); } catch (e) { toast('Sync failed: ' + e.message); }
-    b.disabled = false; b.textContent = 'Sync now';
+    b.disabled = false; b.textContent = 'Refresh bank data';
   });
 
   // ── Accounts view ────────────────────────────────────────────────────────
@@ -699,6 +787,102 @@
         </div>
       </div>`).join('');
   }
+
+  // ── Recurring transactions ───────────────────────────────────────────────
+  // Totals use ExpenseLog's rule: annual-only items count ÷12 toward monthly.
+  function renderRecurring() {
+    let mo = 0, an = 0;
+    for (const r of recurring) {
+      const hasM = r.monthly != null && !isNaN(r.monthly);
+      const hasA = r.annual != null && !isNaN(r.annual);
+      if (hasM) mo += r.monthly;
+      if (hasA) an += r.annual;
+      if (!hasM && hasA) mo += r.annual / 12;
+    }
+    $('recMo').textContent = fmt$(mo);
+    $('recAn').textContent = fmt$(an);
+
+    if (!recurring.length) {
+      $('recList').innerHTML = '<div class="empty"><div class="big">No recurring transactions</div>Add your subscriptions and fixed bills.</div>';
+      return;
+    }
+    $('recList').innerHTML = recurring.map(r => `
+      <div class="txrow" data-rid="${esc(r.id)}">
+        <div class="txbadge">${esc((r.name || '?').charAt(0).toUpperCase())}</div>
+        <div class="txmain">
+          <div class="txname">${esc(r.name)}</div>
+          <div class="txsub">
+            ${r.monthly != null ? `<span class="chip">${fmt$(r.monthly)}/mo</span>` : ''}
+            ${r.annual != null ? `<span class="chip">${fmt$(r.annual)}/yr</span>` : ''}
+            ${r.monthly == null && r.annual == null ? '<span class="chip">no amount set</span>' : ''}
+          </div>
+        </div>
+        <div class="txacts">
+          <button class="iconbtn" data-act="edit" title="Edit">✎</button>
+          <button class="iconbtn" data-act="del" title="Delete">🗑</button>
+        </div>
+      </div>`).join('');
+  }
+
+  $('recList').addEventListener('click', async e => {
+    const btn = e.target.closest('.iconbtn'); if (!btn) return;
+    const id = e.target.closest('.txrow').dataset.rid;
+    const r = recurring.find(x => x.id === id); if (!r) return;
+    if (btn.dataset.act === 'edit') openRec(r);
+    if (btn.dataset.act === 'del') {
+      if (!confirm(`Delete "${r.name}"?`)) return;
+      recurring = recurring.filter(x => x.id !== id);
+      await saveExpenselog();
+      renderRecurring();
+      toast('Recurring entry deleted');
+    }
+  });
+
+  function openRec(r) {
+    editingRecId = r ? r.id : null;
+    $('recTitle').textContent = r ? 'Edit recurring' : 'Add recurring';
+    $('rName').value = r ? r.name : '';
+    $('rMonthly').value = r && r.monthly != null ? r.monthly : '';
+    $('rAnnual').value = r && r.annual != null ? r.annual : '';
+    $('recModal').classList.add('open');
+    setTimeout(() => $('rName').focus(), 60);
+  }
+
+  $('addRecBtn').addEventListener('click', () => openRec(null));
+  $('rCancel').addEventListener('click', () => $('recModal').classList.remove('open'));
+  $('recModal').addEventListener('click', e => { if (e.target === $('recModal')) $('recModal').classList.remove('open'); });
+  $('rName').addEventListener('keydown', e => { if (e.key === 'Enter') $('rSave').click(); });
+
+  $('rSave').addEventListener('click', async () => {
+    const name = $('rName').value.trim();
+    if (!name) { toast('Name is required'); return; }
+    const num = v => { const s = v.trim(); const n = parseFloat(s); return s && !isNaN(n) ? n : null; };
+    const monthly = num($('rMonthly').value), annual = num($('rAnnual').value);
+    if (editingRecId) {
+      recurring = recurring.map(x => x.id === editingRecId ? { ...x, name, monthly, annual } : x);
+    } else {
+      recurring = [...recurring, { id: 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), name, monthly, annual }];
+    }
+    await saveExpenselog();
+    renderRecurring();
+    $('recModal').classList.remove('open');
+    toast(editingRecId ? 'Recurring updated' : 'Recurring added', true);
+  });
+
+  // ── Cash tracker ─────────────────────────────────────────────────────────
+  function renderCash() {
+    $('cashAmt').textContent = fmt$(cashBal);
+  }
+  $('cashSave').addEventListener('click', async () => {
+    const n = parseFloat($('cashInput').value);
+    if (isNaN(n) || n < 0) { toast('Enter a valid amount'); return; }
+    cashBal = n;
+    await saveExpenselog();
+    renderCash();
+    $('cashInput').value = '';
+    toast('Cash balance updated', true);
+  });
+  $('cashInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('cashSave').click(); });
 
   // ── PayPal CSV import ────────────────────────────────────────────────────
   const drop = $('fileDrop');
