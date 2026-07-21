@@ -119,6 +119,29 @@ async function plaidPost(env, path, body) {
   return data;
 }
 
+// ── App-lock verification (same PBKDF2 records index.html's locks use) ──────
+// The lock is created/changed via taskhub-reminders' /auth/journal/* endpoints
+// (journal 'applock', entry 'tony_insight'); this worker only READS the record
+// to gate the bank-connect endpoints server-side. No lock set → deny.
+const LOCK_KEY = 'jlock:applock:tony_insight';
+
+function b64ToBytes(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
+
+async function verifyLock(env, password) {
+  if (!password || !env.AUTH_KV) return false;
+  let rec;
+  try { rec = await env.AUTH_KV.get(LOCK_KEY, 'json'); } catch { return false; }
+  if (!rec || !rec.hash || !rec.salt) return false;
+  const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), { name: 'PBKDF2' }, false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: b64ToBytes(rec.salt), iterations: rec.iter || 100000, hash: 'SHA-256' }, km, 256);
+  const got = new Uint8Array(bits), want = b64ToBytes(rec.hash);
+  if (got.length !== want.length) return false;
+  let diff = 0;
+  for (let i = 0; i < got.length; i++) diff |= got[i] ^ want[i];
+  return diff === 0;
+}
+
 const itemKey   = (id) => `plaid:item:${id}`;
 const cursorKey = (id) => `plaid:cursor:${id}`;
 
@@ -467,6 +490,11 @@ export default {
       if (path === '/link/token/create' && request.method === 'POST') {
         const blocked = prodGate(env, origin);
         if (blocked) return blocked;
+        let body = {};
+        try { body = await request.json(); } catch { body = {}; }
+        if (!(await verifyLock(env, body.lock))) {
+          return json({ ok: false, error: 'app lock required', lockRequired: true }, origin, 401);
+        }
         const data = await plaidPost(env, '/link/token/create', {
           user: { client_user_id: 'tony' },
           client_name: 'Insight',
@@ -483,6 +511,9 @@ export default {
         if (blocked) return blocked;
         let body = {};
         try { body = await request.json(); } catch { return json({ ok: false, error: 'bad json' }, origin, 400); }
+        if (!(await verifyLock(env, body.lock))) {
+          return json({ ok: false, error: 'app lock required', lockRequired: true }, origin, 401);
+        }
         if (!body.public_token) return json({ ok: false, error: 'missing public_token' }, origin, 400);
 
         const ex = await plaidPost(env, '/item/public_token/exchange', { public_token: body.public_token });

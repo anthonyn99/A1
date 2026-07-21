@@ -227,6 +227,31 @@
   .toast.gold { border-color: rgba(212,175,55,.45); }
   .view { display: none; }
   .view.active { display: block; }
+
+  /* ── App lock ── */
+  #lockScreen {
+    position: fixed; inset: 0; z-index: 200;
+    background: var(--bg);
+    background-image: radial-gradient(ellipse 80% 40% at 50% -10%, rgba(212,175,55,.09), transparent);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .lockbox { width: 100%; max-width: 350px; text-align: center; }
+  .lockbox .brand { font-size: 52px; display: inline-block; margin-bottom: 4px; }
+  .lockbox .sub { color: var(--faint); font-size: 12.5px; letter-spacing: 1.6px; text-transform: uppercase; margin-bottom: 28px; }
+  .lockbox input {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+    color: var(--text); font: 500 15px 'Inter', sans-serif; padding: 13px 16px; outline: none;
+    text-align: center; margin-bottom: 11px; transition: border-color .15s;
+  }
+  .lockbox input:focus { border-color: rgba(212,175,55,.55); }
+  .lockbox .btn { width: 100%; padding: 12px; font-size: 14px; }
+  .lockmsg { min-height: 20px; font-size: 12.5px; color: var(--danger); margin: 10px 0 0; }
+  .lockmsg.ok { color: var(--gold-soft); }
+  .lockhint { margin-top: 14px; font-size: 12.5px; color: var(--faint); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .lockhint:hover { color: var(--muted); }
+  .locksetup-note { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin-bottom: 18px; }
+  @keyframes lockshake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
+  .lockbox.shake { animation: lockshake .3s; }
   @media (max-width: 560px) {
     .brand { font-size: 36px; }
     .stats { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
@@ -237,6 +262,24 @@
 </style>
 </head>
 <body>
+
+<!-- ═══ App lock — same PBKDF2 system as the suite's app locks ═══ -->
+<div id="lockScreen">
+  <div class="lockbox" id="lockBox">
+    <div class="brand">Insight</div>
+    <div class="sub" id="lockSub">Locked</div>
+    <div class="locksetup-note" id="lockNote" style="display:none">
+      First time here — create the password that will protect Insight and its bank-connection flow.
+      It's stored the same way as your other app locks (hashed, never plaintext).
+    </div>
+    <input type="password" id="lockPw1" placeholder="Password" autocomplete="current-password">
+    <input type="password" id="lockPw2" placeholder="Confirm password" style="display:none" autocomplete="new-password">
+    <input type="text" id="lockHintIn" placeholder="Hint (optional)" style="display:none" autocomplete="off">
+    <button class="btn gold" id="lockGo">Unlock</button>
+    <div class="lockmsg" id="lockMsg"></div>
+    <div class="lockhint" id="lockHintLink" style="display:none">Show hint</div>
+  </div>
+</div>
 
 <div class="wrap">
   <header>
@@ -413,6 +456,83 @@
   import { initializeFirestore, memoryLocalCache, collection, query, orderBy, limit, onSnapshot, doc, getDoc, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 
   const API = 'https://insight-api.av1.workers.dev';
+
+  // ── App lock — identical backend to index.html's app locks ────────────────
+  // Records live in taskhub-reminders' KV as jlock:applock:tony_insight
+  // (PBKDF2-SHA256). This page verifies/sets through the same /auth/journal/*
+  // endpoints; insight-api reads the same record to gate bank connecting
+  // server-side, so the password below is also what authorizes Plaid Link.
+  const AUTH_API = 'https://taskhub-reminders.av1.workers.dev';
+  const LOCK_ID = { journal: 'applock', entryId: 'tony_insight' };
+  let lockPw = null;          // held in memory only while unlocked
+  let lockSetupMode = false;
+
+  async function authPost(path, body) {
+    return fetch(AUTH_API + path, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...LOCK_ID, ...body })
+    }).then(r => r.json());
+  }
+
+  async function initLock() {
+    const box = document.getElementById('lockBox');
+    const msg = document.getElementById('lockMsg');
+    try {
+      const h = await authPost('/auth/journal/hint', {});
+      if (h.noLock) {
+        // First run: create the lock before anything is usable.
+        lockSetupMode = true;
+        document.getElementById('lockSub').textContent = 'Set up your password';
+        document.getElementById('lockNote').style.display = '';
+        document.getElementById('lockPw2').style.display = '';
+        document.getElementById('lockHintIn').style.display = '';
+        document.getElementById('lockGo').textContent = 'Create & unlock';
+      } else if (h.hint) {
+        const link = document.getElementById('lockHintLink');
+        link.style.display = '';
+        link.addEventListener('click', () => { msg.className = 'lockmsg ok'; msg.textContent = 'Hint: ' + h.hint; });
+      }
+    } catch (e) {
+      msg.textContent = 'Lock service unreachable — reload to retry.';
+      return;
+    }
+
+    const submit = async () => {
+      const p1 = document.getElementById('lockPw1').value;
+      msg.className = 'lockmsg'; msg.textContent = '';
+      if (!p1) return;
+      if (lockSetupMode) {
+        const p2 = document.getElementById('lockPw2').value;
+        if (p1.length < 4) { msg.textContent = 'Use at least 4 characters.'; return; }
+        if (p1 !== p2) { msg.textContent = 'Passwords do not match.'; return; }
+        const r = await authPost('/auth/journal/set-lock', { password: p1, hint: document.getElementById('lockHintIn').value.trim() });
+        if (!r.ok) { msg.textContent = r.error || 'Could not set password.'; return; }
+        lockPw = p1;
+        unlockUI();
+        toast('Password set — Insight is now protected', true);
+      } else {
+        const r = await authPost('/auth/journal/verify', { password: p1 });
+        if (r.ok) { lockPw = p1; unlockUI(); }
+        else {
+          box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+          msg.textContent = 'Wrong password.';
+          document.getElementById('lockPw1').select();
+        }
+      }
+    };
+    document.getElementById('lockGo').addEventListener('click', submit);
+    ['lockPw1', 'lockPw2', 'lockHintIn'].forEach(id =>
+      document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') submit(); }));
+    setTimeout(() => document.getElementById('lockPw1').focus(), 100);
+  }
+
+  function unlockUI() {
+    const ls = document.getElementById('lockScreen');
+    ls.style.transition = 'opacity .3s'; ls.style.opacity = '0';
+    setTimeout(() => ls.remove(), 320);
+  }
+
+  initLock();
 
   // Same project + App Check as the rest of the A1 suite.
   const firebaseConfig = {
@@ -1079,8 +1199,11 @@
   $('linkBtn').addEventListener('click', async () => {
     const st = $('linkStatus'); st.textContent = 'Preparing…';
     try {
-      const r = await fetch(API + '/link/token/create', { method: 'POST' }).then(x => x.json());
-      if (!r.ok) { st.textContent = r.error || 'Link token failed'; return; }
+      const r = await fetch(API + '/link/token/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lock: lockPw })
+      }).then(x => x.json());
+      if (!r.ok) { st.textContent = r.lockRequired ? 'App lock rejected — reload and unlock again' : (r.error || 'Link token failed'); return; }
       st.textContent = '';
       const handler = Plaid.create({
         token: r.link_token,
@@ -1089,6 +1212,7 @@
           const ex = await fetch(API + '/link/exchange', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              lock: lockPw,
               public_token,
               institution_id: metadata.institution?.institution_id || null,
               institution_name: metadata.institution?.name || null

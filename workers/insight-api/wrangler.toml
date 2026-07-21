@@ -29,6 +29,14 @@ invocation_logs = true
 binding = "INSIGHT_KV"
 id = "dbfdf972572440bcaea7b53a34253921"
 
+# Same namespace taskhub-reminders uses for the suite's app-lock/profile
+# passwords (PBKDF2 records). Insight's lock lives at jlock:applock:tony_insight
+# — set/verified through taskhub-reminders' /auth endpoints, read here so the
+# Plaid Link endpoints can enforce the lock SERVER-SIDE (plan §3 security).
+[[kv_namespaces]]
+binding = "AUTH_KV"
+id = "b51e916cf3bf4f37ad146af5ca031575"
+
 # Secrets (set via `wrangler secret put <NAME> --name insight-api` — never commit values):
 #   PLAID_CLIENT_ID          — Plaid client_id (same for sandbox + production)
 #   PLAID_SECRET_SANDBOX     — Plaid Sandbox secret
