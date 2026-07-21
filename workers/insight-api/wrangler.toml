@@ -4,11 +4,12 @@ compatibility_date = "2024-01-01"
 
 [vars]
 # "sandbox" | "production" — which Plaid environment the worker talks to.
-# STAYS "sandbox" until the Sandbox pipeline is validated end-to-end AND the
-# app-lock gate is wired (INSIGHT_PLAN.md build steps 1 & 7). The worker also
-# hard-blocks production mode in code until the gate exists — flipping this
-# var alone is not enough, by design.
-PLAID_ENV = "sandbox"
+# Moved to production 2026-07-21, after: the Sandbox pipeline was proven
+# end-to-end (token → Link → sync → Firestore), the app-lock gate was wired
+# and enforced server-side on the connect endpoints, and all sandbox test
+# data was purged from KV + Firestore. /sandbox/* endpoints and the
+# /transactions debug read-back are inert in this mode (see sandboxOnly).
+PLAID_ENV = "production"
 
 # Daily incremental sync (plan §3): the account's 5-cron free-plan limit is
 # full, so there is NO cron trigger here. taskhub-reminders' every-minute cron

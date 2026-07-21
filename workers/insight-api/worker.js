@@ -584,50 +584,6 @@ export default {
         }, origin);
       }
 
-      // TEMP (remove after use): pre-production cleanup — deletes the sandbox
-      // Plaid items/cursors from KV and every sandbox-sourced doc from
-      // Firestore so production starts from a clean slate. Sandbox-mode only.
-      if (path === '/admin/wipe-sandbox-data' && request.method === 'POST') {
-        const blocked = sandboxOnly(env, origin);
-        if (blocked) return blocked;
-        let deletedKV = 0;
-        for (const prefix of ['plaid:item:', 'plaid:cursor:']) {
-          let cursor;
-          do {
-            const page = await env.INSIGHT_KV.list({ prefix, cursor });
-            for (const k of page.keys) { await env.INSIGHT_KV.delete(k.name); deletedKV++; }
-            cursor = page.list_complete ? null : page.cursor;
-          } while (cursor);
-        }
-        let deletedFs = 0;
-        if (fsConfigured(env)) {
-          const token = await getGoogleAccessToken(env);
-          const root = fsDocRoot(env);
-          for (const coll of ['plaid_transactions', 'accounts']) {
-            let pageToken = null;
-            do {
-              const listUrl = new URL(`https://firestore.googleapis.com/v1/${root}/dashboards/insight/${coll}`);
-              listUrl.searchParams.set('pageSize', '300');
-              if (pageToken) listUrl.searchParams.set('pageToken', pageToken);
-              const res = await fetch(listUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-              if (!res.ok) break;
-              const data = await res.json();
-              const docs = data.documents || [];
-              pageToken = data.nextPageToken || null;
-              if (docs.length) {
-                await fsBatchWrite(env, token, docs.map(d => ({ delete: d.name })));
-                deletedFs += docs.length;
-              }
-            } while (pageToken);
-          }
-          // Clear the sync-meta stamp too (subcollections incl. meta/expenselog persist).
-          await fetch(`https://firestore.googleapis.com/v1/${root}/dashboards/insight`, {
-            method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
-          });
-        }
-        return json({ ok: true, deletedKV, deletedFs }, origin);
-      }
-
       // Sandbox-only: wipe sync cursors so the next /sync re-pulls full
       // history. Needed when the Firestore layer (or any downstream change)
       // arrives after a cursor already consumed the history — re-pulled txs

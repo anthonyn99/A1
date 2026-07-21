@@ -502,7 +502,7 @@
       try {
         var code = input.value;
         await session.unlockWithRecovery(code);
-        await afterUnlock();
+        await afterUnlock({ skipBioOffer: true });
         // You're here because the master password is gone — offer to replace it
         // right away, with the key you just proved you hold. Skippable.
         openResetWithRecovery({ code: code, skippable: true });

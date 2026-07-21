@@ -76,9 +76,12 @@
     async setup(masterPassword, hint) {
       if (await this.hasVault()) throw new Error('vault-exists');
       const { config, dek, recoveryCode } = await VC.createVault(masterPassword, { hint: hint });
-      this._config = config; this._dek = dek; this._store = null;
+      this._config = config; this._dek = dek;
       await this.backend.saveConfig(config);
-      this._armAutoLock();
+      // _afterUnlock (not just _armAutoLock) so the creating device records the
+      // securityStamp too — without it, enforceStamp() could never re-lock the
+      // very device the vault was made on after a password change elsewhere.
+      this._afterUnlock();
       return { recoveryCode };
     }
 

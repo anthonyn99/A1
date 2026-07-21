@@ -127,6 +127,44 @@ function fakeBio() {
   await sRot.unlockWithRecovery(rot.recoveryCode);
   ok('new recovery code unlocks', sRot.isUnlocked());
 
+  console.log('\n── reset master password with the recovery key (forgot-password path) ──');
+  {
+    const be3 = VaultStore.memoryBackend();
+    const A = new VaultSession({ backend: be3, autoLockMs: 0 });
+    const { recoveryCode: rc } = await A.setup('forgotten-pw', 'my usual one');
+    await A.getStore().save({ kind: 'login', title: 'github', password: 'hunter2' });
+    const stampBefore = A.getConfig().securityStamp;
+
+    // A locked-out device: fresh session, no password, only the recovery key.
+    const L = new VaultSession({ backend: be3, autoLockMs: 0 });
+    ok('hint readable while still locked', (await L.getHint()) === 'my usual one');
+    await throws('wrong recovery key cannot reset', () => L.resetMasterPasswordWithRecovery('ZZZZ-ZZZZ', 'attacker-pw-1'), 'bad-recovery');
+    ok('failed reset leaves the session locked', !L.isUnlocked());
+    ok('failed reset did not change the password', await (new VaultSession({ backend: be3, autoLockMs: 0 })).verifyPassword('forgotten-pw'));
+
+    await L.resetMasterPasswordWithRecovery(rc, 'brand-new-pw-2', 'the new clue');
+    ok('reset leaves the session unlocked', L.isUnlocked());
+    const recovered = await L.getStore().load();
+    ok('vault contents survive the reset', recovered.length === 1 && recovered[0].password === 'hunter2');
+    ok('hint updated by the reset', (await L.getHint()) === 'the new clue');
+    ok('reset bumps securityStamp', L.getConfig().securityStamp !== stampBefore);
+    ok('other sessions re-lock after the reset', A.enforceStamp(L.getConfig()) === true);
+
+    const P = new VaultSession({ backend: be3, autoLockMs: 0 });
+    await throws('forgotten password no longer works', () => P.unlockWithPassword('forgotten-pw'), 'bad-password');
+    await P.unlockWithPassword('brand-new-pw-2');
+    ok('new password unlocks from a fresh session', P.isUnlocked());
+    const R = new VaultSession({ backend: be3, autoLockMs: 0 });
+    await R.unlockWithRecovery(rc);
+    ok('same recovery key still works after the reset', R.isUnlocked());
+
+    // Hint plumbing on the ordinary change-password path.
+    await P.changeMasterPassword('brand-new-pw-2', 'third-pw-3');
+    ok('hint preserved when change omits it', (await P.getHint()) === 'the new clue');
+    await P.changeMasterPassword('third-pw-3', 'fourth-pw-4', '');
+    ok('hint cleared with an empty string', (await P.getHint()) === '');
+  }
+
   console.log('\n── auto-lock ──');
   let locked = false;
   let sAL = new VaultSession({ backend, autoLockMs: 30, onLock: () => { locked = true; } });

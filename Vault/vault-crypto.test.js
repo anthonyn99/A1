@@ -58,6 +58,36 @@ async function throws(name, fn, msg) {
   ok('new recovery code unlocks', await VC.verify(rot.config, await VC.unlockWithRecovery(rot.config, rot.recoveryCode)));
   await throws('old recovery code no longer works', () => VC.unlockWithRecovery(rot.config, recoveryCode), 'bad-recovery');
 
+  console.log('\n── reset master password with the RECOVERY KEY (forgot-password path) ──');
+  const reset = await VC.resetMasterPasswordWithRecovery(config, recoveryCode, 'Recovered-Master-PW-7!');
+  await throws('forgotten password no longer works', () => VC.unlockWithPassword(reset.config, 'Correct-Horse-Battery-Staple-9!'), 'bad-password');
+  const dekReset = await VC.unlockWithPassword(reset.config, 'Recovered-Master-PW-7!');
+  ok('reset password unlocks the SAME vault (item still decrypts)', JSON.stringify(await VC.decrypt(dekReset, blob)) === JSON.stringify(item));
+  ok('same recovery key still works after the reset', await VC.verify(reset.config, await VC.unlockWithRecovery(reset.config, recoveryCode)));
+  ok('reset bumps securityStamp', reset.config.securityStamp !== config.securityStamp);
+  await throws('wrong recovery key cannot reset', () => VC.resetMasterPasswordWithRecovery(config, 'ZZZZ-ZZZZ-ZZZZ-ZZZZ', 'x-attacker-pw'), 'bad-recovery');
+  ok('failed reset left the original config untouched', await VC.verify(config, await VC.unlockWithPassword(config, 'Correct-Horse-Battery-Staple-9!')));
+  const lowered = VC.normalizeRecovery(recoveryCode.toLowerCase().replace(/-/g, ' '));
+  ok('recovery key is accepted lowercase / space-separated', await VC.verify(
+    (await VC.resetMasterPasswordWithRecovery(config, lowered, 'Case-Insensitive-PW-3!')).config,
+    await VC.unlockWithPassword((await VC.resetMasterPasswordWithRecovery(config, lowered, 'Case-Insensitive-PW-3!')).config, 'Case-Insensitive-PW-3!')));
+
+  console.log('\n── password hint (plaintext reminder, never the password) ──');
+  const hinted = await VC.createVault('Hinted-Master-PW-4!', { hint: 'the usual + birth year' });
+  ok('hint stored on the config', hinted.config.hint === 'the usual + birth year');
+  ok('vault created without opts has an empty hint', config.hint === '');
+  ok('hint survives a password change that omits it',
+    (await VC.changeMasterPassword(hinted.config, hinted.dek, 'Next-PW-5!')).hint === 'the usual + birth year');
+  ok('hint replaced when supplied',
+    (await VC.changeMasterPassword(hinted.config, hinted.dek, 'Next-PW-5!', 'new clue')).hint === 'new clue');
+  ok('hint clearable with an empty string',
+    (await VC.changeMasterPassword(hinted.config, hinted.dek, 'Next-PW-5!', '')).hint === '');
+  ok('recovery reset sets the hint too',
+    (await VC.resetMasterPasswordWithRecovery(hinted.config, hinted.recoveryCode, 'Next-PW-6!', 'reset clue')).config.hint === 'reset clue');
+  ok('upgradeKdf never clobbers the hint',
+    (await VC.upgradeKdf({ ...hinted.config, master: { ...hinted.config.master, kdf: { ...VC.KDF, iterations: 1000 } } },
+      hinted.dek, 'Hinted-Master-PW-4!')).hint === 'the usual + birth year');
+
   console.log('\n── config is cloud-safe (no plaintext leaks) ──');
   const serialized = JSON.stringify(config);
   ok('serialized config never contains the password', !serialized.includes('Correct-Horse'));
