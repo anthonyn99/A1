@@ -513,6 +513,18 @@ export default {
         }, origin);
       }
 
+      // Sandbox-only: wipe sync cursors so the next /sync re-pulls full
+      // history. Needed when the Firestore layer (or any downstream change)
+      // arrives after a cursor already consumed the history — re-pulled txs
+      // upsert by transaction_id, so this is always idempotent.
+      if (path === '/sandbox/reset-cursors' && request.method === 'POST') {
+        const blocked = prodGate(env, origin);
+        if (blocked) return blocked;
+        const items = await listItems(env);
+        for (const i of items) await env.INSIGHT_KV.delete(cursorKey(i.item_id));
+        return json({ ok: true, cursorsReset: items.length }, origin);
+      }
+
       if (path === '/sync' && request.method === 'POST') {
         const blocked = prodGate(env, origin);
         if (blocked) return blocked;
