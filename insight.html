@@ -25,6 +25,7 @@
     --gold-soft: #e8cd7a;
     --gold-grad: linear-gradient(135deg, #f0d98c 0%, #d4af37 45%, #a8842a 100%);
     --danger: #e05b5b;
+    --ok: #5fc389;
     --radius: 14px;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -63,8 +64,8 @@
   .syncind.show { opacity: 1; }
   .syncind .sdot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); transition: background .3s; }
   .syncind.syncing .sdot { background: var(--gold); animation: syncpulse 1.1s ease-in-out infinite; }
-  .syncind.synced { color: var(--gold-soft); }
-  .syncind.synced .sdot { background: var(--gold); box-shadow: 0 0 7px rgba(212,175,55,.6); }
+  .syncind.synced { color: var(--ok); }
+  .syncind.synced .sdot { background: var(--ok); box-shadow: 0 0 7px rgba(95,195,137,.6); }
   .syncind.failed { color: var(--danger); }
   .syncind.failed .sdot { background: var(--danger); }
   @keyframes syncpulse { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
@@ -85,6 +86,21 @@
   .btn.gold:hover { filter: brightness(1.06); }
   .btn.danger { color: var(--danger); }
   .btn:disabled { opacity: .45; cursor: default; }
+  .btn.icononly { padding: 8px 11px; line-height: 1; }
+
+  /* ── Display mode ──
+     Blurs every dollar figure so the app can be shown to someone without
+     revealing balances. Sized in em so big serif totals and small chips blur
+     proportionally. Text stays unselectable while hidden; amount INPUTS clear
+     on focus so entering a new figure still works. */
+  body.privacy .money { filter: blur(0.34em); user-select: none; -webkit-user-select: none; }
+  body.privacy input.money:focus { filter: none; user-select: auto; -webkit-user-select: auto; }
+  #displayModeBtn { white-space: nowrap; }
+  #displayModeBtn[aria-pressed="true"] {
+    background: var(--gold-grad); color: #17130a; border-color: transparent;
+    box-shadow: 0 2px 14px rgba(212,175,55,.25);
+  }
+
   .env-badge {
     font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
     color: var(--gold); border: 1px solid rgba(212,175,55,.4); border-radius: 999px;
@@ -369,8 +385,9 @@
         <span class="env-badge" id="envBadge" style="display:none">Sandbox</span>
         <span class="dot" id="syncDot" style="display:none"></span>
         <span id="lastSync">connecting…</span>
-        <button class="btn" id="syncNowBtn" title="Your own edits save instantly — this pulls new transactions from your connected institutions">Refresh institution data</button>
-        <button class="btn" id="lockNowBtn" title="Lock Insight immediately">🔒 Lock</button>
+        <button class="btn" id="displayModeBtn" title="Display mode — blur every dollar amount so you can show Insight without revealing your finances" aria-pressed="false">👁 Display mode</button>
+        <button class="btn" id="syncNowBtn" title="Your own edits save instantly — this pulls new transactions from your connected institutions">Refresh</button>
+        <button class="btn icononly" id="lockNowBtn" title="Lock Insight now" aria-label="Lock Insight now">🔒</button>
       </div>
     </div>
   </header>
@@ -387,9 +404,9 @@
   <!-- ═══ Transactions ═══ -->
   <section class="view active" id="view-transactions">
     <div class="stats">
-      <div class="stat"><div class="lbl">In · this month</div><div class="val gold" id="statIn">—</div></div>
-      <div class="stat"><div class="lbl">Out · this month</div><div class="val" id="statOut">—</div></div>
-      <div class="stat"><div class="lbl">Net</div><div class="val" id="statNet">—</div></div>
+      <div class="stat"><div class="lbl">In · this month</div><div class="val gold money" id="statIn">—</div></div>
+      <div class="stat"><div class="lbl">Out · this month</div><div class="val money" id="statOut">—</div></div>
+      <div class="stat"><div class="lbl">Net</div><div class="val money" id="statNet">—</div></div>
     </div>
     <div class="filters">
       <input type="search" id="fSearch" placeholder="Search transactions…">
@@ -409,9 +426,9 @@
   <!-- ═══ Accounts ═══ -->
   <section class="view" id="view-accounts">
     <div class="stats networth">
-      <div class="stat"><div class="lbl">Assets</div><div class="val gold" id="nwAssets">—</div></div>
-      <div class="stat"><div class="lbl">Debts</div><div class="val" id="nwDebts">—</div></div>
-      <div class="stat"><div class="lbl">Net</div><div class="val" id="nwNet">—</div></div>
+      <div class="stat"><div class="lbl">Assets</div><div class="val gold money" id="nwAssets">—</div></div>
+      <div class="stat"><div class="lbl">Debts</div><div class="val money" id="nwDebts">—</div></div>
+      <div class="stat"><div class="lbl">Net</div><div class="val money" id="nwNet">—</div></div>
     </div>
     <div id="acctList"></div>
   </section>
@@ -466,8 +483,8 @@
   <!-- ═══ Recurring (migrated from ExpenseLog) ═══ -->
   <section class="view" id="view-recurring">
     <div class="stats" style="grid-template-columns:1fr 1fr">
-      <div class="stat"><div class="lbl">Monthly total</div><div class="val gold" id="recMo">—</div></div>
-      <div class="stat"><div class="lbl">Annual total</div><div class="val gold" id="recAn">—</div></div>
+      <div class="stat"><div class="lbl">Monthly total</div><div class="val gold money" id="recMo">—</div></div>
+      <div class="stat"><div class="lbl">Annual total</div><div class="val gold money" id="recAn">—</div></div>
     </div>
     <div class="filters" style="justify-content:flex-end">
       <button class="btn gold" id="addRecBtn">+ Add recurring</button>
@@ -480,10 +497,10 @@
     <div class="panel" style="text-align:center;padding:40px 22px">
       <div class="stat" style="border:none;background:none;padding:0">
         <div class="lbl" style="font-size:12px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)">Cash on hand</div>
-        <div class="val gold" id="cashAmt" style="font-family:'Fraunces',serif;font-size:52px;margin:8px 0 18px;font-variant-numeric:tabular-nums">—</div>
+        <div class="val gold money" id="cashAmt" style="font-family:'Fraunces',serif;font-size:52px;margin:8px 0 18px;font-variant-numeric:tabular-nums">—</div>
       </div>
       <div class="cashctl">
-        <input type="number" id="cashInput" min="0" step="0.01" placeholder="Amount" inputmode="decimal">
+        <input class="money" type="number" id="cashInput" min="0" step="0.01" placeholder="Amount" inputmode="decimal">
         <button class="btn gold" id="cashAdd">+ Cash add</button>
         <button class="btn deduct" id="cashDeduct">− Cash deduction</button>
       </div>
@@ -503,7 +520,7 @@
       </div>
     </div>
     <div class="fieldrow">
-      <div class="field"><label>Amount</label><input type="number" id="mAmount" min="0" step="0.01" placeholder="0.00" inputmode="decimal"></div>
+      <div class="field"><label>Amount</label><input class="money" type="number" id="mAmount" min="0" step="0.01" placeholder="0.00" inputmode="decimal"></div>
       <div class="field"><label>Date</label><input type="date" id="mDate"></div>
     </div>
     <div class="field"><label>Name</label><input type="text" id="mName" placeholder="Coffee, side gig, PayPal refund…"></div>
@@ -524,8 +541,8 @@
     <h3 id="recTitle">Add recurring</h3>
     <div class="field"><label>Name</label><input type="text" id="rName" placeholder="Netflix, Rent, Car Insurance…"></div>
     <div class="fieldrow">
-      <div class="field"><label>Monthly cost</label><input type="number" id="rMonthly" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
-      <div class="field"><label>Annual cost</label><input type="number" id="rAnnual" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
+      <div class="field"><label>Monthly cost</label><input class="money" type="number" id="rMonthly" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
+      <div class="field"><label>Annual cost</label><input class="money" type="number" id="rAnnual" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
     </div>
     <p class="help" style="margin:2px 0 12px;color:var(--faint);font-size:12px">Fill in monthly, annual, or both — or neither for a bill with no set amount yet.</p>
     <div class="field"><label>Notes <span style="text-transform:none;letter-spacing:0;color:var(--faint)">(optional)</span></label><textarea id="rNotes" rows="3" placeholder="Renewal date, account used, cancellation link…"></textarea></div>
@@ -876,9 +893,33 @@
   };
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast = (msg, gold) => {
-    const t = $('toast'); t.textContent = msg; t.className = 'toast show' + (gold ? ' gold' : '');
+    const t = $('toast'); t.textContent = msg;
+    // Toasts can quote figures ("cash on hand is now $…") — blur those too
+    // while display mode is on, otherwise the amount leaks for 3 seconds.
+    const hasMoney = displayMode && /\$/.test(msg);
+    t.className = 'toast show' + (gold ? ' gold' : '') + (hasMoney ? ' money' : '');
     clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200);
   };
+
+  // ── Display mode ─────────────────────────────────────────────────────────
+  // Blurs every dollar figure in the app (feed, stats, balances, recurring,
+  // cash, import preview) so Insight can be demoed without exposing numbers.
+  // The choice is remembered, and the button stays visibly lit while active.
+  const DISPLAY_LS = 'insight_display_mode';
+  let displayMode = false;
+  function setDisplayMode(on) {
+    displayMode = !!on;
+    document.body.classList.toggle('privacy', displayMode);
+    const b = $('displayModeBtn');
+    b.setAttribute('aria-pressed', displayMode ? 'true' : 'false');
+    b.textContent = displayMode ? '👁 Display mode on' : '👁 Display mode';
+    try { localStorage.setItem(DISPLAY_LS, displayMode ? '1' : '0'); } catch {}
+  }
+  $('displayModeBtn').addEventListener('click', () => {
+    setDisplayMode(!displayMode);
+    toast(displayMode ? 'Display mode on — amounts hidden' : 'Display mode off — amounts visible', true);
+  });
+  try { setDisplayMode(localStorage.getItem(DISPLAY_LS) === '1'); } catch { setDisplayMode(false); }
 
   // ── Live Firestore feeds ─────────────────────────────────────────────────
   await authReady;
@@ -1063,7 +1104,7 @@
     $('statOut').textContent = fmt$(out);
     const net = inn - out;
     const el = $('statNet'); el.textContent = (net < 0 ? '−' : '') + fmt$(Math.abs(net));
-    el.className = 'val ' + (net >= 0 ? 'gold' : 'neg');
+    el.className = 'val money ' + (net >= 0 ? 'gold' : 'neg');
   }
 
   function renderFilterOptions() {
@@ -1120,7 +1161,7 @@
             <span>${esc(t.institution || '')}${t.account_id && acctLabel(t.account_id) ? ' · ' + esc(acctLabel(t.account_id)) : ''}${t.note ? ' · ' + esc(t.note) : ''}</span>
           </div>
         </div>
-        <div class="txamt ${xfer ? 'xfer' : (t.amount < 0 ? 'in' : '')}">${fmt$(t.amount, true)}</div>
+        <div class="txamt money ${xfer ? 'xfer' : (t.amount < 0 ? 'in' : '')}">${fmt$(t.amount, true)}</div>
         <div class="txacts">${editable
           ? `<button class="iconbtn" data-act="edit" title="Edit">✎</button><button class="iconbtn" data-act="del" title="Delete">🗑</button>`
           : `<button class="iconbtn lock" title="Transactions from connected institutions are read-only">🔒</button>`}</div>
@@ -1251,7 +1292,7 @@
   $('syncNowBtn').addEventListener('click', async () => {
     const b = $('syncNowBtn'); b.disabled = true; b.textContent = 'Refreshing…';
     try { await pullBankData(false); } catch (e) { toast('Sync failed: ' + e.message); }
-    b.disabled = false; b.textContent = 'Refresh institution data';
+    b.disabled = false; b.textContent = 'Refresh';
   });
 
   // ── Accounts view ────────────────────────────────────────────────────────
@@ -1268,7 +1309,7 @@
     $('nwDebts').textContent = fmt$(debts);
     const net = assets - debts;
     const el = $('nwNet'); el.textContent = (net < 0 ? '−' : '') + fmt$(Math.abs(net));
-    el.className = 'val ' + (net >= 0 ? 'gold' : 'neg');
+    el.className = 'val money ' + (net >= 0 ? 'gold' : 'neg');
 
     if (!accounts.length) {
       $('acctList').innerHTML = '<div class="empty"><div class="big">No accounts yet</div>Connect an institution to see live balances.</div>';
@@ -1281,7 +1322,7 @@
           <div class="acct">
             <div class="aname">${esc(a.name || 'Account')}${a.mask ? ` <span style="color:var(--faint);font-weight:500">··${esc(a.mask)}</span>` : ''}</div>
             <div class="asub">${esc(a.subtype || a.type || '')}</div>
-            <div class="abal ${DEBT(a.type) ? 'debt' : ''}">${fmt$(a.balance_current ?? 0)}</div>
+            <div class="abal money ${DEBT(a.type) ? 'debt' : ''}">${fmt$(a.balance_current ?? 0)}</div>
           </div>`).join('')}
         </div>
       </div>`).join('');
@@ -1318,8 +1359,8 @@
         <div class="txmain">
           <div class="txname">${esc(r.name)}</div>
           <div class="txsub">
-            ${r.monthly != null ? `<span class="chip">${fmt$(r.monthly)}/mo</span>` : ''}
-            ${r.annual != null ? `<span class="chip">${fmt$(r.annual)}/yr</span>` : ''}
+            ${r.monthly != null ? `<span class="chip money">${fmt$(r.monthly)}/mo</span>` : ''}
+            ${r.annual != null ? `<span class="chip money">${fmt$(r.annual)}/yr</span>` : ''}
             ${r.monthly == null && r.annual == null ? '<span class="chip">no amount set</span>' : ''}
           </div>
           ${r.notes ? `<div class="recnote">${esc(r.notes)}</div>` : ''}
@@ -1833,7 +1874,7 @@
         ${importState.newRows.concat(importState.fuzzy.map(x => x.rec)).slice(0, 4).map(r => `
           <div class="prow">
             <span class="nm">${esc(r.date)} · ${esc(r.name)}</span>
-            <span class="am ${r.amount < 0 ? 'in' : ''}">${fmt$(r.amount, true)}</span>
+            <span class="am money ${r.amount < 0 ? 'in' : ''}">${fmt$(r.amount, true)}</span>
           </div>`).join('') || '<div class="prow"><span class="nm">No new rows to preview</span></div>'}
         <div style="font-size:11.5px;color:var(--faint);margin-top:7px">
           Check a few rows above: money going out should show a −. If they're inverted, switch the Amounts setting.
@@ -1860,12 +1901,12 @@
           <div class="side">
             <div class="tag">CSV row</div>
             <div class="nm">${esc(f.rec.name)}</div>
-            <div class="dt">${esc(f.rec.date)} · ${fmt$(f.rec.amount, true)}</div>
+            <div class="dt">${esc(f.rec.date)} · <span class="money">${fmt$(f.rec.amount, true)}</span></div>
           </div>
           <div class="side">
             <div class="tag">Transaction you already have</div>
             <div class="nm">${esc(f.match.merchant || f.match.name)}</div>
-            <div class="dt">${esc(f.match.date)} · ${fmt$(f.match.amount, true)} · ${esc(f.match.institution || '')}</div>
+            <div class="dt">${esc(f.match.date)} · <span class="money">${fmt$(f.match.amount, true)}</span> · ${esc(f.match.institution || '')}</div>
           </div>
         </div>
         <div class="acts">
