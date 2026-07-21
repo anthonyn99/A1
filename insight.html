@@ -142,6 +142,8 @@
   }
   .chip.manual { color: var(--gold-soft); border-color: rgba(212,175,55,.25); background: rgba(212,175,55,.06); }
   .chip.pending { color: #c9a7e8; border-color: rgba(178,132,220,.3); }
+  .chip.xfer { color: #7fb3c8; border-color: rgba(127,179,200,.3); background: rgba(127,179,200,.07); }
+  .txamt.xfer { color: var(--faint); font-weight: 500; }
   .txamt { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 15px; white-space: nowrap; }
   .txamt.in { color: var(--gold-soft); }
   .txacts { display: flex; gap: 2px; }
@@ -215,6 +217,57 @@
   }
   .filedrop:hover, .filedrop.drag { border-color: rgba(212,175,55,.5); background: rgba(212,175,55,.03); }
 
+  /* ── Drag to reorder (recurring) ── */
+  .draghandle {
+    display: flex; align-items: center; justify-content: center;
+    width: 24px; height: 32px; margin: -4px 0 -4px -5px; flex-shrink: 0;
+    color: var(--faint); cursor: grab; border-radius: 7px;
+    touch-action: none; -webkit-tap-highlight-color: transparent; user-select: none;
+    transition: color .15s, background .15s;
+  }
+  .draghandle:hover { color: var(--muted); background: var(--surface-3); }
+  .draghandle:active { cursor: grabbing; }
+  .txrow.dragging {
+    position: relative; z-index: 30; cursor: grabbing;
+    border-color: rgba(212,175,55,.45);
+    box-shadow: 0 16px 38px rgba(0,0,0,.55);
+    background: var(--surface-2);
+  }
+  .txrow.dropping { transition: transform .18s cubic-bezier(.2,.8,.3,1); }
+
+  /* ── Cash controls ── */
+  .cashctl { display: flex; gap: 9px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .cashctl input {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--text); font: 500 15px 'Inter', sans-serif; padding: 11px 14px; outline: none;
+    width: 150px; text-align: center; font-variant-numeric: tabular-nums; transition: border-color .15s;
+  }
+  .cashctl input:focus { border-color: rgba(212,175,55,.55); }
+  .btn.deduct { border-color: rgba(224,91,91,.35); color: #f0908f; }
+  .btn.deduct:hover { border-color: rgba(224,91,91,.6); background: rgba(224,91,91,.08); }
+  .cashsetrow { margin-top: 15px; font-size: 12.5px; color: var(--faint); }
+  .cashsetrow span { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .cashsetrow span:hover { color: var(--muted); }
+
+  /* ── CSV import mapping / preview ── */
+  .impmap { background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 15px 17px; margin-top: 14px; }
+  .impmap h4 { font-size: 11.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+  .impmap .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 11px; }
+  .impmap .row label { font-size: 12.5px; color: var(--muted); }
+  .impmap input[type=text], .impmap select {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 9px; color: var(--text);
+    font: 500 13px 'Inter', sans-serif; padding: 8px 11px; outline: none;
+  }
+  .impmap input[type=text]:focus, .impmap select:focus { border-color: rgba(212,175,55,.5); }
+  .impcols { font-size: 12px; color: var(--faint); line-height: 1.7; }
+  .impcols b { color: var(--gold-soft); font-weight: 600; }
+  .imppreview { margin-top: 11px; border-top: 1px solid var(--border-soft); padding-top: 11px; }
+  .imppreview .prow { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; padding: 3px 0; }
+  .imppreview .prow .nm { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .imppreview .prow .am { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .imppreview .prow .am.in { color: var(--gold-soft); }
+  .bulkacts { display: flex; gap: 9px; flex-wrap: wrap; margin: 4px 0 12px; }
+
   .empty { text-align: center; color: var(--faint); padding: 48px 20px; }
   .empty .big { font-family: 'Fraunces', serif; font-size: 21px; color: var(--muted); margin-bottom: 6px; }
   .toast {
@@ -270,7 +323,7 @@
     <div class="brand">Insight</div>
     <div class="sub" id="lockSub">Locked</div>
     <div class="locksetup-note" id="lockNote" style="display:none">
-      First time here — create the password that will protect Insight and its bank-connection flow.
+      First time here — create the password that will protect Insight and its institution-connection flow.
       It's stored the same way as your other app locks (hashed, never plaintext).
     </div>
     <input type="text" id="lockCode" placeholder="6-character code from email" style="display:none" autocomplete="one-time-code">
@@ -291,7 +344,7 @@
         <span class="env-badge" id="envBadge" style="display:none">Sandbox</span>
         <span class="dot" id="syncDot" style="display:none"></span>
         <span id="lastSync">connecting…</span>
-        <button class="btn" id="syncNowBtn" title="Your own edits save instantly — this pulls new transactions from your banks">Refresh bank data</button>
+        <button class="btn" id="syncNowBtn" title="Your own edits save instantly — this pulls new transactions from your connected institutions">Refresh institution data</button>
         <button class="btn" id="lockNowBtn" title="Lock Insight immediately">🔒 Lock</button>
       </div>
     </div>
@@ -319,7 +372,7 @@
       <select id="fAccount"><option value="">All accounts</option></select>
       <select id="fSource">
         <option value="">All sources</option>
-        <option value="plaid">Bank</option>
+        <option value="plaid">Connected institution</option>
         <option value="manual">Manual</option>
         <option value="csv">CSV import</option>
       </select>
@@ -341,18 +394,24 @@
   <!-- ═══ Import ═══ -->
   <section class="view" id="view-import">
     <div class="panel">
-      <h3>PayPal CSV import</h3>
+      <h3>Import a CSV statement</h3>
       <p class="help">
-        Upload PayPal's exported history (paypal.com → Activity → Download History → CSV).
-        Rows already imported are skipped automatically by Transaction ID. Card-funded PayPal purchases
-        that may already exist as bank transactions are flagged for your review — nothing merges silently.
+        Upload a transaction export from any institution — bank, credit card, or payment account.
+        Columns are detected automatically and you can correct anything before importing.
+        Rows you've already imported are skipped, and anything that looks like a transaction you
+        already have is flagged for review — nothing merges silently.
       </p>
       <div class="filedrop" id="fileDrop">
         <div style="font-size:26px;margin-bottom:6px">⇪</div>
-        Drop the CSV here or click to browse
+        Drop a CSV here or click to browse
         <input type="file" id="fileInput" accept=".csv,text/csv" style="display:none">
       </div>
+      <div class="impmap" id="importMap" style="display:none"></div>
       <div class="importstat" id="importStat" style="display:none"></div>
+      <div class="bulkacts" id="bulkActs" style="display:none">
+        <button class="btn" id="bulkSkip">Mark all as duplicates</button>
+        <button class="btn" id="bulkKeep">Keep all</button>
+      </div>
       <div id="dupeList"></div>
       <div class="modalacts" id="importActs" style="display:none">
         <button class="btn" id="importCancel">Cancel</button>
@@ -366,11 +425,11 @@
     <div class="panel">
       <h3>Connect an institution</h3>
       <p class="help">
-        Opens Plaid's secure login for your bank. Credentials go to Plaid only — this app and its
+        Opens Plaid's secure login for your institution. Credentials go to Plaid only — this app and its
         server never see them, and the connection is read-only by design (transactions and balances;
         no ability to move money).
       </p>
-      <button class="btn gold" id="linkBtn">Connect a bank</button>
+      <button class="btn gold" id="linkBtn" title="Connect a bank, card, or other financial institution">Connect an institution</button>
       <span id="linkStatus" style="margin-left:12px;color:var(--muted);font-size:13px"></span>
     </div>
     <div class="panel">
@@ -398,11 +457,12 @@
         <div class="lbl" style="font-size:12px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)">Cash on hand</div>
         <div class="val gold" id="cashAmt" style="font-family:'Fraunces',serif;font-size:52px;margin:8px 0 18px;font-variant-numeric:tabular-nums">—</div>
       </div>
-      <div style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap">
-        <input type="number" id="cashInput" min="0" step="0.01" placeholder="New amount" inputmode="decimal"
-               style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;color:var(--text);font:500 14px 'Inter',sans-serif;padding:10px 14px;outline:none;width:160px;text-align:center">
-        <button class="btn gold" id="cashSave">Update</button>
+      <div class="cashctl">
+        <input type="number" id="cashInput" min="0" step="0.01" placeholder="Amount" inputmode="decimal">
+        <button class="btn gold" id="cashAdd">+ Cash add</button>
+        <button class="btn deduct" id="cashDeduct">− Cash deduction</button>
       </div>
+      <div class="cashsetrow"><span id="cashSetLink">Set exact balance instead</span></div>
     </div>
   </section>
 </div>
@@ -708,7 +768,8 @@
   let activeView = 'transactions';
   let editingId = null;          // manual entry being edited (null = new)
   let manualType = 'expense';
-  let importState = null;        // { newRows, exactDupes, fuzzy:[{row, match, decision}] }
+  let importState = null;        // { newRows, exactDupes, fuzzy:[{rec, match, decision}] }
+  let csvFile = null;            // parsed CSV + detected column mapping
 
   const $ = id => document.getElementById(id);
   const fmt$ = (n, sign) => {
@@ -727,7 +788,7 @@
   onSnapshot(doc(db, ROOT), snap => {
     meta = snap.data() || {};
     const at = meta.lastSyncAt;
-    $('lastSync').textContent = at ? 'banks updated ' + relTime(at) : 'no bank data yet';
+    $('lastSync').textContent = at ? 'Institution data updated ' + relTime(at) : 'No institution data yet';
     $('syncDot').style.display = at ? '' : 'none';
     if (meta.env && meta.env !== 'production') { $('envBadge').style.display = ''; }
   }, e => console.warn('meta listen failed:', e));
@@ -735,7 +796,7 @@
   onSnapshot(query(collection(db, ROOT, 'plaid_transactions'), orderBy('date', 'desc'), limit(2000)), snap => {
     plaidTxs = snap.docs.map(d => d.data());
     renderAll();
-  }, e => { console.warn('plaid_transactions listen failed:', e); toast('Bank feed failed to load'); });
+  }, e => { console.warn('plaid_transactions listen failed:', e); toast('Institution feed failed to load'); });
 
   onSnapshot(query(collection(db, ROOT, 'manual_transactions'), orderBy('date', 'desc'), limit(2000)), snap => {
     manualTxs = snap.docs.map(d => d.data());
@@ -823,11 +884,45 @@
 
   function renderAll() { renderStats(); renderFeed(); renderFilterOptions(); }
 
+  // ── Transfers & credit-card payments ─────────────────────────────────────
+  // Paying a credit card moves money between your OWN accounts. It shows up
+  // twice — as an outflow on the funding account ("AMEX EPAYMENT ACH PMT")
+  // and as an inflow on the card ("AUTOPAY PAYMENT - THANK YOU"). Counting
+  // the card side as income is wrong (that was the bug), and counting the
+  // bank side as spending double-counts the purchases the payment covers.
+  // So BOTH legs are tagged as transfers and excluded from income/spending;
+  // they still appear in the feed, marked, because they're real events.
+  const XFER_CODES = new Set([
+    'LOAN_PAYMENTS_CREDIT_CARD_PAYMENT',
+    'TRANSFER_IN_ACCOUNT_TRANSFER', 'TRANSFER_OUT_ACCOUNT_TRANSFER',
+    'TRANSFER_IN_SAVINGS', 'TRANSFER_OUT_SAVINGS',
+    'TRANSFER_IN_INVESTMENT_AND_RETIREMENT_FUNDS',
+    'TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS'
+  ]);
+  // Name patterns for card payments that Plaid leaves uncategorized (e.g.
+  // Discover's "DIRECTPAY FULL BALANCE…" arrives as category "Other").
+  const XFER_RE = new RegExp([
+    'autopay', 'auto\\s?pay\\b', 'directpay', 'direct\\s?pay\\b',
+    'e-?payment', '\\bepay\\b', 'online\\s+payment', 'mobile\\s+payment',
+    'payment[^a-z]{0,4}thank\\s*you', 'thank\\s*you[^a-z]{0,4}payment',
+    'credit\\s*card\\s*[^a-z]*\\s*payment', 'card\\s*payment', 'cardmember\\s*payment',
+    'bill\\s*pay\\b', '\\bpymt\\b', '\\bpmt\\b',
+    'internal\\s+transfer', '\\bxfer\\b'
+  ].join('|'), 'i');
+
+  function isTransfer(t) {
+    if (XFER_CODES.has((t.category_detailed || '').toUpperCase())) return true;
+    const c = (t.category || '').toLowerCase();
+    if (c === 'transfer' || c === 'transfer in' || c === 'transfer out') return true;
+    return XFER_RE.test(((t.merchant || '') + ' ' + (t.name || '')));
+  }
+
   function renderStats() {
     const ym = new Date().toISOString().slice(0, 7);
     let inn = 0, out = 0;
     for (const t of allTxs()) {
       if ((t.date || '').slice(0, 7) !== ym || t.pending) continue;
+      if (isTransfer(t)) continue;   // card payments / self-transfers: neither
       if (t.amount < 0) inn += -t.amount; else out += t.amount;
     }
     $('statIn').textContent = fmt$(inn);
@@ -862,7 +957,7 @@
       return true;
     });
     if (!txs.length) {
-      $('feed').innerHTML = `<div class="empty"><div class="big">No transactions</div>${plaidTxs.length || manualTxs.length ? 'Nothing matches these filters.' : 'Connect a bank or add a manual entry to begin.'}</div>`;
+      $('feed').innerHTML = `<div class="empty"><div class="big">No transactions</div>${plaidTxs.length || manualTxs.length ? 'Nothing matches these filters.' : 'Connect an institution or add a manual entry to begin.'}</div>`;
       return;
     }
     let html = '', lastDate = '';
@@ -873,23 +968,25 @@
       }
       const nm = t.merchant || t.name || '(no name)';
       const editable = t.source !== 'plaid';
+      const xfer = isTransfer(t);
       html += `
       <div class="txrow" data-id="${esc(t.id)}" data-src="${esc(t.source)}">
         <div class="txbadge">${t.logo_url ? `<img src="${esc(t.logo_url)}" alt="" onerror="this.remove()">` : esc(nm.charAt(0).toUpperCase())}</div>
         <div class="txmain">
           <div class="txname">${esc(nm)}</div>
           <div class="txsub">
+            ${xfer ? '<span class="chip xfer" title="Moves money between your own accounts — not counted as income or spending">Transfer</span>' : ''}
             ${t.category ? `<span class="chip">${esc(t.category)}</span>` : ''}
             ${t.source === 'manual' ? '<span class="chip manual">Manual</span>' : ''}
-            ${t.source === 'csv' ? '<span class="chip manual">PayPal CSV</span>' : ''}
+            ${t.source === 'csv' ? `<span class="chip manual">${esc(t.import_source || 'CSV')}</span>` : ''}
             ${t.pending ? '<span class="chip pending">Pending</span>' : ''}
             <span>${esc(t.institution || '')}${t.account_id && acctLabel(t.account_id) ? ' · ' + esc(acctLabel(t.account_id)) : ''}${t.note ? ' · ' + esc(t.note) : ''}</span>
           </div>
         </div>
-        <div class="txamt ${t.amount < 0 ? 'in' : ''}">${fmt$(t.amount, true)}</div>
+        <div class="txamt ${xfer ? 'xfer' : (t.amount < 0 ? 'in' : '')}">${fmt$(t.amount, true)}</div>
         <div class="txacts">${editable
           ? `<button class="iconbtn" data-act="edit" title="Edit">✎</button><button class="iconbtn" data-act="del" title="Delete">🗑</button>`
-          : `<button class="iconbtn lock" title="Bank transactions are read-only">🔒</button>`}</div>
+          : `<button class="iconbtn lock" title="Transactions from connected institutions are read-only">🔒</button>`}</div>
       </div>`;
     }
     $('feed').innerHTML = html;
@@ -998,11 +1095,11 @@
     toast(editingId ? 'Entry updated' : 'Entry added', true);
   });
 
-  // ── Bank sync ────────────────────────────────────────────────────────────
+  // ── Institution sync ─────────────────────────────────────────────────────
   // Two different "syncs" exist and only one ever needed the button:
   //   • App-side edits (manual entries, CSV imports, deletes) write straight
   //     to Firestore the moment they happen — nothing to trigger.
-  //   • Bank data has to be PULLED from Plaid by the worker. That now runs
+  //   • Institution data has to be PULLED from Plaid by the worker. That runs
   //     automatically on every page open (below) plus the daily 11:00 UTC
   //     cron; the button remains as a manual refresh for mid-session checks.
   async function pullBankData(quiet) {
@@ -1015,9 +1112,9 @@
   pullBankData(true).catch(() => {});   // auto-refresh on open, silent unless news
 
   $('syncNowBtn').addEventListener('click', async () => {
-    const b = $('syncNowBtn'); b.disabled = true; b.textContent = 'Pulling from banks…';
+    const b = $('syncNowBtn'); b.disabled = true; b.textContent = 'Refreshing…';
     try { await pullBankData(false); } catch (e) { toast('Sync failed: ' + e.message); }
-    b.disabled = false; b.textContent = 'Refresh bank data';
+    b.disabled = false; b.textContent = 'Refresh institution data';
   });
 
   // ── Accounts view ────────────────────────────────────────────────────────
@@ -1037,7 +1134,7 @@
     el.className = 'val ' + (net >= 0 ? 'gold' : 'neg');
 
     if (!accounts.length) {
-      $('acctList').innerHTML = '<div class="empty"><div class="big">No accounts yet</div>Connect a bank to see live balances.</div>';
+      $('acctList').innerHTML = '<div class="empty"><div class="big">No accounts yet</div>Connect an institution to see live balances.</div>';
       return;
     }
     $('acctList').innerHTML = Object.entries(byInst).map(([inst, list]) => `
@@ -1073,6 +1170,13 @@
     }
     $('recList').innerHTML = recurring.map(r => `
       <div class="txrow" data-rid="${esc(r.id)}">
+        <div class="draghandle" title="Drag to reorder">
+          <svg width="11" height="16" viewBox="0 0 11 16" fill="currentColor" aria-hidden="true">
+            <circle cx="2.2" cy="3" r="1.35"/><circle cx="8.8" cy="3" r="1.35"/>
+            <circle cx="2.2" cy="8" r="1.35"/><circle cx="8.8" cy="8" r="1.35"/>
+            <circle cx="2.2" cy="13" r="1.35"/><circle cx="8.8" cy="13" r="1.35"/>
+          </svg>
+        </div>
         <div class="txbadge">${esc((r.name || '?').charAt(0).toUpperCase())}</div>
         <div class="txmain">
           <div class="txname">${esc(r.name)}</div>
@@ -1088,6 +1192,88 @@
         </div>
       </div>`).join('');
   }
+
+  // ── Drag to reorder ──────────────────────────────────────────────────────
+  // Pointer Events cover mouse, touch and pen with one code path; the handle
+  // sets touch-action:none so a drag never scrolls the page on mobile. Rows
+  // are reordered live in the DOM and the displaced neighbours are animated
+  // with a FLIP transition, so the list settles smoothly instead of jumping.
+  (function enableRecDrag() {
+    const list = $('recList');
+    let drag = null;
+
+    function flipMove(mutate, exclude) {
+      const rows = [...list.children];
+      const before = new Map(rows.map(r => [r, r.getBoundingClientRect().top]));
+      mutate();
+      for (const r of rows) {
+        if (r === exclude) continue;
+        const delta = before.get(r) - r.getBoundingClientRect().top;
+        if (!delta) continue;
+        r.style.transition = 'none';
+        r.style.transform = `translateY(${delta}px)`;
+        requestAnimationFrame(() => {
+          r.style.transition = 'transform .18s cubic-bezier(.2,.8,.3,1)';
+          r.style.transform = '';
+        });
+      }
+    }
+
+    list.addEventListener('pointerdown', e => {
+      const handle = e.target.closest('.draghandle');
+      if (!handle || e.button > 0) return;
+      const row = handle.closest('[data-rid]');
+      if (!row) return;
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      drag = { row, handle, id: e.pointerId, grabY: e.clientY, moved: false };
+      row.classList.add('dragging');
+    });
+
+    list.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag.moved = true;
+      const dy = e.clientY - drag.grabY;
+      drag.row.style.transform = `translateY(${dy}px)`;
+
+      // Find the neighbour the pointer is currently over and hop past it.
+      for (const other of list.children) {
+        if (other === drag.row) continue;
+        const r = other.getBoundingClientRect();
+        if (e.clientY < r.top || e.clientY > r.bottom) continue;
+        const mid = r.top + r.height / 2;
+        const rowIsAfter = !!(drag.row.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
+        if (e.clientY < mid && rowIsAfter) {
+          flipMove(() => list.insertBefore(drag.row, other), drag.row);
+        } else if (e.clientY > mid && !rowIsAfter) {
+          flipMove(() => list.insertBefore(drag.row, other.nextSibling), drag.row);
+        } else continue;
+        // Re-anchor to the pointer so the row stays under the finger/cursor.
+        drag.grabY = e.clientY;
+        drag.row.style.transform = 'translateY(0px)';
+        break;
+      }
+    });
+
+    async function endDrag(e) {
+      if (!drag || (e && e.pointerId !== drag.id)) return;
+      const { row, moved } = drag;
+      drag = null;
+      row.classList.add('dropping');
+      row.style.transform = '';
+      setTimeout(() => { row.classList.remove('dragging', 'dropping'); }, 180);
+      if (!moved) return;
+
+      const order = [...list.querySelectorAll('[data-rid]')].map(el => el.dataset.rid);
+      const next = order.map(id => recurring.find(r => r.id === id)).filter(Boolean);
+      if (next.length !== recurring.length) { renderRecurring(); return; }
+      if (next.every((r, i) => r.id === recurring[i].id)) return;   // unchanged
+      recurring = next;
+      await saveExpenselog();      // array order IS the saved order → persists
+    }
+    list.addEventListener('pointerup', endDrag);
+    list.addEventListener('pointercancel', endDrag);
+  })();
 
   $('recList').addEventListener('click', async e => {
     const btn = e.target.closest('.iconbtn'); if (!btn) return;
@@ -1135,19 +1321,76 @@
   });
 
   // ── Cash tracker ─────────────────────────────────────────────────────────
+  // Add / deduct adjust the running balance; "set exact" overwrites it. The
+  // balance itself can never go negative — you can't hold less than no cash.
+  let cashSetMode = false;
+
   function renderCash() {
     $('cashAmt').textContent = fmt$(cashBal);
   }
-  $('cashSave').addEventListener('click', async () => {
-    const n = parseFloat($('cashInput').value);
-    if (isNaN(n) || n < 0) { toast('Enter a valid amount'); return; }
+
+  function readCashInput() {
+    const raw = $('cashInput').value.trim();
+    if (!raw) { toast('Enter an amount first'); return null; }
+    const n = parseFloat(raw);
+    if (isNaN(n) || !isFinite(n)) { toast('That isn\'t a valid number'); return null; }
+    if (n < 0) { toast('Enter a positive amount — use Cash deduction to subtract'); return null; }
+    if (n === 0) { toast('Enter an amount greater than zero'); return null; }
+    return Math.round(n * 100) / 100;
+  }
+
+  async function applyCash(delta, label) {
+    const next = Math.round((cashBal + delta) * 100) / 100;
+    if (next < 0) {
+      toast(`That would leave ${fmt$(next)} — you only have ${fmt$(cashBal)} on hand`);
+      return;
+    }
+    cashBal = next;
+    await saveExpenselog();
+    renderCash();
+    $('cashInput').value = '';
+    toast(`${label} — cash on hand is now ${fmt$(cashBal)}`, true);
+  }
+
+  $('cashAdd').addEventListener('click', async () => {
+    const n = readCashInput(); if (n === null) return;
+    if (cashSetMode) { await setExactCash(n); return; }
+    await applyCash(n, `Added ${fmt$(n)}`);
+  });
+
+  $('cashDeduct').addEventListener('click', async () => {
+    const n = readCashInput(); if (n === null) return;
+    await applyCash(-n, `Deducted ${fmt$(n)}`);
+  });
+
+  async function setExactCash(n) {
     cashBal = n;
     await saveExpenselog();
     renderCash();
     $('cashInput').value = '';
-    toast('Cash balance updated', true);
+    exitCashSetMode();
+    toast(`Cash on hand set to ${fmt$(n)}`, true);
+  }
+
+  function exitCashSetMode() {
+    cashSetMode = false;
+    $('cashAdd').textContent = '+ Cash add';
+    $('cashDeduct').style.display = '';
+    $('cashInput').placeholder = 'Amount';
+    $('cashSetLink').textContent = 'Set exact balance instead';
+  }
+
+  $('cashSetLink').addEventListener('click', () => {
+    if (cashSetMode) { exitCashSetMode(); return; }
+    cashSetMode = true;
+    $('cashAdd').textContent = 'Set balance';
+    $('cashDeduct').style.display = 'none';
+    $('cashInput').placeholder = 'Exact balance';
+    $('cashSetLink').textContent = 'Cancel — go back to add / deduct';
+    $('cashInput').focus();
   });
-  $('cashInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('cashSave').click(); });
+
+  $('cashInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('cashAdd').click(); });
 
   // ── PayPal CSV import ────────────────────────────────────────────────────
   const drop = $('fileDrop');
@@ -1189,50 +1432,206 @@
     return hit / Math.min(A.size, B.size);
   }
 
+  // ── Universal CSV parsing ────────────────────────────────────────────────
+  // Institutions all export different shapes. Rather than hard-coding each
+  // one, columns are resolved by header aliases, with a positional fallback
+  // for headerless exports (Wells Fargo). Everything detected is shown in the
+  // mapping panel so a wrong guess can be corrected before importing.
+  const COL_ALIASES = {
+    date:     ['date', 'transaction date', 'trans date', 'trans. date', 'posting date', 'posted date', 'post date', 'date posted', 'activity date', 'value date', 'completion date', 'effective date'],
+    desc:     ['description', 'name', 'payee', 'merchant', 'merchant name', 'details', 'transaction description', 'original description', 'narrative', 'description 1', 'transaction', 'memo', 'reference'],
+    amount:   ['amount', 'gross', 'net', 'value', 'transaction amount', 'amount (usd)', 'amt'],
+    debit:    ['debit', 'withdrawal', 'withdrawals', 'money out', 'paid out', 'charge', 'charges', 'expense'],
+    credit:   ['credit', 'deposit', 'deposits', 'money in', 'paid in', 'payment', 'payments'],
+    currency: ['currency', 'currency code', 'iso currency code'],
+    category: ['category', 'transaction type', 'type', 'classification'],
+    id:       ['transaction id', 'transaction_id', 'reference id', 'reference number', 'confirmation number', 'trans id', 'id'],
+    status:   ['status', 'transaction status'],
+    memo:     ['memo', 'notes', 'note']
+  };
+
+  function matchCol(hdr, key) {
+    const aliases = COL_ALIASES[key];
+    let i = hdr.findIndex(h => aliases.includes(h));
+    if (i >= 0) return i;
+    return hdr.findIndex(h => h && aliases.some(a => h === a || h.replace(/[^a-z ]/g, '').trim() === a));
+  }
+
+  function parseCsvDate(s) {
+    s = String(s || '').trim();
+    if (!s) return null;
+    let m;
+    if ((m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/)))
+      return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+    if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/))) {
+      let mo = +m[1], da = +m[2];
+      const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+      if (mo > 12 && da <= 12) { const t = mo; mo = da; da = t; }   // DD/MM export
+      if (mo > 12 || da > 31) return null;
+      return `${yr}-${String(mo).padStart(2, '0')}-${String(da).padStart(2, '0')}`;
+    }
+    if (/[a-z]{3}/i.test(s) && /\d{4}/.test(s)) {                    // "Jan 5, 2026"
+      const d = new Date(s);
+      if (!isNaN(d.getTime()))
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    return null;
+  }
+
+  function parseCsvAmount(s) {
+    if (s == null) return NaN;
+    let t = String(s).trim().replace(/[$£€\s,]/g, '');
+    if (!t) return NaN;
+    let neg = false;
+    if (/^\(.*\)$/.test(t)) { neg = true; t = t.slice(1, -1); }      // (12.34) = negative
+    if (t.startsWith('-')) { neg = true; t = t.slice(1); }
+    else if (t.startsWith('+')) t = t.slice(1);
+    if (t.endsWith('-')) { neg = true; t = t.slice(0, -1); }         // trailing-minus exports
+    t = t.replace(/[^0-9.]/g, '');
+    const n = parseFloat(t);
+    if (isNaN(n)) return NaN;
+    return neg ? -n : n;
+  }
+
+  // Stable id for institutions that don't export one, so re-importing the
+  // same statement is still recognised as already-imported.
+  function synthId(inst, date, amount, name, seq) {
+    const s = `${inst}|${date}|${amount.toFixed(2)}|${normName(name)}|${seq}`;
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+    return 'k' + (h >>> 0).toString(36);
+  }
+
+  function guessInstitution(filename, cols) {
+    if (cols.id >= 0 && cols.gross) return 'PayPal';
+    const base = (filename || '').replace(/\.[^.]+$/, '');
+    const word = (base.match(/[A-Za-z]{3,}/) || [])[0];
+    if (!word) return 'Imported';
+    const known = ['paypal', 'chase', 'discover', 'amex', 'americanexpress', 'ally', 'chime', 'capitalone', 'wellsfargo', 'venmo', 'citi', 'schwab', 'fidelity'];
+    const hit = known.find(k => base.toLowerCase().replace(/[^a-z]/g, '').includes(k));
+    const pretty = { americanexpress: 'American Express', capitalone: 'Capital One', wellsfargo: 'Wells Fargo', amex: 'American Express', paypal: 'PayPal' };
+    if (hit) return pretty[hit] || hit.charAt(0).toUpperCase() + hit.slice(1);
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }
+
   async function handleCSV(file) {
     const text = await file.text();
     const rows = parseCSV(text);
-    if (rows.length < 2) { toast('CSV appears empty'); return; }
+    if (!rows.length) { toast('That CSV appears to be empty'); return; }
 
-    // PayPal headers vary by locale/era — resolve columns by name.
-    const hdr = rows[0].map(h => h.trim().toLowerCase().replace(/^﻿/, ''));
-    const col = name => hdr.findIndex(h => h === name);
-    const iDate = col('date'), iName = col('name'), iType = col('type'), iStatus = col('status'),
-          iCurr = col('currency'), iGross = col('gross'), iTxn = col('transaction id');
-    if (iDate < 0 || iGross < 0 || iTxn < 0) {
-      toast('Not a PayPal CSV — missing Date / Gross / Transaction ID columns'); return;
+    const first = rows[0].map(h => String(h).trim().toLowerCase().replace(/^﻿/, '').replace(/^"|"$/g, ''));
+    const headerLooksReal = matchCol(first, 'date') >= 0 ||
+      (matchCol(first, 'amount') >= 0 && matchCol(first, 'desc') >= 0);
+
+    let cols, dataRows, headers;
+    if (headerLooksReal) {
+      headers = first;
+      dataRows = rows.slice(1);
+      cols = {
+        date: matchCol(first, 'date'), desc: matchCol(first, 'desc'),
+        amount: matchCol(first, 'amount'), debit: matchCol(first, 'debit'),
+        credit: matchCol(first, 'credit'), currency: matchCol(first, 'currency'),
+        category: matchCol(first, 'category'), id: matchCol(first, 'id'),
+        status: matchCol(first, 'status'), memo: matchCol(first, 'memo'),
+        gross: first.includes('gross')
+      };
+    } else {
+      // Headerless (e.g. Wells Fargo): infer by inspecting the data itself —
+      // first date-shaped column, first number-shaped column, longest text.
+      headers = null;
+      dataRows = rows;
+      const probe = rows.slice(0, Math.min(12, rows.length));
+      const width = Math.max(...probe.map(r => r.length));
+      const score = { date: -1, amount: -1, desc: -1 };
+      for (let c = 0; c < width; c++) {
+        const vals = probe.map(r => r[c] ?? '');
+        if (score.date < 0 && vals.filter(v => parseCsvDate(v)).length >= probe.length * 0.7) { score.date = c; continue; }
+        if (score.amount < 0 && vals.filter(v => !isNaN(parseCsvAmount(v)) && String(v).trim()).length >= probe.length * 0.7) { score.amount = c; continue; }
+      }
+      let bestLen = 0;
+      for (let c = 0; c < width; c++) {
+        if (c === score.date || c === score.amount) continue;
+        const len = probe.reduce((s, r) => s + String(r[c] ?? '').trim().length, 0);
+        if (len > bestLen) { bestLen = len; score.desc = c; }
+      }
+      cols = { ...score, debit: -1, credit: -1, currency: -1, category: -1, id: -1, status: -1, memo: -1, gross: false };
     }
 
+    const hasSplit = cols.debit >= 0 && cols.credit >= 0;
+    if (cols.date < 0 || (cols.amount < 0 && !hasSplit)) {
+      toast('Could not find a date and amount column in that CSV');
+      return;
+    }
+
+    // Parse every usable row once; the sign convention is applied at render
+    // time so flipping it doesn't require re-reading the file.
+    const parsed = [];
+    for (const r of dataRows) {
+      const date = parseCsvDate(r[cols.date]);
+      if (!date) continue;
+      let raw;
+      if (hasSplit) {
+        const d = parseCsvAmount(r[cols.debit]), c = parseCsvAmount(r[cols.credit]);
+        raw = !isNaN(d) && d !== 0 ? -Math.abs(d) : (!isNaN(c) && c !== 0 ? Math.abs(c) : NaN);
+      } else raw = parseCsvAmount(r[cols.amount]);
+      if (isNaN(raw) || raw === 0) continue;
+      if (cols.status >= 0 && /pending|denied|failed|cancel|reversed|declined/i.test(r[cols.status] || '')) continue;
+      const desc = (cols.desc >= 0 ? String(r[cols.desc] || '').trim() : '') ||
+                   (cols.category >= 0 ? String(r[cols.category] || '').trim() : '') || 'Transaction';
+      parsed.push({
+        date, raw, desc,
+        currency: (cols.currency >= 0 && String(r[cols.currency] || '').trim()) || 'USD',
+        rawCategory: cols.category >= 0 ? String(r[cols.category] || '').trim() : '',
+        memo: cols.memo >= 0 && cols.memo !== cols.desc ? String(r[cols.memo] || '').trim() : '',
+        id: cols.id >= 0 ? String(r[cols.id] || '').trim() : ''
+      });
+    }
+    if (!parsed.length) { toast('No readable transactions found in that CSV'); return; }
+
+    // Which sign means "money out"? Statements list more spending than income,
+    // so the majority sign is the outflow — a guess the user can flip.
+    const negs = parsed.filter(p => p.raw < 0).length;
+    const outflowIsNegative = hasSplit ? true : negs >= parsed.length - negs;
+
+    csvFile = {
+      name: file.name,
+      parsed, cols, headers, hasSplit,
+      institution: guessInstitution(file.name, cols),
+      outflowIsNegative
+    };
+    buildImport();
+  }
+
+  // Turn the parsed file + current mapping choices into import candidates.
+  function buildImport() {
+    const f = csvFile;
+    const inst = f.institution.trim() || 'Imported';
     const existingCsvIds = new Set(manualTxs.map(t => t.csv_txn_id).filter(Boolean));
-    const seenInFile = new Set();
+    const seenInFile = new Map();
     const newRows = [], exactDupes = [], fuzzy = [];
+    const dayMs = 864e5;
 
-    for (const r of rows.slice(1)) {
-      const txnId = (r[iTxn] || '').trim();
-      if (!txnId || seenInFile.has(txnId)) continue;
-      seenInFile.add(txnId);
-
-      const rawDate = (r[iDate] || '').trim();              // MM/DD/YYYY
-      const m = rawDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      const date = m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : rawDate;
-      const gross = parseFloat((r[iGross] || '0').replace(/[",]/g, ''));
-      if (isNaN(gross) || gross === 0) continue;
-      const status = iStatus >= 0 ? (r[iStatus] || '').trim().toLowerCase() : 'completed';
-      if (status && status !== 'completed') continue;
+    for (const p of f.parsed) {
+      // Internal convention: positive = money OUT.
+      const amount = f.outflowIsNegative ? -p.raw : p.raw;
+      const seq = (seenInFile.get(p.id || `${p.date}|${amount}|${p.desc}`) || 0) + 1;
+      seenInFile.set(p.id || `${p.date}|${amount}|${p.desc}`, seq);
+      const txnId = p.id || synthId(inst, p.date, amount, p.desc, seq);
 
       const rec = {
         id: 'csv_' + txnId,
         source: 'csv',
-        institution: 'PayPal',
+        import_source: inst,
+        institution: inst,
         account_id: null,
-        date,
-        name: (iName >= 0 && r[iName].trim()) || (iType >= 0 && r[iType].trim()) || 'PayPal transaction',
-        merchant: (iName >= 0 && r[iName].trim()) || null,
-        amount: -gross,                                     // PayPal: negative gross = out → Plaid sign: positive = out
-        currency: (iCurr >= 0 && r[iCurr].trim()) || 'USD',
-        category: 'Other',
+        date: p.date,
+        name: p.desc,
+        merchant: p.desc,
+        amount,
+        currency: p.currency || 'USD',
+        category: p.rawCategory || 'Other',
         category_detailed: null,
-        note: iType >= 0 ? (r[iType].trim() || null) : null,
+        note: p.memo || null,
         pending: false,
         logo_url: null,
         csv_txn_id: txnId,
@@ -1242,22 +1641,68 @@
 
       if (existingCsvIds.has(txnId)) { exactDupes.push(rec); continue; }
 
-      // Fuzzy: same |amount| within a cent, posted within ±3 days, and either a
-      // PAYPAL-tagged bank row or a similar merchant name → needs review.
-      const dayMs = 864e5, recT = new Date(rec.date + 'T12:00:00').getTime();
-      const match = plaidTxs.find(p => {
-        if (Math.abs(Math.abs(p.amount) - Math.abs(rec.amount)) > 0.005) return false;
-        const pT = new Date(p.date + 'T12:00:00').getTime();
-        if (Math.abs(pT - recT) > 3 * dayMs) return false;
-        const pName = (p.name || '') + ' ' + (p.merchant || '');
-        return /paypal|pypl/i.test(pName) || nameSim(pName, rec.name) >= 0.5;
+      // Fuzzy: same |amount| within a cent, within ±3 days, and either a
+      // similar name or the same institution already connected via Plaid
+      // (re-importing a statement for a linked account hits this).
+      const recT = new Date(rec.date + 'T12:00:00').getTime();
+      const match = plaidTxs.find(pt => {
+        if (Math.abs(Math.abs(pt.amount) - Math.abs(rec.amount)) > 0.005) return false;
+        const ptT = new Date(pt.date + 'T12:00:00').getTime();
+        if (Math.abs(ptT - recT) > 3 * dayMs) return false;
+        const pName = (pt.name || '') + ' ' + (pt.merchant || '');
+        if (/paypal|pypl/i.test(pName) && /paypal/i.test(inst)) return true;
+        if ((pt.institution || '').toLowerCase() === inst.toLowerCase()) return true;
+        return nameSim(pName, rec.name) >= 0.5;
       });
       if (match) fuzzy.push({ rec, match, decision: null });
       else newRows.push(rec);
     }
 
     importState = { newRows, exactDupes, fuzzy };
+    renderImportMap();
     renderImport();
+  }
+
+  function renderImportMap() {
+    const f = csvFile;
+    const el = $('importMap');
+    el.style.display = '';
+    const colName = i => i < 0 ? null : (f.headers ? (f.headers[i] || `column ${i + 1}`) : `column ${i + 1}`);
+    const bits = [
+      ['Date', colName(f.cols.date)],
+      ['Description', colName(f.cols.desc)],
+      [f.hasSplit ? 'Debit / Credit' : 'Amount', f.hasSplit ? `${colName(f.cols.debit)} / ${colName(f.cols.credit)}` : colName(f.cols.amount)],
+      ['Category', colName(f.cols.category)],
+      ['Transaction ID', colName(f.cols.id)]
+    ].filter(b => b[1]);
+
+    el.innerHTML = `
+      <h4>Detected from ${esc(f.name)}${f.headers ? '' : ' · no header row'}</h4>
+      <div class="row">
+        <label for="impInst">Institution</label>
+        <input type="text" id="impInst" value="${esc(f.institution)}" placeholder="e.g. Chase" style="width:170px">
+        ${f.hasSplit ? '' : `
+        <label for="impSign" style="margin-left:6px">Amounts</label>
+        <select id="impSign">
+          <option value="neg"${f.outflowIsNegative ? ' selected' : ''}>Negative = money out</option>
+          <option value="pos"${f.outflowIsNegative ? '' : ' selected'}>Positive = money out</option>
+        </select>`}
+      </div>
+      <div class="impcols">${bits.map(b => `${b[0]}: <b>${esc(b[1])}</b>`).join(' &nbsp;·&nbsp; ')}</div>
+      <div class="imppreview">
+        ${importState.newRows.concat(importState.fuzzy.map(x => x.rec)).slice(0, 4).map(r => `
+          <div class="prow">
+            <span class="nm">${esc(r.date)} · ${esc(r.name)}</span>
+            <span class="am ${r.amount < 0 ? 'in' : ''}">${fmt$(r.amount, true)}</span>
+          </div>`).join('') || '<div class="prow"><span class="nm">No new rows to preview</span></div>'}
+        <div style="font-size:11.5px;color:var(--faint);margin-top:7px">
+          Check a few rows above: money going out should show a −. If they're inverted, switch the Amounts setting.
+        </div>
+      </div>`;
+
+    $('impInst').addEventListener('change', e => { csvFile.institution = e.target.value; buildImport(); });
+    const sign = $('impSign');
+    if (sign) sign.addEventListener('change', e => { csvFile.outflowIsNegative = e.target.value === 'neg'; buildImport(); });
   }
 
   function renderImport() {
@@ -1267,16 +1712,18 @@
       `<span><b>${s.newRows.length}</b> new</span>` +
       `<span><b>${s.exactDupes.length}</b> already imported (skipped)</span>` +
       `<span><b>${s.fuzzy.length}</b> possible duplicate${s.fuzzy.length === 1 ? '' : 's'} to review</span>`;
-    $('dupeList').innerHTML = s.fuzzy.map((f, i) => `
+    $('bulkActs').style.display = s.fuzzy.length > 1 ? 'flex' : 'none';
+    const shown = s.fuzzy.slice(0, 60);
+    $('dupeList').innerHTML = shown.map((f, i) => `
       <div class="dupe ${f.decision ? 'decided' : ''}" data-i="${i}">
         <div class="pair">
           <div class="side">
-            <div class="tag">PayPal CSV row</div>
+            <div class="tag">CSV row</div>
             <div class="nm">${esc(f.rec.name)}</div>
             <div class="dt">${esc(f.rec.date)} · ${fmt$(f.rec.amount, true)}</div>
           </div>
           <div class="side">
-            <div class="tag">Existing bank transaction</div>
+            <div class="tag">Transaction you already have</div>
             <div class="nm">${esc(f.match.merchant || f.match.name)}</div>
             <div class="dt">${esc(f.match.date)} · ${fmt$(f.match.amount, true)} · ${esc(f.match.institution || '')}</div>
           </div>
@@ -1285,7 +1732,10 @@
           <button class="btn ${f.decision === 'skip' ? 'gold' : ''}" data-d="skip">Duplicate — skip it</button>
           <button class="btn ${f.decision === 'keep' ? 'gold' : ''}" data-d="keep">Keep both</button>
         </div>
-      </div>`).join('');
+      </div>`).join('') + (s.fuzzy.length > shown.length
+        ? `<div style="font-size:12.5px;color:var(--faint);padding:6px 2px">
+             +${s.fuzzy.length - shown.length} more possible duplicates — use the buttons above to decide them all at once.
+           </div>` : '');
     $('importActs').style.display = s.newRows.length || s.fuzzy.length ? 'flex' : 'none';
     const undecided = s.fuzzy.filter(f => !f.decision).length;
     $('importCommit').disabled = undecided > 0;
@@ -1299,9 +1749,22 @@
     renderImport();
   });
 
+  $('bulkSkip').addEventListener('click', () => {
+    if (!importState) return;
+    importState.fuzzy.forEach(f => f.decision = 'skip');
+    renderImport();
+  });
+  $('bulkKeep').addEventListener('click', () => {
+    if (!importState) return;
+    importState.fuzzy.forEach(f => f.decision = 'keep');
+    renderImport();
+  });
+
   $('importCancel').addEventListener('click', () => {
-    importState = null;
+    importState = null; csvFile = null;
     $('importStat').style.display = 'none';
+    $('importMap').style.display = 'none';
+    $('bulkActs').style.display = 'none';
     $('dupeList').innerHTML = '';
     $('importActs').style.display = 'none';
     $('fileInput').value = '';
@@ -1381,7 +1844,7 @@
       // Redirect URI not yet registered in the Plaid Dashboard → OAuth banks
       // (Chase, Capital One, Wells Fargo) can't complete; the rest still can.
       st.textContent = r.oauthReady === false
-        ? 'Note: redirect URI not registered in Plaid yet — OAuth banks (Chase, Capital One, Wells Fargo) will fail until it is.'
+        ? 'Note: redirect URI not registered in Plaid yet — OAuth institutions (Chase, Capital One, Wells Fargo) will fail until it is.'
         : '';
       // OAuth institutions (Chase, Capital One, Wells Fargo…) leave the page
       // and redirect back with ?oauth_state_id=… — the link_token must survive
