@@ -1,0 +1,31 @@
+name = "insight-api"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+# "sandbox" | "production" — which Plaid environment the worker talks to.
+# STAYS "sandbox" until the Sandbox pipeline is validated end-to-end AND the
+# app-lock gate is wired (INSIGHT_PLAN.md build steps 1 & 7). The worker also
+# hard-blocks production mode in code until the gate exists — flipping this
+# var alone is not enough, by design.
+PLAID_ENV = "sandbox"
+
+[observability]
+enabled = false
+
+[observability.logs]
+enabled = false
+invocation_logs = true
+
+# Server-side storage for Plaid access tokens + sync cursors.
+# Tokens live ONLY here — never in Firestore, never client-side.
+[[kv_namespaces]]
+binding = "INSIGHT_KV"
+id = "dbfdf972572440bcaea7b53a34253921"
+
+# Secrets (set via `wrangler secret put <NAME> --name insight-api` — never commit values):
+#   PLAID_CLIENT_ID          — Plaid client_id (same for sandbox + production)
+#   PLAID_SECRET_SANDBOX     — Plaid Sandbox secret
+#   PLAID_SECRET_PRODUCTION  — Plaid Production secret (unused until PLAID_ENV flips)
+# Coming in later build steps (Firestore sync cron, step 3):
+#   FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY

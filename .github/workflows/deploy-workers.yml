@@ -28,6 +28,7 @@ jobs:
       proview: ${{ steps.filter.outputs.proview }}
       keychainsync: ${{ steps.filter.outputs.keychainsync }}
       vaultpwsync: ${{ steps.filter.outputs.vaultpwsync }}
+      insight: ${{ steps.filter.outputs.insight }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -56,6 +57,8 @@ jobs:
               - 'workers/keychain-sync/**'
             vaultpwsync:
               - 'workers/vault-pw-sync/**'
+            insight:
+              - 'workers/insight-api/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -189,3 +192,17 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/vault-pw-sync
+
+  # Insight (personal finance) — Plaid integration. Sandbox-only until the
+  # app-lock gate is wired (INSIGHT_PLAN.md step 7). Secrets on first deploy:
+  #   PLAID_CLIENT_ID, PLAID_SECRET_SANDBOX, PLAID_SECRET_PRODUCTION
+  deploy-insight-api:
+    needs: changes
+    if: ${{ needs.changes.outputs.insight == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/insight-api
