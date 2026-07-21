@@ -142,6 +142,15 @@ async function verifyLock(env, password) {
   return diff === 0;
 }
 
+// A verified password can be exchanged for a 1-hour bearer token (see
+// /lock/session) so the page stays unlocked across refreshes without holding
+// the password anywhere. Tokens live in KV with a hard TTL and are revocable
+// (/lock/end = the "Lock now" button). Link endpoints accept either form.
+async function verifyLockOrToken(env, body) {
+  if (body && body.token) return !!(await env.INSIGHT_KV.get('locktok:' + body.token));
+  return verifyLock(env, body && body.lock);
+}
+
 const itemKey   = (id) => `plaid:item:${id}`;
 const cursorKey = (id) => `plaid:cursor:${id}`;
 
@@ -487,12 +496,31 @@ export default {
         return await handleSandboxE2E(env, origin);
       }
 
+      // ── App-lock sessions ──────────────────────────────────────────────
+      if (path === '/lock/session' && request.method === 'POST') {
+        let body = {};
+        try { body = await request.json(); } catch { body = {}; }
+        if (!(await verifyLock(env, body.password))) {
+          return json({ ok: false, error: 'wrong password' }, origin, 401);
+        }
+        const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+        await env.INSIGHT_KV.put('locktok:' + token, '1', { expirationTtl: 3600 });
+        return json({ ok: true, token, expiresAt: Date.now() + 3600 * 1000 }, origin);
+      }
+
+      if (path === '/lock/end' && request.method === 'POST') {
+        let body = {};
+        try { body = await request.json(); } catch { body = {}; }
+        if (body.token) await env.INSIGHT_KV.delete('locktok:' + body.token);
+        return json({ ok: true }, origin);
+      }
+
       if (path === '/link/token/create' && request.method === 'POST') {
         const blocked = prodGate(env, origin);
         if (blocked) return blocked;
         let body = {};
         try { body = await request.json(); } catch { body = {}; }
-        if (!(await verifyLock(env, body.lock))) {
+        if (!(await verifyLockOrToken(env, body))) {
           return json({ ok: false, error: 'app lock required', lockRequired: true }, origin, 401);
         }
         const data = await plaidPost(env, '/link/token/create', {
@@ -511,7 +539,7 @@ export default {
         if (blocked) return blocked;
         let body = {};
         try { body = await request.json(); } catch { return json({ ok: false, error: 'bad json' }, origin, 400); }
-        if (!(await verifyLock(env, body.lock))) {
+        if (!(await verifyLockOrToken(env, body))) {
           return json({ ok: false, error: 'app lock required', lockRequired: true }, origin, 401);
         }
         if (!body.public_token) return json({ ok: false, error: 'missing public_token' }, origin, 400);

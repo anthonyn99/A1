@@ -247,8 +247,9 @@
   .lockbox .btn { width: 100%; padding: 12px; font-size: 14px; }
   .lockmsg { min-height: 20px; font-size: 12.5px; color: var(--danger); margin: 10px 0 0; }
   .lockmsg.ok { color: var(--gold-soft); }
-  .lockhint { margin-top: 14px; font-size: 12.5px; color: var(--faint); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-  .lockhint:hover { color: var(--muted); }
+  .locklinks { display: flex; gap: 18px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+  .locklinks span { font-size: 12.5px; color: var(--faint); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .locklinks span:hover { color: var(--muted); }
   .locksetup-note { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin-bottom: 18px; }
   @keyframes lockshake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
   .lockbox.shake { animation: lockshake .3s; }
@@ -272,12 +273,13 @@
       First time here — create the password that will protect Insight and its bank-connection flow.
       It's stored the same way as your other app locks (hashed, never plaintext).
     </div>
+    <input type="text" id="lockCode" placeholder="6-character code from email" style="display:none" autocomplete="one-time-code">
     <input type="password" id="lockPw1" placeholder="Password" autocomplete="current-password">
     <input type="password" id="lockPw2" placeholder="Confirm password" style="display:none" autocomplete="new-password">
     <input type="text" id="lockHintIn" placeholder="Hint (optional)" style="display:none" autocomplete="off">
     <button class="btn gold" id="lockGo">Unlock</button>
     <div class="lockmsg" id="lockMsg"></div>
-    <div class="lockhint" id="lockHintLink" style="display:none">Show hint</div>
+    <div class="locklinks" id="lockLinks"></div>
   </div>
 </div>
 
@@ -290,6 +292,7 @@
         <span class="dot" id="syncDot" style="display:none"></span>
         <span id="lastSync">connecting…</span>
         <button class="btn" id="syncNowBtn" title="Your own edits save instantly — this pulls new transactions from your banks">Refresh bank data</button>
+        <button class="btn" id="lockNowBtn" title="Lock Insight immediately">🔒 Lock</button>
       </div>
     </div>
   </header>
@@ -447,6 +450,18 @@
   </div>
 </div>
 
+<!-- ═══ Confirm modal (replaces browser confirm()) ═══ -->
+<div class="modalback" id="confirmModal">
+  <div class="modal" style="max-width:360px">
+    <h3 id="cTitle">Are you sure?</h3>
+    <p id="cMsg" style="color:var(--muted);font-size:13.5px;line-height:1.55;margin:0 0 4px"></p>
+    <div class="modalacts">
+      <button class="btn" id="cNo">Cancel</button>
+      <button class="btn gold" id="cYes">Delete</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
@@ -458,14 +473,29 @@
   const API = 'https://insight-api.av1.workers.dev';
 
   // ── App lock — identical backend to index.html's app locks ────────────────
-  // Records live in taskhub-reminders' KV as jlock:applock:tony_insight
-  // (PBKDF2-SHA256). This page verifies/sets through the same /auth/journal/*
-  // endpoints; insight-api reads the same record to gate bank connecting
-  // server-side, so the password below is also what authorizes Plaid Link.
+  // The PBKDF2 record lives in taskhub-reminders' KV (jlock:applock:tony_insight),
+  // created/reset through the same /auth/journal + /auth/reset endpoints index
+  // uses, with reset codes and hints emailed via the same Formspree form. A
+  // verified password is exchanged at insight-api for a 1-HOUR bearer token
+  // (localStorage) so refreshes stay unlocked without storing the password;
+  // the token is what authorizes Plaid Link server-side, and "🔒 Lock" revokes
+  // it immediately (server + client).
   const AUTH_API = 'https://taskhub-reminders.av1.workers.dev';
   const LOCK_ID = { journal: 'applock', entryId: 'tony_insight' };
-  let lockPw = null;          // held in memory only while unlocked
-  let lockSetupMode = false;
+  const FORM_URL = 'https://formspree.io/f/xeedkebo';       // same form index uses for Tony
+  const LOCK_EMAIL = 'anthonypn99@gmail.com';
+  const LOCK_LS = 'insight_lock_session';
+  let lockSession = null;      // { token, exp }
+  let lockMode = 'unlock';     // unlock | setup | reset
+  let lockHint = '';
+  let lockSetupNeeded = false;
+
+  function getStoredSession() {
+    try {
+      const s = JSON.parse(localStorage.getItem(LOCK_LS) || 'null');
+      return s && s.token && s.exp > Date.now() + 5000 ? s : null;
+    } catch { return null; }
+  }
 
   async function authPost(path, body) {
     return fetch(AUTH_API + path, {
@@ -474,65 +504,181 @@
     }).then(r => r.json());
   }
 
-  async function initLock() {
-    const box = document.getElementById('lockBox');
-    const msg = document.getElementById('lockMsg');
+  function formspree(subject, message) {
+    return fetch(FORM_URL, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ email: LOCK_EMAIL, subject, message })
+    });
+  }
+
+  const lockEl = id => document.getElementById(id);
+  function lockMsg(t, ok) { const m = lockEl('lockMsg'); m.className = 'lockmsg' + (ok ? ' ok' : ''); m.textContent = t; }
+
+  function lockView(mode) {
+    lockMode = mode;
+    const show = (id, on) => lockEl(id).style.display = on ? '' : 'none';
+    lockMsg('');
+    ['lockPw1', 'lockPw2', 'lockHintIn', 'lockCode'].forEach(id => lockEl(id).value = '');
+    show('lockNote', mode === 'setup');
+    show('lockCode', mode === 'reset');
+    show('lockPw2', mode !== 'unlock');
+    show('lockHintIn', mode !== 'unlock');
+    lockEl('lockPw1').placeholder = mode === 'unlock' ? 'Password' : 'New password';
+    lockEl('lockHintIn').placeholder = mode === 'reset' ? 'New hint (optional)' : 'Hint (optional)';
+    lockEl('lockSub').textContent = mode === 'setup' ? 'Set up your password' : mode === 'reset' ? 'Reset password' : 'Locked';
+    lockEl('lockGo').textContent = mode === 'setup' ? 'Create & unlock' : mode === 'reset' ? 'Reset password' : 'Unlock';
+    const L = lockEl('lockLinks'); L.innerHTML = '';
+    const link = (label, fn) => { const s = document.createElement('span'); s.textContent = label; s.addEventListener('click', fn); L.appendChild(s); };
+    if (mode === 'unlock') {
+      if (lockHint) link('Show hint', () => lockMsg('Hint: ' + lockHint, true));
+      link('Email me the hint', emailHint);
+      link('Forgot password?', startReset);
+    } else if (mode === 'reset') {
+      link('Resend code', startReset);
+      link('Back', () => lockView('unlock'));
+    }
+    setTimeout(() => lockEl(mode === 'reset' ? 'lockCode' : 'lockPw1').focus(), 80);
+  }
+
+  function showLock() {
+    const ls = lockEl('lockScreen');
+    ls.style.display = 'flex'; ls.style.opacity = '1';
+    lockView(lockSetupNeeded ? 'setup' : 'unlock');
+  }
+  function hideLock() {
+    const ls = lockEl('lockScreen');
+    ls.style.transition = 'opacity .3s'; ls.style.opacity = '0';
+    setTimeout(() => { ls.style.display = 'none'; }, 320);
+  }
+
+  async function emailHint() {
+    lockMsg('Sending…', true);
+    if (!lockHint) { lockMsg('No hint is saved for this password.'); return; }
     try {
-      const h = await authPost('/auth/journal/hint', {});
-      if (h.noLock) {
-        // First run: create the lock before anything is usable.
-        lockSetupMode = true;
-        document.getElementById('lockSub').textContent = 'Set up your password';
-        document.getElementById('lockNote').style.display = '';
-        document.getElementById('lockPw2').style.display = '';
-        document.getElementById('lockHintIn').style.display = '';
-        document.getElementById('lockGo').textContent = 'Create & unlock';
-      } else if (h.hint) {
-        const link = document.getElementById('lockHintLink');
-        link.style.display = '';
-        link.addEventListener('click', () => { msg.className = 'lockmsg ok'; msg.textContent = 'Hint: ' + h.hint; });
-      }
-    } catch (e) {
-      msg.textContent = 'Lock service unreachable — reload to retry.';
+      const fp = await formspree('Insight — Password Hint',
+        'Your Insight password hint:\n\n    ' + lockHint + '\n\n— Insight');
+      lockMsg(fp.ok ? 'Hint emailed to ' + LOCK_EMAIL : 'Email failed — try again shortly.', fp.ok);
+    } catch { lockMsg('Email failed — try again shortly.'); }
+  }
+
+  async function startReset() {
+    lockMsg('Emailing you a reset code…', true);
+    try {
+      const rq = await authPost('/auth/reset/request', {});
+      if (rq.noLock) { lockMsg('No password is set yet.'); return; }
+      if (!rq.ok || !rq.code) { lockMsg('Could not start the reset — try again.'); return; }
+      const fp = await formspree('Insight — Password Reset Code',
+        'Your Insight password reset code is:\n\n    ' + rq.code +
+        '\n\nEnter it in Insight to set a new password. It expires in 15 minutes. If you did not request this, ignore this email.\n\n— Insight');
+      if (!fp.ok) { lockMsg('Could not send the email — try again shortly.'); return; }
+      if (lockMode !== 'reset') lockView('reset');
+      lockMsg('Code sent to ' + LOCK_EMAIL + ' — check spam if it\'s not there in a minute.', true);
+    } catch { lockMsg('Network error — try again.'); }
+  }
+
+  // Exchange a verified password for the 1-hour session token.
+  async function openSession(password) {
+    const r = await fetch(API + '/lock/session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    }).then(x => x.json());
+    if (!r.ok) return false;
+    lockSession = { token: r.token, exp: r.expiresAt };
+    try { localStorage.setItem(LOCK_LS, JSON.stringify(lockSession)); } catch {}
+    return true;
+  }
+
+  async function lockSubmit() {
+    const p1 = lockEl('lockPw1').value;
+    lockMsg('');
+    if (lockMode === 'unlock') {
+      if (!p1) return;
+      if (await openSession(p1)) { hideLock(); return; }
+      const box = lockEl('lockBox');
+      box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+      lockMsg('Wrong password.');
+      lockEl('lockPw1').select();
       return;
     }
-
-    const submit = async () => {
-      const p1 = document.getElementById('lockPw1').value;
-      msg.className = 'lockmsg'; msg.textContent = '';
-      if (!p1) return;
-      if (lockSetupMode) {
-        const p2 = document.getElementById('lockPw2').value;
-        if (p1.length < 4) { msg.textContent = 'Use at least 4 characters.'; return; }
-        if (p1 !== p2) { msg.textContent = 'Passwords do not match.'; return; }
-        const r = await authPost('/auth/journal/set-lock', { password: p1, hint: document.getElementById('lockHintIn').value.trim() });
-        if (!r.ok) { msg.textContent = r.error || 'Could not set password.'; return; }
-        lockPw = p1;
-        unlockUI();
-        toast('Password set — Insight is now protected', true);
-      } else {
-        const r = await authPost('/auth/journal/verify', { password: p1 });
-        if (r.ok) { lockPw = p1; unlockUI(); }
-        else {
-          box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
-          msg.textContent = 'Wrong password.';
-          document.getElementById('lockPw1').select();
-        }
+    // setup + reset share validation
+    const p2 = lockEl('lockPw2').value;
+    if (p1.length < 4) { lockMsg('Use at least 4 characters.'); return; }
+    if (p1 !== p2) { lockMsg('Passwords do not match.'); return; }
+    const hint = lockEl('lockHintIn').value.trim();
+    if (lockMode === 'setup') {
+      const r = await authPost('/auth/journal/set-lock', { password: p1, hint });
+      if (!r.ok) { lockMsg(r.error || 'Could not set password.'); return; }
+      lockSetupNeeded = false; lockHint = hint;
+      if (await openSession(p1)) { hideLock(); toast('Password set — Insight is now protected', true); }
+    } else {  // reset
+      const code = lockEl('lockCode').value.trim().toUpperCase();
+      if (!code) { lockMsg('Enter the code from your email.'); return; }
+      const r = await authPost('/auth/reset/confirm', { code, password: p1, hint });
+      if (!r.ok) {
+        lockMsg(r.error === 'expired' ? 'Code expired — use "Resend code".'
+          : r.error === 'locked' ? 'Too many wrong tries — request a fresh code.'
+          : r.error === 'badcode' ? `Wrong code${r.remaining ? ` — ${r.remaining} tries left` : ''}.`
+          : (r.error || 'Reset failed.'));
+        return;
       }
-    };
-    document.getElementById('lockGo').addEventListener('click', submit);
-    ['lockPw1', 'lockPw2', 'lockHintIn'].forEach(id =>
-      document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') submit(); }));
-    setTimeout(() => document.getElementById('lockPw1').focus(), 100);
+      lockHint = hint;
+      if (await openSession(p1)) { hideLock(); toast('Password reset — you\'re unlocked', true); }
+    }
   }
 
-  function unlockUI() {
-    const ls = document.getElementById('lockScreen');
-    ls.style.transition = 'opacity .3s'; ls.style.opacity = '0';
-    setTimeout(() => ls.remove(), 320);
-  }
+  lockEl('lockGo').addEventListener('click', lockSubmit);
+  ['lockPw1', 'lockPw2', 'lockHintIn', 'lockCode'].forEach(id =>
+    lockEl(id).addEventListener('keydown', e => { if (e.key === 'Enter') lockSubmit(); }));
 
-  initLock();
+  // "🔒 Lock" — revoke the session server-side and re-lock immediately.
+  document.getElementById('lockNowBtn').addEventListener('click', () => {
+    const t = lockSession?.token;
+    lockSession = null;
+    try { localStorage.removeItem(LOCK_LS); } catch {}
+    if (t) fetch(API + '/lock/end', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: t })
+    }).catch(() => {});
+    showLock();
+  });
+
+  // Auto re-lock when the hour runs out, even mid-session.
+  setInterval(() => {
+    if (lockSession && lockSession.exp <= Date.now()) {
+      lockSession = null;
+      try { localStorage.removeItem(LOCK_LS); } catch {}
+      showLock();
+    }
+  }, 30000);
+
+  // Boot: a live stored session skips the lock screen entirely.
+  lockSession = getStoredSession();
+  if (lockSession) lockEl('lockScreen').style.display = 'none';
+  (async () => {
+    try {
+      const h = await authPost('/auth/journal/hint', {});
+      lockSetupNeeded = !!h.noLock;
+      lockHint = h.hint || '';
+    } catch {
+      if (!lockSession) { lockMsg('Lock service unreachable — reload to retry.'); return; }
+    }
+    if (!lockSession) showLock();
+  })();
+
+  // ── Custom confirm (no browser popups anywhere) ───────────────────────────
+  function askConfirm(title, message, confirmLabel = 'Delete') {
+    return new Promise(res => {
+      const m = document.getElementById('confirmModal');
+      document.getElementById('cTitle').textContent = title;
+      document.getElementById('cMsg').textContent = message;
+      document.getElementById('cYes').textContent = confirmLabel;
+      const done = v => { m.classList.remove('open'); m.onclick = null; res(v); };
+      document.getElementById('cYes').onclick = () => done(true);
+      document.getElementById('cNo').onclick = () => done(false);
+      m.onclick = e => { if (e.target === m) done(false); };
+      m.classList.add('open');
+    });
+  }
 
   // Same project + App Check as the rest of the A1 suite.
   const firebaseConfig = {
@@ -773,7 +919,7 @@
     if (!t) return;
     if (btn.dataset.act === 'edit') openManual(t);
     if (btn.dataset.act === 'del') {
-      if (!confirm(`Delete "${t.merchant || t.name}" (${fmt$(t.amount)})?`)) return;
+      if (!(await askConfirm('Delete entry?', `"${t.merchant || t.name}" · ${fmt$(t.amount)} — this can't be undone.`))) return;
       await deleteDoc(doc(db, ROOT, 'manual_transactions', id));
       toast('Entry deleted');
     }
@@ -950,7 +1096,7 @@
     const r = recurring.find(x => x.id === id); if (!r) return;
     if (btn.dataset.act === 'edit') openRec(r);
     if (btn.dataset.act === 'del') {
-      if (!confirm(`Delete "${r.name}"?`)) return;
+      if (!(await askConfirm('Delete recurring?', `"${r.name}" will be removed from your recurring list.`))) return;
       recurring = recurring.filter(x => x.id !== id);
       await saveExpenselog();
       renderRecurring();
@@ -1201,9 +1347,10 @@
     try {
       const r = await fetch(API + '/link/token/create', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lock: lockPw })
+        body: JSON.stringify({ token: lockSession?.token })
       }).then(x => x.json());
-      if (!r.ok) { st.textContent = r.lockRequired ? 'App lock rejected — reload and unlock again' : (r.error || 'Link token failed'); return; }
+      if (r.lockRequired) { st.textContent = ''; showLock(); return; }
+      if (!r.ok) { st.textContent = r.error || 'Link token failed'; return; }
       st.textContent = '';
       const handler = Plaid.create({
         token: r.link_token,
@@ -1212,7 +1359,7 @@
           const ex = await fetch(API + '/link/exchange', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              lock: lockPw,
+              token: lockSession?.token,
               public_token,
               institution_id: metadata.institution?.institution_id || null,
               institution_name: metadata.institution?.name || null
