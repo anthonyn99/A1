@@ -110,6 +110,20 @@ export default {
 
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runReminders(env));
+
+    // Insight daily sync piggyback. The account's 5-cron free-plan limit is
+    // full, so insight-api has no cron of its own — this every-minute cron
+    // fires its daily /transactions sync at 11:00 UTC instead. One POST/day;
+    // a missed tick just means that day's sync waits for tomorrow (the sync
+    // is cursor-based/incremental, so nothing is ever lost).
+    const t = new Date();
+    if (t.getUTCHours() === 11 && t.getUTCMinutes() === 0) {
+      ctx.waitUntil(
+        fetch('https://insight-api.av1.workers.dev/sync', { method: 'POST' })
+          .then(r => console.log(`[insight] daily sync triggered → ${r.status}`))
+          .catch(e => console.warn('[insight] daily sync trigger failed:', e.message))
+      );
+    }
   }
 };
 

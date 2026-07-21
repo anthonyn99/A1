@@ -10,6 +10,12 @@ compatibility_date = "2024-01-01"
 # var alone is not enough, by design.
 PLAID_ENV = "sandbox"
 
+# Daily incremental sync (plan §3): the account's 5-cron free-plan limit is
+# full, so there is NO cron trigger here. taskhub-reminders' every-minute cron
+# POSTs to this worker's /sync at 11:00 UTC instead (see its scheduled()).
+# The scheduled() handler below stays ready — if a cron slot ever frees up,
+# restore:  [triggers] crons = ["0 11 * * *"]
+
 [observability]
 enabled = false
 
@@ -27,5 +33,6 @@ id = "dbfdf972572440bcaea7b53a34253921"
 #   PLAID_CLIENT_ID          — Plaid client_id (same for sandbox + production)
 #   PLAID_SECRET_SANDBOX     — Plaid Sandbox secret
 #   PLAID_SECRET_PRODUCTION  — Plaid Production secret (unused until PLAID_ENV flips)
-# Coming in later build steps (Firestore sync cron, step 3):
-#   FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY
+#   FIREBASE_PROJECT_ID      — task-dashboard-d2b53 (same values as taskhub-reminders)
+#   FIREBASE_CLIENT_EMAIL    — service account email
+#   FIREBASE_PRIVATE_KEY     — service account private key (PEM)

@@ -1,7 +1,7 @@
 /**
- * Insight Worker — Plaid integration for the Insight finance app
- * (INSIGHT_PLAN.md — build step 1: Sandbox pipeline, plus the reusable
- *  link-token endpoints that become the "Add Account" flow in step 2).
+ * Insight Worker — Plaid integration + Firestore sync for the Insight finance app
+ * (INSIGHT_PLAN.md — steps 1–3: Sandbox pipeline, reusable link-token endpoints
+ *  that become the "Add Account" flow, Firestore schema + daily cron sync).
  *
  * Environments:
  *   PLAID_ENV var selects sandbox|production. Production is HARD-BLOCKED in
@@ -12,22 +12,40 @@
  * Token storage (KV binding INSIGHT_KV — never Firestore, never client-side):
  *   plaid:item:<item_id>   → { access_token, item_id, institution_id,
  *                              institution_name, env, createdAt }
- *   plaid:cursor:<item_id> → /transactions/sync cursor (per-item, per-env)
+ *   plaid:cursor:<item_id> → /transactions/sync cursor (per-item)
+ *   gat                    → cached Google service-account access token
+ *
+ * Firestore schema (project task-dashboard-d2b53, all under dashboards/insight):
+ *   dashboards/insight                            → meta doc: lastSyncAt,
+ *                                                   lastSyncResults, env
+ *   dashboards/insight/plaid_transactions/{txId}  → normalized bank transactions
+ *                                                   (worker-written; the UI
+ *                                                   treats source:'plaid' as
+ *                                                   read-only per the plan)
+ *   dashboards/insight/accounts/{accountId}       → live balances per account
+ *   (manual_transactions / recurring / cash arrive with the UI build steps)
+ *
+ * Normalized transaction record (Plaid sign convention: positive = money OUT):
+ *   { id, source:'plaid', item_id, institution, account_id, date,
+ *     authorized_date, name, merchant, amount, currency, category,
+ *     category_detailed, pending, logo_url, updatedAt }
  *
  * Endpoints:
  *   GET  /                   → health (env, item count — no secrets)
- *   POST /sandbox/e2e        → full Sandbox validation: create sandbox public
- *                              token (user_good/pass_good) → exchange → store
- *                              → /accounts/get → /transactions/sync to done.
- *                              Sandbox-only; 403 in production mode.
+ *   POST /sandbox/e2e        → full Sandbox validation chain (sandbox-only)
  *   POST /link/token/create  → link_token for the Plaid Link widget
- *                              (foundation of the step-2 "Add Account" flow)
  *   POST /link/exchange      → public_token → access_token, stored in KV
  *   GET  /items              → stored items (names/ids only — no tokens)
- *   POST /sync               → /transactions/sync every stored item, return
- *                              counts (Firestore writes arrive in step 3)
+ *   POST /sync               → full pipeline for every item: Plaid
+ *                              /transactions/sync → normalize → Firestore.
+ *                              Same code path the daily cron runs.
+ *   GET  /transactions       → read back recent txs from Firestore (debug /
+ *                              verification; sandbox-mode only via prodGate)
  *
- * Secrets: PLAID_CLIENT_ID, PLAID_SECRET_SANDBOX, PLAID_SECRET_PRODUCTION
+ * Cron: daily 11:00 UTC → same full pipeline as POST /sync.
+ *
+ * Secrets: PLAID_CLIENT_ID, PLAID_SECRET_SANDBOX, PLAID_SECRET_PRODUCTION,
+ *          FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
  */
 
 const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
@@ -160,8 +178,7 @@ async function syncItem(env, item, { maxReadyRetries = 8 } = {}) {
   return { added, modified, removed, pages, readyRetries };
 }
 
-// Compact, log/response-safe view of a transaction (no account numbers ever
-// appear in /transactions/sync, but keep the surface minimal anyway).
+// Compact, log/response-safe view of a transaction.
 function txSummary(t) {
   return {
     id: t.transaction_id,
@@ -172,6 +189,247 @@ function txSummary(t) {
     category: t.personal_finance_category?.primary || (t.category || [])[0] || null,
     pending: t.pending
   };
+}
+
+// ── Normalization ───────────────────────────────────────────────────────────
+
+// "FOOD_AND_DRINK" → "Food & Drink" — display form of Plaid's
+// personal_finance_category, stored alongside the raw detailed code so the UI
+// can re-bucket later without a resync.
+function prettyCategory(code) {
+  if (!code) return null;
+  return code.toLowerCase().split('_')
+    .map(w => w === 'and' ? '&' : w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function normalizeTx(t, item) {
+  return {
+    id: t.transaction_id,
+    source: 'plaid',
+    item_id: item.item_id,
+    institution: item.institution_name || item.institution_id || null,
+    account_id: t.account_id,
+    date: t.date,                                   // YYYY-MM-DD (posted)
+    authorized_date: t.authorized_date || null,
+    name: t.name || null,
+    merchant: t.merchant_name || null,
+    amount: t.amount,                               // Plaid: positive = money OUT
+    currency: t.iso_currency_code || 'USD',
+    category: prettyCategory(t.personal_finance_category?.primary),
+    category_detailed: t.personal_finance_category?.detailed || null,
+    pending: t.pending === true,
+    logo_url: t.logo_url || t.personal_finance_category_icon_url || null,
+    updatedAt: Date.now()
+  };
+}
+
+function normalizeAccount(a, item) {
+  return {
+    account_id: a.account_id,
+    item_id: item.item_id,
+    institution: item.institution_name || item.institution_id || null,
+    name: a.name || null,
+    official_name: a.official_name || null,
+    mask: a.mask || null,
+    type: a.type || null,
+    subtype: a.subtype || null,
+    balance_current: a.balances?.current ?? null,
+    balance_available: a.balances?.available ?? null,
+    currency: a.balances?.iso_currency_code || 'USD',
+    updatedAt: Date.now()
+  };
+}
+
+// ── Firestore plumbing (service account — same pattern as taskhub-reminders) ─
+
+let _memToken = null;
+
+async function getGoogleAccessToken(env) {
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  if (_memToken && _memToken.expiresAt > nowSec + 300) return _memToken.token;
+
+  if (env.INSIGHT_KV) {
+    try {
+      const kv = await env.INSIGHT_KV.get('gat', 'json');
+      if (kv && kv.expiresAt > nowSec + 300) { _memToken = kv; return kv.token; }
+    } catch (e) { console.warn('KV read error:', e.message); }
+  }
+
+  const now    = nowSec;
+  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claim  = b64url(JSON.stringify({
+    iss: env.FIREBASE_CLIENT_EMAIL, sub: env.FIREBASE_CLIENT_EMAIL,
+    aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600,
+    scope: 'https://www.googleapis.com/auth/datastore'
+  }));
+  const payload  = `${header}.${claim}`;
+  // Robust PEM parsing — tolerate literal "\n", base64url chars, stray quotes
+  // (same normalization taskhub-reminders needed for slightly-mangled secrets).
+  let raw = (env.FIREBASE_PRIVATE_KEY || '')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '')
+    .replace(/^['"]|['"]$/g, '');
+  const pemBody  = raw
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '').replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s+/g, '')
+    .replace(/-/g, '+').replace(/_/g, '/')
+    .trim();
+  if (!pemBody || pemBody.length < 100) {
+    throw new Error('FIREBASE_PRIVATE_KEY empty/too short after parsing — re-upload the secret');
+  }
+  const keyBytes = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
+  const key      = await crypto.subtle.importKey('pkcs8', keyBytes.buffer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+  const sig      = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(payload));
+  const jwt      = `${payload}.${b64url(sig)}`;
+  const res      = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+  });
+  if (!res.ok) throw new Error(`Token exchange failed: ${await res.text()}`);
+  const j = await res.json();
+
+  const entry = { token: j.access_token, expiresAt: now + 3600 };
+  _memToken   = entry;
+  if (env.INSIGHT_KV) {
+    try { await env.INSIGHT_KV.put('gat', JSON.stringify(entry), { expirationTtl: 3300 }); }
+    catch (e) { console.warn('KV write error:', e.message); }
+  }
+  return entry.token;
+}
+
+function b64url(data) {
+  const b = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data);
+  let s = ''; b.forEach(x => s += String.fromCharCode(x));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+function fsConfigured(env) {
+  return !!(env.FIREBASE_PROJECT_ID && env.FIREBASE_CLIENT_EMAIL && env.FIREBASE_PRIVATE_KEY);
+}
+
+const fsDocRoot = (env) =>
+  `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+
+// JS value → Firestore REST typed value. Nulls kept (nullValue) so a field
+// like merchant:null is visible in the doc rather than silently absent.
+function fsVal(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number') {
+    return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  }
+  if (typeof v === 'string') return { stringValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(fsVal) } };
+  return { mapValue: { fields: fsFields(v) } };
+}
+
+function fsFields(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) out[k] = fsVal(v);
+  return out;
+}
+
+// batchWrite in chunks of ≤500 (Firestore's per-call limit). `update` without
+// a mask is a full set (create-or-overwrite) — right for normalized records we
+// own end-to-end. Returns total write count.
+async function fsBatchWrite(env, token, writes) {
+  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents:batchWrite`;
+  let written = 0;
+  for (let i = 0; i < writes.length; i += 500) {
+    const chunk = writes.slice(i, i + 500);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ writes: chunk })
+    });
+    if (!res.ok) throw new Error(`batchWrite failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+    const data = await res.json();
+    // batchWrite is non-atomic: per-write status array. Surface any failure.
+    const bad = (data.status || []).filter(s => s.code && s.code !== 0);
+    if (bad.length) throw new Error(`batchWrite: ${bad.length} write(s) failed: ${JSON.stringify(bad[0]).slice(0, 200)}`);
+    written += chunk.length;
+  }
+  return written;
+}
+
+// ── Full sync pipeline (cron + POST /sync share this) ───────────────────────
+// Per item: Plaid /transactions/sync → normalize → Firestore batchWrite
+// (upsert added+modified, delete removed) → refresh account balances →
+// stamp the meta doc. Firestore-less mode (secrets not yet set) still runs
+// the Plaid leg and reports firestore:'skipped' so nothing hard-fails.
+async function runFullSync(env, trigger) {
+  const items = await listItems(env);
+  const out = { ok: true, trigger, env: plaidEnv(env), synced: 0, results: [] };
+
+  const writeFs = fsConfigured(env);
+  let token = null;
+  if (writeFs) token = await getGoogleAccessToken(env);
+  else out.firestore = 'skipped — FIREBASE_* secrets not set';
+
+  for (const item of items) {
+    const r = { item_id: item.item_id, institution: item.institution_name, ok: true };
+    try {
+      const sync = await syncItem(env, item);
+      r.added = sync.added.length;
+      r.modified = sync.modified.length;
+      r.removed = sync.removed.length;
+
+      if (writeFs) {
+        const root = fsDocRoot(env);
+        const writes = [];
+        for (const t of [...sync.added, ...sync.modified]) {
+          writes.push({ update: {
+            name: `${root}/dashboards/insight/plaid_transactions/${t.transaction_id}`,
+            fields: fsFields(normalizeTx(t, item))
+          }});
+        }
+        for (const t of sync.removed) {
+          writes.push({ delete: `${root}/dashboards/insight/plaid_transactions/${t.transaction_id}` });
+        }
+
+        // Balances ride along on every sync (plan §4.6) — cheap, one call/item.
+        const acc = await plaidPost(env, '/accounts/get', { access_token: item.access_token });
+        for (const a of acc.accounts) {
+          writes.push({ update: {
+            name: `${root}/dashboards/insight/accounts/${a.account_id}`,
+            fields: fsFields(normalizeAccount(a, item))
+          }});
+        }
+        r.accounts = acc.accounts.length;
+        r.firestoreWrites = await fsBatchWrite(env, token, writes);
+      }
+      out.synced++;
+    } catch (e) {
+      r.ok = false;
+      r.error = e.message;
+      out.ok = false;
+    }
+    out.results.push(r);
+  }
+
+  if (writeFs) {
+    try {
+      await fsBatchWrite(env, token, [{ update: {
+        name: `${fsDocRoot(env)}/dashboards/insight`,
+        fields: fsFields({
+          lastSyncAt: Date.now(),
+          lastSyncTrigger: trigger,
+          env: plaidEnv(env),
+          lastSyncResults: out.results.map(r => ({
+            institution: r.institution, ok: r.ok,
+            added: r.added ?? 0, modified: r.modified ?? 0, removed: r.removed ?? 0
+          }))
+        })
+      }}]);
+    } catch (e) {
+      out.metaWriteError = e.message;
+    }
+  }
+
+  return out;
 }
 
 // ── Routes ──────────────────────────────────────────────────────────────────
@@ -193,7 +451,11 @@ export default {
           ok: true,
           app: 'insight-api',
           plaidEnv: plaidEnv(env),
-          secretsPresent: { clientId: !!env.PLAID_CLIENT_ID, envSecret: !!plaidSecret(env) },
+          secretsPresent: {
+            clientId: !!env.PLAID_CLIENT_ID,
+            envSecret: !!plaidSecret(env),
+            firestore: fsConfigured(env)
+          },
           linkedItems: items
         }, origin);
       }
@@ -254,28 +516,67 @@ export default {
       if (path === '/sync' && request.method === 'POST') {
         const blocked = prodGate(env, origin);
         if (blocked) return blocked;
-        const items = await listItems(env);
-        const results = [];
-        for (const item of items) {
-          try {
-            const r = await syncItem(env, item);
-            results.push({
-              item_id: item.item_id,
-              institution: item.institution_name,
-              ok: true,
-              added: r.added.length, modified: r.modified.length, removed: r.removed.length
-            });
-          } catch (e) {
-            results.push({ item_id: item.item_id, institution: item.institution_name, ok: false, error: e.message });
-          }
-        }
-        return json({ ok: results.every(r => r.ok), synced: results.length, results }, origin);
+        return json(await runFullSync(env, 'manual'), origin);
+      }
+
+      // Debug/verification read-back: newest Firestore transactions. Runs
+      // through prodGate, so it disappears along with sandbox mode — the real
+      // frontend reads Firestore directly via onSnapshot instead.
+      if (path === '/transactions' && request.method === 'GET') {
+        const blocked = prodGate(env, origin);
+        if (blocked) return blocked;
+        if (!fsConfigured(env)) return json({ ok: false, error: 'FIREBASE_* secrets not set' }, origin, 500);
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '10', 10) || 10, 100);
+        const token = await getGoogleAccessToken(env);
+        const res = await fetch(`https://firestore.googleapis.com/v1/${fsDocRoot(env)}/dashboards/insight:runQuery`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ structuredQuery: {
+            from: [{ collectionId: 'plaid_transactions' }],
+            orderBy: [{ field: { fieldPath: 'date' }, direction: 'DESCENDING' }],
+            limit
+          }})
+        });
+        if (!res.ok) return json({ ok: false, error: (await res.text()).slice(0, 400) }, origin, 500);
+        const rows = await res.json();
+        const docs = (Array.isArray(rows) ? rows : []).filter(r => r.document);
+        return json({
+          ok: true,
+          count: docs.length,
+          transactions: docs.map(r => {
+            const f = r.document.fields || {};
+            return {
+              id: f.id?.stringValue,
+              date: f.date?.stringValue,
+              name: f.merchant?.stringValue || f.name?.stringValue,
+              amount: parseFloat(f.amount?.doubleValue ?? f.amount?.integerValue ?? '0'),
+              category: f.category?.stringValue || null,
+              institution: f.institution?.stringValue,
+              pending: f.pending?.booleanValue === true
+            };
+          })
+        }, origin);
       }
 
       return json({ ok: false, error: 'unknown route' }, origin, 404);
     } catch (e) {
       return json({ ok: false, error: e.message || 'server error', plaid: e.plaid || undefined }, origin, 500);
     }
+  },
+
+  async scheduled(event, env, ctx) {
+    // Daily incremental sync (plan §3). Never runs in production mode until
+    // the step-7 gate work flips PLAID_ENV — prodGate logic mirrored here.
+    if (plaidEnv(env) !== 'sandbox' ) {
+      console.log('[cron] production mode blocked until app-lock gate (step 7)');
+      return;
+    }
+    ctx.waitUntil(
+      runFullSync(env, 'cron')
+        .then(r => console.log(`[cron] synced ${r.synced} item(s):`,
+          r.results.map(x => `${x.institution}: +${x.added ?? 0}/~${x.modified ?? 0}/-${x.removed ?? 0}${x.ok ? '' : ' FAILED: ' + x.error}`).join(' | ')))
+        .catch(e => console.error('[cron] sync failed:', e.message))
+    );
   }
 };
 
