@@ -12,10 +12,10 @@
 <style>
   /* ═══════════ Insight — warm charcoal / tan-gold, editorial ═══════════ */
   :root {
-    --bg: #0a0a0a;
-    --surface: #151515;
-    --surface-2: #1b1b1b;
-    --surface-3: #242424;
+    --bg: #0d0d0e;
+    --surface: #1a1a1c;
+    --surface-2: #212124;
+    --surface-3: #2a2a2e;
     --border: #2e2e2e;
     --border-soft: #1f1f1f;
     --text: #f2f1ee;
@@ -38,8 +38,15 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body {
-    background: var(--bg);
-    background-image: radial-gradient(120% 55% at 50% -12%, rgba(255,255,255,.025), transparent 70%);
+    background-color: var(--bg);
+    /* Soft charcoal wash: a diagonal base, a broad light source top-left and
+       a whisper of gold top-right, so the page reads as graded metal rather
+       than flat black. Fixed so it doesn't slide while scrolling. */
+    background-image:
+      radial-gradient(95% 65% at 22% 8%, rgba(255,255,255,.055), transparent 62%),
+      radial-gradient(70% 55% at 88% 2%, rgba(205,168,110,.045), transparent 68%),
+      radial-gradient(130% 90% at 50% 115%, rgba(0,0,0,.55), transparent 60%),
+      linear-gradient(158deg, #1b1b1e 0%, #141416 42%, #0c0c0d 100%);
     background-attachment: fixed;
     color: var(--text);
     font-family: var(--sans);
@@ -93,12 +100,12 @@
     display: inline-flex; align-items: center; gap: 7px; line-height: 1;
     transition: border-color .18s, background .18s, color .18s, transform .05s;
   }
-  .btn:hover { border-color: var(--muted); background: var(--surface-2); }
+  .btn:hover { border-color: var(--muted); background: transparent; }
   .btn:active { transform: translateY(1px); }
   .btn.gold {
     border-color: var(--gold-line); color: var(--gold-soft); background: transparent;
   }
-  .btn.gold:hover { border-color: var(--gold); background: var(--gold-wash); color: var(--gold-soft); }
+  .btn.gold:hover { border-color: var(--gold); background: transparent; color: var(--gold-soft); }
   .btn.danger { color: var(--danger); border-color: rgba(214,138,124,.3); }
   .btn:disabled { opacity: .4; cursor: default; }
   .btn:disabled:hover { border-color: var(--border); background: transparent; }
@@ -115,13 +122,13 @@
   .tab { touch-action: manipulation; }
   .tab.navdrag {
     z-index: 5; cursor: grabbing; opacity: .97;
-    border-color: var(--gold-line); background: var(--gold-wash); color: var(--gold-soft);
+    border-color: var(--gold); color: var(--gold-soft); background: transparent;
     box-shadow: 0 10px 26px rgba(0,0,0,.45);
   }
 
   #displayModeBtn { white-space: nowrap; }
   #displayModeBtn[aria-pressed="true"] {
-    border-color: var(--gold); color: var(--gold-soft); background: var(--gold-wash);
+    border-color: var(--gold); color: var(--gold-soft); background: transparent;
   }
 
   .env-badge {
@@ -223,9 +230,9 @@
     display: flex; align-items: center; justify-content: center;
   }
   .iconbtn svg { display: block; width: 16px; height: 16px; }
-  .iconbtn:hover { color: var(--gold-soft); background: var(--surface-3); }
+  .iconbtn:hover { color: var(--gold-soft); background: transparent; }
   .iconbtn.lock { cursor: default; color: var(--faint); }
-  .iconbtn.lock:hover { color: var(--faint); background: none; }
+  .iconbtn.lock:hover { color: var(--faint); background: transparent; }
 
   /* ── Accounts ── */
   .instgroup { margin-bottom: 32px; }
@@ -295,7 +302,7 @@
     font-family: var(--sans); font-size: 11.5px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase;
     padding: 9px; border-radius: 4px; cursor: pointer; transition: color .15s, background .15s;
   }
-  .seg button.on { background: var(--gold-wash); color: var(--gold-soft); box-shadow: inset 0 0 0 1px var(--gold-line); }
+  .seg button.on { background: transparent; color: var(--gold-soft); box-shadow: inset 0 0 0 1px var(--gold); }
   .modalacts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
 
   /* ── Import review ── */
@@ -314,18 +321,14 @@
     font-size: 13.5px; letter-spacing: .2px;
   }
   .filedrop svg { width: 30px; height: 30px; }
-  .filedrop:hover, .filedrop.drag { border-color: var(--gold); background: var(--gold-wash); }
+  .filedrop:hover, .filedrop.drag { border-color: var(--gold); background: transparent; }
 
-  /* ── Drag to reorder (recurring) ── */
-  .draghandle {
-    display: flex; align-items: center; justify-content: center;
-    width: 24px; height: 34px; margin: -4px 0 -4px -6px; flex-shrink: 0;
-    color: var(--faint); cursor: grab; border-radius: var(--radius-sm);
-    touch-action: none; -webkit-tap-highlight-color: transparent; user-select: none;
-    transition: color .15s, background .15s;
-  }
-  .draghandle:hover { color: var(--muted); background: var(--surface-3); }
-  .draghandle:active { cursor: grabbing; }
+  /* ── Drag to reorder (recurring) ──
+     No grip: the whole row is the target. Mouse arms on a few pixels of
+     movement, touch on a long press so ordinary swipes still scroll. */
+  #recList .txrow { cursor: grab; }
+  #recList .txrow:active { cursor: grabbing; }
+  #recList .txrow .iconbtn { cursor: pointer; }
   .txrow.dragging {
     position: relative; z-index: 30; cursor: grabbing;
     border-color: var(--gold-line);
@@ -343,7 +346,7 @@
   }
   .cashctl input:focus { border-color: var(--gold); }
   .btn.deduct { color: var(--danger); border-color: rgba(214,138,124,.3); }
-  .btn.deduct:hover { border-color: var(--danger); background: rgba(214,138,124,.08); }
+  .btn.deduct:hover { border-color: var(--danger); background: transparent; }
   .cashsetrow { margin-top: 18px; font-size: 12px; color: var(--faint); letter-spacing: .3px; }
   .cashsetrow span { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
   .cashsetrow span:hover { color: var(--muted); }
@@ -1656,14 +1659,7 @@
       return;
     }
     $('recList').innerHTML = recurring.map(r => `
-      <div class="txrow" data-rid="${esc(r.id)}">
-        <div class="draghandle" title="Drag to reorder">
-          <svg width="11" height="16" viewBox="0 0 11 16" fill="currentColor" aria-hidden="true">
-            <circle cx="2.2" cy="3" r="1.35"/><circle cx="8.8" cy="3" r="1.35"/>
-            <circle cx="2.2" cy="8" r="1.35"/><circle cx="8.8" cy="8" r="1.35"/>
-            <circle cx="2.2" cy="13" r="1.35"/><circle cx="8.8" cy="13" r="1.35"/>
-          </svg>
-        </div>
+      <div class="txrow" data-rid="${esc(r.id)}" title="Drag to reorder">
         <div class="txbadge">${esc((r.name || '?').charAt(0).toUpperCase())}</div>
         <div class="txmain">
           <div class="txname">${esc(r.name)}</div>
@@ -1707,19 +1703,39 @@
       }
     }
 
-    list.addEventListener('pointerdown', e => {
-      const handle = e.target.closest('.draghandle');
-      if (!handle || e.button > 0) return;
-      const row = handle.closest('[data-rid]');
-      if (!row) return;
-      e.preventDefault();
-      handle.setPointerCapture(e.pointerId);
-      drag = { row, handle, id: e.pointerId, grabY: e.clientY, moved: false };
+    // Grab a row anywhere — no handle. With a mouse the drag arms after a few
+    // pixels of movement; on touch it takes a long press, so an ordinary swipe
+    // still scrolls the page. Taps on the edit/delete buttons are left alone.
+    let holdTimer = null;
+
+    function armDrag(e, row) {
+      drag.dragging = true;
+      drag.grabY = e.clientY;
+      try { row.setPointerCapture(drag.id); } catch {}
       row.classList.add('dragging');
+    }
+
+    list.addEventListener('pointerdown', e => {
+      if (e.button > 0 || e.target.closest('.iconbtn')) return;
+      const row = e.target.closest('[data-rid]');
+      if (!row) return;
+      drag = { row, id: e.pointerId, grabY: e.clientY, startY: e.clientY, startX: e.clientX,
+               moved: false, dragging: false, touch: e.pointerType === 'touch' };
+      if (drag.touch) holdTimer = setTimeout(() => { holdTimer = null; if (drag) armDrag(e, row); }, 320);
+      else e.preventDefault();
     });
 
     list.addEventListener('pointermove', e => {
       if (!drag || e.pointerId !== drag.id) return;
+      if (!drag.dragging) {
+        const dx = Math.abs(e.clientX - drag.startX), dy = Math.abs(e.clientY - drag.startY);
+        if (drag.touch) {                      // moved before the hold → let the page scroll
+          if (dx > 8 || dy > 8) { clearTimeout(holdTimer); holdTimer = null; drag = null; }
+          return;
+        }
+        if (dy < 4) return;
+        armDrag(e, drag.row);
+      }
       drag.moved = true;
       const dy = e.clientY - drag.grabY;
       drag.row.style.transform = `translateY(${dy}px)`;
@@ -1745,12 +1761,13 @@
 
     async function endDrag(e) {
       if (!drag || (e && e.pointerId !== drag.id)) return;
-      const { row, moved } = drag;
+      const { row, moved, dragging } = drag;
       drag = null;
+      clearTimeout(holdTimer); holdTimer = null;
       row.classList.add('dropping');
       row.style.transform = '';
       setTimeout(() => { row.classList.remove('dragging', 'dropping'); }, 180);
-      if (!moved) return;
+      if (!moved || !dragging) return;
 
       const order = [...list.querySelectorAll('[data-rid]')].map(el => el.dataset.rid);
       const next = order.map(id => recurring.find(r => r.id === id)).filter(Boolean);
