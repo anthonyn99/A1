@@ -7,7 +7,7 @@
 <title>Insight</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600..800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <style>
   /* ═══════════ Insight — warm charcoal / tan-gold, editorial ═══════════ */
@@ -21,10 +21,10 @@
     --text: #f2f1ee;
     --muted: #8c8c8c;
     --faint: #5c5c5c;
-    --gold: #cda86e;
-    --gold-soft: #e6c692;
-    --gold-line: rgba(205,168,110,.35);
-    --gold-wash: rgba(205,168,110,.10);
+    --gold: #c8ac80;        /* champagne, less orange than the old tan */
+    --gold-soft: #e4d1ae;   /* pale cream-gold for text and figures */
+    --gold-line: rgba(200,172,128,.32);
+    --gold-wash: rgba(200,172,128,.09);
     --danger: #d68a7c;
     --ok: #a4b986;
     --radius: 9px;
@@ -51,7 +51,7 @@
   }
   a { color: var(--gold-soft); text-decoration: none; }
   a:hover { color: var(--gold); }
-  ::selection { background: rgba(196,164,104,.25); color: var(--text); }
+  ::selection { background: rgba(200,172,128,.22); color: var(--text); }
   :focus-visible { outline: 1.5px solid var(--gold); outline-offset: 2px; }
   .wrap { max-width: 920px; margin: 0 auto; padding: 0 22px; }
 
@@ -60,9 +60,9 @@
   .brandrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .brand {
     font-family: var(--display);
-    font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: -.4px;
+    font-size: 34px; font-weight: 750; line-height: 1.2; letter-spacing: -.4px;
     padding: 0 2px 6px 6px; color: var(--gold-soft);
-    background: linear-gradient(180deg, #f0d9a8 0%, #cda86e 90%);
+    background: linear-gradient(176deg, #f4e8ce 0%, #e0c9a2 45%, #c19f72 100%);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -248,7 +248,9 @@
   .panel p.help { color: var(--muted); font-size: 13.5px; margin-bottom: 18px; max-width: 62ch; }
   .modalback {
     position: fixed; inset: 0; background: rgba(10,9,8,.7); backdrop-filter: blur(5px);
-    display: none; align-items: flex-start; justify-content: center; z-index: 50; padding: 8vh 16px 16px; overflow-y: auto;
+    /* Above #lockScreen (200) — otherwise confirmations raised from the lock
+       screen open behind it and look like nothing happened. */
+    display: none; align-items: flex-start; justify-content: center; z-index: 300; padding: 8vh 16px 16px; overflow-y: auto;
   }
   .modalback.open { display: flex; }
   .modal {
@@ -380,7 +382,7 @@
   #lockScreen {
     position: fixed; inset: 0; z-index: 200;
     background: var(--bg);
-    background-image: radial-gradient(120% 50% at 50% -10%, rgba(205,168,110,.06), transparent 70%);
+    background-image: radial-gradient(120% 50% at 50% -10%, rgba(200,172,128,.055), transparent 70%);
     display: flex; align-items: center; justify-content: center; padding: 20px;
   }
   .lockbox { width: 100%; max-width: 360px; text-align: center; }
@@ -392,7 +394,12 @@
     text-align: center; margin-bottom: 12px; transition: border-color .18s;
   }
   .lockbox input:focus { border-color: var(--gold); }
-  .lockbox .btn { width: 100%; padding: 14px; font-size: 12px; justify-content: center; }
+  /* Lock-screen actions read as sentences, not shouted labels. */
+  .lockbox .btn {
+    width: 100%; padding: 14px; font-size: 13.5px; justify-content: center;
+    text-transform: none; letter-spacing: .2px;
+  }
+  #lockBio { margin-top: 9px; }
   .lockmsg { min-height: 20px; font-size: 12.5px; color: var(--danger); margin: 12px 0 0; }
   .lockmsg.ok { color: var(--gold-soft); }
   .locklinks { display: flex; gap: 20px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
@@ -508,10 +515,6 @@
   <div class="lockbox" id="lockBox">
     <div class="brand">Insight</div>
     <div class="sub" id="lockSub">Locked</div>
-    <!-- Biometric unlock — only ever runs when this button is pressed. -->
-    <div id="lockBio" style="display:none">
-      <button class="btn gold" id="bioBtn" style="width:100%;margin-bottom:11px"></button>
-    </div>
     <div class="locksetup-note" id="lockNote" style="display:none">
       First time here — create the password that will protect Insight and its institution-connection flow.
       It's stored the same way as your other app locks (hashed, never plaintext).
@@ -521,6 +524,11 @@
     <input type="password" id="lockPw2" placeholder="Confirm password" style="display:none" autocomplete="new-password">
     <input type="text" id="lockHintIn" placeholder="Hint (optional)" style="display:none" autocomplete="off">
     <button class="btn gold" id="lockGo">Unlock</button>
+    <!-- Biometric unlock — sits under the password button and only ever runs
+         when it is pressed; nothing fires on load. -->
+    <div id="lockBio" style="display:none">
+      <button class="btn" id="bioBtn"></button>
+    </div>
     <div class="lockmsg" id="lockMsg"></div>
     <div class="locklinks" id="lockLinks"></div>
   </div>
@@ -750,6 +758,7 @@
   let lockMode = 'unlock';     // unlock | setup | reset
   let lockHint = '';
   let lockSetupNeeded = false;
+  let bioRemoveMode = false;   // verifying identity in order to un-enrol
 
   // A device is trusted once and stays trusted — no timeout. The token only
   // stops working if you lock manually or the password is changed/reset (the
@@ -786,8 +795,10 @@
     if (lockMode !== 'unlock' || !window.Bio || !bioRegistered()) return;
     Bio.available().then(avail => {
       if (!avail || lockMode !== 'unlock') return;
-      if (!getStoredSession()) return;      // nothing to release → password only
-      btn.textContent = 'Unlock with ' + Bio.label();
+      // While un-enrolling, the button verifies. Otherwise it needs a stored
+      // session to release, so it only shows when there is one.
+      if (!bioRemoveMode && !getStoredSession()) return;
+      btn.textContent = (bioRemoveMode ? 'Verify with ' : 'Unlock with ') + Bio.label();
       box.style.display = '';
     });
   }
@@ -801,6 +812,7 @@
       lockMsg(Bio.label() + ' check failed — use your password.');
       return;
     }
+    if (bioRemoveMode) { doRemoveBio(); return; }
     // The credential is only a local gate; make sure the session it releases
     // is still valid server-side (it won't be if the password was changed).
     const s = getStoredSession();
@@ -839,14 +851,19 @@
     else toast('Could not enable ' + name);
   }
 
-  async function forgetBio() {
+  // Removing a credential asks you to prove it's you first — with the
+  // biometric itself or with the password — the same way MyList gates it.
+  function forgetBio() {
+    bioRemoveMode = true;
+    lockView('unlock');
+    lockMsg(`Verify with ${Bio.label()} or your password to remove it from this device.`, true);
+  }
+
+  function doRemoveBio() {
     const name = Bio.label();
-    if (!(await askConfirm(`Remove ${name}?`,
-      `Insight will ask for your password on this device instead. You can turn ${name} back on after your next password unlock.`,
-      'Remove'))) return;
+    bioRemoveMode = false;
     Bio.unregister(BIO_APP, BIO_ID);
-    renderBioButton();
-    lockView(lockMode);
+    lockView('unlock');
     toast(name + ' removed from this device');
   }
 
@@ -878,11 +895,18 @@
     show('lockHintIn', mode !== 'unlock');
     lockEl('lockPw1').placeholder = mode === 'unlock' ? 'Password' : 'New password';
     lockEl('lockHintIn').placeholder = mode === 'reset' ? 'New hint (optional)' : 'Hint (optional)';
-    lockEl('lockSub').textContent = mode === 'setup' ? 'Set up your password' : mode === 'reset' ? 'Reset password' : 'Locked';
-    lockEl('lockGo').textContent = mode === 'setup' ? 'Create & unlock' : mode === 'reset' ? 'Reset password' : 'Unlock';
+    const bioName = window.Bio ? Bio.label() : 'biometrics';
+    lockEl('lockSub').textContent = mode === 'setup' ? 'Set up your password'
+      : mode === 'reset' ? 'Reset password'
+      : bioRemoveMode ? 'Remove ' + bioName : 'Locked';
+    lockEl('lockGo').textContent = mode === 'setup' ? 'Create & unlock'
+      : mode === 'reset' ? 'Reset password'
+      : bioRemoveMode ? 'Verify password & remove' : 'Unlock';
     const L = lockEl('lockLinks'); L.innerHTML = '';
     const link = (label, fn) => { const s = document.createElement('span'); s.textContent = label; s.addEventListener('click', fn); L.appendChild(s); };
-    if (mode === 'unlock') {
+    if (mode === 'unlock' && bioRemoveMode) {
+      link('Cancel', () => { bioRemoveMode = false; lockView('unlock'); });
+    } else if (mode === 'unlock') {
       link('Email me the hint', emailHint);
       link('Forgot password?', startReset);
       if (bioRegistered()) link('Remove ' + Bio.label(), forgetBio);
@@ -897,6 +921,7 @@
   function showLock() {
     const ls = lockEl('lockScreen');
     ls.style.display = 'flex'; ls.style.opacity = '1';
+    bioRemoveMode = false;
     lockView(lockSetupNeeded ? 'setup' : 'unlock');
   }
   function hideLock() {
@@ -956,11 +981,21 @@
     lockMsg('');
     if (lockMode === 'unlock') {
       if (!p1) return;
+      const shake = () => {
+        const box = lockEl('lockBox');
+        box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+        lockEl('lockPw1').select();
+      };
+      // Un-enrolling: the password verifies identity but must not mint a session.
+      if (bioRemoveMode) {
+        const v = await authPost('/auth/journal/verify', { password: p1 });
+        if (v.ok) doRemoveBio();
+        else { shake(); lockMsg('Wrong password.'); }
+        return;
+      }
       if (await openSession(p1)) { hideLock(); maybeOfferBio(); return; }
-      const box = lockEl('lockBox');
-      box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+      shake();
       lockMsg('Wrong password.');
-      lockEl('lockPw1').select();
       return;
     }
     // setup + reset share validation
