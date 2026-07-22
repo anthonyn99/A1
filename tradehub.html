@@ -4174,6 +4174,86 @@ const NH_DEFAULT_TICKERS = [...TB_WATCHLIST];
 const NH_DAILY_LIMIT = 12;     // must match worker DAILY_FRESH_LIMIT
 const NH_MIN_INTERVAL = 5*60;  // must match worker MIN_FRESH_INTERVAL (seconds)
 const NH_POLL_INTERVAL = 15000; // ms between polls while building
+// Max poll attempts before giving up (so a build that never writes can't spin the
+// UI forever). 16 × 15s = ~4 min — longer than any healthy build.
+const NH_MAX_POLLS = 16;
+
+/* ── Module-level NEWS build manager ─────────────────────────────────────────
+   A worker build takes 30–90s. The spinner and the poller used to live inside
+   TBNewsPage, so switching tabs unmounted the component and took both with it:
+   "Building…" vanished, the poll timer was cleared by the unmount cleanup, and
+   nobody was left to notice the build had landed — you had to hit Refresh or
+   bounce the tab. Own the whole watch here instead (same shape as _tbCatBuild
+   below): polling keeps running across tab switches, a remounting tab restores
+   the spinner from `building`, and the finished build is published to Firebase
+   from here so it lands even with the News tab closed. ── */
+const _tbNewsBuild = {
+  building:false,
+  timer:null,
+  polls:0,
+  tickers:[],
+  baseGen:0,      // generatedAt when the build was kicked — a poll is only DONE past this
+  settings:null,  // mirror of the tab's filters; the Firebase write is a full overwrite
+  last:null,      // most recent finished payload, adopted by a tab that remounts
+  listeners:new Set(),
+  sub(fn){ this.listeners.add(fn); return()=>this.listeners.delete(fn); },
+  emit(evt){ this.listeners.forEach(fn=>{try{fn(evt);}catch(e){}}); },
+  stop(){ if(this.timer){clearTimeout(this.timer);this.timer=null;} this.polls=0; this.building=false; },
+};
+async function tbNewsPoll(){
+  const B=_tbNewsBuild;
+  B.timer=null;
+  try{
+    // cacheOnly=1 is a pure PEEK — polling must NEVER kick another build, or a
+    // failing build would re-kick itself forever once its lock expired.
+    const r=await fetch(NH_WORKER_URL+'/news?cacheOnly=1&tickers='+encodeURIComponent(B.tickers.join(',')));
+    if(!r.ok){ B.stop(); B.emit({type:'error',message:'Worker error '+r.status}); return; }
+    const j=await r.json().catch(()=>({}));
+    const gen=j.generatedAt||0;
+    // Finished only when the cache holds a build NEWER than the one we started
+    // from. A force-fresh leaves the PREVIOUS payload in KV until it overwrites
+    // it at the very end, so "cache hit" alone proves nothing — without the
+    // generatedAt check the first poll adopted the stale doc and called it done.
+    if(!j._cacheMiss&&Array.isArray(j.events)&&gen>B.baseGen){
+      B.stop();
+      const payload={
+        events:j.events,
+        generatedAt:gen,
+        degraded:!!j.degraded||(j.events.length>0&&j.events.every(e=>e.aiAnalyzed===false)),
+      };
+      B.last=payload;
+      // Publish from HERE, not from the tab — News may well be unmounted.
+      if(window._fbSaveTBNews){
+        let settings=B.settings;
+        // Never write the doc without settings: setDoc is a full overwrite, so a
+        // missing key would reset the user's saved filters.
+        if(!settings&&window._fbLoadTBNews){
+          try{ const d=await window._fbLoadTBNews(); settings=(d&&d.settings)||null; }catch(e){}
+        }
+        window._fbSaveTBNews(settings?{events:payload.events,generatedAt:payload.generatedAt,settings}
+                                     :{events:payload.events,generatedAt:payload.generatedAt});
+      }
+      B.emit({type:'done',payload});
+      return;
+    }
+    if(++B.polls>=NH_MAX_POLLS){ B.stop(); B.emit({type:'timeout'}); return; }
+    B.timer=setTimeout(tbNewsPoll,NH_POLL_INTERVAL);
+  }catch(e){
+    B.stop();
+    B.emit({type:'error',message:'Network error: '+(e.message||'unknown')});
+  }
+}
+// Start (or join) a watch on a build. baseGen is the generatedAt we're replacing.
+function tbNewsWatchBuild(tickers,baseGen){
+  const B=_tbNewsBuild;
+  if(B.building)return;                     // already watching one
+  B.building=true;
+  B.tickers=(tickers&&tickers.length)?tickers:NH_DEFAULT_TICKERS;
+  B.baseGen=baseGen||0;
+  B.polls=0;
+  B.emit({type:'start'});
+  B.timer=setTimeout(tbNewsPoll,NH_POLL_INTERVAL);
+}
 
 const NH_TIER_META = {
   critical:  {label:'Critical',  c:'var(--tbr)'},
@@ -4272,7 +4352,9 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   const [events,setEvents]=useState([]);
   const [generatedAt,setGeneratedAt]=useState(null);
   const [loading,setLoading]=useState(false);
-  const [building,setBuilding]=useState(false); // pipeline running in background
+  // Seed from the module-level manager so the spinner is still there when you come
+  // back to a tab whose build is still running.
+  const [building,setBuilding]=useState(()=>_tbNewsBuild.building);
   const [degraded,setDegraded]=useState(false); // all AI down, showing raw headlines
   const [notice,setNotice]=useState('');
   const [hours,setHours]=useState(72); // 3-day window
@@ -4289,10 +4371,26 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   // Live quotes for price-move correlation: { TICKER:{c,d,dp,...} }
   const [quotes,setQuotes]=useState({});
   const [quotesAt,setQuotesAt]=useState(0);
-  const pollTimer=useRef(null);
-  const pollCount=useRef(0);
   const cooldownTimer=useRef(null);
   const hydrated=useRef(false);
+  // Latest generatedAt, readable from callbacks without re-creating them.
+  const genRef=useRef(0);
+  useEffect(()=>{genRef.current=generatedAt||0;},[generatedAt]);
+
+  // Apply a finished build (from the manager, a remote device, or a poll).
+  const applyBuild=useCallback((p)=>{
+    if(!p||!Array.isArray(p.events))return;
+    setEvents(p.events);
+    setGeneratedAt(p.generatedAt||Date.now());
+    setDegraded(!!p.degraded);
+    genRef.current=p.generatedAt||Date.now();
+  },[]);
+
+  // Keep the manager's copy of the filters current — it publishes the finished
+  // build to Firebase itself, and that write is a full doc overwrite.
+  useEffect(()=>{
+    _tbNewsBuild.settings={hours,sentFilter,impFilter,selTickers,selSectors,sortBy};
+  },[hours,sentFilter,impFilter,selTickers,selSectors,sortBy]);
 
   /* ── Fetch rate status from worker (cheap KV reads) ── */
   const fetchRateStatus=useCallback(async()=>{
@@ -4324,8 +4422,14 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
         const d=await window._fbLoadTBNews();
         fbDoc=d;
         if(d){
-          if(Array.isArray(d.events)&&d.events.length>0){setEvents(d.events);}
-          if(d.generatedAt&&(!d.events||d.events.length>0))setGeneratedAt(d.generatedAt);
+          // A build that finished while this tab was closed may not have hit
+          // Firebase yet (the save is debounced) — don't let a staler doc win.
+          const lb=_tbNewsBuild.last;
+          const fresher=lb&&(lb.generatedAt||0)>(d.generatedAt||0);
+          if(!fresher){
+            if(Array.isArray(d.events)&&d.events.length>0){setEvents(d.events);}
+            if(d.generatedAt&&(!d.events||d.events.length>0)){setGeneratedAt(d.generatedAt);genRef.current=d.generatedAt;}
+          }
           if(d.settings){
             const s=d.settings;
             if(s.hours)setHours(s.hours);
@@ -4361,9 +4465,9 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
         setBuilding(false);
         setLoading(false);
         setNotice('');
-        stopPolling();
+        _tbNewsBuild.stop();
       }
-      if(d.generatedAt&&(!d.events||d.events.length>0))setGeneratedAt(d.generatedAt);
+      if(d.generatedAt&&(!d.events||d.events.length>0)){setGeneratedAt(d.generatedAt);genRef.current=d.generatedAt;}
       if(d.settings){
         const s=d.settings;
         if(s.hours)setHours(s.hours);
