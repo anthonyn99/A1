@@ -106,7 +106,10 @@
   body.privacy .money { filter: blur(0.34em); user-select: none; -webkit-user-select: none; }
   body.privacy input.money:focus { filter: none; user-select: auto; -webkit-user-select: auto; }
   /* Tabs are draggable to reorder; keep vertical scrolling natural on touch. */
-  .tab { touch-action: pan-y; }
+  /* `manipulation` keeps the browser's own panning (so the strip still scrolls
+     horizontally on touch) while dropping the 300ms double-tap delay. Reorder
+     drags start from a long press and suppress scrolling only once armed. */
+  .tab { touch-action: manipulation; }
   .tab.navdrag {
     z-index: 5; cursor: grabbing; opacity: .97;
     border-color: var(--gold-line); background: var(--gold-wash); color: var(--gold-soft);
@@ -251,6 +254,33 @@
   .field label { display: block; font-size: 10px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
   .field input, .field select, .field textarea { width: 100%; }
   .field textarea { resize: vertical; min-height: 60px; max-height: 180px; font-family: var(--sans); line-height: 1.5; }
+
+  /* ── Notes resize grip ──
+     The native corner resizer is ~15px and doesn't exist at all on mobile
+     browsers. Each notes field gets a real handle instead: a generous target
+     (34px, 44px on touch) driving the same vertical resize. */
+  .ta-wrap { position: relative; display: block; }
+  .ta-wrap textarea { resize: none; display: block; padding-bottom: 20px; }
+  .ta-grip {
+    position: absolute; right: 1px; bottom: 1px; width: 34px; height: 34px;
+    display: flex; align-items: flex-end; justify-content: flex-end; padding: 6px 7px;
+    cursor: ns-resize; touch-action: none; color: var(--faint);
+    background: var(--surface); border-radius: 0 0 var(--radius-sm) 0;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+    transition: color .15s;
+  }
+  .ta-grip:hover { color: var(--gold-soft); }
+  .ta-grip.dragging { color: var(--gold); }
+  .ta-grip svg { width: 14px; height: 14px; display: block; }
+  @media (pointer: coarse) {
+    .ta-grip { width: 44px; height: 44px; padding: 8px 9px; }
+    .ta-grip svg { width: 16px; height: 16px; }
+  }
+
+  /* Amount fields stay numeric but lose the browser's up/down spinners. */
+  input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   #rNotes { min-height: 84px; max-height: 340px; line-height: 1.55; }
   .fieldrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .seg { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
@@ -844,6 +874,58 @@
     if (!lockSession) showLock();
     else confirmDeviceTrust();
   })();
+
+  // ── Notes resize handles ─────────────────────────────────────────────────
+  // Replaces the tiny native corner resizer (which mobile browsers don't even
+  // render) with a large pointer-driven grip. Behaviour is unchanged: drag
+  // down/up to grow or shrink the field vertically, clamped to the same limits.
+  function makeResizable(ta) {
+    if (!ta || ta.dataset.grip) return;
+    ta.dataset.grip = '1';
+    const cs = getComputedStyle(ta);
+    const min = parseFloat(cs.minHeight) || 60;
+    const max = parseFloat(cs.maxHeight) || 400;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ta-wrap';
+    ta.parentNode.insertBefore(wrap, ta);
+    wrap.appendChild(ta);
+
+    const grip = document.createElement('div');
+    grip.className = 'ta-grip';
+    grip.setAttribute('role', 'separator');
+    grip.setAttribute('aria-label', 'Resize notes field');
+    grip.setAttribute('aria-orientation', 'horizontal');
+    grip.setAttribute('tabindex', '0');
+    grip.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">' +
+      '<line x1="13" y1="4" x2="4" y2="13"/><line x1="13" y1="9" x2="9" y2="13"/></svg>';
+    wrap.appendChild(grip);
+
+    const setH = px => { ta.style.height = Math.max(min, Math.min(max, px)) + 'px'; };
+    let st = null;
+
+    grip.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      st = { y: e.clientY, h: ta.getBoundingClientRect().height, id: e.pointerId };
+      try { grip.setPointerCapture(e.pointerId); } catch {}
+      grip.classList.add('dragging');
+    });
+    grip.addEventListener('pointermove', e => {
+      if (!st || e.pointerId !== st.id) return;
+      e.preventDefault();
+      setH(st.h + (e.clientY - st.y));
+    });
+    const end = () => { st = null; grip.classList.remove('dragging'); };
+    grip.addEventListener('pointerup', end);
+    grip.addEventListener('pointercancel', end);
+    // Keyboard-resizable too, since the grip is focusable.
+    grip.addEventListener('keydown', e => {
+      const step = e.shiftKey ? 40 : 16;
+      if (e.key === 'ArrowDown') { e.preventDefault(); setH(ta.getBoundingClientRect().height + step); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setH(ta.getBoundingClientRect().height - step); }
+    });
+  }
+  document.querySelectorAll('.field textarea').forEach(makeResizable);
 
   // ── Custom confirm (no browser popups anywhere) ───────────────────────────
   function askConfirm(title, message, confirmLabel = 'Delete') {
