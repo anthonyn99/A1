@@ -1355,6 +1355,7 @@
     $('lastSync').textContent = at ? fmtUpdatedAt(at) : 'No institution data yet';
     if (meta.env && meta.env !== 'production') { $('envBadge').style.display = ''; }
     snapOk('meta');
+    maybeAutoSync();          // decided from lastSyncAt, so it costs no KV
   }, e => snapFail('meta', e));
 
   onSnapshot(query(collection(db, ROOT, 'plaid_transactions'), orderBy('date', 'desc'), limit(2000)), snap => {
@@ -1873,7 +1874,19 @@
     if (added) toast(`${added} new transaction${added === 1 ? '' : 's'} synced`, true);
     else if (!quiet) toast('Synced — up to date', true);
   }
-  pullBankData(true).catch(() => {});   // auto-refresh on open, silent unless news
+  // Auto-refresh on open — but only when the data is actually stale. Each
+  // sync costs Plaid calls plus KV writes (the free plan allows just 1,000
+  // KV writes a day, and one sync writes a cursor per institution), so
+  // firing it on every page open burned the daily budget for nothing. The
+  // daily cron keeps things current; this only catches up after a gap.
+  const AUTO_SYNC_AFTER = 6 * 60 * 60 * 1000;
+  let autoSyncChecked = false;
+  function maybeAutoSync() {
+    if (autoSyncChecked) return;
+    autoSyncChecked = true;
+    const age = Date.now() - (meta.lastSyncAt || 0);
+    if (age > AUTO_SYNC_AFTER) pullBankData(true).catch(() => {});
+  }
 
   $('syncNowBtn').addEventListener('click', async () => {
     const b = $('syncNowBtn'); b.disabled = true; b.textContent = 'Refreshing…';

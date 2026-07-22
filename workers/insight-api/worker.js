@@ -179,7 +179,15 @@ async function verifyLockOrToken(env, body) {
 const itemKey   = (id) => `plaid:item:${id}`;
 const cursorKey = (id) => `plaid:cursor:${id}`;
 
-async function listItems(env) {
+// KV budget note: the free plan allows 100k reads but only 1,000 writes,
+// 1,000 deletes and 1,000 LIST operations per day. Listing items costs
+// 1 list + 1 read per item, so a short in-isolate cache keeps a burst of
+// requests (page open → /sync → /items) down to a single list.
+let _itemsCache = null, _itemsCacheAt = 0;
+const ITEMS_TTL = 60 * 1000;
+
+async function listItems(env, { fresh = false } = {}) {
+  if (!fresh && _itemsCache && Date.now() - _itemsCacheAt < ITEMS_TTL) return _itemsCache;
   const out = [];
   let cursor;
   do {
@@ -190,18 +198,21 @@ async function listItems(env) {
     }
     cursor = page.list_complete ? null : page.cursor;
   } while (cursor);
+  _itemsCache = out; _itemsCacheAt = Date.now();
   return out;
 }
 
 async function storeItem(env, item) {
   await env.INSIGHT_KV.put(itemKey(item.item_id), JSON.stringify(item));
+  _itemsCache = null;            // a new institution must show up immediately
 }
 
 // /transactions/sync one item to completion. Retries PRODUCT_NOT_READY (a
 // freshly-linked item's history takes a few seconds to extract — routine in
 // Sandbox, possible in production) with a short backoff.
 async function syncItem(env, item, { maxReadyRetries = 8 } = {}) {
-  let cursor = (await env.INSIGHT_KV.get(cursorKey(item.item_id))) || undefined;
+  const startCursor = (await env.INSIGHT_KV.get(cursorKey(item.item_id))) || undefined;
+  let cursor = startCursor;
   const added = [], modified = [], removed = [];
   let hasMore = true, readyRetries = 0, pages = 0;
 
@@ -231,7 +242,9 @@ async function syncItem(env, item, { maxReadyRetries = 8 } = {}) {
 
   // Persist the cursor only after a fully-consumed sync, so a mid-sync
   // failure re-reads from the last durable point instead of dropping a page.
-  if (cursor) await env.INSIGHT_KV.put(cursorKey(item.item_id), cursor);
+  // Skipped when Plaid hands back the cursor we already had — a no-change
+  // sync would otherwise burn one of the day's 1,000 KV writes per item.
+  if (cursor && cursor !== startCursor) await env.INSIGHT_KV.put(cursorKey(item.item_id), cursor);
   return { added, modified, removed, pages, readyRetries };
 }
 
@@ -503,7 +516,10 @@ export default {
 
     try {
       if (path === '/' || path === '/health') {
-        const items = env.INSIGHT_KV ? (await env.INSIGHT_KV.list({ prefix: 'plaid:item:' })).keys.length : -1;
+        // Counting items costs a KV LIST (1,000/day on the free plan), so it
+        // is opt-in: /?items=1. A bare health check touches KV zero times.
+        const items = url.searchParams.get('items') === '1' && env.INSIGHT_KV
+          ? (await env.INSIGHT_KV.list({ prefix: 'plaid:item:' })).keys.length : undefined;
         return json({
           ok: true,
           app: 'insight-api',
