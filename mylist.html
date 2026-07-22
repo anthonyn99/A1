@@ -1120,8 +1120,16 @@ var pwStoresState = { tony:null, veda:null };  // per-profile store list (null �
 var pwLoaded = { tony:false, veda:false };
 var pwExpandedId = null;      // which watch row is expanded to show breakdown/history
 var pwManageOpen = false;     // store-manager panel open
-var pwBusy = null;            // item id currently being checked (spinner on "Check now")
+var pwBusy = {};             // { watchItemId: true } for every item queued/checking (multiple at once)
+var _pwQ = [];               // FIFO of watch-item ids waiting to be checked
+var _pwRunning = false;      // a check is currently in flight (queue drains sequentially — safe for the one-tab-at-a-time scraper and the shared Gemini quota)
 var pwSort = localStorage.getItem('ml_pw_sort') || 'name';   // persisted sort key
+// Coalesced render + debounced save — lets the eye/watch toggle be clicked on ANY
+// item at ANY rate without dropping clicks or lagging on a big list.
+var _renderRAF = 0;
+function renderSoon(){ if(_renderRAF) return; _renderRAF = requestAnimationFrame(function(){ _renderRAF=0; render(); }); }
+var _pwPersistT = null;
+function pwPersistSoon(){ if(_pwPersistT) clearTimeout(_pwPersistT); _pwPersistT = setTimeout(function(){ _pwPersistT=null; persistWatch(); persist(); }, 200); }
 // Search state persists PER PROFILE — survives tab switches; resets only on a new
 // search or Clear.
 var pwCandByProfile = { tony:null, veda:null };     // {draft,res} pending confirm
@@ -2576,21 +2584,23 @@ function pwToggleListWatch(itemId){
   if(w){
     if(activeProfile) pwStore[activeProfile]=pwItems().filter(function(x){return x.id!==w.id;});
     delete it.watchId;
-    persistWatch(); persist(); render(); toast('Stopped watching '+it.name);
   } else {
     var wid=uid();
     pwItems().push({ id:wid, itemName:it.name, qty:it.qty||'', brandLock:'', productRef:{ url:'' },
       perStoreBreakdown:[], priceHistory:[], bestPrice:null, bestStore:null, lastChecked:null, createdAt:Date.now(),
       fromList:{ listId:l.id, itemId:it.id } });
     it.watchId=wid;
-    persistWatch(); persist(); render(); toast('Now watching '+it.name+' — tap ↻ to check prices');
   }
+  // Instant, rate-independent: mutate state now, coalesce the redraw to one frame
+  // and debounce the (heavy) save — so mashing the eye on many items never drops a
+  // click or waits. The filled/empty eye is the feedback (no per-click toast).
+  renderSoon(); pwPersistSoon();
 }
 // "Check now" button on a watched list item — runs the same all-store check as the
 // Price Watch tab (updates the linked watch entry, so the inline price refreshes).
 function pwCheckBtn(it){
   var w=pwWatchForItem(it); if(!w) return '';
-  var busy = pwBusy===w.id;
+  var busy = !!pwBusy[w.id];
   return '<button class="ib li-check-btn" onclick="event.stopPropagation();ML.pwCheckListItem(\''+it.id+'\')"'+(busy?' disabled':'')+' title="Check prices now">'
     +(busy?'<span class="li-spin">…</span>':'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>')+'</button>';
 }
@@ -2790,7 +2800,7 @@ function pwRowHtml(it){
   h+='<div class="pw-meta">'+atStore+' · '+esc(checked)+'</div></div>';
   h+='<div class="pw-priceblock"><div class="pw-price">'+price+'</div>'+delta+'</div>';
   h+='</div>';
-  h+='<div class="pw-acts"><button class="btn ghost sm" onclick="ML.pwCheckNow(\''+it.id+'\')"'+(pwBusy===it.id?' disabled':'')+'>'+(pwBusy===it.id?'Checking…':'Check now')+'</button>'
+  h+='<div class="pw-acts"><button class="btn ghost sm" onclick="ML.pwCheckNow(\''+it.id+'\')"'+(pwBusy[it.id]?' disabled':'')+'>'+(pwBusy[it.id]?'Checking…':'Check now')+'</button>'
     +'<button class="ib del" onclick="ML.pwDelete(\''+it.id+'\')" title="Remove">✕</button></div>';
   if(expanded) h+=pwDetailHtml(it);
   h+='</div>';
@@ -2991,18 +3001,33 @@ function pwApplyResult(it, res){
   if(!Array.isArray(it.priceHistory)) it.priceHistory=[];
   it.priceHistory.push({ date:today, bestPrice:it.bestPrice, bestStore:it.bestStore, breakdown:it.perStoreBreakdown });
 }
+// Check ANY number of items: each click queues its item (shows a spinner right
+// away); the queue drains one at a time — safe for the one-tab-at-a-time scraper
+// and the shared Gemini quota — while letting you fire off many at once.
 function pwCheckNow(id){
-  var it=pwFind(id); if(!it || pwBusy) return;
-  pwBusy=id; render();
+  var it=pwFind(id); if(!it) return;
+  if(pwBusy[id]) return;          // already queued/checking
+  pwBusy[id]=true; _pwQ.push(id);
+  renderSoon(); pwDrainQueue();
+}
+function pwDrainQueue(){
+  if(_pwRunning) return;
+  var id;
+  while(_pwQ.length){ id=_pwQ.shift(); if(pwFind(id)) break; if(id!=null) delete pwBusy[id]; id=undefined; }
+  if(id==null){ return; }
+  var it=pwFind(id);
+  _pwRunning=true;
   pwFetchCheck(it, '/watch/check')
     .then(function(res){
-      pwBusy=null;
-      if(!res || res.ok===false){ toast((res&&res.error)?('Check failed: '+res.error):'Check failed', true); render(); return; }
-      pwApplyResult(it, res); persistWatch(); render();
-      if(typeof res.bestPrice==='number') toast(it.itemName+': best $'+res.bestPrice.toFixed(2)+' at '+pwStoreLabel(res.bestStore)+' ('+res.foundCount+'/'+res.storeCount+')');
-      else toast('No price found at any store', true);
+      if(!res || res.ok===false){ toast((res&&res.error)?(it.itemName+': '+res.error):(it.itemName+': check failed'), true); }
+      else {
+        pwApplyResult(it, res); persistWatch();
+        if(typeof res.bestPrice==='number') toast(it.itemName+': best $'+res.bestPrice.toFixed(2)+' at '+pwStoreLabel(res.bestStore));
+        else toast(it.itemName+': no price found', true);
+      }
     })
-    .catch(function(){ pwBusy=null; toast('Check failed', true); render(); });
+    .catch(function(){ toast(it.itemName+': check failed', true); })
+    .then(function(){ delete pwBusy[id]; _pwRunning=false; renderSoon(); pwDrainQueue(); });
 }
 function pwDelete(id){
   var it=pwFind(id); if(!it) return;
