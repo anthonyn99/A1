@@ -21,10 +21,10 @@
     --text: #f2f1ee;
     --muted: #8c8c8c;
     --faint: #5c5c5c;
-    --gold: #d8b277;
-    --gold-soft: #f0d09c;
-    --gold-line: rgba(216,178,119,.38);
-    --gold-wash: rgba(216,178,119,.10);
+    --gold: #cda86e;
+    --gold-soft: #e6c692;
+    --gold-line: rgba(205,168,110,.35);
+    --gold-wash: rgba(205,168,110,.10);
     --danger: #d68a7c;
     --ok: #a4b986;
     --radius: 9px;
@@ -51,7 +51,7 @@
   }
   a { color: var(--gold-soft); text-decoration: none; }
   a:hover { color: var(--gold); }
-  ::selection { background: rgba(216,178,119,.25); color: var(--text); }
+  ::selection { background: rgba(196,164,104,.25); color: var(--text); }
   :focus-visible { outline: 1.5px solid var(--gold); outline-offset: 2px; }
   .wrap { max-width: 920px; margin: 0 auto; padding: 0 22px; }
 
@@ -62,7 +62,7 @@
     font-family: var(--display);
     font-size: 34px; font-weight: 750; line-height: 1.2; letter-spacing: -.4px;
     padding: 0 2px 6px 6px; color: var(--gold-soft);
-    background: linear-gradient(180deg, #fae3b2 0%, #d8b277 90%);
+    background: linear-gradient(180deg, #f0d9a8 0%, #cda86e 90%);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -387,7 +387,7 @@
   #lockScreen {
     position: fixed; inset: 0; z-index: 200;
     background: var(--bg);
-    background-image: radial-gradient(120% 50% at 50% -10%, rgba(216,178,119,.065), transparent 70%);
+    background-image: radial-gradient(120% 50% at 50% -10%, rgba(205,168,110,.06), transparent 70%);
     display: flex; align-items: center; justify-content: center; padding: 20px;
   }
   .lockbox { width: 100%; max-width: 360px; text-align: center; }
