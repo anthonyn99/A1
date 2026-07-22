@@ -1814,6 +1814,22 @@ async function pwNotifyDrop(env, token, profile, it, prevBest, res, tokenDocs) {
   return targets.length;
 }
 
+// Append a drop to the doc's `drops` list — the in-app "prices dropped while you
+// were away" banner reads this and shows it until the user dismisses it. Capped so
+// the doc can't grow unbounded. Kept alongside the FCM push so a missed push (e.g.
+// a browser with background notifications disabled) is still visible in-app.
+function pwRecordDrop(doc, it, prevBest, res, today) {
+  if (!Array.isArray(doc.drops)) doc.drops = [];
+  const bestEntry = (res.breakdown || []).find(e => e.store === res.bestStore) || {};
+  doc.drops.push({
+    id: it.id || '', itemName: it.itemName || it.name || 'Item',
+    prevPrice: prevBest, newPrice: res.bestPrice,
+    store: res.bestStore || '', storeName: res.bestStoreName || bestEntry.storeName || res.bestStore || '',
+    source: bestEntry.source || '', date: today, ts: Date.now(),
+  });
+  if (doc.drops.length > 20) doc.drops = doc.drops.slice(-20);
+}
+
 async function runPriceWatchCron(env) {
   let token;
   try { token = await getGoogleAccessToken(env); }
@@ -1852,15 +1868,17 @@ async function runPriceWatchCron(env) {
     catch (e) { res = { ok: false, breakdown: [], bestPrice: null, bestStore: null }; }
 
     const prevBest = pwApplyToItem(it, res, today);
+    const isDrop = (prevBest != null && typeof res.bestPrice === 'number' && (prevBest - res.bestPrice) > 1.00);
 
     // Write the whole doc back NOW (crash-safe). `it` is a live reference inside
     // docs[path].items, so its mutation is already in the object we serialize.
     const d = docs[entry.path];
-    // Preserve the doc's `stores` list on write (never wipe the user's store config).
-    try { await fsWriteDoc(env, token, entry.path, { items: d.items, stores: d.stores, savedAt: Date.now() }); }
+    if (isDrop) pwRecordDrop(d, it, prevBest, res, today);   // persist for the in-app banner (before the write)
+    // Preserve the doc's `stores` + `drops` on write (never wipe user config/banner).
+    try { await fsWriteDoc(env, token, entry.path, { items: d.items, stores: d.stores, drops: d.drops, savedAt: Date.now() }); }
     catch (e) { console.warn('[pricewatch] write', entry.path, e.message); }
 
-    if (prevBest != null && typeof res.bestPrice === 'number' && (prevBest - res.bestPrice) > 1.00) {
+    if (isDrop) {
       if (!tokenDocsCache) tokenDocsCache = await fsFetchTokens(env, token);
       await pwNotifyDrop(env, token, entry.profile, it, prevBest, res, tokenDocsCache);
     }
@@ -1925,12 +1943,13 @@ async function handleWatchIngest(body, env) {
       const prevBest = pwApplyToItem(it, res, today);
       applied++;
       if (prevBest != null && typeof res.bestPrice === 'number' && (prevBest - res.bestPrice) > 1.00) {
+        pwRecordDrop(data, it, prevBest, res, today);   // in-app banner
         if (!tokenDocsCache) tokenDocsCache = await fsFetchTokens(env, token);
         await pwNotifyDrop(env, token, profile, it, prevBest, res, tokenDocsCache);
       }
     }
 
-    if (applied) await fsWriteDoc(env, token, path, { items, stores: data.stores, savedAt: Date.now() });
+    if (applied) await fsWriteDoc(env, token, path, { items, stores: data.stores, drops: data.drops, savedAt: Date.now() });
     return json({ ok: true, applied, skipped });
   } catch (e) { return json({ ok: false, error: e.message || String(e) }, 502); }
 }
@@ -1948,7 +1967,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 13, // bump when verifying a deploy went live
+        version: 14, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'journal', 'watch', 'watch-ingest'],
         models: MODELS,
         listModels: LIST_MODELS,

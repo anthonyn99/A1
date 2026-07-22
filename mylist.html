@@ -397,6 +397,18 @@ body.dnd-active *{cursor:grabbing !important;}
 .li-watch-btn.on{color:var(--accent);}
 .li-check-btn{color:var(--accent);}
 .li-spin{font-weight:800;}
+/* "prices dropped while you were away" banner */
+.pw-drops{background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;}
+.pw-drops-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
+.pw-drops-title{font-weight:800;font-size:13px;color:var(--text);}
+.pw-drops-x{border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:16px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:8px;flex-shrink:0;}
+.pw-drops-x:hover{background:var(--surface2);color:var(--text);}
+.pw-drops-row{font-size:13px;color:var(--textdim);padding:3px 0;}
+.pw-drops-row b{color:var(--text);}
+.pw-drops-old{text-decoration:line-through;color:var(--textmute);}
+.pw-drops-new{color:var(--good);}
+.pw-drops-at{color:var(--textdim);}
+.pw-drops-est{color:var(--textmute);font-size:11px;}
 .li-watch-line{font-size:12px;color:var(--textdim);margin-top:3px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
 .li-watch-line .eye{font-size:12px;}
 .li-watch-line b{color:var(--text);}
@@ -1039,14 +1051,17 @@ body.dnd-active *{cursor:grabbing !important;}
   // list. Loads/saves return {items, stores}; store-list edits can save immediately
   // (skip the 1200ms debounce) so they propagate in real time across devices.
   window._mlLoadPriceWatch = async (profile) => {
-    const ref = PW_DOCS[profile]; if(!ref) return { items:[], stores:null };
+    const ref = PW_DOCS[profile]; if(!ref) return { items:[], stores:null, drops:[] };
     try {
       await _whenAuthed(); const snap = await getDoc(ref);
-      if(!snap.exists()) return { items:[], stores:null };
+      if(!snap.exists()) return { items:[], stores:null, drops:[] };
       const d = snap.data();
-      return { items: Array.isArray(d.items)?d.items:[], stores: Array.isArray(d.stores)?d.stores:null };
-    } catch(e){ console.warn("PriceWatch load failed:", e); return { items:[], stores:null }; }
+      return { items: Array.isArray(d.items)?d.items:[], stores: Array.isArray(d.stores)?d.stores:null, drops: Array.isArray(d.drops)?d.drops:[] };
+    } catch(e){ console.warn("PriceWatch load failed:", e); return { items:[], stores:null, drops:[] }; }
   };
+  // merge:true + write ONLY provided array fields — so a normal items/stores save
+  // never wipes the cron-written `drops` (the "dropped while away" banner), and
+  // clearing drops (payload.drops=[]) leaves items/stores untouched.
   window._mlSavePriceWatch = (profile, payload, immediate) => {
     const ref = PW_DOCS[profile]; if(!ref) return;
     pwLastOwnSaveAt[profile] = Date.now();
@@ -1054,9 +1069,11 @@ body.dnd-active *{cursor:grabbing !important;}
     const doSave = async () => {
       try {
         pwLastOwnSaveAt[profile] = Date.now();
-        const body = { items: (payload && payload.items) || [], savedAt: Date.now() };
+        const body = { savedAt: Date.now() };
+        if (payload && Array.isArray(payload.items))  body.items  = payload.items;
         if (payload && Array.isArray(payload.stores)) body.stores = payload.stores;
-        await setDoc(ref, body);
+        if (payload && Array.isArray(payload.drops))  body.drops  = payload.drops;
+        await setDoc(ref, body, { merge: true });
         pwLastOwnSaveAt[profile] = Date.now();
         window.dispatchEvent(new CustomEvent("ml-saved"));
       } catch(e){ console.warn("PriceWatch save failed:", e); window.dispatchEvent(new CustomEvent("ml-error")); }
@@ -1068,7 +1085,7 @@ body.dnd-active *{cursor:grabbing !important;}
   ["tony","veda"].forEach((profile) => {
     onSnapshot(PW_DOCS[profile], (snap) => {
       if (Date.now() - pwLastOwnSaveAt[profile] < 8000) return;
-      if (snap.exists()) { const d = snap.data(); window.dispatchEvent(new CustomEvent("ml-pricewatch-update", { detail: { profile: profile, items: Array.isArray(d.items)?d.items:[], stores: Array.isArray(d.stores)?d.stores:null } })); }
+      if (snap.exists()) { const d = snap.data(); window.dispatchEvent(new CustomEvent("ml-pricewatch-update", { detail: { profile: profile, items: Array.isArray(d.items)?d.items:[], stores: Array.isArray(d.stores)?d.stores:null, drops: Array.isArray(d.drops)?d.drops:[] } })); }
     }, (err) => { console.warn("PriceWatch snapshot err", err); });
   });
 
@@ -1117,6 +1134,7 @@ var DEFAULT_STORES = [
 ];
 var pwStore = { tony:[], veda:[] };            // tracked items per profile
 var pwStoresState = { tony:null, veda:null };  // per-profile store list (null → DEFAULT_STORES)
+var pwDropsState = { tony:[], veda:[] };        // "prices dropped while you were away" — shown until dismissed (X)
 var pwLoaded = { tony:false, veda:false };
 var pwExpandedId = null;      // which watch row is expanded to show breakdown/history
 var pwManageOpen = false;     // store-manager panel open
@@ -1149,6 +1167,23 @@ function persistWatch(){ if(window._mlSavePriceWatch && activeProfile) window._m
 function persistStores(){ if(window._mlSavePriceWatch && activeProfile) window._mlSavePriceWatch(activeProfile, { items: pwItems().map(sanitize), stores: pwStoresState[activeProfile] }, true); }
 function pwFind(id){ return pwItems().filter(function(x){return x.id===id;})[0]; }
 function normNm(s){ return String(s==null?'':s).toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim(); }
+// "Prices dropped while you were away" — recorded by the daily cron / background
+// check into the pricewatch doc; shown in-app until the user taps X.
+function pwDrops(){ return (activeProfile && Array.isArray(pwDropsState[activeProfile])) ? pwDropsState[activeProfile] : []; }
+function pwClearDrops(){ if(!activeProfile) return; pwDropsState[activeProfile]=[]; if(window._mlSavePriceWatch) window._mlSavePriceWatch(activeProfile, { drops: [] }, true); render(); }
+function pwDropsBannerHtml(){
+  var drops=pwDrops(); if(!drops.length) return '';
+  var h='<div class="pw-drops"><div class="pw-drops-head"><span class="pw-drops-title">💸 '+drops.length+' price drop'+(drops.length!==1?'s':'')+' while you were away</span>'
+    +'<button class="pw-drops-x" onclick="ML.pwClearDrops()" title="Dismiss">✕</button></div>';
+  drops.slice().reverse().forEach(function(d){
+    var prev=(typeof d.prevPrice==='number')?d.prevPrice:parseFloat(d.prevPrice);
+    var nw=(typeof d.newPrice==='number')?d.newPrice:parseFloat(d.newPrice);
+    var est=(d.source==='ai-estimated')?' <span class="pw-drops-est">· worth double-checking</span>':'';
+    h+='<div class="pw-drops-row"><b>'+esc(d.itemName||'Item')+'</b>: <span class="pw-drops-old">$'+(isFinite(prev)?prev.toFixed(2):'?')+'</span> → <b class="pw-drops-new">$'+(isFinite(nw)?nw.toFixed(2):'?')+'</b> <span class="pw-drops-at">at '+esc(d.storeName||d.store||'')+'</span>'+est+'</div>';
+  });
+  h+='</div>';
+  return h;
+}
 
 function uid(){ return Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
 function $(id){ return document.getElementById(id); }
@@ -1218,7 +1253,7 @@ function boot(){
   if(window._mlLoadPriceWatch){
     ['tony','veda'].forEach(function(p){
       window._mlLoadPriceWatch(p).then(function(res){
-        pwStore[p]=(res&&res.items)||[]; pwStoresState[p]=(res&&res.stores)||null; pwLoaded[p]=true;
+        pwStore[p]=(res&&res.items)||[]; pwStoresState[p]=(res&&res.stores)||null; pwDropsState[p]=(res&&res.drops)||[]; pwLoaded[p]=true;
         // Re-render on ANY view (Lists shows inline watch prices too) so watched
         // items don't stay blank until a manual tab switch after a refresh.
         if(activeProfile===p) render();
@@ -1242,6 +1277,7 @@ window.addEventListener('ml-pricewatch-update', function(e){
   var p=e.detail&&e.detail.profile, items=(e.detail&&Array.isArray(e.detail.items))?e.detail.items:[];
   if(!p||!pwStore.hasOwnProperty(p)) return;
   pwStore[p]=items; pwStoresState[p]=(e.detail&&Array.isArray(e.detail.stores))?e.detail.stores:pwStoresState[p]; pwLoaded[p]=true;
+  if(e.detail&&Array.isArray(e.detail.drops)) pwDropsState[p]=e.detail.drops;   // live "dropped while away" updates
   // Re-render on ANY view so Lists' inline watch prices refresh live (from the
   // daily cron or another device) — not only when the Price Watch tab is open.
   if(activeProfile===p) render();
@@ -2411,7 +2447,7 @@ function render(){
     $('float-voice').classList.add('show');
     $('sel-bar').classList.remove('show');
     var mf=$('manual-fab'); if(mf) mf.style.display='none'; var mp=$('manual-pop'); if(mp) mp.classList.remove('show');
-    $('list-view').innerHTML = renderRecipesView();
+    $('list-view').innerHTML = pwDropsBannerHtml() + renderRecipesView();
     if(!recDetailId){ var rl=$('rec-list-rows'); if(rl && recFiltered().length===recipes.length) enableDrag(rl, 'recipe'); }
     else if(recEditingStep===null){ var rs=$('rec-steps-container'); if(rs) enableDrag(rs, 'recstep'); }
     return;
@@ -2422,7 +2458,7 @@ function render(){
     $('float-voice').classList.remove('show');   // no voice on this view
     $('sel-bar').classList.remove('show');
     var mfb=$('manual-fab'); if(mfb) mfb.style.display='none'; var mpp=$('manual-pop'); if(mpp) mpp.classList.remove('show');
-    $('list-view').innerHTML = renderWatchView();
+    $('list-view').innerHTML = pwDropsBannerHtml() + renderWatchView();
     return;
   }
   $('lists-bar').style.display='';
@@ -2431,7 +2467,7 @@ function render(){
   $('float-voice').classList.toggle('show', !selectMode);
   var l=curList(); var v=$('list-view');
   if(!l){
-    v.innerHTML='<div class="card"><div class="empty">No lists yet.<br><br>'
+    v.innerHTML=pwDropsBannerHtml()+'<div class="card"><div class="empty">No lists yet.<br><br>'
       +'Tap the <b>mic</b> or type in the bar below and just say what you need — the AI will create your list for you.<br><br>'
       +'<button class="btn solid" onclick="ML.addList()">+ Create a blank list</button></div></div>';
     updateSelBar(); return;
@@ -2439,7 +2475,7 @@ function render(){
   localStorage.setItem('ml_last_list_'+activeProfile,l.id);
   var stores=l.stores||[]; var items=l.items||[]; var doneCount=items.filter(function(x){return x.done;}).length;
 
-  var h='';
+  var h=pwDropsBannerHtml();
   // header
   h+='<div class="card list-head-card">';
   h+='<div class="list-head"><input class="ttl" id="list-title" value="'+esc(l.name)+'" onchange="ML.renameList(\''+l.id+'\',this.value)">'
@@ -3071,7 +3107,7 @@ window.ML = {
   recUndo:recUndo, recRedo:recRedo,
   recEditStep:recEditStep, recAddStep:recAddStep, recSaveStep:recSaveStep, recCancelStep:recCancelStep, recDeleteStep:recDeleteStep,
   pwAddFind:pwAddFind, pwTrack:pwTrack, pwTrackVariant:pwTrackVariant, pwSaveAnyway:pwSaveAnyway, pwCancelAdd:pwCancelAdd, pwCheckNow:pwCheckNow, pwDelete:pwDelete, pwToggle:pwToggle, pwSetSort:pwSetSort,
-  pwFormInput:pwFormInput, pwClearSearch:pwClearSearch, pwToggleManage:pwToggleManage, pwAddStore:pwAddStore, pwRemoveStore:pwRemoveStore, pwToggleListWatch:pwToggleListWatch, pwCheckListItem:pwCheckListItem,
+  pwFormInput:pwFormInput, pwClearSearch:pwClearSearch, pwToggleManage:pwToggleManage, pwAddStore:pwAddStore, pwRemoveStore:pwRemoveStore, pwToggleListWatch:pwToggleListWatch, pwCheckListItem:pwCheckListItem, pwClearDrops:pwClearDrops,
   pwExtInstall:pwExtInstall,
   openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker, pickDevice:pickDevice,
   manageLock:manageLock, lockSubmit:lockSubmit, lockCancel:lockCancel, lockForgot:lockForgot, lockReset:lockReset
