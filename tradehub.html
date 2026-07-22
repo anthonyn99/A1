@@ -5045,6 +5045,29 @@ async function tbBuildCalendar(wl,opts){
   return {future,degraded:!!(j&&j.degraded)};
 }
 
+// ── Publish the calendar to the shared Firebase doc ──────────────────────────
+// A build only ever returns TODAY-ONWARD events, but Tony's and Veda's TaskHubs
+// read this same doc to draw their macro cards. Saving just the future set would
+// DELETE yesterday's macros the moment a day rolled over, so the cards vanished
+// from those grids instead of dimming like task/event cards do. Keep the past
+// events already in the doc (trimmed to a retention window so it can't grow
+// forever) and union them with the fresh future set.
+const TB_CAL_KEEP_PAST_DAYS=90;
+async function tbPublishCalendar(future){
+  if(!window._fbSaveMarketCal)return;
+  const today=tbEtDate(0),cutoff=tbEtDate(-TB_CAL_KEEP_PAST_DAYS);
+  let past=[];
+  try{
+    const d=window._fbLoadMarketCal?await window._fbLoadMarketCal():null;
+    past=(d&&Array.isArray(d.events)?d.events:[]).filter(e=>e&&e.date&&e.date<today&&e.date>=cutoff);
+  }catch(e){}
+  const key=e=>e.id||((e.kind||'')+'|'+(e.category||'')+'|'+(e.name||'')+'|'+e.date);
+  const fresh=future||[],seen=new Set(fresh.map(key));
+  const events=past.filter(e=>!seen.has(key(e))).concat(fresh).sort((a,b)=>a.date.localeCompare(b.date));
+  const now=Date.now();
+  window._fbSaveMarketCal({events,generatedAt:now,savedAt:now});
+}
+
 // Most-recent trading-morning auto-refresh slot: 6:00 AM America/Denver (Mountain)
 // on an NYSE trading day, at or before now. Returns a ms timestamp, or 0 if none in
 // the last ~8 days. Powers the app-level morning orchestrator (Catalysts + Portfolio
@@ -5087,8 +5110,7 @@ async function tbRunCatBuild(wl, force){
   try{
     const {future,degraded}=await tbBuildCalendar(wl,{force});
     if(future&&future.length){
-      const now=Date.now();
-      if(window._fbSaveMarketCal) window._fbSaveMarketCal({events:future,generatedAt:now,savedAt:now});
+      await tbPublishCalendar(future);       // merges past events back in — see tbPublishCalendar
     }
     _tbCatBuild.emit({type:'done',future:future||[],degraded:!!degraded});
   }catch(e){
@@ -6157,7 +6179,7 @@ function TBApp(){
             // warmed the worker cache, so this is a free HIT — force=1 shares the daily
             // counter with News forces, so we must NOT force here.
             const {future}=await tbBuildCalendar(tbLoadWatchlistLocal(),{force:false});
-            if(future&&future.length){ const now=Date.now(); window._fbSaveMarketCal({events:future,generatedAt:now,savedAt:now}); }
+            if(future&&future.length){ await tbPublishCalendar(future); }
             _tbLastCheckedSlot=slot;
           }
         }catch(e){}finally{ _tbAutoForceInFlight=false; }
