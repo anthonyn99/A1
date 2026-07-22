@@ -321,7 +321,12 @@
   /* ── Drag to reorder (recurring) ──
      No grip: the whole row is the target. Mouse arms on a few pixels of
      movement, touch on a long press so ordinary swipes still scroll. */
-  #recList .txrow { cursor: grab; }
+  /* Text selection and the long-press callout are suppressed so a press-and-
+     hold on a phone starts a drag instead of a selection magnifier. */
+  #recList .txrow {
+    cursor: grab; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  }
   #recList .txrow:active { cursor: grabbing; }
   #recList .txrow .iconbtn { cursor: pointer; }
   .txrow.dragging {
@@ -394,6 +399,20 @@
     text-align: center; margin-bottom: 12px; transition: border-color .18s;
   }
   .lockbox input:focus { border-color: var(--gold); }
+  /* Show/hide toggle sits inside the field; the text stays optically centred
+     by reserving the same space on both sides. */
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-left: 46px; padding-right: 46px; }
+  .pw-eye {
+    position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+    width: 36px; height: 36px; margin-top: -6px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; padding: 0; cursor: pointer;
+    color: var(--faint); border-radius: var(--radius-sm);
+    transition: color .15s; -webkit-tap-highlight-color: transparent;
+  }
+  .pw-eye:hover { color: var(--gold-soft); }
+  .pw-eye svg { width: 17px; height: 17px; display: block; }
   /* Lock-screen actions read as sentences, not shouted labels. */
   .lockbox .btn {
     width: 100%; padding: 14px; font-size: 13.5px; justify-content: center;
@@ -423,9 +442,16 @@
     .modal { padding: 22px; }
   }
   @media (max-width: 560px) {
-    header { padding: 12px 0 8px; }
-    .brandrow { align-items: flex-start; }
-    .syncmeta { width: 100%; justify-content: flex-start; }
+    /* Tight vertical rhythm: the title, its controls, the tab strip and the
+       filters stack close together instead of leaving big gaps on a phone. */
+    header { padding: 10px 0 2px; }
+    .brandrow { align-items: flex-start; gap: 6px; }
+    .syncmeta { width: 100%; justify-content: flex-start; gap: 7px; }
+    .brandwrap { gap: 0; }
+    nav { margin: 12px 0 14px; }
+    .stats { margin-bottom: 14px; }
+    .filters { margin-bottom: 14px; gap: 8px; }
+    .datehdr { margin: 18px 2px 9px; }
     .brand { font-size: 26px; }
     .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .stat { padding: 12px 13px; }
@@ -882,11 +908,55 @@
   }
 
   const lockEl = id => document.getElementById(id);
+
+  // ── Show / hide password ─────────────────────────────────────────────────
+  // Each password field gets an eye toggle inside it. Wrapping happens in JS
+  // so the markup stays clean; lockView's show() targets the wrapper.
+  function addPasswordToggle(id) {
+    const input = lockEl(id);
+    if (!input || input.dataset.eye) return;
+    input.dataset.eye = '1';
+    const wrap = document.createElement('div');
+    wrap.className = 'pw-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 12S5.8 5.5 12 5.5 22.2 12 22.2 12 18.2 18.5 12 18.5 1.8 12 1.8 12z"/><circle cx="12" cy="12" r="2.8"/></svg>';
+    const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 19.8c-6.2 0-10.2-6.5-10.2-6.5a18.4 18.4 0 0 1 4.7-5.4M9.9 5.7A9.1 9.1 0 0 1 12 5.5c6.2 0 10.2 6.5 10.2 6.5a18.5 18.5 0 0 1-2 2.9m-6.2-1.1a2.8 2.8 0 1 1-3.9-3.9"/><line x1="2.5" y1="2.5" x2="21.5" y2="21.5"/></svg>';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pw-eye';
+    const apply = show => {
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = show ? EYE_OFF : EYE;
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    };
+    apply(false);
+    btn.addEventListener('click', () => { apply(input.type === 'password'); input.focus(); });
+    btn._hide = () => apply(false);
+    wrap.appendChild(btn);
+  }
+  ['lockPw1', 'lockPw2'].forEach(addPasswordToggle);
+
+  // Never leave a password revealed when the lock screen re-renders.
+  function resetPasswordToggles() {
+    ['lockPw1', 'lockPw2'].forEach(id => {
+      const btn = lockEl(id)?.parentNode?.querySelector('.pw-eye');
+      if (btn && btn._hide) btn._hide();
+    });
+  }
   function lockMsg(t, ok) { const m = lockEl('lockMsg'); m.className = 'lockmsg' + (ok ? ' ok' : ''); m.textContent = t; }
 
   function lockView(mode) {
     lockMode = mode;
-    const show = (id, on) => lockEl(id).style.display = on ? '' : 'none';
+    // Password fields live inside a .pw-wrap (for the eye toggle), so hide the
+    // wrapper rather than the bare input.
+    const show = (id, on) => {
+      const el = lockEl(id);
+      (el.closest('.pw-wrap') || el).style.display = on ? '' : 'none';
+    };
+    resetPasswordToggles();
     lockMsg('');
     ['lockPw1', 'lockPw2', 'lockHintIn', 'lockCode'].forEach(id => lockEl(id).value = '');
     show('lockNote', mode === 'setup');
@@ -1962,6 +2032,17 @@
         break;
       }
     });
+
+    // Without this the browser scrolls the page as soon as the finger moves
+    // and fires pointercancel, killing the drag — which is exactly why
+    // reordering did nothing on mobile. Non-passive so it can be prevented;
+    // only active once a long press has armed the drag, so ordinary swipes
+    // still scroll.
+    list.addEventListener('touchmove', e => {
+      if (drag && drag.dragging) e.preventDefault();
+    }, { passive: false });
+    // A long press on Android otherwise raises the context menu mid-drag.
+    list.addEventListener('contextmenu', e => { if (drag && drag.dragging) e.preventDefault(); });
 
     async function endDrag(e) {
       if (!drag || (e && e.pointerId !== drag.id)) return;
