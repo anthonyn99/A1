@@ -4207,8 +4207,9 @@ async function tbNewsPoll(){
     // cacheOnly=1 is a pure PEEK — polling must NEVER kick another build, or a
     // failing build would re-kick itself forever once its lock expired.
     const r=await fetch(NH_WORKER_URL+'/news?cacheOnly=1&tickers='+encodeURIComponent(B.tickers.join(',')));
-    if(!r.ok){ B.stop(); B.emit({type:'error',message:'Worker error '+r.status}); return; }
-    const j=await r.json().catch(()=>({}));
+    // A bad response is a failed PEEK, not a failed build — keep polling (capped)
+    // rather than abandoning a pipeline that's still running.
+    const j=r.ok?await r.json().catch(()=>({})):{_cacheMiss:true};
     const gen=j.generatedAt||0;
     // Finished only when the cache holds a build NEWER than the one we started
     // from. A force-fresh leaves the PREVIOUS payload in KV until it overwrites
@@ -4222,6 +4223,7 @@ async function tbNewsPoll(){
         degraded:!!j.degraded||(j.events.length>0&&j.events.every(e=>e.aiAnalyzed===false)),
       };
       B.last=payload;
+      B.emit({type:'done',payload});   // paint first — the publish below can await
       // Publish from HERE, not from the tab — News may well be unmounted.
       if(window._fbSaveTBNews){
         let settings=B.settings;
@@ -4233,7 +4235,6 @@ async function tbNewsPoll(){
         window._fbSaveTBNews(settings?{events:payload.events,generatedAt:payload.generatedAt,settings}
                                      :{events:payload.events,generatedAt:payload.generatedAt});
       }
-      B.emit({type:'done',payload});
       return;
     }
     if(++B.polls>=NH_MAX_POLLS){ B.stop(); B.emit({type:'timeout'}); return; }
@@ -4388,7 +4389,10 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
 
   // Keep the manager's copy of the filters current — it publishes the finished
   // build to Firebase itself, and that write is a full doc overwrite.
+  // Only once hydrated — publishing pre-hydration defaults would overwrite the
+  // saved filters. Until then the manager re-reads them off the Firebase doc.
   useEffect(()=>{
+    if(!hydrated.current)return;
     _tbNewsBuild.settings={hours,sentFilter,impFilter,selTickers,selSectors,sortBy};
   },[hours,sentFilter,impFilter,selTickers,selSectors,sortBy]);
 
@@ -4442,6 +4446,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
         }
       }
       hydrated.current=true;
+      if(fbDoc&&fbDoc.settings)_tbNewsBuild.settings=fbDoc.settings;
       // Always fetch rate status on mount
       fetchRateStatus();
       // Show what's ALREADY built — opening the tab must not start a build. See
@@ -4490,65 +4495,38 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
     window._fbSaveTBNews({events,generatedAt,settings});
   },[hours,sentFilter,impFilter,selTickers,selSectors,sortBy,newsTickers]);
 
-  /* ── Poll worker while pipeline is building ── */
-  const stopPolling=()=>{if(pollTimer.current){clearTimeout(pollTimer.current);pollTimer.current=null;}pollCount.current=0;};
-
-  // Max poll attempts before giving up (so a build that never writes can't spin
-  // the UI forever). 16 × 15s = ~4 min — longer than any healthy build.
-  const NH_MAX_POLLS=16;
-  const pollForEvents=useCallback(async()=>{
-    try{
-      // IMPORTANT: poll with cacheOnly=1 so polling NEVER kicks a new build. It
-      // only PEEKS the cache. Without this, once the build's lock expired a poll
-      // would re-kick another build → infinite re-kill loop on a failing build.
-      const tq='?cacheOnly=1&tickers='+encodeURIComponent(newsTickers.join(','));
-      const r=await fetch(NH_WORKER_URL+'/news'+tq);
-      if(!r.ok){stopPolling();setBuilding(false);setLoading(false);return;}
-      const j=await r.json().catch(()=>({}));
-      const evs=j.events||[];
-      // Detect "build finished" from the BODY, not the X-Cache header. X-Cache is a
-      // cross-origin response header, so the browser hides it from JS unless the
-      // worker sends Access-Control-Expose-Headers — it didn't, so this read was
-      // always null and the poller NEVER recognised a finished build. It just spun
-      // to the poll cap while the completed news sat in cache, which is why the
-      // events only appeared after leaving the tab and coming back (a remount
-      // re-reads Firebase). cacheOnly=1 sets _cacheMiss on a miss and returns the
-      // real payload on a hit, so the body alone is a reliable signal.
-      const gotResult = !j._cacheMiss && Array.isArray(j.events);
-      if(gotResult){
-        // Build finished and wrote a result (even if 0 events).
-        setEvents(evs);
-        setGeneratedAt(j.generatedAt||Date.now());
-        setDegraded(!!j.degraded||(evs.length>0&&evs.every(e=>e.aiAnalyzed===false)));
-        setBuilding(false);
-        setLoading(false);
-        stopPolling();
+  /* ── Track the module-level build manager ────────────────────────────────
+     It owns the polling, so a build keeps being watched across tab switches and
+     this tab just mirrors its state — including on a fresh mount, where `last`
+     hands over a build that finished while News was closed. ── */
+  useEffect(()=>{
+    setBuilding(_tbNewsBuild.building);
+    const lb=_tbNewsBuild.last;
+    if(lb&&(lb.generatedAt||0)>genRef.current)applyBuild(lb);
+    return _tbNewsBuild.sub((evt)=>{
+      if(evt.type==='start'){setBuilding(true);setLoading(false);setNotice('');}
+      else if(evt.type==='done'){
+        applyBuild(evt.payload);
+        setBuilding(false);setLoading(false);
+        setNotice(evt.payload.events.length?'':'Worker returned 0 events. Quotas may be exhausted — try again later.');
         fetchRateStatus();
-        if(!evs.length)setNotice('Worker returned 0 events. Quotas may be exhausted — try again later.');
-        if(window._fbSaveTBNews){
-          const settings={hours,sentFilter,impFilter,selTickers,selSectors,sortBy};
-          window._fbSaveTBNews({events:evs,generatedAt:j.generatedAt||Date.now(),settings});
-        }
-        return;
       }
-      // Still no cache → build in progress. Keep polling until the cap.
-      pollCount.current++;
-      if(pollCount.current>=NH_MAX_POLLS){
-        stopPolling();setBuilding(false);setLoading(false);
+      else if(evt.type==='timeout'){
+        setBuilding(false);setLoading(false);
         setNotice('Build is taking too long — quota may be exhausted, or sources are slow. Try Force fresh again in a bit.');
         fetchRateStatus();
-        return;
       }
-      pollTimer.current=setTimeout(pollForEvents, NH_POLL_INTERVAL);
-    }catch(e){
-      stopPolling();setBuilding(false);setLoading(false);
-      setNotice('Network error: '+e.message);
-    }
-  },[hours,sentFilter,impFilter,selTickers,selSectors,sortBy,newsTickers,fetchRateStatus]);
+      else if(evt.type==='error'){
+        setBuilding(false);setLoading(false);
+        setNotice(evt.message||'Build failed.');
+      }
+    });
+  },[applyBuild,fetchRateStatus]);
 
-  /* ── Refresh: kick worker build, start polling ── */
+  /* ── Refresh: kick worker build, hand the watch to the manager ── */
   const refresh=useCallback(async(forceFresh)=>{
-    stopPolling();
+    _tbNewsBuild.stop();
+    const baseGen=genRef.current||0;
     setLoading(true);setBuilding(false);setNotice('');
     try{
       const tq='tickers='+encodeURIComponent(newsTickers.join(','));
@@ -4578,25 +4556,32 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
         return;
       }
 
-      // Building in background
-      if(r.status===202||j.status==='building'){
-        setLoading(false);setBuilding(true);
+      // ── Building in background ────────────────────────────────────────────
+      // The worker answers a kicked build two different ways: 202 with no body,
+      // or 200 carrying the PREVIOUS payload (+ X-Building:1) so the feed isn't
+      // blank while the pipeline runs. Only the 202 used to count as "building",
+      // so a Force fresh over a warm cache looked finished the instant it
+      // returned — nothing watched, and the new build showed up only on a manual
+      // Refresh. forceFresh ALWAYS starts a build, so always watch after one
+      // (the X-Building read is a cross-origin header and can't be relied on
+      // alone if the deployed worker predates Access-Control-Expose-Headers).
+      const bldHdr=(()=>{try{return r.headers.get('X-Building')==='1';}catch(e){return false;}})();
+      if(r.status===202||j.status==='building'||bldHdr||forceFresh){
+        setLoading(false);
         // If we got stale events, show them while building
         if(Array.isArray(j.events)&&j.events.length>0){
           setEvents(j.events);
           setGeneratedAt(j.generatedAt||Date.now());
+          genRef.current=j.generatedAt||genRef.current;
         }
-        pollCount.current=0;
-        pollTimer.current=setTimeout(pollForEvents, NH_POLL_INTERVAL);
+        tbNewsWatchBuild(newsTickers,Math.max(baseGen,j.generatedAt||0));
         fetchRateStatus();
         return;
       }
 
       // Got immediate result (cache hit)
       const evs=j.events||[];
-      setEvents(evs);
-      setGeneratedAt(j.generatedAt||Date.now());
-      setDegraded(!!j.degraded||(evs.length>0&&evs.every(e=>e.aiAnalyzed===false)));
+      applyBuild({events:evs,generatedAt:j.generatedAt||Date.now(),degraded:!!j.degraded||(evs.length>0&&evs.every(e=>e.aiAnalyzed===false))});
       setLoading(false);
       fetchRateStatus();
       if(!evs.length)setNotice('No events in cache. Use Force fresh to trigger a new build.');
@@ -4608,7 +4593,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       setNotice('Fetch error: '+e.message);
       setLoading(false);
     }
-  },[pollForEvents,hours,sentFilter,impFilter,selTickers,selSectors,sortBy,newsTickers,fetchRateStatus]);
+  },[applyBuild,hours,sentFilter,impFilter,selTickers,selSectors,sortBy,newsTickers,fetchRateStatus]);
 
   /* ── Mount: show what's already built, never kick a build just because the tab
      was opened. cacheOnly=1 is a pure PEEK — it never builds, never takes the
@@ -4627,9 +4612,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
         if(j&&!j._cacheMiss&&Array.isArray(j.events)){
           // Cache HIT. Adopt it when it's at least as new as the Firebase copy.
           if(j.events.length&&(j.generatedAt||0)>=fbGen){
-            setEvents(j.events);
-            setGeneratedAt(j.generatedAt||Date.now());
-            setDegraded(!!j.degraded||j.events.every(e=>e.aiAnalyzed===false));
+            applyBuild({events:j.events,generatedAt:j.generatedAt||Date.now(),degraded:!!j.degraded||j.events.every(e=>e.aiAnalyzed===false)});
             // Publish only a genuinely newer build, and keep the saved filters —
             // the doc write is a full overwrite, so dropping settings would reset
             // the user's filters on every open.
@@ -4647,33 +4630,26 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
     if(!fbCount){ refresh(false); return; }
     // We have news to show, but the cache is empty because the orchestrator's
     // background build is still running — join it so the result lands here.
-    if(Date.now()-_tbNewsBuildKickedAt<5*60*1000) startWatchingBuild();
-  },[newsTickers,refresh,hours,sentFilter,impFilter,selTickers,selSectors,sortBy]);
+    // (Watching runs in the manager, so it outlives this tab.)
+    if(Date.now()-_tbNewsBuildKickedAt<5*60*1000) tbNewsWatchBuild(newsTickers,fbGen);
+  },[newsTickers,refresh,applyBuild,hours,sentFilter,impFilter,selTickers,selSectors,sortBy]);
 
   /* ── Attach to a build this tab didn't start (kicked by the app-level morning
-     orchestrator). Polling from here is what makes a finished build appear on its
-     own: the worker's own "push to Firebase" can't work (App Check blocks worker
-     REST writes — see workers/newshub-api/worker.js), so the browser is the only
-     thing that can notice the build landed. ── */
-  const startWatchingBuild=useCallback(()=>{
-    if(pollTimer.current)return;                 // already watching
-    setBuilding(true);
-    pollCount.current=0;
-    pollTimer.current=setTimeout(pollForEvents,NH_POLL_INTERVAL);
-  },[pollForEvents]);
+     orchestrator). Polling is what makes a finished build appear on its own: the
+     worker's own "push to Firebase" can't work (App Check blocks worker REST
+     writes — see workers/newshub-api/worker.js), so the browser is the only thing
+     that can notice the build landed. ── */
   useEffect(()=>{
-    const onKick=()=>startWatchingBuild();
+    const onKick=()=>tbNewsWatchBuild(newsTickers,genRef.current||0);
     /* The orchestrator collected a finished build and wrote it to Firebase. That
        write is this device's OWN, so the cross-device listener deliberately skips
        it — take the events straight off the event instead. */
     const onBuilt=(e)=>{
       const j=e.detail;
       if(!j||!Array.isArray(j.events)||!j.events.length)return;
-      setEvents(j.events);
-      setGeneratedAt(j.generatedAt||Date.now());
-      setDegraded(!!j.degraded||j.events.every(x=>x.aiAnalyzed===false));
+      applyBuild({events:j.events,generatedAt:j.generatedAt||Date.now(),degraded:!!j.degraded||j.events.every(x=>x.aiAnalyzed===false)});
       setBuilding(false);setLoading(false);setNotice('');
-      stopPolling();
+      _tbNewsBuild.stop();
     };
     window.addEventListener('tb-news-building',onKick);
     window.addEventListener('tb-news-built',onBuilt);
@@ -4681,9 +4657,11 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       window.removeEventListener('tb-news-building',onKick);
       window.removeEventListener('tb-news-built',onBuilt);
     };
-  },[startWatchingBuild]);
+  },[newsTickers,applyBuild]);
 
-  useEffect(()=>()=>stopPolling(),[]);
+  // NOTE: no stopPolling-on-unmount. Tearing the poll down on a tab switch was
+  // exactly what dropped in-flight builds on the floor — the manager keeps it
+  // alive and caps itself at NH_MAX_POLLS.
 
   /* ── Derived ── */
   const watchlist=useMemo(()=>{

@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "PriceWatch",
+  "version": "1.0.0",
+  "description": "Live price scraping for MyList's Price Watch. Reads public search-result pages in your own browser session — no server, no data API.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsUD7F7G54HeHVtzm8zfGfbxl/A6VFboZery/IPBodfPx+R75NtEliJAWL+wdMPrspiSnfZ8FlL+SjyejHNbmjwZTM5D77h2ks3OrF6OVD2aJxxs0xgQoQDvlIQUbrdGW6EYEepoe7uM4iy/vcpq4sGSd8WHLNqG6e6M4dQRIXacL28ipEClfHxI/kKVXUJscoeqeKQrpfU8MxiDyGybjOk9O/CE8diXuimzIbuKpyjAi3KGpPOLdaCOwxZ+s5iSzaL2QaHtdb9/EC7u7kIJ/pwRPK9b29eh4R+l4MlormZ1HbtR245DJxADYl4moExICs/6/C+BcxCe9pgtxHd5nBwIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": ["tabs", "scripting", "storage", "alarms"],
+  "host_permissions": [
+    "https://www.walmart.com/*",
+    "https://www.amazon.com/*",
+    "https://www.cvs.com/*",
+    "https://www.walgreens.com/*",
+    "https://personal-ai.av1.workers.dev/*"
+  ],
+  "externally_connectable": {
+    "matches": ["https://anthonyn99.github.io/*"]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "PriceWatch",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

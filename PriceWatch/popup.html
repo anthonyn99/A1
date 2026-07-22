@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PriceWatch</title>
+<style>
+  :root{--bg:#0f0f12;--s1:#17171c;--s2:#1e1e25;--bd:#2c2c36;--tx:#ececf0;--txd:#9898a8;--txm:#5a5a6a;--ac:#E0607A;}
+  *{box-sizing:border-box}
+  body{margin:0;width:330px;background:var(--bg);color:var(--tx);
+       font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:13px}
+  header{display:flex;align-items:center;gap:9px;padding:14px 15px 12px;border-bottom:1px solid var(--bd)}
+  header img{width:22px;height:22px;border-radius:6px}
+  h1{font-size:14.5px;font-weight:800;margin:0;flex:1}
+  .ver{font-size:10.5px;color:var(--txm);font-family:ui-monospace,monospace}
+  section{padding:13px 15px;border-bottom:1px solid var(--bd)}
+  .lbl{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--txm);margin-bottom:8px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+  .row:last-child{margin-bottom:0}
+  .row span.k{color:var(--txd);flex:1}
+  select{background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:7px;
+         padding:5px 7px;font-size:12px;font-family:inherit;outline:none}
+  .sw{position:relative;width:38px;height:21px;flex:none}
+  .sw input{opacity:0;width:0;height:0;position:absolute}
+  .sw i{position:absolute;inset:0;background:var(--s2);border:1px solid var(--bd);border-radius:11px;
+        cursor:pointer;transition:.16s}
+  .sw i:before{content:"";position:absolute;width:15px;height:15px;left:2px;top:2px;background:var(--txd);
+        border-radius:50%;transition:.16s}
+  .sw input:checked+i{background:var(--ac);border-color:var(--ac)}
+  .sw input:checked+i:before{transform:translateX(17px);background:#fff}
+  button{width:100%;border:1px solid var(--bd);background:var(--s2);color:var(--tx);border-radius:8px;
+         padding:9px 0;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;margin-top:7px}
+  button:hover{border-color:var(--ac)}
+  button.solid{background:var(--ac);border-color:var(--ac);color:#fff}
+  button:disabled{opacity:.5;cursor:default}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{background:var(--s2);border:1px solid var(--bd);border-radius:20px;padding:3px 9px;font-size:11px;color:var(--txd)}
+  .note{font-size:11px;color:var(--txm);line-height:1.5;margin-top:8px}
+  .log{max-height:132px;overflow-y:auto;font-size:11px;line-height:1.55;color:var(--txd)}
+  .log div{padding:3px 0;border-bottom:1px solid var(--s1);word-break:break-word}
+  .log time{color:var(--txm);font-family:ui-monospace,monospace;margin-right:6px}
+  .empty{color:var(--txm);font-style:italic}
+</style>
+</head>
+<body>
+<header>
+  <img src="icons/icon48.png" alt="">
+  <h1>PriceWatch</h1>
+  <span class="ver" id="ver"></span>
+</header>
+
+<section>
+  <div class="lbl">Stores with a scraper</div>
+  <div class="chips" id="domains"></div>
+  <div class="note">Any other retailer in MyList comes back as <b>unsupported</b> — the rest of the
+    check still runs. Kroger &amp; King Soopers use their official API, not scraping.</div>
+</section>
+
+<section>
+  <div class="lbl">Rate limiting</div>
+  <div class="row">
+    <span class="k">Min gap per store</span>
+    <select id="gap">
+      <option value="1">1 hour</option>
+      <option value="3">3 hours</option>
+      <option value="6">6 hours</option>
+      <option value="12">12 hours</option>
+    </select>
+  </div>
+  <div class="note">A store inside its cooldown returns its last cached prices instead of being
+    re-opened. Keeps traffic looking like occasional browsing.</div>
+  <button id="clear">Clear cooldowns</button>
+</section>
+
+<section>
+  <div class="lbl">Background auto-checks</div>
+  <div class="row">
+    <span class="k">Run without MyList open</span>
+    <label class="sw"><input type="checkbox" id="auto"><i></i></label>
+  </div>
+  <div class="row">
+    <span class="k">Every</span>
+    <select id="every">
+      <option value="120">2 hours</option>
+      <option value="240">4 hours</option>
+      <option value="480">8 hours</option>
+      <option value="1440">24 hours</option>
+    </select>
+  </div>
+  <div class="note">Opens background tabs on its own and writes results straight into your Price
+    Watch doc. Off by default.</div>
+  <button id="run">Run a check now</button>
+</section>
+
+<section>
+  <div class="lbl">Recent activity</div>
+  <div class="log" id="log"></div>
+</section>
+
+<script src="popup.js"></script>
+</body>
+</html>

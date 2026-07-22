@@ -1762,6 +1762,57 @@ const PW_DOCS = [
   { profile: 'veda', path: 'dashboards/pricewatch-veda' },
 ];
 const PW_MAX_ITEMS_PER_RUN = 3;
+const PW_MAX_HISTORY = 180;   // ~6 months of daily bests; keeps the doc bounded
+
+// ── Shared write path ────────────────────────────────────────────────────────
+// The daily cron and /watch/ingest (the PriceWatch extension's background
+// auto-checks) BOTH funnel through these two, so history shape, the badge
+// `source` and the >$1 drop push behave identically no matter which one did
+// the checking. Don't inline either of these back into a caller.
+
+// Mutates `it` in place; returns the PREVIOUS best price (null if never priced)
+// so the caller can decide whether a drop is worth notifying about.
+function pwApplyToItem(it, res, today) {
+  const prevBest = typeof it.bestPrice === 'number' ? it.bestPrice : null;
+  const slim = slimBreakdown(res.breakdown);
+  it.perStoreBreakdown = slim;
+  it.bestPrice = (typeof res.bestPrice === 'number') ? res.bestPrice : null;   // may be null (all stores unavailable)
+  it.bestStore = res.bestStore || null;
+  it.lastChecked = new Date().toISOString();
+  if (!Array.isArray(it.priceHistory)) it.priceHistory = [];
+  // One entry PER DAY. The cron checks daily so this is a no-op for it, but the
+  // extension can check every few hours — without this, `priceHistory` would
+  // grow ~6×/day and MyList's pwDelta() (last two entries = day over day) would
+  // start comparing two checks from the same afternoon.
+  const last = it.priceHistory[it.priceHistory.length - 1];
+  const rec = { date: today, bestPrice: it.bestPrice, bestStore: it.bestStore, breakdown: slim };
+  if (last && last.date === today) it.priceHistory[it.priceHistory.length - 1] = rec;
+  else it.priceHistory.push(rec);
+  if (it.priceHistory.length > PW_MAX_HISTORY) it.priceHistory = it.priceHistory.slice(-PW_MAX_HISTORY);
+  return prevBest;
+}
+
+// Push only on a REAL drop of more than a flat $1.00, and never when today's
+// best is unavailable. Returns the number of devices notified.
+async function pwNotifyDrop(env, token, profile, it, prevBest, res, tokenDocs) {
+  if (prevBest == null || typeof res.bestPrice !== 'number') return 0;
+  if ((prevBest - res.bestPrice) <= 1.00) return 0;
+  const targets = tokenDocs.filter(d => (d.fields?.mainDash?.stringValue || 'all') === profile);
+  const bestEntry = (res.breakdown || []).find(e => e.store === res.bestStore) || {};
+  // 'live-scrape' is a real observed price, so it gets no hedge — only the AI
+  // guess does.
+  const estNote = bestEntry.source === 'ai-estimated' ? ' — worth double-checking' : '';
+  const storeLabel = res.bestStoreName || bestEntry.storeName || STORE_LABELS[res.bestStore] || res.bestStore;
+  const nm = it.itemName || it.name || 'Item';
+  const bodyTxt = `${nm}: $${prevBest.toFixed(2)} → $${res.bestPrice.toFixed(2)} at ${storeLabel}${estNote}`;
+  const occId = `pw_${profile}_${it.id || ''}_${Date.now()}`;
+  await Promise.allSettled(targets.map(d =>
+    sendFCM(env.FIREBASE_PROJECT_ID, d.fields.token.stringValue, 'Price drop', bodyTxt, occId, token, profile)
+      .catch(e => console.warn('[pricewatch] fcm', e.message))
+  ));
+  console.log(`[pricewatch] drop ${bodyTxt} → ${targets.length} device(s)`);
+  return targets.length;
+}
 
 async function runPriceWatchCron(env) {
   let token;
@@ -1800,14 +1851,7 @@ async function runPriceWatchCron(env) {
     try { res = await checkAllStores(env, entry.profile, it, entry.stores); }
     catch (e) { res = { ok: false, breakdown: [], bestPrice: null, bestStore: null }; }
 
-    const prevBest = typeof it.bestPrice === 'number' ? it.bestPrice : null;
-    const slim = slimBreakdown(res.breakdown);
-    it.perStoreBreakdown = slim;
-    it.bestPrice = res.bestPrice;   // may be null (all stores unavailable)
-    it.bestStore = res.bestStore;   // may be null
-    it.lastChecked = new Date().toISOString();
-    if (!Array.isArray(it.priceHistory)) it.priceHistory = [];
-    it.priceHistory.push({ date: today, bestPrice: res.bestPrice, bestStore: res.bestStore, breakdown: slim });
+    const prevBest = pwApplyToItem(it, res, today);
 
     // Write the whole doc back NOW (crash-safe). `it` is a live reference inside
     // docs[path].items, so its mutation is already in the object we serialize.
@@ -1816,25 +1860,79 @@ async function runPriceWatchCron(env) {
     try { await fsWriteDoc(env, token, entry.path, { items: d.items, stores: d.stores, savedAt: Date.now() }); }
     catch (e) { console.warn('[pricewatch] write', entry.path, e.message); }
 
-    // Notify only on a real drop of MORE THAN a flat $1.00 (no percentage).
-    // Never notify when today's best is unavailable (bestPrice null).
     if (prevBest != null && typeof res.bestPrice === 'number' && (prevBest - res.bestPrice) > 1.00) {
       if (!tokenDocsCache) tokenDocsCache = await fsFetchTokens(env, token);
-      const dash = entry.profile;   // 'tony' | 'veda' — strict device-main scoping
-      const targets = tokenDocsCache.filter(d2 => (d2.fields?.mainDash?.stringValue || 'all') === dash);
-      const bestEntry = (res.breakdown || []).find(e => e.store === res.bestStore) || {};
-      const estNote = bestEntry.source === 'ai-estimated' ? ' — worth double-checking' : '';
-      const storeLabel = res.bestStoreName || bestEntry.storeName || STORE_LABELS[res.bestStore] || res.bestStore;
-      const nm = it.itemName || it.name || 'Item';
-      const bodyTxt = `${nm}: $${prevBest.toFixed(2)} → $${res.bestPrice.toFixed(2)} at ${storeLabel}${estNote}`;
-      const occId = `pw_${dash}_${it.id || ''}_${Date.now()}`;
-      await Promise.allSettled(targets.map(d2 =>
-        sendFCM(env.FIREBASE_PROJECT_ID, d2.fields.token.stringValue, 'Price drop', bodyTxt, occId, token, dash)
-          .catch(e => console.warn('[pricewatch] fcm', e.message))
-      ));
-      console.log(`[pricewatch] drop ${bodyTxt} → ${targets.length} device(s)`);
+      await pwNotifyDrop(env, token, entry.profile, it, prevBest, res, tokenDocsCache);
     }
   }
+}
+
+// ── PriceWatch extension endpoints ───────────────────────────────────────────
+// The browser extension scrapes in the USER'S OWN Chrome session, but it can't
+// write Firestore itself: the page has App Check (reCAPTCHA v3) enabled and an
+// extension service worker can't produce that attestation. So it reads state
+// and posts results through here, where the service-account JWT already exists
+// and the drop-notification pipeline is already wired.
+
+// Current watchlist + the live store list for a profile. The extension calls
+// this on every alarm run rather than caching a store list — same dynamic-store
+// rule as the message path.
+async function handleWatchState(body, env) {
+  const profile = body.profile === 'veda' ? 'veda' : 'tony';
+  const path = profile === 'veda' ? 'dashboards/pricewatch-veda' : 'dashboards/pricewatch';
+  try {
+    const token = await getGoogleAccessToken(env);
+    const data = await fsReadDoc(env, token, path);
+    const items = (data && Array.isArray(data.items)) ? data.items : [];
+    return json({
+      ok: true,
+      stores: (data && Array.isArray(data.stores)) ? data.stores : DEFAULT_STORES,
+      // Only what a check needs — the extension never sees priceHistory.
+      items: items.map(i => ({
+        id: i.id, itemName: i.itemName || i.name || '', qty: i.qty || '',
+        brandLock: i.brandLock || '', productRef: i.productRef || { url: '' },
+        perStoreBreakdown: i.perStoreBreakdown || [],
+      })),
+    });
+  } catch (e) { return json({ ok: false, error: e.message || String(e) }, 502); }
+}
+
+// Results scraped by the extension → the same doc, same schema persistWatch()
+// writes, same >$1 push. Unknown item ids are skipped (the watch was deleted
+// mid-run), never treated as an error.
+async function handleWatchIngest(body, env) {
+  const profile = body.profile === 'veda' ? 'veda' : 'tony';
+  const path = profile === 'veda' ? 'dashboards/pricewatch-veda' : 'dashboards/pricewatch';
+  const results = Array.isArray(body.results) ? body.results : [];
+  if (!results.length) return json({ ok: false, error: 'no results' }, 400);
+
+  try {
+    const token = await getGoogleAccessToken(env);
+    const data = (await fsReadDoc(env, token, path)) || { items: [] };
+    const items = Array.isArray(data.items) ? data.items : [];
+    const today = new Date().toISOString().slice(0, 10);
+    let tokenDocsCache = null, applied = 0, skipped = 0;
+
+    for (const r of results) {
+      const it = items.find(x => x && x.id === r.id);
+      if (!it) { skipped++; continue; }
+      const res = {
+        breakdown: Array.isArray(r.breakdown) ? r.breakdown : [],
+        bestPrice: typeof r.bestPrice === 'number' ? r.bestPrice : null,
+        bestStore: r.bestStore || null,
+        bestStoreName: r.bestStoreName || null,
+      };
+      const prevBest = pwApplyToItem(it, res, today);
+      applied++;
+      if (prevBest != null && typeof res.bestPrice === 'number' && (prevBest - res.bestPrice) > 1.00) {
+        if (!tokenDocsCache) tokenDocsCache = await fsFetchTokens(env, token);
+        await pwNotifyDrop(env, token, profile, it, prevBest, res, tokenDocsCache);
+      }
+    }
+
+    if (applied) await fsWriteDoc(env, token, path, { items, stores: data.stores, savedAt: Date.now() });
+    return json({ ok: true, applied, skipped });
+  } catch (e) { return json({ ok: false, error: e.message || String(e) }, 502); }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1850,8 +1948,8 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 12, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'journal', 'watch'],
+        version: 13, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'journal', 'watch', 'watch-ingest'],
         models: MODELS,
         listModels: LIST_MODELS,
         recipeEditModels: RECIPE_EDIT_MODELS,
@@ -1880,6 +1978,8 @@ export default {
       if (path === '/journal/format') return handleFormat(body, env);
       if (path === '/watch/check')    return handleWatchCheck(body, env);
       if (path === '/watch/resolve')  return handleWatchResolve(body, env);
+      if (path === '/watch/state')    return handleWatchState(body, env);
+      if (path === '/watch/ingest')   return handleWatchIngest(body, env);
     }
 
     return json({ ok: false, error: 'not found' }, 404);
