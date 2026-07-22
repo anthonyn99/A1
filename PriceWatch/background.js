@@ -157,6 +157,7 @@ async function scrapeInTab(def, domain, query) {
     // stable-twice, so we don't grab a half-rendered grid.
     let best = { results: [], blocked: false, note: "" };
     let stableAt = -1;
+    let lastWeak = false;
     for (let i = 0; i < MAX_POLLS; i++) {
       let out;
       try {
@@ -171,6 +172,7 @@ async function scrapeInTab(def, domain, query) {
       }
       if (out) {
         if (out.blocked) return { results: [], blocked: true, url };
+        lastWeak = !!out.weak;
         if (out.results.length >= best.results.length) best = out;
         if (best.results.length > 0) {
           if (stableAt === best.results.length) break;
@@ -179,6 +181,10 @@ async function scrapeInTab(def, domain, query) {
       }
       await sleep(POLL_MS);
     }
+    // Poll budget spent with nothing found AND the body never filled in: that's
+    // an unnamed interstitial, not a slow page. Treat it as blocked so it earns
+    // the long backoff instead of being retried at the normal interval.
+    if (!best.results.length && lastWeak) return { results: [], blocked: true, url };
     return { results: best.results, blocked: false, note: best.note || "", url };
   } finally {
     await closeScrapeTab(h);

@@ -4,13 +4,22 @@ Persistent memory across Claude Code sessions for MyList's "Price Watch" feature
 **Read this before touching a store module in `workers/personal-ai/worker.js`, and
 update the relevant section after.** One section per store.
 
-Two integration classes:
+Three integration classes:
 - **Verified (`source: "verified"`)** — Kroger / King Soopers via the official
   Products API. Real numbers, no AI.
+- **Live (`source: "live-scrape"`)** — the **PriceWatch browser extension**
+  (`PriceWatch/`) opens the store's real search page in Tony's own Chrome session,
+  reads the rendered grid, closes the tab. Real observed numbers, no AI, no server.
+  Badge `✓ live`. See the PriceWatch section below.
 - **Estimated (`source: "ai-estimated"`)** — Walmart / Amazon / CVS / Walgreens via
   Gemini-grounded Google Search + url_context. A price is only ever stored if the
   grounding metadata carried a supporting citation URL; otherwise it is written as
   `source: "unavailable"` with no price (never a guess).
+
+The three are **additive, not exclusive**. mylist.html scrapes first when the
+extension is installed, then asks the worker to fill in only the stores the scrape
+couldn't do (bot-checked / cooling down / no parser module). Installing PriceWatch
+can add coverage but never removes the AI-estimated fallback.
 
 ---
 
@@ -95,8 +104,53 @@ Notes:
   lookup returned $18 from a variety pack). Stored as `ai-estimated`; the drop
   notification says "worth double-checking".
 
+## PriceWatch extension (live scraping)  — `PriceWatch/`
+Method: MV3 Chrome extension; real tabs in Tony's own session, DOM read, tab closed
+Last verified working: 2026-07-22 (Amazon returned 12 real products from headless Brave)
+Notes:
+- **Read `PriceWatch/README.md` before touching a parser module.** One module per
+  store domain in `PriceWatch/parsers/`, registered BY DOMAIN — the same domain the
+  user typed in Manage Stores.
+- **Store list is never stored in the extension.** MyList ships `pwStores()` with
+  every `PW_CHECK`; the alarm path re-reads it from the pricewatch doc via
+  `/watch/state`. Adding a retailer never needs an extension rebuild. A domain with
+  no module returns `source:"unsupported"` and does not sink the rest of the request.
+- **Kroger banners are never scraped** — the extension routes `type:"kroger"` stores
+  to the worker's existing `/watch/check` API path and merges the result.
+- **Bridge:** `externally_connectable` + a PINNED extension id (manifest `key`),
+  `oinemolmfefbaifalljkflfaleapihco`, hardcoded in mylist.html as `PW_EXT_ID`.
+  Regenerating the key MUST be mirrored there or the bridge silently dies.
+  background.js also hard-checks `sender.origin` — verified rejecting a foreign
+  origin on 2026-07-22.
+- **Rate limiting:** a store domain is re-opened at most every 3h (popup-configurable
+  1/3/6/12h). Inside the window the last cached result for that exact query is
+  returned instead, flagged `cached`, and no tab opens. Stores are scraped strictly
+  one at a time with a randomised 2.2–6.5s gap; tabs open inactive. A bot check
+  earns a 6h backoff and is never retried in a loop.
+- **BOT WALLS ARE THE NORM, NOT THE EXCEPTION.** Verified 2026-07-22 from headless
+  Brave: Amazon ✅ (12 products, real prices + `/dp/` URLs + thumbnails);
+  Walmart ⛔; CVS ⛔; Walgreens ⛔ (Akamai "Challenge Validation", 0-length body).
+  A real non-headless profile with cookies/history clears these far more often, but
+  it is intermittent by nature. Do NOT "fix" a block by retrying harder — that is
+  what escalates it. Every blocked store falls through to the AI-estimated path.
+- Walgreens' wall renders an EMPTY body, which the first-pass `looksBlocked()` missed
+  (it required a non-empty body). Detection is now split: `hardBlocked()` (named
+  vendor interstitials → immediate stop) vs `weakBlocked()` (empty body → only
+  concluded after the ~10s poll budget, so a slow SPA isn't misread as a wall).
+- **Background auto-checks are OFF by default** (they open tabs unprompted). When on,
+  a `chrome.alarms` timer POSTs results to `/watch/ingest`, which writes Firestore
+  with the worker's service-account JWT — the extension can't write directly because
+  mylist.html has App Check (reCAPTCHA v3) and an extension SW can't attest to it.
+  Cron and ingest share `pwApplyToItem()` / `pwNotifyDrop()`, so history shape and
+  the >$1 drop push are identical either way. `pwApplyToItem` collapses same-day
+  history entries — without that, 6 checks/day would break MyList's day-over-day
+  `pwDelta()`.
+- `relevanceScore` / `normStores` / `cleanDomain` in `PriceWatch/pw-core.js` are a
+  deliberate PORT of the worker's versions. **Keep them in sync** or live results
+  start ranking differently from estimated ones in the same list.
+
 ## Amazon
-Method: Gemini-grounded — part of the shared AI-search design (see Walmart section)
+Method: Gemini-grounded (shared AI-search design) **+ live scrape** via `parsers/amazon.js`
 Notes:
 - Prices change intra-day and by seller; the model is told to prefer the primary
   buy-box / "Sold by Amazon" price and to say "no reliable price found" rather than

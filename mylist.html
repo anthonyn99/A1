@@ -324,6 +324,11 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-badge{font-size:11px;font-weight:700;padding:1px 6px;border-radius:8px;}
 .pw-badge.verified{color:var(--good);background:rgba(95,191,143,0.14);}
 .pw-badge.est{color:var(--textdim);background:var(--surface2);}
+/* "live" = really scraped from the store's own page by the PriceWatch
+   extension — neither a Kroger API number nor an AI guess. Accent-coloured so
+   it reads as the strongest of the three tiers at a glance. */
+.pw-badge.live{color:var(--accent);background:var(--accent-soft);}
+.pw-badge.na{color:var(--textmute);background:var(--surface2);font-weight:600;}
 .pw-priceblock{text-align:right;flex-shrink:0;}
 .pw-price{font-weight:800;font-size:17px;color:var(--text);}
 .pw-delta{font-size:12px;font-weight:800;display:inline-block;margin-top:2px;}
@@ -346,7 +351,10 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-bd{display:flex;flex-direction:column;gap:2px;margin-bottom:8px;}
 .pw-bd-row{display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 6px;border-radius:8px;color:var(--textdim);}
 .pw-bd-row.best{background:rgba(95,191,143,0.12);}
-.pw-bd-store{flex:1;min-width:0;display:flex;gap:6px;align-items:center;}
+.pw-bd-store{flex:1;min-width:0;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+/* Why a store has no price (no scraper for its domain, bot check, cooling
+   down). flex-basis:100% drops it onto its own line under the store name. */
+.pw-bd-note{flex-basis:100%;font-size:11px;color:var(--textmute);line-height:1.4;}
 .pw-bd-price{font-weight:800;color:var(--text);}
 .pw-bd-row.best .pw-bd-price{color:var(--good);}
 .pw-link{text-decoration:none;color:var(--accent);font-weight:800;}
@@ -367,6 +375,24 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-store-add{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
 .pw-store-add input{flex:1;min-width:120px;}
 .pw-store-note{font-size:11px;color:var(--textmute);margin-top:8px;}
+/* PriceWatch extension status strip + its install modal */
+.pw-ext{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:11.5px;color:var(--textdim);line-height:1.5;}
+.pw-ext .pw-ext-txt{flex:1;min-width:150px;}
+.pw-ext b{color:var(--text);}
+.pw-ext.on .pw-dot{color:var(--accent);}
+#pwx-overlay{position:fixed;inset:0;z-index:2147482000;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.74);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:18px;}
+#pwx-overlay.show{display:flex;}
+#pwx-box{width:100%;max-width:470px;max-height:88vh;overflow-y:auto;background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+#pwx-box h3{margin:0 0 6px;font-size:16px;color:var(--accent);font-family:var(--font-head);letter-spacing:var(--head-spacing);}
+#pwx-box .pwx-lead{font-size:12px;color:var(--textdim);line-height:1.6;margin-bottom:16px;}
+#pwx-box ol{list-style:none;counter-reset:pwx;padding:0;margin:0;}
+#pwx-box ol li{counter-increment:pwx;display:flex;gap:11px;align-items:flex-start;margin-bottom:15px;font-size:12.5px;color:var(--text);line-height:1.55;}
+#pwx-box ol li:before{content:counter(pwx);flex:none;width:21px;height:21px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+#pwx-box li.plain:before{content:"";background:transparent;}
+#pwx-box code{background:var(--surface2);border:1px solid var(--border2);border-radius:5px;padding:4px 8px;font-size:11.5px;color:var(--accent);font-family:ui-monospace,monospace;}
+#pwx-pkg{display:none;font-size:11px;color:var(--textdim);margin-top:5px;font-family:ui-monospace,monospace;word-break:break-word;line-height:1.5;}
+.pwx-sub{font-size:11px;color:var(--textmute);line-height:1.5;margin-top:5px;}
+.pwx-foot{border-top:1px solid var(--border);padding-top:13px;margin-top:4px;font-size:11.5px;color:var(--textdim);line-height:1.55;}
 /* Integrated per-item watch (Lists) */
 .li-watch-btn.on{color:var(--accent);}
 .li-check-btn{color:var(--accent);}
@@ -620,7 +646,297 @@ body.dnd-active *{cursor:grabbing !important;}
   <button id="lock-reset" onclick="ML.lockReset()">Reset password via email</button>
 </div></div>
 
+<!-- ── Install PriceWatch (same package-in-the-browser flow as Index's "Install
+        Vault"; a page can't install an extension, so it hands you a zip) ── -->
+<div id="pwx-overlay" onclick="if(event.target===this)pwxClose()">
+  <div id="pwx-box">
+    <h3>Install PriceWatch</h3>
+    <p class="pwx-lead">
+      PriceWatch is the browser extension that reads <b>real</b> prices off each store's own
+      search page, using this browser's normal session — no server, no paid data API. Browsers
+      won't let a website install an extension silently, so this packages the latest source and
+      walks you through the one-time load.
+    </p>
+    <ol>
+      <li>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:800;margin-bottom:7px;">Download the extension</div>
+          <button class="btn solid sm" onclick="pwxDownload(this)">⬇ Download PriceWatch (.zip)</button>
+          <div class="pwx-sub">Always packages the newest files straight from GitHub.</div>
+          <div id="pwx-pkg"></div>
+        </div>
+      </li>
+      <li><div style="flex:1;min-width:0;"><b>Unzip it</b> to a folder you'll keep (e.g. Documents).
+        The extension runs from that folder — don't delete it afterwards.</div></li>
+      <li>
+        <div style="flex:1;min-width:0;">
+          <div style="margin-bottom:7px;">Open your browser's extensions page
+            (<b id="pwx-browser" style="color:var(--accent)">Chrome</b> — a click can't open it, so copy &amp; paste):</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <code id="pwx-exturl">chrome://extensions</code>
+            <button class="btn sm" onclick="pwxCopyUrl()">Copy</button>
+          </div>
+          <div id="pwx-ff" style="display:none;margin-top:7px;font-size:11.5px;color:#e0a060;line-height:1.5;">
+            ⚠ Firefox doesn't support this extension's MV3 background worker or
+            <code>externally_connectable</code>. Use Chrome, Brave, Edge or Opera.
+          </div>
+        </div>
+      </li>
+      <li><div style="flex:1;min-width:0;">Turn on <b>Developer mode</b> (toggle, top-right of that page).</div></li>
+      <li><div style="flex:1;min-width:0;">Click <b>Load unpacked</b> and select the unzipped
+        <b>PriceWatch</b> folder.</div></li>
+      <li><div style="flex:1;min-width:0;">Come back here and reload — the strip under your stores
+        should turn into <b>PriceWatch active</b>. Tracking or checking an item now opens each
+        store in a background tab, reads the price, and closes it.</div></li>
+      <li class="plain">
+        <div class="pwx-foot">
+          <b style="color:var(--text)">Already installed?</b> Unpacked extensions don't self-update.
+          Download again, replace the old <code style="padding:1px 5px;">PriceWatch</code> folder in place,
+          then hit <b>Reload</b> ⟳ on the extensions page.
+          <br><br>
+          <b style="color:var(--text)">Note:</b> stores are checked at most once every few hours each,
+          one tab at a time, so the traffic looks like ordinary browsing. A store that shows a bot
+          check is skipped and backed off — never retried in a loop.
+        </div>
+      </li>
+    </ol>
+    <div style="display:flex;justify-content:flex-end;margin-top:6px;">
+      <button class="btn sm" onclick="pwxClose()">Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
+
+<script>
+/* ── PriceWatch extension packaging + guided setup ───────────────────────────
+   Same mechanism as Index's "Install Vault" (index.html), pointed at
+   PriceWatch/ instead of Vault/: a page cannot install an extension, so we
+   fetch the source, build a Store-method ZIP entirely in the browser (no
+   library, no CDN — this app stays a single self-contained file) and hand it
+   over with Load-Unpacked steps.
+
+   NOTHING here enumerates filenames. The shipped set is discovered at click
+   time, so adding / renaming a parser module needs no edit to this file:
+
+     1. the GitHub tree of PriceWatch/ at HEAD → every file that exists;
+     2. plus a walk of manifest.json → popup.html → importScripts(), which is
+        what pulls in parsers/*.js (they're injected dynamically, so nothing in
+        the manifest references them — background.js importScripts() them
+        precisely so this walk, and the service worker, both see them).
+
+   Contents come from this origin first, falling back to raw.githubusercontent
+   per file — which covers a file already on main but not yet republished to
+   Pages. */
+(function(){
+  var PW_REPO='anthonyn99/A1', PW_REF='main', PW_DIR='PriceWatch';
+  var RAW_BASE='https://raw.githubusercontent.com/'+PW_REPO+'/'+PW_REF+'/'+PW_DIR+'/';
+  var TREE_API='https://api.github.com/repos/'+PW_REPO+'/git/trees/'+PW_REF+'?recursive=1';
+
+  /* Everything under PriceWatch/ ships EXCEPT these, so a future file is
+     included by default and never has to be registered anywhere. */
+  var SKIP=[/(^|\/)\./, /\.test\.js$/, /(^|\/)node_modules\//, /(^|\/)package(-lock)?\.json$/];
+  function skip(p){ return SKIP.some(function(re){ return re.test(p); }); }
+  var SOFT_EXTRAS=['README.md'];   // only consulted on the manifest-walk fallback
+
+  function norm(p){ return String(p||'').replace(/^\.?\//,'').split('?')[0].split('#')[0]; }
+
+  var crcT=(function(){ var t=new Uint32Array(256);
+    for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; }
+    return t; })();
+  function crc32(u8){ var c=0xFFFFFFFF;
+    for(var i=0;i<u8.length;i++) c=crcT[(c^u8[i])&0xFF]^(c>>>8);
+    return (c^0xFFFFFFFF)>>>0; }
+
+  // Minimal ZIP, Store method (no compression). files: [{name, data:Uint8Array}]
+  function buildZip(files){
+    var enc=new TextEncoder(), chunks=[], central=[], offset=0;
+    function u16(n){ return [n&0xFF,(n>>>8)&0xFF]; }
+    function u32(n){ return [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF]; }
+    // A real DOS timestamp — a zeroed one (day 0 / month 0) makes Windows
+    // Explorer's built-in "Extract All" balk on some builds.
+    var now=new Date();
+    var dTime=((now.getHours()&31)<<11)|((now.getMinutes()&63)<<5)|((now.getSeconds()/2)&31);
+    var dDate=(((now.getFullYear()-1980)&127)<<9)|(((now.getMonth()+1)&15)<<5)|(now.getDate()&31);
+    files.forEach(function(f){
+      var name=enc.encode(f.name), data=f.data, crc=crc32(data), size=data.length;
+      var lh=new Uint8Array([].concat(
+        u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(dTime),u16(dDate),
+        u32(crc),u32(size),u32(size),u16(name.length),u16(0)));
+      chunks.push(lh,name,data);
+      central.push(new Uint8Array([].concat(
+        u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(dTime),u16(dDate),
+        u32(crc),u32(size),u32(size),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),
+        u32(offset))), name);
+      offset+=lh.length+name.length+data.length;
+    });
+    var cdStart=offset, cdSize=0;
+    central.forEach(function(c){ chunks.push(c); cdSize+=c.length; });
+    chunks.push(new Uint8Array([].concat(
+      u32(0x06054b50),u16(0),u16(0),u16(central.length/2),u16(central.length/2),
+      u32(cdSize),u32(cdStart),u16(0))));
+    return new Blob(chunks,{type:'application/zip'});
+  }
+
+  function pwxToast(msg){
+    var t=document.getElementById('toast'); if(!t) return;
+    t.textContent=msg; t.className='toast show';
+    setTimeout(function(){ t.className='toast'; }, 3200);
+  }
+
+  function browserInfo(){
+    var ua=navigator.userAgent;
+    if(navigator.brave) return {name:'Brave', url:'brave://extensions'};
+    if(/Edg\//.test(ua)) return {name:'Edge', url:'edge://extensions'};
+    if(/OPR\//.test(ua)) return {name:'Opera', url:'opera://extensions'};
+    if(/Firefox\//.test(ua)) return {name:'Firefox', url:'about:debugging#/runtime/this-firefox', firefox:true};
+    return {name:'Chrome', url:'chrome://extensions'};
+  }
+
+  window.pwxOpen=function(){
+    var info=browserInfo();
+    document.getElementById('pwx-browser').textContent=info.name;
+    document.getElementById('pwx-exturl').textContent=info.url;
+    document.getElementById('pwx-ff').style.display=info.firefox?'block':'none';
+    document.getElementById('pwx-overlay').classList.add('show');
+  };
+  window.pwxClose=function(){ document.getElementById('pwx-overlay').classList.remove('show'); };
+  window.pwxCopyUrl=function(){
+    var u=document.getElementById('pwx-exturl').textContent;
+    ((navigator.clipboard&&navigator.clipboard.writeText(u))||Promise.reject())
+      .then(function(){ pwxToast('Copied — paste into a new tab'); })
+      .catch(function(){ pwxToast('Copy failed — type it manually'); });
+  };
+
+  /* ── Discovery ─────────────────────────────────────────────────────────── */
+  function listFromGitHub(){
+    return fetch(TREE_API,{cache:'no-store'}).then(function(r){
+      if(!r.ok) throw new Error('tree API '+r.status);
+      return r.json();
+    }).then(function(j){
+      if(j.truncated) throw new Error('tree truncated');
+      var pre=PW_DIR+'/';
+      var files=(j.tree||[]).filter(function(n){ return n.type==='blob' && n.path.slice(0,pre.length)===pre; })
+                            .map(function(n){ return n.path.slice(pre.length); })
+                            .filter(function(p){ return !skip(p); });
+      if(!files.length) throw new Error('no files under '+pre);
+      return {files:files, sha:String(j.sha||'').slice(0,7)};
+    });
+  }
+  function refsFromManifest(m){
+    var out=[];
+    function push(v){ if(typeof v==='string'&&v&&!/^(https?:|data:|\/\/)/.test(v)) out.push(norm(v)); }
+    function icons(o){ if(o&&typeof o==='object') Object.keys(o).forEach(function(k){ push(o[k]); }); else push(o); }
+    var b=m.background||{};
+    push(b.service_worker); (b.scripts||[]).forEach(push); push(b.page);
+    var act=m.action||m.browser_action||{};
+    push(act.default_popup); icons(act.default_icon); icons(m.icons);
+    push(m.options_page); push((m.options_ui||{}).page); push(m.devtools_page);
+    (m.content_scripts||[]).forEach(function(cs){ (cs.js||[]).forEach(push); (cs.css||[]).forEach(push); });
+    (m.web_accessible_resources||[]).forEach(function(w){
+      if(typeof w==='string') push(w); else (w.resources||[]).forEach(push);
+    });
+    return out.filter(function(p){ return p && !/[*?]/.test(p); });
+  }
+  function refsFromHtml(txt){
+    var out=[], re=/<script[^>]+src\s*=\s*["']([^"']+)["']|<link[^>]+href\s*=\s*["']([^"']+)["']/gi, m;
+    while((m=re.exec(txt))){
+      var v=m[1]||m[2];
+      if(v&&!/^(https?:|data:|\/\/|#)/.test(v)) out.push(norm(v));
+    }
+    return out;
+  }
+  function refsFromWorker(txt){
+    var out=[], re=/importScripts\s*\(([^)]*)\)/g, m;
+    while((m=re.exec(txt))) (m[1].match(/["']([^"']+)["']/g)||[]).forEach(function(s){
+      var v=norm(s.slice(1,-1)); if(v&&!/^(https?:|\/\/)/.test(v)) out.push(v);
+    });
+    return out;
+  }
+
+  /* ── Fetch ─────────────────────────────────────────────────────────────── */
+  // This origin first (fast, no rate limit), then raw@main — which is what
+  // serves a file that landed on main before Pages republished.
+  function get(path){
+    var bust='?_='+Date.now(), urls=[PW_DIR+'/'+path+bust, RAW_BASE+path+bust], i=0;
+    function next(){
+      if(i>=urls.length) return Promise.resolve(null);
+      return fetch(urls[i++],{cache:'no-store'})
+        .then(function(r){ return r.ok ? r.arrayBuffer().then(function(b){ return new Uint8Array(b); }) : next(); })
+        .catch(next);
+    }
+    return next();
+  }
+
+  function collect(){
+    return listFromGitHub().then(
+      function(g){ return {listed:g.files, src:'GitHub@'+PW_REF+(g.sha?' '+g.sha:'')}; },
+      function(e){ return {listed:null, src:'manifest walk ('+e.message+')'}; }
+    ).then(function(seed){
+      var files={}, order=[], seen={}, warn=[], version='';
+      // Seed with the full listing when we have it, else just the manifest —
+      // the walk below expands either into the complete dependency set.
+      var queue=(seed.listed||['manifest.json']).map(function(p){ return {p:norm(p), req:true, from:'listing'}; });
+      if(!seed.listed) SOFT_EXTRAS.forEach(function(p){ queue.push({p:p, req:false, from:'extras'}); });
+
+      function step(){
+        if(!queue.length) return Promise.resolve();
+        var it=queue.shift();
+        if(!it.p||seen[it.p]||skip(it.p)) return step();
+        seen[it.p]=1;
+        return get(it.p).then(function(data){
+          if(!data){
+            if(it.req) throw new Error(it.p+' unavailable (referenced by '+it.from+')');
+            warn.push(it.p); return step();
+          }
+          files[it.p]=data; order.push(it.p);
+          function add(r){ queue.push({p:r, req:true, from:it.p}); }
+          if(it.p==='manifest.json'){
+            var m, txt=new TextDecoder().decode(data);
+            try{ m=JSON.parse(txt); }catch(e){ throw new Error('manifest.json is not valid JSON'); }
+            refsFromManifest(m).forEach(add);
+            version=m.version||'';
+          } else if(/\.html?$/i.test(it.p)) refsFromHtml(new TextDecoder().decode(data)).forEach(add);
+          else if(/\.js$/i.test(it.p))      refsFromWorker(new TextDecoder().decode(data)).forEach(add);
+          return step();
+        });
+      }
+      return step().then(function(){
+        if(!files['manifest.json']) throw new Error('manifest.json missing');
+        return {files:files, version:version, src:seed.src, warn:warn};
+      });
+    });
+  }
+
+  window.pwxDownload=function(btn){
+    var orig=btn.textContent;
+    btn.disabled=true; btn.textContent='Packaging…';
+    var note=document.getElementById('pwx-pkg');
+    // Returns the chain so a caller (or a test) can await the packaging.
+    return collect().then(function(r){
+      // Nest under PriceWatch/ so any extraction style yields the folder step 5 names.
+      var entries=Object.keys(r.files).sort().map(function(name){
+        return {name:PW_DIR+'/'+name, data:r.files[name]};
+      });
+      var url=URL.createObjectURL(buildZip(entries));
+      var fname='PriceWatch-extension'+(r.version?'-'+r.version:'')+'.zip';
+      var a=document.createElement('a');
+      a.href=url; a.download=fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); },5000);
+      pwxToast(fname+' — '+entries.length+' files');
+      if(note){
+        note.style.display='block';
+        note.textContent='Packaged '+entries.length+' files'+(r.version?' · v'+r.version:'')+
+          ' · from '+r.src+(r.warn.length?' · skipped '+r.warn.join(', '):'');
+      }
+    }).catch(function(e){
+      pwxToast('Couldn’t package PriceWatch: '+e.message);
+      if(note){ note.style.display='block'; note.textContent='Failed: '+e.message; }
+    }).then(function(){ btn.disabled=false; btn.textContent=orig; });
+  };
+})();
+</script>
 
 <!-- ── Firebase (same project as Index) ── -->
 <script type="module">
@@ -2287,7 +2603,28 @@ function pwCheckListItem(listItemId){
 function toggleManual(){ if(!manualVisible()) return; manualOpen=!manualOpen; renderManualPop(); }
 
 // ════════ PRICE WATCH (each item priced at all 6 stores) ════════
-function pwBadge(store){ return pwVerified(store) ? '<span class="pw-badge verified">✓ verified</span>' : '<span class="pw-badge est">🔍 estimated</span>'; }
+// Three trust tiers, strongest first: a Kroger Products API number (verified),
+// a price the PriceWatch extension actually read off the store's own search
+// page in this browser (live), and a Gemini-grounded guess (estimated).
+//
+// `source` comes off a BREAKDOWN ENTRY. It's optional because one caller — the
+// store chips in the manage panel — badges a STORE with no result behind it
+// yet; that case falls through to the store-type default, which is the old
+// behaviour verbatim.
+function pwBadge(store, source){
+  if(source==='live-scrape')  return '<span class="pw-badge live">✓ live</span>';
+  if(source==='verified')     return '<span class="pw-badge verified">✓ verified</span>';
+  if(source==='ai-estimated') return '<span class="pw-badge est">🔍 estimated</span>';
+  if(source==='unsupported')  return '<span class="pw-badge na">no scraper</span>';
+  if(source==='blocked')      return '<span class="pw-badge na">bot check</span>';
+  if(source==='rate-limited') return '<span class="pw-badge na">cooling down</span>';
+  return pwVerified(store) ? '<span class="pw-badge verified">✓ verified</span>' : '<span class="pw-badge est">🔍 estimated</span>';
+}
+// The breakdown entry behind an item's best price — lets the row header badge
+// reflect how that number was actually obtained.
+function pwBestEntry(it){
+  return ((it && it.perStoreBreakdown) || []).filter(function(x){ return x.store===it.bestStore; })[0] || null;
+}
 function pwDateShort(iso){ try{ var d=new Date(iso); return (d.getMonth()+1)+'/'+d.getDate(); }catch(e){ return ''; } }
 // Day-over-day change in an item's BEST price (last two dated checks).
 function pwDelta(it){
@@ -2333,8 +2670,9 @@ function renderWatchView(){
     }).join('')+'</div>';
   if(pwManageOpen){
     h+='<div class="pw-store-add"><input id="pw-store-name" placeholder="Store name (e.g. Target)"><input id="pw-store-domain" placeholder="website (e.g. target.com)" onkeydown="if(event.key===\'Enter\')ML.pwAddStore()"><button class="btn solid sm" onclick="ML.pwAddStore()">Add</button></div>';
-    h+='<div class="pw-store-note">New stores are AI-searched by their website. Every search uses the enabled stores above.</div>';
+    h+='<div class="pw-store-note">Every search uses the enabled stores above. A store is scraped live if the PriceWatch extension has a module for its website, and AI-searched otherwise.</div>';
   }
+  h+=pwExtStripHtml();
   h+='</div>';
   // ── Search card (searches ALL enabled stores; inputs persist after search) ──
   h+='<div class="card pw-add">';
@@ -2367,7 +2705,10 @@ function pwBreakdownRows(breakdown, bestStore){
     var price=(typeof e.price==='number')?('$'+e.price.toFixed(2)):'—';
     var isBest = bestStore===e.store && typeof e.price==='number';
     var link=(e.url)?' <a href="'+esc(e.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">↗</a>':'';
-    return '<div class="pw-bd-row'+(isBest?' best':'')+'"><span class="pw-bd-store">'+esc(e.storeName||pwStoreLabel(e.store))+' '+pwBadge(e.store)+'</span><span class="pw-bd-price">'+price+'</span>'+link+'</div>';
+    // `note` explains an empty cell (no scraper for that domain, bot check,
+    // cooling down) instead of leaving a bare dash.
+    var note=(typeof e.price!=='number' && e.note)?'<span class="pw-bd-note">'+esc(e.note)+'</span>':'';
+    return '<div class="pw-bd-row'+(isBest?' best':'')+'"><span class="pw-bd-store">'+esc(e.storeName||pwStoreLabel(e.store))+' '+pwBadge(e.store, e.source)+note+'</span><span class="pw-bd-price">'+price+'</span>'+link+'</div>';
   }).join('');
 }
 function pwCandidatesHtml(){
@@ -2382,7 +2723,7 @@ function pwCandidatesHtml(){
     (res.breakdown||[]).forEach(function(e){
       var vs=e.variants||[];
       if(!vs.length) return;
-      h+='<div class="pw-vgroup"><div class="pw-vstore">'+esc(e.storeName||pwStoreLabel(e.store))+' '+pwBadge(e.store)+'</div>';
+      h+='<div class="pw-vgroup"><div class="pw-vstore">'+esc(e.storeName||pwStoreLabel(e.store))+' '+pwBadge(e.store, e.source)+'</div>';
       vs.forEach(function(v,i){
         var sub=[v.brand,v.size].filter(Boolean).join(' · ');
         var link=(v.url)?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">↗</a>':'';
@@ -2404,12 +2745,16 @@ function pwCandidatesHtml(){
 // only); keep the slim entry incl. pins so later checks anchor to the product.
 function pwSlim(breakdown){
   return (breakdown||[]).map(function(e){
+    // Matches the worker's slimBreakdown(): storeName + note are kept so a
+    // stored breakdown can still label itself and explain an empty cell.
     var o={ store:e.store, source:e.source };
+    if(e.storeName) o.storeName=e.storeName;
     if(typeof e.price==='number') o.price=e.price;
     if(e.url) o.url=e.url;
     if(e.krogerProductId) o.krogerProductId=e.krogerProductId;
     if(e.brand) o.brand=e.brand;
     if(e.foundTitle) o.foundTitle=e.foundTitle;
+    if(e.note) o.note=e.note;
     return o;
   });
 }
@@ -2433,7 +2778,8 @@ function pwTrackVariant(store, i){
 function pwRowHtml(it){
   var expanded = pwExpandedId===it.id;
   var price = (typeof it.bestPrice==='number') ? ('$'+it.bestPrice.toFixed(2)) : '—';
-  var atStore = (typeof it.bestPrice==='number') ? ('best at '+esc(pwStoreLabel(it.bestStore))+' '+pwBadge(it.bestStore)) : (it.lastChecked?'no price found':'not checked yet');
+  var be = pwBestEntry(it);
+  var atStore = (typeof it.bestPrice==='number') ? ('best at '+esc(pwStoreLabel(it.bestStore))+' '+pwBadge(it.bestStore, be&&be.source)) : (it.lastChecked?'no price found':'not checked yet');
   var d=pwDelta(it), delta='';
   if(d && d.dir==='down') delta='<span class="pw-delta down">▼$'+d.amt.toFixed(2)+'</span>';
   else if(d && d.dir==='up') delta='<span class="pw-delta up">▲$'+d.amt.toFixed(2)+'</span>';
@@ -2470,7 +2816,124 @@ function pwToggle(id){ pwExpandedId=(pwExpandedId===id)?null:id; render(); }
 // Send the minimal item the worker needs (name, brandLock, product-link hint, and
 // prior breakdown so per-store pins carry forward), plus the enabled store list.
 function pwProbe(o){ return { name:o.itemName, brandLock:o.brandLock||'', productRef:{ url:(o.productRef&&o.productRef.url)||'' }, perStoreBreakdown:o.perStoreBreakdown||[] }; }
-function pwReqBody(item){ return JSON.stringify({ profile:activeProfile, item:pwProbe(item), stores:pwStores() }); }
+
+// ════════ PriceWatch browser extension bridge ════════
+// The extension opens each store's real search page in THIS browser's session
+// and reads the rendered prices — no server, no data API. It's addressed by a
+// PINNED id (manifest "key"), so the same id is valid on every machine even
+// though it's loaded unpacked.
+//
+// The store list is never duplicated inside the extension: pwStores() is read
+// at call time and shipped with every message, so adding or removing a retailer
+// in Manage Stores takes effect on the very next check with no rebuild.
+var PW_EXT_ID = 'oinemolmfefbaifalljkflfaleapihco';
+var pwExtInfo = null;   // null = not probed yet · false = not installed · object = installed
+
+// Resolves null when the extension isn't there. chrome.runtime.sendMessage to a
+// missing id sets lastError instead of throwing, and reading it is what stops
+// the "Unchecked runtime.lastError" console noise.
+function pwExtSend(msg, timeoutMs){
+  return new Promise(function(resolve){
+    if(!(window.chrome && chrome.runtime && chrome.runtime.sendMessage)) return resolve(null);
+    var done=false;
+    var t=setTimeout(function(){ if(!done){ done=true; resolve(null); } }, timeoutMs||8000);
+    try{
+      chrome.runtime.sendMessage(PW_EXT_ID, msg, function(res){
+        if(done) return;
+        done=true; clearTimeout(t);
+        resolve(chrome.runtime.lastError ? null : (res||null));
+      });
+    }catch(e){ if(!done){ done=true; clearTimeout(t); resolve(null); } }
+  });
+}
+var pwExtProbing=false;
+function pwExtDetect(){
+  if(pwExtProbing) return Promise.resolve(pwExtInfo);
+  pwExtProbing=true;
+  return pwExtSend({type:'PW_PING'}, 2500).then(function(res){
+    pwExtProbing=false;
+    var was=pwExtInfo;
+    pwExtInfo=(res&&res.ok)?res:false;
+    if(was===null && view==='watch') render();   // first probe resolved — swap the status strip in
+    return pwExtInfo;
+  });
+}
+// Status strip under the store chips. Kicks off the one-time probe on first
+// paint of the Price Watch tab; pwExtDetect() re-renders when it lands.
+function pwExtStripHtml(){
+  if(pwExtInfo===null){
+    pwExtDetect();
+    return '<div class="pw-ext"><span class="pw-ext-txt">Checking for the PriceWatch extension…</span></div>';
+  }
+  if(pwExtInfo===false){
+    return '<div class="pw-ext"><span class="pw-ext-txt"><span class="pw-dot">🧩</span> <b>PriceWatch extension not installed</b> — prices are AI estimates. Install it to read real prices off each store\'s own page, in this browser.</span>'
+      +'<button class="btn sm" onclick="ML.pwExtInstall()">Install</button></div>';
+  }
+  var doms=pwExtInfo.domains||[];
+  return '<div class="pw-ext on"><span class="pw-ext-txt"><span class="pw-dot">🧩</span> <b>PriceWatch v'+esc(pwExtInfo.version||'?')+' active</b> — live scraping for '+esc(doms.join(', '))
+    +'. Other stores stay AI-estimated. Min '+esc(String(pwExtInfo.minIntervalHours||3))+'h between checks per store.</span>'
+    +'<button class="btn sm" onclick="ML.pwExtInstall()">Update</button></div>';
+}
+function pwExtInstall(){ if(window.pwxOpen) window.pwxOpen(); }
+function pwWorkerCheck(item, stores, endpoint){
+  return fetch(API+endpoint,{ method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ profile:activeProfile, item:pwProbe(item), stores:stores }) })
+    .then(function(r){ return r.json(); });
+}
+// Merge a worker fill-in into a scrape result: a real price from the worker
+// replaces an empty scrape cell, and the scrape's reason is kept alongside.
+function pwMergeBreakdown(primary, fill){
+  var byKey={};
+  ((fill&&fill.breakdown)||[]).forEach(function(e){ byKey[e.store]=e; });
+  var merged=(primary.breakdown||[]).map(function(e){
+    var f=byKey[e.store];
+    if(f && typeof f.price==='number' && typeof e.price!=='number'){
+      var o={}; for(var k in f) o[k]=f[k];
+      if(e.note) o.note=e.note;
+      return o;
+    }
+    return e;
+  });
+  var best=null;
+  merged.forEach(function(e){ if(typeof e.price==='number' && (best===null||e.price<best.price)) best=e; });
+  return { ok:true, via:'hybrid', breakdown:merged,
+    bestPrice:best?best.price:null, bestStore:best?best.store:null,
+    bestStoreName:best?(best.storeName||best.store):null, bestBrand:best?(best.brand||''):'',
+    foundCount:merged.filter(function(e){ return typeof e.price==='number'; }).length,
+    storeCount:merged.length, stores:primary.stores };
+}
+// One entry point for both /watch/resolve (search) and /watch/check (recheck).
+//
+// Extension installed → scrape live, then ask the worker to fill ONLY the
+// stores the scrape couldn't do (no parser module, bot check, cooling down), so
+// installing it never LOSES the AI-estimated coverage that exists today. Kroger
+// banners are excluded from the fill because the extension already routed them
+// through the worker's API path.
+//
+// Extension absent → the worker path, exactly as before.
+function pwFetchCheck(item, endpoint){
+  var stores=pwStores();
+  if(pwExtInfo===false) return pwWorkerCheck(item, stores, endpoint);
+  return (pwExtInfo ? Promise.resolve(pwExtInfo) : pwExtDetect()).then(function(info){
+    if(!info) return pwWorkerCheck(item, stores, endpoint);
+    // Generous timeout: stores are scraped one tab at a time with a randomised
+    // gap between them, so a six-store check is legitimately slow.
+    return pwExtSend({ type:'PW_CHECK', profile:activeProfile, item:pwProbe(item), stores:stores }, 300000)
+      .then(function(res){
+        if(!res || !res.ok) return pwWorkerCheck(item, stores, endpoint);
+        pwExtSend({ type:'PW_SET_PROFILE', profile:activeProfile }, 2000);
+        var gaps=(res.breakdown||[]).filter(function(e){
+          if(typeof e.price==='number') return false;
+          var so=pwStoreObj(e.store);
+          return !!so && so.type!=='kroger';
+        }).map(function(e){ return pwStoreObj(e.store); });
+        if(!gaps.length) return res;
+        return pwWorkerCheck(item, gaps, endpoint)
+          .then(function(fill){ return pwMergeBreakdown(res, fill); })
+          .catch(function(){ return res; });
+      });
+  });
+}
 // oninput keeps the form state current WITHOUT re-rendering (no focus loss); value=
 // repopulates it on the next render, so inputs survive a search & tab switches.
 function pwFormInput(){
@@ -2490,8 +2953,7 @@ function pwAddFind(){
   if(!name){ toast('Enter an item name', true); return; }
   var draft={ itemName:name, qty:(f.qty||'').trim(), brandLock:(f.brand||'').trim(), productRef:{ url:(f.url||'').trim() } };
   pwSetAdding(true); pwSetCand(null); render();
-  fetch(API+'/watch/resolve',{ method:'POST', headers:{'Content-Type':'application/json'}, body:pwReqBody(draft) })
-    .then(function(r){ return r.json(); })
+  pwFetchCheck(draft, '/watch/resolve')
     .then(function(res){ pwSetAdding(false); pwSetCand({ draft:draft, res:res||{ok:false} }); render(); })
     .catch(function(){ pwSetAdding(false); pwSetCand({ draft:draft, res:{ok:false,error:'network error'} }); render(); });
 }
@@ -2532,8 +2994,7 @@ function pwApplyResult(it, res){
 function pwCheckNow(id){
   var it=pwFind(id); if(!it || pwBusy) return;
   pwBusy=id; render();
-  fetch(API+'/watch/check',{ method:'POST', headers:{'Content-Type':'application/json'}, body:pwReqBody(it) })
-    .then(function(r){ return r.json(); })
+  pwFetchCheck(it, '/watch/check')
     .then(function(res){
       pwBusy=null;
       if(!res || res.ok===false){ toast((res&&res.error)?('Check failed: '+res.error):'Check failed', true); render(); return; }
@@ -2586,6 +3047,7 @@ window.ML = {
   recEditStep:recEditStep, recAddStep:recAddStep, recSaveStep:recSaveStep, recCancelStep:recCancelStep, recDeleteStep:recDeleteStep,
   pwAddFind:pwAddFind, pwTrack:pwTrack, pwTrackVariant:pwTrackVariant, pwSaveAnyway:pwSaveAnyway, pwCancelAdd:pwCancelAdd, pwCheckNow:pwCheckNow, pwDelete:pwDelete, pwToggle:pwToggle, pwSetSort:pwSetSort,
   pwFormInput:pwFormInput, pwClearSearch:pwClearSearch, pwToggleManage:pwToggleManage, pwAddStore:pwAddStore, pwRemoveStore:pwRemoveStore, pwToggleListWatch:pwToggleListWatch, pwCheckListItem:pwCheckListItem,
+  pwExtInstall:pwExtInstall,
   openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker, pickDevice:pickDevice,
   manageLock:manageLock, lockSubmit:lockSubmit, lockCancel:lockCancel, lockForgot:lockForgot, lockReset:lockReset
 };

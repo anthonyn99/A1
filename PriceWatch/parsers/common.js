@@ -88,15 +88,23 @@
       var m = H.text(root).match(/\$\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?/);
       return m ? g.PWCore.parsePrice(m[0]) : null;
     },
-    // Generic bot-wall detection, shared by every module. Individual modules
-    // add their own store-specific checks on top.
-    looksBlocked: function () {
+    // DEFINITIVE bot-wall signatures — the named interstitials of the big
+    // vendors (Akamai "Challenge Validation", PerimeterX, Cloudflare, Incapsula)
+    // plus a visible captcha. Seeing one of these ends the attempt immediately.
+    hardBlocked: function () {
       var t = String(document.title || "").toLowerCase();
-      if (/robot|captcha|are you a human|access denied|bot detect|unusual traffic|verify you/.test(t)) return true;
-      if (document.querySelector('form[action*="validateCaptcha"], iframe[src*="recaptcha"], #captcha, [data-testid="captcha"]')) return true;
-      // A near-empty body on a search URL is almost always an interstitial.
-      var bodyLen = (document.body && document.body.innerText || "").length;
-      return bodyLen > 0 && bodyLen < 220;
+      if (/robot|captcha|challenge validation|just a moment|are you a human|access denied|bot detect|unusual traffic|verify you|request unsuccessful|pardon our interruption/.test(t)) return true;
+      if (document.querySelector('form[action*="validateCaptcha"], iframe[src*="recaptcha"], iframe[title*="challenge"], #captcha, #px-captcha, [data-testid="captcha"]')) return true;
+      return /enable javascript and cookies to continue|verifying you are human/i
+        .test(document.body && document.body.innerText || "");
+    },
+    // SOFT signal: an empty / near-empty body. On its own this is ambiguous —
+    // a slow SPA looks identical for the first second — so callers must only
+    // conclude "blocked" from this after the poll budget is spent, never on the
+    // first pass. (Walgreens' Akamai wall renders a 0-length body, which is
+    // what this catches once hardBlocked misses the title.)
+    weakBlocked: function () {
+      return (document.body && document.body.innerText || "").length < 220;
     }
   };
 
@@ -136,18 +144,22 @@
     },
     get: function (domain) { return PARSERS[g.PWCore.cleanDomain(domain)] || null; },
     domains: function () { return Object.keys(PARSERS); },
-    // Runs in the page. Returns {results, blocked} — never throws, so a broken
-    // selector degrades to "found nothing" instead of killing the run.
+    // Runs in the page. Returns {results, blocked, weak} — never throws, so a
+    // broken selector degrades to "found nothing" instead of killing the run.
+    // `blocked` is definitive; `weak` is the caller's to interpret once it has
+    // stopped waiting for the page to fill in.
     run: function (domain) {
       var def = PARSERS[domain];
-      if (!def) return { results: [], blocked: false, note: "no parser for " + domain };
+      if (!def) return { results: [], blocked: false, weak: false, note: "no parser for " + domain };
       try {
-        if ((def.blocked && def.blocked()) || H.looksBlocked()) return { results: [], blocked: true };
+        if ((def.blocked && def.blocked()) || H.hardBlocked()) return { results: [], blocked: true, weak: false };
       } catch (e) {}
+      var weak = false;
+      try { weak = H.weakBlocked(); } catch (e) {}
       try {
-        return { results: normResults(def.parse(), def.max || 12), blocked: false };
+        return { results: normResults(def.parse(), def.max || 12), blocked: false, weak: weak };
       } catch (e) {
-        return { results: [], blocked: false, note: "parse error: " + (e && e.message || e) };
+        return { results: [], blocked: false, weak: weak, note: "parse error: " + (e && e.message || e) };
       }
     }
   };
