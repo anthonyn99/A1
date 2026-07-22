@@ -10562,6 +10562,56 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     return 'occ:'+series+':'+minute;
   }
 
+  // ── Surface policy: desktop gets BOTH surfaces ─────────────────────────
+  // Every delivery path used to draw exactly ONE thing — the foreground path a
+  // banner, the service worker an OS card, the local poll a banner — so on a
+  // desktop whichever path happened to own the reminder decided which surface
+  // you saw. Sitting on the app meant NO Windows notification at all, and the
+  // 30s poll firing first consumed the occurrence (shared fired-set) so the
+  // push behind it was deduped into silence. On DESKTOP we now always draw the
+  // in-app banner AND the OS notification-centre card, deduped on the shared
+  // occurrence key so it stays exactly one of each.
+  // MOBILE is deliberately unchanged: a phone drawing a banner AND a
+  // notification-centre card is the "fires twice" complaint this build fixed.
+  const IS_DESKTOP=(function(){
+    try{
+      const ua=navigator.userAgent||'';
+      if(/Android|iPhone|iPad|iPod|IEMobile|Mobile|Silk|Kindle/i.test(ua))return false;
+      // iPadOS ≥13 ships a Macintosh UA — touch points give it away.
+      if(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1)return false;
+      return true;
+    }catch(e){return false;}
+  })();
+  window._thIsDesktop=IS_DESKTOP;
+
+  const TH_ICON='data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%234a7c59%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2765%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2756%27%3E%E2%9C%93%3C/text%3E%3C/svg%3E';
+
+  // Draw an OS notification-centre card FROM THE PAGE, through the existing
+  // service-worker registration (the bare Notification constructor is
+  // unavailable in installed PWAs and on Android). Claims the occurrence key in
+  // the SW's dedup cache FIRST, so a push for the same occurrence arriving a
+  // moment later can't draw a second card. No network, no Firestore reads.
+  async function showOSNotif(body,occKey){
+    try{
+      if(!IS_DESKTOP)return false;
+      if(!('Notification' in window)||Notification.permission!=='granted')return false;
+      if(!('serviceWorker' in navigator))return false;
+      const reg=await navigator.serviceWorker.getRegistration('./');
+      if(!reg)return false;
+      const sw=reg.active||reg.waiting||navigator.serviceWorker.controller;
+      if(sw&&occKey){try{sw.postMessage({type:'th-mark-shown',key:occKey});}catch(e){}}
+      await reg.showNotification('✦ TaskHub',{
+        body:String(body||'Task reminder'),
+        // Unique tag → two reminders at the same minute never replace each other.
+        tag:'thpage_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+        renotify:true,requireInteraction:true,icon:TH_ICON
+      });
+      return true;
+    }catch(e){return false;}
+  }
+  // Exposed for the (classic, separate) polling-engine script.
+  window._thShowOSNotif=function(body,occKey){return showOSNotif(body,occKey).catch(function(){return false;});};
+
   // ── In-app banner ─────────────────────────────────────────────────────
   function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
@@ -11060,12 +11110,15 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       // the foreground FCM push AND the poll loop. Falls back to raw id.
       const ok=fcmOccKey(id)||id;
       if(ok){ if(hasFired(ok))return; markFired(ok); }
-      // SINGLE SURFACE: the app is in the FOREGROUND here (onMessage only runs
-      // focused), so show the in-app banner ONLY. Drawing an OS notification too
-      // is exactly the "fires to both the banner AND the notification centre"
-      // double. When the app is NOT focused, the service worker
-      // (onBackgroundMessage) draws the OS notification instead — never both.
+      // The app is in the FOREGROUND here (onMessage only runs focused).
+      // MOBILE: banner ONLY — a phone drawing a banner AND a notification-centre
+      // card is the "fires twice" double, so mobile stays single-surface.
+      // DESKTOP: banner AND OS card. The app being focused doesn't mean you're
+      // looking at it; the Windows notification is what actually catches you.
+      // showOSNotif claims `ok` in the SW's dedup cache, so the same occurrence
+      // can never draw a second card from any other path.
       showBanner(title);
+      if(IS_DESKTOP)showOSNotif(title,ok);
     });
   }
 
@@ -11077,6 +11130,11 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     navigator.serviceWorker.addEventListener('message',function(e){
       var msg=e.data||{};
       if(msg.type!=='th-notif-banner')return;
+      // DESKTOP ONLY. The SW has already drawn the OS card; this adds the in-app
+      // banner so an open-but-unfocused desktop window shows BOTH surfaces —
+      // that pairing is the whole point on desktop. On mobile the OS card is the
+      // single surface, so a phone must ignore this (else: fires twice).
+      if(!IS_DESKTOP)return;
       // Same profile scope gate as the foreground onMessage path (above).
       var dash=msg.dash||'all';
       var mainD=localStorage.getItem('td6_mainDash')||'all';
@@ -11282,8 +11340,22 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     return main===dash;
   }
 
+  // Desktop = both surfaces (in-app banner + OS notification centre); mobile
+  // keeps banner-only. Mirrors IS_DESKTOP in the FCM module but is computed
+  // locally so this classic script never depends on that async module having
+  // executed yet.
+  function isDesktop(){
+    if(typeof window._thIsDesktop==='boolean')return window._thIsDesktop;
+    try{
+      var ua=navigator.userAgent||'';
+      if(/Android|iPhone|iPad|iPod|IEMobile|Mobile|Silk|Kindle/i.test(ua))return false;
+      if(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1)return false;
+      return true;
+    }catch(e){return false;}
+  }
+
   var _notifSeq=0;
-  function showNotif(title){
+  function showNotif(title,occ){
     var stack=document.getElementById('th-banner-stack');
     if(!stack){
       stack=document.createElement('div');stack.id='th-banner-stack';
@@ -11302,11 +11374,21 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     item.querySelector('button').onclick=function(){item.style.opacity='0';item.style.transition='opacity .2s';setTimeout(function(){try{item.remove();if(stack&&!stack.children.length)stack.remove();}catch(e){}},220);};
     stack.appendChild(item);
     // Banner stays until user taps × — no auto-dismiss timer.
-    // SINGLE SURFACE: this in-page poll draws the BANNER only. The OS
-    // notification-centre entry is drawn solely by the service worker
-    // (onBackgroundMessage) when the app is not focused. Drawing an OS
-    // notification here too produced a second alert alongside the SW's — the
-    // "fires twice" bug — and could even double with the SW's own OS card.
+    //
+    // MOBILE: banner only. The OS notification-centre entry there is drawn
+    // solely by the service worker (onBackgroundMessage); drawing one here too
+    // produced a second alert alongside the SW's — the "fires twice" bug.
+    //
+    // DESKTOP: also draw the OS card. This poll runs whenever the app is open
+    // and, firing on its own 30s tick, it usually BEATS the FCM push — and it
+    // marked the occurrence fired, which deduped the push into silence. That is
+    // precisely how a reminder landed on the phone but produced nothing in the
+    // Windows notification centre. _thShowOSNotif claims the same occurrence key
+    // in the service worker's dedup cache, so the push arriving a moment later
+    // still can't draw a second card.
+    if(occ&&isDesktop()&&window._thShowOSNotif){
+      try{window._thShowOSNotif(title,occ);}catch(e){}
+    }
   }
 
   function poll(){
@@ -11326,7 +11408,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         // thScheduleNotif previously each used a DIFFERENT id for the same
         // occurrence, so per-id dedup let it fire 2–3×.
         if(!hasFired(ok2)){
-          if(shouldFire(entry.dash)){showNotif(entry.title||'TaskHub Reminder');}
+          if(shouldFire(entry.dash)){showNotif(entry.title||'TaskHub Reminder',ok2);}
           markFired(ok2);
         }
         markFired(entry.id); // keep per-id mark too (reg cleanup / legacy)

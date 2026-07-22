@@ -105,6 +105,14 @@
   /* ── Display mode ── */
   body.privacy .money { filter: blur(0.34em); user-select: none; -webkit-user-select: none; }
   body.privacy input.money:focus { filter: none; user-select: auto; -webkit-user-select: auto; }
+  /* Tabs are draggable to reorder; keep vertical scrolling natural on touch. */
+  .tab { touch-action: pan-y; }
+  .tab.navdrag {
+    z-index: 5; cursor: grabbing; opacity: .97;
+    border-color: var(--gold-line); background: var(--gold-wash); color: var(--gold-soft);
+    box-shadow: 0 10px 26px rgba(0,0,0,.45);
+  }
+
   #displayModeBtn { white-space: nowrap; }
   #displayModeBtn[aria-pressed="true"] {
     border-color: var(--gold); color: var(--gold-soft); background: var(--gold-wash);
@@ -425,10 +433,16 @@
       </div>
       <div class="syncmeta">
         <span class="env-badge" id="envBadge" style="display:none">Sandbox</span>
-        <span class="dot" id="syncDot" style="display:none"></span>
         <span id="lastSync">connecting…</span>
-        <button class="btn" id="displayModeBtn" title="Display mode — blur every dollar amount so you can show Insight without revealing your finances" aria-pressed="false">Display mode</button>
-        <button class="btn" id="syncNowBtn" title="Your own edits save instantly — this pulls new transactions from your connected institutions">Refresh</button>
+        <button class="btn icononly" id="syncNowBtn" aria-label="Refresh institution data"
+                title="Refresh institution data — your own edits save instantly; this pulls new transactions from your connected institutions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6.01"/><polyline points="20.5 3.5 20.5 9 15 9"/></svg>
+        </button>
+        <button class="btn icononly" id="displayModeBtn" aria-pressed="false" aria-label="Display mode"
+                title="Display mode — hides balances, month totals and account values so you can show Insight to someone. Individual transaction amounts, recurring costs and your cash balance stay visible.">
+          <svg id="dmIconOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 12S5.8 5.5 12 5.5 22.2 12 22.2 12 18.2 18.5 12 18.5 1.8 12 1.8 12z"/><circle cx="12" cy="12" r="2.8"/></svg>
+          <svg id="dmIconOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 19.8c-6.2 0-10.2-6.5-10.2-6.5a18.4 18.4 0 0 1 4.7-5.4M9.9 5.7A9.1 9.1 0 0 1 12 5.5c6.2 0 10.2 6.5 10.2 6.5a18.5 18.5 0 0 1-2 2.9m-6.2-1.1a2.8 2.8 0 1 1-3.9-3.9"/><line x1="2.5" y1="2.5" x2="21.5" y2="21.5"/></svg>
+        </button>
         <button class="btn icononly" id="lockNowBtn" title="Lock Insight now" aria-label="Lock Insight now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></button>
       </div>
     </div>
@@ -525,8 +539,8 @@
   <!-- ═══ Recurring (migrated from ExpenseLog) ═══ -->
   <section class="view" id="view-recurring">
     <div class="stats" style="grid-template-columns:1fr 1fr">
-      <div class="stat"><div class="lbl">Monthly total</div><div class="val gold money" id="recMo">—</div></div>
-      <div class="stat"><div class="lbl">Annual total</div><div class="val gold money" id="recAn">—</div></div>
+      <div class="stat"><div class="lbl">Monthly total</div><div class="val gold" id="recMo">—</div></div>
+      <div class="stat"><div class="lbl">Annual total</div><div class="val gold" id="recAn">—</div></div>
     </div>
     <div class="filters" style="justify-content:flex-end">
       <button class="btn gold" id="addRecBtn">+ Add recurring</button>
@@ -539,10 +553,10 @@
     <div class="panel" style="text-align:center;padding:40px 22px">
       <div class="stat" style="border:none;background:none;padding:0">
         <div class="lbl" style="font-size:12px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)">Cash on hand</div>
-        <div class="val gold money" id="cashAmt" style="font-family:var(--serif);font-size:62px;font-weight:500;margin:10px 0 20px;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:1px">—</div>
+        <div class="val gold" id="cashAmt" style="font-family:var(--serif);font-size:62px;font-weight:500;margin:10px 0 20px;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:1px">—</div>
       </div>
       <div class="cashctl">
-        <input class="money" type="number" id="cashInput" min="0" step="0.01" placeholder="Amount" inputmode="decimal">
+        <input type="number" id="cashInput" min="0" step="0.01" placeholder="Amount" inputmode="decimal">
         <button class="btn gold" id="cashAdd">+ Cash add</button>
         <button class="btn deduct" id="cashDeduct">− Cash deduction</button>
       </div>
@@ -583,8 +597,8 @@
     <h3 id="recTitle">Add recurring</h3>
     <div class="field"><label>Name</label><input type="text" id="rName" placeholder="Netflix, Rent, Car Insurance…"></div>
     <div class="fieldrow">
-      <div class="field"><label>Monthly cost</label><input class="money" type="number" id="rMonthly" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
-      <div class="field"><label>Annual cost</label><input class="money" type="number" id="rAnnual" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
+      <div class="field"><label>Monthly cost</label><input type="number" id="rMonthly" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
+      <div class="field"><label>Annual cost</label><input type="number" id="rAnnual" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
     </div>
     <p class="help" style="margin:2px 0 12px;color:var(--faint);font-size:12px">Fill in monthly, annual, or both — or neither for a bill with no set amount yet.</p>
     <div class="field"><label>Notes <span style="text-transform:none;letter-spacing:0;color:var(--faint)">(optional)</span></label><textarea id="rNotes" rows="3" placeholder="Renewal date, account used, cancellation link…"></textarea></div>
@@ -635,37 +649,18 @@
   let lockHint = '';
   let lockSetupNeeded = false;
 
-  // Locks after a full hour of INACTIVITY, not an hour after unlocking. Any
-  // interaction resets the clock; the server session is extended in the
-  // background while you're active so it never expires mid-use. A closed tab
-  // counts as inactive, so `last` is persisted and checked on boot too.
-  const LOCK_IDLE_MS = 60 * 60 * 1000;
-  let lastActivity = Date.now(), lastActivityWrite = 0;
-
+  // A device is trusted once and stays trusted — no timeout. The token only
+  // stops working if you lock manually or the password is changed/reset (the
+  // server stamps each token with the password's fingerprint, so a new
+  // password invalidates every device).
   function persistSession() {
     try { localStorage.setItem(LOCK_LS, JSON.stringify(lockSession)); } catch {}
   }
 
-  function noteActivity() {
-    const now = Date.now();
-    lastActivity = now;
-    // Throttle the localStorage write — pointermove fires constantly.
-    if (lockSession && now - lastActivityWrite > 10000) {
-      lastActivityWrite = now;
-      lockSession.last = now;
-      persistSession();
-    }
-  }
-  ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart', 'touchmove', 'scroll', 'click', 'input']
-    .forEach(ev => window.addEventListener(ev, noteActivity, { passive: true, capture: true }));
-
   function getStoredSession() {
     try {
       const s = JSON.parse(localStorage.getItem(LOCK_LS) || 'null');
-      if (!s || !s.token) return null;
-      if (s.exp <= Date.now() + 5000) return null;
-      if (s.last && Date.now() - s.last > LOCK_IDLE_MS) return null;   // idle too long
-      return s;
+      return s && s.token ? s : null;
     } catch { return null; }
   }
 
@@ -754,8 +749,7 @@
       body: JSON.stringify({ password })
     }).then(x => x.json());
     if (!r.ok) return false;
-    lockSession = { token: r.token, exp: r.expiresAt, last: Date.now() };
-    lastActivity = Date.now();
+    lockSession = { token: r.token, since: Date.now() };
     persistSession();
     return true;
   }
@@ -816,23 +810,27 @@
   }
   document.getElementById('lockNowBtn').addEventListener('click', lockNow);
 
-  // Idle watchdog: lock after an hour with no interaction, and while the
-  // session IS being used, top up its server-side TTL before it lapses.
-  setInterval(async () => {
+  // No auto-lock. The stored token is trusted immediately (so the app opens
+  // instantly, even offline) and confirmed with the server in the background;
+  // if the password has since been changed on another device, the check fails
+  // and this device is locked.
+  async function confirmDeviceTrust() {
     if (!lockSession) return;
-    if (Date.now() - lastActivity >= LOCK_IDLE_MS) { lockNow(); return; }
-    if (lockSession.exp - Date.now() > 15 * 60 * 1000) return;
     try {
-      const r = await fetch(API + '/lock/refresh', {
+      const r = await fetch(API + '/lock/check', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: lockSession.token })
       }).then(x => x.json());
-      if (r.ok) { lockSession.exp = r.expiresAt; lockSession.last = lastActivity; persistSession(); }
-      else lockNow();                       // server dropped it — re-authenticate
-    } catch { /* offline: retry on the next tick */ }
-  }, 30000);
+      if (!r.ok) {
+        lockSession = null;
+        try { localStorage.removeItem(LOCK_LS); } catch {}
+        showLock();
+        lockMsg('The password was changed — enter the new one.');
+      }
+    } catch { /* offline: keep trusting the local token */ }
+  }
 
-  // Boot: a live stored session skips the lock screen entirely.
+  // Boot: a device that has been unlocked before goes straight in.
   lockSession = getStoredSession();
   if (lockSession) lockEl('lockScreen').style.display = 'none';
   (async () => {
@@ -844,6 +842,7 @@
       if (!lockSession) { lockMsg('Lock service unreachable — reload to retry.'); return; }
     }
     if (!lockSession) showLock();
+    else confirmDeviceTrust();
   })();
 
   // ── Custom confirm (no browser popups anywhere) ───────────────────────────
@@ -943,17 +942,17 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast = (msg, gold) => {
     const t = $('toast'); t.textContent = msg;
-    // Toasts can quote figures ("cash on hand is now $…") — blur those too
-    // while display mode is on, otherwise the amount leaks for 3 seconds.
-    const hasMoney = displayMode && /\$/.test(msg);
-    t.className = 'toast show' + (gold ? ' gold' : '') + (hasMoney ? ' money' : '');
+    // Toasts only ever quote cash or per-transaction figures, both of which
+    // stay visible in display mode — so nothing to hide here.
+    t.className = 'toast show' + (gold ? ' gold' : '');
     clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200);
   };
 
   // ── Display mode ─────────────────────────────────────────────────────────
-  // Blurs every dollar figure in the app (feed, stats, balances, recurring,
-  // cash, import preview) so Insight can be demoed without exposing numbers.
-  // The choice is remembered, and the button stays visibly lit while active.
+  // Hides the figures that reveal your overall position — month in/out/net,
+  // account balances, net worth, import previews — while leaving individual
+  // transaction amounts, recurring costs and the cash balance readable, so
+  // Insight can be walked through without exposing how much you have.
   const DISPLAY_LS = 'insight_display_mode';
   let displayMode = false;
   function setDisplayMode(on) {
@@ -961,7 +960,8 @@
     document.body.classList.toggle('privacy', displayMode);
     const b = $('displayModeBtn');
     b.setAttribute('aria-pressed', displayMode ? 'true' : 'false');
-    b.textContent = displayMode ? 'Display mode · On' : 'Display mode';
+    $('dmIconOn').style.display = displayMode ? 'none' : '';
+    $('dmIconOff').style.display = displayMode ? '' : 'none';
     try { localStorage.setItem(DISPLAY_LS, displayMode ? '1' : '0'); } catch {}
   }
   $('displayModeBtn').addEventListener('click', () => {
@@ -988,7 +988,6 @@
     meta = snap.data() || {};
     const at = meta.lastSyncAt;
     $('lastSync').textContent = at ? fmtUpdatedAt(at) : 'No institution data yet';
-    $('syncDot').style.display = at ? '' : 'none';
     if (meta.env && meta.env !== 'production') { $('envBadge').style.display = ''; }
     snapOk('meta');
   }, e => snapFail('meta', e));
@@ -1082,11 +1081,143 @@
   // ── Nav ──────────────────────────────────────────────────────────────────
   $('nav').addEventListener('click', e => {
     const tab = e.target.closest('.tab'); if (!tab) return;
+    if (navSuppressClick) { navSuppressClick = false; return; }   // finished a drag
     activeView = tab.dataset.view;
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + activeView));
     if (activeView === 'addaccount') refreshItems();
   });
+
+  // ── Nav reordering ───────────────────────────────────────────────────────
+  // Tab order lives in Firestore (dashboards/insight/meta/prefs) and is
+  // written the moment a drag ends, so every signed-in device re-orders live
+  // through the same onSnapshot listener.
+  const NAV_LABELS = {
+    transactions: 'Transactions', accounts: 'Accounts', import: 'Import',
+    addaccount: 'Add Account', recurring: 'Recurring', cash: 'Cash'
+  };
+  const NAV_DEFAULT = Object.keys(NAV_LABELS);
+  const prefsRef = doc(db, ROOT, 'meta', 'prefs');
+  let navOrder = NAV_DEFAULT.slice();
+  let navSuppressClick = false;
+
+  function renderNav() {
+    const nav = $('nav');
+    // Unknown/missing keys are healed so a stale saved order can't hide a tab.
+    const order = navOrder.filter(k => NAV_LABELS[k]);
+    for (const k of NAV_DEFAULT) if (!order.includes(k)) order.push(k);
+    navOrder = order;
+    nav.innerHTML = order.map(k =>
+      `<div class="tab${k === activeView ? ' active' : ''}" data-view="${k}">${NAV_LABELS[k]}</div>`).join('');
+  }
+  renderNav();
+
+  onSnapshot(prefsRef, snap => {
+    const d = snap.data();
+    if (d && Array.isArray(d.navOrder) && d.navOrder.join() !== navOrder.join()) {
+      navOrder = d.navOrder.slice();
+      renderNav();
+    }
+    snapOk('prefs');
+  }, e => snapFail('prefs', e));
+
+  async function saveNavOrder() {
+    await synced(setDoc(prefsRef, { navOrder, savedAt: Date.now() }, { merge: true }));
+  }
+
+  // Pointer-based horizontal reorder. On touch a long-press starts the drag so
+  // an ordinary swipe still scrolls the tab strip; with a mouse a few pixels of
+  // movement is enough.
+  (function enableNavDrag() {
+    const nav = $('nav');
+    let d = null, holdTimer = null;
+
+    function flipX(mutate, exclude) {
+      const kids = [...nav.children];
+      const before = new Map(kids.map(k => [k, k.getBoundingClientRect().left]));
+      mutate();
+      for (const k of kids) {
+        if (k === exclude) continue;
+        const dx = before.get(k) - k.getBoundingClientRect().left;
+        if (!dx) continue;
+        k.style.transition = 'none';
+        k.style.transform = `translateX(${dx}px)`;
+        requestAnimationFrame(() => {
+          k.style.transition = 'transform .18s cubic-bezier(.2,.8,.3,1)';
+          k.style.transform = '';
+        });
+      }
+    }
+
+    function startDrag(e) {
+      d.dragging = true;
+      d.grabX = e.clientX;
+      d.tab.classList.add('navdrag');
+      nav.style.overflowX = 'hidden';        // don't scroll the strip mid-drag
+      try { d.tab.setPointerCapture(d.id); } catch {}
+    }
+
+    function cleanup() {
+      if (!d) return;
+      const tab = d.tab;
+      tab.classList.remove('navdrag');
+      tab.style.transform = '';
+      nav.style.overflowX = '';
+      clearTimeout(holdTimer); holdTimer = null;
+      d = null;
+    }
+
+    nav.addEventListener('pointerdown', e => {
+      const tab = e.target.closest('.tab');
+      if (!tab || e.button > 0) return;
+      d = { tab, id: e.pointerId, startX: e.clientX, startY: e.clientY, dragging: false, touch: e.pointerType === 'touch' };
+      if (d.touch) holdTimer = setTimeout(() => { holdTimer = null; if (d) startDrag(e); }, 320);
+    });
+
+    nav.addEventListener('pointermove', e => {
+      if (!d || e.pointerId !== d.id) return;
+      if (!d.dragging) {
+        const dx = Math.abs(e.clientX - d.startX), dy = Math.abs(e.clientY - d.startY);
+        if (d.touch) { if (dx > 8 || dy > 8) cleanup(); return; }   // a swipe: let it scroll
+        if (dx < 5) return;
+        startDrag(e);
+      }
+      d.moved = true;
+      d.tab.style.transform = `translateX(${e.clientX - d.grabX}px)`;
+
+      for (const other of nav.children) {
+        if (other === d.tab) continue;
+        const r = other.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right) continue;
+        const mid = r.left + r.width / 2;
+        const isAfter = !!(d.tab.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
+        if (e.clientX < mid && isAfter) flipX(() => nav.insertBefore(d.tab, other), d.tab);
+        else if (e.clientX > mid && !isAfter) flipX(() => nav.insertBefore(d.tab, other.nextSibling), d.tab);
+        else continue;
+        d.grabX = e.clientX;
+        d.tab.style.transform = 'translateX(0px)';
+        break;
+      }
+    });
+
+    // Non-passive so an active drag can stop the page/strip from scrolling.
+    nav.addEventListener('touchmove', e => { if (d && d.dragging) e.preventDefault(); }, { passive: false });
+
+    async function endDrag(e) {
+      if (!d || (e && e.pointerId !== d.id)) return;
+      const wasDrag = d.dragging && d.moved;
+      cleanup();
+      if (!wasDrag) return;
+      navSuppressClick = true;                      // don't switch views on drop
+      setTimeout(() => { navSuppressClick = false; }, 50);
+      const next = [...nav.querySelectorAll('.tab')].map(t => t.dataset.view);
+      if (next.join() === navOrder.join()) return;
+      navOrder = next;
+      try { await saveNavOrder(); } catch { toast('Could not save the new tab order'); }
+    }
+    nav.addEventListener('pointerup', endDrag);
+    nav.addEventListener('pointercancel', endDrag);
+  })();
 
   // ── Unified feed ─────────────────────────────────────────────────────────
   function allTxs() {
@@ -1210,7 +1341,7 @@
             <span>${esc(t.institution || '')}${t.account_id && acctLabel(t.account_id) ? ' · ' + esc(acctLabel(t.account_id)) : ''}${t.note ? ' · ' + esc(t.note) : ''}</span>
           </div>
         </div>
-        <div class="txamt money ${xfer ? 'xfer' : (t.amount < 0 ? 'in' : '')}">${fmt$(t.amount, true)}</div>
+        <div class="txamt ${xfer ? 'xfer' : (t.amount < 0 ? 'in' : '')}">${fmt$(t.amount, true)}</div>
         <div class="txacts">${editable
           ? `<button class="iconbtn" data-act="edit" title="Edit">${ICON.edit}</button><button class="iconbtn" data-act="del" title="Delete">${ICON.del}</button>`
           : `<button class="iconbtn lock" title="Transactions from connected institutions are read-only">${ICON.lock}</button>`}</div>
@@ -1408,8 +1539,8 @@
         <div class="txmain">
           <div class="txname">${esc(r.name)}</div>
           <div class="txsub">
-            ${r.monthly != null ? `<span class="chip money">${fmt$(r.monthly)}/mo</span>` : ''}
-            ${r.annual != null ? `<span class="chip money">${fmt$(r.annual)}/yr</span>` : ''}
+            ${r.monthly != null ? `<span class="chip">${fmt$(r.monthly)}/mo</span>` : ''}
+            ${r.annual != null ? `<span class="chip">${fmt$(r.annual)}/yr</span>` : ''}
             ${r.monthly == null && r.annual == null ? '<span class="chip">no amount set</span>' : ''}
           </div>
           ${r.notes ? `<div class="recnote">${esc(r.notes)}</div>` : ''}

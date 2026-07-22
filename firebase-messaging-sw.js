@@ -20,7 +20,7 @@ firebase.initializeApp({
 // task) to REPLACE push #1 (e.g. an event) fired at the same minute, so only one
 // showed on mobile. Changing these bytes makes the browser install this build,
 // and skipWaiting + clients.claim below swap it in immediately.
-const SW_VERSION = '2026-06-18-dash-gate-os-notif';
+const SW_VERSION = '2026-07-21-desktop-dual-surface';
 
 const messaging = firebase.messaging();
 
@@ -62,6 +62,16 @@ async function alreadyShown(key){
     return false;
   }catch(e){ return false; }
 }
+// Page → SW: the page just drew the OS card for this occurrence itself (desktop
+// dual-surface path). Claim the key so a push for the SAME occurrence arriving
+// moments later is treated as a duplicate and doesn't draw a second card.
+async function markShown(key){
+  if(!key) return;
+  try{
+    var cache = await caches.open(SW_DEDUP_CACHE);
+    await cache.put('/__th_dedup__/' + encodeURIComponent(key), new Response(String(Date.now())));
+  }catch(e){}
+}
 
 // ── Per-device main dashboard (scope gate) ─────────────────────────────────
 // The SW draws the OS notification even when the app is FULLY CLOSED, so it
@@ -74,9 +84,18 @@ async function alreadyShown(key){
 var SW_MAINDASH_CACHE = 'th-maindash';
 var SW_MAINDASH_URL = '/__th_maindash__';
 async function setStoredMainDash(dash){
+  // NEVER persist 'all'/empty as this device's main. The page posts whatever
+  // localStorage holds at load time, and that is 'all' before a profile has been
+  // picked (or on the very first paint after a data clear). Storing it made
+  // shouldShowForDash('tony') compare 'all' === 'tony' → false and SILENTLY DROP
+  // every profile-scoped push on that device — a desktop could go permanently
+  // deaf while the phone kept working. Treat 'all' as "unknown": leave whatever
+  // is stored alone so the gate falls back to trusting the Worker's send-side
+  // scoping (which is already correct) instead of swallowing the notification.
+  if(!dash || dash === 'all') return;
   try{
     var cache = await caches.open(SW_MAINDASH_CACHE);
-    await cache.put(SW_MAINDASH_URL, new Response(String(dash || 'all')));
+    await cache.put(SW_MAINDASH_URL, new Response(String(dash)));
   }catch(e){}
 }
 async function getStoredMainDash(){
@@ -103,6 +122,9 @@ self.addEventListener('message', function(e){
   var msg = e.data || {};
   if(msg && msg.type === 'th-set-maindash'){
     e.waitUntil(setStoredMainDash(msg.mainDash));
+  }
+  if(msg && msg.type === 'th-mark-shown'){
+    e.waitUntil(markShown(msg.key));
   }
 });
 
@@ -132,17 +154,23 @@ messaging.onBackgroundMessage(function(payload){
     if(!allowed) return; // wrong profile for this device — draw nothing
     return alreadyShown(key).then(function(dup){
       if(dup) return; // same occurrence already shown on this device — skip
-    // SINGLE SURFACE: the SW runs only when the app is NOT focused, so it draws
-    // the OS notification ONLY. It must NOT also post an in-app banner to open
-    // clients — that produced two alerts for one reminder (banner + notification
-    // centre). The foreground onMessage path owns the banner when focused.
-    return self.registration.showNotification('\u2726 TaskHub', {
-      body: body,
-      tag: tag,
-      renotify: true,
-      requireInteraction: true,
-      icon: 'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%234a7c59%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2765%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2756%27%3E%E2%9C%93%3C/text%3E%3C/svg%3E'
-    });
+    // Draw the OS notification-centre card, then hand the same reminder to any
+    // open window (see the .then after showNotification). The PAGE decides what
+    // to do with it: a DESKTOP window renders the in-app banner too, so an
+    // open-but-unfocused desktop gets BOTH surfaces. Previously it got the OS
+    // card and nothing in-app, while a FOCUSED desktop got the banner and
+    // nothing in the notification centre. MOBILE pages ignore the post, keeping
+    // the OS card as the single surface there.
+      return self.registration.showNotification('\u2726 TaskHub', {
+        body: body,
+        tag: tag,
+        renotify: true,
+        requireInteraction: true,
+        icon: 'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%234a7c59%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2765%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2756%27%3E%E2%9C%93%3C/text%3E%3C/svg%3E'
+      }).then(function(){
+        // Best-effort — must never block or fail the card that was just drawn.
+        return postBannerToClients(id, body, dash).catch(function(){});
+      });
     });
   });
 });

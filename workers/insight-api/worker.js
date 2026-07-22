@@ -149,12 +149,30 @@ async function verifyLock(env, password) {
   return diff === 0;
 }
 
-// A verified password can be exchanged for a 1-hour bearer token (see
-// /lock/session) so the page stays unlocked across refreshes without holding
-// the password anywhere. Tokens live in KV with a hard TTL and are revocable
-// (/lock/end = the "Lock now" button). Link endpoints accept either form.
+// A verified password is exchanged for a device token (see /lock/session)
+// that does NOT expire — a device stays trusted until it's locked manually or
+// the password itself changes. That last part is enforced by stamping each
+// token with the current password record's fingerprint: setting or resetting
+// the password produces a new salt+hash, so every previously issued token
+// stops matching and every device must authenticate again.
+async function lockVersion(env) {
+  try {
+    const rec = await env.AUTH_KV.get(LOCK_KEY, 'json');
+    if (!rec || !rec.hash || !rec.salt) return null;
+    return rec.salt + ':' + rec.hash.slice(0, 24);
+  } catch { return null; }
+}
+
+async function tokenValid(env, token) {
+  if (!token) return false;
+  const rec = await env.INSIGHT_KV.get('locktok:' + token, 'json');
+  if (!rec || !rec.v) return false;
+  const cur = await lockVersion(env);
+  return !!cur && rec.v === cur;
+}
+
 async function verifyLockOrToken(env, body) {
-  if (body && body.token) return !!(await env.INSIGHT_KV.get('locktok:' + body.token));
+  if (body && body.token) return tokenValid(env, body.token);
   return verifyLock(env, body && body.lock);
 }
 
@@ -510,22 +528,19 @@ export default {
         if (!(await verifyLock(env, body.password))) {
           return json({ ok: false, error: 'wrong password' }, origin, 401);
         }
+        const v = await lockVersion(env);
+        if (!v) return json({ ok: false, error: 'no password set' }, origin, 401);
         const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
-        await env.INSIGHT_KV.put('locktok:' + token, '1', { expirationTtl: 3600 });
-        return json({ ok: true, token, expiresAt: Date.now() + 3600 * 1000 }, origin);
+        // No TTL: the device stays trusted until it locks or the password changes.
+        await env.INSIGHT_KV.put('locktok:' + token, JSON.stringify({ v, createdAt: Date.now() }));
+        return json({ ok: true, token }, origin);
       }
 
-      // Extends a live session's TTL. The page calls this while you're active
-      // so the server session tracks INACTIVITY (lock after an idle hour)
-      // rather than expiring an hour after unlocking regardless of use.
-      if (path === '/lock/refresh' && request.method === 'POST') {
+      // Is this device still trusted? (false once the password is changed.)
+      if (path === '/lock/check' && request.method === 'POST') {
         let body = {};
         try { body = await request.json(); } catch { body = {}; }
-        if (!body.token) return json({ ok: false, error: 'missing token' }, origin, 400);
-        const live = await env.INSIGHT_KV.get('locktok:' + body.token);
-        if (!live) return json({ ok: false, expired: true }, origin, 401);
-        await env.INSIGHT_KV.put('locktok:' + body.token, '1', { expirationTtl: 3600 });
-        return json({ ok: true, expiresAt: Date.now() + 3600 * 1000 }, origin);
+        return json({ ok: await tokenValid(env, body.token) }, origin);
       }
 
       if (path === '/lock/end' && request.method === 'POST') {
