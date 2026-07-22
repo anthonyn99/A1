@@ -10584,6 +10584,37 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   })();
   window._thIsDesktop=IS_DESKTOP;
 
+  // ── Service-worker registration (INDEPENDENT of FCM) ───────────────────
+  // The service worker is what draws every OS notification-centre card, and it
+  // does NOT need FCM to do that. It used to be registered only inside
+  // ensureFCMToken(), AFTER an early `if(!messaging) return null`. Brave ships
+  // with "Use Google services for push messaging" OFF by default, which makes
+  // getMessaging() throw → messaging stays null → ensureFCMToken bailed before
+  // ever registering the worker → showNotification() had no registration to draw
+  // through. Result on Brave: the in-app banner appeared (the poll writes that
+  // straight into the DOM) but NOTHING reached the Windows notification centre.
+  // Registering unconditionally costs nothing and makes OS cards work even when
+  // push itself is blocked — the app just has to be open for the poll to fire.
+  let _swRegPromise=null;
+  window._thSWError='';
+  function ensureSWRegistration(){
+    if(_swRegPromise)return _swRegPromise;
+    _swRegPromise=(async function(){
+      if(!('serviceWorker' in navigator)){window._thSWError='no serviceWorker support';return null;}
+      try{
+        const reg=await navigator.serviceWorker.register('firebase-messaging-sw.js',{scope:'./'});
+        await navigator.serviceWorker.ready;
+        return reg;
+      }catch(e){
+        window._thSWError='SW register: '+(e&&e.message||e);
+        // A previous registration may still be usable even if re-register threw.
+        try{return (await navigator.serviceWorker.getRegistration('./'))||null;}catch(_){return null;}
+      }
+    })();
+    return _swRegPromise;
+  }
+  ensureSWRegistration();
+
   const TH_ICON='data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%234a7c59%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2765%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2756%27%3E%E2%9C%93%3C/text%3E%3C/svg%3E';
 
   // Draw an OS notification-centre card FROM THE PAGE, through the existing
@@ -10591,23 +10622,39 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // unavailable in installed PWAs and on Android). Claims the occurrence key in
   // the SW's dedup cache FIRST, so a push for the same occurrence arriving a
   // moment later can't draw a second card. No network, no Firestore reads.
+  window._thLastOSNotifError='';
   async function showOSNotif(body,occKey){
+    if(!IS_DESKTOP){window._thLastOSNotifError='not a desktop device';return false;}
+    if(!('Notification' in window)){window._thLastOSNotifError='no Notification API';return false;}
+    if(Notification.permission!=='granted'){window._thLastOSNotifError='permission is "'+Notification.permission+'", not granted';return false;}
+    const opts={
+      body:String(body||'Task reminder'),
+      // Unique tag → two reminders at the same minute never replace each other.
+      tag:'thpage_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+      renotify:true,requireInteraction:true,icon:TH_ICON
+    };
     try{
-      if(!IS_DESKTOP)return false;
-      if(!('Notification' in window)||Notification.permission!=='granted')return false;
-      if(!('serviceWorker' in navigator))return false;
-      const reg=await navigator.serviceWorker.getRegistration('./');
-      if(!reg)return false;
-      const sw=reg.active||reg.waiting||navigator.serviceWorker.controller;
-      if(sw&&occKey){try{sw.postMessage({type:'th-mark-shown',key:occKey});}catch(e){}}
-      await reg.showNotification('✦ TaskHub',{
-        body:String(body||'Task reminder'),
-        // Unique tag → two reminders at the same minute never replace each other.
-        tag:'thpage_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
-        renotify:true,requireInteraction:true,icon:TH_ICON
-      });
+      const reg=await ensureSWRegistration();
+      if(reg){
+        const sw=reg.active||reg.waiting||navigator.serviceWorker.controller;
+        if(sw&&occKey){try{sw.postMessage({type:'th-mark-shown',key:occKey});}catch(e){}}
+        await reg.showNotification('✦ TaskHub',opts);
+        window._thLastOSNotifError='';
+        return true;
+      }
+    }catch(e){window._thLastOSNotifError='showNotification: '+(e&&e.message||e);}
+    // LAST RESORT: no usable service worker (registration blocked, or the
+    // browser refused it). The plain Notification constructor still draws a real
+    // OS card in a desktop browser window — it's unavailable only in installed
+    // PWAs and on Android, and this path is desktop-only anyway.
+    try{
+      new Notification('✦ TaskHub',{body:opts.body,icon:TH_ICON,tag:opts.tag});
+      window._thLastOSNotifError='';
       return true;
-    }catch(e){return false;}
+    }catch(e){
+      window._thLastOSNotifError=(window._thSWError||'')+' | Notification ctor: '+(e&&e.message||e);
+      return false;
+    }
   }
   // Exposed for the (classic, separate) polling-engine script.
   window._thShowOSNotif=function(body,occKey){return showOSNotif(body,occKey).catch(function(){return false;});};
@@ -10754,14 +10801,16 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   async function ensureFCMToken(){
     if(_fcmToken)return _fcmToken;
     if(!('Notification' in window)){window._fcmLastError='no Notification API';return null;}
-    if(!messaging){window._fcmLastError='FCM messaging unsupported in this browser';return null;}
+    // NOTE: bailing here only skips the PUSH token. The service worker is
+    // registered independently (ensureSWRegistration, above) so OS notification
+    // cards still work in browsers where FCM is unavailable — Brave with
+    // "Use Google services for push messaging" off being the common case.
+    if(!messaging){window._fcmLastError='FCM push unsupported/blocked in this browser (Brave: enable Settings ▸ Privacy ▸ "Use Google services for push messaging")';return null;}
     if(!('serviceWorker' in navigator)){window._fcmLastError='no serviceWorker support';return null;}
     let swReg,token;
-    try{
-      await _authReady;
-      swReg=await navigator.serviceWorker.register('firebase-messaging-sw.js',{scope:'./'});
-      await navigator.serviceWorker.ready;
-    }catch(e){window._fcmLastError='SW register: '+(e&&e.message||e);return null;}
+    await _authReady;
+    swReg=await ensureSWRegistration();
+    if(!swReg){window._fcmLastError=window._thSWError||'service worker registration failed';return null;}
     try{
       token=await getToken(messaging,{vapidKey:VAPID_KEY,serviceWorkerRegistration:swReg});
     }catch(e){_fcmToken=null;window._fcmLastError='getToken: '+((e&&e.code?e.code+' ':'')+(e&&e.message||e));console.warn('FCM getToken error:',e);return null;}
@@ -11162,11 +11211,28 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
           +(reg.active&&reg.active.scriptURL?' ('+reg.active.scriptURL.split('/').pop()+')':'');
       }catch(e){swState='lookup failed: '+(e&&e.message||e);}
     }
-    showBanner('② Service worker: '+swState);
+    showBanner('② Service worker: '+swState+(window._thSWError?('  [err: '+window._thSWError+']'):''));
+    // ②b LIVE OS-NOTIFICATION TEST. This is the check that actually matters on
+    // desktop: it draws a real notification-centre card RIGHT NOW, with no FCM,
+    // no cloud and no waiting. If ②b says OK but no card appears in Windows,
+    // the app is fine and the block is in the OS/browser (see ②c).
+    if(IS_DESKTOP){
+      const drew=await showOSNotif('OS notification test — if you can see this card in the notification centre, desktop alerts work.','diagtest_'+Date.now());
+      showBanner(drew
+        ? '②b OS notification: DREW OK → check your Windows notification centre now. No card there = blocked by Windows/Brave, not by this app (see ②c).'
+        : '②b OS notification: FAILED — '+(window._thLastOSNotifError||'unknown'));
+    }
+    // ②c Brave-specific guidance. Brave disables Google push messaging by
+    // DEFAULT, which kills background push (app closed) while leaving in-app
+    // banners working — the exact "banner but no notification centre" symptom.
+    const isBrave=!!(navigator.brave&&navigator.brave.isBrave)||/\bBrave\b/.test(navigator.userAgent||'');
+    if(isBrave||!messaging){
+      showBanner('②c Brave/push check → brave://settings/privacy ▸ turn ON "Use Google services for push messaging" (needed for alerts when the app is CLOSED), then fully quit and reopen Brave. Also: Windows Settings ▸ System ▸ Notifications ▸ Brave = On, and Focus assist Off.');
+    }
     // Token
     const tok=await ensureFCMToken();
-    if(!tok){showBanner('③ Token: FAILED — '+(window._fcmLastError||'unknown'));}
-    else{showBanner('③ Token …'+tok.slice(-12)+' OK');}
+    if(!tok){showBanner('③ Push token: FAILED — '+(window._fcmLastError||'unknown')+'  (OS cards still work while the app is OPEN; only closed-app push needs this.)');}
+    else{showBanner('③ Push token …'+tok.slice(-12)+' OK');}
     showBanner('④ This device id: '+getDeviceId()+'  |  mainDash: "'+(localStorage.getItem('td6_mainDash')||'all')+'"');
     // List all registered token docs so you can confirm the phone is present
     try{

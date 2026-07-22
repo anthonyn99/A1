@@ -20,9 +20,17 @@ firebase.initializeApp({
 // task) to REPLACE push #1 (e.g. an event) fired at the same minute, so only one
 // showed on mobile. Changing these bytes makes the browser install this build,
 // and skipWaiting + clients.claim below swap it in immediately.
-const SW_VERSION = '2026-07-21-desktop-dual-surface';
+const SW_VERSION = '2026-07-21-brave-safe-os-notif';
 
-const messaging = firebase.messaging();
+// GUARDED: firebase.messaging() throws in browsers where push is unavailable —
+// notably Brave with "Use Google services for push messaging" off. At top level
+// that exception aborts the whole worker script, so the registration FAILS and
+// the page then has nothing to call showNotification() through. Catching it lets
+// the worker install and keep drawing OS notification cards on request; only the
+// background-push handler below is skipped.
+var messaging = null;
+try { messaging = firebase.messaging(); }
+catch (e) { console.warn('[TH SW] FCM unavailable, OS notifications still work:', e && e.message); }
 
 // Take over promptly when this file changes, so the data-only handler below
 // replaces any older cached service worker without needing a manual unregister.
@@ -139,7 +147,7 @@ function postBannerToClients(id, body, dash){
   });
 }
 
-messaging.onBackgroundMessage(function(payload){
+if (messaging) messaging.onBackgroundMessage(function(payload){
   const d = payload.data || {};
   const body  = d.body || d.title || 'Task reminder';
   const id    = d.id || '';
