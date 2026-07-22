@@ -53,7 +53,7 @@
   .wrap { max-width: 920px; margin: 0 auto; padding: 0 22px; }
 
   /* ── Header ── */
-  header { padding: 42px 0 14px; }
+  header { padding: 20px 0 12px; }
   .brandrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .brand {
     font-family: var(--serif);
@@ -405,7 +405,7 @@
   @media (max-width: 720px) {
     body { font-size: 14.5px; }
     .wrap { padding: 0 18px; }
-    header { padding: 30px 0 10px; }
+    header { padding: 16px 0 10px; }
     .brand { font-size: 28px; letter-spacing: .3px; }
     nav { margin: 20px 0 24px; }
     .tab { padding: 11px 13px; letter-spacing: 1.2px; }
@@ -414,7 +414,7 @@
     .modal { padding: 22px; }
   }
   @media (max-width: 560px) {
-    header { padding: 24px 0 8px; }
+    header { padding: 12px 0 8px; }
     .brandrow { align-items: flex-start; }
     .syncmeta { width: 100%; justify-content: flex-start; }
     .brand { font-size: 26px; }
@@ -1212,47 +1212,100 @@
   // movement is enough.
   (function enableNavDrag() {
     const nav = $('nav');
-    let d = null, holdTimer = null;
+    let d = null, holdTimer = null, autoRaf = null;
 
+    // FLIP measured in LAYOUT coordinates (offsetLeft), not viewport rects.
+    // On mobile the strip is scrolled and scrollLeft shifts as tabs are
+    // reordered; viewport-based deltas then include the scroll jump, which is
+    // what made neighbours streak in from the edges. offsetLeft is immune to
+    // scrolling, so each tab only animates the distance it actually moved.
     function flipX(mutate, exclude) {
       const kids = [...nav.children];
-      const before = new Map(kids.map(k => [k, k.getBoundingClientRect().left]));
+      const before = new Map(kids.map(k => [k, k.offsetLeft]));
       mutate();
       for (const k of kids) {
         if (k === exclude) continue;
-        const dx = before.get(k) - k.getBoundingClientRect().left;
-        if (!dx) continue;
+        const dx = before.get(k) - k.offsetLeft;
+        if (!dx || Math.abs(dx) > nav.clientWidth * 2) continue;   // sanity guard
         k.style.transition = 'none';
         k.style.transform = `translateX(${dx}px)`;
         requestAnimationFrame(() => {
-          k.style.transition = 'transform .18s cubic-bezier(.2,.8,.3,1)';
+          k.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
           k.style.transform = '';
         });
       }
     }
 
+    // Keep the lifted tab exactly under the finger, compensating for any
+    // scrolling that happened since the drag began.
+    function follow(x) {
+      d.tab.style.transform = `translateX(${(x - d.grabX) + (nav.scrollLeft - d.grabScroll)}px)`;
+    }
+
+    function checkSwap(x) {
+      for (const other of nav.children) {
+        if (other === d.tab) continue;
+        const r = other.getBoundingClientRect();
+        if (x < r.left || x > r.right) continue;
+        const mid = r.left + r.width / 2;
+        const otherIsBefore = !!(d.tab.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
+        if (x < mid && otherIsBefore) flipX(() => nav.insertBefore(d.tab, other), d.tab);
+        else if (x > mid && !otherIsBefore) flipX(() => nav.insertBefore(d.tab, other.nextSibling), d.tab);
+        else continue;
+        // Re-anchor so the tab stays put under the pointer after the reflow.
+        d.grabX = x;
+        d.grabScroll = nav.scrollLeft;
+        d.tab.style.transform = 'translateX(0px)';
+        break;
+      }
+    }
+
+    // Dragging toward either end scrolls the strip, so tabs off-screen on a
+    // phone are still reachable without dropping and re-grabbing.
+    function autoScroll() {
+      if (!d || !d.dragging) { autoRaf = null; return; }
+      const r = nav.getBoundingClientRect();
+      const EDGE = 44, SPEED = 9;
+      let step = 0;
+      if (d.lastX < r.left + EDGE) step = -SPEED;
+      else if (d.lastX > r.right - EDGE) step = SPEED;
+      if (step) {
+        const was = nav.scrollLeft;
+        nav.scrollLeft += step;
+        if (nav.scrollLeft !== was) { follow(d.lastX); checkSwap(d.lastX); }
+      }
+      autoRaf = requestAnimationFrame(autoScroll);
+    }
+
     function startDrag(e) {
       d.dragging = true;
       d.grabX = e.clientX;
+      d.grabScroll = nav.scrollLeft;
+      d.lastX = e.clientX;
+      d.tab.style.transition = '';        // never lag behind the finger
       d.tab.classList.add('navdrag');
-      nav.style.overflowX = 'hidden';        // don't scroll the strip mid-drag
       try { d.tab.setPointerCapture(d.id); } catch {}
+      if (!autoRaf) autoRaf = requestAnimationFrame(autoScroll);
     }
 
     function cleanup() {
       if (!d) return;
       const tab = d.tab;
-      tab.classList.remove('navdrag');
+      // Settle back into the slot rather than snapping.
+      tab.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
       tab.style.transform = '';
-      nav.style.overflowX = '';
+      setTimeout(() => { tab.style.transition = ''; }, 180);
+      tab.classList.remove('navdrag');
       clearTimeout(holdTimer); holdTimer = null;
+      if (autoRaf) { cancelAnimationFrame(autoRaf); autoRaf = null; }
       d = null;
     }
 
     nav.addEventListener('pointerdown', e => {
       const tab = e.target.closest('.tab');
       if (!tab || e.button > 0) return;
-      d = { tab, id: e.pointerId, startX: e.clientX, startY: e.clientY, dragging: false, touch: e.pointerType === 'touch' };
+      d = { tab, id: e.pointerId, startX: e.clientX, startY: e.clientY, lastX: e.clientX,
+            dragging: false, touch: e.pointerType === 'touch' };
       if (d.touch) holdTimer = setTimeout(() => { holdTimer = null; if (d) startDrag(e); }, 320);
     });
 
@@ -1265,24 +1318,12 @@
         startDrag(e);
       }
       d.moved = true;
-      d.tab.style.transform = `translateX(${e.clientX - d.grabX}px)`;
-
-      for (const other of nav.children) {
-        if (other === d.tab) continue;
-        const r = other.getBoundingClientRect();
-        if (e.clientX < r.left || e.clientX > r.right) continue;
-        const mid = r.left + r.width / 2;
-        const isAfter = !!(d.tab.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
-        if (e.clientX < mid && isAfter) flipX(() => nav.insertBefore(d.tab, other), d.tab);
-        else if (e.clientX > mid && !isAfter) flipX(() => nav.insertBefore(d.tab, other.nextSibling), d.tab);
-        else continue;
-        d.grabX = e.clientX;
-        d.tab.style.transform = 'translateX(0px)';
-        break;
-      }
+      d.lastX = e.clientX;
+      follow(e.clientX);
+      checkSwap(e.clientX);
     });
 
-    // Non-passive so an active drag can stop the page/strip from scrolling.
+    // Non-passive so an active drag can stop the strip from scrolling itself.
     nav.addEventListener('touchmove', e => { if (d && d.dragging) e.preventDefault(); }, { passive: false });
 
     async function endDrag(e) {
