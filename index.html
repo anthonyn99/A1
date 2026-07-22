@@ -6355,6 +6355,8 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
         <div style="flex:1;min-width:0;">
           <div style="font-size:12.5px;font-weight:800;color:var(--tx);margin-bottom:8px;">Download the extension</div>
           <button class="kc-btn-primary" style="height:34px;" onclick="kcDownloadVault(this)">⬇ Download Vault (.zip)</button>
+          <div style="font-size:11px;color:var(--txm);line-height:1.5;margin-top:6px;">Always packages the latest files straight from GitHub.</div>
+          <div id="kc-vault-pkg" style="display:none;font-size:11px;color:var(--txd);line-height:1.5;margin-top:4px;font-family:monospace;word-break:break-word;"></div>
         </div>
       </li>
       <li style="counter-increment:vstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;">
@@ -6399,6 +6401,14 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
           Keychain groups appear. Edits you make here sync to it automatically.
         </div>
       </li>
+      <li style="display:flex;gap:12px;align-items:flex-start;margin-top:14px;padding-top:14px;border-top:1px solid var(--bd);">
+        <div style="flex:1;min-width:0;font-size:11.5px;color:var(--txd);line-height:1.55;">
+          <span style="font-weight:800;color:var(--tx);">Already installed?</span> Vault doesn't self-update
+          when loaded unpacked. To get the newest version: download again, replace the old
+          <span style="font-family:monospace;">Vault</span> folder with the new one (same path),
+          then hit <span style="font-weight:800;">Reload</span> ⟳ on the extensions page.
+        </div>
+      </li>
     </ol>
 
     <div class="kc-modal-actions"><button class="kc-btn-ghost" onclick="kcCloseVaultSetup()">Done</button></div>
@@ -6410,13 +6420,37 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
 <script>
 /* ── Vault extension packaging + guided setup (Keychain "Install Vault") ──────
    Browsers forbid a page from installing an extension, so we fetch the Vault
-   files that ship alongside this app, build a Store-method ZIP entirely in the
-   browser (no library, no CDN — keeps the single-file app self-contained), and
-   hand it to the user with Load-Unpacked steps. */
+   files, build a Store-method ZIP entirely in the browser (no library, no CDN —
+   keeps the single-file app self-contained), and hand it to the user with
+   Load-Unpacked steps.
+
+   NOTHING here enumerates filenames. The set that ships is discovered at click
+   time, so adding / removing / renaming a file in Vault/ needs no edit to this
+   file — it is picked up on the next click:
+
+     1. the GitHub tree of Vault/ at HEAD  → every file that exists, verbatim;
+     2. plus a walk of manifest.json → popup.html → importScripts, so anything
+        the extension actually REQUIRES is pulled in even if (1) is rate-limited
+        or the deploy is a minute behind main.
+
+   Contents come from this origin first, falling back to raw.githubusercontent
+   per-file — which also covers a brand-new file that is already on main but not
+   yet published to Pages. */
 (function(){
-  const VAULT_FILES=['manifest.json','background.js','popup.html','popup.js',
-    'vault-sync.js','vault-crypto.js','vault-pw-core.js','vault-pw.js','content.js','README.md',
-    'icons/icon16.png','icons/icon48.png','icons/icon128.png'];
+  const VAULT_REPO='anthonyn99/A1', VAULT_REF='main', VAULT_DIR='Vault';
+  const RAW_BASE='https://raw.githubusercontent.com/'+VAULT_REPO+'/'+VAULT_REF+'/'+VAULT_DIR+'/';
+  const TREE_API='https://api.github.com/repos/'+VAULT_REPO+'/git/trees/'+VAULT_REF+'?recursive=1';
+
+  /* Everything under Vault/ ships EXCEPT these, so a future file is included by
+     default and never has to be registered anywhere. */
+  const SKIP=[/(^|\/)\./, /\.test\.js$/, /(^|\/)node_modules\//, /(^|\/)package(-lock)?\.json$/];
+  const skip=p=>SKIP.some(re=>re.test(p));
+
+  /* Nice-to-haves that no manifest reference reaches. Only consulted on the
+     fallback path (the tree listing already contains them); a 404 is ignored. */
+  const SOFT_EXTRAS=['README.md'];
+
+  const _norm=p=>String(p||'').replace(/^\.?\//,'').split('?')[0].split('#')[0];
 
   const _crcTable=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
   function _crc32(u8){let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=_crcTable[(c^u8[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
@@ -6427,14 +6461,19 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
     let offset=0;
     const u16=n=>[n&0xFF,(n>>>8)&0xFF];
     const u32=n=>[n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
+    // Real DOS timestamp — a zeroed one (day 0 / month 0) makes Windows
+    // Explorer's built-in "Extract All" balk on some builds.
+    const now=new Date();
+    const dTime=((now.getHours()&31)<<11)|((now.getMinutes()&63)<<5)|((now.getSeconds()/2)&31);
+    const dDate=(((now.getFullYear()-1980)&127)<<9)|(((now.getMonth()+1)&15)<<5)|(now.getDate()&31);
     for(const f of files){
       const name=enc.encode(f.name), data=f.data, crc=_crc32(data), size=data.length;
       const lh=new Uint8Array([].concat(
-        u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(0),u16(0),
+        u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(dTime),u16(dDate),
         u32(crc),u32(size),u32(size),u16(name.length),u16(0)));
       chunks.push(lh,name,data);
       central.push(new Uint8Array([].concat(
-        u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0),
+        u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(dTime),u16(dDate),
         u32(crc),u32(size),u32(size),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),
         u32(offset))), name);
       offset+=lh.length+name.length+data.length;
@@ -6478,23 +6517,134 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
       .catch(()=>_vToast('Copy failed — type it manually'));
   };
 
+  /* ── Discovery ─────────────────────────────────────────────────────────── */
+
+  // Every blob under Vault/ at HEAD. Catches files nothing references yet.
+  async function _listFromGitHub(){
+    const r=await fetch(TREE_API,{cache:'no-store'});
+    if(!r.ok) throw new Error('tree API '+r.status);
+    const j=await r.json();
+    if(j.truncated) throw new Error('tree truncated');
+    const pre=VAULT_DIR+'/';
+    const files=(j.tree||[]).filter(n=>n.type==='blob'&&n.path.slice(0,pre.length)===pre)
+                            .map(n=>n.path.slice(pre.length)).filter(p=>!skip(p));
+    if(!files.length) throw new Error('no files under '+pre);
+    return {files, sha:String(j.sha||'').slice(0,7)};
+  }
+
+  // Files a manifest declares. Glob'd web_accessible_resources are left to the
+  // tree listing — they can't be resolved to concrete names here.
+  function _refsFromManifest(m){
+    const out=[], push=v=>{ if(typeof v==='string'&&v&&!/^(https?:|data:|\/\/)/.test(v)) out.push(_norm(v)); };
+    const icons=o=>{ if(o&&typeof o==='object') Object.keys(o).forEach(k=>push(o[k])); else push(o); };
+    const b=m.background||{};
+    push(b.service_worker); (b.scripts||[]).forEach(push); push(b.page);
+    const act=m.action||m.browser_action||{};
+    push(act.default_popup); icons(act.default_icon); icons(m.icons);
+    push(m.options_page); push((m.options_ui||{}).page); push(m.devtools_page);
+    (m.content_scripts||[]).forEach(cs=>{ (cs.js||[]).forEach(push); (cs.css||[]).forEach(push); });
+    (m.web_accessible_resources||[]).forEach(w=>{
+      if(typeof w==='string') push(w); else (w.resources||[]).forEach(push);
+    });
+    return out.filter(p=>p&&!/[*?]/.test(p));
+  }
+
+  function _refsFromHtml(txt){
+    const out=[], re=/<script[^>]+src\s*=\s*["']([^"']+)["']|<link[^>]+href\s*=\s*["']([^"']+)["']/gi;
+    let m; while((m=re.exec(txt))){
+      const v=m[1]||m[2];
+      if(v&&!/^(https?:|data:|\/\/|#)/.test(v)) out.push(_norm(v));
+    }
+    return out;
+  }
+
+  function _refsFromWorker(txt){
+    const out=[], re=/importScripts\s*\(([^)]*)\)/g; let m;
+    while((m=re.exec(txt))) (m[1].match(/["']([^"']+)["']/g)||[]).forEach(s=>{
+      const v=_norm(s.slice(1,-1)); if(v&&!/^(https?:|\/\/)/.test(v)) out.push(v);
+    });
+    return out;
+  }
+
+  /* ── Fetch ─────────────────────────────────────────────────────────────── */
+
+  // This origin first (fast, no rate limit), then raw@main — which is what
+  // serves a file that landed on main before Pages republished.
+  async function _get(path){
+    const bust='?_='+Date.now();
+    for(const url of [VAULT_DIR+'/'+path+bust, RAW_BASE+path+bust]){
+      try{
+        const r=await fetch(url,{cache:'no-store'});
+        if(r.ok) return new Uint8Array(await r.arrayBuffer());
+      }catch(e){/* try next source */}
+    }
+    return null;
+  }
+
+  async function _collect(){
+    let listed=null, sha='', src='';
+    try{
+      const g=await _listFromGitHub();
+      listed=g.files; sha=g.sha; src='GitHub@'+VAULT_REF+(g.sha?' '+g.sha:'');
+    }catch(e){ src='manifest walk ('+e.message+')'; }
+
+    const files=new Map(), seen=new Set(), warn=[]; let version='';
+    // Seed: the full listing when we have it, else just the manifest — the walk
+    // below expands either one into the extension's complete dependency set.
+    const queue=(listed||['manifest.json']).map(p=>({p:_norm(p), req:true, from:'listing'}));
+    if(!listed) SOFT_EXTRAS.forEach(p=>queue.push({p, req:false, from:'extras'}));
+
+    while(queue.length){
+      const it=queue.shift();
+      if(!it.p||seen.has(it.p)||skip(it.p)) continue;
+      seen.add(it.p);
+      const data=await _get(it.p);
+      if(!data){
+        if(it.req) throw new Error(it.p+' unavailable (referenced by '+it.from+')');
+        warn.push(it.p); continue;
+      }
+      files.set(it.p,data);
+
+      const add=r=>queue.push({p:r, req:true, from:it.p});
+      if(it.p==='manifest.json'){
+        let m; const txt=new TextDecoder().decode(data);
+        try{ m=JSON.parse(txt); }catch(e){ throw new Error('manifest.json is not valid JSON'); }
+        _refsFromManifest(m).forEach(add);
+        version=m.version||'';
+      }else if(/\.html?$/i.test(it.p)){
+        _refsFromHtml(new TextDecoder().decode(data)).forEach(add);
+      }else if(/\.js$/i.test(it.p)){
+        _refsFromWorker(new TextDecoder().decode(data)).forEach(add);
+      }
+    }
+
+    if(!files.has('manifest.json')) throw new Error('manifest.json missing');
+    return {files, version, src, warn};
+  }
+
   window.kcDownloadVault=async function(btn){
     const orig=btn.textContent; btn.disabled=true; btn.textContent='Packaging…';
+    const note=document.getElementById('kc-vault-pkg');
     try{
-      const files=[];
-      for(const name of VAULT_FILES){
-        const r=await fetch('Vault/'+name,{cache:'no-store'});
-        if(!r.ok) throw new Error(name+' ('+r.status+')');
-        files.push({name, data:new Uint8Array(await r.arrayBuffer())});
-      }
-      const url=URL.createObjectURL(_buildZip(files));
+      const {files,version,src,warn}=await _collect();
+      // Nest under Vault/ so any extraction style yields the folder step 5 names.
+      const entries=Array.from(files.keys()).sort()
+        .map(name=>({name:VAULT_DIR+'/'+name, data:files.get(name)}));
+      const url=URL.createObjectURL(_buildZip(entries));
+      const fname='Vault-extension'+(version?'-'+version:'')+'.zip';
       const a=document.createElement('a');
-      a.href=url; a.download='Vault-extension.zip';
+      a.href=url; a.download=fname;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),5000);
-      _vToast('Vault-extension.zip downloaded');
+      _vToast(fname+' — '+entries.length+' files');
+      if(note){
+        note.style.display='block';
+        note.textContent='Packaged '+entries.length+' files'+(version?' · v'+version:'')+
+          ' · from '+src+(warn.length?' · skipped '+warn.join(', '):'');
+      }
     }catch(e){
       _vToast('Couldn’t package Vault: '+e.message);
+      if(note){ note.style.display='block'; note.textContent='Failed: '+e.message; }
     }finally{ btn.disabled=false; btn.textContent=orig; }
   };
 })();
