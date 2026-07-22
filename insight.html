@@ -7,7 +7,7 @@
 <title>Insight</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <style>
   /* ═══════════ Insight — warm charcoal / tan-gold, editorial ═══════════ */
@@ -29,8 +29,11 @@
     --ok: #a4b986;
     --radius: 9px;
     --radius-sm: 6px;
-    --serif: 'Sora', system-ui, -apple-system, sans-serif;
-    --sans: 'Sora', system-ui, -apple-system, sans-serif;
+    /* Type system: Manrope for headings and titles, Inter for body, UI,
+       tables and forms. Figures are Inter Medium + tabular-nums so columns
+       of money stay aligned. */
+    --display: 'Manrope', system-ui, -apple-system, sans-serif;
+    --sans: 'Inter', system-ui, -apple-system, sans-serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -56,8 +59,8 @@
   header { padding: 20px 0 12px; }
   .brandrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .brand {
-    font-family: var(--serif);
-    font-size: 34px; font-weight: 700; line-height: 1.25; letter-spacing: .5px;
+    font-family: var(--display);
+    font-size: 34px; font-weight: 700; line-height: 1.2; letter-spacing: -.4px;
     padding: 0 2px 6px 6px; color: var(--gold-soft);
     background: linear-gradient(180deg, #f0d9a8 0%, #cda86e 90%);
     -webkit-background-clip: text; background-clip: text;
@@ -66,7 +69,7 @@
   .brandwrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .syncind {
     display: inline-flex; align-items: center; gap: 7px; margin-left: 8px;
-    font-size: 10.5px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint);
+    font-size: 10.5px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint);
     min-height: 15px; opacity: 0; transition: opacity .4s ease; pointer-events: none;
   }
   .syncind.show { opacity: 1; }
@@ -84,7 +87,7 @@
 
   .btn {
     appearance: none; border: 1px solid var(--border); background: transparent;
-    color: var(--text); font-family: var(--sans); font-size: 11.5px; font-weight: 600;
+    color: var(--text); font-family: var(--sans); font-size: 11.5px; font-weight: 500;
     letter-spacing: .8px; text-transform: uppercase;
     padding: 9px 16px; border-radius: var(--radius-sm); cursor: pointer;
     display: inline-flex; align-items: center; gap: 7px; line-height: 1;
@@ -122,7 +125,7 @@
   }
 
   .env-badge {
-    font-size: 9.5px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+    font-size: 9.5px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase;
     color: var(--gold); border: 1px solid var(--gold-line); border-radius: 4px;
     padding: 3px 9px; background: transparent;
   }
@@ -136,7 +139,7 @@
   nav::-webkit-scrollbar { display: none; }
   .tab {
     flex-shrink: 0; padding: 12px 16px; cursor: pointer; user-select: none;
-    font-size: 11.5px; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase;
+    font-size: 11.5px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase;
     color: var(--muted); position: relative; white-space: nowrap;
     transition: color .18s;
   }
@@ -148,7 +151,7 @@
   .tab:hover { color: var(--text); }
   .tab.active { color: var(--gold-soft); }
   .tab.active::after { transform: scaleX(1); }
-  .tab .soon { font-size: 8.5px; color: var(--faint); font-weight: 600; margin-left: 5px; letter-spacing: .6px; }
+  .tab .soon { font-size: 8.5px; color: var(--faint); font-weight: 500; margin-left: 5px; letter-spacing: .6px; }
 
   /* ── Summary strip ── */
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 26px; }
@@ -156,8 +159,8 @@
     background: var(--surface); border: 1px solid var(--border-soft);
     border-radius: var(--radius); padding: 17px 20px;
   }
-  .stat .lbl { font-size: 10px; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
-  .stat .val { font-family: var(--serif); font-size: 30px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
+  .stat .lbl { font-size: 10px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
+  .stat .val { font-family: var(--sans); font-size: 29px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
   .stat .val.gold { color: var(--gold-soft); }
   .stat .val.neg { color: var(--danger); }
 
@@ -170,12 +173,14 @@
   }
   .filters input[type=search] { flex: 1; min-width: 160px; }
   .filters input:focus, .filters select:focus, .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--gold); }
+  /* Amounts typed into forms line up with the figures they'll become. */
+  .field input[type=number], .filters input[type=search] { font-variant-numeric: tabular-nums; }
   .filters select { color: var(--muted); cursor: pointer; }
   .filters .btn { margin-left: auto; }
 
   /* ── Feed ── */
   .datehdr {
-    font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    font-size: 10px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
     color: var(--faint); margin: 28px 2px 12px; display: flex; align-items: center; gap: 14px;
   }
   .datehdr::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent 85%); }
@@ -188,16 +193,17 @@
   .txbadge {
     width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--serif); font-size: 18px; font-weight: 700; color: var(--gold-soft);
+    font-family: var(--display); font-size: 17px; font-weight: 600; color: var(--gold-soft);
     background: var(--surface-2); border: 1px solid var(--border); overflow: hidden;
   }
   .txbadge img { width: 100%; height: 100%; object-fit: cover; }
   .txmain { flex: 1; min-width: 0; }
-  .txname { font-weight: 600; font-size: 14.5px; letter-spacing: .1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .txname { font-weight: 500; font-size: 14.5px; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .txsub { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--faint); margin-top: 3px; flex-wrap: wrap; }
   .chip {
-    font-size: 9.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 2.5px 8px; border-radius: 4px;
+    font-size: 9.5px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; padding: 2.5px 8px; border-radius: 4px;
     background: transparent; border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
+    font-variant-numeric: tabular-nums;   /* recurring "$11.99/mo" chips */
   }
   .chip.manual { color: var(--gold-soft); border-color: var(--gold-line); }
   .chip.pending { color: #c7a9dc; border-color: rgba(178,132,220,.35); }
@@ -208,7 +214,7 @@
     font-size: 12.5px; color: var(--muted); margin-top: 7px; white-space: pre-wrap; line-height: 1.5;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .txamt { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 15px; letter-spacing: .2px; white-space: nowrap; }
+  .txamt { font-variant-numeric: tabular-nums; font-weight: 500; font-size: 15px; letter-spacing: 0; white-space: nowrap; }
   .txamt.in { color: var(--gold-soft); }
   .txacts { display: flex; gap: 2px; }
   .iconbtn {
@@ -223,22 +229,22 @@
 
   /* ── Accounts ── */
   .instgroup { margin-bottom: 32px; }
-  .insthdr { font-family: var(--serif); font-size: 20px; font-weight: 700; color: var(--gold-soft); letter-spacing: -.2px; margin: 0 2px 14px; }
+  .insthdr { font-family: var(--display); font-size: 19px; font-weight: 600; color: var(--gold-soft); letter-spacing: -.2px; margin: 0 2px 14px; }
   .acctgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
   .acct {
     background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius);
     padding: 18px 20px; position: relative; overflow: hidden; transition: border-color .18s;
   }
   .acct:hover { border-color: var(--gold-line); }
-  .acct .aname { font-weight: 600; font-size: 14px; letter-spacing: .1px; }
+  .acct .aname { font-weight: 500; font-size: 14px; letter-spacing: 0; }
   .acct .asub { font-size: 11px; color: var(--faint); margin: 3px 0 14px; text-transform: uppercase; letter-spacing: 1px; }
-  .acct .abal { font-family: var(--serif); font-size: 27px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
+  .acct .abal { font-family: var(--sans); font-size: 26px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
   .acct .abal.debt { color: var(--danger); }
   .networth { margin-bottom: 28px; }
 
   /* ── Panels / forms / modal ── */
   .panel { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 26px; margin-bottom: 18px; }
-  .panel h3 { font-family: var(--serif); font-size: 22px; font-weight: 700; letter-spacing: -.2px; margin-bottom: 8px; }
+  .panel h3 { font-family: var(--display); font-size: 21px; font-weight: 600; letter-spacing: -.2px; margin-bottom: 8px; }
   .panel p.help { color: var(--muted); font-size: 13.5px; margin-bottom: 18px; max-width: 62ch; }
   .modalback {
     position: fixed; inset: 0; background: rgba(10,9,8,.7); backdrop-filter: blur(5px);
@@ -249,9 +255,9 @@
     background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
     width: 100%; max-width: 460px; padding: 28px; box-shadow: 0 30px 70px rgba(0,0,0,.6);
   }
-  .modal h3 { font-family: var(--serif); font-size: 24px; font-weight: 700; letter-spacing: -.2px; margin-bottom: 20px; }
+  .modal h3 { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.2px; margin-bottom: 20px; }
   .field { margin-bottom: 15px; }
-  .field label { display: block; font-size: 10px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
+  .field label { display: block; font-size: 10px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
   .field input, .field select, .field textarea { width: 100%; }
   .field textarea { resize: vertical; min-height: 60px; max-height: 180px; font-family: var(--sans); line-height: 1.5; }
 
@@ -286,7 +292,7 @@
   .seg { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
   .seg button {
     flex: 1; border: none; background: none; color: var(--muted);
-    font-family: var(--sans); font-size: 11.5px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+    font-family: var(--sans); font-size: 11.5px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase;
     padding: 9px; border-radius: 4px; cursor: pointer; transition: color .15s, background .15s;
   }
   .seg button.on { background: var(--gold-wash); color: var(--gold-soft); box-shadow: inset 0 0 0 1px var(--gold-line); }
@@ -295,8 +301,8 @@
   /* ── Import review ── */
   .dupe { border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 11px; background: var(--surface); }
   .dupe .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 13px; }
-  .dupe .side .tag { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
-  .dupe .side .nm { font-weight: 600; font-size: 13.5px; }
+  .dupe .side .tag { font-size: 9px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
+  .dupe .side .nm { font-weight: 500; font-size: 13.5px; }
   .dupe .side .dt { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
   .dupe .acts { display: flex; gap: 9px; }
   .dupe.decided { opacity: .4; }
@@ -344,7 +350,7 @@
 
   /* ── CSV import mapping / preview ── */
   .impmap { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 17px 19px; margin-top: 16px; }
-  .impmap h4 { font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
+  .impmap h4 { font-size: 10px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
   .impmap .row { display: flex; gap: 11px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
   .impmap .row label { font-size: 12.5px; color: var(--muted); }
   .impmap input[type=text], .impmap select {
@@ -353,16 +359,16 @@
   }
   .impmap input[type=text]:focus, .impmap select:focus { border-color: var(--gold); }
   .impcols { font-size: 12px; color: var(--faint); line-height: 1.8; }
-  .impcols b { color: var(--gold-soft); font-weight: 600; }
+  .impcols b { color: var(--gold-soft); font-weight: 500; }
   .imppreview { margin-top: 13px; border-top: 1px solid var(--border-soft); padding-top: 13px; }
   .imppreview .prow { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; padding: 4px 0; }
   .imppreview .prow .nm { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .imppreview .prow .am { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .imppreview .prow .am { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
   .imppreview .prow .am.in { color: var(--gold-soft); }
   .bulkacts { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 14px; }
 
   .empty { text-align: center; color: var(--faint); padding: 56px 20px; }
-  .empty .big { font-family: var(--serif); font-size: 22px; font-weight: 700; color: var(--muted); margin-bottom: 8px; letter-spacing: -.2px; }
+  .empty .big { font-family: var(--display); font-size: 21px; font-weight: 600; color: var(--muted); margin-bottom: 8px; letter-spacing: -.2px; }
   .toast {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(90px);
     background: var(--surface-3); border: 1px solid var(--border); color: var(--text);
@@ -582,8 +588,8 @@
   <section class="view" id="view-cash">
     <div class="panel" style="text-align:center;padding:40px 22px">
       <div class="stat" style="border:none;background:none;padding:0">
-        <div class="lbl" style="font-size:12px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)">Cash on hand</div>
-        <div class="val gold" id="cashAmt" style="font-family:var(--serif);font-size:56px;font-weight:800;margin:10px 0 20px;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:-1px">—</div>
+        <div class="lbl" style="font-size:11px;font-weight:500;letter-spacing:1.6px;text-transform:uppercase;color:var(--faint)">Cash on hand</div>
+        <div class="val gold" id="cashAmt" style="font-family:var(--sans);font-size:54px;font-weight:500;margin:10px 0 20px;font-variant-numeric:tabular-nums;line-height:1.05;letter-spacing:-1.4px">—</div>
       </div>
       <div class="cashctl">
         <input type="number" id="cashInput" min="0" step="0.01" placeholder="Amount" inputmode="decimal">
