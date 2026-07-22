@@ -438,10 +438,80 @@
 <body>
 
 <!-- ═══ App lock — same PBKDF2 system as the suite's app locks ═══ -->
+<!-- ══════════════ Biometric auth (WebAuthn / platform passkeys) ══════════════
+     Same dependency-free helper MyList uses. Primary auth = the device's own
+     biometric (Face ID / Touch ID on iOS, fingerprint on Android, Windows
+     Hello on Windows) through the OS secure framework. The app NEVER sees or
+     stores raw biometric data — WebAuthn returns only a public-key credential
+     handle. Credentials are keyed per (app,id), so Insight's credential is
+     isolated from MyList's and from every other profile. -->
+<script>
+(function(){
+  if (window.Bio) return;
+  var NS = 'bio_cred_';
+  function u8(buf){ return new Uint8Array(buf); }
+  function b64u(buf){ var b=u8(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+  function unb64u(str){ str=String(str).replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
+  function rand(n){ var a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
+  function keyOf(app,id){ return NS+app+'_'+id; }
+  function supported(){ return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
+  function available(){
+    if(!supported()) return Promise.resolve(false);
+    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
+    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
+  }
+  function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
+  function isRegistered(app,id){ var r=stored(app,id); return !!(r&&r.id); }
+  function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
+  function label(){
+    var ua=navigator.userAgent||'';
+    if(/iPhone|iPad|iPod/.test(ua)) return 'Face ID';
+    if(/Android/.test(ua)) return 'fingerprint';
+    if(/Windows/.test(ua)) return 'Windows Hello';
+    if(/Mac/.test(ua)) return 'Touch ID';
+    return 'biometrics';
+  }
+  function register(app,id,opts){
+    opts=opts||{};
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    return navigator.credentials.create({publicKey:{
+      challenge: rand(32),
+      rp:{ name: opts.rpName||document.title||'App', id: location.hostname||undefined },
+      user:{ id: rand(16), name: opts.userName||(app+':'+id), displayName: opts.displayName||opts.userName||id },
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred' },
+      timeout: 60000, attestation:'none'
+    }}).then(function(cred){
+      if(!cred) return {ok:false,error:'cancelled'};
+      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), label:opts.displayName||opts.userName||id }));
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
+  }
+  function authenticate(app,id){
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    var rec=stored(app,id);
+    if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
+    return navigator.credentials.get({publicKey:{
+      challenge: rand(32),
+      allowCredentials:[{ type:'public-key', id: unb64u(rec.id) }],
+      userVerification:'required', timeout:60000, rpId: location.hostname||undefined
+    }}).then(function(asr){
+      if(!asr) return {ok:false,error:'cancelled'};
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
+  }
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label };
+})();
+</script>
+
 <div id="lockScreen">
   <div class="lockbox" id="lockBox">
     <div class="brand">Insight</div>
     <div class="sub" id="lockSub">Locked</div>
+    <!-- Biometric unlock — only ever runs when this button is pressed. -->
+    <div id="lockBio" style="display:none">
+      <button class="btn gold" id="bioBtn" style="width:100%;margin-bottom:11px"></button>
+    </div>
     <div class="locksetup-note" id="lockNote" style="display:none">
       First time here — create the password that will protect Insight and its institution-connection flow.
       It's stored the same way as your other app locks (hashed, never plaintext).
@@ -685,15 +755,99 @@
   // stops working if you lock manually or the password is changed/reset (the
   // server stamps each token with the password's fingerprint, so a new
   // password invalidates every device).
+  // Biometrics gate the device session locally (same model as MyList): the
+  // credential proves it's you, then the already-trusted session token is
+  // released. It never replaces the password — the password is what mints a
+  // session in the first place, and changing it invalidates every device.
+  const BIO_APP = 'insight', BIO_ID = 'tony';
+  const LOCKED_LS = 'insight_locked';   // set while manually locked
+  const bioRegistered = () => !!(window.Bio && Bio.isRegistered(BIO_APP, BIO_ID));
+
   function persistSession() {
     try { localStorage.setItem(LOCK_LS, JSON.stringify(lockSession)); } catch {}
   }
+  const isLockedFlag = () => { try { return localStorage.getItem(LOCKED_LS) === '1'; } catch { return false; } };
+  const setLockedFlag = on => { try { on ? localStorage.setItem(LOCKED_LS, '1') : localStorage.removeItem(LOCKED_LS); } catch {} };
 
   function getStoredSession() {
     try {
       const s = JSON.parse(localStorage.getItem(LOCK_LS) || 'null');
       return s && s.token ? s : null;
     } catch { return null; }
+  }
+
+  // ── Biometric unlock ──────────────────────────────────────────────────────
+  // Rendered only on the unlock view, and only when this device has a
+  // credential AND a session to release. Nothing fires until the button is
+  // pressed — no prompt on load.
+  function renderBioButton() {
+    const box = lockEl('lockBio'), btn = lockEl('bioBtn');
+    box.style.display = 'none';
+    if (lockMode !== 'unlock' || !window.Bio || !bioRegistered()) return;
+    Bio.available().then(avail => {
+      if (!avail || lockMode !== 'unlock') return;
+      if (!getStoredSession()) return;      // nothing to release → password only
+      btn.textContent = 'Unlock with ' + Bio.label();
+      box.style.display = '';
+    });
+  }
+
+  async function bioUnlock() {
+    lockMsg('');
+    const r = await Bio.authenticate(BIO_APP, BIO_ID);
+    if (!r.ok) {
+      if (r.error === 'notregistered') { lockEl('lockBio').style.display = 'none'; return; }
+      if (r.error === 'cancelled' || r.error === 'NotAllowedError') { lockMsg('Cancelled — or use your password.'); return; }
+      lockMsg(Bio.label() + ' check failed — use your password.');
+      return;
+    }
+    // The credential is only a local gate; make sure the session it releases
+    // is still valid server-side (it won't be if the password was changed).
+    const s = getStoredSession();
+    if (!s) { lockMsg('Enter your password once on this device.'); return; }
+    try {
+      const chk = await fetch(API + '/lock/check', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: s.token })
+      }).then(x => x.json());
+      if (!chk.ok) {
+        try { localStorage.removeItem(LOCK_LS); } catch {}
+        lockSession = null;
+        lockEl('lockBio').style.display = 'none';
+        lockMsg('The password was changed — enter the new one.');
+        return;
+      }
+    } catch { /* offline: trust the local token */ }
+    lockSession = s;
+    setLockedFlag(false);
+    hideLock();
+  }
+
+  // Offered once, after a password unlock — never forced.
+  async function maybeOfferBio() {
+    if (!window.Bio || bioRegistered()) return;
+    if (!(await Bio.available())) return;
+    const name = Bio.label();
+    if (!(await askConfirm(`Use ${name} on this device?`,
+      `You'll be able to unlock Insight with ${name} instead of typing your password. Your password always keeps working.`,
+      'Enable'))) return;
+    const r = await Bio.register(BIO_APP, BIO_ID, {
+      rpName: 'Insight', userName: 'insight-tony', displayName: 'Insight'
+    });
+    if (r.ok) toast(name + ' enabled', true);
+    else if (r.error === 'cancelled' || r.error === 'NotAllowedError') toast('Setup cancelled');
+    else toast('Could not enable ' + name);
+  }
+
+  async function forgetBio() {
+    const name = Bio.label();
+    if (!(await askConfirm(`Remove ${name}?`,
+      `Insight will ask for your password on this device instead. You can turn ${name} back on after your next password unlock.`,
+      'Remove'))) return;
+    Bio.unregister(BIO_APP, BIO_ID);
+    renderBioButton();
+    lockView(lockMode);
+    toast(name + ' removed from this device');
   }
 
   async function authPost(path, body) {
@@ -731,10 +885,12 @@
     if (mode === 'unlock') {
       link('Email me the hint', emailHint);
       link('Forgot password?', startReset);
+      if (bioRegistered()) link('Remove ' + Bio.label(), forgetBio);
     } else if (mode === 'reset') {
       link('Resend code', startReset);
       link('Back', () => lockView('unlock'));
     }
+    renderBioButton();
     setTimeout(() => lockEl(mode === 'reset' ? 'lockCode' : 'lockPw1').focus(), 80);
   }
 
@@ -781,8 +937,17 @@
       body: JSON.stringify({ password })
     }).then(x => x.json());
     if (!r.ok) return false;
+    // Retire whatever session this one replaces so stale tokens don't linger.
+    const old = getStoredSession();
+    if (old && old.token !== r.token) {
+      fetch(API + '/lock/end', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: old.token })
+      }).catch(() => {});
+    }
     lockSession = { token: r.token, since: Date.now() };
     persistSession();
+    setLockedFlag(false);
     return true;
   }
 
@@ -791,7 +956,7 @@
     lockMsg('');
     if (lockMode === 'unlock') {
       if (!p1) return;
-      if (await openSession(p1)) { hideLock(); return; }
+      if (await openSession(p1)) { hideLock(); maybeOfferBio(); return; }
       const box = lockEl('lockBox');
       box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
       lockMsg('Wrong password.');
@@ -807,7 +972,7 @@
       const r = await authPost('/auth/journal/set-lock', { password: p1, hint });
       if (!r.ok) { lockMsg(r.error || 'Could not set password.'); return; }
       lockSetupNeeded = false; lockHint = hint;
-      if (await openSession(p1)) { hideLock(); toast('Password set — Insight is now protected', true); }
+      if (await openSession(p1)) { hideLock(); toast('Password set — Insight is now protected', true); maybeOfferBio(); }
     } else {  // reset
       const code = lockEl('lockCode').value.trim().toUpperCase();
       if (!code) { lockMsg('Enter the code from your email.'); return; }
@@ -820,24 +985,31 @@
         return;
       }
       lockHint = hint;
-      if (await openSession(p1)) { hideLock(); toast('Password reset — you\'re unlocked', true); }
+      if (await openSession(p1)) { hideLock(); toast('Password reset — you\'re unlocked', true); maybeOfferBio(); }
     }
   }
 
   lockEl('lockGo').addEventListener('click', lockSubmit);
+  lockEl('bioBtn').addEventListener('click', bioUnlock);
   ['lockPw1', 'lockPw2', 'lockHintIn', 'lockCode'].forEach(id =>
     lockEl(id).addEventListener('keydown', e => { if (e.key === 'Enter') lockSubmit(); }));
 
-  // Revoke the session server-side and re-lock. Used by the "🔒 Lock" button
-  // and by the idle timeout.
+  // "🔒 Lock". With biometrics enrolled the session is kept (flagged locked)
+  // so your face/finger can release it again; without them the token is
+  // revoked server-side exactly as before, and the password is required.
   function lockNow() {
     const t = lockSession?.token;
     lockSession = null;
-    try { localStorage.removeItem(LOCK_LS); } catch {}
-    if (t) fetch(API + '/lock/end', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: t })
-    }).catch(() => {});
+    if (bioRegistered() && t) {
+      setLockedFlag(true);
+    } else {
+      setLockedFlag(false);
+      try { localStorage.removeItem(LOCK_LS); } catch {}
+      if (t) fetch(API + '/lock/end', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: t })
+      }).catch(() => {});
+    }
     showLock();
   }
   document.getElementById('lockNowBtn').addEventListener('click', lockNow);
@@ -856,14 +1028,18 @@
       if (!r.ok) {
         lockSession = null;
         try { localStorage.removeItem(LOCK_LS); } catch {}
+        setLockedFlag(false);
         showLock();
         lockMsg('The password was changed — enter the new one.');
       }
     } catch { /* offline: keep trusting the local token */ }
   }
 
-  // Boot: a device that has been unlocked before goes straight in.
-  lockSession = getStoredSession();
+  // Boot: a trusted device goes straight in, unless it was manually locked —
+  // then the lock screen waits, offering the biometric button (press it) or
+  // the password.
+  const bootLocked = isLockedFlag();
+  lockSession = bootLocked ? null : getStoredSession();
   if (lockSession) lockEl('lockScreen').style.display = 'none';
   (async () => {
     try {

@@ -975,13 +975,9 @@ function mlBioRender(){
     b.textContent='🔓  Unlock with '+Bio.label();
     b.onclick=function(){ mlBioUnlock(); };
     box.appendChild(b);
-    var link=document.createElement('button');
-    link.type='button';
-    link.style.cssText='background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;cursor:pointer;font-family:var(--font-btn);width:100%;';
-    link.textContent='Use password instead';
-    link.onclick=function(){ mlShowPwArea(true); link.style.display='none'; };
-    box.appendChild(link);
-    mlShowPwArea(false);
+    // The password area stays visible alongside it: biometrics run ONLY when
+    // this button is pressed, so either route is available at all times.
+    mlShowPwArea(true);
   });
 }
 function mlBioUnlock(){

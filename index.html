@@ -18443,11 +18443,9 @@ window.hideBrainstormJournal = function() {
       b.textContent = '🔓  Unlock with ' + window.Bio.label();
       b.onclick = function() { blBioUnlock(); };
       bioEl.appendChild(b);
-      var link = document.createElement('button'); link.className = 'tl-forgot';
-      link.textContent = 'Use password instead';
-      link.onclick = function() { blBioShowInput(true); link.style.display = 'none'; };
-      bioEl.appendChild(link);
-      blBioShowInput(false);
+      // The password field stays visible alongside it: biometrics run ONLY when
+      // this button is pressed, so either route is available at all times.
+      blBioShowInput(true);
     });
   }
   function blBioUnlock() {
@@ -24483,11 +24481,9 @@ window.tjSwitchTo = function(app) {
       b.textContent = '🔓  Unlock with ' + window.Bio.label();
       b.onclick = function() { tlBioUnlock(); };
       bioEl.appendChild(b);
-      var link = document.createElement('button'); link.className = 'tl-forgot';
-      link.textContent = 'Use password instead';
-      link.onclick = function() { tlBioShowInput(true); link.style.display = 'none'; };
-      bioEl.appendChild(link);
-      tlBioShowInput(false);
+      // The password field stays visible alongside it: biometrics run ONLY when
+      // this button is pressed, so either route is available at all times.
+      tlBioShowInput(true);
     });
   }
   function tlBioUnlock() {
@@ -36253,12 +36249,9 @@ function alBioRender(appId) {
     b.style.cssText = "border:none;border-radius:4px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;width:100%;background:" + meta.color + ";color:#fff;";
     b.onclick = function() { alBioUnlock(appId); };
     box.appendChild(b);
-    var link = document.createElement('button');
-    link.textContent = 'Use password instead';
-    link.style.cssText = 'background:transparent;border:none;color:#9898a8;font-size:12px;text-decoration:underline;cursor:pointer;';
-    link.onclick = function() { alBioShowPw(true); link.style.display = 'none'; };
-    box.appendChild(link);
-    alBioShowPw(false);
+    // The password field stays visible alongside it: biometrics run ONLY when
+    // this button is pressed, so either route is available at all times.
+    alBioShowPw(true);
   });
 }
 function alBioUnlock(appId) {

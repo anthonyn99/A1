@@ -479,9 +479,9 @@
         try { await session.unlockWithBiometric(); afterUnlock(); }
         catch (e) { if (e.message !== 'cancelled') err.textContent = 'Biometric unlock failed — use your password.'; }
       });
+      // Never fire on its own — the OS prompt only appears when this button is
+      // pressed, so the password field above stays an equal choice.
       kids.splice(2, 0, bioBtn);
-      // Auto-prompt biometrics on open for a Face-ID-like feel.
-      setTimeout(function () { bioBtn.click(); }, 250);
     }
     var recov = el('button', { class: 'vault-link-btn' }, ['Use recovery key instead']);
     recov.addEventListener('click', function () { renderRecoveryUnlock(); });
@@ -982,6 +982,9 @@
   function settingRow(label, onClick) { return el('button', { class: 'vault-setting-row', onclick: onClick }, [label]); }
 
   // In-app password prompt → resolves to the typed value or null (cancel).
+  // Resolved value of promptSecret when the user chose the biometric button and
+  // the scan succeeded (a sentinel object, so it can never collide with a password).
+  var BIO_OK = {};
   function promptSecret(title, opts) {
     opts = opts || {};
     return new Promise(function (resolve) {
@@ -994,6 +997,20 @@
       input.addEventListener('keydown', function (e) { if (e.key === 'Enter') ok.click(); });
       var boxKids = [el('div', { class: 'vault-modal-title' }, [title])];
       if (opts.sub) boxKids.push(el('p', { class: 'vault-sub', style: 'text-align:left;margin-bottom:12px' }, [opts.sub]));
+      // Optional biometric route. It runs ONLY on click — never automatically —
+      // so the password field below is always an equally valid way through.
+      if (opts.bio) {
+        var bioBtn = el('button', { class: 'vault-btn', style: 'width:100%;margin-bottom:10px' }, ['🔓  Use ' + opts.bio.label]);
+        bioBtn.addEventListener('click', async function () {
+          err.textContent = ''; bioBtn.disabled = true;
+          var passed = false;
+          try { passed = await opts.bio.run(); } catch (e) {}
+          bioBtn.disabled = false;
+          if (passed) done(BIO_OK);
+          else err.textContent = opts.bio.label + ' check failed — use your password.';
+        });
+        boxKids.push(bioBtn);
+      }
       boxKids.push(input, err, el('div', { class: 'vault-modal-actions' }, [ok, cancel]));
       var box = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, boxKids);
       overlay.appendChild(box); document.body.appendChild(overlay);
@@ -1001,12 +1018,20 @@
     });
   }
 
-  // Confirm the user's identity on an already-unlocked vault: biometric scan if
-  // enabled, otherwise master-password entry. Returns true only on success.
+  // Confirm the user's identity on an already-unlocked vault. Offers BOTH routes
+  // side by side — a biometric button and the master-password field — and never
+  // launches the OS prompt on its own. Returns true only on success.
   async function verifyIdentity(actionLabel) {
-    try { if (window.Bio && (await session.biometricEnabled())) { if (await session.confirmBiometric()) return true; } } catch (e) {}
-    var pw = await promptSecret('Confirm it\'s you', { sub: 'Enter your master password to ' + actionLabel + '.', okLabel: 'Confirm' });
+    var bioOn = false;
+    try { bioOn = !!(window.Bio && (await session.biometricEnabled())); } catch (e) {}
+    var label = (window.Bio && window.Bio.label) ? window.Bio.label() : 'biometrics';
+    var pw = await promptSecret('Confirm it\'s you', {
+      sub: (bioOn ? 'Use ' + label + ' or enter your master password to ' : 'Enter your master password to ') + actionLabel + '.',
+      okLabel: 'Confirm',
+      bio: bioOn ? { label: label, run: function () { return session.confirmBiometric(); } } : null
+    });
     if (pw == null) return false;
+    if (pw === BIO_OK) return true;
     if (await session.verifyPassword(pw)) return true;
     toast('Incorrect password'); return false;
   }

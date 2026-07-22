@@ -125,6 +125,8 @@
         try { await VP.unlockWithBiometric(); broadcastLockState(true); renderList(); }
         catch (e) { if (e.message !== "cancelled") err.textContent = label + " unlock failed — use your password."; }
       });
+      // Never fire on its own — the OS prompt only appears when this button is
+      // pressed, so the password field below stays a first-class choice.
       kids.splice(2, 0, bioBtn);
     }
     panel.appendChild(el("div", { class: "pw-lock" }, [
@@ -133,7 +135,6 @@
       el("div", { class: "pw-lock-sub" }, ["Unlock to view and autofill your logins. Stays unlocked for 30 min of activity."]),
       ...kids,
     ]));
-    if (hasBio) { const b = panel.querySelector(".pw-btn:not(.primary)"); if (b) setTimeout(() => b.click(), 250); }
     setTimeout(() => pwIn.focus(), 60);
   }
 

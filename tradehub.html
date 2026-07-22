@@ -3383,11 +3383,13 @@ function TBTabLockPrompt({tabId,tabLabel,onUnlocked}){
   const [hintMsg,setHintMsg]=useState('');
   // Biometrics: primary unlock when registered on this device; password stays as fallback.
   const [bioReady,setBioReady]=useState(false);
+  // Password stays visible whether or not biometrics are registered — the OS
+  // prompt only fires when the biometric button below is pressed.
   const [showPw,setShowPw]=useState(true);
   useEffect(()=>{
     let alive=true;
     if(window.Bio && window.Bio.isRegistered('tradehub-tab',tabId)){
-      window.Bio.available().then(a=>{ if(alive&&a){ setBioReady(true); setShowPw(false); } });
+      window.Bio.available().then(a=>{ if(alive&&a) setBioReady(true); });
     }
     return ()=>{alive=false;};
   },[tabId]);
@@ -3436,7 +3438,6 @@ function TBTabLockPrompt({tabId,tabLabel,onUnlocked}){
       <div style={{fontSize:13,color:'var(--txm)',marginTop:4,fontStyle:'italic'}}>Enter the password to open this tab.</div>
     </div>
     {bioReady&&<button onClick={bioUnlock} style={{width:'100%',background:'var(--ac)',color:'#fff',border:'none',borderRadius:8,padding:'13px 0',fontSize:15,fontWeight:700,cursor:'pointer'}}>🔓  Unlock with {window.Bio.label()}</button>}
-    {bioReady&&!showPw&&<button onClick={()=>setShowPw(true)} style={{background:'transparent',border:'none',color:'var(--txm)',fontSize:12,cursor:'pointer',textDecoration:'underline'}}>Use password instead</button>}
     {showPw&&<input type="password" value={pw} autoFocus onChange={e=>{setPw(e.target.value);setErr('');}} onKeyDown={e=>{if(e.key==='Enter')submit();}}
       placeholder="Password" style={{width:'100%',background:'var(--s2)',border:`1px solid ${err?'var(--tbr)':'var(--bd)'}`,borderRadius:8,color:'var(--tx)',fontSize:16,fontWeight:600,padding:'12px 16px',textAlign:'center',letterSpacing:4,outline:'none',boxSizing:'border-box'}}/>}
     {err&&<div style={{fontSize:12,color:'var(--tbr)',fontWeight:700,minHeight:14}}>{err}</div>}
