@@ -1702,6 +1702,8 @@ async function checkAllStores(env, profile, item, storesInput) {
     return entry;
   });
 
+  guardOutliers(breakdown);   // drop a wildly-out-of-line price (e.g. a mis-parsed $4.98 → $498)
+
   let best = null;
   breakdown.forEach(e => { if (typeof e.price === 'number' && (best === null || e.price < best.price)) best = e; });
   return {
@@ -1714,6 +1716,28 @@ async function checkAllStores(env, profile, item, storesInput) {
     storeCount: stores.length,
     stores: stores.map(s => ({ key: s.key, name: s.name, type: s.type, domain: s.domain || '' })),
   };
+}
+
+// Defense-in-depth against a mis-scraped/mis-parsed price (e.g. a split-span
+// "$4.98" read as "$498"): if a store's price is more than 10× the MEDIAN of the
+// other found prices for this SAME item, treat it as a parse error — drop the
+// price so it can't be shown, become "best", or poison price history. Requires at
+// least 3 found prices so a genuinely pricier single store isn't nuked.
+function guardOutliers(breakdown) {
+  const priced = (breakdown || []).filter(e => typeof e.price === 'number' && e.price > 0);
+  if (priced.length < 3) return;
+  const sorted = priced.map(e => e.price).sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  if (!(median > 0)) return;
+  (breakdown || []).forEach(e => {
+    if (typeof e.price === 'number' && e.price > median * 10) {
+      console.log(`[pricewatch] dropped outlier ${e.store} $${e.price} (median $${median})`);
+      e.note = `dropped $${e.price} — looked mis-read (≫ other stores)`;
+      delete e.price; delete e.url; delete e.krogerProductId; delete e.foundTitle; delete e.brand;
+      e.source = 'unavailable';
+      if (Array.isArray(e.variants)) e.variants = e.variants.filter(v => !(typeof v.price === 'number' && v.price > median * 10));
+    }
+  });
 }
 
 // Strip the per-store `variants` list (+ transient score) before persisting to
@@ -1808,10 +1832,21 @@ async function pwNotifyDrop(env, token, profile, it, prevBest, res, tokenDocs) {
   const occId = `pw_${profile}_${it.id || ''}_${Date.now()}`;
   await Promise.allSettled(targets.map(d =>
     sendFCM(env.FIREBASE_PROJECT_ID, d.fields.token.stringValue, 'Price drop', bodyTxt, occId, token, profile)
-      .catch(e => console.warn('[pricewatch] fcm', e.message))
+      .catch(e => { console.warn('[pricewatch] fcm', e.message); pruneDeadToken(env, token, d, e); })
   ));
   console.log(`[pricewatch] drop ${bodyTxt} → ${targets.length} device(s)`);
   return targets.length;
+}
+
+// A token FCM reports UNREGISTERED/NotRegistered is permanently dead (the browser
+// rotated or revoked it). Delete its fcm_tokens doc so it can't keep silently
+// swallowing this device's drops and so a stale entry can't mask the live one.
+function pruneDeadToken(env, token, d, err) {
+  const m = String((err && err.message) || err || '');
+  if (!/unregistered|not.?registered|not a valid fcm registration|invalid.?registration|requested entity was not found/i.test(m)) return;
+  if (!d || !d.name) return;
+  console.log(`[pricewatch] pruning dead token ${d.name.split('/').pop()}`);
+  fetch(`https://firestore.googleapis.com/v1/${d.name}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }).catch(() => {});
 }
 
 // Append a drop to the doc's `drops` list — the in-app "prices dropped while you
@@ -1940,6 +1975,14 @@ async function handleWatchIngest(body, env) {
         bestStore: r.bestStore || null,
         bestStoreName: r.bestStoreName || null,
       };
+      // Scrub a mis-parsed outlier price, then recompute best from the clean data
+      // so a bad scrape (e.g. $4.98→$498) never enters history or fires a "drop".
+      guardOutliers(res.breakdown);
+      let rb = null;
+      res.breakdown.forEach(e => { if (typeof e.price === 'number' && (rb === null || e.price < rb.price)) rb = e; });
+      res.bestPrice = rb ? rb.price : null;
+      res.bestStore = rb ? rb.store : null;
+      res.bestStoreName = rb ? (rb.storeName || rb.store) : null;
       const prevBest = pwApplyToItem(it, res, today);
       applied++;
       if (prevBest != null && typeof res.bestPrice === 'number' && (prevBest - res.bestPrice) > 1.00) {
@@ -1951,6 +1994,32 @@ async function handleWatchIngest(body, env) {
 
     if (applied) await fsWriteDoc(env, token, path, { items, stores: data.stores, drops: data.drops, savedAt: Date.now() });
     return json({ ok: true, applied, skipped });
+  } catch (e) { return json({ ok: false, error: e.message || String(e) }, 502); }
+}
+
+// Diagnostic: send a test push to every token this profile's drop notifications
+// target, and report per-token success/failure — so a device that silently isn't
+// receiving MyList pushes (but gets TaskHub) can be pinpointed. Same send path,
+// same token filter, as a real price drop.
+async function handlePwNotifDebug(body, env) {
+  const profile = body.profile === 'veda' ? 'veda' : 'tony';
+  try {
+    const token = await getGoogleAccessToken(env);
+    const tokenDocs = await fsFetchTokens(env, token);
+    const targets = tokenDocs.filter(d => (d.fields?.mainDash?.stringValue || 'all') === profile);
+    const results = [];
+    for (const d of targets) {
+      const tok = d.fields.token.stringValue;
+      const ua = (d.fields?.ua?.stringValue || '').slice(0, 60);
+      try {
+        await sendFCM(env.FIREBASE_PROJECT_ID, tok, 'Price Watch test', 'PriceWatch test — ' + new Date().toLocaleTimeString(), 'pwtest_' + Date.now(), token, profile);
+        results.push({ ua, tokenTail: tok.slice(-10), result: 'sent' });
+      } catch (e) {
+        results.push({ ua, tokenTail: tok.slice(-10), result: 'FAIL: ' + (e.message || e) });
+        pruneDeadToken(env, token, d, e);
+      }
+    }
+    return json({ ok: true, profile, targets: targets.length, results });
   } catch (e) { return json({ ok: false, error: e.message || String(e) }, 502); }
 }
 
@@ -1999,6 +2068,7 @@ export default {
       if (path === '/watch/resolve')  return handleWatchResolve(body, env);
       if (path === '/watch/state')    return handleWatchState(body, env);
       if (path === '/watch/ingest')   return handleWatchIngest(body, env);
+      if (path === '/watch/notifdebug') return handlePwNotifDebug(body, env);
     }
 
     return json({ ok: false, error: 'not found' }, 404);

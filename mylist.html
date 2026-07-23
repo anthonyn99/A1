@@ -2957,7 +2957,33 @@ function pwMergeBreakdown(primary, fill){
 // through the worker's API path.
 //
 // Extension absent → the worker path, exactly as before.
-function pwFetchCheck(item, endpoint){
+// Client-side twin of the worker's guardOutliers — the interactive scrape+merge
+// path assembles the breakdown IN THE BROWSER (bypassing the worker), so a
+// mis-parsed price ($4.98→$498) is scrubbed here too before it's shown/stored.
+function pwGuardRes(res){
+  if(!res || !Array.isArray(res.breakdown)) return res;
+  var priced=res.breakdown.filter(function(e){ return typeof e.price==='number' && e.price>0; });
+  if(priced.length<3) return res;
+  var sorted=priced.map(function(e){ return e.price; }).sort(function(a,b){ return a-b; });
+  var median=sorted[Math.floor(sorted.length/2)];
+  if(!(median>0)) return res;
+  var changed=false;
+  res.breakdown.forEach(function(e){
+    if(typeof e.price==='number' && e.price>median*10){
+      changed=true; e.note='dropped $'+e.price+' — looked mis-read'; e.source='unavailable';
+      delete e.price; delete e.url; delete e.krogerProductId; delete e.foundTitle; delete e.brand;
+      if(Array.isArray(e.variants)) e.variants=e.variants.filter(function(v){ return !(typeof v.price==='number' && v.price>median*10); });
+    }
+  });
+  if(changed){
+    var rb=null; res.breakdown.forEach(function(e){ if(typeof e.price==='number' && (rb===null||e.price<rb.price)) rb=e; });
+    res.bestPrice=rb?rb.price:null; res.bestStore=rb?rb.store:null; res.bestStoreName=rb?(rb.storeName||rb.store):null;
+    res.foundCount=res.breakdown.filter(function(e){ return typeof e.price==='number'; }).length;
+  }
+  return res;
+}
+function pwFetchCheck(item, endpoint){ return pwFetchCheckRaw(item, endpoint).then(pwGuardRes); }
+function pwFetchCheckRaw(item, endpoint){
   var stores=pwStores();
   if(pwExtInfo===false) return pwWorkerCheck(item, stores, endpoint);
   return (pwExtInfo ? Promise.resolve(pwExtInfo) : pwExtDetect()).then(function(info){
