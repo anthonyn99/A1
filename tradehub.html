@@ -137,19 +137,61 @@
 </div>
 
 <script>
+  /* DURABLE LOCK STORE — localStorage mirrored into a long-lived cookie.
+     Why: the "unlocked once per device" record lived ONLY in localStorage, which
+     Brave (Tony's desktop) and mobile PWABs evict aggressively — so a plain
+     refresh/reopen silently dropped the unlock and re-prompted for the password.
+     The cookie survives many of those evictions; on read we prefer localStorage
+     and rehydrate it from the cookie when missing, so a device stays unlocked
+     until the password genuinely changes or the section is manually re-locked.
+     Defined here (before the gate and React) so every lock reader shares it. */
+  (function(){
+    if (window.alDur) return;
+    var YEAR400 = 34560000; // seconds — browsers cap cookie lifetime near 400 days
+    function ck(k){
+      var m = document.cookie.match(new RegExp('(?:^|; )' + k.replace(/[.$?*|{}()\[\]\\\/+^-]/g,'\\$&') + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+    function writeCookie(k,v){
+      try { document.cookie = k + '=' + encodeURIComponent(v) + '; path=/; max-age=' + YEAR400 + '; SameSite=Lax'; } catch(e){}
+    }
+    window.alDur = {
+      get: function(k){
+        var v = null; try { v = localStorage.getItem(k); } catch(e){}
+        if (v != null) {
+          // Write-through: back-fill the cookie so a device already unlocked BEFORE
+          // this durable layer existed becomes eviction-proof on its very first load.
+          if (ck(k) == null) writeCookie(k, v);
+          return v;
+        }
+        var c = ck(k);
+        if (c != null) { try { localStorage.setItem(k, c); } catch(e){} }  // rehydrate
+        return c;
+      },
+      set: function(k,v){
+        try { localStorage.setItem(k, v); } catch(e){}
+        writeCookie(k, v);
+      },
+      remove: function(k){
+        try { localStorage.removeItem(k); } catch(e){}
+        try { document.cookie = k + '=; path=/; max-age=0; SameSite=Lax'; } catch(e){}
+      }
+    };
+  })();
+
   /* SECURITY GATE — runs BEFORE React mounts. If TradeHub is locked (per the
-     localStorage lock cache shared with index.html) and this device hasn't
-     unlocked it, hide the root so contents NEVER flash before the password. */
+     durable lock cache shared with index.html) and this device hasn't unlocked
+     it, hide the root so contents NEVER flash before the password. */
   (function(){
     var APPID = 'tony_tradehub_standalone';
     var locks = {};
-    try { locks = JSON.parse(localStorage.getItem('al_locks') || '{}'); } catch(e) {}
+    try { locks = JSON.parse(window.alDur.get('al_locks') || '{}'); } catch(e) {}
     var entry = locks[APPID];
     var isLocked = !!entry;
     var v = (entry && entry.v) || 0;
-    var gotV = parseInt(localStorage.getItem('al_unlockedv_' + APPID) || '0', 10);
+    var gotV = parseInt(window.alDur.get('al_unlockedv_' + APPID) || '0', 10);
     var isUnlocked = v === 0
-      ? (localStorage.getItem('al_unlocked_' + APPID) === '1' || gotV > 0)
+      ? (window.alDur.get('al_unlocked_' + APPID) === '1' || gotV > 0)
       : (gotV > 0 && gotV >= v);
     if (isLocked && !isUnlocked) {
       var r = document.getElementById('tradeboard-root');
@@ -1738,19 +1780,36 @@ function useTBPortfolio(){
   const [error,setError]=useState(_tbPortfolioCache.error);
   const [lastFetch,setLastFetch]=useState(_tbPortfolioCache.lastFetch);
   const inFlight=useRef(false);
-  const refresh=useCallback(async()=>{
+  const refresh=useCallback(async(opts)=>{
     if(inFlight.current)return; // guard: no concurrent fetches
     inFlight.current=true;
     setLoading(true);setError(null);
-    try{
-      const r=await fetch(`${TB_API_BASE}/api/portfolio/summary`);
-      if(!r.ok)throw new Error(`HTTP ${r.status}`);
-      const j=await r.json();
-      if(j.ok){const lf=new Date();setData(j.data);setLastFetch(lf);_tbPortfolioCache.data=j.data;_tbPortfolioCache.lastFetch=lf;_tbPortfolioCache.error=null;if(window._tbSetPortfolioOk)window._tbSetPortfolioOk(true);}
-      else{setError(j.error||'Portfolio error');_tbPortfolioCache.error=j.error||'Portfolio error';if(window._tbSetPortfolioOk)window._tbSetPortfolioOk(false);}
+    // Retry transient failures automatically so a single flaky response (Cloudflare
+    // Worker cold-start 5xx, a 429, or a dropped connection) no longer surfaces an
+    // "HTTP error" that forces a second manual Refresh. Only a real worker-level
+    // rejection (j.ok===false, e.g. token missing) stops early — that's not transient.
+    const MAX=(opts&&opts.tries)||4;
+    let ok=false,lastErr='Cannot reach Webull API.';
+    for(let attempt=0;attempt<MAX&&!ok;attempt++){
+      try{
+        const r=await fetch(`${TB_API_BASE}/api/portfolio/summary`,{cache:'no-store'});
+        if(!r.ok){
+          lastErr=`HTTP ${r.status}`;
+          if((r.status>=500||r.status===429||r.status===408)&&attempt<MAX-1){await new Promise(res=>setTimeout(res,600*(attempt+1)));continue;}
+          break; // 4xx (other than 408/429) is not going to fix itself on retry
+        }
+        const j=await r.json();
+        if(j.ok){const lf=new Date();setData(j.data);setLastFetch(lf);_tbPortfolioCache.data=j.data;_tbPortfolioCache.lastFetch=lf;_tbPortfolioCache.error=null;ok=true;break;}
+        lastErr=j.error||'Portfolio error';break; // worker replied but rejected — not retryable
+      }catch(e){
+        lastErr=e.message||lastErr; // network drop / JSON parse fail → transient
+        if(attempt<MAX-1){await new Promise(res=>setTimeout(res,600*(attempt+1)));continue;}
+      }
     }
-    catch(e){setError(e.message||'Cannot reach Webull API.');_tbPortfolioCache.error=e.message||'Cannot reach Webull API.';if(window._tbSetPortfolioOk)window._tbSetPortfolioOk(false);}
-    finally{setLoading(false);inFlight.current=false;_tbPortfolioCache.fetched=true;}
+    if(ok){setError(null);if(window._tbSetPortfolioOk)window._tbSetPortfolioOk(true);}
+    else{setError(lastErr);_tbPortfolioCache.error=lastErr;if(window._tbSetPortfolioOk)window._tbSetPortfolioOk(false);}
+    setLoading(false);inFlight.current=false;_tbPortfolioCache.fetched=true;
+    return ok;
   },[]);
   // Fetch ONCE per page load. On later tab revisits we already have cached data,
   // so we just show it — no auto-refresh, no polling interval.
@@ -2440,6 +2499,36 @@ function TBPortfolioPage(){
   const CWR_URL='https://tradeboard-api.av1.workers.dev';
   const [connecting,setConnecting]=useState(false);
   const [connectMsg,setConnectMsg]=useState('');
+  const autoReconnectedRef=useRef(false);
+
+  // ── Auto-reconnect ──────────────────────────────────────────────────────────
+  // When the portfolio ends up offline, silently do what the Connect button does
+  // (point at the Worker, confirm the token is live, re-pull) so Tony never has to
+  // tap the button for a routine reconnect. Only when the token genuinely needs an
+  // SMS re-verify (tokenStatus ≠ NORMAL) do we fall back to the manual screen. Runs
+  // once per mount; retries transient drops are already handled inside refresh().
+  useEffect(()=>{
+    if(!(error&&!data)||autoReconnectedRef.current||connecting)return;
+    autoReconnectedRef.current=true;
+    (async()=>{
+      try{localStorage.setItem('tb_api_base',CWR_URL);}catch(e){}
+      try{
+        const hr=await fetch(CWR_URL+'/api/health',{cache:'no-store'});
+        const hj=await hr.json().catch(()=>({}));
+        if(hj&&hj.tokenStatus==='NORMAL'){
+          // Token is live — a full reload picks up a corrected Worker URL if the
+          // in-memory base drifted; otherwise just re-pull in place. The reload is
+          // gated to once per tab session so a blocked localStorage write (which
+          // would leave TB_API_BASE stale) can never spin into a reload loop.
+          if(TB_API_BASE!==CWR_URL&&!sessionStorage.getItem('tb_pf_autoreload')){
+            try{sessionStorage.setItem('tb_pf_autoreload','1');}catch(e){}
+            window.location.reload();return;
+          }
+          await refresh();
+        }
+      }catch(e){/* leave the manual screen up as a fallback */}
+    })();
+  },[error,data,connecting,refresh]);
 
   const handleConnect=async()=>{
     setConnecting(true);setConnectMsg('Setting Worker URL…');
@@ -5083,6 +5172,24 @@ const tbCatColor=c=>TB_CAT_COLORS[String(c||'').toLowerCase()]||'#8b949e';
 // Macro market-impact pill (importance tier from the worker). high→red, med→amber, low→gray.
 const TB_IMP={high:{c:'#f85149',t:'HIGH'},medium:{c:'#d29922',t:'MED'},low:{c:'#8b949e',t:'LOW'}};
 function tbFmtLocal(iso){ if(!iso) return ''; const d=new Date(iso); let h=d.getHours(); const m=d.getMinutes(); const ap=h<12?'AM':'PM'; h=h%12||12; return h+':'+(m<10?'0':'')+m+' '+ap; }
+// Standard macro release time (ET) by name/category. Mirrors index.html's
+// mcMacroET so the Catalysts tab and both TaskHubs agree to the minute. ECB
+// announces at 14:15 CET (= 8:15 AM ET year-round); Fed 2:00 PM ET; EIA 10:30;
+// sentiment/ISM/PMI 10:00; most US releases 8:30 AM ET. Earnings/holidays: none.
+function tbMacroET(e){
+  if(!e||e.kind==='earnings'||e.kind==='holiday')return null;
+  const n=((e.name||'')+' '+(e.category||'')).toLowerCase();
+  if(e.category==='ecb'||/\becb\b|european central bank/.test(n))return{hh:8,mm:15}; // ECB: 14:15 CET = 8:15 AM ET
+  if(/fomc|rate decision|fed funds|interest rate|fed minutes|meeting minutes/.test(n))return{hh:14,mm:0};   // Fed: 2:00 PM ET
+  if(e.category==='fed'||e.category==='rates')return{hh:14,mm:0};
+  if(e.category==='oil'||e.category==='energy'||/crude|petroleum|\beia\b|oil inventories|natural gas storage/.test(n))return{hh:10,mm:30}; // EIA: 10:30 AM ET
+  if(/sentiment|michigan|umich|\bism\b|\bpmi\b|jolts|job openings|consumer confidence|existing home|new home sales|factory orders|business inventories|construction spending|wholesale|leading index/.test(n))return{hh:10,mm:0}; // 10:00 AM ET
+  if(e.category==='sentiment')return{hh:10,mm:0};
+  if(e.kind==='macro'||['inflation','jobs','growth','gdp','retail','housing','trade'].indexOf(e.category)>=0)return{hh:8,mm:30};        // most releases: 8:30 AM ET
+  return null;
+}
+// ET release time → the VIEWER'S local wall-clock "h:mm AM/PM" (DST-safe via tbNyTs).
+function tbMacroTimeLocal(e){const t=tbMacroET(e);if(!t)return'';try{return new Date(tbNyTs(e.date,t.hh,t.mm)).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}catch(_){return'';}}
 
 // ── Shared calendar builder ─────────────────────────────────────────────────
 // Fetch + poll + merge-fallback + de-dup, returning {future,degraded}. Used by
@@ -5309,6 +5416,7 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
       <div style={{fontSize:12,fontWeight:700,color:'var(--txd)',marginBottom:6}}>{new Date(g.date+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</div>
       {g.items.map(ev=>(<div key={ev.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderTop:'1px solid var(--bd)'}}>
         <span style={{fontSize:9,fontWeight:800,letterSpacing:.4,textTransform:'uppercase',color:tbCatColor(ev.category||ev.kind),background:tbCatColor(ev.category||ev.kind)+'1a',border:'1px solid '+(tbCatColor(ev.category||ev.kind)+'33'),borderRadius:5,padding:'2px 7px',whiteSpace:'nowrap'}}>{ev.category||ev.kind}</span>
+        {(()=>{const tm=tbMacroTimeLocal(ev);return tm?<span title="Release time (your local zone)" style={{fontSize:11,fontWeight:700,color:'var(--txm)',whiteSpace:'nowrap',flexShrink:0}}>{tm}</span>:null;})()}
         <span style={{fontSize:13,color:'var(--tx)',flex:1}}>{ev.name}{ev.kind==='earnings'&&ev.when?(<span style={{color:'var(--txm)',fontSize:11}}> · {ev.when==='amc'?'after close':ev.when==='bmo'?'before open':ev.when}</span>):null}{ev.kind==='earnings'&&ev.confirmed===false?(<span title="Date not confirmed by a second source — may shift" style={{marginLeft:6,fontSize:9,fontWeight:700,letterSpacing:.3,color:'var(--txm)',border:'1px solid var(--bd)',borderRadius:4,padding:'1px 5px',verticalAlign:'middle'}}>EST</span>):null}</span>
         {ev.importance&&TB_IMP[ev.importance]?(<span title={'Market impact: '+ev.importance} style={{fontSize:9,fontWeight:800,letterSpacing:.4,color:TB_IMP[ev.importance].c,background:TB_IMP[ev.importance].c+'1a',border:'1px solid '+(TB_IMP[ev.importance].c+'40'),borderRadius:5,padding:'2px 6px',whiteSpace:'nowrap',flexShrink:0}}>{TB_IMP[ev.importance].t}</span>):null}
       </div>))}
@@ -6575,7 +6683,7 @@ function _el(id){ return document.getElementById(id); }
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 var _alLocks = {};
-try { _alLocks = JSON.parse(localStorage.getItem('al_locks') || '{}'); } catch(e) {}
+try { _alLocks = JSON.parse(window.alDur.get('al_locks') || '{}'); } catch(e) {}
 var _alPendingPush = false;
 
 function alIsLocked()   { return !!_alLocks[APPID]; }
@@ -6583,8 +6691,8 @@ function alLockVersion(){ var e=_alLocks[APPID]; return (e&&e.v)||0; }
 function alIsUnlocked() {
   if(!alIsLocked()) return true;
   var v = alLockVersion();
-  var got = parseInt(localStorage.getItem('al_unlockedv_' + APPID)||'0',10);
-  if(v===0){ return localStorage.getItem('al_unlocked_' + APPID)==='1' || got>0; }
+  var got = parseInt(window.alDur.get('al_unlockedv_' + APPID)||'0',10);
+  if(v===0){ return window.alDur.get('al_unlocked_' + APPID)==='1' || got>0; }
   // Monotonic: this device is unlocked as long as it unlocked AT OR AFTER the
   // current password version. Only a genuine password change (newer version)
   // makes got<v and re-requires the password. Prevents spurious re-prompts from
@@ -6594,19 +6702,19 @@ function alIsUnlocked() {
 function alMarkUnlocked(){
   try{
     var v = alLockVersion();
-    var prev = parseInt(localStorage.getItem('al_unlockedv_' + APPID)||'0',10);
+    var prev = parseInt(window.alDur.get('al_unlockedv_' + APPID)||'0',10);
     // Record the highest version seen so a slow/stale version read can never
     // regress an already-valid unlock.
     var mark = Math.max(v||Date.now(), prev||0);
-    localStorage.setItem('al_unlockedv_' + APPID, String(mark));
-    if(v===0) localStorage.setItem('al_unlocked_' + APPID, '1');
+    window.alDur.set('al_unlockedv_' + APPID, String(mark));
+    if(v===0) window.alDur.set('al_unlocked_' + APPID, '1');
   }catch(e){}
 }
-function alMarkLocked()  { try { localStorage.removeItem('al_unlockedv_' + APPID); localStorage.removeItem('al_unlocked_' + APPID); } catch(e){} }
+function alMarkLocked()  { try { window.alDur.remove('al_unlockedv_' + APPID); window.alDur.remove('al_unlocked_' + APPID); } catch(e){} }
 function alMustBlock()   { return alIsLocked() && !alIsUnlocked(); }
 
 function alSaveLocks(){
-  try { localStorage.setItem('al_locks', JSON.stringify(_alLocks)); } catch(e){}
+  try { window.alDur.set('al_locks', JSON.stringify(_alLocks)); } catch(e){}
   if (window._fbSaveAppLocks) { window._fbSaveAppLocks(_alLocks); _alPendingPush = false; }
   else { _alPendingPush = true; }
 }
@@ -6630,7 +6738,7 @@ window._alApplyRemoteLocks = function(remoteLocks){
   // reporting an older-or-equal version must never force a spurious re-prompt.
   _alLocks = {};
   Object.keys(remoteLocks).forEach(function(id){ var r=remoteLocks[id]; _alLocks[id] = { locked: true, v:(r&&r.v)||0 }; });
-  try { localStorage.setItem('al_locks', JSON.stringify(_alLocks)); } catch(e){}
+  try { window.alDur.set('al_locks', JSON.stringify(_alLocks)); } catch(e){}
   // SECURITY: if TradeHub just got locked remotely and isn't unlocked here, hide + prompt.
   if (alMustBlock()) { alHideRoot(); alShowOverlay('unlock'); }
   else if (!alIsLocked()) { alShowRoot(); if(_el('applock-overlay').style.display==='flex' && _alMode==='unlock'){ alHideOverlay(); } }
@@ -7036,10 +7144,10 @@ function tabLockVersion(tabId){ var e=_alLocks[tabAppId(tabId)]; return (e&&e.v)
 function tabIsUnlocked(tabId){
   if(!tabIsLocked(tabId)) return true;
   var v = tabLockVersion(tabId);
-  var got = parseInt(localStorage.getItem('al_unlockedv_' + tabAppId(tabId))||'0',10);
+  var got = parseInt(window.alDur.get('al_unlockedv_' + tabAppId(tabId))||'0',10);
   if(v===0){
     // Legacy lock with no version → unlock with the simple flag (or any recorded unlock).
-    return localStorage.getItem('al_unlocked_' + tabAppId(tabId))==='1' || got>0;
+    return window.alDur.get('al_unlocked_' + tabAppId(tabId))==='1' || got>0;
   }
   // Monotonic (mirrors alIsUnlocked): unlocked as long as this device unlocked at
   // or after the current password version. Only a genuine change re-requires it.
@@ -7049,16 +7157,16 @@ function tabMustBlock(tabId){ return tabIsLocked(tabId) && !tabIsUnlocked(tabId)
 function tabMarkUnlocked(tabId){
   try{
     var v = tabLockVersion(tabId);
-    var prev = parseInt(localStorage.getItem('al_unlockedv_' + tabAppId(tabId))||'0',10);
+    var prev = parseInt(window.alDur.get('al_unlockedv_' + tabAppId(tabId))||'0',10);
     var mark = Math.max(v||Date.now(), prev||0);
-    localStorage.setItem('al_unlockedv_' + tabAppId(tabId), String(mark));
-    if(v===0) localStorage.setItem('al_unlocked_' + tabAppId(tabId), '1'); // legacy flag too
+    window.alDur.set('al_unlockedv_' + tabAppId(tabId), String(mark));
+    if(v===0) window.alDur.set('al_unlocked_' + tabAppId(tabId), '1'); // legacy flag too
   }catch(e){}
 }
-function tabMarkLocked(tabId){ try{ localStorage.removeItem('al_unlockedv_' + tabAppId(tabId)); localStorage.removeItem('al_unlocked_' + tabAppId(tabId)); }catch(e){} }
+function tabMarkLocked(tabId){ try{ window.alDur.remove('al_unlockedv_' + tabAppId(tabId)); window.alDur.remove('al_unlocked_' + tabAppId(tabId)); }catch(e){} }
 
 function tabSaveLocks(){
-  try { localStorage.setItem('al_locks', JSON.stringify(_alLocks)); } catch(e){}
+  try { window.alDur.set('al_locks', JSON.stringify(_alLocks)); } catch(e){}
   if (window._fbSaveAppLocks) window._fbSaveAppLocks(_alLocks);
 }
 function tabSetLock(tabId, version){ _alLocks[tabAppId(tabId)] = { locked: true, v: version||Date.now() }; tabSaveLocks(); tabNotify(); }
