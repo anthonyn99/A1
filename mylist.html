@@ -1102,20 +1102,27 @@ body.dnd-active *{cursor:grabbing !important;}
   // doesn't run then — which is why the earlier desktop test showed nothing).
   const PW_VAPID = 'BFCxQOzVGu7pcftOtBrRY3IN9OuAWoiuYYO6lULbwzlF3hDTRVzNrW_uDvGDX1F4jZfVLXKxxsIj20sH8UZwmN8';
   function _pwDeviceId(){ let id=localStorage.getItem('th_device_id'); if(!id){ id='dev_'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('th_device_id',id); } return id; }
+  // Diagnostic: read `window._mlFcmStatus` in the desktop console to see exactly
+  // what happened (token tail + permission, or the reason it bailed).
+  window._mlFcmStatus = 'init';
   (async function pwFcmInit(){
     try{
-      if(!('Notification' in window) || Notification.permission!=='granted') return;   // TaskHub owns the permission prompt
-      if(!('serviceWorker' in navigator)) return;
-      let messaging=null; try{ messaging=getMessaging(app); }catch(e){ return; }
-      if(!messaging) return;
+      if(!('Notification' in window)){ window._mlFcmStatus='no Notification API'; return; }
+      if(Notification.permission!=='granted'){ window._mlFcmStatus='permission='+Notification.permission+' (not granted — allow notifications)'; return; }
+      if(!('serviceWorker' in navigator)){ window._mlFcmStatus='no serviceWorker'; return; }
+      let messaging=null; try{ messaging=getMessaging(app); }catch(e){ window._mlFcmStatus='getMessaging failed (Brave push off?): '+(e&&e.message||e); return; }
+      if(!messaging){ window._mlFcmStatus='messaging unsupported'; return; }
       const swReg = await navigator.serviceWorker.register('./firebase-messaging-sw.js',{scope:'./'}).catch(()=>null)
                  || await navigator.serviceWorker.getRegistration('./').catch(()=>null);
-      if(!swReg) return;
+      if(!swReg){ window._mlFcmStatus='SW registration failed'; return; }
       await _whenAuthed();
-      const token = await getToken(messaging,{ vapidKey:PW_VAPID, serviceWorkerRegistration:swReg }).catch(()=>null);
-      if(!token) return;
+      let token=null;
+      try{ token = await getToken(messaging,{ vapidKey:PW_VAPID, serviceWorkerRegistration:swReg }); }
+      catch(e){ window._mlFcmStatus='getToken ERROR (Brave push likely broken): '+((e&&e.code?e.code+' ':'')+(e&&e.message||e)); return; }
+      if(!token){ window._mlFcmStatus='getToken returned EMPTY (push blocked)'; return; }
       const mainDash = localStorage.getItem('td6_mainDash') || 'all';
-      try{ await setDoc(doc(db,'fcm_tokens',_pwDeviceId()),{ token, updatedAt:Date.now(), ua:navigator.userAgent.slice(0,80), mainDash },{ merge:true }); }catch(e){}
+      try{ await setDoc(doc(db,'fcm_tokens',_pwDeviceId()),{ token, updatedAt:Date.now(), ua:navigator.userAgent.slice(0,80), mainDash },{ merge:true }); window._mlFcmStatus='token OK …'+token.slice(-10)+' mainDash='+mainDash+' perm=granted'; }
+      catch(e){ window._mlFcmStatus='token OK but fcm_tokens write blocked: '+(e&&e.message||e); }
       try{ const sw=(swReg.active||swReg.waiting)||navigator.serviceWorker.controller; if(sw) sw.postMessage({ type:'th-set-maindash', mainDash:mainDash }); }catch(e){}
       onMessage(messaging,(payload)=>{
         try{
