@@ -956,6 +956,7 @@ body.dnd-active *{cursor:grabbing !important;}
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
   import { initializeFirestore, memoryLocalCache, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-messaging.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
@@ -1088,6 +1089,44 @@ body.dnd-active *{cursor:grabbing !important;}
       if (snap.exists()) { const d = snap.data(); window.dispatchEvent(new CustomEvent("ml-pricewatch-update", { detail: { profile: profile, items: Array.isArray(d.items)?d.items:[], stores: Array.isArray(d.stores)?d.stores:null, drops: Array.isArray(d.drops)?d.drops:[] } })); }
     }, (err) => { console.warn("PriceWatch snapshot err", err); });
   });
+
+  // ── FCM token refresh (shared with TaskHub) ──────────────────────────────────
+  // MyList had no FCM code, so this device's push token was only ever refreshed by
+  // opening TaskHub — if the token rotated while the user was in MyList, price-drop
+  // pushes couldn't reach this device (the "phone got it, desktop didn't" bug). Same
+  // origin ⇒ same device id ('th_device_id') + same SW + same VAPID ⇒ getToken()
+  // returns the SAME token TaskHub uses and writes the SAME fcm_tokens doc, so simply
+  // opening MyList keeps the token current. We never PROMPT (TaskHub owns that) —
+  // only refresh when permission is already granted. A foreground onMessage handler
+  // draws the drop even when a MyList tab is focused (the SW background handler
+  // doesn't run then — which is why the earlier desktop test showed nothing).
+  const PW_VAPID = 'BFCxQOzVGu7pcftOtBrRY3IN9OuAWoiuYYO6lULbwzlF3hDTRVzNrW_uDvGDX1F4jZfVLXKxxsIj20sH8UZwmN8';
+  function _pwDeviceId(){ let id=localStorage.getItem('th_device_id'); if(!id){ id='dev_'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('th_device_id',id); } return id; }
+  (async function pwFcmInit(){
+    try{
+      if(!('Notification' in window) || Notification.permission!=='granted') return;   // TaskHub owns the permission prompt
+      if(!('serviceWorker' in navigator)) return;
+      let messaging=null; try{ messaging=getMessaging(app); }catch(e){ return; }
+      if(!messaging) return;
+      const swReg = await navigator.serviceWorker.register('./firebase-messaging-sw.js',{scope:'./'}).catch(()=>null)
+                 || await navigator.serviceWorker.getRegistration('./').catch(()=>null);
+      if(!swReg) return;
+      await _whenAuthed();
+      const token = await getToken(messaging,{ vapidKey:PW_VAPID, serviceWorkerRegistration:swReg }).catch(()=>null);
+      if(!token) return;
+      const mainDash = localStorage.getItem('td6_mainDash') || 'all';
+      try{ await setDoc(doc(db,'fcm_tokens',_pwDeviceId()),{ token, updatedAt:Date.now(), ua:navigator.userAgent.slice(0,80), mainDash },{ merge:true }); }catch(e){}
+      try{ const sw=(swReg.active||swReg.waiting)||navigator.serviceWorker.controller; if(sw) sw.postMessage({ type:'th-set-maindash', mainDash:mainDash }); }catch(e){}
+      onMessage(messaging,(payload)=>{
+        try{
+          const d=(payload&&payload.data)||{};
+          if(!/^pw/.test(String(d.id||''))) return;   // only OUR price-drop / test messages
+          swReg.showNotification('✦ MyList', { body:(d.body||d.title||'Price drop'), tag:String(d.id||'pw'), renotify:true, requireInteraction:true,
+            icon:'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%23E0607A%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2768%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2752%27%3E%F0%9F%92%B8%3C/text%3E%3C/svg%3E' });
+        }catch(e){}
+      });
+    }catch(e){ console.warn('MyList FCM init', e); }
+  })();
 
   window._mlReady = true;
   window.dispatchEvent(new CustomEvent("ml-ready"));

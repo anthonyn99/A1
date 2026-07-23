@@ -1305,7 +1305,13 @@ async function fsFetchTokens(env, token) {
 // Data-only FCM send — identical structure to the TaskHub reminders worker so
 // firebase-messaging-sw.js draws it exactly the same way (title/body/id/dash;
 // unique Topic so same-instant pushes can't coalesce). No new notification type.
-async function sendFCM(projectId, token, title, body, id, accessToken, dash) {
+// ttlSec: how long FCM holds the message for an OFFLINE device. Reminders are
+// time-sensitive (short TTL), but a price drop delivered when a desktop next comes
+// online is still useful — so drops use a long TTL (default here) so a 4am push
+// isn't lost just because the desktop was asleep/closed (the phone's OS-level FCM
+// gets it regardless; the desktop browser only receives while running).
+async function sendFCM(projectId, token, title, body, id, accessToken, dash, ttlSec) {
+  const ttl = String(ttlSec || 86400);   // 24h default
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -1313,8 +1319,8 @@ async function sendFCM(projectId, token, title, body, id, accessToken, dash) {
       message: {
         token,
         data: { id: String(id || ''), title: String(title || 'Price Watch'), body: String(body || title || ''), dash: String(dash || 'all') },
-        android: { priority: 'high' },
-        webpush: { headers: { Urgency: 'high', TTL: '600', Topic: crypto.randomUUID().replace(/-/g, '') } },
+        android: { priority: 'high', ttl: `${ttl}s` },
+        webpush: { headers: { Urgency: 'high', TTL: ttl, Topic: crypto.randomUUID().replace(/-/g, '') } },
       },
     }),
   });
