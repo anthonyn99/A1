@@ -108,6 +108,12 @@
   /* ── Display mode ── */
   body.privacy .money { filter: blur(0.34em); user-select: none; -webkit-user-select: none; }
   body.privacy input.money:focus { filter: none; user-select: auto; -webkit-user-select: auto; }
+  /* Stand-in figures shown in place of the month totals — readable, but
+     labelled so they're never mistaken for the real numbers. */
+  .mocktag {
+    font-size: 10px; font-weight: 500; letter-spacing: .6px;
+    color: var(--faint); vertical-align: middle; margin-left: 5px;
+  }
   /* Tabs are draggable to reorder; keep vertical scrolling natural on touch. */
   /* `manipulation` keeps the browser's own panning (so the strip still scrolls
      horizontally on touch) while dropping the 300ms double-tap delay. Reorder
@@ -1314,13 +1320,19 @@
   };
 
   // ── Display mode ─────────────────────────────────────────────────────────
-  // Hides the figures that reveal your overall position — month in/out/net,
-  // account balances, net worth, import previews — while leaving individual
-  // transaction amounts, recurring costs and the cash balance readable, so
-  // Insight can be walked through without exposing how much you have.
+  // Hides the figures that reveal your overall position, so Insight can be
+  // walked through without exposing how much you have:
+  //   · Transactions — month in/out/net are swapped for plausible stand-in
+  //     figures tagged "(mock)", so the tiles still read as a finished screen.
+  //   · Accounts — net worth (assets / debts / net) and bank balances blur;
+  //     credit card balances stay readable.
+  //   · Import previews blur. Individual transaction amounts, recurring costs
+  //     and the cash balance stay readable throughout.
   const DISPLAY_LS = 'insight_display_mode';
   let displayMode = false;
-  function setDisplayMode(on) {
+  // `rerender` is false for the restore-from-storage call at load: the data
+  // feeds haven't arrived yet, and their own first render picks this up.
+  function setDisplayMode(on, rerender = true) {
     displayMode = !!on;
     document.body.classList.toggle('privacy', displayMode);
     const b = $('displayModeBtn');
@@ -1328,12 +1340,28 @@
     $('dmIconOn').style.display = displayMode ? 'none' : '';
     $('dmIconOff').style.display = displayMode ? '' : 'none';
     try { localStorage.setItem(DISPLAY_LS, displayMode ? '1' : '0'); } catch {}
+    if (rerender) {
+      renderStats();       // real totals ⇄ mock totals
+      renderAccounts();    // re-tag which balances blur
+    }
+  }
+
+  // The mock month totals are drawn once and kept for the session — re-rolling
+  // them on every render would make the tiles flicker with new numbers.
+  let mockStatsCache = null;
+  function mockStats() {
+    if (!mockStatsCache) {
+      const r = (lo, hi) => Math.round((lo + Math.random() * (hi - lo)) / 5) * 5;   // tidy $5 steps
+      const inn = r(4200, 9800), out = r(2600, 7400);
+      mockStatsCache = { inn, out, net: inn - out };
+    }
+    return mockStatsCache;
   }
   $('displayModeBtn').addEventListener('click', () => {
     setDisplayMode(!displayMode);
-    toast(displayMode ? 'Display mode on — amounts hidden' : 'Display mode off — amounts visible', true);
+    toast(displayMode ? 'Display mode on — balances hidden, month totals mocked' : 'Display mode off — real amounts visible', true);
   });
-  try { setDisplayMode(localStorage.getItem(DISPLAY_LS) === '1'); } catch { setDisplayMode(false); }
+  try { setDisplayMode(localStorage.getItem(DISPLAY_LS) === '1', false); } catch { setDisplayMode(false, false); }
 
   // ── Live Firestore feeds ─────────────────────────────────────────────────
   await authReady;
@@ -1687,11 +1715,20 @@
       if (txKind(t)) continue;   // card payments / self-transfers: neither
       if (t.amount < 0) inn += -t.amount; else out += t.amount;
     }
-    $('statIn').textContent = fmt$(inn);
-    $('statOut').textContent = fmt$(out);
     const net = inn - out;
-    const el = $('statNet'); el.textContent = (net < 0 ? '−' : '') + fmt$(Math.abs(net));
-    el.className = 'val money ' + (net >= 0 ? 'gold' : 'neg');
+    // In display mode the tiles show stand-in figures instead of blurring:
+    // readable, obviously labelled, and never the real position.
+    const m = displayMode ? mockStats() : null;
+    const vIn = m ? m.inn : inn, vOut = m ? m.out : out, vNet = m ? m.net : net;
+    setStat($('statIn'), fmt$(vIn), 'gold');
+    setStat($('statOut'), fmt$(vOut), '');
+    setStat($('statNet'), (vNet < 0 ? '−' : '') + fmt$(Math.abs(vNet)), vNet >= 0 ? 'gold' : 'neg');
+  }
+
+  // `money` is the blur marker — a mock figure carries the tag instead.
+  function setStat(el, text, tone) {
+    el.className = 'val' + (tone ? ' ' + tone : '') + (displayMode ? '' : ' money');
+    el.innerHTML = esc(text) + (displayMode ? ' <span class="mocktag">(mock)</span>' : '');
   }
 
   function renderFilterOptions() {
@@ -1895,6 +1932,8 @@
   });
 
   // ── Accounts view ────────────────────────────────────────────────────────
+  // Display mode blurs the net-worth tiles and every bank balance; card
+  // balances (what you owe, not what you have) stay readable.
   function renderAccounts() {
     const DEBT = t => t === 'credit' || t === 'loan';
     let assets = 0, debts = 0;
@@ -1921,7 +1960,7 @@
           <div class="acct">
             <div class="aname">${esc(a.name || 'Account')}${a.mask ? ` <span style="color:var(--faint);font-weight:500">··${esc(a.mask)}</span>` : ''}</div>
             <div class="asub">${esc(a.subtype || a.type || '')}</div>
-            <div class="abal money ${DEBT(a.type) ? 'debt' : ''}">${fmt$(a.balance_current ?? 0)}</div>
+            <div class="abal ${a.type === 'credit' ? '' : 'money'} ${DEBT(a.type) ? 'debt' : ''}">${fmt$(a.balance_current ?? 0)}</div>
           </div>`).join('')}
         </div>
       </div>`).join('');
