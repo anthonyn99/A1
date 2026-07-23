@@ -1107,15 +1107,26 @@ body.dnd-active *{cursor:grabbing !important;}
   // NotRegistered — e.g. Brave desktop hands back an invalidated token that FCM
   // won't deliver to) and re-subscribes. Call `_mlFcmReset()` in the console on a
   // device that isn't receiving pushes; it returns the new token tail.
-  window._mlFcmReset = async function(){
+  window._mlFcmReset = async function(hard){
     try{
+      if(_pwMessaging){ try{ await deleteToken(_pwMessaging); }catch(e){} }
+      if(hard){
+        // Delete Firebase's Installations + Messaging IndexedDB so getToken mints a
+        // BRAND-NEW installation on reload — sidesteps a 403 on the registrations
+        // API when the cached token is stuck/invalid (the Brave-desktop case).
+        for(const nm of ['firebase-installations-database','firebase-messaging-database','fcm_token_details_db','firebase-messaging-store']){
+          try{ await new Promise(function(res){ var r=indexedDB.deleteDatabase(nm); r.onsuccess=r.onerror=r.onblocked=function(){res();}; }); }catch(e){}
+        }
+        window._mlFcmStatus='hard reset — reload the page now';
+        return 'CLEARED Firebase push cache — now hard-reload the page (Ctrl+Shift+R). It will mint a fresh token; then ask to re-test.';
+      }
       if(!_pwMessaging || !_pwSwReg) return 'FCM not initialized on this device (see _mlFcmStatus)';
-      try{ await deleteToken(_pwMessaging); }catch(e){}
       const token = await getToken(_pwMessaging,{ vapidKey:PW_VAPID, serviceWorkerRegistration:_pwSwReg });
       if(!token) return 'no token after reset (push blocked?)';
       const mainDash = localStorage.getItem('td6_mainDash')||'all';
       await setDoc(doc(db,'fcm_tokens',_pwDeviceId()),{ token, updatedAt:Date.now(), ua:navigator.userAgent.slice(0,80), mainDash },{ merge:true });
       window._mlFcmStatus = 'RESET token OK …'+token.slice(-10)+' mainDash='+mainDash;
+      if(/tjutO03_fM$/.test(token)) return 'still the same stale token …'+token.slice(-10)+' — run  await _mlFcmReset("hard")  then reload';
       return 'fresh token registered …'+token.slice(-10)+' — ask to re-test';
     }catch(e){ return 'reset error: '+(e&&e.message||e); }
   };
