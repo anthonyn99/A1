@@ -1266,6 +1266,46 @@ function pwDropsBannerHtml(){
   h+='</div>';
   return h;
 }
+// ── Local OS notification fallback (no FCM) ──────────────────────────────────
+// When a drop arrives via Firestore onSnapshot WHILE MyList is open, draw a real
+// OS notification locally — the way TaskHub's in-app poll does. This gives the
+// desktop a notification even on a browser where FCM push is broken (e.g. this
+// Brave profile: getToken times out on fcmregistrations). Only fires for genuinely
+// NEW drops (not the ones already present at load — those are in the banner), for
+// the active profile, and only when FCM ISN'T delivering on this device (so a
+// working-FCM device isn't double-notified).
+var pwSeenDrops = { tony:{}, veda:{} };
+var pwDropsSeeded = { tony:false, veda:false };
+var PW_ICON = 'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%23E0607A%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2768%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2752%27%3E%F0%9F%92%B8%3C/text%3E%3C/svg%3E';
+function pwFcmWorks(){ return typeof window._mlFcmStatus==='string' && /token OK/.test(window._mlFcmStatus); }
+function pwLocalNotify(body){
+  try{
+    if(!('Notification' in window) || Notification.permission!=='granted') return;
+    if(navigator.serviceWorker && navigator.serviceWorker.getRegistration){
+      navigator.serviceWorker.getRegistration('./').then(function(reg){
+        if(reg && reg.showNotification) reg.showNotification('✦ MyList', { body:body, tag:'pwdrop_'+Date.now(), icon:PW_ICON, requireInteraction:true });
+        else { try{ new Notification('✦ MyList',{ body:body, icon:PW_ICON }); }catch(e){} }
+      }).catch(function(){ try{ new Notification('✦ MyList',{ body:body }); }catch(e){} });
+    } else { try{ new Notification('✦ MyList',{ body:body }); }catch(e){} }
+  }catch(e){}
+}
+function pwDropKey(d){ return String((d&&(d.ts||((d.id||'')+'_'+(d.date||''))))||''); }
+function pwProcessDrops(profile, drops){
+  drops = Array.isArray(drops)?drops:[];
+  var seen = pwSeenDrops[profile] || (pwSeenDrops[profile]={});
+  var firstTime = !pwDropsSeeded[profile];
+  drops.forEach(function(d){
+    var k=pwDropKey(d); if(!k || seen[k]) return; seen[k]=1;
+    if(firstTime) return;                 // already present at load → banner shows it, don't toast
+    if(profile!==activeProfile) return;   // only the profile you're using
+    if(pwFcmWorks()) return;              // working FCM already delivers on this device
+    var prev=(typeof d.prevPrice==='number')?d.prevPrice:parseFloat(d.prevPrice);
+    var nw=(typeof d.newPrice==='number')?d.newPrice:parseFloat(d.newPrice);
+    var est=(d.source==='ai-estimated')?' — worth double-checking':'';
+    pwLocalNotify((d.itemName||'Item')+': $'+(isFinite(prev)?prev.toFixed(2):'?')+' → $'+(isFinite(nw)?nw.toFixed(2):'?')+' at '+(d.storeName||d.store||'')+est);
+  });
+  pwDropsSeeded[profile]=true;
+}
 
 function uid(){ return Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
 function $(id){ return document.getElementById(id); }
@@ -1336,6 +1376,7 @@ function boot(){
     ['tony','veda'].forEach(function(p){
       window._mlLoadPriceWatch(p).then(function(res){
         pwStore[p]=(res&&res.items)||[]; pwStoresState[p]=(res&&res.stores)||null; pwDropsState[p]=(res&&res.drops)||[]; pwLoaded[p]=true;
+        pwProcessDrops(p, pwDropsState[p]);   // seed the seen-set at load (no notification for existing drops)
         // Re-render on ANY view (Lists shows inline watch prices too) so watched
         // items don't stay blank until a manual tab switch after a refresh.
         if(activeProfile===p) render();
@@ -1359,7 +1400,7 @@ window.addEventListener('ml-pricewatch-update', function(e){
   var p=e.detail&&e.detail.profile, items=(e.detail&&Array.isArray(e.detail.items))?e.detail.items:[];
   if(!p||!pwStore.hasOwnProperty(p)) return;
   pwStore[p]=items; pwStoresState[p]=(e.detail&&Array.isArray(e.detail.stores))?e.detail.stores:pwStoresState[p]; pwLoaded[p]=true;
-  if(e.detail&&Array.isArray(e.detail.drops)) pwDropsState[p]=e.detail.drops;   // live "dropped while away" updates
+  if(e.detail&&Array.isArray(e.detail.drops)){ pwDropsState[p]=e.detail.drops; pwProcessDrops(p, pwDropsState[p]); }   // live drops → local OS notification if FCM is down
   // Re-render on ANY view so Lists' inline watch prices refresh live (from the
   // daily cron or another device) — not only when the Price Watch tab is open.
   if(activeProfile===p) render();
