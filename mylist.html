@@ -956,7 +956,7 @@ body.dnd-active *{cursor:grabbing !important;}
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
   import { initializeFirestore, memoryLocalCache, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
-  import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-messaging.js";
+  import { getMessaging, getToken, onMessage, deleteToken } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-messaging.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
@@ -1102,6 +1102,23 @@ body.dnd-active *{cursor:grabbing !important;}
   // doesn't run then — which is why the earlier desktop test showed nothing).
   const PW_VAPID = 'BFCxQOzVGu7pcftOtBrRY3IN9OuAWoiuYYO6lULbwzlF3hDTRVzNrW_uDvGDX1F4jZfVLXKxxsIj20sH8UZwmN8';
   function _pwDeviceId(){ let id=localStorage.getItem('th_device_id'); if(!id){ id='dev_'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('th_device_id',id); } return id; }
+  let _pwMessaging=null, _pwSwReg=null;
+  // Force a FRESH FCM token: deletes Firebase's cached token (which can go stale /
+  // NotRegistered — e.g. Brave desktop hands back an invalidated token that FCM
+  // won't deliver to) and re-subscribes. Call `_mlFcmReset()` in the console on a
+  // device that isn't receiving pushes; it returns the new token tail.
+  window._mlFcmReset = async function(){
+    try{
+      if(!_pwMessaging || !_pwSwReg) return 'FCM not initialized on this device (see _mlFcmStatus)';
+      try{ await deleteToken(_pwMessaging); }catch(e){}
+      const token = await getToken(_pwMessaging,{ vapidKey:PW_VAPID, serviceWorkerRegistration:_pwSwReg });
+      if(!token) return 'no token after reset (push blocked?)';
+      const mainDash = localStorage.getItem('td6_mainDash')||'all';
+      await setDoc(doc(db,'fcm_tokens',_pwDeviceId()),{ token, updatedAt:Date.now(), ua:navigator.userAgent.slice(0,80), mainDash },{ merge:true });
+      window._mlFcmStatus = 'RESET token OK …'+token.slice(-10)+' mainDash='+mainDash;
+      return 'fresh token registered …'+token.slice(-10)+' — ask to re-test';
+    }catch(e){ return 'reset error: '+(e&&e.message||e); }
+  };
   // Diagnostic: read `window._mlFcmStatus` in the desktop console to see exactly
   // what happened (token tail + permission, or the reason it bailed).
   window._mlFcmStatus = 'init';
@@ -1112,9 +1129,11 @@ body.dnd-active *{cursor:grabbing !important;}
       if(!('serviceWorker' in navigator)){ window._mlFcmStatus='no serviceWorker'; return; }
       let messaging=null; try{ messaging=getMessaging(app); }catch(e){ window._mlFcmStatus='getMessaging failed (Brave push off?): '+(e&&e.message||e); return; }
       if(!messaging){ window._mlFcmStatus='messaging unsupported'; return; }
+      _pwMessaging=messaging;
       const swReg = await navigator.serviceWorker.register('./firebase-messaging-sw.js',{scope:'./'}).catch(()=>null)
                  || await navigator.serviceWorker.getRegistration('./').catch(()=>null);
       if(!swReg){ window._mlFcmStatus='SW registration failed'; return; }
+      _pwSwReg=swReg;
       await _whenAuthed();
       let token=null;
       try{ token = await getToken(messaging,{ vapidKey:PW_VAPID, serviceWorkerRegistration:swReg }); }
