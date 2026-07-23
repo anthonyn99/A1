@@ -76,17 +76,39 @@
     // Price from a list of selectors, falling back to a regex sweep of the
     // card's own text — which is what carries a module through a markup change
     // that renames the price node.
+    //
+    // CRITICAL: PREFER a value that carries explicit cents ("$4.98"). Retailers
+    // (Walmart especially) split the visible price into separate dollar and cent
+    // spans with the "." styled, not textual — so a node's textContent reads
+    // "$498" for a $4.98 item. We therefore gather every candidate string
+    // (targeted nodes' text AND their aria-label, which usually keeps the decimal,
+    // plus the whole card) and take the first "$D.CC" match; only if NONE has
+    // cents do we accept a bare-integer price. This turns the $4.98→498 class of
+    // bug into a correct read wherever an accessible/decimal price exists.
     price: function (root, sels) {
+      var DEC = /\$?\s?\d{1,3}(?:,\d{3})*\.\d{2}(?!\d)/;
+      var strs = [];
       for (var i = 0; i < sels.length; i++) {
         var els = [];
         try { els = Array.prototype.slice.call(root.querySelectorAll(sels[i])); } catch (e) {}
         for (var j = 0; j < els.length; j++) {
-          var p = g.PWCore.parsePrice(H.text(els[j]));
-          if (p !== null) return p;
+          var el = els[j];
+          if (el && el.getAttribute) { var al = el.getAttribute("aria-label"); if (al) strs.push(al); }
+          strs.push(H.text(el));
         }
       }
-      var m = H.text(root).match(/\$\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?/);
-      return m ? g.PWCore.parsePrice(m[0]) : null;
+      strs.push(H.text(root));
+      // 1) first price WITH explicit cents wins
+      for (var a = 0; a < strs.length; a++) {
+        var md = String(strs[a]).match(DEC);
+        if (md) { var pd = g.PWCore.parsePrice(md[0]); if (pd !== null) return pd; }
+      }
+      // 2) otherwise the first parseable price at all (whole-dollar, no cents)
+      for (var b = 0; b < strs.length; b++) {
+        var p = g.PWCore.parsePrice(strs[b]);
+        if (p !== null) return p;
+      }
+      return null;
     },
     // DEFINITIVE bot-wall signatures — the named interstitials of the big
     // vendors (Akamai "Challenge Validation", PerimeterX, Cloudflare, Incapsula)
