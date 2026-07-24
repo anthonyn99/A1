@@ -329,12 +329,19 @@
      movement, touch on a long press so ordinary swipes still scroll. */
   /* Text selection and the long-press callout are suppressed so a press-and-
      hold on a phone starts a drag instead of a selection magnifier. */
-  #recList .txrow {
-    cursor: grab; user-select: none; -webkit-user-select: none;
-    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  /* Recurring status chips + the missing-payment prompt. */
+  .chip.st-ontime  { color: var(--ok);      border-color: rgba(164,185,134,.4); }
+  .chip.st-duesoon { color: var(--gold-soft); border-color: var(--gold-line); }
+  .chip.st-late    { color: #e0b57c;        border-color: rgba(224,181,124,.4); }
+  .chip.st-missing { color: var(--danger);  border-color: rgba(214,138,124,.45); }
+  .recprompt {
+    margin-top: 10px; padding: 11px 13px; border-radius: var(--radius-sm);
+    background: var(--surface-2); border: 1px solid var(--border);
   }
-  #recList .txrow:active { cursor: grabbing; }
-  #recList .txrow .iconbtn { cursor: pointer; }
+  .recprompt-msg { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
+  .recprompt-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .recprompt-acts .btn { padding: 8px 13px; font-size: 11px; }
+  .recrow .txamt { align-self: flex-start; }
   .txrow.dragging {
     position: relative; z-index: 30; cursor: grabbing;
     border-color: var(--gold-line);
@@ -681,11 +688,12 @@
   <!-- ═══ Recurring (migrated from ExpenseLog) ═══ -->
   <section class="view" id="view-recurring">
     <div class="stats" style="grid-template-columns:1fr 1fr">
-      <div class="stat"><div class="lbl">Monthly total</div><div class="val gold" id="recMo">—</div></div>
-      <div class="stat"><div class="lbl">Annual total</div><div class="val gold" id="recAn">—</div></div>
+      <div class="stat"><div class="lbl">Monthly total</div><div class="val gold money" id="recMo">—</div></div>
+      <div class="stat"><div class="lbl">Annual total</div><div class="val gold money" id="recAn">—</div></div>
     </div>
-    <div class="filters" style="justify-content:flex-end">
-      <button class="btn gold" id="addRecBtn">+ Add recurring</button>
+    <div class="filters" style="justify-content:space-between;align-items:center">
+      <span style="font-size:12px;color:var(--faint);max-width:60%">Detected automatically from your transactions — no upkeep needed.</span>
+      <button class="btn" id="addRecBtn">+ Add manual</button>
     </div>
     <div id="recList"></div>
   </section>
@@ -1255,7 +1263,8 @@
 
   // ── State ────────────────────────────────────────────────────────────────
   let plaidTxs = [], manualTxs = [], accounts = [], meta = {};
-  let recurring = [], cashBal = 0;   // migrated ExpenseLog state
+  let recurring = [], cashBal = 0;   // recurring = optional MANUAL entries; cash
+  let recurringState = {};           // per-group decisions (dismiss / keep), keyed by group key
   let editingRecId = null;
   let activeView = 'transactions';
   let editingId = null;          // manual entry being edited (null = new)
@@ -1416,6 +1425,7 @@
     if (!snap.exists()) return;
     const d = snap.data();
     recurring = Array.isArray(d.recurring) ? d.recurring : [];
+    recurringState = (d.recurringState && typeof d.recurringState === 'object') ? d.recurringState : {};
     cashBal = typeof d.cash === 'number' ? d.cash : 0;
     renderRecurring();
     renderCash();
@@ -1453,7 +1463,7 @@
   })();
 
   async function saveExpenselog() {
-    await synced(setDoc(elRef, { recurring, cash: cashBal, savedAt: Date.now() }, { merge: true }));
+    await synced(setDoc(elRef, { recurring, recurringState, cash: cashBal, savedAt: Date.now() }, { merge: true }));
   }
 
   // "Updated at 3:42 PM on July 21, 2026" — device locale + timezone.
@@ -1660,7 +1670,7 @@
       (b.date || '').localeCompare(a.date || '') || (b.updatedAt || 0) - (a.updatedAt || 0));
   }
 
-  function renderAll() { renderStats(); renderFeed(); renderFilterOptions(); }
+  function renderAll() { renderStats(); renderFeed(); renderFilterOptions(); renderRecurring(); }
 
   // ── Transfers & credit-card payments ─────────────────────────────────────
   // Paying a credit card moves money between your OWN accounts. It shows up
@@ -1968,28 +1978,194 @@
 
   // ── Recurring transactions ───────────────────────────────────────────────
   // Totals use ExpenseLog's rule: annual-only items count ÷12 toward monthly.
-  function renderRecurring() {
-    let mo = 0, an = 0;
-    for (const r of recurring) {
-      const hasM = r.monthly != null && !isNaN(r.monthly);
-      const hasA = r.annual != null && !isNaN(r.annual);
-      if (hasM) mo += r.monthly;
-      if (hasA) an += r.annual;
-      if (!hasM && hasA) mo += r.annual / 12;
-    }
-    $('recMo').textContent = fmt$(mo);
-    $('recAn').textContent = fmt$(an);
+  // ══ Automatic recurring detection ═════════════════════════════════════════
+  // The Recurring tab is derived live from transaction history — no manual
+  // upkeep. Charges are fuzzy-clustered by merchant (tolerant of case,
+  // descriptor and category drift, e.g. "Tesla Property Casua" vs
+  // "TESLA PROPERTY CASUALTY"), a billing cadence is inferred from the gaps
+  // between them, and variable amounts are kept as one subscription showing
+  // the latest charge. Your keep/remove decisions persist in Firebase; a
+  // payment that vanishes for two cycles auto-cleans, and one that returns is
+  // rediscovered automatically. (Manual entries you add stay too.)
+  const DAY = 86400000;
+  const FREQS = [
+    { unit: 'week',     days: 7,   label: 'Weekly',         lo: 5,   hi: 9,   perMonth: 4.345 },
+    { unit: 'biweek',   days: 14,  label: 'Every 2 weeks',  lo: 11,  hi: 18,  perMonth: 2.1725 },
+    { unit: 'month',    days: 30,  label: 'Monthly',        lo: 24,  hi: 38,  perMonth: 1 },
+    { unit: '2month',   days: 61,  label: 'Every 2 months', lo: 52,  hi: 74,  perMonth: 0.5 },
+    { unit: 'quarter',  days: 91,  label: 'Quarterly',      lo: 80,  hi: 100, perMonth: 1 / 3 },
+    { unit: 'halfyear', days: 182, label: 'Every 6 months', lo: 160, hi: 200, perMonth: 1 / 6 },
+    { unit: 'year',     days: 365, label: 'Yearly',         lo: 330, hi: 400, perMonth: 1 / 12 }
+  ];
+  const freqForGap = g => FREQS.find(f => g >= f.lo && g <= f.hi) || null;
+  const dayNum = s => Math.floor(new Date(s + 'T12:00:00').getTime() / DAY);
+  const todayDn = () => Math.floor(Date.now() / DAY);
+  function median(a) { const b = [...a].sort((x, y) => x - y); const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; }
+  function addUnit(dateStr, unit) {
+    const d = new Date(dateStr + 'T12:00:00');
+    ({ week: () => d.setDate(d.getDate() + 7), biweek: () => d.setDate(d.getDate() + 14),
+       month: () => d.setMonth(d.getMonth() + 1), '2month': () => d.setMonth(d.getMonth() + 2),
+       quarter: () => d.setMonth(d.getMonth() + 3), halfyear: () => d.setMonth(d.getMonth() + 6),
+       year: () => d.setFullYear(d.getFullYear() + 1) })[unit]();
+    return d;
+  }
+  const isoOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-    if (!recurring.length) {
-      $('recList').innerHTML = '<div class="empty"><div class="big">No recurring transactions</div>Add your subscriptions and fixed bills.</div>';
-      return;
+  // Expense charges eligible to be a subscription (money out, settled, not a
+  // transfer or card-bill payment).
+  function recurCandidates() {
+    return allTxs().filter(t =>
+      typeof t.amount === 'number' && t.amount > 0 && !t.pending && !txKind(t) && (t.merchant || t.name));
+  }
+
+  // Greedy fuzzy clustering on the normalised merchant name (nameSim ≥ 0.5).
+  function clusterByMerchant(txs) {
+    const clusters = [];
+    for (const t of txs) {
+      const nm = normName(t.merchant || t.name);
+      if (!nm) continue;
+      let best = null, bestSim = 0;
+      for (const c of clusters) {
+        const sim = nameSim(nm, c.key);
+        if (sim > bestSim) { bestSim = sim; best = c; }
+      }
+      if (best && bestSim >= 0.5) {
+        best.txs.push(t);
+        best.names[nm] = (best.names[nm] || 0) + 1;
+        if (best.names[nm] > (best.names[best.key] || 0)) best.key = nm;   // rep = most common form
+      } else {
+        clusters.push({ key: nm, names: { [nm]: 1 }, txs: [t] });
+      }
     }
-    $('recList').innerHTML = recurring.map(r => `
-      <div class="txrow" data-rid="${esc(r.id)}" title="Drag to reorder">
+    return clusters;
+  }
+
+  // Turn a cluster into a recurring group, or null if it isn't regular enough.
+  function analyzeCluster(cluster) {
+    const byDay = new Map();   // collapse same-day double-posts, keep newest
+    for (const t of cluster.txs) {
+      const dn = dayNum(t.date);
+      const cur = byDay.get(dn);
+      if (!cur || (t.updatedAt || 0) > (cur.updatedAt || 0)) byDay.set(dn, t);
+    }
+    const items = [...byDay.values()]
+      .map(t => ({ dn: dayNum(t.date), date: t.date, amount: t.amount, name: t.merchant || t.name }))
+      .sort((a, b) => a.dn - b.dn);
+    if (items.length < 2) return null;
+
+    const gaps = [];
+    for (let i = 1; i < items.length; i++) gaps.push(items[i].dn - items[i - 1].dn);
+    const freq = freqForGap(median(gaps));
+    if (!freq) return null;
+    const tol = Math.max(4, freq.days * 0.35);
+    if (gaps.filter(g => Math.abs(g - freq.days) <= tol).length / gaps.length < 0.6) return null;   // irregular → not recurring
+
+    const amounts = items.map(i => i.amount);
+    const avg = amounts.reduce((s, x) => s + x, 0) / amounts.length;
+    // Two coincidental same-merchant buys shouldn't count — require similar
+    // amounts when that's all the evidence there is.
+    if (items.length === 2 && Math.abs(amounts[0] - amounts[1]) > avg * 0.25) return null;
+    const variable = amounts.some(a => Math.abs(a - avg) > avg * 0.05);
+
+    // Display name = most common raw merchant string (prettiest available).
+    const raw = {};
+    for (const t of cluster.txs) { const n = (t.merchant || t.name || '').trim(); if (n) raw[n] = (raw[n] || 0) + 1; }
+    const display = Object.entries(raw).sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0]?.[0] || items[items.length - 1].name;
+
+    const last = items[items.length - 1];
+    return {
+      key: cluster.key, display, freq, variable, count: items.length,
+      latestAmount: last.amount, lastDate: last.date, lastDn: last.dn,
+      monthlyEquiv: last.amount * freq.perMonth
+    };
+  }
+
+  // Find a saved decision for a group — exact key, else best fuzzy match, so a
+  // decision survives small merchant-name drift.
+  function matchDecision(key) {
+    if (recurringState[key]) return { key, ov: recurringState[key] };
+    let best = null, bk = null, bestSim = 0.6;
+    for (const k in recurringState) { const s = nameSim(key, k); if (s > bestSim) { bestSim = s; best = recurringState[k]; bk = k; } }
+    return best ? { key: bk, ov: best } : { key, ov: null };
+  }
+
+  function statusOf(g) {
+    const expected = addUnit(g.lastDate, g.freq.unit);
+    const daysUntil = Math.floor(expected.getTime() / DAY) - todayDn();
+    const grace = Math.max(4, Math.round(g.freq.days * 0.25));
+    let status;
+    if (daysUntil > 4) status = 'ontime';
+    else if (daysUntil >= 0) status = 'duesoon';
+    else if (daysUntil >= -grace) status = 'late';
+    else if (daysUntil >= -(g.freq.days + grace)) status = 'missing';
+    else status = 'gone';   // two cycles missed → auto-clean
+    return { status, expectedDate: isoOf(expected), daysUntil };
+  }
+  const STATUS_LABEL = { ontime: 'On time', duesoon: 'Due soon', late: 'Late', missing: 'Missing', gone: 'Missing' };
+
+  // The rendered list: detected groups reconciled against saved decisions.
+  function recurringModel() {
+    const groups = clusterByMerchant(recurCandidates()).map(analyzeCluster).filter(Boolean);
+    const out = [];
+    for (const g of groups) {
+      const { key: ovKey, ov } = matchDecision(g.key);
+      // A charge dated after the decision supersedes it (rediscovery).
+      const decisionLive = ov && (g.lastDn * DAY) <= (ov.at || 0);
+      const st = statusOf(g);
+      let show = true, prompt = false, pinned = false;
+      if (decisionLive && ov.dismissed) show = false;              // user removed, no new activity
+      else if (decisionLive && ov.confirmedActive) pinned = true;  // user pinned → never auto-clean
+      if (show && !pinned) {
+        if (st.status === 'gone') show = false;                    // auto-clean after 2 missed cycles
+        else if (st.status === 'missing') prompt = true;
+      }
+      if (show) out.push({ ...g, ...st, ovKey, prompt, pinned });
+    }
+    const rank = { missing: 0, late: 1, duesoon: 2, ontime: 3 };
+    out.sort((a, b) => (rank[a.status] - rank[b.status]) ||
+      (dayNum(a.expectedDate) - dayNum(b.expectedDate)) || (b.monthlyEquiv - a.monthlyEquiv));
+    return out;
+  }
+
+  function manualMonthly(r) {
+    if (r.monthly != null && !isNaN(r.monthly)) return r.monthly;
+    if (r.annual != null && !isNaN(r.annual)) return r.annual / 12;
+    return 0;
+  }
+
+  function recRowHTML(g) {
+    const badge = esc((g.display || '?').charAt(0).toUpperCase());
+    return `
+      <div class="txrow recrow" data-key="${esc(g.key)}" data-ovkey="${esc(g.ovKey)}">
+        <div class="txbadge">${badge}</div>
+        <div class="txmain">
+          <div class="txname">${esc(g.display)}</div>
+          <div class="txsub">
+            <span class="chip st-${g.status}">${STATUS_LABEL[g.status]}${g.pinned ? ' · tracking' : ''}</span>
+            <span class="chip">${g.freq.label}${g.variable ? ' · variable' : ''}</span>
+            <span>last ${esc(fmtDate(g.lastDate))} · next ${esc(fmtDate(g.expectedDate))}</span>
+          </div>
+          ${g.prompt ? `
+          <div class="recprompt">
+            <div class="recprompt-msg">This payment didn't appear this billing cycle. Is it still active?</div>
+            <div class="recprompt-acts">
+              <button class="btn gold" data-act="active">Yes, still active</button>
+              <button class="btn" data-act="dismiss">No, remove</button>
+            </div>
+          </div>` : ''}
+        </div>
+        <div class="txamt">${fmt$(g.latestAmount)}</div>
+      </div>`;
+  }
+
+  function manualRowHTML(r) {
+    return `
+      <div class="txrow" data-rid="${esc(r.id)}">
         <div class="txbadge">${esc((r.name || '?').charAt(0).toUpperCase())}</div>
         <div class="txmain">
           <div class="txname">${esc(r.name)}</div>
           <div class="txsub">
+            <span class="chip manual">Manual</span>
             ${r.monthly != null ? `<span class="chip">${fmt$(r.monthly)}/mo</span>` : ''}
             ${r.annual != null ? `<span class="chip">${fmt$(r.annual)}/yr</span>` : ''}
             ${r.monthly == null && r.annual == null ? '<span class="chip">no amount set</span>' : ''}
@@ -2000,140 +2176,61 @@
           <button class="iconbtn" data-act="edit" title="Edit">${ICON.edit}</button>
           <button class="iconbtn" data-act="del" title="Delete">${ICON.del}</button>
         </div>
-      </div>`).join('');
+      </div>`;
   }
 
-  // ── Drag to reorder ──────────────────────────────────────────────────────
-  // Pointer Events cover mouse, touch and pen with one code path; the handle
-  // sets touch-action:none so a drag never scrolls the page on mobile. Rows
-  // are reordered live in the DOM and the displaced neighbours are animated
-  // with a FLIP transition, so the list settles smoothly instead of jumping.
-  (function enableRecDrag() {
-    const list = $('recList');
-    let drag = null;
+  function renderRecurring() {
+    const auto = recurringModel();
+    const monthly = auto.reduce((s, g) => s + g.monthlyEquiv, 0) + recurring.reduce((s, r) => s + manualMonthly(r), 0);
+    $('recMo').textContent = fmt$(monthly);
+    $('recAn').textContent = fmt$(monthly * 12);
 
-    function flipMove(mutate, exclude) {
-      const rows = [...list.children];
-      const before = new Map(rows.map(r => [r, r.getBoundingClientRect().top]));
-      mutate();
-      for (const r of rows) {
-        if (r === exclude) continue;
-        const delta = before.get(r) - r.getBoundingClientRect().top;
-        if (!delta) continue;
-        r.style.transition = 'none';
-        r.style.transform = `translateY(${delta}px)`;
-        requestAnimationFrame(() => {
-          r.style.transition = 'transform .18s cubic-bezier(.2,.8,.3,1)';
-          r.style.transform = '';
-        });
-      }
+    let html = '';
+    if (auto.length) html += auto.map(recRowHTML).join('');
+    if (recurring.length) {
+      html += `<div class="datehdr" style="margin-top:${auto.length ? '24px' : '4px'}">Manually added</div>`;
+      html += recurring.map(manualRowHTML).join('');
     }
-
-    // Grab a row anywhere — no handle. With a mouse the drag arms after a few
-    // pixels of movement; on touch it takes a long press, so an ordinary swipe
-    // still scrolls the page. Taps on the edit/delete buttons are left alone.
-    let holdTimer = null;
-
-    function armDrag(e, row) {
-      drag.dragging = true;
-      drag.grabY = e.clientY;
-      try { row.setPointerCapture(drag.id); } catch {}
-      row.classList.add('dragging');
+    if (!auto.length && !recurring.length) {
+      html = `<div class="empty"><div class="big">No recurring payments yet</div>They appear here automatically as your transaction history builds. You can also add one manually.</div>`;
     }
+    $('recList').innerHTML = html;
+  }
 
-    list.addEventListener('pointerdown', e => {
-      if (e.button > 0 || e.target.closest('.iconbtn')) return;
-      const row = e.target.closest('[data-rid]');
-      if (!row) return;
-      drag = { row, id: e.pointerId, grabY: e.clientY, startY: e.clientY, startX: e.clientX,
-               moved: false, dragging: false, touch: e.pointerType === 'touch' };
-      if (drag.touch) holdTimer = setTimeout(() => { holdTimer = null; if (drag) armDrag(e, row); }, 320);
-      else e.preventDefault();
-    });
-
-    list.addEventListener('pointermove', e => {
-      if (!drag || e.pointerId !== drag.id) return;
-      if (!drag.dragging) {
-        const dx = Math.abs(e.clientX - drag.startX), dy = Math.abs(e.clientY - drag.startY);
-        if (drag.touch) {                      // moved before the hold → let the page scroll
-          if (dx > 8 || dy > 8) { clearTimeout(holdTimer); holdTimer = null; drag = null; }
-          return;
-        }
-        if (dy < 4) return;
-        armDrag(e, drag.row);
-      }
-      drag.moved = true;
-      const dy = e.clientY - drag.grabY;
-      drag.row.style.transform = `translateY(${dy}px)`;
-
-      // Find the neighbour the pointer is currently over and hop past it.
-      for (const other of list.children) {
-        if (other === drag.row) continue;
-        const r = other.getBoundingClientRect();
-        if (e.clientY < r.top || e.clientY > r.bottom) continue;
-        const mid = r.top + r.height / 2;
-        const rowIsAfter = !!(drag.row.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
-        if (e.clientY < mid && rowIsAfter) {
-          flipMove(() => list.insertBefore(drag.row, other), drag.row);
-        } else if (e.clientY > mid && !rowIsAfter) {
-          flipMove(() => list.insertBefore(drag.row, other.nextSibling), drag.row);
-        } else continue;
-        // Re-anchor to the pointer so the row stays under the finger/cursor.
-        drag.grabY = e.clientY;
-        drag.row.style.transform = 'translateY(0px)';
-        break;
-      }
-    });
-
-    // Without this the browser scrolls the page as soon as the finger moves
-    // and fires pointercancel, killing the drag — which is exactly why
-    // reordering did nothing on mobile. Non-passive so it can be prevented;
-    // only active once a long press has armed the drag, so ordinary swipes
-    // still scroll.
-    list.addEventListener('touchmove', e => {
-      if (drag && drag.dragging) e.preventDefault();
-    }, { passive: false });
-    // A long press on Android otherwise raises the context menu mid-drag.
-    list.addEventListener('contextmenu', e => { if (drag && drag.dragging) e.preventDefault(); });
-
-    async function endDrag(e) {
-      if (!drag || (e && e.pointerId !== drag.id)) return;
-      const { row, moved, dragging } = drag;
-      drag = null;
-      clearTimeout(holdTimer); holdTimer = null;
-      row.classList.add('dropping');
-      row.style.transform = '';
-      setTimeout(() => { row.classList.remove('dragging', 'dropping'); }, 180);
-      if (!moved || !dragging) return;
-
-      const order = [...list.querySelectorAll('[data-rid]')].map(el => el.dataset.rid);
-      const next = order.map(id => recurring.find(r => r.id === id)).filter(Boolean);
-      if (next.length !== recurring.length) { renderRecurring(); return; }
-      if (next.every((r, i) => r.id === recurring[i].id)) return;   // unchanged
-      recurring = next;
-      await saveExpenselog();      // array order IS the saved order → persists
-    }
-    list.addEventListener('pointerup', endDrag);
-    list.addEventListener('pointercancel', endDrag);
-  })();
-
+  // Row actions: the missing-payment prompt (auto rows) and edit/delete (manual).
   $('recList').addEventListener('click', async e => {
-    const btn = e.target.closest('.iconbtn'); if (!btn) return;
-    const id = e.target.closest('.txrow').dataset.rid;
-    const r = recurring.find(x => x.id === id); if (!r) return;
-    if (btn.dataset.act === 'edit') openRec(r);
-    if (btn.dataset.act === 'del') {
-      if (!(await askConfirm('Delete recurring?', `"${r.name}" will be removed from your recurring list.`))) return;
-      recurring = recurring.filter(x => x.id !== id);
+    const btn = e.target.closest('button'); if (!btn) return;
+    const row = e.target.closest('.txrow'); if (!row) return;
+    const act = btn.dataset.act;
+
+    if (row.dataset.key) {           // auto-detected group
+      const key = row.dataset.ovKey || row.dataset.key;
+      if (act === 'active') {
+        recurringState = { ...recurringState, [key]: { confirmedActive: true, at: Date.now() } };
+        await saveExpenselog(); renderRecurring();
+        toast('Kept — still monitoring', true);
+      } else if (act === 'dismiss') {
+        recurringState = { ...recurringState, [key]: { dismissed: true, at: Date.now() } };
+        await saveExpenselog(); renderRecurring();
+        toast('Removed from recurring');
+      }
+      return;
+    }
+
+    const r = recurring.find(x => x.id === row.dataset.rid); if (!r) return;   // manual entry
+    if (act === 'edit') openRec(r);
+    if (act === 'del') {
+      if (!(await askConfirm('Delete entry?', `"${r.name}" will be removed from your manual recurring list.`))) return;
+      recurring = recurring.filter(x => x.id !== r.id);
       await saveExpenselog();
       renderRecurring();
-      toast('Recurring entry deleted');
+      toast('Manual entry deleted');
     }
   });
 
   function openRec(r) {
     editingRecId = r ? r.id : null;
-    $('recTitle').textContent = r ? 'Edit recurring' : 'Add recurring';
+    $('recTitle').textContent = r ? 'Edit manual entry' : 'Add manual recurring';
     $('rName').value = r ? r.name : '';
     $('rMonthly').value = r && r.monthly != null ? r.monthly : '';
     $('rAnnual').value = r && r.annual != null ? r.annual : '';
