@@ -343,6 +343,15 @@
   .recprompt-acts .btn { padding: 8px 13px; font-size: 11px; }
   .recrow .txamt { align-self: flex-start; }
   .recsubhead { display: flex; align-items: center; justify-content: flex-end; margin: 2px 0 20px; }
+  /* Rows drag to reorder (auto amongst auto, manual amongst manual). Text
+     selection and the long-press callout are suppressed so a press-and-hold
+     starts a drag rather than a selection magnifier on mobile. */
+  #recList .txrow {
+    cursor: grab; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  }
+  #recList .txrow:active { cursor: grabbing; }
+  #recList .txrow button { cursor: pointer; }
   .txrow.dragging {
     position: relative; z-index: 30; cursor: grabbing;
     border-color: var(--gold-line);
@@ -1265,6 +1274,7 @@
   let plaidTxs = [], manualTxs = [], accounts = [], meta = {};
   let recurring = [], cashBal = 0;   // recurring = optional MANUAL entries; cash
   let recurringState = {};           // per-group decisions (dismiss / keep), keyed by group key
+  let recurringOrder = [];           // user's drag order for the auto-detected list (group keys)
   let editingRecId = null;
   let activeView = 'transactions';
   let editingId = null;          // manual entry being edited (null = new)
@@ -1426,6 +1436,7 @@
     const d = snap.data();
     recurring = Array.isArray(d.recurring) ? d.recurring : [];
     recurringState = (d.recurringState && typeof d.recurringState === 'object') ? d.recurringState : {};
+    recurringOrder = Array.isArray(d.recurringOrder) ? d.recurringOrder : [];
     cashBal = typeof d.cash === 'number' ? d.cash : 0;
     renderRecurring();
     renderCash();
@@ -1463,7 +1474,7 @@
   })();
 
   async function saveExpenselog() {
-    await synced(setDoc(elRef, { recurring, recurringState, cash: cashBal, savedAt: Date.now() }, { merge: true }));
+    await synced(setDoc(elRef, { recurring, recurringState, recurringOrder, cash: cashBal, savedAt: Date.now() }, { merge: true }));
   }
 
   // "Updated at 3:42 PM on July 21, 2026" — device locale + timezone.
@@ -2121,8 +2132,11 @@
       }
       if (show) out.push({ ...g, ...st, ovKey, prompt, pinned });
     }
+    // Your manual drag order wins; anything you haven't placed (a new
+    // detection) falls to the end, ordered by urgency then next-due date.
     const rank = { missing: 0, late: 1, duesoon: 2, ontime: 3 };
-    out.sort((a, b) => (rank[a.status] - rank[b.status]) ||
+    const pos = k => { const i = recurringOrder.indexOf(k); return i < 0 ? Infinity : i; };
+    out.sort((a, b) => (pos(a.key) - pos(b.key)) || (rank[a.status] - rank[b.status]) ||
       (dayNum(a.expectedDate) - dayNum(b.expectedDate)) || (b.monthlyEquiv - a.monthlyEquiv));
     return out;
   }
@@ -2136,7 +2150,7 @@
   function recRowHTML(g) {
     const badge = esc((g.display || '?').charAt(0).toUpperCase());
     return `
-      <div class="txrow recrow" data-key="${esc(g.key)}" data-ovkey="${esc(g.ovKey)}">
+      <div class="txrow recrow" data-group="auto" data-key="${esc(g.key)}" data-ovkey="${esc(g.ovKey)}">
         <div class="txbadge">${badge}</div>
         <div class="txmain">
           <div class="txname">${esc(g.display)}</div>
@@ -2160,7 +2174,7 @@
 
   function manualRowHTML(r) {
     return `
-      <div class="txrow" data-rid="${esc(r.id)}">
+      <div class="txrow" data-group="manual" data-rid="${esc(r.id)}">
         <div class="txbadge">${esc((r.name || '?').charAt(0).toUpperCase())}</div>
         <div class="txmain">
           <div class="txname">${esc(r.name)}</div>
@@ -2227,6 +2241,107 @@
       toast('Manual entry deleted');
     }
   });
+
+  // ── Drag to reorder (auto amongst auto, manual amongst manual) ────────────
+  // Same pointer-based interaction as before — mouse arms after a few pixels,
+  // touch after a long press so an ordinary swipe still scrolls. A row can
+  // only be dropped among siblings of its own group; the new order is written
+  // to Firebase (auto → recurringOrder of keys, manual → the recurring array),
+  // which drives the Syncing / Synced indicator under the title.
+  (function enableRecDrag() {
+    const list = $('recList');
+    let drag = null, holdTimer = null;
+
+    const sibs = group => [...list.querySelectorAll(`.txrow[data-group="${group}"]`)];
+    const orderOf = group => sibs(group).map(r => group === 'auto' ? r.dataset.key : r.dataset.rid);
+
+    function flipMove(mutate, exclude) {
+      const rows = [...list.children];
+      const before = new Map(rows.map(r => [r, r.getBoundingClientRect().top]));
+      mutate();
+      for (const r of rows) {
+        if (r === exclude) continue;
+        const delta = before.get(r) - r.getBoundingClientRect().top;
+        if (!delta) continue;
+        r.style.transition = 'none';
+        r.style.transform = `translateY(${delta}px)`;
+        requestAnimationFrame(() => { r.style.transition = 'transform .18s cubic-bezier(.2,.8,.3,1)'; r.style.transform = ''; });
+      }
+    }
+
+    function armDrag(e, row) {
+      drag.dragging = true;
+      drag.grabY = e.clientY;
+      drag.startOrder = orderOf(drag.group).join('|');
+      try { row.setPointerCapture(drag.id); } catch {}
+      row.classList.add('dragging');
+    }
+
+    list.addEventListener('pointerdown', e => {
+      if (e.button > 0 || e.target.closest('button')) return;   // buttons keep their taps
+      const row = e.target.closest('.txrow'); if (!row) return;
+      drag = { row, group: row.dataset.group, id: e.pointerId, grabY: e.clientY,
+               startY: e.clientY, startX: e.clientX, dragging: false, touch: e.pointerType === 'touch' };
+      if (drag.touch) holdTimer = setTimeout(() => { holdTimer = null; if (drag) armDrag(e, row); }, 320);
+      else e.preventDefault();
+    });
+
+    list.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      if (!drag.dragging) {
+        const dx = Math.abs(e.clientX - drag.startX), dy = Math.abs(e.clientY - drag.startY);
+        if (drag.touch) { if (dx > 8 || dy > 8) { clearTimeout(holdTimer); holdTimer = null; drag = null; } return; }
+        if (dy < 4) return;
+        armDrag(e, drag.row);
+      }
+      drag.row.style.transform = `translateY(${e.clientY - drag.grabY}px)`;
+
+      // Only consider neighbours in the SAME group, so auto and manual lists
+      // never bleed into each other.
+      for (const other of sibs(drag.group)) {
+        if (other === drag.row) continue;
+        const r = other.getBoundingClientRect();
+        if (e.clientY < r.top || e.clientY > r.bottom) continue;
+        const mid = r.top + r.height / 2;
+        const otherIsBefore = !!(drag.row.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
+        if (e.clientY < mid && otherIsBefore) flipMove(() => list.insertBefore(drag.row, other), drag.row);
+        else if (e.clientY > mid && !otherIsBefore) flipMove(() => list.insertBefore(drag.row, other.nextSibling), drag.row);
+        else continue;
+        drag.grabY = e.clientY;
+        drag.row.style.transform = 'translateY(0px)';
+        break;
+      }
+    });
+
+    list.addEventListener('touchmove', e => { if (drag && drag.dragging) e.preventDefault(); }, { passive: false });
+    list.addEventListener('contextmenu', e => { if (drag && drag.dragging) e.preventDefault(); });
+
+    async function endDrag(e) {
+      if (!drag || (e && e.pointerId !== drag.id)) return;
+      const { row, dragging, group, startOrder } = drag;
+      drag = null;
+      clearTimeout(holdTimer); holdTimer = null;
+      row.classList.add('dropping');
+      row.style.transform = '';
+      setTimeout(() => { row.classList.remove('dragging', 'dropping'); }, 180);
+      if (!dragging) return;
+
+      const nextOrder = orderOf(group);
+      if (nextOrder.join('|') === startOrder) return;   // no actual change → no write
+
+      if (group === 'manual') {
+        recurring = nextOrder.map(id => recurring.find(r => r.id === id)).filter(Boolean);
+      } else {
+        recurringOrder = nextOrder;   // keys in the new visual order
+      }
+      await saveExpenselog();         // synced() → Syncing / Synced indicator
+    }
+    list.addEventListener('pointerup', endDrag);
+    list.addEventListener('pointercancel', endDrag);
+    // Safety net: if capture is lost without a pointerup (rare), still settle
+    // the row so it can never stay stuck in the dragging state.
+    list.addEventListener('lostpointercapture', e => { if (drag && e.pointerId === drag.id) endDrag(e); });
+  })();
 
   function openRec(r) {
     editingRecId = r ? r.id : null;
