@@ -2273,7 +2273,12 @@
       drag.dragging = true;
       drag.grabY = e.clientY;
       drag.startOrder = orderOf(drag.group).join('|');
-      try { row.setPointerCapture(drag.id); } catch {}
+      // Capture on the LIST, not the row: reordering moves the row in the DOM,
+      // and capturing the row would then fire lostpointercapture on every swap
+      // (which ended the drag after one position). The list never moves, so
+      // capture only releases on a real pointer-up — exactly when we want to
+      // drop, and letting you hold and reorder as far as you like first.
+      try { list.setPointerCapture(drag.id); } catch {}
       row.classList.add('dragging');
     }
 
