@@ -2864,7 +2864,7 @@ function TBPromptPage({prompts,onSave,onToast}){
   useEffect(()=>{
     const handle=resize.current;if(!handle)return;
     let startY=0,startH=0,dragging=false;
-    const getInner=()=>promptAreaH.current?.querySelector('textarea,pre,.tb-md-block');
+    const getInner=()=>promptAreaH.current?.querySelector('textarea,.tb-prompt-render');
     const down=e=>{
       const inner=getInner();if(!inner)return;
       e.preventDefault();dragging=true;
@@ -2943,7 +2943,6 @@ function TBPromptPage({prompts,onSave,onToast}){
             color:isSel?'var(--ac)':'var(--tx)',fontSize:14,fontWeight:700,cursor:'grab',
             opacity:isDrag?0.45:1,transition:'opacity .12s,background .15s,border-color .15s,box-shadow .15s',
             boxShadow:isOver?'0 0 0 3px rgba(224,96,122,0.18)':'none',touchAction:'none',userSelect:'none'}}>
-          <span style={{fontSize:12,color:'var(--txm)',lineHeight:1,letterSpacing:-1}}>⠿</span>
           {p.name}
         </button>);
       })}
@@ -2984,7 +2983,7 @@ function TBPromptPage({prompts,onSave,onToast}){
       <div ref={promptAreaH} style={{position:'relative',background:'var(--s2)'}}>
         {editing
           ?<textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{width:'100%',display:'block',minHeight:240,maxHeight:500,overflowY:'auto',WebkitOverflowScrolling:'touch',background:'var(--s2)',border:'none',color:'var(--tx)',fontFamily:"'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",fontSize:15,lineHeight:1.8,letterSpacing:'0.1px',padding:'20px 50px 20px 20px',outline:'none',resize:'none'}} autoFocus/>
-          :<TBMarkdownBlock text={cur?.text} style={{wordBreak:'break-word',color:'var(--tx)',padding:'20px 50px 20px 20px',background:'var(--s2)',boxSizing:'border-box',minHeight:80,maxHeight:500,overflowY:'auto',WebkitOverflowScrolling:'touch'}}/>}
+          :<div className="tb-pb-doc tb-prompt-render" dangerouslySetInnerHTML={{__html:tbSanitizeHtml(tbMdToHtml(cur?.text||''),{dropColor:true})}} style={{wordBreak:'break-word',padding:'20px 50px 20px 20px',background:'var(--s2)',boxSizing:'border-box',minHeight:80,maxHeight:500,overflowY:'auto',WebkitOverflowScrolling:'touch'}}/>}
         <div ref={resize} style={{position:'absolute',bottom:0,right:0,width:40,height:40,cursor:'ns-resize',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--txm)',borderRadius:'0 0 12px 0',userSelect:'none',zIndex:2,touchAction:'none',transition:'color .15s,background .15s'}} onMouseEnter={e=>{e.currentTarget.style.color='var(--ac)';e.currentTarget.style.background='rgba(224,96,122,0.12)';}} onMouseLeave={e=>{e.currentTarget.style.color='var(--txm)';e.currentTarget.style.background='transparent';}}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M15 1L1 15M15 8L8 15M15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
         </div>
