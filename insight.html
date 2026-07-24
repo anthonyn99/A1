@@ -342,8 +342,7 @@
   .recprompt-acts { display: flex; gap: 8px; flex-wrap: wrap; }
   .recprompt-acts .btn { padding: 8px 13px; font-size: 11px; }
   .recrow .txamt { align-self: flex-start; }
-  .recsubhead { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 2px 0 20px; }
-  .recsub { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+  .recsubhead { display: flex; align-items: center; justify-content: flex-end; margin: 2px 0 20px; }
   .txrow.dragging {
     position: relative; z-index: 30; cursor: grabbing;
     border-color: var(--gold-line);
@@ -694,7 +693,6 @@
       <div class="stat"><div class="lbl">Annual total</div><div class="val gold" id="recAn">—</div></div>
     </div>
     <div class="recsubhead">
-      <p class="recsub">Found automatically in your spending.</p>
       <button class="btn" id="addRecBtn">+ Add manual</button>
     </div>
     <div id="recList"></div>
