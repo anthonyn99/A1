@@ -207,14 +207,15 @@
   .txname { font-weight: 500; font-size: 14.5px; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .txsub { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--faint); margin-top: 3px; flex-wrap: wrap; }
   .chip {
-    font-size: 9.5px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; padding: 2.5px 8px; border-radius: 4px;
+    font-size: 10.5px; font-weight: 500; letter-spacing: .2px; padding: 3px 9px; border-radius: 5px;
     background: transparent; border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
     font-variant-numeric: tabular-nums;   /* recurring "$11.99/mo" chips */
   }
+  /* Soft pastel label colours — outline + text only, no interior fill. */
   .chip.manual { color: var(--gold-soft); border-color: var(--gold-line); }
-  .chip.pending { color: #c7a9dc; border-color: rgba(178,132,220,.35); }
-  .chip.xfer { color: #8fbccb; border-color: rgba(127,179,200,.35); }
-  .chip.cardpay { color: #bda6d6; border-color: rgba(160,132,208,.36); }
+  .chip.pending { color: #d3c2e0; border-color: rgba(197,178,220,.32); }
+  .chip.xfer { color: #aed0da; border-color: rgba(158,196,208,.32); }
+  .chip.cardpay { color: #cabfe4; border-color: rgba(184,170,216,.32); }
   .txamt.xfer { color: var(--faint); font-weight: 500; }
   .recnote {
     font-size: 12.5px; color: var(--muted); margin-top: 7px; white-space: pre-wrap; line-height: 1.5;
@@ -2271,13 +2272,17 @@
 
     function armDrag(e, row) {
       drag.dragging = true;
-      drag.grabY = e.clientY;
       drag.startOrder = orderOf(drag.group).join('|');
+      drag.pointerStart = e.clientY;
+      drag.ty = 0;
+      // The finger tracks the row from wherever its top sits right now; the
+      // rendered top should then move 1:1 with the finger for the whole drag,
+      // regardless of how the DOM reshuffles underneath.
+      row.style.transition = 'none';
+      drag.baseTop = row.getBoundingClientRect().top;   // natural top at grab (transform is 0)
       // Capture on the LIST, not the row: reordering moves the row in the DOM,
-      // and capturing the row would then fire lostpointercapture on every swap
-      // (which ended the drag after one position). The list never moves, so
-      // capture only releases on a real pointer-up — exactly when we want to
-      // drop, and letting you hold and reorder as far as you like first.
+      // and capturing the row would fire lostpointercapture on every swap. The
+      // list never moves, so capture only releases on a real pointer-up.
       try { list.setPointerCapture(drag.id); } catch {}
       row.classList.add('dragging');
     }
@@ -2299,10 +2304,13 @@
         if (dy < 4) return;
         armDrag(e, drag.row);
       }
-      drag.row.style.transform = `translateY(${e.clientY - drag.grabY}px)`;
+      // Where the row's top should be rendered — moves exactly with the finger
+      // and never depends on the DOM order.
+      const wantTop = drag.baseTop + (e.clientY - drag.pointerStart);
 
-      // Only consider neighbours in the SAME group, so auto and manual lists
-      // never bleed into each other.
+      // Reorder when the finger crosses a same-group neighbour's midpoint. Only
+      // the DISPLACED neighbour animates (FLIP); the dragged row is pinned to
+      // the finger below, so it never jumps to a slot.
       for (const other of sibs(drag.group)) {
         if (other === drag.row) continue;
         const r = other.getBoundingClientRect();
@@ -2312,10 +2320,15 @@
         if (e.clientY < mid && otherIsBefore) flipMove(() => list.insertBefore(drag.row, other), drag.row);
         else if (e.clientY > mid && !otherIsBefore) flipMove(() => list.insertBefore(drag.row, other.nextSibling), drag.row);
         else continue;
-        drag.grabY = e.clientY;
-        drag.row.style.transform = 'translateY(0px)';
         break;
       }
+
+      // Pin the row to the finger. Its natural top may have shifted (a swap
+      // moved it to a new slot); recompute the transform so the rendered top
+      // stays at wantTop — no snap, ever.
+      const naturalTop = drag.row.getBoundingClientRect().top - drag.ty;
+      drag.ty = wantTop - naturalTop;
+      drag.row.style.transform = `translateY(${drag.ty}px)`;
     });
 
     list.addEventListener('touchmove', e => { if (drag && drag.dragging) e.preventDefault(); }, { passive: false });
@@ -2326,9 +2339,13 @@
       const { row, dragging, group, startOrder } = drag;
       drag = null;
       clearTimeout(holdTimer); holdTimer = null;
+      // Drop the inline transition:none so the .dropping class can animate the
+      // row settling from its held position into its slot.
+      row.style.transition = '';
+      row.classList.remove('dragging');
       row.classList.add('dropping');
       row.style.transform = '';
-      setTimeout(() => { row.classList.remove('dragging', 'dropping'); }, 180);
+      setTimeout(() => { row.classList.remove('dropping'); row.style.transition = ''; }, 190);
       if (!dragging) return;
 
       const nextOrder = orderOf(group);

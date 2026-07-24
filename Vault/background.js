@@ -64,7 +64,7 @@ function nearestGroupColor(hex) {
 //     were appended next to a pre-existing group, is what lets the browser fold
 //     them into that neighboring group instead of making a new one. This
 //     mirrors the same single-tab-first pattern _regroupWindow() below already
-//     relies on for the Trading Auto Launcher.
+//     relies on for the Trading Auto Launch.
 async function openLinksAsGroup(urls, groupName, colorHex) {
   let win;
   try { win = await chrome.windows.getCurrent(); } catch (_) { win = null; }
@@ -98,8 +98,8 @@ async function openLinksAsGroup(urls, groupName, colorHex) {
   return ids.length;
 }
 
-// ── Trading Auto Launcher tab grouping ─────────────────────────────────────
-// The Trading Auto Launcher (Python) opens TradeHub + its searches + ChatGPT as
+// ── Trading Auto Launch tab grouping ─────────────────────────────────────
+// The Trading Auto Launch (Python) opens TradeHub + its searches + ChatGPT as
 // tabs, but it can't create a tab GROUP (only this extension API can). So
 // TradeHub, when opened with ?autolaunch=1 (or via the in-app Deploy button),
 // asks us — through the vault-bio-sync content script — to wrap ONLY those
@@ -206,7 +206,7 @@ chrome.tabs.onCreated.addListener((tab) => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return;
 
-  // ── Trading Auto Launcher grouping request (relayed by vault-bio-sync) ──
+  // ── Trading Auto Launch grouping request (relayed by vault-bio-sync) ──
   if (message.action === "groupTradingTabs") {
     const wid = _sender && _sender.tab ? _sender.tab.windowId : null;
     const seedTab = _sender && _sender.tab ? _sender.tab.id : null;   // the TradeHub tab itself is the first member

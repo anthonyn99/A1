@@ -25,7 +25,7 @@
  *   GET  /calendar        Catalysts feed (deterministic macro + Finnhub earnings)
  *   GET  /diag            last-build snapshot
  *   GET/POST /daily-reminder   TradeHub Playbook's "Daily Reminder" page (Markdown);
- *                              Trading Auto Launcher blocks the morning launch on it
+ *                              Trading Auto Launch blocks the morning launch on it
  *   POST /_stage          internal staged hop (gated by STAGE_SECRET)
  *   GET/POST/DELETE /prompts*  legacy CRUD (kept; no longer drives the build)
  *
@@ -330,7 +330,7 @@ async function setActivePrompt(env, p){
 
 /* Analysis-tab config — SEPARATE slot from the MacroBoard's active prompt above.
    The front-end pushes the Analysis section's selection here: the selected prompt
-   PLUS the configured search/URL list. Trading Auto Launcher reads it (GET /analysis-config)
+   PLUS the configured search/URL list. Trading Auto Launch reads it (GET /analysis-config)
    to open ChatGPT with that exact prompt (auto-submitted) and open each search. */
 /* Browser tab groups only support these 9 fixed colors. Anything else → teal. */
 const TD_GROUP_COLORS=['grey','blue','red','yellow','green','pink','purple','cyan','orange'];
@@ -354,7 +354,7 @@ async function setAnalysisConfig(env, p){
 
 /* Daily Reminder — the TradeHub Playbook page the trader must acknowledge before
    the morning workspace opens. TradeHub authors it as HTML and pushes a Markdown
-   copy here; Trading Auto Launcher GETs /daily-reminder and blocks the launch on a
+   copy here; Trading Auto Launch GETs /daily-reminder and blocks the launch on a
    Confirm click. Kept in a slot of its own so it can never be clobbered by the
    prompt/analysis writers above. */
 async function getDailyReminder(env){
@@ -752,7 +752,7 @@ async function handle(request, env, ctx){
   }
 
   // Analysis-tab config — the front-end pushes the Analysis selection (prompt +
-  // search list) here; the Trading Auto Launcher GETs it to open ChatGPT with that exact
+  // search list) here; the Trading Auto Launch GETs it to open ChatGPT with that exact
   // prompt (auto-submitted) and open each configured search.
   if(path==='/analysis-config'&&method==='POST'){
     const body=await request.json().catch(()=>({}));
@@ -768,7 +768,7 @@ async function handle(request, env, ctx){
   }
 
   // Daily Reminder — TradeHub (Playbook → Daily Reminder) pushes the page here;
-  // Trading Auto Launcher GETs it and won't open the trading workspace until it's
+  // Trading Auto Launch GETs it and won't open the trading workspace until it's
   // acknowledged.
   if(path==='/daily-reminder'&&method==='POST'){
     const body=await request.json().catch(()=>({}));

@@ -7,6 +7,6 @@ node_modules/
 *.sqlite-wal
 debug.log
 **/debug.log
-**/launcher.log
-trading-auto-launcher/.last_run
-trading-auto-launcher/__pycache__/
+**/launch.log
+trading-auto-launch/.last_run
+trading-auto-launch/__pycache__/

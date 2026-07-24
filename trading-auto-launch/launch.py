@@ -1,5 +1,5 @@
 """
-Trading Auto Launcher
+Trading Auto Launch
 =====================
 On every market weekday (Mon–Fri, skipping NYSE holidays), the FIRST time you
 wake / unlock / boot your laptop at or after 6 AM Mountain Time, it first makes you
@@ -21,9 +21,9 @@ confirm your Daily Reminder, and only then opens:
                         grouped — restored session tabs are never pulled in.
 
 You can also deploy this whole flow ON DEMAND from TradeHub → Analysis → "Deploy
-Trading Auto Launcher". Because TradeHub is already open there, it reuses that
+Trading Auto Launch". Because TradeHub is already open there, it reuses that
 window instead of opening a new one (see --from-tradehub). That button reaches this
-script through the tradingautolauncher:// URL protocol registered by --setup.
+script through the tradingautolaunch:// URL protocol registered by --setup.
 
 THE DAILY REMINDER GATE runs before any of that (after the WiFi check): it fetches
 TradeHub → Playbook → Daily Reminder and shows it in a scrollable dialog. Nothing
@@ -53,15 +53,15 @@ USAGE
 -----
   1. Tweak the layout coordinates below if windows land in the wrong spot.
   2. Run ONCE to (re)install into Task Scheduler:
-         python launcher.py --setup
+         python launch.py --setup
      (If it complains about permissions, run that from an Administrator terminal.)
   3. Done. Runs silently from now on.
 
-  To remove:   python launcher.py --uninstall
-  Test now:    python launcher.py --test           (runs the full flow immediately,
+  To remove:   python launch.py --uninstall
+  Test now:    python launch.py --test           (runs the full flow immediately,
                                                     reminder gate included)
-  Reminder:    python launcher.py --test-reminder  (just the gate — launches nothing)
-  Logs:        trading-auto-launcher/launcher.log
+  Reminder:    python launch.py --test-reminder  (just the gate — launches nothing)
+  Logs:        trading-auto-launch/launch.log
 
   NOTE: If you had an older version installed, you MUST re-run --setup so the new
   battery / unlock / market-day behavior takes effect.
@@ -210,13 +210,17 @@ from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).resolve()
 STATE_FILE  = SCRIPT_PATH.parent / ".last_run"
-LOG_FILE    = SCRIPT_PATH.parent / "launcher.log"
-TASK_NAME   = "TradingAutoLauncher"
+LOG_FILE    = SCRIPT_PATH.parent / "launch.log"
+TASK_NAME   = "TradingAutoLaunch"
 TASK_FOLDER = "\\Custom\\"
-LEGACY_TASK_NAME = "MorningLauncher"   # removed on --setup / --uninstall for a clean rename
+# Old task names removed on --setup / --uninstall so a rename never leaves a dead
+# task behind. "MorningLauncher" and "TradingAutoLauncher" are both prior names.
+LEGACY_TASK_NAMES = ["MorningLauncher", "TradingAutoLauncher"]
 # Custom URL protocol the TradeHub "Deploy" button uses to launch this script
-# on-demand (registered under HKCU by --setup). e.g. tradingautolauncher://deploy
-PROTOCOL = "tradingautolauncher"
+# on-demand (registered under HKCU by --setup). e.g. tradingautolaunch://deploy
+PROTOCOL = "tradingautolaunch"
+# Prior protocol name, unregistered on --setup / --uninstall for a clean rename.
+LEGACY_PROTOCOLS = ["tradingautolauncher"]
 
 try:
     from zoneinfo import ZoneInfo
@@ -949,7 +953,7 @@ def _fetch_analysis_config(attempts: int = 5, delay: float = 3.0):
             # "Python-urllib" agent before the request ever reaches the worker.
             req = urllib.request.Request(url, headers={
                 "Cache-Control": "no-cache",
-                "User-Agent": "TradingAutoLauncher/1.0 (+https://anthonyn99.github.io/A1)",
+                "User-Agent": "TradingAutoLaunch/1.0 (+https://anthonyn99.github.io/A1)",
             })
             with urllib.request.urlopen(req, timeout=15) as r:
                 data = json.loads(r.read().decode("utf-8"))
@@ -1223,7 +1227,7 @@ def _fetch_daily_reminder(attempts: int = DAILY_REMINDER_FETCH_ATTEMPTS, delay: 
             # before the request ever reaches the worker.
             req = urllib.request.Request(url, headers={
                 "Cache-Control": "no-cache",
-                "User-Agent": "TradingAutoLauncher/1.0 (+https://anthonyn99.github.io/A1)",
+                "User-Agent": "TradingAutoLaunch/1.0 (+https://anthonyn99.github.io/A1)",
             })
             with urllib.request.urlopen(req, timeout=15) as r:
                 data = json.loads(r.read().decode("utf-8"))
@@ -1533,7 +1537,7 @@ def _find_open_tradehub_window() -> int | None:
 
 def _launch_all(test: bool, from_tradehub: bool = False):
     label = " [DEPLOY-FROM-TRADEHUB]" if from_tradehub else (" [TEST]" if test else "")
-    log("=== Trading Auto Launcher starting ===" + label)
+    log("=== Trading Auto Launch starting ===" + label)
 
     # HARD GATE: review the Daily Reminder first. Nothing below runs until it's
     # confirmed. On refusal we return WITHOUT mark_ran(), so the next wake/unlock
@@ -1574,7 +1578,7 @@ def _launch_all(test: bool, from_tradehub: bool = False):
 
 def deploy_from_tradehub():
     """On-demand deploy triggered by the TradeHub Analysis "Deploy" button (via the
-    tradingautolauncher:// URL protocol). Runs the full flow — reminder gate, WeBull,
+    tradingautolaunch:// URL protocol). Runs the full flow — reminder gate, WeBull,
     TaskHub, window layout — but reuses the already-open TradeHub window. Bypasses the
     time/market/once-per-day gates (you asked for it explicitly) and marks the day
     done so a later auto-trigger won't double-launch."""
@@ -1609,7 +1613,7 @@ def run_morning(test: bool = False):
     elif now.hour >= LATEST_HOUR:
         log(f"First open of the day at {now:%H:%M} MT is past the morning window "
             f"({TRIGGER_HOUR}:00–{LATEST_HOUR}:00 MT) — not auto-launching. "
-            f"Run 'python launcher.py --test' to open manually.")
+            f"Run 'python launch.py --test' to open manually.")
         return
 
     # WiFi gate: everything below needs the internet. Wait for a real connection first,
@@ -1634,16 +1638,16 @@ def _pythonw() -> str:
 
 
 def _register_protocol():
-    """Register the tradingautolauncher:// URL protocol (HKCU — no admin needed) so
+    """Register the tradingautolaunch:// URL protocol (HKCU — no admin needed) so
     the TradeHub Analysis "Deploy" button can launch this script. Clicking that button
-    navigates to tradingautolauncher://deploy, which runs us with --from-tradehub."""
+    navigates to tradingautolaunch://deploy, which runs us with --from-tradehub."""
     pw     = _pythonw()
     script = str(SCRIPT_PATH)
     cmd_value = f'"{pw}" "{script}" --from-tradehub "%1"'
     ps = f"""
 $root = 'HKCU:\\Software\\Classes\\{PROTOCOL}'
 New-Item -Path $root -Force | Out-Null
-New-ItemProperty -Path $root -Name '(Default)' -Value 'URL:Trading Auto Launcher' -PropertyType String -Force | Out-Null
+New-ItemProperty -Path $root -Name '(Default)' -Value 'URL:Trading Auto Launch' -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $root -Name 'URL Protocol' -Value '' -PropertyType String -Force | Out-Null
 $cmd = "$root\\shell\\open\\command"
 New-Item -Path $cmd -Force | Out-Null
@@ -1658,8 +1662,8 @@ Write-Host 'Protocol registered.'
               f"won't launch the app until this succeeds):\n{r.stderr}")
 
 
-def _unregister_protocol():
-    ps = f"Remove-Item -Path 'HKCU:\\Software\\Classes\\{PROTOCOL}' -Recurse -Force -ErrorAction SilentlyContinue"
+def _unregister_protocol(name: str = PROTOCOL):
+    ps = f"Remove-Item -Path 'HKCU:\\Software\\Classes\\{name}' -Recurse -Force -ErrorAction SilentlyContinue"
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True)
 
 
@@ -1742,8 +1746,13 @@ Write-Host 'Registered.'
     print("Triggers: session-unlock (open laptop) | logon (boot) | daily 6 AM | wake event.")
     print("Runs on battery, only on market weekdays, once per day. Logs -> " + str(LOG_FILE))
 
-    # Drop the pre-rename task so we don't leave a dead "MorningLauncher" behind.
-    _remove_task(LEGACY_TASK_NAME)
+    # Drop any pre-rename tasks so we don't leave a dead one (e.g. an old
+    # "MorningLauncher" / "TradingAutoLauncher") behind.
+    for legacy in LEGACY_TASK_NAMES:
+        _remove_task(legacy)
+    # Clear any prior-named protocol registration before installing the current one.
+    for legacy in LEGACY_PROTOCOLS:
+        _unregister_protocol(legacy)
     # Register the URL protocol used by the TradeHub Deploy button.
     _register_protocol()
 
@@ -1753,8 +1762,11 @@ def uninstall():
           f"-TaskPath '{TASK_FOLDER}' -Confirm:$false")
     r = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
                        capture_output=True, text=True)
-    _remove_task(LEGACY_TASK_NAME)   # also clear the legacy task if it lingers
+    for legacy in LEGACY_TASK_NAMES:   # also clear any legacy tasks if they linger
+        _remove_task(legacy)
     _unregister_protocol()
+    for legacy in LEGACY_PROTOCOLS:
+        _unregister_protocol(legacy)
     print("Removed." if r.returncode == 0 else f"Error: {r.stderr}")
 
 
@@ -1763,8 +1775,8 @@ def uninstall():
 # ──────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Trading Auto Launcher")
-    parser.add_argument("--setup",     action="store_true", help="Install into Task Scheduler + register the tradingautolauncher:// protocol")
+    parser = argparse.ArgumentParser(description="Trading Auto Launch")
+    parser.add_argument("--setup",     action="store_true", help="Install into Task Scheduler + register the tradingautolaunch:// protocol")
     parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler + unregister the protocol")
     parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time / market / once-per-day checks")
     parser.add_argument("--from-tradehub", action="store_true", help="On-demand deploy from the TradeHub button: run the full flow but reuse the already-open TradeHub window")
@@ -1772,7 +1784,7 @@ if __name__ == "__main__":
     parser.add_argument("--test-reminder", action="store_true", help="Run ONLY the Daily Reminder gate (fetch TradeHub → Playbook → Daily Reminder + show the confirm dialog); launches nothing")
     parser.add_argument("--test-webull", action="store_true", help="Run ONLY the WeBull tab/account switch on an already-open WeBull window (for tuning the click coordinates); prints progress to the console")
     parser.add_argument("--webull-coords", action="store_true", help="Print the mouse cursor's offset from the WeBull window as you hover — use it to read exact click coordinates for the WEBULL_* settings")
-    # The protocol handler invokes us as `... --from-tradehub "tradingautolauncher://deploy"`,
+    # The protocol handler invokes us as `... --from-tradehub "tradingautolaunch://deploy"`,
     # so accept (and ignore) a trailing URL argument rather than erroring on it.
     parser.add_argument("protocol_url", nargs="?", help=argparse.SUPPRESS)
     args = parser.parse_args()

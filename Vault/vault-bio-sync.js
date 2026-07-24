@@ -60,8 +60,8 @@
   window.addEventListener('storage', sync);
   window.addEventListener('pagehide', function () { clearInterval(poll); });
 
-  // ── Trading Auto Launcher tab grouping relay ──
-  // When TradeHub is opened by the Trading Auto Launcher (?autolaunch=1) or its
+  // ── Trading Auto Launch tab grouping relay ──
+  // When TradeHub is opened by the Trading Auto Launch (?autolaunch=1) or its
   // in-app Deploy button, it asks — via a same-origin window.postMessage — for its
   // launcher tabs to be wrapped into one named tab group. A page can't call
   // chrome.tabs.group, but this content script hands the request to the background
