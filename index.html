@@ -1991,7 +1991,10 @@ body.light-mode input[type=time]{color-scheme:light;}
   color:var(--wx-tx);
   transition:border-color .2s;
 }
-.thwx.thwx-open{z-index:60;}
+/* Above the sticky TaskHub header (200) and Tony's app nav (10001) — while open,
+   the scrim must be able to dim/block literally everything on the page, not just
+   the dashboard content below it. */
+.thwx.thwx-open{z-index:10050;}
 
 /* ── Band: the weather bar and the quote banner share ONE horizontal row, so
    the compact view costs no extra vertical space above Weekly. Below 780px
@@ -2022,6 +2025,7 @@ body.light-mode input[type=time]{color-scheme:light;}
 
 /* ── Compact bar (always visible) ── */
 .thwx-compact{
+  position:relative;z-index:2;       /* stays crisp above the scrim, unlike the rest of the page */
   display:flex; align-items:center; gap:9px;
   border-radius:inherit;             /* .thwx no longer clips; keep hover rounded */
   width:100%; height:100%; box-sizing:border-box;
@@ -2038,20 +2042,35 @@ body.light-mode input[type=time]{color-scheme:light;}
   line-height:1.1;letter-spacing:-.5px;}
 .thwx-cond{min-width:0;font-size:10px;color:var(--wx-txd);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.thwx-meta{display:flex;flex-direction:column;align-items:flex-end;gap:1px;
+.thwx-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;
   flex-shrink:0;font-size:10px;color:var(--wx-txd);line-height:1.3;}
-.thwx-place{font-size:9px;color:var(--wx-txm);letter-spacing:.4px;
-  max-width:min(150px,34vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.thwx-place{font-size:11px;font-weight:700;color:var(--wx-tx);letter-spacing:.2px;
+  max-width:min(170px,38vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .thwx-hl{white-space:nowrap;}
 .thwx-hl b{font-weight:700;color:var(--wx-tx);}
 .thwx-chev{flex-shrink:0;color:var(--wx-txm);}
+
+/* Scrim: dims + blurs the ENTIRE page (not just the dashboard) and, being a
+   fixed full-viewport layer painted inside the now very-high-z-index .thwx,
+   sits above the compact bar's own z-index:2 layer too — except .thwx-compact
+   opts back in above it (see above), so the trigger stays legible while
+   everything else is inert until this closes. Locking body scroll (in JS,
+   on open) is what actually stops wheel/touch reaching the page underneath;
+   the scrim alone only blocks clicks. */
+.thwx-scrim{position:fixed;inset:0;z-index:1;
+  background:rgba(0,0,0,.45);
+  backdrop-filter:blur(7px) saturate(.9);
+  -webkit-backdrop-filter:blur(7px) saturate(.9);
+  animation:thwx-fade .15s ease-out;}
+@keyframes thwx-fade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){ .thwx-scrim{animation:none;} }
 
 /* ── Expanded: dropdown anchored under the bar ──
    Absolutely positioned, so opening it never reflows the dashboard. Fixed
    header + scrolling body keeps the close control reachable at any length.
    `color` is set explicitly rather than left to inherit — that is what broke
    when this was a <body> portal: temps and percentages fell back to black. */
-.thwx-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:70;
+.thwx-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:2;
   width:min(560px,calc(100vw - 28px));
   max-height:min(70vh,600px);
   display:flex;flex-direction:column;box-sizing:border-box;
@@ -2400,16 +2419,21 @@ function Widget(props){
   },[]);
 
   // Opening the panel pulls fresh data if what we have has gone stale, and arms
-  // the dismiss handlers (click/tap outside the widget, or Escape).
+  // the dismiss handlers (click/tap outside the widget, or Escape). Body scroll
+  // is locked too — the scrim blocks clicks on its own, but without this the
+  // page underneath would still wheel/touch-scroll right through it.
   useEffect(function(){
     if(!open)return;
     load(false);
+    var prevOverflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';
     function down(e){if(box.current&&!box.current.contains(e.target))setOpen(false);}
     function key(e){if(e.key==='Escape')setOpen(false);}
     document.addEventListener('mousedown',down);
     document.addEventListener('touchstart',down,{passive:true});
     document.addEventListener('keydown',key);
     return function(){
+      document.body.style.overflow=prevOverflow;
       document.removeEventListener('mousedown',down);
       document.removeEventListener('touchstart',down);
       document.removeEventListener('keydown',key);
@@ -2541,7 +2565,13 @@ function Widget(props){
     h('button',{key:'x',type:'button',className:'thwx-x','aria-label':'Close forecast',
       title:'Close',onClick:function(e){e.stopPropagation();setOpen(false);}},'×'));
 
-  return h('div',{className:'thwx thwx-open',style:vars,ref:box},compact,
+  // Scrim: covers the whole page and takes the click that closes the panel.
+  // No target-check needed — it has no children, so every mousedown on it IS
+  // a click on the background, never a click that started inside the panel.
+  var scrim=h('div',{key:'s',className:'thwx-scrim',role:'presentation',
+    onMouseDown:function(){setOpen(false);}});
+
+  return h('div',{className:'thwx thwx-open',style:vars,ref:box},compact,scrim,
     h('div',{key:'p',className:'thwx-panel',role:'dialog',
       'aria-label':'Weather forecast'+(d.place?' for '+d.place:'')},head,body));
 }
