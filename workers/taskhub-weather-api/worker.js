@@ -10,9 +10,19 @@
 // which is also the only coordinate precision that ever leaves the browser.
 //
 // Routes:
-//   GET /forecast?lat=<n>&lon=<n>[&units=us|metric]
+//   GET /forecast[?lat=<n>&lon=<n>][&units=us|metric]
 //        → Open-Meteo payload (current + 48h hourly + 16d daily) with an
 //          extra `place` field (reverse-geocoded "City, Region" label).
+//
+// lat/lon are OPTIONAL. When the browser can't give a fix (permission denied,
+// Brave's default geo block, insecure context), the client calls with no coords
+// and we fall back to Cloudflare's own IP geolocation (`request.cf.latitude/
+// longitude`) — city-accurate and free, no extra upstream request. That beats a
+// hardcoded default, which would silently show one city to everyone.
+//
+// Which path was used comes back in response HEADERS, not the body, so the KV
+// entry for a coordinate stays identical no matter who asked for it:
+//   X-Wx-Source: client | ip      X-Wx-Lat / X-Wx-Lon: coords actually used
 //
 // Caching:
 //   fc:<lat>:<lon>:<units>        15 min   forecast payload
@@ -39,6 +49,7 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Expose-Headers': 'X-Cache, X-Wx-Source, X-Wx-Lat, X-Wx-Lon',
   'Content-Type': 'application/json',
 };
 
@@ -48,9 +59,17 @@ export default {
     const url = new URL(request.url);
     if (url.pathname !== '/forecast') return j({ error: 'Not found' }, 404);
 
-    const lat = num(url.searchParams.get('lat'));
-    const lon = num(url.searchParams.get('lon'));
-    if (lat === null || lon === null || lat < -90 || lat > 90 || lon < -180 || lon > 180)
+    let lat = num(url.searchParams.get('lat'));
+    let lon = num(url.searchParams.get('lon'));
+    let source = 'client';
+    if (lat === null || lon === null) {
+      // No browser fix — use Cloudflare's IP geolocation for this request.
+      const cf = request.cf || {};
+      lat = num(cf.latitude); lon = num(cf.longitude);
+      source = 'ip';
+      if (lat === null || lon === null) return j({ error: 'Location unavailable' }, 400);
+    }
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
       return j({ error: 'Bad lat/lon' }, 400);
 
     // Round to 2dp BEFORE anything else: the cache key, the upstream call and
@@ -58,10 +77,11 @@ export default {
     const rlat = lat.toFixed(2), rlon = lon.toFixed(2);
     const units = url.searchParams.get('units') === 'metric' ? 'metric' : 'us';
     const key = `fc:${rlat}:${rlon}:${units}`;
+    const meta = { 'X-Wx-Source': source, 'X-Wx-Lat': rlat, 'X-Wx-Lon': rlon };
 
     try {
       const hit = await env.WX_CACHE.get(key);
-      if (hit) return new Response(hit, { headers: { ...CORS, 'X-Cache': 'HIT' } });
+      if (hit) return new Response(hit, { headers: { ...CORS, ...meta, 'X-Cache': 'HIT' } });
 
       const qs = new URLSearchParams({
         latitude: rlat,
@@ -84,7 +104,7 @@ export default {
 
       if (!res.ok) {
         const stale = await env.WX_CACHE.get(key + ':stale');
-        if (stale) return new Response(stale, { headers: { ...CORS, 'X-Cache': 'STALE' } });
+        if (stale) return new Response(stale, { headers: { ...CORS, ...meta, 'X-Cache': 'STALE' } });
         return j({ error: 'Upstream ' + res.status }, 502);
       }
 
@@ -97,26 +117,31 @@ export default {
         env.WX_CACHE.put(key, body, { expirationTtl: TTL_FORECAST }),
         env.WX_CACHE.put(key + ':stale', body),
       ]);
-      return new Response(body, { headers: { ...CORS, 'X-Cache': 'MISS' } });
+      return new Response(body, { headers: { ...CORS, ...meta, 'X-Cache': 'MISS' } });
     } catch (e) {
       const stale = await env.WX_CACHE.get(key + ':stale').catch(() => null);
-      if (stale) return new Response(stale, { headers: { ...CORS, 'X-Cache': 'STALE' } });
+      if (stale) return new Response(stale, { headers: { ...CORS, ...meta, 'X-Cache': 'STALE' } });
       return j({ error: e.message }, 502);
     }
   },
 };
 
-// Reverse geocode → "Denver, Colorado". Best-effort: the forecast is still
+// Reverse geocode → "Longmont, Colorado". Best-effort: the forecast is still
 // useful without a label, so every failure path resolves to null.
+//
+// `locality` before `city`: `city` is the POSTAL city, which swallows suburbs —
+// Kennesaw GA comes back as city "Atlanta", locality "Kennesaw". Prefer the
+// finer field so people see the town they're actually in. (Key prefix is geo2
+// because geo1 entries were cached with the coarse label.)
 async function placeLabel(env, rlat, rlon) {
-  const key = `geo:${rlat}:${rlon}`;
+  const key = `geo2:${rlat}:${rlon}`;
   try {
     const hit = await env.WX_CACHE.get(key);
     if (hit !== null) return hit || null;
     const res = await fetch(`${REVGEO}?latitude=${rlat}&longitude=${rlon}&localityLanguage=en`);
     if (!res.ok) return null;
     const g = await res.json();
-    const city = g.city || g.locality || '';
+    const city = g.locality || g.city || '';
     const region = g.principalSubdivision || g.countryName || '';
     const label = [city, region].filter(Boolean).join(', ');
     await env.WX_CACHE.put(key, label, { expirationTtl: TTL_PLACE });

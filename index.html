@@ -1974,51 +1974,102 @@ body.light-mode input[type=time]{color-scheme:light;}
      and tuned to read on both the dark and light themes.
 ══════════════════════════════════════════════════════════════════════════ -->
 <style>
-.thwx{
-  /* icon + range-bar tints (theme-independent weather semantics) */
+/* Icon + range-bar tints (theme-independent weather semantics). Declared on the
+   veil TOO, not just the bar: the modal is portalled to <body>, so it inherits
+   nothing from .thwx — scoping these to .thwx alone left every icon stroke and
+   every temperature-range fill resolving to its initial value (invisible). */
+.thwx,.thwx-veil{
   --wx-sun:#E9B949; --wx-moon:#C6C9DD; --wx-cloud:#9AA3B2;
   --wx-rain:#5FA8E0; --wx-snow:#B9D6EA;
   --wx-cool:#6FA8DC; --wx-warm:#E9A03B;
-  align-self:flex-start;
-  width:100%; max-width:360px;
+}
+.thwx{
+  align-self:stretch;
+  width:100%;
   box-sizing:border-box;
   background:var(--wx-s1);
   border:1px solid var(--wx-bd);
   border-radius:var(--wx-radius);
   color:var(--wx-tx);
   overflow:hidden;
-  transition:max-width .28s ease,border-color .2s;
+  transition:border-color .2s;
 }
-.thwx.thwx-open{max-width:580px;}
-@media (max-width:760px){ .thwx,.thwx.thwx-open{max-width:100%;} }
 
-/* ── Compact row (always visible) ── */
+/* ── Band: the weather bar and the quote banner share ONE horizontal row, so
+   the compact view costs no extra vertical space above Weekly. Below 780px
+   there isn't room for two columns of prose, so they stack. ── */
+.thwx-band{display:flex;align-items:stretch;gap:clamp(8px,1.4vw,14px);
+  min-width:0;flex-shrink:0;}
+.thwx-band > .thwx{flex:0 1 330px;max-width:330px;}
+.thwx-band > .thwx-bq{flex:1 1 auto;min-width:0;display:flex;align-items:center;}
+@media (max-width:780px){
+  .thwx-band{flex-direction:column;gap:6px;}
+  .thwx-band > .thwx{flex:none;max-width:100%;}
+}
+/* Quote banners get condensed inside the band and clamped to 2 lines so a long
+   quote can never grow the row taller than the weather bar. */
+.thwx-band .gita-banner{flex:1 1 auto;min-width:0;padding:6px 12px;}
+.thwx-band .gita-banner-hint{display:none;}
+.thwx-band .gita-quote-line{font-size:11.5px;line-height:1.4;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.thwx-band .gita-banner-meta{margin-top:1px;}
+.thwx-bq-line{font-family:'Lora',serif;font-style:italic;font-weight:400;
+  font-size:clamp(11.5px,1.15vw,13px);line-height:1.45;margin:0;text-align:center;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
+/* ── Compact bar (always visible) ── */
 .thwx-compact{
-  display:flex; align-items:center; gap:11px;
-  width:100%; box-sizing:border-box;
-  padding:10px 13px;
+  display:flex; align-items:center; gap:9px;
+  width:100%; height:100%; box-sizing:border-box;
+  padding:7px 11px;
   background:transparent; border:0; color:inherit;
   font:inherit; text-align:left; cursor:pointer;
   transition:background .15s;
 }
-.thwx-compact:hover{background:var(--wx-acg);}
+.thwx-compact:hover{background:var(--wx-hov);}
 .thwx-compact:focus-visible{outline:2px solid var(--wx-ac);outline-offset:-2px;}
 .thwx-glyph{flex-shrink:0;display:flex;align-items:center;}
-.thwx-now{flex:1;min-width:0;}
-.thwx-temp{display:block;font-size:clamp(23px,6.2vw,29px);font-weight:700;
-  line-height:1;letter-spacing:-.5px;}
-.thwx-cond{display:block;font-size:10.5px;color:var(--wx-txd);margin-top:4px;
+.thwx-now{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;}
+.thwx-temp{flex-shrink:0;font-size:clamp(19px,4.6vw,23px);font-weight:700;
+  line-height:1.1;letter-spacing:-.5px;}
+.thwx-cond{min-width:0;font-size:10px;color:var(--wx-txd);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.thwx-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;
-  flex-shrink:0;font-size:10.5px;color:var(--wx-txd);line-height:1.2;}
-.thwx-place{font-size:9.5px;color:var(--wx-txm);letter-spacing:.4px;
-  max-width:min(150px,36vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.thwx-hl{font-weight:700;color:var(--wx-tx);white-space:nowrap;}
-.thwx-chev{flex-shrink:0;color:var(--wx-txm);transition:transform .25s;}
-.thwx-open .thwx-chev{transform:rotate(180deg);}
+.thwx-meta{display:flex;flex-direction:column;align-items:flex-end;gap:1px;
+  flex-shrink:0;font-size:10px;color:var(--wx-txd);line-height:1.3;}
+.thwx-place{font-size:9px;color:var(--wx-txm);letter-spacing:.4px;
+  max-width:min(150px,34vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.thwx-hl{white-space:nowrap;}
+.thwx-hl b{font-weight:700;color:var(--wx-tx);}
+.thwx-chev{flex-shrink:0;color:var(--wx-txm);}
 
-/* ── Expanded panel ── */
-.thwx-exp{border-top:1px solid var(--wx-bd);padding:11px 13px 13px;}
+/* ── Expanded: centred modal over a blurred backdrop ── */
+.thwx-veil{position:fixed;inset:0;z-index:10050;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.5);
+  backdrop-filter:blur(9px) saturate(.9);
+  -webkit-backdrop-filter:blur(9px) saturate(.9);
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 14px calc(env(safe-area-inset-bottom,0px) + 14px);
+  box-sizing:border-box;
+  animation:thwx-fade .16s ease-out;}
+.thwx-modal{display:flex;flex-direction:column;
+  width:100%;max-width:560px;max-height:100%;box-sizing:border-box;
+  background:var(--wx-s1);border:1px solid var(--wx-bdl);
+  border-radius:calc(var(--wx-radius) + 4px);
+  box-shadow:0 20px 56px rgba(0,0,0,.6);
+  overflow:hidden;
+  animation:thwx-pop .19s cubic-bezier(.2,.9,.3,1);}
+.thwx-modal-hd{display:flex;align-items:center;gap:9px;flex-shrink:0;
+  padding:10px 12px;border-bottom:1px solid var(--wx-bd);}
+.thwx-modal-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;padding:11px 12px 14px;
+  scrollbar-width:thin;scrollbar-color:var(--wx-bdl) transparent;}
+.thwx-modal-body::-webkit-scrollbar{width:5px;}
+.thwx-modal-body::-webkit-scrollbar-thumb{background:var(--wx-bdl);border-radius:3px;}
+@keyframes thwx-fade{from{opacity:0}to{opacity:1}}
+@keyframes thwx-pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  .thwx-veil,.thwx-modal{animation:none;}
+}
 .thwx-blk{margin-top:14px;}
 .thwx-blk:first-child{margin-top:0;}
 .thwx-sect{font-size:9px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;
@@ -2050,13 +2101,8 @@ body.light-mode input[type=time]{color-scheme:light;}
 .thwx-cell-v small{font-size:9.5px;font-weight:700;color:var(--wx-txd);margin-left:3px;}
 @media (max-width:560px){ .thwx-grid{grid-template-columns:repeat(2,1fr);} }
 
-/* Daily list — condensed rows, internal scroll so a 16-day list never
-   pushes the rest of the dashboard off-screen */
-.thwx-days{max-height:min(48vh,352px);overflow-y:auto;overscroll-behavior:contain;
-  -webkit-overflow-scrolling:touch;
-  scrollbar-width:thin;scrollbar-color:var(--wx-bdl) transparent;}
-.thwx-days::-webkit-scrollbar{width:4px;}
-.thwx-days::-webkit-scrollbar-thumb{background:var(--wx-bdl);border-radius:2px;}
+/* Daily list — condensed rows. No inner scroller: the modal body is the ONE
+   vertical scroll region, which is what mobile thumbs expect. */
 .thwx-day{display:grid;grid-template-columns:40px 20px 28px minmax(0,1fr);
   align-items:center;gap:7px;padding:5px 0;border-top:1px solid var(--wx-bd);}
 .thwx-day:first-child{border-top:0;}
@@ -2065,7 +2111,7 @@ body.light-mode input[type=time]{color-scheme:light;}
 .thwx-day-today{color:var(--wx-ac);}
 .thwx-day-p{font-size:8.5px;font-weight:700;color:var(--wx-rain);text-align:right;}
 .thwx-range{display:flex;align-items:center;gap:6px;min-width:0;}
-.thwx-lo,.thwx-hi{font-size:11.5px;font-weight:700;flex:0 0 26px;}
+.thwx-lo,.thwx-hi{font-size:11.5px;font-weight:700;flex:0 0 32px;}   /* fits 3-digit °F */
 .thwx-lo{color:var(--wx-txd);text-align:right;}
 .thwx-hi{text-align:left;}
 .thwx-bar{flex:1 1 auto;min-width:26px;height:4px;border-radius:2px;
@@ -2073,16 +2119,29 @@ body.light-mode input[type=time]{color-scheme:light;}
 .thwx-bar i{position:absolute;top:0;bottom:0;border-radius:2px;
   background:linear-gradient(90deg,var(--wx-cool),var(--wx-warm));}
 
+/* "Approximate location" notice — shown only when the coords came from the
+   request IP because the browser gave us no fix. */
+.thwx-approx{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;
+  padding:7px 12px;border-bottom:1px solid var(--wx-bd);
+  font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--wx-txm);}
+.thwx-approx .thwx-retry{text-transform:none;letter-spacing:.3px;}
+
 /* States */
-.thwx-msg{padding:14px 13px;font-size:11.5px;color:var(--wx-txd);
-  display:flex;align-items:center;gap:9px;}
+.thwx-msg{padding:10px 11px;font-size:11px;color:var(--wx-txd);
+  display:flex;align-items:center;gap:9px;min-height:32px;}
 .thwx-retry{background:transparent;border:1px solid var(--wx-bd);border-radius:4px;
   color:var(--wx-ac);font:inherit;font-size:10px;font-weight:700;letter-spacing:.5px;
   padding:3px 9px;cursor:pointer;margin-left:auto;transition:border-color .15s;}
 .thwx-retry:hover{border-color:var(--wx-ac);}
-.thwx-x{background:transparent;border:0;color:var(--wx-txm);cursor:pointer;
-  font:inherit;font-size:14px;line-height:1;padding:0 2px;transition:color .15s;}
-.thwx-x:hover{color:var(--wx-ac);}
+/* Close control — 34px hit target so it stays thumb-friendly on mobile */
+.thwx-x{margin-left:auto;flex-shrink:0;
+  width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--wx-bd);border-radius:8px;
+  color:var(--wx-txd);cursor:pointer;font:inherit;font-size:17px;line-height:1;
+  transition:color .15s,border-color .15s;}
+.thwx-x:hover{color:var(--wx-ac);border-color:var(--wx-ac);}
+.thwx-x:focus-visible{outline:2px solid var(--wx-ac);outline-offset:2px;}
 </style>
 <script>
 (function(){
@@ -2091,46 +2150,91 @@ if(!window.React) return;                  // widget is optional; never break th
 var h=React.createElement,useState=React.useState,useEffect=React.useEffect,useRef=React.useRef;
 
 var WORKER='https://taskhub-weather-api.av1.workers.dev';
-var LS_LOC='thwx_loc_v1';
-var LS_DATA='thwx_data_v1';
+var LS_LOC='thwx_loc_v2';                  // v2: v1 could hold a coarse/default fix
+var LS_DATA='thwx_data_v2';
 var POLL_MS=12*60*1000;                    // client refetch cadence while visible
 var MAX_HYDRATE=2*60*60*1000;              // don't paint localStorage data older than 2h
-// Fallback when geolocation is denied AND nothing was ever resolved on this device.
-var DEFAULT_LOC={lat:39.7392,lon:-104.9903};
+var LOC_MAX_AGE=6*60*60*1000;              // re-ask the browser for a fix after 6h
+// NO hardcoded fallback city: when the browser gives us nothing we send no
+// coords at all and the Worker resolves them from the request IP at the edge.
+// A hardcoded default would show one city to everyone, which is exactly the
+// bug where Longmont and Kennesaw both rendered as Denver.
 
 // ── Store ────────────────────────────────────────────────────────────────
-var S={data:null,at:0,err:null,loading:false};
+// source: 'client' = real browser geolocation fix; 'ip' = Worker's edge IP lookup.
+var S={data:null,at:0,err:null,loading:false,source:null,denied:false};
 var subs=[];
 function emit(){
-  S={data:S.data,at:S.at,err:S.err,loading:S.loading};
+  S={data:S.data,at:S.at,err:S.err,loading:S.loading,source:S.source,denied:S.denied};
   for(var i=0;i<subs.length;i++)subs[i](S);
 }
 function subscribe(fn){subs.push(fn);return function(){var i=subs.indexOf(fn);if(i>=0)subs.splice(i,1);};}
 
-function locKey(l){return l.lat.toFixed(2)+','+l.lon.toFixed(2);}
-function readLoc(){try{var r=JSON.parse(localStorage.getItem(LS_LOC));if(r&&isFinite(r.lat)&&isFinite(r.lon))return r;}catch(e){}return null;}
+function locKey(l){return l?l.lat.toFixed(2)+','+l.lon.toFixed(2):'ip';}
+function readLoc(){
+  try{
+    var r=JSON.parse(localStorage.getItem(LS_LOC));
+    if(r&&isFinite(r.lat)&&isFinite(r.lon)&&r.ts&&Date.now()-r.ts<LOC_MAX_AGE)return r;
+  }catch(e){}
+  return null;
+}
+
+// One geolocation attempt. Resolves to coords, or null on any failure, and
+// records a hard denial so we never re-prompt in a loop.
+function geoOnce(highAccuracy,timeout){
+  return new Promise(function(res){
+    if(!navigator.geolocation){res(null);return;}
+    var done=false;
+    function fin(v){if(done)return;done=true;res(v);}
+    try{
+      navigator.geolocation.getCurrentPosition(function(p){
+        fin({lat:+p.coords.latitude.toFixed(4),lon:+p.coords.longitude.toFixed(4),
+             acc:p.coords.accuracy,ts:Date.now()});
+      },function(err){
+        if(err&&err.code===1)S.denied=true;    // PERMISSION_DENIED
+        fin(null);
+      // maximumAge is short so we get the device's CURRENT position, not a fix
+      // from another city cached earlier in the day.
+      },{enableHighAccuracy:!!highAccuracy,timeout:timeout,maximumAge:5*60*1000});
+    }catch(e){fin(null);}
+    setTimeout(function(){fin(null);},timeout+1500);   // belt-and-braces
+  });
+}
 
 // Geolocation is resolved ONCE per session — the promise is memoised, so every
 // later refresh cycle reuses the same fix instead of re-prompting the browser.
+// Order: high-accuracy fix (GPS/WiFi) — coarse fix — last good fix from this
+// device — null, which tells load() to let the Worker resolve from the IP.
 var _locP=null;
 function resolveLoc(){
   if(_locP)return _locP;
-  _locP=new Promise(function(res){
-    var cached=readLoc(),done=false;
-    function finish(l){if(done)return;done=true;res(l);}
-    if(!navigator.geolocation){finish(cached||DEFAULT_LOC);return;}
-    try{
-      navigator.geolocation.getCurrentPosition(function(p){
-        var l={lat:+p.coords.latitude.toFixed(4),lon:+p.coords.longitude.toFixed(4),ts:Date.now()};
-        try{localStorage.setItem(LS_LOC,JSON.stringify(l));}catch(e){}
-        finish(l);
-      },function(){
-        finish(cached||DEFAULT_LOC);        // denied / unavailable → last known → default
-      },{enableHighAccuracy:false,timeout:8000,maximumAge:30*60*1000});
-    }catch(e){finish(cached||DEFAULT_LOC);}
-    setTimeout(function(){finish(cached||DEFAULT_LOC);},9000);   // belt-and-braces
-  });
+  _locP=(function(){
+    // Skip the prompt entirely when the user has already said no.
+    var pre=(navigator.permissions&&navigator.permissions.query)
+      ? navigator.permissions.query({name:'geolocation'}).then(function(st){
+          return st&&st.state==='denied';
+        }).catch(function(){return false;})
+      : Promise.resolve(false);
+    return pre.then(function(blocked){
+      if(blocked){S.denied=true;return null;}
+      // High accuracy first: on a desktop the coarse path often returns the
+      // metro centroid (Denver) instead of the actual town (Longmont).
+      return geoOnce(true,12000).then(function(g){
+        return g||geoOnce(false,7000);
+      });
+    }).then(function(g){
+      if(g){try{localStorage.setItem(LS_LOC,JSON.stringify(g));}catch(e){}return g;}
+      return readLoc();                    // last good fix, else null — IP path
+    });
+  })();
   return _locP;
+}
+
+// Re-prompt for a precise fix (the "Use my location" control in the modal).
+function retryLoc(){
+  _locP=null;S.denied=false;
+  try{localStorage.removeItem(LS_LOC);}catch(e){}
+  return load(true);
 }
 
 // Paint instantly from the last payload this device saw, then refresh over it.
@@ -2138,7 +2242,7 @@ function resolveLoc(){
   try{
     var raw=JSON.parse(localStorage.getItem(LS_DATA)),loc=readLoc();
     if(raw&&raw.data&&raw.at&&Date.now()-raw.at<MAX_HYDRATE&&(!loc||raw.key===locKey(loc))){
-      S.data=raw.data;S.at=raw.at;
+      S.data=raw.data;S.at=raw.at;S.source=raw.src||null;
     }
   }catch(e){}
 })();
@@ -2149,13 +2253,17 @@ function load(force){
   if(!force&&S.data&&Date.now()-S.at<POLL_MS)return Promise.resolve();
   S.loading=true;emit();
   _inflight=resolveLoc().then(function(loc){
-    return fetch(WORKER+'/forecast?lat='+loc.lat+'&lon='+loc.lon).then(function(r){
+    // No coords in the URL — the Worker geolocates the request IP at the edge.
+    var q=loc?('?lat='+loc.lat+'&lon='+loc.lon):'';
+    return fetch(WORKER+'/forecast'+q).then(function(r){
       if(!r.ok)throw new Error('HTTP '+r.status);
+      S.source=r.headers.get('X-Wx-Source')||(loc?'client':'ip');
       return r.json();
     }).then(function(dd){
       if(!dd||dd.error)throw new Error((dd&&dd.error)||'bad payload');
       S.data=dd;S.at=Date.now();S.err=null;
-      try{localStorage.setItem(LS_DATA,JSON.stringify({key:locKey(loc),at:S.at,data:dd}));}catch(e){}
+      try{localStorage.setItem(LS_DATA,JSON.stringify(
+        {key:locKey(loc),at:S.at,src:S.source,data:dd}));}catch(e){}
     });
   }).catch(function(e){
     S.err=(e&&e.message)||'failed';
@@ -2289,27 +2397,20 @@ function Widget(props){
     return function(){un();detach();};
   },[]);
 
-  // Opening the panel pulls fresh data if what we have has gone stale, and
-  // arms the dismiss handlers (outside click / touch / Escape).
+  // Opening the modal pulls fresh data if what we have has gone stale.
+  // Outside-click dismissal is the veil's job; Escape is bound globally.
   useEffect(function(){
     if(!open)return;
     load(false);
-    function down(e){if(box.current&&!box.current.contains(e.target))setOpen(false);}
     function key(e){if(e.key==='Escape')setOpen(false);}
-    document.addEventListener('mousedown',down);
-    document.addEventListener('touchstart',down,{passive:true});
     document.addEventListener('keydown',key);
-    return function(){
-      document.removeEventListener('mousedown',down);
-      document.removeEventListener('touchstart',down);
-      document.removeEventListener('keydown',key);
-    };
+    return function(){document.removeEventListener('keydown',key);};
   },[open]);
 
   var vars={
     '--wx-s1':t.S1,'--wx-bg':t.BG,'--wx-bd':t.BD,'--wx-bdl':t.BDL||t.BD,
     '--wx-tx':t.TX,'--wx-txd':t.TXD,'--wx-txm':t.TXM||t.TXD,
-    '--wx-ac':t.AC,'--wx-acg':t.ACG||'transparent',
+    '--wx-ac':t.AC,'--wx-acg':t.ACG||'transparent','--wx-hov':t.hov||t.BD,
     '--wx-radius':(t.radius==null?6:t.radius)+'px',
     fontFamily:t.font||'inherit'
   };
@@ -2328,25 +2429,29 @@ function Widget(props){
   var todayStamp=locStamp(d,10);
   var di=(dly.time||[]).indexOf(todayStamp); if(di<0)di=0;
 
-  // ── Compact ──
+  var hiToday=t0(dly.temperature_2m_max&&dly.temperature_2m_max[di]);
+  var loToday=t0(dly.temperature_2m_min&&dly.temperature_2m_min[di]);
+
+  // ── Compact bar — one condensed row, sized to sit level with the quote banner ──
   var compact=h('button',{key:'c',type:'button',className:'thwx-compact',
-      'aria-expanded':open?'true':'false','aria-label':'Weather — tap for details',
-      onClick:function(){setOpen(!open);}},
-    h('span',{key:'g',className:'thwx-glyph'},icon(cur.weather_code,cur.is_day!==0,42,'i')),
+      'aria-haspopup':'dialog','aria-expanded':open?'true':'false',
+      'aria-label':'Weather — open full forecast',
+      onClick:function(){setOpen(true);}},
+    h('span',{key:'g',className:'thwx-glyph'},icon(cur.weather_code,cur.is_day!==0,32,'i')),
     h('span',{key:'n',className:'thwx-now'},
       h('span',{key:'t',className:'thwx-temp'},t0(cur.temperature_2m)),
       h('span',{key:'c',className:'thwx-cond',style:upper},label(cur.weather_code))),
     h('span',{key:'m',className:'thwx-meta'},
       d.place?h('span',{key:'p',className:'thwx-place'},d.place):null,
-      h('span',{key:'f'},'Feels '+t0(cur.apparent_temperature)),
       h('span',{key:'h',className:'thwx-hl'},
-        'H:'+t0(dly.temperature_2m_max&&dly.temperature_2m_max[di])+
-        '  L:'+t0(dly.temperature_2m_min&&dly.temperature_2m_min[di]))),
+        'Feels '+t0(cur.apparent_temperature)+' · ',
+        h('b',{key:'b'},hiToday+' / '+loToday))),
     h('svg',{key:'v',className:'thwx-chev',width:12,height:12,viewBox:'0 0 24 24',fill:'none',
       stroke:'currentColor',strokeWidth:3,strokeLinecap:'round',strokeLinejoin:'round'},
       h('polyline',{points:'6 9 12 15 18 9'})));
 
-  if(!open)return h('div',{className:'thwx',style:vars,ref:box},compact);
+  var bar=h('div',{className:'thwx',style:vars,ref:box},compact);
+  if(!open)return bar;
 
   // ── Hourly — next 24h starting at the current hour ──
   var hourStamp=locStamp(d,13),ht=hly.time||[],hi=0;
@@ -2393,11 +2498,9 @@ function Widget(props){
   var wu=(d.current_units&&d.current_units.wind_speed_10m)||'mph';
   if(wu==='mp/h')wu='mph';
 
-  var expanded=h('div',{key:'e',className:'thwx-exp'},
+  var body=h('div',{key:'b',className:'thwx-modal-body'},
     h('div',{key:'h',className:'thwx-blk'},
-      h('div',{className:'thwx-sect'},h('span',null,'Next 24 Hours'),
-        h('button',{type:'button',className:'thwx-x',title:'Close',
-          onClick:function(e){e.stopPropagation();setOpen(false);}},'×')),
+      h('div',{className:'thwx-sect'},h('span',null,'Next 24 Hours')),
       h('div',{className:'thwx-hours'},hours)),
     h('div',{key:'m',className:'thwx-blk'},
       h('div',{className:'thwx-sect'},h('span',null,'Conditions')),
@@ -2413,7 +2516,38 @@ function Widget(props){
       h('div',{className:'thwx-sect'},h('span',null,dts.length+'-Day Forecast')),
       h('div',{className:'thwx-days'},days)));
 
-  return h('div',{className:'thwx thwx-open',style:vars,ref:box},compact,expanded);
+  // The modal header repeats the current conditions (it covers the bar) and owns
+  // the close control — a 34px hit target, thumb-friendly on mobile.
+  var head=h('div',{key:'h',className:'thwx-modal-hd'},
+    h('span',{key:'g',className:'thwx-glyph'},icon(cur.weather_code,cur.is_day!==0,34,'i')),
+    h('span',{key:'n',className:'thwx-now'},
+      h('span',{key:'t',className:'thwx-temp'},t0(cur.temperature_2m)),
+      h('span',{key:'c',className:'thwx-cond',style:upper},label(cur.weather_code))),
+    h('span',{key:'m',className:'thwx-meta'},
+      d.place?h('span',{key:'p',className:'thwx-place'},d.place):null,
+      h('span',{key:'l',className:'thwx-hl'},
+        'Feels '+t0(cur.apparent_temperature)+' · ',
+        h('b',{key:'b'},hiToday+' / '+loToday))),
+    h('button',{key:'x',type:'button',className:'thwx-x','aria-label':'Close forecast',
+      title:'Close',onClick:function(){setOpen(false);}},'×'));
+
+  // Say so when the location came from the IP rather than the device, and give
+  // a one-tap way to grant/retry — otherwise a wrong city looks like a data bug.
+  var approx=st.source==='ip'?h('div',{key:'a',className:'thwx-approx'},
+    h('span',{key:'t'},st.denied?'Approximate '+'—'+' location access is blocked'
+                                :'Approximate location'),
+    h('button',{key:'b',type:'button',className:'thwx-retry',
+      onClick:function(){retryLoc();}},'Use my location')):null;
+
+  // Clicking the veil (but not the card) dismisses. Portalled to <body> so no
+  // ancestor's overflow or filter can clip or mis-anchor the fixed overlay.
+  var veil=h('div',{className:'thwx-veil',style:vars,role:'presentation',
+      onMouseDown:function(e){if(e.target===e.currentTarget)setOpen(false);}},
+    h('div',{className:'thwx-modal',role:'dialog','aria-modal':'true',
+      'aria-label':'Weather forecast'+(d.place?' for '+d.place:''),ref:box},head,approx,body));
+
+  return h(React.Fragment,null,bar,
+    (window.ReactDOM&&ReactDOM.createPortal)?ReactDOM.createPortal(veil,document.body):veil);
 }
 
 window.THWX={Widget:Widget,refresh:function(){return load(true);}};
@@ -4465,12 +4599,6 @@ function App(){
     // Content wrapper
     React.createElement("div",{style:{maxWidth:2200,margin:"0 auto",padding:"clamp(8px,1.8vw,16px) clamp(10px,2vw,22px) clamp(8px,1.8vw,16px)",boxSizing:"border-box",lineHeight:1.5,display:"flex",flexDirection:"column",gap:"clamp(6px,1.2vw,10px)",overflowX:"hidden"}},
 
-    // Weather — shared widget (window.THWX, defined near the React CDN tags).
-    // Same component Veda's TaskHub renders; only the theme tokens differ.
-    window.THWX&&React.createElement(window.THWX.Widget,{key:"wx",t:{
-      BG:T.BG,S1:T.S1,BD:T.BD,BDL:T.BDL,TX:T.TX,TXD:T.TXD,TXM:T.TXM,AC:T.AC,ACG:T.ACG,
-      radius:4,font:"'Nunito',sans-serif"}}),
-
     // Inspirational Quote + View All Modal
     tgShowAll&&React.createElement("div",{onClick:()=>setTgShowAll(false),style:{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.72)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",paddingTop:"calc(env(safe-area-inset-top, 0px) + 72px)",paddingBottom:"calc(env(safe-area-inset-bottom, 0px) + clamp(16px,4vw,24px))",paddingLeft:"clamp(10px,3vw,24px)",paddingRight:"clamp(10px,3vw,24px)",boxSizing:"border-box",overflow:"hidden"}},
       React.createElement("div",{onClick:e=>e.stopPropagation(),style:{background:T.BG,border:"1px solid "+T.BD,borderRadius:12,width:"100%",maxWidth:640,boxSizing:"border-box",flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden",wordBreak:"break-word",overflowWrap:"break-word"}},
@@ -4483,13 +4611,18 @@ function App(){
             React.createElement("span",{style:{fontFamily:"'Lora',serif",fontSize:11,color:T.TXD,letterSpacing:0.3,alignSelf:"flex-end"}},"— "+q.author)))),
         React.createElement("div",{style:{height:"clamp(8px,2vw,16px)",flexShrink:0}}))),
 
-    // Quote Banner
-    React.createElement("div",{style:{flexShrink:0,textAlign:"center",padding:"6px clamp(16px,4vw,60px)",position:"relative"}},
-      React.createElement("p",{style:{fontFamily:"'Lora',serif",fontSize:"clamp(14px,1.4vw,16px)",fontWeight:400,fontStyle:"italic",color:T.TXD,lineHeight:1.4,maxWidth:820,margin:"0 auto"}},"“"+tgLesson.text+"”"),
-      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",maxWidth:820,margin:"4px auto 0",gap:4}},
+    // Weather bar + Quote Banner share ONE horizontal band, so the compact
+    // weather view costs no vertical space above Weekly. They stack under 780px.
+    React.createElement("div",{className:"thwx-band"},
+      window.THWX&&React.createElement(window.THWX.Widget,{key:"wx",t:{
+        BG:T.BG,S1:T.S1,BD:T.BD,BDL:T.BDL,TX:T.TX,TXD:T.TXD,TXM:T.TXM,AC:T.AC,ACG:T.ACG,
+        hov:T.S2,radius:4,font:"'Nunito',sans-serif"}}),
+    React.createElement("div",{className:"thwx-bq",style:{flexDirection:"column",justifyContent:"center",alignItems:"stretch",position:"relative"}},
+      React.createElement("p",{className:"thwx-bq-line",style:{color:T.TXD}},"“"+tgLesson.text+"”"),
+      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",marginTop:2,gap:4}},
         React.createElement("span",{style:{fontFamily:"'Lora',serif",fontSize:11,color:T.TXM,fontStyle:"italic",letterSpacing:0.3,flex:1,textAlign:"right"}},"— "+tgLesson.author),
         React.createElement("button",{type:"button",onClick:tgNext,title:"Next quote",style:{background:"transparent",border:"none",cursor:"pointer",padding:"2px 4px 2px 8px",color:T.TXM,fontSize:13,lineHeight:1,opacity:0.45,transition:"opacity .15s",fontFamily:"inherit"},onMouseEnter:function(e){e.currentTarget.style.opacity="0.85";},onMouseLeave:function(e){e.currentTarget.style.opacity="0.45";}},"↻"),
-        React.createElement("button",{type:"button",onClick:()=>setTgShowAll(true),title:"View all quotes",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",fontFamily:"inherit",letterSpacing:0.5,opacity:0.6,transition:"all .15s"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},"☰"))),
+        React.createElement("button",{type:"button",onClick:()=>setTgShowAll(true),title:"View all quotes",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",fontFamily:"inherit",letterSpacing:0.5,opacity:0.6,transition:"all .15s"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},"☰")))),
 
     // Weekly
     React.createElement("div",{style:{...sec,flexShrink:0}},
@@ -10691,14 +10824,14 @@ function App(){
           RC("div",{style:{width:34,height:18,borderRadius:9,background:edit?A:BD,border:"1px solid "+BDL,position:"relative",transition:"background .25s"}},RC("div",{style:{width:13,height:13,borderRadius:"50%",background:edit?BG:TXD,position:"absolute",top:"50%",transform:"translateY(-50%)",left:edit?18:2,transition:"left .25s, background .25s"}}))),
         RC("button",{onClick:toggleFullscreen,title:isFullscreen?"Exit Fullscreen":"Fullscreen",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=isFullscreen?A:BDL;},style:{background:isFullscreen?A:"transparent",color:isFullscreen?BG:A,border:"1px solid "+(isFullscreen?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},isFullscreen?"Exit":"⛶"))))),
 
-    // ── WEATHER ──
-    // Shared widget (window.THWX, defined near the React CDN tags) — the same
-    // component Tony's TaskHub renders, with Veda's tokens/mono type passed in.
-    window.THWX&&RC(window.THWX.Widget,{key:"wx",t:{
-      BG:BG,S1:S1,BD:BD,BDL:BDL,TX:TX,TXD:TXD,TXM:TXM,AC:A,ACG:ABG,
-      radius:8,font:"'IBM Plex Mono',monospace",upper:true}}),
-
-    // ── GITA DAILY QUOTE BANNER ──
+    // ── WEATHER + GITA BANNER (one band) ──
+    // The weather bar sits level with the quote banner so the compact view costs
+    // no vertical space above Weekly. Same shared window.THWX.Widget Tony renders,
+    // with Veda's tokens/mono type passed in. Stacks under 780px.
+    RC("div",{className:"thwx-band"},
+      window.THWX&&RC(window.THWX.Widget,{key:"wx",t:{
+        BG:BG,S1:S1,BD:BD,BDL:BDL,TX:TX,TXD:TXD,TXM:TXM,AC:A,ACG:ABG,
+        hov:"#303135",radius:8,font:"'IBM Plex Mono',monospace",upper:true}}),
     RC("div",{className:"gita-banner",style:{position:"relative"},onClick:openGitaFromBanner},
       RC("div",{className:"gita-banner-text"},
         RC("div",{className:"gita-banner-hint",style:{marginBottom:4,textAlign:"right"}},"click to explore →"),
@@ -10706,7 +10839,7 @@ function App(){
         RC("div",{className:"gita-banner-meta"},bannerLesson.chapter+" · "+bannerLesson.title)
       ),
       RC("button",{type:"button",title:"Next lesson",onClick:function(e){e.stopPropagation();vgNextBanner();},style:{position:"absolute",bottom:8,right:10,background:"transparent",border:"none",cursor:"pointer",color:"inherit",fontSize:13,lineHeight:1,opacity:0.35,transition:"opacity .15s",fontFamily:"inherit",padding:"2px 4px"},onMouseEnter:function(e){e.currentTarget.style.opacity="0.7";},onMouseLeave:function(e){e.currentTarget.style.opacity="0.35";}},"↻")
-    ),
+    )),
 
     // ── Weekly ──
     RC("div",{style:{...sec,flexShrink:0}},
