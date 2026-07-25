@@ -1974,16 +1974,14 @@ body.light-mode input[type=time]{color-scheme:light;}
      and tuned to read on both the dark and light themes.
 ══════════════════════════════════════════════════════════════════════════ -->
 <style>
-/* Icon + range-bar tints (theme-independent weather semantics). Declared on the
-   veil TOO, not just the bar: the modal is portalled to <body>, so it inherits
-   nothing from .thwx — scoping these to .thwx alone left every icon stroke and
-   every temperature-range fill resolving to its initial value (invisible). */
-.thwx,.thwx-veil{
+/* Icon + range-bar tints (theme-independent weather semantics). */
+.thwx{
   --wx-sun:#E9B949; --wx-moon:#C6C9DD; --wx-cloud:#9AA3B2;
   --wx-rain:#5FA8E0; --wx-snow:#B9D6EA;
   --wx-cool:#6FA8DC; --wx-warm:#E9A03B;
 }
 .thwx{
+  position:relative;                 /* anchor for the expanded dropdown */
   align-self:stretch;
   width:100%;
   box-sizing:border-box;
@@ -1991,9 +1989,9 @@ body.light-mode input[type=time]{color-scheme:light;}
   border:1px solid var(--wx-bd);
   border-radius:var(--wx-radius);
   color:var(--wx-tx);
-  overflow:hidden;
   transition:border-color .2s;
 }
+.thwx.thwx-open{z-index:60;}
 
 /* ── Band: the weather bar and the quote banner share ONE horizontal row, so
    the compact view costs no extra vertical space above Weekly. Below 780px
@@ -2002,9 +2000,14 @@ body.light-mode input[type=time]{color-scheme:light;}
   min-width:0;flex-shrink:0;}
 .thwx-band > .thwx{flex:0 1 330px;max-width:330px;}
 .thwx-band > .thwx-bq{flex:1 1 auto;min-width:0;display:flex;align-items:center;}
+/* Phantom column mirroring the weather bar. Without it the quote is centred on
+   the space LEFT OVER beside the bar, which reads as pushed-right; with it the
+   quote's midpoint is the band's midpoint, i.e. the middle of the screen. */
+.thwx-band::after{content:'';flex:0 1 330px;max-width:330px;pointer-events:none;}
 @media (max-width:780px){
   .thwx-band{flex-direction:column;gap:6px;}
   .thwx-band > .thwx{flex:none;max-width:100%;}
+  .thwx-band::after{display:none;}
 }
 /* Quote banners get condensed inside the band and clamped to 2 lines so a long
    quote can never grow the row taller than the weather bar. */
@@ -2020,6 +2023,7 @@ body.light-mode input[type=time]{color-scheme:light;}
 /* ── Compact bar (always visible) ── */
 .thwx-compact{
   display:flex; align-items:center; gap:9px;
+  border-radius:inherit;             /* .thwx no longer clips; keep hover rounded */
   width:100%; height:100%; box-sizing:border-box;
   padding:7px 11px;
   background:transparent; border:0; color:inherit;
@@ -2030,7 +2034,7 @@ body.light-mode input[type=time]{color-scheme:light;}
 .thwx-compact:focus-visible{outline:2px solid var(--wx-ac);outline-offset:-2px;}
 .thwx-glyph{flex-shrink:0;display:flex;align-items:center;}
 .thwx-now{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;}
-.thwx-temp{flex-shrink:0;font-size:clamp(19px,4.6vw,23px);font-weight:700;
+.thwx-temp{flex-shrink:0;font-size:clamp(19px,4.6vw,23px);font-weight:700;color:var(--wx-tx);
   line-height:1.1;letter-spacing:-.5px;}
 .thwx-cond{min-width:0;font-size:10px;color:var(--wx-txd);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -2042,34 +2046,32 @@ body.light-mode input[type=time]{color-scheme:light;}
 .thwx-hl b{font-weight:700;color:var(--wx-tx);}
 .thwx-chev{flex-shrink:0;color:var(--wx-txm);}
 
-/* ── Expanded: centred modal over a blurred backdrop ── */
-.thwx-veil{position:fixed;inset:0;z-index:10050;
-  display:flex;align-items:center;justify-content:center;
-  background:rgba(0,0,0,.5);
-  backdrop-filter:blur(9px) saturate(.9);
-  -webkit-backdrop-filter:blur(9px) saturate(.9);
-  padding:calc(env(safe-area-inset-top,0px) + 14px) 14px calc(env(safe-area-inset-bottom,0px) + 14px);
-  box-sizing:border-box;
-  animation:thwx-fade .16s ease-out;}
-.thwx-modal{display:flex;flex-direction:column;
-  width:100%;max-width:560px;max-height:100%;box-sizing:border-box;
+/* ── Expanded: dropdown anchored under the bar ──
+   Absolutely positioned, so opening it never reflows the dashboard. Fixed
+   header + scrolling body keeps the close control reachable at any length.
+   `color` is set explicitly rather than left to inherit — that is what broke
+   when this was a <body> portal: temps and percentages fell back to black. */
+.thwx-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:70;
+  width:min(560px,calc(100vw - 28px));
+  max-height:min(70vh,600px);
+  display:flex;flex-direction:column;box-sizing:border-box;
   background:var(--wx-s1);border:1px solid var(--wx-bdl);
-  border-radius:calc(var(--wx-radius) + 4px);
-  box-shadow:0 20px 56px rgba(0,0,0,.6);
+  border-radius:calc(var(--wx-radius) + 2px);
+  box-shadow:0 14px 38px rgba(0,0,0,.5);
+  color:var(--wx-tx);
   overflow:hidden;
-  animation:thwx-pop .19s cubic-bezier(.2,.9,.3,1);}
-.thwx-modal-hd{display:flex;align-items:center;gap:9px;flex-shrink:0;
-  padding:10px 12px;border-bottom:1px solid var(--wx-bd);}
-.thwx-modal-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
-  -webkit-overflow-scrolling:touch;padding:11px 12px 14px;
+  animation:thwx-pop .17s cubic-bezier(.2,.9,.3,1);transform-origin:top left;}
+.thwx-panel-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  flex-shrink:0;padding:7px 8px 7px 13px;border-bottom:1px solid var(--wx-bd);}
+.thwx-panel-t{font-size:9.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--wx-txd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.thwx-panel-b{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;padding:11px 12px 13px;
   scrollbar-width:thin;scrollbar-color:var(--wx-bdl) transparent;}
-.thwx-modal-body::-webkit-scrollbar{width:5px;}
-.thwx-modal-body::-webkit-scrollbar-thumb{background:var(--wx-bdl);border-radius:3px;}
-@keyframes thwx-fade{from{opacity:0}to{opacity:1}}
-@keyframes thwx-pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:reduce){
-  .thwx-veil,.thwx-modal{animation:none;}
-}
+.thwx-panel-b::-webkit-scrollbar{width:5px;}
+.thwx-panel-b::-webkit-scrollbar-thumb{background:var(--wx-bdl);border-radius:3px;}
+@keyframes thwx-pop{from{opacity:0;transform:translateY(-6px) scale(.99)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){ .thwx-panel{animation:none;} }
 .thwx-blk{margin-top:14px;}
 .thwx-blk:first-child{margin-top:0;}
 .thwx-sect{font-size:9px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;
@@ -2087,7 +2089,7 @@ body.light-mode input[type=time]{color-scheme:light;}
 .thwx-hr-now{background:var(--wx-acg);}
 .thwx-hr-t{font-size:9.5px;font-weight:700;color:var(--wx-txd);white-space:nowrap;letter-spacing:.3px;}
 .thwx-hr-now .thwx-hr-t{color:var(--wx-ac);}
-.thwx-hr-v{font-size:12.5px;font-weight:700;}
+.thwx-hr-v{font-size:12.5px;font-weight:700;color:var(--wx-tx);}
 .thwx-hr-p{font-size:8.5px;font-weight:700;color:var(--wx-rain);height:11px;line-height:11px;}
 
 /* Conditions grid */
@@ -2096,7 +2098,7 @@ body.light-mode input[type=time]{color-scheme:light;}
 .thwx-cell{background:var(--wx-s1);padding:7px 9px;min-width:0;}
 .thwx-cell-k{font-size:8.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
   color:var(--wx-txm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.thwx-cell-v{font-size:13px;font-weight:700;margin-top:2px;
+.thwx-cell-v{font-size:13px;font-weight:700;margin-top:2px;color:var(--wx-tx);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thwx-cell-v small{font-size:9.5px;font-weight:700;color:var(--wx-txd);margin-left:3px;}
 @media (max-width:560px){ .thwx-grid{grid-template-columns:repeat(2,1fr);} }
@@ -2113,7 +2115,7 @@ body.light-mode input[type=time]{color-scheme:light;}
 .thwx-range{display:flex;align-items:center;gap:6px;min-width:0;}
 .thwx-lo,.thwx-hi{font-size:11.5px;font-weight:700;flex:0 0 32px;}   /* fits 3-digit °F */
 .thwx-lo{color:var(--wx-txd);text-align:right;}
-.thwx-hi{text-align:left;}
+.thwx-hi{text-align:left;color:var(--wx-tx);}
 .thwx-bar{flex:1 1 auto;min-width:26px;height:4px;border-radius:2px;
   background:var(--wx-bd);position:relative;}
 .thwx-bar i{position:absolute;top:0;bottom:0;border-radius:2px;
@@ -2122,7 +2124,7 @@ body.light-mode input[type=time]{color-scheme:light;}
 /* "Approximate location" notice — shown only when the coords came from the
    request IP because the browser gave us no fix. */
 .thwx-approx{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;
-  padding:7px 12px;border-bottom:1px solid var(--wx-bd);
+  margin:0 0 11px;padding:0 0 9px;border-bottom:1px solid var(--wx-bd);
   font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
   color:var(--wx-txm);}
 .thwx-approx .thwx-retry{text-transform:none;letter-spacing:.3px;}
@@ -2134,11 +2136,11 @@ body.light-mode input[type=time]{color-scheme:light;}
   color:var(--wx-ac);font:inherit;font-size:10px;font-weight:700;letter-spacing:.5px;
   padding:3px 9px;cursor:pointer;margin-left:auto;transition:border-color .15s;}
 .thwx-retry:hover{border-color:var(--wx-ac);}
-/* Close control — 34px hit target so it stays thumb-friendly on mobile */
-.thwx-x{margin-left:auto;flex-shrink:0;
-  width:34px;height:34px;display:flex;align-items:center;justify-content:center;
-  background:transparent;border:1px solid var(--wx-bd);border-radius:8px;
-  color:var(--wx-txd);cursor:pointer;font:inherit;font-size:17px;line-height:1;
+/* Close control — 30px hit target so it stays thumb-friendly on mobile */
+.thwx-x{flex-shrink:0;
+  width:30px;height:30px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--wx-bd);border-radius:7px;
+  color:var(--wx-txd);cursor:pointer;font:inherit;font-size:16px;line-height:1;
   transition:color .15s,border-color .15s;}
 .thwx-x:hover{color:var(--wx-ac);border-color:var(--wx-ac);}
 .thwx-x:focus-visible{outline:2px solid var(--wx-ac);outline-offset:2px;}
@@ -2397,14 +2399,21 @@ function Widget(props){
     return function(){un();detach();};
   },[]);
 
-  // Opening the modal pulls fresh data if what we have has gone stale.
-  // Outside-click dismissal is the veil's job; Escape is bound globally.
+  // Opening the panel pulls fresh data if what we have has gone stale, and arms
+  // the dismiss handlers (click/tap outside the widget, or Escape).
   useEffect(function(){
     if(!open)return;
     load(false);
+    function down(e){if(box.current&&!box.current.contains(e.target))setOpen(false);}
     function key(e){if(e.key==='Escape')setOpen(false);}
+    document.addEventListener('mousedown',down);
+    document.addEventListener('touchstart',down,{passive:true});
     document.addEventListener('keydown',key);
-    return function(){document.removeEventListener('keydown',key);};
+    return function(){
+      document.removeEventListener('mousedown',down);
+      document.removeEventListener('touchstart',down);
+      document.removeEventListener('keydown',key);
+    };
   },[open]);
 
   var vars={
@@ -2436,7 +2445,7 @@ function Widget(props){
   var compact=h('button',{key:'c',type:'button',className:'thwx-compact',
       'aria-haspopup':'dialog','aria-expanded':open?'true':'false',
       'aria-label':'Weather — open full forecast',
-      onClick:function(){setOpen(true);}},
+      onClick:function(){setOpen(!open);}},
     h('span',{key:'g',className:'thwx-glyph'},icon(cur.weather_code,cur.is_day!==0,32,'i')),
     h('span',{key:'n',className:'thwx-now'},
       h('span',{key:'t',className:'thwx-temp'},t0(cur.temperature_2m)),
@@ -2498,7 +2507,16 @@ function Widget(props){
   var wu=(d.current_units&&d.current_units.wind_speed_10m)||'mph';
   if(wu==='mp/h')wu='mph';
 
-  var body=h('div',{key:'b',className:'thwx-modal-body'},
+  // Say so when the location came from the IP rather than the device, and give
+  // a one-tap way to grant/retry — otherwise a wrong city looks like a data bug.
+  var approx=st.source==='ip'?h('div',{key:'a',className:'thwx-approx'},
+    h('span',{key:'t'},st.denied?'Approximate — location access is blocked'
+                                :'Approximate location'),
+    h('button',{key:'b',type:'button',className:'thwx-retry',
+      onClick:function(){retryLoc();}},'Use my location')):null;
+
+  var body=h('div',{key:'b',className:'thwx-panel-b'},
+    approx,
     h('div',{key:'h',className:'thwx-blk'},
       h('div',{className:'thwx-sect'},h('span',null,'Next 24 Hours')),
       h('div',{className:'thwx-hours'},hours)),
@@ -2516,38 +2534,16 @@ function Widget(props){
       h('div',{className:'thwx-sect'},h('span',null,dts.length+'-Day Forecast')),
       h('div',{className:'thwx-days'},days)));
 
-  // The modal header repeats the current conditions (it covers the bar) and owns
-  // the close control — a 34px hit target, thumb-friendly on mobile.
-  var head=h('div',{key:'h',className:'thwx-modal-hd'},
-    h('span',{key:'g',className:'thwx-glyph'},icon(cur.weather_code,cur.is_day!==0,34,'i')),
-    h('span',{key:'n',className:'thwx-now'},
-      h('span',{key:'t',className:'thwx-temp'},t0(cur.temperature_2m)),
-      h('span',{key:'c',className:'thwx-cond',style:upper},label(cur.weather_code))),
-    h('span',{key:'m',className:'thwx-meta'},
-      d.place?h('span',{key:'p',className:'thwx-place'},d.place):null,
-      h('span',{key:'l',className:'thwx-hl'},
-        'Feels '+t0(cur.apparent_temperature)+' · ',
-        h('b',{key:'b'},hiToday+' / '+loToday))),
+  // Panel header: the place it's forecasting for, plus the close control. Kept
+  // out of the scrolling body so × stays reachable however far down you are.
+  var head=h('div',{key:'h',className:'thwx-panel-hd'},
+    h('span',{key:'t',className:'thwx-panel-t'},d.place||'Forecast'),
     h('button',{key:'x',type:'button',className:'thwx-x','aria-label':'Close forecast',
-      title:'Close',onClick:function(){setOpen(false);}},'×'));
+      title:'Close',onClick:function(e){e.stopPropagation();setOpen(false);}},'×'));
 
-  // Say so when the location came from the IP rather than the device, and give
-  // a one-tap way to grant/retry — otherwise a wrong city looks like a data bug.
-  var approx=st.source==='ip'?h('div',{key:'a',className:'thwx-approx'},
-    h('span',{key:'t'},st.denied?'Approximate '+'—'+' location access is blocked'
-                                :'Approximate location'),
-    h('button',{key:'b',type:'button',className:'thwx-retry',
-      onClick:function(){retryLoc();}},'Use my location')):null;
-
-  // Clicking the veil (but not the card) dismisses. Portalled to <body> so no
-  // ancestor's overflow or filter can clip or mis-anchor the fixed overlay.
-  var veil=h('div',{className:'thwx-veil',style:vars,role:'presentation',
-      onMouseDown:function(e){if(e.target===e.currentTarget)setOpen(false);}},
-    h('div',{className:'thwx-modal',role:'dialog','aria-modal':'true',
-      'aria-label':'Weather forecast'+(d.place?' for '+d.place:''),ref:box},head,approx,body));
-
-  return h(React.Fragment,null,bar,
-    (window.ReactDOM&&ReactDOM.createPortal)?ReactDOM.createPortal(veil,document.body):veil);
+  return h('div',{className:'thwx thwx-open',style:vars,ref:box},compact,
+    h('div',{key:'p',className:'thwx-panel',role:'dialog',
+      'aria-label':'Weather forecast'+(d.place?' for '+d.place:'')},head,body));
 }
 
 window.THWX={Widget:Widget,refresh:function(){return load(true);}};
