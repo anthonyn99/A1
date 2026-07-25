@@ -2,13 +2,15 @@
 //  1. Opens tabs on request from the popup (group-launch from Links).
 //  2. Serves decrypted credential matches to the inline-autofill content script,
 //     using the 30-minute idle session (so no master password re-prompt).
+//  3. Serves MASKED payment-method summaries to the same content script, and
+//     performs the actual card fill itself (see vaultFillCard below).
 //
 // The service worker can decrypt because vault-pw-core.js restores the unlocked
 // Data Key from chrome.storage.session (in-memory only). If the session has
 // expired / never unlocked, it reports locked and the content script shows an
 // "unlock" hint instead of credentials.
 
-importScripts("vault-crypto.js", "vault-pw-core.js");
+importScripts("vault-crypto.js", "vault-pay.js", "vault-pw-core.js");
 
 function normalize(url) {
   if (!url) return null;
@@ -266,6 +268,79 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
       } catch (e) {
         sendResponse({ unlocked: false, error: String(e && e.message || e) });
+      }
+    })();
+    return true; // async
+  }
+
+  // ── inline autofill: MASKED payment methods for the dropdown ──
+  // Deliberately returns VaultPay.summarize() output only — nickname, network,
+  // last 4, expiry. No card number, no CVV, no billing address ever crosses into
+  // a page-side context just to render a list.
+  if (message.action === "vaultGetCards") {
+    (async () => {
+      try {
+        const VP = self.VaultPWCore;
+        const resumed = await VP.restoreSession();
+        if (!resumed || !VP.isUnlocked()) { sendResponse({ unlocked: false, cards: [] }); return; }
+        // The brand badge is generated here (self-drawn SVG, no remote assets) so
+        // the content script doesn't need to carry the payments module.
+        const cards = (await VP.paymentSummaries()).map((s) => Object.assign({}, s, { mark: self.VaultPay.brandMark(s.network) }));
+        sendResponse({ unlocked: true, cvvFresh: VP.authFresh(), cards });
+      } catch (e) {
+        sendResponse({ unlocked: false, cards: [], error: String(e && e.message || e) });
+      }
+    })();
+    return true; // async
+  }
+
+  // ── autofill a chosen card ──
+  // Called two ways, both landing here so there is ONE decrypt path:
+  //   • from the page dropdown  → fills the exact frame that asked
+  //   • from the popup's Fill   → message.tabId set, fills every frame of it
+  //     (hosted card fields live in their own iframes)
+  //
+  // The card is decrypted HERE and handed to vault-cardfill.js's fill() in the
+  // extension's isolated world. The page can't observe that world, and the
+  // content script keeps no copy — it passes the bundle straight into fill().
+  //
+  // The CVV rides along ONLY inside the auth-freshness window (a real master
+  // password / biometric check within the last CVV_FRESH_MS). Everything else
+  // fills regardless, so a long-idle session still autofills the card.
+  if (message.action === "vaultFillCard") {
+    (async () => {
+      const fromPage = !!(_sender && _sender.tab);
+      const tabId = fromPage ? _sender.tab.id : message.tabId;
+      const frameId = fromPage && _sender.frameId != null ? _sender.frameId : null;
+      if (tabId == null) { sendResponse({ ok: false, error: "no-tab" }); return; }
+      try {
+        const VP = self.VaultPWCore;
+        const resumed = await VP.restoreSession();
+        if (!resumed || !VP.isUnlocked()) { sendResponse({ ok: false, locked: true }); return; }
+        const card = await VP.paymentById(message.id);
+        if (!card) { sendResponse({ ok: false, error: "not-found" }); return; }
+
+        const cvvFresh = VP.authFresh();
+        const values = self.VaultPay.autofillValues(card, { includeCvv: cvvFresh });
+
+        // Frames that find nothing to fill stay SILENT (see vaultDoFillCard in
+        // content.js). That's what makes the popup path work without naming a
+        // frame: we broadcast to the whole tab and the frame holding the card
+        // fields is the one that answers — no webNavigation permission needed.
+        const opts = frameId != null ? { frameId } : {};
+        const r = await new Promise((res) => {
+          try {
+            chrome.tabs.sendMessage(tabId, { action: "vaultDoFillCard", values }, opts, (resp) => {
+              void chrome.runtime.lastError; res(resp || null);
+            });
+          } catch (e) { res(null); }
+        });
+
+        const filled = (r && r.filled) || 0;
+        await VP.touchSession();
+        sendResponse({ ok: filled > 0, filled, cvvFilled: !!(r && r.cvv), cvvFresh });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e && e.message || e) });
       }
     })();
     return true; // async

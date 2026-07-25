@@ -2,13 +2,18 @@
  * vault-ui.js — Vault Password Manager · UI + Firebase adapter (PWA)
  *
  * Self-contained and self-injecting: it hooks into the existing Keychain view
- * (#kc-root) and turns it into "Vault" with three tabs — Passwords · Sensitive
- * Info · Links — WITHOUT requiring edits to the 38k-line index.html beyond a
- * single <script src> include. It reuses the app's already-initialised Firebase
- * instance (App Check + anon auth + offline cache) via getApps(), and the
- * existing window.Bio biometric helper.
+ * (#kc-root) and turns it into "Vault" with four tabs — Passwords · Payments ·
+ * Sensitive Info · Links — WITHOUT requiring edits to the 38k-line index.html
+ * beyond a single <script src> include. It reuses the app's already-initialised
+ * Firebase instance (App Check + anon auth + offline cache) via getApps(), and
+ * the existing window.Bio biometric helper.
+ *
+ * The Payments tab's rendering/editor lives in vault-pay-ui.js and is driven
+ * through the `hostCtx()` contract at the bottom of this file — one vault, one
+ * session, one DEK, one sync path, but each section's UI stays its own module.
  *
  * Depends on (loaded before it): vault-crypto.js, vault-store.js, vault-session.js
+ * Optional: vault-pay.js + vault-pay-ui.js (Payments tab; degrades gracefully)
  *
  * Data lives E2E-encrypted in a single Firestore doc `dashboards/vault_pw`:
  *     { config:<wrapped-keys/salts/verifier>, items:{ id -> encDoc }, savedAt }
@@ -332,12 +337,14 @@
     // Move the existing .kc-wrap (Connections) into the Links panel.
     var kcWrap = root.querySelector('.kc-wrap');
     var tabs = el('div', { id: 'vault-tabs', class: 'vault-tabs' }, [
-      tabBtn('links', '🔗 Keychain'), tabBtn('passwords', '🔑 Passwords'), tabBtn('sensitive', '🗄 Sensitive Info'),
+      tabBtn('links', '🔗 Keychain'), tabBtn('passwords', '🔑 Passwords'),
+      tabBtn('payments', '💳 Payments'), tabBtn('sensitive', '🗄 Sensitive Info'),
     ]);
     if (hbar && hbar.nextSibling) root.insertBefore(tabs, hbar.nextSibling); else root.appendChild(tabs);
     var pwPanel = el('div', { id: 'vault-pw-panel', class: 'vault-panel' });
+    var payPanel = el('div', { id: 'vault-payments-panel', class: 'vault-panel', style: 'display:none' });
     var senPanel = el('div', { id: 'vault-sensitive-panel', class: 'vault-panel', style: 'display:none' });
-    root.appendChild(pwPanel); root.appendChild(senPanel);
+    root.appendChild(pwPanel); root.appendChild(payPanel); root.appendChild(senPanel);
     if (kcWrap) { kcWrap.parentNode.removeChild(kcWrap); linksWrap.appendChild(kcWrap); }
     linksWrap.style.display = 'none'; root.appendChild(linksWrap);
     // Lock overlay (covers everything but tabs stay to switch to Links which is non-secret? No — links are also under Vault; lock gates pw+sensitive only).
@@ -357,16 +364,20 @@
     } catch (e) {}
   }
 
+  // The tabs that hold decrypted material — each one gates on the SAME session.
+  var SECRET_TABS = { passwords: renderPasswords, payments: renderPayments, sensitive: renderSensitive };
+
   function showTab(id) {
     activeTab = id;
     document.querySelectorAll('.vault-tab').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === id); });
-    var pw = $('vault-pw-panel'), sen = $('vault-sensitive-panel'), links = $('vault-links-panel');
+    var pw = $('vault-pw-panel'), pay = $('vault-payments-panel'), sen = $('vault-sensitive-panel'), links = $('vault-links-panel');
     if (pw) pw.style.display = id === 'passwords' ? '' : 'none';
+    if (pay) pay.style.display = id === 'payments' ? '' : 'none';
     if (sen) sen.style.display = id === 'sensitive' ? '' : 'none';
     if (links) links.style.display = id === 'links' ? '' : 'none';
-    if ((id === 'passwords' || id === 'sensitive')) {
+    if (SECRET_TABS[id]) {
       if (!session || !session.isUnlocked()) { renderLock(); return; }
-      if (id === 'passwords') renderPasswords(); else renderSensitive();
+      SECRET_TABS[id]();
     }
     updateStickyOffset();
   }
@@ -380,14 +391,27 @@
   }
 
   // ── lock / setup screens ───────────────────────────────────────────────────
+  function secretPanel(tab) {
+    return $(tab === 'payments' ? 'vault-payments-panel' : tab === 'sensitive' ? 'vault-sensitive-panel' : 'vault-pw-panel');
+  }
   async function renderLock(hasVault) {
-    var pw = $('vault-pw-panel'); if (!pw) return;
+    // Any lock closes the Payments reveal-grace window, so unlocking again can
+    // never inherit an identity check made before the lock.
+    try { if (window.VaultPayUI) window.VaultPayUI.resetGrace(); } catch (e) {}
+    // Draw the lock/setup card into whichever secret tab is on screen, and blank
+    // every other one — a locked vault must leave no decrypted rows behind in a
+    // panel the user can flip back to.
+    var target = SECRET_TABS[activeTab] ? activeTab : 'passwords';
+    ['passwords', 'payments', 'sensitive'].forEach(function (t) {
+      if (t === target) return;
+      var p = secretPanel(t); if (p) p.innerHTML = '';
+    });
+    var pw = secretPanel(target); if (!pw) return;
     if (hasVault == null) { try { hasVault = await session.hasVault(); } catch (e) { hasVault = false; } }
     var host = el('div', { class: 'vault-lock' });
     if (!hasVault) { renderSetup(host); }
     else { renderUnlock(host); }
     pw.innerHTML = ''; pw.appendChild(host);
-    var sen = $('vault-sensitive-panel'); if (sen) sen.innerHTML = '';
   }
 
   function card(title, sub, kids) {
@@ -572,7 +596,9 @@
   async function afterUnlock(opts) {
     store = session.getStore();
     await store.load();
-    store.startLive(function () { setVaultSync('synced'); if (activeTab === 'passwords') renderPasswords(); else if (activeTab === 'sensitive') renderSensitive(); });
+    // One live subscription drives every tab — a card added on another device
+    // lands here the same instant a password does.
+    store.startLive(function () { setVaultSync('synced'); if (SECRET_TABS[activeTab]) SECRET_TABS[activeTab](); });
     bindActivity();
     // Suppressed on the recovery path so the enrol prompt doesn't collide with
     // the "set a new master password" modal; it re-offers on the next unlock.
@@ -635,12 +661,19 @@
     if (!items.length) { list.appendChild(emptyState('No secure notes yet. Store Wi-Fi passwords, lock combos, recovery codes, license keys…')); return; }
     items.forEach(function (it) { list.appendChild(sensitiveRow(it)); });
   }
+  function fillPaymentList(list) {
+    if (!window.VaultPayUI) { list.innerHTML = ''; list.appendChild(emptyState('Payments module not loaded.')); return; }
+    window.VaultPayUI.fillList(list, hostCtx());
+  }
   // Re-fill just the list for the active kind (used on every keystroke).
+  var KIND_PANELS = { login: 'vault-pw-panel', payment: 'vault-payments-panel', sensitive: 'vault-sensitive-panel' };
+  var KIND_RENDER = { login: renderPasswords, payment: renderPayments, sensitive: renderSensitive };
+  var KIND_FILL = { login: fillLoginList, payment: fillPaymentList, sensitive: fillSensitiveList };
   function refreshList(kind) {
-    var panel = $(kind === 'login' ? 'vault-pw-panel' : 'vault-sensitive-panel'); if (!panel) return;
+    var panel = $(KIND_PANELS[kind] || KIND_PANELS.login); if (!panel) return;
     var list = panel.querySelector('.vault-list');
-    if (!list) { (kind === 'login' ? renderPasswords : renderSensitive)(); return; }
-    (kind === 'login' ? fillLoginList : fillSensitiveList)(list);
+    if (!list) { (KIND_RENDER[kind] || renderPasswords)(); return; }
+    (KIND_FILL[kind] || fillLoginList)(list);
   }
 
   function toolbar(placeholder, kind) {
@@ -648,7 +681,7 @@
     var clear = el('button', { class: 'vault-search-clear', title: 'Clear', html: '&times;', style: currentQuery ? '' : 'display:none' });
     clear.addEventListener('click', function () { currentQuery = ''; search.value = ''; clear.style.display = 'none'; refreshList(kind); search.focus(); });
     search.addEventListener('input', function () { currentQuery = search.value; clear.style.display = search.value ? '' : 'none'; refreshList(kind); });
-    var add = el('button', { class: 'vault-btn primary sm', onclick: function () { openEditor(kind); } }, ['+ Add']);
+    var add = el('button', { class: 'vault-btn primary sm', onclick: function () { openAdd(kind); } }, ['+ Add']);
     // Settings + Lock live here (top of the section) so they're always reachable
     // without scrolling to the bottom.
     var kids = [el('div', { class: 'vault-search-wrap' }, [search, clear]), add];
@@ -775,7 +808,25 @@
     return el('div', { class: 'vault-site' }, [head, body]);
   }
 
+  // ── payments panel (rendering delegated to vault-pay-ui.js) ────────────────
+  function renderPayments() {
+    var panel = $('vault-payments-panel'); if (!panel) return;
+    if (!session || !session.isUnlocked()) { renderLock(); return; }
+    if (!store) { afterUnlock(); return; } // store not ready yet — bootstrap then re-render
+    panel.innerHTML = '';
+    if (!window.VaultPayUI) { panel.appendChild(emptyState('Payments module not loaded — check the vault-pay.js / vault-pay-ui.js includes.')); return; }
+    panel.appendChild(toolbar('Search cards…', 'payment'));
+    var list = el('div', { class: 'vault-list' });
+    fillPaymentList(list);
+    panel.appendChild(list);
+  }
+
   // ── editor modal ───────────────────────────────────────────────────────────
+  // The "+ Add" button routes here so each kind can own its own editor.
+  function openAdd(kind) {
+    if (kind === 'payment') { if (window.VaultPayUI) window.VaultPayUI.openEditor(null, hostCtx()); return; }
+    openEditor(kind);
+  }
   function openEditor(kind, item) {
     item = item || {};
     var isLogin = kind === 'login';
@@ -953,6 +1004,18 @@
       if (!ok) return;
       for (var i = 0; i < items.length; i++) await store.remove(items[i].id);
       overlay.remove(); toast('All passwords deleted'); refreshList('login');
+    }));
+    rows.appendChild(settingRow('Delete all Payment methods', async function () {
+      var items = store.byKind('payment');
+      if (!items.length) { toast('No payment methods to delete'); return; }
+      var n = items.length;
+      var ok = await confirmUI('Permanently delete all ' + n + ' saved payment method' + (n === 1 ? '' : 's') + '? This cannot be undone.',
+        { title: 'Delete all Payment methods', okLabel: 'Delete all', danger: true });
+      if (!ok) return;
+      // Deleting cards is as sensitive as revealing them — prove it's you.
+      if (!(await verifyIdentity('delete every saved payment method'))) return;
+      for (var i = 0; i < items.length; i++) await store.remove(items[i].id);
+      overlay.remove(); toast('All payment methods deleted'); refreshList('payment');
     }));
     rows.appendChild(settingRow('Delete all Sensitive Info', async function () {
       var items = store.byKind('sensitive');
@@ -1215,6 +1278,25 @@
       try { var n = await importFromCSV(await f.text()); status.style.color = 'var(--txd)'; status.textContent = 'Imported ' + n + ' login' + (n === 1 ? '' : 's') + '.'; toast('Imported ' + n); renderPasswords(); }
       catch (e) { status.style.color = '#e07070'; status.textContent = 'Import failed: ' + e.message; }
     });
+    // Payment methods — routed through VaultPay's importer REGISTRY, so adding
+    // support for another exporter is one entry in vault-pay.js, not new UI.
+    var payInput = el('input', { type: 'file', accept: '.csv,.json,text/csv,application/json', style: 'display:none' });
+    payInput.addEventListener('change', async function () {
+      var f = payInput.files[0]; payInput.value = ''; if (!f) return;
+      if (!window.VaultPay) { status.style.color = '#e07070'; status.textContent = 'Payments module not loaded.'; return; }
+      status.style.color = 'var(--txd)'; status.textContent = 'Importing…';
+      try {
+        var text = await f.text(), parsed, format;
+        if (/\.json$/i.test(f.name) || /^\s*[[{]/.test(text)) { parsed = JSON.parse(text); format = 'json'; }
+        else { parsed = parseCSV(text); format = 'csv'; }
+        var r = window.VaultPay.importPayments(parsed, format);
+        for (var i = 0; i < r.items.length; i++) await store.save(r.items[i]);
+        status.textContent = 'Imported ' + r.items.length + ' payment method' + (r.items.length === 1 ? '' : 's') + ' from ' + r.importer.label + '.';
+        toast('Imported ' + r.items.length);
+        renderPayments();
+      } catch (e) { status.style.color = '#e07070'; status.textContent = 'Import failed: ' + e.message; }
+    });
+
     var backupInput = el('input', { type: 'file', accept: '.json,application/json', style: 'display:none' });
     backupInput.addEventListener('change', async function () {
       var f = backupInput.files[0]; backupInput.value = ''; if (!f) return;
@@ -1238,14 +1320,16 @@
 
     var box = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } }, [
       el('div', { class: 'vault-modal-title' }, ['Import / Export & Backup']),
-      row('Import from CSV', 'Chrome, Edge, Firefox, or Bitwarden password export.', 'Import CSV', false, function () { csvInput.click(); }),
-      row('Encrypted backup', 'Download an encrypted, zero-knowledge backup file. Safe to store anywhere — needs your master password to open.', 'Export backup', false, exportBackup),
+      row('Import passwords from CSV', 'Chrome, Edge, Firefox, or Bitwarden password export.', 'Import CSV', false, function () { csvInput.click(); }),
+      row('Import payment methods', 'Chromium payment export, 1Password card CSV, Bitwarden .json, or any CSV with a card-number column. (Google Wallet cannot export card numbers — no service can read them back out.)', 'Import cards', false, function () { payInput.click(); }),
+      row('Encrypted backup', 'Download an encrypted, zero-knowledge backup file — passwords, payments and notes together. Safe to store anywhere; needs your master password to open.', 'Export backup', false, exportBackup),
       row('Restore backup', 'Load a previously exported encrypted backup file.', 'Restore', false, function () { backupInput.click(); }),
       row('Plain CSV export', 'UNENCRYPTED — anyone who opens the file can read every password. Use only for migrating, then delete it.', 'Export CSV', true, exportCSVUnencrypted),
+      row('Plain payments export', 'UNENCRYPTED — full card numbers and security codes in a readable file. Use only to migrate, then delete it.', 'Export cards', true, exportPaymentsUnencrypted),
       status,
       el('div', { class: 'vault-modal-actions' }, [el('button', { class: 'vault-btn', onclick: function () { overlay.remove(); } }, ['Close'])]),
     ]);
-    box.appendChild(csvInput); box.appendChild(backupInput);
+    box.appendChild(csvInput); box.appendChild(payInput); box.appendChild(backupInput);
     overlay.appendChild(box); document.body.appendChild(overlay);
 
     async function exportBackup() {
@@ -1263,6 +1347,45 @@
       download('vault-passwords-UNENCRYPTED-' + dateStamp() + '.csv', toCSV(rows), 'text/csv');
       status.style.color = '#e0a060'; status.textContent = 'Exported ' + logins.length + ' logins as PLAIN TEXT — delete the file when done.';
     }
+    async function exportPaymentsUnencrypted() {
+      var cards = store.byKind('payment');
+      if (!cards.length) { toast('No payment methods to export'); return; }
+      if (!(await confirmUI('This writes every card number AND security code to a plain file that anyone can read. Continue?', { title: 'Unencrypted card export', okLabel: 'Export anyway', danger: true }))) return;
+      // Same identity check as revealing a card — an export reveals them all.
+      if (!(await verifyIdentity('export your cards unencrypted'))) return;
+      var VPay = window.VaultPay;
+      var rows = [['nickname', 'type', 'network', 'cardholder', 'card number', 'exp month', 'exp year', 'cvv', 'address1', 'address2', 'city', 'state', 'zip', 'country', 'notes']];
+      cards.forEach(function (c) {
+        var b = VPay ? VPay.normalizeAddress(c.billing) : (c.billing || {});
+        rows.push([c.nickname || '', c.type || '', c.network || '', c.cardholder || '', c.number || '',
+          c.expMonth || '', c.expYear || '', c.cvv || '', b.line1 || '', b.line2 || '', b.city || '', b.region || '', b.postal || '', b.country || '', c.notes || '']);
+      });
+      download('vault-payments-UNENCRYPTED-' + dateStamp() + '.csv', toCSV(rows), 'text/csv');
+      status.style.color = '#e0a060'; status.textContent = 'Exported ' + cards.length + ' card(s) as PLAIN TEXT — delete the file when done.';
+    }
+  }
+
+  // ── host contract for section modules (vault-pay-ui.js) ───────────────────
+  // Everything a tab module needs to look and behave like a native part of
+  // Vault, WITHOUT reaching into this file's internals or opening a second path
+  // to the vault. Note what is deliberately absent: no DEK, no config, no
+  // backend — a module can only read/write through the same unlocked `store`,
+  // and can only gate an action through the same `verifyIdentity`.
+  function hostCtx() {
+    return {
+      el: el, esc: esc, toast: toast, copyText: copyText, confirmUI: confirmUI,
+      iconBtn: iconBtn, emptyState: emptyState,
+      // Rendered SVG STRINGS, not the builder functions — iconBtn() and
+      // innerHTML both want markup, and handing over the function instead
+      // stringifies its source into the button.
+      icons: { eye: eye(), eyeOff: eyeOff(), copy: copyIcon(), edit: editIcon(), lock: lockIcon(), user: userIcon(), ext: extIcon() },
+      store: function () { return store; },
+      session: function () { return session; },
+      verifyIdentity: verifyIdentity,
+      query: function () { return currentQuery; },
+      refreshList: refreshList,
+      categories: CATEGORIES,
+    };
   }
 
   // ── small SVG/icon helpers ─────────────────────────────────────────────────
@@ -1425,9 +1548,9 @@
   function boot() {
     if (!window.VaultCrypto || !window.VaultStore || !window.VaultSession) { return setTimeout(boot, 200); }
     VC = window.VaultCrypto; VaultStore = window.VaultStore; VaultSession = window.VaultSession;
-    // Deep link: ?vaulttab=passwords|sensitive (e.g. from the Vault extension's
-    // gear) opens Vault directly on that tab.
-    try { var vt = new URLSearchParams(location.search).get('vaulttab'); if (vt === 'passwords' || vt === 'sensitive') activeTab = vt; } catch (e) {}
+    // Deep link: ?vaulttab=passwords|payments|sensitive (e.g. from the Vault
+    // extension's gear) opens Vault directly on that tab.
+    try { var vt = new URLSearchParams(location.search).get('vaulttab'); if (vt === 'passwords' || vt === 'sensitive' || vt === 'payments') activeTab = vt; } catch (e) {}
     // Poll for visibility (the nav toggles #kc-root display); cheap + robust
     // against the many code paths that can switch programs.
     setInterval(tick, 500);
@@ -1439,5 +1562,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.Vault = { activate: activate, session: function () { return session; }, genPassword: genPassword, genPassphrase: genPassphrase, strength: strength, analyzeHealth: analyzeHealth, totpNow: totpNow, parseCSV: parseCSV, toCSV: toCSV, importFromCSV: importFromCSV, _setStore: function (s) { store = s; } };
+  window.Vault = { activate: activate, session: function () { return session; }, genPassword: genPassword, genPassphrase: genPassphrase, strength: strength, analyzeHealth: analyzeHealth, totpNow: totpNow, parseCSV: parseCSV, toCSV: toCSV, importFromCSV: importFromCSV, hostCtx: hostCtx, _setStore: function (s) { store = s; } };
 })();

@@ -35651,14 +35651,19 @@ window._THV={
 })();
 </script>
 
-<!-- ── Vault Password Manager ── zero-knowledge (E2E) credential vault.
-     Self-contained modules; vault-ui.js injects the Passwords / Sensitive Info /
-     Links tabs into the Keychain (#kc-root) view and reuses the initialised
-     Firebase app + window.Bio biometrics. Order matters: core → store → session → ui. -->
+<!-- ── Vault ── zero-knowledge (E2E) credential + payment vault.
+     Self-contained modules; vault-ui.js injects the Passwords / Payments /
+     Sensitive Info / Links tabs into the Keychain (#kc-root) view and reuses the
+     initialised Firebase app + window.Bio biometrics. Payments are ordinary
+     encrypted store items (kind:'payment') — same DEK, same sync doc, same
+     unlock — with their logic in vault-pay.js and their tab in vault-pay-ui.js.
+     Order matters: crypto → pay → store → session → ui → pay-ui. -->
 <script src="Vault/vault-crypto.js"></script>
+<script src="Vault/vault-pay.js"></script>
 <script src="Vault/vault-store.js"></script>
 <script src="Vault/vault-session.js"></script>
 <script src="Vault/vault-ui.js"></script>
+<script src="Vault/vault-pay-ui.js"></script>
 
 </body>
 </html>

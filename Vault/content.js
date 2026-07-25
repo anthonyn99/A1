@@ -1,12 +1,26 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// content.js — Vault extension · inline autofill dropdown
+// content.js — Vault extension · inline autofill dropdowns (logins + payments)
 //
-// When you focus a username/password field on any page, this shows a small
-// "Vault Autofill" dropdown anchored to the field, listing your saved logins
-// for the current site. Click one to fill. Credentials are decrypted by the
-// background service worker using the 30-minute idle session — this content
-// script never has the master password or the vault key, only the specific
-// username/password strings for the current domain (fetched on demand).
+// Two independent offers share one Shadow-DOM popover:
+//
+//   LOGINS   — focus a username/password field → your saved logins for this
+//              site. Unchanged from before, and still TOP-FRAME ONLY, so
+//              enabling all_frames for payments cannot alter password
+//              behaviour anywhere.
+//   PAYMENTS — focus a card field on a checkout → your saved cards. Runs in
+//              EVERY frame, because hosted card fields (Stripe/Braintree/Adyen)
+//              live in their own iframes.
+//
+// ── What this script is trusted with ────────────────────────────────────────
+// Logins keep their existing contract: the background hands over the specific
+// username/password for the current domain, which this script writes into the
+// page.
+//
+// Payments are stricter. This script NEVER receives a card number, CVV or
+// billing address — only masked summaries (nickname, network, last 4, expiry)
+// to draw the list. When you pick a card, it sends just the item id; the
+// background decrypts and fills the fields itself (see vaultFillCard). So a
+// compromised page context has nothing to steal here even mid-checkout.
 // ─────────────────────────────────────────────────────────────────────────────
 
 (function () {
@@ -17,31 +31,60 @@
   const VAULT_APP_HOSTS = ["anthonyn99.github.io"];
   if (VAULT_APP_HOSTS.some((h) => location.hostname === h || location.hostname.endsWith("." + h))) return;
 
+  // Logins stay top-frame-only (exactly as before all_frames was enabled).
+  let IS_TOP = true;
+  try { IS_TOP = window.top === window; } catch (e) { IS_TOP = false; }
+
   const host = location.hostname.replace(/^www\./, "");
-  let box = null, shadow = null, anchor = null, hideTimer = null;
+  let box = null, shadow = null, anchor = null, hideTimer = null, mode = "login";
 
   // Ask the background for live matches on EVERY focus (no persistent cache), so
   // a just-unlocked vault works without reloading and a lock takes effect on the
   // next focus. `chrome.storage.session.onChanged` does NOT fire in content
   // scripts (untrusted context), which is why we don't rely on it.
-  function getCreds() {
+  function ask(msg, fallback) {
     return new Promise((res) => {
       try {
-        chrome.runtime.sendMessage({ action: "vaultGetCreds", host }, (resp) => {
-          if (chrome.runtime.lastError || !resp) return res({ unlocked: false, creds: [] });
-          res({ unlocked: !!resp.unlocked, creds: resp.creds || [] });
+        chrome.runtime.sendMessage(msg, (resp) => {
+          if (chrome.runtime.lastError || !resp) return res(fallback);
+          res(resp);
         });
-      } catch (e) { res({ unlocked: false, creds: [] }); }
+      } catch (e) { res(fallback); }
     });
+  }
+  function getCreds() {
+    return ask({ action: "vaultGetCreds", host }, { unlocked: false, creds: [] })
+      .then((r) => ({ unlocked: !!r.unlocked, creds: r.creds || [] }));
+  }
+  function getCards() {
+    return ask({ action: "vaultGetCards" }, { unlocked: false, cards: [] })
+      .then((r) => ({ unlocked: !!r.unlocked, cvvFresh: !!r.cvvFresh, cards: r.cards || [] }));
   }
   // The popup broadcasts here when you unlock/lock so an OPEN dropdown updates
   // instantly (hide on lock; re-render on unlock if a field is focused).
   try {
-    chrome.runtime.onMessage.addListener((msg) => {
-      if (!msg || msg.action !== "vaultLockChanged") return;
-      if (!msg.unlocked) { hide(); return; }
-      const active = document.activeElement;
-      if (active && isLoginField(active)) show(active);
+    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (!msg) return;
+
+      if (msg.action === "vaultLockChanged") {
+        if (!msg.unlocked) { hide(); return; }
+        const active = document.activeElement;
+        if (active && fieldMode(active)) show(active);
+        return;
+      }
+
+      // The background decrypted a card and is handing it to this frame's
+      // filler. The values go straight into fill() — nothing is retained here.
+      //
+      // A frame with no card fields answers NOTHING on purpose: the background
+      // broadcasts to the whole tab for the popup's Fill button, so staying
+      // silent is how the frame that actually owns the checkout wins the reply.
+      if (msg.action === "vaultDoFillCard") {
+        let out = { filled: 0, cvv: false };
+        try { if (self.VaultCardFill) out = self.VaultCardFill.fill(msg.values); } catch (e) {}
+        if (out && out.filled > 0) { sendResponse(out); hide(); return true; }
+        return;
+      }
     });
   } catch (e) {}
 
@@ -59,6 +102,18 @@
     }
     return false;
   }
+  function isCardField(elm) {
+    try { return !!(self.VaultCardFill && self.VaultCardFill.isCardField(elm)); } catch (e) { return false; }
+  }
+  // Which dropdown (if any) this field wants. Card fields are checked FIRST so a
+  // CVV input that a site marked type="password" (with autocomplete="cc-csc")
+  // offers cards rather than logins.
+  function fieldMode(elm) {
+    if (isCardField(elm)) return "payment";
+    if (IS_TOP && isLoginField(elm)) return "login";
+    return "";
+  }
+
   function fieldsFor(elm) {
     const scope = elm.form || document;
     const pw = scope.querySelector('input[type="password"]');
@@ -82,6 +137,25 @@
     if (f.pw && cred.password) setVal(f.pw, cred.password);
     hide();
   }
+  // Payments: we only send the id. The background decrypts and fills this frame.
+  async function fillCard(card) {
+    const wrap = shadow && shadow.getElementById("wrap");
+    if (wrap) wrap.querySelectorAll(".v-item").forEach((n) => { n.style.opacity = ".5"; n.style.pointerEvents = "none"; });
+    const r = await ask({ action: "vaultFillCard", id: card.id }, { ok: false });
+    if (r.ok && !r.cvvFilled && r.cvvFresh === false) {
+      // Everything but the security code went in — say so instead of failing.
+      note("Filled without the security code — unlock Vault again to include it.");
+      setTimeout(hide, 2600);
+      return;
+    }
+    if (!r.ok) { note(r.locked ? "Vault locked — open the Vault popup to unlock." : "No card fields found here."); setTimeout(hide, 2200); return; }
+    hide();
+  }
+  function note(text) {
+    const wrap = shadow && shadow.getElementById("wrap");
+    if (!wrap) return;
+    wrap.innerHTML = '<div class="v-head">' + headIcon() + esc(mode === "payment" ? "Vault Payments" : "Vault Autofill") + '</div><div class="v-msg">' + esc(text) + "</div>";
+  }
 
   // ── dropdown UI (Shadow DOM, isolated from page CSS) ───────────────────────
   function ensureBox() {
@@ -98,9 +172,15 @@
       .v-item:first-of-type{border-top:none}
       .v-item:hover{background:#1e1e26}
       .v-ic{width:18px;height:18px;border-radius:4px;background:#202028;flex-shrink:0}
+      .v-mark{width:30px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+      .v-mark svg{width:30px;height:20px;display:block}
       .v-txt{min-width:0;flex:1}
       .v-t{font-size:12.5px;font-weight:700;color:#ececf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .v-u{font-size:11px;color:#9898a8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+      .v-u{font-size:11px;color:#9898a8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;font-variant-numeric:tabular-nums}
+      .v-exp{font-size:10px;font-weight:700;color:#58586a;flex-shrink:0;font-variant-numeric:tabular-nums}
+      .v-exp.warn{color:#e0a052}
+      .v-exp.bad{color:#e05252}
+      .v-star{color:#E0607A;font-size:10px;flex-shrink:0}
       .v-msg{padding:11px;color:#9898a8;font-size:12px;line-height:1.5}
       .v-msg b{color:#ececf0}
       .v-foot{padding:6px 11px;border-top:1px solid #252530;color:#58586a;font-size:9.5px;text-align:right}
@@ -115,9 +195,12 @@
   function keyIconSVG() {
     return '<svg class="v-dot" viewBox="0 0 24 24" fill="none" stroke="#E0607A" stroke-width="2"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>';
   }
-  function render(state) {
-    ensureBox();
-    const wrap = shadow.getElementById("wrap");
+  function cardIconSVG() {
+    return '<svg class="v-dot" viewBox="0 0 24 24" fill="none" stroke="#E0607A" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>';
+  }
+  function headIcon() { return mode === "payment" ? cardIconSVG() : keyIconSVG(); }
+
+  function renderLogins(state) {
     let html = '<div class="v-head">' + keyIconSVG() + "Vault Autofill</div>";
     if (state.unlocked && state.creds.length) {
       html += state.creds.map((c, i) =>
@@ -130,8 +213,35 @@
     } else {
       html += '<div class="v-msg">Vault is locked. Click the <b>Vault</b> toolbar icon → <b>Passwords</b> to unlock, then reload.</div>';
     }
-    wrap.innerHTML = html;
-    wrap.querySelectorAll(".v-item").forEach((n) => n.addEventListener("click", () => fill(state.creds[+n.getAttribute("data-i")])));
+    return html;
+  }
+  function renderCards(state) {
+    let html = '<div class="v-head">' + cardIconSVG() + "Vault Payments</div>";
+    if (state.unlocked && state.cards.length) {
+      html += state.cards.map((c, i) => {
+        const cls = c.expiryState === "expired" ? " bad" : c.expiryState === "expiring" ? " warn" : "";
+        return '<div class="v-item" data-i="' + i + '"><span class="v-mark">' + (c.mark || "") + '</span><div class="v-txt"><div class="v-t">' +
+          (c.favorite ? '<span class="v-star">★ </span>' : "") + esc(c.title) +
+          '</div><div class="v-u">' + esc(c.masked || c.subtitle) + '</div></div>' +
+          (c.expiry ? '<span class="v-exp' + cls + '">' + esc(c.expiryState === "expired" ? "EXP" : c.expiry) + "</span>" : "") + "</div>";
+      }).join("");
+      html += '<div class="v-foot">' + (state.cvvFresh ? "" : "Security code needs a fresh unlock · ") +
+        state.cards.length + " card" + (state.cards.length === 1 ? "" : "s") + " · Vault</div>";
+    } else if (state.unlocked) {
+      html += '<div class="v-msg">No saved payment methods. Add one in <b>TaskHub → Vault → Payments</b>.</div>';
+    } else {
+      html += '<div class="v-msg">Vault is locked. Click the <b>Vault</b> toolbar icon → <b>Payments</b> to unlock, then reload.</div>';
+    }
+    return html;
+  }
+  function render(state) {
+    ensureBox();
+    const wrap = shadow.getElementById("wrap");
+    wrap.innerHTML = mode === "payment" ? renderCards(state) : renderLogins(state);
+    wrap.querySelectorAll(".v-item").forEach((n) => n.addEventListener("click", () => {
+      const item = (mode === "payment" ? state.cards : state.creds)[+n.getAttribute("data-i")];
+      if (item) (mode === "payment" ? fillCard : fill)(item);
+    }));
   }
   function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
@@ -145,7 +255,18 @@
   function hide() { if (box) box.style.display = "none"; anchor = null; }
 
   async function show(elm) {
-    anchor = elm;
+    const m = fieldMode(elm);
+    if (!m) { hide(); return; }
+    mode = m; anchor = elm;
+    if (m === "payment") {
+      const state = await getCards();
+      // Only interrupt a checkout when we have something to offer, or when the
+      // field is unmistakably a card number and the vault just needs unlocking.
+      const isNumber = self.VaultCardFill && self.VaultCardFill.classify(elm) === "cc-number";
+      if (!state.cards.length && !isNumber) { hide(); return; }
+      render(state); position();
+      return;
+    }
     const state = await getCreds();
     // Don't pop up on unrelated text fields when locked or no matches — only for
     // password fields (always) or when we actually have matches.
@@ -159,7 +280,7 @@
   // ── events ─────────────────────────────────────────────────────────────────
   document.addEventListener("focusin", (e) => {
     const t = e.target;
-    if (isLoginField(t)) { clearTimeout(hideTimer); show(t); }
+    if (fieldMode(t)) { clearTimeout(hideTimer); show(t); }
   }, true);
   document.addEventListener("focusout", () => { hideTimer = setTimeout(hide, 150); }, true);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); }, true);

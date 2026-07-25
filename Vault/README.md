@@ -36,6 +36,31 @@ Rebuilt from the old *D2L Tabs Automate* class project (used only as a template)
   an extension claim a site's RP ID once it holds `host_permissions` for it — see
   manifest.json) and, only on success, unwraps the vault with the synced device key.
   No separate enrollment, and a live biometric check is still required every time.
+- **Payments** — saved cards with **checkout autofill**, sharing the *same* vault,
+  the same master password, the same unlock session and the same encrypted
+  document as Passwords. A card is just another item with `kind:'payment'`; the
+  number, CVV, cardholder, expiry, billing address, brand and last-4 all live
+  inside the AES-256-GCM ciphertext. Focus a card field on a checkout and the
+  inline dropdown offers your cards; pick one and it fills name / number /
+  expiry / CVV / billing address. Create and edit cards in TaskHub → **Vault →
+  Payments**; the extension is a read + autofill client, exactly like Passwords.
+
+### How Payments is stricter than Passwords
+
+Passwords hands the content script the actual username/password for the current
+domain. Payments does **not**:
+
+| | Passwords | Payments |
+|---|---|---|
+| What the page-side script receives | the credential to fill | **masked summaries only** — nickname, network, last 4, expiry |
+| Who performs the fill | the content script | the **background** decrypts and hands values straight to `vault-cardfill.js` |
+| CVV release | n/a | only within **5 min** of a real master-password/biometric check (`authFresh()`) |
+| Reveal / copy in the popup | reveal button | requires a **fresh credential check** (`reauth()` or biometrics) |
+
+So a compromised page context has nothing to steal mid-checkout, and a laptop
+left open on an unlocked vault still cannot surrender a security code. The idle
+session extends on activity as before, but activity never refreshes the CVV
+window — only presenting a credential does.
 
 ### Passwords Worker setup (one-time)
 
@@ -75,15 +100,25 @@ Files:
 | File | Role |
 |------|------|
 | `manifest.json` | MV3 manifest (name, icons, permissions) |
-| `popup.html` / `popup.js` | View + launch links; Links & Passwords tabs. The Passwords ⚙ opens TaskHub → Vault → Passwords (where credentials are managed) |
+| `popup.html` / `popup.js` | View + launch links; Links, Passwords & Payments tabs. Each vault tab's ⚙ deep-links to the matching TaskHub → Vault tab (where items are managed) |
 | `vault-sync.js` | Reads the shared Keychain doc via the `keychain-sync` Worker (load / linksOf) |
 | `vault-crypto.js` | Zero-knowledge crypto core (PBKDF2 + AES-GCM); decrypts locally after unlock |
-| `vault-pw-core.js` | Password data layer: fetch (via `vault-pw-sync` Worker), unlock, decrypt, domain match, 30-min idle session, biometric unlock |
+| `vault-pay.js` | Payment-methods core — networks/Luhn/masking/expiry, the method + importer **registries**, and `autofillValues()`. Pure logic, no DOM; shared with the PWA |
+| `vault-pw-core.js` | Vault data layer: fetch (via `vault-pw-sync` Worker), unlock, decrypt logins **and payments**, domain match, 30-min idle session, biometric unlock, CVV auth-freshness |
 | `vault-pw.js` | Passwords popup UI (unlock, list, copy/reveal, autofill, biometric button) |
+| `vault-pay-panel.js` | Payments popup UI (unlock, card list, masked numbers, step-up reveal/copy, Fill) |
+| `vault-cardfill.js` | Checkout field detection + filling. Content script in **all frames** (hosted Stripe/Braintree card fields live in iframes) |
 | `vault-bio-sync.js` | Content script on the Index origin only — relays this device's biometric link (deviceId/deviceKey/credential id) into `chrome.storage.local` |
-| `content.js` | Inline "Vault Autofill" dropdown on login pages |
-| `background.js` | Service worker — opens tabs; decrypts matches for the content script; stores the synced biometric link |
+| `content.js` | Inline "Vault Autofill" (logins, **top frame only**) and "Vault Payments" (cards, any frame) dropdowns |
+| `background.js` | Service worker — opens tabs; decrypts login matches and masked card summaries; performs the card fill itself |
 | `icons/` | 16/48/128 px all-pink keyhole icons |
+
+> **Re-load the unpacked extension after this change.** `manifest.json` gained
+> `all_frames` and a new content-script file, which only takes effect on reload.
+> No new *permissions* were added — the card fill deliberately routes through
+> `chrome.tabs.sendMessage` to the already-injected content script rather than
+> `chrome.scripting.executeScript`, which would have required `<all_urls>` host
+> permissions and a re-approval prompt. Same isolated world either way.
 
 The extension ships only the files listed above (see `VAULT_FILES` in the Index
 app's packager). This folder also holds the **Index app's PWA vault modules**,
@@ -93,10 +128,51 @@ extension share a single `vault-crypto.js` (identical crypto core):
 | File | Role |
 |------|------|
 | `vault-crypto.js` | Shared crypto core — loaded by the extension **and** by `index.html` |
+| `vault-pay.js` | Shared payments core — loaded by the extension **and** by `index.html` |
 | `vault-store.js` | PWA: encrypted storage + sync layer (Index app only) |
 | `vault-session.js` | PWA: session & auth orchestration (Index app only) |
-| `vault-ui.js` | PWA: Passwords / Sensitive Info / Links tabs injected into Keychain (Index app only) |
+| `vault-ui.js` | PWA: Passwords / Payments / Sensitive Info / Links tabs injected into Keychain (Index app only) |
+| `vault-pay-ui.js` | PWA: the Payments tab itself — card faces, editor, gated reveal (Index app only) |
 | `vault-*.test.js` | Node verification for the modules above (`node vault-crypto.test.js`, …) |
+
+### Why Payments needed almost no new architecture
+
+`vault-store.js` already stores each item as `{ id, kind, enc, updatedAt, deleted }`
+with `kind` as the **only** plaintext field. So a payment method is just
+`kind:'payment'`, and it inherits — with zero changes to the crypto, storage,
+sync or session layers — the same DEK, the same per-item last-write-wins
+conflict handling, the same real-time Firestore listener, the same offline
+queueing, the same master-password / recovery-key / biometric unlock paths, the
+same auto-lock, and the same encrypted backup file.
+
+What *was* added: the payment logic itself (`vault-pay.js`), a tab
+(`vault-pay-ui.js`), a popup panel (`vault-pay-panel.js`) and the checkout
+filler (`vault-cardfill.js`). `vault-ui.js` gained only tab wiring plus a
+`hostCtx()` contract so the Payments tab is a module rather than another
+thousand lines in an already-large file.
+
+Two hardening fixes landed alongside, both pre-existing and both affecting
+Passwords too:
+
+- `touchSession()` in `vault-pw-core.js` was rewriting the session record
+  without `stamp`, which silently disabled the "master password changed on
+  another device → drop this cached key" check on every later resume.
+- `renderLock()` in `vault-ui.js` always drew the lock screen into the Passwords
+  panel, so locking while on another tab left that tab blank instead of locked.
+
+### Adding another payment method type or importer
+
+Both are registries in `vault-pay.js` — append one object, nothing else changes:
+
+```js
+METHODS   // 'card' today; a 'bank'/'paypal' entry brings its own fields + autofill
+IMPORTERS // { id, label, format:'csv'|'json', detect(input), extract(input) }
+```
+
+`IMPORTERS` ships Chromium payment exports, 1Password card CSV, Bitwarden JSON
+and a generic CSV fallback. Google Wallet is intentionally absent: it exposes no
+card-number export (nor does any issuer wallet), so no importer can exist — the
+registry is there so the ones that *are* possible stay one object each.
 
 `index.html` loads these via `<script src="Vault/…">`; the extension loads its
 copy of `vault-crypto.js` locally from this same folder.

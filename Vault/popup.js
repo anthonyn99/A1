@@ -17,6 +17,8 @@ const TASKHUB_KEYCHAIN_URL = "https://anthonyn99.github.io/A1/?goto=keychain";
 // are created/edited). The ?goto=keychain query opens the Vault program and
 // vaulttab=passwords selects the Passwords tab (handled by vault-ui.js).
 const TASKHUB_VAULT_PW_URL = "https://anthonyn99.github.io/A1/?goto=keychain&vaulttab=passwords";
+// Same deep link for the Payments tab (vault-pay-ui.js reads ?vaulttab).
+const TASKHUB_VAULT_PAY_URL = "https://anthonyn99.github.io/A1/?goto=keychain&vaulttab=payments";
 
 // ── Persisted, user-adjustable popup size ──
 // #app has CSS `resize:both`; drag its bottom-right corner to resize. We restore
@@ -224,24 +226,37 @@ function render() {
 let activeTab = "links";
 const gearEl = document.getElementById("gear");
 
+const TAB_TITLES = {
+  passwords: "Manage passwords in TaskHub → Vault",
+  payments: "Manage payment methods in TaskHub → Vault",
+  links: "Open Keychain in TaskHub",
+};
+const TAB_GEAR_URLS = {
+  passwords: TASKHUB_VAULT_PW_URL,
+  payments: TASKHUB_VAULT_PAY_URL,
+  links: TASKHUB_KEYCHAIN_URL,
+};
+
 function setActiveTab(name) {
   activeTab = name;
   document.querySelectorAll(".tab").forEach(t =>
     t.classList.toggle("active", t.dataset.panel === name));
-  document.getElementById("panel-links").classList.toggle("hidden", name !== "links");
-  document.getElementById("panel-passwords").classList.toggle("hidden", name !== "passwords");
-  gearEl.title = name === "passwords" ? "Manage passwords in TaskHub → Vault" : "Open Keychain in TaskHub";
-  // Render the Passwords panel (unlock / list / autofill) on first open.
+  ["links", "passwords", "payments"].forEach(p =>
+    document.getElementById("panel-" + p).classList.toggle("hidden", name !== p));
+  gearEl.title = TAB_TITLES[name] || TAB_TITLES.links;
+  // Render each vault panel (unlock / list / autofill) on first open. Both share
+  // one unlocked session, so unlocking on either tab covers the other.
   if (name === "passwords" && window.VaultPWPanel) window.VaultPWPanel.render();
+  if (name === "payments" && window.VaultPayPanel) window.VaultPayPanel.render();
 }
 
 document.querySelectorAll(".tab").forEach(tab =>
   tab.addEventListener("click", () => setActiveTab(tab.dataset.panel)));
 
 gearEl.addEventListener("click", () => {
-  // Passwords tab → open TaskHub → Vault → Passwords (where you manage them).
-  // Links tab → open TaskHub → Keychain. (No more unused options page.)
-  chrome.tabs.create({ url: activeTab === "passwords" ? TASKHUB_VAULT_PW_URL : TASKHUB_KEYCHAIN_URL });
+  // Each vault tab's gear deep-links to the matching TaskHub → Vault tab (where
+  // items are created/edited); Links opens Keychain.
+  chrome.tabs.create({ url: TAB_GEAR_URLS[activeTab] || TASKHUB_KEYCHAIN_URL });
   window.close();
 });
 

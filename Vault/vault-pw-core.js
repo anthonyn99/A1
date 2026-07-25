@@ -1,28 +1,40 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// vault-pw-core.js — Vault extension · password data layer (NO DOM)
+// vault-pw-core.js — Vault extension · vault data layer (NO DOM)
 //
-// Shared by the popup (vault-pw.js UI), the background service worker
-// (background.js), and — via the background — the inline autofill content
-// script. Handles: fetching the encrypted vault through the vault-pw-sync
-// Worker, unlocking locally with VaultCrypto, decrypting logins, domain
-// matching, and a 30-minute idle SESSION so you don't re-enter your master
-// password on every popup open.
+// Shared by the popup (vault-pw.js + vault-pay-panel.js UIs), the background
+// service worker (background.js), and — via the background — the inline
+// autofill content script. Handles: fetching the encrypted vault through the
+// vault-pw-sync Worker, unlocking locally with VaultCrypto, decrypting logins
+// AND payment methods, domain matching, and a 30-minute idle SESSION so you
+// don't re-enter your master password on every popup open.
 //
 // SESSION SECURITY: the unlocked Data Key is cached in chrome.storage.session,
 // which is IN-MEMORY ONLY (never written to disk) and cleared when the browser
 // fully closes. It auto-expires 30 minutes after the last activity. This mirrors
 // how desktop password managers keep the vault key resident while unlocked.
+//
+// AUTH FRESHNESS (payments): the session also records `unlockedAt` — the moment
+// a real credential (master password or biometric) was last presented, which
+// activity touches do NOT extend. The CVV is only ever released within
+// CVV_FRESH_MS of that moment, so a long-idle-but-still-unlocked session can
+// autofill a card number but must be re-authenticated for the security code.
+// Everything else in the vault behaves exactly as it did before.
 // ─────────────────────────────────────────────────────────────────────────────
 
 (function (root) {
   const WORKER_URL = "https://vault-pw-sync.av1.workers.dev/vault";
   const VAULT_KEY  = "vh-Ou55y3rGmjUn_ZGFTdSIFph2xN_OK";
   const IDLE_MS = 30 * 60 * 1000;
+  const CVV_FRESH_MS = 5 * 60 * 1000; // re-auth window for releasing a CVV
   const SKEY = "vpwSession";
 
   const VC = root.VaultCrypto || (typeof require !== "undefined" ? require("./vault-crypto.js") : null);
+  const VPay = root.VaultPay || (typeof require !== "undefined" ? require("./vault-pay.js") : null);
 
   let config = null, items = {}, dek = null, loaded = false;
+  // Set on a real credential presentation only; survives across popup opens via
+  // the session record. `null` means "unlocked, but we can't prove how recently".
+  let unlockedAt = 0;
 
   // ── chrome.storage.session helpers (guarded; no-op outside the extension) ──
   function hasSession() { try { return !!(root.chrome && chrome.storage && chrome.storage.session); } catch (e) { return false; } }
@@ -47,11 +59,27 @@
     await ensureLoaded();
     if (!config) throw new Error("no-vault");
     dek = await VC.unlockWithPassword(config, masterPassword); // throws 'bad-password'
+    unlockedAt = Date.now();
     await saveSession();
     return true;
   }
-  async function lock() { dek = null; await sesDel(); }
+  async function lock() { dek = null; unlockedAt = 0; await sesDel(); }
   function isUnlocked() { return !!dek; }
+
+  // ── auth freshness ─────────────────────────────────────────────────────────
+  // ms since a real credential was presented (Infinity if never/unknown).
+  function authAge() { return unlockedAt ? Date.now() - unlockedAt : Infinity; }
+  function authFresh(maxMs) { return authAge() <= (maxMs == null ? CVV_FRESH_MS : maxMs); }
+  // Re-present the master password on an ALREADY-unlocked session to refresh the
+  // window (e.g. to release a CVV) without disturbing the cached DEK.
+  async function reauth(masterPassword) {
+    await ensureLoaded();
+    if (!config) throw new Error("no-vault");
+    await VC.unlockWithPassword(config, masterPassword); // throws 'bad-password'
+    unlockedAt = Date.now();
+    await saveSession();
+    return true;
+  }
 
   // ── biometric unlock — reuses the SAME WebAuthn credential + device key ────
   // registered on this device by Index (see vault-bio-sync.js). We never
@@ -115,19 +143,46 @@
     } catch (e) { throw new Error(e && e.name === "NotAllowedError" ? "cancelled" : "bio-failed"); }
     if (!asr) throw new Error("cancelled");
     dek = await VC.unlockWithBiometric(config, link.deviceId, link.deviceKeyB64); // throws 'bad-biometric'
+    unlockedAt = Date.now();
     await saveSession();
     return true;
   }
 
-  async function credentials() {
+  // ── decryption ─────────────────────────────────────────────────────────────
+  // One decrypt path for every item kind. `kind` is the only plaintext field on
+  // a stored doc (routing); everything else comes out of `enc`.
+  async function decryptKind(kind) {
     if (!dek) throw new Error("locked");
     const out = [];
     for (const id of Object.keys(items)) {
       const doc = items[id];
-      if (!doc || doc.deleted || doc.kind !== "login" || !doc.enc) continue;
+      if (!doc || doc.deleted || doc.kind !== kind || !doc.enc) continue;
       try { const body = await VC.decrypt(dek, doc.enc); out.push(Object.assign({ id }, body)); } catch (e) {}
     }
+    return out;
+  }
+
+  async function credentials() {
+    const out = await decryptKind("login");
     return out.sort((a, b) => (a.title || a.url || "").localeCompare(b.title || b.url || ""));
+  }
+
+  // Decrypted payment methods, favourites/expiry-sorted like the PWA shows them.
+  async function payments() {
+    const out = await decryptKind("payment");
+    return VPay ? VPay.sortCards(out) : out;
+  }
+  async function paymentById(id) {
+    const doc = items[id];
+    if (!dek) throw new Error("locked");
+    if (!doc || doc.deleted || doc.kind !== "payment" || !doc.enc) return null;
+    try { return Object.assign({ id }, await VC.decrypt(dek, doc.enc)); } catch (e) { return null; }
+  }
+  // What a page-side context (the autofill dropdown) is allowed to see: masked
+  // display data only — never a full number, never a CVV. See VaultPay.summarize.
+  async function paymentSummaries() {
+    const list = await payments();
+    return VPay ? list.map((c) => VPay.summarize(c)) : list;
   }
 
   function hostFromUrl(u) {
@@ -149,13 +204,17 @@
     if (!dek || !hasSession()) return;
     try {
       const raw = await crypto.subtle.exportKey("raw", dek);
-      await sesSet({ dek: VC.bytesToB64(new Uint8Array(raw)), at: Date.now(), stamp: (config && config.securityStamp) || null });
+      await sesSet({ dek: VC.bytesToB64(new Uint8Array(raw)), at: Date.now(), unlockedAt: unlockedAt || Date.now(), stamp: (config && config.securityStamp) || null });
     } catch (e) {}
   }
+  // Extend the IDLE window on activity. It must carry `stamp` and `unlockedAt`
+  // forward untouched: dropping the stamp would disable the "master password
+  // changed elsewhere → re-lock" check on the next resume, and bumping
+  // unlockedAt would let mere activity stand in for re-authentication.
   async function touchSession() {
     if (!dek || !hasSession()) return;
     const cur = await sesGet();
-    if (cur && cur.dek) await sesSet({ dek: cur.dek, at: Date.now() });
+    if (cur && cur.dek) await sesSet({ dek: cur.dek, at: Date.now(), unlockedAt: cur.unlockedAt || 0, stamp: cur.stamp || null });
   }
   // Try to resume a previous unlock. Returns true if still valid (within idle).
   async function restoreSession() {
@@ -169,7 +228,10 @@
       await fetchVault();
       if (s.stamp && config && config.securityStamp && s.stamp !== config.securityStamp) { await sesDel(); return false; }
       dek = await crypto.subtle.importKey("raw", VC.b64ToBytes(s.dek), { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
-      await sesSet({ dek: s.dek, at: Date.now(), stamp: (config && config.securityStamp) || s.stamp }); // reset idle window on resume
+      // A resume is NOT a re-authentication: carry the original unlock moment
+      // forward so the CVV window keeps counting from the real credential check.
+      unlockedAt = s.unlockedAt || 0;
+      await sesSet({ dek: s.dek, at: Date.now(), unlockedAt: unlockedAt, stamp: (config && config.securityStamp) || s.stamp }); // reset idle window on resume
       return true;
     } catch (e) { dek = null; return false; }
   }
@@ -177,6 +239,10 @@
   const api = {
     fetchVault, hasVault, unlock, lock, isUnlocked, credentials, matchDomain, hostFromUrl, saveSession, touchSession, restoreSession, IDLE_MS,
     biometricAvailable, biometricLabel, unlockWithBiometric, getBioLink,
+    // payments
+    payments, paymentById, paymentSummaries, decryptKind,
+    // auth freshness (gates CVV release)
+    authAge, authFresh, reauth, CVV_FRESH_MS,
   };
   root.VaultPWCore = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

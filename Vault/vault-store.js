@@ -186,6 +186,12 @@
 
   // Field-weighted relevance scorer. Returns the best weighted match across an
   // item's fields; 0 = no match. Higher = better.
+  //
+  // Payment items (kind:'payment') contribute their own fields — nickname reads
+  // like a title, and the LAST FOUR digits are searchable because that's how
+  // people identify a card. The full card number and the CVV are deliberately
+  // NOT searchable: otherwise typing digits would let a shoulder-surfer confirm
+  // a PAN one guess at a time.
   function scoreItem(it, q) {
     const fields = [
       [it.title, 20], [it.username, 9], [it.email, 9], [it.url, 7],
@@ -193,6 +199,13 @@
       [Array.isArray(it.customFields) ? it.customFields.map((f) => (f && f.label) + ' ' + (f && f.value)).join(' ') : '', 3],
       [it.notes, 2],
     ];
+    if (it.kind === 'payment') {
+      fields.push(
+        [it.nickname, 20], [it.last4, 12], [it.cardholder, 9],
+        [it.network, 6], [it.type, 4],
+        [it.billing ? [it.billing.line1, it.billing.city, it.billing.region, it.billing.postal, it.billing.country].filter(Boolean).join(' ') : '', 3]
+      );
+    }
     let best = 0;
     for (const [val, weight] of fields) {
       if (!val) continue;
