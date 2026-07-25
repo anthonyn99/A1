@@ -103,6 +103,9 @@
   .btn:disabled { opacity: .4; cursor: default; }
   .btn:disabled:hover { border-color: var(--border); background: transparent; }
   .btn.icononly { padding: 9px 10px; }
+  /* Refresh busy state: spin the icon in place instead of swapping in text. */
+  #syncNowBtn.spinning svg { animation: iconspin .8s linear infinite; transform-origin: 50% 50%; }
+  @keyframes iconspin { to { transform: rotate(360deg); } }
   .btn svg { display: block; width: 15px; height: 15px; }
 
   /* ── Display mode ── */
@@ -1948,9 +1951,10 @@
   }
 
   $('syncNowBtn').addEventListener('click', async () => {
-    const b = $('syncNowBtn'); b.disabled = true; b.textContent = 'Refreshing…';
+    const b = $('syncNowBtn');
+    b.disabled = true; b.classList.add('spinning');   // keep the icon, just spin it
     try { await pullBankData(false); } catch (e) { toast('Sync failed: ' + e.message); }
-    b.disabled = false; b.textContent = 'Refresh';
+    b.disabled = false; b.classList.remove('spinning');
   });
 
   // ── Accounts view ────────────────────────────────────────────────────────
