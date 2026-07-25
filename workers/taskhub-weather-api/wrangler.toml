@@ -1,0 +1,10 @@
+name = "taskhub-weather-api"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[[kv_namespaces]]
+binding = "WX_CACHE"
+id = "b70722a46ddb40d49906e2e4aedc7b4a"
+
+# No secrets — Open-Meteo and the BigDataCloud reverse-geocode endpoint are
+# both free and key-less. Nothing to `wrangler secret put` for this worker.

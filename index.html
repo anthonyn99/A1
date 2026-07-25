@@ -1959,6 +1959,466 @@ body.light-mode input[type=time]{color-scheme:light;}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Weather Widget — shared by BOTH TaskHubs (Tony's + Veda's)
+     CF Worker: https://taskhub-weather-api.av1.workers.dev  (KV-cached Open-Meteo)
+
+     ONE module, ONE data layer. Both profiles render window.THWX.Widget and
+     pass their own theme tokens in; nothing here is duplicated per profile.
+     Each browser resolves its own geolocation (cached in localStorage), so
+     Tony's device and Veda's device independently show their own weather.
+
+     Colour comes entirely from CSS custom properties set inline by the caller,
+     so the widget inherits each TaskHub's palette. The only fixed colours are
+     the icon glyph tints (sun/cloud/rain/snow) — weather semantics, not brand,
+     and tuned to read on both the dark and light themes.
+══════════════════════════════════════════════════════════════════════════ -->
+<style>
+.thwx{
+  /* icon + range-bar tints (theme-independent weather semantics) */
+  --wx-sun:#E9B949; --wx-moon:#C6C9DD; --wx-cloud:#9AA3B2;
+  --wx-rain:#5FA8E0; --wx-snow:#B9D6EA;
+  --wx-cool:#6FA8DC; --wx-warm:#E9A03B;
+  align-self:flex-start;
+  width:100%; max-width:360px;
+  box-sizing:border-box;
+  background:var(--wx-s1);
+  border:1px solid var(--wx-bd);
+  border-radius:var(--wx-radius);
+  color:var(--wx-tx);
+  overflow:hidden;
+  transition:max-width .28s ease,border-color .2s;
+}
+.thwx.thwx-open{max-width:580px;}
+@media (max-width:760px){ .thwx,.thwx.thwx-open{max-width:100%;} }
+
+/* ── Compact row (always visible) ── */
+.thwx-compact{
+  display:flex; align-items:center; gap:11px;
+  width:100%; box-sizing:border-box;
+  padding:10px 13px;
+  background:transparent; border:0; color:inherit;
+  font:inherit; text-align:left; cursor:pointer;
+  transition:background .15s;
+}
+.thwx-compact:hover{background:var(--wx-acg);}
+.thwx-compact:focus-visible{outline:2px solid var(--wx-ac);outline-offset:-2px;}
+.thwx-glyph{flex-shrink:0;display:flex;align-items:center;}
+.thwx-now{flex:1;min-width:0;}
+.thwx-temp{display:block;font-size:clamp(23px,6.2vw,29px);font-weight:700;
+  line-height:1;letter-spacing:-.5px;}
+.thwx-cond{display:block;font-size:10.5px;color:var(--wx-txd);margin-top:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thwx-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;
+  flex-shrink:0;font-size:10.5px;color:var(--wx-txd);line-height:1.2;}
+.thwx-place{font-size:9.5px;color:var(--wx-txm);letter-spacing:.4px;
+  max-width:min(150px,36vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.thwx-hl{font-weight:700;color:var(--wx-tx);white-space:nowrap;}
+.thwx-chev{flex-shrink:0;color:var(--wx-txm);transition:transform .25s;}
+.thwx-open .thwx-chev{transform:rotate(180deg);}
+
+/* ── Expanded panel ── */
+.thwx-exp{border-top:1px solid var(--wx-bd);padding:11px 13px 13px;}
+.thwx-blk{margin-top:14px;}
+.thwx-blk:first-child{margin-top:0;}
+.thwx-sect{font-size:9px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;
+  color:var(--wx-txm);margin:0 0 7px;display:flex;align-items:center;
+  justify-content:space-between;gap:8px;}
+
+/* Hourly strip — the ONE intentionally horizontal-scrolling element */
+.thwx-hours{display:flex;gap:2px;overflow-x:auto;overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;padding-bottom:5px;
+  scrollbar-width:thin;scrollbar-color:var(--wx-bdl) transparent;}
+.thwx-hours::-webkit-scrollbar{height:4px;}
+.thwx-hours::-webkit-scrollbar-thumb{background:var(--wx-bdl);border-radius:2px;}
+.thwx-hr{flex:0 0 auto;width:50px;display:flex;flex-direction:column;align-items:center;
+  gap:5px;padding:6px 0 5px;border-radius:6px;}
+.thwx-hr-now{background:var(--wx-acg);}
+.thwx-hr-t{font-size:9.5px;font-weight:700;color:var(--wx-txd);white-space:nowrap;letter-spacing:.3px;}
+.thwx-hr-now .thwx-hr-t{color:var(--wx-ac);}
+.thwx-hr-v{font-size:12.5px;font-weight:700;}
+.thwx-hr-p{font-size:8.5px;font-weight:700;color:var(--wx-rain);height:11px;line-height:11px;}
+
+/* Conditions grid */
+.thwx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+  background:var(--wx-bd);border:1px solid var(--wx-bd);border-radius:6px;overflow:hidden;}
+.thwx-cell{background:var(--wx-s1);padding:7px 9px;min-width:0;}
+.thwx-cell-k{font-size:8.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--wx-txm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thwx-cell-v{font-size:13px;font-weight:700;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thwx-cell-v small{font-size:9.5px;font-weight:700;color:var(--wx-txd);margin-left:3px;}
+@media (max-width:560px){ .thwx-grid{grid-template-columns:repeat(2,1fr);} }
+
+/* Daily list — condensed rows, internal scroll so a 16-day list never
+   pushes the rest of the dashboard off-screen */
+.thwx-days{max-height:min(48vh,352px);overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;scrollbar-color:var(--wx-bdl) transparent;}
+.thwx-days::-webkit-scrollbar{width:4px;}
+.thwx-days::-webkit-scrollbar-thumb{background:var(--wx-bdl);border-radius:2px;}
+.thwx-day{display:grid;grid-template-columns:40px 20px 28px minmax(0,1fr);
+  align-items:center;gap:7px;padding:5px 0;border-top:1px solid var(--wx-bd);}
+.thwx-day:first-child{border-top:0;}
+.thwx-day-n{font-size:11.5px;font-weight:700;color:var(--wx-txd);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thwx-day-today{color:var(--wx-ac);}
+.thwx-day-p{font-size:8.5px;font-weight:700;color:var(--wx-rain);text-align:right;}
+.thwx-range{display:flex;align-items:center;gap:6px;min-width:0;}
+.thwx-lo,.thwx-hi{font-size:11.5px;font-weight:700;flex:0 0 26px;}
+.thwx-lo{color:var(--wx-txd);text-align:right;}
+.thwx-hi{text-align:left;}
+.thwx-bar{flex:1 1 auto;min-width:26px;height:4px;border-radius:2px;
+  background:var(--wx-bd);position:relative;}
+.thwx-bar i{position:absolute;top:0;bottom:0;border-radius:2px;
+  background:linear-gradient(90deg,var(--wx-cool),var(--wx-warm));}
+
+/* States */
+.thwx-msg{padding:14px 13px;font-size:11.5px;color:var(--wx-txd);
+  display:flex;align-items:center;gap:9px;}
+.thwx-retry{background:transparent;border:1px solid var(--wx-bd);border-radius:4px;
+  color:var(--wx-ac);font:inherit;font-size:10px;font-weight:700;letter-spacing:.5px;
+  padding:3px 9px;cursor:pointer;margin-left:auto;transition:border-color .15s;}
+.thwx-retry:hover{border-color:var(--wx-ac);}
+.thwx-x{background:transparent;border:0;color:var(--wx-txm);cursor:pointer;
+  font:inherit;font-size:14px;line-height:1;padding:0 2px;transition:color .15s;}
+.thwx-x:hover{color:var(--wx-ac);}
+</style>
+<script>
+(function(){
+'use strict';
+if(!window.React) return;                  // widget is optional; never break the page
+var h=React.createElement,useState=React.useState,useEffect=React.useEffect,useRef=React.useRef;
+
+var WORKER='https://taskhub-weather-api.av1.workers.dev';
+var LS_LOC='thwx_loc_v1';
+var LS_DATA='thwx_data_v1';
+var POLL_MS=12*60*1000;                    // client refetch cadence while visible
+var MAX_HYDRATE=2*60*60*1000;              // don't paint localStorage data older than 2h
+// Fallback when geolocation is denied AND nothing was ever resolved on this device.
+var DEFAULT_LOC={lat:39.7392,lon:-104.9903};
+
+// ── Store ────────────────────────────────────────────────────────────────
+var S={data:null,at:0,err:null,loading:false};
+var subs=[];
+function emit(){
+  S={data:S.data,at:S.at,err:S.err,loading:S.loading};
+  for(var i=0;i<subs.length;i++)subs[i](S);
+}
+function subscribe(fn){subs.push(fn);return function(){var i=subs.indexOf(fn);if(i>=0)subs.splice(i,1);};}
+
+function locKey(l){return l.lat.toFixed(2)+','+l.lon.toFixed(2);}
+function readLoc(){try{var r=JSON.parse(localStorage.getItem(LS_LOC));if(r&&isFinite(r.lat)&&isFinite(r.lon))return r;}catch(e){}return null;}
+
+// Geolocation is resolved ONCE per session — the promise is memoised, so every
+// later refresh cycle reuses the same fix instead of re-prompting the browser.
+var _locP=null;
+function resolveLoc(){
+  if(_locP)return _locP;
+  _locP=new Promise(function(res){
+    var cached=readLoc(),done=false;
+    function finish(l){if(done)return;done=true;res(l);}
+    if(!navigator.geolocation){finish(cached||DEFAULT_LOC);return;}
+    try{
+      navigator.geolocation.getCurrentPosition(function(p){
+        var l={lat:+p.coords.latitude.toFixed(4),lon:+p.coords.longitude.toFixed(4),ts:Date.now()};
+        try{localStorage.setItem(LS_LOC,JSON.stringify(l));}catch(e){}
+        finish(l);
+      },function(){
+        finish(cached||DEFAULT_LOC);        // denied / unavailable → last known → default
+      },{enableHighAccuracy:false,timeout:8000,maximumAge:30*60*1000});
+    }catch(e){finish(cached||DEFAULT_LOC);}
+    setTimeout(function(){finish(cached||DEFAULT_LOC);},9000);   // belt-and-braces
+  });
+  return _locP;
+}
+
+// Paint instantly from the last payload this device saw, then refresh over it.
+(function hydrate(){
+  try{
+    var raw=JSON.parse(localStorage.getItem(LS_DATA)),loc=readLoc();
+    if(raw&&raw.data&&raw.at&&Date.now()-raw.at<MAX_HYDRATE&&(!loc||raw.key===locKey(loc))){
+      S.data=raw.data;S.at=raw.at;
+    }
+  }catch(e){}
+})();
+
+var _inflight=null;
+function load(force){
+  if(_inflight)return _inflight;
+  if(!force&&S.data&&Date.now()-S.at<POLL_MS)return Promise.resolve();
+  S.loading=true;emit();
+  _inflight=resolveLoc().then(function(loc){
+    return fetch(WORKER+'/forecast?lat='+loc.lat+'&lon='+loc.lon).then(function(r){
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return r.json();
+    }).then(function(dd){
+      if(!dd||dd.error)throw new Error((dd&&dd.error)||'bad payload');
+      S.data=dd;S.at=Date.now();S.err=null;
+      try{localStorage.setItem(LS_DATA,JSON.stringify({key:locKey(loc),at:S.at,data:dd}));}catch(e){}
+    });
+  }).catch(function(e){
+    S.err=(e&&e.message)||'failed';
+  }).then(function(){
+    S.loading=false;_inflight=null;emit();
+  });
+  return _inflight;
+}
+
+// Polling is ref-counted across both TaskHubs and PAUSED whenever the tab is
+// hidden (Page Visibility API) — a backgrounded dashboard makes zero requests.
+// load(false) no-ops while the data is still inside POLL_MS, so the tick, the
+// visibility handler and "user opened the panel" all share one staleness rule.
+var mounted=0,timer=null;
+function onVis(){if(!document.hidden)load(false);}
+function attach(){
+  mounted++;
+  if(mounted===1){
+    timer=setInterval(function(){if(!document.hidden)load(false);},POLL_MS);
+    document.addEventListener('visibilitychange',onVis);
+  }
+  load(false);
+}
+function detach(){
+  mounted--;
+  if(mounted===0){clearInterval(timer);timer=null;document.removeEventListener('visibilitychange',onVis);}
+}
+
+// ── WMO weather code → label + icon ──────────────────────────────────────
+var LABEL={0:'Clear',1:'Mostly Clear',2:'Partly Cloudy',3:'Overcast',45:'Fog',48:'Freezing Fog',
+  51:'Light Drizzle',53:'Drizzle',55:'Heavy Drizzle',56:'Freezing Drizzle',57:'Freezing Drizzle',
+  61:'Light Rain',63:'Rain',65:'Heavy Rain',66:'Freezing Rain',67:'Freezing Rain',
+  71:'Light Snow',73:'Snow',75:'Heavy Snow',77:'Snow Grains',
+  80:'Light Showers',81:'Showers',82:'Heavy Showers',85:'Snow Showers',86:'Snow Showers',
+  95:'Thunderstorm',96:'Thunderstorm',99:'Thunderstorm'};
+function label(c){return LABEL[c]||'—';}
+
+function grp(col,kids,k){
+  return h('g',{key:k,stroke:col,strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round',fill:'none'},kids);
+}
+function ray(x1,y1,x2,y2,k){return h('line',{key:k,x1:x1,y1:y1,x2:x2,y2:y2});}
+var CLOUD='M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z';
+var CLOUD_SM='M16.4 20H8.2a3.6 3.6 0 0 1-.4-7.18A5.9 5.9 0 0 1 19 13.4a3.4 3.4 0 0 1-.6 6.6z';
+var CLOUD_HI='M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25';
+
+// <svg> for a WMO code. `day` picks sun vs moon on the clear/partly codes.
+function icon(code,day,size,key){
+  var kids=[];
+  var C='var(--wx-cloud)',SUN='var(--wx-sun)',MOON='var(--wx-moon)',
+      RAIN='var(--wx-rain)',SNOW='var(--wx-snow)';
+  if(code===0){
+    kids.push(day
+      ? grp(SUN,[h('circle',{key:'c',cx:12,cy:12,r:5}),
+          ray(12,1,12,3,'r1'),ray(12,21,12,23,'r2'),ray(4.22,4.22,5.64,5.64,'r3'),
+          ray(18.36,18.36,19.78,19.78,'r4'),ray(1,12,3,12,'r5'),ray(21,12,23,12,'r6'),
+          ray(4.22,19.78,5.64,18.36,'r7'),ray(18.36,5.64,19.78,4.22,'r8')],'s')
+      : grp(MOON,[h('path',{key:'m',d:'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'})],'m'));
+  }else if(code===1||code===2){
+    kids.push(day
+      ? grp(SUN,[h('circle',{key:'c',cx:18.6,cy:6.4,r:3}),
+          ray(18.6,1.2,18.6,2.4,'r1'),ray(22.5,2.5,21.7,3.3,'r2'),
+          ray(23.8,6.4,22.6,6.4,'r3'),ray(14.7,2.5,15.5,3.3,'r4')],'s')
+      : grp(MOON,[h('path',{key:'m',d:'M22.4 8.6a4.4 4.4 0 1 1-5.2-6.2 3.4 3.4 0 0 0 5.2 6.2z'})],'m'));
+    kids.push(grp(C,[h('path',{key:'p',d:CLOUD_SM})],'c'));
+  }else if(code===3){
+    kids.push(grp(C,[h('path',{key:'p',d:CLOUD})],'c'));
+  }else if(code===45||code===48){
+    kids.push(grp(C,[h('path',{key:'p',d:CLOUD_SM})],'c'));
+    kids.push(grp(C,[ray(3.5,22.6,13.5,22.6,'f1'),ray(16.5,22.6,20.5,22.6,'f2')],'f'));
+  }else if(code>=51&&code<=57){
+    kids.push(grp(C,[h('path',{key:'p',d:CLOUD_HI})],'c'));
+    kids.push(grp(RAIN,[ray(8,17,8,19,'d1'),ray(12,19,12,21,'d2'),ray(16,17,16,19,'d3')],'d'));
+  }else if((code>=61&&code<=67)||(code>=80&&code<=82)){
+    kids.push(grp(C,[h('path',{key:'p',d:CLOUD_HI})],'c'));
+    kids.push(grp(RAIN,[ray(8,16,8,20.5,'r1'),ray(16,16,16,20.5,'r2'),ray(12,18,12,22.5,'r3')],'r'));
+  }else if((code>=71&&code<=77)||code===85||code===86){
+    kids.push(grp(C,[h('path',{key:'p',d:'M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25'})],'c'));
+    kids.push(grp(SNOW,[ray(8,18,8.01,18,'s1'),ray(12,20.5,12.01,20.5,'s2'),ray(16,18,16.01,18,'s3'),
+      ray(10,22.6,10.01,22.6,'s4'),ray(14,22.6,14.01,22.6,'s5')],'s'));
+  }else if(code>=95){
+    kids.push(grp(C,[h('path',{key:'p',d:'M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9'})],'c'));
+    kids.push(grp(SUN,[h('polyline',{key:'b',points:'13 11 9 17 15 17 11 23'})],'b'));
+  }else{
+    kids.push(grp(C,[h('path',{key:'p',d:CLOUD})],'c'));
+  }
+  return h('svg',{key:key,width:size,height:size,viewBox:'0 0 24 24','aria-hidden':'true'},kids);
+}
+
+// ── Formatting helpers ───────────────────────────────────────────────────
+// Open-Meteo returns wall-clock strings in the LOCATION's timezone (timezone=auto),
+// so "now" is derived by shifting UTC by utc_offset_seconds and reading UTC parts.
+function locStamp(d,len){
+  return new Date(Date.now()+((d&&d.utc_offset_seconds)||0)*1000).toISOString().slice(0,len);
+}
+function t0(v){return (v==null||v!==v)?'—':Math.round(v)+'°';}
+function hourLbl(iso){var hh=parseInt(iso.slice(11,13),10);return (hh%12||12)+' '+(hh<12?'AM':'PM');}
+function clockLbl(iso){
+  if(!iso)return '—';
+  var hh=parseInt(iso.slice(11,13),10);
+  return (hh%12||12)+':'+iso.slice(14,16)+' '+(hh<12?'AM':'PM');
+}
+function dayLbl(iso,isToday){
+  if(isToday)return 'Today';
+  var p=iso.split('-');
+  return new Date(+p[0],+p[1]-1,+p[2]).toLocaleDateString(undefined,{weekday:'short'});
+}
+function uvLbl(v){
+  if(v==null)return '—';
+  var n=Math.round(v);
+  return n+' '+(n<=2?'Low':n<=5?'Mod':n<=7?'High':n<=10?'V.High':'Extreme');
+}
+// Rough day/night for an hourly slot, from that day's sunrise/sunset.
+function isDayAt(d,iso,di){
+  var dly=d.daily||{},dts=dly.time||[];
+  var ix=dts.indexOf(iso.slice(0,10)); if(ix<0)ix=di;
+  var sr=dly.sunrise&&dly.sunrise[ix],ss=dly.sunset&&dly.sunset[ix];
+  if(!sr||!ss)return true;
+  return iso>=sr&&iso<ss;
+}
+
+// ── Component ────────────────────────────────────────────────────────────
+function Widget(props){
+  var t=props.t||{};
+  var sa=useState(S),st=sa[0],set=sa[1];
+  var oa=useState(false),open=oa[0],setOpen=oa[1];
+  var box=useRef(null);
+
+  useEffect(function(){
+    var un=subscribe(set);
+    attach();
+    return function(){un();detach();};
+  },[]);
+
+  // Opening the panel pulls fresh data if what we have has gone stale, and
+  // arms the dismiss handlers (outside click / touch / Escape).
+  useEffect(function(){
+    if(!open)return;
+    load(false);
+    function down(e){if(box.current&&!box.current.contains(e.target))setOpen(false);}
+    function key(e){if(e.key==='Escape')setOpen(false);}
+    document.addEventListener('mousedown',down);
+    document.addEventListener('touchstart',down,{passive:true});
+    document.addEventListener('keydown',key);
+    return function(){
+      document.removeEventListener('mousedown',down);
+      document.removeEventListener('touchstart',down);
+      document.removeEventListener('keydown',key);
+    };
+  },[open]);
+
+  var vars={
+    '--wx-s1':t.S1,'--wx-bg':t.BG,'--wx-bd':t.BD,'--wx-bdl':t.BDL||t.BD,
+    '--wx-tx':t.TX,'--wx-txd':t.TXD,'--wx-txm':t.TXM||t.TXD,
+    '--wx-ac':t.AC,'--wx-acg':t.ACG||'transparent',
+    '--wx-radius':(t.radius==null?6:t.radius)+'px',
+    fontFamily:t.font||'inherit'
+  };
+  var upper=t.upper?{textTransform:'uppercase',letterSpacing:'.6px'}:null;
+  var d=st.data;
+
+  if(!d){
+    return h('div',{className:'thwx',style:vars,ref:box},
+      h('div',{className:'thwx-msg'},
+        st.err?'Weather unavailable':'Loading weather…',
+        st.err?h('button',{key:'r',type:'button',className:'thwx-retry',
+          onClick:function(){load(true);}},'Retry'):null));
+  }
+
+  var cur=d.current||{},dly=d.daily||{},hly=d.hourly||{};
+  var todayStamp=locStamp(d,10);
+  var di=(dly.time||[]).indexOf(todayStamp); if(di<0)di=0;
+
+  // ── Compact ──
+  var compact=h('button',{key:'c',type:'button',className:'thwx-compact',
+      'aria-expanded':open?'true':'false','aria-label':'Weather — tap for details',
+      onClick:function(){setOpen(!open);}},
+    h('span',{key:'g',className:'thwx-glyph'},icon(cur.weather_code,cur.is_day!==0,42,'i')),
+    h('span',{key:'n',className:'thwx-now'},
+      h('span',{key:'t',className:'thwx-temp'},t0(cur.temperature_2m)),
+      h('span',{key:'c',className:'thwx-cond',style:upper},label(cur.weather_code))),
+    h('span',{key:'m',className:'thwx-meta'},
+      d.place?h('span',{key:'p',className:'thwx-place'},d.place):null,
+      h('span',{key:'f'},'Feels '+t0(cur.apparent_temperature)),
+      h('span',{key:'h',className:'thwx-hl'},
+        'H:'+t0(dly.temperature_2m_max&&dly.temperature_2m_max[di])+
+        '  L:'+t0(dly.temperature_2m_min&&dly.temperature_2m_min[di]))),
+    h('svg',{key:'v',className:'thwx-chev',width:12,height:12,viewBox:'0 0 24 24',fill:'none',
+      stroke:'currentColor',strokeWidth:3,strokeLinecap:'round',strokeLinejoin:'round'},
+      h('polyline',{points:'6 9 12 15 18 9'})));
+
+  if(!open)return h('div',{className:'thwx',style:vars,ref:box},compact);
+
+  // ── Hourly — next 24h starting at the current hour ──
+  var hourStamp=locStamp(d,13),ht=hly.time||[],hi=0;
+  for(var i=0;i<ht.length;i++){ if(ht[i].slice(0,13)>=hourStamp){hi=i;break;} }
+  var hours=[];
+  for(var k=hi;k<Math.min(hi+24,ht.length);k++){
+    var pp=hly.precipitation_probability?hly.precipitation_probability[k]:null;
+    hours.push(h('div',{key:ht[k],className:'thwx-hr'+(k===hi?' thwx-hr-now':'')},
+      h('div',{key:'t',className:'thwx-hr-t'},k===hi?'Now':hourLbl(ht[k])),
+      icon(hly.weather_code?hly.weather_code[k]:0,isDayAt(d,ht[k],di),20,'i'),
+      h('div',{key:'p',className:'thwx-hr-p'},pp>=10?pp+'%':''),
+      h('div',{key:'v',className:'thwx-hr-v'},t0(hly.temperature_2m?hly.temperature_2m[k]:null))));
+  }
+
+  // ── Daily — 14-16 days sharing one temperature scale (Apple-style bars) ──
+  var dts=dly.time||[],hiT=dly.temperature_2m_max||[],loT=dly.temperature_2m_min||[];
+  var gMin=Infinity,gMax=-Infinity;
+  for(var a=0;a<dts.length;a++){
+    if(loT[a]!=null&&loT[a]<gMin)gMin=loT[a];
+    if(hiT[a]!=null&&hiT[a]>gMax)gMax=hiT[a];
+  }
+  var span=(gMax-gMin)||1;
+  var days=dts.map(function(iso,ix){
+    var lo=loT[ix],hg=hiT[ix],today=ix===di;
+    var left=lo==null?0:((lo-gMin)/span)*100;
+    var wid=(lo==null||hg==null)?0:Math.max(((hg-lo)/span)*100,4);
+    if(left+wid>100)left=Math.max(0,100-wid);
+    var pp=dly.precipitation_probability_max?dly.precipitation_probability_max[ix]:null;
+    return h('div',{key:iso,className:'thwx-day'},
+      h('div',{key:'n',className:'thwx-day-n'+(today?' thwx-day-today':'')},dayLbl(iso,today)),
+      icon(dly.weather_code?dly.weather_code[ix]:0,true,18,'i'),
+      h('div',{key:'p',className:'thwx-day-p'},pp>=10?pp+'%':''),
+      h('div',{key:'r',className:'thwx-range'},
+        h('div',{key:'l',className:'thwx-lo'},t0(lo)),
+        h('div',{key:'b',className:'thwx-bar'},h('i',{style:{left:left+'%',width:wid+'%'}})),
+        h('div',{key:'h',className:'thwx-hi'},t0(hg))));
+  });
+
+  function cell(k,v,sub){
+    return h('div',{key:k,className:'thwx-cell'},
+      h('div',{key:'k',className:'thwx-cell-k'},k),
+      h('div',{key:'v',className:'thwx-cell-v'},v,sub?h('small',{key:'s'},sub):null));
+  }
+  var wu=(d.current_units&&d.current_units.wind_speed_10m)||'mph';
+  if(wu==='mp/h')wu='mph';
+
+  var expanded=h('div',{key:'e',className:'thwx-exp'},
+    h('div',{key:'h',className:'thwx-blk'},
+      h('div',{className:'thwx-sect'},h('span',null,'Next 24 Hours'),
+        h('button',{type:'button',className:'thwx-x',title:'Close',
+          onClick:function(e){e.stopPropagation();setOpen(false);}},'×')),
+      h('div',{className:'thwx-hours'},hours)),
+    h('div',{key:'m',className:'thwx-blk'},
+      h('div',{className:'thwx-sect'},h('span',null,'Conditions')),
+      h('div',{className:'thwx-grid'},
+        cell('Wind',Math.round(cur.wind_speed_10m||0),wu),
+        cell('Humidity',cur.relative_humidity_2m==null?'—':cur.relative_humidity_2m+'%'),
+        cell('UV Index',uvLbl(dly.uv_index_max&&dly.uv_index_max[di])),
+        cell('Precip',(dly.precipitation_probability_max&&dly.precipitation_probability_max[di]!=null)
+          ?dly.precipitation_probability_max[di]+'%':'—'),
+        cell('Sunrise',clockLbl(dly.sunrise&&dly.sunrise[di])),
+        cell('Sunset',clockLbl(dly.sunset&&dly.sunset[di])))),
+    h('div',{key:'d',className:'thwx-blk'},
+      h('div',{className:'thwx-sect'},h('span',null,dts.length+'-Day Forecast')),
+      h('div',{className:'thwx-days'},days)));
+
+  return h('div',{className:'thwx thwx-open',style:vars,ref:box},compact,expanded);
+}
+
+window.THWX={Widget:Widget,refresh:function(){return load(true);}};
+})();
+</script>
 <style>
 /* ── Keychain scoped styles ── */
 #kc-root{
@@ -4004,6 +4464,12 @@ function App(){
 
     // Content wrapper
     React.createElement("div",{style:{maxWidth:2200,margin:"0 auto",padding:"clamp(8px,1.8vw,16px) clamp(10px,2vw,22px) clamp(8px,1.8vw,16px)",boxSizing:"border-box",lineHeight:1.5,display:"flex",flexDirection:"column",gap:"clamp(6px,1.2vw,10px)",overflowX:"hidden"}},
+
+    // Weather — shared widget (window.THWX, defined near the React CDN tags).
+    // Same component Veda's TaskHub renders; only the theme tokens differ.
+    window.THWX&&React.createElement(window.THWX.Widget,{key:"wx",t:{
+      BG:T.BG,S1:T.S1,BD:T.BD,BDL:T.BDL,TX:T.TX,TXD:T.TXD,TXM:T.TXM,AC:T.AC,ACG:T.ACG,
+      radius:4,font:"'Nunito',sans-serif"}}),
 
     // Inspirational Quote + View All Modal
     tgShowAll&&React.createElement("div",{onClick:()=>setTgShowAll(false),style:{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.72)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",paddingTop:"calc(env(safe-area-inset-top, 0px) + 72px)",paddingBottom:"calc(env(safe-area-inset-bottom, 0px) + clamp(16px,4vw,24px))",paddingLeft:"clamp(10px,3vw,24px)",paddingRight:"clamp(10px,3vw,24px)",boxSizing:"border-box",overflow:"hidden"}},
@@ -10224,6 +10690,13 @@ function App(){
           RC("span",{style:{fontSize:10,color:A,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},edit?"Edit":"View"),
           RC("div",{style:{width:34,height:18,borderRadius:9,background:edit?A:BD,border:"1px solid "+BDL,position:"relative",transition:"background .25s"}},RC("div",{style:{width:13,height:13,borderRadius:"50%",background:edit?BG:TXD,position:"absolute",top:"50%",transform:"translateY(-50%)",left:edit?18:2,transition:"left .25s, background .25s"}}))),
         RC("button",{onClick:toggleFullscreen,title:isFullscreen?"Exit Fullscreen":"Fullscreen",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=isFullscreen?A:BDL;},style:{background:isFullscreen?A:"transparent",color:isFullscreen?BG:A,border:"1px solid "+(isFullscreen?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},isFullscreen?"Exit":"⛶"))))),
+
+    // ── WEATHER ──
+    // Shared widget (window.THWX, defined near the React CDN tags) — the same
+    // component Tony's TaskHub renders, with Veda's tokens/mono type passed in.
+    window.THWX&&RC(window.THWX.Widget,{key:"wx",t:{
+      BG:BG,S1:S1,BD:BD,BDL:BDL,TX:TX,TXD:TXD,TXM:TXM,AC:A,ACG:ABG,
+      radius:8,font:"'IBM Plex Mono',monospace",upper:true}}),
 
     // ── GITA DAILY QUOTE BANNER ──
     RC("div",{className:"gita-banner",style:{position:"relative"},onClick:openGitaFromBanner},
