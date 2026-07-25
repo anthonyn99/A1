@@ -142,6 +142,67 @@ const DISC = '6011111111111117';
   ok('filter does NOT match the full PAN', VP.filterCards(cards, VISA).length === 0);
   ok('empty query returns all', VP.filterCards(cards, '').length === 4);
 
+  console.log('\n── manual ordering ──');
+  const ord = [
+    VP.normalize({ nickname: 'C', number: VISA, order: 2 }),
+    VP.normalize({ nickname: 'A', number: MC, order: 0 }),
+    VP.normalize({ nickname: 'B', number: AMEX, order: 1 }),
+  ];
+  ok('order drives the sort', VP.sortCards(ord, now).map((c) => c.nickname).join('') === 'ABC');
+  ok('order beats favourite', VP.sortCards([
+    VP.normalize({ nickname: 'plain', number: VISA, order: 0 }),
+    VP.normalize({ nickname: 'fav', number: MC, order: 1, favorite: true }),
+  ], now)[0].nickname === 'plain');
+  ok('order beats expired-first', VP.sortCards([
+    VP.normalize({ nickname: 'good', number: VISA, expMonth: '01', expYear: '2030', order: 0 }),
+    VP.normalize({ nickname: 'dead', number: MC, expMonth: '01', expYear: '2020', order: 1 }),
+  ], now)[0].nickname === 'good');
+  ok('normalize round-trips order', VP.normalize({ number: VISA, order: 3 }).order === 3);
+  ok('unordered cards carry no order key', VP.normalize({ number: VISA }).order === undefined);
+  ok('order survives JSON (what actually gets encrypted)', JSON.parse(JSON.stringify(VP.normalize({ number: VISA, order: 0 }))).order === 0);
+  ok('absent order does not appear after JSON', !('order' in JSON.parse(JSON.stringify(VP.normalize({ number: VISA })))));
+  ok('hasOrder rejects junk', !VP.hasOrder({ order: 'x' }) && !VP.hasOrder({ order: NaN }) && !VP.hasOrder({}) && VP.hasOrder({ order: 0 }));
+
+  // An untouched wallet must sort exactly as it did before ordering existed.
+  const legacy = [
+    VP.normalize({ nickname: 'Zed', number: VISA, expMonth: '01', expYear: '2030' }),
+    VP.normalize({ nickname: 'Fav', number: MC, expMonth: '01', expYear: '2030', favorite: true }),
+    VP.normalize({ nickname: 'Dead', number: DISC, expMonth: '01', expYear: '2020' }),
+  ];
+  ok('unordered wallet keeps the old heuristic', VP.sortCards(legacy, now).map((c) => c.nickname).join(',') === 'Fav,Dead,Zed');
+  // Mixed: ordered cards first, unordered fall in behind on the heuristic.
+  const mixed = legacy.concat([VP.normalize({ nickname: 'Pinned', number: AMEX, order: 0 })]);
+  ok('ordered cards precede unordered ones', VP.sortCards(mixed, now)[0].nickname === 'Pinned');
+  ok('the unordered tail keeps its own order', VP.sortCards(mixed, now).slice(1).map((c) => c.nickname).join(',') === 'Fav,Dead,Zed');
+
+  console.log('\n── moveInList ──');
+  ok('move down', VP.moveInList(['a', 'b', 'c', 'd'], 0, 2).join('') === 'bcad');
+  ok('move up', VP.moveInList(['a', 'b', 'c', 'd'], 3, 1).join('') === 'adbc');
+  ok('no-op move', VP.moveInList(['a', 'b', 'c'], 1, 1).join('') === 'abc');
+  ok('clamps past the end', VP.moveInList(['a', 'b', 'c'], 0, 99).join('') === 'bca');
+  ok('clamps past the start', VP.moveInList(['a', 'b', 'c'], 2, -5).join('') === 'cab');
+  ok('ignores an out-of-range source', VP.moveInList(['a', 'b'], 9, 0).join('') === 'ab');
+  ok('does not mutate the input', (() => { const src = ['a', 'b', 'c']; VP.moveInList(src, 0, 2); return src.join('') === 'abc'; })());
+
+  console.log('\n── reorderPlan writes only what moved ──');
+  const pc = [{ id: 'a', order: 0 }, { id: 'b', order: 1 }, { id: 'c', order: 2 }, { id: 'd', order: 3 }];
+  ok('unchanged order → no writes', VP.reorderPlan(['a', 'b', 'c', 'd'], pc).length === 0);
+  const swap = VP.reorderPlan(['b', 'a', 'c', 'd'], pc);
+  ok('adjacent swap writes exactly 2', swap.length === 2);
+  ok('swap assigns the new indices', JSON.stringify(swap) === '[{"id":"b","order":0},{"id":"a","order":1}]');
+  ok('move to front writes only the shifted prefix', VP.reorderPlan(['d', 'a', 'b', 'c'], pc).length === 4);
+  ok('first-ever reorder numbers every card', VP.reorderPlan(['a', 'b', 'c'], [{ id: 'a' }, { id: 'b' }, { id: 'c' }]).length === 3);
+  ok('unknown ids are skipped', VP.reorderPlan(['zz', 'a'], pc).map((p) => p.id).indexOf('zz') < 0);
+
+  console.log('\n── nextTopOrder ──');
+  ok('unordered wallet → undefined', VP.nextTopOrder([{ id: 'a' }]) === undefined);
+  ok('ordered wallet → above the minimum', VP.nextTopOrder(pc) === -1);
+  ok('empty wallet → undefined', VP.nextTopOrder([]) === undefined);
+  ok('a new top card really sorts first', (() => {
+    const top = VP.nextTopOrder(ord);
+    return VP.sortCards(ord.concat([VP.normalize({ nickname: 'New', number: VISA, order: top })]), now)[0].nickname === 'New';
+  })());
+
   console.log('\n── importers (extensible registry) ──');
   const cRows = [
     ['name', 'expiration_month', 'expiration_year', 'card_number'],

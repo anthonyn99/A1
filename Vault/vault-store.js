@@ -143,9 +143,9 @@
     _now() { this._clock = Math.max(Date.now(), (this._clock || 0) + 1); return this._clock; }
 
     // ── Writes ───────────────────────────────────────────────────────────────
-    // Create/replace an item. `body` is the plaintext object (everything except
-    // id/kind/updatedAt/deleted). Returns the stored decrypted item.
-    async save(item) {
+    // Encrypt one item into its stored doc. Shared by save() and saveMany() so
+    // history/timestamp semantics can never diverge between the two.
+    async _buildDoc(item) {
       const id = item.id || newId();
       const kind = item.kind || 'login';
       const body = { ...item };
@@ -163,11 +163,31 @@
       }
       const ts = this._now();
       body.modifiedAt = ts;
-      const doc = { id, kind, enc: await VC.encrypt(this.dek, body), updatedAt: ts, deleted: false };
+      return { id, kind, enc: await VC.encrypt(this.dek, body), updatedAt: ts, deleted: false };
+    }
+
+    // Create/replace an item. `body` is the plaintext object (everything except
+    // id/kind/updatedAt/deleted). Returns the stored decrypted item.
+    async save(item) {
+      const doc = await this._buildDoc(item);
       await this.backend.putItem(doc);
       await this._ingest(doc);
       this._emit();
-      return this.get(id);
+      return this.get(doc.id);
+    }
+
+    // Batch write. Same per-item semantics as save(), but the change event
+    // fires ONCE at the end — so a drag-reorder that touches eight cards
+    // repaints the list once instead of eight times. Backends that debounce
+    // their flush (the PWA's does) also coalesce this into a single cloud write.
+    async saveMany(items) {
+      const list = items || [];
+      if (!list.length) return [];
+      const docs = [];
+      for (const item of list) docs.push(await this._buildDoc(item));
+      for (const doc of docs) { await this.backend.putItem(doc); await this._ingest(doc); }
+      this._emit();
+      return docs.map((d) => this.get(d.id));
     }
 
     // Soft-delete (tombstone) so the deletion syncs to other devices.

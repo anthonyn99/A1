@@ -67,7 +67,36 @@
         : 'No payment methods yet. Add a card, or import one from Settings → Import / Export.'));
       return;
     }
-    items.forEach(function (it) { list.appendChild(cardRow(it, host)); });
+    // Reordering a FILTERED list would be a lie: positions 0..n of a search
+    // result aren't positions in the wallet. So drag is only live on the full
+    // list, and the handle explains itself when it isn't.
+    var searching = !!host.query();
+    items.forEach(function (it) { list.appendChild(cardRow(it, host, searching)); });
+    if (!searching && items.length > 1) {
+      makeReorderable(list, function (orderedIds) { commitOrder(host, orderedIds); });
+    }
+  }
+
+  // ── manual order ───────────────────────────────────────────────────────────
+  // Persist a new sequence. Only the cards whose position actually moved are
+  // re-encrypted and written, and they go out as ONE batch → one repaint, one
+  // debounced Firestore write, and other devices pick it up on the same
+  // real-time listener that already carries every other vault change.
+  async function commitOrder(host, orderedIds) {
+    var store = host.store();
+    var current = store.byKind(KIND);
+    var plan = PAY.reorderPlan(orderedIds, current);
+    if (!plan.length) return;
+    var byId = {};
+    current.forEach(function (c) { byId[c.id] = c; });
+    var writes = plan.map(function (p) {
+      var c = byId[p.id];
+      var body = PAY.normalize(c);
+      body.id = c.id; body.createdAt = c.createdAt; body.order = p.order;
+      return body;
+    });
+    try { await store.saveMany(writes); }
+    catch (e) { host.toast('Could not save the new order'); host.refreshList(KIND); }
   }
 
   function render(panel, host) {
@@ -77,8 +106,147 @@
     panel.appendChild(list);
   }
 
+  // ── drag to reorder ────────────────────────────────────────────────────────
+  // Pointer Events, so mouse / touch / pen are ONE code path — HTML5 drag-and-
+  // drop is desktop-only and would have needed a separate touch implementation.
+  //
+  // Dragging is anchored to an explicit handle rather than the whole row: on a
+  // phone, "press the row and move" is indistinguishable from "scroll the
+  // list", and the row is also the tap target that expands the card. The handle
+  // carries `touch-action:none` so the browser hands us the gesture instead of
+  // scrolling.
+  //
+  // While a drag is live the list gets `.vpay-dragging`, which collapses every
+  // expanded card body via CSS (no re-render). That makes all rows the same
+  // height, so the target index is exact integer arithmetic instead of
+  // per-row hit-testing against ragged heights.
+  function scrollParent(node) {
+    for (var e = node.parentElement; e; e = e.parentElement) {
+      var s = getComputedStyle(e).overflowY;
+      if ((s === 'auto' || s === 'scroll') && e.scrollHeight > e.clientHeight) return e;
+    }
+    return null;
+  }
+
+  function makeReorderable(listEl, onCommit) {
+    if (listEl.__reorderBound) return;
+    listEl.__reorderBound = true;
+
+    listEl.addEventListener('pointerdown', function (e) {
+      if (e.button != null && e.button > 0) return;                 // left/primary only
+      var handle = e.target.closest && e.target.closest('.vpay-drag');
+      if (!handle || handle.classList.contains('disabled') || !listEl.contains(handle)) return;
+      start(e, handle);
+    });
+
+    function start(e, handle) {
+      var row = handle.closest('.vpay-site');
+      var rows = Array.prototype.slice.call(listEl.children);
+      var from = rows.indexOf(row);
+      if (from < 0 || rows.length < 2) return;
+
+      e.preventDefault();
+      e.stopPropagation();                     // never let this reach the row's expand handler
+      listEl.classList.add('vpay-dragging');   // uniform row heights from here on
+
+      // Measure AFTER collapsing, so `step` reflects what's on screen now.
+      var rects = rows.map(function (r) { return r.getBoundingClientRect(); });
+      var step = rows.length > 1 ? (rects[1].top - rects[0].top) : rects[0].height;
+      if (!step) { listEl.classList.remove('vpay-dragging'); return; }
+
+      var scroller = scrollParent(listEl);
+      var startY = e.clientY;
+      var startScroll = scroller ? scroller.scrollTop : 0;
+      var to = from, raf = null, lastY = startY;
+
+      row.classList.add('vpay-drag-active');
+      try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+
+      function place(dy) {
+        row.style.transform = 'translateY(' + dy + 'px)';
+        var next = Math.max(0, Math.min(rows.length - 1, from + Math.round(dy / step)));
+        if (next === to) return;
+        to = next;
+        rows.forEach(function (r, i) {
+          if (i === from) return;
+          var shift = 0;
+          if (from < to && i > from && i <= to) shift = -step;
+          else if (from > to && i >= to && i < from) shift = step;
+          r.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+        });
+      }
+      // Rects are viewport-based, so a scroll moves every row equally; adding
+      // the scroll delta back keeps the dragged row under the finger AND keeps
+      // the index maths consistent with the original measurements.
+      function currentDy() { return (lastY - startY) + ((scroller ? scroller.scrollTop : 0) - startScroll); }
+
+      // Auto-scroll when dragging near the edge — without it you can't move a
+      // card past the fold on a phone.
+      function edgeScroll() {
+        raf = null;
+        if (!scroller) return;
+        var box = scroller.getBoundingClientRect();
+        var zone = 64, speed = 0;
+        if (lastY < box.top + zone) speed = -Math.ceil((box.top + zone - lastY) / 6);
+        else if (lastY > box.bottom - zone) speed = Math.ceil((lastY - (box.bottom - zone)) / 6);
+        if (speed) {
+          scroller.scrollTop += speed;
+          place(currentDy());
+          raf = requestAnimationFrame(edgeScroll);
+        }
+      }
+
+      function onMove(ev) {
+        lastY = ev.clientY;
+        place(currentDy());
+        if (raf == null) raf = requestAnimationFrame(edgeScroll);
+      }
+      function onUp() {
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+        handle.removeEventListener('pointercancel', onUp);
+        if (raf != null) { cancelAnimationFrame(raf); raf = null; }
+        try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+
+        rows.forEach(function (r) { r.style.transform = ''; });
+        row.classList.remove('vpay-drag-active');
+        listEl.classList.remove('vpay-dragging');
+
+        if (to !== from) {
+          // Re-append in the new order (appendChild moves an existing child),
+          // so the DOM matches the drop immediately — the save is what catches
+          // up, not the other way round.
+          var ordered = PAY.moveInList(rows, from, to);
+          ordered.forEach(function (r) { listEl.appendChild(r); });
+          onCommit(ordered.map(function (r) { return r.getAttribute('data-id'); }));
+        }
+      }
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
+    }
+
+    // Keyboard equivalent — the handle is a real button, so ↑/↓ move the card
+    // for anyone not using a pointer at all.
+    listEl.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      var handle = e.target.closest && e.target.closest('.vpay-drag');
+      if (!handle || handle.classList.contains('disabled') || !listEl.contains(handle)) return;
+      var rows = Array.prototype.slice.call(listEl.children);
+      var row = handle.closest('.vpay-site');
+      var from = rows.indexOf(row);
+      var to = from + (e.key === 'ArrowUp' ? -1 : 1);
+      if (from < 0 || to < 0 || to >= rows.length) return;
+      e.preventDefault();
+      var ordered = PAY.moveInList(rows, from, to);
+      ordered.forEach(function (r) { listEl.appendChild(r); });
+      handle.focus();
+      onCommit(ordered.map(function (r) { return r.getAttribute('data-id'); }));
+    });
+  }
+
   // ── one card ───────────────────────────────────────────────────────────────
-  function cardRow(it, host) {
+  function cardRow(it, host, searching) {
     var el = host.el;
     var s = PAY.summarize(it);
     var revealed = false, remaskTimer = null;
@@ -108,11 +276,32 @@
       class: 'vault-icon' + (s.favorite ? ' vpay-on' : ''), title: s.favorite ? 'Unpin' : 'Pin to top', html: '★',
       onclick: async function (e) {
         e.stopPropagation();
-        await save(host, it, { favorite: !it.favorite });
+        var patch = { favorite: !it.favorite };
+        // Once a wallet has a manual order, favouriting no longer moves
+        // anything on its own — so make "Pin to top" do what it says and
+        // actually send the card to position 0.
+        if (!it.favorite) {
+          var top = PAY.nextTopOrder(host.store().byKind(KIND));
+          if (top !== undefined) patch.order = top;
+        }
+        await save(host, it, patch);
         host.refreshList(KIND);
       },
     });
+    var handle = el('button', {
+      class: 'vault-icon vpay-drag' + (searching ? ' disabled' : ''),
+      type: 'button',
+      'aria-label': searching ? 'Clear the search to reorder cards' : 'Reorder ' + s.title + ' — drag, or use the arrow keys',
+      title: searching ? 'Clear the search to reorder' : 'Drag to reorder (or focus and press ↑ / ↓)',
+      html: gripIcon(),
+      onclick: function (e) {
+        e.stopPropagation();
+        if (searching) host.toast('Clear the search to reorder cards');
+      },
+    });
+
     var head = el('div', { class: 'vault-row vpay-head' }, [
+      handle,
       el('span', { class: 'vpay-mark', html: PAY.brandMark(s.network) }),
       el('div', { class: 'vault-row-main' }, [
         el('div', { class: 'vault-row-title' }, [s.title]),
@@ -207,7 +396,10 @@
 
     body.appendChild(el('div', { class: 'vpay-detail' }, [face, el('div', { class: 'vpay-detail-main' }, [main, actions])]));
 
-    return el('div', { class: 'vault-site vpay-site' + (s.expiryState === 'expired' ? ' vpay-expired' : '') }, [head, body]);
+    return el('div', {
+      class: 'vault-site vpay-site' + (s.expiryState === 'expired' ? ' vpay-expired' : ''),
+      'data-id': it.id,
+    }, [head, body]);
   }
 
   // ── persistence ────────────────────────────────────────────────────────────
@@ -359,6 +551,12 @@
       var out = collect();
       var v = PAY.validate(out);
       if (!v.ok) { err.textContent = v.errors[0]; return; }
+      // A new card joins at the top of a manually-ordered wallet (undefined on
+      // an unordered one, which keeps the favourite/expiry heuristic).
+      if (isNew) {
+        var top = PAY.nextTopOrder(host.store().byKind(KIND));
+        if (top !== undefined) out.order = top;
+      }
       if (!out.nickname && !out.number && !out.cardholder) { err.textContent = 'Give the card a nickname or a number.'; return; }
       saveBtn.disabled = true; saveBtn.textContent = 'Encrypting…';
       try {
@@ -421,6 +619,7 @@
   function cvvIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3"/></svg>'; }
   function homeIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>'; }
   function pinIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>'; }
+  function gripIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>'; }
 
   // ── styles ─────────────────────────────────────────────────────────────────
   function injectStyles() {
@@ -433,6 +632,23 @@
       '.vpay-chip.warn{background:#e0a05222;color:#e0a052}.vpay-chip.bad{background:#e0525222;color:#e07070}',
       '.vault-icon.vpay-on{color:var(--ac);border-color:var(--ac)}',
       '.vpay-body{border-top:1px solid var(--bd)}',
+      // ── drag to reorder ──
+      // touch-action:none is what stops the browser from treating a drag on the
+      // handle as a scroll gesture; without it, mobile reordering is impossible.
+      '.vpay-drag{cursor:grab;touch-action:none;flex-shrink:0;background:transparent;border-color:transparent;color:var(--txm)}',
+      '.vpay-drag:hover{color:var(--tx);background:var(--s3);border-color:var(--bd)}',
+      '.vpay-drag:focus-visible{outline:2px solid var(--ac);outline-offset:1px;color:var(--tx)}',
+      '.vpay-drag.disabled{opacity:.3;cursor:not-allowed}',
+      '.vpay-drag.disabled:hover{color:var(--txm);background:transparent;border-color:transparent}',
+      // Non-dragged rows glide to their new slot; the dragged row tracks the
+      // finger with no transition so it never lags behind the pointer.
+      '.vpay-dragging .vpay-site{transition:transform .16s cubic-bezier(.2,.7,.3,1)}',
+      '.vpay-dragging .vpay-body{display:none!important}',   // uniform row heights → exact index maths
+      '.vpay-dragging{cursor:grabbing}',
+      '.vpay-dragging .vpay-site.vpay-drag-active{transition:none;z-index:3;position:relative;cursor:grabbing;',
+      '  border-color:var(--ac);box-shadow:0 12px 28px rgba(0,0,0,.5);transform-origin:center}',
+      '.vpay-dragging .vpay-site.vpay-drag-active .vpay-drag{cursor:grabbing;color:var(--ac)}',
+      '@media (prefers-reduced-motion:reduce){.vpay-dragging .vpay-site{transition:none}}',
       '.vpay-detail{display:flex;gap:16px;padding:14px;align-items:flex-start}',
       '.vpay-detail-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}',
       // the card face
@@ -469,6 +685,8 @@
       '  .vpay-face{width:100%;max-width:300px;align-self:center}',
       '  .vpay-grid3{grid-template-columns:1fr 1fr}',
       '  .vpay-chip{display:none}',
+      '  .vpay-drag{width:38px;height:38px}',   // comfortable thumb target
+      '  .vpay-head{gap:8px;padding:12px 10px}',
       '}',
     ].join('');
     var s = document.createElement('style'); s.id = 'vault-pay-styles'; s.innerHTML = css;

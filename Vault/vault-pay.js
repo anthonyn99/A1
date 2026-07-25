@@ -238,6 +238,9 @@
       billing: normalizeAddress(item.billing),
       notes: String(item.notes || ''),
       favorite: !!item.favorite,
+      // Manual drag position. Left undefined (and therefore absent from the
+      // encrypted body) until the wallet is actually reordered.
+      order: hasOrder(item) ? item.order : undefined,
       category: item.category || 'Payments',
       tags: Array.isArray(item.tags) ? item.tags.filter(Boolean) : [],
       customFields: Array.isArray(item.customFields) ? item.customFields.filter(function (c) { return c && ((c.label || '').trim() || (c.value || '').trim()); }) : [],
@@ -328,15 +331,64 @@
   }
 
   // ── Sorting / searching (client-side only — the cloud sees ciphertext) ────
-  // Favorites pinned first, then expiring/expired surfaced, then by nickname.
-  function sortCards(items, now) {
-    return (items || []).slice().sort(function (a, b) {
+  // Ordering has to happen here, on decrypted items, for the same reason search
+  // does: the cloud holds ciphertext and cannot sort anything.
+  //
+  // `order` is a per-card integer set by dragging. It is AUTHORITATIVE when
+  // present. Cards that have never been reordered (a fresh vault, an import)
+  // carry no `order` and fall back to the original heuristic — favourites
+  // first, then expiring/expired surfaced, then by nickname — so a vault that
+  // has never been dragged sorts exactly as it did before this existed.
+  function hasOrder(c) { return !!c && typeof c.order === 'number' && isFinite(c.order); }
+
+  function autoCompare(now) {
+    return function (a, b) {
       if (!!b.favorite !== !!a.favorite) return b.favorite ? 1 : -1;
       var sa = expiryStatus(a.expMonth, a.expYear, now).state, sb = expiryStatus(b.expMonth, b.expYear, now).state;
       var rank = { expired: 0, expiring: 1, valid: 2, unknown: 3 };
       if (rank[sa] !== rank[sb]) return rank[sa] - rank[sb];
       return String(a.nickname || a.last4 || '').localeCompare(String(b.nickname || b.last4 || ''));
+    };
+  }
+  function sortCards(items, now) {
+    var list = (items || []).slice();
+    var manual = list.filter(hasOrder).sort(function (a, b) {
+      if (a.order !== b.order) return a.order - b.order;
+      return String(a.nickname || a.last4 || '').localeCompare(String(b.nickname || b.last4 || ''));
     });
+    var auto = list.filter(function (c) { return !hasOrder(c); }).sort(autoCompare(now));
+    return manual.concat(auto);
+  }
+
+  // ── Manual ordering ───────────────────────────────────────────────────────
+  // Pure array move — `list` is the currently displayed (already sorted) order.
+  function moveInList(list, from, to) {
+    var out = (list || []).slice();
+    if (from < 0 || from >= out.length) return out;
+    to = Math.max(0, Math.min(out.length - 1, to));
+    out.splice(to, 0, out.splice(from, 1)[0]);
+    return out;
+  }
+  // Given the desired id sequence, return the MINIMAL set of { id, order }
+  // updates. Cards already sitting at their index are omitted, so dropping a
+  // card next to where it started rewrites two rows, not the whole wallet —
+  // every skipped card is one less re-encrypt and one less synced change.
+  function reorderPlan(orderedIds, cards) {
+    var byId = {};
+    (cards || []).forEach(function (c) { if (c && c.id) byId[c.id] = c; });
+    var plan = [];
+    (orderedIds || []).forEach(function (id, i) {
+      var c = byId[id];
+      if (c && c.order !== i) plan.push({ id: id, order: i });
+    });
+    return plan;
+  }
+  // Where a newly added card should sit. Once a wallet has a manual order, new
+  // cards go to the TOP (you just added it — you want to see it); an unordered
+  // wallet returns undefined and keeps using the heuristic.
+  function nextTopOrder(cards) {
+    var orders = (cards || []).filter(hasOrder).map(function (c) { return c.order; });
+    return orders.length ? Math.min.apply(null, orders) - 1 : undefined;
   }
   // Local, plaintext-free filter used by the popup (the PWA uses the richer
   // ranked store.search()). Never matches on the full number — only last 4 —
@@ -569,6 +621,8 @@
     // items
     normalize: normalize, summarize: summarize, validate: validate, typeLabel: typeLabel, methodById: methodById,
     autofillValues: autofillValues, sortCards: sortCards, filterCards: filterCards,
+    // manual ordering
+    hasOrder: hasOrder, moveInList: moveInList, reorderPlan: reorderPlan, nextTopOrder: nextTopOrder,
     // import
     detectImporter: detectImporter, importPayments: importPayments, brandToNetwork: brandToNetwork, cardTypeFrom: cardTypeFrom,
     // display

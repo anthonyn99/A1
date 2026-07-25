@@ -55,6 +55,15 @@ const ok = (n, c) => { c ? (pass++, console.log('  ✓', n)) : (fail++, console.
   const cards = await VP.payments();
   ok('decrypts 2 payments (skips deleted)', cards.length === 2);
   ok('payments sorted with favourite first', cards[0].nickname === 'Amex');
+
+  // The extension must MIRROR the manual order set in the PWA — same
+  // VaultPay.sortCards() call, so the list and the autofill dropdown both follow.
+  items.p1 = { id: 'p1', kind: 'payment', enc: await VC.encrypt(dek, Object.assign({}, card, { order: 0 })), deleted: false };
+  items.p2 = { id: 'p2', kind: 'payment', enc: await VC.encrypt(dek, Object.assign({}, card2, { order: 1 })), deleted: false };
+  await VP.fetchVault();
+  const ordered = await VP.payments();
+  ok('manual order overrides the favourite pin in the extension', ordered[0].nickname === 'Chase' && ordered[1].nickname === 'Amex');
+  ok('summaries come back in that same order', (await VP.paymentSummaries()).map((s) => s.title).join(',') === 'Chase,Amex');
   ok('payment fields decrypt', cards.find((c) => c.nickname === 'Chase').number === '4111111111111111');
   ok('credentials() unaffected by payments', (await VP.credentials()).length === 2);
   ok('paymentById returns one card', (await VP.paymentById('p1')).nickname === 'Chase');

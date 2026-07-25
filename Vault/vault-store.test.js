@@ -74,6 +74,36 @@ function ok(name, cond) { if (cond) { pass++; console.log('  ✓', name); } else
   ok('non-password edit keeps history unchanged', ph4.passwordHistory.length === 2);
   await store.remove(ph1.id); // clean up so later live-item counts stay stable
 
+  console.log('\n── saveMany: batch write, one change event ──');
+  // No `subscribe` on this backend — deliberately. memoryBackend() echoes every
+  // putItem straight back to its subscribers, which would re-enter _ingest/_emit
+  // per item and mask what saveMany itself emits. The PWA's Firestore adapter
+  // does NOT echo local writes (index.html suppresses its own snapshot for 6s),
+  // so this shape is the one that matches production.
+  const raw = VaultStore.memoryBackend();
+  const bb = { loadConfig: raw.loadConfig, saveConfig: raw.saveConfig, listItems: raw.listItems, putItem: raw.putItem };
+  const bs = new VaultStore(bb, dek);
+  await bs.load();
+  let emits = 0;
+  bs.startLive(() => { emits++; });
+  const seeded = [];
+  for (const n of ['one', 'two', 'three']) seeded.push(await bs.save({ kind: 'payment', nickname: n, number: '4111111111111111', cvv: '737' }));
+  emits = 0;
+  const batch = await bs.saveMany(seeded.map((s, i) => ({ ...s, order: 2 - i })));
+  ok('saveMany returns every saved item', batch.length === 3 && batch.every((b) => b));
+  ok('one change event for the whole batch', emits === 1);
+  ok('all three persisted', (await bb.listItems()).filter((d) => d.kind === 'payment' && !d.deleted).length === 3);
+  ok('new field round-trips', bs.get(seeded[0].id).order === 2 && bs.get(seeded[2].id).order === 0);
+  ok('batch is still encrypted at rest', !JSON.stringify(await bb.listItems()).includes('4111111111111111'));
+  ok('every batched item got a fresh updatedAt', batch.every((b, i) => b.updatedAt > seeded[i].updatedAt));
+  ok('batched updatedAt values are strictly increasing', batch[0].updatedAt < batch[1].updatedAt && batch[1].updatedAt < batch[2].updatedAt);
+  ok('empty batch is a no-op', (await bs.saveMany([])).length === 0);
+  // A second device must converge on the batch.
+  const bs2 = new VaultStore(bb, dek);
+  await bs2.load();
+  ok('another device sees the batched order', bs2.get(seeded[0].id).order === 2 && bs2.get(seeded[1].id).order === 1);
+  ok('saveMany kept save() semantics (createdAt preserved)', bs.get(seeded[0].id).createdAt === seeded[0].createdAt);
+
   console.log('\n── delete tombstones + propagate ──');
   await store.remove(g1.id);
   ok('item gone from list', !store.get(g1.id));
