@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MyList">
-<link rel="manifest" href="data:application/json,{%22name%22:%22MyList%22,%22short_name%22:%22MyList%22,%22display%22:%22standalone%22,%22id%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22start_url%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22scope%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22background_color%22:%22%230f0f12%22,%22theme_color%22:%22%23E0607A%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A//www.w3.org/2000/svg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%23E0607A'/%3E%3Ctext%20x%3D'50%25'%20y%3D'68%25'%20text-anchor%3D'middle'%20font-size%3D'52'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
+<link rel="manifest" href="data:application/json,{%22name%22:%22MyList%22,%22short_name%22:%22MyList%22,%22display%22:%22standalone%22,%22id%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22start_url%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22scope%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22background_color%22:%22%231a1a1d%22,%22theme_color%22:%22%23e0a63f%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A//www.w3.org/2000/svg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%23e0a63f'/%3E%3Ctext%20x%3D'50%25'%20y%3D'68%25'%20text-anchor%3D'middle'%20font-size%3D'52'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -27,8 +27,8 @@ a,button,label,select,input,textarea,[role=button],[onclick]{touch-action:manipu
 body{
   --bg:#1a1a1d; --surface:#232327; --surface2:#2c2c31; --border:#34343a; --border2:#45454c;
   --text:#f4f3f0; --textdim:#adadb2; --textmute:#8d8d94;
-  --accent:#d4a659; --accent-ink:#1a1a1d; --accent-soft:rgba(212,166,89,0.12);
-  --accent-bright:#edc884;
+  --accent:#e0a63f; --accent-ink:#1a1a1d; --accent-soft:rgba(224,166,63,0.12);
+  --accent-bright:#f3cf7a;
   --good:#a4b986; --bad:#d68a7c;
   --font-body:'Inter',system-ui,-apple-system,sans-serif;
   --font-head:'Manrope',system-ui,-apple-system,sans-serif;
@@ -115,7 +115,7 @@ body:not([data-profile=veda]) .field>.lbl{
 }
 body:not([data-profile=veda]) .wordmark{
   font-weight:750;letter-spacing:-.4px;
-  background:linear-gradient(180deg,#f4d795 0%,#d4a659 90%);
+  background:linear-gradient(180deg,#fbdf93 0%,#e0a63f 90%);
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
 }
 
@@ -135,8 +135,8 @@ body:not([data-profile=veda]) .wordmark{
 .profile-card .fav-star:hover{background:rgba(255,255,255,0.08);}
 .profile-card .fav-star.on{color:#f5c451;text-shadow:0 0 12px rgba(245,196,81,.55);}
 /* Tony — elegant gold, matching Insight's accent. Veda's card is untouched. */
-.profile-card.tony{border-color:rgba(212,166,89,0.45);} .profile-card.tony:hover{border-color:rgba(212,166,89,0.85);box-shadow:0 8px 24px rgba(212,166,89,0.20),0 0 12px rgba(212,166,89,0.14);}
-.profile-card.tony .emoji,.profile-card.tony .pname{color:#d4a659;}
+.profile-card.tony{border-color:rgba(224,166,63,0.45);} .profile-card.tony:hover{border-color:rgba(224,166,63,0.85);box-shadow:0 8px 24px rgba(224,166,63,0.20),0 0 12px rgba(224,166,63,0.14);}
+.profile-card.tony .emoji,.profile-card.tony .pname{color:#e0a63f;}
 .profile-card.tony .pname{font-family:'Manrope',system-ui,sans-serif;font-weight:700;letter-spacing:-.2px;}
 .profile-card.veda{border-color:rgba(141,118,154,0.5);} .profile-card.veda:hover{border-color:rgba(183,159,196,0.85);box-shadow:0 8px 24px rgba(141,118,154,0.24),0 0 12px rgba(141,118,154,0.18);}
 .profile-card.veda .emoji,.profile-card.veda .pname{color:#b79fc4;font-family:'Playfair Display',serif;}
@@ -450,15 +450,26 @@ body.dnd-active *{cursor:grabbing !important;}
 #pwx-box ol{list-style:none;counter-reset:pwx;padding:0;margin:0;}
 #pwx-box ol li{counter-increment:pwx;display:flex;gap:11px;align-items:flex-start;margin-bottom:15px;font-size:12.5px;color:var(--text);line-height:1.55;}
 #pwx-box ol li:before{content:counter(pwx);flex:none;width:21px;height:21px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;}
-/* Insight uses no solid accent fills — emphasis comes from a gold outline and
-   gold text. Tony-scoped so Veda keeps her filled chips/toggles. Checkboxes and
-   the drag indicator stay filled: those need a solid mark to read as "checked".
-   The mic keeps its fill too — it's the app's one primary action. */
+/* No gold fills inside controls — emphasis is an outline plus gold text, never
+   a tinted or solid interior. Tony-scoped so Veda keeps her filled chips.
+   The only exceptions are the checkbox and selection dot: a "checked" mark has
+   to be a solid mark to read as checked, and the drag indicator is a line. */
 body:not([data-profile=veda]) #view-switch button.on,
 body:not([data-profile=veda]) .list-chip.active,
-body:not([data-profile=veda]) #manual-fab.on{
+body:not([data-profile=veda]) #manual-fab.on,
+body:not([data-profile=veda]) .btn.solid,
+body:not([data-profile=veda]) #mic-btn,
+body:not([data-profile=veda]) #float-mic,
+body:not([data-profile=veda]) .dev-item.on,
+body:not([data-profile=veda]) .store-chip,
+body:not([data-profile=veda]) .item.sel{
   background:transparent;color:var(--accent-bright);border-color:var(--accent);
 }
+body:not([data-profile=veda]) #mic-btn,
+body:not([data-profile=veda]) #float-mic{
+  border:1px solid var(--accent);box-shadow:none;
+}
+body:not([data-profile=veda]) .store-chip{color:var(--accent);}
 body:not([data-profile=veda]) #view-switch button.on{box-shadow:inset 0 0 0 1px var(--accent);}
 body:not([data-profile=veda]) #pwx-box ol li:before{
   background:transparent;border:1px solid var(--accent-line);color:var(--accent-bright);font-weight:500;
@@ -665,8 +676,8 @@ body:not([data-profile=veda]) .store-chip .x:hover{
 
 <!-- permanent floating voice + type bar -->
 <div id="float-voice">
-  <button id="float-mic" onclick="ML.micTap()" aria-label="Voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
-  <button id="float-dev" title="Choose microphone" onclick="ML.openDevicePicker()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><circle cx="18.5" cy="5.5" r="3" fill="currentColor" stroke="none"/></svg></button>
+  <button id="float-mic" onclick="ML.micTap()" aria-label="Voice"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+  <button id="float-dev" title="Choose microphone" onclick="ML.openDevicePicker()"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><circle cx="18.5" cy="5.5" r="3" fill="currentColor" stroke="none"/></svg></button>
   <div class="fv-input"><textarea id="float-text" rows="1" placeholder="Type what you need…" oninput="ML.autoGrow(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ML.sendFloatText();}"></textarea></div>
   <button class="btn solid fgo" onclick="ML.sendFloatText()">Go</button>
   <span id="float-rec-hint">Tap mic again to stop &amp; process</span>
@@ -725,7 +736,7 @@ body:not([data-profile=veda]) .store-chip .x:hover{
 <script>
 (function(){
   function I(body){
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" '
+    return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" '
          + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
   }
   window.MLI = {
@@ -787,7 +798,7 @@ body:not([data-profile=veda]) .store-chip .x:hover{
       <li>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:800;margin-bottom:7px;">Download the extension</div>
-          <button class="btn solid sm" onclick="pwxDownload(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:15px;height:15px;display:block;flex-shrink:0;"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></button>
+          <button class="btn solid sm" onclick="pwxDownload(this)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:15px;height:15px;display:block;flex-shrink:0;"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></button>
           <div class="pwx-sub">Always packages the newest files straight from GitHub.</div>
           <div id="pwx-pkg"></div>
         </div>
@@ -1279,7 +1290,7 @@ body:not([data-profile=veda]) .store-chip .x:hover{
           const d=(payload&&payload.data)||{};
           if(!/^pw/.test(String(d.id||''))) return;   // only OUR price-drop / test messages
           swReg.showNotification('MyList', { body:(d.body||d.title||'Price drop'), tag:String(d.id||'pw'), renotify:true, requireInteraction:true,
-            icon:'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%23E0607A%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2768%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2752%27%3E%F0%9F%92%B8%3C/text%3E%3C/svg%3E' });
+            icon:'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%23e0a63f%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2768%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2752%27%3E%F0%9F%92%B8%3C/text%3E%3C/svg%3E' });
         }catch(e){}
       });
     }catch(e){ console.warn('MyList FCM init', e); }
@@ -1390,7 +1401,7 @@ function pwDropsBannerHtml(){
 // working-FCM device isn't double-notified).
 var pwSeenDrops = { tony:{}, veda:{} };
 var pwDropsSeeded = { tony:false, veda:false };
-var PW_ICON = 'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%23E0607A%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2768%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2752%27%3E%F0%9F%92%B8%3C/text%3E%3C/svg%3E';
+var PW_ICON = 'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%23e0a63f%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2768%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2752%27%3E%F0%9F%92%B8%3C/text%3E%3C/svg%3E';
 function pwFcmWorks(){ return typeof window._mlFcmStatus==='string' && /token OK/.test(window._mlFcmStatus); }
 function pwLocalNotify(body){
   try{
@@ -3386,23 +3397,23 @@ $('lock-pw').addEventListener('keydown', function(e){ if(e.key==='Enter') lockSu
 <script>
 (function(){
   if (window.uiModal) return;
-  var ACCENT = '#E0607A';
+  var ACCENT = '#e0a63f';
   var CSS =
-    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;}'
+    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
   + '#uim-overlay.show{display:flex;}'
-  + '#uim-box{width:100%;max-width:370px;background:#17171c;border:1px solid #2c2c36;border-radius:16px;padding:22px 20px;box-shadow:0 20px 60px rgba(0,0,0,.55);box-sizing:border-box;font-family:\'Nunito\',system-ui,sans-serif;animation:uimIn .16s ease;}'
+  + '#uim-box{width:100%;max-width:370px;background:#2c2c31;border:1px solid #45454c;border-radius:9px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.48);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;}'
   + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
-  + '#uim-title{font-size:17px;font-weight:800;color:#f2f2f6;margin-bottom:8px;line-height:1.25;}'
-  + '#uim-msg{font-size:14px;color:#c9c9d4;line-height:1.5;white-space:pre-wrap;margin-bottom:14px;}'
+  + '#uim-title{font-family:\'Manrope\',system-ui,sans-serif;font-size:20px;font-weight:600;letter-spacing:-.2px;color:#f4f3f0;margin-bottom:8px;line-height:1.25;}'
+  + '#uim-msg{font-size:13.5px;color:#adadb2;line-height:1.55;white-space:pre-wrap;margin-bottom:16px;}'
   + '.uim-field{display:block;margin-bottom:12px;}'
-  + '.uim-label{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#8a8a99;margin:0 0 5px 2px;}'
-  + '.uim-input{width:100%;box-sizing:border-box;background:#0f0f13;border:1px solid #33333f;border-radius:9px;color:#f2f2f6;font-size:15px;padding:11px 13px;outline:none;font-family:inherit;}'
-  + '.uim-input:focus{border-color:#5a5a6a;}'
-  + '#uim-err{font-size:12px;color:#e0607a;font-weight:700;min-height:15px;margin-bottom:4px;}'
-  + '#uim-btns{display:flex;gap:9px;margin-top:6px;}'
-  + '#uim-btns button{flex:1;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;}'
-  + '#uim-cancel{background:#26262e;color:#d4d4dd;}'
-  + '#uim-ok{color:#fff;}';
+  + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
+  + '.uim-input{width:100%;box-sizing:border-box;background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
+  + '.uim-input:focus{border-color:#e0a63f;}'
+  + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
+  + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
+  + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
+  + '#uim-cancel{color:#f4f3f0;}'+'#uim-cancel:hover{border-color:#adadb2;}'
+  + '';
   var queue=[], active=null;
   function el(id){ return document.getElementById(id); }
   function inject(){

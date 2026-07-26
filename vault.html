@@ -22,7 +22,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   --bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;
   --bd:#34343a;--bdl:#45454c;
   --tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
-  --ac:#d4a659;--acd:#c2954a;--acs:#edc884;--acl:rgba(212,166,89,.36);
+  --ac:#e0a63f;--acd:#c98f2c;--acs:#f3cf7a;--acl:rgba(224,166,63,.36);
   --shadow:rgba(0,0,0,.42);
   --err:#d68a7c;--grn:#a4b986;
   --display:'Manrope',system-ui,-apple-system,sans-serif;
@@ -37,7 +37,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .app-hbar-row2{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;width:100%;}
 
   /* ── App Lock overlay (mirrors index.html applock) ── */
-  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;background-image:radial-gradient(120% 50% at 50% -10%,rgba(212,166,89,.065),transparent 70%);display:none;align-items:center;justify-content:center;font-family:var(--sans);}
+  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;background-image:radial-gradient(120% 50% at 50% -10%,rgba(224,166,63,.065),transparent 70%);display:none;align-items:center;justify-content:center;font-family:var(--sans);}
   #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:40px 32px;background:transparent;border:none;border-radius:0;width:340px;max-width:90vw;position:relative;}
   @keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
   #applock-box.shake{animation:applock-shake 0.4s ease;}
@@ -63,7 +63,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   --bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;
   --bd:#34343a;--bdl:#45454c;
   --tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
-  --ac:#d4a659;--acd:#c2954a;--acs:#edc884;--acl:rgba(212,166,89,.36);
+  --ac:#e0a63f;--acd:#c98f2c;--acs:#f3cf7a;--acl:rgba(224,166,63,.36);
   --shadow:rgba(0,0,0,.42);
   --err:#d68a7c;
   --radius:9px;--radius-sm:6px;
@@ -77,7 +77,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 
 .kc-wrap{max-width:900px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + clamp(10px,2vw,24px)) clamp(12px,3vw,32px) clamp(10px,1.5vw,16px);}
 .kc-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
-.kc-logo{font-family:var(--display);font-size:clamp(24px,3.2vw,34px);font-weight:750;letter-spacing:-.4px;line-height:1.2;white-space:nowrap;background:linear-gradient(180deg,#f4d795 0%,#d4a659 90%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--acs);}
+.kc-logo{font-family:var(--display);font-size:clamp(24px,3.2vw,34px);font-weight:750;letter-spacing:-.4px;line-height:1.2;white-space:nowrap;background:linear-gradient(180deg,#fbdf93 0%,#e0a63f 90%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--acs);}
 .kc-logo .base,.kc-logo .dot{color:inherit;font-style:normal;}
 .kc-tagline{font-size:10.5px;color:var(--txm);margin-top:2px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;}
 .kc-hbtns{display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:nowrap;}
@@ -93,7 +93,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 #kc-conns-list{display:flex;gap:10px;align-items:flex-start;min-height:48px;}
 .kc-col{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0;}
 #kc-root.view-mode .kc-col:empty{display:none;}
-#kc-root.edit-mode .kc-col:empty{border:1.5px dashed rgba(212,166,89,0.25);border-radius:var(--radius);min-height:60px;}
+#kc-root.edit-mode .kc-col:empty{border:1.5px dashed rgba(224,166,63,0.25);border-radius:var(--radius);min-height:60px;}
 .kc-col-empty{flex:1;}
 #kc-conns-list>.kc-empty{flex:1;}
 @media(max-width:400px){#kc-conns-list{flex-direction:column;}.kc-col{width:100%;}}
@@ -101,7 +101,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;transition:border-color .15s;}
 .kc-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--card-accent,var(--ac));opacity:.5;}
 .kc-card:hover{border-color:var(--acl);}
-.kc-card-placeholder{border-radius:var(--radius);background:rgba(212,166,89,0.06);border:1.5px dashed rgba(212,166,89,0.35);}
+.kc-card-placeholder{border-radius:var(--radius);background:transparent;border:1.5px dashed rgba(224,166,63,0.35);}
 .kc-card-fly{position:fixed!important;pointer-events:none!important;z-index:9000;border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.7);transform:rotate(1deg) scale(1.03);opacity:.95;}
 .kc-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
 .kc-card-name{font-family:var(--display);font-size:15px;font-weight:600;letter-spacing:-.2px;line-height:1.3;word-break:break-word;color:var(--card-accent,var(--acs));}
@@ -121,7 +121,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   .kc-drag-handle{font-size:18px;padding:4px 8px;min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;}
   .kc-item-handle{font-size:16px;padding:4px 6px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;}
 }
-.kc-item-placeholder{border-radius:var(--radius-sm);background:rgba(212,166,89,0.08);border:1.5px dashed rgba(212,166,89,0.4);}
+.kc-item-placeholder{border-radius:var(--radius-sm);background:transparent;border:1.5px dashed rgba(224,166,63,0.4);}
 .kc-item-fly{position:fixed!important;pointer-events:none!important;z-index:9001;border-radius:var(--radius-sm);box-shadow:0 6px 24px rgba(0,0,0,.6);transform:rotate(0.5deg) scale(1.01);opacity:.97;}
 .kc-link-name{font-size:12.5px;font-weight:500;color:var(--tx);flex:1;min-width:0;word-break:break-word;}
 .kc-info-text{font-size:12px;color:var(--txd);line-height:1.65;white-space:pre-wrap;word-break:break-word;flex:1;min-width:0;}
@@ -136,7 +136,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-icon-btn.copy-btn{padding:3px 5px;}.kc-icon-btn.copy-btn:hover{color:var(--ac);}
 .kc-icon-btn.del-x{color:var(--txm);font-size:14px;font-weight:500;}.kc-icon-btn.del-x:hover{color:var(--err);}
 .kc-doc-zone{border:1.5px dashed var(--bd);border-radius:var(--radius);padding:10px;text-align:center;cursor:pointer;transition:all .15s;color:var(--txm);font-size:11px;font-weight:600;user-select:none;margin-top:4px;}
-.kc-doc-zone:hover,.kc-doc-zone.drag-over{border-color:var(--ac);color:var(--ac);background:rgba(212,166,89,0.06);}
+.kc-doc-zone:hover,.kc-doc-zone.drag-over{border-color:var(--ac);color:var(--acs);background:transparent;}
 .kc-storage-bar-wrap{margin-top:8px;margin-bottom:2px;}
 .kc-storage-bar-label{display:flex;justify-content:space-between;font-size:9px;font-weight:500;color:var(--txd);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;}
 .kc-storage-bar-track{height:5px;background:var(--s2);border-radius:4px;overflow:hidden;border:1px solid var(--bd);}
@@ -295,7 +295,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 <script>
 (function(){
   function I(body){
-    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" '
+    return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" '
          + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
   }
   window.KCI = {
@@ -352,9 +352,9 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
       </div>
     </div>
     <div class="app-hbar-row2">
-      <button class="kc-hbtn" id="kc-syncfiles-btn" onclick="kcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable &amp; downloadable on every device"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.2"/></svg><span>Sync Files</span></button>
-      <button class="kc-hbtn" id="kc-vault-btn" onclick="kcOpenVaultSetup()" title="Download the Vault browser extension and set it up in your browser (no Web Store needed)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/></svg><span>Install Vault</span></button>
-      <button class="kc-hbtn" id="kc-lock-btn" onclick="window._vaultManageLock&&window._vaultManageLock()" title="Lock Vault behind a password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg><span>Lock</span></button>
+      <button class="kc-hbtn" id="kc-syncfiles-btn" onclick="kcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable &amp; downloadable on every device"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.2"/></svg><span>Sync Files</span></button>
+      <button class="kc-hbtn" id="kc-vault-btn" onclick="kcOpenVaultSetup()" title="Download the Vault browser extension and set it up in your browser (no Web Store needed)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/></svg><span>Install Vault</span></button>
+      <button class="kc-hbtn" id="kc-lock-btn" onclick="window._vaultManageLock&&window._vaultManageLock()" title="Lock Vault behind a password"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg><span>Lock</span></button>
       <div class="kc-hbtn kc-edit-hover" id="kc-edit-toggle" onclick="kcToggleMode()" style="cursor:pointer;user-select:none;">
         <div id="kc-toggle-track" style="width:26px;height:14px;border-radius:7px;background:var(--bd);position:relative;transition:background .25s;flex-shrink:0;"><div id="kc-toggle-thumb" style="width:10px;height:10px;border-radius:50%;background:var(--txd);position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .25s,background .25s;box-shadow:0 1px 3px rgba(0,0,0,.25);"></div></div>
         <span id="kc-edit-icon" style="color:var(--ac);white-space:nowrap;line-height:1;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg></span>
@@ -434,7 +434,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
             <button class="kc-btn-ghost" style="height:28px;" onclick="kcCopyExtUrl()">Copy</button>
           </div>
           <div id="kc-vault-ff" style="display:none;margin-top:8px;font-size:11.5px;color:#e0a060;line-height:1.5;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:5px;flex-shrink:0;"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> (see <code style="font-family:monospace;">Vault/README.md</code>) and loads via <code style="font-family:monospace;">about:debugging</code>. Brave / Chrome / Edge / Opera work as-is.
+            <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:5px;flex-shrink:0;"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> (see <code style="font-family:monospace;">Vault/README.md</code>) and loads via <code style="font-family:monospace;">about:debugging</code>. Brave / Chrome / Edge / Opera work as-is.
           </div>
         </div>
       </li>
@@ -1165,7 +1165,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
 
 (function(){
 const THEMES={
-  dark:{bg:'#1a1a1d',s1:'#232327',s2:'#2c2c31',s3:'#202028',bd:'#34343a',bdl:'#45454c',tx:'#f4f3f0',txd:'#adadb2',txm:'#8d8d94',ac:'#d4a659',shadow:'rgba(0,0,0,.55)'},
+  dark:{bg:'#1a1a1d',s1:'#232327',s2:'#2c2c31',s3:'#202028',bd:'#34343a',bdl:'#45454c',tx:'#f4f3f0',txd:'#adadb2',txm:'#8d8d94',ac:'#e0a63f',shadow:'rgba(0,0,0,.55)'},
   light:{bg:'#EAE3E7',s1:'#E5DCE0',s2:'#DDD4D8',s3:'#D4CAD0',bd:'#C8B8C0',bdl:'#BCA8B0',tx:'#2A1F24',txd:'#6B5560',txm:'#A0909A',ac:'#D4607A',shadow:'rgba(42,31,36,0.12)'}
 };
 const CD=['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
@@ -2034,7 +2034,7 @@ window.kcToggleTheme = function(){};
 <script>
 (function(){
   if (window.uiModal) return;
-  var ACCENT = '#d4a659';
+  var ACCENT = '#e0a63f';
   var CSS =
     '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
   + '#uim-overlay.show{display:flex;}'
@@ -2045,7 +2045,7 @@ window.kcToggleTheme = function(){};
   + '.uim-field{display:block;margin-bottom:14px;}'
   + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
   + '.uim-input{width:100%;box-sizing:border-box;background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
-  + '.uim-input:focus{border-color:#d4a659;}'
+  + '.uim-input:focus{border-color:#e0a63f;}'
   + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
   + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
@@ -2083,8 +2083,8 @@ window.kcToggleTheme = function(){};
     var ok=el('uim-ok'), ca=el('uim-cancel');
     ok.textContent=cfg.okLabel||'OK';
     ok.style.background='transparent';
-    ok.style.color=cfg.danger?'#d68a7c':'#edc884';
-    ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'rgba(212,166,89,.36)';
+    ok.style.color=cfg.danger?'#d68a7c':'#f3cf7a';
+    ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'rgba(224,166,63,.36)';
     ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
     el('uim-overlay').classList.add('show');
     setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
@@ -2124,7 +2124,7 @@ var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
 var AL_JOURNAL = 'applock';
 var AL_EMAIL   = 'anthonypn99@gmail.com';
 var APPID      = 'tony_vault_standalone';
-var AC         = '#d4a659';
+var AC         = '#e0a63f';
 
 function _el(id){ return document.getElementById(id); }
 
@@ -2285,7 +2285,7 @@ function alBioRender(mode){
     box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
     var b=document.createElement('button');
     b.innerHTML=KCI.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
-    b.style.cssText="border:1px solid rgba(212,166,89,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:var(--sans);width:100%;background:transparent;color:#edc884;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
+    b.style.cssText="border:1px solid rgba(224,166,63,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:var(--sans);width:100%;background:transparent;color:#f3cf7a;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
     b.onclick=function(){ alBioUnlock(); };
     box.appendChild(b);
     var link=document.createElement('button');
@@ -2367,7 +2367,7 @@ function alShowManageMenu(){
   if (!isUnlocked){
     var ub=document.createElement('button');
     ub.innerHTML=KCI.unlock+'<span>Unlock this device</span>';
-    ub.style.cssText=s+'color:#edc884;border-color:rgba(212,166,89,.36);';
+    ub.style.cssText=s+'color:#f3cf7a;border-color:rgba(224,166,63,.36);';
     ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
     menu.appendChild(ub);
   }

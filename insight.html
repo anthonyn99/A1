@@ -21,10 +21,10 @@
     --text: #f4f3f0;
     --muted: #adadb2;
     --faint: #8d8d94;
-    --gold: #d4a659;
-    --gold-soft: #edc884;
-    --gold-line: rgba(212,166,89,.36);
-    --gold-wash: rgba(212,166,89,.10);
+    --gold: #e0a63f;
+    --gold-soft: #f3cf7a;
+    --gold-line: rgba(224,166,63,.36);
+    --gold-wash: rgba(224,166,63,.10);
     --danger: #d68a7c;
     --ok: #a4b986;
     --radius: 9px;
@@ -62,7 +62,7 @@
     font-family: var(--display);
     font-size: 34px; font-weight: 750; line-height: 1.2; letter-spacing: -.4px;
     padding: 0 2px 6px 6px; color: var(--gold-soft);
-    background: linear-gradient(180deg, #f4d795 0%, #d4a659 90%);
+    background: linear-gradient(180deg, #fbdf93 0%, #e0a63f 90%);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -336,7 +336,7 @@
   /* Recurring status chips + the missing-payment prompt. */
   .chip.st-ontime  { color: var(--ok);      border-color: rgba(164,185,134,.4); }
   .chip.st-duesoon { color: var(--gold-soft); border-color: var(--gold-line); }
-  .chip.st-late    { color: #e0b57c;        border-color: rgba(224,181,124,.4); }
+  .chip.st-late    { color: #e8b45e;        border-color: rgba(224,181,124,.4); }
   .chip.st-missing { color: var(--danger);  border-color: rgba(214,138,124,.45); }
   .recprompt {
     margin-top: 10px; padding: 11px 13px; border-radius: var(--radius-sm);
@@ -414,7 +414,7 @@
   #lockScreen {
     position: fixed; inset: 0; z-index: 200;
     background: var(--bg);
-    background-image: radial-gradient(120% 50% at 50% -10%, rgba(212,166,89,.065), transparent 70%);
+    background-image: radial-gradient(120% 50% at 50% -10%, rgba(224,166,63,.065), transparent 70%);
     display: flex; align-items: center; justify-content: center; padding: 20px;
   }
   .lockbox { width: 100%; max-width: 360px; text-align: center; }

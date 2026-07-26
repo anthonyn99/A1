@@ -119,7 +119,7 @@
     if (hasBio) {
       const link = await VP.getBioLink();
       const label = VP.biometricLabel(link);
-      const bioBtn = el("button", { class: "pw-btn" }, { html: (window.VaultIcons || {}).unlock + '<span>Unlock with ' + label + '</span>' });
+      const bioBtn = el("button", { class: "pw-btn", html: (window.VaultIcons || {}).unlock + '<span>Unlock with ' + label + '</span>' });
       bioBtn.addEventListener("click", async () => {
         err.textContent = "";
         try { await VP.unlockWithBiometric(); broadcastLockState(true); renderList(); }
