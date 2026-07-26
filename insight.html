@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#09090b">
+<meta name="theme-color" content="#1a1a1d">
 <title>Insight</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,15 +12,15 @@
 <style>
   /* ═══════════ Insight — warm charcoal / tan-gold, editorial ═══════════ */
   :root {
-    --bg: #0a0a0a;
-    --surface: #171719;
-    --surface-2: #1e1e21;
-    --surface-3: #26262a;
-    --border: #2e2e2e;
-    --border-soft: #1f1f1f;
-    --text: #f2f1ee;
-    --muted: #8c8c8c;
-    --faint: #5c5c5c;
+    --bg: #1a1a1d;
+    --surface: #232327;
+    --surface-2: #2c2c31;
+    --surface-3: #37373d;
+    --border: #45454c;
+    --border-soft: #34343a;
+    --text: #f4f3f0;
+    --muted: #adadb2;
+    --faint: #8d8d94;
     --gold: #d4a659;
     --gold-soft: #edc884;
     --gold-line: rgba(212,166,89,.36);
@@ -38,7 +38,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body {
-    /* Flat black field — the cards carry the depth on their own. */
+    /* Flat charcoal-gray field — the cards sit one step brighter on top. */
     background-color: var(--bg);
     background-image: none;
     color: var(--text);
@@ -125,7 +125,7 @@
   .tab.navdrag {
     z-index: 5; cursor: grabbing; opacity: .97;
     border-color: var(--gold); color: var(--gold-soft); background: transparent;
-    box-shadow: 0 10px 26px rgba(0,0,0,.45);
+    box-shadow: 0 10px 26px rgba(0,0,0,.34);
   }
 
   #displayModeBtn { white-space: nowrap; }
@@ -257,7 +257,7 @@
   .panel h3 { font-family: var(--display); font-size: 21px; font-weight: 600; letter-spacing: -.2px; margin-bottom: 8px; }
   .panel p.help { color: var(--muted); font-size: 13.5px; margin-bottom: 18px; max-width: 62ch; }
   .modalback {
-    position: fixed; inset: 0; background: rgba(10,9,8,.7); backdrop-filter: blur(5px);
+    position: fixed; inset: 0; background: rgba(14,14,16,.66); backdrop-filter: blur(5px);
     /* Above #lockScreen (200) — otherwise confirmations raised from the lock
        screen open behind it and look like nothing happened. */
     display: none; align-items: flex-start; justify-content: center; z-index: 300; padding: 8vh 16px 16px; overflow-y: auto;
@@ -265,7 +265,7 @@
   .modalback.open { display: flex; }
   .modal {
     background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
-    width: 100%; max-width: 460px; padding: 28px; box-shadow: 0 30px 70px rgba(0,0,0,.6);
+    width: 100%; max-width: 460px; padding: 28px; box-shadow: 0 30px 70px rgba(0,0,0,.48);
   }
   .modal h3 { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.2px; margin-bottom: 20px; }
   .field { margin-bottom: 15px; }
@@ -359,7 +359,7 @@
   .txrow.dragging {
     position: relative; z-index: 30; cursor: grabbing;
     border-color: var(--gold-line);
-    box-shadow: 0 18px 40px rgba(0,0,0,.6);
+    box-shadow: 0 18px 40px rgba(0,0,0,.45);
     background: var(--surface-2);
   }
   .txrow.dropping { transition: transform .18s cubic-bezier(.2,.8,.3,1); }
@@ -403,7 +403,7 @@
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(90px);
     background: var(--surface-3); border: 1px solid var(--border); color: var(--text);
     padding: 12px 22px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; letter-spacing: .2px;
-    box-shadow: 0 12px 38px rgba(0,0,0,.55); transition: transform .28s ease; z-index: 90; max-width: 92vw;
+    box-shadow: 0 12px 38px rgba(0,0,0,.42); transition: transform .28s ease; z-index: 90; max-width: 92vw;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
   .toast.gold { border-color: var(--gold-line); }
