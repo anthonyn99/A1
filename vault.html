@@ -16,13 +16,39 @@
    the theme travels with the program rather than depending on a host page. */
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;height:100%;background:#0f0f12;}
-body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;}
+body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:var(--tx);}
+
+:root{
+  --bg:#0f0f12;--s1:#141418;--s2:#1a1a20;--s3:#252530;
+  --bd:#252530;--bdl:#323240;
+  --tx:#ececf0;--txd:#9898a8;--txm:#58586a;
+  --ac:#E0607A;--acd:#e0405e;--shadow:rgba(0,0,0,.5);
+  --err:#d47a6a;--grn:#4A9E68;
+  --radius:4px;--radius-sm:4px;
+}
 
 /* ── Shared sticky app header bar ── */
 .app-hbar{position:-webkit-sticky;position:sticky;top:0;left:0;right:0;z-index:200;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);flex-shrink:0;}
 .app-hbar-inner{max-width:2000px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 10px;display:flex;flex-direction:column;gap:6px;min-width:0;width:100%;}
 .app-hbar-row1{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;min-height:30px;}
 .app-hbar-row2{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;width:100%;}
+
+  /* ── App Lock overlay (mirrors index.html applock) ── */
+  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,0.88);display:none;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;}
+  #applock-box{display:flex;flex-direction:column;align-items:center;gap:20px;padding:40px 32px;background:#141418;border:1px solid #252530;border-radius:24px;width:340px;max-width:90vw;box-shadow:0 32px 80px rgba(0,0,0,0.7);position:relative;}
+  @keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+  #applock-box.shake{animation:applock-shake 0.4s ease;}
+  #applock-icon{font-size:36px;line-height:1;}
+  #applock-title{font-family:'Lora',serif;font-size:22px;font-weight:700;color:#ececf0;margin-bottom:2px;}
+  #applock-sub{font-family:'Lora',serif;font-size:13px;color:#58586a;font-style:italic;text-align:center;}
+  #applock-pw{background:#0f0f12;border:1px solid #323240;border-radius:4px;color:#ececf0;font-size:16px;font-weight:600;padding:12px 16px;font-family:'Nunito',sans-serif;outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;}
+  #applock-pw.error{border-color:#d47a6a;}
+  #applock-err{font-size:12px;color:#d47a6a;font-weight:700;text-align:center;min-height:16px;}
+  #applock-submit{background:#E0607A;color:#fff;border:none;border-radius:4px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;width:100%;transition:opacity .15s;}
+  #applock-submit:disabled{opacity:0.55;cursor:default;}
+  #applock-cancel{background:transparent;border:none;color:#58586a;font-size:13px;cursor:pointer;font-family:'Nunito',sans-serif;padding:0;text-decoration:underline;}
+  #applock-forgot{background:transparent;border:none;color:#58586a;font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif;padding:0;text-decoration:underline;}
+  #applock-reset{background:transparent;border:none;color:#58586a;font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif;padding:2px 0 0;text-decoration:underline;width:100%;text-align:center;}
 
 #kc-root{
   --bg:#0f0f12;--s1:#141418;--s2:#1a1a20;--s3:#252530;
@@ -38,13 +64,7 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;}
   overflow-x:clip;
 }
 /* Light mode vars — matches Tony's TaskHub light theme */
-#kc-root.kc-light{
-  --bg:#EAE3E7;--s1:#E5DCE0;--s2:#DDD4D8;--s3:#D4CAD0;
-  --bd:#C8B8C0;--bdl:#BCA8B0;
-  --tx:#2A1F24;--txd:#6B5560;--txm:#A0909A;
-  --ac:#D4607A;--acd:#B04060;--shadow:rgba(42,31,36,0.12);
-  --err:#C0392B;
-}
+
 .kc-wrap{max-width:900px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + clamp(10px,2vw,24px)) clamp(12px,3vw,32px) clamp(10px,1.5vw,16px);}
 .kc-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
 .kc-logo{font-family:'Lora',serif;font-size:clamp(19px,2.8vw,26px);font-weight:700;letter-spacing:-.3px;line-height:1;white-space:nowrap;}
@@ -168,8 +188,6 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;}
 .kc-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--s1);border:1px solid var(--bdl);color:var(--ac);font-size:12px;font-weight:700;padding:8px 18px;border-radius:20px;z-index:10000;pointer-events:none;opacity:0;transition:opacity .2s,transform .2s;}
 .kc-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 /* Theme btn */
-.kc-theme-btn{background:var(--bg);border:1px solid var(--bd);border-radius:4px;color:var(--ac);font-size:14px;padding:0 9px;height:30px;cursor:pointer;line-height:1;display:inline-flex;align-items:center;transition:border-color .15s;}
-.kc-theme-btn:hover{border-color:var(--ac);}
 @media(max-width:520px){
   .kc-modal{padding:20px 14px;}
   .kc-link-field-row{grid-template-columns:1fr auto;grid-template-rows:auto auto;}
@@ -179,14 +197,13 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;}
 .kc-switcher{background:var(--bg);border:1px solid var(--bd);border-radius:4px;color:var(--ac);font-size:11px;font-weight:700;padding:0 8px;height:30px;box-sizing:border-box;font-family:'Nunito',sans-serif;outline:none;cursor:pointer;transition:border-color .15s;}
 .kc-switcher:hover{border-color:var(--ac);}
 .kc-switcher option{background:#0f0f12;color:#E0607A;}
-#kc-root.kc-light .kc-switcher option{background:#EAE3E7;color:#D4607A;}
 .kc-profile-btn:hover,.kc-theme-hover:hover,.kc-edit-hover:hover{border-color:var(--ac)!important;}
 .kc-hbtn{background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:0 10px;height:28px;box-sizing:border-box;font-size:12px;font-weight:800;color:var(--ac);cursor:pointer;font-family:'Nunito',sans-serif;display:inline-flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap;flex-shrink:0;outline:none;}
 </style>
 </head>
 <body>
 
-<!-- ══ Biometrics (WebAuthn) — same helper index.html and TradeHub use ══ -->
+<!-- ══ Biometrics (WebAuthn) — same helper index.html uses ══ -->
 <!-- ══════════════ Biometric auth (WebAuthn / platform passkeys) ══════════════
      Shared, dependency-free helper. Primary auth = the device's own biometric
      (Face ID / Touch ID on iOS, fingerprint on Android/Samsung, Windows Hello on
@@ -253,6 +270,29 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;}
 })();
 </script>
 
+
+<!-- ══ App Lock overlay (same SHA-256 + Worker KV system as index.html) ══ -->
+<div id="applock-overlay">
+  <div id="applock-box">
+    <div id="applock-icon">🔒</div>
+    <div style="text-align:center;">
+      <div id="applock-title">Locked</div>
+      <div id="applock-sub">Enter your password to open Vault.</div>
+    </div>
+    <div style="width:100%;display:flex;flex-direction:column;gap:10px;">
+      <div id="applock-bio"></div>
+      <input id="applock-pw" type="password" placeholder="Password" autocomplete="off" />
+      <div id="applock-err"></div>
+      <button id="applock-submit">Unlock</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <button id="applock-forgot">Forgot password?</button>
+        <button id="applock-cancel">Cancel</button>
+      </div>
+      <button id="applock-reset">Reset password via email</button>
+    </div>
+  </div>
+</div>
+
 <div id="kc-root" class="view-mode">
 
 <div class="app-hbar" style="background:var(--bg);border-bottom:1px solid var(--bd);transition:background .4s,border-color .4s;">
@@ -266,7 +306,7 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;}
     <div class="app-hbar-row2">
       <button class="kc-hbtn" id="kc-syncfiles-btn" onclick="kcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable & downloadable on every device">☁ Sync Files</button>
       <button class="kc-hbtn" id="kc-vault-btn" onclick="kcOpenVaultSetup()" title="Download the Vault browser extension and set it up in your browser (no Web Store needed)">🧩 Install Vault</button>
-      <button class="kc-hbtn kc-theme-hover" id="kc-theme-btn" onclick="kcToggleTheme()"></button>
+      <button class="kc-hbtn" id="kc-lock-btn" onclick="window._vaultManageLock&&window._vaultManageLock()" title="Lock Vault behind a password">🔓 Lock</button>
       <div class="kc-hbtn kc-edit-hover" id="kc-edit-toggle" onclick="kcToggleMode()" style="cursor:pointer;user-select:none;">
         <div id="kc-toggle-track" style="width:26px;height:14px;border-radius:7px;background:var(--bd);position:relative;transition:background .25s;flex-shrink:0;"><div id="kc-toggle-thumb" style="width:10px;height:10px;border-radius:50%;background:var(--txd);position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .25s,background .25s;box-shadow:0 1px 3px rgba(0,0,0,.25);"></div></div>
         <span id="kc-edit-icon" style="color:var(--ac);white-space:nowrap;line-height:1;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg></span>
@@ -385,6 +425,71 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;}
 </div>
 
 <div id="kc-toast" class="kc-toast">Copied!</div>
+
+<script>
+  /* DURABLE LOCK STORE — localStorage mirrored into a long-lived cookie.
+     Why: the "unlocked once per device" record lived ONLY in localStorage, which
+     Brave (Tony's desktop) and mobile PWABs evict aggressively — so a plain
+     refresh/reopen silently dropped the unlock and re-prompted for the password.
+     The cookie survives many of those evictions; on read we prefer localStorage
+     and rehydrate it from the cookie when missing, so a device stays unlocked
+     until the password genuinely changes or the section is manually re-locked.
+     Defined here (before the gate and React) so every lock reader shares it. */
+  (function(){
+    if (window.alDur) return;
+    var YEAR400 = 34560000; // seconds — browsers cap cookie lifetime near 400 days
+    function ck(k){
+      var m = document.cookie.match(new RegExp('(?:^|; )' + k.replace(/[.$?*|{}()\[\]\\\/+^-]/g,'\\$&') + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+    function writeCookie(k,v){
+      try { document.cookie = k + '=' + encodeURIComponent(v) + '; path=/; max-age=' + YEAR400 + '; SameSite=Lax'; } catch(e){}
+    }
+    window.alDur = {
+      get: function(k){
+        var v = null; try { v = localStorage.getItem(k); } catch(e){}
+        if (v != null) {
+          // Write-through: back-fill the cookie so a device already unlocked BEFORE
+          // this durable layer existed becomes eviction-proof on its very first load.
+          if (ck(k) == null) writeCookie(k, v);
+          return v;
+        }
+        var c = ck(k);
+        if (c != null) { try { localStorage.setItem(k, c); } catch(e){} }  // rehydrate
+        return c;
+      },
+      set: function(k,v){
+        try { localStorage.setItem(k, v); } catch(e){}
+        writeCookie(k, v);
+      },
+      remove: function(k){
+        try { localStorage.removeItem(k); } catch(e){}
+        try { document.cookie = k + '=; path=/; max-age=0; SameSite=Lax'; } catch(e){}
+      }
+    };
+  })();
+
+  /* SECURITY GATE — runs BEFORE first paint. If Vault is locked (per the
+     durable lock cache shared with index.html) and this device hasn't unlocked
+     it, hide the root so contents NEVER flash before the password. */
+  (function(){
+    var APPID = 'tony_keychain';
+    var locks = {};
+    try { locks = JSON.parse(window.alDur.get('al_locks') || '{}'); } catch(e) {}
+    var entry = locks[APPID];
+    var isLocked = !!entry;
+    var v = (entry && entry.v) || 0;
+    var gotV = parseInt(window.alDur.get('al_unlockedv_' + APPID) || '0', 10);
+    var isUnlocked = v === 0
+      ? (window.alDur.get('al_unlocked_' + APPID) === '1' || gotV > 0)
+      : (gotV > 0 && gotV >= v);
+    if (isLocked && !isUnlocked) {
+      var r = document.getElementById('kc-root');
+      if (r) r.style.display = 'none';
+    }
+  })();
+</script>
+
 
 <!-- ── KcFileStore: IndexedDB local file storage (shared by KC + VedaLinks) ── -->
 <script>
@@ -967,6 +1072,33 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
       }
     }, 350);
   };
+
+  // ── App Lock: dashboards/applock ──────────────────────────────────────────
+  // The SAME doc index.html uses, so locking Vault here or there stays in step
+  // across every device. _alApplyRemoteLocks rebuilds the whole map, preserving
+  // the other programs' keys on write.
+  const alDocRef = doc(db, "dashboards/applock");
+  let _alLastOwnSaveAt = 0, _alSaveTimer = null;
+  window._fbSaveAppLocks = (locksObj) => {
+    clearTimeout(_alSaveTimer);
+    _alSaveTimer = setTimeout(async () => {
+      try {
+        _alLastOwnSaveAt = Date.now();
+        await setDoc(alDocRef, { locks: locksObj || {}, savedAt: Date.now() });
+        _alLastOwnSaveAt = Date.now();
+      } catch(e) { console.warn('[AppLock] save failed:', e); }
+    }, 400);
+  };
+  window._fbLoadAppLocks = async () => {
+    try { await _whenAuthed(); const snap = await getDoc(alDocRef); if (snap.exists()) return snap.data().locks || {}; }
+    catch(e) { console.warn('[AppLock] load failed:', e); }
+    return null;
+  };
+  onSnapshot(alDocRef, (snap) => {
+    if (!snap.exists()) return;
+    if (Date.now() - _alLastOwnSaveAt < 2000) return;
+    if (window._alApplyRemoteLocks) window._alApplyRemoteLocks(snap.data().locks || {});
+  }, (err) => console.warn('[AppLock] onSnapshot error:', err));
 
   // Block B waits on this before its first load.
   window._fbReady = true;
@@ -1782,6 +1914,66 @@ window._pastelize=function(hex){
 })();
 </script>
 
+<script>
+/* ── Sync status pill under the "Vault" title ────────────────────────────────
+   All four sections drive the SAME #kc-sync-status element:
+
+     Passwords / Payments / Sensitive Info → vault-ui.js's setVaultSync(), which
+       fires on every encrypted write (saving → saved, or error).
+     Keychain (connections)                → window.kcSetSync(), below.
+
+   kcSetSync lives here because it was defined inside index.html's FIRST
+   Keychain IIFE — the superseded one that vault.html deliberately doesn't
+   carry. Block B only ever calls it through a `if (window.kcSetSync)` guard,
+   so without this the Keychain half saved silently with no feedback.
+   The wording/colours match setVaultSync so all four sections look identical. */
+(function(){
+  var timer = null;
+  window.kcSetSync = function(status){
+    var el = document.getElementById('kc-sync-status');
+    if (!el) return;
+    clearTimeout(timer);
+    el.style.visibility = 'visible';
+    el.style.display = 'block';
+    if (status === 'saving') { el.textContent = 'Syncing…'; el.style.color = 'var(--ac)'; }
+    else if (status === 'error') { el.textContent = '⚠ Sync failed — retrying'; el.style.color = '#e07070'; }
+    else if (status === 'saved' || status === 'synced') {
+      el.textContent = '✓ Synced'; el.style.color = 'var(--txd)';
+      timer = setTimeout(function(){ el.style.visibility = 'hidden'; }, 2000);
+    } else { el.style.visibility = 'hidden'; }
+  };
+})();
+
+/* ── Theme mirror ────────────────────────────────────────────────────────────
+   applyTheme() sets the palette as inline custom properties on #kc-root only.
+   Anything rendered outside that element — the Keychain drag clone, vault-ui's
+   modals — would then resolve var(--tx) to nothing and paint black-on-
+   transparent. Rather than fork applyTheme (it's copied verbatim from
+   index.html), watch #kc-root's style attribute and mirror the variables onto
+   :root, so a theme toggle keeps detached elements correct too. */
+(function(){
+  var root = document.getElementById('kc-root');
+  if (!root || !window.MutationObserver) return;
+  var NAMES = ['bg','s1','s2','s3','bd','bdl','tx','txd','txm','ac','acd','shadow','err','grn'];
+  function mirror(){
+    for (var i = 0; i < NAMES.length; i++) {
+      var v = root.style.getPropertyValue('--' + NAMES[i]);
+      if (v) document.documentElement.style.setProperty('--' + NAMES[i], v);
+    }
+  }
+  mirror();
+  new MutationObserver(mirror).observe(root, { attributes: true, attributeFilter: ['style'] });
+})();
+
+/* ── Dark only ───────────────────────────────────────────────────────────────
+   The theme toggle button is stripped from the markup and the light palette
+   from the CSS. kcToggleTheme is neutralised here as well so any leftover
+   caller (or a stale bookmarklet) can't drop the page into a half-removed
+   light mode. isDark is hardcoded true in the Keychain logic and is never
+   restored from storage, so dark is now the only reachable state. */
+window.kcToggleTheme = function(){};
+</script>
+
 <!-- ══ In-UI modal system (replaces native alert/confirm/prompt so dialogs live
         INSIDE the app and never vanish when the browser window loses focus) ══ -->
 <script>
@@ -1863,6 +2055,470 @@ window._pastelize=function(hex){
     fields:[{name:'value',type:o.password?'password':'text',value:(o.default!=null?o.default:(o.value!=null?o.value:'')),placeholder:o.placeholder||'',autocap:o.autocap}]}); };
   window.uiForm=function(cfg){ cfg=cfg||{}; return open({kind:'form',title:cfg.title,message:cfg.message,okLabel:cfg.okLabel||'Save',cancelLabel:cfg.cancelLabel||'Cancel',danger:cfg.danger,fields:cfg.fields||[]}); };
   try { window.alert=function(m){ window.uiAlert(m==null?'':String(m)); }; } catch(e){}
+})();
+</script>
+
+<script>
+(function(){
+'use strict';
+
+var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
+var AL_JOURNAL = 'applock';
+var AL_EMAIL   = 'anthonypn99@gmail.com';
+var APPID      = 'tony_keychain';
+var AC         = '#E0607A';
+
+function _el(id){ return document.getElementById(id); }
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+var _alLocks = {};
+try { _alLocks = JSON.parse(window.alDur.get('al_locks') || '{}'); } catch(e) {}
+var _alPendingPush = false;
+
+function alIsLocked()   { return !!_alLocks[APPID]; }
+function alLockVersion(){ var e=_alLocks[APPID]; return (e&&e.v)||0; }
+function alIsUnlocked() {
+  if(!alIsLocked()) return true;
+  var v = alLockVersion();
+  var got = parseInt(window.alDur.get('al_unlockedv_' + APPID)||'0',10);
+  if(v===0){ return window.alDur.get('al_unlocked_' + APPID)==='1' || got>0; }
+  // Monotonic: this device is unlocked as long as it unlocked AT OR AFTER the
+  // current password version. Only a genuine password change (newer version)
+  // makes got<v and re-requires the password. Prevents spurious re-prompts from
+  // stale/duplicate snapshots that report a merely-different (not newer) version.
+  return got>0 && got>=v;
+}
+function alMarkUnlocked(){
+  try{
+    var v = alLockVersion();
+    var prev = parseInt(window.alDur.get('al_unlockedv_' + APPID)||'0',10);
+    // Record the highest version seen so a slow/stale version read can never
+    // regress an already-valid unlock.
+    var mark = Math.max(v||Date.now(), prev||0);
+    window.alDur.set('al_unlockedv_' + APPID, String(mark));
+    if(v===0) window.alDur.set('al_unlocked_' + APPID, '1');
+  }catch(e){}
+}
+function alMarkLocked()  { try { window.alDur.remove('al_unlockedv_' + APPID); window.alDur.remove('al_unlocked_' + APPID); } catch(e){} }
+function alMustBlock()   { return alIsLocked() && !alIsUnlocked(); }
+
+function alSaveLocks(){
+  try { window.alDur.set('al_locks', JSON.stringify(_alLocks)); } catch(e){}
+  if (window._fbSaveAppLocks) { window._fbSaveAppLocks(_alLocks); _alPendingPush = false; }
+  else { _alPendingPush = true; }
+}
+function alSetLock(version){ _alLocks[APPID] = { locked: true, v: version||Date.now() }; alSaveLocks(); }
+function alRemoveLock(){ delete _alLocks[APPID]; alSaveLocks(); }
+
+// Show / hide Vault content roots.
+function alHideRoot(){ var r=_el('kc-root'); if(r) r.style.display='none'; }
+function alShowRoot(){ var r=_el('kc-root'); if(r) r.style.display=''; }
+
+// ── REMOTE LOCK CHANGES (from Firebase onSnapshot in the module above) ──────
+// The shared dashboards/applock doc carries locks for EVERY app; we only care
+// about Vault's entry but must preserve the rest so we never wipe them.
+window._alApplyRemoteLocks = function(remoteLocks){
+  remoteLocks = remoteLocks || {};
+  // Re-locking is governed entirely by version comparison in alIsUnlocked()
+  // (got>=v). If the password was genuinely changed (newer version) OR newly set
+  // on a device that never unlocked, this device's recorded unlock is < newV and
+  // it blocks automatically below via alMustBlock(). We deliberately do NOT wipe
+  // the unlock record on a mere version DIFFERENCE — a stale/duplicate snapshot
+  // reporting an older-or-equal version must never force a spurious re-prompt.
+  _alLocks = {};
+  Object.keys(remoteLocks).forEach(function(id){ var r=remoteLocks[id]; _alLocks[id] = { locked: true, v:(r&&r.v)||0 }; });
+  try { window.alDur.set('al_locks', JSON.stringify(_alLocks)); } catch(e){}
+  // SECURITY: if Vault just got locked remotely and isn't unlocked here, hide + prompt.
+  if (alMustBlock()) { alHideRoot(); alShowOverlay('unlock'); }
+  else if (!alIsLocked()) { alShowRoot(); if(_el('applock-overlay').style.display==='flex' && _alMode==='unlock'){ alHideOverlay(); } }
+  alUpdateLockBtns();
+};
+
+// On Firebase ready: push any local lock set before init, then pull authoritative set.
+function alOnFbReady(){
+  if (!window._fbLoadAppLocks) return;
+  if (_alPendingPush && window._fbSaveAppLocks) { window._fbSaveAppLocks(_alLocks); _alPendingPush=false; }
+  window._fbLoadAppLocks().then(function(remote){
+    if (remote) window._alApplyRemoteLocks(remote);
+  });
+}
+window.addEventListener('fb-ready', alOnFbReady);
+if (window._fbReady && window._fbLoadAppLocks) alOnFbReady();
+
+// ── OVERLAY ─────────────────────────────────────────────────────────────────
+var _alMode = 'unlock';
+var _alAttempts = 0, _alCooldown = 0;
+var _alRemoveBio = false;   // when true, a successful unlock removes Vault's biometric instead of unlocking
+
+function alShake(){
+  var box=_el('applock-box'); box.classList.remove('shake'); void box.offsetWidth;
+  box.classList.add('shake'); setTimeout(function(){box.classList.remove('shake');},500);
+}
+function _alPwErr(msg){
+  _el('applock-pw').classList.add('error'); _el('applock-pw').value='';
+  _el('applock-err').textContent = _alAttempts>=5 ? 'Too many attempts. Wait 30s.' : msg;
+  alShake(); setTimeout(function(){_el('applock-pw').classList.remove('error');},400);
+}
+
+function alShowOverlay(mode){
+  _alMode = mode;
+  _alRemoveBio = false;   // cleared on any normal open; alBioRemovePrompt re-sets it after
+  _el('applock-err').textContent='';
+  _el('applock-pw').value='';
+  _el('applock-pw').classList.remove('error');
+  _el('applock-title').textContent='Vault';
+  _el('applock-title').style.color=AC;
+  _el('applock-submit').style.background=AC;
+  _el('applock-submit').style.display='';
+  var m=_el('al-menu-btns'); if(m) m.remove();
+  if (mode==='setpw'){
+    _el('applock-icon').textContent='🔐';
+    _el('applock-sub').textContent='Choose a password to lock Vault. Unlock once per device.';
+    _el('applock-submit').textContent='Set Password';
+    _el('applock-forgot').style.display='none'; _el('applock-cancel').style.display='';
+  } else if (mode==='remove'){
+    _el('applock-icon').textContent='🔓';
+    _el('applock-sub').textContent='Enter password to remove the lock.';
+    _el('applock-submit').textContent='Remove Lock';
+    _el('applock-forgot').style.display=''; _el('applock-cancel').style.display='';
+  } else if (mode==='changepw'){
+    _el('applock-icon').textContent='🔑';
+    _el('applock-sub').textContent='Enter your current password first.';
+    _el('applock-submit').textContent='Verify & Continue';
+    _el('applock-forgot').style.display=''; _el('applock-cancel').style.display='';
+  } else {
+    _el('applock-icon').textContent='🔒';
+    _el('applock-sub').textContent='Enter your password to open Vault.';
+    _el('applock-submit').textContent='Unlock';
+    _el('applock-forgot').style.display='';
+    // No cancel escape when content is gated — you must unlock to view Vault.
+    _el('applock-cancel').style.display = alMustBlock() ? 'none' : '';
+  }
+  // Reset link mirrors the "Forgot password?" link (hidden while setting a new password).
+  if (_el('applock-reset')) _el('applock-reset').style.display = _el('applock-forgot').style.display;
+  _el('applock-pw').style.display = '';   // restore in case a prior biometric prompt hid it
+  _el('applock-overlay').style.display='flex';
+  setTimeout(function(){_el('applock-pw').focus();},80);
+  alBioRender(mode);
+}
+function alHideOverlay(){
+  _el('applock-overlay').style.display='none';
+  var m=_el('al-menu-btns'); if(m) m.remove();
+  var bio=_el('applock-bio'); if(bio){ bio.innerHTML=''; bio.style.display='none'; }
+  _alRemoveBio = false;
+}
+
+// ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
+// Primary unlock; password below always remains the fallback. Credential is keyed
+// to Vault's APPID and bound to this device's secure biometric framework.
+function alBioShowPw(show){
+  _el('applock-pw').style.display = show ? '' : 'none';
+  _el('applock-submit').style.display = show ? '' : 'none';
+  _el('applock-forgot').style.display = show ? '' : 'none';
+  if (_el('applock-reset')) _el('applock-reset').style.display = show ? '' : 'none';
+  if (show) setTimeout(function(){ _el('applock-pw').focus(); }, 60);
+}
+function alBioRender(mode){
+  var box=_el('applock-bio'); if(!box) return; box.innerHTML=''; box.style.display='none';
+  if(!window.Bio || mode!=='unlock') return;
+  window.Bio.available().then(function(avail){
+    if(_alMode!=='unlock') return;
+    if(!(avail && window.Bio.isRegistered('vaultlock', APPID))) return;
+    box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
+    var b=document.createElement('button');
+    b.textContent='🔓  Unlock with '+window.Bio.label();
+    b.style.cssText="border:none;border-radius:4px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;width:100%;background:"+AC+";color:#fff;";
+    b.onclick=function(){ alBioUnlock(); };
+    box.appendChild(b);
+    var link=document.createElement('button');
+    link.textContent='Use password instead';
+    link.style.cssText='background:transparent;border:none;color:#9898a8;font-size:12px;text-decoration:underline;cursor:pointer;';
+    link.onclick=function(){ alBioShowPw(true); link.style.display='none'; };
+    box.appendChild(link);
+    alBioShowPw(false);
+  });
+}
+function alBioUnlock(){
+  _el('applock-err').textContent='';
+  if(!window.Bio) return;
+  window.Bio.authenticate('vaultlock', APPID).then(function(r){
+    if(r.ok){
+      if(_alRemoveBio){ alDoRemoveBio(); return; }
+      alMarkUnlocked(); _alAttempts=0; alShowRoot(); alHideOverlay(); alUpdateLockBtns();
+    }
+    else if(r.error==='notregistered'){ alBioShowPw(true); }
+    else { _el('applock-err').textContent='Biometric check failed — use your password.'; alBioShowPw(true); }
+  });
+}
+// Verify identity (biometric OR password) before removing Vault's biometric.
+function alBioRemovePrompt(){
+  alShowOverlay('unlock');
+  _alRemoveBio = true;
+  _el('applock-icon').textContent='👤';
+  _el('applock-sub').textContent='Verify with '+window.Bio.label()+' or your password to remove biometrics from this device.';
+}
+function alDoRemoveBio(){
+  _alRemoveBio = false;
+  window.Bio.unregister('vaultlock', APPID);
+  alHideOverlay(); alUpdateLockBtns();
+  window.uiAlert('Biometrics removed from this device.');
+}
+function alBioRegister(closeAfter){
+  if(!window.Bio) return;
+  window.Bio.register('vaultlock', APPID, { rpName:'Vault', userName:'vaultlock', displayName:'Vault' }).then(function(r){
+    if(r.ok){ alMarkUnlocked(); if(closeAfter) alHideOverlay(); alUpdateLockBtns(); alert('Biometrics registered on this device. You can now unlock Vault with '+window.Bio.label()+'.'); }
+    else if(r.error==='cancelled' || r.error==='NotAllowedError'){ /* user backed out */ }
+    else alert('Could not register biometrics on this device.');
+  });
+}
+function alMaybeOfferBio(){
+  if(!window.Bio) return;
+  window.Bio.available().then(function(avail){
+    if(!avail || window.Bio.isRegistered('vaultlock', APPID)) return;
+    window.uiConfirm('Register '+window.Bio.label()+' to unlock Vault on this device? Your password still works as a fallback.', {title:'Register '+window.Bio.label(), okLabel:'Register'}).then(function(ok){ if(ok) alBioRegister(false); });
+  });
+}
+
+// ── MANAGE MENU (triggered by the lock button) ──────────────────────────────
+function alManage(){
+  if (alIsLocked()) alShowManageMenu();
+  else alShowOverlay('setpw');
+}
+window._tbManageLock = alManage; window._vaultManageLock = alManage;
+window._tbAppIsLocked = function(){ try{ return alIsLocked(); }catch(e){ return false; } };
+
+function alShowManageMenu(){
+  var isUnlocked = alIsUnlocked();
+  _el('applock-err').textContent='';
+  var _mbio=_el('applock-bio'); if(_mbio){ _mbio.innerHTML=''; _mbio.style.display='none'; }
+  _el('applock-pw').value='';
+  _el('applock-pw').classList.remove('error');
+  _el('applock-icon').textContent='🔒';
+  _el('applock-title').textContent='Vault';
+  _el('applock-title').style.color=AC;
+  _el('applock-submit').style.display='none';
+  _el('applock-forgot').style.display='none';
+  if (_el('applock-reset')) _el('applock-reset').style.display='none';
+  _el('applock-cancel').style.display='';
+  _el('applock-sub').textContent = isUnlocked ? 'Vault is locked. Manage:' : 'Vault is locked. Choose:';
+  var existing=_el('al-menu-btns'); if(existing) existing.remove();
+  var menu=document.createElement('div');
+  menu.id='al-menu-btns';
+  menu.style.cssText='display:flex;flex-direction:column;gap:8px;width:100%;';
+  var s='border:none;border-radius:4px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Nunito\',sans-serif;width:100%;';
+  if (!isUnlocked){
+    var ub=document.createElement('button');
+    ub.textContent='🔓  Unlock this device';
+    ub.style.cssText=s+'background:'+AC+';color:#fff;';
+    ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
+    menu.appendChild(ub);
+  }
+  var cb=document.createElement('button');
+  cb.textContent='🔑  Change password';
+  cb.style.cssText=s+'background:#252530;color:#ececf0;border:1px solid #323240;';
+  cb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('changepw'); };
+  menu.appendChild(cb);
+  // Register / remove biometrics (inserted above "Change password").
+  if (window.Bio) window.Bio.available().then(function(avail){
+    if(!avail) return;
+    var bb=document.createElement('button');
+    if(window.Bio.isRegistered('vaultlock', APPID)){
+      bb.textContent='👤  Remove biometrics';
+      bb.style.cssText=s+'background:transparent;color:#9898a8;border:1px solid #323240;';
+      bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRemovePrompt(); };
+    } else {
+      bb.textContent='👤  Register '+window.Bio.label();
+      bb.style.cssText=s+'background:#252530;color:#ececf0;border:1px solid #323240;';
+      bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRegister(true); };
+    }
+    menu.insertBefore(bb, cb);
+  });
+  var rb=document.createElement('button');
+  rb.textContent='🗑  Remove lock';
+  rb.style.cssText=s+'background:transparent;color:#d47a6a;border:1px solid #d47a6a;';
+  rb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('remove'); };
+  menu.appendChild(rb);
+  var cancelRow=_el('applock-cancel').parentNode;
+  cancelRow.insertBefore(menu, cancelRow.lastElementChild);
+  _el('applock-overlay').style.display='flex';
+}
+
+// ── SUBMIT ──────────────────────────────────────────────────────────────────
+_el('applock-submit').addEventListener('click', async function(){
+  var pw=_el('applock-pw').value.trim();
+  if (!pw){ _el('applock-pw').classList.add('error'); _el('applock-err').textContent='Password required.'; return; }
+  if (_alAttempts>=5){
+    var wait=Math.ceil((_alCooldown-Date.now())/1000);
+    if (wait>0){ _el('applock-err').textContent='Too many attempts. Wait '+wait+'s.'; return; }
+    _alAttempts=0;
+  }
+  _el('applock-submit').disabled=true; _el('applock-submit').textContent='Checking…';
+  try {
+    if (_alMode==='setpw'){
+      var hint=(await window.uiPrompt('Optional: enter a password hint for the recovery email. Leave blank to skip.',{title:'Password hint'}))||'';
+      var r1=await fetch(AL_WORKER+'/auth/journal/set-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw,hint:hint})});
+      var d1=await r1.json();
+      if (d1.ok){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); alMaybeOfferBio(); }
+      else { _el('applock-err').textContent='Failed to set lock. Try again.'; }
+
+    } else if (_alMode==='remove'){
+      var r2=await fetch(AL_WORKER+'/auth/journal/remove-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+      var d2=await r2.json();
+      if (d2.ok){ alRemoveLock(); alMarkLocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+      else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
+
+    } else if (_alMode==='changepw'){
+      var r3=await fetch(AL_WORKER+'/auth/journal/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+      var d3=await r3.json();
+      if (d3.ok){
+        var chg=await window.uiForm({ title:'Change password', okLabel:'Change password',
+          fields:[ {name:'password',label:'New password',type:'password',required:true}, {name:'hint',label:'New password hint (optional)'} ] });
+        var np=chg?chg.password:'';
+        if (!np||!np.trim()){ _el('applock-err').textContent='New password empty — not changed.'; }
+        else {
+          var nh=(chg.hint)||'';
+          var rem=await fetch(AL_WORKER+'/auth/journal/remove-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+          var remD=await rem.json();
+          if (remD.ok){
+            var set=await fetch(AL_WORKER+'/auth/journal/set-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:np.trim(),hint:nh})});
+            var setD=await set.json();
+            if (setD.ok){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); alert('Password changed!'); }
+            else { _el('applock-err').textContent='Failed to set new password.'; }
+          } else { _el('applock-err').textContent='Error removing old lock. Try again.'; }
+        }
+      } else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
+
+    } else { // unlock
+      var r4=await fetch(AL_WORKER+'/auth/journal/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+      var d4=await r4.json();
+      if (d4.ok){
+        _alAttempts=0;
+        if(_alRemoveBio){ alDoRemoveBio(); }
+        else { alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+      }
+      else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
+    }
+  } catch(e){ _el('applock-err').textContent='Network error. Try again.'; }
+  _el('applock-submit').disabled=false;
+  _el('applock-submit').textContent={setpw:'Set Password',remove:'Remove Lock',changepw:'Verify & Continue'}[_alMode]||'Unlock';
+});
+
+_el('applock-pw').addEventListener('keydown', function(e){
+  if (e.key==='Enter') _el('applock-submit').click();
+  if (e.key==='Escape'){ _el('applock-err').textContent=''; _el('applock-pw').classList.remove('error'); }
+});
+
+_el('applock-cancel').addEventListener('click', function(){
+  var m=_el('al-menu-btns'); if(m) m.remove();
+  _el('applock-submit').style.display='';
+  var mode=_alMode;
+  alHideOverlay();
+  // Security: backing out of an UNLOCK while gated keeps content hidden.
+  if (mode==='unlock' && alMustBlock()) alHideRoot();
+});
+
+_el('applock-forgot').addEventListener('click', async function(){
+  _el('applock-forgot').textContent='Sending…'; _el('applock-forgot').disabled=true;
+  try {
+    var hr=await fetch(AL_WORKER+'/auth/journal/hint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID})});
+    var hd=await hr.json();
+    if (hd.noLock){ _el('applock-err').textContent='No lock on server. Try re-locking.'; _el('applock-forgot').disabled=false; _el('applock-forgot').textContent='Forgot password?'; return; }
+    var fp=await fetch('https://formspree.io/f/xeedkebo',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:AL_EMAIL,subject:'App Lock - Hint (Vault)',message:'Hint for "Vault":\n\n'+(hd.hint||'(none)')+'\n\n- Vault'})});
+    if (fp.ok){ _el('applock-forgot').textContent='Hint sent!'; setTimeout(function(){_el('applock-forgot').textContent='Forgot password?';_el('applock-forgot').disabled=false;},3000); }
+    else { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
+  } catch(e){ _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
+});
+
+// Shared password-reset flow (emailed 6-char code → verify → set new password).
+// opts: { worker, reqBody:{journal,entryId}|{profile}, email, appName, label, onSuccess }
+window._pwReset = window._pwReset || async function(opts){
+  function post(path, obj){ return fetch(opts.worker+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}).then(function(r){return r.json();}); }
+  var rq;
+  try { rq = await post('/auth/reset/request', opts.reqBody); }
+  catch(e){ alert('Network error while starting the reset. Check your connection and try again.'); return false; }
+  if (rq && rq.noLock) { alert('There is no password set on the server for this item.'); return false; }
+  if (!rq || !rq.ok || !rq.code) { alert('Could not start the reset. Please try again.'); return false; }
+  // Email the code through the same Formspree form used for hints (proven, browser-origin).
+  var emailed = false;
+  try {
+    var fp = await fetch(opts.form, { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({ email: opts.email, subject: opts.appName+' — Password Reset Code',
+        message: 'Your password reset code for '+opts.label+' is:\n\n    '+rq.code+'\n\nEnter this code in '+opts.appName+' to set a new password. It expires in 15 minutes. If you did not request this, you can ignore this email.\n\n— '+opts.appName }) });
+    emailed = fp.ok;
+  } catch(e){ emailed = false; }
+  if (!emailed) { alert('Could not send the reset email. Please try again in a moment.'); return false; }
+  var vals = await window.uiForm({
+    title:'Reset password',
+    message:'A 6-character code was emailed to '+opts.email+'. Enter it below (check spam if you don\'t see it within a minute), then choose a new password.',
+    okLabel:'Reset password',
+    fields:[
+      { name:'code', label:'Security code from email', placeholder:'6-character code', autocap:false, required:true },
+      { name:'password', label:'New password', type:'password', required:true },
+      { name:'hint', label:'New password hint (optional)' }
+    ]
+  });
+  if (!vals) return false;
+  var code = String(vals.code||'').trim();
+  var np = String(vals.password||'').trim();
+  var nh = vals.hint||'';
+  if (!code) { await window.uiAlert('No code entered.'); return false; }
+  if (!np) { await window.uiAlert('Password cannot be empty.'); return false; }
+  var body = Object.assign({ code:code, password:np, hint:nh }, opts.reqBody);
+  var cf;
+  try { cf = await post('/auth/reset/confirm', body); }
+  catch(e){ alert('Network error while confirming the reset. Please try again.'); return false; }
+  if (cf && cf.ok) {
+    if (opts.onSuccess) { try { opts.onSuccess(); } catch(e){} }
+    alert('Password reset! It now syncs to all your devices. This device is unlocked; other devices will ask for the new password once.');
+    return true;
+  }
+  if (cf && cf.error==='badcode') alert('That code is not correct.'+(cf.remaining!=null?(' '+cf.remaining+' attempt(s) left before it expires.'):''));
+  else if (cf && cf.error==='expired') alert('That code has expired or was already used. Start the reset again to get a fresh code.');
+  else if (cf && cf.error==='locked') alert('Too many incorrect attempts. Start the reset again to get a fresh code.');
+  else alert('Reset failed. Please try again.');
+  return false;
+};
+
+// Vault app-lock: reset password via emailed security code.
+_el('applock-reset') && _el('applock-reset').addEventListener('click', async function(){
+  var prev=_el('applock-reset').textContent; _el('applock-reset').textContent='Sending code…'; _el('applock-reset').disabled=true;
+  await window._pwReset({
+    worker:AL_WORKER,
+    reqBody:{ journal:AL_JOURNAL, entryId:APPID },
+    email:AL_EMAIL,
+    form:'https://formspree.io/f/xeedkebo',
+    appName:'Vault',
+    label:'Vault',
+    onSuccess:function(){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+  });
+  _el('applock-reset').textContent=prev; _el('applock-reset').disabled=false;
+});
+
+// ── HEADER LOCK BUTTON STATE ────────────────────────────────────────────────
+// The React headers render a button with id 'tb-lock-btn-desktop' / 'tb-lock-btn-mobile'.
+function alUpdateLockBtns(){
+  // React now renders the lock-icon emoji from window._tbAppIsLocked(); we only
+  // notify React to re-render rather than setting textContent (which React would
+  // overwrite, causing wrong state on mobile re-renders).
+  try {
+    var b = _el('kc-lock-btn');
+    if (b) { var on = alIsLocked(); b.textContent = on ? '🔒 Locked' : '🔓 Lock'; b.title = on ? 'Vault is locked on this device set — manage the lock' : 'Lock Vault behind a password'; }
+  } catch(e){}
+}
+window._tbUpdateLockBtns = alUpdateLockBtns;
+
+// ── LOAD-TIME ENFORCEMENT ───────────────────────────────────────────────────
+// If locked & not unlocked on this device, keep root hidden and prompt.
+function alEnforce(){
+  if (alMustBlock()){ alHideRoot(); if(_el('applock-overlay').style.display!=='flex') alShowOverlay('unlock'); }
+  else { alShowRoot(); }
+  alUpdateLockBtns();
+}
+// React mounts async; sweep a few times to catch the button + enforce the gate.
+alEnforce();
+setTimeout(alEnforce, 300);
+setTimeout(function(){ alUpdateLockBtns(); alEnforce(); }, 800);
+setTimeout(function(){ alUpdateLockBtns(); }, 2000);
 })();
 </script>
 
