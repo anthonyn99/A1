@@ -2963,7 +2963,7 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   <div style="font-size:20px;font-weight:900;letter-spacing:-0.5px;white-space:nowrap;"><span style="color:#f0ecff;">Pro</span><span style="color:#a78bfa;">View</span></div>
   <span id="pv-sync-indicator" style="font-size:9px;font-weight:700;letter-spacing:0.5px;transition:opacity .3s;opacity:0;display:inline;color:#a78bfa;"></span>
 </div>
-  <select id="tn-mobile-select" onchange="if(this.value==='warroom'){window._wrClick&&window._wrClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='tradeboard'){window._thubClick&&window._thubClick();this.value=window._tnCurApp||'taskhub';}else{window._tonyNav&&window._tonyNav(this.value);}this.blur();" onmouseenter="this.style.borderColor='var(--tn-ac,#E0607A)'" onmouseleave="this.style.borderColor='var(--tn-bd,#2e3a35)'">
+  <select id="tn-mobile-select" onchange="if(this.value==='warroom'){window._wrClick&&window._wrClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='tradeboard'){window._thubClick&&window._thubClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='keychain'){window._vaultClick&&window._vaultClick();this.value=window._tnCurApp||'taskhub';}else{window._tonyNav&&window._tonyNav(this.value);}this.blur();" onmouseenter="this.style.borderColor='var(--tn-ac,#E0607A)'" onmouseleave="this.style.borderColor='var(--tn-bd,#2e3a35)'">
     <option value="taskhub">Tony's TaskHub</option>
     <option value="tradeboard">TradeHub</option>
     <option value="health">MotionCore</option>
@@ -12060,19 +12060,24 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   };
   if(location.hash==='#notiftest'){setTimeout(()=>{window.thNotifTest();},1500);}
   if(location.hash==='#notifdiag'){setTimeout(()=>{window.thNotifDiag();},1500);}
-  // Deep link used by the Vault extension: open straight to Keychain.
-  // Supports ?goto=keychain (survives a full reload — used when the installed
-  // PWA is re-navigated via launch_handler) and #keychain, plus hashchange so an
-  // already-open window still routes. Hash/param is stripped after switching so
-  // a repeat launch re-fires.
+  // Legacy deep link — Vault used to be this page's Keychain view, and older
+  // Vault extension builds (plus any bookmarks) still point at
+  // ?goto=keychain / #keychain. Vault now lives at /A1/vault.html, so these
+  // REDIRECT there rather than switching views. Kept indefinitely: it costs
+  // nothing and means an un-updated extension still lands in the right place.
+  //
+  // Any ?vaulttab= rides along, so ?goto=keychain&vaulttab=payments still opens
+  // Vault on Payments. location.replace so Back doesn't bounce straight here.
   window._gotoKeychain=function(){
-    try{ window._kcSwitchTo && window._kcSwitchTo('keychain'); }catch(_){}
-    try{ history.replaceState(null,'',location.pathname); }catch(_){}
+    var q='';
+    try{ var vt=new URLSearchParams(location.search).get('vaulttab'); if(vt) q='?vaulttab='+encodeURIComponent(vt); }catch(_){}
+    try{ location.replace('vault.html'+q); }catch(_){ location.href='vault.html'+q; }
   };
   (function(){
     var wants=false;
     try{ wants=new URLSearchParams(location.search).get('goto')==='keychain'; }catch(_){}
-    if(wants||location.hash==='#keychain'){ setTimeout(window._gotoKeychain,1200); }
+    // No delay — we're leaving the page, so there's nothing here to wait for.
+    if(wants||location.hash==='#keychain'){ window._gotoKeychain(); }
   })();
   window.addEventListener('hashchange',function(){ if(location.hash==='#keychain') window._gotoKeychain(); });
 
@@ -25117,6 +25122,8 @@ window._tonyNav = function(app) {
     window._erSwitchTo('eventrec');
   } else if(app==='keychain' && window._kcSwitchTo) {
     window._kcSwitchTo('keychain');
+    return; // Vault is a separate page (vault.html) — opens in a new tab, so
+            // this window keeps showing (and highlighting) whatever it was on
   } else if(app==='brainstormjournal' && window.showTonyJournal) {
     window.showTonyJournal();
     return; // showTonyJournal handles its own display; active update below
@@ -37639,6 +37646,35 @@ var _origThubClick = window._thubClick;
 window._thubClick = function() {
   if (window._alGateTradeHub) { window._alGateTradeHub(_origThubClick); } else { _origThubClick(); }
 };
+
+// ── Vault ──
+// Vault is its own program at /A1/vault.html. It used to be this page's
+// Keychain view (#kc-root); that markup is still here but is no longer the way
+// in — every route now opens the standalone app, exactly like TradeHub/WarRoom.
+window._vaultClick = function(){
+  var URL_VAULT = 'https://anthonyn99.github.io/A1/vault.html';
+  var w = window.open(URL_VAULT, '_blank');
+  try { if(w) w.opener = null; } catch(e){}
+  if(!w || w.closed || typeof w.closed === 'undefined'){
+    if(window.confirm('Vault opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
+      var w2 = window.open(URL_VAULT, '_blank');
+      try { if(w2) w2.opener = null; } catch(e){}
+      if(!w2 || w2.closed || typeof w2.closed === 'undefined'){
+        var a=document.createElement('a');
+        a.href=URL_VAULT; a.target='_blank'; a.rel='noopener noreferrer';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      }
+    }
+  }
+};
+// Every in-app route to Vault funnels through _kcSwitchTo('keychain') — the nav
+// dropdown, the mobile picker, both app switchers and the extension's deep
+// link. Repointing that ONE function moves all of them at once.
+//
+// Deliberately assigned AFTER _alWrapSwitch('_kcSwitchTo','tony_keychain')
+// above: vault.html carries its own App Lock on the SAME tony_keychain entry,
+// so gating here as well would prompt twice for one program.
+window._kcSwitchTo = function(){ window._vaultClick(); };
 
 // ── Gear icon refresh: update opacity/title on lock state change ──
 // Gear is always visible; opacity changes to signal lock state.
