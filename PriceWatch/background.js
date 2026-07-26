@@ -109,6 +109,121 @@ async function writeCache(domain, query, results) {
   await chrome.storage.local.set({ [cacheKey(domain, query)]: { at: Date.now(), results } });
 }
 
+// ── Orphan-tab registry ─────────────────────────────────────────────────────
+// scrapeInTab() closes its tab in a `finally`, which is enough while the
+// service worker lives. It is NOT enough in MV3: the worker is torn down on
+// browser shutdown (and after ~30s idle), so a tab open at that moment never
+// gets its finally — and the browser's session restore faithfully brings it
+// back on next launch. That's the "why are these store tabs open?" bug.
+//
+// So every scrape tab is also recorded in chrome.storage.local the moment it
+// opens, and swept later. storage.local (not .session) on purpose: the record
+// has to outlive the browser to identify an orphan after a restart.
+//
+// The catch: TAB IDS ARE NOT STABLE ACROSS A RESTART. A session-restored tab
+// comes back with a new id, so the stored id is useless then. We therefore
+// match on URL as well, and keep each entry's URL current via onUpdated below,
+// so a redirect can't make the recorded URL stale and unmatchable.
+const ORPHAN_KEY = "pwOpenTabs";
+const ALARM_SWEEP = "pw-sweep";
+const TAB_MAX_LIFE_MS = 3 * 60 * 1000;   // no honest scrape outlives this
+const ORPHAN_STALE_MS = 48 * 60 * 60 * 1000; // forget entries older than this
+
+async function registryGet() {
+  try {
+    const d = await chrome.storage.local.get(ORPHAN_KEY);
+    const list = (d && d[ORPHAN_KEY]) || [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) { return []; }
+}
+async function registrySet(list) {
+  try { await chrome.storage.local.set({ [ORPHAN_KEY]: list }); } catch (e) {}
+}
+// Ids of scrape tabs this worker instance opened. Purely an optimisation for
+// the onUpdated listener below — if the worker restarted, the set is empty,
+// which is correct: that scrape is already dead and its URL will never change
+// again, so there is nothing to keep in step.
+const liveScrapeTabs = new Set();
+
+async function registryAdd(entry) {
+  liveScrapeTabs.add(entry.tabId);
+  const list = await registryGet();
+  list.push(entry);
+  await registrySet(list);
+  // Watchdog: if the worker dies mid-run the finally never fires, so a periodic
+  // sweep is the only thing left that can close the tab. 1 min is the floor
+  // chrome.alarms honours.
+  try { await chrome.alarms.create(ALARM_SWEEP, { periodInMinutes: 1 }); } catch (e) {}
+}
+async function registryRemove(tabId) {
+  liveScrapeTabs.delete(tabId);
+  const list = await registryGet();
+  const next = list.filter((e) => e.tabId !== tabId);
+  await registrySet(next);
+  if (!next.length) { try { await chrome.alarms.clear(ALARM_SWEEP); } catch (e) {} }
+}
+
+// Keep the recorded URL in step with where the tab actually ended up. Without
+// this, a store that redirects (or rewrites its search URL client-side) would
+// be restored under a URL we never wrote down, and the startup sweep would
+// walk straight past it.
+chrome.tabs.onUpdated.addListener(async (tabId, info) => {
+  if (!info.url || !liveScrapeTabs.has(tabId)) return;  // cheap guard: no storage hit for normal browsing
+  const list = await registryGet();
+  const e = list.find((x) => x.tabId === tabId);
+  if (!e || e.url === info.url) return;
+  e.url = info.url;
+  await registrySet(list);
+});
+
+// If the tab goes away by any other route — the user closed it, the window
+// closed, a crash — drop the record. A stale entry is not just clutter: its URL
+// could later match a tab the user opened themselves.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (!liveScrapeTabs.has(tabId)) return;
+  registryRemove(tabId);
+});
+
+// Close anything left behind. `startup` sweeps the whole registry, because a
+// scrape cannot legitimately span a browser restart — every entry present at
+// launch is by definition an orphan. Otherwise only entries past their max life
+// are taken, so a scrape that is genuinely in flight is never yanked.
+async function sweepOrphanTabs(reason) {
+  const list = await registryGet();
+  if (!list.length) return 0;
+  const now = Date.now();
+  const startup = reason === "startup";
+  const doomed = list.filter((e) => startup || (now - (e.at || 0)) > TAB_MAX_LIFE_MS);
+  if (!doomed.length) return 0;
+
+  let tabs = [];
+  try { tabs = await chrome.tabs.query({}); } catch (e) {}
+
+  let closed = 0;
+  for (const e of doomed) {
+    // 1. A temp window of ours — take the whole thing.
+    if (e.tempWindowId != null) {
+      try { await chrome.windows.remove(e.tempWindowId); closed++; continue; } catch (_) {}
+    }
+    // 2. Same browser session (worker died, browser stayed up): the id still resolves.
+    try { await chrome.tabs.remove(e.tabId); closed++; continue; } catch (_) {}
+    // 3. Restored after a restart: the id is dead, so match the URL instead.
+    //    Skip entries old enough that a URL match would be a coincidence rather
+    //    than our tab.
+    if ((now - (e.at || 0)) > ORPHAN_STALE_MS) continue;
+    for (const t of tabs) {
+      if (t.url !== e.url && t.pendingUrl !== e.url) continue;
+      try { await chrome.tabs.remove(t.id); closed++; } catch (_) {}
+    }
+  }
+
+  const keep = list.filter((e) => doomed.indexOf(e) < 0);
+  await registrySet(keep);
+  if (!keep.length) { try { await chrome.alarms.clear(ALARM_SWEEP); } catch (e) {} }
+  if (closed) await log("closed " + closed + " leftover scrape tab(s) [" + reason + "]");
+  return closed;
+}
+
 // ── Tab plumbing ────────────────────────────────────────────────────────────
 // Tabs are created INACTIVE so a check never steals focus mid-browse. When no
 // normal window exists (alarm firing with the browser idle in the tray) we open
@@ -117,16 +232,20 @@ async function openScrapeTab(url) {
   const wins = await chrome.windows.getAll({ windowTypes: ["normal"] });
   if (wins.length) {
     const tab = await chrome.tabs.create({ url, active: false });
+    await registryAdd({ tabId: tab.id, tempWindowId: null, url, at: Date.now() });
     return { tabId: tab.id, tempWindowId: null };
   }
   const win = await chrome.windows.create({ url, focused: false, width: 1280, height: 900 });
-  return { tabId: win.tabs[0].id, tempWindowId: win.id };
+  const tabId = win.tabs[0].id;
+  await registryAdd({ tabId, tempWindowId: win.id, url, at: Date.now() });
+  return { tabId, tempWindowId: win.id };
 }
 async function closeScrapeTab(h) {
   try {
     if (h.tempWindowId != null) await chrome.windows.remove(h.tempWindowId);
     else await chrome.tabs.remove(h.tabId);
   } catch (e) {}
+  await registryRemove(h.tabId);
 }
 async function waitForLoad(tabId, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
@@ -529,11 +648,28 @@ async function runAutoCheck(manual) {
 
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === ALARM_AUTO) enqueue(() => runAutoCheck(false));
+  // Watchdog for a scrape whose worker was killed mid-run: its finally never
+  // fired, so nothing else will ever close that tab.
+  if (a.name === ALARM_SWEEP) sweepOrphanTabs("watchdog");
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
   const cfg = await getCfg();
   await syncAlarm(cfg);
+  await sweepOrphanTabs("installed");
   await log("PriceWatch installed · parsers: " + self.PWP.domains().join(", "));
 });
-chrome.runtime.onStartup.addListener(async () => { await syncAlarm(await getCfg()); });
+
+// Browser launch: anything still in the registry was orphaned by the last
+// shutdown and has just been handed back to us by session restore. Close it
+// before the user has a chance to see it.
+chrome.runtime.onStartup.addListener(async () => {
+  await sweepOrphanTabs("startup");
+  await syncAlarm(await getCfg());
+});
+
+// Every worker wake-up, not just onStartup. Brave can keep running in the
+// background after the last window closes, in which case the browser never
+// "starts" again — onStartup would never fire, and the orphan would sit there
+// until the next real launch.
+sweepOrphanTabs("wake");
