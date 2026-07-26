@@ -23029,6 +23029,13 @@ window._hideTonyNav = function() {
   if(nav) nav.style.display = 'none';
 };
 window._tonyNav = function(app) {
+  // Programs that live in their OWN page (TradeHub, WarRoom, Vault) open in a
+  // new tab and leave THIS window on whatever it was showing. They must return
+  // BEFORE the hide-all below — hiding every root and then never showing one
+  // is what left the page blank after opening Vault.
+  if(app==='tradeboard'){ if(window._thubClick) window._thubClick(); return; }
+  if(app==='warroom'){ if(window._wrClick) window._wrClick(); return; }
+  if(app==='keychain'){ if(window._vaultClick) window._vaultClick(); return; }
   // Hide ALL tony + other app roots before switching
   if(app!=='proview'&&window._pvHide) window._pvHide();
   ['root','ms-root','er-root','tj-root','veda-root','vt-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
@@ -23038,19 +23045,12 @@ window._tonyNav = function(app) {
     var r=document.getElementById('root');
     if(r) r.style.display='';
     var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
-  } else if(app==='tradeboard') {
-    if(window._thubClick) window._thubClick();
-    return; // TradeHub is a separate page (tradehub.html) — opens in a new tab
   } else if(app==='health' && window._mcSwitchTo) {
     window._mcSwitchTo('health');
   } else if(app==='mealsuite' && window._msSwitchTo) {
     window._msSwitchTo('mealsuite');
   } else if(app==='eventrec' && window._erSwitchTo) {
     window._erSwitchTo('eventrec');
-  } else if(app==='keychain' && window._kcSwitchTo) {
-    window._kcSwitchTo('keychain');
-    return; // Vault is a separate page (vault.html) — opens in a new tab, so
-            // this window keeps showing (and highlighting) whatever it was on
   } else if(app==='brainstormjournal' && window.showTonyJournal) {
     window.showTonyJournal();
     return; // showTonyJournal handles its own display; active update below

@@ -471,9 +471,16 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
 
   /* SECURITY GATE — runs BEFORE first paint. If Vault is locked (per the
      durable lock cache shared with index.html) and this device hasn't unlocked
-     it, hide the root so contents NEVER flash before the password. */
+     it, hide the root so contents NEVER flash before the password.
+
+     APPID is DISTINCT from index.html's 'tony_keychain' (the lock on its Vault
+     nav button) so the two are fully independent: you can lock this app without
+     locking the button, lock the button without locking this app, or give them
+     different passwords. Same split TradeHub uses between 'tony_tradehub' and
+     'tony_tradehub_standalone'. Both still live in the shared dashboards/applock
+     doc under separate keys, so each preserves the other's entry on write. */
   (function(){
-    var APPID = 'tony_keychain';
+    var APPID = 'tony_vault_standalone';
     var locks = {};
     try { locks = JSON.parse(window.alDur.get('al_locks') || '{}'); } catch(e) {}
     var entry = locks[APPID];
@@ -2065,7 +2072,7 @@ window.kcToggleTheme = function(){};
 var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
 var AL_JOURNAL = 'applock';
 var AL_EMAIL   = 'anthonypn99@gmail.com';
-var APPID      = 'tony_keychain';
+var APPID      = 'tony_vault_standalone';
 var AC         = '#E0607A';
 
 function _el(id){ return document.getElementById(id); }
