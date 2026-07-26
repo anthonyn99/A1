@@ -94,7 +94,7 @@
     if (hasBio) {
       const link = await VP.getBioLink();
       const label = VP.biometricLabel(link);
-      const bioBtn = el("button", { class: "pw-btn" }, ["🔓  Unlock with " + label]);
+      const bioBtn = el("button", { class: "pw-btn" }, { html: (window.VaultIcons || {}).unlock + '<span>Unlock with ' + label + '</span>' });
       bioBtn.addEventListener("click", async () => {
         err.textContent = "";
         try { await VP.unlockWithBiometric(); broadcastLockState(true); renderList(); }
@@ -103,7 +103,7 @@
       kids.splice(2, 0, bioBtn);
     }
     panel.appendChild(el("div", { class: "pw-lock" }, [
-      el("div", { class: "pw-lock-icon", html: "💳" }),
+      el("div", { class: "pw-lock-icon", html: (window.VaultIcons || {}).card }),
       el("div", { class: "pw-lock-title" }, ["Vault is locked"]),
       el("div", { class: "pw-lock-sub" }, ["Unlock to view and autofill your saved cards. Stays unlocked for 30 min of activity."]),
       ...kids,
@@ -139,7 +139,7 @@
       try { hasBio = await VP.biometricAvailable(); } catch (e) {}
       if (hasBio) {
         const label = VP.biometricLabel(await VP.getBioLink());
-        const bioBtn = el("button", { class: "pw-btn" }, ["🔓  Use " + label]);
+        const bioBtn = el("button", { class: "pw-btn" }, { html: (window.VaultIcons || {}).unlock + '<span>Use ' + label + '</span>' });
         // Only ever on click — the OS prompt never fires by itself, so the
         // password field stays an equal route through.
         bioBtn.addEventListener("click", async () => {
@@ -165,7 +165,7 @@
 
     const search = el("input", { class: "pw-search", placeholder: "Search cards…" });
     const listWrap = el("div", { class: "pw-list" });
-    const lockBtn = el("button", { class: "pw-icon", title: "Lock now", html: "🔒", onclick: async () => { await VP.lock(); broadcastLockState(false); renderUnlock(); } });
+    const lockBtn = el("button", { class: "pw-icon", title: "Lock now", html: (window.VaultIcons || {}).lock, onclick: async () => { await VP.lock(); broadcastLockState(false); renderUnlock(); } });
     panel.appendChild(el("div", { class: "pw-toolbar" }, [search, lockBtn]));
     panel.appendChild(listWrap);
 
@@ -192,12 +192,12 @@
       revealed[c.id] = on;
       numText.textContent = on ? PAY.formatNumber(c.number, s.network) : s.masked;
       numText.classList.toggle("shown", on);
-      if (revBtn) revBtn.textContent = on ? "🙈" : "👁";
+      if (revBtn) revBtn.innerHTML = on ? ((window.VaultIcons || {}).eyeOff || '') : ((window.VaultIcons || {}).eye || '');
       clearTimeout(hideTimer);
       if (on) hideTimer = setTimeout(() => setRevealed(false), REVEAL_MS);
     }
     revBtn = el("button", {
-      class: "pw-icon", title: "Reveal card number", html: "👁",
+      class: "pw-icon", title: "Reveal card number", html: (window.VaultIcons || {}).eye,
       onclick: async () => {
         VP.touchSession();
         if (revealed[c.id]) { setRevealed(false); return; }
@@ -211,7 +211,7 @@
 
     const actions = [
       el("button", {
-        class: "pw-icon", title: "Copy card number", html: "🔢",
+        class: "pw-icon", title: "Copy card number", html: (window.VaultIcons || {}).copy,
         onclick: async () => {
           if (!c.number) { toast("No card number saved"); return; }
           if (!(await stepUp("copy this card number"))) return;
@@ -221,13 +221,13 @@
     ];
     if (s.hasCvv) {
       actions.push(el("button", {
-        class: "pw-icon", title: "Copy security code", html: "🔐",
+        class: "pw-icon", title: "Copy security code", html: (window.VaultIcons || {}).shield,
         onclick: async () => { if (!(await stepUp("copy this security code"))) return; copySecret(c.cvv, "Security code"); },
       }));
     }
     if (s.hasBilling) {
       actions.push(el("button", {
-        class: "pw-icon", title: "Copy billing address", html: "🏠",
+        class: "pw-icon", title: "Copy billing address", html: (window.VaultIcons || {}).home,
         onclick: () => { VP.touchSession(); copySecret(PAY.formatAddress(c.billing), "Billing address"); },
       }));
     }
@@ -239,7 +239,7 @@
     return el("div", { class: "pw-row pay-row" + (s.expiryState === "expired" ? " expired" : "") }, [
       el("span", { class: "pay-mark", html: PAY.brandMark(s.network) }),
       el("div", { class: "pw-main" }, [
-        el("div", { class: "pw-title" }, [(s.favorite ? "★ " : "") + s.title]),
+        el("div", { class: "pw-title" }, [s.title]),
         el("div", { class: "pw-user" }, [sub || s.networkLabel]),
         el("div", { class: "pay-numline" }, [numText, s.expiry ? el("span", { class: "pay-exp" + expCls }, [s.expiry]) : null]),
       ]),
@@ -258,8 +258,8 @@
       chrome.runtime.sendMessage({ action: "vaultFillCard", id: c.id, tabId }, (r) => {
         void chrome.runtime.lastError;
         if (!r || !r.ok) return toast("No payment fields found on this page");
-        if (!r.cvvFilled && r.cvvFresh === false) return toast("Filled ✓ — unlock again to include the security code");
-        toast("Filled " + r.filled + " field" + (r.filled === 1 ? "" : "s") + " ✓");
+        if (!r.cvvFilled && r.cvvFresh === false) return toast("Filled \u2014 unlock again to include the security code");
+        toast("Filled " + r.filled + " field" + (r.filled === 1 ? "" : "s"));
       });
     });
   }

@@ -3,28 +3,31 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="theme-color" content="#0f0f12" />
+<meta name="theme-color" content="#1a1a1d" />
 <title>Vault</title>
-<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Vault%22%2C%22short_name%22%3A%22Vault%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fvault.html%22%2C%22scope%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230f0f12%22%2C%22theme_color%22%3A%22%230f0f12%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FVault%2Ficons%2Ficon128.png%22%2C%22sizes%22%3A%22128x128%22%2C%22type%22%3A%22image%2Fpng%22%7D%2C%7B%22src%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FVault%2Ficons%2Ficon48.png%22%2C%22sizes%22%3A%2248x48%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D">
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Vault%22%2C%22short_name%22%3A%22Vault%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fvault.html%22%2C%22scope%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FVault%2Ficons%2Ficon128.png%22%2C%22sizes%22%3A%22128x128%22%2C%22type%22%3A%22image%2Fpng%22%7D%2C%7B%22src%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FVault%2Ficons%2Ficon48.png%22%2C%22sizes%22%3A%2248x48%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D">
 <link rel="apple-touch-icon" href="Vault/icons/icon128.png">
 <link rel="icon" href="Vault/icons/icon48.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Lora:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Manrope:wght@600..800&display=swap" rel="stylesheet">
 <style>
 /* Page shell. #kc-root carries its own CSS custom properties (see below), so
    the theme travels with the program rather than depending on a host page. */
 *{box-sizing:border-box;}
-html,body{margin:0;padding:0;height:100%;background:#0f0f12;}
-body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:var(--tx);}
+html,body{margin:0;padding:0;height:100%;background:#1a1a1d;}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);}
 
 :root{
-  --bg:#0f0f12;--s1:#141418;--s2:#1a1a20;--s3:#252530;
-  --bd:#252530;--bdl:#323240;
-  --tx:#ececf0;--txd:#9898a8;--txm:#58586a;
-  --ac:#E0607A;--acd:#e0405e;--shadow:rgba(0,0,0,.5);
-  --err:#d47a6a;--grn:#4A9E68;
-  --radius:4px;--radius-sm:4px;
+  --bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;
+  --bd:#34343a;--bdl:#45454c;
+  --tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
+  --ac:#d4a659;--acd:#c2954a;--acs:#edc884;--acl:rgba(212,166,89,.36);
+  --shadow:rgba(0,0,0,.42);
+  --err:#d68a7c;--grn:#a4b986;
+  --display:'Manrope',system-ui,-apple-system,sans-serif;
+  --sans:'Inter',system-ui,-apple-system,sans-serif;
+  --radius:9px;--radius-sm:6px;
 }
 
 /* ── Shared sticky app header bar ── */
@@ -34,32 +37,39 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
 .app-hbar-row2{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;width:100%;}
 
   /* ── App Lock overlay (mirrors index.html applock) ── */
-  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,0.88);display:none;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;}
-  #applock-box{display:flex;flex-direction:column;align-items:center;gap:20px;padding:40px 32px;background:#141418;border:1px solid #252530;border-radius:24px;width:340px;max-width:90vw;box-shadow:0 32px 80px rgba(0,0,0,0.7);position:relative;}
+  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;background-image:radial-gradient(120% 50% at 50% -10%,rgba(212,166,89,.065),transparent 70%);display:none;align-items:center;justify-content:center;font-family:var(--sans);}
+  #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:40px 32px;background:transparent;border:none;border-radius:0;width:340px;max-width:90vw;position:relative;}
   @keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
   #applock-box.shake{animation:applock-shake 0.4s ease;}
-  #applock-icon{font-size:36px;line-height:1;}
-  #applock-title{font-family:'Lora',serif;font-size:22px;font-weight:700;color:#ececf0;margin-bottom:2px;}
-  #applock-sub{font-family:'Lora',serif;font-size:13px;color:#58586a;font-style:italic;text-align:center;}
-  #applock-pw{background:#0f0f12;border:1px solid #323240;border-radius:4px;color:#ececf0;font-size:16px;font-weight:600;padding:12px 16px;font-family:'Nunito',sans-serif;outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;}
-  #applock-pw.error{border-color:#d47a6a;}
-  #applock-err{font-size:12px;color:#d47a6a;font-weight:700;text-align:center;min-height:16px;}
-  #applock-submit{background:#E0607A;color:#fff;border:none;border-radius:4px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;width:100%;transition:opacity .15s;}
-  #applock-submit:disabled{opacity:0.55;cursor:default;}
-  #applock-cancel{background:transparent;border:none;color:#58586a;font-size:13px;cursor:pointer;font-family:'Nunito',sans-serif;padding:0;text-decoration:underline;}
-  #applock-forgot{background:transparent;border:none;color:#58586a;font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif;padding:0;text-decoration:underline;}
-  #applock-reset{background:transparent;border:none;color:#58586a;font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif;padding:2px 0 0;text-decoration:underline;width:100%;text-align:center;}
+  #applock-icon{line-height:0;color:var(--ac);}
+  #applock-icon svg{width:30px;height:30px;display:block;}
+  #applock-title{font-family:var(--display);font-size:26px;font-weight:600;letter-spacing:-.3px;color:var(--tx);margin-bottom:6px;}
+  #applock-sub{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:var(--txm);text-align:center;}
+  #applock-pw{background:var(--s1);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:15px;font-weight:500;padding:14px 16px;font-family:var(--sans);outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s;}
+  #applock-pw:focus{border-color:var(--ac);}
+  #applock-pw.error{border-color:var(--err);}
+  #applock-err{font-size:12.5px;color:var(--err);font-weight:500;text-align:center;min-height:16px;}
+  #applock-submit{background:transparent;color:var(--acs);border:1px solid var(--acl);border-radius:var(--radius-sm);padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:var(--sans);width:100%;transition:border-color .18s,opacity .18s;}
+  #applock-submit:hover:not(:disabled){border-color:var(--ac);}
+  #applock-submit:disabled{opacity:0.4;cursor:default;}
+  #applock-cancel{background:transparent;border:none;color:var(--txm);font-size:12px;cursor:pointer;font-family:var(--sans);padding:0;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
+  #applock-forgot{background:transparent;border:none;color:var(--txm);font-size:12px;cursor:pointer;font-family:var(--sans);padding:0;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
+  #applock-reset{background:transparent;border:none;color:var(--txm);font-size:12px;cursor:pointer;font-family:var(--sans);padding:2px 0 0;text-decoration:underline;text-underline-offset:3px;width:100%;text-align:center;transition:color .15s;}
+  #applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:var(--txd);}
+  #applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0;}
+  #applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--txd);}
 
 #kc-root{
-  --bg:#0f0f12;--s1:#141418;--s2:#1a1a20;--s3:#252530;
-  --bd:#252530;--bdl:#323240;
-  --tx:#ececf0;--txd:#9898a8;--txm:#58586a;
-  --ac:#E0607A;--acd:#e0405e;--shadow:rgba(0,0,0,.5);
-  --err:#d47a6a;
-  --radius:4px;--radius-sm:4px;
+  --bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;
+  --bd:#34343a;--bdl:#45454c;
+  --tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
+  --ac:#d4a659;--acd:#c2954a;--acs:#edc884;--acl:rgba(212,166,89,.36);
+  --shadow:rgba(0,0,0,.42);
+  --err:#d68a7c;
+  --radius:9px;--radius-sm:6px;
   background:var(--bg);
   min-height:100%;
-  font-family:'Nunito',sans-serif;
+  font-family:var(--sans);
   -webkit-font-smoothing:antialiased;
   overflow-x:clip;
 }
@@ -67,93 +77,93 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
 
 .kc-wrap{max-width:900px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + clamp(10px,2vw,24px)) clamp(12px,3vw,32px) clamp(10px,1.5vw,16px);}
 .kc-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
-.kc-logo{font-family:'Lora',serif;font-size:clamp(19px,2.8vw,26px);font-weight:700;letter-spacing:-.3px;line-height:1;white-space:nowrap;}
-.kc-logo .base{color:var(--tx);}.kc-logo .dot{color:var(--ac);font-style:italic;}
-.kc-tagline{font-size:11px;color:var(--txm);margin-top:2px;font-weight:500;}
+.kc-logo{font-family:var(--display);font-size:clamp(24px,3.2vw,34px);font-weight:750;letter-spacing:-.4px;line-height:1.2;white-space:nowrap;background:linear-gradient(180deg,#f4d795 0%,#d4a659 90%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--acs);}
+.kc-logo .base,.kc-logo .dot{color:inherit;font-style:normal;}
+.kc-tagline{font-size:10.5px;color:var(--txm);margin-top:2px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;}
 .kc-hbtns{display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:nowrap;}
 /* Mode btn — matches Tony's hbtn style */
-.kc-mode-btn{background:var(--bg);border:1px solid var(--bd);border-radius:4px;color:var(--ac);font-size:12px;font-weight:800;padding:0 10px;height:30px;box-sizing:border-box;cursor:pointer;font-family:'Nunito',sans-serif;transition:all .15s;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;}
-.kc-mode-btn:hover{border-color:var(--ac);}
-.kc-mode-btn.editing{background:rgba(224,96,122,0.12);border-color:var(--ac);}
+.kc-mode-btn{background:transparent;border:1px solid var(--bd);border-radius:var(--radius-sm);color:var(--tx);font-size:11px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;padding:0 12px;height:30px;box-sizing:border-box;cursor:pointer;font-family:var(--sans);transition:border-color .18s,color .18s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;}
+.kc-mode-btn:hover{border-color:var(--txd);}
+.kc-mode-btn.editing{background:transparent;border-color:var(--ac);color:var(--acs);}
 #kc-root.view-mode .kc-edit-only{display:none!important;}
 .kc-section{display:flex;flex-direction:column;gap:10px;}
 .kc-section-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid var(--bd);}
-.kc-section-title{font-family:'Lora',serif;font-size:13px;font-weight:800;color:var(--tx);letter-spacing:0.3px;}
+.kc-section-title{font-family:var(--sans);font-size:10px;font-weight:500;color:var(--txm);letter-spacing:2px;text-transform:uppercase;}
 /* 2-col flex layout */
 #kc-conns-list{display:flex;gap:10px;align-items:flex-start;min-height:48px;}
 .kc-col{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0;}
 #kc-root.view-mode .kc-col:empty{display:none;}
-#kc-root.edit-mode .kc-col:empty{border:1.5px dashed rgba(224,96,122,0.25);border-radius:4px;min-height:60px;}
+#kc-root.edit-mode .kc-col:empty{border:1.5px dashed rgba(212,166,89,0.25);border-radius:var(--radius);min-height:60px;}
 .kc-col-empty{flex:1;}
 #kc-conns-list>.kc-empty{flex:1;}
 @media(max-width:400px){#kc-conns-list{flex-direction:column;}.kc-col{width:100%;}}
 /* Cards — match Tony's sec style */
-.kc-card{background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:12px 16px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;transition:border-color .15s;}
-.kc-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--card-accent,var(--ac));opacity:.6;}
-.kc-card:hover{border-color:var(--bdl);}
-.kc-card-placeholder{border-radius:4px;background:rgba(224,96,122,0.06);border:1.5px dashed rgba(224,96,122,0.35);}
-.kc-card-fly{position:fixed!important;pointer-events:none!important;z-index:9000;border-radius:4px;box-shadow:0 20px 60px rgba(0,0,0,.7);transform:rotate(1deg) scale(1.03);opacity:.95;}
+.kc-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;transition:border-color .15s;}
+.kc-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--card-accent,var(--ac));opacity:.5;}
+.kc-card:hover{border-color:var(--acl);}
+.kc-card-placeholder{border-radius:var(--radius);background:rgba(212,166,89,0.06);border:1.5px dashed rgba(212,166,89,0.35);}
+.kc-card-fly{position:fixed!important;pointer-events:none!important;z-index:9000;border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.7);transform:rotate(1deg) scale(1.03);opacity:.95;}
 .kc-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
-.kc-card-name{font-family:'Lora',serif;font-size:13px;font-weight:700;line-height:1.3;word-break:break-word;color:var(--card-accent,var(--ac));}
+.kc-card-name{font-family:var(--display);font-size:15px;font-weight:600;letter-spacing:-.2px;line-height:1.3;word-break:break-word;color:var(--card-accent,var(--acs));}
 .kc-card-actions{display:flex;gap:2px;flex-shrink:0;align-items:center;}
-.kc-drag-handle{cursor:grab;color:var(--txm);font-size:14px;padding:1px 4px;border-radius:3px;line-height:1;flex-shrink:0;user-select:none;touch-action:none;transition:color .12s;}
+.kc-drag-handle{cursor:grab;color:var(--txm);font-size:14px;padding:1px 4px;border-radius:4px;line-height:1;flex-shrink:0;user-select:none;touch-action:none;transition:color .12s;}
 .kc-drag-handle:hover{color:var(--txd);}
 #kc-root.edit-mode .kc-drag-handle:active{cursor:grabbing;}
 .kc-items{display:flex;flex-direction:column;gap:5px;}
 #kc-root.edit-mode .kc-items{min-height:8px;}
-.kc-item-row{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:4px;background:var(--s2);border:1px solid var(--bdl);}
+.kc-item-row{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:var(--radius-sm);background:var(--s2);border:1px solid var(--bdl);}
 .kc-item-row.kc-info-row{align-items:flex-start;padding:7px 9px;}
-.kc-favicon{width:16px;height:16px;border-radius:3px;object-fit:contain;flex-shrink:0;background:var(--s3);}
-.kc-item-handle{cursor:grab;color:var(--txm);font-size:13px;padding:1px 3px;border-radius:3px;line-height:1;flex-shrink:0;user-select:none;touch-action:none;transition:color .12s;}
+.kc-favicon{width:16px;height:16px;border-radius:4px;object-fit:contain;flex-shrink:0;background:var(--s3);}
+.kc-item-handle{cursor:grab;color:var(--txm);font-size:13px;padding:1px 3px;border-radius:4px;line-height:1;flex-shrink:0;user-select:none;touch-action:none;transition:color .12s;}
 .kc-item-handle:hover{color:var(--txd);}
 #kc-root.edit-mode .kc-item-handle:active{cursor:grabbing;}
 @media(pointer:coarse){
   .kc-drag-handle{font-size:18px;padding:4px 8px;min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;}
   .kc-item-handle{font-size:16px;padding:4px 6px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;}
 }
-.kc-item-placeholder{border-radius:4px;background:rgba(224,96,122,0.08);border:1.5px dashed rgba(224,96,122,0.4);}
-.kc-item-fly{position:fixed!important;pointer-events:none!important;z-index:9001;border-radius:4px;box-shadow:0 6px 24px rgba(0,0,0,.6);transform:rotate(0.5deg) scale(1.01);opacity:.97;}
-.kc-link-name{font-size:12px;font-weight:700;color:var(--tx);flex:1;min-width:0;word-break:break-word;}
+.kc-item-placeholder{border-radius:var(--radius-sm);background:rgba(212,166,89,0.08);border:1.5px dashed rgba(212,166,89,0.4);}
+.kc-item-fly{position:fixed!important;pointer-events:none!important;z-index:9001;border-radius:var(--radius-sm);box-shadow:0 6px 24px rgba(0,0,0,.6);transform:rotate(0.5deg) scale(1.01);opacity:.97;}
+.kc-link-name{font-size:12.5px;font-weight:500;color:var(--tx);flex:1;min-width:0;word-break:break-word;}
 .kc-info-text{font-size:12px;color:var(--txd);line-height:1.65;white-space:pre-wrap;word-break:break-word;flex:1;min-width:0;}
-.kc-link-label{font-size:9px;font-weight:800;color:var(--txd);flex-shrink:0;letter-spacing:.5px;text-transform:uppercase;}
+.kc-link-label{font-size:9px;font-weight:500;color:var(--txm);flex-shrink:0;letter-spacing:1.4px;text-transform:uppercase;}
 .kc-link-btns{display:flex;gap:2px;flex-shrink:0;}
-.kc-empty{text-align:center;padding:28px 16px;font-size:12px;color:var(--txm);font-style:italic;border:1px dashed var(--bd);border-radius:4px;grid-column:1/-1;}
+.kc-empty{text-align:center;padding:28px 16px;font-size:12.5px;color:var(--txm);border:1px dashed var(--bd);border-radius:var(--radius);grid-column:1/-1;}
 /* Icon buttons — Tony's ebtn / dbtn style */
-.kc-icon-btn{background:transparent;border:none;padding:3px 6px;border-radius:4px;cursor:pointer;font-size:12px;line-height:1;transition:background .12s,color .12s;color:var(--txd);font-family:'Nunito',sans-serif;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
+.kc-icon-btn{background:transparent;border:none;padding:3px 6px;border-radius:var(--radius-sm);cursor:pointer;font-size:12px;line-height:1;transition:background .12s,color .12s;color:var(--txd);font-family:var(--sans);font-weight:500;display:inline-flex;align-items:center;justify-content:center;}
 .kc-icon-btn:hover{background:var(--s2);color:var(--tx);}
 .kc-icon-btn.visit{color:var(--txd);border:1px solid var(--bd);padding:2px 7px;font-size:11px;}
 .kc-icon-btn.visit:hover{color:var(--ac);border-color:var(--ac);}
 .kc-icon-btn.copy-btn{padding:3px 5px;}.kc-icon-btn.copy-btn:hover{color:var(--ac);}
-.kc-icon-btn.del-x{color:var(--txm);font-size:14px;font-weight:700;}.kc-icon-btn.del-x:hover{color:var(--err);}
-.kc-doc-zone{border:1.5px dashed var(--bd);border-radius:4px;padding:10px;text-align:center;cursor:pointer;transition:all .15s;color:var(--txm);font-size:11px;font-weight:600;user-select:none;margin-top:4px;}
-.kc-doc-zone:hover,.kc-doc-zone.drag-over{border-color:var(--ac);color:var(--ac);background:rgba(224,96,122,0.06);}
+.kc-icon-btn.del-x{color:var(--txm);font-size:14px;font-weight:500;}.kc-icon-btn.del-x:hover{color:var(--err);}
+.kc-doc-zone{border:1.5px dashed var(--bd);border-radius:var(--radius);padding:10px;text-align:center;cursor:pointer;transition:all .15s;color:var(--txm);font-size:11px;font-weight:600;user-select:none;margin-top:4px;}
+.kc-doc-zone:hover,.kc-doc-zone.drag-over{border-color:var(--ac);color:var(--ac);background:rgba(212,166,89,0.06);}
 .kc-storage-bar-wrap{margin-top:8px;margin-bottom:2px;}
-.kc-storage-bar-label{display:flex;justify-content:space-between;font-size:9px;font-weight:700;color:var(--txd);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;}
-.kc-storage-bar-track{height:5px;background:var(--s2);border-radius:3px;overflow:hidden;border:1px solid var(--bd);}
-.kc-storage-bar-fill{height:100%;border-radius:3px;transition:width .3s,background .3s;}
-.kc-doc-row{display:flex;align-items:center;gap:5px;padding:5px 8px;background:var(--s2);border:1px solid var(--bdl);border-radius:4px;margin-bottom:4px;}
+.kc-storage-bar-label{display:flex;justify-content:space-between;font-size:9px;font-weight:500;color:var(--txd);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;}
+.kc-storage-bar-track{height:5px;background:var(--s2);border-radius:4px;overflow:hidden;border:1px solid var(--bd);}
+.kc-storage-bar-fill{height:100%;border-radius:4px;transition:width .3s,background .3s;}
+.kc-doc-row{display:flex;align-items:center;gap:5px;padding:5px 8px;background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius-sm);margin-bottom:4px;}
 .kc-doc-row-icon{font-size:13px;flex-shrink:0;}
-.kc-doc-name-input{flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid var(--bd);color:var(--tx);font-size:11px;font-weight:600;font-family:'Nunito',sans-serif;padding:1px 3px;outline:none;transition:border-color .12s;}
+.kc-doc-name-input{flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid var(--bd);color:var(--tx);font-size:11px;font-weight:600;font-family:var(--sans);padding:1px 3px;outline:none;transition:border-color .12s;}
 .kc-doc-name-input:focus{border-bottom-color:var(--ac);}
 .kc-doc-name-input::placeholder{color:var(--txm);}
 .kc-doc-row-status{font-size:9px;color:var(--txm);flex-shrink:0;white-space:nowrap;}
 .kc-doc-row-status.uploading{color:var(--ac);}
 .kc-doc-row-status.error{color:var(--err);}
-.kc-doc-del-btn{background:transparent;border:none;cursor:pointer;padding:2px 5px;border-radius:3px;font-size:12px;font-weight:700;font-family:'Nunito',sans-serif;transition:all .12s;color:var(--txm);flex-shrink:0;}
+.kc-doc-del-btn{background:transparent;border:none;cursor:pointer;padding:2px 5px;border-radius:4px;font-size:12px;font-weight:500;font-family:var(--sans);transition:all .12s;color:var(--txm);flex-shrink:0;}
 .kc-doc-del-btn:hover{color:var(--err);}
-.kc-doc-replace-btn{background:transparent;border:1px solid var(--bd);cursor:pointer;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;font-family:'Nunito',sans-serif;transition:all .12s;color:var(--txd);flex-shrink:0;}
+.kc-doc-replace-btn{background:transparent;border:1px solid var(--bd);cursor:pointer;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:500;font-family:var(--sans);transition:all .12s;color:var(--txd);flex-shrink:0;}
 .kc-doc-replace-btn:hover{color:var(--ac);border-color:var(--ac);}
 /* Modals */
 .kc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9500;padding:16px;}
-.kc-modal{background:var(--s1);border:1px solid var(--bdl);border-radius:6px;padding:28px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;box-shadow:0 30px 80px var(--shadow);}
-.kc-modal-title{font-family:'Lora',serif;font-size:17px;font-weight:700;color:var(--ac);margin-bottom:20px;display:flex;align-items:center;gap:8px;}
+.kc-modal{background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius);padding:28px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;box-shadow:0 30px 80px var(--shadow);}
+.kc-modal-title{font-family:var(--display);font-size:17px;font-weight:500;color:var(--ac);margin-bottom:20px;display:flex;align-items:center;gap:8px;}
 .kc-modal-title span{display:block;width:9px;height:9px;border-radius:50%;flex-shrink:0;}
 .kc-field{margin-bottom:13px;}
-.kc-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--txd);margin-bottom:6px;}
-.kc-input{width:100%;background:var(--s2);border:1px solid var(--bdl);border-radius:4px;color:var(--tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;font-family:'Nunito',sans-serif;}
+.kc-field label{display:block;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:1.5px;color:var(--txd);margin-bottom:6px;}
+.kc-input{width:100%;background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;font-family:var(--sans);}
 .kc-input:focus{border-color:var(--ac);}
 .kc-input::placeholder{color:var(--txm);}
-.kc-textarea{width:100%;background:var(--s2);border:1px solid var(--bdl);border-radius:4px;color:var(--tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;font-family:'Nunito',sans-serif;min-height:90px;resize:vertical;line-height:1.6;}
+.kc-textarea{width:100%;background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;font-family:var(--sans);min-height:90px;resize:vertical;line-height:1.6;}
 .kc-textarea:focus{border-color:var(--ac);}
 .kc-textarea::placeholder{color:var(--txm);}
 .kc-palette{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;}
@@ -163,29 +173,29 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
 .kc-link-fields{display:flex;flex-direction:column;gap:6px;margin-bottom:6px;}
 .kc-link-field-row{display:grid;grid-template-columns:1fr 1.2fr auto;gap:5px;align-items:start;}
 .kc-single-field-row{display:grid;grid-template-columns:1fr auto;gap:5px;align-items:start;}
-.kc-link-field-row input,.kc-single-field-row input{background:var(--s2);border:1px solid var(--bdl);border-radius:4px;color:var(--tx);font-size:12px;padding:7px 10px;outline:none;transition:border-color .15s;width:100%;font-family:'Nunito',sans-serif;}
+.kc-link-field-row input,.kc-single-field-row input{background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:12px;padding:7px 10px;outline:none;transition:border-color .15s;width:100%;font-family:var(--sans);}
 .kc-link-field-row input:focus,.kc-single-field-row input:focus{border-color:var(--ac);}
 .kc-link-field-row input::placeholder,.kc-single-field-row input::placeholder{color:var(--txm);}
-.kc-add-link-btn{font-size:11px;font-weight:700;color:var(--txd);background:transparent;border:1px dashed var(--bd);border-radius:4px;padding:7px 0;width:100%;cursor:pointer;transition:all .15s;font-family:'Nunito',sans-serif;}
+.kc-add-link-btn{font-size:11px;font-weight:500;color:var(--txd);background:transparent;border:1px dashed var(--bd);border-radius:var(--radius-sm);padding:7px 0;width:100%;cursor:pointer;transition:all .15s;font-family:var(--sans);}
 .kc-add-link-btn:hover{border-color:var(--ac);color:var(--ac);}
-.kc-remove-link{background:transparent;border:none;color:var(--txm);cursor:pointer;font-size:16px;padding:4px 6px;border-radius:4px;line-height:1;transition:color .12s;}
+.kc-remove-link{background:transparent;border:none;color:var(--txm);cursor:pointer;font-size:16px;padding:4px 6px;border-radius:var(--radius-sm);line-height:1;transition:color .12s;}
 .kc-remove-link:hover{color:var(--err);}
 /* Primary/ghost/danger btns — match Tony's sbtn/ebtn */
-.kc-btn-primary{background:var(--ac);color:var(--bg);border:none;border-radius:4px;padding:6px 18px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;transition:opacity .15s;display:inline-flex;align-items:center;height:30px;}
-.kc-btn-primary:hover{opacity:.85;}
-.kc-btn-ghost{background:var(--s2);border:1px solid var(--bdl);border-radius:4px;padding:6px 16px;font-size:12px;font-weight:600;color:var(--txd);cursor:pointer;font-family:'Nunito',sans-serif;transition:all .15s;height:30px;display:inline-flex;align-items:center;}
-.kc-btn-ghost:hover{border-color:var(--ac);color:var(--ac);}
-.kc-modal-actions{display:flex;gap:10px;margin-top:20px;}
-.kc-vault-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--ac);color:var(--bg);font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-top:1px;}
+.kc-btn-primary{background:transparent;color:var(--acs);border:1px solid var(--acl);border-radius:var(--radius-sm);padding:0 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:var(--sans);transition:border-color .18s,color .18s;display:inline-flex;align-items:center;gap:7px;height:34px;}
+.kc-btn-primary:hover{border-color:var(--ac);}
+.kc-btn-ghost{background:transparent;border:1px solid var(--bdl);border-radius:var(--radius-sm);padding:0 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;color:var(--tx);cursor:pointer;font-family:var(--sans);transition:border-color .18s,color .18s;height:34px;display:inline-flex;align-items:center;gap:7px;}
+.kc-btn-ghost:hover{border-color:var(--txd);}
+.kc-modal-actions{display:flex;gap:10px;margin-top:24px;justify-content:flex-end;}
+.kc-vault-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:transparent;border:1px solid var(--acl);color:var(--acs);font-size:11px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;margin-top:1px;font-variant-numeric:tabular-nums;}
 .kc-vault-num::before{content:counter(vstep);}
-.kc-confirm-msg{font-size:13px;color:var(--txd);line-height:1.6;margin-bottom:18px;}
-.kc-btn-danger{background:transparent;border:1px solid var(--err);border-radius:4px;padding:6px 18px;font-size:12px;font-weight:700;color:var(--err);cursor:pointer;font-family:'Nunito',sans-serif;transition:all .15s;height:30px;display:inline-flex;align-items:center;}
-.kc-btn-danger:hover{background:var(--err);color:#fff;}
-/* New Connection btn — Tony's sbtn */
-.kc-new-btn{display:inline-flex;align-items:center;gap:5px;background:transparent;border:1px solid var(--bd);border-radius:4px;padding:0 10px;font-size:12px;font-weight:800;color:var(--txd);cursor:pointer;font-family:'Nunito',sans-serif;transition:all .15s;height:28px;}
-.kc-new-btn:hover{border-color:var(--ac);color:var(--ac);}
-.kc-new-btn.accent{background:var(--ac);border-color:var(--ac);color:var(--bg);font-size:11px;font-weight:800;}.kc-new-btn.accent:hover{opacity:.85;}
-.kc-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--s1);border:1px solid var(--bdl);color:var(--ac);font-size:12px;font-weight:700;padding:8px 18px;border-radius:20px;z-index:10000;pointer-events:none;opacity:0;transition:opacity .2s,transform .2s;}
+.kc-confirm-msg{font-size:13.5px;color:var(--txd);line-height:1.6;margin-bottom:18px;}
+.kc-btn-danger{background:transparent;border:1px solid rgba(214,138,124,.3);border-radius:var(--radius-sm);padding:0 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;color:var(--err);cursor:pointer;font-family:var(--sans);transition:border-color .18s;height:34px;display:inline-flex;align-items:center;gap:7px;}
+.kc-btn-danger:hover{border-color:var(--err);}
+/* New Connection btn */
+.kc-new-btn{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--bd);border-radius:var(--radius-sm);padding:0 14px;font-size:11px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;color:var(--tx);cursor:pointer;font-family:var(--sans);transition:border-color .18s,color .18s;height:30px;}
+.kc-new-btn:hover{border-color:var(--txd);}
+.kc-new-btn.accent{background:transparent;border-color:var(--acl);color:var(--acs);}.kc-new-btn.accent:hover{border-color:var(--ac);}
+.kc-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(90px);background:var(--s3);border:1px solid var(--bdl);color:var(--tx);font-size:13px;font-weight:500;letter-spacing:.2px;padding:12px 22px;border-radius:var(--radius-sm);box-shadow:0 12px 38px rgba(0,0,0,.42);z-index:10000;pointer-events:none;opacity:0;transition:opacity .2s,transform .28s ease;}
 .kc-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 /* Theme btn */
 @media(max-width:520px){
@@ -194,11 +204,19 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
   .kc-link-field-row input:nth-child(2){grid-column:1/2;}
 }
 /* Switcher + header button classes matching Tony's style */
-.kc-switcher{background:var(--bg);border:1px solid var(--bd);border-radius:4px;color:var(--ac);font-size:11px;font-weight:700;padding:0 8px;height:30px;box-sizing:border-box;font-family:'Nunito',sans-serif;outline:none;cursor:pointer;transition:border-color .15s;}
-.kc-switcher:hover{border-color:var(--ac);}
-.kc-switcher option{background:#0f0f12;color:#E0607A;}
-.kc-profile-btn:hover,.kc-theme-hover:hover,.kc-edit-hover:hover{border-color:var(--ac)!important;}
-.kc-hbtn{background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:0 10px;height:28px;box-sizing:border-box;font-size:12px;font-weight:800;color:var(--ac);cursor:pointer;font-family:'Nunito',sans-serif;display:inline-flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap;flex-shrink:0;outline:none;}
+.kc-switcher{background:transparent;border:1px solid var(--bd);border-radius:var(--radius-sm);color:var(--txd);font-size:11px;font-weight:500;letter-spacing:.6px;padding:0 8px;height:30px;box-sizing:border-box;font-family:var(--sans);outline:none;cursor:pointer;transition:border-color .18s;}
+.kc-switcher:hover{border-color:var(--txd);}
+.kc-switcher option{background:#232327;color:#f4f3f0;}
+.kc-profile-btn:hover,.kc-theme-hover:hover,.kc-edit-hover:hover{border-color:var(--txd)!important;}
+.kc-hbtn{background:transparent;border:1px solid var(--bd);border-radius:var(--radius-sm);padding:0 12px;height:30px;box-sizing:border-box;font-size:11px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;color:var(--tx);cursor:pointer;font-family:var(--sans);display:inline-flex;align-items:center;gap:7px;transition:border-color .18s,color .18s;white-space:nowrap;flex-shrink:0;outline:none;}
+.kc-hbtn:hover{border-color:var(--txd);}
+.kc-hbtn svg,.kc-btn-primary svg,.kc-btn-ghost svg,.kc-btn-danger svg,.kc-new-btn svg,.kc-mode-btn svg{display:block;width:14px;height:14px;flex-shrink:0;}
+.kc-icon-btn svg,.kc-doc-del-btn svg,.kc-remove-link svg{display:block;width:15px;height:15px;}
+/* Drag handles now carry an SVG grip rather than a braille glyph. */
+.kc-drag-handle svg{display:block;width:15px;height:15px;}
+.kc-item-handle svg{display:block;width:14px;height:14px;}
+.kc-drag-handle,.kc-item-handle{display:inline-flex;align-items:center;justify-content:center;}
+#kc-edit-icon svg{width:14px;height:14px;display:block;}
 </style>
 </head>
 <body>
@@ -271,10 +289,40 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
 </script>
 
 
+<!-- ══ Icon set — Lucide-style line icons, 24px grid, 1.5 stroke, currentColor.
+     Replaces the emoji glyphs the UI used to render. Sizing is handled by the
+     CSS that owns each button, so the markup here carries no width/height. ══ -->
+<script>
+(function(){
+  function I(body){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" '
+         + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+  }
+  window.KCI = {
+    lock:      I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+    unlock:    I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'),
+    key:       I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/>'),
+    shield:    I('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>'),
+    user:      I('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+    trash:     I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+    cloud:     I('<path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.2"/>'),
+    puzzle:    I('<path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/>'),
+    download:  I('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'),
+    refresh:   I('<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>'),
+    alert:     I('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+    pencil:    I('<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>'),
+    x:         I('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+    check:     I('<path d="M20 6 9 17l-5-5"/>'),
+    grip:      I('<circle cx="9" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="15" cy="18" r="1.3"/>'),
+    eye:       I('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>')
+  };
+})();
+</script>
+
 <!-- ══ App Lock overlay (same SHA-256 + Worker KV system as index.html) ══ -->
 <div id="applock-overlay">
   <div id="applock-box">
-    <div id="applock-icon">🔒</div>
+    <div id="applock-icon"></div>
     <div style="text-align:center;">
       <div id="applock-title">Locked</div>
       <div id="applock-sub">Enter your password to open Vault.</div>
@@ -304,9 +352,9 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
       </div>
     </div>
     <div class="app-hbar-row2">
-      <button class="kc-hbtn" id="kc-syncfiles-btn" onclick="kcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable & downloadable on every device">☁ Sync Files</button>
-      <button class="kc-hbtn" id="kc-vault-btn" onclick="kcOpenVaultSetup()" title="Download the Vault browser extension and set it up in your browser (no Web Store needed)">🧩 Install Vault</button>
-      <button class="kc-hbtn" id="kc-lock-btn" onclick="window._vaultManageLock&&window._vaultManageLock()" title="Lock Vault behind a password">🔓 Lock</button>
+      <button class="kc-hbtn" id="kc-syncfiles-btn" onclick="kcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable &amp; downloadable on every device"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.2"/></svg><span>Sync Files</span></button>
+      <button class="kc-hbtn" id="kc-vault-btn" onclick="kcOpenVaultSetup()" title="Download the Vault browser extension and set it up in your browser (no Web Store needed)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/></svg><span>Install Vault</span></button>
+      <button class="kc-hbtn" id="kc-lock-btn" onclick="window._vaultManageLock&&window._vaultManageLock()" title="Lock Vault behind a password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg><span>Lock</span></button>
       <div class="kc-hbtn kc-edit-hover" id="kc-edit-toggle" onclick="kcToggleMode()" style="cursor:pointer;user-select:none;">
         <div id="kc-toggle-track" style="width:26px;height:14px;border-radius:7px;background:var(--bd);position:relative;transition:background .25s;flex-shrink:0;"><div id="kc-toggle-thumb" style="width:10px;height:10px;border-radius:50%;background:var(--txd);position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .25s,background .25s;box-shadow:0 1px 3px rgba(0,0,0,.25);"></div></div>
         <span id="kc-edit-icon" style="color:var(--ac);white-space:nowrap;line-height:1;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg></span>
@@ -343,7 +391,7 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
 <!-- Confirm Delete Connection -->
 <div id="kc-confirm-modal" class="kc-overlay" style="display:none" onclick="if(event.target===this)kcCloseConfirm()">
   <div class="kc-modal" onclick="event.stopPropagation()" style="max-width:360px;">
-    <div class="kc-modal-title" style="color:#e07070;"><span style="background:#e07070"></span>Delete</div>
+    <div class="kc-modal-title" style="color:#d68a7c;"><span style="background:#d68a7c"></span>Delete</div>
     <div class="kc-confirm-msg" id="kc-confirm-msg"></div>
     <div class="kc-modal-actions"><button class="kc-btn-danger" onclick="kcExecuteDelete()">Delete</button><button class="kc-btn-ghost" onclick="kcCloseConfirm()">Cancel</button></div>
   </div>
@@ -363,7 +411,7 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
         <span class="kc-vault-num"></span>
         <div style="flex:1;min-width:0;">
           <div style="font-size:12.5px;font-weight:800;color:var(--tx);margin-bottom:8px;">Download the extension</div>
-          <button class="kc-btn-primary" style="height:34px;" onclick="kcDownloadVault(this)">⬇ Download Vault (.zip)</button>
+          <button class="kc-btn-primary" style="height:34px;" onclick="kcDownloadVault(this)">
           <div style="font-size:11px;color:var(--txm);line-height:1.5;margin-top:6px;">Always packages the latest files straight from GitHub.</div>
           <div id="kc-vault-pkg" style="display:none;font-size:11px;color:var(--txd);line-height:1.5;margin-top:4px;font-family:monospace;word-break:break-word;"></div>
         </div>
@@ -386,7 +434,7 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
             <button class="kc-btn-ghost" style="height:28px;" onclick="kcCopyExtUrl()">Copy</button>
           </div>
           <div id="kc-vault-ff" style="display:none;margin-top:8px;font-size:11.5px;color:#e0a060;line-height:1.5;">
-            ⚠ Firefox needs a small manifest tweak first (see <code style="font-family:monospace;">Vault/README.md</code>) and loads via <code style="font-family:monospace;">about:debugging</code>. Brave / Chrome / Edge / Opera work as-is.
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:5px;flex-shrink:0;"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> (see <code style="font-family:monospace;">Vault/README.md</code>) and loads via <code style="font-family:monospace;">about:debugging</code>. Brave / Chrome / Edge / Opera work as-is.
           </div>
         </div>
       </li>
@@ -415,7 +463,7 @@ body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;color:va
           <span style="font-weight:800;color:var(--tx);">Already installed?</span> Vault doesn't self-update
           when loaded unpacked. To get the newest version: download again, replace the old
           <span style="font-family:monospace;">Vault</span> folder with the new one (same path),
-          then hit <span style="font-weight:800;">Reload</span> ⟳ on the extensions page.
+          then hit <span style="font-weight:600;">Reload</span> 
         </div>
       </li>
     </ol>
@@ -653,7 +701,7 @@ window._kcUploadDocEntry = async function(d, statusPrefix, cloud) {
       d.storagePath = key;
       d.fileData = '';                 // no base64 in Firestore anymore
       d.saved = true; d.file = null; d._origFile = null;
-      setS('✓');
+      setS('Saved');
       return true;
     } catch (e) { console.warn('KC cloud upload failed, trying local fallback:', file.name, e); }
   }
@@ -662,7 +710,7 @@ window._kcUploadDocEntry = async function(d, statusPrefix, cloud) {
     try {
       d.fileData = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = e => res(e.target.result); fr.onerror = () => rej(new Error('read fail')); fr.readAsDataURL(file); });
       d.saved = true; d.file = null; d._origFile = null;
-      setS('✓ (local)');
+      setS('Saved locally');
       return true;
     } catch (e) { console.error('KC base64 fallback failed:', file.name, e); }
   }
@@ -710,16 +758,16 @@ async function _kcRunSyncButton(btnId, getMigrateFn, appName) {
   const migrate = getMigrateFn();
   const orig = btn.textContent;
   const set = t => { btn.textContent = t; };
-  if (typeof migrate !== 'function') { set('⚠ Not ready'); setTimeout(() => set(orig), 3000); return; }
+  if (typeof migrate !== 'function') { set('Not ready'); setTimeout(() => set(orig), 3000); return; }
   btn._busy = true; btn.disabled = true;
   set('Syncing…');
   try {
     const r = await migrate(true, (done, total) => set('Syncing ' + done + '/' + total + '…'));
     if (r && r.busy) set('Busy…');
-    else if (r && r.uploaded) set('✓ ' + r.uploaded + ' synced' + (r.tooBig ? ' · ' + r.tooBig + ' too big' : ''));
-    else if (r && r.total === 0) set('✓ All synced');
-    else set(r && r.tooBig ? '⚠ ' + r.tooBig + ' over 25MB' : 'Nothing to sync');
-  } catch (e) { console.warn(appName + ' sync failed:', e); set('⚠ Failed — retry'); }
+    else if (r && r.uploaded) set(r.uploaded + ' synced' + (r.tooBig ? ' · ' + r.tooBig + ' too big' : ''));
+    else if (r && r.total === 0) set('All synced');
+    else set(r && r.tooBig ? r.tooBig + ' over 25MB' : 'Nothing to sync');
+  } catch (e) { console.warn(appName + ' sync failed:', e); set('Failed \u2014 retry'); }
   finally { btn.disabled = false; setTimeout(() => { set(orig); btn._busy = false; }, 4500); }
 }
 window.kcSyncFilesClick   = () => _kcRunSyncButton('kc-syncfiles-btn',    () => window._kcCloudMigrate,   'Keychain');
@@ -1117,7 +1165,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
 
 (function(){
 const THEMES={
-  dark:{bg:'#0f0f12',s1:'#141418',s2:'#1a1a20',s3:'#202028',bd:'#252530',bdl:'#323240',tx:'#ececf0',txd:'#9898a8',txm:'#58586a',ac:'#E0607A',shadow:'rgba(0,0,0,.55)'},
+  dark:{bg:'#1a1a1d',s1:'#232327',s2:'#2c2c31',s3:'#202028',bd:'#34343a',bdl:'#45454c',tx:'#f4f3f0',txd:'#adadb2',txm:'#8d8d94',ac:'#d4a659',shadow:'rgba(0,0,0,.55)'},
   light:{bg:'#EAE3E7',s1:'#E5DCE0',s2:'#DDD4D8',s3:'#D4CAD0',bd:'#C8B8C0',bdl:'#BCA8B0',tx:'#2A1F24',txd:'#6B5560',txm:'#A0909A',ac:'#D4607A',shadow:'rgba(42,31,36,0.12)'}
 };
 const CD=['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
@@ -1153,7 +1201,7 @@ window.kcToggleMode=function(){
   const icon=document.getElementById('kc-edit-icon');
   if(track)track.style.background=isEdit?'var(--ac)':'var(--bd)';
   if(thumb){thumb.style.left=isEdit?'13px':'2px';thumb.style.background=isEdit?'#fff':'var(--txd)';}
-  if(icon)icon.innerHTML=isEdit?'<span style="font-size:12px;font-weight:800;">✎</span>':'<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>';
+  if(icon)icon.innerHTML=isEdit?KCI.pencil:'<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>';
 };
 
 // ── Data & migration ──
@@ -1231,13 +1279,13 @@ function fullCard(c,i){
   return `<div class="kc-card" style="--card-accent:${col}" data-ci="${i}" data-links="${esc(JSON.stringify(linkUrls))}">
     <div class="kc-card-top">
       <div style="display:flex;align-items:center;gap:5px;flex:1;min-width:0;">
-        <span class="kc-drag-handle kc-edit-only" data-role="conn-handle" data-ci="${i}">⠿</span>
+        <span class="kc-drag-handle kc-edit-only" data-role="conn-handle" data-ci="${i}" title="Drag to reorder">${KCI.grip}</span>
         <div class="kc-card-name">${c.name?esc(c.name):''}</div>
       </div>
       <div class="kc-card-actions">
         ${linkUrls.length>1?`<button class="kc-icon-btn visit kc-open-group" title="Open all ${linkUrls.length} links" onclick="kcOpenGroup(+this.closest('.kc-card').dataset.ci)">Open all</button>`:''}
-        <button class="kc-icon-btn kc-edit-only" onclick="kcOpenEdit(+this.closest('.kc-card').dataset.ci)">✎</button>
-        <button class="kc-icon-btn del-x kc-edit-only" onclick="kcConfirmDelete(+this.closest('.kc-card').dataset.ci)">✕</button>
+        <button class="kc-icon-btn kc-edit-only" title="Edit" onclick="kcOpenEdit(+this.closest('.kc-card').dataset.ci)">${KCI.pencil}</button>
+        <button class="kc-icon-btn del-x kc-edit-only" title="Delete" onclick="kcConfirmDelete(+this.closest('.kc-card').dataset.ci)">${KCI.x}</button>
       </div>
     </div>
     <div class="kc-items" data-ci="${i}">${items}</div>
@@ -1245,7 +1293,7 @@ function fullCard(c,i){
 }
 
 function renderItem(item,ii,ci){
-  const h=`<span class="kc-item-handle kc-edit-only" data-role="item-handle" data-ci="${ci}" data-ii="${ii}">⠿</span>`;
+  const h=`<span class="kc-item-handle kc-edit-only" data-role="item-handle" data-ci="${ci}" data-ii="${ii}" title="Drag to reorder">${KCI.grip}</span>`;
   switch(item.type){
     case 'link':{
       const nm=esc(item.name||item.url||'Link');
@@ -1281,7 +1329,7 @@ function renderItem(item,ii,ci){
       return `<div class="kc-item-row" data-ci="${ci}" data-ii="${ii}">${h}<span class="kc-link-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${nm}"><span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle"><svg width="12" height="13" viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg> ${nm}</span></span>
         <div class="kc-link-btns">
           ${canView?`<button class="kc-icon-btn visit" onclick="${viewAct}">View</button>`:''}
-          ${canView?`<button class="kc-icon-btn visit" onclick="${dlAct}">⬇</button>`:''}
+          ${canView?`<button class="kc-icon-btn visit" title="Download" onclick="${dlAct}">${KCI.download}</button>`:''}
         </div></div>`;
     }
   }
@@ -1536,9 +1584,9 @@ function kcRenderDocRow(entry){
   row.className='kc-doc-row';row.dataset.docid=entry.id;
   row.innerHTML=`<span class="kc-doc-row-icon"><svg width="12" height="13" viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg></span>
     <input class="kc-doc-name-input" data-docid="${entry.id}" placeholder="Document name…" value="${esc(entry.displayName||entry.fileName||'')}" oninput="kcDocRename(this)">
-    <span class="kc-doc-row-status" id="kcds-${entry.id}">${entry.saved?'✓':entry.file?'ready':'?'}</span>
+    <span class="kc-doc-row-status" id="kcds-${entry.id}">${entry.saved?'saved':entry.file?'ready':'—'}</span>
     ${entry.saved?`<button class="kc-doc-replace-btn" onclick="kcDocReplace('${entry.id}')">Replace</button>`:''}
-    <button class="kc-doc-del-btn" onclick="kcDocRemove('${entry.id}')">✕</button>`;
+    <button class="kc-doc-del-btn" title="Remove" onclick="kcDocRemove('${entry.id}')">${KCI.x}</button>`;
   df.appendChild(row);
 }
 function kcCalcDocBytes(){
@@ -1862,7 +1910,7 @@ function kcSwitchTo(app){
   } else {
     if(kcRoot)kcRoot.style.display='none';
     if(thRoot)thRoot.style.display='';
-    const d=isDark;const bg=d?'#0f0f12':'#f5f0e8';
+    const d=isDark;const bg=d?'#1a1a1d':'#f5f0e8';
     document.body.style.background=bg;document.documentElement.style.background=bg;
     document.body.classList.toggle('light-mode',!d);
     const sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
@@ -1943,9 +1991,9 @@ window._pastelize=function(hex){
     el.style.visibility = 'visible';
     el.style.display = 'block';
     if (status === 'saving') { el.textContent = 'Syncing…'; el.style.color = 'var(--ac)'; }
-    else if (status === 'error') { el.textContent = '⚠ Sync failed — retrying'; el.style.color = '#e07070'; }
+    else if (status === 'error') { el.textContent = 'Sync failed \u2014 retrying'; el.style.color = '#d68a7c'; }
     else if (status === 'saved' || status === 'synced') {
-      el.textContent = '✓ Synced'; el.style.color = 'var(--txd)';
+      el.textContent = 'Synced'; el.style.color = 'var(--txd)';
       timer = setTimeout(function(){ el.style.visibility = 'hidden'; }, 2000);
     } else { el.style.visibility = 'hidden'; }
   };
@@ -1986,23 +2034,23 @@ window.kcToggleTheme = function(){};
 <script>
 (function(){
   if (window.uiModal) return;
-  var ACCENT = '#E0607A';
+  var ACCENT = '#d4a659';
   var CSS =
-    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:20px;box-sizing:border-box;}'
+    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
   + '#uim-overlay.show{display:flex;}'
-  + '#uim-box{width:100%;max-width:370px;background:#17171c;border:1px solid #2c2c36;border-radius:16px;padding:22px 20px;box-shadow:0 20px 60px rgba(0,0,0,.55);box-sizing:border-box;font-family:\'Nunito\',system-ui,sans-serif;animation:uimIn .16s ease;}'
+  + '#uim-box{width:100%;max-width:370px;background:#2c2c31;border:1px solid #45454c;border-radius:9px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.48);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;}'
   + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
-  + '#uim-title{font-size:17px;font-weight:800;color:#f2f2f6;margin-bottom:8px;line-height:1.25;}'
-  + '#uim-msg{font-size:14px;color:#c9c9d4;line-height:1.5;white-space:pre-wrap;margin-bottom:14px;}'
-  + '.uim-field{display:block;margin-bottom:12px;}'
-  + '.uim-label{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#8a8a99;margin:0 0 5px 2px;}'
-  + '.uim-input{width:100%;box-sizing:border-box;background:#0f0f13;border:1px solid #33333f;border-radius:9px;color:#f2f2f6;font-size:15px;padding:11px 13px;outline:none;font-family:inherit;}'
-  + '.uim-input:focus{border-color:#5a5a6a;}'
-  + '#uim-err{font-size:12px;color:#e0607a;font-weight:700;min-height:15px;margin-bottom:4px;}'
-  + '#uim-btns{display:flex;gap:9px;margin-top:6px;}'
-  + '#uim-btns button{flex:1;border:none;border-radius:9px;padding:11px 0;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;}'
-  + '#uim-cancel{background:#26262e;color:#d4d4dd;}'
-  + '#uim-ok{color:#fff;}';
+  + '#uim-title{font-family:\'Manrope\',system-ui,sans-serif;font-size:20px;font-weight:600;letter-spacing:-.2px;color:#f4f3f0;margin-bottom:8px;line-height:1.25;}'
+  + '#uim-msg{font-size:13.5px;color:#adadb2;line-height:1.55;white-space:pre-wrap;margin-bottom:16px;}'
+  + '.uim-field{display:block;margin-bottom:14px;}'
+  + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
+  + '.uim-input{width:100%;box-sizing:border-box;background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
+  + '.uim-input:focus{border-color:#d4a659;}'
+  + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
+  + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
+  + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
+  + '#uim-cancel{color:#f4f3f0;}'
+  + '#uim-cancel:hover{border-color:#adadb2;}';
   var queue=[], active=null;
   function el(id){ return document.getElementById(id); }
   function inject(){
@@ -2033,7 +2081,10 @@ window.kcToggleTheme = function(){};
     });
     el('uim-err').textContent='';
     var ok=el('uim-ok'), ca=el('uim-cancel');
-    ok.textContent=cfg.okLabel||'OK'; ok.style.background=cfg.danger?'#d9534f':ACCENT;
+    ok.textContent=cfg.okLabel||'OK';
+    ok.style.background='transparent';
+    ok.style.color=cfg.danger?'#d68a7c':'#edc884';
+    ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'rgba(212,166,89,.36)';
     ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
     el('uim-overlay').classList.add('show');
     setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
@@ -2073,7 +2124,7 @@ var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
 var AL_JOURNAL = 'applock';
 var AL_EMAIL   = 'anthonypn99@gmail.com';
 var APPID      = 'tony_vault_standalone';
-var AC         = '#E0607A';
+var AC         = '#d4a659';
 
 function _el(id){ return document.getElementById(id); }
 
@@ -2174,27 +2225,27 @@ function alShowOverlay(mode){
   _el('applock-pw').value='';
   _el('applock-pw').classList.remove('error');
   _el('applock-title').textContent='Vault';
-  _el('applock-title').style.color=AC;
-  _el('applock-submit').style.background=AC;
+  _el('applock-title').style.color='';
+  _el('applock-submit').style.background='transparent';
   _el('applock-submit').style.display='';
   var m=_el('al-menu-btns'); if(m) m.remove();
   if (mode==='setpw'){
-    _el('applock-icon').textContent='🔐';
+    _el('applock-icon').innerHTML=KCI.shield;
     _el('applock-sub').textContent='Choose a password to lock Vault. Unlock once per device.';
     _el('applock-submit').textContent='Set Password';
     _el('applock-forgot').style.display='none'; _el('applock-cancel').style.display='';
   } else if (mode==='remove'){
-    _el('applock-icon').textContent='🔓';
+    _el('applock-icon').innerHTML=KCI.unlock;
     _el('applock-sub').textContent='Enter password to remove the lock.';
     _el('applock-submit').textContent='Remove Lock';
     _el('applock-forgot').style.display=''; _el('applock-cancel').style.display='';
   } else if (mode==='changepw'){
-    _el('applock-icon').textContent='🔑';
+    _el('applock-icon').innerHTML=KCI.key;
     _el('applock-sub').textContent='Enter your current password first.';
     _el('applock-submit').textContent='Verify & Continue';
     _el('applock-forgot').style.display=''; _el('applock-cancel').style.display='';
   } else {
-    _el('applock-icon').textContent='🔒';
+    _el('applock-icon').innerHTML=KCI.lock;
     _el('applock-sub').textContent='Enter your password to open Vault.';
     _el('applock-submit').textContent='Unlock';
     _el('applock-forgot').style.display='';
@@ -2233,13 +2284,13 @@ function alBioRender(mode){
     if(!(avail && window.Bio.isRegistered('vaultlock', APPID))) return;
     box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
     var b=document.createElement('button');
-    b.textContent='🔓  Unlock with '+window.Bio.label();
-    b.style.cssText="border:none;border-radius:4px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;width:100%;background:"+AC+";color:#fff;";
+    b.innerHTML=KCI.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
+    b.style.cssText="border:1px solid rgba(212,166,89,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:var(--sans);width:100%;background:transparent;color:#edc884;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
     b.onclick=function(){ alBioUnlock(); };
     box.appendChild(b);
     var link=document.createElement('button');
     link.textContent='Use password instead';
-    link.style.cssText='background:transparent;border:none;color:#9898a8;font-size:12px;text-decoration:underline;cursor:pointer;';
+    link.style.cssText='background:transparent;border:none;color:#8d8d94;font-size:12px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-family:var(--sans);';
     link.onclick=function(){ alBioShowPw(true); link.style.display='none'; };
     box.appendChild(link);
     alBioShowPw(false);
@@ -2261,7 +2312,7 @@ function alBioUnlock(){
 function alBioRemovePrompt(){
   alShowOverlay('unlock');
   _alRemoveBio = true;
-  _el('applock-icon').textContent='👤';
+  _el('applock-icon').innerHTML=KCI.user;
   _el('applock-sub').textContent='Verify with '+window.Bio.label()+' or your password to remove biometrics from this device.';
 }
 function alDoRemoveBio(){
@@ -2300,9 +2351,9 @@ function alShowManageMenu(){
   var _mbio=_el('applock-bio'); if(_mbio){ _mbio.innerHTML=''; _mbio.style.display='none'; }
   _el('applock-pw').value='';
   _el('applock-pw').classList.remove('error');
-  _el('applock-icon').textContent='🔒';
+  _el('applock-icon').innerHTML=KCI.lock;
   _el('applock-title').textContent='Vault';
-  _el('applock-title').style.color=AC;
+  _el('applock-title').style.color='';
   _el('applock-submit').style.display='none';
   _el('applock-forgot').style.display='none';
   if (_el('applock-reset')) _el('applock-reset').style.display='none';
@@ -2312,17 +2363,17 @@ function alShowManageMenu(){
   var menu=document.createElement('div');
   menu.id='al-menu-btns';
   menu.style.cssText='display:flex;flex-direction:column;gap:8px;width:100%;';
-  var s='border:none;border-radius:4px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Nunito\',sans-serif;width:100%;';
+  var s='border:1px solid #45454c;border-radius:6px;padding:12px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:var(--sans);width:100%;background:transparent;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;';
   if (!isUnlocked){
     var ub=document.createElement('button');
-    ub.textContent='🔓  Unlock this device';
-    ub.style.cssText=s+'background:'+AC+';color:#fff;';
+    ub.innerHTML=KCI.unlock+'<span>Unlock this device</span>';
+    ub.style.cssText=s+'color:#edc884;border-color:rgba(212,166,89,.36);';
     ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
     menu.appendChild(ub);
   }
   var cb=document.createElement('button');
-  cb.textContent='🔑  Change password';
-  cb.style.cssText=s+'background:#252530;color:#ececf0;border:1px solid #323240;';
+  cb.innerHTML=KCI.key+'<span>Change password</span>';
+  cb.style.cssText=s+'color:#f4f3f0;';
   cb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('changepw'); };
   menu.appendChild(cb);
   // Register / remove biometrics (inserted above "Change password").
@@ -2330,19 +2381,19 @@ function alShowManageMenu(){
     if(!avail) return;
     var bb=document.createElement('button');
     if(window.Bio.isRegistered('vaultlock', APPID)){
-      bb.textContent='👤  Remove biometrics';
-      bb.style.cssText=s+'background:transparent;color:#9898a8;border:1px solid #323240;';
+      bb.innerHTML=KCI.user+'<span>Remove biometrics</span>';
+      bb.style.cssText=s+'color:#adadb2;';
       bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRemovePrompt(); };
     } else {
-      bb.textContent='👤  Register '+window.Bio.label();
-      bb.style.cssText=s+'background:#252530;color:#ececf0;border:1px solid #323240;';
+      bb.innerHTML=KCI.user+'<span>Register '+window.Bio.label()+'</span>';
+      bb.style.cssText=s+'color:#f4f3f0;';
       bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRegister(true); };
     }
     menu.insertBefore(bb, cb);
   });
   var rb=document.createElement('button');
-  rb.textContent='🗑  Remove lock';
-  rb.style.cssText=s+'background:transparent;color:#d47a6a;border:1px solid #d47a6a;';
+  rb.innerHTML=KCI.trash+'<span>Remove lock</span>';
+  rb.style.cssText=s+'color:#d68a7c;border-color:rgba(214,138,124,.3);';
   rb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('remove'); };
   menu.appendChild(rb);
   var cancelRow=_el('applock-cancel').parentNode;
@@ -2509,7 +2560,11 @@ function alUpdateLockBtns(){
   // overwrite, causing wrong state on mobile re-renders).
   try {
     var b = _el('kc-lock-btn');
-    if (b) { var on = alIsLocked(); b.textContent = on ? '🔒 Locked' : '🔓 Lock'; b.title = on ? 'Vault is locked on this device set — manage the lock' : 'Lock Vault behind a password'; }
+    if (b) {
+      var on = alIsLocked();
+      b.innerHTML = (on ? KCI.lock : KCI.unlock) + '<span>' + (on ? 'Locked' : 'Lock') + '</span>';
+      b.title = on ? 'Vault is locked on this device set — manage the lock' : 'Lock Vault behind a password';
+    }
   } catch(e){}
 }
 window._tbUpdateLockBtns = alUpdateLockBtns;
@@ -2534,6 +2589,7 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
      tabs into #kc-root above and drives everything through _fbLoadVault /
      _fbSaveVault + the fb-vault-* events defined in the module script.
      Order matters: crypto → pay → store → session → ui → pay-ui. -->
+<script src="Vault/vault-icons.js"></script>
 <script src="Vault/vault-crypto.js"></script>
 <script src="Vault/vault-pay.js"></script>
 <script src="Vault/vault-store.js"></script>

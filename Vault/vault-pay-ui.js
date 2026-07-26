@@ -256,7 +256,7 @@
     var face = el('div', { class: 'vpay-face vpay-net-' + s.network }, [
       el('div', { class: 'vpay-face-top' }, [
         el('span', { class: 'vpay-face-mark', html: PAY.brandMark(s.network) }),
-        s.favorite ? el('span', { class: 'vpay-face-star', title: 'Pinned' }, ['★']) : null,
+        s.favorite ? el('span', { class: 'vpay-face-star', title: 'Pinned', html: (window.VaultIcons || {}).starOn || '' }) : null,
       ]),
       el('div', { class: 'vpay-face-chip' }),
       numEl,
@@ -273,7 +273,8 @@
 
     // ── header row ──
     var star = el('button', {
-      class: 'vault-icon' + (s.favorite ? ' vpay-on' : ''), title: s.favorite ? 'Unpin' : 'Pin to top', html: '★',
+      class: 'vault-icon' + (s.favorite ? ' vpay-on' : ''), title: s.favorite ? 'Unpin' : 'Pin to top',
+      html: (window.VaultIcons || {})[s.favorite ? 'starOn' : 'star'] || '',
       onclick: async function (e) {
         e.stopPropagation();
         var patch = { favorite: !it.favorite };
@@ -628,8 +629,8 @@
       '.vpay-site.vpay-expired .vault-row-title{opacity:.7}',
       '.vpay-mark{width:34px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center}',
       '.vpay-mark svg{width:34px;height:22px;display:block}',
-      '.vpay-chip{font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;flex-shrink:0;white-space:nowrap}',
-      '.vpay-chip.warn{background:#e0a05222;color:#e0a052}.vpay-chip.bad{background:#e0525222;color:#e07070}',
+      '.vpay-chip{font-size:10.5px;font-weight:500;letter-spacing:.2px;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap}',
+      '.vpay-chip.warn{background:transparent;border:1px solid rgba(212,166,89,.36);color:#edc884}.vpay-chip.bad{background:transparent;border:1px solid rgba(214,138,124,.45);color:#d68a7c}',
       '.vault-icon.vpay-on{color:var(--ac);border-color:var(--ac)}',
       '.vpay-body{border-top:1px solid var(--bd)}',
       // ── drag to reorder ──
@@ -653,7 +654,7 @@
       '.vpay-detail-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}',
       // the card face
       '.vpay-face{width:236px;flex-shrink:0;aspect-ratio:1.586;border-radius:12px;padding:13px 14px;display:flex;flex-direction:column;color:#fff;',
-      '  background:linear-gradient(135deg,#3a3a48,#1c1c24);box-shadow:0 6px 18px rgba(0,0,0,.45);position:relative;overflow:hidden}',
+      '  background:linear-gradient(135deg,#37373d,#2c2c31);box-shadow:0 6px 18px rgba(0,0,0,.45);position:relative;overflow:hidden}',
       '.vpay-face::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 110% -10%,rgba(255,255,255,.16),transparent 60%);pointer-events:none}',
       '.vpay-net-visa{background:linear-gradient(135deg,#2b3a8f,#141a52)}',
       '.vpay-net-mastercard{background:linear-gradient(135deg,#8c2f2a,#2a1414)}',
@@ -665,7 +666,7 @@
       '.vpay-net-maestro{background:linear-gradient(135deg,#4a49a0,#1a1a3a)}',
       '.vpay-face-top{display:flex;align-items:flex-start;justify-content:space-between;position:relative;z-index:1}',
       '.vpay-face-mark svg{width:38px;height:25px;display:block}',
-      '.vpay-face-star{color:#ffd36b;font-size:13px}',
+      '.vpay-face-star{color:#f4d795;line-height:0;display:inline-flex}.vpay-face-star svg{width:14px;height:14px;display:block}',
       '.vpay-face-chip{width:31px;height:23px;border-radius:5px;margin:10px 0 8px;position:relative;z-index:1;',
       '  background:linear-gradient(135deg,#e6c878,#b8922f);box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}',
       '.vpay-face-num{font-family:ui-monospace,monospace;font-size:14.5px;letter-spacing:1.2px;font-weight:600;position:relative;z-index:1;',
@@ -678,7 +679,7 @@
       '.vpay-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}',
       '.vpay-sec{font-size:11px;font-weight:800;color:var(--txm);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 8px;padding-top:12px;border-top:1px solid var(--bd)}',
       '.vpay-netbadge{display:flex;align-items:center;flex-shrink:0}.vpay-netbadge svg{width:34px;height:22px;display:block}',
-      '.vpay-warn{color:#e0a052;font-size:11.5px;min-height:14px;margin:-4px 0 4px;text-align:left;line-height:1.5}',
+      '.vpay-warn{color:#edc884;font-size:11.5px;min-height:14px;margin:-4px 0 4px;text-align:left;line-height:1.5}',
       // mobile
       '@media (max-width:640px){',
       '  .vpay-detail{flex-direction:column;gap:12px}',

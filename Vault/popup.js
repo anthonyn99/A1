@@ -179,7 +179,7 @@ function render() {
     .filter(({ conn }) => VaultDB.linksOf(conn).length > 0);
 
   if (!visible.length) {
-    groupsEl.innerHTML = `<div class="empty">No link groups yet.<br />Add links in the Vault app (⚙) — they sync here automatically.</div>`;
+    groupsEl.innerHTML = `<div class="empty">No link groups yet.<br />Add links in the Vault app under Settings \u2014 they sync here automatically.</div>`;
     return;
   }
 

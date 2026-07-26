@@ -165,25 +165,25 @@
     shadow = box.attachShadow({ mode: "open" });
     const style = document.createElement("style");
     style.textContent = `
-      .v-wrap{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#141418;border:1px solid #323240;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);overflow:hidden;min-width:230px;max-width:340px}
-      .v-head{display:flex;align-items:center;gap:6px;padding:8px 11px;border-bottom:1px solid #252530;color:#E0607A;font-size:11px;font-weight:800;letter-spacing:.3px}
+      .v-wrap{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#232327;border:1px solid #45454c;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);overflow:hidden;min-width:230px;max-width:340px}
+      .v-head{display:flex;align-items:center;gap:6px;padding:8px 11px;border-bottom:1px solid #34343a;color:#d4a659;font-size:11px;font-weight:800;letter-spacing:.3px}
       .v-dot{width:14px;height:14px}
-      .v-item{display:flex;align-items:center;gap:9px;padding:9px 11px;cursor:pointer;border-top:1px solid #1c1c22}
+      .v-item{display:flex;align-items:center;gap:9px;padding:9px 11px;cursor:pointer;border-top:1px solid #2c2c31}
       .v-item:first-of-type{border-top:none}
-      .v-item:hover{background:#1e1e26}
-      .v-ic{width:18px;height:18px;border-radius:4px;background:#202028;flex-shrink:0}
+      .v-item:hover{background:#2c2c31}
+      .v-ic{width:18px;height:18px;border-radius:4px;background:#2c2c31;flex-shrink:0}
       .v-mark{width:30px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
       .v-mark svg{width:30px;height:20px;display:block}
       .v-txt{min-width:0;flex:1}
-      .v-t{font-size:12.5px;font-weight:700;color:#ececf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .v-u{font-size:11px;color:#9898a8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;font-variant-numeric:tabular-nums}
-      .v-exp{font-size:10px;font-weight:700;color:#58586a;flex-shrink:0;font-variant-numeric:tabular-nums}
-      .v-exp.warn{color:#e0a052}
-      .v-exp.bad{color:#e05252}
-      .v-star{color:#E0607A;font-size:10px;flex-shrink:0}
-      .v-msg{padding:11px;color:#9898a8;font-size:12px;line-height:1.5}
-      .v-msg b{color:#ececf0}
-      .v-foot{padding:6px 11px;border-top:1px solid #252530;color:#58586a;font-size:9.5px;text-align:right}
+      .v-t{font-size:12.5px;font-weight:700;color:#f4f3f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .v-u{font-size:11px;color:#adadb2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;font-variant-numeric:tabular-nums}
+      .v-exp{font-size:10px;font-weight:700;color:#8d8d94;flex-shrink:0;font-variant-numeric:tabular-nums}
+      .v-exp.warn{color:#d4a659}
+      .v-exp.bad{color:#d68a7c}
+      .v-star{color:#d4a659;flex-shrink:0;line-height:0;display:inline-flex;margin-right:5px}.v-star svg{width:11px;height:11px;display:block}
+      .v-msg{padding:11px;color:#adadb2;font-size:12px;line-height:1.5}
+      .v-msg b{color:#f4f3f0}
+      .v-foot{padding:6px 11px;border-top:1px solid #34343a;color:#8d8d94;font-size:9.5px;text-align:right}
     `;
     shadow.appendChild(style);
     const wrap = document.createElement("div"); wrap.className = "v-wrap"; wrap.id = "wrap";
@@ -193,10 +193,10 @@
     document.documentElement.appendChild(box);
   }
   function keyIconSVG() {
-    return '<svg class="v-dot" viewBox="0 0 24 24" fill="none" stroke="#E0607A" stroke-width="2"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>';
+    return '<svg class="v-dot" viewBox="0 0 24 24" fill="none" stroke="#d4a659" stroke-width="2"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>';
   }
   function cardIconSVG() {
-    return '<svg class="v-dot" viewBox="0 0 24 24" fill="none" stroke="#E0607A" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>';
+    return '<svg class="v-dot" viewBox="0 0 24 24" fill="none" stroke="#d4a659" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>';
   }
   function headIcon() { return mode === "payment" ? cardIconSVG() : keyIconSVG(); }
 
@@ -221,7 +221,7 @@
       html += state.cards.map((c, i) => {
         const cls = c.expiryState === "expired" ? " bad" : c.expiryState === "expiring" ? " warn" : "";
         return '<div class="v-item" data-i="' + i + '"><span class="v-mark">' + (c.mark || "") + '</span><div class="v-txt"><div class="v-t">' +
-          (c.favorite ? '<span class="v-star">★ </span>' : "") + esc(c.title) +
+          (c.favorite ? '<span class="v-star"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9Z"/></svg></span>' : "") + esc(c.title) +
           '</div><div class="v-u">' + esc(c.masked || c.subtitle) + '</div></div>' +
           (c.expiry ? '<span class="v-exp' + cls + '">' + esc(c.expiryState === "expired" ? "EXP" : c.expiry) + "</span>" : "") + "</div>";
       }).join("");

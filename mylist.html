@@ -7,12 +7,12 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>MyList</title>
-<meta name="theme-color" content="#0f0f12">
+<meta name="theme-color" content="#1a1a1d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MyList">
 <link rel="manifest" href="data:application/json,{%22name%22:%22MyList%22,%22short_name%22:%22MyList%22,%22display%22:%22standalone%22,%22id%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22start_url%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22scope%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22background_color%22:%22%230f0f12%22,%22theme_color%22:%22%23E0607A%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A//www.w3.org/2000/svg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%23E0607A'/%3E%3Ctext%20x%3D'50%25'%20y%3D'68%25'%20text-anchor%3D'middle'%20font-size%3D'52'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;}
@@ -20,18 +20,27 @@ html,body{height:100%;}
 *::-webkit-scrollbar{display:none;width:0;height:0;}
 a,button,label,select,input,textarea,[role=button],[onclick]{touch-action:manipulation;}
 
+/* Tony's profile — the Insight design system (warm charcoal + tan gold).
+   Veda's block below overrides every one of these names, so changes here are
+   Tony-only by construction. --accent-line is derived from --accent so it stays
+   correct for whichever profile is active without needing a Veda counterpart. */
 body{
-  --bg:#0f0f12; --surface:#16161c; --surface2:#1d1d25; --border:#262630; --border2:#33333f;
-  --text:#ececf0; --textdim:#9898a8; --textmute:#5b5b6c;
-  --accent:#E0607A; --accent-ink:#0f0f12; --accent-soft:rgba(224,96,122,0.14);
-  --good:#5fbf8f; --bad:#d47a6a;
-  --font-body:'Nunito',sans-serif; --font-head:'Nunito',sans-serif; --font-btn:'Nunito',sans-serif;
-  --head-weight:800; --head-spacing:0px; --head-transform:none;
-  --radius:14px;
+  --bg:#1a1a1d; --surface:#232327; --surface2:#2c2c31; --border:#34343a; --border2:#45454c;
+  --text:#f4f3f0; --textdim:#adadb2; --textmute:#8d8d94;
+  --accent:#d4a659; --accent-ink:#1a1a1d; --accent-soft:rgba(212,166,89,0.12);
+  --accent-bright:#edc884;
+  --good:#a4b986; --bad:#d68a7c;
+  --font-body:'Inter',system-ui,-apple-system,sans-serif;
+  --font-head:'Manrope',system-ui,-apple-system,sans-serif;
+  --font-btn:'Inter',system-ui,-apple-system,sans-serif;
+  --head-weight:600; --head-spacing:-0.2px; --head-transform:none;
+  --radius:9px;
   background:var(--bg);color:var(--text);
   font-family:var(--font-body);-webkit-font-smoothing:antialiased;
   overflow-x:hidden;
 }
+body{ --accent-line: color-mix(in srgb, var(--accent) 36%, transparent); }
+body[data-profile=veda]{ --accent-bright: var(--accent); }
 body[data-profile=veda]{
   --bg:#1B1C1E; --surface:#232427; --surface2:#2b2c30; --border:#3a3b41; --border2:#4a4b51;
   --text:#e9e7ec; --textdim:#9b96a3; --textmute:#615f6a;
@@ -68,6 +77,48 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--accent);cursor:pointer;flex-shrink:0;transition:all .15s;}
 .icon-btn:hover{border-color:var(--accent);}
 
+/* ── Insight component language — Tony only ──────────────────────────────────
+   Scoped with :not([data-profile=veda]) so Veda's StudyOS-style chrome (serif
+   type, softer geometry, filled accents) is provably untouched by this
+   migration. Everything here is the Insight vocabulary: outline-only controls,
+   uppercase letter-spaced labels, 6px control radius, no solid accent fills. */
+body:not([data-profile=veda]) .btn{
+  border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;
+  letter-spacing:.8px;text-transform:uppercase;gap:7px;color:var(--text);
+  transition:border-color .18s,color .18s,transform .05s;
+}
+body:not([data-profile=veda]) .btn:hover{border-color:var(--textdim);}
+body:not([data-profile=veda]) .btn:active{transform:translateY(1px);}
+/* "solid" keeps its emphasis through a gold outline rather than a gold fill. */
+body:not([data-profile=veda]) .btn.solid{
+  background:transparent;color:var(--accent-bright);border-color:var(--accent-line);
+}
+body:not([data-profile=veda]) .btn.solid:hover{border-color:var(--accent);}
+body:not([data-profile=veda]) .btn.ghost{color:var(--textdim);border-color:var(--border);}
+body:not([data-profile=veda]) .btn.ghost:hover{color:var(--text);border-color:var(--textdim);}
+body:not([data-profile=veda]) .btn.danger{color:var(--bad);border-color:rgba(214,138,124,.3);}
+body:not([data-profile=veda]) .btn.danger:hover{border-color:var(--bad);}
+body:not([data-profile=veda]) .btn.danger.solid{background:transparent;color:var(--bad);border-color:rgba(214,138,124,.45);}
+body:not([data-profile=veda]) .btn.sm{padding:7px 13px;font-size:11px;border-radius:6px;}
+body:not([data-profile=veda]) .btn svg,
+body:not([data-profile=veda]) .icon-btn svg{display:block;width:15px;height:15px;flex-shrink:0;}
+body:not([data-profile=veda]) .icon-btn{border-radius:6px;color:var(--textdim);transition:border-color .18s,color .18s;}
+body:not([data-profile=veda]) .icon-btn:hover{color:var(--accent-bright);border-color:var(--accent);}
+body:not([data-profile=veda]) input,
+body:not([data-profile=veda]) textarea,
+body:not([data-profile=veda]) select{
+  background:var(--surface);border-radius:6px;font-size:13.5px;font-weight:500;padding:10px 13px;
+  transition:border-color .18s;
+}
+body:not([data-profile=veda]) .field>.lbl{
+  font-size:10px;font-weight:500;letter-spacing:1.4px;color:var(--textmute);margin:0 0 7px;
+}
+body:not([data-profile=veda]) .wordmark{
+  font-weight:750;letter-spacing:-.4px;
+  background:linear-gradient(180deg,#f4d795 0%,#d4a659 90%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+
 /* ── Profile overlay ── */
 #profile-overlay{position:fixed;inset:0;z-index:9000;display:none;flex-direction:column;align-items:center;justify-content:center;
   background:var(--bg);padding:calc(env(safe-area-inset-top,0px) + 24px) 22px calc(env(safe-area-inset-bottom,0px) + 24px);}
@@ -83,8 +134,10 @@ textarea{resize:none;line-height:1.45;overflow:hidden;}
   font-size:22px;color:#41414e;cursor:pointer;transition:all .15s;line-height:1;border-radius:50%;background:rgba(255,255,255,0.03);}
 .profile-card .fav-star:hover{background:rgba(255,255,255,0.08);}
 .profile-card .fav-star.on{color:#f5c451;text-shadow:0 0 12px rgba(245,196,81,.55);}
-.profile-card.tony{border-color:rgba(224,96,122,0.45);} .profile-card.tony:hover{border-color:rgba(224,96,122,0.85);box-shadow:0 8px 24px rgba(224,96,122,0.22),0 0 12px rgba(224,96,122,0.16);}
-.profile-card.tony .emoji,.profile-card.tony .pname{color:#E0607A;}
+/* Tony — elegant gold, matching Insight's accent. Veda's card is untouched. */
+.profile-card.tony{border-color:rgba(212,166,89,0.45);} .profile-card.tony:hover{border-color:rgba(212,166,89,0.85);box-shadow:0 8px 24px rgba(212,166,89,0.20),0 0 12px rgba(212,166,89,0.14);}
+.profile-card.tony .emoji,.profile-card.tony .pname{color:#d4a659;}
+.profile-card.tony .pname{font-family:'Manrope',system-ui,sans-serif;font-weight:700;letter-spacing:-.2px;}
 .profile-card.veda{border-color:rgba(141,118,154,0.5);} .profile-card.veda:hover{border-color:rgba(183,159,196,0.85);box-shadow:0 8px 24px rgba(141,118,154,0.24),0 0 12px rgba(141,118,154,0.18);}
 .profile-card.veda .emoji,.profile-card.veda .pname{color:#b79fc4;font-family:'Playfair Display',serif;}
 
@@ -284,11 +337,20 @@ body.dnd-active *{cursor:grabbing !important;}
 #confirm-row{display:flex;gap:8px;} #confirm-row .btn{flex:1;justify-content:center;}
 
 /* ── App-lock ── */
-#lock-overlay{position:fixed;inset:0;z-index:9800;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.86);backdrop-filter:blur(6px);padding:22px;}
-#lock-box{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:26px 22px;text-align:center;}
+#lock-overlay{position:fixed;inset:0;z-index:9800;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.72);backdrop-filter:blur(5px);padding:22px;}
+#lock-box{width:100%;max-width:360px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:28px 24px;text-align:center;box-shadow:0 30px 70px rgba(0,0,0,.48);}
 #lock-box.shake{animation:shk .45s;}
 @keyframes shk{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-9px)}40%,80%{transform:translateX(9px)}}
-#lock-icon{font-size:38px;margin-bottom:10px;}
+#lock-icon{line-height:0;margin-bottom:14px;color:var(--accent);display:flex;justify-content:center;}
+#lock-icon svg{width:30px;height:30px;display:block;}
+/* Every icon that lands inside a button/badge/label gets consistent sizing. */
+.li-watch-line .eye svg,.pw-badge svg,.pw-dot svg,.pw-link svg,.rec-tag svg,
+.dev-item .tick svg,.pw-drops-title svg,.pw-drops-x svg,.item .acts .ib svg,
+.pw-acts .ib svg,#lock-menu button svg{width:13px;height:13px;display:block;flex-shrink:0;}
+.li-watch-line .eye,.pw-badge,.pw-dot,.pw-link,.rec-tag,.dev-item .tick,
+.pw-drops-title,.pw-drops-x,.item .acts .ib,.pw-acts .ib{display:inline-flex;align-items:center;gap:5px;}
+.item .acts .ib,.pw-acts .ib,.pw-drops-x{justify-content:center;}
+#lock-menu button svg{width:15px;height:15px;}
 #lock-title{font-family:var(--font-head);font-weight:var(--head-weight);font-size:22px;margin-bottom:6px;}
 #lock-sub{font-size:13px;color:var(--textdim);margin-bottom:16px;line-height:1.4;}
 #lock-pw{text-align:center;font-size:17px;letter-spacing:3px;margin-bottom:10px;}
@@ -321,14 +383,14 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-name{font-weight:800;font-size:15px;color:var(--text);}
 .pw-brand{font-weight:600;font-size:11px;color:var(--textdim);background:var(--surface2);padding:1px 6px;border-radius:8px;margin-left:4px;}
 .pw-meta{font-size:12px;color:var(--textdim);margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
-.pw-badge{font-size:11px;font-weight:700;padding:1px 6px;border-radius:8px;}
-.pw-badge.verified{color:var(--good);background:rgba(95,191,143,0.14);}
-.pw-badge.est{color:var(--textdim);background:var(--surface2);}
+.pw-badge{font-size:10.5px;font-weight:500;letter-spacing:.2px;padding:2px 8px;border-radius:5px;border:1px solid var(--border2);background:transparent;}
+.pw-badge.verified{color:var(--good);background:transparent;border-color:rgba(164,185,134,.4);}
+.pw-badge.est{color:var(--textdim);background:transparent;}
 /* "live" = really scraped from the store's own page by the PriceWatch
    extension — neither a Kroger API number nor an AI guess. Accent-coloured so
    it reads as the strongest of the three tiers at a glance. */
-.pw-badge.live{color:var(--accent);background:var(--accent-soft);}
-.pw-badge.na{color:var(--textmute);background:var(--surface2);font-weight:600;}
+.pw-badge.live{color:var(--accent-bright);background:transparent;border-color:var(--accent-line);}
+.pw-badge.na{color:var(--textmute);background:transparent;font-weight:500;}
 .pw-priceblock{text-align:right;flex-shrink:0;}
 .pw-price{font-weight:800;font-size:17px;color:var(--text);}
 .pw-delta{font-size:12px;font-weight:800;display:inline-block;margin-top:2px;}
@@ -357,7 +419,7 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-bd-note{flex-basis:100%;font-size:11px;color:var(--textmute);line-height:1.4;}
 .pw-bd-price{font-weight:800;color:var(--text);}
 .pw-bd-row.best .pw-bd-price{color:var(--good);}
-.pw-link{text-decoration:none;color:var(--accent);font-weight:800;}
+.pw-link{text-decoration:none;color:var(--accent);font-weight:500;}
 .pw-confirm-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
 .pw-confirm-sub{font-size:12px;font-weight:700;color:var(--textmute);margin:4px 0 8px;}
 .pw-vgroup{margin-bottom:10px;}
@@ -388,6 +450,22 @@ body.dnd-active *{cursor:grabbing !important;}
 #pwx-box ol{list-style:none;counter-reset:pwx;padding:0;margin:0;}
 #pwx-box ol li{counter-increment:pwx;display:flex;gap:11px;align-items:flex-start;margin-bottom:15px;font-size:12.5px;color:var(--text);line-height:1.55;}
 #pwx-box ol li:before{content:counter(pwx);flex:none;width:21px;height:21px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+/* Insight uses no solid accent fills — emphasis comes from a gold outline and
+   gold text. Tony-scoped so Veda keeps her filled chips/toggles. Checkboxes and
+   the drag indicator stay filled: those need a solid mark to read as "checked".
+   The mic keeps its fill too — it's the app's one primary action. */
+body:not([data-profile=veda]) #view-switch button.on,
+body:not([data-profile=veda]) .list-chip.active,
+body:not([data-profile=veda]) #manual-fab.on{
+  background:transparent;color:var(--accent-bright);border-color:var(--accent);
+}
+body:not([data-profile=veda]) #view-switch button.on{box-shadow:inset 0 0 0 1px var(--accent);}
+body:not([data-profile=veda]) #pwx-box ol li:before{
+  background:transparent;border:1px solid var(--accent-line);color:var(--accent-bright);font-weight:500;
+}
+body:not([data-profile=veda]) .store-chip .x:hover{
+  background:transparent;color:var(--accent-bright);
+}
 #pwx-box li.plain:before{content:"";background:transparent;}
 #pwx-box code{background:var(--surface2);border:1px solid var(--border2);border-radius:5px;padding:4px 8px;font-size:11.5px;color:var(--accent);font-family:ui-monospace,monospace;}
 #pwx-pkg{display:none;font-size:11px;color:var(--textdim);margin-top:5px;font-family:ui-monospace,monospace;word-break:break-word;line-height:1.5;}
@@ -400,7 +478,7 @@ body.dnd-active *{cursor:grabbing !important;}
 /* "prices dropped while you were away" banner */
 .pw-drops{background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;}
 .pw-drops-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
-.pw-drops-title{font-weight:800;font-size:13px;color:var(--text);}
+.pw-drops-title{font-weight:500;font-size:13px;color:var(--text);}
 .pw-drops-x{border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:16px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:8px;flex-shrink:0;}
 .pw-drops-x:hover{background:var(--surface2);color:var(--text);}
 .pw-drops-row{font-size:13px;color:var(--textdim);padding:3px 0;}
@@ -410,7 +488,7 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-drops-at{color:var(--textdim);}
 .pw-drops-est{color:var(--textmute);font-size:11px;}
 .li-watch-line{font-size:12px;color:var(--textdim);margin-top:3px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
-.li-watch-line .eye{font-size:12px;}
+.li-watch-line .eye{color:var(--textmute);}
 .li-watch-line b{color:var(--text);}
 .li-watch-at{color:var(--textmute);}
 
@@ -423,7 +501,7 @@ body.dnd-active *{cursor:grabbing !important;}
 .rec-row .rec-info{flex:1;min-width:0;}
 .rec-row .rec-name{font-family:var(--font-head);font-weight:700;font-size:16px;color:var(--text);word-break:break-word;}
 .rec-row .rec-meta{font-size:12px;color:var(--textdim);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap;}
-.rec-tag{font-size:10px;font-weight:800;padding:4px 11px;border-radius:20px;letter-spacing:.4px;white-space:nowrap;font-family:var(--font-btn);}
+.rec-tag{font-size:10.5px;font-weight:500;padding:3px 9px;border-radius:5px;letter-spacing:.2px;white-space:nowrap;font-family:var(--font-btn);}
 .rec-tag.time{background:var(--surface2);border:1px solid var(--border2);color:var(--textdim);}
 .rec-row .rec-acts{display:flex;gap:4px;flex-shrink:0;}
 .rec-row .rec-acts .ib{width:32px;height:32px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--textmute);display:flex;align-items:center;justify-content:center;cursor:pointer;}
@@ -548,7 +626,7 @@ body.dnd-active *{cursor:grabbing !important;}
   <div class="profile-cards">
     <div class="profile-card tony" onclick="ML.chooseProfile('tony')">
       <span class="fav-star" id="fav-tony" onclick="event.stopPropagation();ML.toggleFav('tony')" title="Set as default">★</span>
-      <div class="emoji">🌸</div>
+      <div class="emoji">⚜️</div>
       <div class="pname">Tony</div>
       <div class="plock" id="plock-tony"></div>
     </div>
@@ -641,9 +719,45 @@ body.dnd-active *{cursor:grabbing !important;}
   </div>
 </div></div>
 
+<!-- ══ Icon set — Lucide-style line icons shared across the suite (Insight,
+        Vault, TradeHub). Replaces the emoji glyphs the UI used to render.
+        Sizing lives in CSS so icons stay consistent app-wide. ══ -->
+<script>
+(function(){
+  function I(body){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" '
+         + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+  }
+  window.MLI = {
+    lock:     I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+    unlock:   I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'),
+    key:      I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/>'),
+    shield:   I('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>'),
+    user:     I('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+    trash:    I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+    download: I('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'),
+    refresh:  I('<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>'),
+    alert:    I('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+    check:    I('<path d="M20 6 9 17l-5-5"/>'),
+    x:        I('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+    pencil:   I('<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>'),
+    eye:      I('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>'),
+    search:   I('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
+    undo:     I('<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/>'),
+    redo:     I('<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h4"/>'),
+    arrowLeft:I('<path d="M19 12H5"/><path d="m11 6-6 6 6 6"/>'),
+    external: I('<path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/>'),
+    clock:    I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    plate:    I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>'),
+    puzzle:   I('<path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/>'),
+    tag:      I('<path d="M20.6 13.4 12 22l-9-9V4a1 1 0 0 1 1-1h9Z"/><circle cx="7.5" cy="7.5" r="1.3"/>')
+  };
+})();
+</script>
+
 <!-- app lock overlay -->
 <div id="lock-overlay"><div id="lock-box">
-  <div id="lock-icon">🔒</div>
+  <div id="lock-icon"></div>
   <div id="lock-title">Locked</div>
   <div id="lock-sub">Enter your password.</div>
   <div id="lock-bio"></div>
@@ -673,7 +787,7 @@ body.dnd-active *{cursor:grabbing !important;}
       <li>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:800;margin-bottom:7px;">Download the extension</div>
-          <button class="btn solid sm" onclick="pwxDownload(this)">⬇ Download PriceWatch (.zip)</button>
+          <button class="btn solid sm" onclick="pwxDownload(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:15px;height:15px;display:block;flex-shrink:0;"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></button>
           <div class="pwx-sub">Always packages the newest files straight from GitHub.</div>
           <div id="pwx-pkg"></div>
         </div>
@@ -689,7 +803,7 @@ body.dnd-active *{cursor:grabbing !important;}
             <button class="btn sm" onclick="pwxCopyUrl()">Copy</button>
           </div>
           <div id="pwx-ff" style="display:none;margin-top:7px;font-size:11.5px;color:#e0a060;line-height:1.5;">
-            ⚠ Firefox doesn't support this extension's MV3 background worker or
+            
             <code>externally_connectable</code>. Use Chrome, Brave, Edge or Opera.
           </div>
         </div>
@@ -704,7 +818,7 @@ body.dnd-active *{cursor:grabbing !important;}
         <div class="pwx-foot">
           <b style="color:var(--text)">Already installed?</b> Unpacked extensions don't self-update.
           Download again, replace the old <code style="padding:1px 5px;">PriceWatch</code> folder in place,
-          then hit <b>Reload</b> ⟳ on the extensions page.
+          then hit <b>Reload</b> 
           <br><br>
           <b style="color:var(--text)">Note:</b> stores are checked at most once every few hours each,
           one tab at a time, so the traffic looks like ordinary browsing. A store that shows a bot
@@ -1164,7 +1278,7 @@ body.dnd-active *{cursor:grabbing !important;}
         try{
           const d=(payload&&payload.data)||{};
           if(!/^pw/.test(String(d.id||''))) return;   // only OUR price-drop / test messages
-          swReg.showNotification('✦ MyList', { body:(d.body||d.title||'Price drop'), tag:String(d.id||'pw'), renotify:true, requireInteraction:true,
+          swReg.showNotification('MyList', { body:(d.body||d.title||'Price drop'), tag:String(d.id||'pw'), renotify:true, requireInteraction:true,
             icon:'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%23E0607A%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2768%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2752%27%3E%F0%9F%92%B8%3C/text%3E%3C/svg%3E' });
         }catch(e){}
       });
@@ -1185,7 +1299,7 @@ var AUTH_WORKER = 'https://taskhub-reminders.av1.workers.dev';
 var AUTH_JOURNAL = 'mylist';
 var FORMSPREE = { tony:'https://formspree.io/f/xeedkebo', veda:'https://formspree.io/f/xzdlwaqg' };
 var EMAILS = { tony:'anthonypn99@gmail.com', veda:'vedaapatel1605@gmail.com' };
-var PROFILE_META = { tony:{ label:'Tony', emoji:'🌸' }, veda:{ label:'Veda', emoji:'✦' } };
+var PROFILE_META = { tony:{ label:'Tony', emoji:'\u269C\uFE0F' }, veda:{ label:'Veda', emoji:'\u2726' } };
 
 var state = { tony:{lists:[]}, veda:{lists:[]}, locks:{}, lockV:{} };
 var activeProfile = null;
@@ -1255,8 +1369,8 @@ function pwDrops(){ return (activeProfile && Array.isArray(pwDropsState[activePr
 function pwClearDrops(){ if(!activeProfile) return; pwDropsState[activeProfile]=[]; if(window._mlSavePriceWatch) window._mlSavePriceWatch(activeProfile, { drops: [] }, true); render(); }
 function pwDropsBannerHtml(){
   var drops=pwDrops(); if(!drops.length) return '';
-  var h='<div class="pw-drops"><div class="pw-drops-head"><span class="pw-drops-title">💸 '+drops.length+' price drop'+(drops.length!==1?'s':'')+' while you were away</span>'
-    +'<button class="pw-drops-x" onclick="ML.pwClearDrops()" title="Dismiss">✕</button></div>';
+  var h='<div class="pw-drops"><div class="pw-drops-head"><span class="pw-drops-title">'+MLI.tag+' '+drops.length+' price drop'+(drops.length!==1?'s':'')+' while you were away</span>'
+    +'<button class="pw-drops-x" onclick="ML.pwClearDrops()" title="Dismiss">'+MLI.x+'</button></div>';
   drops.slice().reverse().forEach(function(d){
     var prev=(typeof d.prevPrice==='number')?d.prevPrice:parseFloat(d.prevPrice);
     var nw=(typeof d.newPrice==='number')?d.newPrice:parseFloat(d.newPrice);
@@ -1283,10 +1397,10 @@ function pwLocalNotify(body){
     if(!('Notification' in window) || Notification.permission!=='granted') return;
     if(navigator.serviceWorker && navigator.serviceWorker.getRegistration){
       navigator.serviceWorker.getRegistration('./').then(function(reg){
-        if(reg && reg.showNotification) reg.showNotification('✦ MyList', { body:body, tag:'pwdrop_'+Date.now(), icon:PW_ICON, requireInteraction:true });
-        else { try{ new Notification('✦ MyList',{ body:body, icon:PW_ICON }); }catch(e){} }
-      }).catch(function(){ try{ new Notification('✦ MyList',{ body:body }); }catch(e){} });
-    } else { try{ new Notification('✦ MyList',{ body:body }); }catch(e){} }
+        if(reg && reg.showNotification) reg.showNotification('MyList', { body:body, tag:'pwdrop_'+Date.now(), icon:PW_ICON, requireInteraction:true });
+        else { try{ new Notification('MyList',{ body:body, icon:PW_ICON }); }catch(e){} }
+      }).catch(function(){ try{ new Notification('MyList',{ body:body }); }catch(e){} });
+    } else { try{ new Notification('MyList',{ body:body }); }catch(e){} }
   }catch(e){}
 }
 function pwDropKey(d){ return String((d&&(d.ts||((d.id||'')+'_'+(d.date||''))))||''); }
@@ -1428,10 +1542,10 @@ function showLock(profile, mode, onSuccess){
   $('lock-title').textContent = name;
   $('lock-row').style.display=''; pw.style.display=''; $('lock-forgot').style.display=''; $('lock-reset').style.display='';
   $('lock-submit').textContent = mode==='setpw'?'Set Password':mode==='remove'?'Remove Lock':mode==='changepw'?'Verify':'Unlock';
-  if(mode==='setpw'){ $('lock-icon').textContent='🔐'; $('lock-sub').textContent='Choose a password to lock '+name+"'s lists. Required once per device."; $('lock-forgot').style.display='none'; $('lock-reset').style.display='none'; }
-  else if(mode==='remove'){ $('lock-icon').textContent='🔓'; $('lock-sub').textContent='Enter the password to remove the lock.'; }
-  else if(mode==='changepw'){ $('lock-icon').textContent='🔑'; $('lock-sub').textContent='Enter your current password first.'; }
-  else { $('lock-icon').textContent='🔒'; $('lock-sub').textContent='Enter your password to open '+name+"'s lists."; }
+  if(mode==='setpw'){ $('lock-icon').innerHTML=MLI.shield; $('lock-sub').textContent='Choose a password to lock '+name+"'s lists. Required once per device."; $('lock-forgot').style.display='none'; $('lock-reset').style.display='none'; }
+  else if(mode==='remove'){ $('lock-icon').innerHTML=MLI.unlock; $('lock-sub').textContent='Enter the password to remove the lock.'; }
+  else if(mode==='changepw'){ $('lock-icon').innerHTML=MLI.key; $('lock-sub').textContent='Enter your current password first.'; }
+  else { $('lock-icon').innerHTML=MLI.lock; $('lock-sub').textContent='Enter your password to open '+name+"'s lists."; }
   $('lock-overlay').style.display='flex'; setTimeout(function(){ pw.focus(); }, 80);
   mlBioRender();
 }
@@ -1455,7 +1569,7 @@ function mlBioRender(){
     box.style.display='block'; box.style.margin='0 0 4px';
     var b=document.createElement('button');
     b.className='btn solid'; b.style.width='100%'; b.style.justifyContent='center'; b.style.marginBottom='8px';
-    b.textContent='🔓  Unlock with '+Bio.label();
+    b.innerHTML=MLI.unlock+'<span>Unlock with '+Bio.label()+'</span>';
     b.onclick=function(){ mlBioUnlock(); };
     box.appendChild(b);
     // The password area stays visible alongside it: biometrics run ONLY when
@@ -1479,7 +1593,7 @@ function mlBioUnlock(){
 function mlBioRemovePrompt(p){
   showLock(p,'unlock');
   mlRemoveBioFor=p;
-  $('lock-icon').textContent='👤';
+  $('lock-icon').innerHTML=MLI.user;
   $('lock-sub').textContent='Verify with '+Bio.label()+' or your password to remove biometrics from this device.';
 }
 function mlDoRemoveBio(p){
@@ -1507,22 +1621,23 @@ function manageLock(){
   var p=activeProfile; if(!p) return;
   if(!mlIsLocked(p)){ showLock(p,'setpw'); return; }
   showLock(p,'unlock');
-  $('lock-icon').textContent='🔒'; $('lock-sub').textContent='Manage lock for '+PROFILE_META[p].label+'.';
+  $('lock-icon').innerHTML=MLI.lock; $('lock-sub').textContent='Manage lock for '+PROFILE_META[p].label+'.';
   $('lock-pw').style.display='none'; $('lock-row').style.display='none'; $('lock-forgot').style.display='none'; $('lock-reset').style.display='none';
   var m=$('lock-menu'); m.innerHTML='';
-  if(!mlIsUnlocked(p)) addMenuBtn(m,'🔓  Unlock this device','solid',function(){ showLock(p,'unlock'); });
-  var changeBtn=addMenuBtn(m,'🔑  Change password','ghost',function(){ showLock(p,'changepw'); });
-  addMenuBtn(m,'🗑  Remove lock','danger',function(){ showLock(p,'remove'); });
+  if(!mlIsUnlocked(p)) addMenuBtn(m,MLI.unlock+'<span>Unlock this device</span>','solid',function(){ showLock(p,'unlock'); });
+  var changeBtn=addMenuBtn(m,MLI.key+'<span>Change password</span>','ghost',function(){ showLock(p,'changepw'); });
+  addMenuBtn(m,MLI.trash+'<span>Remove lock</span>','danger',function(){ showLock(p,'remove'); });
   addMenuBtn(m,'Close','ghost',function(){ hideLock(); });
   if(window.Bio){ Bio.available().then(function(avail){
     if(!avail) return;
     if(Bio.isRegistered('mylist', mlBioKey(p)))
-      addMenuBtn(m,'👤  Remove biometrics','ghost',function(){ mlBioRemovePrompt(p); }, changeBtn);
+      addMenuBtn(m,MLI.user+'<span>Remove biometrics</span>','ghost',function(){ mlBioRemovePrompt(p); }, changeBtn);
     else
-      addMenuBtn(m,'👤  Register '+Bio.label(),'solid',function(){ mlBioRegister(p); }, changeBtn);
+      addMenuBtn(m,MLI.user+'<span>Register '+Bio.label()+'</span>','solid',function(){ mlBioRegister(p); }, changeBtn);
   }); }
 }
-function addMenuBtn(parent,label,cls,fn,beforeEl){ var b=document.createElement('button'); b.className='btn '+cls; b.style.width='100%'; b.style.justifyContent='center'; b.textContent=label; b.onclick=fn; if(beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b); return b; }
+// `label` is trusted markup (an icon from MLI + a <span>), never user input.
+function addMenuBtn(parent,label,cls,fn,beforeEl){ var b=document.createElement('button'); b.className='btn '+cls; b.style.width='100%'; b.style.justifyContent='center'; b.innerHTML=label; b.onclick=fn; if(beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b); return b; }
 function lockCancel(){ var mode=lockMode; hideLock(); if(mode==='unlock' && activeProfile && mlMustBlock(activeProfile)) goProfileSelect(); }
 async function authFetch(path, body){ var r=await fetch(AUTH_WORKER+path,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }); return r.json(); }
 
@@ -1665,7 +1780,7 @@ function refreshProfileScreen(){
   var fav = localStorage.getItem('ml_fav_profile');
   ['tony','veda'].forEach(function(p){
     var star=$('fav-'+p); if(star) star.className='fav-star'+(fav===p?' on':'');
-    var lk=$('plock-'+p); if(lk) lk.textContent = mlIsLocked(p) ? '🔒 Password protected' : '';
+    var lk=$('plock-'+p); if(lk) lk.innerHTML = mlIsLocked(p) ? MLI.lock+'<span>Password protected</span>' : '';
   });
 }
 function goProfileSelect(){
@@ -1906,10 +2021,10 @@ async function openDevicePicker(){
   try{ var s=await navigator.mediaDevices.getUserMedia({audio:true}); s.getTracks().forEach(function(t){t.stop();}); }catch(e){}
   var devs=[];
   try{ devs=(await navigator.mediaDevices.enumerateDevices()).filter(function(d){return d.kind==='audioinput';}); }catch(e){}
-  var h='<div class="dev-item'+(!voice.deviceId?' on':'')+'" onclick="ML.pickDevice(\'\')">System default'+(!voice.deviceId?'<span class="tick">✓</span>':'')+'</div>';
+  var h='<div class="dev-item'+(!voice.deviceId?' on':'')+'" onclick="ML.pickDevice(\'\')">System default'+(!voice.deviceId?'<span class=\"tick\">'+MLI.check+'</span>':'')+'</div>';
   devs.forEach(function(d,i){
     var label=d.label||('Microphone '+(i+1));
-    h+='<div class="dev-item'+(voice.deviceId===d.deviceId?' on':'')+'" onclick="ML.pickDevice(\''+jq(d.deviceId)+'\')">'+esc(label)+(voice.deviceId===d.deviceId?'<span class="tick">✓</span>':'')+'</div>';
+    h+='<div class="dev-item'+(voice.deviceId===d.deviceId?' on':'')+'" onclick="ML.pickDevice(\''+jq(d.deviceId)+'\')">'+esc(label)+(voice.deviceId===d.deviceId?'<span class=\"tick\">'+MLI.check+'</span>':'')+'</div>';
   });
   if(!devs.length) h+='<div class="dev-sub">No microphones found.</div>';
   box.innerHTML=h;
@@ -2178,8 +2293,8 @@ function renderRecipesView(){
   if(recDetailId) return recDetailHtml();
   var h='<div class="card">';
   h+='<div class="list-head"><div style="flex:1"><div class="ttl" style="font-size:24px">Recipes</div></div>'
-    +(recUndoAvailable()?'<button class="btn ghost sm" onclick="ML.recUndo()" title="Undo">↶ Undo</button>':'')
-    +(recRedoAvailable()?'<button class="btn ghost sm" onclick="ML.recRedo()" title="Redo">↷ Redo</button>':'')
+    +(recUndoAvailable()?'<button class="btn ghost sm" onclick="ML.recUndo()" title="Undo">'+MLI.undo+'Undo</button>':'')
+    +(recRedoAvailable()?'<button class="btn ghost sm" onclick="ML.recRedo()" title="Redo">'+MLI.redo+'Redo</button>':'')
     +'<button class="btn solid sm" onclick="ML.recOpenAdd()">+ New recipe</button></div>';
   h+='<div class="list-meta">'+recipes.length+' recipe'+(recipes.length!==1?'s':'')+'</div>';
   h+='<div class="rec-toolbar" style="margin-top:12px">'
@@ -2201,19 +2316,19 @@ function recDetailHtml(){
     ? '<div class="rec-tools">'+r.tools.map(function(t){ return '<span class="rec-tool">'+esc(t)+'</span>'; }).join('')+'</div>'
     : '<div class="rec-muted">No tools listed.</div>';
   var instr=recStepsEditorHtml(r);
-  return '<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><button class="btn ghost sm" onclick="ML.recBack()">← Back to recipes</button><span style="flex:1"></span>'
-    +(recUndoAvailable()?'<button class="btn ghost sm" onclick="ML.recUndo()" title="Undo">↶ Undo</button>':'')
-    +(recRedoAvailable()?'<button class="btn ghost sm" onclick="ML.recRedo()" title="Redo">↷ Redo</button>':'')+'</div>'
+  return '<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><button class="btn ghost sm" onclick="ML.recBack()">'+MLI.arrowLeft+'Back to recipes</button><span style="flex:1"></span>'
+    +(recUndoAvailable()?'<button class="btn ghost sm" onclick="ML.recUndo()" title="Undo">'+MLI.undo+'Undo</button>':'')
+    +(recRedoAvailable()?'<button class="btn ghost sm" onclick="ML.recRedo()" title="Redo">'+MLI.redo+'Redo</button>':'')+'</div>'
     +'<div class="card">'
     +'<div class="rec-detail-name">'+esc(r.name)+'</div>'
     +'<div class="rec-detail-tags"><span class="rec-tag" style="'+recCatStyle(r.category||'Other')+'">'+esc(r.category||'Other')+'</span>'
-      +(r.prepTime?'<span class="rec-tag time">⏱ '+esc(r.prepTime)+'</span>':'')
-      +(r.servings?'<span class="rec-tag time">🍽 '+esc(r.servings)+'</span>':'')+'</div>'
+      +(r.prepTime?'<span class="rec-tag time">'+MLI.clock+esc(r.prepTime)+'</span>':'')
+      +(r.servings?'<span class="rec-tag time">'+MLI.plate+esc(r.servings)+'</span>':'')+'</div>'
     +'<div class="rec-sec">Ingredients</div>'+ing
     +'<div class="rec-sec">Tools &amp; equipment</div>'+tools
     +'<div class="rec-sec">Instructions</div>'+instr
     +'<div style="display:flex;gap:8px;margin-top:22px;flex-wrap:wrap">'
-      +'<button class="btn ghost sm" onclick="ML.recOpenEdit(\''+r.id+'\')">✎ Edit recipe</button>'
+      +'<button class="btn ghost sm" onclick="ML.recOpenEdit(\''+r.id+'\')">'+MLI.pencil+'Edit recipe</button>'
       +'<button class="btn danger sm" onclick="ML.recDelete(\''+r.id+'\')">Delete</button></div>'
     +'</div>';
 }
@@ -2608,8 +2723,8 @@ function render(){
 
   // items header + undo/redo + clear + select toggle
   h+='<div class="items-head"><span class="ih-title">Items</span><span class="sp"></span>';
-  if(undoAvailable()) h+='<button class="btn ghost sm" onclick="ML.undoLast()" title="Undo">↶ Undo</button>';
-  if(redoAvailable()) h+='<button class="btn ghost sm" onclick="ML.redoLast()" title="Redo">↷ Redo</button>';
+  if(undoAvailable()) h+='<button class="btn ghost sm" onclick="ML.undoLast()" title="Undo">'+MLI.undo+'Undo</button>';
+  if(redoAvailable()) h+='<button class="btn ghost sm" onclick="ML.redoLast()" title="Redo">'+MLI.redo+'Redo</button>';
   if(doneCount) h+='<button class="btn ghost sm" onclick="ML.clearDone()">Clear done</button>';
   if(items.length) h+='<button class="btn ghost sm" onclick="ML.toggleSelectMode()">'+(selectMode?'Done':'Select')+'</button>';
   h+='</div>';
@@ -2728,8 +2843,8 @@ function itemWatchLine(it){
   var w=pwWatchForItem(it);
   if(!w) return '';
   if(typeof w.bestPrice==='number')
-    return '<div class="li-watch-line"><span class="eye">👁</span> best <b>$'+w.bestPrice.toFixed(2)+'</b> <span class="li-watch-at">at '+esc(pwStoreLabel(w.bestStore))+'</span></div>';
-  return '<div class="li-watch-line"><span class="eye">👁</span> <span class="li-watch-at">watching — no price yet</span></div>';
+    return '<div class="li-watch-line"><span class="eye">'+MLI.eye+'</span> best <b>$'+w.bestPrice.toFixed(2)+'</b> <span class="li-watch-at">at '+esc(pwStoreLabel(w.bestStore))+'</span></div>';
+  return '<div class="li-watch-line"><span class="eye">'+MLI.eye+'</span> <span class="li-watch-at">watching — no price yet</span></div>';
 }
 function pwWatchToggleBtn(it){
   var on=!!pwWatchForItem(it);
@@ -2781,13 +2896,13 @@ function toggleManual(){ if(!manualVisible()) return; manualOpen=!manualOpen; re
 // yet; that case falls through to the store-type default, which is the old
 // behaviour verbatim.
 function pwBadge(store, source){
-  if(source==='live-scrape')  return '<span class="pw-badge live">✓ live</span>';
-  if(source==='verified')     return '<span class="pw-badge verified">✓ verified</span>';
-  if(source==='ai-estimated') return '<span class="pw-badge est">🔍 estimated</span>';
+  if(source==='live-scrape')  return '<span class="pw-badge live">'+MLI.check+'live</span>';
+  if(source==='verified')     return '<span class="pw-badge verified">'+MLI.check+'verified</span>';
+  if(source==='ai-estimated') return '<span class="pw-badge est">'+MLI.search+'estimated</span>';
   if(source==='unsupported')  return '<span class="pw-badge na">no scraper</span>';
   if(source==='blocked')      return '<span class="pw-badge na">bot check</span>';
   if(source==='rate-limited') return '<span class="pw-badge na">cooling down</span>';
-  return pwVerified(store) ? '<span class="pw-badge verified">✓ verified</span>' : '<span class="pw-badge est">🔍 estimated</span>';
+  return pwVerified(store) ? '<span class="pw-badge verified">'+MLI.check+'verified</span>' : '<span class="pw-badge est">'+MLI.search+'estimated</span>';
 }
 // The breakdown entry behind an item's best price — lets the row header badge
 // reflect how that number was actually obtained.
@@ -2873,7 +2988,7 @@ function pwBreakdownRows(breakdown, bestStore){
   return (breakdown||[]).map(function(e){
     var price=(typeof e.price==='number')?('$'+e.price.toFixed(2)):'—';
     var isBest = bestStore===e.store && typeof e.price==='number';
-    var link=(e.url)?' <a href="'+esc(e.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">↗</a>':'';
+    var link=(e.url)?' <a href="'+esc(e.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">'+MLI.external+'</a>':'';
     // `note` explains an empty cell (no scraper for that domain, bot check,
     // cooling down) instead of leaving a bare dash.
     var note=(typeof e.price!=='number' && e.note)?'<span class="pw-bd-note">'+esc(e.note)+'</span>':'';
@@ -2895,7 +3010,7 @@ function pwCandidatesHtml(){
       h+='<div class="pw-vgroup"><div class="pw-vstore">'+esc(e.storeName||pwStoreLabel(e.store))+' '+pwBadge(e.store, e.source)+'</div>';
       vs.forEach(function(v,i){
         var sub=[v.brand,v.size].filter(Boolean).join(' · ');
-        var link=(v.url)?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">↗</a>':'';
+        var link=(v.url)?' <a href="'+esc(v.url)+'" target="_blank" rel="noopener" class="pw-link" onclick="event.stopPropagation()">'+MLI.external+'</a>':'';
         h+='<div class="pw-variant"><div class="pw-variant-info"><div class="pw-variant-title">'+esc(v.title||c.draft.itemName)+'</div>'
           +'<div class="pw-variant-sub"><span class="pw-variant-price">$'+v.price.toFixed(2)+'</span>'+(sub?' · '+esc(sub):'')+link+'</div></div>'
           +'<button class="btn ghost sm" onclick="ML.pwTrackVariant(\''+e.store+'\','+i+')">Track</button></div>';
@@ -2960,7 +3075,7 @@ function pwRowHtml(it){
   h+='<div class="pw-priceblock"><div class="pw-price">'+price+'</div>'+delta+'</div>';
   h+='</div>';
   h+='<div class="pw-acts"><button class="btn ghost sm" onclick="ML.pwCheckNow(\''+it.id+'\')"'+(pwBusy[it.id]?' disabled':'')+'>'+(pwBusy[it.id]?'Checking…':'Check now')+'</button>'
-    +'<button class="ib del" onclick="ML.pwDelete(\''+it.id+'\')" title="Remove">✕</button></div>';
+    +'<button class="ib del" onclick="ML.pwDelete(\''+it.id+'\')" title="Remove">'+MLI.x+'</button></div>';
   if(expanded) h+=pwDetailHtml(it);
   h+='</div>';
   return h;
@@ -3035,11 +3150,11 @@ function pwExtStripHtml(){
     return '<div class="pw-ext"><span class="pw-ext-txt">Checking for the PriceWatch extension…</span></div>';
   }
   if(pwExtInfo===false){
-    return '<div class="pw-ext"><span class="pw-ext-txt"><span class="pw-dot">🧩</span> <b>PriceWatch extension not installed</b> — prices are AI estimates. Install it to read real prices off each store\'s own page, in this browser.</span>'
+    return '<div class="pw-ext"><span class="pw-ext-txt"><span class="pw-dot">'+MLI.puzzle+'</span> <b>PriceWatch extension not installed</b> — prices are AI estimates. Install it to read real prices off each store\'s own page, in this browser.</span>'
       +'<button class="btn sm" onclick="ML.pwExtInstall()">Install</button></div>';
   }
   var doms=pwExtInfo.domains||[];
-  return '<div class="pw-ext on"><span class="pw-ext-txt"><span class="pw-dot">🧩</span> <b>PriceWatch v'+esc(pwExtInfo.version||'?')+' active</b> — live scraping for '+esc(doms.join(', '))
+  return '<div class="pw-ext on"><span class="pw-ext-txt"><span class="pw-dot">'+MLI.puzzle+'</span> <b>PriceWatch v'+esc(pwExtInfo.version||'?')+' active</b> — live scraping for '+esc(doms.join(', '))
     +'. Other stores stay AI-estimated. Min '+esc(String(pwExtInfo.minIntervalHours||3))+'h between checks per store.</span>'
     +'<button class="btn sm" onclick="ML.pwExtInstall()">Update</button></div>';
 }

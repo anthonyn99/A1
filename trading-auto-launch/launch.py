@@ -1249,9 +1249,12 @@ def _fetch_daily_reminder(attempts: int = DAILY_REMINDER_FETCH_ATTEMPTS, delay: 
     return None
 
 
-# Dialog palette — mirrors TradeHub's dark theme so the gate feels like the app.
-_RD_BG, _RD_SURF, _RD_BORDER = "#0f0f12", "#141418", "#252530"
-_RD_TX, _RD_DIM, _RD_ACCENT  = "#ececf0", "#9898a8", "#E0607A"
+# Dialog palette — mirrors the suite's Insight theme (warm charcoal + tan gold)
+# so the morning gate feels like the app it launches.
+_RD_BG, _RD_SURF, _RD_BORDER = "#1a1a1d", "#232327", "#34343a"
+_RD_TX, _RD_DIM, _RD_ACCENT  = "#f4f3f0", "#adadb2", "#d4a659"
+_RD_ACCENT_SOFT = "#edc884"   # gold-soft — accent text on the dark surface
+_RD_MUTED       = "#8d8d94"   # faint — least prominent copy
 
 # Inline markdown: bold / italic / code / links. Split-capturing, so the text
 # between matches survives in the same pass.
@@ -1399,10 +1402,11 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     # ── header ──
     head = tk.Frame(root, bg=_RD_BG)
     head.pack(fill="x", padx=28, pady=(22, 0))
-    tk.Label(head, text=title or "Daily Reminder", bg=_RD_BG, fg=_RD_TX,
-             font=("Segoe UI", 17, "bold"), anchor="w").pack(fill="x")
-    tk.Label(head, text="Review before the session — nothing opens until you confirm.",
-             bg=_RD_BG, fg=_RD_ACCENT, font=("Segoe UI", 9, "bold"), anchor="w").pack(fill="x", pady=(3, 0))
+    tk.Label(head, text=title or "Daily Reminder", bg=_RD_BG, fg=_RD_ACCENT_SOFT,
+             font=("Segoe UI Semibold", 22), anchor="w").pack(fill="x")
+    # Uppercase, letter-spaced sub-label — the suite's section-label voice.
+    tk.Label(head, text="R E V I E W   B E F O R E   T H E   S E S S I O N",
+             bg=_RD_BG, fg=_RD_MUTED, font=("Segoe UI", 8), anchor="w").pack(fill="x", pady=(6, 0))
     if notice:
         tk.Label(head, text=notice, bg=_RD_BG, fg=_RD_DIM, font=("Segoe UI", 9),
                  anchor="w", justify="left", wraplength=w - 70).pack(fill="x", pady=(9, 0))
@@ -1425,7 +1429,7 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     txt.tag_configure("h1",     font=("Segoe UI", 16, "bold"),    foreground=_RD_TX,     spacing1=10, spacing3=4)
     txt.tag_configure("h2",     font=("Segoe UI", 14, "bold"),    foreground=_RD_TX,     spacing1=9,  spacing3=3)
     txt.tag_configure("h3",     font=("Segoe UI", 12, "bold"),    foreground=_RD_TX,     spacing1=7,  spacing3=2)
-    txt.tag_configure("quote",  font=("Arial", 11, "italic"),     foreground=_RD_ACCENT, lmargin1=6, lmargin2=28)
+    txt.tag_configure("quote",  font=("Arial", 11, "italic"),     foreground=_RD_ACCENT_SOFT, lmargin1=6, lmargin2=28)
     txt.tag_configure("quotebar", font=("Segoe UI", 11),          foreground=_RD_ACCENT, lmargin1=6)
     txt.tag_configure("bullet", font=("Arial", 11),               foreground=_RD_ACCENT)
     txt.tag_configure("hr",     foreground=_RD_BORDER)
@@ -1433,8 +1437,8 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     # Created AFTER the block tags so they win Tk's tag-priority contest.
     txt.tag_configure("b",        font=("Arial", 11, "bold"),   foreground=_RD_TX)
     txt.tag_configure("i",        font=("Arial", 11, "italic"))
-    txt.tag_configure("codespan", font=("Consolas", 10),        foreground=_RD_ACCENT)
-    txt.tag_configure("link",     font=("Arial", 11, "underline"), foreground=_RD_ACCENT)
+    txt.tag_configure("codespan", font=("Consolas", 10),        foreground=_RD_ACCENT_SOFT)
+    txt.tag_configure("link",     font=("Arial", 11, "underline"), foreground=_RD_ACCENT_SOFT)
 
     _rd_render_markdown(txt, markdown)
     # Read-only, but keep the keyboard/wheel scrolling that state="disabled" leaves intact.
@@ -1453,15 +1457,22 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
         root.destroy()
 
     tk.Label(foot, text="Closing without confirming cancels the launch.",
-             bg=_RD_BG, fg=_RD_DIM, font=("Segoe UI", 9)).pack(side="left")
-    btn = tk.Button(foot, text="  Confirm — I've read this  ", command=confirm,
-                    bg=_RD_ACCENT, fg="#ffffff", activebackground="#e0405e",
-                    activeforeground="#ffffff", bd=0, relief="flat",
-                    font=("Segoe UI", 11, "bold"), cursor="hand2", padx=16, pady=9)
+             bg=_RD_BG, fg=_RD_MUTED, font=("Segoe UI", 9)).pack(side="left")
+    # Outline-only buttons — the suite uses a gold border and gold text for the
+    # primary action rather than a solid fill. Tk has no border-radius, so a 1px
+    # highlight ring stands in for the 6px rounded outline the web apps use.
+    btn = tk.Button(foot, text="  CONFIRM — I'VE READ THIS  ", command=confirm,
+                    bg=_RD_BG, fg=_RD_ACCENT_SOFT,
+                    activebackground=_RD_BG, activeforeground=_RD_ACCENT_SOFT,
+                    bd=0, relief="flat", highlightthickness=1,
+                    highlightbackground=_RD_ACCENT, highlightcolor=_RD_ACCENT,
+                    font=("Segoe UI", 9, "bold"), cursor="hand2", padx=18, pady=10)
     btn.pack(side="right")
-    tk.Button(foot, text="  Not now  ", command=cancel, bg=_RD_BG, fg=_RD_DIM,
-              activebackground=_RD_BG, activeforeground=_RD_TX, bd=0, relief="flat",
-              font=("Segoe UI", 9), cursor="hand2", padx=12, pady=9).pack(side="right", padx=(0, 10))
+    tk.Button(foot, text="  NOT NOW  ", command=cancel, bg=_RD_BG, fg=_RD_DIM,
+              activebackground=_RD_BG, activeforeground=_RD_TX,
+              bd=0, relief="flat", highlightthickness=1,
+              highlightbackground=_RD_BORDER, highlightcolor=_RD_BORDER,
+              font=("Segoe UI", 9), cursor="hand2", padx=14, pady=10).pack(side="right", padx=(0, 10))
 
     # The X and Escape mean "not now" — deliberately NOT a confirm. Enter is left
     # unbound so a stray keypress can't dismiss the gate you're meant to read.

@@ -58,7 +58,7 @@
       if (tabId == null) return toast("No active tab");
       chrome.scripting.executeScript({
         target: { tabId }, args: [cred.username || cred.email || "", cred.password || ""], func: pageFill,
-      }, (results) => { toast(results && results[0] && results[0].result ? "Filled ✓" : "No login fields found"); });
+      }, (results) => { toast(results && results[0] && results[0].result ? "Filled" : "No login fields found"); });
     });
   }
   function pageFill(username, password) {
@@ -119,7 +119,7 @@
     if (hasBio) {
       const link = await VP.getBioLink();
       const label = VP.biometricLabel(link);
-      const bioBtn = el("button", { class: "pw-btn" }, ["🔓  Unlock with " + label]);
+      const bioBtn = el("button", { class: "pw-btn" }, { html: (window.VaultIcons || {}).unlock + '<span>Unlock with ' + label + '</span>' });
       bioBtn.addEventListener("click", async () => {
         err.textContent = "";
         try { await VP.unlockWithBiometric(); broadcastLockState(true); renderList(); }
@@ -130,7 +130,7 @@
       kids.splice(2, 0, bioBtn);
     }
     panel.appendChild(el("div", { class: "pw-lock" }, [
-      el("div", { class: "pw-lock-icon", html: "🔐" }),
+      el("div", { class: "pw-lock-icon", html: (window.VaultIcons || {}).shield }),
       el("div", { class: "pw-lock-title" }, ["Vault is locked"]),
       el("div", { class: "pw-lock-sub" }, ["Unlock to view and autofill your logins. Stays unlocked for 30 min of activity."]),
       ...kids,
@@ -149,7 +149,7 @@
 
     const search = el("input", { class: "pw-search", placeholder: "Search logins…" });
     const listWrap = el("div", { class: "pw-list" });
-    const lockBtn = el("button", { class: "pw-icon", title: "Lock now", html: "🔒", onclick: async () => { await VP.lock(); broadcastLockState(false); renderUnlock(); } });
+    const lockBtn = el("button", { class: "pw-icon", title: "Lock now", html: (window.VaultIcons || {}).lock, onclick: async () => { await VP.lock(); broadcastLockState(false); renderUnlock(); } });
     panel.appendChild(el("div", { class: "pw-toolbar" }, [search, lockBtn]));
     panel.appendChild(listWrap);
 
@@ -170,7 +170,7 @@
   function row(c, isMatch) {
     let shown = false;
     const pwText = el("span", { class: "pw-dots" }, ["••••••••"]);
-    const reveal = el("button", { class: "pw-icon", title: "Reveal", html: "👁", onclick: () => { VP.touchSession(); shown = !shown; pwText.textContent = shown ? (c.password || "") : "••••••••"; } });
+    const reveal = el("button", { class: "pw-icon", title: "Reveal", html: (window.VaultIcons || {}).eye, onclick: () => { VP.touchSession(); shown = !shown; pwText.textContent = shown ? (c.password || "") : "••••••••"; } });
     const fillBtn = el("button", { class: "pw-fill", title: "Autofill on the page", onclick: () => fillActiveTab(c) }, ["Fill"]);
     return el("div", { class: "pw-row" + (isMatch ? " match" : "") }, [
       favicon(c.url || c.title),
@@ -180,8 +180,8 @@
         el("div", { class: "pw-pw" }, [pwText]),
       ]),
       el("div", { class: "pw-actions" }, [
-        (c.username || c.email) ? el("button", { class: "pw-icon", title: "Copy username", html: "👤", onclick: () => copy(c.username || c.email, "Username") }) : null,
-        el("button", { class: "pw-icon", title: "Copy password", html: "🔑", onclick: () => copy(c.password, "Password") }),
+        (c.username || c.email) ? el("button", { class: "pw-icon", title: "Copy username", html: (window.VaultIcons || {}).user, onclick: () => copy(c.username || c.email, "Username") }) : null,
+        el("button", { class: "pw-icon", title: "Copy password", html: (window.VaultIcons || {}).key, onclick: () => copy(c.password, "Password") }),
         reveal, fillBtn,
       ]),
     ]);
