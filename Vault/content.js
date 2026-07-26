@@ -228,7 +228,7 @@
       html += '<div class="v-foot">' + (state.cvvFresh ? "" : "Security code needs a fresh unlock · ") +
         state.cards.length + " card" + (state.cards.length === 1 ? "" : "s") + " · Vault</div>";
     } else if (state.unlocked) {
-      html += '<div class="v-msg">No saved payment methods. Add one in <b>TaskHub → Vault → Payments</b>.</div>';
+      html += '<div class="v-msg">No saved payment methods. Add one in the <b>Vault app → Payments</b>.</div>';
     } else {
       html += '<div class="v-msg">Vault is locked. Click the <b>Vault</b> toolbar icon → <b>Payments</b> to unlock, then reload.</div>';
     }

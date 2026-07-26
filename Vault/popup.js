@@ -1,24 +1,29 @@
 // Vault popup — reads the shared Keychain document, renders each connection as
 // a group, and launches links (a single link or a whole group). Link editing
-// lives entirely in TaskHub → Keychain; Vault only displays and opens.
+// lives entirely in the Vault app (vault.html); this popup only displays and opens.
 
 const groupsEl  = document.getElementById("groups");
 const loadingEl = document.getElementById("loading");
 const syncEl    = document.getElementById("sync");
 const toastEl   = document.getElementById("toast");
 
-// TaskHub PWA, deep-linked straight to the Keychain program. The ?goto=keychain
-// query (not just a #hash) forces a real navigation so the deep link fires even
-// when the installed PWA is already open and gets re-navigated (launch_handler:
-// navigate-existing). Opens in the desktop app if the browser routes it there,
-// otherwise a browser tab.
-const TASKHUB_KEYCHAIN_URL = "https://anthonyn99.github.io/A1/?goto=keychain";
-// Deep-link straight to Vault → Passwords in the TaskHub PWA (where credentials
-// are created/edited). The ?goto=keychain query opens the Vault program and
-// vaulttab=passwords selects the Passwords tab (handled by vault-ui.js).
-const TASKHUB_VAULT_PW_URL = "https://anthonyn99.github.io/A1/?goto=keychain&vaulttab=passwords";
-// Same deep link for the Payments tab (vault-pay-ui.js reads ?vaulttab).
-const TASKHUB_VAULT_PAY_URL = "https://anthonyn99.github.io/A1/?goto=keychain&vaulttab=payments";
+// Vault is its own program at /A1/vault.html — it used to live inside the
+// TaskHub PWA and was reached with ?goto=keychain. Nothing else about the
+// extension changes: both apps read the same Firestore documents
+// (dashboards/keychain, dashboards/vault_pw) through the same Workers, and
+// vault.html is the same origin, so the synced biometric link and the app-lock
+// unlock marker in localStorage carry over untouched.
+//
+// index.html keeps a redirect from the old ?goto=keychain link to this URL, so
+// an extension build older than this one still lands in the right place.
+const VAULT_APP_URL = "https://anthonyn99.github.io/A1/vault.html";
+// The Links tab's gear — link groups are managed on Vault's Keychain tab, which
+// is the tab vault.html opens on by default.
+const TASKHUB_KEYCHAIN_URL = VAULT_APP_URL;
+// Straight to Passwords / Payments, where those items are created and edited.
+// ?vaulttab is read by vault-ui.js on boot.
+const TASKHUB_VAULT_PW_URL = VAULT_APP_URL + "?vaulttab=passwords";
+const TASKHUB_VAULT_PAY_URL = VAULT_APP_URL + "?vaulttab=payments";
 
 // ── Persisted, user-adjustable popup size ──
 // #app has CSS `resize:both`; drag its bottom-right corner to resize. We restore
@@ -174,7 +179,7 @@ function render() {
     .filter(({ conn }) => VaultDB.linksOf(conn).length > 0);
 
   if (!visible.length) {
-    groupsEl.innerHTML = `<div class="empty">No link groups yet.<br />Add links in TaskHub → Keychain (⚙) — they sync here automatically.</div>`;
+    groupsEl.innerHTML = `<div class="empty">No link groups yet.<br />Add links in the Vault app (⚙) — they sync here automatically.</div>`;
     return;
   }
 
@@ -221,15 +226,15 @@ function render() {
 }
 
 // ── Tabs + tab-aware settings button ──
-// Links tab: the gear opens TaskHub → Keychain (all link management lives there).
+// Links tab: the gear opens the Vault app (all link management lives there).
 // Passwords tab: the gear opens Vault's own settings page.
 let activeTab = "links";
 const gearEl = document.getElementById("gear");
 
 const TAB_TITLES = {
-  passwords: "Manage passwords in TaskHub → Vault",
-  payments: "Manage payment methods in TaskHub → Vault",
-  links: "Open Keychain in TaskHub",
+  passwords: "Manage passwords in the Vault app",
+  payments: "Manage payment methods in the Vault app",
+  links: "Open the Vault app",
 };
 const TAB_GEAR_URLS = {
   passwords: TASKHUB_VAULT_PW_URL,
@@ -254,7 +259,7 @@ document.querySelectorAll(".tab").forEach(tab =>
   tab.addEventListener("click", () => setActiveTab(tab.dataset.panel)));
 
 gearEl.addEventListener("click", () => {
-  // Each vault tab's gear deep-links to the matching TaskHub → Vault tab (where
+  // Each vault tab's gear deep-links to the matching tab of the Vault app (where
   // items are created/edited); Links opens Keychain.
   chrome.tabs.create({ url: TAB_GEAR_URLS[activeTab] || TASKHUB_KEYCHAIN_URL });
   window.close();

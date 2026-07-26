@@ -90,7 +90,7 @@
     let has;
     try { has = await VP.hasVault(); }
     catch (e) { clear(); panel.appendChild(el("div", { class: "pw-msg err" }, ["Couldn't reach your vault.", el("br"), "Check your connection."])); return; }
-    if (!has) { clear(); panel.appendChild(el("div", { class: "pw-msg" }, ["No vault yet. Create one in TaskHub → Vault first."])); return; }
+    if (!has) { clear(); panel.appendChild(el("div", { class: "pw-msg" }, ["No vault yet. Create one in the Vault app first."])); return; }
     // Resume a recent unlock (30-min idle) so we don't re-prompt every open.
     if (!VP.isUnlocked()) { try { await VP.restoreSession(); } catch (e) {} }
     if (!VP.isUnlocked()) return renderUnlock();
@@ -112,7 +112,7 @@
 
     const kids = [pwIn, err, btn];
     // Biometric unlock — only offered when this device already has biometrics
-    // registered for the vault in TaskHub → Vault (Index); reuses that same
+    // registered for the vault in the Vault app; reuses that same
     // Windows Hello / Touch ID / Face ID / fingerprint credential.
     let hasBio = false;
     try { hasBio = await VP.biometricAvailable(); } catch (e) {}

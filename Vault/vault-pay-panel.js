@@ -68,7 +68,7 @@
     let has;
     try { has = await VP.hasVault(); }
     catch (e) { clear(); panel.appendChild(el("div", { class: "pw-msg err" }, ["Couldn't reach your vault.", el("br"), "Check your connection."])); return; }
-    if (!has) { clear(); panel.appendChild(el("div", { class: "pw-msg" }, ["No vault yet. Create one in TaskHub → Vault first."])); return; }
+    if (!has) { clear(); panel.appendChild(el("div", { class: "pw-msg" }, ["No vault yet. Create one in the Vault app first."])); return; }
     if (!VP.isUnlocked()) { try { await VP.restoreSession(); } catch (e) {} }
     if (!VP.isUnlocked()) return renderUnlock();
     return renderList();
@@ -173,7 +173,7 @@
       listWrap.innerHTML = "";
       const list = PAY.filterCards(cards, q);
       if (!list.length) {
-        listWrap.appendChild(el("div", { class: "pw-msg" }, [q ? "No matches." : "No payment methods yet. Add one in TaskHub → Vault → Payments."]));
+        listWrap.appendChild(el("div", { class: "pw-msg" }, [q ? "No matches." : "No payment methods yet. Add one in the Vault app → Payments."]));
         return;
       }
       list.forEach((c) => listWrap.appendChild(row(c)));
