@@ -69,9 +69,6 @@ html,body{height:100%;}
 #tony-app-nav .tn-btn:hover{border-color:var(--tn-ac,#E0607A);box-shadow:0 0 8px rgba(224,96,122,0.4),0 0 0 1px rgba(224,96,122,0.15);}
 #tony-app-nav .pv-btn,#tony-app-nav .wr-btn{color:#a78bfa;border-color:rgba(167,139,250,0.35);}
 #tony-app-nav .pv-btn:hover,#tony-app-nav .wr-btn:hover{border-color:#a78bfa;box-shadow:0 0 8px rgba(167,139,250,0.4),0 0 0 1px rgba(167,139,250,0.15);}
-body.light-mode #tony-app-nav .tn-btn:hover{box-shadow:0 0 8px rgba(212,96,122,0.35),0 0 0 1px rgba(212,96,122,0.15);}
-body.light-mode #tony-app-nav .pv-btn,body.light-mode #tony-app-nav .wr-btn{color:#7c3aed;border-color:rgba(124,58,237,0.35);}
-body.light-mode #tony-app-nav .pv-btn:hover,body.light-mode #tony-app-nav .wr-btn:hover{border-color:#7c3aed;box-shadow:0 0 8px rgba(124,58,237,0.35),0 0 0 1px rgba(124,58,237,0.15);}
 #tn-mobile-select option[value="proview"],#tn-mobile-select option[value="warroom"]{color:#a78bfa!important;}
 #tony-app-nav .tn-btn.tn-active{
   background:var(--tn-ac,#E0607A);color:var(--tn-bg,#0f0f12);
@@ -90,7 +87,6 @@ body.light-mode #tony-app-nav .pv-btn:hover,body.light-mode #tony-app-nav .wr-bt
 #tn-mobile-select.tn-pv-active{color:#a78bfa!important;border-color:rgba(167,139,250,0.45)!important;}
 #tn-mobile-select.tn-pv-active:hover{border-color:#c4b5fd!important;box-shadow:0 0 8px rgba(167,139,250,0.4)!important;}
 #tn-mobile-select option{background:#0f0f12;color:#E0607A;}
-body.light-mode #tn-mobile-select option{background:#EAE3E7;color:#D4607A;}
 @media(max-width:900px){
   #tony-app-nav .tn-btn{display:none;}
   #tn-mobile-select{display:inline-flex;align-items:center;}
@@ -104,7 +100,7 @@ body{overflow-y:auto;overflow-x:clip;-webkit-overflow-scrolling:touch;}
 /* Tony's root flows in body — body is scroll container = pull-to-refresh works */
 #root{min-height:100%;overflow-y:visible;overflow-x:clip;padding-bottom:env(safe-area-inset-bottom,0px);}
 /* Other app roots: fixed+hidden when not active so they don't bleed into body scroll */
-#ms-root,#er-root,#tj-root{position:fixed;inset:0;overflow:hidden;display:none;}
+#er-root,#tj-root{position:fixed;inset:0;overflow:hidden;display:none;}
 #tradeboard-root{position:fixed;inset:0;overflow:hidden;display:none;background:#0f0f12;}
 body{font-family:'Nunito',sans-serif;-webkit-font-smoothing:antialiased;}
 button{touch-action:manipulation;}
@@ -115,7 +111,6 @@ a,button,label,select,[role="button"],[onclick],[tabindex]{touch-action:manipula
 .th-mob-day-strip::-webkit-scrollbar,.vd-mob-day-strip::-webkit-scrollbar{display:none;}
 button,input,select,textarea{font-family:'Nunito',sans-serif;}
 input[type=time]{color-scheme:dark;}
-body.light-mode input[type=time]{color-scheme:light;}
 @keyframes td-spin{to{transform:rotate(360deg)}}
 @keyframes td-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 /* ── App shell ── */
@@ -3551,7 +3546,6 @@ function App(){
   const CC=isDark?CC_DARK:CC_LIGHT;
   useEffect(()=>{
     const b=isDark?"#0f0f12":"#F2EEF0";
-    document.body.classList.toggle("light-mode",!isDark);
     document.body.style.background=b;
     document.documentElement.style.background=b;
     saveJ(SK.theme,isDark);
@@ -6822,11 +6816,8 @@ window.thDragList = function(listEl, getArr, setArr, onDrop, accentColor, placeh
 #er-root.er-light .er-switcher option{background:#EAE3E7;color:#D4607A;}
 select#th-app-switcher option{background:#0f0f12;color:#E0607A;}
 select#th-app-switcher:hover{border-color:#E0607A;}
-body.light-mode select#th-app-switcher:hover{border-color:#D4607A;}
 .th-sw{border:1px solid #252530;}
-body.light-mode .th-sw{border:1px solid #D8CDD2;}
-@media(hover:hover){.th-sw:hover{border-color:#E0607A;}body.light-mode .th-sw:hover{border-color:#D4607A;}}
-body.light-mode select#th-app-switcher option{background:#EAE3E7;color:#D4607A;}
+@media(hover:hover){.th-sw:hover{border-color:#E0607A;}}
 
 /* ── Shared sticky app header bar ── */
 .app-hbar{position:-webkit-sticky;position:sticky;top:0;left:0;right:0;z-index:200;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);flex-shrink:0;}
@@ -6890,7 +6881,6 @@ body.light-mode select#th-app-switcher option{background:#EAE3E7;color:#D4607A;}
         </div>
       </div>
       <div class="app-hbar-row2">
-        <button class="er-theme-btn" id="er-theme-btn" style="color:var(--er-ac);" onmouseenter="this.style.borderColor='var(--er-ac)'" onmouseleave="this.style.borderColor='var(--er-bd)'"></button>
       </div>
     </div>
   </div>
@@ -7143,17 +7133,12 @@ function erInitFirebase(){
 // ── App switching ──────────────────────────────────────────────────────────────
 function erSwitchTo(app){
   const thRoot=document.getElementById('root');
-  const msRoot=document.getElementById('ms-root');
   const erRoot=document.getElementById('er-root');
   if(app==='eventrec'){
     if(thRoot)thRoot.style.display='none';
-    if(msRoot)msRoot.style.display='none';
     if(erRoot)erRoot.style.display='flex';
     erApplyTheme();erRender();
     const sw=document.getElementById('er-app-switcher');if(sw)sw.value='eventrec';
-  } else if(app==='mealsuite'){
-    if(erRoot)erRoot.style.display='none';
-    if(window._msSwitchTo)window._msSwitchTo('mealsuite');
   } else if(app==='brainstormjournal'){
     var erRoot2=document.getElementById('er-root');if(erRoot2)erRoot2.style.display='none';
     var sw3=document.getElementById('er-app-switcher');if(sw3)sw3.value='eventrec';
@@ -7161,12 +7146,10 @@ function erSwitchTo(app){
   } else {
     if(erRoot)erRoot.style.display='none';
     if(elRoot)elRoot.style.display='none';
-    if(msRoot)msRoot.style.display='none';
     if(thRoot)thRoot.style.display='';
     const isDark=erLoadTheme();
     const bg=isDark?'#0f0f12':'#F2EEF0';
     document.body.style.background=bg;document.documentElement.style.background=bg;
-    document.body.classList.toggle('light-mode',!isDark);
     const sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
   }
 }
@@ -7187,9 +7170,6 @@ document.addEventListener('keydown',e=>{
 // ── Bind events ────────────────────────────────────────────────────────────────
 document.getElementById('er-add-btn').addEventListener('click',erAddEntry);
 document.getElementById('er-info-input').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')erAddEntry();});
-document.getElementById('er-theme-btn').addEventListener('click',()=>{
-  const newDark=!erLoadTheme();if(window._syncAllThemes)window._syncAllThemes(newDark);else{erSaveTheme(newDark);erApplyTheme();}
-});
 document.getElementById('er-app-switcher')?.addEventListener('change',e=>{if(e.target.value==='vedasHub'&&window._switchToVeda){e.target.blur();window._switchToVeda();}else if(e.target.value==='keychain'&&window._kcSwitchTo){e.target.blur();window._kcSwitchTo('keychain');}else if(e.target.value==='brainstormjournal'){e.target.value='eventrec';e.target.blur();if(window.showTonyJournal)window.showTonyJournal();}else{e.target.blur();erSwitchTo(e.target.value);}});
 document.getElementById('er-save-edit-btn').addEventListener('click',erSaveEdit);
 document.getElementById('er-cancel-edit-btn').addEventListener('click',()=>{document.getElementById('er-edit-modal').style.display='none';erEditingId=null;});
@@ -7773,7 +7753,7 @@ function vtSaveEdit(){
 // ── Universal Veda navigation ────────────────────────────────────────────────
 window._vedaNav=function(target){
   ['task-view','vt-root','vd-kc-root','bj-root','tj-root',
-   'root','ms-root','er-root','study-root'].forEach(function(id){
+   'root','er-root','study-root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   if(window._vedaCloseGita)window._vedaCloseGita();
@@ -9774,7 +9754,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
       // Hide Tony's root and other fixed roots so they don't show through
       const root=document.getElementById("root");
       if(root)root.style.display="none";
-      ["ms-root","er-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
+      ["er-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
       // Let veda-root flow in body (no fixed) so Chrome pull-to-refresh works
       vr.style.display="block";
       vr.style.position="";
@@ -9792,7 +9772,6 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
   }
   function hideVeda(){
     const vr=document.getElementById("veda-root");
-    const kcR=document.getElementById("kc-root");if(kcR)kcR.style.display="none";
     if(vr){vr.style.display="none";vr.style.position="";vr.style.top="";vr.style.left="";vr.style.right="";vr.style.bottom="";vr.style.width="";vr.style.height="";vr.style.zIndex="";vr.style.paddingBottom="";}
     // Also hide study-root so profile overlay isn't covered
     var sr=document.getElementById("study-root");if(sr)sr.style.display="none";
@@ -9827,7 +9806,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     hideVeda();
     // Also hide Veda sub-programs in case user was in one
-    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","ms-root","er-root"].forEach(function(id){
+    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","er-root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -9835,7 +9814,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     var _tjt=document.getElementById('tj-nav-title');if(_tjt)_tjt.parentNode.removeChild(_tjt);
     const root=document.getElementById("root");
     if(root)root.style.display="";
-    ["ms-root","er-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
+    ["er-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
     const sw=document.getElementById("th-app-switcher");if(sw)sw.value="taskhub";
     // Restore Tony body bg from saved theme
     document.body.style.background="#0f0f12";document.documentElement.style.background="#0f0f12"; // light mode removed — always dark
@@ -9857,7 +9836,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     if(window._hideTonyNav)window._hideTonyNav();
     if(window._vedaCloseGita)window._vedaCloseGita();
-    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","ms-root","er-root"].forEach(function(id){
+    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","er-root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -9993,14 +9972,18 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
   // ── Master theme sync ──────────────────────────────────────
   // Called by any app when user toggles theme
   // Propagates to all other apps immediately
-  window._syncAllThemes=function(isDark){
+  // Light mode was removed from Tony's suite. The parameter is kept so the
+  // existing call sites keep working, but it is IGNORED — dark is the only
+  // reachable state, so no caller (present or future) can half-apply a light
+  // theme the rest of the CSS no longer supports.
+  // (Veda's Links keeps its own independent theme system — see vdkcToggleTheme.)
+  window._syncAllThemes=function(){
+    const isDark=true;
     try{localStorage.setItem("td6_theme",JSON.stringify(isDark));}catch{}
     // Update body bg immediately
-    const bg=isDark?"#0f0f12":"#EAE3E7";
+    const bg="#0f0f12";
     document.body.style.background=bg;
     document.documentElement.style.background=bg;
-    document.body.classList.toggle("light-mode",!isDark);
-    if(window._msApplyTheme)window._msApplyTheme();
     if(window._erApplyTheme)window._erApplyTheme();
     if(window._mcApplyTheme)window._mcApplyTheme();
     if(window._thSyncTheme)window._thSyncTheme(isDark);
@@ -11979,7 +11962,7 @@ window.addEventListener('resize',()=>{
 // ── Show / Hide ──
 window._vdkcShow=function(){
   ['veda-root','vt-root','bj-root','tj-root',
-   'root','ms-root','er-root'].forEach(function(id){
+   'root','er-root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   const vdkc=document.getElementById('vd-kc-root');
@@ -16989,7 +16972,7 @@ function _bjPdfSection(label, text) {
 
 window.showBrainstormJournal = function(caller) {
   window._bjCalledFrom = caller || (document.getElementById('veda-root') && document.getElementById('veda-root').style.display !== 'none' ? 'veda' : 'tony');
-  ['root','veda-root','ms-root','er-root','vt-root','tj-root',
+  ['root','veda-root','er-root','vt-root','tj-root',
    'vd-kc-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
@@ -17630,8 +17613,6 @@ window.hideBrainstormJournal = function() {
 #tj-root.tj-light #tj-bottom-bar { background: #DDD3D8; border-color: #C8BAC0; }
 /* theme btn */
 /* Tony's programs are dark-only — hide all light/dark toggle switches entirely. */
-#tj-root #tj-theme-btn, #tj-root #tj-theme-btn-mobile,
-#kc-theme-btn, #el-theme-btn, #er-theme-btn, #mc-theme-btn { display: none !important; }
 #tj-root #tj-theme-btn {
   background: transparent;
   border: 1px solid var(--border2);
@@ -18985,11 +18966,9 @@ window.hideBrainstormJournal = function() {
   <div id="tj-nav-inner" style="max-width:2000px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 10px;display:flex;flex-direction:column;gap:6px;min-width:0;width:100%;">
     <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;min-height:30px;">
       <div id="tj-nav-btns" style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-        <button id="tj-theme-btn" title="Toggle light/dark mode"></button>
       </div>
     </div>
     <div id="tj-nav-row2" style="display:none;align-items:center;justify-content:flex-end;gap:6px;">
-      <button id="tj-theme-btn-mobile" title="Toggle light/dark mode"></button>
     </div>
   </div>
 </div>
@@ -22972,7 +22951,7 @@ window._updateTonyNavActive = function(app) {
   // Show nav bar for all Tony apps
   nav.style.display = 'flex';
   // Theme nav colors — always pink accent; pv/wr buttons handled individually below
-  var isLight = document.body.classList.contains('light-mode');
+  var isLight = false;
   var isPvWr = (app === 'proview' || app === 'warroom');
   nav.style.setProperty('--tn-ac', isLight ? '#D4607A' : '#E0607A');
   nav.style.setProperty('--tn-bd', isLight ? '#A89098' : '#2e3a35');
@@ -23038,7 +23017,7 @@ window._tonyNav = function(app) {
   if(app==='keychain'){ if(window._vaultClick) window._vaultClick(); return; }
   // Hide ALL tony + other app roots before switching
   if(app!=='proview'&&window._pvHide) window._pvHide();
-  ['root','ms-root','er-root','tj-root','veda-root','vt-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
+  ['root','er-root','tj-root','veda-root','vt-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.style.display='none';
   });
   if(app==='taskhub') {
@@ -23047,8 +23026,6 @@ window._tonyNav = function(app) {
     var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
   } else if(app==='health' && window._mcSwitchTo) {
     window._mcSwitchTo('health');
-  } else if(app==='mealsuite' && window._msSwitchTo) {
-    window._msSwitchTo('mealsuite');
   } else if(app==='eventrec' && window._erSwitchTo) {
     window._erSwitchTo('eventrec');
   } else if(app==='brainstormjournal' && window.showTonyJournal) {
@@ -23062,7 +23039,7 @@ window._tonyNav = function(app) {
   window._updateTonyNavActive(app);
 };
 window.showTonyJournal = function() {
-  ['root','veda-root','ms-root','er-root','vt-root','bj-root','mc-root','tradeboard-root',
+  ['root','veda-root','er-root','vt-root','bj-root','mc-root','tradeboard-root',
    'vd-kc-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
@@ -23102,7 +23079,6 @@ window.tjSwitchTo = function(app) {
   var te=document.getElementById('tj-nav-title');if(te)te.parentNode.removeChild(te);
   if(window._updateTonyNavActive) window._updateTonyNavActive(app);
   if(app==='taskhub'){var r=document.getElementById('root');if(r)r.style.display='';var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';}
-  else if(app==='mealsuite'&&window._msSwitchTo){window._msSwitchTo('mealsuite');}
   else if(app==='eventrec'&&window._erSwitchTo){window._erSwitchTo('eventrec');}
   else if(app==='keychain'&&window._kcSwitchTo){window._kcSwitchTo('keychain');}
   else{var r=document.getElementById('root');if(r)r.style.display='';var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';}
@@ -32293,7 +32269,6 @@ window.studyOsClose = function() {
         </div>
       </div>
       <div class="app-hbar-row2" style="justify-content:flex-end;">
-        <button class="mc-theme-btn" id="mc-theme-btn"></button>
       </div>
     </div>
   </div>
@@ -33050,7 +33025,6 @@ function mcToggleTheme(){
   }
 }
 window._mcApplyTheme = mcApplyTheme;
-document.getElementById('mc-theme-btn').addEventListener('click', mcToggleTheme);
 
 // ── Init ──
 mcRenderCircuits();
@@ -33130,7 +33104,7 @@ function accent(){return profile()==='veda'?'#8D769A':'#D4849A';}
 function themeVars(){
   var cs=getComputedStyle(document.body);
   var bg=cs.backgroundColor||'#16161c';
-  var light=document.body.classList.contains('light-mode');
+  var light=false;
   var root=document.documentElement.style;
   root.setProperty('--thv-accent',accent());
   root.setProperty('--thv-surface',bg);
@@ -34847,7 +34821,6 @@ var AL_APP_ROOTS = {
   tony_taskhub:   ['root'],
   tony_health:    ['mc-root'],
   tony_eventrec:  ['er-root'],
-  tony_keychain:  ['kc-root'],
   tony_myjournal: ['tj-root'],
   tony_proview:   ['pv-root'],
   veda_taskhub:   ['veda-root'],
@@ -36563,11 +36536,6 @@ if(document.readyState==='loading'){
 @media(max-height:480px){
   #thset-box{max-height:calc(100dvh - 6px);}
 }
-body.light-mode #thset-box{background:#F4EEF1;border-color:#E0D4DB;}
-body.light-mode .thset-hdr{background:#F4EEF1;border-color:#E5DAE0;}
-body.light-mode .thset-hdr .thset-title,body.light-mode .thset-sec-title,body.light-mode .thset-row .thset-label,body.light-mode .thset-input{color:#2A1F24;}
-body.light-mode .thset-row{background:#FBF8FA;border-color:#E5DAE0;}
-body.light-mode .thset-input{background:#fff;border-color:#E0D4DB;}
 </style>
 
 <div id="thset-overlay" role="dialog" aria-modal="true"><div id="thset-box"></div></div>
