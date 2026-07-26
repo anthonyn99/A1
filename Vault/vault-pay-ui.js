@@ -630,7 +630,7 @@
       '.vpay-mark{width:34px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center}',
       '.vpay-mark svg{width:34px;height:22px;display:block}',
       '.vpay-chip{font-size:10.5px;font-weight:500;letter-spacing:.2px;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap}',
-      '.vpay-chip.warn{background:transparent;border:1px solid rgba(224,166,63,.36);color:#f3cf7a}.vpay-chip.bad{background:transparent;border:1px solid rgba(214,138,124,.45);color:#d68a7c}',
+      '.vpay-chip.warn{background:transparent;border:1px solid rgba(205,174,116,.36);color:#e8d5ab}.vpay-chip.bad{background:transparent;border:1px solid rgba(214,138,124,.45);color:#d68a7c}',
       '.vault-icon.vpay-on{color:var(--ac);border-color:var(--ac)}',
       '.vpay-body{border-top:1px solid var(--bd)}',
       // ── drag to reorder ──
@@ -666,7 +666,7 @@
       '.vpay-net-maestro{background:linear-gradient(135deg,#4a49a0,#1a1a3a)}',
       '.vpay-face-top{display:flex;align-items:flex-start;justify-content:space-between;position:relative;z-index:1}',
       '.vpay-face-mark svg{width:38px;height:25px;display:block}',
-      '.vpay-face-star{color:#fbdf93;line-height:0;display:inline-flex}.vpay-face-star svg{width:14px;height:14px;display:block}',
+      '.vpay-face-star{color:#eddcb8;line-height:0;display:inline-flex}.vpay-face-star svg{width:14px;height:14px;display:block}',
       '.vpay-face-chip{width:31px;height:23px;border-radius:5px;margin:10px 0 8px;position:relative;z-index:1;',
       '  background:linear-gradient(135deg,#e6c878,#b8922f);box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}',
       '.vpay-face-num{font-family:ui-monospace,monospace;font-size:14.5px;letter-spacing:1.2px;font-weight:600;position:relative;z-index:1;',
@@ -679,7 +679,7 @@
       '.vpay-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}',
       '.vpay-sec{font-size:11px;font-weight:800;color:var(--txm);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 8px;padding-top:12px;border-top:1px solid var(--bd)}',
       '.vpay-netbadge{display:flex;align-items:center;flex-shrink:0}.vpay-netbadge svg{width:34px;height:22px;display:block}',
-      '.vpay-warn{color:#f3cf7a;font-size:11.5px;min-height:14px;margin:-4px 0 4px;text-align:left;line-height:1.5}',
+      '.vpay-warn{color:#e8d5ab;font-size:11.5px;min-height:14px;margin:-4px 0 4px;text-align:left;line-height:1.5}',
       // mobile
       '@media (max-width:640px){',
       '  .vpay-detail{flex-direction:column;gap:12px}',

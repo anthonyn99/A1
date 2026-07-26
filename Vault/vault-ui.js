@@ -433,7 +433,7 @@
     var hint = el('input', { type: 'text', class: 'vault-input', placeholder: 'Password hint (optional)', autocomplete: 'off', maxlength: '160' });
     var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
     var err = el('div', { class: 'vault-err' });
-    pw1.addEventListener('input', function () { var s = strength(pw1.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#e0a63f', '#e8b45e', '#a4b986', '#a4b986'][s]; });
+    pw1.addEventListener('input', function () { var s = strength(pw1.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#cdae74', '#d9bd82', '#a4b986', '#a4b986'][s]; });
     var btn = el('button', { class: 'vault-btn primary' }, ['Create Vault']);
     btn.addEventListener('click', async function () {
       err.textContent = '';
@@ -556,7 +556,7 @@
     var cf = el('input', { type: 'password', class: 'vault-input', placeholder: 'Confirm new password', autocomplete: 'new-password' });
     var hintIn = el('input', { type: 'text', class: 'vault-input', placeholder: 'Password hint (optional)', autocomplete: 'off', maxlength: '160', value: currentHint() });
     var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
-    nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#e0a63f', '#e8b45e', '#a4b986', '#a4b986'][s]; });
+    nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#cdae74', '#d9bd82', '#a4b986', '#a4b986'][s]; });
     var err = el('div', { class: 'vault-err' });
     var save = el('button', { class: 'vault-btn primary' }, ['Set new password']);
     save.addEventListener('click', async function () {
@@ -1119,7 +1119,7 @@
     var cf = el('input', { type: 'password', class: 'vault-input', placeholder: 'Confirm new password', autocomplete: 'new-password' });
     var hintIn = el('input', { type: 'text', class: 'vault-input', placeholder: 'Password hint (optional)', autocomplete: 'off', maxlength: '160', value: currentHint() });
     var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
-    nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#e0a63f', '#e8b45e', '#a4b986', '#a4b986'][s]; });
+    nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#cdae74', '#d9bd82', '#a4b986', '#a4b986'][s]; });
     var err = el('div', { class: 'vault-err' });
     var save = el('button', { class: 'vault-btn primary' }, ['Change password']);
     save.addEventListener('click', async function () {
@@ -1160,7 +1160,7 @@
     var overlay = el('div', { class: 'vault-overlay' });
     var box = el('div', { class: 'vault-modal', onclick: function (e) { e.stopPropagation(); } });
     var h = analyzeHealth(store.byKind('login'));
-    var color = h.score >= 80 ? '#a4b986' : h.score >= 50 ? '#e8b45e' : '#d68a7c';
+    var color = h.score >= 80 ? '#a4b986' : h.score >= 50 ? '#d9bd82' : '#d68a7c';
 
     // score ring
     var circ = 2 * Math.PI * 34;
@@ -1350,7 +1350,7 @@
       var rows = [['name', 'url', 'username', 'email', 'password', 'notes']];
       logins.forEach(function (it) { rows.push([it.title || '', it.url || '', it.username || '', it.email || '', it.password || '', it.notes || '']); });
       download('vault-passwords-UNENCRYPTED-' + dateStamp() + '.csv', toCSV(rows), 'text/csv');
-      status.style.color = '#e0a63f'; status.textContent = 'Exported ' + logins.length + ' logins as PLAIN TEXT — delete the file when done.';
+      status.style.color = '#cdae74'; status.textContent = 'Exported ' + logins.length + ' logins as PLAIN TEXT — delete the file when done.';
     }
     async function exportPaymentsUnencrypted() {
       var cards = store.byKind('payment');
@@ -1366,7 +1366,7 @@
           c.expMonth || '', c.expYear || '', c.cvv || '', b.line1 || '', b.line2 || '', b.city || '', b.region || '', b.postal || '', b.country || '', c.notes || '']);
       });
       download('vault-payments-UNENCRYPTED-' + dateStamp() + '.csv', toCSV(rows), 'text/csv');
-      status.style.color = '#e0a63f'; status.textContent = 'Exported ' + cards.length + ' card(s) as PLAIN TEXT — delete the file when done.';
+      status.style.color = '#cdae74'; status.textContent = 'Exported ' + cards.length + ' card(s) as PLAIN TEXT — delete the file when done.';
     }
   }
 
@@ -1428,7 +1428,7 @@
       '#kc-root .app-hbar{position:sticky;top:0;z-index:7}',
       '.vault-tabs{display:flex;gap:8px;padding:12px clamp(10px,3vw,24px) 10px;max-width:1100px;margin:0 auto;width:100%;position:sticky;top:var(--vhbar-h,60px);z-index:6;background:var(--bg)}',
       '.vault-tab{flex:0 0 auto;background:transparent;border:1px solid var(--bd);color:var(--txd);font-size:11px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;padding:0 14px;height:34px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:border-color .18s,color .18s}',
-      '.vault-tab:hover{color:var(--tx);border-color:var(--txd)}.vault-tab.active{background:transparent;color:var(--acs,#f3cf7a);border-color:var(--ac)}',
+      '.vault-tab:hover{color:var(--tx);border-color:var(--txd)}.vault-tab.active{background:transparent;color:var(--acs,#e8d5ab);border-color:var(--ac)}',
       '.vault-tab svg{display:block;width:15px;height:15px;flex-shrink:0}',
       '.vault-panel{max-width:1100px;margin:0 auto;padding:0 clamp(10px,3vw,24px) 28px;width:100%}',
       // Search + Add + Settings + Lock stay pinned just below the tabs.
@@ -1462,11 +1462,11 @@
       '.vault-note-actions{display:flex;justify-content:flex-end;margin-top:8px}',
       '.vault-icon{background:transparent;border:1px solid var(--bd);color:var(--txd);width:30px;height:30px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:border-color .18s,color .18s;padding:0}',
       '.vault-icon svg{display:block;width:15px;height:15px}',
-      '.vault-icon:hover{color:var(--acs,#f3cf7a);border-color:var(--ac)}',
-      '.vault-icon.vpay-on,.vault-icon.vault-on{color:var(--acs,#f3cf7a);border-color:var(--acl,rgba(224,166,63,.36))}',
+      '.vault-icon:hover{color:var(--acs,#e8d5ab);border-color:var(--ac)}',
+      '.vault-icon.vpay-on,.vault-icon.vault-on{color:var(--acs,#e8d5ab);border-color:var(--acl,rgba(205,174,116,.36))}',
       '.vault-empty{border:1px dashed var(--bd);border-radius:var(--radius);padding:34px 20px;text-align:center;color:var(--txd);font-size:13px;line-height:1.7}',
       '.vault-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--bd)}',
-      '.vault-link-btn{background:none;border:none;color:var(--txd);font-size:12px;font-weight:500;cursor:pointer;padding:4px 8px;display:inline-flex;align-items:center;gap:7px;transition:color .15s}.vault-link-btn:hover{color:var(--acs,#f3cf7a)}',
+      '.vault-link-btn{background:none;border:none;color:var(--txd);font-size:12px;font-weight:500;cursor:pointer;padding:4px 8px;display:inline-flex;align-items:center;gap:7px;transition:color .15s}.vault-link-btn:hover{color:var(--acs,#e8d5ab)}',
       '.vault-link-btn svg{display:block;width:14px;height:14px}',
       // lock/setup
       '.vault-lock{display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;min-height:300px}',
@@ -1478,7 +1478,7 @@
       '.vault-input:focus{border-color:var(--ac)}textarea.vault-input{resize:vertical;min-height:52px}',
       '.vault-btn{width:100%;background:transparent;border:1px solid var(--bd);color:var(--tx);border-radius:var(--radius-sm);padding:12px;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;margin-bottom:8px;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s,color .18s}',
       '.vault-btn svg{display:block;width:15px;height:15px;flex-shrink:0}',
-      '.vault-btn:hover{border-color:var(--txd)}.vault-btn.primary{background:transparent;color:var(--acs,#f3cf7a);border-color:var(--acl,rgba(224,166,63,.36))}.vault-btn.primary:hover{border-color:var(--ac)}',
+      '.vault-btn:hover{border-color:var(--txd)}.vault-btn.primary{background:transparent;color:var(--acs,#e8d5ab);border-color:var(--acl,rgba(205,174,116,.36))}.vault-btn.primary:hover{border-color:var(--ac)}',
       '.vault-btn.primary:disabled{opacity:.5;cursor:not-allowed}.vault-btn.sm{width:auto;padding:10px 16px;margin:0}.vault-btn.danger{background:transparent;color:#d68a7c;border-color:#d68a7c44}',
       '.vault-err{color:#d68a7c;font-size:12px;min-height:16px;margin-bottom:6px;text-align:left}',
       '.vault-fine{font-size:10px;color:var(--txm);margin-top:8px;letter-spacing:.3px}',
@@ -1504,7 +1504,7 @@
       '.vault-health-cat{display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius);padding:11px 13px;margin-bottom:6px;cursor:pointer}',
       '.vault-health-cat:hover{border-color:var(--bdl)}',
       '.vault-health-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}',
-      '.vault-health-bad .vault-health-dot{background:#d68a7c}.vault-health-warn .vault-health-dot{background:#e0a63f}',
+      '.vault-health-bad .vault-health-dot{background:#d68a7c}.vault-health-warn .vault-health-dot{background:#cdae74}',
       '.vault-health-cat-title{font-size:13px;font-weight:500;color:var(--tx)}.vault-health-cat-desc{font-size:11px;color:var(--txd);margin-top:2px;line-height:1.5}',
       '.vault-health-chev{color:var(--txd);line-height:0;transition:transform .18s}.vault-health-chev svg{width:15px;height:15px;display:block}',
       '.vault-health-items{margin:0 0 8px}',
@@ -1523,7 +1523,7 @@
       // generator
       '.vault-gen-out{font-family:ui-monospace,monospace;font-size:16px;color:var(--ac);background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius);padding:16px;word-break:break-all;text-align:center;margin-bottom:14px;min-height:24px}',
       '.vault-gen-tabs,.vault-gen-len{display:flex;gap:8px;margin-bottom:12px}.vault-gen-len{align-items:center;justify-content:space-between;font-size:12px;color:var(--txd)}',
-      '.vault-gen-tab{flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--txd);border-radius:var(--radius-sm);padding:8px;font-size:12px;font-weight:500;cursor:pointer}.vault-gen-tab.active{background:transparent;color:var(--acs,#f3cf7a);border-color:var(--ac)}',
+      '.vault-gen-tab{flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--txd);border-radius:var(--radius-sm);padding:8px;font-size:12px;font-weight:500;cursor:pointer}.vault-gen-tab.active{background:transparent;color:var(--acs,#e8d5ab);border-color:var(--ac)}',
       '.vault-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.vault-gen-opt{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--txd);cursor:pointer}',
       '.vault-range{width:100%;accent-color:var(--ac)}.vault-gen-len .vault-range{flex:1;margin-left:12px}',
       '.vault-toast.show{opacity:1!important}',
