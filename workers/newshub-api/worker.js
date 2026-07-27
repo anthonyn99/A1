@@ -370,6 +370,12 @@ const AI_CHAIN = [
 const GEMINI_CHAIN = AI_CHAIN.filter(e=>e.provider==='gemini').map(e=>e.model);
 const NIM_CHAIN    = AI_CHAIN.filter(e=>e.provider==='nim').map(e=>e.model);
 const QUOTA_COOLDOWN = 3600; // 1h before retrying a model that hit 429
+// How long build diagnostics (stage:aistats / stage:lasterror) live. These used to
+// expire after 30 min, which made them useless for the failure that matters most:
+// the 6am cron build. By the time anyone opens TradeHub and notices the feed is
+// stale, the only two keys that say WHY the AI phase failed are long gone. Matches
+// the cron:lastrun / cron:lastnews retention so /_stage-debug tells one whole story.
+const DIAG_TTL = 7*86400;
 const BATCH_SIZE = 8;        // 8 events/batch — best balance: model returns most
                              // of them, and 5 batches finish fast in one wave.
 const MAX_EVENTS = 56;       // 7 batches of 8. Raised from 40 once the strong-
@@ -2504,7 +2510,7 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
       succeeded, failed: batches.length - succeeded, subrequestsUsed: aiSubUsed,
       budgetMs: AI_PHASE_BUDGET_MS, concurrency: AI_CONCURRENCY, at: Date.now(),
       dbgSample, dbgExpectedIds, dbgReturnedIds,
-    }), { expirationTtl: 1800 }).catch(()=>{});
+    }), { expirationTtl: DIAG_TTL }).catch(()=>{});
   }
 
   // ── Merge AI output back onto events ─────────────────────────────────────
@@ -2627,7 +2633,7 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
     const prev = JSON.parse(await env.NEWSHUB_CACHE.get('stage:aistats') || '{}');
     prev.enrichedAI = aiCount; prev.rawFallback = rawCount; prev.totalOut = enriched.length;
     prev.sampleAiOutput = sampleOut; prev.sampleEventIds = sampleEvIds;
-    await env.NEWSHUB_CACHE.put('stage:aistats', JSON.stringify(prev), { expirationTtl: 1800 });
+    await env.NEWSHUB_CACHE.put('stage:aistats', JSON.stringify(prev), { expirationTtl: DIAG_TTL });
   } catch(e){}
   return { events: enriched, modelsUsed: [...modelsUsed], degraded };
 }
@@ -2801,7 +2807,7 @@ async function buildAndCache(env, ctx, useLimitedAPIs, wl, sectors, cacheKey, lo
     // result so the poller stops. Without this a throw leaves no cache → stuck
     // "Building" forever.
     const info = { stage:'inline-build', msg:e.message, stack:(e.stack||'').slice(0,1000), at:Date.now() };
-    await env.NEWSHUB_CACHE.put('stage:lasterror', JSON.stringify(info), { expirationTtl: 1800 }).catch(()=>{});
+    await env.NEWSHUB_CACHE.put('stage:lasterror', JSON.stringify(info), { expirationTtl: DIAG_TTL }).catch(()=>{});
     console.error('inline build threw:', e.message, e.stack);
     result = { events: [], modelsUsed: [], degraded: true };
   }
@@ -2813,11 +2819,19 @@ async function buildAndCache(env, ctx, useLimitedAPIs, wl, sectors, cacheKey, lo
     modelsUsed: result.modelsUsed,
     degraded: result.degraded || false,
   });
-  // ALWAYS write a result so the client poller terminates. A degraded (raw)
-  // build gets a SHORT TTL so it self-heals soon (and Force fresh bypasses cache
-  // entirely to retry now) — but it must be cached, or every poll re-kicks a
-  // fresh build → infinite "Building…" loop.
-  const ttl = result.degraded ? 600 : CACHE_TTL; // 10min for raw, 6h for good
+  // ALWAYS write a result so the client poller terminates — it must be cached, or
+  // every poll re-kicks a fresh build → infinite "Building…" loop.
+  // A degraded (raw) build USED to get a 600s TTL, on the theory that a short life
+  // made it "self-heal soon". It doesn't: nothing rebuilds on a timer. Opening the
+  // News tab is a pure cacheOnly PEEK, and the cron runs once a day — so a degraded
+  // 6am build simply EVAPORATED at 6:10am and left an empty cache. The worker's
+  // Firebase push can't work either (App Check — see the note above
+  // pushMarketCalToFirebase), so the UI then fell all the way back to whatever the
+  // browser last wrote, i.e. "updated 18 hours ago" with no way to recover.
+  // Raw headlines with no AI summary still beat an empty feed, so a degraded build
+  // now survives the morning; any good build (or Force fresh, which bypasses cache)
+  // overwrites it.
+  const ttl = result.degraded ? 14400 : CACHE_TTL; // 4h for raw, 6h for good
   await env.NEWSHUB_CACHE.put(cacheKey, body, { expirationTtl: ttl });
   await env.NEWSHUB_CACHE.delete(lockKey); // release build lock
   // Push to Firebase so the client's onSnapshot auto-displays the finished build
@@ -2918,7 +2932,7 @@ async function kickStage(env, origin, buildId, stage, sliceIdx){
 async function stashStageError(env, stageLabel, buildId, e, count){
   const info = { stage:stageLabel, buildId, msg:e.message, stack:(e.stack||'').slice(0,800), at:Date.now(), count };
   console.error(`stage ${stageLabel} threw:`, e.message, e.stack);
-  await env.NEWSHUB_CACHE.put('stage:lasterror', JSON.stringify(info), { expirationTtl: 1800 }).catch(()=>{});
+  await env.NEWSHUB_CACHE.put('stage:lasterror', JSON.stringify(info), { expirationTtl: DIAG_TTL }).catch(()=>{});
 }
 
 // Write a raw-degraded result so the client poller terminates + headlines show,
@@ -3048,7 +3062,7 @@ async function handleStage(env, ctx, req, buildId, stage, sliceIdx){
     await env.NEWSHUB_CACHE.put('stage:winstatus', JSON.stringify({
       buildId, window:cursor, windowEvents:windowEvents.length, availModels:winAvail,
       windowEnriched:winEnriched, totalSoFar:enrichedSoFar.length, at:Date.now(),
-    }), { expirationTtl: 1800 }).catch(()=>{});
+    }), { expirationTtl: DIAG_TTL }).catch(()=>{});
 
     const next = cursor + 1;
     if (next < totalWindows){
@@ -3202,22 +3216,39 @@ export default {
       ctx.waitUntil(env.NEWSHUB_CACHE.put('cron:lastrun',
         JSON.stringify({ at: Date.now(), rich: useLimited, wl: wl.length }),
         { expirationTtl: 7*86400 }).catch(()=>{}));
-      ctx.waitUntil(
-        buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey)
-          .then(body => {
-            let events = 0, degraded = null;
+      ctx.waitUntil((async () => {
+        try {
+          // Clear stale model cooldowns BEFORE building. Force-fresh has always done
+          // this (see /news), but the cron — the one build that runs cold at the top
+          // of the day — did not. A quota_block written by yesterday's 429 storm made
+          // the whole AI chain look unavailable, so every batch fell back to raw and
+          // the 6am build came out degraded with no AI summaries at all.
+          await clearQuotaBlocks(env);
+          let body = await buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey);
+          let events = 0, degraded = null, retried = false;
+          try { const j = JSON.parse(body); events = (j.events||[]).length; degraded = !!j.degraded; } catch(e){}
+          // A degraded result means the AI phase produced nothing usable. This is the
+          // ONE build of the day nobody is watching, so retry it once rather than
+          // leaving raw headlines up until someone notices and hits Force fresh.
+          // Blocks are cleared again first: a transient 429 during the failed pass
+          // will have re-armed the very cooldowns that would skip the retry's chain.
+          if (degraded){
+            retried = true;
+            await clearQuotaBlocks(env);
+            await env.NEWSHUB_CACHE.delete(lockKey).catch(()=>{}); // first pass may still hold it
+            body = await buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey);
             try { const j = JSON.parse(body); events = (j.events||[]).length; degraded = !!j.degraded; } catch(e){}
-            return env.NEWSHUB_CACHE.put('cron:lastnews',
-              JSON.stringify({ at: Date.now(), events, degraded, rich: useLimited }),
-              { expirationTtl: 7*86400 }).catch(()=>{});
-          })
-          .catch(e => {
-            console.error('Cron news failed:', e.message);
-            return env.NEWSHUB_CACHE.put('cron:lastnews',
-              JSON.stringify({ at: Date.now(), error: String(e.message).slice(0,200) }),
-              { expirationTtl: 7*86400 }).catch(()=>{});
-          })
-      );
+          }
+          await env.NEWSHUB_CACHE.put('cron:lastnews',
+            JSON.stringify({ at: Date.now(), events, degraded, retried, rich: useLimited }),
+            { expirationTtl: 7*86400 }).catch(()=>{});
+        } catch(e){
+          console.error('Cron news failed:', e.message);
+          await env.NEWSHUB_CACHE.put('cron:lastnews',
+            JSON.stringify({ at: Date.now(), error: String(e.message).slice(0,200) }),
+            { expirationTtl: 7*86400 }).catch(()=>{});
+        }
+      })());
     }
   },
 
