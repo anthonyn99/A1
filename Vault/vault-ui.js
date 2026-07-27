@@ -460,7 +460,7 @@
     var hint = el('input', { type: 'text', class: 'vault-input', placeholder: 'Password hint (optional)', autocomplete: 'off', maxlength: '160' });
     var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
     var err = el('div', { class: 'vault-err' });
-    pw1.addEventListener('input', function () { var s = strength(pw1.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#edc884', '#e0b57c', '#a4b986', '#a4b986'][s]; });
+    pw1.addEventListener('input', function () { var s = strength(pw1.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#e0b874', '#e0b57c', '#a4b986', '#a4b986'][s]; });
     var btn = el('button', { class: 'vault-btn primary' }, ['Create Vault']);
     btn.addEventListener('click', async function () {
       err.textContent = '';
@@ -583,7 +583,7 @@
     var cf = el('input', { type: 'password', class: 'vault-input', placeholder: 'Confirm new password', autocomplete: 'new-password' });
     var hintIn = el('input', { type: 'text', class: 'vault-input', placeholder: 'Password hint (optional)', autocomplete: 'off', maxlength: '160', value: currentHint() });
     var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
-    nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#edc884', '#e0b57c', '#a4b986', '#a4b986'][s]; });
+    nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#e0b874', '#e0b57c', '#a4b986', '#a4b986'][s]; });
     var err = el('div', { class: 'vault-err' });
     var save = el('button', { class: 'vault-btn primary' }, ['Set new password']);
     save.addEventListener('click', async function () {
@@ -1364,7 +1364,7 @@
     var cf = el('input', { type: 'password', class: 'vault-input', placeholder: 'Confirm new password', autocomplete: 'new-password' });
     var hintIn = el('input', { type: 'text', class: 'vault-input', placeholder: 'Password hint (optional)', autocomplete: 'off', maxlength: '160', value: currentHint() });
     var meter = el('div', { class: 'vault-meter' }, [el('div', { class: 'vault-meter-fill' })]);
-    nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#edc884', '#e0b57c', '#a4b986', '#a4b986'][s]; });
+    nw.addEventListener('input', function () { var s = strength(nw.value); var f = meter.querySelector('.vault-meter-fill'); f.style.width = (s / 4 * 100) + '%'; f.style.background = ['#d68a7c', '#e0b874', '#e0b57c', '#a4b986', '#a4b986'][s]; });
     var err = el('div', { class: 'vault-err' });
     var save = el('button', { class: 'vault-btn primary' }, ['Change password']);
     save.addEventListener('click', async function () {
@@ -1595,7 +1595,7 @@
       var rows = [['name', 'url', 'username', 'email', 'password', 'notes']];
       logins.forEach(function (it) { rows.push([it.title || '', it.url || '', it.username || '', it.email || '', it.password || '', it.notes || '']); });
       download('vault-passwords-UNENCRYPTED-' + dateStamp() + '.csv', toCSV(rows), 'text/csv');
-      status.style.color = '#edc884'; status.textContent = 'Exported ' + logins.length + ' logins as PLAIN TEXT — delete the file when done.';
+      status.style.color = '#e0b874'; status.textContent = 'Exported ' + logins.length + ' logins as PLAIN TEXT — delete the file when done.';
     }
     async function exportPaymentsUnencrypted() {
       var cards = store.byKind('payment');
@@ -1611,7 +1611,7 @@
           c.expMonth || '', c.expYear || '', c.cvv || '', b.line1 || '', b.line2 || '', b.city || '', b.region || '', b.postal || '', b.country || '', c.notes || '']);
       });
       download('vault-payments-UNENCRYPTED-' + dateStamp() + '.csv', toCSV(rows), 'text/csv');
-      status.style.color = '#edc884'; status.textContent = 'Exported ' + cards.length + ' card(s) as PLAIN TEXT — delete the file when done.';
+      status.style.color = '#e0b874'; status.textContent = 'Exported ' + cards.length + ' card(s) as PLAIN TEXT — delete the file when done.';
     }
   }
 
@@ -1684,7 +1684,7 @@
       // can open between it and the sticky header above.
       '.vault-tabs::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:5px;background:var(--bg);pointer-events:none}',
       '.vault-tab{flex:0 0 auto;background:transparent;border:1px solid var(--bd);color:var(--txd);font-size:11px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;padding:0 14px;height:34px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:border-color .18s,color .18s}',
-      '.vault-tab:hover{color:var(--tx);border-color:var(--txd)}.vault-tab.active{background:transparent;color:var(--acs,#edc884);border-color:var(--ac)}',
+      '.vault-tab:hover{color:var(--tx);border-color:var(--txd)}.vault-tab.active{background:transparent;color:var(--acs,#e0b874);border-color:var(--ac)}',
       '.vault-tab svg{display:block;width:15px;height:15px;flex-shrink:0}',
       '.vault-panel{max-width:1100px;margin:0 auto;width:100%;padding:0 var(--vpadr) calc(28px + env(safe-area-inset-bottom,0px)) var(--vpadl)}',
       // Search + Add + Settings + Lock stay pinned just below the tabs.
@@ -1720,8 +1720,8 @@
       '.vault-note-actions{display:flex;justify-content:flex-end;margin-top:8px}',
       '.vault-icon{background:transparent;border:1px solid var(--bd);color:var(--txd);width:30px;height:30px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:border-color .18s,color .18s;padding:0}',
       '.vault-icon svg{display:block;width:15px;height:15px}',
-      '.vault-icon:hover{color:var(--acs,#edc884);border-color:var(--ac)}',
-      '.vault-icon.vpay-on,.vault-icon.vault-on{color:var(--acs,#edc884);border-color:var(--acl,rgba(237,200,132,.36))}',
+      '.vault-icon:hover{color:var(--acs,#e0b874);border-color:var(--ac)}',
+      '.vault-icon.vpay-on,.vault-icon.vault-on{color:var(--acs,#e0b874);border-color:var(--acl,rgba(224,184,116,.36))}',
       // ── drag to reorder (Payments + Sensitive Info share this) ──
       // touch-action:none is what stops the browser from treating a drag on the
       // handle as a scroll gesture; without it, mobile reordering is impossible.
@@ -1741,7 +1741,7 @@
       '@media (prefers-reduced-motion:reduce){.vault-reordering .vault-site{transition:none}}',
       '.vault-empty{border:1px dashed var(--bd);border-radius:var(--radius);padding:34px 20px;text-align:center;color:var(--txd);font-size:13px;line-height:1.7}',
       '.vault-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--bd)}',
-      '.vault-link-btn{background:none;border:none;color:var(--txd);font-size:12px;font-weight:500;cursor:pointer;padding:4px 8px;display:inline-flex;align-items:center;gap:7px;transition:color .15s}.vault-link-btn:hover{color:var(--acs,#edc884)}',
+      '.vault-link-btn{background:none;border:none;color:var(--txd);font-size:12px;font-weight:500;cursor:pointer;padding:4px 8px;display:inline-flex;align-items:center;gap:7px;transition:color .15s}.vault-link-btn:hover{color:var(--acs,#e0b874)}',
       '.vault-link-btn svg{display:block;width:14px;height:14px}',
       // lock/setup
       '.vault-lock{display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;min-height:300px}',
@@ -1753,7 +1753,7 @@
       '.vault-input:focus{border-color:var(--ac)}textarea.vault-input{resize:vertical;min-height:52px}',
       '.vault-btn{width:100%;background:transparent;border:1px solid var(--bd);color:var(--tx);border-radius:var(--radius-sm);padding:12px;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;margin-bottom:8px;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s,color .18s}',
       '.vault-btn svg{display:block;width:15px;height:15px;flex-shrink:0}',
-      '.vault-btn:hover{border-color:var(--txd)}.vault-btn.primary{background:transparent;color:var(--acs,#edc884);border-color:var(--acl,rgba(237,200,132,.36))}.vault-btn.primary:hover{border-color:var(--ac)}',
+      '.vault-btn:hover{border-color:var(--txd)}.vault-btn.primary{background:transparent;color:var(--acs,#e0b874);border-color:var(--acl,rgba(224,184,116,.36))}.vault-btn.primary:hover{border-color:var(--ac)}',
       '.vault-btn.primary:disabled{opacity:.5;cursor:not-allowed}.vault-btn.sm{width:auto;padding:10px 16px;margin:0}.vault-btn.danger{background:transparent;color:#d68a7c;border-color:#d68a7c44}',
       '.vault-err{color:#d68a7c;font-size:12px;min-height:16px;margin-bottom:6px;text-align:left}',
       '.vault-fine{font-size:10px;color:var(--txm);margin-top:8px;letter-spacing:.3px}',
@@ -1765,7 +1765,7 @@
       // action buttons off-screen; the insets keep it clear of notch + home bar.
       '.vault-overlay{position:fixed;inset:0;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;z-index:99998;overflow-y:auto;',
       '  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}',
-      '.vault-modal{background:var(--s2);border:1px solid #5b5b64;border-radius:var(--radius);padding:22px;width:440px;max-width:100%;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;box-shadow:0 0 0 1px rgba(237,200,132,.10),0 24px 70px rgba(0,0,0,.6)}',
+      '.vault-modal{background:var(--s2);border:1px solid #5b5b64;border-radius:var(--radius);padding:22px;width:440px;max-width:100%;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;box-shadow:0 0 0 1px rgba(224,184,116,.10),0 24px 70px rgba(0,0,0,.6)}',
       '.vault-modal-title{font-family:var(--display,inherit);font-size:20px;font-weight:600;letter-spacing:-.2px;color:var(--tx);margin-bottom:18px}',
       '.vault-field{margin-bottom:12px}.vault-flabel{display:block;font-size:10px;font-weight:500;color:var(--txm);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:7px}',
       '.vault-field .vault-input{margin-bottom:0}select.vault-input{cursor:pointer}',
@@ -1784,7 +1784,7 @@
       '.vault-health-cat{display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius);padding:11px 13px;margin-bottom:6px;cursor:pointer}',
       '.vault-health-cat:hover{border-color:var(--bdl)}',
       '.vault-health-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}',
-      '.vault-health-bad .vault-health-dot{background:#d68a7c}.vault-health-warn .vault-health-dot{background:#edc884}',
+      '.vault-health-bad .vault-health-dot{background:#d68a7c}.vault-health-warn .vault-health-dot{background:#e0b874}',
       '.vault-health-cat-title{font-size:13px;font-weight:500;color:var(--tx)}.vault-health-cat-desc{font-size:11px;color:var(--txd);margin-top:2px;line-height:1.5}',
       '.vault-health-chev{color:var(--txd);line-height:0;transition:transform .18s}.vault-health-chev svg{width:15px;height:15px;display:block}',
       '.vault-health-items{margin:0 0 8px}',
@@ -1803,7 +1803,7 @@
       // generator
       '.vault-gen-out{font-family:ui-monospace,monospace;font-size:16px;color:var(--ac);background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius);padding:16px;word-break:break-all;text-align:center;margin-bottom:14px;min-height:24px}',
       '.vault-gen-tabs,.vault-gen-len{display:flex;gap:8px;margin-bottom:12px}.vault-gen-len{align-items:center;justify-content:space-between;font-size:12px;color:var(--txd)}',
-      '.vault-gen-tab{flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--txd);border-radius:var(--radius-sm);padding:8px;font-size:12px;font-weight:500;cursor:pointer}.vault-gen-tab.active{background:transparent;color:var(--acs,#edc884);border-color:var(--ac)}',
+      '.vault-gen-tab{flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--txd);border-radius:var(--radius-sm);padding:8px;font-size:12px;font-weight:500;cursor:pointer}.vault-gen-tab.active{background:transparent;color:var(--acs,#e0b874);border-color:var(--ac)}',
       '.vault-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.vault-gen-opt{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--txd);cursor:pointer}',
       '.vault-range{width:100%;accent-color:var(--ac)}.vault-gen-len .vault-range{flex:1;margin-left:12px}',
       '.vault-toast.show{opacity:1!important}',
