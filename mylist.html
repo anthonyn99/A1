@@ -11,9 +11,39 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MyList">
-<link rel="manifest" href="data:application/json,{%22name%22:%22MyList%22,%22short_name%22:%22MyList%22,%22display%22:%22standalone%22,%22id%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22start_url%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22scope%22:%22https://anthonyn99.github.io/A1/mylist.html%22,%22background_color%22:%22%231a1a1d%22,%22theme_color%22:%22%23d4a659%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A//www.w3.org/2000/svg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%23d4a659'/%3E%3Ctext%20x%3D'50%25'%20y%3D'68%25'%20text-anchor%3D'middle'%20font-size%3D'52'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- App icon: gold line mark on the suite charcoal, drawn on the same grid
+     and stroke weight as Vault's lock — the four apps read as one family. -->
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22MyList%22%2C%22short_name%22%3A%22MyList%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fmylist.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fmylist.html%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2527http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2527%2520viewBox%253D%25270%25200%252096%252096%2527%253E%253Crect%2520width%253D%252796%2527%2520height%253D%252796%2527%2520rx%253D%252722%2527%2520fill%253D%2527%25231a1a1d%2527%252F%253E%253Cg%2520fill%253D%2527none%2527%2520stroke%253D%2527%2523d4a659%2527%2520stroke-width%253D%25275%2527%2520stroke-linecap%253D%2527round%2527%2520stroke-linejoin%253D%2527round%2527%253E%253Cpath%2520d%253D%2527M42%252032h30%2527%252F%253E%253Cpath%2520d%253D%2527M42%252048h30%2527%252F%253E%253Cpath%2520d%253D%2527M42%252064h30%2527%252F%253E%253Ccircle%2520cx%253D%252728%2527%2520cy%253D%252732%2527%2520r%253D%25273.5%2527%2520fill%253D%2527%2523d4a659%2527%2520stroke%253D%2527none%2527%252F%253E%253Ccircle%2520cx%253D%252728%2527%2520cy%253D%252748%2527%2520r%253D%25273.5%2527%2520fill%253D%2527%2523d4a659%2527%2520stroke%253D%2527none%2527%252F%253E%253Ccircle%2520cx%253D%252728%2527%2520cy%253D%252764%2527%2520r%253D%25273.5%2527%2520fill%253D%2527%2523d4a659%2527%2520stroke%253D%2527none%2527%252F%253E%253C%252Fg%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23d4a659%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M42%2032h30%27%2F%3E%3Cpath%20d%3D%27M42%2048h30%27%2F%3E%3Cpath%20d%3D%27M42%2064h30%27%2F%3E%3Ccircle%20cx%3D%2728%27%20cy%3D%2732%27%20r%3D%273.5%27%20fill%3D%27%23d4a659%27%20stroke%3D%27none%27%2F%3E%3Ccircle%20cx%3D%2728%27%20cy%3D%2748%27%20r%3D%273.5%27%20fill%3D%27%23d4a659%27%20stroke%3D%27none%27%2F%3E%3Ccircle%20cx%3D%2728%27%20cy%3D%2764%27%20r%3D%273.5%27%20fill%3D%27%23d4a659%27%20stroke%3D%27none%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23d4a659%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M42%2032h30%27%2F%3E%3Cpath%20d%3D%27M42%2048h30%27%2F%3E%3Cpath%20d%3D%27M42%2064h30%27%2F%3E%3Ccircle%20cx%3D%2728%27%20cy%3D%2732%27%20r%3D%273.5%27%20fill%3D%27%23d4a659%27%20stroke%3D%27none%27%2F%3E%3Ccircle%20cx%3D%2728%27%20cy%3D%2748%27%20r%3D%273.5%27%20fill%3D%27%23d4a659%27%20stroke%3D%27none%27%2F%3E%3Ccircle%20cx%3D%2728%27%20cy%3D%2764%27%20r%3D%273.5%27%20fill%3D%27%23d4a659%27%20stroke%3D%27none%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=Playfair+Display:wght@700;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=IBM+Plex+Mono:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
 <style>
+/* ══════════════════════════════════════════════════════════════════════════
+   SUITE DESIGN TOKENS — mirrored from index.html. Two golds, one display face,
+   one accent face; every app in the ecosystem draws from the same values.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --gold-primary:#d4a659;    /* borders, rings, active states, icons          */
+  --gold-secondary:#edc884;  /* champagne — accent text on dark surfaces      */
+  --gold-line:rgba(212,166,89,.36);
+  --gold-glow:0 0 8px rgba(212,166,89,0.40),0 0 0 1px rgba(212,166,89,0.15);
+  --font-display:'Fraunces','Manrope',Georgia,serif;
+  --font-accent:'Fraunces',Georgia,serif;
+}
+.suite-title{
+  font-family:var(--font-display);
+  font-variation-settings:'opsz' 96,'SOFT' 0,'WONK' 0;
+  font-weight:600;letter-spacing:-.5px;line-height:1.15;
+  background:linear-gradient(180deg,var(--gold-secondary) 0%,var(--gold-primary) 92%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:var(--gold-secondary);
+}
+.suite-accent{
+  font-family:var(--font-accent);
+  font-variation-settings:'opsz' 20,'SOFT' 0,'WONK' 0;
+  font-style:normal;letter-spacing:.1px;
+}
+
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;}
 *{scrollbar-width:none;-ms-overflow-style:none;}
@@ -55,7 +85,7 @@ body[data-profile=veda] .item .nm,
 body[data-profile=veda] .rec-row .rec-name,
 body[data-profile=veda] .rec-detail-name,
 body[data-profile=veda] .list-head .ttl{font-family:'Lora',serif;letter-spacing:-0.2px;}
-body[data-profile=veda] .item .desc{font-style:italic;}
+body[data-profile=veda] .item .desc{font-style:normal;font-family:var(--font-accent);}
 body[data-profile=veda] input,body[data-profile=veda] textarea{font-family:'Lora',serif;}
 button,input,select,textarea{font-family:var(--font-body);color:var(--text);}
 input,textarea,select{background:var(--surface2);border:1px solid var(--border);border-radius:9px;color:var(--text);padding:11px 12px;font-size:15px;outline:none;width:100%;}
@@ -114,15 +144,16 @@ body:not([data-profile=veda]) .field>.lbl{
   font-size:10px;font-weight:500;letter-spacing:1.4px;color:var(--accent-pale);opacity:.8;margin:0 0 7px;
 }
 body:not([data-profile=veda]) .wordmark{
-  font-weight:750;letter-spacing:-.4px;
-  background:linear-gradient(180deg,#f4d795 0%,#d4a659 90%);
+  font-family:var(--font-display);font-variation-settings:'opsz' 96,'SOFT' 0,'WONK' 0;
+  font-weight:600;letter-spacing:-.5px;line-height:1.15;
+  background:linear-gradient(180deg,#edc884 0%,#d4a659 92%);
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
 }
 
 /* ── Profile overlay ── */
 #profile-overlay{position:fixed;inset:0;z-index:9000;display:none;flex-direction:column;align-items:center;justify-content:center;
   background:var(--bg);padding:calc(env(safe-area-inset-top,0px) + 24px) 22px calc(env(safe-area-inset-bottom,0px) + 24px);}
-#profile-overlay .pw-title{font-family:'Playfair Display',serif;font-weight:900;font-size:32px;letter-spacing:1px;color:#fff;margin-bottom:6px;text-align:center;}
+#profile-overlay .pw-title{font-family:var(--font-display);font-variation-settings:'opsz' 96,'SOFT' 0,'WONK' 0;font-weight:600;font-size:34px;letter-spacing:-.5px;line-height:1.15;color:#fff;margin-bottom:6px;text-align:center;}
 #profile-overlay .pw-sub{color:#9898a8;font-family:'Nunito',sans-serif;font-size:14px;margin-bottom:34px;text-align:center;}
 .profile-cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;width:100%;max-width:400px;}
 /* Card geometry mirrors index.html's .prof-card so the two profile selectors
@@ -136,7 +167,7 @@ body:not([data-profile=veda]) .wordmark{
 .profile-card .fav-star{position:absolute;top:7px;right:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;
   font-size:22px;color:#41414e;cursor:pointer;transition:all .15s;line-height:1;border-radius:50%;background:rgba(255,255,255,0.03);}
 .profile-card .fav-star:hover{background:rgba(255,255,255,0.08);}
-.profile-card .fav-star.on{color:#f5c451;text-shadow:0 0 12px rgba(245,196,81,.55);}
+.profile-card .fav-star.on{color:var(--gold-secondary);text-shadow:0 0 12px rgba(245,196,81,.55);}
 /* Tony — elegant gold. Resting border is the accent at 0x44 alpha and hover
    goes to the full accent, exactly as index.html's selector does. */
 .profile-card.tony{border-color:#d4a65944;}
@@ -157,7 +188,7 @@ body:not([data-profile=veda]) .wordmark{
 .sync-pill.idle{opacity:0;pointer-events:none;}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--textmute);flex-shrink:0;}
 .sync-pill.ok .sync-dot{background:var(--good);}
-.sync-pill.busy .sync-dot{background:#e0b15f;animation:pulse 1s infinite;}
+.sync-pill.busy .sync-dot{background:var(--gold-primary);animation:pulse 1s infinite;}
 .sync-pill.err{color:var(--bad);border-color:rgba(212,122,106,0.5);} .sync-pill.err .sync-dot{background:var(--bad);}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
@@ -343,7 +374,8 @@ body.dnd-active *{cursor:grabbing !important;}
 
 /* ── App-lock ── */
 #lock-overlay{position:fixed;inset:0;z-index:9800;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.72);backdrop-filter:blur(5px);padding:22px;}
-#lock-box{width:100%;max-width:360px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:28px 24px;text-align:center;box-shadow:0 30px 70px rgba(0,0,0,.48);}
+/* Bordered lock card — matches the suite's shared authentication surface. */
+#lock-box{width:100%;max-width:360px;background:var(--surface2);border:1px solid rgba(212,166,89,.22);border-radius:18px;padding:32px 28px 22px;text-align:center;box-shadow:0 32px 80px rgba(0,0,0,.7);}
 #lock-box.shake{animation:shk .45s;}
 @keyframes shk{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-9px)}40%,80%{transform:translateX(9px)}}
 #lock-icon{line-height:0;margin-bottom:14px;color:var(--accent);display:flex;justify-content:center;}
@@ -363,8 +395,12 @@ body.dnd-active *{cursor:grabbing !important;}
 #lock-err{color:var(--bad);font-size:12px;font-weight:700;min-height:16px;margin-bottom:8px;}
 #lock-menu{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;}
 #lock-row{display:flex;gap:8px;} #lock-row .btn{flex:1;justify-content:center;}
-#lock-forgot{background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;cursor:pointer;margin-top:12px;font-family:var(--font-btn);}
-#lock-reset{background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;cursor:pointer;margin-top:6px;font-family:var(--font-btn);display:block;width:100%;}
+#lock-forgot{background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;margin-top:12px;font-family:var(--font-btn);}
+#lock-reset{background:none;border:none;color:var(--textdim);font-size:12px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;margin-top:6px;font-family:var(--font-btn);display:block;width:100%;}
+/* Dismiss lives alone in a ruled footer rather than competing with Unlock. */
+#lock-foot{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:center;}
+#lock-cancel{background:none;border:none;color:var(--textdim);font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:2px 10px;font-family:var(--font-btn);transition:color .15s;}
+#lock-cancel:hover,#lock-forgot:hover,#lock-reset:hover{color:var(--text);}
 
 /* ── View switcher (Lists | Recipes) ── */
 #view-switch{display:flex;gap:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px;}
@@ -386,7 +422,8 @@ body.dnd-active *{cursor:grabbing !important;}
 .pw-main{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;}
 .pw-info{flex:1;min-width:0;}
 .pw-name{font-weight:800;font-size:15px;color:var(--text);}
-.pw-brand{font-weight:600;font-size:11px;color:var(--textdim);background:var(--surface2);padding:1px 6px;border-radius:8px;margin-left:4px;}
+.pw-brand{display:inline-flex;align-items:center;gap:4px;font-weight:600;font-size:11px;color:var(--textdim);background:var(--surface2);padding:1px 6px;border-radius:8px;margin-left:4px;}
+.pw-brand svg{width:11px;height:11px;display:block;flex-shrink:0;}
 .pw-meta{font-size:12px;color:var(--textdim);margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
 .pw-badge{font-size:10.5px;font-weight:500;letter-spacing:.2px;padding:2px 8px;border-radius:5px;border:1px solid var(--border2);background:transparent;}
 .pw-badge.verified{color:var(--good);background:transparent;border-color:rgba(164,185,134,.4);}
@@ -474,6 +511,15 @@ body:not([data-profile=veda]) #mic-btn,
 body:not([data-profile=veda]) #float-mic{
   border:1px solid var(--accent);box-shadow:none;
 }
+/* Manual is a raised pill, so "no gold fill" must not also strip its surface —
+   otherwise the selected state reads flatter than the resting one. It keeps the
+   card surface and earns emphasis from a gold ring, gold label and a soft glow. */
+body:not([data-profile=veda]) #manual-fab.on{
+  background:var(--surface2);color:var(--accent-bright);
+  border-color:var(--accent);box-shadow:0 6px 20px rgba(0,0,0,.4),var(--gold-glow);
+}
+/* Veda keeps her filled accent, just with the same lifted shadow. */
+body[data-profile=veda] #manual-fab.on{box-shadow:0 6px 20px rgba(0,0,0,.4),0 0 0 1px var(--accent);}
 body:not([data-profile=veda]) .store-chip{color:var(--accent);}
 body:not([data-profile=veda]) #view-switch button.on{box-shadow:inset 0 0 0 1px var(--accent);}
 body:not([data-profile=veda]) #pwx-box ol li:before{
@@ -492,9 +538,14 @@ body:not([data-profile=veda]) .store-chip .x:hover{
 .li-check-btn{color:var(--accent);}
 .li-spin{font-weight:800;}
 /* "prices dropped while you were away" banner */
-.pw-drops{background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;}
+/* Price drops are good news, so the card is keyed to the suite's soft green
+   rather than gold — it complements the gold/gray field without competing with
+   the primary accent, and the interior stays a whisper rather than a wash. */
+.pw-drops{background:rgba(164,185,134,0.07);border:1px solid rgba(164,185,134,0.45);border-left:3px solid var(--good);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;}
+body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color:rgba(143,174,138,0.45);}
 .pw-drops-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
 .pw-drops-title{font-weight:500;font-size:13px;color:var(--text);}
+.pw-drops-title svg{color:var(--good);}
 .pw-drops-x{border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:16px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:8px;flex-shrink:0;}
 .pw-drops-x:hover{background:var(--surface2);color:var(--text);}
 .pw-drops-row{font-size:13px;color:var(--textdim);padding:3px 0;}
@@ -532,7 +583,7 @@ body:not([data-profile=veda]) .store-chip .x:hover{
 .rec-tools{display:flex;gap:8px;flex-wrap:wrap;}
 .rec-tool{background:var(--surface2);border:1px solid var(--border2);border-radius:18px;padding:6px 13px;font-size:12.5px;color:var(--textdim);font-weight:600;}
 .rec-instr{white-space:pre-wrap;line-height:1.65;color:var(--text);font-size:14.5px;}
-.rec-muted{font-size:13px;color:var(--textmute);font-style:italic;}
+.rec-muted{font-size:13px;color:var(--textmute);font-style:normal;font-family:var(--font-accent);}
 /* editable instruction steps (detail view) */
 .rec-steps{display:flex;flex-direction:column;gap:1px;margin-bottom:4px;}
 .rec-step{display:flex;gap:10px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid var(--border);}
@@ -781,11 +832,13 @@ body:not([data-profile=veda]) .store-chip .x:hover{
   <input id="lock-pw" type="password" placeholder="• • • •" autocomplete="off" inputmode="text">
   <div id="lock-err"></div>
   <div id="lock-row">
-    <button class="btn ghost" id="lock-cancel" onclick="ML.lockCancel()">Cancel</button>
     <button class="btn solid" id="lock-submit" onclick="ML.lockSubmit()">Unlock</button>
   </div>
   <button id="lock-forgot" onclick="ML.lockForgot()">Forgot password?</button>
   <button id="lock-reset" onclick="ML.lockReset()">Reset password via email</button>
+  <div id="lock-foot">
+    <button id="lock-cancel" onclick="ML.lockCancel()">Cancel</button>
+  </div>
 </div></div>
 
 <!-- ── Install PriceWatch (same package-in-the-browser flow as Index's "Install
@@ -3086,7 +3139,7 @@ function pwRowHtml(it){
   var checked = it.lastChecked ? ('checked '+pwDateShort(it.lastChecked)) : 'never checked';
   var h='<div class="pw-row'+(expanded?' open':'')+'" data-id="'+it.id+'">';
   h+='<div class="pw-main" onclick="ML.pwToggle(\''+it.id+'\')">';
-  h+='<div class="pw-info"><div class="pw-name">'+esc(it.itemName)+(it.qty?' <span class="pw-qty">×'+esc(it.qty)+'</span>':'')+(it.brandLock?'<span class="pw-brand">🔒 '+esc(it.brandLock)+'</span>':'')+(it.fromList?'<span class="pw-brand">📋 from list</span>':'')+'</div>';
+  h+='<div class="pw-info"><div class="pw-name">'+esc(it.itemName)+(it.qty?' <span class="pw-qty">×'+esc(it.qty)+'</span>':'')+(it.brandLock?'<span class="pw-brand">'+MLI.lock+esc(it.brandLock)+'</span>':'')+(it.fromList?'<span class="pw-brand">'+MLI.tag+'from list</span>':'')+'</div>';
   h+='<div class="pw-meta">'+atStore+' · '+esc(checked)+'</div></div>';
   h+='<div class="pw-priceblock"><div class="pw-price">'+price+'</div>'+delta+'</div>';
   h+='</div>';

@@ -11,9 +11,40 @@
 <meta name="theme-color" content="#F2EEF0" media="(prefers-color-scheme: light)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=Lora:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- App icon: gold line mark on the suite charcoal, drawn on the same grid
+     and stroke weight as Vault's lock — the four apps read as one family. -->
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22TradeHub%22%2C%22short_name%22%3A%22TradeHub%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Ftradehub.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Ftradehub.html%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2527http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2527%2520viewBox%253D%25270%25200%252096%252096%2527%253E%253Crect%2520width%253D%252796%2527%2520height%253D%252796%2527%2520rx%253D%252722%2527%2520fill%253D%2527%25231a1a1d%2527%252F%253E%253Cg%2520fill%253D%2527none%2527%2520stroke%253D%2527%2523d4a659%2527%2520stroke-width%253D%25275%2527%2520stroke-linecap%253D%2527round%2527%2520stroke-linejoin%253D%2527round%2527%253E%253Cpath%2520d%253D%2527M24%252022v50a2%25202%25200%25200%25200%25202%25202h48%2527%252F%253E%253Cpath%2520d%253D%2527M34%252062l12-14%252010%25209%252016-21%2527%252F%253E%253Cpath%2520d%253D%2527M60%252036h12v12%2527%252F%253E%253C%252Fg%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23d4a659%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M24%2022v50a2%202%200%200%200%202%202h48%27%2F%3E%3Cpath%20d%3D%27M34%2062l12-14%2010%209%2016-21%27%2F%3E%3Cpath%20d%3D%27M60%2036h12v12%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23d4a659%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M24%2022v50a2%202%200%200%200%202%202h48%27%2F%3E%3Cpath%20d%3D%27M34%2062l12-14%2010%209%2016-21%27%2F%3E%3Cpath%20d%3D%27M60%2036h12v12%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=Lora:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+/* ══════════════════════════════════════════════════════════════════════════
+   SUITE DESIGN TOKENS — mirrored from index.html. Two golds, one display face,
+   one accent face; every app in the ecosystem draws from the same values.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --gold-primary:#d4a659;    /* borders, rings, active states, icons          */
+  --gold-secondary:#edc884;  /* champagne — accent text on dark surfaces      */
+  --gold-line:rgba(212,166,89,.36);
+  --gold-glow:0 0 8px rgba(212,166,89,0.40),0 0 0 1px rgba(212,166,89,0.15);
+  --font-display:'Fraunces','Manrope',Georgia,serif;
+  --font-accent:'Fraunces',Georgia,serif;
+}
+.suite-title{
+  font-family:var(--font-display);
+  font-variation-settings:'opsz' 96,'SOFT' 0,'WONK' 0;
+  font-weight:600;letter-spacing:-.5px;line-height:1.15;
+  background:linear-gradient(180deg,var(--gold-secondary) 0%,var(--gold-primary) 92%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:var(--gold-secondary);
+}
+.suite-accent{
+  font-family:var(--font-accent);
+  font-variation-settings:'opsz' 20,'SOFT' 0,'WONK' 0;
+  font-style:normal;letter-spacing:.1px;
+}
+
   html,body{margin:0;padding:0;background:#1a1a1d;}
   body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
   button{touch-action:manipulation;}
@@ -23,12 +54,17 @@
 
   /* ── App Lock overlay (mirrors index.html applock) ── */
   #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;background-image:radial-gradient(120% 50% at 50% -10%,rgba(212,166,89,.065),transparent 70%);display:none;align-items:center;justify-content:center;font-family:'Inter',system-ui,-apple-system,sans-serif;}
-  #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:40px 32px;background:transparent;border:none;width:340px;max-width:90vw;position:relative;}
+  /* Bordered lock card — same surface the whole suite authenticates through. */
+  #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:34px 30px 22px;background:#232327;border:1px solid rgba(212,166,89,.22);border-radius:18px;width:350px;max-width:calc(100vw - 32px);box-shadow:0 32px 80px rgba(0,0,0,.7);position:relative;}
+  #applock-head{text-align:center;display:flex;flex-direction:column;gap:5px;}
+  #applock-form{width:100%;display:flex;flex-direction:column;gap:10px;}
+  #applock-links{display:flex;flex-direction:column;align-items:center;gap:5px;}
+  #applock-foot{width:100%;padding-top:14px;border-top:1px solid #34343a;display:flex;justify-content:center;}
   @keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
   #applock-box.shake{animation:applock-shake 0.4s ease;}
   #applock-icon{line-height:0;color:#d4a659;}
   #applock-icon svg{width:30px;height:30px;display:block;}
-  #applock-title{font-family:'Manrope',system-ui,-apple-system,sans-serif;font-size:26px;font-weight:600;letter-spacing:-.3px;color:#f4f3f0;margin-bottom:6px;}
+  #applock-title{font-family:var(--font-display);font-variation-settings:'opsz' 96;font-size:25px;font-weight:600;letter-spacing:-.4px;color:#f4f3f0;}
   #applock-sub{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:#8d8d94;text-align:center;}
   #applock-pw{background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:15px;font-weight:500;padding:14px 16px;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s;}
   #applock-pw:focus{border-color:#d4a659;}
@@ -37,7 +73,7 @@
   #applock-submit{background:transparent;color:#edc884;border:1px solid rgba(212,166,89,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100%;transition:border-color .18s,opacity .18s;}
   #applock-submit:hover:not(:disabled){border-color:#d4a659;}
   #applock-submit:disabled{opacity:0.4;cursor:default;}
-  #applock-cancel{background:transparent;border:none;color:#8d8d94;font-size:12px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;padding:0;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
+  #applock-cancel{background:transparent;border:none;color:#8d8d94;font-size:13px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;padding:2px 10px;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
   #applock-forgot{background:transparent;border:none;color:#8d8d94;font-size:12px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;padding:0;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
   #applock-reset{background:transparent;border:none;color:#8d8d94;font-size:12px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;padding:2px 0 0;text-decoration:underline;text-underline-offset:3px;width:100%;text-align:center;transition:color .15s;}
   #applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:#adadb2;}
@@ -143,20 +179,22 @@
 <div id="applock-overlay">
   <div id="applock-box">
     <div id="applock-icon"></div>
-    <div style="text-align:center;">
+    <div id="applock-head">
       <div id="applock-title">Locked</div>
       <div id="applock-sub">Enter your password to open TradeHub.</div>
     </div>
-    <div style="width:100%;display:flex;flex-direction:column;gap:10px;">
+    <div id="applock-form">
       <div id="applock-bio"></div>
       <input id="applock-pw" type="password" placeholder="Password" autocomplete="off" />
       <div id="applock-err"></div>
       <button id="applock-submit">Unlock</button>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div id="applock-links">
         <button id="applock-forgot">Forgot password?</button>
-        <button id="applock-cancel">Cancel</button>
+        <button id="applock-reset">Reset password via email</button>
       </div>
-      <button id="applock-reset">Reset password via email</button>
+    </div>
+    <div id="applock-foot">
+      <button id="applock-cancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -922,6 +960,8 @@ const TBI=(()=>{
     arrowUp:  I('<path d="M12 20V5"/><path d="m6 11 6-6 6 6"/>'),
     arrowDown:I('<path d="M12 4v15"/><path d="m6 13 6 6 6-6"/>'),
     sort:     I('<path d="m8 4 0 16"/><path d="m5 17 3 3 3-3"/><path d="m16 20 0-16"/><path d="m13 7 3-3 3 3"/>'),
+    plus:     I('<path d="M12 5v14"/><path d="M5 12h14"/>'),
+    fileIn:   I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/>'),
     dot:      I('<circle cx="12" cy="12" r="5" fill="currentColor"/>')
   };
 })();
@@ -1178,7 +1218,7 @@ const TB_STYLES=`
 #tradeboard-root .tb-pb-doc mark{background:rgba(212,166,89,0.22);color:var(--tx);border-radius:3px;padding:0 3px;}
 /* Placeholder — driven by a data attr, not :empty, because contentEditable keeps
    a stray <br> in an "empty" doc and :empty would never match. */
-#tradeboard-root .tb-pb-doc[data-empty="1"]::before{content:attr(data-placeholder);color:var(--txm);font-style:italic;pointer-events:none;}
+#tradeboard-root .tb-pb-doc[data-empty="1"]::before{content:attr(data-placeholder);color:var(--txm);font-style:normal;font-family:var(--font-accent);pointer-events:none;}
 /* ── Formatting toolbar ──────────────────────────────────────────────────────
    Every control preventDefaults its mousedown so the editor keeps its selection,
    then runs an execCommand on it — the standard rich-text pattern, and cleaner
@@ -2156,7 +2196,7 @@ function TBTradeRow({trade,onClick,asFragment}){
       <td style={{padding:'11px 14px',textAlign:'right'}}>{s.netPnL!=null?<span style={{fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:14,color:tbPnlCol(s.netPnL)}}>{tbFmt$(s.netPnL)}</span>:<span style={{color:'var(--txm)',fontSize:11}}>—</span>}</td>
       <td style={{padding:'11px 14px',textAlign:'right'}}>{s.pnlPct!=null?<span style={{fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:12,color:tbPnlCol(s.pnlPct)}}>{tbFmtPct(s.pnlPct)}</span>:<span style={{color:'var(--txm)',fontSize:11}}>—</span>}</td>
       <td style={{padding:'11px 14px'}}>{trade.setupType&&<span style={{fontSize:10,color:'var(--txm)',background:'var(--s2)',borderRadius:4,padding:'2px 7px',fontWeight:600}}>{trade.setupType}</span>}</td>
-      <td style={{padding:'11px 14px',maxWidth:160}}>{trade.notes?<span style={{fontSize:13,color:'var(--txd)',fontFamily:'Manrope,system-ui,sans-serif',fontStyle:'italic',display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{trade.notes}</span>:<span style={{fontSize:13,color:'var(--txm)',fontStyle:'italic'}}>—</span>}</td>
+      <td style={{padding:'11px 14px',maxWidth:160}}>{trade.notes?<span style={{fontSize:13,color:'var(--txd)',fontFamily:"var(--font-accent)",fontStyle:'normal',display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{trade.notes}</span>:<span style={{fontSize:13,color:'var(--txm)',fontFamily:'var(--font-accent)'}}>—</span>}</td>
     </React.Fragment>);
   if(asFragment)return cells;
   return(<tr onClick={onClick} style={{borderBottom:'1px solid var(--bd)',cursor:'pointer',transition:'background .1s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>{cells}</tr>);
@@ -2336,15 +2376,15 @@ function TBJournalPage(){
           <div style={{fontSize:13,color:'var(--txm)'}}>{jHook.trades.length} trades</div>
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-        {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doSync} disabled={jHook.syncing||syncing} style={{fontSize:13}}>{jHook.syncing||syncing?'⟳ Syncing…':'⟳ Webull Sync'}</button>}
-        {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doRemerge} disabled={remerging||jHook.syncing||syncing} style={{fontSize:13}} title="Rebuild Webull trades from fills with correct FIFO grouping">{remerging?'⟳ Re-merging…':'⤳ Re-merge'}</button>}
-        {!selectMode&&<button className="tb-btn-ghost" onClick={()=>setModal('add')} style={{fontSize:13}}>＋ Manual Trade</button>}
-        {!selectMode&&<button className="tb-btn-ghost" onClick={()=>csvInputRef.current&&csvInputRef.current.click()} disabled={csvImporting} style={{fontSize:13}}>{csvImporting?'⏳ Importing…':'📂 Import CSV'}</button>}
+        {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doSync} disabled={jHook.syncing||syncing} style={{fontSize:13}}><><TBIcon n="refresh"/> {jHook.syncing||syncing?'Syncing…':'Webull Sync'}</></button>}
+        {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doRemerge} disabled={remerging||jHook.syncing||syncing} style={{fontSize:13}} title="Rebuild Webull trades from fills with correct FIFO grouping"><><TBIcon n="rotateCcw"/> {remerging?'Re-merging…':'Re-merge'}</></button>}
+        {!selectMode&&<button className="tb-btn-ghost" onClick={()=>setModal('add')} style={{fontSize:13}}><TBIcon n="plus"/> Manual Trade</button>}
+        {!selectMode&&<button className="tb-btn-ghost" onClick={()=>csvInputRef.current&&csvInputRef.current.click()} disabled={csvImporting} style={{fontSize:13}}><><TBIcon n="fileIn"/> {csvImporting?'Importing…':'Import CSV'}</></button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={doExportCSV} disabled={!jHook.trades.length} style={{fontSize:13}}><TBIcon n="download"/> Export CSV</button>}
         {!selectMode&&<button className="tb-btn-ghost" onClick={()=>setSelectMode(true)} style={{fontSize:13}}><TBIcon n="check"/> Select</button>}
         {selectMode&&<span style={{fontSize:13,color:'var(--txm)',fontWeight:600}}>{selected.size} selected</span>}
         {selectMode&&<button className="tb-btn-ghost" onClick={selectAll} style={{fontSize:12}}>Select All</button>}
-        {selectMode&&selected.size>0&&<button onClick={deleteSelected} style={{display:'inline-flex',alignItems:'center',gap:5,background:'rgba(214,138,124,0.12)',color:'var(--tbr)',border:'1.5px solid rgba(214,138,124,0.35)',borderRadius:100,padding:'7px 16px',fontSize:13,fontWeight:700,cursor:'pointer'}}>🗑 Delete {selected.size}</button>}
+        {selectMode&&selected.size>0&&<button onClick={deleteSelected} style={{display:'inline-flex',alignItems:'center',gap:5,background:'rgba(214,138,124,0.12)',color:'var(--tbr)',border:'1.5px solid rgba(214,138,124,0.35)',borderRadius:100,padding:'7px 16px',fontSize:13,fontWeight:700,cursor:'pointer',display:'inline-flex',alignItems:'center',gap:6}}><TBIcon n="trash"/> Delete {selected.size}</button>}
         {selectMode&&<button className="tb-btn-ghost" onClick={clearSelect} style={{fontSize:12}}>Cancel</button>}
         <input ref={csvInputRef} type="file" accept=".csv,text/csv" style={{display:'none'}} onChange={doImportCSV}/>
         </div>
@@ -2356,7 +2396,7 @@ function TBJournalPage(){
       </div>
       <div className="tb-card" style={{padding:0,overflow:'hidden'}}>
         {jHook.loading&&<div style={{padding:'16px 20px',fontSize:14,color:'var(--txm)'}}>Loading…</div>}
-        {!jHook.loading&&filtered.length===0&&<div style={{padding:'52px',textAlign:'center',fontFamily:'Manrope,system-ui,sans-serif',fontSize:15,color:'var(--txm)',fontStyle:'italic'}}>No trades yet. Click "⟳ Webull Sync" to pull from Webull, or "＋ Manual Trade" to log one manually.</div>}
+        {!jHook.loading&&filtered.length===0&&<div style={{padding:'52px',textAlign:'center',fontFamily:'var(--font-accent)',fontSize:15,color:'var(--txm)'}}>No trades yet. Click "⟳ Webull Sync" to pull from Webull, or "＋ Manual Trade" to log one manually.</div>}
         {filtered.length>0&&isMobile&&(
           <div style={{display:'flex',flexDirection:'column'}}>
             {filtered.map(t=>{
@@ -2387,7 +2427,7 @@ function TBJournalPage(){
                   {s.holdTime&&<span style={{fontSize:13,color:'var(--ac)',fontWeight:600}}>{s.holdTime}</span>}
                   {t.setupType&&<span style={{fontSize:10,color:'var(--txm)',background:'var(--s2)',borderRadius:4,padding:'1px 6px',fontWeight:600}}>{t.setupType}</span>}
                 </div>
-                {t.notes&&<div style={{fontSize:13,color:'var(--txd)',fontFamily:'Manrope,system-ui,sans-serif',fontStyle:'italic',marginTop:4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.notes}</div>}
+                {t.notes&&<div style={{fontSize:13,color:'var(--txd)',fontFamily:'var(--font-accent)',marginTop:4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.notes}</div>}
               </div>);
             })}
           </div>
@@ -2533,7 +2573,9 @@ function TBMarketStatus({isMobile}){
   useEffect(()=>{const id=setInterval(()=>setNow(new Date()),1000);return()=>clearInterval(id);},[]);
   const st=useMemo(()=>tbMktState(now),[now]);
   const PHASE={
-    regular:{label:'OPEN',sub:'Regular Hours',tone:'#3fb950'},
+    // Sage, not signal-green: the same soft green the rest of the suite uses for
+    // "good", so the OPEN rail sits beside the gold instead of shouting over it.
+    regular:{label:'OPEN',sub:'Regular Hours',tone:'#a4b986'},
     pre:    {label:'PRE-MARKET',sub:'Extended Hours',tone:'#e0b57c'},
     after:  {label:'AFTER HOURS',sub:'Extended Hours',tone:'#58a6ff'},
     closed: {label:'CLOSED',sub:st.holiday||(st.tradable?'Market Closed':'Weekend'),tone:'#adadb2'},
@@ -2735,7 +2777,7 @@ function TBPortfolioPage(){
       {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'6px 16px',borderRadius:8,border:'none',background:tab===t.id?'var(--s3)':'transparent',color:tab===t.id?'var(--tx)':'var(--txm)',fontSize:12,fontWeight:tab===t.id?700:500,cursor:'pointer',transition:'all .15s'}}>{t.label}{t.count>0?` (${t.count})`:''}</button>))}
     </div>
     {tab==='positions'&&<div className="tb-card" style={{padding:0,overflow:'hidden'}}>
-      {!positions.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:'italic',fontSize:13}}>No open positions.</div>:
+      {!positions.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:"normal",fontFamily:"var(--font-accent)",fontSize:13}}>No open positions.</div>:
       <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
         <thead><tr>{['Symbol','Market Val','Unreal P&L','% P&L','Day %','Qty'].map(h=><th key={h} style={{padding:'9px 14px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:'right',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
         <tbody>{positions.map((p,i)=>(<tr key={i} style={{borderBottom:'1px solid var(--bd)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
@@ -2749,7 +2791,7 @@ function TBPortfolioPage(){
       </table></div>}
     </div>}
     {tab==='orders'&&<div className="tb-card" style={{padding:0,overflow:'hidden'}}>
-      {!orders.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:'italic',fontSize:13}}>No open orders.</div>:
+      {!orders.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:"normal",fontFamily:"var(--font-accent)",fontSize:13}}>No open orders.</div>:
       <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
         <thead><tr>{['Symbol','Action','Qty','Filled','Price','Type','Status','Date'].map(h=><th key={h} style={{padding:'9px 12px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:'left',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
         <tbody>{orders.map((o,i)=>(<tr key={i} style={{borderBottom:'1px solid var(--bd)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
@@ -2765,7 +2807,7 @@ function TBPortfolioPage(){
       </table></div>}
     </div>}
     {tab==='history'&&<div className="tb-card" style={{padding:0,overflow:'hidden'}}>
-      {!history.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:'italic',fontSize:13}}>No trade history available. Sync Webull to populate.</div>:
+      {!history.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:"normal",fontFamily:"var(--font-accent)",fontSize:13}}>No trade history available. Sync Webull to populate.</div>:
       <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
         <thead><tr>{['Date','Symbol','Action','Qty','Avg Price','Total','Fees','Status'].map(h=><th key={h} style={{padding:'9px 12px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:h==='Symbol'||h==='Action'||h==='Status'?'left':'right',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
         <tbody>{history.map((h,i)=>{
@@ -2789,7 +2831,7 @@ function TBPortfolioPage(){
       </table></div>}
     </div>}
     {tab==='activity'&&<div className="tb-card" style={{padding:0,overflow:'hidden'}}>
-      {!activities.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:'italic',fontSize:13}}>No activity available.</div>:
+      {!activities.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:"normal",fontFamily:"var(--font-accent)",fontSize:13}}>No activity available.</div>:
       <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
         <thead><tr>{['Date','Type','Symbol','Amount','Description'].map(h=><th key={h} style={{padding:'9px 12px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:'left',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
         <tbody>{activities.map((a,i)=>{
@@ -2864,7 +2906,7 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast}){
 
     {/* Ticker chips — bigger, more legible */}
     <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:22}}>
-      {watchlist.length===0&&<span style={{fontSize:13,color:'var(--txm)',fontStyle:'italic'}}>No tickers — add some above or reset to default.</span>}
+      {watchlist.length===0&&<span style={{fontSize:13,color:'var(--txm)',fontFamily:'var(--font-accent)'}}>No tickers — add some above or reset to default.</span>}
       {[...watchlist].sort().map(t=>(
         <span key={t} style={{display:'inline-flex',alignItems:'center',gap:8,padding:'7px 8px 7px 13px',borderRadius:10,border:'1px solid var(--bd)',background:'var(--s1)'}}>
           <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:800,letterSpacing:0.5,color:'var(--tx)'}}>{t}</span>
@@ -2893,7 +2935,7 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast}){
     {/* Derived sectors */}
     <div style={{fontSize:11,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:10}}>Auto-derived sectors</div>
     <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
-      {sectors.length===0&&<span style={{fontSize:13,color:'var(--txm)',fontStyle:'italic'}}>—</span>}
+      {sectors.length===0&&<span style={{fontSize:13,color:'var(--txm)',fontFamily:'var(--font-accent)'}}>—</span>}
       {sectors.map(s=>(
         <span key={s} style={{fontSize:12,fontWeight:600,padding:'3px 9px',borderRadius:5,background:'transparent',border:'1px solid var(--bd)',color:'var(--txd)'}}>{s}</span>
       ))}
@@ -3055,8 +3097,8 @@ function TBPromptPage({prompts,onSave,onToast}){
     <div className="tb-card" style={{padding:0,overflow:'hidden'}}>
       <div style={{display:'flex',alignItems:'center',padding:'12px 18px',borderBottom:'1px solid var(--bd)',gap:10}}>
         {editing
-          ?<input value={editName} onChange={e=>setEditName(e.target.value)} style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:15,fontWeight:700,color:'var(--tx)',background:'transparent',border:'none',outline:'none',flex:1,fontStyle:'italic'}}/>
-          :<div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:15,fontWeight:700,color:'var(--tx)',flex:1,fontStyle:'italic'}}>{cur?.name}</div>}
+          ?<input value={editName} onChange={e=>setEditName(e.target.value)} style={{fontFamily:'var(--font-accent)',fontSize:15,fontWeight:700,color:'var(--tx)',background:'transparent',border:'none',outline:'none',flex:1}}/>
+          :<div style={{fontFamily:'var(--font-accent)',fontSize:15,fontWeight:700,color:'var(--tx)',flex:1}}>{cur?.name}</div>}
         <div style={{display:'flex',gap:8,flexShrink:0,flexWrap:'wrap'}}>
           {editing?(<><button className="tb-btn-primary" onClick={saveEdit} style={{fontSize:13}}>Save</button><button className="tb-btn-ghost" style={{fontSize:13}} onClick={()=>{setEditing(false);setEditText(cur.text);setEditName(cur.name);}} style={{fontSize:11}}>Cancel</button></>):(<><button className="tb-btn-ghost" onClick={copy} style={{fontSize:13}}>{copied?'✓ Copied!':'Copy'}</button><button className="tb-btn-ghost" onClick={()=>setEditing(true)} style={{fontSize:13}}>Edit</button>{prompts.length>1&&<button className="tb-btn-danger" onClick={deletePrompt} style={{fontSize:13}}>Delete</button>}</>)}
         </div>
@@ -3320,8 +3362,8 @@ function TBPromptSelect({prompts,value,onChange,onGoToPrompts}){
   return <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
     {prompts.map(p=>{const on=p.id===effective;return(
       <button key={p.id} onClick={()=>onChange(p.id)} title={p.name}
-        style={{padding:"6px 16px",borderRadius:100,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"rgba(212,166,89,0.12)":"transparent",color:on?"var(--ac)":"var(--txd)",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all .15s",maxWidth:220,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</button>);})}
-    {onGoToPrompts&&<button onClick={onGoToPrompts} title="Manage prompts" style={{padding:"6px 12px",borderRadius:100,border:"1px solid var(--bd)",background:"transparent",color:"var(--txm)",fontSize:12,fontWeight:700,cursor:"pointer"}}>✎ Edit in Prompts</button>}
+        style={{padding:"6px 16px",borderRadius:100,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:"transparent",color:on?"var(--acs)":"var(--txd)",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all .15s",maxWidth:220,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",boxShadow:on?"0 0 8px rgba(212,166,89,0.34),0 0 0 1px rgba(212,166,89,0.14)":"none"}}>{p.name}</button>);})}
+    {onGoToPrompts&&<button onClick={onGoToPrompts} title="Manage prompts" style={{padding:"6px 12px",borderRadius:100,border:"1px solid var(--bd)",background:"transparent",color:"var(--txm)",fontSize:12,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><TBIcon n="pencil" size={12}/>Edit in Prompts</button>}
   </div>;
 }
 
@@ -3344,15 +3386,15 @@ function TBBoardPromptPicker({prompts,value,onChange,onGoToPrompts,isMobile}){
   return <div className="tb-card" style={{marginBottom:16,padding:isMobile?14:16}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:11}}>
       <div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:1.5,color:"var(--txm)",display:'flex',alignItems:'center',gap:7}}><TBIcon n="command" size={12}/>Select Prompt</div>
-      {onGoToPrompts&&<button onClick={onGoToPrompts} title="Prompts are edited in the Prompts tab" style={{padding:"5px 12px",borderRadius:100,border:"1px solid var(--bd)",background:"transparent",color:"var(--txm)",fontSize:11.5,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>✎ Edit in Prompts</button>}
+      {onGoToPrompts&&<button onClick={onGoToPrompts} title="Prompts are edited in the Prompts tab" style={{padding:"5px 12px",borderRadius:100,border:"1px solid var(--bd)",background:"transparent",color:"var(--txm)",fontSize:11.5,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:6}}><TBIcon n="pencil" size={12}/>Edit in Prompts</button>}
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(230px,1fr))",gap:10}}>
       {prompts.map(p=>{const on=p.id===effective;return(
         <button key={p.id} onClick={()=>onChange(p.id)} title={p.name}
-          style={{textAlign:"left",padding:"12px 14px",borderRadius:12,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"rgba(212,166,89,0.10)":"var(--s2)",cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",gap:6}}>
+          style={{textAlign:"left",padding:"12px 14px",borderRadius:12,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:"var(--s2)",cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",gap:6,boxShadow:on?"0 0 10px rgba(212,166,89,0.30),0 0 0 1px rgba(212,166,89,0.14)":"none"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{width:15,height:15,borderRadius:"50%",border:`2px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"var(--ac)":"transparent",flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{on&&<span style={{width:5,height:5,borderRadius:"50%",background:"#fff"}}/>}</span>
-            <span style={{fontSize:14,fontWeight:800,color:on?"var(--ac)":"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</span>
+            <span style={{width:15,height:15,borderRadius:"50%",border:`2px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"var(--ac)":"transparent",flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{on&&<span style={{width:5,height:5,borderRadius:"50%",background:"var(--bg)"}}/>}</span>
+            <span style={{fontSize:14,fontWeight:800,color:on?"var(--acs)":"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</span>
           </div>
           <div style={{fontSize:11.5,color:"var(--txm)",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{tdbPromptPreview(p.text)}</div>
         </button>);})}
@@ -3617,9 +3659,9 @@ function TBTabLockPrompt({tabId,tabLabel,onUnlocked}){
     <TBIcon n="lock" size={34} style={{color:'var(--ac)'}}/>
     <div>
       <div style={{fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",fontSize:22,fontWeight:700,color:'var(--tx)'}}>{tabLabel} is locked</div>
-      <div style={{fontSize:13,color:'var(--txm)',marginTop:4,fontStyle:'italic'}}>Enter the password to open this tab.</div>
+      <div style={{fontSize:13,color:'var(--txm)',marginTop:4,fontFamily:'var(--font-accent)'}}>Enter the password to open this tab.</div>
     </div>
-    {bioReady&&<button onClick={bioUnlock} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:6,padding:'12px 0',fontSize:13.5,fontWeight:500,letterSpacing:.2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',color:'var(--acs)',borderColor:'var(--acl)',padding:'14px 0',cursor:'pointer'}}>🔓  Unlock with {window.Bio.label()}</button>}
+    {bioReady&&<button onClick={bioUnlock} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:6,padding:'12px 0',fontSize:13.5,fontWeight:500,letterSpacing:.2,cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',color:'var(--acs)',borderColor:'var(--acl)',padding:'14px 0',cursor:'pointer'}}><TBIcon n="unlock" size={15}/> Unlock with {window.Bio.label()}</button>}
     {showPw&&<input type="password" value={pw} autoFocus onChange={e=>{setPw(e.target.value);setErr('');}} onKeyDown={e=>{if(e.key==='Enter')submit();}}
       placeholder="Password" style={{width:'100%',background:'var(--s2)',border:`1px solid ${err?'var(--tbr)':'var(--bd)'}`,borderRadius:6,color:'var(--tx)',fontSize:15,fontWeight:500,padding:'14px 16px',textAlign:'center',letterSpacing:4,outline:'none',boxSizing:'border-box'}}/>}
     {err&&<div style={{fontSize:12,color:'var(--tbr)',fontWeight:700,minHeight:14}}>{err}</div>}
@@ -3903,8 +3945,8 @@ function TBHeader({page,onNav,syncStatus,portfolioConnected,isDark,onToggleTheme
       {/* Row 1: logo + sync — right side empty, ✦ profile btn lives in fixed nav above */}
       <div style={{padding:'calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 0',display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
         <div style={{display:'flex',flexDirection:'column',gap:2}}>
-          <div style={{fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",fontSize:'clamp(19px,2.8vw,26px)',fontWeight:700,letterSpacing:-0.3,whiteSpace:'nowrap',lineHeight:1.1}}>
-            <span style={{background:'linear-gradient(180deg,#f4d795 0%,#d4a659 90%)',WebkitBackgroundClip:'text',backgroundClip:'text',WebkitTextFillColor:'transparent',color:'#edc884'}}>TradeHub</span>
+          <div style={{fontSize:'clamp(21px,3vw,29px)',whiteSpace:'nowrap'}}>
+            <span className="suite-title">TradeHub</span>
           </div>
           <span style={{fontSize:10,fontWeight:600,whiteSpace:'nowrap',visibility:syncVisible?'visible':'hidden',color:syncColor}}>{syncLabel}</span>
         </div>
@@ -3935,8 +3977,8 @@ function TBMobileHeader({page,syncStatus,portfolioConnected,onNav,isDark,onToggl
     {/* Row 1: title + sync — right side empty so fixed ✦ profile btn doesn't overlap */}
     <div style={{padding:'calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 0',display:'flex',alignItems:'flex-start',justifyContent:'space-between',minHeight:30}}>
       <div style={{display:'flex',flexDirection:'column',gap:2}}>
-        <div style={{fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",fontSize:20,fontWeight:700,letterSpacing:-0.3,whiteSpace:'nowrap'}}>
-          <span style={{background:'linear-gradient(180deg,#f4d795 0%,#d4a659 90%)',WebkitBackgroundClip:'text',backgroundClip:'text',WebkitTextFillColor:'transparent',color:'#edc884'}}>TradeHub</span>
+        <div style={{fontSize:22,whiteSpace:'nowrap'}}>
+          <span className="suite-title">TradeHub</span>
         </div>
         <span style={{fontSize:10,fontWeight:600,visibility:syncVisible?'visible':'hidden',color:syncColor,lineHeight:1}}>{syncLabel}</span>
       </div>
@@ -4029,7 +4071,7 @@ function TBDashboardPage({report,onImport,onSaveReport,reports,onUpdateReports})
           <span style={{fontFamily:'IBM Plex Mono,monospace',fontSize:12,fontWeight:700,color:'var(--ac)',background:'rgba(212,166,89,0.1)',padding:'2px 10px',borderRadius:6,letterSpacing:1,flexShrink:0}}>{s.ticker}</span>
           <div style={{flex:1}}>
             <div style={{fontSize:12,fontWeight:700,color:'var(--txd)',marginBottom:2}}>{s.setupType}</div>
-            {s.whyStrong&&<div style={{fontSize:13,color:'var(--txm)',fontFamily:'Manrope,system-ui,sans-serif',fontStyle:'italic'}}>{s.whyStrong.slice(0,160)}</div>}
+            {s.whyStrong&&<div style={{fontSize:13,color:'var(--txm)',fontFamily:'var(--font-accent)'}}>{s.whyStrong.slice(0,160)}</div>}
           </div>
         </div>))}
       </div>
@@ -4230,8 +4272,8 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:2}}>Prompt to copy</div>
           {selPromptText
-            ?<div style={{fontSize:13,color:'var(--tx)',wordBreak:'break-word',lineHeight:1.4}}>{selPromptText.length>120?selPromptText.slice(0,120)+'…':selPromptText}<span style={{marginLeft:6,fontSize:11,color:'var(--txd)',fontStyle:'italic'}}>({selPrompt.name} · {selPromptText.length} chars)</span></div>
-            :<div style={{fontSize:13,color:'var(--txd)',fontStyle:'italic'}}>No prompt selected</div>}
+            ?<div style={{fontSize:13,color:'var(--tx)',wordBreak:'break-word',lineHeight:1.4}}>{selPromptText.length>120?selPromptText.slice(0,120)+'…':selPromptText}<span style={{marginLeft:6,fontSize:11,color:'var(--txd)',fontFamily:'var(--font-accent)'}}>({selPrompt.name} · {selPromptText.length} chars)</span></div>
+            :<div style={{fontSize:13,color:'var(--txd)',fontFamily:'var(--font-accent)'}}>No prompt selected</div>}
         </div>
       </div>
       {searches.map((val,i)=>(
@@ -4241,7 +4283,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:2}}>Search / URL {i+1}</div>
             {(val||'').trim()
               ?<div style={{fontSize:13,color:'var(--tx)',wordBreak:'break-all',lineHeight:1.4}}>{val}</div>
-              :<div style={{fontSize:13,color:'var(--txd)',fontStyle:'italic'}}>Not set</div>}
+              :<div style={{fontSize:13,color:'var(--txd)',fontFamily:'var(--font-accent)'}}>Not set</div>}
           </div>
         </div>
       ))}
@@ -4518,7 +4560,7 @@ function NHHeadlineList({sources}){
           onMouseLeave={ev=>ev.currentTarget.style.color='var(--tx)'}>
           <span style={{color:'var(--txd)',opacity:0.5,flex:'none'}}>›</span>
           <span style={{fontSize:13,lineHeight:1.45,fontWeight:500}}>{s.headline}
-            <span style={{color:'var(--txm)',fontWeight:600,marginLeft:6,fontSize:11}}>{s.name}{s.ts?' · '+nhTimeAgo(s.ts):''}</span>
+            <span style={{color:'var(--txm)',fontWeight:500,marginLeft:6,fontSize:11,opacity:0.9}}>{s.name}{s.ts?' · '+nhTimeAgo(s.ts):''}</span>
           </span>
         </a>
       ))}
@@ -5076,7 +5118,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
                 {hl?(
                   <div style={{fontSize:12,lineHeight:1.4,color:'var(--txm)',marginTop:7,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{hl}</div>
                 ):(
-                  <div style={{fontSize:11,color:'var(--txm)',marginTop:7,fontStyle:'italic',opacity:0.7}}>No news in window</div>
+                  <div style={{fontSize:11,color:'var(--txm)',marginTop:7,fontStyle:"normal",fontFamily:"var(--font-accent)",opacity:0.7}}>No news in window</div>
                 )}
               </div>
             );
@@ -5232,9 +5274,11 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
                 <span style={{fontWeight:800,textTransform:'uppercase',letterSpacing:0.6,fontSize:10}}>Sources</span>
                 {shown.map((s,i)=>(<React.Fragment key={i}>
                   {i>0&&<span style={{opacity:0.4}}>·</span>}
-                  <a href={s.url} target="_blank" rel="noopener noreferrer" style={{color:'var(--txd)',textDecoration:'none',fontWeight:600}}
+                  {/* Outlet names are provenance, not content — they sit a step
+                      below the headline in the hierarchy, so grey not white. */}
+                  <a href={s.url} target="_blank" rel="noopener noreferrer" style={{color:'var(--txm)',textDecoration:'none',fontWeight:600}}
                     onMouseEnter={ev=>ev.currentTarget.style.color='var(--ac)'}
-                    onMouseLeave={ev=>ev.currentTarget.style.color='var(--txd)'}>{s.name}</a>
+                    onMouseLeave={ev=>ev.currentTarget.style.color='var(--txm)'}>{s.name}</a>
                 </React.Fragment>))}
                 {extra>0&&<span>+ {extra} more</span>}
               </div>
@@ -7047,8 +7091,9 @@ function alShowManageMenu(){
   rb.style.cssText=s+'color:#d68a7c;border-color:rgba(214,138,124,.3);';
   rb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('remove'); };
   menu.appendChild(rb);
-  var cancelRow=_el('applock-cancel').parentNode;
-  cancelRow.insertBefore(menu, cancelRow.lastElementChild);
+  // Menu lives in the form column, above the ruled footer that owns Cancel.
+  var form=_el('applock-form')||_el('applock-cancel').parentNode;
+  form.appendChild(menu);
   _el('applock-overlay').style.display='flex';
 }
 

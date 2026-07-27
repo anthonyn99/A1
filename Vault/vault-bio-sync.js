@@ -79,4 +79,34 @@
       );
     } catch (err) {}
   });
+
+  // ── Keychain "Open all" relay ──
+  // The Vault web app's connection cards launch their links as one named,
+  // coloured tab group — identical to what the popup does — by handing the
+  // request to the background service worker through this same bridge. The page
+  // waits for our ack; if the extension isn't installed nothing answers and the
+  // page falls back to opening plain tabs on its own.
+  window.addEventListener('message', function (e) {
+    if (e.source !== window) return;
+    if (e.origin && e.origin.indexOf('https://anthonyn99.github.io') !== 0) return;
+    var d = e.data;
+    if (!d || d.source !== 'vault-page' || d.action !== 'openLinkGroup') return;
+    var urls = Array.isArray(d.urls) ? d.urls.filter(Boolean) : [];
+    if (!urls.length) return;
+    try {
+      chrome.runtime.sendMessage(
+        {
+          action: 'openLinks',
+          urls: urls,
+          group: urls.length > 1,
+          groupName: d.name || 'Links',
+          groupColor: d.color || '',
+        },
+        function () { void chrome.runtime.lastError; }
+      );
+      // Ack immediately — the request is in flight, so the page must not also
+      // open its fallback tabs and double every link.
+      window.postMessage({ source: 'vault-extension', action: 'openLinkGroupAck' }, e.origin || '*');
+    } catch (err) {}
+  });
 })();

@@ -156,7 +156,7 @@ function buildCard(conn, ci) {
   // Group-launch button only for 2+ links — a single link has its own Visit.
   // Opens every link and auto-wraps them in one named, color-matched tab group.
   const openGroupBtn = links.length > 1
-    ? `<button class="open-group" data-group="${ci}" title="Open all ${links.length} links as a tab group">Open ${links.length} tabs</button>`
+    ? `<button class="open-group" data-group="${ci}" title="Open all ${links.length} links as a tab group">Open ${links.length} Tab${links.length===1?"":"s"}</button>`
     : "";
 
   card.innerHTML = `

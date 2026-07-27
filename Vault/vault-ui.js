@@ -397,6 +397,28 @@
     var hbar = root && root.querySelector('.app-hbar');
     if (hbar) document.documentElement.style.setProperty('--vhbar-h', hbar.offsetHeight + 'px');
     var t = $('vault-tabs'); if (t) document.documentElement.style.setProperty('--vtabs-h', t.offsetHeight + 'px');
+    _watchStickyHeights(hbar, t);
+  }
+  // The tab bar pins at exactly the header's height. If that measurement goes
+  // stale — a webfont finishing, the sync line appearing, a rotation — the tabs
+  // pin a few pixels low and scrolled content shows through the seam. Observing
+  // both elements keeps the offset honest for the life of the page.
+  var _stickyRO = null;
+  function _watchStickyHeights(hbar, tabs) {
+    if (_stickyRO || typeof ResizeObserver === 'undefined') return;
+    _stickyRO = new ResizeObserver(function () {
+      var root = $('kc-root');
+      var h = root && root.querySelector('.app-hbar');
+      var t = $('vault-tabs');
+      if (h) document.documentElement.style.setProperty('--vhbar-h', h.offsetHeight + 'px');
+      if (t) document.documentElement.style.setProperty('--vtabs-h', t.offsetHeight + 'px');
+    });
+    if (hbar) _stickyRO.observe(hbar);
+    if (tabs) _stickyRO.observe(tabs);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { updateStickyOffset(); });
+    }
+    window.addEventListener('orientationchange', function () { setTimeout(updateStickyOffset, 120); });
   }
 
   // ── lock / setup screens ───────────────────────────────────────────────────
@@ -1658,6 +1680,9 @@
       '#kc-root{--vpad:clamp(10px,3vw,24px)}',
       '#kc-root{--vpadl:max(var(--vpad),env(safe-area-inset-left,0px));--vpadr:max(var(--vpad),env(safe-area-inset-right,0px))}',
       '.vault-tabs{display:flex;gap:8px;padding:12px var(--vpadr) 10px var(--vpadl);max-width:1100px;margin:0 auto;width:100%;position:sticky;top:var(--vhbar-h,60px);z-index:6;background:var(--bg)}',
+      // Bleed guard: extends the bar's own background 4px upward so no seam
+      // can open between it and the sticky header above.
+      '.vault-tabs::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:5px;background:var(--bg);pointer-events:none}',
       '.vault-tab{flex:0 0 auto;background:transparent;border:1px solid var(--bd);color:var(--txd);font-size:11px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;padding:0 14px;height:34px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:border-color .18s,color .18s}',
       '.vault-tab:hover{color:var(--tx);border-color:var(--txd)}.vault-tab.active{background:transparent;color:var(--acs,#edc884);border-color:var(--ac)}',
       '.vault-tab svg{display:block;width:15px;height:15px;flex-shrink:0}',
@@ -1740,7 +1765,7 @@
       // action buttons off-screen; the insets keep it clear of notch + home bar.
       '.vault-overlay{position:fixed;inset:0;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;z-index:99998;overflow-y:auto;',
       '  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}',
-      '.vault-modal{background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius);padding:22px;width:440px;max-width:100%;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;box-shadow:0 24px 70px rgba(0,0,0,.6)}',
+      '.vault-modal{background:var(--s2);border:1px solid #5b5b64;border-radius:var(--radius);padding:22px;width:440px;max-width:100%;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;box-shadow:0 0 0 1px rgba(212,166,89,.10),0 24px 70px rgba(0,0,0,.6)}',
       '.vault-modal-title{font-family:var(--display,inherit);font-size:20px;font-weight:600;letter-spacing:-.2px;color:var(--tx);margin-bottom:18px}',
       '.vault-field{margin-bottom:12px}.vault-flabel{display:block;font-size:10px;font-weight:500;color:var(--txm);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:7px}',
       '.vault-field .vault-input{margin-bottom:0}select.vault-input{cursor:pointer}',
