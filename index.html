@@ -4674,6 +4674,11 @@ function App(){
             })),
           (()=>{
             const w=wd[mobDayIdx],k=dkey(w.year,w.month,w.day),td=k===tk;
+            // Days still to come recede one step: their primary text drops from
+            // T.TX to T.TXD so the week reads as "today is live, the rest is
+            // upcoming" instead of every day shouting equally. dkey() is a
+            // zero-padded YYYY-MM-DD, so a plain string compare is a date compare.
+            const dayTX=k>tk?T.TXD:T.TX;
             const p=prog(k);
             const allItems=(data[k]||[]).filter(i=>!i._mc);
             const mcDay=mcByDay[k]||[];
@@ -4696,10 +4701,10 @@ function App(){
                     e.time&&React.createElement("span",{style:{fontSize:12,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto"}},fmt12h(e.time,k,e.tz))),
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5}},
                     e._pvTeam1Img&&React.createElement("img",{src:e._pvTeam1Img,style:{width:26,height:26,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
-                    React.createElement("span",{style:{fontSize:13,fontWeight:800,color:T.TX,lineHeight:1}},e._pvTeam1||"TBD"),
+                    React.createElement("span",{style:{fontSize:13,fontWeight:800,color:dayTX,lineHeight:1}},e._pvTeam1||"TBD"),
                     React.createElement("span",{style:{fontSize:13,fontWeight:900,color:"#8d8d94",margin:"0 4px"}},e._pvState==="inProgress"?"LIVE":"VS"),
                     e._pvTeam2Img&&React.createElement("img",{src:e._pvTeam2Img,style:{width:26,height:26,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
-                    React.createElement("span",{style:{fontSize:13,fontWeight:800,color:T.TX,lineHeight:1}},e._pvTeam2||"TBD")),
+                    React.createElement("span",{style:{fontSize:13,fontWeight:800,color:dayTX,lineHeight:1}},e._pvTeam2||"TBD")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 /* Completed box takes the task's category colour so a
@@ -4710,7 +4715,7 @@ function App(){
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   t.category&&React.createElement("span",{style:{...ctag(t.category),opacity:t.done?0.6:1}},t.category),
                   t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:t.done?0.4:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
-                React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word"}},t.title)),
+                React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:dayTX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word"}},t.title)),
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
               events.map(e=>e._pvMatch?React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:5,cursor:"default"}},
@@ -4720,10 +4725,10 @@ function App(){
                     e.time&&React.createElement("span",{style:{fontSize:12,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto"}},fmt12h(e.time,k,e.tz))),
                   React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:10}},
                     e._pvTeam1Img&&React.createElement("img",{src:e._pvTeam1Img,style:{width:36,height:36,objectFit:"contain",borderRadius:3},onError:ev=>ev.target.style.display="none"}),
-                    !e._pvTeam1Img&&React.createElement("span",{style:{fontSize:13,fontWeight:800,color:T.TX}},e._pvTeam1||""),
+                    !e._pvTeam1Img&&React.createElement("span",{style:{fontSize:13,fontWeight:800,color:dayTX}},e._pvTeam1||""),
                     React.createElement("span",{style:{fontSize:14,fontWeight:900,color:"#8d8d94",margin:"0 4px"}},e._pvState==="inProgress"?"LIVE":"VS"),
                     e._pvTeam2Img&&React.createElement("img",{src:e._pvTeam2Img,style:{width:36,height:36,objectFit:"contain",borderRadius:3},onError:ev=>ev.target.style.display="none"}),
-                    !e._pvTeam2Img&&React.createElement("span",{style:{fontSize:13,fontWeight:800,color:T.TX}},e._pvTeam2||"")),
+                    !e._pvTeam2Img&&React.createElement("span",{style:{fontSize:13,fontWeight:800,color:dayTX}},e._pvTeam2||"")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3,textAlign:"center"}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))
               :React.createElement("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:wkEvtPassed(e,k)?0.5:1,cursor:edit?"grab":"default"})},
@@ -4746,6 +4751,11 @@ function App(){
             _hi.map(idx=>{const _dw=wd[idx],_dk=dkey(_dw.year,_dw.month,_dw.day),_dTd=_dk===tk;return React.createElement("button",{key:_dk,type:"button",onClick:()=>{setMobDayIdx(idx);setNarrowSingleDay(true);},style:{flexShrink:0,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:_dTd?T.AC:T.TXD,border:_dTd?"1px solid "+T.AC+"55":"1px solid "+T.BD,whiteSpace:"nowrap"}},DS[idx]+" "+_dw.day);})),
           (isNarrow?_nwd:wd).map((w,_i)=>{const i=isNarrow?_ns+_i:_i;
             const k=dkey(w.year,w.month,w.day),td=k===tk;
+            // Days still to come recede one step: their primary text drops from
+            // T.TX to T.TXD so the week reads as "today is live, the rest is
+            // upcoming" instead of every day shouting equally. dkey() is a
+            // zero-padded YYYY-MM-DD, so a plain string compare is a date compare.
+            const dayTX=k>tk?T.TXD:T.TX;
             const p=prog(k);
             const allItems=(data[k]||[]).filter(i=>!i._mc);
             const mcDay=mcByDay[k]||[];
@@ -4768,10 +4778,10 @@ function App(){
                     e.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto"}},fmt12h(e.time,k,e.tz))),
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4}},
                     e._pvTeam1Img&&React.createElement("img",{src:e._pvTeam1Img,style:{width:20,height:20,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
-                    React.createElement("span",{style:{fontSize:11,fontWeight:800,color:T.TX,lineHeight:1}},e._pvTeam1||"TBD"),
+                    React.createElement("span",{style:{fontSize:11,fontWeight:800,color:dayTX,lineHeight:1}},e._pvTeam1||"TBD"),
                     React.createElement("span",{style:{fontSize:11,fontWeight:900,color:"#8d8d94",margin:"0 2px"}},e._pvState==="inProgress"?"•":"VS"),
                     e._pvTeam2Img&&React.createElement("img",{src:e._pvTeam2Img,style:{width:20,height:20,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
-                    React.createElement("span",{style:{fontSize:11,fontWeight:800,color:T.TX,lineHeight:1}},e._pvTeam2||"TBD")),
+                    React.createElement("span",{style:{fontSize:11,fontWeight:800,color:dayTX,lineHeight:1}},e._pvTeam2||"TBD")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:7,col:T.BG})),
@@ -4779,7 +4789,7 @@ function App(){
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   t.category&&React.createElement("span",{style:{...ctag(t.category),opacity:t.done?0.6:1}},t.category),
                   t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:t.done?0.4:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
-                React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,wordBreak:"break-word",whiteSpace:"normal"}},t.title)),
+                React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:dayTX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,wordBreak:"break-word",whiteSpace:"normal"}},t.title)),
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,t.id)},"×"))),
               events.map(e=>e._pvMatch?React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:4,cursor:"default"}},
@@ -4789,10 +4799,10 @@ function App(){
                     e.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto"}},fmt12h(e.time,k,e.tz))),
                   React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6}},
                     e._pvTeam1Img&&React.createElement("img",{src:e._pvTeam1Img,style:{width:26,height:26,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
-                    !e._pvTeam1Img&&React.createElement("span",{style:{fontSize:11,fontWeight:800,color:T.TX}},e._pvTeam1||""),
+                    !e._pvTeam1Img&&React.createElement("span",{style:{fontSize:11,fontWeight:800,color:dayTX}},e._pvTeam1||""),
                     React.createElement("span",{style:{fontSize:12,fontWeight:900,color:"#8d8d94",margin:"0 2px"}},e._pvState==="inProgress"?"LIVE":"VS"),
                     e._pvTeam2Img&&React.createElement("img",{src:e._pvTeam2Img,style:{width:26,height:26,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
-                    !e._pvTeam2Img&&React.createElement("span",{style:{fontSize:11,fontWeight:800,color:T.TX}},e._pvTeam2||"")),
+                    !e._pvTeam2Img&&React.createElement("span",{style:{fontSize:11,fontWeight:800,color:dayTX}},e._pvTeam2||"")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2,textAlign:"center"}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px"},onClick:()=>del(k,e.id)},"×"))
               :React.createElement("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:5,marginBottom:3,opacity:wkEvtPassed(e,k)?0.5:1,cursor:edit?"grab":"default"})},

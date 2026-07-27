@@ -36,7 +36,7 @@ const CORS={
   'Content-Type':'application/json',
 };
 export default {
-  async fetch(request,env){
+  async fetch(request,env,ctx){
     if(request.method==='OPTIONS') return new Response(null,{status:204,headers:CORS});
     const url=new URL(request.url);
     const path=url.pathname;
@@ -45,26 +45,54 @@ export default {
     try{
       if(path==='/schedule'&&league)
         return await cachedFetch(env,'schedule:'+league,TTL_SCHEDULE,
-          LOL_API+'/getSchedule?hl='+HL+'&leagueId='+league);
+          LOL_API+'/getSchedule?hl='+HL+'&leagueId='+league,ctx);
       if(path==='/tournaments'&&league)
         return await cachedFetch(env,'tournaments:'+league,TTL_TOURNAMENTS,
-          LOL_API+'/getTournamentsForLeague?hl='+HL+'&leagueId='+league);
+          LOL_API+'/getTournamentsForLeague?hl='+HL+'&leagueId='+league,ctx);
       if(path==='/standings'&&tourny)
         return await cachedFetch(env,'standings:'+tourny,TTL_STANDINGS,
-          LOL_API+'/getStandings?hl='+HL+'&tournamentId='+tourny);
+          LOL_API+'/getStandings?hl='+HL+'&tournamentId='+tourny,ctx);
       if(path==='/leagues')
         return await cachedFetch(env,'leagues',TTL_LEAGUES,
-          LOL_API+'/getLeagues?hl='+HL);
+          LOL_API+'/getLeagues?hl='+HL,ctx);
       return j({error:'Not found'},404);
     }catch(e){return j({error:e.message},502);}
   }
 };
+// ── One-time cleanup of the legacy `<key>:stale` twins ───────────────────────
+// The previous cache wrote every payload twice and gave the second copy no TTL,
+// so those keys never expire on their own. This removes them once and records a
+// marker so it never runs again. Cost after the first pass: a single KV read on
+// the first cache miss a cold isolate serves, and nothing once it is warm.
+const SWEEP_KEY = '_swept:stale-twins';
+let _sweptLegacy = false;
+async function sweepLegacyStale(kv){
+  if (_sweptLegacy) return;
+  _sweptLegacy = true;
+  try{
+    if (await kv.get(SWEEP_KEY)) return;          // already done, nothing to do
+    let cursor, removed = 0;
+    do{
+      const page = await kv.list({ cursor });
+      cursor = page.list_complete ? undefined : page.cursor;
+      for (const k of page.keys){
+        if (k.name.endsWith(':stale')){ await kv.delete(k.name); removed++; }
+      }
+    } while (cursor);
+    await kv.put(SWEEP_KEY, String(removed));
+    console.log('[sweep] removed ' + removed + ' legacy :stale key(s)');
+  }catch(e){
+    _sweptLegacy = false;                          // transient failure — retry later
+    console.warn('[sweep] failed:', e.message);
+  }
+}
+
 // How long a cached entry stays available as a last-known-good fallback after it
 // stops being fresh. `ttl` still decides freshness; this only decides how long
 // the fallback survives.
 const PV_KEEP = 7*24*3600;
 
-async function cachedFetch(env,key,ttl,url){
+async function cachedFetch(env,key,ttl,url,ctx){
   // One read covers both cases: a fresh hit, or the stale fallback if the
   // upstream call below fails.
   let cached=null;
@@ -88,6 +116,7 @@ async function cachedFetch(env,key,ttl,url){
   }
   const body=await res.text();
   await env.PV_CACHE.put(key,body,{expirationTtl:PV_KEEP,metadata:{at:Date.now()}});
+  if(ctx&&ctx.waitUntil) ctx.waitUntil(sweepLegacyStale(env.PV_CACHE)); else await sweepLegacyStale(env.PV_CACHE);
   return new Response(body,{headers:{...CORS,'X-Cache':'MISS'}});
 }
 function j(o,s=200){return new Response(JSON.stringify(o),{status:s,headers:CORS});}

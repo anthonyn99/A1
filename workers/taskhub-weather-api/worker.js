@@ -50,6 +50,34 @@ const CURRENT_VARS = 'temperature_2m,apparent_temperature,relative_humidity_2m,i
 const HOURLY_VARS = 'temperature_2m,weather_code,precipitation_probability';
 const DAILY_VARS = 'weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,sunrise,sunset,uv_index_max,precipitation_probability_max,wind_speed_10m_max';
 
+// ── One-time cleanup of the legacy `<key>:stale` twins ───────────────────────
+// The previous cache wrote every payload twice and gave the second copy no TTL,
+// so those keys never expire on their own. This removes them once and records a
+// marker so it never runs again. Cost after the first pass: a single KV read on
+// the first cache miss a cold isolate serves, and nothing once it is warm.
+const SWEEP_KEY = '_swept:stale-twins';
+let _sweptLegacy = false;
+async function sweepLegacyStale(kv){
+  if (_sweptLegacy) return;
+  _sweptLegacy = true;
+  try {
+    if (await kv.get(SWEEP_KEY)) return;          // already done, nothing to do
+    let cursor, removed = 0;
+    do {
+      const page = await kv.list({ cursor });
+      cursor = page.list_complete ? undefined : page.cursor;
+      for (const k of page.keys) {
+        if (k.name.endsWith(':stale')) { await kv.delete(k.name); removed++; }
+      }
+    } while (cursor);
+    await kv.put(SWEEP_KEY, String(removed));
+    console.log('[sweep] removed ' + removed + ' legacy :stale key(s)');
+  } catch (e) {
+    _sweptLegacy = false;                          // transient failure — retry later
+    console.warn('[sweep] failed:', e.message);
+  }
+}
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -59,7 +87,7 @@ const CORS = {
 };
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const url = new URL(request.url);
     if (url.pathname !== '/forecast') return j({ error: 'Not found' }, 404);
@@ -129,6 +157,8 @@ export default {
         expirationTtl: TTL_FORECAST,
         metadata: { at: data.fetched_at },
       });
+      if (ctx && ctx.waitUntil) ctx.waitUntil(sweepLegacyStale(env.WX_CACHE));
+      else await sweepLegacyStale(env.WX_CACHE);
       return new Response(body, { headers: { ...CORS, ...meta, 'X-Cache': 'MISS' } });
     } catch (e) {
       if (cached) return new Response(cached.body, { headers: { ...CORS, ...meta, 'X-Cache': 'STALE' } });
