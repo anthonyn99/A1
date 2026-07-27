@@ -3260,6 +3260,64 @@ function pruneDoneGoals(list){return Array.isArray(list)?list.filter(function(g)
 function loadJ(k,fb){try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch(e){return fb;}}
 function saveJ(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 
+// ── Weekly-data retention ───────────────────────────────────────────────────
+// `data` is keyed "YYYY-MM-DD" and was never pruned, so it grew forever inside a
+// SINGLE Firestore doc (1 MiB hard limit; _guardedWrite refuses at 900 KB). Days
+// past the window are MOVED to per-year sidecar docs by _fbArchiveDays — not
+// deleted — so nothing is actually lost.
+//
+// Safe for repeats: repeating tasks are PRE-EXPANDED into their own day keys at
+// creation (see pushOcc), and _fcmRearmSeries only needs one surviving occurrence
+// to re-arm a series. Since we only ever archive keys strictly OLDER than the
+// cutoff, every current and future occurrence stays in the live doc.
+const TH_ARCHIVE_YEARS=2;
+// A pure age window is a bet on volume staying low. If the doc is still big after
+// the age pass, keep moving the oldest days until it's under this — that's what
+// actually guarantees we never reach the write guard.
+const TH_ARCHIVE_SOFT_BYTES=600000;
+function thDataBytes(d){try{return new Blob([JSON.stringify(d||{})]).size;}catch(e){try{return JSON.stringify(d||{}).length;}catch(_){return 0;}}}
+function thTodayKey(){const n=new Date();return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
+const TH_DAYKEY_RE=/^\d{4}-\d{2}-\d{2}$/;
+// → {keep, byYear:{"2023":{dk:[…]}}, movedCount, droppedEmpty}
+function thSplitArchivable(data){
+  const out={keep:{},byYear:{},movedCount:0,droppedEmpty:0};
+  if(!data||typeof data!=="object")return out;
+  const cut=new Date();cut.setFullYear(cut.getFullYear()-TH_ARCHIVE_YEARS);
+  const cutKey=dkey(cut.getFullYear(),cut.getMonth(),cut.getDate());
+  const todayKey=thTodayKey();
+  // Day keys are zero-padded, so a string compare IS a date compare.
+  const dayKeys=[],recent=[];
+  Object.keys(data).forEach(k=>{
+    if(TH_DAYKEY_RE.test(k))dayKeys.push(k);
+    else out.keep[k]=data[k]; // unknown/legacy key shape — never touch it
+  });
+  dayKeys.sort();
+  const move=k=>{
+    const arr=data[k];
+    // An empty day carries nothing worth archiving — just drop it.
+    if(!Array.isArray(arr)||!arr.length){out.droppedEmpty++;return;}
+    const y=k.slice(0,4);
+    (out.byYear[y]=out.byYear[y]||{})[k]=arr;
+    out.movedCount++;
+  };
+  dayKeys.forEach(k=>{
+    if(k>=cutKey){recent.push(k);out.keep[k]=data[k];return;}
+    // Defensive: an old key holding a still-pending future alert stays put.
+    const arr=data[k];
+    if(Array.isArray(arr)&&arr.some(it=>it&&it.notifyAt&&new Date(it.notifyAt).getTime()>Date.now())){out.keep[k]=arr;return;}
+    move(k);
+  });
+  // Size valve — oldest-first, and never the current day or anything ahead of it.
+  if(thDataBytes(out.keep)>TH_ARCHIVE_SOFT_BYTES){
+    for(const k of recent){
+      if(k>=todayKey)break;
+      move(k);delete out.keep[k];
+      if(thDataBytes(out.keep)<=TH_ARCHIVE_SOFT_BYTES)break;
+    }
+  }
+  return out;
+}
+
 function buildSeed(){
   const n=new Date(),y=n.getFullYear(),m=n.getMonth(),d=n.getDate();
   const data={};const w=gwk(y,m,d);
@@ -3807,7 +3865,39 @@ function App(){
     saveJ(SK.data,d);saveJ(SK.habits,h);saveJ(SK.hc,hcD);saveJ(SK.goals,g);saveJ(SK.mgoals,gm);saveJ(SK.goalPrefs,gp);
     localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);
     if(vxHist&&vxHist.current){vxHist.current.applying=true;vxHist.current.base=null;}
+    fbLoadedRef.current=true; // real cloud data is in hand — archiving may now run
   },[]);
+
+  // ── Archive day-keys older than TH_ARCHIVE_YEARS ──────────────────────────
+  // Runs once per device per day, 20s after load. Three safety gates, because
+  // this is the one job here that removes data from the live doc:
+  //   1. fbLoadedRef — never run off a stale/empty local state, or we'd push a
+  //      "pruned" payload that wipes the cloud copy.
+  //   2. the archive write must SUCCEED before the live doc is pruned.
+  //   3. only day-keys strictly older than the cutoff ever move.
+  const fbLoadedRef=useRef(false);
+  const archiveRanRef=useRef(false);
+  useEffect(()=>{
+    const run=async()=>{
+      if(archiveRanRef.current||!fbLoadedRef.current||!window._fbArchiveDays)return;
+      const last=parseInt(localStorage.getItem("td6_archive_at")||"0",10)||0;
+      if(Date.now()-last<24*60*60*1000)return;
+      const split=thSplitArchivable(stateRef.current.data||{});
+      if(!split.movedCount&&!split.droppedEmpty){
+        archiveRanRef.current=true;localStorage.setItem("td6_archive_at",String(Date.now()));return;
+      }
+      if(split.movedCount&&!(await window._fbArchiveDays("main",split.byYear))){
+        console.warn("[Archive] Tony: archive write failed — live data untouched, will retry next load");
+        return;
+      }
+      archiveRanRef.current=true;
+      localStorage.setItem("td6_archive_at",String(Date.now()));
+      setData(split.keep);
+      console.log("[Archive] Tony: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live data now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB");
+    };
+    const t=setTimeout(run,20000);
+    return()=>clearTimeout(t);
+  },[setData]);
 
   // Auto-delete goals completed 30+ days ago. Runs shortly after load (once Firebase
   // has settled) and hourly; only writes when something actually expires, so the prune
@@ -5157,6 +5247,56 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
     // Flush a pending TaskHub write immediately (tab hide / navigate away / entry switch).
     window._fbFlush = () => { if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; } return _doTaskHubSave(); };
+
+    // ── Weekly-data archiving ────────────────────────────────────────────────
+    // The dashboards are SINGLE Firestore documents, so `data` (keyed by day)
+    // growing forever walks them into the 1 MiB hard limit — at which point
+    // _guardedWrite refuses every save and TaskHub silently stops syncing (and an
+    // oversized write that slips through wedges the whole offline queue, see the
+    // FB_MAX_WRITE_BYTES notes above). Day-keys past the retention window are
+    // MOVED into per-year sidecar docs, never deleted, so history stays
+    // recoverable.
+    //
+    // ORDER MATTERS: the archive doc is written and CONFIRMED here; only then may
+    // the caller prune the live doc. Pruning first would destroy the data outright
+    // if the archive write failed. Returns false on any failure so the caller
+    // aborts and leaves the live doc untouched.
+    //
+    // merge:true deep-merges the `data` map, so re-running only adds day keys —
+    // an interrupted run is safe to retry, and each year doc is bounded to one
+    // calendar year (~0.4 MB worst case), well under the limit.
+    window._fbArchiveDays = async (docName, byYear) => {
+      const years = Object.keys(byYear || {});
+      if (!years.length) return true;
+      for (const y of years) {
+        const days = byYear[y];
+        if (!days || !Object.keys(days).length) continue;
+        const ref = doc(db, 'dashboards/' + docName + '_archive_' + y);
+        try {
+          // setDoc only settles on SERVER ack, so offline it would hang forever and
+          // the caller would wait on a promise that never resolves. Race a timeout
+          // (same 12s budget as _guardedWrite) so a failure is explicit — and lands
+          // on the safe side: no confirmation means no prune.
+          const writeP = setDoc(ref, { data: days, archivedAt: Date.now() }, { merge: true });
+          writeP.catch(()=>{}); // no unhandled rejection if the timeout wins
+          let to;
+          const timeoutP = new Promise((_, rej) => { to = setTimeout(() => rej(new Error('archive-write-timeout')), 12000); });
+          await Promise.race([writeP, timeoutP]);
+          clearTimeout(to);
+        } catch(e) {
+          console.warn('[Archive] ' + docName + ' ' + y + ' write FAILED — live data left intact:', e && (e.code||e.message||e));
+          return false;
+        }
+      }
+      return true;
+    };
+    // Read an archived year back (for history lookups / manual restore).
+    window._fbLoadArchive = async (docName, year) => {
+      try {
+        const snap = await getDoc(doc(db, 'dashboards/' + docName + '_archive_' + year));
+        return snap.exists() ? ((snap.data() || {}).data || {}) : {};
+      } catch(e) { console.warn('[Archive] read failed:', e); return null; }
+    };
 
     // ── TaskHub real-time listener — live cross-device sync ────────────────────
     // Old behaviour suppressed ALL remote updates for a flat 8s after any local save,
@@ -8955,6 +9095,50 @@ const DONE_GOAL_TTL=30*24*60*60*1000;
 function pruneDoneGoals(list){return Array.isArray(list)?list.filter(function(g){return !(g&&g.done&&g.completedAt&&(Date.now()-g.completedAt)>DONE_GOAL_TTL);}):list;}
 function loadJ(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb;}catch(e){return fb;}}
 function saveJ(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+
+// ── Weekly-data retention (mirror of Tony's block — separate babel scope) ────
+// See the matching comment in Tony's TaskHub for the full rationale: `data` grows
+// forever inside a SINGLE Firestore doc (1 MiB hard limit / 900 KB write guard),
+// so days past the window are MOVED to per-year sidecar docs, never deleted.
+const TH_ARCHIVE_YEARS=2;
+const TH_ARCHIVE_SOFT_BYTES=600000;
+function thDataBytes(d){try{return new Blob([JSON.stringify(d||{})]).size;}catch(e){try{return JSON.stringify(d||{}).length;}catch(_){return 0;}}}
+function thTodayKey(){const n=new Date();return dkey(n.getFullYear(),n.getMonth(),n.getDate());}
+const TH_DAYKEY_RE=/^\d{4}-\d{2}-\d{2}$/;
+function thSplitArchivable(data){
+  const out={keep:{},byYear:{},movedCount:0,droppedEmpty:0};
+  if(!data||typeof data!=="object")return out;
+  const cut=new Date();cut.setFullYear(cut.getFullYear()-TH_ARCHIVE_YEARS);
+  const cutKey=dkey(cut.getFullYear(),cut.getMonth(),cut.getDate());
+  const todayKey=thTodayKey();
+  const dayKeys=[],recent=[];
+  Object.keys(data).forEach(k=>{
+    if(TH_DAYKEY_RE.test(k))dayKeys.push(k);
+    else out.keep[k]=data[k];
+  });
+  dayKeys.sort();
+  const move=k=>{
+    const arr=data[k];
+    if(!Array.isArray(arr)||!arr.length){out.droppedEmpty++;return;}
+    const y=k.slice(0,4);
+    (out.byYear[y]=out.byYear[y]||{})[k]=arr;
+    out.movedCount++;
+  };
+  dayKeys.forEach(k=>{
+    if(k>=cutKey){recent.push(k);out.keep[k]=data[k];return;}
+    const arr=data[k];
+    if(Array.isArray(arr)&&arr.some(it=>it&&it.notifyAt&&new Date(it.notifyAt).getTime()>Date.now())){out.keep[k]=arr;return;}
+    move(k);
+  });
+  if(thDataBytes(out.keep)>TH_ARCHIVE_SOFT_BYTES){
+    for(const k of recent){
+      if(k>=todayKey)break;
+      move(k);delete out.keep[k];
+      if(thDataBytes(out.keep)<=TH_ARCHIVE_SOFT_BYTES)break;
+    }
+  }
+  return out;
+}
 function buildSeed(){const n=new Date(),y=n.getFullYear(),m=n.getMonth(),d=n.getDate(),data={},w=gwk(y,m,d);const s=[[{id:uid(),type:"task",title:"Review project notes",category:"work",done:true},{id:uid(),type:"task",title:"Check email & reply",category:"work",done:false},{id:uid(),type:"event",title:"Stand-up meeting",category:"work",time:"09:00"}],[{id:uid(),type:"task",title:"Update roadmap",category:"work",done:false},{id:uid(),type:"task",title:"Exercise (30 min)",category:"health",done:true},{id:uid(),type:"event",title:"Client call",category:"work",time:"14:00"}],[{id:uid(),type:"task",title:"Morning run",category:"health",done:true},{id:uid(),type:"task",title:"Work on assignment",category:"study",done:false},{id:uid(),type:"event",title:"Study group",category:"study",time:"16:00"}],[{id:uid(),type:"task",title:"Shop for groceries",category:"personal",done:false},{id:uid(),type:"task",title:"Update roadmap",category:"work",done:false},{id:uid(),type:"event",title:"Client call",category:"work",time:"11:00"}],[{id:uid(),type:"task",title:"Presentation prep",category:"work",done:false},{id:uid(),type:"task",title:"Wrap-up meeting",category:"work",done:true},{id:uid(),type:"event",title:"Team retrospective",category:"work",time:"15:00"}],[{id:uid(),type:"task",title:"Family time",category:"personal",done:false},{id:uid(),type:"task",title:"Weekly review",category:"personal",done:false}],[{id:uid(),type:"task",title:"Meal prep",category:"health",done:false},{id:uid(),type:"task",title:"Rest & recharge",category:"personal",done:false}]];w.forEach((wd,i)=>{if(s[i])data[dkey(wd.year,wd.month,wd.day)]=s[i];});return data;}
 const HAB_DEF=[{id:uid(),title:"Review daily progress"},{id:uid(),title:"Organize workspace"},{id:uid(),title:"Plan daily emails"},{id:uid(),title:"Check analytics"},{id:uid(),title:"Read 20 pages"},{id:uid(),title:"Exercise"},{id:uid(),title:"Meditate"},{id:uid(),title:"Drink water (8 glasses)"}];
 const MG_DEF=[{id:uid(),title:"Review project roadmap",done:false},{id:uid(),title:"Prepare and send invoices",done:false},{id:uid(),title:"Evaluate expenses",done:true},{id:uid(),title:"Check and restock supplies",done:false},{id:uid(),title:"Audit finances",done:false},{id:uid(),title:"Update software stack",done:false}];
@@ -9268,7 +9452,35 @@ function App(){
     saveJ(SK.data,d);saveJ(SK.habits,h);saveJ(SK.hc,hcD);saveJ(SK.goals,g);saveJ(SK.mgoals,gm);saveJ(SK.goalPrefs,gp);
     localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);
     if(vxHist&&vxHist.current){vxHist.current.applying=true;vxHist.current.base=null;}
+    fbLoadedRef.current=true; // real cloud data is in hand — archiving may now run
   },[]);
+
+  // ── Archive day-keys older than TH_ARCHIVE_YEARS (see Tony's TaskHub) ──────
+  // Same three gates: only after a confirmed remote load, archive write must
+  // succeed before the live doc is pruned, and only strictly-old keys move.
+  const fbLoadedRef=useRef(false);
+  const archiveRanRef=useRef(false);
+  useEffect(()=>{
+    const run=async()=>{
+      if(archiveRanRef.current||!fbLoadedRef.current||!window._fbArchiveDays)return;
+      const last=parseInt(localStorage.getItem("td_archive_at")||"0",10)||0;
+      if(Date.now()-last<24*60*60*1000)return;
+      const split=thSplitArchivable(vdRef.current.data||{});
+      if(!split.movedCount&&!split.droppedEmpty){
+        archiveRanRef.current=true;localStorage.setItem("td_archive_at",String(Date.now()));return;
+      }
+      if(split.movedCount&&!(await window._fbArchiveDays("vedasdash",split.byYear))){
+        console.warn("[Archive] Veda: archive write failed — live data untouched, will retry next load");
+        return;
+      }
+      archiveRanRef.current=true;
+      localStorage.setItem("td_archive_at",String(Date.now()));
+      setData(split.keep);
+      console.log("[Archive] Veda: moved "+split.movedCount+" day(s), dropped "+split.droppedEmpty+" empty; live data now "+(thDataBytes(split.keep)/1024).toFixed(0)+" KB");
+    };
+    const t=setTimeout(run,20000);
+    return()=>clearTimeout(t);
+  },[setData]);
 
   // Auto-delete goals completed 30+ days ago (see Tony's TaskHub). Runs after load and hourly.
   useEffect(()=>{
