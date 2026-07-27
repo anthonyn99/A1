@@ -6,7 +6,9 @@
 <meta name="theme-color" content="#1a1a1d" />
 <title>Vault</title>
 <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Vault%22%2C%22short_name%22%3A%22Vault%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fvault.html%22%2C%22scope%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FVault%2Ficons%2Ficon128.png%22%2C%22sizes%22%3A%22128x128%22%2C%22type%22%3A%22image%2Fpng%22%7D%2C%7B%22src%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FVault%2Ficons%2Ficon48.png%22%2C%22sizes%22%3A%2248x48%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D">
+<!-- App icon: gold lock on the suite charcoal, matching the other four marks. -->
 <link rel="apple-touch-icon" href="Vault/icons/icon128.png">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23d4a659%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Crect%20x%3D%2722%27%20y%3D%2742%27%20width%3D%2752%27%20height%3D%2734%27%20rx%3D%277%27%2F%3E%3Cpath%20d%3D%27M33%2042v-9a15%2015%200%200%201%2030%200v9%27%2F%3E%3Cpath%20d%3D%27M48%2055v8%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <link rel="icon" href="Vault/icons/icon48.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,13 +23,12 @@
   --gold-secondary:#edc884;  /* champagne — accent text on dark surfaces      */
   --gold-line:rgba(212,166,89,.36);
   --gold-glow:0 0 8px rgba(212,166,89,0.40),0 0 0 1px rgba(212,166,89,0.15);
-  --font-display:'Fraunces','Manrope',Georgia,serif;
+  --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
   --font-accent:'Fraunces',Georgia,serif;
 }
 .suite-title{
-  font-family:var(--font-display);
-  font-variation-settings:'opsz' 96,'SOFT' 0,'WONK' 0;
-  font-weight:600;letter-spacing:-.5px;line-height:1.15;
+  font-family:var(--suite-display);
+  font-weight:750;letter-spacing:-.4px;line-height:1.2;
   background:linear-gradient(180deg,var(--gold-secondary) 0%,var(--gold-primary) 92%);
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;color:var(--gold-secondary);
@@ -79,7 +80,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   #applock-box.shake{animation:applock-shake 0.4s ease;}
   #applock-icon{line-height:0;color:var(--ac);}
   #applock-icon svg{width:30px;height:30px;display:block;}
-  #applock-title{font-family:var(--font-display);font-variation-settings:'opsz' 96;font-size:25px;font-weight:600;letter-spacing:-.4px;color:var(--tx);}
+  #applock-title{font-family:var(--suite-display);font-size:25px;font-weight:750;letter-spacing:-.4px;color:var(--tx);}
   #applock-sub{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:var(--txm);text-align:center;}
   #applock-pw{background:var(--s1);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:15px;font-weight:500;padding:14px 16px;font-family:var(--sans);outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s;}
   #applock-pw:focus{border-color:var(--ac);}
@@ -116,7 +117,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
    costs a phone ~24px of card width for nothing. */
 #vault-links-panel .kc-wrap{padding-left:0;padding-right:0;}
 .kc-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
-.kc-logo{font-family:var(--font-display);font-variation-settings:'opsz' 96,'SOFT' 0,'WONK' 0;font-size:clamp(21px,2.6vw,28px);font-weight:600;letter-spacing:-.5px;line-height:1.3;padding-top:1px;white-space:nowrap;background:linear-gradient(180deg,#edc884 0%,#d4a659 92%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--acs);}
+.kc-logo{font-family:var(--suite-display);font-size:clamp(21px,2.6vw,28px);font-weight:750;letter-spacing:-.4px;line-height:1.25;white-space:nowrap;background:linear-gradient(180deg,#edc884 0%,#d4a659 92%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--acs);}
 .kc-logo .base,.kc-logo .dot{color:inherit;font-style:normal;}
 .kc-tagline{font-size:10.5px;color:var(--txm);margin-top:2px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;}
 .kc-hbtns{display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:nowrap;}

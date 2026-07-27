@@ -54,17 +54,17 @@
   --gold-secondary:#edc884;  /* champagne — accent text on dark surfaces      */
   --gold-line:rgba(212,166,89,.36);
   --gold-glow:0 0 8px rgba(212,166,89,0.40),0 0 0 1px rgba(212,166,89,0.15);
-  /* Fraunces: a high-contrast modern serif — elegant and premium without
-     tipping into decorative. Carries every application title and every small
-     accent label that used to be set in slanted italic. */
-  --font-display:'Fraunces','Manrope',Georgia,serif;
+  /* Manrope carries every application title in the suite. Named --suite-display
+     rather than --font-display because the journals already scope a
+     --font-display of their own (Playfair in Veda's, Bebas in Tony's).
+     Fraunces stays on --font-accent, where it replaces the slanted labels. */
+  --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
   --font-accent:'Fraunces',Georgia,serif;
 }
 /* One wordmark treatment for every app title in the suite. */
 .suite-title{
-  font-family:var(--font-display);
-  font-variation-settings:'opsz' 96,'SOFT' 0,'WONK' 0;
-  font-weight:600;letter-spacing:-.5px;line-height:1.15;
+  font-family:var(--suite-display);
+  font-weight:750;letter-spacing:-.4px;line-height:1.2;
   background:linear-gradient(180deg,var(--gold-secondary) 0%,var(--gold-primary) 92%);
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;color:var(--gold-secondary);
@@ -98,12 +98,12 @@ html,body{height:100%;}
 #tony-app-nav .tn-btn,#tony-app-nav .tn-star,#tn-mobile-select,#tn-settings-btn,#tn-dd-trigger{pointer-events:auto;}
 /* ── Chrome button standard ────────────────────────────────────────────────
    One resting state for every utility control in the suite: transparent fill,
-   a quiet white hairline, white label. Gold is reserved for intent — hover and
-   the active app — where it arrives as an outline plus a soft glow, never as a
-   fill. ProView / WarRoom opt out below and keep their purple identity. */
+   gold label, quiet neutral hairline. Emphasis — hover and the active app —
+   comes from a gold outline plus a soft glow, never from a gold fill.
+   ProView / WarRoom opt out below and keep their purple identity. */
 #tony-app-nav .tn-btn{
-  background:transparent;color:var(--tn-ch-tx,#f4f3f0);
-  border:1px solid var(--tn-ch-bd,rgba(244,243,240,0.34));
+  background:transparent;color:var(--tn-ac,#d4a659);
+  border:1px solid var(--tn-bd,#2e3a35);
   border-radius:4px;padding:0 10px;height:28px;box-sizing:border-box;
   display:inline-flex;align-items:center;font-size:10px;font-weight:700;
   cursor:grab;font-family:'Inter',system-ui,-apple-system,sans-serif;letter-spacing:.5px;
@@ -119,14 +119,14 @@ html,body{height:100%;}
   box-shadow:0 0 8px rgba(212,166,89,0.34),0 0 0 1px rgba(212,166,89,0.14);
 }
 #tony-app-nav .tn-star,#tony-app-nav #tn-settings-btn{
-  background:transparent;border:1px solid var(--tn-ch-bd,rgba(244,243,240,0.34));
-  border-radius:4px;color:var(--tn-ch-tx,#f4f3f0);font-size:16px;font-weight:700;
+  background:transparent;border:1px solid var(--tn-bd,#2e3a35);
+  border-radius:4px;color:var(--tn-ac,#d4a659);font-size:16px;font-weight:700;
   padding:0 8px;height:28px;box-sizing:border-box;cursor:pointer;line-height:1;
   transition:all .15s;flex-shrink:0;display:inline-flex;align-items:center;
 }
 #tony-app-nav .tn-star:hover,#tony-app-nav #tn-settings-btn:hover{color:var(--tn-ac,#d4a659);border-color:var(--tn-ac,#d4a659);box-shadow:0 0 8px rgba(212,166,89,0.4),0 0 0 1px rgba(212,166,89,0.15);}
 /* Mobile: hide buttons, show select */
-#tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-ch-bd,rgba(244,243,240,0.34));border-radius:4px;color:var(--tn-ch-tx,#f4f3f0);font-size:11px;font-weight:700;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
+#tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#d4a659);font-size:11px;font-weight:700;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
 #tn-mobile-select:hover{color:var(--tn-ac,#d4a659);border-color:var(--tn-ac,#d4a659);box-shadow:0 0 8px rgba(212,166,89,0.4),0 0 0 1px rgba(212,166,89,0.15);}
 #tn-mobile-select.tn-pv-active{color:#a78bfa!important;border-color:rgba(167,139,250,0.45)!important;}
 #tn-mobile-select.tn-pv-active:hover{border-color:#c4b5fd!important;box-shadow:0 0 8px rgba(167,139,250,0.4)!important;}
@@ -157,18 +157,6 @@ a,button,label,select,[role="button"],[onclick],[tabindex]{touch-action:manipula
 .th-mob-day-strip::-webkit-scrollbar,.vd-mob-day-strip::-webkit-scrollbar{display:none;}
 button,input,select,textarea{font-family:'Inter',system-ui,-apple-system,sans-serif;}
 input[type=time]{color-scheme:dark;}
-/* ── App entry bounce ────────────────────────────────────────────────────────
-   MotionCore has always eased its views in; TaskHub, EventRec and MyJournal now
-   share the same gesture, so every section of the suite arrives the same way.
-   The class is stripped on animationend: a lingering transform would make the
-   root a containing block for its position:fixed children. */
-@keyframes th-app-bounce{
-  0%{opacity:0;transform:translateY(12px) scale(.985);}
-  55%{opacity:1;transform:translateY(-3px) scale(1.004);}
-  100%{opacity:1;transform:translateY(0) scale(1);}
-}
-.th-bounce-in{animation:th-app-bounce .34s cubic-bezier(.2,.9,.3,1.15) both;}
-@media(prefers-reduced-motion:reduce){.th-bounce-in{animation:none;}}
 @keyframes td-spin{to{transform:rotate(360deg)}}
 @keyframes td-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 /* ── App shell ── */
@@ -2648,7 +2636,7 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 #mc-root .mc-inner-nav button:hover{color:#f4f3f0;background:#2c2c31;}
 #mc-root .mc-inner-nav button.active{background:transparent;color:#edc884;box-shadow:inset 0 0 0 1px #d4a659,0 0 8px rgba(212,166,89,.28);}
 #mc-root .section-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;gap:12px;}
-#mc-root .section-title{font-family:'Bebas Neue',sans-serif;font-size:38px;letter-spacing:2px;line-height:1;}
+#mc-root .section-title{font-family:var(--suite-display);font-size:32px;font-weight:750;letter-spacing:-.6px;line-height:1.1;}
 #mc-root .section-subtitle{font-size:13px;color:#8d8d94;margin-top:4px;font-weight:300;}
 #mc-root .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;transition:all .18s;letter-spacing:.2px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
 #mc-root .btn-primary{background:#d4a659;color:#1a1a1d;box-shadow:0 2px 14px rgba(212,166,89,.3);}
@@ -2681,7 +2669,7 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 #mc-root .modal{background:#232327;border:1px solid #45454c;border-radius:18px;padding:28px 24px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;animation:mcSlideUp .22s ease;transform:none;}
 #mc-root .modal-overlay.open .modal{transform:none;}
 @keyframes mcSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-#mc-root .modal-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:1.5px;margin-bottom:22px;}
+#mc-root .modal-title{font-family:var(--suite-display);font-size:21px;font-weight:750;letter-spacing:-.3px;margin-bottom:22px;}
 #mc-root .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;padding-top:18px;border-top:1px solid #34343a;}
 #mc-root .form-group{margin-bottom:16px;}
 #mc-root label{display:block;font-size:11px;font-weight:500;color:#adadb2;margin-bottom:7px;letter-spacing:.5px;text-transform:uppercase;}
@@ -2717,9 +2705,21 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 #mc-root .routine-card:hover{border-color:#45454c;}
 #mc-root .routine-card-header{display:flex;align-items:center;gap:10px;padding:18px 20px;cursor:pointer;user-select:none;}
 #mc-root .routine-card-header:hover .routine-title{color:#edc884;}
-#mc-root .routine-title{font-size:16px;font-weight:500;transition:color .18s;flex:1;min-width:0;pointer-events:none;}
-#mc-root .routine-body{padding:0 20px 20px;border-top:1px solid #34343a;}
-#mc-root .routine-content{font-size:14px;color:#adadb2;line-height:1.7;font-weight:300;white-space:pre-wrap;padding-top:16px;word-break:break-word;}
+#mc-root .routine-title{font-family:var(--suite-display);font-size:17px;font-weight:750;letter-spacing:-.2px;color:#f4f3f0;transition:color .18s;flex:1;min-width:0;pointer-events:none;}
+#mc-root .routine-body{padding:0 20px 20px;border-top:1px solid #45454c;}
+#mc-root .routine-content{font-size:14px;color:#f4f3f0;line-height:1.55;font-weight:400;padding-top:14px;word-break:break-word;display:flex;flex-direction:column;gap:14px;}
+/* Each blank-line block becomes a card of its own so a long routine scans as
+   sections (chest / shoulders / triceps) rather than one wall of lines. */
+#mc-root .routine-group{background:#2c2c31;border:1px solid #45454c;border-left:2px solid var(--gold-primary,#d4a659);border-radius:8px;overflow:hidden;}
+#mc-root .routine-line{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:9px 14px;}
+#mc-root .routine-line + .routine-line{border-top:1px solid rgba(255,255,255,.06);}
+#mc-root .routine-line-name{color:#f4f3f0;font-weight:500;min-width:0;}
+/* The "3 sets" half is a quantity, not a label — quiet, tabular, right-aligned. */
+#mc-root .routine-line-detail{color:#edc884;font-size:12.5px;font-weight:600;white-space:nowrap;flex-shrink:0;font-variant-numeric:tabular-nums;}
+#mc-root .routine-empty{color:#8d8d94;font-family:var(--font-accent);}
+@media(max-width:520px){
+  #mc-root .routine-line{flex-direction:column;align-items:flex-start;gap:2px;}
+}
 #mc-root .empty-state{text-align:center;padding:56px 20px;color:#8d8d94;}
 #mc-root .empty-icon{font-size:36px;margin-bottom:12px;opacity:.4;}
 #mc-root .empty-title{font-size:15px;font-weight:500;color:#adadb2;margin-bottom:5px;}
@@ -2748,7 +2748,7 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 #mc-root ::-webkit-scrollbar-thumb{background:#2c2c31;border-radius:3px;}
 #mc-root .pulse{animation:mcPulse 1.5s ease-in-out infinite;}
 @keyframes mcPulse{0%,100%{opacity:1}50%{opacity:.5}}
-#mc-root .mc-hbar-logo{font-family:var(--font-display);font-variation-settings:'opsz' 96,'SOFT' 0,'WONK' 0;font-size:clamp(20px,3.2vw,30px);font-weight:600;letter-spacing:-0.5px;line-height:1.15;white-space:nowrap;display:flex;align-items:center;}
+#mc-root .mc-hbar-logo{font-family:var(--suite-display);font-size:clamp(20px,3.2vw,30px);font-weight:750;letter-spacing:-0.4px;line-height:1.2;white-space:nowrap;display:flex;align-items:center;}
 #mc-root .mc-hbar-logo{background:linear-gradient(180deg,#edc884 0%,#d4a659 92%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#edc884;}
 #mc-root .mc-hbar-logo .base,#mc-root .mc-hbar-logo .accent{color:inherit;font-style:normal;font-weight:inherit;}
 #mc-root.mc-light .mc-hbar-logo .base{color:#2A1F24;}
@@ -2802,7 +2802,11 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 #mc-root.mc-light .routine-card:hover{border-color:#A89AA2;}
 #mc-root.mc-light .routine-card-header:hover .routine-title{color:#D4607A;}
 #mc-root.mc-light .routine-body{border-top-color:#D8CDD2;}
-#mc-root.mc-light .routine-content{color:#6B5560;}
+#mc-root.mc-light .routine-content{color:#2A1F24;}
+#mc-root.mc-light .routine-group{background:#EDE5E8;border-color:#D4C4CC;border-left-color:#a8801f;}
+#mc-root.mc-light .routine-line + .routine-line{border-top-color:rgba(42,31,36,.10);}
+#mc-root.mc-light .routine-line-name{color:#2A1F24;}
+#mc-root.mc-light .routine-line-detail{color:#8a6718;}
 #mc-root.mc-light .empty-title{color:#6B5560;}
 #mc-root.mc-light .empty-state{color:#A0909A;}
 #mc-root.mc-light hr{border-top-color:#D8CDD2;}
@@ -2932,6 +2936,11 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
     check:     I('<path d="M20 6 9 17l-5-5"/>'),
     alert:     I('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
     bell:      I('<path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
+    // Solid counterpart for the small reminder chips, where the outline bell's
+    // hairlines close up and read as a smudge.
+    bellFill:  '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" stroke="none" aria-hidden="true">'
+             + '<path d="M12 2.2a6.3 6.3 0 0 0-6.3 6.3c0 3.3-.8 5.4-1.6 6.6-.6 1 .1 2.2 1.3 2.2h13.2c1.2 0 1.9-1.2 1.3-2.2-.8-1.2-1.6-3.3-1.6-6.6A6.3 6.3 0 0 0 12 2.2Z"/>'
+             + '<path d="M9.4 18.9a2.7 2.7 0 0 0 5.2 0Z"/></svg>',
     phone:     I('<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>'),
     calendar:  I('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>'),
     chartUp:   I('<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m7 15 4-4 3 3 5-6"/>'),
@@ -3587,7 +3596,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
   };
   const mi={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:13,padding:"9px 12px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
   const lbl={fontSize:10,color:T.TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6};
-  const tb=(active,danger)=>({fontWeight:600,padding:"7px 18px",borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?T.BG:T.TXD,border:active?"1px solid "+(danger?T.ERR:T.AC):"1px solid "+T.BDL});
+  const tb=(active,danger)=>({fontWeight:600,padding:"7px 18px",borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?(danger?T.ERR:T.ACL):T.TXD,border:active?"1px solid "+(danger?T.ERR:T.AC):"1px solid "+T.BDL});
   return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},
     React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:28,width:460,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 30px 80px "+T.SHADOW},onClick:e=>e.stopPropagation()},
       React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:16,fontWeight:700,color:T.AC,marginBottom:20}},(initial?.id?"Edit":"New")+" — "+dateLabel),
@@ -3635,7 +3644,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T,isDark}
         notifyDate&&notifyTime&&React.createElement("div",{style:{marginTop:10,borderTop:"1px solid "+T.BD,paddingTop:10}},
           React.createElement("div",{style:{...lbl,marginBottom:6}},"Repeat notification"),
           React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},
-            [["none","Once"],["daily","Every day"],["weekly","Specific days"],["monthly","Monthly"],["annually","Annually"]].map(([v,l])=>React.createElement("button",{key:v,type:"button",style:{fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:"transparent",color:notifyRepeat===v?T.BG:T.TXD,border:"1px solid "+(notifyRepeat===v?T.AC:T.BDL),transition:"all .15s"},onClick:()=>setNotifyRepeat(v)},l))),
+            [["none","Once"],["daily","Every day"],["weekly","Specific days"],["monthly","Monthly"],["annually","Annually"]].map(([v,l])=>React.createElement("button",{key:v,type:"button",style:{fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:"transparent",color:notifyRepeat===v?T.ACL:T.TXD,border:"1px solid "+(notifyRepeat===v?T.AC:T.BDL),transition:"all .15s"},onClick:()=>setNotifyRepeat(v)},l))),
           (notifyRepeat==="monthly"||notifyRepeat==="annually")&&React.createElement("div",{style:{fontSize:10,color:T.TXD,marginTop:6,lineHeight:1.4}},notifyRepeat==="monthly"?"Fires on this day each month at this time.":"Fires on this date each year at this time."),
           notifyRepeat==="weekly"&&React.createElement("div",{style:{marginTop:8}},
             React.createElement("div",{style:{...lbl,marginBottom:5}},"Notify on"),
@@ -4444,7 +4453,7 @@ function App(){
   const dndDayStyle=(k,base)=>(!isMobile&&dragOverId==="day-"+k)?{...base,boxShadow:"inset 0 0 0 2px "+T.AC}:base;
   // ── Weekly item cards: events keep filled cards, tasks are outline-only (match Veda's TaskHub) ──
   const wkTaskCard=(done,today)=>({background:"transparent",border:"1px solid "+(today?T.BDL:T.BD),borderRadius:6,padding:isMobile?"4px 12px":"3px 10px"});
-  const wkEventCard=(cat,passed)=>({background:isDark?(passed?"#0f1014":"#1b1c23"):T.S2,border:"1px solid "+(isDark?(passed?"#1d1e25":"#32333d"):T.BD),borderLeft:"3px solid "+(passed?(isDark?"#33343d":T.BDL):((CC&&CC[cat])||T.ACL)),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
+  const wkEventCard=(cat,passed)=>({background:isDark?(passed?"#1e1e22":"#232327"):T.S2,border:"1px solid "+(isDark?(passed?"#2a2a2f":"#34343a"):T.BD),borderLeft:"3px solid "+(passed?(isDark?"#45454c":T.BDL):((CC&&CC[cat])||T.ACL)),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
   // An event has "passed" (and should fade) once the LATER of its event time and notification time is in the past.
   const wkEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
   const MC_PASTEL={earnings:"#e7a6b4",inflation:"#e3c794",fed:"#c9b3ec",jobs:"#a6c8e6",growth:"#a6dcb2",macro:"#c0c6cd",rates:"#c9b3ec",gdp:"#a6dcb2",retail:"#a6dcb2",housing:"#a3dcc6",sentiment:"#e3cb98",trade:"#edb2a6",oil:"#e3bd96",holiday:"#b0b9cc"};
@@ -4452,7 +4461,7 @@ function App(){
   // Category chip label: true acronyms all-caps (ECB, GDP), everything else Title-case
   // (so "ecb"→"ECB", never "Ecb"; "fed"→"Fed"; "growth"→"Growth").
   const mcCatLabel=c=>{c=String(c||"");const U={ecb:"ECB",gdp:"GDP"};return U[c.toLowerCase()]||(c?c.charAt(0).toUpperCase()+c.slice(1):c);};
-  const wkCatalystCard=cat=>({background:isDark?"linear-gradient(135deg,#1d1c21,#151419)":"linear-gradient(135deg,"+T.S2+","+T.S1+")",border:"1px solid "+(isDark?"#2c2a34":T.BD),borderLeft:"3px solid "+(isDark?"#7d6b76":T.BDL),borderRadius:10,padding:isMobile?"3px 11px":"2px 9px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
+  const wkCatalystCard=cat=>({background:isDark?"linear-gradient(135deg,#232327,#1e1e22)":"linear-gradient(135deg,"+T.S2+","+T.S1+")",border:"1px solid "+(isDark?"#34343a":T.BD),borderLeft:"3px solid "+(isDark?"#8d8d94":T.BDL),borderRadius:10,padding:isMobile?"3px 11px":"2px 9px",boxShadow:isDark?"0 1px 2px rgba(0,0,0,0.35)":"0 1px 2px "+T.SHADOW});
 
   // Touch reorder for habits and goals
   const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habits,setHabits,"tony","habit");
@@ -4607,7 +4616,7 @@ function App(){
   const _ns=Math.max(0,Math.min(_tIdx<0?0:_tIdx-2,2));
   const _nwd=wd.slice(_ns,_ns+5);
   const _hi=[...wd.slice(0,_ns).map((_,ii)=>ii),...wd.slice(_ns+5).map((_,ii)=>_ns+5+ii)];
-  const hbtn=active=>({background:"transparent",border:"1px solid "+(active?T.AC:T.BD),borderRadius:4,padding:"0 10px",height:"28px",boxSizing:"border-box",fontSize:12,fontWeight:800,color:T.AC,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",display:"inline-flex",alignItems:"center",gap:4,transition:"all .15s",whiteSpace:"nowrap",flexShrink:0});
+  const hbtn=active=>({background:"transparent",border:"1px solid "+(active?T.AC:T.BD),borderRadius:4,padding:"0 10px",height:"28px",boxSizing:"border-box",fontSize:12,fontWeight:800,color:T.AC,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,transition:"all .15s",whiteSpace:"nowrap",flexShrink:0});
   const sec={background:T.S1,border:"1px solid "+T.BD,borderRadius:4,padding:"12px 16px"};
   const stt={fontFamily:"'Manrope',system-ui,sans-serif",fontSize:13,fontWeight:800,color:T.TX,marginBottom:10,borderBottom:"1px solid "+T.BD,paddingBottom:8,letterSpacing:0.3,textTransform:"none"};
   const inp={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:14,fontWeight:600,padding:"7px 11px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
@@ -4772,7 +4781,7 @@ function App(){
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   t.category&&React.createElement("span",{style:{...ctag(t.category),opacity:t.done?0.6:1}},t.category),
-                  t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:t.done?0.4:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:10,height:10,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bell}}),"\u202f"+fmtNotif(t.notifyAt))),
+                  t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:t.done?0.4:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word"}},t.title)),
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
@@ -4794,7 +4803,7 @@ function App(){
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 (e.time||e.notifyAt)&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   e.time&&React.createElement("span",{style:{fontSize:11,fontWeight:600,color:T.TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
-                  !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:10,height:10,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bell}})," "+fmtNotif(e.notifyAt))),
+                  !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt))),
                 React.createElement("span",{style:{fontSize:14,fontWeight:600,color:T.TXD,lineHeight:1.4,wordBreak:"break-word"}},e.title)),
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
@@ -4841,7 +4850,7 @@ function App(){
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   t.category&&React.createElement("span",{style:{...ctag(t.category),opacity:t.done?0.6:1}},t.category),
-                  t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:t.done?0.4:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:10,height:10,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bell}}),"\u202f"+fmtNotif(t.notifyAt))),
+                  t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:t.done?0.4:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:T.TX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,wordBreak:"break-word",whiteSpace:"normal"}},t.title)),
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,t.id)},"×"))),
@@ -4863,7 +4872,7 @@ function App(){
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 (e.time||e.notifyAt)&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   e.time&&React.createElement("span",{style:{fontSize:10,fontWeight:600,color:T.TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
-                  !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:10,height:10,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bell}})," "+fmtNotif(e.notifyAt))),
+                  !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt))),
                 React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,wordBreak:"break-word",whiteSpace:"normal"}},e.title)),
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
@@ -7098,7 +7107,7 @@ window.thDragList = function(listEl, getArr, setArr, onDrop, accentColor, placeh
 #er-root .er-inner{max-width:720px;width:100%;margin:0 auto;padding:clamp(10px,2vw,24px) clamp(12px,3vw,32px) clamp(10px,1.5vw,16px);display:flex;flex-direction:column;gap:clamp(10px,1.5vw,16px);flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
 #er-root .er-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-shrink:0;}
 #er-root .er-header-left{display:flex;flex-direction:column;gap:3px;min-width:0;}
-#er-root .er-logo{font-family:var(--font-display);font-variation-settings:'opsz' 96,'SOFT' 0,'WONK' 0;font-size:clamp(20px,3.2vw,30px);font-weight:600;letter-spacing:-0.5px;line-height:1.15;white-space:nowrap;}
+#er-root .er-logo{font-family:var(--suite-display);font-size:clamp(20px,3.2vw,30px);font-weight:750;letter-spacing:-0.4px;line-height:1.2;white-space:nowrap;}
 #er-root .er-logo{background:linear-gradient(180deg,#edc884 0%,#d4a659 92%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#edc884;}
 #er-root .er-logo .base,#er-root .er-logo .accent{color:inherit;font-style:normal;}
 #er-root .er-subtitle{font-size:12px;color:var(--er-txm);font-weight:500;}
@@ -7254,7 +7263,7 @@ function erFormatDate(dateStr){
 }
 
 // ── Theme vars ─────────────────────────────────────────────────────────────────
-const ER_DARK  = {bg:'#1a1a1d',s1:'#232327',s2:'#2c2c31',bd:'#34343a',bdl:'#45454c',tx:'#f4f3f0',txd:'#adadb2',txm:'#8d8d94',ac:'#d4a659',err:'#d68a7c',shadow:'rgba(0,0,0,0.45)'};
+const ER_DARK  = {bg:'#1a1a1d',s1:'#232327',s2:'#2c2c31',bd:'#34343a',bdl:'#45454c',tx:'#f4f3f0',txd:'#adadb2',txm:'#8d8d94',ac:'#d4a659',grn:'#a4b986',err:'#d68a7c',shadow:'rgba(0,0,0,0.45)'};
 const ER_LIGHT = {bg:'#EAE3E7',s1:'#E5DCE0',s2:'#DDD4D8',bd:'#C8B8C0',bdl:'#BCA8B0',tx:'#2A1F24',txd:'#6B5560',txm:'#A0909A',ac:'#D4607A',err:'#C0392B',shadow:'rgba(42,31,36,0.12)'};
 
 function erApplyTheme(){
@@ -7382,7 +7391,7 @@ function erSetSync(status){
   const el=document.getElementById('er-sync-status');if(!el)return;
   const isDark=erLoadTheme();const t=isDark?ER_DARK:ER_LIGHT;
   if(status==='saving'){el.style.visibility='visible';el.style.color=t.txm;el.textContent='Syncing…';}
-  else if(status==='saved'){el.style.visibility='visible';el.style.color=t.grn||'#4A9E68';el.textContent='Synced';if(erSyncTimer)clearTimeout(erSyncTimer);erSyncTimer=setTimeout(()=>{el.style.visibility='hidden';},2500);}
+  else if(status==='saved'){el.style.visibility='visible';el.style.color=t.grn||'#a4b986';el.textContent='Synced';if(erSyncTimer)clearTimeout(erSyncTimer);erSyncTimer=setTimeout(()=>{el.style.visibility='hidden';},2500);}
   else if(status==='error'){el.style.visibility='visible';el.style.color=t.err;el.textContent='Sync failed';}
   else{el.style.visibility='hidden';}
 }
@@ -7427,7 +7436,7 @@ function erSwitchTo(app){
   const erRoot=document.getElementById('er-root');
   if(app==='eventrec'){
     if(thRoot)thRoot.style.display='none';
-    if(erRoot){erRoot.style.display='flex';window._thBounceIn&&window._thBounceIn(erRoot);}
+    if(erRoot)erRoot.style.display='flex';
     erApplyTheme();erRender();
     const sw=document.getElementById('er-app-switcher');if(sw)sw.value='eventrec';
   } else if(app==='brainstormjournal'){
@@ -9973,7 +9982,7 @@ function App(){
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   (t._sosClassName||t.category)&&(t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},t._sosClassName):RC("span",{style:ctag(t.category)},t.category)),
-                  t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:10,height:10,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bell}}),"\u202f"+fmtNotif(t.notifyAt))),
+                  t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:TX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word"}},t.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&RC("button",{style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
@@ -9984,7 +9993,7 @@ function App(){
                 !edit&&e._sosClassName&&RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(e._sosClassColor)||"#8b949e",background:(sosPastel(e._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(e._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},e._sosClassName),
                 (e.time||e.notifyAt)&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
                   e.time&&RC("span",{style:{fontSize:11,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
-                  !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},RC("span",{style:{width:10,height:10,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bell}})," "+fmtNotif(e.notifyAt)))),
+                  !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt)))),
                 RC("span",{style:{fontSize:14,fontWeight:600,color:"#C3B2D0",lineHeight:1.4,wordBreak:"break-word"}},e.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);}},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&RC("button",{style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
@@ -10013,7 +10022,7 @@ function App(){
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   (t._sosClassName||t.category)&&(t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},t._sosClassName):RC("span",{style:ctag(t.category)},t.category)),
-                  t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:10,height:10,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bell}}),"\u202f"+fmtNotif(t.notifyAt))),
+                  t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:TX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,wordBreak:"break-word",overflowWrap:"break-word"}},t.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&RC("button",{style:dbtn,onClick:()=>del(k,t.id)},"×"))),
@@ -10024,7 +10033,7 @@ function App(){
                 !edit&&e._sosClassName&&RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(e._sosClassColor)||"#8b949e",background:(sosPastel(e._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(e._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},e._sosClassName),
                 (e.time||e.notifyAt)&&RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}},
                   e.time&&RC("span",{style:{fontSize:10,fontWeight:600,color:TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
-                  !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},RC("span",{style:{width:10,height:10,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bell}})," "+fmtNotif(e.notifyAt)))),
+                  !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt)))),
                 RC("span",{style:{fontSize:12,fontWeight:600,color:"#C3B2D0",lineHeight:1.35,wordBreak:"break-word",overflowWrap:"break-word"}},e.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11},onClick:()=>{setEi(e);setMdt(k);setMo(true);}},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&RC("button",{style:dbtn,onClick:()=>del(k,e.id)},"×"))),
@@ -18055,7 +18064,7 @@ window.hideBrainstormJournal = function() {
     --purple2:    #edc884;
     --purple-dim: #2c2c31;
     --purple-bg:  #232327;
-    --green:      #5DAF6D;
+    --green:      #a4b986;
     --green-dim:  #1e3828;
     --cyan:       #d4a659;
     --red:        #d68a7c;
@@ -18067,7 +18076,7 @@ window.hideBrainstormJournal = function() {
     --radius:     6px;
     --font:       'DM Sans', sans-serif;
     --font-mono:  'DM Mono', 'IBM Plex Mono', monospace;
-    --font-display: 'Bebas Neue', sans-serif;
+    --font-display: var(--suite-display);
   }
 #tj-root.tj-light {
     --bg:         #E8E0E4;
@@ -18830,7 +18839,7 @@ window.hideBrainstormJournal = function() {
     content: "Start writing... paste images, add lists, format text.";
     color: var(--text3); font-style:normal;font-family:var(--font-accent); pointer-events: none;
   }
-#tj-root #tj-page-editor h1 { font-family: 'Bebas Neue', sans-serif; font-size: 36px; font-weight: 400; color: var(--text); margin: 18px 0 8px; line-height: 1.15; letter-spacing: 1.5px; }
+#tj-root #tj-page-editor h1 { font-family: var(--suite-display); font-size: 30px; font-weight: 750; color: var(--text); margin: 18px 0 8px; line-height: 1.2; letter-spacing: -.4px; }
 #tj-root #tj-page-editor h2 { font-family: 'Manrope', system-ui, sans-serif; font-size: 22px; font-weight: 700; color: var(--text); margin: 14px 0 6px; line-height: 1.3; }
 #tj-root #tj-page-editor h3 { font-family: inherit; font-size: 15pt; font-weight: 700; color: #fff; margin: 12px 0 5px; text-transform: none; letter-spacing: 0; }
 #tj-root #tj-page-editor p { margin: 6px 0; }
@@ -18925,7 +18934,7 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-je-editor { max-width: 780px; margin: 0; min-height: 480px; outline: none; font-family: var(--font); font-size: 14px; line-height: 1.85; color: var(--text); caret-color: var(--purple); overflow-wrap: break-word; word-break: break-word; }
 #tj-root #tj-je-editor[contenteditable="false"] { pointer-events: none; }
 #tj-root #tj-je-editor:empty::before { content: "Write your entry for this date…"; color: var(--text3); font-style:normal;font-family:var(--font-accent); pointer-events: none; }
-#tj-root #tj-je-editor h1 { font-family: 'Bebas Neue', sans-serif; font-size: 36px; font-weight: 400; color: var(--text); margin: 18px 0 8px; line-height: 1.15; letter-spacing: 1.5px; }
+#tj-root #tj-je-editor h1 { font-family: var(--suite-display); font-size: 30px; font-weight: 750; color: var(--text); margin: 18px 0 8px; line-height: 1.2; letter-spacing: -.4px; }
 #tj-root #tj-je-editor h2 { font-family: 'Manrope', system-ui, sans-serif; font-size: 22px; font-weight: 700; color: var(--text); margin: 14px 0 6px; line-height: 1.3; }
 #tj-root #tj-je-editor h3 { font-family: var(--font); font-size: 13px; font-weight: 600; color: var(--purple); margin: 12px 0 4px; text-transform: uppercase; letter-spacing: 0.08em; }
 #tj-root #tj-je-editor p { margin: 6px 0; }
@@ -23448,15 +23457,6 @@ function _tjPdfSection(label, text) {
 }
 
 // ── Tony shared nav ──────────────────────────────────────────────────────
-// Replays the entry bounce on a root that has just been made visible.
-window._thBounceIn = function(el){
-  if(!el || !el.classList) return;
-  el.classList.remove('th-bounce-in');
-  void el.offsetWidth;                 // force reflow so the animation restarts
-  el.classList.add('th-bounce-in');
-  var done = function(){ el.classList.remove('th-bounce-in'); el.removeEventListener('animationend', done); };
-  el.addEventListener('animationend', done);
-};
 window._updateTonyNavActive = function(app) {
   window._tnCurApp = app;
   // Always clean up MyJournal injected title when switching away
@@ -23540,7 +23540,7 @@ window._tonyNav = function(app) {
   });
   if(app==='taskhub') {
     var r=document.getElementById('root');
-    if(r) { r.style.display=''; window._thBounceIn && window._thBounceIn(r); }
+    if(r) r.style.display='';
     var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
   } else if(app==='health' && window._mcSwitchTo) {
     window._mcSwitchTo('health');
@@ -23565,7 +23565,6 @@ window.showTonyJournal = function() {
   if(!tj) return;
   tj.style.position='fixed'; tj.style.inset='0'; tj.style.zIndex='9999';
   tj.style.display='flex'; tj.style.flexDirection='column';
-  if(window._thBounceIn) window._thBounceIn(tj);
   var sw = document.getElementById('tj-app-switcher');
   if(sw) sw.value='brainstormjournal';
   if(window._updateTonyNavActive) window._updateTonyNavActive('brainstormjournal');
@@ -23574,7 +23573,7 @@ window.showTonyJournal = function() {
   if(tni && !document.getElementById('tj-nav-title')) {
     var titleEl = document.createElement('div');
     titleEl.id = 'tj-nav-title';
-    titleEl.style.cssText = 'font-size:clamp(21px,3vw,29px);white-space:nowrap;margin-right:auto;pointer-events:none;line-height:1.15;padding-left:clamp(12px,3vw,24px);align-self:center;';
+    titleEl.style.cssText = 'position:absolute;left:clamp(12px,3vw,24px);top:50%;transform:translateY(-50%);font-size:clamp(21px,3vw,29px);white-space:nowrap;pointer-events:none;line-height:1.2;';
     titleEl.innerHTML = '<span class="suite-title">MyJournal</span>';
     tni.insertBefore(titleEl, tni.firstChild);
   }
@@ -32492,7 +32491,7 @@ function _sosSetSync(status) {
   // Color: use StudyOS accent color (purple)
   var accentColor = '#8D769A';
   var greenColor  = '#4a7c59';
-  var errColor    = '#ff6b6b';
+  var errColor    = '#d68a7c';
   var mutedColor  = 'var(--text2,#888)';
   if (status === 'saving') {
     el.style.visibility = 'visible';
@@ -32957,13 +32956,13 @@ function mcSetSync(status) {
     if (_mcSyncTimer) { clearTimeout(_mcSyncTimer); _mcSyncTimer = null; }
   } else if (status === 'saved') {
     el.style.visibility = 'visible';
-    el.style.color = '#4A9E68';
+    el.style.color = '#a4b986';
     el.textContent = 'Synced';
     if (_mcSyncTimer) clearTimeout(_mcSyncTimer);
     _mcSyncTimer = setTimeout(function() { el.style.visibility = 'hidden'; }, 2500);
   } else if (status === 'error') {
     el.style.visibility = 'visible';
-    el.style.color = '#dc4650';
+    el.style.color = '#d68a7c';
     el.textContent = 'Sync failed';
     if (_mcSyncTimer) { clearTimeout(_mcSyncTimer); _mcSyncTimer = null; }
   } else {
@@ -33324,6 +33323,26 @@ function mcToggleRoutine(id) {
 }
 window.mcToggleRoutine = mcToggleRoutine;
 
+// Turn a routine's raw text into grouped lines. Blank lines are the author's own
+// section breaks, so they become the group boundaries.
+function mcRoutineBody(text) {
+  var raw = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+  if (!raw.trim()) return '<div class="routine-empty">No content yet — hit edit to add exercises.</div>';
+  return raw.split(/\n\s*\n/).map(function (block) {
+    var lines = block.split('\n').filter(function (l) { return l.trim(); });
+    if (!lines.length) return '';
+    return '<div class="routine-group">' + lines.map(function (line) {
+      // "Exercise - 3 sets" → name + trailing detail, so the quantity can sit
+      // right-aligned and quiet instead of running into the name.
+      var m = line.match(/^(.*?)\s+[-–—]\s+(.+)$/);
+      return '<div class="routine-line">'
+           + '<span class="routine-line-name">' + mcEsc(m ? m[1] : line) + '</span>'
+           + (m ? '<span class="routine-line-detail">' + mcEsc(m[2]) + '</span>' : '')
+           + '</div>';
+    }).join('') + '</div>';
+  }).join('');
+}
+
 function mcRenderRoutines() {
   var el=document.getElementById('mc-routines-list');
   if(!mcRoutines.length){
@@ -33342,7 +33361,7 @@ function mcRenderRoutines() {
         '</div>'+
       '</div>'+
       '<div id="mc-routine-body-'+r.id+'" class="routine-body" style="display:'+(r._open?'block':'none')+';">'+
-        '<div class="routine-content">'+(r.content?mcEsc(r.content):'<span style="color:#8d8d94;font-style:normal;font-family:var(--font-accent);">No content.</span>')+'</div>'+
+        '<div class="routine-content">'+mcRoutineBody(r.content)+'</div>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -34984,8 +35003,8 @@ window._pvApplyRemote=(remote)=>{
     clearTimeout(_pvHideTimer);
     el.textContent=text;
     if(state==='syncing') el.style.color='#ffffff';
-    else if(state==='synced') el.style.color='#34d399';
-    else el.style.color='#f87171';
+    else if(state==='synced') el.style.color='#a4b986';
+    else el.style.color='#d68a7c';
     el.style.opacity='1';
     if(state!=='syncing'){
       _pvHideTimer=setTimeout(()=>{
@@ -35046,7 +35065,7 @@ setInterval(()=>{
 #applock-form { width: 100%; display: flex; flex-direction: column; gap: 10px; }
 #applock-links { display: flex; flex-direction: column; align-items: center; gap: 5px; }
 #applock-foot { width: 100%; padding-top: 14px; border-top: 1px solid #34343a; display: flex; justify-content: center; }
-#applock-title { font-family: var(--font-display); font-variation-settings: 'opsz' 96; font-size: 24px; font-weight: 600; letter-spacing: -.4px; color: #f4f3f0; }
+#applock-title { font-family: var(--suite-display); font-size: 24px; font-weight: 750; letter-spacing: -.4px; color: #f4f3f0; }
 #applock-sub { font-family: var(--font-accent); font-size: 13px; line-height: 1.5; color: #8d8d94; text-align: center; }
 #applock-pw {
   background: #1a1a1d; border: 1px solid #45454c; border-radius: 6px;
@@ -36331,7 +36350,7 @@ function buildTonyDropdown(){
   if(document.getElementById('tn-dd-trigger')) return;
   var trigger=document.createElement('button');
   trigger.id='tn-dd-trigger'; trigger.type='button';
-  trigger.style.cssText='display:none;align-items:center;gap:6px;background:transparent;border:1px solid var(--tn-ch-bd,rgba(244,243,240,0.34));border-radius:4px;color:var(--tn-ch-tx,#f4f3f0);font-size:11px;font-weight:700;padding:0 10px;height:28px;box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;white-space:nowrap;pointer-events:auto;';
+  trigger.style.cssText='display:none;align-items:center;gap:6px;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#d4a659);font-size:11px;font-weight:700;padding:0 10px;height:28px;box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;white-space:nowrap;pointer-events:auto;';
   trigger.innerHTML='<span id="tn-dd-label">Menu</span><span style="font-size:8px;opacity:.7;">▼</span>';
   trigger.addEventListener('click',function(e){ e.stopPropagation(); _ddOpen?closeTonyDD():openTonyDD(); });
   sel.parentNode.insertBefore(trigger,sel);
@@ -36352,7 +36371,7 @@ function injectTonyDropdownCSS(){
     '#tony-app-nav-inner.tn-force-dd .tn-btn{display:none!important;}'+
     '#tony-app-nav-inner.tn-force-dd #tn-mobile-select{display:none!important;}'+
     '#tony-app-nav-inner.tn-force-dd #tn-dd-trigger{display:inline-flex!important;}'+
-    '#tn-dd-panel .tn-dd-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:6px;cursor:pointer;color:var(--tn-ch-tx,#f4f3f0);font-family:\'Inter\',system-ui,-apple-system,sans-serif;font-size:14px;font-weight:700;user-select:none;-webkit-user-select:none;touch-action:pan-y;transition:all .12s;border:1px solid transparent;}'+
+    '#tn-dd-panel .tn-dd-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:6px;cursor:pointer;color:var(--tn-ac,#d4a659);font-family:\'Inter\',system-ui,-apple-system,sans-serif;font-size:14px;font-weight:700;user-select:none;-webkit-user-select:none;touch-action:pan-y;transition:all .12s;border:1px solid transparent;}'+
     '#tn-dd-panel .tn-dd-item .dd-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'+
     '#tn-dd-panel .dd-grip{flex:0 0 auto;cursor:grab;color:currentColor;opacity:.4;font-size:13px;line-height:1;letter-spacing:-3px;padding:2px 4px;margin:-2px 0;touch-action:none;}'+
     '#tn-dd-panel .dd-grip:active{cursor:grabbing;}'+

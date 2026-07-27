@@ -85,7 +85,25 @@ async function openLinksAsGroup(urls, groupName, colorHex) {
 
   if (chrome.tabs.group && ids.length) {
     try {
-      const groupId = await chrome.tabs.group({ tabIds: [ids[0]] });
+      // Chrome can put a freshly created tab into a group at CREATION time, before
+      // we ever call tabs.group(): a new tab landing next to (or inside) an
+      // existing group's index range gets absorbed by it, and the browser's
+      // "automatically group similar tabs" behaviour does the same. If that has
+      // happened, tabs.group({tabIds}) below just returns the id of THAT group —
+      // so we would append to it and then rename it. Ungrouping first guarantees
+      // the tabs are loose before we build our own group from them.
+      if (chrome.tabs.ungroup) {
+        try { await chrome.tabs.ungroup(ids); } catch (_) { /* none were grouped */ }
+      }
+      // createProperties is what actually forces a BRAND-NEW group. Calling
+      // tabs.group() with only tabIds asks the browser to "group these", and
+      // when the tabs sit next to an existing group (they do — we append at the
+      // end of the strip, which is exactly where the last launch's group lives)
+      // Chrome satisfies that by folding them into the neighbour instead. Naming
+      // the window in createProperties leaves it no such option, so every launch
+      // gets its own group no matter what is already open.
+      const createProperties = windowId != null ? { windowId } : {};
+      const groupId = await chrome.tabs.group({ createProperties, tabIds: [ids[0]] });
       if (ids.length > 1) await chrome.tabs.group({ groupId, tabIds: ids.slice(1) });
       if (chrome.tabGroups && chrome.tabGroups.update) {
         await chrome.tabGroups.update(groupId, {
@@ -168,7 +186,9 @@ async function _regroupWindow(windowId) {
     const groupStillExists = st.groupId != null && tabs.some((t) => t.groupId === st.groupId);
     let gid;
     if (!groupStillExists) {
-      gid = await chrome.tabs.group({ tabIds: memberIds });    // first pass → new group from members
+      // Same reason as openLinksAsGroup: name the window so the launcher tabs
+      // start their own group instead of joining whatever sits beside them.
+      gid = await chrome.tabs.group({ createProperties: { windowId }, tabIds: memberIds });
     } else {
       gid = st.groupId;
       const toAdd = memberIds.filter((id) => byId.get(id).groupId !== gid);  // fold in new members only

@@ -28,13 +28,12 @@
   --gold-secondary:#edc884;  /* champagne — accent text on dark surfaces      */
   --gold-line:rgba(212,166,89,.36);
   --gold-glow:0 0 8px rgba(212,166,89,0.40),0 0 0 1px rgba(212,166,89,0.15);
-  --font-display:'Fraunces','Manrope',Georgia,serif;
+  --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
   --font-accent:'Fraunces',Georgia,serif;
 }
 .suite-title{
-  font-family:var(--font-display);
-  font-variation-settings:'opsz' 96,'SOFT' 0,'WONK' 0;
-  font-weight:600;letter-spacing:-.5px;line-height:1.15;
+  font-family:var(--suite-display);
+  font-weight:750;letter-spacing:-.4px;line-height:1.2;
   background:linear-gradient(180deg,var(--gold-secondary) 0%,var(--gold-primary) 92%);
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;color:var(--gold-secondary);
@@ -64,7 +63,7 @@
   #applock-box.shake{animation:applock-shake 0.4s ease;}
   #applock-icon{line-height:0;color:#d4a659;}
   #applock-icon svg{width:30px;height:30px;display:block;}
-  #applock-title{font-family:var(--font-display);font-variation-settings:'opsz' 96;font-size:25px;font-weight:600;letter-spacing:-.4px;color:#f4f3f0;}
+  #applock-title{font-family:var(--suite-display);font-size:25px;font-weight:750;letter-spacing:-.4px;color:#f4f3f0;}
   #applock-sub{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:#8d8d94;text-align:center;}
   #applock-pw{background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:15px;font-weight:500;padding:14px 16px;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s;}
   #applock-pw:focus{border-color:#d4a659;}
@@ -4554,12 +4553,14 @@ function NHHeadlineList({sources}){
   return(
     <div style={{display:'flex',flexDirection:'column',gap:7,marginBottom:11}}>
       {shown.map((s,i)=>(
+        // Source headlines sit under the AI summary in the hierarchy, so they
+        // read grey; white is reserved for the summary itself.
         <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
-          style={{display:'flex',gap:8,alignItems:'baseline',textDecoration:'none',color:'var(--tx)'}}
+          style={{display:'flex',gap:8,alignItems:'baseline',textDecoration:'none',color:'var(--txd)'}}
           onMouseEnter={ev=>ev.currentTarget.style.color='var(--ac)'}
-          onMouseLeave={ev=>ev.currentTarget.style.color='var(--tx)'}>
+          onMouseLeave={ev=>ev.currentTarget.style.color='var(--txd)'}>
           <span style={{color:'var(--txd)',opacity:0.5,flex:'none'}}>›</span>
-          <span style={{fontSize:13,lineHeight:1.45,fontWeight:500}}>{s.headline}
+          <span style={{fontSize:13,lineHeight:1.45,fontWeight:400}}>{s.headline}
             <span style={{color:'var(--txm)',fontWeight:500,marginLeft:6,fontSize:11,opacity:0.9}}>{s.name}{s.ts?' · '+nhTimeAgo(s.ts):''}</span>
           </span>
         </a>
