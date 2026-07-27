@@ -22,20 +22,20 @@
   ::-webkit-scrollbar{display:none;width:0;height:0;}
 
   /* ── App Lock overlay (mirrors index.html applock) ── */
-  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;background-image:radial-gradient(120% 50% at 50% -10%,rgba(205,174,116,.065),transparent 70%);display:none;align-items:center;justify-content:center;font-family:'Inter',system-ui,-apple-system,sans-serif;}
+  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;background-image:radial-gradient(120% 50% at 50% -10%,rgba(212,166,89,.065),transparent 70%);display:none;align-items:center;justify-content:center;font-family:'Inter',system-ui,-apple-system,sans-serif;}
   #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:40px 32px;background:transparent;border:none;width:340px;max-width:90vw;position:relative;}
   @keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
   #applock-box.shake{animation:applock-shake 0.4s ease;}
-  #applock-icon{line-height:0;color:#cdae74;}
+  #applock-icon{line-height:0;color:#d4a659;}
   #applock-icon svg{width:30px;height:30px;display:block;}
   #applock-title{font-family:'Manrope',system-ui,-apple-system,sans-serif;font-size:26px;font-weight:600;letter-spacing:-.3px;color:#f4f3f0;margin-bottom:6px;}
   #applock-sub{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:#8d8d94;text-align:center;}
   #applock-pw{background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:15px;font-weight:500;padding:14px 16px;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s;}
-  #applock-pw:focus{border-color:#cdae74;}
+  #applock-pw:focus{border-color:#d4a659;}
   #applock-pw.error{border-color:#d68a7c;}
   #applock-err{font-size:12.5px;color:#d68a7c;font-weight:500;text-align:center;min-height:16px;}
-  #applock-submit{background:transparent;color:#e8d5ab;border:1px solid rgba(205,174,116,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100%;transition:border-color .18s,opacity .18s;}
-  #applock-submit:hover:not(:disabled){border-color:#cdae74;}
+  #applock-submit{background:transparent;color:#edc884;border:1px solid rgba(212,166,89,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100%;transition:border-color .18s,opacity .18s;}
+  #applock-submit:hover:not(:disabled){border-color:#d4a659;}
   #applock-submit:disabled{opacity:0.4;cursor:default;}
   #applock-cancel{background:transparent;border:none;color:#8d8d94;font-size:12px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;padding:0;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
   #applock-forgot{background:transparent;border:none;color:#8d8d94;font-size:12px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;padding:0;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
@@ -1080,8 +1080,8 @@ const TB_STYLES=`
   --bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;
   --bd:#34343a;--bdl:#45454c;
   --tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
-  --ac:#cdae74;--acd:#ab8b52;--acs:#e8d5ab;--acp:#c0b092;--acl:rgba(205,174,116,.36);--acg:rgba(205,174,116,0.07);
-  --tbb:#a4b986;--tbr:#d68a7c;--tbw:#d9bd82;--tbe:#d68a7c;
+  --ac:#d4a659;--acd:#b08d4a;--acs:#edc884;--acp:#c8b489;--acl:rgba(212,166,89,.36);--acg:rgba(212,166,89,0.07);
+  --tbb:#a4b986;--tbr:#d68a7c;--tbw:#e0b57c;--tbe:#d68a7c;
   --info:#a8c4e0;
   --shadow:rgba(0,0,0,0.5);
   font-family:'Inter',system-ui,-apple-system,sans-serif;
@@ -1115,10 +1115,10 @@ const TB_STYLES=`
 #tradeboard-root .tb-btn-ghost:active,#tradeboard-root .tb-btn-danger:active{transform:translateY(1px);}
 #tradeboard-root .tb-btn-danger{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--tbe);border:1px solid rgba(214,138,124,.3);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:border-color .18s;}
 #tradeboard-root .tb-btn-danger:hover{border-color:var(--tbe);}
-#tradeboard-root .tb-section-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:1.6px;color:var(--acp,#c0b092);opacity:.85;}
+#tradeboard-root .tb-section-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:1.6px;color:var(--acp,#c8b489);opacity:.85;}
 #tradeboard-root .tb-badge-bull{background:transparent;color:#a4b986;border:1px solid rgba(164,185,134,0.25);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
 #tradeboard-root .tb-badge-bear{background:transparent;color:#d68a7c;border:1px solid rgba(214,138,124,0.25);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
-#tradeboard-root .tb-badge-warn{background:transparent;color:#d9bd82;border:1px solid rgba(251,191,36,0.25);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
+#tradeboard-root .tb-badge-warn{background:transparent;color:#e0b57c;border:1px solid rgba(251,191,36,0.25);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
 #tradeboard-root .tb-badge-neutral{background:transparent;color:#adadb2;border:1px solid rgba(152,152,168,0.2);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
 #tradeboard-root.tb-light .tb-badge-bull{background:rgba(46,139,87,0.1);color:#2E8B57;border-color:rgba(46,139,87,0.3);}
 #tradeboard-root.tb-light .tb-badge-bear{background:rgba(192,57,43,0.1);color:#C0392B;border-color:rgba(192,57,43,0.3);}
@@ -1175,7 +1175,7 @@ const TB_STYLES=`
 #tradeboard-root .tb-pb-doc th,#tradeboard-root .tb-pb-doc td{border:1px solid var(--bd);padding:8px 12px;text-align:left;vertical-align:top;}
 #tradeboard-root .tb-pb-doc th{background:var(--s2);color:var(--tx);font-weight:700;white-space:nowrap;}
 #tradeboard-root .tb-pb-doc img{max-width:100%;height:auto;border-radius:8px;margin:10px 0;}
-#tradeboard-root .tb-pb-doc mark{background:rgba(205,174,116,0.22);color:var(--tx);border-radius:3px;padding:0 3px;}
+#tradeboard-root .tb-pb-doc mark{background:rgba(212,166,89,0.22);color:var(--tx);border-radius:3px;padding:0 3px;}
 /* Placeholder — driven by a data attr, not :empty, because contentEditable keeps
    a stray <br> in an "empty" doc and :empty would never match. */
 #tradeboard-root .tb-pb-doc[data-empty="1"]::before{content:attr(data-placeholder);color:var(--txm);font-style:italic;pointer-events:none;}
@@ -2366,7 +2366,7 @@ function TBJournalPage(){
               const tExitDate=tSellDates.length?new Date(Math.max(...tSellDates.map(d=>d.getTime()))):null;
               const entryDate=tExitDate||(buyLegs[0]?.datetime?new Date(buyLegs[0].datetime):(t.date?new Date(t.date):null));
               const isLong=t.direction==='LONG'||(!t.direction);
-              return(<div key={t.id} onClick={()=>selectMode?toggleSelect(t.id):setModal(t)} style={{padding:'12px 14px',borderBottom:`1px solid ${selected.has(t.id)?'var(--ac)':'var(--bd)'}`,cursor:'pointer',transition:'background .1s',background:selected.has(t.id)?'rgba(205,174,116,0.08)':'transparent'}} onTouchStart={e=>{if(!selectMode)e.currentTarget.style.background='var(--s2)';}} onTouchEnd={e=>{if(!selectMode)e.currentTarget.style.background='transparent';}}>
+              return(<div key={t.id} onClick={()=>selectMode?toggleSelect(t.id):setModal(t)} style={{padding:'12px 14px',borderBottom:`1px solid ${selected.has(t.id)?'var(--ac)':'var(--bd)'}`,cursor:'pointer',transition:'background .1s',background:selected.has(t.id)?'rgba(212,166,89,0.08)':'transparent'}} onTouchStart={e=>{if(!selectMode)e.currentTarget.style.background='var(--s2)';}} onTouchEnd={e=>{if(!selectMode)e.currentTarget.style.background='transparent';}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:5}}>
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
                     {selectMode&&<div style={{width:18,height:18,borderRadius:4,border:`2px solid ${selected.has(t.id)?'var(--ac)':'var(--bdl)'}`,background:selected.has(t.id)?'var(--ac)':'transparent',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'#fff'}}>{selected.has(t.id)?'✓':''}</div>}
@@ -2402,7 +2402,7 @@ function TBJournalPage(){
                 <SH ch="Ent Tot" r/><SH ch="Ext Tot" r/><SH ch="Hold" r/>
                 <Th k="netPnL" ch="Realized P&L" r/><SH ch="P&L %" r/><SH ch="Setup"/><SH ch="Notes"/>
               </tr></thead>
-              <tbody>{filtered.map(t=>(<tr key={t.id} onClick={()=>selectMode?toggleSelect(t.id):setModal(t)} style={{borderBottom:'1px solid var(--bd)',background:selected.has(t.id)?'rgba(205,174,116,0.07)':'transparent',cursor:'pointer',transition:'background .1s'}} onMouseEnter={e=>{if(!selected.has(t.id))e.currentTarget.style.background='var(--s2)';}} onMouseLeave={e=>{e.currentTarget.style.background=selected.has(t.id)?'rgba(205,174,116,0.07)':'transparent';}}>
+              <tbody>{filtered.map(t=>(<tr key={t.id} onClick={()=>selectMode?toggleSelect(t.id):setModal(t)} style={{borderBottom:'1px solid var(--bd)',background:selected.has(t.id)?'rgba(212,166,89,0.07)':'transparent',cursor:'pointer',transition:'background .1s'}} onMouseEnter={e=>{if(!selected.has(t.id))e.currentTarget.style.background='var(--s2)';}} onMouseLeave={e=>{e.currentTarget.style.background=selected.has(t.id)?'rgba(212,166,89,0.07)':'transparent';}}>
                 {selectMode&&<td style={{padding:'0 10px',textAlign:'center'}} onClick={e=>{e.stopPropagation();toggleSelect(t.id);}}><div style={{width:18,height:18,borderRadius:4,border:`2px solid ${selected.has(t.id)?'var(--ac)':'var(--bdl)'}`,background:selected.has(t.id)?'var(--ac)':'transparent',cursor:'pointer',margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'#fff'}}>{selected.has(t.id)?'✓':''}</div></td>}
                 <TBTradeRow trade={t} asFragment/>
               </tr>))}</tbody>
@@ -2534,7 +2534,7 @@ function TBMarketStatus({isMobile}){
   const st=useMemo(()=>tbMktState(now),[now]);
   const PHASE={
     regular:{label:'OPEN',sub:'Regular Hours',tone:'#3fb950'},
-    pre:    {label:'PRE-MARKET',sub:'Extended Hours',tone:'#d9bd82'},
+    pre:    {label:'PRE-MARKET',sub:'Extended Hours',tone:'#e0b57c'},
     after:  {label:'AFTER HOURS',sub:'Extended Hours',tone:'#58a6ff'},
     closed: {label:'CLOSED',sub:st.holiday||(st.tradable?'Market Closed':'Weekend'),tone:'#adadb2'},
   }[st.phase];
@@ -2576,7 +2576,7 @@ function TBMarketStatus({isMobile}){
       {upcoming.map(u=>(<div key={u.d} style={{display:'flex',alignItems:'center',gap:6,background:'var(--s2)',border:'1px solid var(--bd)',borderRadius:8,padding:'4px 9px'}}>
         <span style={{fontSize:11,fontWeight:800,color:'var(--txd)',fontFamily:'IBM Plex Mono,monospace'}}>{tbMktDayLabel(u.d)}</span>
         <span style={{fontSize:11,color:'var(--txm)'}}>{u.n}</span>
-        <span style={{fontSize:8.5,fontWeight:800,letterSpacing:.3,textTransform:'uppercase',color:u.half?'#d9bd82':'#adadb2',background:(u.half?'#d9bd82':'#adadb2')+'1a',borderRadius:4,padding:'1px 5px'}}>{u.half?'½ day':'closed'}</span>
+        <span style={{fontSize:8.5,fontWeight:800,letterSpacing:.3,textTransform:'uppercase',color:u.half?'#e0b57c':'#adadb2',background:(u.half?'#e0b57c':'#adadb2')+'1a',borderRadius:4,padding:'1px 5px'}}>{u.half?'½ day':'closed'}</span>
       </div>))}
     </div>}
   </div>);
@@ -2659,7 +2659,7 @@ function TBPortfolioPage(){
       <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:isMobile?22:26,fontWeight:700,color:'var(--tx)'}}>Portfolio Offline</div>
       <div style={{fontSize:14,color:'var(--txm)',lineHeight:1.7}}>Tap the button below to automatically connect to your Webull account via Cloudflare.</div>
       {/* ── Big connect button ── */}
-      <button onClick={handleConnect} disabled={connecting} style={{background:connecting?'var(--s3)':'var(--ac)',color:'#fff',border:'none',borderRadius:14,padding:'16px 40px',fontSize:17,fontWeight:800,cursor:connecting?'not-allowed':'pointer',width:'100%',maxWidth:340,transition:'all .2s',boxShadow:connecting?'none':'0 4px 20px rgba(205,174,116,0.4)',letterSpacing:.3}}>
+      <button onClick={handleConnect} disabled={connecting} style={{background:connecting?'var(--s3)':'var(--ac)',color:'#fff',border:'none',borderRadius:14,padding:'16px 40px',fontSize:17,fontWeight:800,cursor:connecting?'not-allowed':'pointer',width:'100%',maxWidth:340,transition:'all .2s',boxShadow:connecting?'none':'0 4px 20px rgba(212,166,89,0.4)',letterSpacing:.3}}>
         {connecting?<span><TBIcon n="refresh" size={15}/> Connecting…</span>:<span><TBIcon n="bolt" size={15}/> Connect to Webull</span>}
       </button>
       {/* Status message */}
@@ -3032,10 +3032,10 @@ function TBPromptPage({prompts,onSave,onToast}){
           onPointerDown={e=>onChipDown(i,e)} onPointerMove={onChipMove} onPointerUp={onChipUp} onPointerCancel={onChipCancel}
           style={{display:'inline-flex',alignItems:'center',gap:7,padding:'7px 16px',borderRadius:100,
             border:`1.5px solid ${isOver?'var(--ac)':isSel?'var(--ac)':'var(--bd)'}`,
-            background:isSel?'rgba(205,174,116,0.12)':isOver?'rgba(205,174,116,0.06)':'transparent',
+            background:isSel?'rgba(212,166,89,0.12)':isOver?'rgba(212,166,89,0.06)':'transparent',
             color:isSel?'var(--ac)':'var(--tx)',fontSize:14,fontWeight:700,cursor:'grab',
             opacity:isDrag?0.45:1,transition:'opacity .12s,background .15s,border-color .15s,box-shadow .15s',
-            boxShadow:isOver?'0 0 0 3px rgba(205,174,116,0.18)':'none',touchAction:'none',userSelect:'none'}}>
+            boxShadow:isOver?'0 0 0 3px rgba(212,166,89,0.18)':'none',touchAction:'none',userSelect:'none'}}>
           {p.name}
         </button>);
       })}
@@ -3050,7 +3050,7 @@ function TBPromptPage({prompts,onSave,onToast}){
           <button className="tb-btn-primary" onClick={addPrompt} style={{fontSize:13,padding:'7px 14px'}}>Add</button>
           <button className="tb-btn-ghost" onClick={()=>{setAddingNew(false);setNewName('');}} style={{fontSize:13,padding:'7px 14px'}}><TBIcon n="x"/></button>
         </div>
-      :<button onClick={()=>setAddingNew(true)} style={{padding:'7px 18px',borderRadius:100,border:'1.5px solid var(--ac)',background:'transparent',color:'var(--ac)',fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s',width:'fit-content'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(205,174,116,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>＋ New Prompt</button>
+      :<button onClick={()=>setAddingNew(true)} style={{padding:'7px 18px',borderRadius:100,border:'1.5px solid var(--ac)',background:'transparent',color:'var(--ac)',fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s',width:'fit-content'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(212,166,89,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>＋ New Prompt</button>
     }
     <div className="tb-card" style={{padding:0,overflow:'hidden'}}>
       <div style={{display:'flex',alignItems:'center',padding:'12px 18px',borderBottom:'1px solid var(--bd)',gap:10}}>
@@ -3077,7 +3077,7 @@ function TBPromptPage({prompts,onSave,onToast}){
         {editing
           ?<textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{width:'100%',display:'block',minHeight:240,maxHeight:500,overflowY:'auto',WebkitOverflowScrolling:'touch',background:'var(--s2)',border:'none',color:'var(--tx)',fontFamily:"'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",fontSize:15,lineHeight:1.8,letterSpacing:'0.1px',padding:'20px 50px 20px 20px',outline:'none',resize:'none'}} autoFocus/>
           :<div className="tb-pb-doc tb-prompt-render" dangerouslySetInnerHTML={{__html:tbSanitizeHtml(tbMdToHtml(cur?.text||''),{dropColor:true})}} style={{wordBreak:'break-word',padding:'20px 50px 20px 20px',background:'var(--s2)',boxSizing:'border-box',minHeight:80,maxHeight:500,overflowY:'auto',WebkitOverflowScrolling:'touch'}}/>}
-        <div ref={resize} style={{position:'absolute',bottom:0,right:0,width:40,height:40,cursor:'ns-resize',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--txm)',borderRadius:'0 0 12px 0',userSelect:'none',zIndex:2,touchAction:'none',transition:'color .15s,background .15s'}} onMouseEnter={e=>{e.currentTarget.style.color='var(--ac)';e.currentTarget.style.background='rgba(205,174,116,0.12)';}} onMouseLeave={e=>{e.currentTarget.style.color='var(--txm)';e.currentTarget.style.background='transparent';}}>
+        <div ref={resize} style={{position:'absolute',bottom:0,right:0,width:40,height:40,cursor:'ns-resize',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--txm)',borderRadius:'0 0 12px 0',userSelect:'none',zIndex:2,touchAction:'none',transition:'color .15s,background .15s'}} onMouseEnter={e=>{e.currentTarget.style.color='var(--ac)';e.currentTarget.style.background='rgba(212,166,89,0.12)';}} onMouseLeave={e=>{e.currentTarget.style.color='var(--txm)';e.currentTarget.style.background='transparent';}}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M15 1L1 15M15 8L8 15M15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
         </div>
       </div>
@@ -3157,7 +3157,7 @@ const TDB_TONE = {
   neutral:{c:"var(--txd)", bg:"var(--s2)"},
 };
 const tdbTone = t => TDB_TONE[t] || TDB_TONE.neutral;
-const tdbDotColor = t => ({good:'#a4b986',warn:'#d9bd82',bad:'#d68a7c',neutral:'#adadb2'}[t]||'#adadb2');
+const tdbDotColor = t => ({good:'#a4b986',warn:'#e0b57c',bad:'#d68a7c',neutral:'#adadb2'}[t]||'#adadb2');
 const tdbDot  = t => <span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:tdbDotColor(t),flexShrink:0}}/>;
 function tdbIsPlaceholder(v){const s=String(v||"").trim();return !s||/^\[.*\]$/.test(s);}
 function tdbFmtTime(sec){if(sec<=0)return"now";if(sec<60)return sec+"s";return Math.ceil(sec/60)+"m";}
@@ -3320,7 +3320,7 @@ function TBPromptSelect({prompts,value,onChange,onGoToPrompts}){
   return <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
     {prompts.map(p=>{const on=p.id===effective;return(
       <button key={p.id} onClick={()=>onChange(p.id)} title={p.name}
-        style={{padding:"6px 16px",borderRadius:100,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"rgba(205,174,116,0.12)":"transparent",color:on?"var(--ac)":"var(--txd)",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all .15s",maxWidth:220,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</button>);})}
+        style={{padding:"6px 16px",borderRadius:100,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"rgba(212,166,89,0.12)":"transparent",color:on?"var(--ac)":"var(--txd)",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all .15s",maxWidth:220,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</button>);})}
     {onGoToPrompts&&<button onClick={onGoToPrompts} title="Manage prompts" style={{padding:"6px 12px",borderRadius:100,border:"1px solid var(--bd)",background:"transparent",color:"var(--txm)",fontSize:12,fontWeight:700,cursor:"pointer"}}>✎ Edit in Prompts</button>}
   </div>;
 }
@@ -3349,7 +3349,7 @@ function TBBoardPromptPicker({prompts,value,onChange,onGoToPrompts,isMobile}){
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(230px,1fr))",gap:10}}>
       {prompts.map(p=>{const on=p.id===effective;return(
         <button key={p.id} onClick={()=>onChange(p.id)} title={p.name}
-          style={{textAlign:"left",padding:"12px 14px",borderRadius:12,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"rgba(205,174,116,0.10)":"var(--s2)",cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",gap:6}}>
+          style={{textAlign:"left",padding:"12px 14px",borderRadius:12,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"rgba(212,166,89,0.10)":"var(--s2)",cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",gap:6}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{width:15,height:15,borderRadius:"50%",border:`2px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"var(--ac)":"transparent",flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{on&&<span style={{width:5,height:5,borderRadius:"50%",background:"#fff"}}/>}</span>
             <span style={{fontSize:14,fontWeight:800,color:on?"var(--ac)":"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</span>
@@ -3904,7 +3904,7 @@ function TBHeader({page,onNav,syncStatus,portfolioConnected,isDark,onToggleTheme
       <div style={{padding:'calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 0',display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
         <div style={{display:'flex',flexDirection:'column',gap:2}}>
           <div style={{fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",fontSize:'clamp(19px,2.8vw,26px)',fontWeight:700,letterSpacing:-0.3,whiteSpace:'nowrap',lineHeight:1.1}}>
-            <span style={{background:'linear-gradient(180deg,#eddcb8 0%,#cdae74 90%)',WebkitBackgroundClip:'text',backgroundClip:'text',WebkitTextFillColor:'transparent',color:'#e8d5ab'}}>TradeHub</span>
+            <span style={{background:'linear-gradient(180deg,#f4d795 0%,#d4a659 90%)',WebkitBackgroundClip:'text',backgroundClip:'text',WebkitTextFillColor:'transparent',color:'#edc884'}}>TradeHub</span>
           </div>
           <span style={{fontSize:10,fontWeight:600,whiteSpace:'nowrap',visibility:syncVisible?'visible':'hidden',color:syncColor}}>{syncLabel}</span>
         </div>
@@ -3936,7 +3936,7 @@ function TBMobileHeader({page,syncStatus,portfolioConnected,onNav,isDark,onToggl
     <div style={{padding:'calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 0',display:'flex',alignItems:'flex-start',justifyContent:'space-between',minHeight:30}}>
       <div style={{display:'flex',flexDirection:'column',gap:2}}>
         <div style={{fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",fontSize:20,fontWeight:700,letterSpacing:-0.3,whiteSpace:'nowrap'}}>
-          <span style={{background:'linear-gradient(180deg,#eddcb8 0%,#cdae74 90%)',WebkitBackgroundClip:'text',backgroundClip:'text',WebkitTextFillColor:'transparent',color:'#e8d5ab'}}>TradeHub</span>
+          <span style={{background:'linear-gradient(180deg,#f4d795 0%,#d4a659 90%)',WebkitBackgroundClip:'text',backgroundClip:'text',WebkitTextFillColor:'transparent',color:'#edc884'}}>TradeHub</span>
         </div>
         <span style={{fontSize:10,fontWeight:600,visibility:syncVisible?'visible':'hidden',color:syncColor,lineHeight:1}}>{syncLabel}</span>
       </div>
@@ -4026,7 +4026,7 @@ function TBDashboardPage({report,onImport,onSaveReport,reports,onUpdateReports})
       <div className="tb-section-label" style={{marginBottom:14}}>Trade Setups</div>
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
         {report.tradeSetups.map((s,i)=>(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'10px 0',borderBottom:i<report.tradeSetups.length-1?'1px solid var(--bd)':'none'}}>
-          <span style={{fontFamily:'IBM Plex Mono,monospace',fontSize:12,fontWeight:700,color:'var(--ac)',background:'rgba(205,174,116,0.1)',padding:'2px 10px',borderRadius:6,letterSpacing:1,flexShrink:0}}>{s.ticker}</span>
+          <span style={{fontFamily:'IBM Plex Mono,monospace',fontSize:12,fontWeight:700,color:'var(--ac)',background:'rgba(212,166,89,0.1)',padding:'2px 10px',borderRadius:6,letterSpacing:1,flexShrink:0}}>{s.ticker}</span>
           <div style={{flex:1}}>
             <div style={{fontSize:12,fontWeight:700,color:'var(--txd)',marginBottom:2}}>{s.setupType}</div>
             {s.whyStrong&&<div style={{fontSize:13,color:'var(--txm)',fontFamily:'Manrope,system-ui,sans-serif',fontStyle:'italic'}}>{s.whyStrong.slice(0,160)}</div>}
@@ -5265,7 +5265,7 @@ const tbCatColor=c=>TB_CAT_COLORS[String(c||'').toLowerCase()]||'#adadb2';
 // Macro market-impact pill (importance tier from the worker). Soft pastels that
 // match index.html's MC_IMP exactly, so the same event reads identically in the
 // Catalysts tab and on both TaskHubs. Sentence case, not shouted caps.
-const TB_IMP={high:{c:'#f85149',t:'High'},medium:{c:'#dcc38c',t:'Med'},low:{c:'#adadb2',t:'Low'}};
+const TB_IMP={high:{c:'#f85149',t:'High'},medium:{c:'#E2C285',t:'Med'},low:{c:'#adadb2',t:'Low'}};
 // Category chips arrive lowercase from the worker ('earnings', 'inflation', …);
 // title-case them for display rather than uppercasing the whole label.
 const tbCatLabel=c=>{const s=String(c||'');return s?s.charAt(0).toUpperCase()+s.slice(1):s;};
@@ -5501,11 +5501,11 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
       const etM=+et.month, etY=+et.year;
       const targetYear=etM>=11?etY+1:etY;                 // Nov+ → next year is the one to hardcode
       const updateDue=(etM>=11||etM<=1)&&approxYears.includes(String(targetYear));
-      if(updateDue) return (<div className="tb-card" style={{marginBottom:12,padding:'11px 15px',borderLeft:'3px solid #d9bd82',background:'rgba(224,181,124,0.06)',fontSize:12.5,color:'var(--txd)',lineHeight:1.6}}>
-        <b style={{color:'#d9bd82',display:'inline-flex',alignItems:'center',gap:6}}><TBIcon n="calendar" size={13}/>Annual macro update due ({targetYear})</b> — the {targetYear} release schedule (CPI, jobs, FOMC…) isn't hardcoded yet, so those dates are AI-estimated. The official BLS / BEA / Fed schedules are published now — time to hardcode {targetYear} in the newshub worker for exact dates.
+      if(updateDue) return (<div className="tb-card" style={{marginBottom:12,padding:'11px 15px',borderLeft:'3px solid #e0b57c',background:'rgba(224,181,124,0.06)',fontSize:12.5,color:'var(--txd)',lineHeight:1.6}}>
+        <b style={{color:'#e0b57c',display:'inline-flex',alignItems:'center',gap:6}}><TBIcon n="calendar" size={13}/>Annual macro update due ({targetYear})</b> — the {targetYear} release schedule (CPI, jobs, FOMC…) isn't hardcoded yet, so those dates are AI-estimated. The official BLS / BEA / Fed schedules are published now — time to hardcode {targetYear} in the newshub worker for exact dates.
       </div>);
-      if(approxYears.length>0) return (<div className="tb-card" style={{marginBottom:12,padding:'10px 14px',borderLeft:'3px solid #d9bd82',fontSize:12,color:'var(--txd)',lineHeight:1.55}}>
-        <b style={{color:'#d9bd82',display:'inline-flex',alignItems:'center',gap:6}}><TBIcon n="alert" size={13}/>AI-estimated dates</b> — official macro release schedules for {approxYears.join(', ')} aren't published yet, so events tagged <b>(approx)</b> are AI-estimated and may shift a day or two. Earnings and market holidays are exact.
+      if(approxYears.length>0) return (<div className="tb-card" style={{marginBottom:12,padding:'10px 14px',borderLeft:'3px solid #e0b57c',fontSize:12,color:'var(--txd)',lineHeight:1.55}}>
+        <b style={{color:'#e0b57c',display:'inline-flex',alignItems:'center',gap:6}}><TBIcon n="alert" size={13}/>AI-estimated dates</b> — official macro release schedules for {approxYears.join(', ')} aren't published yet, so events tagged <b>(approx)</b> are AI-estimated and may shift a day or two. Earnings and market holidays are exact.
       </div>);
       return null;
     })()}
@@ -5929,9 +5929,9 @@ const TB_PB_FONTS=[
 const TB_PB_SIZES=[12,14,16,18,20,24,28,32];
 const TB_PB_BLOCKS=[['p','Normal text'],['h1','Heading 1'],['h2','Heading 2'],['h3','Heading 3'],['blockquote','Quote'],['pre','Code block']];
 // Text colours: theme-aware, all readable on the dark surface. First entry resets.
-const TB_PB_TEXT_COLORS=['','#f4f3f0','#adadb2','#cdae74','#a4b986','#d68a7c','#d9bd82','#7dd3fc','#c084fc','#fb923c'];
+const TB_PB_TEXT_COLORS=['','#f4f3f0','#adadb2','#d4a659','#a4b986','#d68a7c','#e0b57c','#7dd3fc','#c084fc','#fb923c'];
 // Highlights: translucent so text stays legible. First entry clears.
-const TB_PB_HL_COLORS=['','rgba(205,174,116,0.30)','rgba(164,185,134,0.28)','rgba(251,191,36,0.30)','rgba(125,211,252,0.28)','rgba(192,132,252,0.28)'];
+const TB_PB_HL_COLORS=['','rgba(212,166,89,0.30)','rgba(164,185,134,0.28)','rgba(251,191,36,0.30)','rgba(125,211,252,0.28)','rgba(192,132,252,0.28)'];
 
 /* Hoisted so their identity is stable across toolbar re-renders (inline components
    would remount their subtrees, e.g. dropping focus from an open menu). */
@@ -6775,7 +6775,7 @@ var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
 var AL_JOURNAL = 'applock';
 var AL_EMAIL   = 'anthonypn99@gmail.com';
 var APPID      = 'tony_tradehub_standalone';
-var AC         = '#cdae74';
+var AC         = '#d4a659';
 
 function _el(id){ return document.getElementById(id); }
 
@@ -6936,7 +6936,7 @@ function alBioRender(mode){
     box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
     var b=document.createElement('button');
     b.innerHTML=KCI.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
-    b.style.cssText="border:1px solid rgba(205,174,116,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100%;background:transparent;color:#e8d5ab;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
+    b.style.cssText="border:1px solid rgba(212,166,89,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100%;background:transparent;color:#edc884;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
     b.onclick=function(){ alBioUnlock(); };
     box.appendChild(b);
     var link=document.createElement('button');
@@ -7018,7 +7018,7 @@ function alShowManageMenu(){
   if (!isUnlocked){
     var ub=document.createElement('button');
     ub.innerHTML=KCI.unlock+'<span>Unlock this device</span>';
-    ub.style.cssText=s+'color:#e8d5ab;border-color:rgba(205,174,116,.36);';
+    ub.style.cssText=s+'color:#edc884;border-color:rgba(212,166,89,.36);';
     ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
     menu.appendChild(ub);
   }
@@ -7336,7 +7336,7 @@ window._tbTabLock = {
 <script>
 (function(){
   if (window.uiModal) return;
-  var ACCENT = '#cdae74';
+  var ACCENT = '#d4a659';
   var CSS =
     '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
   + '#uim-overlay.show{display:flex;}'
@@ -7347,7 +7347,7 @@ window._tbTabLock = {
   + '.uim-field{display:block;margin-bottom:14px;}'
   + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
   + '.uim-input{width:100%;box-sizing:border-box;background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
-  + '.uim-input:focus{border-color:#cdae74;}'
+  + '.uim-input:focus{border-color:#d4a659;}'
   + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
   + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
@@ -7385,8 +7385,8 @@ window._tbTabLock = {
     var ok=el('uim-ok'), ca=el('uim-cancel');
     ok.textContent=cfg.okLabel||'OK';
     ok.style.background='transparent';
-    ok.style.color=cfg.danger?'#d68a7c':'#e8d5ab';
-    ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'rgba(205,174,116,.36)';
+    ok.style.color=cfg.danger?'#d68a7c':'#edc884';
+    ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'rgba(212,166,89,.36)';
     ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
     el('uim-overlay').classList.add('show');
     setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);

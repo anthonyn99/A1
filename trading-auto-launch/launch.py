@@ -1252,8 +1252,8 @@ def _fetch_daily_reminder(attempts: int = DAILY_REMINDER_FETCH_ATTEMPTS, delay: 
 # Dialog palette — mirrors the suite's Insight theme (warm charcoal + tan gold)
 # so the morning gate feels like the app it launches.
 _RD_BG, _RD_SURF, _RD_BORDER = "#1a1a1d", "#232327", "#34343a"
-_RD_TX, _RD_DIM, _RD_ACCENT  = "#f4f3f0", "#adadb2", "#cdae74"
-_RD_ACCENT_SOFT = "#e8d5ab"   # gold-soft — accent text on the dark surface
+_RD_TX, _RD_DIM, _RD_ACCENT  = "#f4f3f0", "#adadb2", "#d4a659"
+_RD_ACCENT_SOFT = "#edc884"   # gold-soft — accent text on the dark surface
 _RD_MUTED       = "#8d8d94"   # faint — least prominent copy
 
 # Inline markdown: bold / italic / code / links. Split-capturing, so the text
