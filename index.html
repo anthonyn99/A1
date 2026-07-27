@@ -10136,7 +10136,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
-import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-messaging.js";
+import { getMessaging, getToken, onMessage, deleteToken } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-messaging.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
 
 (function(){
@@ -10294,10 +10294,15 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // opts.action = {label, run} adds a tappable button. Its onclick fires run()
   // SYNCHRONOUSLY so an iOS user-gesture (required for Notification.requestPermission)
   // is preserved.
+  // opts.key = collapse key. Saving several reminders in one go used to stack an
+  // identical warning per item; a keyed banner refuses to appear twice while one
+  // with the same key is still on screen.
   function showBanner(title,opts){
     opts=opts||{};
     const stack=getStack();
+    if(opts.key&&stack.querySelector('[data-th-key="'+CSS.escape(opts.key)+'"]'))return null;
     const item=document.createElement('div');item.className='th-banner-item';
+    if(opts.key)item.setAttribute('data-th-key',opts.key);
     let actionHtml='';
     if(opts.action&&opts.action.label){
       actionHtml='<button class="th-banner-action" style="background:transparent;border:1px solid rgba(212,166,89,.36);color:#edc884;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;padding:8px 14px;border-radius:6px;flex-shrink:0;font-family:inherit;transition:border-color .18s">'+escHtml(opts.action.label)+'</button>';
@@ -10339,7 +10344,8 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       Promise.resolve(Notification.requestPermission()).then(function(r){
         if(r==='granted'){
           Promise.resolve(window._fcmEnsureToken?window._fcmEnsureToken():null).then(function(t){
-            showBanner(t?'\u2705 Notifications enabled \u2014 reminders will now alert even when the app is closed.':'\u26a0 Permission granted but token failed: '+(window._fcmLastError||'unknown'));
+            if(t)showBanner('\u2705 Notifications enabled \u2014 reminders will now alert even when the app is closed.');
+            else showPushFailBanner('');
           });
         }else{
           showBanner('\u26a0 Permission not granted ('+r+'). Reminders will only alert while the app is open.');
@@ -10349,6 +10355,32 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     }}});
   }
   window._thShowEnableBanner=showEnableBanner;
+
+  // Permission IS granted but the browser still won't hand out a push token.
+  // Shown at most ONCE per session: saving three reminders in a row used to stack
+  // three identical warnings, and the background re-arm sweep could add one per
+  // repeating series (the wall of banners Veda saw). Raw SDK text like
+  // "20 Registration failed - push service error" means nothing to a user, so say
+  // what actually happens and give them the one button that can fix it.
+  let _pushFailBannerUp=false;
+  function showPushFailBanner(prefix){
+    if(_pushFailBannerUp)return;
+    _pushFailBannerUp=true;
+    const needsReload=!!window._fcmNeedsReload;
+    const msg=needsReload
+      ? 'This browser\u2019s push registration was broken \u2014 TaskHub has reset it. Reload to finish turning closed-app alerts back on.'
+      : 'This browser is refusing push registration, so alerts can\u2019t reach you while TaskHub is closed. In-app reminders still work.';
+    showBanner('\u26a0 '+(prefix||'')+msg,{key:'fcm-pushfail',action:{label:needsReload?'Reload':'Retry',run:function(){
+      if(window._fcmNeedsReload){location.reload();return;}
+      Promise.resolve(window._thFcmReset?window._thFcmReset():null).then(function(){
+        _pushFailBannerUp=false;
+        if(_fcmToken)showBanner('\u2705 Push registered \u2014 closed-app alerts are back on.');
+        else if(window._fcmNeedsReload)showPushFailBanner('');
+        else showBanner('\u26a0 Still no push token. Reason: '+(window._fcmLastError||'unknown'));
+      }).catch(function(){_pushFailBannerUp=false;});
+    }}});
+  }
+  window._thShowPushFailBanner=showPushFailBanner;
 
   // ── Firebase init (reuse existing app if already initialised) ─────────
   const FB_CONFIG={
@@ -10394,6 +10426,99 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     return id;
   }
   window._fcmLastError='';
+
+  // ── Push-registration self-heal ───────────────────────────────────────
+  // Veda's device failed every reminder with
+  //   `getToken: 20 Registration failed - push service error`
+  // That code-20 AbortError comes from the BROWSER's own pushManager.subscribe(),
+  // not from Firebase — the profile is holding a push subscription the push
+  // service no longer honours (rotated VAPID key, a subscription left behind by
+  // an older service worker, or a wedged GCM registration). Firebase surfaces it
+  // and gives up, so the token stayed null forever and every save re-reported the
+  // same raw error. Recover cheapest-first: plain retry (many are transient) →
+  // drop the stale PushSubscription → mint a brand-new Firebase Installation by
+  // wiping its IndexedDB. Only the last one needs a reload to take effect.
+  function fmtFcmErr(e){return (e&&e.code?e.code+' ':'')+((e&&e.message)||e);}
+  function isPushRegError(e){
+    if(!e)return false;
+    if(e.name==='AbortError'||e.code===20)return true;
+    return /registration failed|push service error|token-subscribe-failed|invalidstateerror|applicationserverkey/i.test(String(fmtFcmErr(e)));
+  }
+  async function dropPushSubscription(swReg){
+    try{
+      const sub=swReg&&swReg.pushManager&&await swReg.pushManager.getSubscription();
+      if(sub){await sub.unsubscribe();return true;}
+    }catch(e){}
+    return false;
+  }
+  // Deleting these makes the SDK create a fresh Installation + messaging store on
+  // the next load. deleteToken() is tried first but 403s once the registration is
+  // already invalid, so it can't be relied on on its own.
+  const FCM_IDB=['firebase-installations-database','firebase-messaging-database','fcm_token_details_db','fcm_vapid_details_db'];
+  function wipeFCMStores(){
+    return Promise.all(FCM_IDB.map(function(n){
+      return new Promise(function(res){
+        let done=false;const fin=function(){if(!done){done=true;res();}};
+        try{const r=indexedDB.deleteDatabase(n);r.onsuccess=r.onerror=r.onblocked=fin;}catch(e){fin();}
+        setTimeout(fin,1500); // deleteDatabase blocks indefinitely if another tab holds it open
+      });
+    }));
+  }
+  // True once a reset has run and the page needs reloading to pick up a token.
+  window._fcmNeedsReload=false;
+  async function getTokenHealing(swReg){
+    const opts={vapidKey:VAPID_KEY,serviceWorkerRegistration:swReg};
+    try{
+      const t0=await getToken(messaging,opts);
+      if(t0)return t0;
+      window._fcmLastError='getToken returned empty (push blocked?)';
+    }catch(e){
+      window._fcmLastError='getToken: '+fmtFcmErr(e);
+      console.warn('FCM getToken error:',e);
+      // A non-push error (network, App Check, bad VAPID key) isn't something
+      // unsubscribing or a fresh Installation can fix — don't churn over it.
+      if(!isPushRegError(e))return null;
+    }
+    // 1) Transient push-service hiccup — one straight retry.
+    await new Promise(r=>setTimeout(r,800));
+    try{const t=await getToken(messaging,opts);if(t){window._fcmLastError='';return t;}}
+    catch(e){window._fcmLastError='getToken (retry): '+fmtFcmErr(e);}
+    // 2) Stale subscription — unsubscribe so FCM has to create a fresh one.
+    if(await dropPushSubscription(swReg)){
+      try{const t=await getToken(messaging,opts);if(t){window._fcmLastError='';return t;}}
+      catch(e){window._fcmLastError='getToken (after unsubscribe): '+fmtFcmErr(e);}
+    }
+    // 3) Dead Installation — wipe the SDK's IndexedDB. This page keeps the broken
+    //    in-memory handle, so flag it and pick the token up on the next load (the
+    //    banner's Reload button does that immediately). Throttled to once per 24h
+    //    so a browser with push genuinely switched off doesn't churn every save.
+    const lastWipe=parseInt(localStorage.getItem('fcm_idb_wipe_at')||'0',10)||0;
+    if(Date.now()-lastWipe>24*60*60*1000){
+      localStorage.setItem('fcm_idb_wipe_at',String(Date.now()));
+      try{await deleteToken(messaging);}catch(e){}
+      await dropPushSubscription(swReg);
+      await wipeFCMStores();
+      window._fcmNeedsReload=true;
+      try{
+        const t=await getToken(messaging,opts);
+        if(t){window._fcmNeedsReload=false;window._fcmLastError='';return t;}
+      }catch(e){window._fcmLastError='getToken (after reset): '+fmtFcmErr(e);}
+    }
+    return null;
+  }
+  // Manual escape hatch for on-device diagnosis (#notifdiag / console):
+  //   await _thFcmReset()        → unsubscribe + re-request a token
+  //   await _thFcmReset('hard')  → also wipe the Installations/Messaging IndexedDB
+  window._thFcmReset=async function(hard){
+    _fcmToken=null;
+    const swReg=await ensureSWRegistration();
+    try{await deleteToken(messaging);}catch(e){}
+    await dropPushSubscription(swReg);
+    if(hard){localStorage.removeItem('fcm_idb_wipe_at');await wipeFCMStores();}
+    const t=await ensureFCMToken();
+    return t?('token …'+t.slice(-10)):('FAILED: '+(window._fcmLastError||'unknown')+(window._fcmNeedsReload?' — reload the page':''));
+  };
+
   async function ensureFCMToken(){
     if(_fcmToken)return _fcmToken;
     if(!('Notification' in window)){window._fcmLastError='no Notification API';return null;}
@@ -10408,9 +10533,9 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     swReg=await ensureSWRegistration();
     if(!swReg){window._fcmLastError=window._thSWError||'service worker registration failed';return null;}
     try{
-      token=await getToken(messaging,{vapidKey:VAPID_KEY,serviceWorkerRegistration:swReg});
-    }catch(e){_fcmToken=null;window._fcmLastError='getToken: '+((e&&e.code?e.code+' ':'')+(e&&e.message||e));console.warn('FCM getToken error:',e);return null;}
-    if(!token){window._fcmLastError='getToken returned empty (push blocked?)';return null;}
+      token=await getTokenHealing(swReg);
+    }catch(e){_fcmToken=null;window._fcmLastError='getToken: '+fmtFcmErr(e);console.warn('FCM getToken error:',e);return null;}
+    if(!token){_fcmToken=null;if(!window._fcmLastError)window._fcmLastError='getToken returned empty (push blocked?)';return null;}
     _fcmToken=token;
     const mainDash=localStorage.getItem('td6_mainDash')||'all';
     try{
@@ -10452,10 +10577,14 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   };
 
   // ── Permission + token ────────────────────────────────────────────────
-  async function ensurePermission(){
+  // silent=true → background maintenance (re-arm / migration sweeps). Never
+  // prompt from there: those loops run with no user gesture, so the prompt is
+  // dropped on iOS anyway, and they fire once per scheduled series.
+  async function ensurePermission(silent){
     if(!('Notification' in window)){window._fcmLastError='no Notification API (browser lacks web push)';return false;}
     if(Notification.permission==='denied'){window._fcmLastError='notifications blocked — allow in iOS Settings ▸ Notifications';return false;}
     if(Notification.permission!=='granted'){
+      if(silent){window._fcmLastError='permission not granted yet';return false;}
       // On iOS this call from the async save flow won't actually prompt (no
       // gesture) and resolves to 'default' — the tappable Enable banner is what
       // recovers it. Record a real reason either way.
@@ -10472,7 +10601,10 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // Helper: small uid for repeat occurrence docs
   function fcmUid(){return Math.random().toString(36).slice(2)+Date.now().toString(36);}
 
-  window._fcmScheduleNotif=async function(item){
+  // opts.silent → suppress every on-screen banner. Set by the background re-arm
+  // and dashboard-migration sweeps, which call this once per scheduled series.
+  window._fcmScheduleNotif=async function(item,opts){
+    const silent=!!(opts&&opts.silent);
     if(!item||!item.notifyAt||!item.id)return;
     const at=new Date(item.notifyAt).getTime();
     if(isNaN(at))return;
@@ -10483,7 +10615,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 
     // Ensure permission + token FIRST so a phone that can't register surfaces
     // the reason instead of failing silently.
-    const _tok=await ensurePermission().catch(()=>false);
+    const _tok=await ensurePermission(silent).catch(()=>false);
 
     const repeat=item.notifyRepeat||'none';
     const repDays=Array.isArray(item.notifyRepeatDays)?item.notifyRepeatDays:[];
@@ -10583,16 +10715,21 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       }catch(e){writeErr=(e&&e.code?e.code+' ':'')+(e&&e.message||e);console.warn('Reminder write failed:',e);}
     }
     // On-screen status so phone failures are visible (no console needed).
-    if(writeErr){
-      showBanner('⚠ Reminder NOT synced to cloud: '+writeErr);
+    // Background sweeps stay silent — they schedule one series after another and
+    // would otherwise stack an identical warning for each.
+    if(silent){
+      if(writeErr)console.warn('[FCM] silent reschedule failed:',writeErr);
+    } else if(writeErr){
+      showBanner('⚠ Reminder NOT synced to cloud: '+writeErr,{key:'fcm-writeerr'});
     } else if(!_tok){
       // No token because permission isn't granted → give a tappable Enable
       // banner (the only path that works on iOS). If permission IS granted the
-      // failure is a real token/network/App-Check error → show the reason.
+      // failure is a real token/network/App-Check error → one deduped banner
+      // with a Retry that re-runs the push-registration self-heal.
       if(('Notification' in window) && Notification.permission!=='granted'){
         showEnableBanner();
       } else {
-        showBanner('⚠ Reminder saved, but this device has NO push token — it will not receive alerts when closed. Reason: '+(window._fcmLastError||'unknown'));
+        showPushFailBanner('Reminder saved. ');
       }
     }
   };
@@ -10636,7 +10773,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
             if(!it.notifyRepeat||it.notifyRepeat==='none')continue;
             var key=it.notifyRepeatId||it.id;
             if(seen[key])continue;seen[key]=1;
-            try{await window._fcmScheduleNotif({...it,dashboard:SOURCES[s].dash});}catch(e){}
+            try{await window._fcmScheduleNotif({...it,dashboard:SOURCES[s].dash},{silent:true});}catch(e){}
           }
         }
       }
@@ -10679,7 +10816,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
             // De-dupe repeating series so we rewrite each series once.
             var dkey2=(rep!=='none')?('rid_'+(it.notifyRepeatId||it.id)):('one_'+it.id);
             if(seen[dkey2])continue;seen[dkey2]=1;
-            try{await window._fcmScheduleNotif({...it,dashboard:SOURCES[s].dash});}catch(e){}
+            try{await window._fcmScheduleNotif({...it,dashboard:SOURCES[s].dash},{silent:true});}catch(e){}
           }
         }
       }
@@ -10827,7 +10964,16 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     }
     // Token
     const tok=await ensureFCMToken();
-    if(!tok){showBanner('③ Push token: FAILED — '+(window._fcmLastError||'unknown')+'  (OS cards still work while the app is OPEN; only closed-app push needs this.)');}
+    if(!tok){
+      showBanner('③ Push token: FAILED — '+(window._fcmLastError||'unknown')+'  (OS cards still work while the app is OPEN; only closed-app push needs this.)');
+      // ③b One-tap repair for the code-20 "Registration failed - push service
+      // error" family: wipes the Installation + push subscription and reloads so
+      // the SDK registers from scratch. The automatic heal in getTokenHealing
+      // already tried this once; this is the manual, un-throttled version.
+      showBanner('③b Push registration looks broken. Reset it and reload?',{action:{label:'Reset push',run:function(){
+        Promise.resolve(window._thFcmReset('hard')).then(function(){location.reload();},function(){location.reload();});
+      }}});
+    }
     else{showBanner('③ Push token …'+tok.slice(-12)+' OK');}
     showBanner('④ This device id: '+getDeviceId()+'  |  mainDash: "'+(localStorage.getItem('td6_mainDash')||'all')+'"');
     // List all registered token docs so you can confirm the phone is present
