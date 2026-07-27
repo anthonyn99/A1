@@ -302,6 +302,10 @@
 
   // ── controller ─────────────────────────────────────────────────────────────
   var session = null, store = null, backend = null, activeTab = 'links', currentQuery = '';
+  // Which secure notes are expanded. Survives the re-render a save/live-sync
+  // triggers, so a drag-reorder doesn't slam every open note shut. Cleared on
+  // lock — a locked vault leaves no trace of what was being read.
+  var _senOpen = {};
 
   function ensureSession() {
     if (session) return session;
@@ -403,6 +407,7 @@
     // Any lock closes the Payments reveal-grace window, so unlocking again can
     // never inherit an identity check made before the lock.
     try { if (window.VaultPayUI) window.VaultPayUI.resetGrace(); } catch (e) {}
+    _senOpen = {};
     // Draw the lock/setup card into whichever secret tab is on screen, and blank
     // every other one — a locked vault must leave no decrypted rows behind in a
     // panel the user can flip back to.
@@ -662,9 +667,14 @@
   }
   function fillSensitiveList(list) {
     list.innerHTML = '';
-    var items = currentQuery ? store.search(currentQuery).filter(function (i) { return i.kind === 'sensitive'; }) : store.byKind('sensitive');
+    var searching = !!currentQuery;
+    var items = searching ? store.search(currentQuery).filter(function (i) { return i.kind === 'sensitive'; }) : sortSensitive(store.byKind('sensitive'));
     if (!items.length) { list.appendChild(emptyState('No secure notes yet. Store Wi-Fi passwords, lock combos, recovery codes, license keys…')); return; }
-    items.forEach(function (it) { list.appendChild(sensitiveRow(it)); });
+    items.forEach(function (it) { list.appendChild(sensitiveRow(it, searching)); });
+    // Reordering a FILTERED list would be a lie: positions 0..n of a search
+    // result aren't positions in the vault. So drag is only live on the full
+    // list, and the handle explains itself when it isn't.
+    if (!searching && items.length > 1) makeReorderable(list, commitSensitiveOrder);
   }
   function fillPaymentList(list) {
     if (!window.VaultPayUI) { list.innerHTML = ''; list.appendChild(emptyState('Payments module not loaded.')); return; }
@@ -774,6 +784,174 @@
     return el('div', { class: 'vault-account' + (indented ? ' indented' : '') }, [main, actions]);
   }
 
+  // ── drag to reorder (shared: Payments + Sensitive Info) ────────────────────
+  // ONE engine for every reorderable list in Vault, so the two sections can
+  // never drift apart in feel. Contract: `listEl`'s direct children are the
+  // rows, each `.vault-site[data-id]`, each carrying a `.vault-drag` handle and
+  // (optionally) a `.vault-rowbody` that collapses mid-drag.
+  //
+  // Pointer Events, so mouse / touch / pen are ONE code path — HTML5 drag-and-
+  // drop is desktop-only and would have needed a separate touch implementation.
+  //
+  // Dragging is anchored to an explicit handle rather than the whole row: on a
+  // phone, "press the row and move" is indistinguishable from "scroll the
+  // list", and the row is also the tap target that expands the card. The handle
+  // carries `touch-action:none` so the browser hands us the gesture instead of
+  // scrolling.
+  //
+  // While a drag is live the list gets `.vault-reordering`, which collapses
+  // every expanded body via CSS (no re-render). That makes all rows the same
+  // height, so the target index is exact integer arithmetic instead of
+  // per-row hit-testing against ragged heights.
+  function scrollParent(node) {
+    for (var e = node.parentElement; e; e = e.parentElement) {
+      var s = getComputedStyle(e).overflowY;
+      if ((s === 'auto' || s === 'scroll') && e.scrollHeight > e.clientHeight) return e;
+    }
+    return null;
+  }
+  // Pure array move. Mirrors VaultPay.moveInList (which is unit-tested) but is
+  // kept local so the shell never depends on the payments module loading.
+  function moveInList(list, from, to) {
+    var out = (list || []).slice();
+    if (from < 0 || from >= out.length) return out;
+    to = Math.max(0, Math.min(out.length - 1, to));
+    out.splice(to, 0, out.splice(from, 1)[0]);
+    return out;
+  }
+
+  function makeReorderable(listEl, onCommit) {
+    if (listEl.__reorderBound) return;
+    listEl.__reorderBound = true;
+
+    listEl.addEventListener('pointerdown', function (e) {
+      if (e.button != null && e.button > 0) return;                 // left/primary only
+      var handle = e.target.closest && e.target.closest('.vault-drag');
+      if (!handle || handle.classList.contains('disabled') || !listEl.contains(handle)) return;
+      start(e, handle);
+    });
+
+    function start(e, handle) {
+      var row = handle.closest('.vault-site');
+      var rows = Array.prototype.slice.call(listEl.children);
+      var from = rows.indexOf(row);
+      if (from < 0 || rows.length < 2) return;
+
+      e.preventDefault();
+      e.stopPropagation();                        // never let this reach the row's expand handler
+      listEl.classList.add('vault-reordering');   // uniform row heights from here on
+
+      // Measure AFTER collapsing, so `step` reflects what's on screen now.
+      var rects = rows.map(function (r) { return r.getBoundingClientRect(); });
+      var step = rows.length > 1 ? (rects[1].top - rects[0].top) : rects[0].height;
+      if (!step) { listEl.classList.remove('vault-reordering'); return; }
+
+      var scroller = scrollParent(listEl);
+      var startY = e.clientY;
+      var startScroll = scroller ? scroller.scrollTop : 0;
+      var to = from, raf = null, lastY = startY;
+
+      row.classList.add('vault-drag-active');
+      try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+
+      function place(dy) {
+        row.style.transform = 'translateY(' + dy + 'px)';
+        var next = Math.max(0, Math.min(rows.length - 1, from + Math.round(dy / step)));
+        if (next === to) return;
+        to = next;
+        rows.forEach(function (r, i) {
+          if (i === from) return;
+          var shift = 0;
+          if (from < to && i > from && i <= to) shift = -step;
+          else if (from > to && i >= to && i < from) shift = step;
+          r.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+        });
+      }
+      // Rects are viewport-based, so a scroll moves every row equally; adding
+      // the scroll delta back keeps the dragged row under the finger AND keeps
+      // the index maths consistent with the original measurements.
+      function currentDy() { return (lastY - startY) + ((scroller ? scroller.scrollTop : 0) - startScroll); }
+
+      // Auto-scroll when dragging near the edge — without it you can't move a
+      // card past the fold on a phone.
+      function edgeScroll() {
+        raf = null;
+        if (!scroller) return;
+        var box = scroller.getBoundingClientRect();
+        var zone = 64, speed = 0;
+        if (lastY < box.top + zone) speed = -Math.ceil((box.top + zone - lastY) / 6);
+        else if (lastY > box.bottom - zone) speed = Math.ceil((lastY - (box.bottom - zone)) / 6);
+        if (speed) {
+          scroller.scrollTop += speed;
+          place(currentDy());
+          raf = requestAnimationFrame(edgeScroll);
+        }
+      }
+
+      function onMove(ev) {
+        lastY = ev.clientY;
+        place(currentDy());
+        if (raf == null) raf = requestAnimationFrame(edgeScroll);
+      }
+      function onUp() {
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+        handle.removeEventListener('pointercancel', onUp);
+        if (raf != null) { cancelAnimationFrame(raf); raf = null; }
+        try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+
+        rows.forEach(function (r) { r.style.transform = ''; });
+        row.classList.remove('vault-drag-active');
+        listEl.classList.remove('vault-reordering');
+
+        if (to !== from) {
+          // Re-append in the new order (appendChild moves an existing child),
+          // so the DOM matches the drop immediately — the save is what catches
+          // up, not the other way round.
+          var ordered = moveInList(rows, from, to);
+          ordered.forEach(function (r) { listEl.appendChild(r); });
+          onCommit(ordered.map(function (r) { return r.getAttribute('data-id'); }));
+        }
+      }
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
+    }
+
+    // Keyboard equivalent — the handle is a real button, so ↑/↓ move the row
+    // for anyone not using a pointer at all.
+    listEl.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      var handle = e.target.closest && e.target.closest('.vault-drag');
+      if (!handle || handle.classList.contains('disabled') || !listEl.contains(handle)) return;
+      var rows = Array.prototype.slice.call(listEl.children);
+      var row = handle.closest('.vault-site');
+      var from = rows.indexOf(row);
+      var to = from + (e.key === 'ArrowUp' ? -1 : 1);
+      if (from < 0 || to < 0 || to >= rows.length) return;
+      e.preventDefault();
+      var ordered = moveInList(rows, from, to);
+      ordered.forEach(function (r) { listEl.appendChild(r); });
+      handle.focus();
+      onCommit(ordered.map(function (r) { return r.getAttribute('data-id'); }));
+    });
+  }
+  // The grip glyph every drag handle uses.
+  function gripIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>'; }
+  // A ready-made handle button. `searching` disables it: positions 0..n of a
+  // filtered list aren't positions in the real list, so reordering one would be
+  // a lie — the handle says so instead of silently doing the wrong thing.
+  function dragHandle(label, searching, onBlocked) {
+    return el('button', {
+      class: 'vault-icon vault-drag' + (searching ? ' disabled' : ''),
+      type: 'button',
+      'aria-label': searching ? 'Clear the search to reorder' : 'Reorder ' + label + ' — drag, or use the arrow keys',
+      title: searching ? 'Clear the search to reorder' : 'Drag to reorder (or focus and press ↑ / ↓)',
+      html: gripIcon(),
+      onclick: function (e) { e.stopPropagation(); if (searching && onBlocked) onBlocked(); },
+    });
+  }
+
   // ── sensitive info panel ───────────────────────────────────────────────────
   function renderSensitive() {
     var panel = $('vault-sensitive-panel'); if (!panel) return;
@@ -785,7 +963,40 @@
     fillSensitiveList(list);
     panel.appendChild(list);
   }
-  function sensitiveRow(it) {
+  // Manual order first (ascending), then everything that has never been dragged
+  // in the order the store already hands back (most recently updated first) —
+  // so switching a vault to manual ordering never reshuffles the untouched tail.
+  function sortSensitive(items) {
+    var manual = items.filter(hasOrder).sort(function (a, b) {
+      if (a.order !== b.order) return a.order - b.order;
+      return String(a.title || '').localeCompare(String(b.title || ''));
+    });
+    return manual.concat(items.filter(function (i) { return !hasOrder(i); }));
+  }
+  function hasOrder(i) { return i && typeof i.order === 'number' && isFinite(i.order); }
+  // Where a newly added note should sit: the top of an already-ordered list,
+  // or undefined (keep the default recency sort) when nothing has been dragged.
+  function nextTopOrder(items) {
+    var orders = (items || []).filter(hasOrder).map(function (i) { return i.order; });
+    return orders.length ? Math.min.apply(null, orders) - 1 : undefined;
+  }
+  // Persist a new sequence. Only the notes whose position actually moved are
+  // re-encrypted and written, and they go out as ONE batch → one repaint, one
+  // debounced Firestore write, and other devices pick it up on the same
+  // real-time listener that already carries every other vault change.
+  async function commitSensitiveOrder(orderedIds) {
+    var byId = {};
+    store.byKind('sensitive').forEach(function (i) { byId[i.id] = i; });
+    var writes = [];
+    orderedIds.forEach(function (id, i) {
+      var it = byId[id];
+      if (it && it.order !== i) writes.push(Object.assign({}, it, { order: i }));
+    });
+    if (!writes.length) return;
+    try { await store.saveMany(writes); }
+    catch (e) { toast('Could not save the new order'); refreshList('sensitive'); }
+  }
+  function sensitiveRow(it, searching) {
     var hasNotes = !!(it.notes && String(it.notes).trim());
     var cfKids = (Array.isArray(it.customFields) ? it.customFields : []).filter(function (cf) { return cf && (cf.label || cf.value); }).map(function (cf) {
       return el('div', { class: 'vault-acc-line' }, [
@@ -799,9 +1010,11 @@
     if (cfKids.length) bodyKids.push(el('div', { class: 'vault-note-cf' }, cfKids));
     if (hasNotes) bodyKids.push(el('div', { class: 'vault-note-actions' }, [iconBtn('Copy details', copyIcon(), function (e) { e.stopPropagation(); copyText(it.notes, 'Details copied'); })]));
     if (!bodyKids.length) bodyKids.push(el('div', { class: 'vault-note-text', style: 'color:var(--txm)' }, ['No details yet — tap edit to add.']));
-    var body = el('div', { class: 'vault-note-body' }, bodyKids);
-    body.style.display = 'none';
-    var head = el('div', { class: 'vault-row', style: 'cursor:pointer' }, [
+    // .vault-rowbody lets the shared drag engine collapse this while reordering.
+    var body = el('div', { class: 'vault-note-body vault-rowbody' }, bodyKids);
+    body.style.display = _senOpen[it.id] ? '' : 'none';
+    var head = el('div', { class: 'vault-row vault-note-head', style: 'cursor:pointer' }, [
+      dragHandle(it.title || 'this note', searching, function () { toast('Clear the search to reorder notes'); }),
       el('div', { class: 'vault-note-icon', html: cabinetIcon() }),
       el('div', { class: 'vault-row-main' }, [
         el('div', { class: 'vault-row-title' }, [it.title || 'Untitled']),
@@ -809,8 +1022,11 @@
       ]),
       iconBtn('Edit', editIcon(), function (e) { e.stopPropagation(); openEditor('sensitive', it); }),
     ]);
-    head.addEventListener('click', function () { body.style.display = body.style.display === 'none' ? '' : 'none'; });
-    return el('div', { class: 'vault-site' }, [head, body]);
+    head.addEventListener('click', function () {
+      _senOpen[it.id] = body.style.display === 'none';
+      body.style.display = _senOpen[it.id] ? '' : 'none';
+    });
+    return el('div', { class: 'vault-site', 'data-id': it.id }, [head, body]);
   }
 
   // ── payments panel (rendering delegated to vault-pay-ui.js) ────────────────
@@ -907,6 +1123,13 @@
     save.addEventListener('click', async function () {
       var out = { id: item.id, kind: kind, createdAt: item.createdAt };
       Object.keys(f).forEach(function (k) { out[k] = f[k].value; });
+      // Manual position is set by dragging, not by this form — carry it across
+      // an edit, and drop a brand-new note at the top of an ordered list (you
+      // just created it; you want to see it) as Payments does.
+      if (kind === 'sensitive') {
+        if (hasOrder(item)) out.order = item.order;
+        else if (!item.id) { var top = nextTopOrder(store.byKind('sensitive')); if (top !== undefined) out.order = top; }
+      }
       if (out.tags != null) out.tags = String(out.tags).split(',').map(function (s) { return s.trim(); }).filter(Boolean);
       out.customFields = customFields.filter(function (c) { return (c.label || '').trim() || (c.value || '').trim(); });
       if (isLogin ? (!out.title && !out.url) : !out.title) { err.textContent = 'Give it a name.'; return; }
@@ -1380,6 +1603,9 @@
     return {
       el: el, esc: esc, toast: toast, copyText: copyText, confirmUI: confirmUI,
       iconBtn: iconBtn, emptyState: emptyState,
+      // The one drag-to-reorder engine, shared so Payments and Sensitive Info
+      // can never drift apart. See makeReorderable() for the DOM contract.
+      makeReorderable: makeReorderable, dragHandle: dragHandle,
       // Rendered SVG STRINGS, not the builder functions — iconBtn() and
       // innerHTML both want markup, and handing over the function instead
       // stringifies its source into the button.
@@ -1426,11 +1652,16 @@
       // The app-hbar (branding) is already sticky top:0; the tabs stick BELOW it,
       // and the toolbar below the tabs — offsets measured live in updateStickyOffset.
       '#kc-root .app-hbar{position:sticky;top:0;z-index:7}',
-      '.vault-tabs{display:flex;gap:8px;padding:12px clamp(10px,3vw,24px) 10px;max-width:1100px;margin:0 auto;width:100%;position:sticky;top:var(--vhbar-h,60px);z-index:6;background:var(--bg)}',
+      // --vpad is the one horizontal gutter every full-width strip (tabs,
+      // panels, toolbars) shares, so they stay optically aligned at every width
+      // — and it never dips under the notch/rounded corner in landscape.
+      '#kc-root{--vpad:clamp(10px,3vw,24px)}',
+      '#kc-root{--vpadl:max(var(--vpad),env(safe-area-inset-left,0px));--vpadr:max(var(--vpad),env(safe-area-inset-right,0px))}',
+      '.vault-tabs{display:flex;gap:8px;padding:12px var(--vpadr) 10px var(--vpadl);max-width:1100px;margin:0 auto;width:100%;position:sticky;top:var(--vhbar-h,60px);z-index:6;background:var(--bg)}',
       '.vault-tab{flex:0 0 auto;background:transparent;border:1px solid var(--bd);color:var(--txd);font-size:11px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;padding:0 14px;height:34px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:border-color .18s,color .18s}',
       '.vault-tab:hover{color:var(--tx);border-color:var(--txd)}.vault-tab.active{background:transparent;color:var(--acs,#edc884);border-color:var(--ac)}',
       '.vault-tab svg{display:block;width:15px;height:15px;flex-shrink:0}',
-      '.vault-panel{max-width:1100px;margin:0 auto;padding:0 clamp(10px,3vw,24px) 28px;width:100%}',
+      '.vault-panel{max-width:1100px;margin:0 auto;width:100%;padding:0 var(--vpadr) calc(28px + env(safe-area-inset-bottom,0px)) var(--vpadl)}',
       // Search + Add + Settings + Lock stay pinned just below the tabs.
       '.vault-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;position:sticky;top:calc(var(--vhbar-h,60px) + var(--vtabs-h,54px));z-index:5;background:var(--bg);padding:8px 0 10px}',
       '.vault-toolbar .vault-icon{width:38px;height:38px}',
@@ -1456,14 +1687,33 @@
       '.vault-acc-flabel{font-size:9.5px;font-weight:500;color:var(--txm);text-transform:uppercase;letter-spacing:1.4px}',
       '.vault-acc-val{font-size:13px;color:var(--tx);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vault-acc-val.muted{color:var(--txm);font-weight:400}',
       '.vault-acc-pw{font-size:13px;color:var(--txd);font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vault-pw-dots{letter-spacing:2px}',
-      '.vault-acc-actions{display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;flex-shrink:0;justify-content:flex-end;max-width:50%}',
-      '.vault-note-body{padding:0 14px 14px 40px}',
+      // Capped so a long action row can never squeeze the values it belongs to
+      // down to an ellipsis; below 720px it drops to its own full-width row.
+      '.vault-acc-actions{display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;flex-shrink:0;justify-content:flex-end;max-width:min(50%,320px)}',
+      '.vault-note-body{padding:0 14px 14px}',
       '.vault-note-text{color:var(--tx);font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius-sm);padding:12px}',
       '.vault-note-actions{display:flex;justify-content:flex-end;margin-top:8px}',
       '.vault-icon{background:transparent;border:1px solid var(--bd);color:var(--txd);width:30px;height:30px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:border-color .18s,color .18s;padding:0}',
       '.vault-icon svg{display:block;width:15px;height:15px}',
       '.vault-icon:hover{color:var(--acs,#edc884);border-color:var(--ac)}',
       '.vault-icon.vpay-on,.vault-icon.vault-on{color:var(--acs,#edc884);border-color:var(--acl,rgba(212,166,89,.36))}',
+      // ── drag to reorder (Payments + Sensitive Info share this) ──
+      // touch-action:none is what stops the browser from treating a drag on the
+      // handle as a scroll gesture; without it, mobile reordering is impossible.
+      '.vault-drag{cursor:grab;touch-action:none;flex-shrink:0;background:transparent;border-color:transparent;color:var(--txm)}',
+      '.vault-drag:hover{color:var(--tx);background:var(--s3);border-color:var(--bd)}',
+      '.vault-drag:focus-visible{outline:2px solid var(--ac);outline-offset:1px;color:var(--tx)}',
+      '.vault-drag.disabled{opacity:.3;cursor:not-allowed}',
+      '.vault-drag.disabled:hover{color:var(--txm);background:transparent;border-color:transparent}',
+      // Non-dragged rows glide to their new slot; the dragged row tracks the
+      // finger with no transition so it never lags behind the pointer.
+      '.vault-reordering .vault-site{transition:transform .16s cubic-bezier(.2,.7,.3,1)}',
+      '.vault-reordering .vault-rowbody{display:none!important}',  // uniform row heights → exact index maths
+      '.vault-reordering{cursor:grabbing}',
+      '.vault-reordering .vault-site.vault-drag-active{transition:none;z-index:3;position:relative;cursor:grabbing;',
+      '  border-color:var(--ac);box-shadow:0 12px 28px rgba(0,0,0,.5);transform-origin:center}',
+      '.vault-reordering .vault-site.vault-drag-active .vault-drag{cursor:grabbing;color:var(--ac)}',
+      '@media (prefers-reduced-motion:reduce){.vault-reordering .vault-site{transition:none}}',
       '.vault-empty{border:1px dashed var(--bd);border-radius:var(--radius);padding:34px 20px;text-align:center;color:var(--txd);font-size:13px;line-height:1.7}',
       '.vault-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--bd)}',
       '.vault-link-btn{background:none;border:none;color:var(--txd);font-size:12px;font-weight:500;cursor:pointer;padding:4px 8px;display:inline-flex;align-items:center;gap:7px;transition:color .15s}.vault-link-btn:hover{color:var(--acs,#edc884)}',
@@ -1486,13 +1736,18 @@
       '.vault-recovery-code{font-family:ui-monospace,monospace;font-size:16px;font-weight:500;color:var(--ac);background:var(--s2);border:1px dashed var(--bdl);border-radius:var(--radius);padding:16px;letter-spacing:1px;word-break:break-all;margin-bottom:12px;line-height:1.7}',
       '.vault-ack{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--txd);margin:12px 0;text-align:left;cursor:pointer}',
       // modal
-      '.vault-overlay{position:fixed;inset:0;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;z-index:99998;padding:16px}',
-      '.vault-modal{background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius);padding:22px;width:440px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 24px 70px rgba(0,0,0,.6)}',
+      // 100dvh (not vh) so a phone's collapsing URL bar can't push the modal's
+      // action buttons off-screen; the insets keep it clear of notch + home bar.
+      '.vault-overlay{position:fixed;inset:0;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;z-index:99998;overflow-y:auto;',
+      '  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}',
+      '.vault-modal{background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius);padding:22px;width:440px;max-width:100%;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;box-shadow:0 24px 70px rgba(0,0,0,.6)}',
       '.vault-modal-title{font-family:var(--display,inherit);font-size:20px;font-weight:600;letter-spacing:-.2px;color:var(--tx);margin-bottom:18px}',
       '.vault-field{margin-bottom:12px}.vault-flabel{display:block;font-size:10px;font-weight:500;color:var(--txm);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:7px}',
       '.vault-field .vault-input{margin-bottom:0}select.vault-input{cursor:pointer}',
       '.vault-pw-input{display:flex;gap:6px}.vault-pw-input .vault-input{flex:1}',
-      '.vault-modal-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.vault-modal-actions .vault-btn{width:auto;flex:1;margin:0}',
+      // flex-basis 120px: a 4-button row (the generator) wraps to 2x2 rather
+      // than shrinking every label into an ellipsis on a phone.
+      '.vault-modal-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.vault-modal-actions .vault-btn{width:auto;flex:1 1 120px;margin:0;white-space:nowrap}',
       '.vault-setting-row{display:block;width:100%;text-align:left;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:var(--radius);padding:13px 15px;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:8px}.vault-setting-row:hover{border-color:var(--ac)}',
       '.vault-ie-row{display:flex;align-items:center;gap:12px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px}',
       '.vault-ie-title{font-size:13px;font-weight:500;color:var(--tx)}.vault-ie-desc{font-size:11px;color:var(--txd);line-height:1.5;margin-top:2px}',
@@ -1527,22 +1782,76 @@
       '.vault-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.vault-gen-opt{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--txd);cursor:pointer}',
       '.vault-range{width:100%;accent-color:var(--ac)}.vault-gen-len .vault-range{flex:1;margin-left:12px}',
       '.vault-toast.show{opacity:1!important}',
-      // ── mobile ──
+      // ── responsive ────────────────────────────────────────────────────────
+      // Four steps, each one a real device class rather than an arbitrary width:
+      //   ≤1024  tablets & foldables opened — roomy, but no hover to lean on
+      //   ≤720   the action row stops competing with the values beside it
+      //   ≤640   phones — one column, 16px inputs, thumb-sized controls
+      //   ≤380   small/folded phones — the last of the horizontal padding goes
+      // Touch ergonomics are keyed off pointer:coarse (a touch laptop needs the
+      // big targets too), never off width.
+      '@media (max-width:1024px){',
+      '  .vault-toolbar{padding:8px 0}',
+      '  .vault-health-top{gap:12px}',
+      '}',
+      // The stacked value lines and the action row stop fighting for the same
+      // row: actions move under the fields and get the full width to sit in.
+      '@media (max-width:720px){',
+      '  .vault-account{flex-wrap:wrap;align-items:flex-start;gap:8px}',
+      '  .vault-acc-actions{max-width:none;width:100%;justify-content:flex-end}',
+      '}',
       '@media (max-width:640px){',
-      '  .vault-panel{padding:12px 12px 28px}',
-      '  .vault-tabs{padding:10px 12px 0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}',
+      // Tabs scroll horizontally instead of wrapping into a second sticky row
+      // that would eat a third of a phone screen.
+      '  .vault-tabs{padding-top:10px;padding-bottom:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}',
       '  .vault-tabs::-webkit-scrollbar{display:none}',
-      '  .vault-tab{font-size:12px;padding:8px 13px;white-space:nowrap}',
-      '  .vault-row{gap:10px;padding:12px}',
-      '  .vault-account{flex-wrap:wrap;gap:8px}',
-      '  .vault-acc-actions{flex-direction:row;width:100%;justify-content:flex-end}',
-      '  .vault-modal{width:100%;border-radius:14px;padding:18px 16px;max-height:92vh}',
-      '  .vault-modal-actions{gap:8px}',
+      '  .vault-tab{font-size:11px;padding:0 12px;height:36px;letter-spacing:.9px;white-space:nowrap}',
+      // Search takes a row of its own; Add sits left, the icon cluster right.
+      '  .vault-toolbar{gap:8px;margin-bottom:10px}',
+      '  .vault-search-wrap{flex:1 0 100%}',
+      '  .vault-toolbar .vault-btn.sm{margin-right:auto;padding:9px 14px}',
+      '  .vault-row{gap:10px;padding:11px 12px}',
+      '  .vault-account{padding:11px 12px}',
+      '  .vault-account.indented{padding-left:16px}',
+      '  .vault-note-body{padding:0 12px 12px}',
+      '  .vault-modal{width:100%;border-radius:14px;padding:18px 16px}',
+      '  .vault-modal-title{font-size:18px;margin-bottom:14px}',
       '  .vault-card{padding:24px 18px}',
-      '  .vault-icon{width:34px;height:34px}',        // bigger touch targets
+      '  .vault-lock{padding:24px 4px}',
       '  .vault-search{font-size:16px}',              // 16px stops iOS input zoom
       '  .vault-input{font-size:16px}',
-      '  .vault-note-body{padding-left:22px}',
+      '  .vault-empty{padding:26px 16px}',
+      '  .vault-health-top{flex-direction:column;align-items:flex-start;text-align:left}',
+      '  .vault-gen-out{font-size:15px;padding:14px}',
+      '  .vault-ie-row{flex-wrap:wrap}',
+      '  .vault-hist-row{flex-wrap:wrap}',
+      '}',
+      // Small and folded phones: the label/value/remove trio can't hold three
+      // columns, so custom fields stack and the gutters go to a hairline.
+      '@media (max-width:380px){',
+      '  #kc-root{--vpad:8px}',
+      '  .vault-row{gap:8px;padding:10px}',
+      '  .vault-row-title{font-size:13.5px}',
+      '  .vault-tab{padding:0 10px;gap:6px}',
+      '  .vault-cf-row{flex-wrap:wrap}.vault-cf-row .vault-input{flex:1 1 100%}',
+      '  .vault-cf-row .vault-icon{margin-left:auto}',
+      '  .vault-modal{padding:16px 13px}',
+      '  .vault-modal-actions .vault-btn{flex:1 1 100%}',
+      '  .vault-gen-grid{grid-template-columns:1fr}',
+      '  .vault-acc-actions{gap:6px}',
+      '}',
+      // Touch: every tappable thing gets a ≥38px target and hover styling is
+      // dropped (it sticks after a tap on touch devices).
+      '@media (pointer:coarse){',
+      '  .vault-icon{width:38px;height:38px}',
+      '  .vault-toolbar .vault-icon{width:40px;height:40px}',
+      '  .vault-tab{height:38px}',
+      '  .vault-search-clear{width:30px;height:30px}',
+      '  .vault-link-btn{padding:8px 10px}',
+      '  .vault-setting-row{padding:15px}',
+      '  .vault-icon:hover{color:var(--txd);border-color:var(--bd)}',
+      '  .vault-drag{color:var(--txd)}',   // visible without a hover to reveal it
+      '  .vault-drag:hover{color:var(--txd);background:transparent;border-color:transparent}',
       '}',
     ].join('');
     document.head.appendChild(el('style', { id: 'vault-ui-styles', html: css }));

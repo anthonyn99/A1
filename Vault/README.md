@@ -62,29 +62,37 @@ left open on an unlocked vault still cannot surrender a security code. The idle
 session extends on activity as before, but activity never refreshes the CVV
 window — only presenting a credential does.
 
-### Card order
+### Card & note order
 
-Cards carry an `order` integer (inside the ciphertext, like everything else).
-Drag the grip handle in TaskHub → Vault → Payments to reorder; the extension
-list **and** the checkout dropdown follow, because both call the same
-`VaultPay.sortCards()`. Reordering is PWA-only — the extension stays a read +
-autofill client and never writes to the vault.
+Cards **and secure notes** carry an `order` integer (inside the ciphertext, like
+everything else). Drag the grip handle in TaskHub → Vault → Payments or
+Sensitive Info to reorder; for cards the extension list **and** the checkout
+dropdown follow, because both call the same `VaultPay.sortCards()`. Reordering
+is PWA-only — the extension stays a read + autofill client and never writes to
+the vault.
+
+Both sections run on ONE engine, `host.makeReorderable()` in `vault-ui.js`, so
+they can't drift apart. Its DOM contract: each list child is a
+`.vault-site[data-id]` carrying a `.vault-drag` handle and (optionally) a
+`.vault-rowbody` that collapses mid-drag.
 
 - **Desktop, touch and keyboard** are one implementation: Pointer Events on a
   dedicated handle (HTML5 drag-and-drop is desktop-only). The handle sets
   `touch-action:none` so a phone hands us the gesture instead of scrolling, and
   arrow keys move a focused handle for pointer-free use.
-- While dragging, `.vpay-dragging` collapses expanded card bodies via CSS, so
+- While dragging, `.vault-reordering` collapses expanded row bodies via CSS, so
   every row is the same height and the target index is exact arithmetic rather
   than hit-testing ragged boxes. Dragging near an edge auto-scrolls.
-- Only cards that actually moved are rewritten (`VaultPay.reorderPlan`), and
-  they go out through `VaultStore.saveMany()` — one repaint, one debounced
-  Firestore write. Other devices pick it up on the existing real-time listener;
-  `updatedAt` keeps last-write-wins correct if two devices reorder at once.
+- Only rows that actually moved are rewritten (`VaultPay.reorderPlan` for cards,
+  the same minimal-diff in `commitSensitiveOrder` for notes), and they go out
+  through `VaultStore.saveMany()` — one repaint, one debounced Firestore write.
+  Other devices pick it up on the existing real-time listener; `updatedAt` keeps
+  last-write-wins correct if two devices reorder at once.
 - `order` is authoritative when present. A wallet that has never been dragged
   has no `order` on any card and sorts exactly as it always did (favourites,
-  then expiring/expired, then nickname). New cards join the top of an ordered
-  wallet, and "Pin to top" now really does move a card to position 0.
+  then expiring/expired, then nickname); an undragged note list likewise keeps
+  its recency order. New cards/notes join the top of an ordered list, and "Pin
+  to top" now really does move a card to position 0.
 - Dragging is disabled while a search filter is active — positions in a filtered
   list aren't positions in the wallet.
 

@@ -34,7 +34,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .app-hbar{position:-webkit-sticky;position:sticky;top:0;left:0;right:0;z-index:200;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);flex-shrink:0;}
 .app-hbar-inner{max-width:2000px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 10px;display:flex;flex-direction:column;gap:6px;min-width:0;width:100%;}
 .app-hbar-row1{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;min-height:30px;}
-.app-hbar-row2{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;width:100%;}
+.app-hbar-row2{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;width:100%;flex-wrap:wrap;}
 
   /* ── App Lock overlay (mirrors index.html applock) ── */
   #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;background-image:radial-gradient(120% 50% at 50% -10%,rgba(212,166,89,.065),transparent 70%);display:none;align-items:center;justify-content:center;font-family:var(--sans);}
@@ -75,7 +75,10 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 }
 /* Light mode vars — matches Tony's TaskHub light theme */
 
-.kc-wrap{max-width:900px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + clamp(10px,2vw,24px)) clamp(12px,3vw,32px) clamp(10px,1.5vw,16px);}
+.kc-wrap{max-width:900px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + clamp(10px,2vw,24px)) max(clamp(12px,3vw,32px),env(safe-area-inset-right,0px)) clamp(10px,1.5vw,16px) max(clamp(12px,3vw,32px),env(safe-area-inset-left,0px));}
+/* Inside the Vault shell the panel already supplies the gutter — doubling it
+   costs a phone ~24px of card width for nothing. */
+#vault-links-panel .kc-wrap{padding-left:0;padding-right:0;}
 .kc-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
 .kc-logo{font-family:var(--display);font-size:clamp(24px,3.2vw,34px);font-weight:750;letter-spacing:-.4px;line-height:1.2;white-space:nowrap;background:linear-gradient(180deg,#f4d795 0%,#d4a659 90%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--acs);}
 .kc-logo .base,.kc-logo .dot{color:inherit;font-style:normal;}
@@ -87,7 +90,9 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-mode-btn.editing{background:transparent;border-color:var(--ac);color:var(--acs);}
 #kc-root.view-mode .kc-edit-only{display:none!important;}
 .kc-section{display:flex;flex-direction:column;gap:10px;}
-.kc-section-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid var(--bd);}
+.kc-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--bd);}
+/* Keychain-only action row, directly under the section head. */
+.kc-section-tools{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:-2px;}
 .kc-section-title{font-family:var(--sans);font-size:10px;font-weight:500;color:var(--acp,#c8b489);letter-spacing:2px;text-transform:uppercase;opacity:.85;}
 /* 2-col flex layout */
 #kc-conns-list{display:flex;gap:10px;align-items:flex-start;min-height:48px;}
@@ -96,7 +101,9 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 #kc-root.edit-mode .kc-col:empty{border:1.5px dashed rgba(212,166,89,0.25);border-radius:var(--radius);min-height:60px;}
 .kc-col-empty{flex:1;}
 #kc-conns-list>.kc-empty{flex:1;}
-@media(max-width:400px){#kc-conns-list{flex-direction:column;}.kc-col{width:100%;}}
+/* One column on phones. Must stay in step with numCols() (KC_ONE_COL_MAX),
+   which decides how many .kc-col divs actually get built. */
+@media(max-width:640px){#kc-conns-list{flex-direction:column;}.kc-col{width:100%;}}
 /* Cards — match Tony's sec style */
 .kc-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;transition:border-color .15s;}
 .kc-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--card-accent,var(--ac));opacity:.5;}
@@ -154,8 +161,10 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-doc-replace-btn{background:transparent;border:1px solid var(--bd);cursor:pointer;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:500;font-family:var(--sans);transition:all .12s;color:var(--txd);flex-shrink:0;}
 .kc-doc-replace-btn:hover{color:var(--ac);border-color:var(--ac);}
 /* Modals */
-.kc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9500;padding:16px;}
-.kc-modal{background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius);padding:28px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;box-shadow:0 30px 80px var(--shadow);}
+/* 100dvh (not vh) so a phone's collapsing URL bar can't push the Save/Cancel
+   row off-screen; the insets keep the dialog clear of the notch + home bar. */
+.kc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9500;overflow-y:auto;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));}
+.kc-modal{background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius);padding:28px;width:100%;max-width:460px;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;box-shadow:0 30px 80px var(--shadow);}
 .kc-modal-title{font-family:var(--display);font-size:17px;font-weight:500;color:var(--ac);margin-bottom:20px;display:flex;align-items:center;gap:8px;}
 .kc-modal-title span{display:block;width:9px;height:9px;border-radius:50%;flex-shrink:0;}
 .kc-field{margin-bottom:13px;}
@@ -195,13 +204,55 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-new-btn{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--bd);border-radius:var(--radius-sm);padding:0 14px;font-size:11px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;color:var(--tx);cursor:pointer;font-family:var(--sans);transition:border-color .18s,color .18s;height:30px;}
 .kc-new-btn:hover{border-color:var(--acd);color:var(--acs);}
 .kc-new-btn.accent{background:transparent;border-color:var(--acl);color:var(--acs);}.kc-new-btn.accent:hover{border-color:var(--ac);}
-.kc-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(90px);background:var(--s3);border:1px solid var(--bdl);color:var(--tx);font-size:13px;font-weight:500;letter-spacing:.2px;padding:12px 22px;border-radius:var(--radius-sm);box-shadow:0 12px 38px rgba(0,0,0,.42);z-index:10000;pointer-events:none;opacity:0;transition:opacity .2s,transform .28s ease;}
+.kc-toast{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom,0px));left:50%;max-width:calc(100vw - 32px);text-align:center;transform:translateX(-50%) translateY(90px);background:var(--s3);border:1px solid var(--bdl);color:var(--tx);font-size:13px;font-weight:500;letter-spacing:.2px;padding:12px 22px;border-radius:var(--radius-sm);box-shadow:0 12px 38px rgba(0,0,0,.42);z-index:10000;pointer-events:none;opacity:0;transition:opacity .2s,transform .28s ease;}
 .kc-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-/* Theme btn */
+/* ── Responsive ladder ───────────────────────────────────────────────────────
+   Same device classes the Vault shell uses (see vault-ui.js): ≤1024 tablets,
+   ≤640 phones, ≤380 small/folded phones, plus pointer:coarse for touch
+   ergonomics regardless of width. */
+@media(max-width:1024px){
+  .kc-card{padding:12px 14px;}
+}
+@media(max-width:640px){
+  .kc-section-head{gap:8px;}
+  .kc-section-tools{justify-content:stretch;}
+  .kc-section-tools>*{flex:1 1 auto;justify-content:center;}
+  .kc-card{padding:11px 12px;gap:7px;}
+  .kc-card-name{font-size:14.5px;}
+  /* Long link names + a button cluster don't fit one line on a phone — let the
+     buttons drop underneath instead of squeezing the name to nothing. */
+  .kc-item-row{flex-wrap:wrap;row-gap:5px;padding:6px 8px;}
+  .kc-link-name{flex:1 1 60%;}
+  .kc-link-btns{margin-left:auto;}
+  .kc-doc-row{flex-wrap:wrap;row-gap:5px;}
+  .kc-doc-name-input{flex:1 1 100%;order:-1;}
+  .kc-empty{padding:22px 14px;}
+  .kc-modal{padding:20px 16px;border-radius:14px;}
+  .kc-modal-title{font-size:16px;margin-bottom:16px;}
+  .kc-modal-actions{gap:8px;}
+  .kc-modal-actions>*{flex:1 1 120px;justify-content:center;}
+}
 @media(max-width:520px){
   .kc-modal{padding:20px 14px;}
   .kc-link-field-row{grid-template-columns:1fr auto;grid-template-rows:auto auto;}
   .kc-link-field-row input:nth-child(2){grid-column:1/2;}
+}
+@media(max-width:380px){
+  .kc-card{padding:10px;}
+  .kc-modal-actions>*{flex:1 1 100%;}
+  .kc-link-label{display:none;}
+  .kc-toast{font-size:12.5px;padding:11px 16px;}
+}
+/* Touch: ≥38px targets on everything tappable, and no hover-only affordances. */
+@media(pointer:coarse){
+  .kc-hbtn,.kc-new-btn,.kc-switcher{height:38px;}
+  .kc-btn-primary,.kc-btn-ghost,.kc-btn-danger{height:40px;}
+  .kc-icon-btn{min-width:32px;min-height:32px;padding:6px 8px;}
+  .kc-icon-btn.visit{min-height:30px;padding:4px 10px;}
+  .kc-color-dot{width:26px;height:26px;}
+  .kc-doc-zone{padding:14px 10px;}
+  .kc-doc-del-btn,.kc-doc-replace-btn{min-height:30px;padding:4px 10px;}
+  .kc-remove-link{padding:8px 10px;}
 }
 /* Switcher + header button classes matching Tony's style */
 .kc-switcher{background:transparent;border:1px solid var(--bd);border-radius:var(--radius-sm);color:var(--txd);font-size:11px;font-weight:500;letter-spacing:.6px;padding:0 8px;height:30px;box-sizing:border-box;font-family:var(--sans);outline:none;cursor:pointer;transition:border-color .18s;}
@@ -366,6 +417,16 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
     <div class="kc-section-head">
       <div class="kc-section-title">Connections</div>
       <button class="kc-new-btn accent" onclick="kcOpenAdd()">New Connection</button>
+    </div>
+    <!-- Keychain-only controls. They sit INSIDE .kc-wrap, which vault-ui.js moves
+         wholesale into #vault-links-panel — so switching to Passwords / Payments /
+         Sensitive Info hides them with the panel, no extra wiring. -->
+    <div class="kc-section-tools">
+      <button class="kc-hbtn" id="kc-syncfiles-btn" onclick="kcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable &amp; downloadable on every device"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.2"/></svg><span>Sync Files</span></button>
+      <div class="kc-hbtn kc-edit-hover" id="kc-edit-toggle" onclick="kcToggleMode()" role="switch" aria-label="Toggle edit mode for connections" title="Switch between view and edit mode" style="cursor:pointer;user-select:none;">
+        <div id="kc-toggle-track" style="width:26px;height:14px;border-radius:7px;background:var(--bd);position:relative;transition:background .25s;flex-shrink:0;"><div id="kc-toggle-thumb" style="width:10px;height:10px;border-radius:50%;background:var(--txd);position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .25s,background .25s;box-shadow:0 1px 3px rgba(0,0,0,.25);"></div></div>
+        <span id="kc-edit-icon" style="color:var(--ac);white-space:nowrap;line-height:1;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg></span>
+      </div>
     </div>
     <div id="kc-conns-list"></div>
   </div>
@@ -754,8 +815,11 @@ async function _kcRunSyncButton(btnId, getMigrateFn, appName) {
   const btn = document.getElementById(btnId);
   if (!btn || btn._busy) return;
   const migrate = getMigrateFn();
-  const orig = btn.textContent;
-  const set = t => { btn.textContent = t; };
+  // Write progress into the label span, not the button: the button also holds an
+  // inline SVG that setting textContent on it would wipe out permanently.
+  const label = btn.querySelector('span') || btn;
+  const orig = label.textContent;
+  const set = t => { label.textContent = t; };
   if (typeof migrate !== 'function') { set('Not ready'); setTimeout(() => set(orig), 3000); return; }
   btn._busy = true; btn.disabled = true;
   set('Syncing…');
@@ -1239,10 +1303,12 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 // ── Render ──
 function render(){renderConns();bindDnD();}
 
+// Single column at or below this width. Two 300px-ish columns of connection
+// cards are unreadable on a phone, so phones and folded foldables get one.
+// Keep in step with the matching @media(max-width:640px) rule above.
+const KC_ONE_COL_MAX=640;
 function numCols(){
-  const w=window.innerWidth;
-  if(w<=400) return 1;
-  return 2;
+  return window.innerWidth<=KC_ONE_COL_MAX?1:2;
 }
 
 function renderConns(){
