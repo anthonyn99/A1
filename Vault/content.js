@@ -166,7 +166,7 @@
     const style = document.createElement("style");
     style.textContent = `
       .v-wrap{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#232327;border:1px solid #45454c;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.55);overflow:hidden;min-width:230px;max-width:340px}
-      .v-head{display:flex;align-items:center;gap:6px;padding:8px 11px;border-bottom:1px solid #34343a;color:#d4a659;font-size:11px;font-weight:800;letter-spacing:.3px}
+      .v-head{display:flex;align-items:center;gap:6px;padding:8px 11px;border-bottom:1px solid #34343a;color:#edc884;font-size:11px;font-weight:800;letter-spacing:.3px}
       .v-dot{width:14px;height:14px}
       .v-item{display:flex;align-items:center;gap:9px;padding:9px 11px;cursor:pointer;border-top:1px solid #2c2c31}
       .v-item:first-of-type{border-top:none}
@@ -178,9 +178,9 @@
       .v-t{font-size:12.5px;font-weight:700;color:#f4f3f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .v-u{font-size:11px;color:#adadb2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;font-variant-numeric:tabular-nums}
       .v-exp{font-size:10px;font-weight:700;color:#8d8d94;flex-shrink:0;font-variant-numeric:tabular-nums}
-      .v-exp.warn{color:#d4a659}
+      .v-exp.warn{color:#edc884}
       .v-exp.bad{color:#d68a7c}
-      .v-star{color:#d4a659;flex-shrink:0;line-height:0;display:inline-flex;margin-right:5px}.v-star svg{width:11px;height:11px;display:block}
+      .v-star{color:#edc884;flex-shrink:0;line-height:0;display:inline-flex;margin-right:5px}.v-star svg{width:11px;height:11px;display:block}
       .v-msg{padding:11px;color:#adadb2;font-size:12px;line-height:1.5}
       .v-msg b{color:#f4f3f0}
       .v-foot{padding:6px 11px;border-top:1px solid #34343a;color:#8d8d94;font-size:9.5px;text-align:right}
@@ -193,10 +193,10 @@
     document.documentElement.appendChild(box);
   }
   function keyIconSVG() {
-    return '<svg class="v-dot" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="#d4a659" stroke-width="2"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>';
+    return '<svg class="v-dot" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="#edc884" stroke-width="2"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>';
   }
   function cardIconSVG() {
-    return '<svg class="v-dot" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="#d4a659" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>';
+    return '<svg class="v-dot" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="#edc884" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>';
   }
   function headIcon() { return mode === "payment" ? cardIconSVG() : keyIconSVG(); }
 

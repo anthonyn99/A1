@@ -486,7 +486,7 @@
       '.vpay-mark{width:34px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center}',
       '.vpay-mark svg{width:34px;height:22px;display:block}',
       '.vpay-chip{font-size:10.5px;font-weight:500;letter-spacing:.2px;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap}',
-      '.vpay-chip.warn{background:transparent;border:1px solid rgba(212,166,89,.36);color:#edc884}.vpay-chip.bad{background:transparent;border:1px solid rgba(214,138,124,.45);color:#d68a7c}',
+      '.vpay-chip.warn{background:transparent;border:1px solid rgba(237,200,132,.36);color:#edc884}.vpay-chip.bad{background:transparent;border:1px solid rgba(214,138,124,.45);color:#d68a7c}',
       '.vault-icon.vpay-on{color:var(--ac);border-color:var(--ac)}',
       '.vpay-body{border-top:1px solid var(--bd)}',
       // Drag-to-reorder styling lives with the shared engine in vault-ui.js
