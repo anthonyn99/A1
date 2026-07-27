@@ -8,7 +8,7 @@
 <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Vault%22%2C%22short_name%22%3A%22Vault%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fvault.html%22%2C%22scope%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FVault%2Ficons%2Ficon128.png%22%2C%22sizes%22%3A%22128x128%22%2C%22type%22%3A%22image%2Fpng%22%7D%2C%7B%22src%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FVault%2Ficons%2Ficon48.png%22%2C%22sizes%22%3A%2248x48%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D">
 <!-- App icon: gold lock on the suite charcoal, matching the other four marks. -->
 <link rel="apple-touch-icon" href="Vault/icons/icon128.png">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23e0b874%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Crect%20x%3D%2722%27%20y%3D%2742%27%20width%3D%2752%27%20height%3D%2734%27%20rx%3D%277%27%2F%3E%3Cpath%20d%3D%27M33%2042v-9a15%2015%200%200%201%2030%200v9%27%2F%3E%3Cpath%20d%3D%27M48%2055v8%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23d4a659%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Crect%20x%3D%2722%27%20y%3D%2742%27%20width%3D%2752%27%20height%3D%2734%27%20rx%3D%277%27%2F%3E%3Cpath%20d%3D%27M33%2042v-9a15%2015%200%200%201%2030%200v9%27%2F%3E%3Cpath%20d%3D%27M48%2055v8%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <link rel="icon" href="Vault/icons/icon48.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,10 +19,10 @@
    one accent face; every app in the ecosystem draws from the same values.
    ══════════════════════════════════════════════════════════════════════════ */
 :root{
-  --gold-primary:#e0b874;    /* borders, rings, active states, icons          */
-  --gold-secondary:#e0b874;  /* champagne — accent text on dark surfaces      */
-  --gold-line:rgba(224,184,116,.36);
-  --gold-glow:0 0 8px rgba(224,184,116,0.40),0 0 0 1px rgba(224,184,116,0.15);
+  --gold-primary:#d4a659;    /* borders, rings, active states, icons          */
+  --gold-secondary:#d4a659;  /* champagne — accent text on dark surfaces      */
+  --gold-line:rgba(212,166,89,.36);
+  --gold-glow:0 0 8px rgba(212,166,89,0.40),0 0 0 1px rgba(212,166,89,0.15);
   --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
   --font-accent:'Fraunces',Georgia,serif;
 }
@@ -48,7 +48,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   --bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;
   --bd:#34343a;--bdl:#45454c;
   --tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
-  --ac:#e0b874;--acd:#e0b874;--acs:#e0b874;--acp:#e0b874;--acl:rgba(224,184,116,.36);
+  --ac:#d4a659;--acd:#d4a659;--acs:#d4a659;--acp:#d4a659;--acl:rgba(212,166,89,.36);
   --shadow:rgba(0,0,0,.42);
   --err:#d68a7c;--grn:#a4b986;
   --display:'Manrope',system-ui,-apple-system,sans-serif;
@@ -57,7 +57,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 }
 
 /* ── Shared sticky app header bar ── */
-.app-hbar{position:-webkit-sticky;position:sticky;top:0;left:0;right:0;z-index:200;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);flex-shrink:0;}
+.app-hbar{position:-webkit-sticky;position:sticky;top:0;left:0;right:0;z-index:200;flex-shrink:0;}
 /* Compact header: Vault's chrome is two short rows, so it doesn't need the
    generous padding a content header would. Trimmed on both desktop and phone. */
 .app-hbar-inner{max-width:2000px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 8px) clamp(12px,3vw,24px) 8px;display:flex;flex-direction:column;gap:3px;min-width:0;width:100%;}
@@ -68,9 +68,9 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 }
 
   /* ── App Lock overlay (mirrors index.html applock) ── */
-  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;background-image:radial-gradient(120% 50% at 50% -10%,rgba(224,184,116,.065),transparent 70%);display:none;align-items:center;justify-content:center;font-family:var(--sans);}
+  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;background-image:radial-gradient(120% 50% at 50% -10%,rgba(212,166,89,.065),transparent 70%);display:none;align-items:center;justify-content:center;font-family:var(--sans);}
   /* Bordered lock card — same surface the whole suite authenticates through. */
-  #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:34px 30px 22px;background:var(--s1);border:1px solid rgba(224,184,116,.22);border-radius:18px;width:350px;max-width:calc(100vw - 32px);box-shadow:0 32px 80px rgba(0,0,0,.7);position:relative;}
+  #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:34px 30px 22px;background:var(--s1);border:1px solid rgba(212,166,89,.22);border-radius:18px;width:350px;max-width:calc(100vw - 32px);box-shadow:0 32px 80px rgba(0,0,0,.7);position:relative;}
   #applock-head{text-align:center;display:flex;flex-direction:column;gap:5px;}
   #applock-form{width:100%;display:flex;flex-direction:column;gap:10px;}
   #applock-links{display:flex;flex-direction:column;align-items:center;gap:5px;}
@@ -99,7 +99,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   --bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;
   --bd:#34343a;--bdl:#45454c;
   --tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
-  --ac:#e0b874;--acd:#e0b874;--acs:#e0b874;--acp:#e0b874;--acl:rgba(224,184,116,.36);
+  --ac:#d4a659;--acd:#d4a659;--acs:#d4a659;--acp:#d4a659;--acl:rgba(212,166,89,.36);
   --shadow:rgba(0,0,0,.42);
   --err:#d68a7c;
   --radius:9px;--radius-sm:6px;
@@ -128,12 +128,12 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--bd);}
 /* Keychain-only action row, directly under the section head. */
 .kc-section-tools{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:-2px;}
-.kc-section-title{font-family:var(--sans);font-size:10px;font-weight:500;color:var(--acp,#e0b874);letter-spacing:2px;text-transform:uppercase;opacity:.85;}
+.kc-section-title{font-family:var(--sans);font-size:10px;font-weight:500;color:var(--acp,#d4a659);letter-spacing:2px;text-transform:uppercase;opacity:.85;}
 /* 2-col flex layout */
 #kc-conns-list{display:flex;gap:10px;align-items:flex-start;min-height:48px;}
 .kc-col{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0;}
 #kc-root.view-mode .kc-col:empty{display:none;}
-#kc-root.edit-mode .kc-col:empty{border:1.5px dashed rgba(224,184,116,0.25);border-radius:var(--radius);min-height:60px;}
+#kc-root.edit-mode .kc-col:empty{border:1.5px dashed rgba(212,166,89,0.25);border-radius:var(--radius);min-height:60px;}
 .kc-col-empty{flex:1;}
 #kc-conns-list>.kc-empty{flex:1;}
 /* One column on phones. Must stay in step with numCols() (KC_ONE_COL_MAX),
@@ -143,7 +143,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;transition:border-color .15s;}
 .kc-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--card-accent,var(--ac));opacity:.5;}
 .kc-card:hover{border-color:var(--acl);}
-.kc-card-placeholder{border-radius:var(--radius);background:transparent;border:1.5px dashed rgba(224,184,116,0.35);}
+.kc-card-placeholder{border-radius:var(--radius);background:transparent;border:1.5px dashed rgba(212,166,89,0.35);}
 .kc-card-fly{position:fixed!important;pointer-events:none!important;z-index:9000;border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.7);transform:rotate(1deg) scale(1.03);opacity:.95;}
 .kc-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
 .kc-card-name{font-family:var(--display);font-size:15px;font-weight:600;letter-spacing:-.2px;line-height:1.3;word-break:break-word;color:var(--card-accent,var(--acs));}
@@ -163,7 +163,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   .kc-drag-handle{font-size:18px;padding:4px 8px;min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;}
   .kc-item-handle{font-size:16px;padding:4px 6px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;}
 }
-.kc-item-placeholder{border-radius:var(--radius-sm);background:transparent;border:1.5px dashed rgba(224,184,116,0.4);}
+.kc-item-placeholder{border-radius:var(--radius-sm);background:transparent;border:1.5px dashed rgba(212,166,89,0.4);}
 .kc-item-fly{position:fixed!important;pointer-events:none!important;z-index:9001;border-radius:var(--radius-sm);box-shadow:0 6px 24px rgba(0,0,0,.6);transform:rotate(0.5deg) scale(1.01);opacity:.97;}
 .kc-link-name{font-size:12.5px;font-weight:500;color:var(--tx);flex:1;min-width:0;word-break:break-word;}
 .kc-info-text{font-size:12px;color:var(--txd);line-height:1.65;white-space:pre-wrap;word-break:break-word;flex:1;min-width:0;}
@@ -199,7 +199,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 /* 100dvh (not vh) so a phone's collapsing URL bar can't push the Save/Cancel
    row off-screen; the insets keep the dialog clear of the notch + home bar. */
 .kc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9500;overflow-y:auto;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));}
-.kc-modal{background:var(--s2);border:1px solid #5b5b64;box-shadow:0 0 0 1px rgba(224,184,116,.10),0 30px 80px var(--shadow);border-radius:var(--radius);padding:28px;width:100%;max-width:460px;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;}
+.kc-modal{background:var(--s2);border:1px solid #5b5b64;box-shadow:0 0 0 1px rgba(212,166,89,.10),0 30px 80px var(--shadow);border-radius:var(--radius);padding:28px;width:100%;max-width:460px;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;}
 .kc-modal-title{font-family:var(--display);font-size:17px;font-weight:500;color:var(--ac);margin-bottom:20px;display:flex;align-items:center;gap:8px;}
 .kc-modal-title span{display:block;width:9px;height:9px;border-radius:50%;flex-shrink:0;}
 .kc-field{margin-bottom:13px;}
@@ -1264,7 +1264,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
 
 (function(){
 // The one palette Vault has. There is no theme switch.
-const THEME={bg:'#1a1a1d',s1:'#232327',s2:'#2c2c31',s3:'#202028',bd:'#34343a',bdl:'#45454c',tx:'#f4f3f0',txd:'#adadb2',txm:'#8d8d94',ac:'#e0b874',shadow:'rgba(0,0,0,.55)'};
+const THEME={bg:'#1a1a1d',s1:'#232327',s2:'#2c2c31',s3:'#202028',bd:'#34343a',bdl:'#45454c',tx:'#f4f3f0',txd:'#adadb2',txm:'#8d8d94',ac:'#d4a659',shadow:'rgba(0,0,0,.55)'};
 const CD=['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
 const COPY_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
@@ -2144,7 +2144,7 @@ window._pastelize=function(hex){
 <script>
 (function(){
   if (window.uiModal) return;
-  var ACCENT = '#e0b874';
+  var ACCENT = '#d4a659';
   var CSS =
     '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
   + '#uim-overlay.show{display:flex;}'
@@ -2155,7 +2155,7 @@ window._pastelize=function(hex){
   + '.uim-field{display:block;margin-bottom:14px;}'
   + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
   + '.uim-input{width:100%;box-sizing:border-box;background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
-  + '.uim-input:focus{border-color:#e0b874;}'
+  + '.uim-input:focus{border-color:#d4a659;}'
   + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
   + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
@@ -2193,8 +2193,8 @@ window._pastelize=function(hex){
     var ok=el('uim-ok'), ca=el('uim-cancel');
     ok.textContent=cfg.okLabel||'OK';
     ok.style.background='transparent';
-    ok.style.color=cfg.danger?'#d68a7c':'#e0b874';
-    ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'rgba(224,184,116,.36)';
+    ok.style.color=cfg.danger?'#d68a7c':'#d4a659';
+    ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'rgba(212,166,89,.36)';
     ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
     el('uim-overlay').classList.add('show');
     setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
@@ -2234,7 +2234,7 @@ var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
 var AL_JOURNAL = 'applock';
 var AL_EMAIL   = 'anthonypn99@gmail.com';
 var APPID      = 'tony_vault_standalone';
-var AC         = '#e0b874';
+var AC         = '#d4a659';
 
 function _el(id){ return document.getElementById(id); }
 
@@ -2395,7 +2395,7 @@ function alBioRender(mode){
     box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
     var b=document.createElement('button');
     b.innerHTML=KCI.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
-    b.style.cssText="border:1px solid rgba(224,184,116,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:var(--sans);width:100%;background:transparent;color:#e0b874;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
+    b.style.cssText="border:1px solid rgba(212,166,89,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:var(--sans);width:100%;background:transparent;color:#d4a659;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
     b.onclick=function(){ alBioUnlock(); };
     box.appendChild(b);
     var link=document.createElement('button');
@@ -2477,7 +2477,7 @@ function alShowManageMenu(){
   if (!isUnlocked){
     var ub=document.createElement('button');
     ub.innerHTML=KCI.unlock+'<span>Unlock this device</span>';
-    ub.style.cssText=s+'color:#e0b874;border-color:rgba(224,184,116,.36);';
+    ub.style.cssText=s+'color:#d4a659;border-color:rgba(212,166,89,.36);';
     ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
     menu.appendChild(ub);
   }

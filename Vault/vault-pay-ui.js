@@ -486,7 +486,7 @@
       '.vpay-mark{width:34px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center}',
       '.vpay-mark svg{width:34px;height:22px;display:block}',
       '.vpay-chip{font-size:10.5px;font-weight:500;letter-spacing:.2px;padding:3px 9px;border-radius:5px;flex-shrink:0;white-space:nowrap}',
-      '.vpay-chip.warn{background:transparent;border:1px solid rgba(224,184,116,.36);color:#e0b874}.vpay-chip.bad{background:transparent;border:1px solid rgba(214,138,124,.45);color:#d68a7c}',
+      '.vpay-chip.warn{background:transparent;border:1px solid rgba(212,166,89,.36);color:#d4a659}.vpay-chip.bad{background:transparent;border:1px solid rgba(214,138,124,.45);color:#d68a7c}',
       '.vault-icon.vpay-on{color:var(--ac);border-color:var(--ac)}',
       '.vpay-body{border-top:1px solid var(--bd)}',
       // Drag-to-reorder styling lives with the shared engine in vault-ui.js
@@ -520,7 +520,7 @@
       '.vpay-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}',
       '.vpay-sec{font-size:11px;font-weight:800;color:var(--txm);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 8px;padding-top:12px;border-top:1px solid var(--bd)}',
       '.vpay-netbadge{display:flex;align-items:center;flex-shrink:0}.vpay-netbadge svg{width:34px;height:22px;display:block}',
-      '.vpay-warn{color:#e0b874;font-size:11.5px;min-height:14px;margin:-4px 0 4px;text-align:left;line-height:1.5}',
+      '.vpay-warn{color:#d4a659;font-size:11.5px;min-height:14px;margin:-4px 0 4px;text-align:left;line-height:1.5}',
       // ── responsive ──
       // The face is a fixed-ratio object, so it gets a width that tracks the
       // viewport instead of a hard 236px that would overflow a narrow phone.

@@ -9,7 +9,7 @@
     :root {
       --bg:#1a1a1d; --s1:#232327; --s2:#2c2c31; --s3:#2c2c31;
       --bd:#34343a; --bdl:#45454c; --tx:#f4f3f0; --txd:#adadb2;
-      --txm:#8d8d94; --ac:#e0b874; --shadow:rgba(0,0,0,.55);
+      --txm:#8d8d94; --ac:#d4a659; --shadow:rgba(0,0,0,.55);
     }
     * { box-sizing:border-box; margin:0; padding:0; }
     html, body {
@@ -51,8 +51,8 @@
       background:var(--bg); border-bottom:1px solid var(--bd);
     }
     .logo { font-family:"Manrope",system-ui,sans-serif; font-size:22px; font-weight:750; letter-spacing:-.3px;
-      background:linear-gradient(180deg,#f4d795 0%,#e0b874 90%); -webkit-background-clip:text; background-clip:text;
-      -webkit-text-fill-color:transparent; color:#e0b874; }
+      background:linear-gradient(180deg,#f4d795 0%,#d4a659 90%); -webkit-background-clip:text; background-clip:text;
+      -webkit-text-fill-color:transparent; color:#d4a659; }
     .logo .base, .logo .dot { color:inherit; }
     .sync {
       font-size:10px; font-weight:600; color:var(--txd);
@@ -78,7 +78,7 @@
       transition:border-color .18s,color .18s;
     }
     .tab:hover { color:var(--tx); border-color:var(--txd); }
-    .tab.active { background:transparent; color:#e0b874; border-color:var(--ac); }
+    .tab.active { background:transparent; color:#d4a659; border-color:var(--ac); }
 
     .panel { padding:8px 16px 16px; }
     .hidden { display:none; }
@@ -104,7 +104,7 @@
     }
     /* Group name takes the card's own accent, as it does in the app. */
     .card-name {
-      font-size:13px; font-weight:600; color:var(--card-accent,#e0b874); min-width:0;
+      font-size:13px; font-weight:600; color:var(--card-accent,#d4a659); min-width:0;
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     }
     .open-group {
@@ -137,7 +137,7 @@
       transition:border-color .18s,color .18s;
     }
     .icon-btn:hover { color:var(--tx); border-color:var(--txd); }
-    .icon-btn.visit:hover { color:#e0b874; border-color:var(--ac); }
+    .icon-btn.visit:hover { color:#d4a659; border-color:var(--ac); }
     .no-links { font-size:11px; color:var(--txm); padding:2px 0; }
 
     /* ── States ── */
@@ -165,13 +165,13 @@
     .pw-btn { width:100%; background:transparent; border:1px solid var(--bd); color:var(--tx); border-radius:6px; padding:11px; font-size:13px; font-weight:500; letter-spacing:.2px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; transition:border-color .18s,color .18s; }
     .pw-btn:hover { border-color:var(--txd); }
     .pw-btn svg { display:block; width:15px; height:15px; flex-shrink:0; }
-    .pw-btn.primary { background:transparent; color:#e0b874; border-color:rgba(224,184,116,.36); }
+    .pw-btn.primary { background:transparent; color:#d4a659; border-color:rgba(212,166,89,.36); }
     .pw-btn.primary:hover { border-color:var(--ac); }
     .pw-btn.primary:disabled { opacity:.5; cursor:not-allowed; }
     .pw-toolbar { display:flex; gap:6px; margin-bottom:10px; position:sticky; top:0; z-index:3; background:var(--bg); padding:8px 0; }
     .pw-icon { flex-shrink:0; background:transparent; border:1px solid var(--bd); color:var(--txd); width:30px; height:30px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; transition:border-color .18s,color .18s; }
     .pw-icon svg { display:block; width:15px; height:15px; }
-    .pw-icon:hover { color:#e0b874; border-color:var(--ac); }
+    .pw-icon:hover { color:#d4a659; border-color:var(--ac); }
     .pw-list { display:flex; flex-direction:column; gap:6px; }
     .pw-section-h { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; color:var(--txm); margin:8px 2px 3px; }
     .pw-row { display:flex; align-items:center; gap:9px; background:var(--s1); border:1px solid var(--bd); border-radius:10px; padding:9px 10px; }
@@ -194,7 +194,7 @@
     .pay-num { font-size:11.5px; color:var(--txm); font-family:ui-monospace,monospace; letter-spacing:.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .pay-num.shown { color:var(--ac); }
     .pay-exp { font-size:10px; font-weight:800; color:var(--txm); flex-shrink:0; font-variant-numeric:tabular-nums; }
-    .pay-exp.warn { color:#e0b874; }
+    .pay-exp.warn { color:#d4a659; }
     .pay-exp.bad { color:#d68a7c; }
     /* step-up auth sheet */
     .pay-overlay { position:fixed; inset:0; background:rgba(0,0,0,.66); display:flex; align-items:center; justify-content:center; z-index:40; padding:14px; }
