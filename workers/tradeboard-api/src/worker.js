@@ -221,7 +221,14 @@ const p = n => { const x = parseFloat(n); return isNaN(x) ? 0 : x; };
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
 async function fetchBalance(accountId, env) {
-  const raw  = await wb('GET', '/openapi/assets/balance', { query: { account_id: accountId } }, env);
+  const raw = await wb('GET', '/openapi/assets/balance', { query: { account_id: accountId } }, env);
+  return mapBalance(raw, accountId);
+}
+
+/* Pure mapper — split out of fetchBalance so /balance-raw can show the raw
+   payload and its mapping side by side off ONE Webull call (the balance
+   endpoint rate-limits hard). */
+function mapBalance(raw, accountId) {
   const d    = raw || {};
   const acct = (d.account_currency_assets || [])[0] || {};
   /* DEBUG: dump real Webull keys so field mapping can be confirmed against the app */
@@ -238,6 +245,27 @@ async function fetchBalance(accountId, env) {
     }
     return 0;
   };
+  /* Same idea, but matched by PATTERN instead of exact key name. Webull has
+     renamed these BP fields between API versions (day_buying_power →
+     day_trading_buying_power → dayTradingBuyingPower …), so an exact-name list
+     silently returns 0 the moment they rename one. Scanning every key in both
+     objects for a regex keeps the mapping alive across renames.
+     `avoid` excludes near-misses — e.g. the intraday matcher must not swallow
+     "overNIGHT_trading_buying_power". */
+  const pickRe = (re, avoid = null) => {
+    for (const src of [acct, d]) {
+      for (const k of Object.keys(src)) {
+        const norm = k.replace(/[_-]/g, '').toLowerCase();
+        if (!re.test(norm)) continue;
+        if (avoid && avoid.test(norm)) continue;
+        const v = src[k];
+        if (v !== undefined && v !== null && v !== '' && !isNaN(parseFloat(v))) return p(v);
+      }
+    }
+    return 0;
+  };
+  /* First non-zero wins: exact known names first, pattern scan as the safety net. */
+  const firstNonZero = (...vals) => { for (const v of vals) if (v) return v; return 0; };
   const totalNetLiq = p(d.total_net_liquidation_value || 0);
   const cashBal     = p(d.total_cash_balance           || 0);
   const settledC    = p(acct.settled_cash              || 0);
@@ -253,6 +281,23 @@ async function fetchBalance(accountId, env) {
      0/negative while cash exists, fall back to settled cash. */
   let bpRaw = pick('available_buying_power','buying_power','settled_cash','cash_buying_power','day_buying_power','total_buying_power');
   let bpFinal = bpRaw;
+
+  /* MARGIN BUYING POWER — the three figures Webull shows on its account screen.
+     These are deliberately NOT clamped like `buyingPower` above: on a margin
+     account they are SUPPOSED to exceed net liquidation (that's the leverage),
+     so the cash-sanity clamp would destroy them. They're reported as-is. */
+  const intradayBP = firstNonZero(
+    pick('day_trading_buying_power','intraday_buying_power','day_buying_power','dtbp'),
+    pickRe(/(day|intraday)(trading)?buyingpower/, /(overnight|night)/),
+  );
+  const overnightBP = firstNonZero(
+    pick('overnight_buying_power','night_trading_buying_power','overnight_trading_buying_power'),
+    pickRe(/(overnight|nighttrading)buyingpower/),
+  );
+  const optionsBP = firstNonZero(
+    pick('option_buying_power','options_buying_power','option_trading_buying_power'),
+    pickRe(/options?(trading)?buyingpower/),
+  );
   if (bpFinal <= 0 && (settledC > 0 || cashBal > 0)) bpFinal = settledC > 0 ? settledC : cashBal;
   if (totalNetLiq > 0 && bpFinal > totalNetLiq + 0.01) {
     console.warn('[balance] buyingPower', bpFinal, '> totalNetLiq', totalNetLiq, '— clamping to settled/cash');
@@ -268,7 +313,11 @@ async function fetchBalance(accountId, env) {
     cashBalance:       cashBal,
     buyingPower:       bpFinal,
     buyingPowerRaw:    bpRaw,  /* expose pre-clamp value for debugging */
-    overnightBP:       pick('night_trading_buying_power','overnight_buying_power'),
+    /* null (not 0) when Webull omits the field, so the UI hides the row
+       instead of reporting a confident "$0.00" that isn't real. */
+    intradayBP:        intradayBP  || null,
+    overnightBP:       overnightBP || null,
+    optionsBP:         optionsBP   || null,
     settledCash:       settledC,
     unsettledCash:     p(acct.unsettled_cash            || 0),
     dayPnL:            p(d.total_day_profit_loss        || 0),
@@ -683,6 +732,20 @@ async function handleRequest(request, env) {
       }
       const resolved = await getAccountId(env, { force: true });
       return json({ ok: true, accounts: out, resolvedAccountId: resolved });
+    } catch (err) {
+      return json({ ok: false, error: mapError(err) }, 500);
+    }
+  }
+
+  // ── Raw balance (debug) ───────────────────────────────────────────────────
+  // GET /api/portfolio/balance-raw → untouched Webull /assets/balance payload.
+  // Webull renames buying-power fields between API versions; this is how you
+  // find out what they're called today without redeploying to read a log line.
+  if (path === '/api/portfolio/balance-raw' && method === 'GET') {
+    try {
+      const accountId = url.searchParams.get('account_id') || await getAccountId(env);
+      const raw = await wb('GET', '/openapi/assets/balance', { query: { account_id: accountId } }, env);
+      return json({ ok: true, accountId, mapped: mapBalance(raw, accountId), raw });
     } catch (err) {
       return json({ ok: false, error: mapError(err) }, 500);
     }

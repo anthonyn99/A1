@@ -2222,13 +2222,36 @@ function TBEquityCurve({trades}){
   const [range,setRange]=useState('ALL');
   const [hover,setHover]=useState(null);     // index into pts
   const [showTable,setShowTable]=useState(false);
-  const wrapRef=useRef(null);
-  const [w,setW]=useState(720);
+  /* w = the card's own inner width, measured. Every size below is derived from
+     THIS rather than the viewport: the card is the box the chart has to fit,
+     and a viewport breakpoint can't see the page padding around it. */
+  const [w,setW]=useState(0);
+  const nodeRef=useRef(null);
+  const roRef=useRef(null);
 
+  /* A callback ref, not useRef + mount effect. The chart body mounts LATER than
+     the component — trades load async, so the first render is the empty state —
+     which meant the old mount-time effect observed a null node, never attached,
+     and w stayed at its hard-coded initial guess for the life of the page. That
+     single stale number was both bugs: on a phone the SVG kept drawing wider
+     than the screen and ran off the edge, and on a wide monitor it stopped
+     growing and sat stranded in the middle of the card. A callback ref fires on
+     every mount/unmount of the node itself, so it cannot miss. */
+  const attach=useCallback(node=>{
+    if(roRef.current){ roRef.current.disconnect(); roRef.current=null; }
+    nodeRef.current=node;
+    if(!node) return;
+    const measure=()=>{ const cw=node.clientWidth; if(cw>0) setW(cw); };
+    measure();
+    if(typeof ResizeObserver!=='undefined'){
+      const ro=new ResizeObserver(measure); ro.observe(node); roRef.current=ro;
+    }
+  },[]);
+  /* Fallback for browsers without ResizeObserver, plus observer cleanup. */
   useEffect(()=>{
-    const el=wrapRef.current; if(!el||typeof ResizeObserver==='undefined') return;
-    const ro=new ResizeObserver(es=>{ const cw=es[0].contentRect.width; if(cw>0) setW(cw); });
-    ro.observe(el); return ()=>ro.disconnect();
+    const onResize=()=>{ const n=nodeRef.current; if(n&&n.clientWidth>0) setW(n.clientWidth); };
+    window.addEventListener('resize',onResize);
+    return()=>{ window.removeEventListener('resize',onResize); if(roRef.current) roRef.current.disconnect(); };
   },[]);
 
   /* Closed trades with a P&L and a date, oldest first, cumulatively summed. */
@@ -2264,28 +2287,71 @@ function TBEquityCurve({trades}){
   const col=net>=0?'var(--tbb)':'var(--tbr)';
   const rgb=net>=0?'164,185,134':'214,138,124';
 
-  /* Geometry. Height includes the x-axis band so the card never nests a scroll. */
-  const PL=62, PR=18, PT=14, PB=28, H=210;
-  const innerW=Math.max(80,w-PL-PR), innerH=H-PT-PB;
+  /* Geometry. Height includes the x-axis band so the card never nests a scroll.
+     Everything scales off the measured width: a container query in arithmetic. */
+  const compact=w<520;                       // phone-width CARD, not phone-width screen
+  const ready=w>0;
+  /* Height tracks width so the curve keeps a readable aspect ratio at any size,
+     with a floor so it doesn't collapse on a phone and a ceiling so it doesn't
+     become a billboard on an ultrawide. */
+  const H=Math.round(Math.min(360,Math.max(compact?168:200,w*0.32)));
+  const PT=14, PB=compact?22:28, PR=compact?12:18;
+  const innerH=H-PT-PB;
   const ys=pts.map(p=>p.y);
   const lo=Math.min(0,...ys), hi=Math.max(0,...ys);
-  const ticks=tbNiceTicks(lo,hi,4);
+  /* Tick count follows the plot's height — fixed 4 crowded a short mobile chart. */
+  const ticks=tbNiceTicks(lo,hi,Math.max(2,Math.min(6,Math.round(innerH/54))));
+  const axisFS=compact?9.5:10;
+  /* Abbreviate to $1.2k on a narrow card so the y gutter stays small. */
+  const fmtTick=v=>{
+    const a=Math.abs(v);
+    const s=compact&&a>=1000
+      ? (a/1000).toFixed(a>=10000?0:1).replace(/\.0$/,'')+'k'
+      : a.toLocaleString('en-US',{maximumFractionDigits:0});
+    return (v<0?'−':'')+'$'+s;
+  };
+  const tickLabels=ticks.map(fmtTick);
+  /* Left gutter = widest tick label + breathing room. The old fixed 62px was
+     simultaneously too wide on a phone and too narrow once P&L hit five digits. */
+  const PL=Math.ceil(Math.max(compact?30:38,
+    Math.max(0,...tickLabels.map(s=>s.length))*axisFS*0.62+14));
+  const innerW=Math.max(40,w-PL-PR);
   const dLo=Math.min(lo,...ticks), dHi=Math.max(hi,...ticks);
   const span=(dHi-dLo)||1;
   const X=i=>pts.length<2?PL+innerW/2:PL+(i/(pts.length-1))*innerW;
   const Y=v=>PT+innerH-((v-dLo)/span)*innerH;
+
+  /* Date ticks along the bottom: endpoints only on a narrow card, intermediate
+     dates once there's room, so a wide chart stops being an unlabelled span. */
+  const xIdx=[];
+  if(pts.length){
+    const n=Math.max(2,Math.min(6,Math.floor(innerW/(compact?170:190))+1));
+    for(let k=0;k<n;k++){
+      const i=Math.round((k/(n-1))*(pts.length-1));
+      if(!xIdx.includes(i)) xIdx.push(i);
+    }
+  }
 
   const linePath=pts.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.y).toFixed(1)).join(' ');
   const areaPath=pts.length
     ? linePath+' L '+X(pts.length-1).toFixed(1)+' '+Y(0).toFixed(1)+' L '+X(0).toFixed(1)+' '+Y(0).toFixed(1)+' Z'
     : '';
 
+  const idxAt=(clientX,rect)=>{
+    if(pts.length<2) return 0;
+    const i=Math.round((((clientX-rect.left)-PL)/innerW)*(pts.length-1));
+    return Math.max(0,Math.min(pts.length-1,i));
+  };
   const onMove=e=>{
     if(!pts.length) return;
-    const r=e.currentTarget.getBoundingClientRect();
-    const x=e.clientX-r.left;
-    const i=pts.length<2?0:Math.round(((x-PL)/innerW)*(pts.length-1));
-    setHover(Math.max(0,Math.min(pts.length-1,i)));
+    setHover(idxAt(e.clientX,e.currentTarget.getBoundingClientRect()));
+  };
+  /* Touch scrubbing — a phone has no hover, so without this the crosshair and
+     its readout were desktop-only. touchAction:'pan-y' keeps vertical scrolling
+     working while a horizontal drag scrubs the curve. */
+  const onTouch=e=>{
+    if(!pts.length||!e.touches||!e.touches.length) return;
+    setHover(idxAt(e.touches[0].clientX,e.currentTarget.getBoundingClientRect()));
   };
   const onKey=e=>{
     if(!pts.length) return;
@@ -2299,31 +2365,37 @@ function TBEquityCurve({trades}){
   const fmtDay=ms=>new Date(ms).toLocaleDateString('en-US',{month:'short',day:'numeric'});
   const hp=hover!=null?pts[hover]:null;
 
-  return(<div className="tb-card" style={{padding:'18px 20px 14px'}}>
-    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:14}}>
-      <div style={{minWidth:0}}>
+  return(<div className="tb-card" style={{padding:'16px clamp(12px,2.5vw,20px) 14px',overflow:'hidden'}}>
+    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',
+                 gap:10,flexWrap:'wrap',marginBottom:14}}>
+      <div style={{minWidth:0,flex:'1 1 auto'}}>
         <div style={{fontSize:15,fontWeight:800,color:'var(--tx)'}}>Equity Curve</div>
         <div style={{fontSize:12,color:'var(--txm)',marginTop:2}}>Cumulative realised P&amp;L</div>
       </div>
-      <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+      {/* Range chips: wrap rather than overflow, and stay ≥28px tall for touch. */}
+      <div style={{display:'flex',gap:4,flexWrap:'wrap',flex:'0 1 auto'}}>
         {TB_RANGES.map(r=>(
           <button key={r.id} onClick={()=>{setRange(r.id);setHover(null);}}
             aria-pressed={range===r.id}
             style={{background:'transparent',border:'1px solid '+(range===r.id?'var(--ac)':'var(--bd)'),
-                    color:range===r.id?'var(--acs)':'var(--txm)',borderRadius:6,padding:'4px 11px',
+                    color:range===r.id?'var(--acs)':'var(--txm)',borderRadius:6,
+                    padding:compact?'5px 9px':'4px 11px',minHeight:28,
                     fontSize:11,fontWeight:700,letterSpacing:.4,cursor:'pointer',transition:'all .15s'}}>{r.label}</button>
         ))}
       </div>
     </div>
 
+    {/* Measured node. It renders in EVERY state — including empty and pre-load —
+        so the width is already known by the time the chart itself appears. */}
+    <div ref={attach} style={{width:'100%'}}>
     {!pts.length
       ? <div style={{padding:'44px 0',textAlign:'center',fontFamily:'var(--font-accent)',fontSize:14,color:'var(--txm)'}}>
           No closed trades in this range yet.
         </div>
       : (<>
         {/* Hero: the period's net, proportional figures, signed so colour is never alone. */}
-        <div style={{display:'flex',alignItems:'baseline',gap:10,marginBottom:6}}>
-          <span style={{fontSize:30,fontWeight:700,letterSpacing:-.5,color:col}}>
+        <div style={{display:'flex',alignItems:'baseline',gap:10,marginBottom:6,flexWrap:'wrap'}}>
+          <span style={{fontSize:compact?24:30,fontWeight:700,letterSpacing:-.5,color:col}}>
             {(net>=0?'+':'−')+tbFmt$(Math.abs(net)).replace('$','$')}
           </span>
           <span style={{fontSize:12,color:'var(--txm)'}}>
@@ -2331,11 +2403,15 @@ function TBEquityCurve({trades}){
           </span>
         </div>
 
-        <div ref={wrapRef} style={{width:'100%',position:'relative'}}>
+        {/* minHeight reserves the chart's space during the first measuring pass
+            so the card doesn't jump once the SVG appears. */}
+        <div style={{width:'100%',position:'relative',minHeight:H}}>
+          {ready&&(<>
           <svg width={w} height={H} tabIndex={0} role="img"
                aria-label={'Equity curve, '+(net>=0?'up ':'down ')+tbFmt$(Math.abs(net))+' over '+pts.length+' closed trades'}
                onMouseMove={onMove} onMouseLeave={()=>setHover(null)} onKeyDown={onKey}
-               style={{display:'block',outline:'none',touchAction:'pan-y'}}>
+               onTouchStart={onTouch} onTouchMove={onTouch}
+               style={{display:'block',width:'100%',maxWidth:'100%',outline:'none',touchAction:'pan-y'}}>
             <defs>
               <linearGradient id="tb-eq-fill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%"   stopColor={'rgba('+rgb+',0.16)'}/>
@@ -2344,12 +2420,12 @@ function TBEquityCurve({trades}){
             </defs>
 
             {/* Recessive hairline grid + y ticks (they carry what isn't direct-labelled). */}
-            {ticks.map(t=>(
+            {ticks.map((t,ti)=>(
               <g key={t}>
                 <line x1={PL} x2={PL+innerW} y1={Y(t)} y2={Y(t)} stroke="var(--bd)" strokeWidth="1"/>
-                <text x={PL-10} y={Y(t)+4} textAnchor="end"
-                      style={{fontSize:10,fill:'var(--txm)',fontVariantNumeric:'tabular-nums'}}>
-                  {(t<0?'−':'')+'$'+Math.abs(t).toLocaleString('en-US',{maximumFractionDigits:0})}
+                <text x={PL-8} y={Y(t)+4} textAnchor="end"
+                      style={{fontSize:axisFS,fill:'var(--txm)',fontVariantNumeric:'tabular-nums'}}>
+                  {tickLabels[ti]}
                 </text>
               </g>
             ))}
@@ -2361,49 +2437,66 @@ function TBEquityCurve({trades}){
                   strokeLinejoin="round" strokeLinecap="round"/>
 
             {/* Endpoint marker with a 2px surface ring so it survives crossing the line. */}
-            <circle cx={X(pts.length-1)} cy={Y(pts[pts.length-1].y)} r="4.5"
+            <circle cx={X(pts.length-1)} cy={Y(pts[pts.length-1].y)} r={compact?5:4.5}
                     fill={col} stroke="var(--s1)" strokeWidth="2"/>
 
             {/* Crosshair snaps to the nearest trade — the reader aims at a date. */}
             {hp&&(<g>
               <line x1={X(hover)} x2={X(hover)} y1={PT} y2={PT+innerH} stroke="var(--bdl)" strokeWidth="1"/>
-              <circle cx={X(hover)} cy={Y(hp.y)} r="4.5" fill={col} stroke="var(--s1)" strokeWidth="2"/>
+              <circle cx={X(hover)} cy={Y(hp.y)} r={compact?5:4.5} fill={col} stroke="var(--s1)" strokeWidth="2"/>
             </g>)}
 
-            <text x={PL} y={H-8} style={{fontSize:10,fill:'var(--txm)'}}>{fmtDay(pts[0].t)}</text>
-            <text x={PL+innerW} y={H-8} textAnchor="end" style={{fontSize:10,fill:'var(--txm)'}}>
-              {fmtDay(pts[pts.length-1].t)}
-            </text>
+            {/* Endpoint dates pin to the plot edges; any intermediate ticks sit
+                on their own trade, centred. */}
+            {xIdx.map((i,k)=>{
+              const first=k===0, last=k===xIdx.length-1;
+              const anchor=xIdx.length===1?'middle':(first?'start':(last?'end':'middle'));
+              const x=xIdx.length===1?PL+innerW/2:(first?PL:(last?PL+innerW:X(i)));
+              return(<text key={i} x={x} y={H-8} textAnchor={anchor}
+                           style={{fontSize:axisFS,fill:'var(--txm)'}}>{fmtDay(pts[i].t)}</text>);
+            })}
           </svg>
 
-          {/* Value leads, label follows; the series is keyed with a stroke, not a box. */}
-          {hp&&(<div style={{position:'absolute',pointerEvents:'none',
-                 left:Math.max(0,Math.min(w-160,X(hover)-80)),top:Math.max(0,Y(hp.y)-64),
-                 width:160,background:'var(--s2)',border:'1px solid var(--bdl)',borderRadius:8,
-                 padding:'8px 10px',boxShadow:'0 8px 24px rgba(0,0,0,.5)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:7}}>
-              <span style={{width:12,height:2,borderRadius:1,background:col,flexShrink:0}}/>
-              <span style={{fontFamily:'IBM Plex Mono,monospace',fontSize:14,fontWeight:800,color:'var(--tx)'}}>
-                {(hp.y>=0?'+':'−')+tbFmt$(Math.abs(hp.y))}
-              </span>
-            </div>
-            <div style={{fontSize:11,color:'var(--txm)',marginTop:3}}>
-              {fmtDay(hp.t)} · {hp.ticker}
-            </div>
-            <div style={{fontSize:11,color:'var(--txm)'}}>
-              trade {(hp.pnl>=0?'+':'−')+tbFmt$(Math.abs(hp.pnl))}
-            </div>
-          </div>)}
+          {/* Value leads, label follows; the series is keyed with a stroke, not a box.
+              The box is sized and placed against the MEASURED width, then flipped
+              below the point when there's no room above — on a short mobile chart
+              a fixed "always above" box got clipped by the top of the card. */}
+          {hp&&(()=>{
+            const TW=Math.min(168,Math.max(118,w-10));      // never wider than the card
+            const TH=70;
+            const left=Math.max(0,Math.min(w-TW,X(hover)-TW/2));
+            const top=Y(hp.y)-TH-6>=0?Y(hp.y)-TH-6:Math.min(H-TH-2,Y(hp.y)+12);
+            return(<div style={{position:'absolute',pointerEvents:'none',left,top,width:TW,
+                   background:'var(--s2)',border:'1px solid var(--bdl)',borderRadius:8,
+                   padding:'8px 10px',boxShadow:'0 8px 24px rgba(0,0,0,.5)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:7}}>
+                <span style={{width:12,height:2,borderRadius:1,background:col,flexShrink:0}}/>
+                <span style={{fontFamily:'IBM Plex Mono,monospace',fontSize:14,fontWeight:800,color:'var(--tx)'}}>
+                  {(hp.y>=0?'+':'−')+tbFmt$(Math.abs(hp.y))}
+                </span>
+              </div>
+              <div style={{fontSize:11,color:'var(--txm)',marginTop:3}}>
+                {fmtDay(hp.t)} · {hp.ticker}
+              </div>
+              <div style={{fontSize:11,color:'var(--txm)'}}>
+                trade {(hp.pnl>=0?'+':'−')+tbFmt$(Math.abs(hp.pnl))}
+              </div>
+            </div>);
+          })()}
+          </>)}
         </div>
 
         {/* Nothing is gated behind hover. */}
         <button onClick={()=>setShowTable(v=>!v)}
           style={{background:'transparent',border:'none',color:'var(--txm)',fontSize:11,fontWeight:600,
-                  cursor:'pointer',padding:'6px 0 0',textDecoration:'underline',textUnderlineOffset:3}}>
+                  cursor:'pointer',padding:'8px 0 2px',minHeight:30,textDecoration:'underline',textUnderlineOffset:3}}>
           {showTable?'Hide table':'View as table'}
         </button>
-        {showTable&&(<div style={{maxHeight:200,overflowY:'auto',marginTop:8}}>
-          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+        {/* overflowX so the four columns scroll inside the card on a phone
+            instead of widening it. */}
+        {showTable&&(<div style={{maxHeight:compact?240:280,overflowY:'auto',overflowX:'auto',marginTop:8,
+                                  WebkitOverflowScrolling:'touch'}}>
+          <table style={{width:'100%',minWidth:compact?300:0,borderCollapse:'collapse',fontSize:12}}>
             <thead><tr>{['Date','Symbol','Trade','Equity'].map(h=>(
               <th key={h} style={{padding:'6px 8px',textAlign:h==='Date'||h==='Symbol'?'left':'right',
                     fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1,
@@ -2424,6 +2517,7 @@ function TBEquityCurve({trades}){
           </table>
         </div>)}
       </>)}
+    </div>
   </div>);
 }
 
@@ -2980,8 +3074,12 @@ function TBPortfolioPage(){
     {acct&&(()=>{
       /* Free Webull account fields the worker already fetches but never surfaced. */
       const extra=[
+        /* Margin buying power — mirrors the three figures on Webull's account
+           screen. Worker sends null (not 0) when Webull omits one, so an
+           unavailable figure hides rather than showing a fake $0.00. */
+        ['Intraday BP','intradayBP'],['Overnight BP','overnightBP'],['Options BP','optionsBP'],
         ['Market Value','marketValue'],['Settled Cash','settledCash'],['Unsettled Cash','unsettledCash'],
-        ['Overnight BP','overnightBP'],['Initial Margin','initialMargin'],['Maint. Margin','maintenanceMargin'],
+        ['Initial Margin','initialMargin'],['Maint. Margin','maintenanceMargin'],
         ['Excess Liquidity','excessLiquidity'],
       ].filter(([_,k])=>acct[k]!=null&&acct[k]!==''&&!isNaN(parseFloat(acct[k])));
       if(!extra.length)return null;
