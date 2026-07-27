@@ -13,8 +13,10 @@
 //   GET /tournaments?leagueId=<id>       → tournaments for a league
 //   GET /standings?tournamentId=<id>     → standings for a tournament
 //
-// Each route is cached in KV (binding PV_CACHE) for its own TTL, with a
-// "stale" copy kept indefinitely as a fallback if the upstream LoL API errors.
+// Each route is cached in KV (binding PV_CACHE) under ONE key. The route's own
+// TTL decides how long that entry counts as fresh (from the fetch time stored in
+// KV metadata); the entry itself lives PV_KEEP so it can still be served as a
+// stale fallback when the upstream LoL API errors. One key = one write per miss.
 //
 // Bindings (Cloudflare → Settings → Bindings):
 //   PV_CACHE   KV namespace (id 512ff8d9f3144c16966179105586768d)
@@ -57,20 +59,35 @@ export default {
     }catch(e){return j({error:e.message},502);}
   }
 };
+// How long a cached entry stays available as a last-known-good fallback after it
+// stops being fresh. `ttl` still decides freshness; this only decides how long
+// the fallback survives.
+const PV_KEEP = 7*24*3600;
+
 async function cachedFetch(env,key,ttl,url){
-  const hit=await env.PV_CACHE.get(key);
-  if(hit) return new Response(hit,{headers:{...CORS,'X-Cache':'HIT'}});
-  const res=await fetch(url,{headers:{'x-api-key':LOL_KEY,'Origin':'https://lolesports.com','Referer':'https://lolesports.com/'}});
+  // One read covers both cases: a fresh hit, or the stale fallback if the
+  // upstream call below fails.
+  let cached=null;
+  try{
+    const e=await env.PV_CACHE.getWithMetadata(key,'text');
+    if(e&&e.value) cached={body:e.value,at:(e.metadata&&e.metadata.at)||0};
+  }catch(e){}
+  if(cached&&Date.now()-cached.at<ttl*1000)
+    return new Response(cached.body,{headers:{...CORS,'X-Cache':'HIT'}});
+
+  let res;
+  try{
+    res=await fetch(url,{headers:{'x-api-key':LOL_KEY,'Origin':'https://lolesports.com','Referer':'https://lolesports.com/'}});
+  }catch(e){
+    if(cached) return new Response(cached.body,{headers:{...CORS,'X-Cache':'STALE'}});
+    return j({error:'Upstream unreachable'},502);
+  }
   if(!res.ok){
-    const stale=await env.PV_CACHE.get(key+':stale');
-    if(stale) return new Response(stale,{headers:{...CORS,'X-Cache':'STALE'}});
+    if(cached) return new Response(cached.body,{headers:{...CORS,'X-Cache':'STALE'}});
     return j({error:'Upstream '+res.status},res.status);
   }
   const body=await res.text();
-  await Promise.all([
-    env.PV_CACHE.put(key,body,{expirationTtl:ttl}),
-    env.PV_CACHE.put(key+':stale',body),
-  ]);
+  await env.PV_CACHE.put(key,body,{expirationTtl:PV_KEEP,metadata:{at:Date.now()}});
   return new Response(body,{headers:{...CORS,'X-Cache':'MISS'}});
 }
 function j(o,s=200){return new Response(JSON.stringify(o),{status:s,headers:CORS});}

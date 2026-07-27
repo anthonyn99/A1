@@ -3297,6 +3297,10 @@ export default {
     // KV-cached ~60s. Powers the Top Movers strip + per-card % change (price-move
     // correlation). Cheap: Finnhub quotes are 60/min, effectively unlimited daily.
     // ?fresh=1 bypasses the cache. Returns { quotes:{T:{c,d,dp,h,l,o,pc}}, asOf }.
+    // Cache window for /quotes. Keep this >= the client's poll cadence in
+    // tradehub.html (5 min) — a TTL shorter than the poll guarantees a miss
+    // and a write on every single request.
+    const QUOTES_TTL = 300;
     if (url.pathname === '/quotes'){
       const tk = parseTickers(url.searchParams.get('tickers')) || WATCHLIST;
       const ckey = 'quotes:' + wlHash(tk);
@@ -3308,7 +3312,7 @@ export default {
       }
       const quotes = await fetchQuotes(tk, env);
       const payload = { quotes, asOf: Date.now() };
-      ctx.waitUntil(env.NEWSHUB_CACHE.put(ckey, JSON.stringify(payload), { expirationTtl: 60 }).catch(()=>{}));
+      ctx.waitUntil(env.NEWSHUB_CACHE.put(ckey, JSON.stringify(payload), { expirationTtl: QUOTES_TTL }).catch(()=>{}));
       return new Response(JSON.stringify({ ok:true, ...payload }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
     }
 

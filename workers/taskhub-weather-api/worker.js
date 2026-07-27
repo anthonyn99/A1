@@ -25,8 +25,10 @@
 //   X-Wx-Source: client | ip      X-Wx-Lat / X-Wx-Lon: coords actually used
 //
 // Caching:
-//   fc:<lat>:<lon>:<units>        15 min   forecast payload
-//   fc:<...>:stale                 ∞       last good copy, served if upstream errors
+//   fc:<lat>:<lon>:<units>         7 days  forecast payload. Fresh for the first
+//                                          15 min (metadata.at); past that it is
+//                                          the fallback served when upstream is
+//                                          down. One key, so one write per miss.
 //   geo:<lat>:<lon>               30 days  reverse-geocoded place label
 //
 // Bindings (wrangler.toml):
@@ -38,7 +40,10 @@
 const OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
 const REVGEO = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
 
-const TTL_FORECAST = 15 * 60;      // 15 min — matches the client's ~12 min poll
+const FRESH_FORECAST = 15 * 60;    // 15 min — matches the client's ~12 min poll
+// How long the last-known-good stays available to serve when upstream is down.
+// The entry is only FRESH for FRESH_FORECAST; past that it is a stale fallback.
+const TTL_FORECAST = 7 * 24 * 3600;
 const TTL_PLACE = 30 * 24 * 3600;  // 30 days — a city name doesn't move
 
 const CURRENT_VARS = 'temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m';
@@ -79,9 +84,17 @@ export default {
     const key = `fc:${rlat}:${rlon}:${units}`;
     const meta = { 'X-Wx-Source': source, 'X-Wx-Lat': rlat, 'X-Wx-Lon': rlon };
 
+    // One read serves both roles: `cached` is the fresh hit when it is inside
+    // the freshness window, and the stale fallback when it isn't.
+    let cached = null;
     try {
-      const hit = await env.WX_CACHE.get(key);
-      if (hit) return new Response(hit, { headers: { ...CORS, ...meta, 'X-Cache': 'HIT' } });
+      const e = await env.WX_CACHE.getWithMetadata(key, 'text');
+      if (e && e.value) cached = { body: e.value, at: (e.metadata && e.metadata.at) || 0 };
+    } catch (e) {}
+
+    try {
+      if (cached && Date.now() - cached.at < FRESH_FORECAST * 1000)
+        return new Response(cached.body, { headers: { ...CORS, ...meta, 'X-Cache': 'HIT' } });
 
       const qs = new URLSearchParams({
         latitude: rlat,
@@ -103,8 +116,7 @@ export default {
       ]);
 
       if (!res.ok) {
-        const stale = await env.WX_CACHE.get(key + ':stale');
-        if (stale) return new Response(stale, { headers: { ...CORS, ...meta, 'X-Cache': 'STALE' } });
+        if (cached) return new Response(cached.body, { headers: { ...CORS, ...meta, 'X-Cache': 'STALE' } });
         return j({ error: 'Upstream ' + res.status }, 502);
       }
 
@@ -113,14 +125,13 @@ export default {
       data.fetched_at = Date.now();
       const body = JSON.stringify(data);
 
-      await Promise.all([
-        env.WX_CACHE.put(key, body, { expirationTtl: TTL_FORECAST }),
-        env.WX_CACHE.put(key + ':stale', body),
-      ]);
+      await env.WX_CACHE.put(key, body, {
+        expirationTtl: TTL_FORECAST,
+        metadata: { at: data.fetched_at },
+      });
       return new Response(body, { headers: { ...CORS, ...meta, 'X-Cache': 'MISS' } });
     } catch (e) {
-      const stale = await env.WX_CACHE.get(key + ':stale').catch(() => null);
-      if (stale) return new Response(stale, { headers: { ...CORS, ...meta, 'X-Cache': 'STALE' } });
+      if (cached) return new Response(cached.body, { headers: { ...CORS, ...meta, 'X-Cache': 'STALE' } });
       return j({ error: e.message }, 502);
     }
   },
