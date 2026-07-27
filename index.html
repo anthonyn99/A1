@@ -4562,7 +4562,7 @@ function App(){
   // Two-row card: pills (time · category · impact) on top, then icon + full-width title
   // below — so long names ("June PCE Report") stretch the whole box instead of wrapping
   // into a narrow column beside the pills.
-  const mcChip=(e)=>{const tm=mcTimeLocal(e);return React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
+  const mcChip=(e,tone)=>{const tm=mcTimeLocal(e);return React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
       /* Catalysts-pushed events use a neutral GRAY category chip here (Tony's TaskHub),
          to match Veda's. The colorful category chips stay in the Catalysts tab only. */
@@ -4571,20 +4571,20 @@ function App(){
       e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
     React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       React.createElement("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
-      React.createElement("span",{style:{fontSize:11,fontWeight:700,color:T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
+      React.createElement("span",{style:{fontSize:11,fontWeight:700,color:tone||T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
   // Render a day's catalysts: collapse 2+ earnings into ONE card that looks IDENTICAL to a
   // single earning — "Earnings" pill on top, "GOOGL, MMM … Earnings" below — by routing the
   // grouped card through the same mcChip. Macros/holidays render as their own chip.
-  const mcRender=(mcDay)=>{
+  const mcRender=(mcDay,tone)=>{
     if(!mcDay||!mcDay.length)return null;
     const earn=mcDay.filter(e=>e.kind==="earnings"),rest=mcDay.filter(e=>e.kind!=="earnings"),out=[];
-    if(earn.length===1)out.push(mcChip(earn[0]));
+    if(earn.length===1)out.push(mcChip(earn[0],tone));
     else if(earn.length>1){
       const past=earn.every(e=>e._past);
       const tickers=earn.map(e=>mcTicker(e.title)).join(", ");
-      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past}));
+      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past},tone));
     }
-    rest.forEach(e=>out.push(mcChip(e)));
+    rest.forEach(e=>out.push(mcChip(e,tone)));
     return out;
   };
 
@@ -4674,11 +4674,9 @@ function App(){
             })),
           (()=>{
             const w=wd[mobDayIdx],k=dkey(w.year,w.month,w.day),td=k===tk;
-            // Days still to come recede one step: their primary text drops from
-            // T.TX to T.TXD so the week reads as "today is live, the rest is
-            // upcoming" instead of every day shouting equally. dkey() is a
-            // zero-padded YYYY-MM-DD, so a plain string compare is a date compare.
-            const dayTX=k>tk?T.TXD:T.TX;
+            // Only TODAY is live; every other day — past or upcoming — recedes one
+            // step so the week reads as "here is now, the rest is context".
+            const dayTX=td?T.TX:T.TXD;
             const p=prog(k);
             const allItems=(data[k]||[]).filter(i=>!i._mc);
             const mcDay=mcByDay[k]||[];
@@ -4693,7 +4691,7 @@ function App(){
                   React.createElement("div",{style:{fontSize:12,fontWeight:500,color:T.TXM,marginTop:2,whiteSpace:"nowrap"}},w.day+" "+MO[w.month])),
 ),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:10,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:"linear-gradient(90deg,"+T.ACD+","+T.ACL+")",borderRadius:2,transition:"width .35s"}})),
-              mcRender(mcDay),
+              mcRender(mcDay,dayTX),
               pvMatches.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:5,cursor:"default",display:"flex",alignItems:"center",gap:5}},
                 React.createElement("div",{style:{border:"1px solid rgba(184,166,208,0.34)",borderLeft:"3px solid #b8a6d0",borderRadius:6,background:"rgba(184,166,208,0.08)",padding:"6px 10px",flex:1,minWidth:0}},
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
@@ -4751,11 +4749,9 @@ function App(){
             _hi.map(idx=>{const _dw=wd[idx],_dk=dkey(_dw.year,_dw.month,_dw.day),_dTd=_dk===tk;return React.createElement("button",{key:_dk,type:"button",onClick:()=>{setMobDayIdx(idx);setNarrowSingleDay(true);},style:{flexShrink:0,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:_dTd?T.AC:T.TXD,border:_dTd?"1px solid "+T.AC+"55":"1px solid "+T.BD,whiteSpace:"nowrap"}},DS[idx]+" "+_dw.day);})),
           (isNarrow?_nwd:wd).map((w,_i)=>{const i=isNarrow?_ns+_i:_i;
             const k=dkey(w.year,w.month,w.day),td=k===tk;
-            // Days still to come recede one step: their primary text drops from
-            // T.TX to T.TXD so the week reads as "today is live, the rest is
-            // upcoming" instead of every day shouting equally. dkey() is a
-            // zero-padded YYYY-MM-DD, so a plain string compare is a date compare.
-            const dayTX=k>tk?T.TXD:T.TX;
+            // Only TODAY is live; every other day — past or upcoming — recedes one
+            // step so the week reads as "here is now, the rest is context".
+            const dayTX=td?T.TX:T.TXD;
             const p=prog(k);
             const allItems=(data[k]||[]).filter(i=>!i._mc);
             const mcDay=mcByDay[k]||[];
@@ -4770,7 +4766,7 @@ function App(){
                   React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,marginTop:2,whiteSpace:"nowrap"}},w.day+" "+MO[w.month].slice(0,3))),
               ),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:"linear-gradient(90deg,"+T.ACD+","+T.ACL+")",borderRadius:2,transition:"width .35s"}})),
-              mcRender(mcDay),
+              mcRender(mcDay,dayTX),
               pvMatches.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:4,cursor:"default",display:"flex",alignItems:"center",gap:4}},
                 React.createElement("div",{style:{border:"1px solid rgba(184,166,208,0.34)",borderLeft:"3px solid #b8a6d0",borderRadius:5,background:"rgba(184,166,208,0.08)",padding:"5px 7px",flex:1,minWidth:0}},
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:3,marginBottom:3}},
@@ -9794,26 +9790,26 @@ function App(){
   const mcTimeLocal=(e)=>{const t=mcMacroET(e);if(!t)return"";try{const ts=thZonedTs(e.date,t.hh,t.mm,"America/New_York");return new Date(ts).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});}catch(_){return"";}};
   // Two-row card: pills (time · category · impact) on top, then icon + full-width title
   // below — so long macro names span the whole box instead of wrapping into a narrow column.
-  const mcChip=(e)=>{const tm=mcTimeLocal(e);return RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
+  const mcChip=(e,tone)=>{const tm=mcTimeLocal(e);return RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
       RC("span",{style:{fontSize:9.5,color:TXD,background:TXD+"1a",borderRadius:6,padding:"1px 6px",textTransform:"none",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXD+"30"}},mcCatLabel(e.category)),
       tm?RC("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:TXD,whiteSpace:"nowrap",flexShrink:0}},tm):null,
       e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
     RC("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
-      RC("span",{style:{fontSize:11,fontWeight:700,color:TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
+      RC("span",{style:{fontSize:11,fontWeight:700,color:tone||TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
   // Collapse 2+ earnings into ONE card identical to a single earning ("Earnings" pill on top,
   // "GOOGL, MMM … Earnings" below) by routing it through the same mcChip. Macros render individually.
-  const mcRender=(mcDay)=>{
+  const mcRender=(mcDay,tone)=>{
     if(!mcDay||!mcDay.length)return null;
     const earn=mcDay.filter(e=>e.kind==="earnings"),rest=mcDay.filter(e=>e.kind!=="earnings"),out=[];
-    if(earn.length===1)out.push(mcChip(earn[0]));
+    if(earn.length===1)out.push(mcChip(earn[0],tone));
     else if(earn.length>1){
       const past=earn.every(e=>e._past);
       const tickers=earn.map(e=>mcTicker(e.title)).join(", ");
-      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past}));
+      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past},tone));
     }
-    rest.forEach(e=>out.push(mcChip(e)));
+    rest.forEach(e=>out.push(mcChip(e,tone)));
     return out;
   };
 
@@ -9894,6 +9890,8 @@ function App(){
             })),
           (()=>{
             const w=wd[vrMobDayIdx],k=dkey(w.year,w.month,w.day),it=data[k]||[],ts=it.filter(t=>t.type==="task"),ev=it.filter(t=>t.type==="event"),p=prog(k),l=lft(k),td=k===tk;
+            // Same rule as Tony's: only today is live, the rest recedes.
+            const dayTX=td?TX:TXD;
             return RC("div",{"data-dnd-zone":"week:"+k,style:{background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:8,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
               edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8,gap:4}},
@@ -9902,14 +9900,14 @@ function App(){
                   RC("div",{style:{fontSize:11,fontWeight:500,color:TXM,marginTop:2,whiteSpace:"nowrap"}},w.day+" "+MO[w.month])),
                 ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px",flexShrink:0}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left")),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
-              mcRender(mcByDay[k]||[]),
+              mcRender(mcByDay[k]||[],dayTX),
               ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   (t._sosClassName||t.category)&&(t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},t._sosClassName):RC("span",{style:ctag(t.category)},t.category)),
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
-                RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:TX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word"}},t.title)),
+                RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word"}},t.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&RC("button",{style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:1,cursor:edit?"grab":"default"})},
@@ -9934,6 +9932,8 @@ function App(){
           (vrNarrow?_vnwd:wd).map((w,_i)=>{const i=vrNarrow?_vns+_i:_i;
             const k=dkey(w.year,w.month,w.day),it=data[k]||[],ts=it.filter(t=>t.type==="task"),ev=it.filter(t=>t.type==="event");
             const p=prog(k),l=lft(k),td=k===tk;
+            // Same rule as Tony's: only today is live, the rest recedes.
+            const dayTX=td?TX:TXD;
             return RC("div",{key:k,"data-dnd-zone":"week:"+k,onDragOver:edit?e=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!vrMobile)setVdDragOverId("day-"+k);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropDay(e,k):null,style:vdndDayStyle(k,{background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:6,padding:"8px 8px",minHeight:150,display:"flex",flexDirection:"column"})},
               edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
@@ -9942,14 +9942,14 @@ function App(){
                   RC("div",{style:{fontSize:10,fontWeight:600,color:TXM,marginTop:1}},w.day+" "+MO[w.month].slice(0,3))),
                 ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px"}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left")),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
-              mcRender(mcByDay[k]||[]),
+              mcRender(mcByDay[k]||[],dayTX),
               ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:8})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:8,marginBottom:2}},
                   (t._sosClassName||t.category)&&(t._sosClassName?RC("span",{style:{fontSize:7,fontWeight:700,color:sosPastel(t._sosClassColor)||"#8b949e",background:(sosPastel(t._sosClassColor)||"#8b949e")+"22",border:"1px solid "+(sosPastel(t._sosClassColor)||"#8b949e")+"44",borderRadius:3,padding:"1px 4px",textTransform:"uppercase",letterSpacing:.4,whiteSpace:"normal",wordBreak:"break-word",maxWidth:80,lineHeight:1.2}},t._sosClassName):RC("span",{style:ctag(t.category)},t.category)),
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
-                RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:TX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,wordBreak:"break-word",overflowWrap:"break-word"}},t.title)),
+                RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,wordBreak:"break-word",overflowWrap:"break-word"}},t.title)),
                 edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11},onClick:()=>{setEi(t);setMdt(k);setMo(true);}},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&RC("button",{style:dbtn,onClick:()=>del(k,t.id)},"×"))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:1,cursor:edit?"grab":"default"})},
