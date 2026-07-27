@@ -2179,6 +2179,254 @@ function TBTradeRow({trade,onClick,asFragment}){
 }
 
 /* ── Journal Page ── */
+/* ── Equity curve ────────────────────────────────────────────────────────────
+   Cumulative realised P&L over time. One series, so there is no legend — the
+   card title says what is plotted — and the reader gets the numbers three ways:
+   the endpoint is direct-labelled, the crosshair reads out any point on hover or
+   keyboard focus, and the table underneath holds every row without hovering.
+
+   Colour follows the period's direction using TradeHub's own P&L pair, and it is
+   never the only signal: the hero figure, the endpoint label and every tooltip
+   carry a signed value, so the curve still reads without colour vision. */
+
+const TB_RANGES = [
+  { id: '1M',  label: '1M',  days: 30 },
+  { id: '3M',  label: '3M',  days: 91 },
+  { id: '6M',  label: '6M',  days: 182 },
+  { id: 'YTD', label: 'YTD', days: null },
+  { id: '1Y',  label: '1Y',  days: 365 },
+  { id: 'ALL', label: 'All', days: null },
+];
+
+/* The date a trade lands on the curve: when it was closed. */
+function tbTradeExitDate(trade){
+  const sells = (trade.legs||[]).filter(l=>l.action==='SELL')
+    .map(l=>new Date(l.datetime)).filter(d=>!isNaN(d.getTime()));
+  if (sells.length) return new Date(Math.max(...sells.map(d=>d.getTime())));
+  if (trade.date) { const d=new Date(trade.date); if(!isNaN(d.getTime())) return d; }
+  return null;
+}
+
+/* Axis ticks on round numbers — 1/2/5 × 10^n covering the domain. */
+function tbNiceTicks(lo, hi, count){
+  if (!(hi>lo)) { const p=Math.abs(hi)||1; lo=hi-p; hi=hi+p; }
+  const raw=(hi-lo)/Math.max(1,count);
+  const mag=Math.pow(10,Math.floor(Math.log10(raw)));
+  const step=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=raw)||10*mag;
+  const out=[];
+  for(let v=Math.ceil(lo/step)*step; v<=hi+step*0.001; v+=step) out.push(Math.round(v*1e6)/1e6);
+  return out;
+}
+
+function TBEquityCurve({trades}){
+  const [range,setRange]=useState('ALL');
+  const [hover,setHover]=useState(null);     // index into pts
+  const [showTable,setShowTable]=useState(false);
+  const wrapRef=useRef(null);
+  const [w,setW]=useState(720);
+
+  useEffect(()=>{
+    const el=wrapRef.current; if(!el||typeof ResizeObserver==='undefined') return;
+    const ro=new ResizeObserver(es=>{ const cw=es[0].contentRect.width; if(cw>0) setW(cw); });
+    ro.observe(el); return ()=>ro.disconnect();
+  },[]);
+
+  /* Closed trades with a P&L and a date, oldest first, cumulatively summed. */
+  const all=useMemo(()=>{
+    const rows=[];
+    (trades||[]).forEach(t=>{
+      const st=tbComputeTradeStats(t);
+      if(st.status==='OPEN'||st.netPnL==null) return;
+      const d=tbTradeExitDate(t); if(!d) return;
+      rows.push({t:d.getTime(), pnl:st.netPnL, ticker:t.ticker||'—'});
+    });
+    rows.sort((a,b)=>a.t-b.t);
+    let run=0;
+    return rows.map(r=>({...r, equity:(run+=r.pnl)}));
+  },[trades]);
+
+  /* Windowing re-bases the curve so the y-axis reads "P&L over this period". */
+  const pts=useMemo(()=>{
+    if(!all.length) return [];
+    if(range==='ALL') return all.map(r=>({...r, y:r.equity}));
+    const now=Date.now();
+    let from;
+    if(range==='YTD'){ const d=new Date(); from=new Date(d.getFullYear(),0,1).getTime(); }
+    else { const cfg=TB_RANGES.find(r=>r.id===range); from=now-(cfg?cfg.days:365)*86400000; }
+    const inWin=all.filter(r=>r.t>=from);
+    if(!inWin.length) return [];
+    const before=all.filter(r=>r.t<from);
+    const base=before.length?before[before.length-1].equity:0;
+    return inWin.map(r=>({...r, y:r.equity-base}));
+  },[all,range]);
+
+  const net=pts.length?pts[pts.length-1].y:0;
+  const col=net>=0?'var(--tbb)':'var(--tbr)';
+  const rgb=net>=0?'164,185,134':'214,138,124';
+
+  /* Geometry. Height includes the x-axis band so the card never nests a scroll. */
+  const PL=62, PR=18, PT=14, PB=28, H=210;
+  const innerW=Math.max(80,w-PL-PR), innerH=H-PT-PB;
+  const ys=pts.map(p=>p.y);
+  const lo=Math.min(0,...ys), hi=Math.max(0,...ys);
+  const ticks=tbNiceTicks(lo,hi,4);
+  const dLo=Math.min(lo,...ticks), dHi=Math.max(hi,...ticks);
+  const span=(dHi-dLo)||1;
+  const X=i=>pts.length<2?PL+innerW/2:PL+(i/(pts.length-1))*innerW;
+  const Y=v=>PT+innerH-((v-dLo)/span)*innerH;
+
+  const linePath=pts.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.y).toFixed(1)).join(' ');
+  const areaPath=pts.length
+    ? linePath+' L '+X(pts.length-1).toFixed(1)+' '+Y(0).toFixed(1)+' L '+X(0).toFixed(1)+' '+Y(0).toFixed(1)+' Z'
+    : '';
+
+  const onMove=e=>{
+    if(!pts.length) return;
+    const r=e.currentTarget.getBoundingClientRect();
+    const x=e.clientX-r.left;
+    const i=pts.length<2?0:Math.round(((x-PL)/innerW)*(pts.length-1));
+    setHover(Math.max(0,Math.min(pts.length-1,i)));
+  };
+  const onKey=e=>{
+    if(!pts.length) return;
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+      e.preventDefault();
+      setHover(h=>{ const b=h==null?(e.key==='ArrowRight'?-1:pts.length):h;
+        return Math.max(0,Math.min(pts.length-1,b+(e.key==='ArrowRight'?1:-1))); });
+    } else if(e.key==='Escape') setHover(null);
+  };
+
+  const fmtDay=ms=>new Date(ms).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const hp=hover!=null?pts[hover]:null;
+
+  return(<div className="tb-card" style={{padding:'18px 20px 14px'}}>
+    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:14}}>
+      <div style={{minWidth:0}}>
+        <div style={{fontSize:15,fontWeight:800,color:'var(--tx)'}}>Equity Curve</div>
+        <div style={{fontSize:12,color:'var(--txm)',marginTop:2}}>Cumulative realised P&amp;L</div>
+      </div>
+      <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+        {TB_RANGES.map(r=>(
+          <button key={r.id} onClick={()=>{setRange(r.id);setHover(null);}}
+            aria-pressed={range===r.id}
+            style={{background:'transparent',border:'1px solid '+(range===r.id?'var(--ac)':'var(--bd)'),
+                    color:range===r.id?'var(--acs)':'var(--txm)',borderRadius:6,padding:'4px 11px',
+                    fontSize:11,fontWeight:700,letterSpacing:.4,cursor:'pointer',transition:'all .15s'}}>{r.label}</button>
+        ))}
+      </div>
+    </div>
+
+    {!pts.length
+      ? <div style={{padding:'44px 0',textAlign:'center',fontFamily:'var(--font-accent)',fontSize:14,color:'var(--txm)'}}>
+          No closed trades in this range yet.
+        </div>
+      : (<>
+        {/* Hero: the period's net, proportional figures, signed so colour is never alone. */}
+        <div style={{display:'flex',alignItems:'baseline',gap:10,marginBottom:6}}>
+          <span style={{fontSize:30,fontWeight:700,letterSpacing:-.5,color:col}}>
+            {(net>=0?'+':'−')+tbFmt$(Math.abs(net)).replace('$','$')}
+          </span>
+          <span style={{fontSize:12,color:'var(--txm)'}}>
+            over {pts.length} closed trade{pts.length!==1?'s':''}
+          </span>
+        </div>
+
+        <div ref={wrapRef} style={{width:'100%',position:'relative'}}>
+          <svg width={w} height={H} tabIndex={0} role="img"
+               aria-label={'Equity curve, '+(net>=0?'up ':'down ')+tbFmt$(Math.abs(net))+' over '+pts.length+' closed trades'}
+               onMouseMove={onMove} onMouseLeave={()=>setHover(null)} onKeyDown={onKey}
+               style={{display:'block',outline:'none',touchAction:'pan-y'}}>
+            <defs>
+              <linearGradient id="tb-eq-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor={'rgba('+rgb+',0.16)'}/>
+                <stop offset="100%" stopColor={'rgba('+rgb+',0.01)'}/>
+              </linearGradient>
+            </defs>
+
+            {/* Recessive hairline grid + y ticks (they carry what isn't direct-labelled). */}
+            {ticks.map(t=>(
+              <g key={t}>
+                <line x1={PL} x2={PL+innerW} y1={Y(t)} y2={Y(t)} stroke="var(--bd)" strokeWidth="1"/>
+                <text x={PL-10} y={Y(t)+4} textAnchor="end"
+                      style={{fontSize:10,fill:'var(--txm)',fontVariantNumeric:'tabular-nums'}}>
+                  {(t<0?'−':'')+'$'+Math.abs(t).toLocaleString('en-US',{maximumFractionDigits:0})}
+                </text>
+              </g>
+            ))}
+            {/* Break-even reads a step stronger than the grid — polarity is the point. */}
+            <line x1={PL} x2={PL+innerW} y1={Y(0)} y2={Y(0)} stroke="var(--bdl)" strokeWidth="1"/>
+
+            <path d={areaPath} fill="url(#tb-eq-fill)"/>
+            <path d={linePath} fill="none" stroke={col} strokeWidth="2"
+                  strokeLinejoin="round" strokeLinecap="round"/>
+
+            {/* Endpoint marker with a 2px surface ring so it survives crossing the line. */}
+            <circle cx={X(pts.length-1)} cy={Y(pts[pts.length-1].y)} r="4.5"
+                    fill={col} stroke="var(--s1)" strokeWidth="2"/>
+
+            {/* Crosshair snaps to the nearest trade — the reader aims at a date. */}
+            {hp&&(<g>
+              <line x1={X(hover)} x2={X(hover)} y1={PT} y2={PT+innerH} stroke="var(--bdl)" strokeWidth="1"/>
+              <circle cx={X(hover)} cy={Y(hp.y)} r="4.5" fill={col} stroke="var(--s1)" strokeWidth="2"/>
+            </g>)}
+
+            <text x={PL} y={H-8} style={{fontSize:10,fill:'var(--txm)'}}>{fmtDay(pts[0].t)}</text>
+            <text x={PL+innerW} y={H-8} textAnchor="end" style={{fontSize:10,fill:'var(--txm)'}}>
+              {fmtDay(pts[pts.length-1].t)}
+            </text>
+          </svg>
+
+          {/* Value leads, label follows; the series is keyed with a stroke, not a box. */}
+          {hp&&(<div style={{position:'absolute',pointerEvents:'none',
+                 left:Math.max(0,Math.min(w-160,X(hover)-80)),top:Math.max(0,Y(hp.y)-64),
+                 width:160,background:'var(--s2)',border:'1px solid var(--bdl)',borderRadius:8,
+                 padding:'8px 10px',boxShadow:'0 8px 24px rgba(0,0,0,.5)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:7}}>
+              <span style={{width:12,height:2,borderRadius:1,background:col,flexShrink:0}}/>
+              <span style={{fontFamily:'IBM Plex Mono,monospace',fontSize:14,fontWeight:800,color:'var(--tx)'}}>
+                {(hp.y>=0?'+':'−')+tbFmt$(Math.abs(hp.y))}
+              </span>
+            </div>
+            <div style={{fontSize:11,color:'var(--txm)',marginTop:3}}>
+              {fmtDay(hp.t)} · {hp.ticker}
+            </div>
+            <div style={{fontSize:11,color:'var(--txm)'}}>
+              trade {(hp.pnl>=0?'+':'−')+tbFmt$(Math.abs(hp.pnl))}
+            </div>
+          </div>)}
+        </div>
+
+        {/* Nothing is gated behind hover. */}
+        <button onClick={()=>setShowTable(v=>!v)}
+          style={{background:'transparent',border:'none',color:'var(--txm)',fontSize:11,fontWeight:600,
+                  cursor:'pointer',padding:'6px 0 0',textDecoration:'underline',textUnderlineOffset:3}}>
+          {showTable?'Hide table':'View as table'}
+        </button>
+        {showTable&&(<div style={{maxHeight:200,overflowY:'auto',marginTop:8}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead><tr>{['Date','Symbol','Trade','Equity'].map(h=>(
+              <th key={h} style={{padding:'6px 8px',textAlign:h==='Date'||h==='Symbol'?'left':'right',
+                    fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1,
+                    borderBottom:'1px solid var(--bd)',position:'sticky',top:0,background:'var(--s1)'}}>{h}</th>))}</tr></thead>
+            <tbody>{pts.map((p,i)=>(
+              <tr key={i} style={{borderBottom:'1px solid var(--bd)'}}>
+                <td style={{padding:'5px 8px',color:'var(--txm)',whiteSpace:'nowrap'}}>{fmtDay(p.t)}</td>
+                <td style={{padding:'5px 8px',color:'var(--txd)'}}>{p.ticker}</td>
+                <td style={{padding:'5px 8px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',
+                      color:tbPnlCol(p.pnl),fontVariantNumeric:'tabular-nums'}}>
+                  {(p.pnl>=0?'+':'−')+tbFmt$(Math.abs(p.pnl))}
+                </td>
+                <td style={{padding:'5px 8px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',
+                      color:'var(--tx)',fontVariantNumeric:'tabular-nums'}}>
+                  {(p.y>=0?'+':'−')+tbFmt$(Math.abs(p.y))}
+                </td>
+              </tr>))}</tbody>
+          </table>
+        </div>)}
+      </>)}
+  </div>);
+}
+
 function TBJournalPage(){
   const jHook=useTBJournal();
   const isMobile=useIsMobile();
@@ -2366,6 +2614,7 @@ function TBJournalPage(){
         </div>
       </div>
       <TBJournalStats trades={jHook.trades} activeFilter={filter} onFilterChange={setFilter}/>
+      <TBEquityCurve trades={jHook.trades}/>
       <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search symbol, notes, setup…" style={{background:'var(--s2)',border:'1px solid var(--bd)',borderRadius:8,color:'var(--tx)',fontSize:14,padding:'7px 14px',outline:'none',width:'min(230px,100%)',flex:1,minWidth:0}} onFocus={e=>e.target.style.borderColor='var(--ac)'} onBlur={e=>e.target.style.borderColor='var(--bd)'}/>
         <div style={{marginLeft:'auto',fontSize:13,color:'var(--txm)'}}>{filtered.length} trade{filtered.length!==1?'s':''}</div>
@@ -2552,9 +2801,9 @@ function TBMarketStatus({isMobile}){
     // Sage, not signal-green: the same soft green the rest of the suite uses for
     // "good", so the OPEN rail sits beside the gold instead of shouting over it.
     regular:{label:'OPEN',sub:'Regular Hours',tone:'#a4b986'},
-    pre:    {label:'PRE-MARKET',sub:'Extended Hours',tone:'#e0b57c'},
-    after:  {label:'AFTER HOURS',sub:'Extended Hours',tone:'#58a6ff'},
-    closed: {label:'CLOSED',sub:st.holiday||(st.tradable?'Market Closed':'Weekend'),tone:'#adadb2'},
+    pre:    {label:'PRE-MARKET',sub:'Extended Hours',tone:'#a8c4e0'},
+    after:  {label:'AFTER HOURS',sub:'Extended Hours',tone:'#8fa9c4'},
+    closed: {label:'CLOSED',sub:st.holiday||(st.tradable?'Market Closed':'Weekend'),tone:'#8d8d94'},
   }[st.phase];
   let cdLabel,cdTs;
   if(st.phase==='regular'){cdLabel='Closes in';cdTs=st.regCloseTs;}
@@ -5514,7 +5763,7 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
       </div>
     </div>
     {notice&&<div className="tb-card" style={{marginBottom:12,fontSize:12,color:'var(--txm)'}}>{notice}</div>}
-    {lastSync&&<div style={{fontSize:11,color:'var(--txm)',marginBottom:10}}>Last updated {new Date(lastSync).toLocaleString()}</div>}
+    {lastSync&&<div style={{fontSize:11,color:'var(--txm)',marginBottom:10}}>Last updated {new Date(lastSync).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</div>}
     {(()=>{
       // Year-end (Dec, lingering into Jan): if next year's macro still isn't hardcoded,
       // show a dedicated "annual update due" reminder. Self-clears once it's hardcoded
