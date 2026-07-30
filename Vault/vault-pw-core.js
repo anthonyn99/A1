@@ -30,7 +30,7 @@
 
   const VC = root.VaultCrypto || (typeof require !== "undefined" ? require("./vault-crypto.js") : null);
   const VPay = root.VaultPay || (typeof require !== "undefined" ? require("./vault-pay.js") : null);
-  const VId = root.VaultId || (typeof require !== "undefined" ? require("./vault-id.js") : null);
+  const VId  = root.VaultId  || (typeof require !== "undefined" ? require("./vault-id.js")  : null);
 
   // Where ID-document scans live. The same Worker + KV namespace the web app
   // uploads to; what it holds is AES-GCM ciphertext under a random key, so the
@@ -245,6 +245,12 @@
     return decryptBytes(att.iv, ct);
   }
 
+  // A ready-to-save Blob for one attachment.
+  async function attachmentBlob(att) {
+    const plain = await attachmentBytes(att);
+    return new Blob([plain], { type: (att && att.mime) || "application/octet-stream" });
+  }
+
   function hostFromUrl(u) {
     try { return new URL(/^https?:\/\//i.test(u) ? u : "https://" + u).hostname.toLowerCase().replace(/^www\./, ""); }
     catch { return String(u || "").toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]; }
@@ -302,7 +308,7 @@
     // payments
     payments, paymentById, paymentSummaries, decryptKind,
     // ID documents
-    idDocs, idDocById, idDocSummaries, attachmentBytes, decryptBytes, FILES_URL,
+    idDocs, idDocById, idDocSummaries, attachmentBytes, attachmentBlob, decryptBytes, FILES_URL,
     // auth freshness (gates CVV release)
     authAge, authFresh, reauth, CVV_FRESH_MS,
   };

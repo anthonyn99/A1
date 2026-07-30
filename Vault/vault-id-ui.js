@@ -767,12 +767,53 @@
       overlay.classList.toggle('zoomed', zoom > 1);
       applyTransform();
     }
-    function toggleFullscreen() {
-      try {
-        if (document.fullscreenElement) document.exitFullscreen();
-        else overlay.requestFullscreen();
-      } catch (e) { host.toast('Full screen is not available here'); }
+    // ── full screen ───────────────────────────────────────────────────────────
+    // The Fullscreen API is not a usable answer on a phone: iOS Safari does not
+    // implement Element.requestFullscreen AT ALL (only <video> can go
+    // fullscreen), so the button could never do anything there, and on Android
+    // requestFullscreen returns a PROMISE whose rejection slipped straight past
+    // the old try/catch — leaving the button silently dead.
+    //
+    // So the real behaviour is ours: an immersive mode that hides the header and
+    // the details column and gives the whole viewport to the document. That
+    // works identically on every device. Native fullscreen is then requested as
+    // a bonus where it exists (it additionally hides the browser chrome), and if
+    // it refuses, nothing is lost.
+    function fsElement() {
+      return document.fullscreenElement || document.webkitFullscreenElement || null;
     }
+    function nativeFsSupported() {
+      return !!(overlay.requestFullscreen || overlay.webkitRequestFullscreen);
+    }
+    function exitNativeFs() {
+      try {
+        if (document.exitFullscreen) { var p = document.exitFullscreen(); if (p && p.catch) p.catch(function () {}); }
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } catch (e) {}
+    }
+    function setImmersive(on) {
+      overlay.classList.toggle('immersive', on);
+      fsBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      fsBtn.title = on ? 'Exit full screen (F)' : 'Full screen (F)';
+      fsBtn.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
+      fsBtn.innerHTML = on ? icons.collapse : icons.expand;
+    }
+    function toggleFullscreen() {
+      var on = !overlay.classList.contains('immersive');
+      setImmersive(on);                      // always works, on every device
+      if (!nativeFsSupported()) return;      // iOS — immersive mode is the whole answer
+      try {
+        if (on) {
+          var req = overlay.requestFullscreen ? overlay.requestFullscreen() : overlay.webkitRequestFullscreen();
+          if (req && req.catch) req.catch(function () { /* refused; immersive still applied */ });
+        } else if (fsElement()) exitNativeFs();
+      } catch (e) { /* immersive mode already covered it */ }
+    }
+    // Leaving native fullscreen by the OS gesture / Esc must drop immersive too,
+    // otherwise the chrome stays hidden with no way back.
+    function onFsChange() { if (!fsElement() && overlay.classList.contains('immersive')) setImmersive(false); }
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
 
     // ── page rendering ──
     async function draw() {
@@ -874,11 +915,21 @@
     // one-finger drag at 100% is a SWIPE between pages; once zoomed in it pans,
     // because at that point the user is reading, not navigating.
     function bindPan(node) {
-      var dragging = false, sx = 0, sy = 0, ox = 0, oy = 0, moved = 0;
+      var dragging = false, captured = false, sx = 0, sy = 0, ox = 0, oy = 0, moved = 0;
       node.addEventListener('pointerdown', function (e) {
         if (e.button != null && e.button > 0) return;
         dragging = true; moved = 0; sx = e.clientX; sy = e.clientY; ox = panX; oy = panY;
-        try { node.setPointerCapture(e.pointerId); } catch (_) {}
+        // Capture the pointer ONLY when there is something to pan. Capturing at
+        // 1x was the cause of the flicker on phones: it takes the touch away
+        // from the browser, the browser then has to fire pointercancel +
+        // lostpointercapture to reclaim it for scrolling, and that hand-off
+        // mid-gesture is what made the image visibly flash and stutter. At 1x
+        // we only need to notice a horizontal swipe, which needs no capture.
+        if (zoom > 1) {
+          captured = true;
+          try { node.setPointerCapture(e.pointerId); } catch (_) {}
+          node.style.transition = 'none';   // panning must track the finger exactly
+        }
       });
       node.addEventListener('pointermove', function (e) {
         if (!dragging) return;
@@ -889,13 +940,19 @@
       function end(e) {
         if (!dragging) return;
         dragging = false;
-        try { node.releasePointerCapture(e.pointerId); } catch (_) {}
+        if (captured) {
+          captured = false;
+          try { node.releasePointerCapture(e.pointerId); } catch (_) {}
+          node.style.transition = '';
+        }
         if (zoom <= 1 && Math.abs(e.clientX - sx) > SWIPE_MIN && Math.abs(e.clientY - sy) < SWIPE_MIN * 1.5) {
           go(e.clientX < sx ? 1 : -1);
         }
       }
       node.addEventListener('pointerup', end);
-      node.addEventListener('pointercancel', function () { dragging = false; });
+      node.addEventListener('pointercancel', function () {
+        dragging = false; captured = false; node.style.transition = '';
+      });
       node.addEventListener('dblclick', function () { setZoom(zoom > 1 ? 1 : 2.5, zoom > 1); });
     }
     stage.addEventListener('wheel', function (e) {
@@ -939,7 +996,13 @@
     }
 
     function onKey(e) {
-      if (e.key === 'Escape') { e.preventDefault(); close(); }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        // First Escape leaves full screen, second closes — otherwise the only
+        // way out of immersive mode would also throw away the document.
+        if (overlay.classList.contains('immersive')) { setImmersive(false); if (fsElement()) exitNativeFs(); return; }
+        close();
+      }
       else if (e.key === 'ArrowRight') { e.preventDefault(); go(1); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
       else if (e.key === '+' || e.key === '=') { e.preventDefault(); setZoom(zoom * 1.4); }
@@ -950,6 +1013,9 @@
     }
     function close() {
       document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+      if (fsElement()) exitNativeFs();
       try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
       overlay.classList.add('closing');
       var done = function () { overlay.remove(); };
@@ -1214,6 +1280,7 @@
     plus: I('<path d="M12 5v14"/><path d="M5 12h14"/>', 17),
     pencil: I('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>'),
     trash: I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+    collapse: I('<path d="M9 3v6H3"/><path d="M15 21v-6h6"/><path d="M3 21l7-7"/><path d="M21 3l-7 7"/>'),
     share: I('<path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M12 16V3"/><path d="m7 8 5-5 5 5"/>'),
     download: I('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'),
     upload: I('<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>', 20),
@@ -1411,10 +1478,28 @@
       // something to pan. See setZoom()'s `.zoomed` toggle.
       '.vid-stage{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden;',
       '  touch-action:pan-y;position:relative}',
+      // No will-change here on purpose. Leaving it on permanently promotes the
+      // image to its own compositor layer for the whole time the viewer is
+      // open, and a promoted layer being scrolled by the browser is what tears
+      // and flashes on Android. It is only worth paying while actually zooming
+      // or panning, so `.zoomed` turns it on and off with the gesture.
       '.vid-media{max-width:100%;max-height:100%;object-fit:contain;display:block;user-select:none;-webkit-user-drag:none;',
-      '  touch-action:pan-y;',
-      '  transform-origin:center center;transition:transform .12s ease-out;will-change:transform}',
+      '  touch-action:pan-y;backface-visibility:hidden;',
+      '  transform-origin:center center;transition:transform .12s ease-out}',
       '.vid-viewer.zoomed .vid-stage,.vid-viewer.zoomed .vid-media{touch-action:none}',
+      '.vid-viewer.zoomed .vid-media{will-change:transform}',
+      // ── immersive ("full screen") ──
+      // Works with or without the Fullscreen API: the header and the details
+      // column collapse and the stage takes the entire viewport. This is what
+      // makes the button function on iOS, where Element.requestFullscreen does
+      // not exist at all.
+      '.vid-viewer.immersive .vid-v-head,.vid-viewer.immersive .vid-v-side{display:none}',
+      '.vid-viewer.immersive .vid-v-shell{padding:0}',
+      '.vid-viewer.immersive .vid-v-body{gap:0}',
+      '.vid-viewer.immersive .vid-v-main{border:0;border-radius:0;min-height:100%;flex:1}',
+      '.vid-viewer.immersive{background:#0c0c0e}',
+      // The exit control has to stay reachable once the header is gone.
+      '.vid-viewer.immersive .vid-v-zoom{bottom:max(12px,env(safe-area-inset-bottom,0px))}',
       '.vid-viewer.noanim .vid-media{transition:none}',
       '.vid-pdf{width:100%;height:100%;border:0;background:#fff}',
       '.vid-stage-empty{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--txd);font-size:13px;',
