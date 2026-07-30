@@ -160,7 +160,10 @@ WEBULL_ACTION_DELAY = 2    # seconds before clicking. WeBull opened first and ha
 # (x, y) offsets from the WeBull window's top-left (measured via --webull-coords):
 WEBULL_TRACKERS_TAB   = (626, 60)    # the "Trackers" tab in the tab row
 WEBULL_ACCOUNT_BUTTON = (1470, 18)   # top-right account dropdown ("Individual Cash(…)")
-WEBULL_MARGIN_ITEM    = (1452, 148)  # "Individual Margin(…)" row in the opened dropdown
+WEBULL_MARGIN_ITEM    = (1452, 180)  # "Individual Margin(…)" row in the opened dropdown.
+                                     # Recalibrated 2026-07-30: WeBull reordered the
+                                     # dropdown so Margin is now the FIRST account row
+                                     # (Cash moved below it, ~34px per row).
 
 # ==============================================================================
 #  TRIGGER WINDOW  (Mountain Time)
