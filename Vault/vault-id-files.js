@@ -325,10 +325,35 @@
     if (!att || !att.key || _blobs[att.key]) return Promise.resolve(null);
     return blobFor(att, session).catch(function () { return null; });
   }
+  // Android's MediaStore decides whether a saved file shows up in Gallery/Photos
+  // by looking at the FILE EXTENSION, not the mime type. A scan saved as
+  // "scan" instead of "scan.jpg" lands in Downloads and never appears in the
+  // gallery — so every name that leaves here gets a correct extension.
+  var EXT_FOR_MIME = {
+    'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+    'image/heic': 'heic', 'image/heif': 'heif', 'image/gif': 'gif', 'image/avif': 'avif',
+    'image/bmp': 'bmp', 'image/tiff': 'tiff', 'application/pdf': 'pdf',
+  };
+  var KNOWN_EXTS = { jpg: 1, jpeg: 1, png: 1, webp: 1, heic: 1, heif: 1, gif: 1, avif: 1, bmp: 1, tif: 1, tiff: 1, pdf: 1 };
+  function safeFileName(att) {
+    // Strip only what a filesystem actually rejects (path separators, reserved
+    // punctuation, control characters). Spaces and hyphens are legal, and
+    // mangling them makes a saved scan unrecognisable in the gallery.
+    var name = String((att && att.name) || 'document')
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + ']', 'g'), '')
+      .trim() || 'document';
+    var want = EXT_FOR_MIME[String((att && att.mime) || '').toLowerCase()];
+    if (!want) return name;
+    var has = /\.([A-Za-z0-9]{1,5})$/.exec(name);
+    // Any recognised image/PDF extension already does the job — never turn
+    // "scan.jpeg" into "scan.jpeg.jpg".
+    if (has && KNOWN_EXTS[has[1].toLowerCase()]) return name;
+    return name + '.' + want;
+  }
   function fileFrom(att, blob) {
-    var name = (att && att.name) || 'document';
     var type = (att && att.mime) || blob.type || 'application/octet-stream';
-    try { return new File([blob], name, { type: type }); }
+    try { return new File([blob], safeFileName(att), { type: type }); }
     catch (e) { return blob; }   // very old browsers: File ctor unavailable
   }
 
@@ -439,7 +464,46 @@
       (/Macintosh/.test(ua) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1);
   }
 
-  async function saveFile(att, session) {
+  // Which route actually puts the file in the user's photo gallery?
+  //
+  //   iOS      → share. The sheet's "Save Image" writes straight to Photos, and
+  //              inside an installed PWA it is the only route that works at all.
+  //   Android  → download. Samsung Gallery and Google Photos index the Downloads
+  //              folder, so a downloaded .jpg turns up in the gallery within
+  //              seconds. The share sheet does NOT help here: Android galleries
+  //              are not ACTION_SEND receivers, which is exactly why sharing
+  //              offered no "save to gallery" option and listed messaging and
+  //              cloud apps instead.
+  //   Desktop  → download.
+  //
+  // So this is a per-platform decision, not "share wherever share exists".
+  function saveStrategy() { return isIOS() ? 'share' : 'download'; }
+
+  function canShareFiles(files) {
+    try { return !!(navigator.canShare && navigator.share && navigator.canShare({ files: files })); }
+    catch (e) { return false; }
+  }
+  // One share call for one OR many files. Web Share takes an array, which is
+  // what makes "Save all" possible in a single gesture.
+  async function shareBlobs(atts, blobs, title) {
+    if (typeof File === 'undefined') return { ok: false, how: 'share' };
+    var files = atts.map(function (a, i) { return fileFrom(a, blobs[i]); });
+    if (!canShareFiles(files)) return { ok: false, how: 'share' };
+    try {
+      await navigator.share({ files: files, title: title || files[0].name });
+      return { ok: true, how: 'share', count: files.length };
+    } catch (e) {
+      var n = (e && e.name) || '';
+      if (n === 'AbortError') return { ok: false, cancelled: true, how: 'share' };
+      if (n === 'NotAllowedError') return { ok: false, notAllowed: true, how: 'share' };
+      return { ok: false, how: 'share' };
+    }
+  }
+
+  // Save ONE file. `opts.prefer` ('share' | 'download') overrides the platform
+  // default, which is what the viewer's separate Share button uses.
+  async function saveFile(att, session, opts) {
+    opts = opts || {};
     // Checked here and not only in blobFor: a warm cache would otherwise let a
     // LOCKED vault still hand over plaintext. The shell clears the cache on
     // lock, but this must not depend on the caller having remembered to.
@@ -447,37 +511,74 @@
     var blob = cachedBlob(att);
     var warm = !!blob;
     if (!blob) blob = await blobFor(att, session);
-    var file = fileFrom(att, blob);
-    var name = (att && att.name) || 'document';
+    var name = safeFileName(att);
+    var want = opts.prefer || saveStrategy();
 
-    var shareFirst = isMobileLike() && canShareFile(file);
-
-    // 1 — plain download, on anything with a Downloads folder.
-    if (!shareFirst && anchorDownloadWorks() && anchorDownload(blob, name)) return { ok: true, how: 'download' };
-
-    // 2 — the native share sheet: Save Image → Photos, or Save to Files. On an
-    // installed iOS PWA this is the ONLY route that exists.
-    if (canShareFile(file)) {
-      try {
-        await navigator.share({ files: [file], title: name });
-        return { ok: true, how: 'share' };
-      } catch (e) {
-        var n = (e && e.name) || '';
-        if (n === 'AbortError') return { ok: false, cancelled: true, how: 'share' };
-        // Activation was lost across the decrypt — a second tap will be warm.
-        if (n === 'NotAllowedError' && !warm) return { ok: false, needsRetap: true, how: 'share' };
-        // Anything else (NotSupportedError on some builds): fall through.
-      }
+    if (want === 'download' && anchorDownloadWorks() && anchorDownload(blob, name)) {
+      return { ok: true, how: 'download' };
     }
-    // 3 — the download we skipped above, now as the fallback.
+    var r = await shareBlobs([att], [blob], name);
+    if (r.ok || r.cancelled) return r;
+    // Activation was lost across the decrypt — a second tap will be warm.
+    if (r.notAllowed && !warm) return { ok: false, needsRetap: true, how: 'share' };
     if (anchorDownloadWorks() && anchorDownload(blob, name)) return { ok: true, how: 'download' };
-    // 4 — put it on screen so it can still be saved by hand.
+    // Last resort — put it on screen so it can still be saved by hand.
     try {
       var url = await objectUrl(att, session);
       var w = window.open(url, '_blank', 'noopener,noreferrer');
       if (w) return { ok: true, how: 'opened' };
     } catch (e) {}
     return { ok: false, how: 'none' };
+  }
+
+  // ── saving SEVERAL files at once ──────────────────────────────────────────
+  // Looping saveFile() is what made "Download all" stop after one file on a
+  // phone: the first navigator.share() consumes the page's transient
+  // activation, so every later call throws NotAllowedError — and Android Chrome
+  // likewise blocks a burst of programmatic downloads as a download bomb. Both
+  // platforms need ONE gesture to move all the files:
+  //
+  //   share    → Web Share takes an ARRAY. One sheet, "Save 3 Images", done.
+  //   download → sequential anchors with a gap, which desktop allows.
+  //
+  // Returns { ok, saved, total, how, cancelled, needsRetap }.
+  async function saveFiles(atts, session, opts) {
+    opts = opts || {};
+    atts = (atts || []).filter(Boolean);
+    if (!atts.length) return { ok: false, saved: 0, total: 0, how: 'none' };
+    if (!session || !session.isUnlocked()) throw new Error('locked');
+    if (atts.length === 1) {
+      var one = await saveFile(atts[0], session, opts);
+      return {
+        ok: !!one.ok, saved: one.ok ? 1 : 0, total: 1,
+        how: one.how, cancelled: one.cancelled, needsRetap: one.needsRetap,
+      };
+    }
+    // Decrypt everything up front so the share itself is a single step.
+    var blobs = [];
+    for (var i = 0; i < atts.length; i++) blobs.push(await blobFor(atts[i], session));
+
+    var want = opts.prefer || saveStrategy();
+    if (want === 'share') {
+      var r = await shareBlobs(atts, blobs, opts.title);
+      if (r.ok) return { ok: true, saved: atts.length, total: atts.length, how: 'share' };
+      if (r.cancelled) return { ok: false, saved: 0, total: atts.length, how: 'share', cancelled: true };
+      if (r.notAllowed) return { ok: false, saved: 0, total: atts.length, how: 'share', needsRetap: true };
+    }
+    // Sequential downloads. The gap matters: fired back to back, Chrome keeps
+    // the first and silently drops the rest.
+    var saved = 0;
+    if (anchorDownloadWorks()) {
+      for (var j = 0; j < atts.length; j++) {
+        if (anchorDownload(blobs[j], safeFileName(atts[j]))) saved++;
+        if (j < atts.length - 1) await sleep(350);
+      }
+    }
+    if (saved) return { ok: true, saved: saved, total: atts.length, how: 'download' };
+    // Nothing downloaded (installed iOS PWA) — try the multi-file sheet anyway.
+    var s2 = await shareBlobs(atts, blobs, opts.title);
+    if (s2.ok) return { ok: true, saved: atts.length, total: atts.length, how: 'share' };
+    return { ok: false, saved: 0, total: atts.length, how: 'none', cancelled: !!s2.cancelled };
   }
 
   // ── public: delete ────────────────────────────────────────────────────────
@@ -531,7 +632,7 @@
     makeThumb: makeThumb, humanSize: humanSize, isImageFile: isImageFile, isPdfFile: isPdfFile,
     newKey: newKey,
     // saving to the device
-    saveFile: saveFile, cachedBlob: cachedBlob, prefetch: prefetch, fileFrom: fileFrom,
+    saveFile: saveFile, saveFiles: saveFiles, safeFileName: safeFileName, saveStrategy: saveStrategy, cachedBlob: cachedBlob, prefetch: prefetch, fileFrom: fileFrom,
     canShareFile: canShareFile, prefersShare: prefersShare, isMobileLike: isMobileLike,
     anchorDownloadWorks: anchorDownloadWorks, isIOS: isIOS,
   };

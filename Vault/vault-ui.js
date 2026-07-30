@@ -328,6 +328,7 @@
     // Guarantee #kc-root is the scroll container (so the sticky tabs/toolbar pin
     // and the wide scrollbar shows), regardless of any base/app styles.
     var r = $('kc-root'); if (r) { r.style.height = '100dvh'; r.style.overflowY = 'auto'; r.style.overflowX = 'clip'; }
+    bindPullToRefresh(r);
     ensureSession();
     // Default to the (non-secret) Keychain tab — no unlock needed to open Vault.
     // Passwords / Sensitive still require unlock when their tab is selected.
@@ -429,6 +430,110 @@
       document.fonts.ready.then(function () { updateStickyOffset(); });
     }
     window.addEventListener('orientationchange', function () { setTimeout(updateStickyOffset, 120); });
+  }
+
+  // ── pull to refresh ────────────────────────────────────────────────────────
+  // The browser's own pull-to-refresh cannot fire in Vault: `body.vault-active`
+  // is `overflow:hidden` and the real scroller is #kc-root, a nested
+  // overflow:auto box. Chrome only offers PTR when the overscroll reaches the
+  // ROOT scroller, so with the body locked the gesture goes nowhere — on every
+  // panel, locked or unlocked. (iOS standalone has no PTR at all, ever.)
+  //
+  // So Vault brings its own. It lives on the scroll container, which means it
+  // works identically on the lock screen, on Sensitive Info, and on every other
+  // tab — they are all children of #kc-root.
+  var PTR_TRIGGER = 72;     // px of pull before a release refreshes
+  var PTR_MAX = 110;        // px the indicator can travel
+  function bindPullToRefresh(scroller) {
+    if (!scroller || scroller.__ptrBound) return;
+    scroller.__ptrBound = true;
+    injectStyles();
+
+    var ind = el('div', { class: 'vault-ptr', 'aria-hidden': 'true' }, [
+      el('div', { class: 'vault-ptr-spinner', html: ptrIcon() }),
+    ]);
+    scroller.appendChild(ind);
+
+    var startY = 0, startX = 0, pulling = false, dist = 0, armed = false, refreshing = false;
+
+    // A pull must not start on top of something that owns the gesture itself:
+    // a drag handle (card reorder), a zoomable document, or anything inside an
+    // open modal/viewer sitting above the page.
+    function gestureBlocked(target) {
+      if (refreshing) return true;
+      if (document.querySelector('.vault-overlay, .vid-viewer')) return true;
+      if (scroller.querySelector('.vault-reordering')) return true;
+      return !!(target && target.closest && target.closest('.vault-drag, .vid-stage, input, textarea, select'));
+    }
+    function setPull(px) {
+      dist = px;
+      var eased = Math.min(PTR_MAX, px * 0.55);       // resistance
+      ind.style.transform = 'translateX(-50%) translateY(' + eased + 'px)';
+      ind.style.opacity = String(Math.min(1, px / PTR_TRIGGER));
+      var spin = ind.firstChild;
+      spin.style.transform = 'rotate(' + Math.min(360, px * 2.6) + 'deg)';
+      var nowArmed = px >= PTR_TRIGGER;
+      if (nowArmed !== armed) {
+        armed = nowArmed;
+        ind.classList.toggle('armed', armed);
+        // A short buzz at the threshold, the same cue the native gesture gives.
+        if (armed && navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
+      }
+    }
+    function reset() {
+      pulling = false; dist = 0; armed = false;
+      ind.classList.remove('armed');
+      ind.style.transition = 'transform .22s ease, opacity .22s ease';
+      ind.style.transform = 'translateX(-50%) translateY(0)';
+      ind.style.opacity = '0';
+      setTimeout(function () { ind.style.transition = ''; }, 240);
+    }
+
+    scroller.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) { pulling = false; return; }
+      if (scroller.scrollTop > 0) { pulling = false; return; }
+      if (gestureBlocked(e.target)) { pulling = false; return; }
+      startY = e.touches[0].clientY; startX = e.touches[0].clientX;
+      pulling = true; armed = false;
+      ind.style.transition = '';
+    }, { passive: true });
+
+    scroller.addEventListener('touchmove', function (e) {
+      if (!pulling || e.touches.length !== 1) return;
+      var dy = e.touches[0].clientY - startY;
+      var dx = e.touches[0].clientX - startX;
+      // Scrolled away from the top mid-gesture, pulled upward, or the gesture
+      // turned horizontal (a tab swipe) → this is not a refresh.
+      if (scroller.scrollTop > 0 || dy <= 0 || Math.abs(dx) > Math.abs(dy)) {
+        if (dist) reset(); else pulling = false;
+        return;
+      }
+      // Only now claim the gesture, so a normal downward scroll from mid-page
+      // is never stolen. cancelable guards against a scroll already in flight.
+      if (e.cancelable) e.preventDefault();
+      setPull(dy);
+    }, { passive: false });
+
+    function end() {
+      if (!pulling) return;
+      if (armed && !refreshing) {
+        refreshing = true;
+        ind.classList.add('spinning');
+        ind.style.transition = 'transform .18s ease';
+        ind.style.transform = 'translateX(-50%) translateY(' + (PTR_TRIGGER * 0.55) + 'px)';
+        ind.style.opacity = '1';
+        // Let the indicator paint its committed state before the reload blocks
+        // the main thread, so the gesture visibly "took".
+        setTimeout(function () { location.reload(); }, 180);
+        return;
+      }
+      reset();
+    }
+    scroller.addEventListener('touchend', end, { passive: true });
+    scroller.addEventListener('touchcancel', function () { if (pulling) reset(); }, { passive: true });
+  }
+  function ptrIcon() {
+    return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>';
   }
 
   // ── lock / setup screens ───────────────────────────────────────────────────
@@ -1720,6 +1825,22 @@
       // scrolls beneath — and it carries a wide, grabbable scrollbar. (Also set
       // inline in activate() so nothing can override it.)
       'body.vault-active{overflow:hidden}', // only #kc-root scrolls (no competing body scroll)
+      // ── pull to refresh ──
+      // Fixed, not absolute: #kc-root is the scroll container, so an absolutely
+      // positioned child would scroll away with the content instead of hanging
+      // under the header.
+      '.vault-ptr{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;transform:translateX(-50%);',
+      '  width:34px;height:34px;border-radius:50%;background:var(--s2);border:1px solid var(--bd);',
+      '  display:flex;align-items:center;justify-content:center;color:var(--txd);',
+      '  opacity:0;pointer-events:none;z-index:8;box-shadow:0 6px 18px rgba(0,0,0,.45)}',
+      '.vault-ptr.armed{color:var(--acs,#e0b874);border-color:var(--ac)}',
+      '.vault-ptr svg{display:block}',
+      '@keyframes vault-ptr-spin{to{transform:rotate(360deg)}}',
+      '.vault-ptr.spinning .vault-ptr-spinner{animation:vault-ptr-spin .7s linear infinite}',
+      '.vault-ptr-spinner{line-height:0;display:flex}',
+      // Pointer-fine devices never see it; this is a touch gesture only.
+      '@media (pointer:fine){.vault-ptr{display:none}}',
+      '@media (prefers-reduced-motion:reduce){.vault-ptr.spinning .vault-ptr-spinner{animation:none}}',
       '#kc-root{height:100dvh;overflow-y:auto;overflow-x:clip;scrollbar-width:auto;scrollbar-color:#45454c var(--s1)}',
       '#kc-root::-webkit-scrollbar{width:15px}',
       '#kc-root::-webkit-scrollbar-track{background:var(--s1)}',

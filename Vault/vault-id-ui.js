@@ -760,6 +760,11 @@
     function setZoom(z, reset) {
       zoom = Math.max(0.35, Math.min(8, z));
       if (reset || zoom <= 1) { panX = 0; panY = 0; }
+      // At 1x the stage must NOT swallow vertical gestures — a phone user
+      // swiping down on a document expects the page to scroll, not nothing to
+      // happen. `.zoomed` flips touch-action from pan-y to none, so two-axis
+      // panning only takes over once there is actually something to pan.
+      overlay.classList.toggle('zoomed', zoom > 1);
       applyTransform();
     }
     function toggleFullscreen() {
@@ -856,6 +861,13 @@
       // Download button is already on the synchronous share path (see saveFile).
       var nextPage = pages[idx + 1];
       if (nextPage && nextPage.entry) VIF.prefetch(nextPage.entry.att, host.session());
+      // …and every OTHER file on this same document, because "Save all" has to
+      // hand the whole set to one share() call inside a single user gesture.
+      // Decrypting them at tap time would blow iOS's transient activation and
+      // is what left the user with one file instead of all of them.
+      VID.allAttachments(it).forEach(function (e) {
+        if (!entry || e.att.key !== entry.att.key) VIF.prefetch(e.att, host.session());
+      });
     }
 
     // Pointer-events pan/zoom: one code path for mouse, touch and pen. A
@@ -1048,11 +1060,25 @@
         } catch (e) { host.toast('Could not open that file'); }
       }));
       wrap.appendChild(btn('Replace', icons.swap, function () { ctl.close(); openEditor(it, host); }));
-      var dl = btn(VIF.prefersShare() ? 'Save to device' : 'Download', icons.download, function () { downloadAtt(host, att, dl); });
+
+      // Download and Share are SEPARATE actions, not one button guessing.
+      // On Android "download" is what actually reaches Samsung Gallery /
+      // Google Photos (they index the Downloads folder); the share sheet is for
+      // sending the file somewhere else. On iOS the sheet is also how you save,
+      // so there the download button routes through it too.
+      var nFiles = VID.attachmentCount(it);
+      var dl = btn(VIF.saveStrategy() === 'share' ? 'Save to device' : 'Download', icons.download,
+        function () { downloadAtt(host, att, dl); });
       wrap.appendChild(dl);
-      if (VID.attachmentCount(it) > 1) {
-        var dlAll = btn('Save all ' + VID.attachmentCount(it) + ' files', icons.download, function () { downloadAll(host, it, dlAll); });
+      if (nFiles > 1) {
+        var dlAll = btn('Save all ' + nFiles + ' files', icons.download,
+          function () { downloadAll(host, it, dlAll); });
         wrap.appendChild(dlAll);
+      }
+      if (VIF.prefersShare()) {
+        var sh = btn(nFiles > 1 ? 'Share all ' + nFiles + ' files' : 'Share', icons.share,
+          function () { (nFiles > 1 ? downloadAll(host, it, sh, 'share') : downloadAtt(host, att, sh, 'share')); });
+        wrap.appendChild(sh);
       }
     }
     wrap.appendChild(btn('Edit', icons.pencil, function () { ctl.close(); openEditor(it, host); }));
@@ -1082,36 +1108,47 @@
   // what belongs here is telling the user honestly what happened — a share
   // sheet they dismissed is not a failure, and an iOS activation timeout is a
   // "tap again", not an error.
-  async function downloadAtt(host, att, btn) {
-    var prev = btn && btn.innerHTML;
-    if (btn) { btn.disabled = true; }
+  // `prefer` forces a route: the viewer's Download button leaves it to the
+  // platform, its Share button always opens the sheet.
+  async function downloadAtt(host, att, btn, prefer) {
+    if (btn) btn.disabled = true;
     try {
-      var r = await VIF.saveFile(att, host.session());
-      if (r.ok) host.toast(r.how === 'share' ? 'Saved' : r.how === 'opened' ? 'Opened — long-press to save' : 'Downloaded');
-      else if (r.cancelled) { /* the user closed the sheet — say nothing */ }
-      else if (r.needsRetap) host.toast('Ready — tap Download once more to save');
-      else host.toast('Could not save that file');
+      var r = await VIF.saveFile(att, host.session(), { prefer: prefer });
+      reportSave(host, r, 1);
     } catch (e) {
       host.toast(e && e.message === 'locked' ? 'Vault is locked' : 'Could not save that file');
     } finally {
-      if (btn) { btn.disabled = false; if (prev != null) btn.innerHTML = prev; }
+      if (btn) btn.disabled = false;
     }
   }
-  // Every file on a document, saved one after another. Sequential on purpose:
-  // the iOS share sheet is modal, so firing them in parallel loses all but one.
-  async function downloadAll(host, item, btn) {
+  // Every file on the document, in ONE gesture — see VaultIdFiles.saveFiles for
+  // why looping the single-file save silently dropped all but the first on a
+  // phone.
+  async function downloadAll(host, item, btn, prefer) {
     var atts = VID.allAttachments(item).map(function (e) { return e.att; });
     if (!atts.length) { host.toast('No files on this document'); return; }
-    if (atts.length === 1) return downloadAtt(host, atts[0], btn);
-    var saved = 0;
-    for (var i = 0; i < atts.length; i++) {
-      try {
-        var r = await VIF.saveFile(atts[i], host.session());
-        if (r.ok) saved++;
-        else if (r.cancelled) break;      // dismissing one sheet means "stop"
-      } catch (e) {}
+    if (btn) btn.disabled = true;
+    try {
+      var r = await VIF.saveFiles(atts, host.session(), { prefer: prefer, title: item.title || 'Documents' });
+      reportSave(host, r, atts.length);
+    } catch (e) {
+      host.toast(e && e.message === 'locked' ? 'Vault is locked' : 'Could not save those files');
+    } finally {
+      if (btn) btn.disabled = false;
     }
-    host.toast(saved ? 'Saved ' + saved + ' of ' + atts.length + ' file' + (atts.length === 1 ? '' : 's') : 'Could not save those files');
+  }
+  // One honest description of what just happened. A dismissed share sheet is
+  // not a failure and must not be reported as one.
+  function reportSave(host, r, total) {
+    if (r.ok) {
+      var n = r.saved || 1;
+      if (total > 1) host.toast(r.how === 'share' ? 'Shared ' + n + ' files' : 'Saved ' + n + ' of ' + total + ' files');
+      else host.toast(r.how === 'share' ? 'Saved' : r.how === 'opened' ? 'Opened — long-press to save' : 'Saved to your downloads');
+      return;
+    }
+    if (r.cancelled) return;                       // the user closed the sheet
+    if (r.needsRetap) { host.toast('Ready — tap once more to save'); return; }
+    host.toast(total > 1 ? 'Could not save those files' : 'Could not save that file');
   }
 
   // ── modal scaffold ────────────────────────────────────────────────────────
@@ -1177,6 +1214,7 @@
     plus: I('<path d="M12 5v14"/><path d="M5 12h14"/>', 17),
     pencil: I('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>'),
     trash: I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+    share: I('<path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M12 16V3"/><path d="m7 8 5-5 5 5"/>'),
     download: I('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'),
     upload: I('<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>', 20),
     swap: I('<path d="M17 2l4 4-4 4"/><path d="M3 6h18"/><path d="M7 22l-4-4 4-4"/><path d="M21 18H3"/>'),
@@ -1366,10 +1404,17 @@
       '.vid-v-body{flex:1;display:flex;gap:12px;min-height:0}',
       '.vid-v-main{position:relative;flex:1;min-width:0;background:var(--s1);border:1px solid var(--bd);',
       '  border-radius:var(--radius);overflow:hidden;display:flex}',
+      // pan-y, NOT none: at 1x the browser keeps vertical scrolling (so a swipe
+      // down on a document scrolls the viewer as the user expects) while we
+      // still receive the horizontal movement that pages between documents.
+      // Only once zoomed do we take both axes, because only then is there
+      // something to pan. See setZoom()'s `.zoomed` toggle.
       '.vid-stage{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden;',
-      '  touch-action:none;position:relative}',
+      '  touch-action:pan-y;position:relative}',
       '.vid-media{max-width:100%;max-height:100%;object-fit:contain;display:block;user-select:none;-webkit-user-drag:none;',
+      '  touch-action:pan-y;',
       '  transform-origin:center center;transition:transform .12s ease-out;will-change:transform}',
+      '.vid-viewer.zoomed .vid-stage,.vid-viewer.zoomed .vid-media{touch-action:none}',
       '.vid-viewer.noanim .vid-media{transition:none}',
       '.vid-pdf{width:100%;height:100%;border:0;background:#fff}',
       '.vid-stage-empty{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--txd);font-size:13px;',
