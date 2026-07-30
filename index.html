@@ -4536,7 +4536,7 @@ function App(){
   const wkTitleFit={wordBreak:"break-word",overflowWrap:"anywhere",hyphens:"auto",WebkitHyphens:"auto"};
   // The theme's ACD/ACL/AC are all the same gold, so the old two-stop "gradient"
   // rendered as a flat bar. Give the in-progress fill real left-to-right depth.
-  const wkBarFill="linear-gradient(90deg,#a9762f 0%,"+T.AC+" 58%,#f3dcae 100%)";
+  const wkBarFill="linear-gradient(90deg,#cda869 0%,"+T.AC+" 55%,#f4dfb6 100%)";
   const wkEventCard=(cat,passed)=>({background:(passed?"#1e1e22":"#232327"),border:"1px solid "+((passed?"#2a2a2f":"#34343a")),borderLeft:"3px solid "+(passed?("#45454c"):((CC&&CC[cat])||T.ACL)),borderRadius:10,padding:isMobile?"4px 12px":"3px 10px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
   // An event has "passed" (and should fade) once the LATER of its event time and notification time is in the past.
   const wkEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
@@ -4755,7 +4755,7 @@ function App(){
   // `today` draws a pair of hairline rules down both sides of the current
   // weekday's column, from the header through the last habit row — a quiet
   // "you are here" gutter that doesn't compete with the checked-off circles.
-  const habTodayRule="1px solid "+T.AC+"3d";
+  const habTodayRule="1px solid "+T.TXM+"66";
   const habCell=(ch,onClick,today)=>React.createElement("td",{style:{textAlign:"center",paddingTop:5,paddingBottom:5,borderBottom:"1px solid "+T.BD+"44",width:28,minWidth:28,borderLeft:today?habTodayRule:undefined,borderRight:today?habTodayRule:undefined}},
     /* Habits are streaks, not deadlines — they mark completion in the suite's
        soft green (T.GRN) so they read apart from the gold task chrome. */
@@ -4881,7 +4881,7 @@ function App(){
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:6,marginBottom:2}},
                   t.category&&React.createElement("span",{style:{...ctag(t.category),opacity:(t.done?0.6:1)*dimA}},t.category),
-                  t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:(t.done?0.4:0.85)*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
+                  t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.TXD,opacity:(t.done?0.4:0.85)*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:dayTX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...wkTitleFit}},t.title)),
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
@@ -4903,7 +4903,7 @@ function App(){
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 (e.time||e.notifyAt)&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:6,marginBottom:2}},
                   e.time&&React.createElement("span",{style:{fontSize:11,fontWeight:600,color:T.TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
-                  !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt))),
+                  !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.TXD,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt))),
                 React.createElement("span",{style:{fontSize:14,fontWeight:600,color:T.TXD,lineHeight:1.4,...wkTitleFit}},e.title)),
                 edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
@@ -4954,7 +4954,7 @@ function App(){
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
                   t.category&&React.createElement("span",{style:{...ctag(t.category),opacity:(t.done?0.6:1)*dimA}},t.category),
-                  t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:(t.done?0.4:0.85)*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
+                  t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.TXD,opacity:(t.done?0.4:0.85)*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:dayTX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title)),
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,t.id)},"×"))),
@@ -4976,7 +4976,7 @@ function App(){
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 (e.time||e.notifyAt)&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
                   e.time&&React.createElement("span",{style:{fontSize:10,fontWeight:600,color:T.TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
-                  !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt))),
+                  !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.TXD,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt))),
                 React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},e.title)),
                 edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
@@ -4998,13 +4998,13 @@ function App(){
             React.createElement("thead",null,
               React.createElement("tr",null,
                 React.createElement("th",{style:{textAlign:"left",fontSize:12,color:T.TX,fontWeight:700,textTransform:"uppercase",letterSpacing:1,paddingBottom:6,paddingLeft:4,borderBottom:"1px solid "+T.BD+"44",width:"100%"}},"Habit"),
-                ...DS.map((d,di)=>{const isTd=dkey(wd[di].year,wd[di].month,wd[di].day)===tk;return React.createElement("th",{key:d,style:{textAlign:"center",fontSize:11,color:isTd?T.AC:T.TXD,fontWeight:700,paddingBottom:6,width:28,borderBottom:"1px solid "+T.BD+"44",borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},d.charAt(0));}),
+                ...DS.map((d,di)=>{const isTd=dkey(wd[di].year,wd[di].month,wd[di].day)===tk;return React.createElement("th",{key:d,style:{textAlign:"center",fontSize:11,color:isTd?T.TX:T.TXD,fontWeight:700,paddingBottom:6,width:28,borderBottom:"1px solid "+T.BD+"44",borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},d.charAt(0));}),
                 React.createElement("th",{style:{width:edit?62:0,padding:0,overflow:"hidden",borderBottom:"1px solid "+T.BD+"44",visibility:edit?"visible":"hidden"}}))),
             React.createElement("tbody",null,
               habits.map(h=>React.createElement("tr",{key:h.id,...habitRowP(h.id),...(edit?habitTouchH(h.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartHabit(e,h.id):null,onDragOver:edit?e=>{e.preventDefault();if(!isMobile)setDragOverId(h.id);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropHabit(e,h.id):null,style:{cursor:edit?"grab":"default",outline:(!isMobile&&dragOverId===h.id)?"2px solid "+T.AC:"none",outlineOffset:"-1px"}},
                 React.createElement("td",{style:{fontSize:13,fontWeight:700,color:T.TX,paddingLeft:4,paddingTop:7,paddingBottom:7,wordBreak:"break-word",whiteSpace:"normal",borderBottom:"1px solid "+T.BD+"22",width:"100%"}},
                                     h.title,
-                  h.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap",marginLeft:6},title:habReminderLabel(h)},React.createElement("span",{style:{width:12,height:12,fontSize:12,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+habTimeLabel(h))),
+                  h.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.TXD,opacity:0.85,whiteSpace:"nowrap",marginLeft:6},title:habReminderLabel(h)},React.createElement("span",{style:{width:12,height:12,fontSize:12,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+habTimeLabel(h))),
                 ...wd.map((w2,di)=>{const hk=`${h.id}-${w2.year}-${w2.month}-${w2.day}`,ch=!!hc[hk];return habCell(ch,()=>togH(h.id,di),dkey(w2.year,w2.month,w2.day)===tk);}),
                 React.createElement("td",{style:{textAlign:"right",paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:edit?62:0,paddingRight:edit?2:0,paddingLeft:0,overflow:"hidden",whiteSpace:"nowrap",visibility:edit?"visible":"hidden"}},
                   React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>setEditingHabit(h),title:"Edit habit & reminder"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
@@ -9991,7 +9991,7 @@ function App(){
   const vdIco=(svg,px)=>RC("span",{style:{width:px||15,height:px||15,fontSize:px||15,lineHeight:0,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0},dangerouslySetInnerHTML:{__html:svg}});
   // Hairline pair bracketing the current weekday's column in Daily Habits, from
   // the header through the last habit row — a quiet "you are here" gutter.
-  const habTodayRule="1px solid "+A+"40";
+  const habTodayRule="1px solid "+TXM+"66";
   const vdEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
   // Macro release time in the viewer's LOCAL zone (CO→Mountain, GA→Eastern…). "" if unknown.
   const mcTimeLocal=(e)=>{const t=mcMacroET(e);if(!t)return"";try{const ts=thZonedTs(e.date,t.hh,t.mm,"America/New_York");return new Date(ts).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});}catch(_){return"";}};
@@ -10189,7 +10189,7 @@ function App(){
           RC("table",{style:{width:"100%",borderCollapse:"collapse"}},
             RC("thead",null,RC("tr",null,
               RC("th",{style:{textAlign:"left",fontSize:9,color:TXM,fontWeight:700,textTransform:"uppercase",letterSpacing:1,paddingBottom:5,paddingLeft:4,width:"100%"}},""),
-              ...DS.map((d,di)=>{const isTd=dkey(wd[di].year,wd[di].month,wd[di].day)===tk;return RC("th",{key:d,style:{textAlign:"center",fontSize:10,color:isTd?A:TXD,fontWeight:700,paddingBottom:5,width:28,borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},d.charAt(0));}),
+              ...DS.map((d,di)=>{const isTd=dkey(wd[di].year,wd[di].month,wd[di].day)===tk;return RC("th",{key:d,style:{textAlign:"center",fontSize:10,color:isTd?TX:TXD,fontWeight:700,paddingBottom:5,width:28,borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},d.charAt(0));}),
               RC("th",{style:{width:edit?62:0,padding:0,overflow:"hidden",visibility:edit?"visible":"hidden"}}))),
             RC("tbody",null,habits.map((h,hi)=>RC("tr",{key:h.id,...habitRowP(h.id),...(edit?habitTouchH(h.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartHabit(e,h.id):null,onDragOver:edit?e=>{e.preventDefault();if(!vrMobile)setVdDragOverId(h.id);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropHabit(e,h.id):null,style:{cursor:edit?"grab":"default",outline:(!vrMobile&&vdDragOverId===h.id)?"2px solid "+A:"none",outlineOffset:"-1px"}},
               RC("td",{style:{fontSize:12,fontWeight:600,color:TXD,paddingLeft:4,paddingTop:6,paddingBottom:6,overflowWrap:"break-word",wordBreak:"break-word",width:"100%",borderBottom:"1px solid "+BD+"44"}},
