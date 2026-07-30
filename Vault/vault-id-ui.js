@@ -852,7 +852,9 @@
       var skel = el('div', { class: 'vid-skel' });
       stage.appendChild(skel);
       var url;
-      try { url = await VIF.objectUrl(att, host.session()); }
+      // displayUrl paints a right-sized copy of an oversized scan; "Open Full
+      // Size", Download and Share all still use the untouched original.
+      try { url = await VIF.displayUrl(att, host.session()); }
       catch (e) {
         skel.remove();
         stage.appendChild(el('div', { class: 'vid-stage-empty' }, [
@@ -1240,7 +1242,9 @@
       else host.toast(r.how === 'share' ? 'Saved' : r.how === 'opened' ? 'Opened — long-press to save' : 'Saved to your downloads');
       return;
     }
-    if (r.cancelled) return;                       // the user closed the sheet
+    // Say so out loud. Staying silent after a cancel is what made it look like
+    // the file had been saved anyway.
+    if (r.cancelled) { host.toast('Cancelled — nothing saved'); return; }
     if (r.needsRetap) { host.toast('Ready — tap once more to save'); return; }
     host.toast(total > 1 ? 'Could not save those files' : 'Could not save that file');
   }
@@ -1504,15 +1508,24 @@
       // still receive the horizontal movement that pages between documents.
       // Only once zoomed do we take both axes, because only then is there
       // something to pan. See setZoom()'s `.zoomed` toggle.
+      // contain:paint makes the stage a containment boundary, so repainting a
+      // large scan cannot invalidate the header, the details column or the grid
+      // behind it. That is what stopped the SURROUNDING UI glitching along with
+      // the image on big documents.
       '.vid-stage{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden;',
-      '  touch-action:pan-y;position:relative}',
+      '  touch-action:pan-y;position:relative;contain:paint}',
       // No will-change here on purpose. Leaving it on permanently promotes the
       // image to its own compositor layer for the whole time the viewer is
       // open, and a promoted layer being scrolled by the browser is what tears
       // and flashes on Android. It is only worth paying while actually zooming
       // or panning, so `.zoomed` turns it on and off with the gesture.
       '.vid-media{max-width:100%;max-height:100%;object-fit:contain;display:block;user-select:none;-webkit-user-drag:none;',
-      '  touch-action:pan-y;backface-visibility:hidden;',
+      // backface-visibility:hidden was here as a "smooth it out" hack and made
+      // things WORSE on big scans: like will-change, it forces the image onto
+      // its own compositor layer, and a 4000px layer on a phone is megabytes of
+      // texture the compositor keeps discarding and re-rasterising — which is
+      // exactly the glitching seen only on the largest document.
+      '  touch-action:pan-y;',
       '  transform-origin:center center;transition:transform .12s ease-out}',
       '.vid-viewer.zoomed .vid-stage,.vid-viewer.zoomed .vid-media{touch-action:none}',
       '.vid-viewer.zoomed .vid-media{will-change:transform}',

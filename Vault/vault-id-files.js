@@ -367,14 +367,68 @@
     _urls[att.key] = url;
     return url;
   }
+  // ── display-sized copies ──────────────────────────────────────────────────
+  // A phone camera scan of a birth certificate is routinely 4000px+ on its long
+  // edge. Handing that straight to an <img> costs ~48 MB of decoded bitmap and,
+  // once the compositor promotes it, a texture it cannot keep resident — so it
+  // is discarded and re-rasterised repeatedly, which shows up as the image and
+  // everything around it glitching while you scroll. Smaller documents never hit
+  // the limit, which is why only the biggest one misbehaved.
+  //
+  // So the VIEWER gets a right-sized copy. The original is untouched and is
+  // still what "Open Full Size", Download and Share hand over — this only
+  // affects what is painted on screen.
+  var DISPLAY_CAP = 2400;          // longest edge, px
+  var _display = {};               // key -> object URL of the resized copy
+
+  async function makeDisplayCopy(blob, cap) {
+    if (typeof document === 'undefined' || !global.createImageBitmap) return null;
+    var bmp = null;
+    try {
+      bmp = await global.createImageBitmap(blob);
+      var w = bmp.width, h = bmp.height, longest = Math.max(w, h);
+      if (!longest || longest <= cap) return null;      // already a sensible size
+      var scale = cap / longest;
+      var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+      var c = document.createElement('canvas');
+      c.width = cw; c.height = ch;
+      var ctx = c.getContext('2d');
+      if (!ctx) return null;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bmp, 0, 0, cw, ch);
+      var out = await new Promise(function (r) { c.toBlob(r, 'image/jpeg', 0.9); });
+      // Free the canvas backing store promptly on mobile.
+      c.width = c.height = 0;
+      return out ? URL.createObjectURL(out) : null;
+    } catch (e) { return null; }
+    finally { if (bmp && bmp.close) { try { bmp.close(); } catch (_) {} } }
+  }
+
+  // The URL the viewer should paint. Falls back to the original whenever a
+  // resized copy isn't possible or isn't needed.
+  async function displayUrl(att, session) {
+    if (!att || !att.key) return '';
+    if (_display[att.key]) return _display[att.key];
+    var full = await objectUrl(att, session);
+    if (!/^image\//i.test(att.mime || '')) return full;
+    var blob = cachedBlob(att) || await blobFor(att, session);
+    var small = await makeDisplayCopy(blob, DISPLAY_CAP);
+    if (!small) return full;
+    _display[att.key] = small;
+    return small;
+  }
+
   function revoke(key) {
     if (_urls[key]) { try { URL.revokeObjectURL(_urls[key]); } catch (_) {} delete _urls[key]; }
+    if (_display[key]) { try { URL.revokeObjectURL(_display[key]); } catch (_) {} delete _display[key]; }
     delete _blobs[key];
   }
   // Called on lock: every decrypted byte the page was holding goes away with it.
   function revokeAll() {
     Object.keys(_urls).forEach(function (k) { try { URL.revokeObjectURL(_urls[k]); } catch (_) {} });
+    Object.keys(_display).forEach(function (k) { try { URL.revokeObjectURL(_display[k]); } catch (_) {} });
     _urls = {};
+    _display = {};
     _blobs = {};
   }
 
@@ -485,18 +539,35 @@
   }
   // One share call for one OR many files. Web Share takes an array, which is
   // what makes "Save all" possible in a single gesture.
+  //
+  // The return value distinguishes NEVER ATTEMPTED from ATTEMPTED AND NOT
+  // COMPLETED, and that distinction is load-bearing: if a sheet was actually put
+  // on screen and the user dismissed it, falling back to a download would save
+  // the file they just declined to save. Only a share that was never viable may
+  // fall through.
+  //
+  //   { ok:true }                    shared
+  //   { attempted:false }            no Web Share for files here — fall through
+  //   { attempted:true, cancelled }  user dismissed the sheet — STOP
+  //   { attempted:true, notAllowed } no transient activation, or blocked
+  //   { attempted:true, failed }     genuine error — STOP, let the user retry
   async function shareBlobs(atts, blobs, title) {
-    if (typeof File === 'undefined') return { ok: false, how: 'share' };
+    if (typeof File === 'undefined') return { ok: false, attempted: false, how: 'share' };
     var files = atts.map(function (a, i) { return fileFrom(a, blobs[i]); });
-    if (!canShareFiles(files)) return { ok: false, how: 'share' };
+    if (!canShareFiles(files)) return { ok: false, attempted: false, how: 'share' };
     try {
       await navigator.share({ files: files, title: title || files[0].name });
       return { ok: true, how: 'share', count: files.length };
     } catch (e) {
       var n = (e && e.name) || '';
-      if (n === 'AbortError') return { ok: false, cancelled: true, how: 'share' };
-      if (n === 'NotAllowedError') return { ok: false, notAllowed: true, how: 'share' };
-      return { ok: false, how: 'share' };
+      // AbortError is the spec'd "user dismissed". Chrome on Android and Samsung
+      // Internet have both been seen to use NotAllowedError for the same thing,
+      // so neither may be treated as "try a download instead".
+      if (n === 'AbortError') return { ok: false, attempted: true, cancelled: true, how: 'share' };
+      if (n === 'NotAllowedError') return { ok: false, attempted: true, notAllowed: true, how: 'share' };
+      // NotSupportedError/TypeError mean the sheet never opened — safe to fall through.
+      if (n === 'NotSupportedError' || n === 'TypeError') return { ok: false, attempted: false, how: 'share' };
+      return { ok: false, attempted: true, failed: true, how: 'share' };
     }
   }
 
@@ -518,9 +589,18 @@
       return { ok: true, how: 'download' };
     }
     var r = await shareBlobs([att], [blob], name);
-    if (r.ok || r.cancelled) return r;
-    // Activation was lost across the decrypt — a second tap will be warm.
-    if (r.notAllowed && !warm) return { ok: false, needsRetap: true, how: 'share' };
+    if (r.ok) return r;
+    if (r.attempted) {
+      // The sheet was shown. Whatever happened next, do NOT quietly download the
+      // file behind the user's back.
+      if (r.cancelled) return { ok: false, cancelled: true, how: 'share' };
+      // Warm means share() ran inside the gesture, so this cannot be a lost
+      // activation — treat it as a dismissal rather than retrying forever.
+      if (r.notAllowed) return warm ? { ok: false, cancelled: true, how: 'share' }
+                                    : { ok: false, needsRetap: true, how: 'share' };
+      return { ok: false, how: 'share' };
+    }
+    // Share was never viable here — a download is the honest fallback.
     if (anchorDownloadWorks() && anchorDownload(blob, name)) return { ok: true, how: 'download' };
     // Last resort — put it on screen so it can still be saved by hand.
     try {
@@ -562,8 +642,12 @@
     if (want === 'share') {
       var r = await shareBlobs(atts, blobs, opts.title);
       if (r.ok) return { ok: true, saved: atts.length, total: atts.length, how: 'share' };
-      if (r.cancelled) return { ok: false, saved: 0, total: atts.length, how: 'share', cancelled: true };
-      if (r.notAllowed) return { ok: false, saved: 0, total: atts.length, how: 'share', needsRetap: true };
+      // Same rule as saveFile: once the sheet has been shown, dismissing it must
+      // not be answered by downloading every file anyway.
+      if (r.attempted) {
+        if (r.notAllowed) return { ok: false, saved: 0, total: atts.length, how: 'share', needsRetap: true };
+        return { ok: false, saved: 0, total: atts.length, how: 'share', cancelled: !!r.cancelled };
+      }
     }
     // Sequential downloads. The gap matters: fired back to back, Chrome keeps
     // the first and silently drops the rest.
@@ -632,7 +716,7 @@
     makeThumb: makeThumb, humanSize: humanSize, isImageFile: isImageFile, isPdfFile: isPdfFile,
     newKey: newKey,
     // saving to the device
-    saveFile: saveFile, saveFiles: saveFiles, safeFileName: safeFileName, saveStrategy: saveStrategy, cachedBlob: cachedBlob, prefetch: prefetch, fileFrom: fileFrom,
+    saveFile: saveFile, saveFiles: saveFiles, displayUrl: displayUrl, DISPLAY_CAP: DISPLAY_CAP, safeFileName: safeFileName, saveStrategy: saveStrategy, cachedBlob: cachedBlob, prefetch: prefetch, fileFrom: fileFrom,
     canShareFile: canShareFile, prefersShare: prefersShare, isMobileLike: isMobileLike,
     anchorDownloadWorks: anchorDownloadWorks, isIOS: isIOS,
   };
