@@ -871,7 +871,16 @@ def _wb_account_rows() -> list:
                 rows.append((int(parts[0]), int(parts[1]), parts[2] == "on"))
             except ValueError:
                 pass
-    return rows
+    rows.sort(key=lambda r: r[1])
+    # Belt-and-braces: keep only the unbroken run of rows starting at the top. Real
+    # account rows are stacked 34px apart; the Futures/Events promos below the heading
+    # sit after a visible gap. This still holds if WeBull renames that heading.
+    keep = rows[:1]
+    for r in rows[1:]:
+        if r[1] - keep[-1][1] > 40:
+            break
+        keep.append(r)
+    return keep
 
 
 def webull_select_account(ox: int, oy: int) -> bool:
