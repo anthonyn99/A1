@@ -60,6 +60,7 @@ pw-core.js         Pure helpers. relevanceScore / normStores / cleanDomain are a
 parsers/common.js  Parser registry + the DOM helpers every module is built from.
 parsers/*.js       One module per store domain.
 popup.html/.js     Settings (rate limit, auto-checks) + activity log.
+icons/*.png        A1 Suite mark: #1a1a1d rounded square, #e0b874 line art.
 ```
 
 `parsers/*.js` are loaded in **two** contexts: `importScripts()` in the service worker (so it
@@ -100,6 +101,35 @@ between them, and tabs open **inactive** so a check never steals focus.
 
 Hitting a bot check triggers a longer backoff (**6h** default) and the store reports
 `source:"blocked"`. It is never retried in a loop — that's what escalates a block.
+
+---
+
+## Tabs and windows it opens
+
+Every tab it opens, it closes — the moment that store's parse finishes, and the close is
+verified rather than assumed.
+
+The hard case is MV3: the service worker is torn down on browser shutdown and after ~30s
+idle, so `scrapeInTab()`'s `finally` is not a guarantee. Every scrape tab is therefore also
+written to `storage.local` (not `.session` — the record has to outlive the browser) and swept
+by four paths: a 1-minute watchdog alarm, `onStartup`, `onInstalled`, and every worker
+wake-up. Tab **and window ids are reassigned across a restart**, so the sweep matches on URL,
+and only closes a whole window once every tab in it is provably ours. `pw-tabs.test.js`
+(`node pw-tabs.test.js`) covers all of it, including the "must not close the user's own tabs"
+cases.
+
+**When the browser is running with no window** — Brave in background mode, an alarm firing
+with everything closed — there is nowhere to put a tab, so one window is created:
+
+- **once per run**, not once per store, so a check is a single quiet window rather than one
+  blinking open and shut every few seconds. A blank keeper tab holds it between stores; the
+  whole window is removed when the run ends, on the error path too;
+- **unfocused**, and at the **last placement a real browser window had** — same size, same
+  position, same monitor, re-maximized if it was maximized. That geometry is tracked from
+  `windows.onBoundsChanged` / `onCreated` plus a snapshot each run, and stored under
+  `pwWinBounds`. Our own temp window is never recorded, or the memory would drift to it;
+- with **no bounds at all** if nothing has ever been recorded, so the browser applies its own
+  remembered placement instead of the extension inventing a corner.
 
 ---
 

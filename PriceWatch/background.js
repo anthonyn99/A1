@@ -162,6 +162,28 @@ async function registryRemove(tabId) {
   await registrySet(next);
   if (!next.length) { try { await chrome.alarms.clear(ALARM_SWEEP); } catch (e) {} }
 }
+async function registryRemoveWindow(windowId) {
+  const list = await registryGet();
+  const next = list.filter((e) => {
+    if (e.tempWindowId !== windowId) return true;
+    liveScrapeTabs.delete(e.tabId);
+    return false;
+  });
+  await registrySet(next);
+  if (!next.length) { try { await chrome.alarms.clear(ALARM_SWEEP); } catch (e) {} }
+}
+// The keeper tab holds our temp window open BETWEEN stores, so its own `at` has
+// to advance with the run — otherwise a long run (several items × several
+// stores) outlives TAB_MAX_LIFE_MS and the watchdog closes the window out from
+// under a scrape that is still going.
+async function registryTouch(tabId) {
+  if (tabId == null) return;
+  const list = await registryGet();
+  const e = list.find((x) => x.tabId === tabId);
+  if (!e) return;
+  e.at = Date.now();
+  await registrySet(list);
+}
 
 // Keep the recorded URL in step with where the tab actually ended up. Without
 // this, a store that redirects (or rewrites its search URL client-side) would
@@ -184,6 +206,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   registryRemove(tabId);
 });
 
+// The user closed our temp window by hand (or it went with the browser). Forget
+// it, so the next store opens a fresh one instead of a dead id.
+chrome.windows.onRemoved.addListener((winId) => {
+  if (!tempWin || tempWin.id !== winId) return;
+  tempWin = null;
+  registryRemoveWindow(winId);
+});
+
 // Close anything left behind. `startup` sweeps the whole registry, because a
 // scrape cannot legitimately span a browser restart — every entry present at
 // launch is by definition an orphan. Otherwise only entries past their max life
@@ -199,18 +229,37 @@ async function sweepOrphanTabs(reason) {
   let tabs = [];
   try { tabs = await chrome.tabs.query({}); } catch (e) {}
 
+  // URLs this registry knows about — used to prove a window is ours before we
+  // close it (see ownsWindow below).
+  const known = new Set(list.map((e) => e.url).filter(Boolean));
+
+  // WINDOW IDS, like tab ids, are reassigned after a restart: id 903 in the new
+  // session can be a window the USER opened. So a recorded tempWindowId is only
+  // acted on when everything currently in that window is ours — our own scrape
+  // URLs plus the blank keeper tab. Anything else and we fall through to the
+  // per-tab paths, which are URL-matched and can't take a bystander with them.
+  async function ownsWindow(winId) {
+    let inWin = tabs.filter((t) => t.windowId === winId);
+    if (!inWin.length) {
+      try { inWin = await chrome.tabs.query({ windowId: winId }); } catch (_) { return false; }
+    }
+    if (!inWin.length) return false;
+    return inWin.every((t) => t.url === KEEPER_URL || !t.url || known.has(t.url) || known.has(t.pendingUrl));
+  }
+
   let closed = 0;
   for (const e of doomed) {
-    // 1. A temp window of ours — take the whole thing.
-    if (e.tempWindowId != null) {
+    // 1. A temp window of ours — take the whole thing (keeper tab included).
+    if (e.tempWindowId != null && await ownsWindow(e.tempWindowId)) {
       try { await chrome.windows.remove(e.tempWindowId); closed++; continue; } catch (_) {}
     }
     // 2. Same browser session (worker died, browser stayed up): the id still resolves.
     try { await chrome.tabs.remove(e.tabId); closed++; continue; } catch (_) {}
     // 3. Restored after a restart: the id is dead, so match the URL instead.
     //    Skip entries old enough that a URL match would be a coincidence rather
-    //    than our tab.
-    if ((now - (e.at || 0)) > ORPHAN_STALE_MS) continue;
+    //    than our tab. The keeper is never URL-matched — every blank tab in the
+    //    browser looks exactly like it.
+    if ((now - (e.at || 0)) > ORPHAN_STALE_MS || e.url === KEEPER_URL) continue;
     for (const t of tabs) {
       if (t.url !== e.url && t.pendingUrl !== e.url) continue;
       try { await chrome.tabs.remove(t.id); closed++; } catch (_) {}
@@ -224,26 +273,133 @@ async function sweepOrphanTabs(reason) {
   return closed;
 }
 
+// ── Remembered window placement ─────────────────────────────────────────────
+// When an alarm fires with the browser running window-less (Brave's background
+// mode / "keep running in the background" — the tray case), we have to make a
+// window to put a tab in. Creating it at a hardcoded size parks a stray 1280×900
+// window in the top-left corner, on top of whatever the user had arranged there.
+//
+// So we keep the last placement a REAL browser window had and reopen at exactly
+// that geometry: same size, same monitor, same corner. If we've never seen one,
+// we pass no bounds at all — then the browser applies its own remembered
+// placement, which is the same answer arrived at from the other side.
+const BOUNDS_KEY = "pwWinBounds";
+
+async function rememberBounds(win) {
+  if (!win || win.type !== "normal" || win.incognito) return;
+  if (tempWin && win.id === tempWin.id) return;      // our own window isn't a user placement
+  const st = win.state;
+  // A minimized window reports junk geometry; a maximized/fullscreen one reports
+  // the screen, so keep the STATE and let the restore reapply it.
+  if (st === "minimized") return;
+  if (!(win.width > 300 && win.height > 300)) return;
+  try {
+    await chrome.storage.local.set({ [BOUNDS_KEY]: {
+      left: win.left, top: win.top, width: win.width, height: win.height,
+      state: (st === "maximized" || st === "fullscreen") ? "maximized" : "normal",
+      at: Date.now()
+    } });
+  } catch (e) {}
+}
+async function lastBounds() {
+  try {
+    const d = await chrome.storage.local.get(BOUNDS_KEY);
+    const b = d && d[BOUNDS_KEY];
+    if (!b || typeof b.width !== "number" || typeof b.height !== "number") return null;
+    return b;
+  } catch (e) { return null; }
+}
+// Cheap top-up: every run, whatever window the user actually has open is the
+// freshest possible answer for "where do their windows live".
+async function snapshotBounds() {
+  try {
+    const wins = await chrome.windows.getAll({ windowTypes: ["normal"] });
+    const w = wins.find((x) => x.focused) || wins[wins.length - 1];
+    if (w) await rememberBounds(w);
+  } catch (e) {}
+}
+chrome.windows.onBoundsChanged.addListener((win) => { rememberBounds(win); });
+chrome.windows.onCreated.addListener((win) => {
+  if (expectTempWindow) { expectTempWindow = false; return; }  // that one's ours
+  rememberBounds(win);
+});
+
 // ── Tab plumbing ────────────────────────────────────────────────────────────
-// Tabs are created INACTIVE so a check never steals focus mid-browse. When no
-// normal window exists (alarm firing with the browser idle in the tray) we open
-// one unfocused and close it again afterwards.
-async function openScrapeTab(url) {
+// Tabs are created INACTIVE so a check never steals focus mid-browse.
+//
+// With no window to put them in we make one — ONCE PER RUN, not once per store.
+// A window per store meant a window blinking open and shut every few seconds for
+// the length of a check; now a single unfocused window holds every tab of the
+// run and is closed as a whole when the run ends (releaseTempWindow).
+const KEEPER_URL = "about:blank";
+let tempWin = null;            // { id, keeperTabId } — ours, alive for this run only
+let expectTempWindow = false;  // suppresses the onCreated snapshot for our own window
+
+// Resolves to a window id to open scrape tabs in, or null to use whatever
+// window the browser is already focusing.
+async function acquireWindow() {
+  if (tempWin) {
+    try { await chrome.windows.get(tempWin.id); return tempWin.id; }
+    catch (e) { tempWin = null; }                    // user closed it mid-run
+  }
   const wins = await chrome.windows.getAll({ windowTypes: ["normal"] });
   if (wins.length) {
-    const tab = await chrome.tabs.create({ url, active: false });
-    await registryAdd({ tabId: tab.id, tempWindowId: null, url, at: Date.now() });
-    return { tabId: tab.id, tempWindowId: null };
+    await snapshotBounds();
+    return null;
   }
-  const win = await chrome.windows.create({ url, focused: false, width: 1280, height: 900 });
-  const tabId = win.tabs[0].id;
-  await registryAdd({ tabId, tempWindowId: win.id, url, at: Date.now() });
-  return { tabId, tempWindowId: win.id };
+
+  const b = await lastBounds();
+  const opts = { url: KEEPER_URL, focused: false, type: "normal" };
+  // No remembered bounds → send none, so the browser falls back to its own last
+  // placement rather than us inventing a corner for it.
+  if (b) {
+    opts.width = b.width; opts.height = b.height;
+    if (typeof b.left === "number" && typeof b.top === "number") { opts.left = b.left; opts.top = b.top; }
+  }
+  expectTempWindow = true;
+  let win;
+  try { win = await chrome.windows.create(opts); }
+  finally { expectTempWindow = false; }
+  const keeperTabId = win.tabs && win.tabs[0] && win.tabs[0].id;
+  tempWin = { id: win.id, keeperTabId };
+  if (b && b.state === "maximized") {
+    try { await chrome.windows.update(win.id, { state: "maximized" }); } catch (e) {}
+  }
+  // The keeper is registered too: if the worker dies before releaseTempWindow(),
+  // the watchdog has to be able to find this window and take it away.
+  if (keeperTabId != null) {
+    await registryAdd({ tabId: keeperTabId, tempWindowId: win.id, url: KEEPER_URL, at: Date.now() });
+  }
+  return win.id;
 }
+
+// End of run: the whole temp window goes, keeper and any straggler tabs with it.
+async function releaseTempWindow() {
+  if (!tempWin) return;
+  const { id } = tempWin;
+  tempWin = null;
+  try { await chrome.windows.remove(id); } catch (e) {}
+  await registryRemoveWindow(id);
+}
+
+async function openScrapeTab(url) {
+  const winId = await acquireWindow();
+  const tab = winId == null
+    ? await chrome.tabs.create({ url, active: false })
+    : await chrome.tabs.create({ windowId: winId, url, active: false });
+  await registryAdd({ tabId: tab.id, tempWindowId: winId, url, at: Date.now() });
+  if (winId != null && tempWin) await registryTouch(tempWin.keeperTabId);
+  return { tabId: tab.id, tempWindowId: winId };
+}
+
+// Closes the TAB, not the window: the temp window outlives it until the run
+// ends. Verified rather than assumed — "the tab is gone" is the whole point of
+// this function, so a remove that silently no-ops gets one more try.
 async function closeScrapeTab(h) {
+  try { await chrome.tabs.remove(h.tabId); } catch (e) {}
   try {
-    if (h.tempWindowId != null) await chrome.windows.remove(h.tempWindowId);
-    else await chrome.tabs.remove(h.tabId);
+    await chrome.tabs.get(h.tabId);
+    await chrome.tabs.remove(h.tabId);              // still there — try once more
   } catch (e) {}
   await registryRemove(h.tabId);
 }
@@ -474,7 +630,13 @@ async function checkItem(profile, item, storesInput, opts) {
 // request goes through one chain.
 let chain = Promise.resolve();
 function enqueue(fn) {
-  const run = chain.then(fn, fn);
+  // Every entry point (MyList message, popup "run now", alarm) lands here, so
+  // this is the one place that reliably sees a run finish — which makes it the
+  // right place to take the temp window back down, on the error path too.
+  const run = chain.then(fn, fn).then(
+    async (v) => { await releaseTempWindow(); return v; },
+    async (e) => { await releaseTempWindow(); throw e; }
+  );
   chain = run.catch(() => {});
   return run;
 }

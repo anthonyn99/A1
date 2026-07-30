@@ -144,13 +144,27 @@ DAILY_REMINDER_FETCH_ATTEMPTS = 3    # GET retries before showing the fallback n
 
 # ==============================================================================
 #  WEBULL POST-LAUNCH ACTIONS
-#  After WeBull opens it lands on the Trading tab + Individual Cash account. These
-#  clicks switch it to the Trackers tab and the Individual Margin account.
+#  After WeBull opens it lands on the Trading tab. These actions switch it to the
+#  Trackers tab and the Individual Margin account.
 #
-#  WeBull is a native app with no scripting API, so this is COORDINATE clicking. The
-#  points below are pixel offsets from the WeBull window's TOP-LEFT corner, tuned for
-#  the left-panel (1707px-wide) placement. If a click ever misses (e.g. WeBull changes
-#  its layout), nudge these — or set WEBULL_AUTO_ACTIONS = False to disable.
+#  The account switch is NOT a fixed coordinate click. WeBull reorders its account
+#  dropdown — the currently-active account floats to the top — so "Margin" is the
+#  first row some mornings and the second row others. A hardcoded y was a coin flip.
+#
+#  Instead we drive it through Windows UI Automation, which WeBull exposes:
+#    * the top-right account label ("Individual Cash(CVX2HTH9)") is readable, so we
+#      always know which account is live;
+#    * the dropdown's account rows are CheckBoxes with AutomationId 'tradeAccountNew'
+#      sitting above the "More Account(s) Available" heading, so we get their real
+#      on-screen rectangles no matter how they're ordered — and can never stray onto
+#      Futures/Events or the Logout button below them.
+#  Their text isn't exposed, so we click a candidate row and re-read the label to
+#  confirm. That makes the switch self-correcting: it ends only when WeBull actually
+#  reports the Margin account, and it says so in the log either way.
+#
+#  The Trackers tab is still a coordinate click (offset from the window's TOP-LEFT,
+#  tuned for the left-panel 1707px placement). Re-measure it with --webull-coords if
+#  WeBull ever changes its tab row — or set WEBULL_AUTO_ACTIONS = False to disable.
 # ==============================================================================
 
 WEBULL_AUTO_ACTIONS = True
@@ -160,10 +174,13 @@ WEBULL_ACTION_DELAY = 2    # seconds before clicking. WeBull opened first and ha
 # (x, y) offsets from the WeBull window's top-left (measured via --webull-coords):
 WEBULL_TRACKERS_TAB   = (626, 60)    # the "Trackers" tab in the tab row
 WEBULL_ACCOUNT_BUTTON = (1470, 18)   # top-right account dropdown ("Individual Cash(…)")
-WEBULL_MARGIN_ITEM    = (1452, 180)  # "Individual Margin(…)" row in the opened dropdown.
-                                     # Recalibrated 2026-07-30: WeBull reordered the
-                                     # dropdown so Margin is now the FIRST account row
-                                     # (Cash moved below it, ~34px per row).
+
+WEBULL_TARGET_ACCOUNT = "margin"     # case-insensitive substring of the account to select,
+                                     # matched against WeBull's own label ("Individual Margin(…)")
+WEBULL_ACCOUNT_TRIES  = 6            # max candidate rows to try before giving up
+WEBULL_MARGIN_ITEM    = (1452, 214)  # LAST-RESORT fallback only: used if UI Automation is
+                                     # unavailable, in which case we click this blind. Row 1 of
+                                     # the account list is y=180, row 2 y=214, row 3 y=248.
 
 # ==============================================================================
 #  TRIGGER WINDOW  (Mountain Time)
@@ -770,6 +787,134 @@ def _click_at(x: int, y: int):
     _u32.mouse_event(_MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
 
+# --- WeBull account switching via UI Automation -------------------------------
+# PowerShell is the shortest path to UIAutomationClient (it ships with Windows; the
+# Python COM bindings would be a third-party install). Each call takes ~0.4s.
+
+_PS_UIA_PREAMBLE = r"""
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$AE    = [System.Windows.Automation.AutomationElement]
+$ANY   = [System.Windows.Automation.Condition]::TrueCondition
+$DESC  = [System.Windows.Automation.TreeScope]::Descendants
+$tops  = $AE::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $ANY)
+"""
+
+# The top-right account label in WeBull's main window, e.g. "Individual Cash(CVX2HTH9)".
+_PS_WB_ACCOUNT = _PS_UIA_PREAMBLE + r"""
+$btn = New-Object System.Windows.Automation.PropertyCondition(
+    $AE::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+foreach ($w in $tops) {
+    if ($w.Current.ClassName -ne 'WBWindow') { continue }
+    foreach ($b in $w.FindAll($DESC, $btn)) {
+        $n = $b.Current.Name
+        if ($n -match '\([A-Z0-9]{6,}\)\s*$') { $n; exit 0 }
+    }
+}
+"""
+
+# The account rows of the OPEN dropdown, as "x<TAB>y<TAB>on|off" screen coordinates.
+# Only 'tradeAccountNew' checkboxes above the "More Account(s) Available" heading count —
+# that bound is what keeps us off Futures/Events and the Logout item further down.
+_PS_WB_ROWS = _PS_UIA_PREAMBLE + r"""
+foreach ($w in $tops) {
+    if ($w.Current.ClassName -ne 'WBCustomBaseDialog') { continue }
+    $kids  = $w.FindAll($DESC, $ANY)
+    $limit = [double]::MaxValue
+    foreach ($k in $kids) {
+        if ($k.Current.ControlType.ProgrammaticName -eq 'ControlType.Text' -and
+            $k.Current.Name -match 'More Account') { $limit = $k.Current.BoundingRectangle.Y }
+    }
+    $found = $false
+    foreach ($k in $kids) {
+        if ($k.Current.ControlType.ProgrammaticName -ne 'ControlType.CheckBox') { continue }
+        if ($k.Current.AutomationId -ne 'tradeAccountNew') { continue }
+        $rc = $k.Current.BoundingRectangle
+        if ($rc.Y -ge $limit) { continue }
+        $on = 'off'
+        try {
+            $tp = $k.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+            if ($tp.Current.ToggleState -eq 'On') { $on = 'on' }
+        } catch { }
+        "{0}`t{1}`t{2}" -f [int]($rc.X + $rc.Width / 2), [int]($rc.Y + $rc.Height / 2), $on
+        $found = $true
+    }
+    if ($found) { exit 0 }
+}
+"""
+
+
+def _ps_out(script: str, timeout: int = 20) -> str:
+    """Run a PowerShell snippet, return stdout. '' on any failure — every caller treats
+    an empty result as "UI Automation unavailable" and falls back."""
+    try:
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                           capture_output=True, text=True, timeout=timeout,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return (r.stdout or "").strip()
+    except Exception as e:
+        log(f"WeBull: UI Automation call failed ({type(e).__name__}: {e}).")
+        return ""
+
+
+def _wb_current_account() -> str:
+    """WeBull's own label for the live account, e.g. 'Individual Cash(CVX2HTH9)'."""
+    return next(iter(_ps_out(_PS_WB_ACCOUNT).splitlines()), "").strip()
+
+
+def _wb_account_rows() -> list:
+    """[(x, y, is_current), …] screen coords of the open dropdown's account rows."""
+    rows = []
+    for line in _ps_out(_PS_WB_ROWS).splitlines():
+        parts = line.strip().split("\t")
+        if len(parts) == 3:
+            try:
+                rows.append((int(parts[0]), int(parts[1]), parts[2] == "on"))
+            except ValueError:
+                pass
+    return rows
+
+
+def webull_select_account(ox: int, oy: int) -> bool:
+    """Switch WeBull to WEBULL_TARGET_ACCOUNT, wherever that row happens to be today.
+
+    Opens the account dropdown, asks UI Automation for the real account-row rectangles,
+    clicks one, then re-reads the account label to confirm. Repeats with the next
+    candidate until WeBull reports the target account. Returns True once confirmed."""
+    want = WEBULL_TARGET_ACCOUNT.lower()
+
+    label = _wb_current_account()
+    if not label:
+        return False                      # UI Automation unavailable → caller falls back
+    if want in label.lower():
+        log(f"WeBull: already on {label} — no account switch needed.")
+        return True
+
+    for attempt in range(WEBULL_ACCOUNT_TRIES):
+        rows = _wb_account_rows()         # the dropdown may already be open
+        if not rows:
+            _click_at(ox + WEBULL_ACCOUNT_BUTTON[0], oy + WEBULL_ACCOUNT_BUTTON[1])
+            time.sleep(0.6)               # let the dropdown render
+            rows = _wb_account_rows()
+        if not rows:
+            log("WeBull: account dropdown did not open (no rows found).")
+            return False
+        # Never re-click the row that's already selected — it's the account we're
+        # trying to move away from, and clicking it just closes the menu.
+        candidates = [r for r in rows if not r[2]] or rows
+        x, y, _ = candidates[attempt % len(candidates)]
+        _click_at(x, y)
+        time.sleep(1.0)                   # let the account switch settle
+
+        label = _wb_current_account()
+        if want in label.lower():
+            log(f"WeBull: switched to {label}.")
+            return True
+
+    log(f"WeBull: could not reach a '{WEBULL_TARGET_ACCOUNT}' account after "
+        f"{WEBULL_ACCOUNT_TRIES} tries — left on {label}.")
+    return False
+
+
 def webull_post_launch(hwnd, initial_delay=None):
     """After WeBull loads, switch it to the Trackers tab + the Individual Margin account
     via coordinate clicks (WeBull has no scripting API). Clicks are offset from the
@@ -797,17 +942,23 @@ def webull_post_launch(hwnd, initial_delay=None):
         return
     ox, oy = r.left, r.top
 
-    # 1) Switch account: open the top-right dropdown, then click "Individual Margin".
-    #    Done first because switching account can reset the active tab.
-    _click_at(ox + WEBULL_ACCOUNT_BUTTON[0], oy + WEBULL_ACCOUNT_BUTTON[1])
-    time.sleep(0.6)   # let the dropdown render
-    _click_at(ox + WEBULL_MARGIN_ITEM[0], oy + WEBULL_MARGIN_ITEM[1])
-    time.sleep(0.5)   # let the account switch settle
+    # 1) Switch account. Done first because switching account can reset the active tab.
+    #    Locates the Margin row via UI Automation and verifies the result (see the
+    #    WEBULL POST-LAUNCH ACTIONS notes above), because the dropdown's row order moves.
+    if not webull_select_account(ox, oy):
+        # UI Automation unavailable — fall back to the old blind coordinate click so the
+        # morning is no worse off than before. This one is a guess at the row position.
+        log("WeBull: UI Automation unavailable — falling back to the fixed "
+            f"WEBULL_MARGIN_ITEM click at {WEBULL_MARGIN_ITEM}.")
+        _click_at(ox + WEBULL_ACCOUNT_BUTTON[0], oy + WEBULL_ACCOUNT_BUTTON[1])
+        time.sleep(0.6)   # let the dropdown render
+        _click_at(ox + WEBULL_MARGIN_ITEM[0], oy + WEBULL_MARGIN_ITEM[1])
+        time.sleep(0.5)   # let the account switch settle
 
     # 2) Switch to the Trackers tab (last, so it's the final visible state).
     _focus_window(hwnd)
     _click_at(ox + WEBULL_TRACKERS_TAB[0], oy + WEBULL_TRACKERS_TAB[1])
-    log("WeBull: switched to Individual Margin account + Trackers tab.")
+    log("WeBull: Trackers tab selected.")
 
 
 def _open_browser_window(browser: str, url: str, pos: list):
