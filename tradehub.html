@@ -1116,6 +1116,11 @@ const TB_STYLES=`
   --tbb:#a4b986;--tbr:#d68a7c;--tbw:#e0b57c;--tbe:#d68a7c;
   --info:#a8c4e0;
   --shadow:rgba(0,0,0,0.5);
+  /* Inherited default for anything that doesn't set its own colour. Without it
+     the fallback was the document's black, which is invisible on --bg — icons
+     inherit currentColor, so an un-coloured TBIcon rendered as a black shape on
+     a near-black card. Explicit colours still win; this only backstops. */
+  color:var(--tx);
   font-family:'Inter',system-ui,-apple-system,sans-serif;
   -webkit-font-smoothing:antialiased;
   font-size:16px;
@@ -2293,8 +2298,11 @@ function TBEquityCurve({trades}){
   const ready=w>0;
   /* Height tracks width so the curve keeps a readable aspect ratio at any size,
      with a floor so it doesn't collapse on a phone and a ceiling so it doesn't
-     become a billboard on an ultrawide. */
-  const H=Math.round(Math.min(360,Math.max(compact?168:200,w*0.32)));
+     become a billboard on a wide monitor. The ratio and the ceiling are both
+     deliberately low: an equity curve is read for its SHAPE, and at 0.32/360 a
+     maximised window turned one card into most of a screen of empty plot area,
+     pushing the table and the rest of the Journal below the fold. */
+  const H=Math.round(Math.min(compact?200:250,Math.max(compact?150:175,w*0.22)));
   const PT=14, PB=compact?22:28, PR=compact?12:18;
   const innerH=H-PT-PB;
   const ys=pts.map(p=>p.y);
@@ -2492,25 +2500,33 @@ function TBEquityCurve({trades}){
                   cursor:'pointer',padding:'8px 0 2px',minHeight:30,textDecoration:'underline',textUnderlineOffset:3}}>
           {showTable?'Hide table':'View as table'}
         </button>
-        {/* overflowX so the four columns scroll inside the card on a phone
-            instead of widening it. */}
+        {/* Four short columns, so the table is capped rather than stretched: at
+            full-window width a 100%-wide table pushed Date and Equity ~900px
+            apart and the eye had to travel the whole card to read one row.
+            Fixed layout + a max width keeps a row scannable in one fixation and
+            the columns in a predictable place. overflowX still lets it scroll
+            inside the card on a phone instead of widening it. */}
         {showTable&&(<div style={{maxHeight:compact?240:280,overflowY:'auto',overflowX:'auto',marginTop:8,
                                   WebkitOverflowScrolling:'touch'}}>
-          <table style={{width:'100%',minWidth:compact?300:0,borderCollapse:'collapse',fontSize:12}}>
+          <table style={{width:'100%',maxWidth:compact?'none':520,minWidth:compact?300:0,
+                         tableLayout:'fixed',borderCollapse:'collapse',fontSize:12}}>
+            <colgroup><col style={{width:'24%'}}/><col style={{width:'20%'}}/>
+                      <col style={{width:'28%'}}/><col style={{width:'28%'}}/></colgroup>
             <thead><tr>{['Date','Symbol','Trade','Equity'].map(h=>(
-              <th key={h} style={{padding:'6px 8px',textAlign:h==='Date'||h==='Symbol'?'left':'right',
+              <th key={h} style={{padding:'6px 10px 6px 0',textAlign:h==='Date'||h==='Symbol'?'left':'right',
                     fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1,
                     borderBottom:'1px solid var(--bd)',position:'sticky',top:0,background:'var(--s1)'}}>{h}</th>))}</tr></thead>
             <tbody>{pts.map((p,i)=>(
               <tr key={i} style={{borderBottom:'1px solid var(--bd)'}}>
-                <td style={{padding:'5px 8px',color:'var(--txm)',whiteSpace:'nowrap'}}>{fmtDay(p.t)}</td>
-                <td style={{padding:'5px 8px',color:'var(--txd)'}}>{p.ticker}</td>
-                <td style={{padding:'5px 8px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',
-                      color:tbPnlCol(p.pnl),fontVariantNumeric:'tabular-nums'}}>
+                <td style={{padding:'5px 10px 5px 0',color:'var(--txm)',whiteSpace:'nowrap'}}>{fmtDay(p.t)}</td>
+                <td style={{padding:'5px 10px 5px 0',color:'var(--txd)',whiteSpace:'nowrap',
+                      overflow:'hidden',textOverflow:'ellipsis'}}>{p.ticker}</td>
+                <td style={{padding:'5px 10px 5px 0',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',
+                      color:tbPnlCol(p.pnl),fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>
                   {(p.pnl>=0?'+':'−')+tbFmt$(Math.abs(p.pnl))}
                 </td>
-                <td style={{padding:'5px 8px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',
-                      color:'var(--tx)',fontVariantNumeric:'tabular-nums'}}>
+                <td style={{padding:'5px 0',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',
+                      color:'var(--tx)',fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>
                   {(p.y>=0?'+':'−')+tbFmt$(Math.abs(p.y))}
                 </td>
               </tr>))}</tbody>
@@ -4787,11 +4803,21 @@ async function tbNewsPoll(){
     if(++B.polls>=NH_MAX_POLLS){ B.stop(); B.emit({type:'timeout'}); return; }
     B.timer=setTimeout(tbNewsPoll,NH_POLL_INTERVAL);
   }catch(e){
-    B.stop();
-    B.emit({type:'error',message:'Network error: '+(e.message||'unknown')});
+    // A thrown fetch is a failed POLL, not a failed build — the pipeline is still
+    // running on the worker. Killing the watch here meant one dropped request (a
+    // sleeping laptop, a flaky second of wifi) abandoned a perfectly good Force
+    // fresh and the finished build never landed. Count it and keep going; the
+    // NH_MAX_POLLS cap still bounds the whole watch.
+    if(++B.polls>=NH_MAX_POLLS){ B.stop(); B.emit({type:'timeout'}); return; }
+    B.timer=setTimeout(tbNewsPoll,NH_POLL_INTERVAL);
   }
 }
-// Start (or join) a watch on a build. baseGen is the generatedAt we're replacing.
+/* Start (or join) a watch on a build. baseGen is the generatedAt we're replacing
+   — a poll only counts as DONE past it. It is seeded from a free cacheOnly PEEK
+   rather than trusted from the caller: callers only know what THEY are showing,
+   and when that was behind the cache (a blank tab over a failed 6am doc, say) the
+   very first poll adopted the doc already sitting in KV and declared the build
+   finished — instantly, with zero events, while the real build was still running. */
 function tbNewsWatchBuild(tickers,baseGen){
   const B=_tbNewsBuild;
   if(B.building)return;                     // already watching one
@@ -4801,7 +4827,18 @@ function tbNewsWatchBuild(tickers,baseGen){
   B.polls=0;
   B.emit({type:'start'});
   B.timer=setTimeout(tbNewsPoll,NH_POLL_INTERVAL);
+  // Peek runs in parallel with the first 15s wait, so it never delays the watch.
+  fetch(NH_WORKER_URL+'/news?cacheOnly=1&tickers='+encodeURIComponent(B.tickers.join(',')))
+    .then(r=>r.ok?r.json():null)
+    .then(j=>{ if(j&&B.building&&B.polls===0&&(j.generatedAt||0)>B.baseGen) B.baseGen=j.generatedAt; })
+    .catch(()=>{});
 }
+
+/* When the cheap path last auto-escalated to a force-fresh (see refresh()). The
+   escalation is a real quota spend, so it is throttled: a watchlist that has
+   genuinely no news would otherwise burn one of the 12 on every tab open. */
+let _tbNewsEscalatedAt = 0;
+const NH_ESCALATE_COOLDOWN = 30*60*1000;   // 30 min
 
 const NH_TIER_META = {
   critical:  {label:'Critical',  c:'var(--tbr)'},
@@ -5072,8 +5109,10 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
     });
   },[applyBuild,fetchRateStatus]);
 
-  /* ── Refresh: kick worker build, hand the watch to the manager ── */
-  const refresh=useCallback(async(forceFresh)=>{
+  /* ── Refresh: kick worker build, hand the watch to the manager ──
+     `escalated` marks the one automatic retry described at the empty-result
+     branch below; it exists only to stop that retry from recursing. ── */
+  const refresh=useCallback(async(forceFresh,escalated)=>{
     _tbNewsBuild.stop();
     const baseGen=genRef.current||0;
     setLoading(true);setBuilding(false);setNotice('');
@@ -5130,11 +5169,30 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
 
       // Got immediate result (cache hit)
       const evs=j.events||[];
+
+      // ── Empty cache hit → escalate, don't dead-end ────────────────────────
+      // The worker caches a document even when a build produced nothing, and it
+      // lives for 4h. A plain Refresh over one of those used to land here and do
+      // nothing but print "use Force fresh" — which is exactly the dead end that
+      // made a failed 6am build look like a broken Refresh button. The worker no
+      // longer serves an empty doc as a hit (it rebuilds instead), so reaching
+      // this point with 0 events means the cheap path genuinely has nothing to
+      // give: spend ONE force-fresh to actually get news, rather than leaving the
+      // page blank. Once only — if the forced build also comes back empty, the
+      // notice stands.
+      if(!evs.length&&!forceFresh&&!escalated&&Date.now()-_tbNewsEscalatedAt>NH_ESCALATE_COOLDOWN){
+        _tbNewsEscalatedAt=Date.now();
+        setNotice('Nothing in cache — running a full rebuild…');
+        return refresh(true,true);
+      }
+
       applyBuild({events:evs,generatedAt:j.generatedAt||Date.now(),degraded:!!j.degraded||(evs.length>0&&evs.every(e=>e.aiAnalyzed===false))});
       setLoading(false);
       fetchRateStatus();
-      if(!evs.length)setNotice('No events in cache. Use Force fresh to trigger a new build.');
-      if(window._fbSaveTBNews){
+      if(!evs.length)setNotice('Build returned no events — sources or AI quota may be down. Try Force fresh again shortly.');
+      // Never publish an empty result: the doc write is a full overwrite, so a
+      // failed build would erase the last good news off every other device too.
+      if(window._fbSaveTBNews&&evs.length){
         const settings={hours,sentFilter,impFilter,selTickers,selSectors,sortBy};
         window._fbSaveTBNews({events:evs,generatedAt:j.generatedAt||Date.now(),settings});
       }
@@ -5158,9 +5216,13 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       const r=await fetch(NH_WORKER_URL+'/news?cacheOnly=1&tickers='+encodeURIComponent(newsTickers.join(',')));
       if(r.ok){
         const j=await r.json().catch(()=>({}));
-        if(j&&!j._cacheMiss&&Array.isArray(j.events)){
-          // Cache HIT. Adopt it when it's at least as new as the Firebase copy.
-          if(j.events.length&&(j.generatedAt||0)>=fbGen){
+        // Cache HIT with actual news. An "events: []" document is a build that
+        // FAILED, not a hit — treating it as one is what made this return here
+        // and leave the tab on "No events loaded" all morning. Fall through to
+        // the build path instead.
+        if(j&&!j._cacheMiss&&Array.isArray(j.events)&&j.events.length){
+          // Adopt it when it's at least as new as the Firebase copy.
+          if((j.generatedAt||0)>=fbGen){
             applyBuild({events:j.events,generatedAt:j.generatedAt||Date.now(),degraded:!!j.degraded||j.events.every(e=>e.aiAnalyzed===false)});
             // Publish only a genuinely newer build, and keep the saved filters —
             // the doc write is a full overwrite, so dropping settings would reset
@@ -5174,8 +5236,8 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
         }
       }
     }catch(e){}
-    // Worker cache is empty. Build only if the page would otherwise be blank —
-    // an empty News tab is worse than a background build.
+    // Worker cache has nothing usable. Build only if the page would otherwise be
+    // blank — an empty News tab is worse than a background build.
     if(!fbCount){ refresh(false); return; }
     // We have news to show, but the cache is empty because the orchestrator's
     // background build is still running — join it so the result lands here.
@@ -5546,7 +5608,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
     {/* Empty */}
     {!loading&&visible.length===0&&!building&&(
       <div style={{textAlign:'center',padding:'70px 20px'}}>
-        <TBIcon n="sparkle" size={42} style={{marginBottom:14,opacity:0.35}}/>
+        <TBIcon n="sparkle" size={42} style={{marginBottom:14,color:'var(--txm)'}}/>
         <div style={{fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",fontSize:20,fontWeight:700,color:'var(--tx)',marginBottom:8}}>
           {events.length?'No matches':'No events loaded yet'}
         </div>
@@ -6856,12 +6918,19 @@ function TBApp(){
           if(haveFresh){ localStorage.setItem(nKey,String(slot)); }
           else{
             const tq='tickers='+encodeURIComponent(tbLoadWatchlistLocal().join(','));
-            let warmed=null;
+            let warmed=null, staleHit=false;
             try{
               const r=await fetch(NH_WORKER_URL+'/news?cacheOnly=1&'+tq);
               if(r.ok){
                 const j=await r.json().catch(()=>null);
-                if(j&&!j._cacheMiss&&Array.isArray(j.events)&&j.events.length&&(j.generatedAt||0)>=slot) warmed=j;
+                if(j&&!j._cacheMiss&&Array.isArray(j.events)&&j.events.length){
+                  if((j.generatedAt||0)>=slot) warmed=j;
+                  // Real news, but built BEFORE this morning: the cron didn't run
+                  // (or its build failed). A cheap non-fresh kick can't help here —
+                  // the worker would just serve this same doc straight back — so
+                  // the morning rebuild has to bypass the cache with fresh=1.
+                  else staleHit=true;
+                }
               }
             }catch(e){}
             if(warmed){
@@ -6876,7 +6945,11 @@ function TBApp(){
               window.dispatchEvent(new CustomEvent('tb-news-built',{detail:warmed}));
               localStorage.setItem(nKey,String(slot));   // done for this morning
             }else if(Date.now()-_tbNewsBuildKickedAt>10*60*1000){
-              fetch(NH_WORKER_URL+'/news?'+tq).catch(()=>{});   // fire-and-forget build
+              // Fire-and-forget build. Non-fresh (free) whenever it can actually
+              // produce something; fresh=1 only to break past a pre-slot cached
+              // doc — at most one of the 12 daily forces, and only on a morning
+              // the cron already failed to deliver.
+              fetch(NH_WORKER_URL+'/news?'+tq+(staleHit?'&fresh=1':'')).catch(()=>{});
               _tbNewsBuildKickedAt=Date.now();
               window.dispatchEvent(new CustomEvent('tb-news-building'));
               // NOT marked done — the next 5-min tick collects the result above.

@@ -3792,22 +3792,38 @@ export default {
     const cacheKey = isCustom ? 'events:v1:' + wlHash(wl) : 'events:v1';
     const lockKey  = isCustom ? 'build:lock:' + wlHash(wl) : 'build:lock';
 
-    // ── Cache hit → return immediately (free, no rate limit) ──────────────
-    if (!fresh){
-      try {
-        const cached = await env.NEWSHUB_CACHE.get(cacheKey);
-        if (cached){
-          return new Response(cached, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT' } });
-        }
-      } catch(e){}
+    // ── Read the cache once ────────────────────────────────────────────────
+    // buildAndCache ALWAYS writes a document, even when the pipeline threw or
+    // found nothing (that's deliberate — it terminates the client poller). So an
+    // "events: []" doc is a FAILED build sitting in KV for its whole 4h TTL, not
+    // news. It must never satisfy a plain Refresh: a 6am cron build that died
+    // used to pin the feed blank until 10am, with the morning auto-kick and the
+    // Refresh button both short-circuiting on it, and only Force fresh (which
+    // skips the cache entirely) able to escape. Empty = build again.
+    let cachedRaw = null, cachedHasEvents = false;
+    try {
+      cachedRaw = await env.NEWSHUB_CACHE.get(cacheKey);
+      if (cachedRaw){
+        try { const j = JSON.parse(cachedRaw); cachedHasEvents = Array.isArray(j.events) && j.events.length > 0; }
+        catch(e){ cachedHasEvents = false; }   // unparseable doc counts as failed
+      }
+    } catch(e){}
+
+    // Cache hit with REAL news → return immediately (free, no rate limit).
+    if (!fresh && cachedRaw && cachedHasEvents){
+      return new Response(cachedRaw, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT' } });
     }
 
     // ── Peek mode (?cacheOnly=1) → NEVER builds ───────────────────────────
-    // Used when simply opening the News tab. Returns cache if present (handled
-    // above) else an empty miss — it must not kick a build, take the lock, or
-    // spend any quota. Building only happens on explicit Refresh / Force fresh.
+    // Used when simply opening the News tab, and by the client's build poller.
+    // It must not kick a build, take the lock, or spend any quota. An empty
+    // cached doc is still handed back verbatim (not as a miss) so a poller can
+    // see its generatedAt and stop, rather than spinning to the timeout.
     const cacheOnly = url.searchParams.get('cacheOnly') === '1';
     if (cacheOnly){
+      if (cachedRaw){
+        return new Response(cachedRaw, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache': cachedHasEvents ? 'HIT' : 'HIT-EMPTY' } });
+      }
       return new Response(JSON.stringify({ events: [], _cacheMiss: true }),
         { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'MISS' } });
     }
@@ -3820,9 +3836,8 @@ export default {
       const rl = await checkRateLimit(env);
       if (rl.blocked){
         try {
-          const cached = await env.NEWSHUB_CACHE.get(cacheKey);
-          if (cached){
-            const j = JSON.parse(cached);
+          if (cachedRaw && cachedHasEvents){
+            const j = JSON.parse(cachedRaw);
             j._rateLimited = true;
             j._rateLimitReason = rl.reason;
             return new Response(JSON.stringify(j), {
@@ -3841,13 +3856,13 @@ export default {
     // degraded RAW doc for the full 180s lock TTL. Normal refresh still waits.
     const buildLock = fresh ? null : await env.NEWSHUB_CACHE.get(lockKey).catch(()=>null);
     if (buildLock){
-      // Return stale cache if available while build runs
-      try {
-        const cached = await env.NEWSHUB_CACHE.get(cacheKey);
-        if (cached){
-          return new Response(cached, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'STALE', 'X-Building':'1' } });
-        }
-      } catch(e){}
+      // Real news to show while the build runs → hand it over, flagged building.
+      // An EMPTY cached doc is not worth showing: answer 202 instead, so the
+      // "a build is running, keep polling" signal is in the BODY and doesn't
+      // depend on the client being able to read the X-Building header.
+      if (cachedRaw && cachedHasEvents){
+        return new Response(cachedRaw, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'STALE', 'X-Building':'1' } });
+      }
       return new Response(JSON.stringify({ status:'building', message:'Pipeline is running. Poll /news in 15 seconds.' }),
         { status: 202, headers: { ...cors(), 'Content-Type':'application/json' } });
     }
@@ -3895,13 +3910,12 @@ export default {
       );
     }
 
-    // If there's stale cache, return it while fresh build runs in background
-    try {
-      const stale = await env.NEWSHUB_CACHE.get(cacheKey);
-      if (stale){
-        return new Response(stale, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'STALE', 'X-Building':'1' } });
-      }
-    } catch(e){}
+    // Real stale news → show it while the fresh build runs in the background.
+    // Nothing (or an empty failed doc) → 202, so "building" is unmistakable in
+    // the body rather than only in a header.
+    if (cachedRaw && cachedHasEvents){
+      return new Response(cachedRaw, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'STALE', 'X-Building':'1' } });
+    }
 
     return new Response(JSON.stringify({ status:'building', message:'Pipeline started. Poll /news in 20 seconds.' }),
       { status: 202, headers: { ...cors(), 'Content-Type':'application/json' } });
