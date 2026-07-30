@@ -2,18 +2,20 @@
  * vault-ui.js — Vault Password Manager · UI + Firebase adapter (PWA)
  *
  * Self-contained and self-injecting: it hooks into the existing Keychain view
- * (#kc-root) and turns it into "Vault" with four tabs — Passwords · Payments ·
- * Sensitive Info · Links — WITHOUT requiring edits to the 38k-line index.html
- * beyond a single <script src> include. It reuses the app's already-initialised
- * Firebase instance (App Check + anon auth + offline cache) via getApps(), and
- * the existing window.Bio biometric helper.
+ * (#kc-root) and turns it into "Vault" with five tabs — Passwords · Payments ·
+ * ID Docs · Sensitive Info · Links — WITHOUT requiring edits to the 38k-line
+ * index.html beyond a single <script src> include. It reuses the app's
+ * already-initialised Firebase instance (App Check + anon auth + offline cache)
+ * via getApps(), and the existing window.Bio biometric helper.
  *
- * The Payments tab's rendering/editor lives in vault-pay-ui.js and is driven
- * through the `hostCtx()` contract at the bottom of this file — one vault, one
- * session, one DEK, one sync path, but each section's UI stays its own module.
+ * The Payments and ID Docs tabs' rendering/editors live in vault-pay-ui.js and
+ * vault-id-ui.js, driven through the `hostCtx()` contract at the bottom of this
+ * file — one vault, one session, one DEK, one sync path, but each section's UI
+ * stays its own module.
  *
  * Depends on (loaded before it): vault-crypto.js, vault-store.js, vault-session.js
  * Optional: vault-pay.js + vault-pay-ui.js (Payments tab; degrades gracefully)
+ * Optional: vault-id.js + vault-id-files.js + vault-id-ui.js (ID Docs tab; ditto)
  *
  * Data lives E2E-encrypted in a single Firestore doc `dashboards/vault_pw`:
  *     { config:<wrapped-keys/salts/verifier>, items:{ id -> encDoc }, savedAt }
@@ -343,13 +345,15 @@
     var kcWrap = root.querySelector('.kc-wrap');
     var tabs = el('div', { id: 'vault-tabs', class: 'vault-tabs' }, [
       tabBtn('links', 'Keychain', VI.link), tabBtn('passwords', 'Passwords', VI.key),
-      tabBtn('payments', 'Payments', VI.card), tabBtn('sensitive', 'Sensitive Info', VI.archive),
+      tabBtn('payments', 'Payments', VI.card), tabBtn('iddocs', 'ID Docs', idCardIcon()),
+      tabBtn('sensitive', 'Sensitive Info', VI.archive),
     ]);
     if (hbar && hbar.nextSibling) root.insertBefore(tabs, hbar.nextSibling); else root.appendChild(tabs);
     var pwPanel = el('div', { id: 'vault-pw-panel', class: 'vault-panel' });
     var payPanel = el('div', { id: 'vault-payments-panel', class: 'vault-panel', style: 'display:none' });
+    var idPanel = el('div', { id: 'vault-iddocs-panel', class: 'vault-panel', style: 'display:none' });
     var senPanel = el('div', { id: 'vault-sensitive-panel', class: 'vault-panel', style: 'display:none' });
-    root.appendChild(pwPanel); root.appendChild(payPanel); root.appendChild(senPanel);
+    root.appendChild(pwPanel); root.appendChild(payPanel); root.appendChild(idPanel); root.appendChild(senPanel);
     if (kcWrap) { kcWrap.parentNode.removeChild(kcWrap); linksWrap.appendChild(kcWrap); }
     linksWrap.style.display = 'none'; root.appendChild(linksWrap);
     // Lock overlay (covers everything but tabs stay to switch to Links which is non-secret? No — links are also under Vault; lock gates pw+sensitive only).
@@ -374,15 +378,21 @@
   }
 
   // The tabs that hold decrypted material — each one gates on the SAME session.
-  var SECRET_TABS = { passwords: renderPasswords, payments: renderPayments, sensitive: renderSensitive };
+  var SECRET_TABS = { passwords: renderPasswords, payments: renderPayments, iddocs: renderIdDocs, sensitive: renderSensitive };
+  // Every secret tab's panel, so lock/blank logic never has to enumerate them
+  // twice (and can't drift when a sixth tab arrives).
+  var SECRET_PANELS = {
+    passwords: 'vault-pw-panel', payments: 'vault-payments-panel',
+    iddocs: 'vault-iddocs-panel', sensitive: 'vault-sensitive-panel',
+  };
 
   function showTab(id) {
     activeTab = id;
     document.querySelectorAll('.vault-tab').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === id); });
-    var pw = $('vault-pw-panel'), pay = $('vault-payments-panel'), sen = $('vault-sensitive-panel'), links = $('vault-links-panel');
-    if (pw) pw.style.display = id === 'passwords' ? '' : 'none';
-    if (pay) pay.style.display = id === 'payments' ? '' : 'none';
-    if (sen) sen.style.display = id === 'sensitive' ? '' : 'none';
+    Object.keys(SECRET_PANELS).forEach(function (t) {
+      var p = $(SECRET_PANELS[t]); if (p) p.style.display = t === id ? '' : 'none';
+    });
+    var links = $('vault-links-panel');
     if (links) links.style.display = id === 'links' ? '' : 'none';
     if (SECRET_TABS[id]) {
       if (!session || !session.isUnlocked()) { renderLock(); return; }
@@ -422,19 +432,20 @@
   }
 
   // ── lock / setup screens ───────────────────────────────────────────────────
-  function secretPanel(tab) {
-    return $(tab === 'payments' ? 'vault-payments-panel' : tab === 'sensitive' ? 'vault-sensitive-panel' : 'vault-pw-panel');
-  }
+  function secretPanel(tab) { return $(SECRET_PANELS[tab] || SECRET_PANELS.passwords); }
   async function renderLock(hasVault) {
     // Any lock closes the Payments reveal-grace window, so unlocking again can
     // never inherit an identity check made before the lock.
     try { if (window.VaultPayUI) window.VaultPayUI.resetGrace(); } catch (e) {}
+    // …and tears down ID Docs, which is the one section holding decrypted BYTES
+    // (object URLs for scans). Those must not outlive the session.
+    try { if (window.VaultIdUI) window.VaultIdUI.reset(); } catch (e) {}
     _senOpen = {};
     // Draw the lock/setup card into whichever secret tab is on screen, and blank
     // every other one — a locked vault must leave no decrypted rows behind in a
     // panel the user can flip back to.
     var target = SECRET_TABS[activeTab] ? activeTab : 'passwords';
-    ['passwords', 'payments', 'sensitive'].forEach(function (t) {
+    Object.keys(SECRET_PANELS).forEach(function (t) {
       if (t === target) return;
       var p = secretPanel(t); if (p) p.innerHTML = '';
     });
@@ -702,10 +713,14 @@
     if (!window.VaultPayUI) { list.innerHTML = ''; list.appendChild(emptyState('Payments module not loaded.')); return; }
     window.VaultPayUI.fillList(list, hostCtx());
   }
+  function fillIdList(list) {
+    if (!window.VaultIdUI) { list.innerHTML = ''; list.appendChild(emptyState('ID Docs module not loaded.')); return; }
+    window.VaultIdUI.fillList(list, hostCtx());
+  }
   // Re-fill just the list for the active kind (used on every keystroke).
-  var KIND_PANELS = { login: 'vault-pw-panel', payment: 'vault-payments-panel', sensitive: 'vault-sensitive-panel' };
-  var KIND_RENDER = { login: renderPasswords, payment: renderPayments, sensitive: renderSensitive };
-  var KIND_FILL = { login: fillLoginList, payment: fillPaymentList, sensitive: fillSensitiveList };
+  var KIND_PANELS = { login: 'vault-pw-panel', payment: 'vault-payments-panel', iddoc: 'vault-iddocs-panel', sensitive: 'vault-sensitive-panel' };
+  var KIND_RENDER = { login: renderPasswords, payment: renderPayments, iddoc: renderIdDocs, sensitive: renderSensitive };
+  var KIND_FILL = { login: fillLoginList, payment: fillPaymentList, iddoc: fillIdList, sensitive: fillSensitiveList };
   function refreshList(kind) {
     var panel = $(KIND_PANELS[kind] || KIND_PANELS.login); if (!panel) return;
     var list = panel.querySelector('.vault-list');
@@ -1064,10 +1079,24 @@
     panel.appendChild(list);
   }
 
+  // ── ID docs panel (rendering delegated to vault-id-ui.js) ──────────────────
+  function renderIdDocs() {
+    var panel = $('vault-iddocs-panel'); if (!panel) return;
+    if (!session || !session.isUnlocked()) { renderLock(); return; }
+    if (!store) { afterUnlock(); return; } // store not ready yet — bootstrap then re-render
+    panel.innerHTML = '';
+    if (!window.VaultIdUI) { panel.appendChild(emptyState('ID Docs module not loaded — check the vault-id.js / vault-id-files.js / vault-id-ui.js includes.')); return; }
+    panel.appendChild(toolbar('Search ID documents…', 'iddoc'));
+    var list = el('div', { class: 'vault-list' });
+    fillIdList(list);
+    panel.appendChild(list);
+  }
+
   // ── editor modal ───────────────────────────────────────────────────────────
   // The "+ Add" button routes here so each kind can own its own editor.
   function openAdd(kind) {
     if (kind === 'payment') { if (window.VaultPayUI) window.VaultPayUI.openEditor(null, hostCtx()); return; }
+    if (kind === 'iddoc') { if (window.VaultIdUI) window.VaultIdUI.openTypePicker(hostCtx()); return; }
     openEditor(kind);
   }
   function openEditor(kind, item) {
@@ -1266,6 +1295,24 @@
       if (!(await verifyIdentity('delete every saved payment method'))) return;
       for (var i = 0; i < items.length; i++) await store.remove(items[i].id);
       overlay.remove(); toast('All payment methods deleted'); refreshList('payment');
+    }));
+    rows.appendChild(settingRow('Delete all ID Documents', async function () {
+      var items = store.byKind('iddoc');
+      if (!items.length) { toast('No ID documents to delete'); return; }
+      var n = items.length;
+      var ok = await confirmUI('Permanently delete all ' + n + ' ID document' + (n === 1 ? '' : 's') + ' and every scan attached to them? This cannot be undone.',
+        { title: 'Delete all ID Documents', okLabel: 'Delete all', danger: true });
+      if (!ok) return;
+      // Destroying identity documents is at least as sensitive as revealing a
+      // card — prove it's you.
+      if (!(await verifyIdentity('delete every ID document'))) return;
+      // Collect the attachments BEFORE the items go, then purge the encrypted
+      // blobs from the file host and the local cache.
+      var atts = [];
+      if (window.VaultId) items.forEach(function (it) { window.VaultId.allAttachments(it).forEach(function (e) { atts.push(e.att); }); });
+      for (var i = 0; i < items.length; i++) await store.remove(items[i].id);
+      if (window.VaultIdFiles) window.VaultIdFiles.removeMany(atts);
+      overlay.remove(); toast('All ID documents deleted'); refreshList('iddoc');
     }));
     rows.appendChild(settingRow('Delete all Sensitive Info', async function () {
       var items = store.byKind('sensitive');
@@ -1615,12 +1662,16 @@
     }
   }
 
-  // ── host contract for section modules (vault-pay-ui.js) ───────────────────
+  // ── host contract for section modules (vault-pay-ui.js, vault-id-ui.js) ───
   // Everything a tab module needs to look and behave like a native part of
   // Vault, WITHOUT reaching into this file's internals or opening a second path
   // to the vault. Note what is deliberately absent: no DEK, no config, no
   // backend — a module can only read/write through the same unlocked `store`,
   // and can only gate an action through the same `verifyIdentity`.
+  //
+  // ID Docs needs to encrypt raw BYTES (scans), which JSON items can't carry.
+  // It still never sees the key: it hands the bytes to session().encryptBytes,
+  // which does the work inside the session. Same DEK, same algorithm, same lock.
   function hostCtx() {
     return {
       el: el, esc: esc, toast: toast, copyText: copyText, confirmUI: confirmUI,
@@ -1656,6 +1707,9 @@
   function keyIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>'; }
   function extIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'; }
   function editIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'; }
+  // Kept local rather than added to vault-icons.js: that file is also loaded by
+  // the browser extension, and ID Docs is a PWA-only section.
+  function idCardIcon() { return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5 16c.6-1.3 1.8-2 3-2s2.4.7 3 2"/><path d="M14 10h5"/><path d="M14 13.5h5"/></svg>'; }
 
   // ── styles ─────────────────────────────────────────────────────────────────
   function injectStyles() {
@@ -1894,7 +1948,7 @@
     VC = window.VaultCrypto; VaultStore = window.VaultStore; VaultSession = window.VaultSession;
     // Deep link: ?vaulttab=passwords|payments|sensitive (e.g. from the Vault
     // extension's gear) opens Vault directly on that tab.
-    try { var vt = new URLSearchParams(location.search).get('vaulttab'); if (vt === 'passwords' || vt === 'sensitive' || vt === 'payments') activeTab = vt; } catch (e) {}
+    try { var vt = new URLSearchParams(location.search).get('vaulttab'); if (SECRET_TABS[vt] || vt === 'links') activeTab = vt; } catch (e) {}
     // Poll for visibility (the nav toggles #kc-root display); cheap + robust
     // against the many code paths that can switch programs.
     setInterval(tick, 500);

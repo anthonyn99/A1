@@ -2695,18 +2695,27 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
 })();
 </script>
 
-<!-- ── Vault ── zero-knowledge (E2E) credential + payment vault.
-     vault-ui.js injects the Keychain / Passwords / Payments / Sensitive Info
-     tabs into #kc-root above and drives everything through _fbLoadVault /
-     _fbSaveVault + the fb-vault-* events defined in the module script.
-     Order matters: crypto → pay → store → session → ui → pay-ui. -->
+<!-- ── Vault ── zero-knowledge (E2E) credential + payment + identity vault.
+     vault-ui.js injects the Keychain / Passwords / Payments / ID Docs /
+     Sensitive Info tabs into #kc-root above and drives everything through
+     _fbLoadVault / _fbSaveVault + the fb-vault-* events defined in the module
+     script. Order matters: cores first (crypto → pay → id → id-files → store →
+     session), then the shell (ui), then the section UIs it hands a host to.
+
+     ID Docs is PWA-ONLY by design — the browser extension's manifest/popup are
+     deliberately untouched, so vault-id*.js is never loaded there. Scans are
+     AES-256-GCM encrypted with the SAME vault DEK before upload; only their
+     ciphertext leaves the device (see Vault/vault-id-files.js). -->
 <script src="Vault/vault-icons.js"></script>
 <script src="Vault/vault-crypto.js"></script>
 <script src="Vault/vault-pay.js"></script>
+<script src="Vault/vault-id.js"></script>
+<script src="Vault/vault-id-files.js"></script>
 <script src="Vault/vault-store.js"></script>
 <script src="Vault/vault-session.js"></script>
 <script src="Vault/vault-ui.js"></script>
 <script src="Vault/vault-pay-ui.js"></script>
+<script src="Vault/vault-id-ui.js"></script>
 
 </body>
 </html>

@@ -216,6 +216,34 @@
       return { recoveryCode };
     }
 
+    // ── Binary payloads (attachment bytes) ───────────────────────────────────
+    // Items go through VaultStore, which JSON-encodes their body. File bytes
+    // can't: base64-ing a 10 MB scan through JSON.stringify would triple it in
+    // memory and defeat the whole point of keeping blobs out of the vault doc.
+    // So these encrypt/decrypt RAW BYTES under the very same session DEK —
+    // one key, one algorithm (AES-256-GCM), one lock. The DEK itself never
+    // leaves the session: callers hand over bytes and get bytes back.
+    //
+    // Returns { iv:<base64>, bytes:<Uint8Array ciphertext> }. Persist both; the
+    // ciphertext is safe to hand to any file host, the IV is not a secret.
+    async encryptBytes(bytes) {
+      this._requireUnlocked();
+      const iv = VC.randomBytes(VC.AES.ivBytes);
+      const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      const ct = await global.crypto.subtle.encrypt({ name: VC.AES.name, iv }, this._dek, buf);
+      return { iv: VC.bytesToB64(iv), bytes: new Uint8Array(ct) };
+    }
+    // Throws (OperationError) if the ciphertext was tampered with — GCM's
+    // authentication tag is the integrity check, so a corrupted or swapped
+    // blob fails loudly instead of rendering as garbage.
+    async decryptBytes(ivB64, bytes) {
+      this._requireUnlocked();
+      const iv = VC.b64ToBytes(ivB64);
+      const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      const pt = await global.crypto.subtle.decrypt({ name: VC.AES.name, iv }, this._dek, buf);
+      return new Uint8Array(pt);
+    }
+
     // ── Auto-lock ────────────────────────────────────────────────────────────
     setAutoLock(ms) { this.autoLockMs = ms; if (this._dek) this._armAutoLock(); }
     touch() { if (this._dek) this._armAutoLock(); } // call on user activity

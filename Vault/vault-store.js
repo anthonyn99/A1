@@ -212,6 +212,19 @@
   // people identify a card. The full card number and the CVV are deliberately
   // NOT searchable: otherwise typing digits would let a shoulder-surfer confirm
   // a PAN one guess at a time.
+  //
+  // ID documents (kind:'iddoc') add issuer, state/country, type and the
+  // expiration YEAR — the things people actually recall about a licence. A
+  // PARTIAL document number matches too, but only from three characters up:
+  // that's enough to find "the passport ending 904" while still refusing to
+  // confirm a number one keystroke at a time.
+  const IDDOC_TYPE_LABELS = {
+    drivers_license: 'driver license drivers licence dl', passport: 'passport',
+    state_id: 'state id identification', ssn_card: 'social security ssn',
+    birth_certificate: 'birth certificate', vehicle_registration: 'vehicle registration car auto',
+    insurance_card: 'insurance health', student_id: 'student school',
+    work_id: 'work employee badge', custom: 'custom document',
+  };
   function scoreItem(it, q) {
     const fields = [
       [it.title, 20], [it.username, 9], [it.email, 9], [it.url, 7],
@@ -225,6 +238,16 @@
         [it.network, 6], [it.type, 4],
         [it.billing ? [it.billing.line1, it.billing.city, it.billing.region, it.billing.postal, it.billing.country].filter(Boolean).join(' ') : '', 3]
       );
+    }
+    if (it.kind === 'iddoc') {
+      fields.push(
+        [it.issuer, 12], [it.region, 8], [it.country, 8],
+        [IDDOC_TYPE_LABELS[it.docType] || it.docType, 7],
+        [String(it.expirationDate || '').slice(0, 4), 6],   // expiration year
+        [String(it.issueDate || '').slice(0, 4), 3],
+        [it.description, 5], [it.group, 3]
+      );
+      if (q.length >= 3) fields.push([it.number, 10]);
     }
     let best = 0;
     for (const [val, weight] of fields) {
