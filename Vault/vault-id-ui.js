@@ -749,6 +749,9 @@
 
     // ── zoom + pan ──
     var zoom = 1, panX = 0, panY = 0, media = null;
+    // Window-level listeners registered per drawn page (see bindPan).
+    var cleanups = [];
+    function runCleanups() { cleanups.splice(0).forEach(function (f) { try { f(); } catch (e) {} }); }
     function applyTransform() {
       if (!media) return;
       media.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + zoom + ')';
@@ -833,6 +836,7 @@
         refresh: function () { close(); openViewer(host, it.id, 0); },
       });
 
+      runCleanups();
       stage.innerHTML = '';
       if (!entry) {
         stage.appendChild(el('div', { class: 'vid-stage-empty' }, [
@@ -950,8 +954,19 @@
         }
       }
       node.addEventListener('pointerup', end);
-      node.addEventListener('pointercancel', function () {
-        dragging = false; captured = false; node.style.transition = '';
+      // Also on the window, and in the capture phase: a pointerup fires on
+      // whatever is under the finger, which after a drag is routinely NOT this
+      // element. Bound only to the node, `dragging` would stay true forever and
+      // the next touch would resume a drag that had already ended — the same
+      // leak that made pinch tracking corrupt the zoom.
+      window.addEventListener('pointerup', end, true);
+      window.addEventListener('pointercancel', reset, true);
+      node.addEventListener('pointercancel', reset);
+      function reset() { dragging = false; captured = false; node.style.transition = ''; }
+      // The listeners outlive the element, so drop them when the page changes.
+      cleanups.push(function () {
+        window.removeEventListener('pointerup', end, true);
+        window.removeEventListener('pointercancel', reset, true);
       });
       node.addEventListener('dblclick', function () { setZoom(zoom > 1 ? 1 : 2.5, zoom > 1); });
     }
@@ -961,24 +976,36 @@
       setZoom(zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
     }, { passive: false });
 
-    // Pinch-to-zoom on touch, tracked as a raw two-pointer gesture so it works
-    // even where the browser hands us no gesture events.
-    var pts = {};
+    // ── pinch to zoom ─────────────────────────────────────────────────────────
+    // Driven straight off `e.touches`, which the browser maintains and which
+    // therefore cannot go stale.
+    //
+    // This replaces hand-tracked pointer ids, and that distinction was the whole
+    // bug behind the image flashing while scrolling: `pointerup` fires on
+    // whatever element is under the finger, so lifting after a vertical scroll —
+    // by which point the finger has usually left the stage — never reached a
+    // listener bound to the stage, and the pointer was never removed from the
+    // map. The next SINGLE finger then found a leftover entry sitting beside it,
+    // was mistaken for the second finger of a pinch, and drove setZoom() to an
+    // arbitrary value mid-scroll. That also flipped `.zoomed`, which switches
+    // touch-action to none, so the browser abandoned the scroll it had already
+    // started — the glitch. One stale pointer poisoned every gesture after it.
     var pinchStart = 0, pinchZoom = 1;
-    stage.addEventListener('pointerdown', function (e) { pts[e.pointerId] = e; if (Object.keys(pts).length === 2) { pinchStart = pinchDist(); pinchZoom = zoom; } });
-    stage.addEventListener('pointermove', function (e) {
-      if (!pts[e.pointerId]) return;
-      pts[e.pointerId] = e;
-      if (Object.keys(pts).length === 2 && pinchStart) { var d = pinchDist(); if (d) setZoom(pinchZoom * (d / pinchStart)); }
-    });
-    ['pointerup', 'pointercancel'].forEach(function (ev) {
-      stage.addEventListener(ev, function (e) { delete pts[e.pointerId]; if (Object.keys(pts).length < 2) pinchStart = 0; });
-    });
-    function pinchDist() {
-      var k = Object.keys(pts); if (k.length < 2) return 0;
-      var a = pts[k[0]], b = pts[k[1]];
-      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    function touchDist(t) {
+      return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
     }
+    stage.addEventListener('touchstart', function (e) {
+      if (e.touches.length === 2) { pinchStart = touchDist(e.touches); pinchZoom = zoom; }
+      else pinchStart = 0;
+    }, { passive: true });
+    stage.addEventListener('touchmove', function (e) {
+      if (e.touches.length !== 2 || !pinchStart) return;   // one finger = a scroll, never a zoom
+      if (e.cancelable) e.preventDefault();
+      var d = touchDist(e.touches);
+      if (d) setZoom(pinchZoom * (d / pinchStart));
+    }, { passive: false });
+    stage.addEventListener('touchend', function (e) { if (e.touches.length < 2) pinchStart = 0; }, { passive: true });
+    stage.addEventListener('touchcancel', function () { pinchStart = 0; }, { passive: true });
     // Swipe on the stage itself, so a PDF or an empty document is navigable too.
     var tsx = 0, tsy = 0;
     stage.addEventListener('touchstart', function (e) { if (e.touches.length === 1) { tsx = e.touches[0].clientX; tsy = e.touches[0].clientY; } }, { passive: true });
@@ -1012,6 +1039,7 @@
       else if (e.key === 'Tab') trapFocus(e, overlay);
     }
     function close() {
+      runCleanups();
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('fullscreenchange', onFsChange);
       document.removeEventListener('webkitfullscreenchange', onFsChange);
