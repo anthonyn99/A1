@@ -4241,7 +4241,7 @@ function TBNavBar({items,page,onNav,onReorder,variant}){
     const tabLocked=window._tbTabLock&&window._tbTabLock.isLocked(item.id);
     const base = isDesktop
       ? {display:'flex',alignItems:'center',gap:7,padding:'0 16px',height:'100%',fontSize:12}
-      : {flex:'0 0 auto',display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'10px 16px',fontSize:12};
+      : {flex:'0 0 auto',display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'8px 16px',fontSize:12};
     return <button key={id} data-navid={id}
       onPointerDown={e=>onPointerDown(e,id)} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}
       onClick={e=>{ if(justDraggedRef.current){ e.preventDefault(); e.stopPropagation(); return; } onNav(item.id); }}
@@ -4282,16 +4282,16 @@ function TBHeader({page,onNav,syncStatus,portfolioConnected,onManageTabLock,navO
   return(<header className="tb-desktop-header" style={{background:'var(--bg)',borderBottom:'1px solid var(--bd)',display:'flex',flexDirection:'column',flexShrink:0,zIndex:50,position:'relative'}}>
     <div style={{maxWidth:2000,margin:'0 auto',width:'100%',display:'flex',flexDirection:'column'}}>
       {/* Row 1: logo + sync — right side empty, ✦ profile btn lives in fixed nav above */}
-      <div style={{padding:'calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 0',display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
-        <div style={{display:'flex',flexDirection:'column',gap:2}}>
-          <div style={{whiteSpace:'nowrap'}}>
+      <div style={{padding:'calc(env(safe-area-inset-top,0px) + 7px) clamp(12px,3vw,24px) 0',display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+        <div style={{display:'flex',flexDirection:'column',gap:1}}>
+          <div style={{whiteSpace:'nowrap',lineHeight:1.05}}>
             <span className="suite-title">TradeHub</span>
           </div>
-          <span style={{fontSize:10,fontWeight:600,whiteSpace:'nowrap',visibility:syncVisible?'visible':'hidden',color:syncColor}}>{syncLabel}</span>
+          <span style={{fontSize:10,fontWeight:600,lineHeight:1,whiteSpace:'nowrap',visibility:syncVisible?'visible':'hidden',color:syncColor}}>{syncLabel}</span>
         </div>
       </div>
       {/* Row 2: page tabs + theme toggle flush right */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 0 0 clamp(4px,1vw,8px)',marginTop:6}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 0 0 clamp(4px,1vw,8px)',marginTop:3}}>
         <TBNavBar items={navItems} page={page} onNav={onNav} onReorder={onReorderNav} variant="desktop"/>
         <div style={{padding:'0 clamp(12px,3vw,24px) 0 8px',display:'flex',alignItems:'center',gap:6,height:42,flexShrink:0}}>
           <button id="tb-lock-btn-desktop" onClick={()=>window._tbManageLock&&window._tbManageLock()} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:6,color:'var(--ac)',padding:'0 9px',height:28,boxSizing:'border-box',cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',lineHeight:0,opacity:(window._tbAppIsLocked&&window._tbAppIsLocked())?1:0.55,transition:'border-color .15s, opacity .15s',flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--ac)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--bd)'} title="TradeHub lock (whole app)"><TBIcon n={(window._tbAppIsLocked&&window._tbAppIsLocked())?'lock':'unlock'} size={14}/></button>
@@ -4314,9 +4314,9 @@ function TBMobileHeader({page,syncStatus,portfolioConnected,onNav,onManageTabLoc
   return(<div className="tb-mobile-header">
     <div style={{maxWidth:2000,margin:'0 auto',width:'100%'}}>
     {/* Row 1: title + sync — right side empty so fixed ✦ profile btn doesn't overlap */}
-    <div style={{padding:'calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 0',display:'flex',alignItems:'flex-start',justifyContent:'space-between',minHeight:30}}>
-      <div style={{display:'flex',flexDirection:'column',gap:2}}>
-        <div style={{whiteSpace:'nowrap'}}>
+    <div style={{padding:'calc(env(safe-area-inset-top,0px) + 6px) clamp(12px,3vw,24px) 0',display:'flex',alignItems:'flex-start',justifyContent:'space-between',minHeight:24}}>
+      <div style={{display:'flex',flexDirection:'column',gap:1}}>
+        <div style={{whiteSpace:'nowrap',lineHeight:1.05}}>
           <span className="suite-title">TradeHub</span>
         </div>
         <span style={{fontSize:10,fontWeight:600,visibility:syncVisible?'visible':'hidden',color:syncColor,lineHeight:1}}>{syncLabel}</span>
@@ -4324,7 +4324,7 @@ function TBMobileHeader({page,syncStatus,portfolioConnected,onNav,onManageTabLoc
       <div style={{flexShrink:0}}/>
     </div>
     {/* Row 2: action buttons flush right — matches Tony's TaskHub pattern */}
-    <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:6,padding:'6px clamp(12px,3vw,24px)'}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:6,padding:'4px clamp(12px,3vw,24px)'}}>
       <button id="tb-lock-btn-mobile" onClick={()=>window._tbManageLock&&window._tbManageLock()} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:6,color:'var(--ac)',padding:'0 9px',height:28,boxSizing:'border-box',cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',lineHeight:0,opacity:(window._tbAppIsLocked&&window._tbAppIsLocked())?1:0.55,transition:'border-color .15s, opacity .15s',flexShrink:0}} title="TradeHub lock"><TBIcon n={(window._tbAppIsLocked&&window._tbAppIsLocked())?'lock':'unlock'} size={14}/></button>
       <button onClick={()=>{const n=TB_NAV.find(x=>x.id===page)||TB_NAV[0];onManageTabLock&&onManageTabLock({id:n.id,label:n.label});}} style={{background:'transparent',border:'1px solid var(--bd)',borderRadius:4,color:'var(--ac)',padding:'0 8px',height:28,boxSizing:'border-box',cursor:'pointer',display:'inline-flex',alignItems:'center',justifyContent:'center',lineHeight:1,opacity:(window._tbTabLock&&window._tbTabLock.isLocked(page))?1:0.55,transition:'border-color .15s, opacity .15s',flexShrink:0}} title={(window._tbTabLock&&window._tbTabLock.isLocked(page))?'This tab is locked — manage':'Lock this tab'}><TBTabLockIcon locked={!!(window._tbTabLock&&window._tbTabLock.isLocked(page))}/></button>
     </div>

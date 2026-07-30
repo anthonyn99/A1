@@ -60,11 +60,11 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .app-hbar{position:-webkit-sticky;position:sticky;top:0;left:0;right:0;z-index:200;flex-shrink:0;}
 /* Compact header: Vault's chrome is two short rows, so it doesn't need the
    generous padding a content header would. Trimmed on both desktop and phone. */
-.app-hbar-inner{max-width:2000px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 8px) clamp(12px,3vw,24px) 8px;display:flex;flex-direction:column;gap:3px;min-width:0;width:100%;}
+.app-hbar-inner{max-width:2000px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 6px) clamp(12px,3vw,24px) 6px;display:flex;flex-direction:column;gap:2px;min-width:0;width:100%;}
 .app-hbar-row1{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;min-height:0;}
 .app-hbar-row2{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;width:100%;flex-wrap:wrap;}
 @media(max-width:640px){
-  .app-hbar-inner{padding:calc(env(safe-area-inset-top,0px) + 5px) clamp(10px,3vw,16px) 5px;gap:2px;}
+  .app-hbar-inner{padding:calc(env(safe-area-inset-top,0px) + 3px) clamp(10px,3vw,16px) 3px;gap:1px;}
 }
 
   /* ── App Lock overlay (mirrors index.html applock) ── */
