@@ -202,6 +202,22 @@
     .pay-modal-title { font-size:14px; font-weight:800; color:var(--tx); margin-bottom:4px; }
     .pay-modal-actions { display:flex; gap:6px; }
     .pay-modal-actions .pw-btn { margin:0; }
+
+    /* ── ID Docs panel ── */
+    /* Rows reuse .pw-row/.pay-row wholesale — only the leading mark differs.
+       The thumbnail is BLURRED, exactly as the web app's grid shows it: enough
+       to recognise the document, never enough to read off a shared screen. */
+    .idp-mark { flex-shrink:0; width:26px; height:26px; display:flex; align-items:center;
+      justify-content:center; color:var(--ac); margin-top:2px; }
+    .idp-mark svg { display:block; }
+    .idp-thumb { flex-shrink:0; width:34px; height:24px; border-radius:4px; overflow:hidden;
+      background:var(--s3); margin-top:2px; position:relative; }
+    .idp-thumb img { width:100%; height:100%; object-fit:cover; filter:blur(4px); transform:scale(1.25); }
+    .idp-thumb::after { content:''; position:absolute; inset:0; background:rgba(26,26,29,.35); }
+    /* Five tabs no longer fit at the default 344px popup width, so they wrap
+       into a tidy grid rather than crushing every label to an ellipsis. */
+    .tabs { flex-wrap:wrap; }
+    .tab { flex:1 1 auto; min-width:74px; padding:9px 6px; }
   </style>
 </head>
 <body>
@@ -220,6 +236,7 @@
     <button class="tab active" id="tab-links" data-panel="links">Links</button>
     <button class="tab" id="tab-pw" data-panel="passwords">Passwords</button>
     <button class="tab" id="tab-pay" data-panel="payments">Payments</button>
+    <button class="tab" id="tab-id" data-panel="iddocs">ID Docs</button>
   </div>
 
   <div id="scroll">
@@ -233,6 +250,10 @@
     </div>
 
     <div class="panel hidden" id="panel-payments">
+      <div class="loading">Loading…</div>
+    </div>
+
+    <div class="panel hidden" id="panel-iddocs">
       <div class="loading">Loading…</div>
     </div>
   </div>
@@ -253,9 +274,11 @@
   <script src="vault-sync.js"></script>
   <script src="vault-crypto.js"></script>
   <script src="vault-pay.js"></script>
+  <script src="vault-id.js"></script>
   <script src="vault-pw-core.js"></script>
   <script src="vault-pw.js"></script>
   <script src="vault-pay-panel.js"></script>
+  <script src="vault-id-panel.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

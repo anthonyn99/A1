@@ -291,10 +291,15 @@
 
   // ── public: read a file back ──────────────────────────────────────────────
   // Cache first (instant, offline, no KV read), network second. The plaintext
-  // Blob exists only for as long as the viewer holds its object URL.
+  // Blob exists only for as long as the session is unlocked — revokeAll() drops
+  // every one of these on lock.
+  var _blobs = {};   // key -> decrypted Blob (memory only, cleared on lock)
+  var _urls = {};    // key -> object URL for the same Blob
+
   async function blobFor(att, session) {
     if (!att || !att.key) throw new Error('no-attachment');
     if (!session || !session.isUnlocked()) throw new Error('locked');
+    if (_blobs[att.key]) return _blobs[att.key];
     var rec = await idbGet(att.key);
     var ct = rec && rec.ct ? new Uint8Array(rec.ct) : null;
     if (!ct) {
@@ -304,14 +309,33 @@
       idbPut({ key: att.key, iv: att.iv, ct: ct.buffer, mime: att.mime, size: att.size, uploaded: true });
     }
     var plain = await session.decryptBytes(att.iv || (rec && rec.iv), ct);
-    return new Blob([plain], { type: att.mime || 'application/octet-stream' });
+    var blob = new Blob([plain], { type: att.mime || 'application/octet-stream' });
+    _blobs[att.key] = blob;
+    return blob;
   }
 
-  // Object URLs are pooled per attachment key so re-opening a document doesn't
-  // decrypt it again, and revoked wholesale on lock (see revokeAll).
-  var _urls = {};
+  // The decrypted Blob if we already hold it, SYNCHRONOUSLY. This exists for one
+  // reason: navigator.share() must be called inside the user gesture that
+  // triggered it, and iOS drops transient activation across an await. So the
+  // save path checks here first and only falls back to the async route.
+  function cachedBlob(att) { return (att && _blobs[att.key]) || null; }
+  // Warm the cache ahead of a likely save — the viewer calls this when it draws
+  // a page, so the Download button is already synchronous by the time it's hit.
+  function prefetch(att, session) {
+    if (!att || !att.key || _blobs[att.key]) return Promise.resolve(null);
+    return blobFor(att, session).catch(function () { return null; });
+  }
+  function fileFrom(att, blob) {
+    var name = (att && att.name) || 'document';
+    var type = (att && att.mime) || blob.type || 'application/octet-stream';
+    try { return new File([blob], name, { type: type }); }
+    catch (e) { return blob; }   // very old browsers: File ctor unavailable
+  }
+
   async function objectUrl(att, session) {
     if (!att || !att.key) return '';
+    // Same reason as saveFile: a pooled URL must not outlive the unlock.
+    if (!session || !session.isUnlocked()) throw new Error('locked');
     if (_urls[att.key]) return _urls[att.key];
     var blob = await blobFor(att, session);
     var url = URL.createObjectURL(blob);
@@ -320,11 +344,140 @@
   }
   function revoke(key) {
     if (_urls[key]) { try { URL.revokeObjectURL(_urls[key]); } catch (_) {} delete _urls[key]; }
+    delete _blobs[key];
   }
   // Called on lock: every decrypted byte the page was holding goes away with it.
   function revokeAll() {
     Object.keys(_urls).forEach(function (k) { try { URL.revokeObjectURL(_urls[k]); } catch (_) {} });
     _urls = {};
+    _blobs = {};
+  }
+
+  // ── public: SAVE a file to the device ─────────────────────────────────────
+  // "Download" means three different things on the three platforms this has to
+  // work on, so this is a ladder rather than one call:
+  //
+  //   1. navigator.share({files})  — iOS and Android. This is the ONLY reliable
+  //      way to get a file out of Safari, and the only one at all inside an
+  //      installed PWA (standalone iOS has no downloads UI and ignores the
+  //      `download` attribute). It opens the native sheet: Save Image → Photos,
+  //      or Save to Files. Android gets the same sheet plus Drive/Keep/etc.
+  //   2. <a download>              — desktop Chrome/Edge/Firefox/Safari and
+  //      Android Chrome. Straight to the Downloads folder, no sheet.
+  //   3. open in a new tab         — last resort, so the file is at least on
+  //      screen and can be long-pressed / saved manually.
+  //
+  // Returns { ok, how, cancelled } — `cancelled` is a user dismissing the share
+  // sheet, which is NOT an error and must not surface as one.
+  //
+  // ── the transient-activation trap ──
+  // iOS only allows share() inside the gesture that triggered it, and an `await`
+  // in between throws NotAllowedError. Decrypting is inevitably async the first
+  // time, so: if the Blob is already cached we go straight to share (fully
+  // synchronous path); if it isn't, we decrypt, try anyway, and on
+  // NotAllowedError report `needsRetap` so the caller can say "tap again" — the
+  // second tap hits the warm cache and succeeds.
+  function canShareFile(file) {
+    try {
+      return !!(navigator.canShare && navigator.share && navigator.canShare({ files: [file] }));
+    } catch (e) { return false; }
+  }
+  // Should this device go through the native share sheet rather than a plain
+  // download?
+  //
+  // Support is NOT the right question. Desktop Windows/Edge and macOS/Safari
+  // both implement navigator.share, but on a desktop "Download" means a file in
+  // the Downloads folder — routing that through an OS share sheet would be a
+  // worse answer to the same request. The share sheet is the right (and on iOS
+  // the only) answer on a phone or tablet, so that is exactly where we use it.
+  function isMobileLike() {
+    if (isIOS()) return true;
+    var ua = navigator.userAgent || '';
+    if (/Android/i.test(ua)) return true;
+    try {
+      // A touch-primary device that isn't a desktop — covers Android tablets
+      // and Windows tablets in tablet mode.
+      return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0);
+    } catch (e) { return false; }
+  }
+  // Used to LABEL the button ("Save to device" vs "Download"); the per-file
+  // decision is still made inside saveFile().
+  function prefersShare() {
+    if (!isMobileLike()) return false;
+    try { return canShareFile(new File([new Uint8Array(1)], 'p.png', { type: 'image/png' })); }
+    catch (e) { return false; }
+  }
+  function anchorDownload(blob, name) {
+    try {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = name || 'document';
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { try { URL.revokeObjectURL(url); } catch (_) {} }, 20000);
+      return true;
+    } catch (e) { return false; }
+  }
+  // `download` is a no-op in an installed iOS PWA, so we must not claim success
+  // by taking that branch there.
+  function anchorDownloadWorks() {
+    try {
+      if (typeof document === 'undefined') return false;
+      var standalone = (navigator.standalone === true) ||
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+      if (isIOS() && standalone) return false;
+      return 'download' in document.createElement('a');
+    } catch (e) { return false; }
+  }
+  function isIOS() {
+    var ua = (navigator.userAgent || '');
+    // iPadOS 13+ reports as a Mac; the touch-point check is what separates them.
+    return /iPad|iPhone|iPod/.test(ua) ||
+      (/Macintosh/.test(ua) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1);
+  }
+
+  async function saveFile(att, session) {
+    // Checked here and not only in blobFor: a warm cache would otherwise let a
+    // LOCKED vault still hand over plaintext. The shell clears the cache on
+    // lock, but this must not depend on the caller having remembered to.
+    if (!session || !session.isUnlocked()) throw new Error('locked');
+    var blob = cachedBlob(att);
+    var warm = !!blob;
+    if (!blob) blob = await blobFor(att, session);
+    var file = fileFrom(att, blob);
+    var name = (att && att.name) || 'document';
+
+    var shareFirst = isMobileLike() && canShareFile(file);
+
+    // 1 — plain download, on anything with a Downloads folder.
+    if (!shareFirst && anchorDownloadWorks() && anchorDownload(blob, name)) return { ok: true, how: 'download' };
+
+    // 2 — the native share sheet: Save Image → Photos, or Save to Files. On an
+    // installed iOS PWA this is the ONLY route that exists.
+    if (canShareFile(file)) {
+      try {
+        await navigator.share({ files: [file], title: name });
+        return { ok: true, how: 'share' };
+      } catch (e) {
+        var n = (e && e.name) || '';
+        if (n === 'AbortError') return { ok: false, cancelled: true, how: 'share' };
+        // Activation was lost across the decrypt — a second tap will be warm.
+        if (n === 'NotAllowedError' && !warm) return { ok: false, needsRetap: true, how: 'share' };
+        // Anything else (NotSupportedError on some builds): fall through.
+      }
+    }
+    // 3 — the download we skipped above, now as the fallback.
+    if (anchorDownloadWorks() && anchorDownload(blob, name)) return { ok: true, how: 'download' };
+    // 4 — put it on screen so it can still be saved by hand.
+    try {
+      var url = await objectUrl(att, session);
+      var w = window.open(url, '_blank', 'noopener,noreferrer');
+      if (w) return { ok: true, how: 'opened' };
+    } catch (e) {}
+    return { ok: false, how: 'none' };
   }
 
   // ── public: delete ────────────────────────────────────────────────────────
@@ -377,5 +530,9 @@
     remove: remove, removeMany: removeMany, retryPending: retryPending,
     makeThumb: makeThumb, humanSize: humanSize, isImageFile: isImageFile, isPdfFile: isPdfFile,
     newKey: newKey,
+    // saving to the device
+    saveFile: saveFile, cachedBlob: cachedBlob, prefetch: prefetch, fileFrom: fileFrom,
+    canShareFile: canShareFile, prefersShare: prefersShare, isMobileLike: isMobileLike,
+    anchorDownloadWorks: anchorDownloadWorks, isIOS: isIOS,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

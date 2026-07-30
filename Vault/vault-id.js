@@ -416,6 +416,53 @@
     return out;
   }
 
+  // ── autofill ──────────────────────────────────────────────────────────────
+  // Types whose NUMBER is sensitive enough to need a fresh credential check
+  // before it is released to a web page — the same bar the extension already
+  // applies to a card's security code. A licence number on a rental form is
+  // routine; a Social Security number never is.
+  var SENSITIVE_TYPES = { ssn_card: 1 };
+  function isSensitive(item) { return !!SENSITIVE_TYPES[typeOf(item).id]; }
+
+  // The value bundle a form filler writes from. Pure and flat, so the DOM-side
+  // code (vault-idfill.js) contains no knowledge of the document model — same
+  // split VaultPay.autofillValues() uses for cards.
+  //
+  // `opts.includeNumber` defaults to true; the caller sets it false when the
+  // document is sensitive and auth isn't fresh. Dates are pre-split because
+  // forms ask for them every possible way.
+  function autofillValues(item, opts) {
+    opts = opts || {};
+    item = item || {};
+    var type = typeOf(item);
+    var includeNumber = opts.includeNumber !== false;
+    var out = {
+      docType: type.id,
+      typeLabel: type.label,
+      title: str(item.title),
+      issuer: str(item.issuer),
+      region: str(item.region),
+      country: str(item.country),
+      group: str(item.group),
+      number: includeNumber ? str(item.number) : '',
+      numberDigits: includeNumber ? str(item.number).replace(/\D/g, '') : '',
+    };
+    addDateParts(out, 'exp', item.expirationDate);
+    addDateParts(out, 'issue', item.issueDate);
+    return out;
+  }
+  function addDateParts(out, prefix, raw) {
+    var iso = normalizeDate(raw);
+    out[prefix] = iso;                                   // 'YYYY-MM-DD' for <input type=date>
+    if (!iso) { out[prefix + 'Us'] = ''; out[prefix + 'Month'] = ''; out[prefix + 'Day'] = ''; out[prefix + 'Year'] = ''; out[prefix + 'YearShort'] = ''; return; }
+    var p = iso.split('-');
+    out[prefix + 'Year'] = p[0];
+    out[prefix + 'YearShort'] = p[0].slice(2);
+    out[prefix + 'Month'] = p[1];
+    out[prefix + 'Day'] = p[2];
+    out[prefix + 'Us'] = p[1] + '/' + p[2] + '/' + p[0];  // MM/DD/YYYY
+  }
+
   // Documents worth surfacing as "needs attention", newest deadline first.
   function expiringSoon(items, now) {
     return (items || []).filter(function (i) {
@@ -446,6 +493,8 @@
     // ordering / filtering
     hasOrder: hasOrder, nextTopOrder: nextTopOrder, sortDocs: sortDocs, filterDocs: filterDocs,
     groupCounts: groupCounts, expiringSoon: expiringSoon,
+    // autofill
+    SENSITIVE_TYPES: SENSITIVE_TYPES, isSensitive: isSensitive, autofillValues: autofillValues,
   };
 
   global.VaultId = api;

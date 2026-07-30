@@ -672,6 +672,12 @@
         ]),
       ]),
       el('div', { class: 'vid-tile-btns' }, [
+        // Reachable without opening the viewer — "download it anytime" should
+        // not mean "navigate somewhere first".
+        (function () {
+          var b = host.iconBtn(VIF.prefersShare() ? 'Save to device' : 'Download', icons.download, function () { downloadAtt(host, att, b); });
+          return b;
+        })(),
         host.iconBtn('Replace', icons.swap, function () { replace.click(); }),
         host.iconBtn('Remove', icons.trash, async function () {
           if (!(await host.confirmUI('Remove this file from the document?', { title: 'Remove file', okLabel: 'Remove', danger: true }))) return;
@@ -817,7 +823,25 @@
       } else if (VID.isPdf(att)) {
         media = null;
         zoomBar.style.display = 'none';
-        stage.appendChild(el('iframe', { class: 'vid-pdf', src: url, title: att.name || 'PDF document' }));
+        // iOS renders a blob: PDF in an <iframe> as a blank white box — every
+        // WebKit browser on the platform, not just Safari. Showing that would
+        // look like the file was lost. Offer the two things that DO work there
+        // instead: open it in its own tab, or save it via the share sheet.
+        if (VIF.isIOS()) {
+          var pdfSave = el('button', { class: 'vault-btn primary', style: 'width:auto' }, ['Save to device']);
+          pdfSave.addEventListener('click', function () { downloadAtt(host, att, pdfSave); });
+          stage.appendChild(el('div', { class: 'vid-stage-empty' }, [
+            el('span', { class: 'vid-stage-glyph', html: icons.pdf }),
+            el('div', { class: 'vid-pdf-name' }, [att.name || 'PDF document']),
+            el('div', {}, ['PDFs open in their own tab on iOS.']),
+            el('div', { class: 'vid-pdf-btns' }, [
+              el('button', { class: 'vault-btn', style: 'width:auto', onclick: function () { window.open(url, '_blank', 'noopener,noreferrer'); } }, ['Open PDF']),
+              pdfSave,
+            ]),
+          ]));
+        } else {
+          stage.appendChild(el('iframe', { class: 'vid-pdf', src: url, title: att.name || 'PDF document' }));
+        }
       } else {
         media = null;
         zoomBar.style.display = 'none';
@@ -828,6 +852,10 @@
         ]));
       }
       applyTransform();
+      // Warm the neighbouring page so a swipe lands instantly, and so its
+      // Download button is already on the synchronous share path (see saveFile).
+      var nextPage = pages[idx + 1];
+      if (nextPage && nextPage.entry) VIF.prefetch(nextPage.entry.att, host.session());
     }
 
     // Pointer-events pan/zoom: one code path for mouse, touch and pen. A
@@ -1020,7 +1048,12 @@
         } catch (e) { host.toast('Could not open that file'); }
       }));
       wrap.appendChild(btn('Replace', icons.swap, function () { ctl.close(); openEditor(it, host); }));
-      wrap.appendChild(btn('Download', icons.download, function () { downloadAtt(host, att); }));
+      var dl = btn(VIF.prefersShare() ? 'Save to device' : 'Download', icons.download, function () { downloadAtt(host, att, dl); });
+      wrap.appendChild(dl);
+      if (VID.attachmentCount(it) > 1) {
+        var dlAll = btn('Save all ' + VID.attachmentCount(it) + ' files', icons.download, function () { downloadAll(host, it, dlAll); });
+        wrap.appendChild(dlAll);
+      }
     }
     wrap.appendChild(btn('Edit', icons.pencil, function () { ctl.close(); openEditor(it, host); }));
     if (att) {
@@ -1043,16 +1076,42 @@
     }, 'danger'));
   }
 
-  async function downloadAtt(host, att) {
+  // ── saving files to the device ────────────────────────────────────────────
+  // One entry point for every "get this out of Vault" button, so desktop,
+  // Android and iOS all behave. The ladder itself lives in vault-id-files.js;
+  // what belongs here is telling the user honestly what happened — a share
+  // sheet they dismissed is not a failure, and an iOS activation timeout is a
+  // "tap again", not an error.
+  async function downloadAtt(host, att, btn) {
+    var prev = btn && btn.innerHTML;
+    if (btn) { btn.disabled = true; }
     try {
-      var blob = await VIF.blobFor(att, host.session());
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url; a.download = att.name || 'document';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
-      host.toast('Downloaded');
-    } catch (e) { host.toast('Could not download that file'); }
+      var r = await VIF.saveFile(att, host.session());
+      if (r.ok) host.toast(r.how === 'share' ? 'Saved' : r.how === 'opened' ? 'Opened — long-press to save' : 'Downloaded');
+      else if (r.cancelled) { /* the user closed the sheet — say nothing */ }
+      else if (r.needsRetap) host.toast('Ready — tap Download once more to save');
+      else host.toast('Could not save that file');
+    } catch (e) {
+      host.toast(e && e.message === 'locked' ? 'Vault is locked' : 'Could not save that file');
+    } finally {
+      if (btn) { btn.disabled = false; if (prev != null) btn.innerHTML = prev; }
+    }
+  }
+  // Every file on a document, saved one after another. Sequential on purpose:
+  // the iOS share sheet is modal, so firing them in parallel loses all but one.
+  async function downloadAll(host, item, btn) {
+    var atts = VID.allAttachments(item).map(function (e) { return e.att; });
+    if (!atts.length) { host.toast('No files on this document'); return; }
+    if (atts.length === 1) return downloadAtt(host, atts[0], btn);
+    var saved = 0;
+    for (var i = 0; i < atts.length; i++) {
+      try {
+        var r = await VIF.saveFile(atts[i], host.session());
+        if (r.ok) saved++;
+        else if (r.cancelled) break;      // dismissing one sheet means "stop"
+      } catch (e) {}
+    }
+    host.toast(saved ? 'Saved ' + saved + ' of ' + atts.length + ' file' + (atts.length === 1 ? '' : 's') : 'Could not save those files');
   }
 
   // ── modal scaffold ────────────────────────────────────────────────────────
@@ -1316,6 +1375,9 @@
       '.vid-stage-empty{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--txd);font-size:13px;',
       '  text-align:center;padding:30px;line-height:1.6}',
       '.vid-stage-glyph{color:var(--ac);opacity:.6;line-height:0}',
+      '.vid-pdf-name{font-size:14px;color:var(--tx);font-weight:500;word-break:break-word}',
+      '.vid-pdf-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}',
+      '.vid-pdf-btns .vault-btn{margin:0}',
       '@keyframes vid-shimmer{0%{background-position:-320px 0}100%{background-position:320px 0}}',
       '.vid-skel{width:min(70%,420px);height:min(60%,300px);border-radius:var(--radius);',
       '  background:linear-gradient(90deg,var(--s2) 25%,var(--s3) 50%,var(--s2) 75%);background-size:640px 100%;',

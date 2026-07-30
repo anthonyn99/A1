@@ -24,6 +24,7 @@ const TASKHUB_KEYCHAIN_URL = VAULT_APP_URL;
 // ?vaulttab is read by vault-ui.js on boot.
 const TASKHUB_VAULT_PW_URL = VAULT_APP_URL + "?vaulttab=passwords";
 const TASKHUB_VAULT_PAY_URL = VAULT_APP_URL + "?vaulttab=payments";
+const TASKHUB_VAULT_ID_URL = VAULT_APP_URL + "?vaulttab=iddocs";
 
 // ── Persisted, user-adjustable popup size ──
 // #app has CSS `resize:both`; drag its bottom-right corner to resize. We restore
@@ -234,11 +235,13 @@ const gearEl = document.getElementById("gear");
 const TAB_TITLES = {
   passwords: "Manage passwords in the Vault app",
   payments: "Manage payment methods in the Vault app",
+  iddocs: "Manage ID documents in the Vault app",
   links: "Open the Vault app",
 };
 const TAB_GEAR_URLS = {
   passwords: TASKHUB_VAULT_PW_URL,
   payments: TASKHUB_VAULT_PAY_URL,
+  iddocs: TASKHUB_VAULT_ID_URL,
   links: TASKHUB_KEYCHAIN_URL,
 };
 
@@ -246,13 +249,14 @@ function setActiveTab(name) {
   activeTab = name;
   document.querySelectorAll(".tab").forEach(t =>
     t.classList.toggle("active", t.dataset.panel === name));
-  ["links", "passwords", "payments"].forEach(p =>
+  ["links", "passwords", "payments", "iddocs"].forEach(p =>
     document.getElementById("panel-" + p).classList.toggle("hidden", name !== p));
   gearEl.title = TAB_TITLES[name] || TAB_TITLES.links;
   // Render each vault panel (unlock / list / autofill) on first open. Both share
   // one unlocked session, so unlocking on either tab covers the other.
   if (name === "passwords" && window.VaultPWPanel) window.VaultPWPanel.render();
   if (name === "payments" && window.VaultPayPanel) window.VaultPayPanel.render();
+  if (name === "iddocs" && window.VaultIdPanel) window.VaultIdPanel.render();
 }
 
 document.querySelectorAll(".tab").forEach(tab =>

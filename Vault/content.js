@@ -10,6 +10,10 @@
 //   PAYMENTS — focus a card field on a checkout → your saved cards. Runs in
 //              EVERY frame, because hosted card fields (Stripe/Braintree/Adyen)
 //              live in their own iframes.
+//   ID DOCS  — focus a licence / passport / policy-number field, or a file
+//              upload that takes an image or PDF → your saved ID documents.
+//              Picking one fills the form's identity fields, or drops the
+//              actual decrypted SCAN into the upload field.
 //
 // ── What this script is trusted with ────────────────────────────────────────
 // Logins keep their existing contract: the background hands over the specific
@@ -21,6 +25,13 @@
 // to draw the list. When you pick a card, it sends just the item id; the
 // background decrypts and fills the fields itself (see vaultFillCard). So a
 // compromised page context has nothing to steal here even mid-checkout.
+//
+// ID documents follow the payments rule for TEXT — masked summaries only, and
+// the background does the filling. The ONE exception is attaching a scan to an
+// upload field: a File can only be built in the frame that owns the input, so
+// those bytes do arrive here. They are turned into a File, written into the
+// input, and dropped — and the page was going to receive them anyway, because
+// handing the document to that form is exactly what the user chose to do.
 // ─────────────────────────────────────────────────────────────────────────────
 
 (function () {
@@ -60,6 +71,10 @@
     return ask({ action: "vaultGetCards" }, { unlocked: false, cards: [] })
       .then((r) => ({ unlocked: !!r.unlocked, cvvFresh: !!r.cvvFresh, cards: r.cards || [] }));
   }
+  function getIdDocs() {
+    return ask({ action: "vaultGetIdDocs" }, { unlocked: false, docs: [] })
+      .then((r) => ({ unlocked: !!r.unlocked, authFresh: !!r.authFresh, docs: r.docs || [] }));
+  }
   // The popup broadcasts here when you unlock/lock so an OPEN dropdown updates
   // instantly (hide on lock; re-render on unlock if a field is focused).
   try {
@@ -85,6 +100,32 @@
         if (out && out.filled > 0) { sendResponse(out); hide(); return true; }
         return;
       }
+
+      // Same contract for ID documents: a frame with nothing to fill stays
+      // SILENT, so the frame that owns the form wins the broadcast reply.
+      if (msg.action === "vaultDoFillIdDoc") {
+        let out = { filled: 0, number: false };
+        try { if (self.VaultIdFill) out = self.VaultIdFill.fill(msg.values); } catch (e) {}
+        if (out && out.filled > 0) { sendResponse(out); hide(); return true; }
+        return;
+      }
+
+      // Attach a decrypted scan to this frame's upload field. Prefers the field
+      // the dropdown is anchored to; otherwise the first upload field that will
+      // accept the file's type.
+      if (msg.action === "vaultDoAttachIdFile") {
+        try {
+          if (!self.VaultIdFill) return;
+          const f = msg.file || {};
+          const target = pickFileInput(f.mime, f.name);
+          if (!target) return;                       // silent — another frame may have one
+          const file = self.VaultIdFill.fileFromBase64(f.b64, f.name, f.mime);
+          const ok = self.VaultIdFill.attachFile(target, file);
+          sendResponse({ ok, error: ok ? null : "attach-failed" });
+          if (ok) hide();
+          return true;
+        } catch (e) { return; }
+      }
     });
   } catch (e) {}
 
@@ -105,13 +146,45 @@
   function isCardField(elm) {
     try { return !!(self.VaultCardFill && self.VaultCardFill.isCardField(elm)); } catch (e) { return false; }
   }
+  function isIdField(elm) {
+    try { return !!(self.VaultIdFill && self.VaultIdFill.isIdField(elm)); } catch (e) { return false; }
+  }
+  // An unmistakable identity field (a "Driver's licence number" box) is worth
+  // telling the user their vault is locked; a maybe-field is not.
+  function isStrongIdField(elm) {
+    try { return !!(self.VaultIdFill && self.VaultIdFill.isStrong(self.VaultIdFill.classify(elm))); } catch (e) { return false; }
+  }
   // Which dropdown (if any) this field wants. Card fields are checked FIRST so a
   // CVV input that a site marked type="password" (with autocomplete="cc-csc")
-  // offers cards rather than logins.
+  // offers cards rather than logins. ID docs come next: vault-idfill.js already
+  // refuses anything the card filler claimed, so a checkout's State/ZIP can
+  // never be hijacked away from Payments.
   function fieldMode(elm) {
     if (isCardField(elm)) return "payment";
+    if (isIdField(elm)) return "iddoc";
     if (IS_TOP && isLoginField(elm)) return "login";
     return "";
+  }
+  // The upload field a scan should go into: the one the dropdown is anchored to
+  // if it takes this type, else the first visible one on the page that does.
+  function pickFileInput(mime, name) {
+    const IF = self.VaultIdFill;
+    if (!IF) return null;
+    if (anchor && IF.isIdFileField(anchor) && IF.fileAccepts(anchor, mime, name)) return anchor;
+    const all = document.querySelectorAll('input[type="file"]');
+    for (let i = 0; i < all.length; i++) {
+      const e = all[i];
+      if (!IF.isIdFileField(e) || !IF.fileAccepts(e, mime, name)) continue;
+      if (e.offsetParent === null) {
+        // File inputs are very often visually hidden behind a styled button;
+        // a zero-size one is still the real target, so only skip display:none
+        // that also has no rect.
+        const r = e.getBoundingClientRect();
+        if (!r.width && !r.height && getComputedStyle(e).display === "none" && !e.labels?.length) continue;
+      }
+      return e;
+    }
+    return null;
   }
 
   function fieldsFor(elm) {
@@ -151,10 +224,40 @@
     if (!r.ok) { note(r.locked ? "Vault locked — open the Vault popup to unlock." : "No card fields found here."); setTimeout(hide, 2200); return; }
     hide();
   }
+  // ID docs: like cards, we send only the id. For a text form the background
+  // fills it; for an upload field it sends back the decrypted bytes to attach.
+  async function useIdDoc(doc) {
+    const wrap = shadow && shadow.getElementById("wrap");
+    if (wrap) wrap.querySelectorAll(".v-item").forEach((n) => { n.style.opacity = ".5"; n.style.pointerEvents = "none"; });
+    const wantsFile = !!(anchor && self.VaultIdFill && self.VaultIdFill.isIdFileField(anchor));
+    if (wantsFile) {
+      if (!doc.files) { note("That document has no scan saved yet."); setTimeout(hide, 2400); return; }
+      note("Decrypting scan…");
+      const r = await ask({ action: "vaultAttachIdFile", id: doc.id }, { ok: false });
+      if (!r.ok) {
+        note(r.locked ? "Vault locked — open the Vault popup to unlock."
+          : r.error === "pending" ? "That scan hasn't finished uploading yet."
+          : r.error === "too-large" ? "That scan is too large to attach."
+          : "Couldn't attach that scan here.");
+        setTimeout(hide, 2600);
+        return;
+      }
+      hide();
+      return;
+    }
+    const r = await ask({ action: "vaultFillIdDoc", id: doc.id }, { ok: false });
+    if (r.ok && r.numberWithheld) {
+      note("Filled without the number — unlock Vault again to include it.");
+      setTimeout(hide, 2600);
+      return;
+    }
+    if (!r.ok) { note(r.locked ? "Vault locked — open the Vault popup to unlock." : "No ID fields found here."); setTimeout(hide, 2200); return; }
+    hide();
+  }
   function note(text) {
     const wrap = shadow && shadow.getElementById("wrap");
     if (!wrap) return;
-    wrap.innerHTML = '<div class="v-head">' + headIcon() + esc(mode === "payment" ? "Vault Payments" : "Vault Autofill") + '</div><div class="v-msg">' + esc(text) + "</div>";
+    wrap.innerHTML = '<div class="v-head">' + headIcon() + esc(headLabel()) + '</div><div class="v-msg">' + esc(text) + "</div>";
   }
 
   // ── dropdown UI (Shadow DOM, isolated from page CSS) ───────────────────────
@@ -174,6 +277,9 @@
       .v-ic{width:18px;height:18px;border-radius:4px;background:#2c2c31;flex-shrink:0}
       .v-mark{width:30px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
       .v-mark svg{width:30px;height:20px;display:block}
+      .v-idthumb{width:30px;height:21px;border-radius:4px;overflow:hidden;flex-shrink:0;background:#2c2c31;position:relative}
+      .v-idthumb img{width:100%;height:100%;object-fit:cover;filter:blur(4px);transform:scale(1.25)}
+      .v-idthumb::after{content:"";position:absolute;inset:0;background:rgba(26,26,29,.32)}
       .v-txt{min-width:0;flex:1}
       .v-t{font-size:12.5px;font-weight:700;color:#f4f3f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .v-u{font-size:11px;color:#adadb2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;font-variant-numeric:tabular-nums}
@@ -198,7 +304,11 @@
   function cardIconSVG() {
     return '<svg class="v-dot" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="#e0b874" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>';
   }
-  function headIcon() { return mode === "payment" ? cardIconSVG() : keyIconSVG(); }
+  function idIconSVG() {
+    return '<svg class="v-dot" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="#e0b874" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5 16c.6-1.3 1.8-2 3-2s2.4.7 3 2"/><path d="M14 10h5"/><path d="M14 13.5h5"/></svg>';
+  }
+  function headIcon() { return mode === "payment" ? cardIconSVG() : mode === "iddoc" ? idIconSVG() : keyIconSVG(); }
+  function headLabel() { return mode === "payment" ? "Vault Payments" : mode === "iddoc" ? "Vault ID Docs" : "Vault Autofill"; }
 
   function renderLogins(state) {
     let html = '<div class="v-head">' + keyIconSVG() + "Vault Autofill</div>";
@@ -234,11 +344,51 @@
     }
     return html;
   }
+  // The scan is shown BLURRED here exactly as it is in the app and the popup —
+  // a dropdown on a random web page is the last place a readable licence should
+  // appear.
+  function renderIdDocs(state, wantsFile) {
+    let html = '<div class="v-head">' + idIconSVG() + "Vault ID Docs</div>";
+    const list = wantsFile ? state.docs.filter((d) => d.files > 0) : state.docs;
+    if (state.unlocked && list.length) {
+      html += list.map((d) => {
+        const cls = d.expiryState === "expired" ? " bad" : d.expiryState === "expiring" ? " warn" : "";
+        const mark = d.thumb
+          ? '<span class="v-idthumb"><img src="' + esc(d.thumb) + '" alt=""></span>'
+          : '<span class="v-mark">' + idIconSVG() + "</span>";
+        const sub = wantsFile
+          ? d.files + " file" + (d.files === 1 ? "" : "s")
+          : (d.masked || d.subtitle || d.typeLabel);
+        return '<div class="v-item" data-id="' + esc(d.id) + '">' + mark +
+          '<div class="v-txt"><div class="v-t">' + esc(d.title) + "</div>" +
+          '<div class="v-u">' + esc(sub) + "</div></div>" +
+          (d.expiry ? '<span class="v-exp' + cls + '">' + esc(d.expiryState === "expired" ? "EXP" : d.expiry) + "</span>" : "") +
+          "</div>";
+      }).join("");
+      html += '<div class="v-foot">' + (wantsFile ? "Attaches the decrypted scan · " : "") +
+        list.length + " document" + (list.length === 1 ? "" : "s") + " · Vault</div>";
+    } else if (state.unlocked) {
+      html += '<div class="v-msg">' + (wantsFile
+        ? "None of your ID documents have a scan saved. Add one in the <b>Vault app → ID Docs</b>."
+        : "No ID documents yet. Add one in the <b>Vault app → ID Docs</b>.") + "</div>";
+    } else {
+      html += '<div class="v-msg">Vault is locked. Click the <b>Vault</b> toolbar icon → <b>ID Docs</b> to unlock, then reload.</div>';
+    }
+    return html;
+  }
   function render(state) {
     ensureBox();
     const wrap = shadow.getElementById("wrap");
-    wrap.innerHTML = mode === "payment" ? renderCards(state) : renderLogins(state);
+    const wantsFile = !!(anchor && self.VaultIdFill && self.VaultIdFill.isIdFileField(anchor));
+    wrap.innerHTML = mode === "payment" ? renderCards(state)
+      : mode === "iddoc" ? renderIdDocs(state, wantsFile)
+      : renderLogins(state);
     wrap.querySelectorAll(".v-item").forEach((n) => n.addEventListener("click", () => {
+      if (mode === "iddoc") {
+        const doc = state.docs.filter((d) => d.id === n.getAttribute("data-id"))[0];
+        if (doc) useIdDoc(doc);
+        return;
+      }
       const item = (mode === "payment" ? state.cards : state.creds)[+n.getAttribute("data-i")];
       if (item) (mode === "payment" ? fillCard : fill)(item);
     }));
@@ -258,6 +408,19 @@
     const m = fieldMode(elm);
     if (!m) { hide(); return; }
     mode = m; anchor = elm;
+    if (m === "iddoc") {
+      const state = await getIdDocs();
+      const wantsFile = !!(self.VaultIdFill && self.VaultIdFill.isIdFileField(elm));
+      // Don't interrupt with an empty offer. An upload field is a weak signal —
+      // most file inputs on the web are not asking for an ID — so it only opens
+      // when there is actually a scan to hand over.
+      if (wantsFile) {
+        if (!state.unlocked || !state.docs.some((d) => d.files > 0)) { hide(); return; }
+      } else if (!state.unlocked && !isStrongIdField(elm)) { hide(); return; }
+      else if (state.unlocked && !state.docs.length) { hide(); return; }
+      render(state); position();
+      return;
+    }
     if (m === "payment") {
       const state = await getCards();
       // Only interrupt a checkout when we have something to offer, or when the

@@ -178,6 +178,33 @@ const iso = (ms) => {
   ok('pending upload is detected', VID.hasPendingUpload({ front: Object.assign(att('f'), { pending: true }) }));
   ok('a fully-uploaded document is not pending', !VID.hasPendingUpload(withFiles));
 
+  console.log('\n── autofill bundle ──');
+  const av = VID.autofillValues({
+    docType: 'drivers_license', title: ' Driver License ', issuer: 'Colorado DMV',
+    number: '12-345-6789', region: 'Colorado', country: 'United States',
+    issueDate: '2024-3-8', expirationDate: '2030-03-18',
+  });
+  ok('carries the type so the filler knows which box to aim at', av.docType === 'drivers_license');
+  ok('trims as it goes', av.title === 'Driver License');
+  ok('normalises a loose date on the way out', av.issue === '2024-03-08' && av.issueUs === '03/08/2024');
+  ok('splits the expiry every way a form can ask',
+    av.exp === '2030-03-18' && av.expUs === '03/18/2030' && av.expMonth === '03' &&
+    av.expDay === '18' && av.expYear === '2030' && av.expYearShort === '30');
+  ok('offers a digits-only number for strict inputs', av.numberDigits === '123456789');
+  ok('a missing date yields empty strings, never undefined', (() => {
+    const b = VID.autofillValues({ docType: 'ssn_card', number: '1' });
+    return b.exp === '' && b.expUs === '' && b.expYear === '' && b.expYearShort === '';
+  })());
+  ok('includeNumber:false strips the number AND its digits', (() => {
+    const b = VID.autofillValues({ docType: 'ssn_card', number: '123-45-6789' }, { includeNumber: false });
+    return b.number === '' && b.numberDigits === '';
+  })());
+  ok('only the SSN card is sensitive', VID.isSensitive({ docType: 'ssn_card' }) &&
+    !VID.isSensitive({ docType: 'drivers_license' }) && !VID.isSensitive({ docType: 'passport' }) &&
+    !VID.isSensitive({ docType: 'insurance_card' }));
+  ok('an unknown future type is not silently treated as sensitive',
+    VID.isSensitive({ docType: 'green_card_2030' }) === false);
+
   console.log('\n── manual ordering ──');
   ok('hasOrder', VID.hasOrder({ order: 0 }) && !VID.hasOrder({}) && !VID.hasOrder({ order: NaN }));
   ok('nextTopOrder goes above the current minimum', VID.nextTopOrder([{ order: 2 }, { order: 5 }]) === 1);

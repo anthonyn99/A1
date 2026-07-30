@@ -30,6 +30,12 @@
 
   const VC = root.VaultCrypto || (typeof require !== "undefined" ? require("./vault-crypto.js") : null);
   const VPay = root.VaultPay || (typeof require !== "undefined" ? require("./vault-pay.js") : null);
+  const VId = root.VaultId || (typeof require !== "undefined" ? require("./vault-id.js") : null);
+
+  // Where ID-document scans live. The same Worker + KV namespace the web app
+  // uploads to; what it holds is AES-GCM ciphertext under a random key, so the
+  // extension fetching from it leaks nothing about which document is which.
+  const FILES_URL = "https://vault-files.av1.workers.dev/keychain/f/";
 
   let config = null, items = {}, dek = null, loaded = false;
   // Set on a real credential presentation only; survives across popup opens via
@@ -185,6 +191,60 @@
     return VPay ? list.map((c) => VPay.summarize(c)) : list;
   }
 
+  // ── ID documents ───────────────────────────────────────────────────────────
+  // Same one decrypt path as logins and cards — `kind:'iddoc'` is the only
+  // plaintext field on the stored doc. Sorting matches the web app's default so
+  // the popup lists documents in the order you last saw them there.
+  async function idDocs() {
+    const out = await decryptKind("iddoc");
+    return VId ? VId.sortDocs(out, "added") : out;
+  }
+  async function idDocById(id) {
+    if (!dek) throw new Error("locked");
+    const doc = items[id];
+    if (!doc || doc.deleted || doc.kind !== "iddoc" || !doc.enc) return null;
+    try { return Object.assign({ id }, await VC.decrypt(dek, doc.enc)); } catch (e) { return null; }
+  }
+  // What a page-side context (the autofill dropdown) may see: title, type,
+  // issuer, expiry state, a MASKED number, and the inline thumbnail — never the
+  // document number itself, and never a decrypted scan.
+  async function idDocSummaries() {
+    const list = await idDocs();
+    if (!VId) return list;
+    return list.map((d) => {
+      const s = VId.summarize(d);
+      return {
+        id: d.id, docType: d.docType, title: s.title, typeLabel: s.typeLabel,
+        subtitle: s.subtitleFull, masked: s.masked, hasNumber: !!s.number,
+        expiry: s.expirationShort, expiryState: s.expiryState, badge: s.badge,
+        files: s.attachments, thumb: (s.cover && s.cover.thumb) || "",
+      };
+    });
+  }
+
+  // ── attachment bytes ───────────────────────────────────────────────────────
+  // Decrypt raw bytes under the session DEK. Mirrors VaultSession.decryptBytes
+  // in the web app — same key, same algorithm, so a scan uploaded from a phone
+  // opens here and vice versa.
+  async function decryptBytes(ivB64, bytes) {
+    if (!dek) throw new Error("locked");
+    const iv = VC.b64ToBytes(ivB64);
+    const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, dek, buf);
+    return new Uint8Array(pt);
+  }
+  // Fetch one attachment's ciphertext from the file host and decrypt it.
+  // Returns plaintext bytes; the caller decides whether that becomes a Blob to
+  // download or a File to hand to a page's upload field.
+  async function attachmentBytes(att) {
+    if (!dek) throw new Error("locked");
+    if (!att || !att.key) throw new Error("no-attachment");
+    const r = await fetch(FILES_URL + encodeURIComponent(att.key));
+    if (!r.ok) throw new Error("download-" + r.status);
+    const ct = new Uint8Array(await r.arrayBuffer());
+    return decryptBytes(att.iv, ct);
+  }
+
   function hostFromUrl(u) {
     try { return new URL(/^https?:\/\//i.test(u) ? u : "https://" + u).hostname.toLowerCase().replace(/^www\./, ""); }
     catch { return String(u || "").toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]; }
@@ -241,6 +301,8 @@
     biometricAvailable, biometricLabel, unlockWithBiometric, getBioLink,
     // payments
     payments, paymentById, paymentSummaries, decryptKind,
+    // ID documents
+    idDocs, idDocById, idDocSummaries, attachmentBytes, decryptBytes, FILES_URL,
     // auth freshness (gates CVV release)
     authAge, authFresh, reauth, CVV_FRESH_MS,
   };

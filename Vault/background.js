@@ -10,7 +10,7 @@
 // expired / never unlocked, it reports locked and the content script shows an
 // "unlock" hint instead of credentials.
 
-importScripts("vault-crypto.js", "vault-pay.js", "vault-pw-core.js");
+importScripts("vault-crypto.js", "vault-pay.js", "vault-id.js", "vault-pw-core.js");
 
 function normalize(url) {
   if (!url) return null;
@@ -359,6 +359,125 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const filled = (r && r.filled) || 0;
         await VP.touchSession();
         sendResponse({ ok: filled > 0, filled, cvvFilled: !!(r && r.cvv), cvvFresh });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e && e.message || e) });
+      }
+    })();
+    return true; // async
+  }
+
+  // ── inline autofill: MASKED ID-document summaries for the dropdown ──
+  // Same posture as vaultGetCards: title, type, issuer, expiry and a MASKED
+  // number only. The document number itself and every scan stay in the service
+  // worker until a specific document is chosen.
+  if (message.action === "vaultGetIdDocs") {
+    (async () => {
+      try {
+        const VP = self.VaultPWCore;
+        const resumed = await VP.restoreSession();
+        if (!resumed || !VP.isUnlocked()) { sendResponse({ unlocked: false, docs: [] }); return; }
+        sendResponse({ unlocked: true, authFresh: VP.authFresh(), docs: await VP.idDocSummaries() });
+      } catch (e) {
+        sendResponse({ unlocked: false, docs: [], error: String(e && e.message || e) });
+      }
+    })();
+    return true; // async
+  }
+
+  // ── autofill a chosen ID document's TEXT fields ──
+  // Called from the page dropdown (fills the asking frame) or the popup's Fill
+  // (message.tabId set → broadcast; the frame that owns the form answers).
+  //
+  // The document number rides along unless the document is one of the sensitive
+  // types (an SSN card) AND no real credential has been presented recently —
+  // the same rule the CVV follows. Everything else fills on an unlocked session.
+  if (message.action === "vaultFillIdDoc") {
+    (async () => {
+      const fromPage = !!(_sender && _sender.tab);
+      const tabId = fromPage ? _sender.tab.id : message.tabId;
+      const frameId = fromPage && _sender.frameId != null ? _sender.frameId : null;
+      if (tabId == null) { sendResponse({ ok: false, error: "no-tab" }); return; }
+      try {
+        const VP = self.VaultPWCore;
+        const resumed = await VP.restoreSession();
+        if (!resumed || !VP.isUnlocked()) { sendResponse({ ok: false, locked: true }); return; }
+        const doc = await VP.idDocById(message.id);
+        if (!doc) { sendResponse({ ok: false, error: "not-found" }); return; }
+
+        const sensitive = self.VaultId.isSensitive(doc);
+        const includeNumber = !sensitive || VP.authFresh();
+        const values = self.VaultId.autofillValues(doc, { includeNumber });
+
+        const opts = frameId != null ? { frameId } : {};
+        const r = await new Promise((res) => {
+          try {
+            chrome.tabs.sendMessage(tabId, { action: "vaultDoFillIdDoc", values }, opts, (resp) => {
+              void chrome.runtime.lastError; res(resp || null);
+            });
+          } catch (e) { res(null); }
+        });
+
+        const filled = (r && r.filled) || 0;
+        await VP.touchSession();
+        sendResponse({ ok: filled > 0, filled, numberFilled: !!(r && r.number), numberWithheld: !includeNumber });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e && e.message || e) });
+      }
+    })();
+    return true; // async
+  }
+
+  // ── attach a document's SCAN to a file-upload field ──
+  // The one place decrypted file bytes have to cross into a page-side context:
+  // an <input type="file"> can only be populated with a real File object, which
+  // must be constructed in the frame that owns the input. They go to the
+  // extension's ISOLATED world (invisible to the page) and are written straight
+  // into the input — after which the page can read them, which is precisely
+  // what the user asked for by choosing to attach the document.
+  //
+  // Base64 rather than a typed array: structured-cloning a multi-megabyte
+  // Uint8Array through chrome.runtime is dramatically slower and, in MV3,
+  // unreliable across a service-worker restart.
+  if (message.action === "vaultAttachIdFile") {
+    (async () => {
+      const fromPage = !!(_sender && _sender.tab);
+      const tabId = fromPage ? _sender.tab.id : message.tabId;
+      const frameId = fromPage && _sender.frameId != null ? _sender.frameId : null;
+      if (tabId == null) { sendResponse({ ok: false, error: "no-tab" }); return; }
+      try {
+        const VP = self.VaultPWCore;
+        const resumed = await VP.restoreSession();
+        if (!resumed || !VP.isUnlocked()) { sendResponse({ ok: false, locked: true }); return; }
+        const doc = await VP.idDocById(message.id);
+        if (!doc) { sendResponse({ ok: false, error: "not-found" }); return; }
+
+        const entries = self.VaultId.allAttachments(doc);
+        if (!entries.length) { sendResponse({ ok: false, error: "no-file" }); return; }
+        // A specific file when the dropdown named one; otherwise the front /
+        // first page, which is what "attach my licence" means.
+        const chosen = (message.key && entries.filter((e) => e.att.key === message.key)[0]) || entries[0];
+        const att = chosen.att;
+        if (att.pending) { sendResponse({ ok: false, error: "pending" }); return; }
+        if ((att.size || 0) > 12 * 1024 * 1024) { sendResponse({ ok: false, error: "too-large" }); return; }
+
+        const bytes = await VP.attachmentBytes(att);
+        let bin = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        const b64 = btoa(bin);
+
+        const opts = frameId != null ? { frameId } : {};
+        const r = await new Promise((res) => {
+          try {
+            chrome.tabs.sendMessage(tabId, {
+              action: "vaultDoAttachIdFile",
+              file: { b64, name: att.name || "document", mime: att.mime || "application/octet-stream" },
+            }, opts, (resp) => { void chrome.runtime.lastError; res(resp || null); });
+          } catch (e) { res(null); }
+        });
+
+        await VP.touchSession();
+        if (r && r.ok) { sendResponse({ ok: true, name: att.name || "document" }); return; }
+        sendResponse({ ok: false, error: (r && r.error) || "no-field" });
       } catch (e) {
         sendResponse({ ok: false, error: String(e && e.message || e) });
       }

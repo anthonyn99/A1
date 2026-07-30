@@ -1,12 +1,20 @@
 {
   "manifest_version": 3,
   "name": "Vault",
-  "version": "1.0.0",
-  "description": "Your links & groups, synced with Keychain. Launch an entire group of tabs in one click.",
-  "permissions": ["tabs", "tabGroups", "storage", "scripting", "activeTab"],
+  "version": "1.1.0",
+  "description": "Your links, logins, cards & ID documents - synced with Vault. Autofill, attach a document scan to an upload field, and launch a whole tab group in one click.",
+  "permissions": [
+    "tabs",
+    "tabGroups",
+    "storage",
+    "scripting",
+    "activeTab",
+    "downloads"
+  ],
   "host_permissions": [
     "https://keychain-sync.av1.workers.dev/*",
     "https://vault-pw-sync.av1.workers.dev/*",
+    "https://vault-files.av1.workers.dev/*",
     "https://anthonyn99.github.io/*"
   ],
   "action": {
@@ -23,15 +31,27 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "exclude_matches": ["https://anthonyn99.github.io/*"],
-      "js": ["vault-cardfill.js", "content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "exclude_matches": [
+        "https://anthonyn99.github.io/*"
+      ],
+      "js": [
+        "vault-cardfill.js",
+        "vault-idfill.js",
+        "content.js"
+      ],
       "run_at": "document_idle",
       "all_frames": true
     },
     {
-      "matches": ["https://anthonyn99.github.io/*"],
-      "js": ["vault-bio-sync.js"],
+      "matches": [
+        "https://anthonyn99.github.io/*"
+      ],
+      "js": [
+        "vault-bio-sync.js"
+      ],
       "run_at": "document_idle"
     }
   ],
