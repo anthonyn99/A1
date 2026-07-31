@@ -335,7 +335,17 @@
     'image/bmp': 'bmp', 'image/tiff': 'tiff', 'application/pdf': 'pdf',
   };
   var KNOWN_EXTS = { jpg: 1, jpeg: 1, png: 1, webp: 1, heic: 1, heif: 1, gif: 1, avif: 1, bmp: 1, tif: 1, tiff: 1, pdf: 1 };
-  function safeFileName(att) {
+  // `override` is a caller-supplied base name (no extension). Scans arrive named
+  // after whatever the camera called them - "34228.jpg" - so every document
+  // saved to the same folder collided with the last one and the browser had to
+  // stop and ask "file name already exists" on EVERY save. Naming the file after
+  // the document it belongs to makes saves collision-free and, just as
+  // important, makes the file findable in the gallery afterwards.
+  function safeFileName(att, override) {
+    if (override) att = { name: String(override), mime: (att && att.mime) || '' };
+    return baseSafeName(att);
+  }
+  function baseSafeName(att) {
     // Strip only what a filesystem actually rejects (path separators, reserved
     // punctuation, control characters). Spaces and hyphens are legal, and
     // mangling them makes a saved scan unrecognisable in the gallery.
@@ -351,9 +361,9 @@
     if (has && KNOWN_EXTS[has[1].toLowerCase()]) return name;
     return name + '.' + want;
   }
-  function fileFrom(att, blob) {
+  function fileFrom(att, blob, name) {
     var type = (att && att.mime) || blob.type || 'application/octet-stream';
-    try { return new File([blob], safeFileName(att), { type: type }); }
+    try { return new File([blob], safeFileName(att, name), { type: type }); }
     catch (e) { return blob; }   // very old browsers: File ctor unavailable
   }
 
@@ -551,9 +561,9 @@
   //   { attempted:true, cancelled }  user dismissed the sheet — STOP
   //   { attempted:true, notAllowed } no transient activation, or blocked
   //   { attempted:true, failed }     genuine error — STOP, let the user retry
-  async function shareBlobs(atts, blobs, title) {
+  async function shareBlobs(atts, blobs, title, names) {
     if (typeof File === 'undefined') return { ok: false, attempted: false, how: 'share' };
-    var files = atts.map(function (a, i) { return fileFrom(a, blobs[i]); });
+    var files = atts.map(function (a, i) { return fileFrom(a, blobs[i], names && names[i]); });
     if (!canShareFiles(files)) return { ok: false, attempted: false, how: 'share' };
     try {
       await navigator.share({ files: files, title: title || files[0].name });
@@ -582,13 +592,13 @@
     var blob = cachedBlob(att);
     var warm = !!blob;
     if (!blob) blob = await blobFor(att, session);
-    var name = safeFileName(att);
+    var name = safeFileName(att, opts.name);
     var want = opts.prefer || saveStrategy();
 
     if (want === 'download' && anchorDownloadWorks() && anchorDownload(blob, name)) {
       return { ok: true, how: 'download' };
     }
-    var r = await shareBlobs([att], [blob], name);
+    var r = await shareBlobs([att], [blob], name, [opts.name]);
     if (r.ok) return r;
     if (r.attempted) {
       // The sheet was shown. Whatever happened next, do NOT quietly download the
@@ -640,7 +650,7 @@
 
     var want = opts.prefer || saveStrategy();
     if (want === 'share') {
-      var r = await shareBlobs(atts, blobs, opts.title);
+      var r = await shareBlobs(atts, blobs, opts.title, opts.names);
       if (r.ok) return { ok: true, saved: atts.length, total: atts.length, how: 'share' };
       // Same rule as saveFile: once the sheet has been shown, dismissing it must
       // not be answered by downloading every file anyway.
@@ -654,13 +664,13 @@
     var saved = 0;
     if (anchorDownloadWorks()) {
       for (var j = 0; j < atts.length; j++) {
-        if (anchorDownload(blobs[j], safeFileName(atts[j]))) saved++;
+        if (anchorDownload(blobs[j], safeFileName(atts[j], opts.names && opts.names[j]))) saved++;
         if (j < atts.length - 1) await sleep(350);
       }
     }
     if (saved) return { ok: true, saved: saved, total: atts.length, how: 'download' };
     // Nothing downloaded (installed iOS PWA) — try the multi-file sheet anyway.
-    var s2 = await shareBlobs(atts, blobs, opts.title);
+    var s2 = await shareBlobs(atts, blobs, opts.title, opts.names);
     if (s2.ok) return { ok: true, saved: atts.length, total: atts.length, how: 'share' };
     return { ok: false, saved: 0, total: atts.length, how: 'none', cancelled: !!s2.cancelled };
   }

@@ -881,7 +881,7 @@
         // instead: open it in its own tab, or save it via the share sheet.
         if (VIF.isIOS()) {
           var pdfSave = el('button', { class: 'vault-btn primary', style: 'width:auto' }, ['Save to device']);
-          pdfSave.addEventListener('click', function () { downloadAtt(host, att, pdfSave); });
+          pdfSave.addEventListener('click', function () { downloadAtt(host, att, pdfSave, null, saveNameFor(it, entry)); });
           stage.appendChild(el('div', { class: 'vid-stage-empty' }, [
             el('span', { class: 'vid-stage-glyph', html: icons.pdf }),
             el('div', { class: 'vid-pdf-name' }, [att.name || 'PDF document']),
@@ -900,7 +900,7 @@
         stage.appendChild(el('div', { class: 'vid-stage-empty' }, [
           el('span', { class: 'vid-stage-glyph', html: icons.file }),
           el('div', {}, [att.name || 'File']),
-          el('button', { class: 'vault-btn', style: 'width:auto;margin-top:10px', onclick: function () { downloadAtt(host, att); } }, ['Download']),
+          el('button', { class: 'vault-btn', style: 'width:auto;margin-top:10px', onclick: function () { downloadAtt(host, att, null, null, saveNameFor(it, entry)); } }, ['Download']),
         ]));
       }
       applyTransform();
@@ -1164,7 +1164,7 @@
       // so there the download button routes through it too.
       var nFiles = VID.attachmentCount(it);
       var dl = btn(VIF.saveStrategy() === 'share' ? 'Save to device' : 'Download', icons.download,
-        function () { downloadAtt(host, att, dl); });
+        function () { downloadAtt(host, att, dl, null, saveNameFor(it, entry)); });
       wrap.appendChild(dl);
       if (nFiles > 1) {
         var dlAll = btn('Save all ' + nFiles + ' files', icons.download,
@@ -1173,7 +1173,7 @@
       }
       if (VIF.prefersShare()) {
         var sh = btn(nFiles > 1 ? 'Share all ' + nFiles + ' files' : 'Share', icons.share,
-          function () { (nFiles > 1 ? downloadAll(host, it, sh, 'share') : downloadAtt(host, att, sh, 'share')); });
+          function () { (nFiles > 1 ? downloadAll(host, it, sh, 'share') : downloadAtt(host, att, sh, 'share', saveNameFor(it, entry))); });
         wrap.appendChild(sh);
       }
     }
@@ -1206,10 +1206,27 @@
   // "tap again", not an error.
   // `prefer` forces a route: the viewer's Download button leaves it to the
   // platform, its Share button always opens the sheet.
-  async function downloadAtt(host, att, btn, prefer) {
+  // What a saved file should be called on disk. A camera scan arrives named
+  // "34228.jpg", so saving any two documents collided and the browser stopped to
+  // ask "file name already exists" every single time. Naming it after the
+  // document makes saves collision-free and makes the file recognisable in the
+  // gallery afterwards.
+  function saveNameFor(item, entry) {
+    var base = String((item && item.title) || (item && VID.typeLabel(item)) || 'Document').trim();
+    if (!entry) return base;
+    var part = entry.slot === 'front' ? 'front'
+      : entry.slot === 'back' ? 'back'
+        : entry.index != null ? 'file ' + (entry.index + 1) : '';
+    return part ? base + ' - ' + part : base;
+  }
+  function saveNamesFor(item) {
+    return VID.allAttachments(item).map(function (e) { return saveNameFor(item, e); });
+  }
+
+  async function downloadAtt(host, att, btn, prefer, name) {
     if (btn) btn.disabled = true;
     try {
-      var r = await VIF.saveFile(att, host.session(), { prefer: prefer });
+      var r = await VIF.saveFile(att, host.session(), { prefer: prefer, name: name });
       reportSave(host, r, 1);
     } catch (e) {
       host.toast(e && e.message === 'locked' ? 'Vault is locked' : 'Could not save that file');
@@ -1223,9 +1240,25 @@
   async function downloadAll(host, item, btn, prefer) {
     var atts = VID.allAttachments(item).map(function (e) { return e.att; });
     if (!atts.length) { host.toast('No files on this document'); return; }
+    // Saving several files means several browser downloads, and each one can
+    // raise its own "file already exists" prompt. Cancelling ONE of those never
+    // stopped the others we had already fired — which is why cancelling still
+    // appeared to download. So the decision is taken ONCE, here, before anything
+    // is handed to the browser: our Cancel means nothing is saved, full stop.
+    var goingToDownload = (prefer || VIF.saveStrategy()) === 'download';
+    if (atts.length > 1 && goingToDownload) {
+      var ok = await host.confirmUI(
+        'Save ' + atts.length + ' files from “' + (item.title || 'this document') + '” to your device?',
+        { title: 'Save ' + atts.length + ' files', okLabel: 'Save ' + atts.length + ' files' });
+      if (!ok) { host.toast('Cancelled — nothing saved'); return; }
+    }
     if (btn) btn.disabled = true;
     try {
-      var r = await VIF.saveFiles(atts, host.session(), { prefer: prefer, title: item.title || 'Documents' });
+      var r = await VIF.saveFiles(atts, host.session(), {
+        prefer: prefer,
+        title: item.title || 'Documents',
+        names: saveNamesFor(item),
+      });
       reportSave(host, r, atts.length);
     } catch (e) {
       host.toast(e && e.message === 'locked' ? 'Vault is locked' : 'Could not save those files');
