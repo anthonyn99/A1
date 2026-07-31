@@ -2635,7 +2635,11 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
     prev.sampleAiOutput = sampleOut; prev.sampleEventIds = sampleEvIds;
     await env.NEWSHUB_CACHE.put('stage:aistats', JSON.stringify(prev), { expirationTtl: DIAG_TTL });
   } catch(e){}
-  return { events: enriched, modelsUsed: [...modelsUsed], degraded };
+  // articleCount is the fetch phase's raw yield. A build with 0 events AND 0
+  // articles failed at fetch (sources blocked/starved); 0 events with articles > 0
+  // means clustering/AI dropped everything. Without it the two are indistinguishable
+  // from outside, which is what made the 6am zero-event builds so hard to diagnose.
+  return { events: enriched, modelsUsed: [...modelsUsed], degraded, articleCount: articles.length };
 }
 
 // ── Windowed AI analysis (for staged AI sub-stages) ───────────────────────
@@ -2809,7 +2813,7 @@ async function buildAndCache(env, ctx, useLimitedAPIs, wl, sectors, cacheKey, lo
     const info = { stage:'inline-build', msg:e.message, stack:(e.stack||'').slice(0,1000), at:Date.now() };
     await env.NEWSHUB_CACHE.put('stage:lasterror', JSON.stringify(info), { expirationTtl: DIAG_TTL }).catch(()=>{});
     console.error('inline build threw:', e.message, e.stack);
-    result = { events: [], modelsUsed: [], degraded: true };
+    result = { events: [], modelsUsed: [], degraded: true, articleCount: 0 };
   }
   const body = JSON.stringify({
     events: result.events,
@@ -2818,6 +2822,7 @@ async function buildAndCache(env, ctx, useLimitedAPIs, wl, sectors, cacheKey, lo
     sectors: sectors,
     modelsUsed: result.modelsUsed,
     degraded: result.degraded || false,
+    articleCount: result.articleCount ?? null,
   });
   // ALWAYS write a result so the client poller terminates — it must be cached, or
   // every poll re-kicks a fresh build → infinite "Building…" loop.
@@ -2832,7 +2837,21 @@ async function buildAndCache(env, ctx, useLimitedAPIs, wl, sectors, cacheKey, lo
   // now survives the morning; any good build (or Force fresh, which bypasses cache)
   // overwrites it.
   const ttl = result.degraded ? 14400 : CACHE_TTL; // 4h for raw, 6h for good
-  await env.NEWSHUB_CACHE.put(cacheKey, body, { expirationTtl: ttl });
+  // ...but a build that produced NOTHING must never overwrite a doc that has real
+  // news in it. That write is what turned a failed 6am build into a blank feed:
+  // yesterday's perfectly readable headlines were replaced by "events: []", so the
+  // News tab had nothing to show and Refresh was the only way out. Leaving the last
+  // good doc in place means a failed build is invisible — you keep reading the
+  // previous build until a later one succeeds. The client keeps its own generatedAt
+  // check, so it still knows this morning's build hasn't landed and keeps trying.
+  let keptPrevious = false;
+  if (!result.events.length){
+    try {
+      const prev = await env.NEWSHUB_CACHE.get(cacheKey);
+      if (prev){ const pj = JSON.parse(prev); keptPrevious = Array.isArray(pj.events) && pj.events.length > 0; }
+    } catch(e){}
+  }
+  if (!keptPrevious) await env.NEWSHUB_CACHE.put(cacheKey, body, { expirationTtl: ttl });
   await env.NEWSHUB_CACHE.delete(lockKey); // release build lock
   // Push to Firebase so the client's onSnapshot auto-displays the finished build
   // (whether the News tab is open or not) — no polling needed. Only push non-empty
@@ -2842,7 +2861,7 @@ async function buildAndCache(env, ctx, useLimitedAPIs, wl, sectors, cacheKey, lo
     const p = pushNewsToFirebase(result).catch(e => console.warn('[news] firebase push failed:', e.message));
     if (ctx && ctx.waitUntil) ctx.waitUntil(p);
   }
-  console.log(`Pipeline done: ${result.events.length} events, degraded=${result.degraded}, ttl=${ttl}, wl=${wl.length}`);
+  console.log(`Pipeline done: ${result.events.length} events (${result.articleCount ?? '?'} articles), degraded=${result.degraded}, ttl=${ttl}, wl=${wl.length}${keptPrevious?' — EMPTY, kept previous cached doc':''}`);
   return body;
 }
 
@@ -3178,6 +3197,64 @@ async function bumpRateLimit(env){
   return count;
 }
 
+// ─── Cron: News pre-warm ──────────────────────────────────────────────────
+// Runs ALONE in the cron invocation (see scheduled()) so it owns the outbound
+// connection budget. Awaited, not fire-and-forget, so the Catalysts pre-warm
+// cannot start until this finishes.
+async function cronPrewarmNews(env, ctx){
+  const richKey = 'cron:rich:' + new Date().toISOString().slice(0,13);
+  const already = await env.NEWSHUB_CACHE.get(richKey).catch(()=>null);
+  const useLimited = !already;                 // first tick of the hour → rich
+  if (!already) ctx.waitUntil(env.NEWSHUB_CACHE.put(richKey, '1', { expirationTtl: 7200 }));
+  const { wl, sectors, cacheKey, lockKey } = await resolveCronWatchlist(env);
+  // Breadcrumb: "did the 6am build actually run, and what came out?" was
+  // previously unanswerable — a cron that never fired and one whose build got
+  // killed mid-flight look identical from outside (both leave an empty cache,
+  // so opening TradeHub just starts a build). Recorded for a week; read it at
+  // /_stage-debug → cronLastRun / cronLastNews.
+  ctx.waitUntil(env.NEWSHUB_CACHE.put('cron:lastrun',
+    JSON.stringify({ at: Date.now(), rich: useLimited, wl: wl.length }),
+    { expirationTtl: 7*86400 }).catch(()=>{}));
+  try {
+    // Clear stale model cooldowns BEFORE building. Force-fresh has always done
+    // this (see /news), but the cron — the one build that runs cold at the top
+    // of the day — did not. A quota_block written by yesterday's 429 storm made
+    // the whole AI chain look unavailable, so every batch fell back to raw and
+    // the 6am build came out degraded with no AI summaries at all.
+    await clearQuotaBlocks(env);
+    let body = await buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey);
+    let events = 0, articles = null, degraded = null, retried = false;
+    try { const j = JSON.parse(body); events = (j.events||[]).length; articles = j.articleCount ?? null; degraded = !!j.degraded; } catch(e){}
+    // Retry once when the pass produced nothing usable — this is the ONE build of
+    // the day nobody is watching, so it must not leave a dead feed up until someone
+    // notices and hits Force fresh. Blocks are cleared again first: a transient 429
+    // during the failed pass re-arms the very cooldowns that would skip the retry.
+    if (degraded || !events){
+      retried = true;
+      await clearQuotaBlocks(env);
+      await env.NEWSHUB_CACHE.delete(lockKey).catch(()=>{}); // first pass may still hold it
+      // A pass that produced ZERO events failed in the FETCH phase, not the AI
+      // phase, so repeating it identically just fails the same way (exactly what
+      // happened on 2026-07-31: rich pass → 0 events, identical retry → 0 events,
+      // while the plain Finnhub-first build minutes later returned 56). Drop the
+      // scarce-quota wires and retry on the cheap configuration, which is the one
+      // that reliably fills the feed. A pass that DID find events but came back
+      // degraded really is an AI-phase miss — retry that one as-is.
+      const retryLimited = events > 0 ? useLimited : false;
+      body = await buildAndCache(env, ctx, retryLimited, wl, sectors, cacheKey, lockKey);
+      try { const j = JSON.parse(body); events = (j.events||[]).length; articles = j.articleCount ?? null; degraded = !!j.degraded; } catch(e){}
+    }
+    await env.NEWSHUB_CACHE.put('cron:lastnews',
+      JSON.stringify({ at: Date.now(), events, articles, degraded, retried, rich: useLimited }),
+      { expirationTtl: 7*86400 }).catch(()=>{});
+  } catch(e){
+    console.error('Cron news failed:', e.message);
+    await env.NEWSHUB_CACHE.put('cron:lastnews',
+      JSON.stringify({ at: Date.now(), error: String(e.message).slice(0,200) }),
+      { expirationTtl: 7*86400 }).catch(()=>{});
+  }
+}
+
 // ─── HTTP handler ─────────────────────────────────────────────────────────
 export default {
   // Cron — pre-warms cache. Uses Finnhub+TickerTick every run (no daily cap),
@@ -3185,71 +3262,39 @@ export default {
   // staggered hours so they don't get exhausted.
   async scheduled(event, env, ctx){
     // Fires once daily at 12:00 UTC (= builds begin 06:00 MDT / 05:00 MST Mountain).
-    // Branch on the DAY OF WEEK, not the exact cron string. Robust to any future
-    // cron-time change (DST shift, 6:30→6:00, etc.): whatever UTC time fires, the
-    // day decides what builds.
-    //   EVERY day (Mon-Sun) → News pre-warm AND Catalysts pre-warm
-    // Catalysts now pre-warms every morning (was Sun + Wed only) so opening TradeHub
-    // any trading morning shows a freshly-built earnings+macro calendar, matching the
-    // News cadence. Not day/holiday-gated: forward earnings/macro dates shift daily and
-    // the client only ever surfaces the forward 30-day window, so a daily rebuild keeps
-    // it current with zero user action.
-
-    // ── Catalysts pre-warm (every day) → KV + Firebase push for TaskHub ──
-    ctx.waitUntil(prewarmCalendar(env).catch(e => console.error('Cron calendar failed:', e.message)));
-
-    // ── News pre-warm — EVERY day (Mon-Sun) at ~6am Mountain so opening TradeHub any
-    //    morning shows freshly-built news. World/company news doesn't stop on weekends
-    //    or market holidays, so this is intentionally NOT day/holiday-gated — a RICH
-    //    build for the current TB_WL. ──
-    {
-      const richKey = 'cron:rich:' + new Date().toISOString().slice(0,13);
-      const already = await env.NEWSHUB_CACHE.get(richKey).catch(()=>null);
-      const useLimited = !already;                 // first tick of the hour → rich
-      if (!already) ctx.waitUntil(env.NEWSHUB_CACHE.put(richKey, '1', { expirationTtl: 7200 }));
-      const { wl, sectors, cacheKey, lockKey } = await resolveCronWatchlist(env);
-      // Breadcrumb: "did the 6am build actually run, and what came out?" was
-      // previously unanswerable — a cron that never fired and one whose build got
-      // killed mid-flight look identical from outside (both leave an empty cache,
-      // so opening TradeHub just starts a build). Recorded for a week; read it at
-      // /_stage-debug → cronLastRun / cronLastNews.
-      ctx.waitUntil(env.NEWSHUB_CACHE.put('cron:lastrun',
-        JSON.stringify({ at: Date.now(), rich: useLimited, wl: wl.length }),
-        { expirationTtl: 7*86400 }).catch(()=>{}));
-      ctx.waitUntil((async () => {
-        try {
-          // Clear stale model cooldowns BEFORE building. Force-fresh has always done
-          // this (see /news), but the cron — the one build that runs cold at the top
-          // of the day — did not. A quota_block written by yesterday's 429 storm made
-          // the whole AI chain look unavailable, so every batch fell back to raw and
-          // the 6am build came out degraded with no AI summaries at all.
-          await clearQuotaBlocks(env);
-          let body = await buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey);
-          let events = 0, degraded = null, retried = false;
-          try { const j = JSON.parse(body); events = (j.events||[]).length; degraded = !!j.degraded; } catch(e){}
-          // A degraded result means the AI phase produced nothing usable. This is the
-          // ONE build of the day nobody is watching, so retry it once rather than
-          // leaving raw headlines up until someone notices and hits Force fresh.
-          // Blocks are cleared again first: a transient 429 during the failed pass
-          // will have re-armed the very cooldowns that would skip the retry's chain.
-          if (degraded){
-            retried = true;
-            await clearQuotaBlocks(env);
-            await env.NEWSHUB_CACHE.delete(lockKey).catch(()=>{}); // first pass may still hold it
-            body = await buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey);
-            try { const j = JSON.parse(body); events = (j.events||[]).length; degraded = !!j.degraded; } catch(e){}
-          }
-          await env.NEWSHUB_CACHE.put('cron:lastnews',
-            JSON.stringify({ at: Date.now(), events, degraded, retried, rich: useLimited }),
-            { expirationTtl: 7*86400 }).catch(()=>{});
-        } catch(e){
-          console.error('Cron news failed:', e.message);
-          await env.NEWSHUB_CACHE.put('cron:lastnews',
-            JSON.stringify({ at: Date.now(), error: String(e.message).slice(0,200) }),
-            { expirationTtl: 7*86400 }).catch(()=>{});
-        }
-      })());
-    }
+    // Both pre-warms run EVERY day (Mon-Sun), not day/holiday-gated: world/company
+    // news doesn't stop on weekends, and forward earnings/macro dates shift daily
+    // while the client only ever surfaces the forward 30-day window.
+    //
+    // ── SEQUENTIAL, NEWS FIRST — do not "optimize" this back into two parallel
+    //    waitUntil()s. ────────────────────────────────────────────────────────
+    // Both pre-warms used to be kicked concurrently in this one invocation, and
+    // they starved each other:
+    //   • A Worker invocation may hold only ~6 simultaneous outbound connections.
+    //     Each build internally fans out at concurrency 6 assuming it owns them,
+    //     so together they queued ~100 fetches through one 6-lane pipe.
+    //   • Both hammer Finnhub — calendar 1/ticker + news 1/ticker + general — so
+    //     31 tickers meant ~63 Finnhub calls in a few seconds, past its 60/min cap.
+    //   • Nasdaq's earnings scan aborts at 8s (AbortSignal.timeout), so every one
+    //     of its ~22 date fetches died waiting in that queue.
+    // Observed on 2026-07-31: the calendar came out crippled (9 earnings, only 1
+    // confirmed by a 2nd source, foreign ADRs like BABA/SKHY missing entirely) and
+    // the news build fetched ZERO articles — twice, since the retry repeated the
+    // identical failing configuration. Standalone builds of each, minutes apart on
+    // the same data, came back healthy (56 news events; 22 earnings, 10 confirmed).
+    // Running them one after the other gives each build the full connection budget
+    // and keeps Finnhub under its per-minute cap. Cron invocations get ~15 min of
+    // wall clock; news (~90s) + calendar (~30s) fits with room to spare.
+    ctx.waitUntil((async () => {
+      await cronPrewarmNews(env, ctx);
+      // Breathe before the calendar. Finnhub's cap is 60 calls per MINUTE, and the
+      // two builds together ask for ~63 on a 31-ticker list — so back-to-back they
+      // can still collide inside one minute even though they no longer overlap.
+      // Wall time is free here (Workers bill CPU, and cron gets ~15 min), so this
+      // costs nothing and guarantees the calendar starts in a clean window.
+      await new Promise(r => setTimeout(r, 20000));
+      await prewarmCalendar(env).catch(e => console.error('Cron calendar failed:', e.message));
+    })());
   },
 
   async fetch(req, env, ctx){

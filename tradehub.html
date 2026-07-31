@@ -5772,20 +5772,63 @@ async function tbBuildCalendar(wl,opts){
 // events already in the doc (trimmed to a retention window so it can't grow
 // forever) and union them with the fresh future set.
 const TB_CAL_KEEP_PAST_DAYS=90;
-async function tbPublishCalendar(future){
+// Order-independent signature of the ticker list a calendar was built from. Stored
+// on the doc so any device can tell "this calendar predates my current watchlist"
+// and rebuild — see tbSyncCatalystsToWatchlist.
+function tbCalWlSig(wl){ return (Array.isArray(wl)?wl:[]).filter(Boolean).map(t=>String(t).toUpperCase()).sort().join(','); }
+async function tbPublishCalendar(future,wl){
   if(!window._fbSaveMarketCal)return;
   const today=tbEtDate(0),cutoff=tbEtDate(-TB_CAL_KEEP_PAST_DAYS);
+  const wlList=(Array.isArray(wl)&&wl.length)?wl:tbLoadWatchlistLocal();
+  const wlSet=new Set(wlList.map(t=>String(t).toUpperCase()));
   let past=[];
   try{
     const d=window._fbLoadMarketCal?await window._fbLoadMarketCal():null;
-    past=(d&&Array.isArray(d.events)?d.events:[]).filter(e=>e&&e.date&&e.date<today&&e.date>=cutoff);
+    past=(d&&Array.isArray(d.events)?d.events:[]).filter(e=>e&&e.date&&e.date<today&&e.date>=cutoff)
+      // Retained past events are how macro cards keep showing on both TaskHubs after
+      // the day rolls over — but an EARNINGS event for a ticker you've since removed
+      // from Control has no reason to linger, and nothing else ever deletes it (a
+      // rebuild only replaces the forward window). Drop those here so removing a
+      // ticker actually clears it out of Catalysts.
+      .filter(e=>!(e.kind==='earnings'&&e.ticker&&!wlSet.has(String(e.ticker).toUpperCase())));
   }catch(e){}
   const key=e=>e.id||((e.kind||'')+'|'+(e.category||'')+'|'+(e.name||'')+'|'+e.date);
   const fresh=future||[],seen=new Set(fresh.map(key));
   const events=past.filter(e=>!seen.has(key(e))).concat(fresh).sort((a,b)=>a.date.localeCompare(b.date));
   const now=Date.now();
-  window._fbSaveMarketCal({events,generatedAt:now,savedAt:now});
+  window._fbSaveMarketCal({events,watchlist:wlList,generatedAt:now,savedAt:now});
 }
+
+// ── Keep Catalysts in lockstep with the Control-tab watchlist ────────────────
+// Catalysts only ever rebuilt on a manual Refresh/Force or the once-a-morning
+// orchestrator tick — and that tick short-circuits as soon as the stored calendar
+// is newer than today's 6am slot. So a ticker added (or removed) in Control could
+// sit there for days with no earnings date pulled: the calendar was "fresh enough"
+// even though it was built from a DIFFERENT ticker list. Compare the list the doc
+// was built from against the live one and rebuild whenever they differ. Cheap: the
+// worker caches per watchlist-hash, so this is one build per actual list change,
+// and it costs nothing from the daily force-fresh budget (force is never set).
+async function tbSyncCatalystsToWatchlist(wl){
+  if(!wl||!wl.length||!window._fbLoadMarketCal)return;
+  if(_tbCatBuild.building)return;
+  const sig=tbCalWlSig(wl);
+  if(sig===_tbCatLastSyncedSig)return;              // already handled this list
+  let d=null;
+  try{ d=await window._fbLoadMarketCal(); }catch(e){ return; }
+  // No doc yet → leave it to the morning orchestrator / manual Refresh; there's
+  // nothing to compare against and no reason to race them.
+  if(!d||!Array.isArray(d.events))return;
+  // A doc with no recorded watchlist predates this check, so it CANNOT be assumed
+  // to match — rebuild once to stamp the current list onto it, which is what arms
+  // the mismatch detection for every later edit. Note this one-time pass usually
+  // comes back as a worker cache HIT (same ticker-set → same cal:v1 key, 12h TTL),
+  // so it re-publishes the same events; only Force rebuilds a same-day calendar
+  // from scratch. A genuine list change gets a new key and a real build.
+  if(Array.isArray(d.watchlist)&&tbCalWlSig(d.watchlist)===sig){ _tbCatLastSyncedSig=sig; return; }
+  _tbCatLastSyncedSig=sig;                          // don't re-kick while this runs
+  tbRunCatBuild(wl,false);
+}
+let _tbCatLastSyncedSig='';
 
 // Most-recent trading-morning auto-refresh slot: 6:00 AM America/Denver (Mountain)
 // on an NYSE trading day, at or before now. Returns a ms timestamp, or 0 if none in
@@ -5829,7 +5872,8 @@ async function tbRunCatBuild(wl, force){
   try{
     const {future,degraded}=await tbBuildCalendar(wl,{force});
     if(future&&future.length){
-      await tbPublishCalendar(future);       // merges past events back in — see tbPublishCalendar
+      await tbPublishCalendar(future,wl);    // merges past events back in — see tbPublishCalendar
+      _tbCatLastSyncedSig=tbCalWlSig(wl);    // this list is now what the stored calendar reflects
     }
     _tbCatBuild.emit({type:'done',future:future||[],degraded:!!degraded});
   }catch(e){
@@ -6876,19 +6920,29 @@ function TBApp(){
 
       // ── Catalysts: pull the cron-built calendar (free cache HIT, never force) and
       //    publish to Firebase so every device shows it. The gen-check skips work if
-      //    another device (or the cron's own push) already refreshed this slot. ──
+      //    another device (or the cron's own push) already refreshed this slot — but
+      //    "fresh" is not enough on its own: a calendar built this morning from an
+      //    OLD ticker list is stale for anything added in Control since, so the
+      //    watchlist signature has to match too. ──
       if(!_tbAutoForceInFlight && slot!==_tbLastCheckedSlot && window._fbLoadMarketCal && window._fbSaveMarketCal){
         try{
+          const wl=tbLoadWatchlistLocal();
           const d=await window._fbLoadMarketCal();
           const gen=(d&&(d.generatedAt||d.savedAt))||0;
-          if(gen>=slot){ _tbLastCheckedSlot=slot; }
+          // Only a doc that RECORDS its watchlist can be confirmed to match. A
+          // legacy doc without one is left for tbSyncCatalystsToWatchlist to
+          // rebuild — so _tbCatLastSyncedSig is set only on a confirmed match,
+          // never here on the "can't tell" path, or that rebuild gets suppressed.
+          const wlKnown=!!(d&&Array.isArray(d.watchlist));
+          const wlMatches=!d||!wlKnown||tbCalWlSig(d.watchlist)===tbCalWlSig(wl);
+          if(gen>=slot&&wlMatches){ _tbLastCheckedSlot=slot; if(wlKnown)_tbCatLastSyncedSig=tbCalWlSig(wl); }
           else{
             _tbAutoForceInFlight=true;
             // NON-fresh pull: the 6am cron already did the expensive fresh rebuild and
             // warmed the worker cache, so this is a free HIT — force=1 shares the daily
             // counter with News forces, so we must NOT force here.
-            const {future}=await tbBuildCalendar(tbLoadWatchlistLocal(),{force:false});
-            if(future&&future.length){ await tbPublishCalendar(future); }
+            const {future}=await tbBuildCalendar(wl,{force:false});
+            if(future&&future.length){ await tbPublishCalendar(future,wl); _tbCatLastSyncedSig=tbCalWlSig(wl); }
             _tbLastCheckedSlot=slot;
           }
         }catch(e){}finally{ _tbAutoForceInFlight=false; }
@@ -6952,7 +7006,15 @@ function TBApp(){
               fetch(NH_WORKER_URL+'/news?'+tq+(staleHit?'&fresh=1':'')).catch(()=>{});
               _tbNewsBuildKickedAt=Date.now();
               window.dispatchEvent(new CustomEvent('tb-news-building'));
-              // NOT marked done — the next 5-min tick collects the result above.
+              // Hand the build to the module-level news watcher (15s polls, capped),
+              // which publishes the finished payload to Firebase itself. Waiting for
+              // the next 5-min orchestrator tick instead meant a build that landed at
+              // 6:02 wasn't shown until 6:05+ — and only the News TAB used to start
+              // this watch, so with any other tab open nothing was polling at all.
+              // It's the same watcher the tab joins, so this never double-polls.
+              tbNewsWatchBuild(tbLoadWatchlistLocal(),(d&&d.generatedAt)||0);
+              // NOT marked done — whichever of the two collects it, the next tick
+              // sees the published doc and closes out the morning.
             }
           }
         }
@@ -7067,6 +7129,37 @@ function TBApp(){
 
   /* Keep the parser's active watchlist in lockstep with state. */
   useEffect(()=>{tbSetWatchlist(watchlist);},[watchlist]);
+
+  /* ── Watchlist edits propagate to Catalysts + News automatically ─────────────
+     Editing the Control list already re-points every ON-DEMAND fetch at the new
+     tickers, but nothing re-ran the two things that are built AHEAD of time, so a
+     ticker you added just never got an earnings date pulled: the stored calendar
+     still looked current (built this morning) and the morning news slot was already
+     marked done, so both guards short-circuited until something forced a rebuild by
+     hand. Re-check on every change — add OR remove, local edit or a sync from
+     another device — and let the signature comparison decide whether it's real work.
+     Debounced past pushWatchlistToWorkers' own 1.5s so the worker's cron list
+     (wl:current) is already updated when the build goes out. */
+  const _tbWlSyncSig=useRef(null);
+  useEffect(()=>{
+    if(!fbLoaded||!watchlist.length)return;
+    const sig=tbCalWlSig(watchlist);
+    if(_tbWlSyncSig.current===sig)return;
+    const first=_tbWlSyncSig.current===null;
+    _tbWlSyncSig.current=sig;
+    const t=setTimeout(()=>{
+      // Catalysts: rebuilds only when the stored calendar was built from a
+      // different list (so this is a no-op on ordinary loads).
+      tbSyncCatalystsToWatchlist(watchlist);
+      // News is keyed by watchlist too — the worker caches per ticker-set, so a
+      // changed list orphans this morning's warmed build. Clearing the per-morning
+      // guard lets the orchestrator re-warm for the new list on its next tick
+      // instead of leaving News a day behind the watchlist. Skipped on first load,
+      // where nothing actually changed.
+      if(!first){ try{ localStorage.removeItem('tb_morning_news_slot'); }catch(e){} }
+    },4000);
+    return()=>clearTimeout(t);
+  },[watchlist,fbLoaded]);
 
   /* ── Push the Analysis-tab selection (prompt + searches) to the worker ─────────
      App-level (not inside the Analysis tab) so it stays in sync even when that tab
