@@ -731,20 +731,42 @@ async function runReminders(env) {
     return 'occ:' + series + ':' + Math.floor(t / 60000);
   }
 
+  // CONTENT key — the occurrence key above collapses only docs that agree on the
+  // SERIES, and the duplicates that actually reach people do not. Every edit of a
+  // repeating task re-expands it client-side under a BRAND-NEW notifyRepeatId,
+  // and the old series' docs are never deleted, so each edit adds one more live
+  // series firing the same reminder at the same minute. One weekly "Charge Car"
+  // had accumulated five (May 7 → Jul 18) and shipped five pushes per Friday.
+  // Two docs that render the same text, for the same profile, at the same minute
+  // are ONE reminder to the person receiving them — the card shows nothing else
+  // to tell them apart — so only the first is sent. Title is normalised because
+  // re-typing an edited task changes its casing ("Charge car" vs "Charge Car").
+  function contentKeyFor(fields){
+    const dash  = fields.dashboard?.stringValue || 'all';
+    const title = (fields.title?.stringValue || '').trim().toLowerCase();
+    const nAt   = fields.notifyAt?.stringValue || '';
+    const t     = new Date(nAt).getTime();
+    return 'c:' + dash + '|' + title + '|' + (isNaN(t) ? nAt : Math.floor(t / 60000));
+  }
+
   const sentKeys = new Set();
+  const sentContent = new Set();
   await Promise.allSettled(due.map(async (r) => {
     const fields = r.document.fields || {};
     const title  = fields.title?.stringValue || 'Task reminder';
     const id     = fields.id?.stringValue    || '';
     const dash   = fields.dashboard?.stringValue || 'all';
     const key    = occKeyFor(fields);
+    const cKey   = contentKeyFor(fields);
 
-    // Claim the occurrence key BEFORE any await — Promise.allSettled runs these
+    // Claim BOTH keys BEFORE any await — Promise.allSettled runs these
     // concurrently, and an await before the add() would let two docs for the
     // same occurrence both see has()===false and both fire. Synchronous
-    // check+add here makes the first doc the sole sender for that occurrence.
-    const dup = sentKeys.has(key);
-    if (!dup) sentKeys.add(key);
+    // check+add here makes the first doc the sole sender. A doc is a duplicate
+    // if EITHER key is already claimed: same occurrence, or same visible text at
+    // the same minute for the same profile (the orphaned-series case).
+    const dup = sentKeys.has(key) || sentContent.has(cKey);
+    if (!dup) { sentKeys.add(key); sentContent.add(cKey); }
 
     await maybeReschedule(r.document, baseUrl, authHdr);
 

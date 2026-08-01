@@ -20,7 +20,7 @@ firebase.initializeApp({
 // task) to REPLACE push #1 (e.g. an event) fired at the same minute, so only one
 // showed on mobile. Changing these bytes makes the browser install this build,
 // and skipWaiting + clients.claim below swap it in immediately.
-const SW_VERSION = '2026-07-21-brave-safe-os-notif';
+const SW_VERSION = '2026-07-31-content-dedup';
 
 // GUARDED: firebase.messaging() throws in browsers where push is unavailable —
 // notably Brave with "Use Google services for push messaging" off. At top level
@@ -54,30 +54,50 @@ function swOccKey(id){
   var minute = Math.floor(parseInt(m[2],10) / 60000);
   return 'occ:' + m[1] + ':' + minute;
 }
+// CONTENT key — the occurrence key above only dedups deliveries that agree on
+// the series id, and the common real-world duplicate does NOT: every edit of a
+// repeating task re-expands it under a brand-new notifyRepeatId, leaving the
+// previous series alive in the cloud. Several series then fire the SAME reminder
+// text at the SAME minute under different ids, and every one drew its own card.
+// Same profile + same text inside the 5-min window is one reminder to a human.
+function swContentKey(dash, body){
+  return 'dupc:' + (dash || 'all') + '|' + String(body || '').trim().toLowerCase();
+}
 var SW_DEDUP_CACHE = 'th-notif-dedup';
-async function alreadyShown(key){
-  if(!key) return false;
+var SW_DEDUP_WINDOW = 5 * 60 * 1000;
+// Claim every key at once: if ANY of them was claimed inside the window this is
+// a duplicate delivery and nothing is drawn; otherwise all of them are claimed
+// so no later path can draw the same reminder again.
+async function alreadyShown(keys){
+  var list = (Array.isArray(keys) ? keys : [keys]).filter(Boolean);
+  if(!list.length) return false;
   try{
     var cache = await caches.open(SW_DEDUP_CACHE);
-    var url = '/__th_dedup__/' + encodeURIComponent(key);
-    var hit = await cache.match(url);
-    if(hit){
-      var ts = parseInt(await hit.text(), 10) || 0;
-      // Treat as duplicate only within a 5-min window; older entries are stale.
-      if(Date.now() - ts < 5 * 60 * 1000) return true;
+    for(var i = 0; i < list.length; i++){
+      var hit = await cache.match('/__th_dedup__/' + encodeURIComponent(list[i]));
+      if(hit){
+        var ts = parseInt(await hit.text(), 10) || 0;
+        // Treat as duplicate only within the window; older entries are stale.
+        if(Date.now() - ts < SW_DEDUP_WINDOW) return true;
+      }
     }
-    await cache.put(url, new Response(String(Date.now())));
+    await Promise.all(list.map(function(k){
+      return cache.put('/__th_dedup__/' + encodeURIComponent(k), new Response(String(Date.now())));
+    }));
     return false;
   }catch(e){ return false; }
 }
-// Page → SW: the page just drew the OS card for this occurrence itself (desktop
-// dual-surface path). Claim the key so a push for the SAME occurrence arriving
-// moments later is treated as a duplicate and doesn't draw a second card.
-async function markShown(key){
-  if(!key) return;
+// Page → SW: the page just drew the OS card itself (desktop dual-surface path).
+// Claim its keys so a push for the same occurrence — or for the same reminder
+// text from an orphaned series — arriving moments later draws nothing.
+async function markShown(keys){
+  var list = (Array.isArray(keys) ? keys : [keys]).filter(Boolean);
+  if(!list.length) return;
   try{
     var cache = await caches.open(SW_DEDUP_CACHE);
-    await cache.put('/__th_dedup__/' + encodeURIComponent(key), new Response(String(Date.now())));
+    await Promise.all(list.map(function(k){
+      return cache.put('/__th_dedup__/' + encodeURIComponent(k), new Response(String(Date.now())));
+    }));
   }catch(e){}
 }
 
@@ -132,7 +152,8 @@ self.addEventListener('message', function(e){
     e.waitUntil(setStoredMainDash(msg.mainDash));
   }
   if(msg && msg.type === 'th-mark-shown'){
-    e.waitUntil(markShown(msg.key));
+    // `keys` (array) is the current shape; `key` kept for an older page build.
+    e.waitUntil(markShown(msg.keys || msg.key));
   }
 });
 
@@ -160,7 +181,7 @@ if (messaging) messaging.onBackgroundMessage(function(payload){
   // when the cloud token's mainDash is stale.
   return shouldShowForDash(dash).then(function(allowed){
     if(!allowed) return; // wrong profile for this device — draw nothing
-    return alreadyShown(key).then(function(dup){
+    return alreadyShown([key, swContentKey(dash, body)]).then(function(dup){
       if(dup) return; // same occurrence already shown on this device — skip
     // Draw the OS notification-centre card, then hand the same reminder to any
     // open window (see the .then after showNotification). The PAGE decides what

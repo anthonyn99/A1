@@ -3246,6 +3246,41 @@ function fdow(y,m){const d=new Date(y,m,1).getDay();return d===0?6:d-1;}
 function dkey(y,m,d){return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;}
 function gwk(y,m,d){const dt=new Date(y,m,d),dow=dt.getDay(),mo=dow===0?-6:1-dow;const mon=new Date(y,m,d+mo);const r=[];for(let i=0;i<7;i++){const dd=new Date(mon);dd.setDate(mon.getDate()+i);r.push({year:dd.getFullYear(),month:dd.getMonth(),day:dd.getDate()});}return r;}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+// Find the reminder-series id (notifyRepeatId) an existing repeating task is
+// ALREADY using, so re-expanding it reuses that series instead of minting a new
+// one. Only the FIRST occurrence of an expansion carries the id — every later
+// occurrence is stamped notifyRepeatId:null + _notifyView (display-only), so
+// editing any date other than the first used to look like "no series yet" and
+// mint a fresh uid(). The cloud docs of the previous series are keyed by the OLD
+// id, so nothing ever deleted them and they kept firing: five edits to one
+// weekly task meant five notifications every week. Reusing the id makes the
+// rewrite land on the same deterministic doc ids and overwrite in place.
+// Shared by both dashboards (the two babel blocks share one global scope).
+function findSeriesNotifyId(data,item){
+  if(!data||!item)return null;
+  const grp=item.repeatId||item.altSeqId||null;
+  let byGroup=null;
+  const keys=Object.keys(data);
+  for(let i=0;i<keys.length;i++){
+    const arr=data[keys[i]];
+    if(!Array.isArray(arr))continue;
+    for(let j=0;j<arr.length;j++){
+      const t=arr[j];
+      if(!t||!t.notifyRepeatId)continue;
+      if(t.id===item.id)return t.notifyRepeatId;                       // same row wins outright
+      if(grp&&!byGroup&&(t.repeatId===grp||t.altSeqId===grp))byGroup=t.notifyRepeatId;
+    }
+  }
+  return byGroup;
+}
+// Same lookup for the task modals, which are separate components with no access
+// to the dashboard's state ref — read the authoritative task map straight from
+// localStorage ('td6_data' = Tony, 'td_data' = Veda).
+function findSeriesNotifyIdFor(storageKey,item){
+  let d=null;
+  try{d=JSON.parse(localStorage.getItem(storageKey)||'null');}catch(e){d=null;}
+  return findSeriesNotifyId(d,item);
+}
 function toMonIdx(jsd){return jsd===0?6:jsd-1;}
 // Max "Until" horizon per repeat mode (years from today). Daily is capped at 2yr
 // because every occurrence is pre-expanded into the single Firestore dashboard
@@ -3495,7 +3530,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
           ...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),
           altSeqId:initial.altSeqId,altSeqIdx:initial.altSeqIdx,altSeqTitles:validTitles,
           altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},
-          ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
+          ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||findSeriesNotifyIdFor("td6_data",initial)||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
         };
         onSave(startDateKey,item,"altSeqEdit");onClose();
       } else {
@@ -3512,7 +3547,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,
       ...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),
       ...(repeat!=="none"?{repeat,repeatDays,repeatEndDate:endDate,repeatId:initial?.repeatId||uid()}:{repeat:"none"}),
-      ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
+      ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||findSeriesNotifyIdFor("td6_data",initial)||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
 };
     const wasAltSeq=!!(initial?.altSeqId);
     const wasRepeating=(initial?.repeatId&&initial?.repeat&&initial.repeat!=="none")||wasAltSeq;
@@ -4359,7 +4394,10 @@ function App(){
       const _userSet=item.notifyRepeat&&item.notifyRepeat!=="none";
       const _map={daily:"daily",weekly:"weekly",monthly:"monthly",annually:"annually"};
       const _nr=_userSet?item.notifyRepeat:_map[ri.mode];
-      effNotify={h:_nb.getHours(),m:_nb.getMinutes(),notifyRepeat:_nr,notifyRepeatDays:_nr==="weekly"?(_userSet?(item.notifyRepeatDays||[]):(ri.days||[])):[],notifyRepeatId:item.notifyRepeatId||uid()};
+      // Reuse the series id this task already has (see findSeriesNotifyId) —
+      // minting a new one here orphaned the previous series' cloud docs, which
+      // then fired alongside the new ones every occurrence.
+      effNotify={h:_nb.getHours(),m:_nb.getMinutes(),notifyRepeat:_nr,notifyRepeatDays:_nr==="weekly"?(_userSet?(item.notifyRepeatDays||[]):(ri.days||[])):[],notifyRepeatId:item.notifyRepeatId||findSeriesNotifyId(stateRef.current&&stateRef.current.data,item)||uid()};
     }
     setData(prev=>{
       const next={...prev};
@@ -9348,7 +9386,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
       if(validTitles.length<2){alert("Alternating sequence needs at least 2 steps.");return;}
       if(!endDate){alert("Please set an end date.");return;}
       const isEdit=!!(initial?.altSeqId);
-      const notifyFields=notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null};
+      const notifyFields=notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||findSeriesNotifyIdFor("td_data",initial)||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null};
       if(isEdit){
         const item={id:initial.id,type,title:initial.title,category:cat,done:initial?.done||false,...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),altSeqId:initial.altSeqId,altSeqIdx:initial.altSeqIdx,altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields};
         onSave(startDateKey,item,"altSeqEdit");onClose();
@@ -9367,7 +9405,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
       const _userSet=item.notifyRepeat&&item.notifyRepeat!=="none";
       const _map={daily:"daily",weekly:"weekly",monthly:"monthly",annually:"annually"};
       const _nr=_userSet?item.notifyRepeat:(_map[repeat]||"none");
-      if(_nr!=="none"){item.notifyRepeat=_nr;item.notifyRepeatDays=_nr==="weekly"?(_userSet?(item.notifyRepeatDays||[]):(repeatDays||[])):[];item.notifyRepeatId=item.notifyRepeatId||uid();}
+      if(_nr!=="none"){item.notifyRepeat=_nr;item.notifyRepeatDays=_nr==="weekly"?(_userSet?(item.notifyRepeatDays||[]):(repeatDays||[])):[];item.notifyRepeatId=item.notifyRepeatId||findSeriesNotifyIdFor("td_data",initial)||uid();}
     }
     const wasAltSeq=!!(initial?.altSeqId);
     const wasRepeating=(initial?.repeatId&&initial?.repeat&&initial.repeat!=="none")||wasAltSeq;
@@ -9772,7 +9810,7 @@ function App(){
         // badge shows; scanners skip _notifyView so it never fires a duplicate.
         // See the matching comment in the Tony TaskHub above.
         let effNotify=null;
-        if(item.notifyAt){const _nb=new Date(item.notifyAt);const _userSet=item.notifyRepeat&&item.notifyRepeat!=="none";const _map={daily:"daily",weekly:"weekly",monthly:"monthly",annually:"annually"};const _nr=_userSet?item.notifyRepeat:(_map[ri.mode]||"none");effNotify={h:_nb.getHours(),m:_nb.getMinutes(),notifyRepeat:_nr,notifyRepeatDays:_nr==="weekly"?(_userSet?(item.notifyRepeatDays||[]):(ri.days||[])):[],notifyRepeatId:item.notifyRepeatId||(_nr!=="none"?uid():null)};}
+        if(item.notifyAt){const _nb=new Date(item.notifyAt);const _userSet=item.notifyRepeat&&item.notifyRepeat!=="none";const _map={daily:"daily",weekly:"weekly",monthly:"monthly",annually:"annually"};const _nr=_userSet?item.notifyRepeat:(_map[ri.mode]||"none");effNotify={h:_nb.getHours(),m:_nb.getMinutes(),notifyRepeat:_nr,notifyRepeatDays:_nr==="weekly"?(_userSet?(item.notifyRepeatDays||[]):(ri.days||[])):[],notifyRepeatId:item.notifyRepeatId||findSeriesNotifyIdFor("td_data",item)||(_nr!=="none"?uid():null)};}
         let firstOcc=true;const pushOcc=(dt)=>{const ck=dkey(dt.getFullYear(),dt.getMonth(),dt.getDate());const di=[...(next[ck]||[])];const occ={...item,id:firstOcc?item.id:uid(),repeatId:rid,done:false};
           if(effNotify){occ.notifyAt=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate(),effNotify.h,effNotify.m,0,0).toISOString();if(firstOcc){occ.notifyRepeat=effNotify.notifyRepeat;occ.notifyRepeatDays=effNotify.notifyRepeatDays;occ.notifyRepeatId=effNotify.notifyRepeatId;}else{occ.notifyRepeat="none";occ.notifyRepeatDays=[];occ.notifyRepeatId=null;occ._notifyView=true;}}
           firstOcc=false;di.push(occ);next[ck]=di;};if(ri.mode==="daily"||ri.mode==="weekly"){const c=new Date(sd);while(c<=ed){if(ri.mode==="daily"||ri.days.includes(toMonIdx(c.getDay())))pushOcc(c);c.setDate(c.getDate()+1);}}else if(ri.mode==="monthly"){const anchorDay=sd.getDate();let y=sd.getFullYear(),m=sd.getMonth(),g=0;while(g++<600){const dim=dimM(y,m);const dt=new Date(y,m,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);m++;if(m>11){m=0;y++;}}}else if(ri.mode==="annually"){const anchorMonth=sd.getMonth(),anchorDay=sd.getDate();let y=sd.getFullYear(),g=0;while(g++<50){const dim=dimM(y,anchorMonth);const dt=new Date(y,anchorMonth,Math.min(anchorDay,dim));if(dt>ed)break;if(dt>=sd)pushOcc(dt);y++;}}}
@@ -10570,6 +10608,31 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     return 'occ:'+series+':'+minute;
   }
 
+  // ── Content-level dedup (last line of defence) ─────────────────────────
+  // Occurrence keys only dedup paths that agree on the SERIES id. They cannot
+  // catch the real-world failure: editing a repeating task re-expands it under a
+  // BRAND-NEW notifyRepeatId, so months of edits leave several independent cloud
+  // series all firing the same reminder at the same minute (one weekly "Charge
+  // Car" had five). To a human those are one reminder — same profile, same text,
+  // same moment — so claim on exactly that. First path to claim draws; every
+  // other path for the same text within 5 minutes stays silent.
+  const DUPC_KEY='th_notif_dupc_v1';
+  function contentKey(dash,title){return (dash||'all')+'|'+String(title||'').trim().toLowerCase();}
+  // Returns true if this reminder text was ALREADY drawn for this profile in the
+  // last 5 minutes; otherwise claims it and returns false.
+  function claimContent(dash,title){
+    const k=contentKey(dash,title),now=Date.now(),WIN=5*60*1000;
+    let map={};
+    try{map=JSON.parse(localStorage.getItem(DUPC_KEY)||'{}')||{};}catch(e){map={};}
+    // Prune stale entries so the map can never grow without bound.
+    Object.keys(map).forEach(function(x){if(now-(map[x]||0)>WIN)delete map[x];});
+    const dup=!!map[k]&&(now-map[k]<WIN);
+    if(!dup){map[k]=now;try{localStorage.setItem(DUPC_KEY,JSON.stringify(map));}catch(e){}}
+    return dup;
+  }
+  // Exposed for the (classic, separate) polling-engine script.
+  window._thClaimContent=function(dash,title){try{return claimContent(dash,title);}catch(e){return false;}};
+
   // ── Surface policy: desktop gets BOTH surfaces ─────────────────────────
   // Every delivery path used to draw exactly ONE thing — the foreground path a
   // banner, the service worker an OS card, the local poll a banner — so on a
@@ -10631,7 +10694,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // the SW's dedup cache FIRST, so a push for the same occurrence arriving a
   // moment later can't draw a second card. No network, no Firestore reads.
   window._thLastOSNotifError='';
-  async function showOSNotif(body,occKey){
+  async function showOSNotif(body,occKey,dash){
     if(!IS_DESKTOP){window._thLastOSNotifError='not a desktop device';return false;}
     if(!('Notification' in window)){window._thLastOSNotifError='no Notification API';return false;}
     if(Notification.permission!=='granted'){window._thLastOSNotifError='permission is "'+Notification.permission+'", not granted';return false;}
@@ -10645,7 +10708,11 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       const reg=await ensureSWRegistration();
       if(reg){
         const sw=reg.active||reg.waiting||navigator.serviceWorker.controller;
-        if(sw&&occKey){try{sw.postMessage({type:'th-mark-shown',key:occKey});}catch(e){}}
+        // Claim BOTH the occurrence key and the content key. The content key is
+        // what stops a push from a DIFFERENT (orphaned) series for the same
+        // reminder text drawing a second card moments later — the occurrence key
+        // alone never matched across series.
+        if(sw){try{sw.postMessage({type:'th-mark-shown',keys:[occKey,'dupc:'+contentKey(dash,body)]});}catch(e){}}
         await reg.showNotification('✦ TaskHub',opts);
         window._thLastOSNotifError='';
         return true;
@@ -10665,7 +10732,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     }
   }
   // Exposed for the (classic, separate) polling-engine script.
-  window._thShowOSNotif=function(body,occKey){return showOSNotif(body,occKey).catch(function(){return false;});};
+  window._thShowOSNotif=function(body,occKey,dash){return showOSNotif(body,occKey,dash).catch(function(){return false;});};
 
   // ── In-app banner ─────────────────────────────────────────────────────
   function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -11286,6 +11353,74 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   };
   setTimeout(function(){window._fcmPurgeProView(false);},8000);
 
+  // ── Duplicate-series sweep ────────────────────────────────────────────────
+  // Editing a repeating task re-expands the whole series client-side under a
+  // BRAND-NEW notifyRepeatId. _fcmScheduleNotif clears old docs by querying
+  // notifyRepeatId == the NEW id, so it only ever deletes the series it is about
+  // to rewrite — the PREVIOUS series' docs stay in Firestore and keep firing
+  // forever. One weekly "Charge Car" had five live series (created May 7, Jun 5,
+  // Jun 17, Jul 11, Jul 18) all due at the same minute, so every Friday the
+  // worker sent five pushes and the device drew five OS cards plus a banner each.
+  //
+  // Collapse them at the source: walk the upcoming reminder docs, group by
+  // profile + normalised title + minute, and keep exactly ONE per group. The
+  // keeper is the doc whose series is still armed in this device's task data
+  // (that's the live one); failing that, the most recently created. Bounded to
+  // 800 docs and throttled to 6h, so the read cost stays trivial.
+  window._fcmDedupSweep=async function(force){
+    try{
+      var THROTTLE=6*60*60*1000;
+      var last=parseInt(localStorage.getItem('fcm_dedup_sweep_at')||'0',10)||0;
+      if(!force&&Date.now()-last<THROTTLE)return 0;
+      localStorage.setItem('fcm_dedup_sweep_at',String(Date.now()));
+      await _authReady;
+      const{collection:colRef,query:q2,where:wh2,orderBy:ob2,limit:lm2,getDocs:gd2}=await import('https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js');
+      // Range + orderBy on the SAME single field — no composite index needed.
+      const fromIso=new Date(Date.now()-5*60*1000).toISOString();
+      const snap=await gd2(q2(colRef(db,'reminders'),wh2('notifyAt','>=',fromIso),ob2('notifyAt'),lm2(800)));
+      // Series ids this device currently has armed — always the keeper.
+      var live={};
+      ['td6_data','td_data'].forEach(function(k){
+        var raw;try{raw=JSON.parse(localStorage.getItem(k)||'null');}catch(e){return;}
+        if(!raw||typeof raw!=='object')return;
+        Object.values(raw).forEach(function(arr){
+          if(!Array.isArray(arr))return;
+          arr.forEach(function(it){if(it&&it.notifyRepeatId)live[it.notifyRepeatId]=1;});
+        });
+      });
+      ['td6_habits','td_habits'].forEach(function(k){
+        var raw;try{raw=JSON.parse(localStorage.getItem(k)||'null');}catch(e){return;}
+        if(!Array.isArray(raw))return;
+        raw.forEach(function(h){if(h&&h.id)live[h.notifyRepeatId||('habr_'+h.id)]=1;});
+      });
+      var groups={};
+      snap.forEach(function(ds){
+        var d=ds.data()||{};
+        var t=new Date(d.notifyAt).getTime();
+        if(isNaN(t))return;
+        var key=(d.dashboard||'all')+'|'+String(d.title||'').trim().toLowerCase()+'|'+Math.floor(t/60000);
+        (groups[key]=groups[key]||[]).push({id:ds.id,rid:d.notifyRepeatId||null,createdAt:d.createdAt||0});
+      });
+      var dels=[];
+      Object.keys(groups).forEach(function(k){
+        var list=groups[k];
+        if(list.length<2)return;
+        list.sort(function(a,b){
+          var al=(a.rid&&live[a.rid])?1:0,bl=(b.rid&&live[b.rid])?1:0;
+          if(al!==bl)return bl-al;                    // an armed series wins
+          return (b.createdAt||0)-(a.createdAt||0);   // otherwise the newest
+        });
+        list.slice(1).forEach(function(x){dels.push(x.id);});
+      });
+      await Promise.all(dels.map(function(id){return deleteDoc(doc(db,'reminders',id)).catch(function(){});}));
+      if(dels.length)console.log('[FCM] duplicate reminder docs removed:',dels.length);
+      return dels.length;
+    }catch(e){console.warn('[FCM] dedup sweep failed:',e);return 0;}
+  };
+  // After the re-arm sweep (4s) so the live series is written before we decide
+  // which doc of each group to keep.
+  setTimeout(function(){window._fcmDedupSweep(false);},12000);
+
   // ── Cancel reminder (+ optional whole series) ────────────────────────
   window._fcmCancelNotif=async function(id,notifyRepeatId){
     await _authReady;
@@ -11318,6 +11453,9 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       // the foreground FCM push AND the poll loop. Falls back to raw id.
       const ok=fcmOccKey(id)||id;
       if(ok){ if(hasFired(ok))return; markFired(ok); }
+      // Second gate: same profile + same text within 5 minutes = same reminder,
+      // even when it arrives from a different (orphaned) cloud series.
+      if(claimContent(dash,title))return;
       // The app is in the FOREGROUND here (onMessage only runs focused).
       // MOBILE: banner ONLY — a phone drawing a banner AND a notification-centre
       // card is the "fires twice" double, so mobile stays single-surface.
@@ -11326,7 +11464,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       // showOSNotif claims `ok` in the SW's dedup cache, so the same occurrence
       // can never draw a second card from any other path.
       showBanner(title);
-      if(IS_DESKTOP)showOSNotif(title,ok);
+      if(IS_DESKTOP)showOSNotif(title,ok,dash);
     });
   }
 
@@ -11349,6 +11487,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       if(dash!=='all'&&mainD!==dash)return;
       var ok=fcmOccKey(msg.id)||msg.id;
       if(ok){ if(hasFired(ok))return; markFired(ok); }
+      if(claimContent(dash,msg.body))return; // same text already banner-ed
       showBanner(msg.body||'TaskHub Reminder');
     });
   }
@@ -11594,7 +11733,12 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   }
 
   var _notifSeq=0;
-  function showNotif(title,occ){
+  function showNotif(title,occ,dash){
+    // Content gate, shared with the FCM module via localStorage: if a push for
+    // this same reminder text already drew (or is about to draw) on this profile
+    // within 5 minutes, this poll tick must stay silent — otherwise the same
+    // reminder surfaces once per cloud series that still exists for it.
+    if(window._thClaimContent&&window._thClaimContent(dash,title))return;
     var stack=document.getElementById('th-banner-stack');
     if(!stack){
       stack=document.createElement('div');stack.id='th-banner-stack';
@@ -11626,7 +11770,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     // in the service worker's dedup cache, so the push arriving a moment later
     // still can't draw a second card.
     if(occ&&isDesktop()&&window._thShowOSNotif){
-      try{window._thShowOSNotif(title,occ);}catch(e){}
+      try{window._thShowOSNotif(title,occ,dash);}catch(e){}
     }
   }
 
@@ -11647,7 +11791,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         // thScheduleNotif previously each used a DIFFERENT id for the same
         // occurrence, so per-id dedup let it fire 2–3×.
         if(!hasFired(ok2)){
-          if(shouldFire(entry.dash)){showNotif(entry.title||'TaskHub Reminder',ok2);}
+          if(shouldFire(entry.dash)){showNotif(entry.title||'TaskHub Reminder',ok2,entry.dash);}
           markFired(ok2);
         }
         markFired(entry.id); // keep per-id mark too (reg cleanup / legacy)
