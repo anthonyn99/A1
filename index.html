@@ -4357,7 +4357,8 @@ function App(){
 
   const delThisOnly=useCallback(()=>{
     if(!delConfirm)return;const{dateKey,itemId,item}=delConfirm;
-    if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(itemId,null);
+    // Only THIS date is being removed, so cancel only this occurrence's cloud doc.
+    if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(itemId,null,{notifyAt:item.notifyAt});
     setData(prev=>{const arr=(prev[dateKey]||[]).filter(t=>t.id!==itemId);const next={...prev};if(!arr.length)delete next[dateKey];else next[dateKey]=arr;return next;});
     setDelConfirm(null);
   },[delConfirm,setData]);
@@ -9792,7 +9793,7 @@ function App(){
   const tk=dkey(now.getFullYear(),now.getMonth(),now.getDate());
   const tog=useCallback((k,id)=>{setData(p=>{const it=[...(p[k]||[])];const i=it.findIndex(t=>t.id===id);if(i>=0){it[i]={...it[i],done:!it[i].done};const item=it[i];if(item._sosId&&item._sosId.startsWith('t_')){const sosTaskId=item._sosId.slice(2);try{const sosTasks=JSON.parse(localStorage.getItem('studyos_tasks')||'[]');const ti=sosTasks.findIndex(t=>t.id===sosTaskId);if(ti>=0){sosTasks[ti].done=item.done;localStorage.setItem('studyos_tasks',JSON.stringify(sosTasks));if(window._sosRenderCalendar)window._sosRenderCalendar();}}catch(e){}}}return{...p,[k]:it};});},[]);
   const del=useCallback((k,id)=>{setData(p=>{const item=(p[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return p;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const it=(p[k]||[]).filter(t=>t.id!==id);const n={...p};if(!it.length)delete n[k];else n[k]=it;return n;});},[]);
-  const delThisOnly=useCallback(()=>{if(!delConfirm)return;const{dateKey,itemId,item}=delConfirm;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(itemId,null);setData(p=>{const it=(p[dateKey]||[]).filter(t=>t.id!==itemId);const n={...p};if(!it.length)delete n[dateKey];else n[dateKey]=it;return n;});setDelConfirm(null);},[delConfirm]);
+  const delThisOnly=useCallback(()=>{if(!delConfirm)return;const{dateKey,itemId,item}=delConfirm;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(itemId,null,{notifyAt:item.notifyAt});setData(p=>{const it=(p[dateKey]||[]).filter(t=>t.id!==itemId);const n={...p};if(!it.length)delete n[dateKey];else n[dateKey]=it;return n;});setDelConfirm(null);},[delConfirm]);
   const delAllFuture=useCallback(()=>{if(!delConfirm)return;const{dateKey,item}=delConfirm;const rid=item.repeatId||item.altSeqId;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(item.id,item.notifyRepeatId);setData(p=>{const next={...p};const cutoff=new Date(dateKey);Object.keys(next).forEach(k=>{const kd=new Date(k);if(kd>=cutoff){next[k]=(next[k]||[]).filter(t=>t.repeatId!==rid&&t.altSeqId!==rid);if(!next[k].length)delete next[k];}});return next;});setDelConfirm(null);},[delConfirm]);
   const savItem=useCallback((dk2,item,ri)=>{
     if(ri==="titleEditChoice"){setTitleEditConfirm({dateKey:dk2,item});setMo(false);setEi(null);return;}
@@ -11422,16 +11423,72 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   setTimeout(function(){window._fcmDedupSweep(false);},12000);
 
   // ── Cancel reminder (+ optional whole series) ────────────────────────
-  window._fcmCancelNotif=async function(id,notifyRepeatId){
-    await _authReady;
-    try{await deleteDoc(doc(db,'reminders',id));}catch(e){}
-    if(notifyRepeatId){
-      try{
-        const{collection:colRef,query:q2,where:wh2,getDocs:gd2}=await import('https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js');
-        const snap=await gd2(q2(colRef(db,'reminders'),wh2('notifyRepeatId','==',notifyRepeatId)));
-        snap.forEach(async ds=>{try{await deleteDoc(doc(db,'reminders',ds.id));}catch(e){}});
-      }catch(e){}
+  // Recover the reminder-series id for a task id from this device's task data.
+  // Callers pass notifyRepeatId straight off the row being deleted, but every
+  // occurrence AFTER the first carries notifyRepeatId:null (they are display-only
+  // badges — see the expansion in savItem), so deleting any later date sent
+  // null in here. With no series id we could only try `reminders/<taskId>`, a doc
+  // id that does not exist for a repeating series (its docs are '<series>_<ms>'),
+  // so NOTHING was deleted: the row vanished locally, the cron kept pushing, and
+  // re-adding the task minted yet another live series. That is how one weekly
+  // "Charge Car" ended up with five of them.
+  function localSeriesIdFor(id){
+    if(!id)return null;
+    const keys=['td6_data','td_data'];
+    for(let s=0;s<keys.length;s++){
+      let raw;try{raw=JSON.parse(localStorage.getItem(keys[s])||'null');}catch(e){continue;}
+      if(!raw||typeof raw!=='object')continue;
+      const arrs=Object.values(raw);
+      let grp=null;
+      for(let a=0;a<arrs.length;a++){
+        const arr=arrs[a];if(!Array.isArray(arr))continue;
+        for(let i=0;i<arr.length;i++){
+          const it=arr[i];
+          if(!it||it.id!==id)continue;
+          if(it.notifyRepeatId)return it.notifyRepeatId;      // the row owns the series
+          grp=it.repeatId||it.altSeqId||grp;                  // else: find a sibling that does
+        }
+      }
+      if(grp){
+        for(let a2=0;a2<arrs.length;a2++){
+          const arr2=arrs[a2];if(!Array.isArray(arr2))continue;
+          for(let j=0;j<arr2.length;j++){
+            const t=arr2[j];
+            if(t&&t.notifyRepeatId&&(t.repeatId===grp||t.altSeqId===grp))return t.notifyRepeatId;
+          }
+        }
+      }
     }
+    return null;
+  }
+  // opts.notifyAt → delete ONLY the occurrence at that moment (the "delete this
+  // date only" choice), not the whole series.
+  window._fcmCancelNotif=async function(id,notifyRepeatId,opts){
+    await _authReady;
+    const jobs=[];
+    const kill=did=>{jobs.push(deleteDoc(doc(db,'reminders',did)).catch(function(){}));};
+    if(id)kill(id);
+    const series=notifyRepeatId||localSeriesIdFor(id);
+    const occAt=opts&&opts.notifyAt?new Date(opts.notifyAt).getTime():NaN;
+    if(series&&!isNaN(occAt)){
+      // Single occurrence — the scheduler writes '<series>_<ms>' with the seconds
+      // zeroed, and the row's notifyAt is built the same way, so the id matches.
+      kill(series+'_'+occAt);
+    } else if(series){
+      try{
+        const{collection:colRef,query:q2,where:wh2,getDocs:gd2,orderBy:ob2,startAt:sa2,endAt:ea2}=await import('https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js');
+        const snap=await gd2(q2(colRef(db,'reminders'),wh2('notifyRepeatId','==',series)));
+        snap.forEach(ds=>kill(ds.id));
+        // …and by id prefix, which also catches legacy occurrence docs written
+        // before notifyRepeatId was stored on every doc.
+        const snap2=await gd2(q2(colRef(db,'reminders'),ob2('id'),sa2(series+'_'),ea2(series+'_9999999999999')));
+        snap2.forEach(ds=>kill(ds.id));
+      }catch(e){console.warn('[FCM] cancel series lookup failed:',e);}
+    }
+    // AWAIT them. The old code launched each delete from inside a forEach
+    // callback and returned before any had completed, so closing the tab right
+    // after a delete left the docs — and the push — alive.
+    await Promise.all(jobs);
   };
 
   // ── Foreground FCM message handler ────────────────────────────────────
@@ -11896,9 +11953,12 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     }
   };
 
-  window.thCancelNotif=async function(id,repeatId){
+  // opts.notifyAt → cancel only the occurrence at that moment (the "delete this
+  // date only" choice); otherwise the whole series goes. _fcmCancelNotif fills in
+  // the series id from local task data when the caller has none.
+  window.thCancelNotif=async function(id,repeatId,opts){
     regRemove(id,repeatId);
-    if(window._fcmCancelNotif){try{await window._fcmCancelNotif(id,repeatId);}catch(e){}}
+    if(window._fcmCancelNotif){try{await window._fcmCancelNotif(id,repeatId,opts);}catch(e){}}
   };
 
   function start(){
