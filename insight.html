@@ -203,6 +203,61 @@
   .stat .val.gold { color: var(--gold-soft); }
   .stat .val.neg { color: var(--danger); }
 
+  /* ── Monthly history ──
+     The tiles above only ever speak for the current month; this is the same
+     three figures for every month that has transactions, kept folded away so
+     the feed stays the focus. Amounts carry `money` so display mode blurs
+     them — a month-by-month history reveals the position just as plainly as
+     a balance does. */
+  .mhist {
+    background: var(--surface); border: 1px solid var(--border-soft);
+    border-radius: var(--radius); margin: 0 0 22px;
+  }
+  .mhist summary {
+    display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;
+    padding: 13px 18px; list-style: none;
+    font-size: 10px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase;
+    color: var(--faint); transition: color .18s;
+  }
+  .mhist summary::-webkit-details-marker { display: none; }
+  .mhist summary:hover { color: var(--muted); }
+  .mhist[open] summary { color: var(--gold-soft); border-bottom: 1px solid var(--border-soft); }
+  .mh-hint { letter-spacing: 1px; color: var(--faint); font-weight: 500; }
+  .mh-chev { width: 15px; height: 15px; margin-left: auto; flex-shrink: 0; transition: transform .22s ease; }
+  .mhist[open] .mh-chev { transform: rotate(180deg); }
+  .mh-body {
+    max-height: 440px; overflow-y: auto; padding: 6px 0;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .mh-body::-webkit-scrollbar { width: 9px; }
+  .mh-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; border: 3px solid transparent; background-clip: content-box; }
+  .mh-body::-webkit-scrollbar-track { background: transparent; }
+  /* Capping the figure columns keeps them clustered near the month instead of
+     stranded at the far edge on a wide screen. */
+  .mh-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(92px, 210px));
+    gap: 14px; align-items: baseline; padding: 10px 18px;
+  }
+  .mh-row.head {
+    font-size: 9.5px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--faint); padding-bottom: 6px;
+  }
+  .mh-row:not(.head):not(.total):hover { background: var(--surface-2); }
+  .mh-row .mo { font-size: 13.5px; font-weight: 500; white-space: nowrap; }
+  .mh-row .amt { text-align: right; font-size: 13.5px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .mh-row .amt.in { color: var(--gold-soft); }
+  .mh-row .amt.neg { color: var(--danger); }
+  .mh-row.head .amt { text-align: right; font-size: 9.5px; }
+  .mh-row.total { border-top: 1px solid var(--border-soft); margin-top: 4px; padding-top: 13px; }
+  .mh-row.total .mo, .mh-row.total .amt { color: var(--muted); }
+  .mh-row.total .amt.in { color: var(--gold-soft); }
+  .mh-row.total .amt.neg { color: var(--danger); }
+  .mh-sofar {
+    font-size: 9.5px; font-weight: 500; letter-spacing: .8px; text-transform: uppercase;
+    color: var(--faint); margin-left: 7px;
+  }
+  .mh-empty { padding: 22px 18px; color: var(--faint); font-size: 13px; }
+
   /* ── Filters ── */
   .filters { display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; align-items: center; }
   .filters input[type=search], .filters select, .field input, .field select, .field textarea {
@@ -516,6 +571,23 @@
     nav { margin: 12px 0 14px; }
     .stats { margin-bottom: 14px; }
     .filters { margin-bottom: 14px; gap: 8px; }
+    /* Four currency columns won't fit across a phone. The month takes its own
+       line and the three figures sit beneath it, each carrying its own label
+       so the (now hidden) header row isn't needed. */
+    .mhist { margin-bottom: 14px; }
+    .mhist summary { padding: 11px 14px; letter-spacing: 1.2px; }
+    .mh-row { padding: 11px 14px; gap: 3px 8px; grid-template-columns: repeat(3, 1fr); }
+    .mh-row.head { display: none; }
+    .mh-row .mo { grid-column: 1 / -1; font-size: 12.5px; margin-bottom: 3px; }
+    .mh-row .amt { font-size: 12.5px; text-align: left; }
+    .mh-row .amt::before {
+      content: attr(data-l); display: block;
+      font-size: 8.5px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--faint); margin-bottom: 2px;
+    }
+    /* Cells in order: month, in, out, net — centre the middle figure. */
+    .mh-row .amt:nth-of-type(3) { text-align: center; }
+    .mh-row .amt:last-child { text-align: right; }
     .datehdr { margin: 18px 2px 9px; }
     .brand { font-size: 26px; }
     .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -665,6 +737,14 @@
       <div class="stat"><div class="lbl">Out · this month</div><div class="val money" id="statOut">—</div></div>
       <div class="stat"><div class="lbl">Net</div><div class="val money" id="statNet">—</div></div>
     </div>
+    <details class="mhist" id="monthHistory">
+      <summary>
+        <span class="mh-title">Monthly history</span>
+        <span class="mh-hint" id="mhHint"></span>
+        <svg class="mh-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </summary>
+      <div class="mh-body" id="mhBody"></div>
+    </details>
     <div class="filters">
       <input type="search" id="fSearch" placeholder="Search transactions…">
       <select id="fCategory"><option value="">All categories</option></select>
@@ -1728,7 +1808,7 @@
       (b.date || '').localeCompare(a.date || '') || (b.updatedAt || 0) - (a.updatedAt || 0));
   }
 
-  function renderAll() { renderStats(); renderFeed(); renderFilterOptions(); renderRecurring(); }
+  function renderAll() { renderStats(); renderMonthly(); renderFeed(); renderFilterOptions(); renderRecurring(); }
 
   // ── Transfers & credit-card payments ─────────────────────────────────────
   // Paying a credit card moves money between your OWN accounts. It shows up
@@ -1791,6 +1871,55 @@
     setStat($('statIn'), fmt$(vIn), 'gold');
     setStat($('statOut'), fmt$(vOut), '');
     setStat($('statNet'), (vNet < 0 ? '−' : '') + fmt$(Math.abs(vNet)), vNet >= 0 ? 'gold' : 'neg');
+  }
+
+  // Every month that has at least one counted transaction, newest first.
+  // Same rules as the tiles above: pending rows are skipped, and card
+  // payments / self-transfers count as neither in nor out.
+  function monthTotals() {
+    const by = new Map();
+    for (const t of allTxs()) {
+      const ym = (t.date || '').slice(0, 7);
+      if (ym.length !== 7 || t.pending || txKind(t)) continue;
+      let m = by.get(ym);
+      if (!m) by.set(ym, m = { ym, inn: 0, out: 0 });
+      if (t.amount < 0) m.inn += -t.amount; else m.out += t.amount;
+    }
+    return [...by.values()].sort((a, b) => b.ym.localeCompare(a.ym));
+  }
+
+  const fmtMonth = ym => new Date(ym + '-01T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  function renderMonthly() {
+    const months = monthTotals();
+    $('mhHint').textContent = months.length ? `${months.length} month${months.length === 1 ? '' : 's'}` : '';
+    if (!months.length) {
+      $('mhBody').innerHTML = '<div class="mh-empty">No months tracked yet — totals appear here as transactions come in.</div>';
+      return;
+    }
+    const thisYm = new Date().toISOString().slice(0, 7);
+    // `data-l` is the per-figure label the stacked phone layout prints above
+    // each amount, standing in for the header row it hides.
+    const cell = n => `<div class="amt money${n < 0 ? ' neg' : ''}" data-l="Net">${n < 0 ? '−' : ''}${esc(fmt$(Math.abs(n)))}</div>`;
+    let html = `<div class="mh-row head"><div>Month</div><div class="amt">In</div><div class="amt">Out</div><div class="amt">Net</div></div>`;
+    let tIn = 0, tOut = 0;
+    for (const m of months) {
+      const net = m.inn - m.out;
+      tIn += m.inn; tOut += m.out;
+      html += `<div class="mh-row">
+        <div class="mo">${esc(fmtMonth(m.ym))}${m.ym === thisYm ? '<span class="mh-sofar">so far</span>' : ''}</div>
+        <div class="amt in money" data-l="In">${esc(fmt$(m.inn))}</div>
+        <div class="amt money" data-l="Out">${esc(fmt$(m.out))}</div>
+        ${cell(net)}
+      </div>`;
+    }
+    html += `<div class="mh-row total">
+      <div class="mo">All ${months.length} month${months.length === 1 ? '' : 's'}</div>
+      <div class="amt in money">${esc(fmt$(tIn))}</div>
+      <div class="amt money">${esc(fmt$(tOut))}</div>
+      ${cell(tIn - tOut)}
+    </div>`;
+    $('mhBody').innerHTML = html;
   }
 
   // `money` is the blur marker — a mock figure carries the tag instead.
