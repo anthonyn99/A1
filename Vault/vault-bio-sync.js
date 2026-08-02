@@ -80,6 +80,48 @@
     } catch (err) {}
   });
 
+  // ── TradeHub "Launch Analysis" relay ──
+  // The page can open the AI tab itself, but it can never TYPE into it — a
+  // cross-origin site is off-limits to page JS. So it hands us the prompt and
+  // the tab list; the background opens them and parks the prompt against the AI
+  // tab, where vault-ai-prompt.js pastes and sends it.
+  //
+  // The capability ping matters: TradeHub has to know whether we can do this
+  // BEFORE the button is clicked, because its fallback (window.open) is only
+  // allowed inside the click's own user gesture.
+  window.addEventListener('message', function (e) {
+    if (e.source !== window) return;
+    if (e.origin && e.origin.indexOf('https://anthonyn99.github.io') !== 0) return;
+    var d = e.data;
+    if (!d || d.source !== 'tradehub-vault') return;
+
+    if (d.action === 'aiLaunchPing') {
+      try {
+        chrome.runtime.sendMessage({ action: 'aiLaunchCapability' }, function (resp) {
+          var ok = !chrome.runtime.lastError && resp && resp.ok;   // older builds answer nothing → ok:false
+          window.postMessage({ source: 'vault-extension', action: 'aiLaunchPong', ok: !!ok }, e.origin || '*');
+        });
+      } catch (err) {}
+      return;
+    }
+
+    if (d.action === 'launchAnalysis') {
+      try {
+        chrome.runtime.sendMessage(
+          {
+            action: 'launchAnalysis',
+            aiUrl: d.aiUrl || '',
+            text: d.text || '',
+            searches: Array.isArray(d.searches) ? d.searches.filter(Boolean) : [],
+          },
+          function () { void chrome.runtime.lastError; }
+        );
+        // Ack immediately so the page never also opens its own fallback tabs.
+        window.postMessage({ source: 'vault-extension', action: 'launchAnalysisAck' }, e.origin || '*');
+      } catch (err) {}
+    }
+  });
+
   // ── Keychain "Open all" relay ──
   // The Vault web app's connection cards launch their links as one named,
   // coloured tab group — identical to what the popup does — by handing the

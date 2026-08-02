@@ -225,8 +225,101 @@ chrome.tabs.onCreated.addListener((tab) => {
   });
 });
 
+// ── Launch Analysis: open the AI tab + searches, and auto-submit the prompt ──
+// TradeHub's "Launch Analysis" button can't type into chatgpt.com (cross-origin),
+// so it hands us the prompt instead. We open the tabs, then park the prompt
+// against the AI tab's id; vault-ai-prompt.js — the content script running INSIDE
+// that new tab — collects it and does the paste + send.
+//
+// Handing it over as a PULL (the tab asks us) rather than a push avoids racing
+// the tab's load, and each prompt is released exactly once, so a reload or an
+// auth redirect can never re-fire the same analysis.
+const AI_PENDING_KEY = "aiPromptPending";   // storage.session: { [tabId]: {text, deadline} }
+const AI_PENDING_MS = 180000;               // a cold AI page + sign-in can take a while
+
+async function loadAiPending() {
+  try { const d = await chrome.storage.session.get(AI_PENDING_KEY); return d[AI_PENDING_KEY] || {}; }
+  catch (_) { return {}; }
+}
+async function saveAiPending(map) {
+  try { await chrome.storage.session.set({ [AI_PENDING_KEY]: map }); } catch (_) {}
+}
+
+async function launchAnalysis(message, senderTab) {
+  const windowId = senderTab && senderTab.windowId != null ? senderTab.windowId : null;
+  const searches = (Array.isArray(message.searches) ? message.searches : []).map(normalize).filter(Boolean);
+  const aiUrl = normalize(message.aiUrl);
+  const text = String(message.text || "");
+
+  // Append at the end of the strip (same reasoning as openLinksAsGroup: an
+  // implicit index drops new tabs beside the active one, inside its group).
+  let index;
+  try {
+    const existing = await chrome.tabs.query(windowId != null ? { windowId } : { currentWindow: true });
+    index = existing.length;
+  } catch (_) { index = undefined; }
+
+  const mk = (url, active) => {
+    const props = { url, active };
+    if (windowId != null) props.windowId = windowId;
+    if (index != null) props.index = index++;
+    return props;
+  };
+
+  for (const u of searches) {
+    try { await chrome.tabs.create(mk(u, false)); } catch (_) {}
+  }
+
+  // The AI tab opens LAST and active, so it's the tab you land on — the same
+  // end state the Trading Auto Launch produces.
+  let aiTabId = null;
+  if (aiUrl) {
+    try { const t = await chrome.tabs.create(mk(aiUrl, true)); aiTabId = t && t.id != null ? t.id : null; } catch (_) {}
+    if (aiTabId != null && text.trim()) {
+      const now = Date.now();
+      const map = await loadAiPending();
+      for (const k of Object.keys(map)) if (!map[k] || map[k].deadline < now) delete map[k];  // prune
+      map[String(aiTabId)] = { text, deadline: now + AI_PENDING_MS };
+      await saveAiPending(map);
+    }
+    if (windowId != null) { try { await chrome.windows.update(windowId, { focused: true }); } catch (_) {} }
+  }
+
+  console.log("[Vault] launchAnalysis:", searches.length, "search tab(s),", aiUrl || "no AI tab", "prompt", text.length, "chars");
+  return { ok: true, aiTabId, opened: searches.length + (aiUrl ? 1 : 0) };
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return;
+
+  // ── TradeHub asks whether this build can auto-submit (relayed by vault-bio-sync) ──
+  // TradeHub must know BEFORE the click: if we can't do it, its button has to
+  // fall back to window.open, and window.open only works inside the click's own
+  // gesture — there's no time to ask us and then decide.
+  if (message.action === "aiLaunchCapability") { sendResponse({ ok: true }); return true; }
+
+  // ── Launch Analysis: open tabs + auto-submit the prompt in the AI tab ──
+  if (message.action === "launchAnalysis") {
+    launchAnalysis(message, _sender && _sender.tab)
+      .then(sendResponse)
+      .catch((e) => { console.warn("[Vault] launchAnalysis failed:", e); sendResponse({ ok: false }); });
+    return true;
+  }
+
+  // ── vault-ai-prompt.js asking for the prompt this tab was opened to run ──
+  if (message.action === "vaultAiPromptPending") {
+    const tabId = _sender && _sender.tab ? _sender.tab.id : null;
+    (async () => {
+      if (tabId == null) return sendResponse({});
+      const map = await loadAiPending();
+      const entry = map[String(tabId)];
+      if (!entry || entry.deadline < Date.now()) return sendResponse({});
+      delete map[String(tabId)];          // release exactly once
+      await saveAiPending(map);
+      sendResponse({ text: entry.text });
+    })();
+    return true;
+  }
 
   // ── Trading Auto Launch grouping request (relayed by vault-bio-sync) ──
   if (message.action === "groupTradingTabs") {

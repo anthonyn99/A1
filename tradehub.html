@@ -4481,14 +4481,88 @@ function tbResolveUrl(query){
   if(t.includes('.')&&!t.includes(' ')&&!t.includes('?')) return 'https://'+t;
   return 'https://www.google.com/search?q='+encodeURIComponent(t);
 }
-/* True if a resolved URL points at ChatGPT — we skip these when opening searches so
-   we don't double-open the ChatGPT tab. */
-function tbIsChatGPTUrl(u){ try{ return /(^|\.)chatgpt\.com$|(^|\.)chat\.openai\.com$/i.test(new URL(u).hostname); }catch{ return false; } }
 /* Plain ChatGPT URL. We deliberately do NOT use ?q=<prompt>: real prompts are long
    enough that the URL + ChatGPT's auth cookies overflow its header limit (HTTP 431).
    The prompt is copied to the clipboard instead — paste it with Ctrl+V. (The
    Trading Auto Launch submits automatically by pasting + Enter for you.) */
 const TB_CHATGPT_URL='https://chatgpt.com/';
+
+/* ── AI destination ─────────────────────────────────────────────────────────
+   Where "Launch Analysis" sends the selected prompt. With the Vault extension
+   installed the prompt is typed in and submitted for you (see the auto-submit
+   block below); without it, the tab still opens with the prompt on your
+   clipboard, exactly as before. `hosts` is what we match search entries against
+   so the AI never opens twice. */
+const TB_AI_SITES=[
+  {id:'chatgpt',   label:'ChatGPT',    url:TB_CHATGPT_URL,                     hosts:['chatgpt.com','chat.openai.com']},
+  {id:'claude',    label:'Claude',     url:'https://claude.ai/new',            hosts:['claude.ai']},
+  {id:'gemini',    label:'Gemini',     url:'https://gemini.google.com/app',    hosts:['gemini.google.com']},
+  {id:'perplexity',label:'Perplexity', url:'https://www.perplexity.ai/',       hosts:['perplexity.ai']},
+  {id:'grok',      label:'Grok',       url:'https://grok.com/',                hosts:['grok.com']},
+  {id:'copilot',   label:'Copilot',    url:'https://copilot.microsoft.com/',   hosts:['copilot.microsoft.com']},
+  {id:'deepseek',  label:'DeepSeek',   url:'https://chat.deepseek.com/',       hosts:['deepseek.com']},
+  {id:'custom',    label:'Custom URL', url:'',                                 hosts:[]},
+  {id:'none',      label:'None',       url:'',                                 hosts:[]},
+];
+function tbAiSite(cfg){const id=(cfg&&cfg.aiSite)||'chatgpt';return TB_AI_SITES.find(s=>s.id===id)||TB_AI_SITES[0];}
+/* Resolved destination URL ('' = don't open an AI tab at all). */
+function tbAiUrl(cfg){
+  const s=tbAiSite(cfg);
+  if(s.id==='none')return '';
+  if(s.id==='custom'){const c=((cfg&&cfg.aiCustomUrl)||'').trim();return c?tbResolveUrl(c):'';}
+  return s.url;
+}
+function tbHostOf(u){try{return new URL(u).hostname.replace(/^www\./,'').toLowerCase();}catch{return '';}}
+/* True if a search entry resolves to the AI destination itself — those are
+   skipped so the AI tab isn't opened a second time (unsubmitted). */
+function tbIsAiUrl(u,cfg){
+  const h=tbHostOf(u); if(!h)return false;
+  const site=tbAiSite(cfg);
+  const hosts=site.id==='custom'?[tbHostOf(tbAiUrl(cfg))].filter(Boolean):site.hosts;
+  return hosts.some(x=>h===x||h.endsWith('.'+x));
+}
+
+/* ── Vault-extension bridge for auto-submit ─────────────────────────────────
+   A page cannot type into another site — that's browser-wide cross-origin
+   policy, and it's exactly why the Trading Auto Launch had to drive ChatGPT
+   with OS keystrokes. The Vault extension can, so we hand it the prompt and it
+   opens the tabs + pastes + sends (see Vault/vault-ai-prompt.js).
+
+   The capability is probed on mount, NOT at click time: if the extension is
+   missing we must fall back to window.open, and window.open only survives
+   inside the click's own user gesture — there's no room to ask first and then
+   decide. */
+function tbAiPing(timeoutMs=1200){
+  return new Promise(resolve=>{
+    let done=false;
+    const onMsg=(e)=>{
+      if(e.source!==window)return;
+      const d=e.data;
+      if(!d||d.source!=='vault-extension'||d.action!=='aiLaunchPong')return;
+      if(done)return;done=true;window.removeEventListener('message',onMsg);resolve(!!d.ok);
+    };
+    window.addEventListener('message',onMsg);
+    try{window.postMessage({source:'tradehub-vault',action:'aiLaunchPing'},location.origin);}catch(e){}
+    setTimeout(()=>{if(done)return;done=true;window.removeEventListener('message',onMsg);resolve(false);},timeoutMs);
+  });
+}
+/* Ask the extension to run the whole launch. Returns true once it acks — the
+   ack is what guarantees we don't also open the same tabs ourselves. */
+function tbAiLaunch({aiUrl,text,searches}){
+  return new Promise(resolve=>{
+    let done=false;
+    const onMsg=(e)=>{
+      if(e.source!==window)return;
+      const d=e.data;
+      if(!d||d.source!=='vault-extension'||d.action!=='launchAnalysisAck')return;
+      if(done)return;done=true;window.removeEventListener('message',onMsg);resolve(true);
+    };
+    window.addEventListener('message',onMsg);
+    try{window.postMessage({source:'tradehub-vault',action:'launchAnalysis',aiUrl,text,searches},location.origin);}
+    catch(e){}
+    setTimeout(()=>{if(done)return;done=true;window.removeEventListener('message',onMsg);resolve(false);},1500);
+  });
+}
 
 function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
   const [editing,setEditing]=React.useState(false);
@@ -4522,6 +4596,27 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
 
   const resolveUrl=tbResolveUrl;
 
+  // Selected AI destination (ChatGPT by default — same as before this setting existed).
+  const aiSite=tbAiSite(cfg);
+  const aiUrl=tbAiUrl(cfg);
+  const [aiCustomDraft,setAiCustomDraft]=React.useState(cfg.aiCustomUrl||'');
+  React.useEffect(()=>{setAiCustomDraft(cfg.aiCustomUrl||'');},[cfg.aiCustomUrl]);
+  const commitAiCustom=()=>{const v=(aiCustomDraft||'').trim();if(v!==(cfg.aiCustomUrl||''))saveCfg({...cfg,aiCustomUrl:v});};
+
+  /* Is the Vault extension present AND new enough to auto-submit? Probed here,
+     on mount, because the click handler has to decide synchronously (see
+     tbAiPing). Re-probed when the tab regains focus, so installing the extension
+     doesn't need a TradeHub reload. */
+  const [autoSubmit,setAutoSubmit]=React.useState(false);
+  React.useEffect(()=>{
+    let alive=true;
+    const probe=()=>{tbAiPing().then(ok=>{if(alive)setAutoSubmit(ok);});};
+    probe();
+    const onVis=()=>{if(!document.hidden)probe();};
+    document.addEventListener('visibilitychange',onVis);
+    return()=>{alive=false;document.removeEventListener('visibilitychange',onVis);};
+  },[]);
+
   /* Warm up clipboard permission on mount so it's pre-granted before launch */
   React.useEffect(()=>{
     if(navigator.permissions) navigator.permissions.query({name:'clipboard-write'}).catch(()=>{});
@@ -4531,7 +4626,10 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
 
   const handleLaunch=()=>{
     const res=[];
-    /* ── Clipboard first, synchronously via execCommand (no permission prompt) ── */
+    /* ── Clipboard first, synchronously via execCommand (no permission prompt) ──
+       Kept even on the auto-submit path: if a site redesign ever defeats the
+       extension's composer detection, the prompt is still one Ctrl+V away. */
+    let copied=false;
     if(selPromptText){
       let ok=false;
       try{
@@ -4543,18 +4641,48 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       }catch(e){}
       if(navigator.clipboard) navigator.clipboard.writeText(selPromptText).catch(()=>{});
       res.push(ok?{ok:true,icon:'command',label:`Prompt copied — ${selPrompt.name}`}:{ok:false,icon:'command',label:'Copy failed \u2014 try the Prompts copy button'});
-      /* ── Open ChatGPT — prompt is on the clipboard; paste with Ctrl+V + Enter ──
-         A web page can't type into or submit another site (browser security), and
-         the prompt is too long for a ?q= URL (HTTP 431). The Trading Auto Launch does
-         the paste + Enter for you automatically; here you paste once. */
-      window.open(TB_CHATGPT_URL,'_blank','noopener');
-      res.push({ok:ok,icon:'sparkle',label:ok?'ChatGPT opened — paste with Ctrl+V, then Enter':'ChatGPT opened — copy the prompt from Prompts, then paste'});
+      copied=ok;
     }
-    /* ── Open each search in its own new tab (skip ChatGPT — handled above) ── */
+
+    /* Search URLs, in order, minus any that point at the AI destination itself. */
+    const searchUrls=[];
     searches.forEach((q,i)=>{
       const t=(q||'').trim();if(!t)return;
       const u=resolveUrl(t);
-      if(tbIsChatGPTUrl(u))return;   // don't double-open ChatGPT
+      if(aiUrl&&tbIsAiUrl(u,cfg))return;   // don't open the AI twice
+      searchUrls.push({u,i});
+    });
+
+    /* ── Auto-submit path (Vault extension installed) ─────────────────────────
+       The extension opens the searches + the AI tab, brings the AI tab to the
+       front, then types the prompt into its composer and sends it — the same end
+       state the Trading Auto Launch reaches, without the OS-level keystrokes. */
+    if(autoSubmit&&aiUrl&&selPromptText){
+      tbAiLaunch({aiUrl,text:selPromptText,searches:searchUrls.map(s=>s.u)}).then(acked=>{
+        if(acked)return;
+        /* The extension went away between the probe and the click. Open the tabs
+           ourselves — the prompt is already on the clipboard. (We're outside the
+           click gesture here, so the browser may block these popups; the next
+           launch re-probes and takes the manual path cleanly.) */
+        searchUrls.forEach(({u})=>window.open(u,'_blank','noopener'));
+        window.open(aiUrl,'_blank','noopener');
+        setResults(r=>[...r,{ok:false,icon:'sparkle',label:`${aiSite.label} opened — auto-submit unavailable, paste with Ctrl+V`}]);
+      });
+      res.push({ok:true,icon:'sparkle',label:`${aiSite.label} opening — prompt submitted for you`});
+      searchUrls.forEach(({i})=>res.push({ok:true,icon:numIcon(i),label:`Search ${i+1} opened`}));
+      setResults(res);
+      return;
+    }
+
+    /* ── Manual path (no extension) — open the tabs; you paste once ───────────
+       A web page can't type into or submit another site (browser security), and
+       the prompt is too long for a ?q= URL (HTTP 431), so the clipboard is the
+       handoff. Installing the Vault extension removes this step. */
+    if(aiUrl&&selPromptText){
+      window.open(aiUrl,'_blank','noopener');
+      res.push({ok:copied,icon:'sparkle',label:copied?`${aiSite.label} opened — paste with Ctrl+V, then Enter`:`${aiSite.label} opened — copy the prompt from Prompts, then paste`});
+    }
+    searchUrls.forEach(({u,i})=>{
       window.open(u,'_blank','noopener');
       res.push({ok:true,icon:numIcon(i),label:`Search ${i+1} opened`});
     });
@@ -4604,12 +4732,46 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       <TBPromptSelect prompts={prompts} value={cfg.analysisPromptId} onChange={id=>saveCfg({...cfg,analysisPromptId:id})} onGoToPrompts={onGoToPrompts}/>
     </div>
 
+    {/* AI destination — where Launch Analysis sends the prompt */}
+    <div style={{marginBottom:20}}>
+      <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8,display:'flex',alignItems:'center',gap:7}}><TBIcon n="sparkle" size={12}/>AI destination</div>
+      <div style={{display:'flex',flexDirection:'column',gap:12,padding:'16px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--bgc)'}}>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {TB_AI_SITES.map(s=>{
+            const on=s.id===aiSite.id;
+            return(<button key={s.id} onClick={()=>saveCfg({...cfg,aiSite:s.id})} title={s.url||s.label}
+              style={{padding:'6px 14px',borderRadius:100,border:`1.5px solid ${on?'var(--ac)':'var(--bd)'}`,
+                background:on?'rgba(224,184,116,0.12)':'transparent',color:on?'var(--ac)':'var(--tx)',
+                fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s'}}>{s.label}</button>);
+          })}
+        </div>
+        {aiSite.id==='custom'&&(
+          <input value={aiCustomDraft} onChange={e=>setAiCustomDraft(e.target.value)}
+            onBlur={commitAiCustom} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();commitAiCustom();e.currentTarget.blur();}}}
+            placeholder="e.g.  https://chat.mistral.ai/chat"
+            style={{width:'100%',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',fontSize:13,padding:'10px',boxSizing:'border-box',fontFamily:'inherit'}}/>
+        )}
+        <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
+          <span style={{color:autoSubmit?'var(--ac)':'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n={autoSubmit?'bolt':'command'} size={12}/></span>
+          <span>{aiSite.id==='none'
+            ? 'No AI tab is opened — Launch Analysis just copies the prompt and opens your searches.'
+            : autoSubmit
+              ? <>Vault extension detected — Launch Analysis opens {aiSite.label}, <b>types the prompt in and sends it</b>, then leaves you on that tab. It stays on your clipboard too, as a fallback.</>
+              : <>Launch Analysis opens {aiSite.label} with the prompt on your clipboard — paste with Ctrl+V, then Enter. Install the <b>Vault extension</b> to have it typed and sent automatically.</>}
+          </span>
+        </div>
+        {aiSite.id!=='chatgpt'&&(
+          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>This applies to <b>Launch Analysis</b> only — the morning Trading Auto Launch (Deploy, below) always opens ChatGPT.</div>
+        )}
+      </div>
+    </div>
+
     {/* Config summary (read-only) */}
     <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:24}}>
       <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'13px 16px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--bgc)'}}>
         <span style={{fontSize:15,marginTop:1,color:selPromptText?'var(--ac)':'var(--txd)',flexShrink:0,width:18,display:'inline-flex',justifyContent:'center'}}><TBIcon n="command" size={14}/></span>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:2}}>Prompt to copy</div>
+          <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:2}}>{autoSubmit&&aiUrl?'Prompt to send':'Prompt to copy'}</div>
           {selPromptText
             ?<div style={{fontSize:13,color:'var(--tx)',wordBreak:'break-word',lineHeight:1.4}}>{selPromptText.length>120?selPromptText.slice(0,120)+'…':selPromptText}<span style={{marginLeft:6,fontSize:11,color:'var(--txd)',fontFamily:'var(--font-accent)'}}>({selPrompt.name} · {selPromptText.length} chars)</span></div>
             :<div style={{fontSize:13,color:'var(--txd)',fontFamily:'var(--font-accent)'}}>No prompt selected</div>}

@@ -40,6 +40,7 @@
       "js": [
         "vault-cardfill.js",
         "vault-idfill.js",
+        "vault-ai-prompt.js",
         "content.js"
       ],
       "run_at": "document_idle",
