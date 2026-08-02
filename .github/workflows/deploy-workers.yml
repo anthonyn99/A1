@@ -213,7 +213,7 @@ jobs:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/insight-api
 
-  # OneInbox (OneInbox/oneinbox.html) — Gmail multi-account backend + Gemini
+  # OneInbox (oneinbox.html) — Gmail multi-account backend + Gemini
   # email parser. Holds the ONLY copy of the Gmail refresh tokens (in KV) and
   # every API key. Secrets required on first deploy:
   #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ONEINBOX_GEMINI_KEY, PUBSUB_TOKEN,

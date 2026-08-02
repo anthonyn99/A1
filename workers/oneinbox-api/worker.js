@@ -2,7 +2,8 @@
  * OneInbox Worker — Gmail multi-account backend + Gemini email parser
  * ============================================================================
  *
- * OneInbox is a standalone A1 Suite app (OneInbox/oneinbox.html). This worker is
+ * OneInbox is a standalone A1 Suite app (oneinbox.html, at the A1 root beside
+ * index.html / insight.html / vault.html). This worker is
  * the ONLY place that ever holds a Gmail refresh token or an API key: the front
  * end talks exclusively to these endpoints, authorized by an app-lock session
  * token. Nothing sensitive is ever shipped to the browser.

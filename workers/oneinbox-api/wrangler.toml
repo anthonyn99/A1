@@ -11,7 +11,7 @@ compatibility_date = "2025-06-01"
 WORKER_ORIGIN = "https://oneinbox-api.av1.workers.dev"
 # Where oneinbox.html is served from. Used to build the OAuth redirect target
 # and to bounce the browser back after Google consent.
-APP_URL = "https://anthonyn99.github.io/A1/OneInbox/oneinbox.html"
+APP_URL = "https://anthonyn99.github.io/A1/oneinbox.html"
 # Pub/Sub topic Gmail publishes change notifications to. NOT a secret (it is a
 # resource path, and the push endpoint is guarded by PUBSUB_TOKEN instead).
 # Leave empty until the topic exists — real-time push is then simply off and the

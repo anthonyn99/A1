@@ -4,11 +4,14 @@ An AI-powered unified inbox for every Gmail account, built as a standalone A1
 Suite app alongside TaskHub, TradeBoard, Insight, Vault and MyList.
 
 ```
-OneInbox/oneinbox.html          the app (single file, same pattern as insight.html)
+oneinbox.html                   the app — at the A1 root, same as every other
+                                A1 program (index / insight / vault / mylist /
+                                tradehub). Single file, same pattern as insight.html
+OneInbox/                       supporting files for the app (this README)
 workers/oneinbox-api/           the backend — the ONLY holder of tokens and keys
 ```
 
-Live at `https://anthonyn99.github.io/A1/OneInbox/oneinbox.html`.
+Live at `https://anthonyn99.github.io/A1/oneinbox.html`.
 
 ---
 

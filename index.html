@@ -3864,7 +3864,7 @@ function Pomodoro({onClose,T,isMobile}){
 /* ══════════════════════════════════════════════════════════════════════════
    OneInbox → TaskHub cards
    ══════════════════════════════════════════════════════════════════════════
-   OneInbox (OneInbox/oneinbox.html) reads Tony's Gmail accounts, classifies
+   OneInbox (oneinbox.html) reads Tony's Gmail accounts, classifies
    every incoming message with Gemini, and writes what it finds to its own
    Firestore collection (dashboards/oneinbox/cards). The Firebase module below
    listens to that collection and fires 'oi-cards-update'; everything here is
@@ -3901,7 +3901,7 @@ function OI_useCards(){
 
 // Deep-link back to the message that produced a card.
 function OI_openEmail(c){
-  try{window.open("OneInbox/oneinbox.html#msg="+encodeURIComponent((c.account||"")+"|"+(c.emailId||"")),"_blank","noopener");}catch(e){}
+  try{window.open("oneinbox.html#msg="+encodeURIComponent((c.account||"")+"|"+(c.emailId||"")),"_blank","noopener");}catch(e){}
 }
 // Copy, and confirm on the button itself. A card can be rendered inside either
 // TaskHub layout, so it must not depend on any particular toast element existing.
@@ -6923,7 +6923,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     }, (err) => { console.warn('[AppLock] onSnapshot error:', err); });
 
     // ── OneInbox → Tony's TaskHub cards (READ-ONLY here) ─────────────────────
-    // OneInbox (OneInbox/oneinbox.html) parses incoming Gmail with Gemini and
+    // OneInbox (oneinbox.html) parses incoming Gmail with Gemini and
     // writes coupons / packages / bills / travel to its OWN collection,
     // dashboards/oneinbox/cards. TaskHub only READS them and merges them in at
     // RENDER time — they are never written into dashboards/main.
