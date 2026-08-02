@@ -3861,6 +3861,149 @@ function Pomodoro({onClose,T,isMobile}){
       React.createElement("button",{type:"button",onClick:cancel,style:{background:"transparent",border:"1px solid "+T.BDL,borderRadius:4,padding:"9px 16px",fontSize:12,fontWeight:600,color:T.TXD,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"}},"Cancel")));
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   OneInbox → TaskHub cards
+   ══════════════════════════════════════════════════════════════════════════
+   OneInbox (OneInbox/oneinbox.html) reads Tony's Gmail accounts, classifies
+   every incoming message with Gemini, and writes what it finds to its own
+   Firestore collection (dashboards/oneinbox/cards). The Firebase module below
+   listens to that collection and fires 'oi-cards-update'; everything here is
+   pure RENDER — no OneInbox data is ever written into dashboards/main, so a
+   bug over there can never damage TaskHub's own tasks and goals.
+
+   Where the cards land:
+     coupon                         → Short-Term Goals (rich card, copy code)
+     package                        → the weekly view, on its delivery day,
+                                      moving automatically when the ETA changes
+     bill / subscription / travel / appointment
+                                    → the weekly view, on their due date
+
+   NOTE ON SCOPE: this file's two text/babel blocks (Tony's TaskHub and Veda's)
+   share ONE global scope, so every top-level name added here is prefixed OI_ to
+   guarantee it cannot collide with a name in the other block. These cards are
+   Tony's only — Veda's TaskHub never renders them.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// Same category accents OneInbox uses, so a coupon looks like a coupon in both apps.
+const OI_COLOR={coupon:"#e0b874",package:"#8fb3d9",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
+
+function OI_useCards(){
+  const[cards,setCards]=useState(()=>window._oiCards||[]);
+  useEffect(()=>{
+    const h=e=>setCards(e.detail||[]);
+    window.addEventListener("oi-cards-update",h);
+    // The listener may have fired before this component mounted.
+    if(window._oiCards)setCards(window._oiCards);
+    return()=>window.removeEventListener("oi-cards-update",h);
+  },[]);
+  return cards;
+}
+
+// Deep-link back to the message that produced a card.
+function OI_openEmail(c){
+  try{window.open("OneInbox/oneinbox.html#msg="+encodeURIComponent((c.account||"")+"|"+(c.emailId||"")),"_blank","noopener");}catch(e){}
+}
+// Copy, and confirm on the button itself. A card can be rendered inside either
+// TaskHub layout, so it must not depend on any particular toast element existing.
+function OI_copy(ev,text){
+  const b=ev&&ev.currentTarget;
+  const done=()=>{
+    if(!b||b._oiT)return;
+    const was=b.textContent;
+    b.textContent="Copied";
+    b._oiT=setTimeout(()=>{b.textContent=was;b._oiT=null;},1400);
+  };
+  try{
+    navigator.clipboard.writeText(text).then(done,()=>{
+      // Clipboard API is blocked in some embedded/insecure contexts — fall back
+      // to the old selection trick so "Copy Code" always does something.
+      try{
+        const ta=document.createElement("textarea");
+        ta.value=text;ta.style.position="fixed";ta.style.opacity="0";
+        document.body.appendChild(ta);ta.select();document.execCommand("copy");
+        document.body.removeChild(ta);done();
+      }catch(e){}
+    });
+  }catch(e){}
+}
+function OI_dayKey(iso){
+  // OneInbox stores plain YYYY-MM-DD; TaskHub's day keys use the same shape,
+  // so a card lands on the right cell with no conversion.
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso||"")?iso:null;
+}
+function OI_pretty(iso){
+  if(!iso)return"";
+  const p=iso.split("-");
+  return MOS[parseInt(p[1])-1]+" "+parseInt(p[2]);
+}
+
+// A coupon, drawn as a rich card inside Short-Term Goals.
+function OI_couponRow(c,T,edit){
+  const col=OI_COLOR.coupon;
+  const btn=(label,fn,primary)=>React.createElement("button",{type:"button",onClick:fn,style:{
+    background:primary?col:"transparent",color:primary?"#1a1a1d":col,
+    border:"1px solid "+col+(primary?"":"66"),borderRadius:4,
+    fontSize:10.5,fontWeight:700,letterSpacing:0.4,padding:"4px 9px",cursor:"pointer",
+    fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap"}},label);
+  return React.createElement("div",{key:c.id,style:{
+      border:"1px solid "+col+"40",borderLeft:"3px solid "+col,borderRadius:6,
+      background:col+"12",padding:"9px 11px",marginBottom:6}},
+    React.createElement("div",{style:{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}},
+      React.createElement("span",{style:{fontSize:12.5,fontWeight:800,color:T.TX,letterSpacing:0.2,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},c.merchant||"Offer"),
+      c.discount&&React.createElement("span",{style:{marginLeft:"auto",fontSize:12.5,fontWeight:800,color:col,whiteSpace:"nowrap"}},c.discount)),
+    c.code&&React.createElement("div",{style:{fontFamily:"ui-monospace,SFMono-Regular,Menlo,monospace",fontSize:13,fontWeight:700,color:col,letterSpacing:1,marginBottom:3}},c.code),
+    React.createElement("div",{style:{fontSize:10.5,color:T.TXM,marginBottom:7,lineHeight:1.45}},
+      c.expires?("Expires "+OI_pretty(c.expires)):"No expiry listed",
+      c.restrictions?(" · "+c.restrictions):""),
+    React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},
+      c.code&&btn("Copy Code",e=>OI_copy(e,c.code),true),
+      c.storeUrl&&btn("Open Store",()=>{try{window.open(c.storeUrl,"_blank","noopener");}catch(e){}}),
+      btn("View Email",()=>OI_openEmail(c))));
+}
+
+// A package / bill / travel card, drawn inside a weekly day cell.
+function OI_weekCard(c,T,dayTX){
+  const col=OI_COLOR[c.kind]||"#8fb3d9";
+  const isPkg=c.kind==="package";
+  const head=isPkg?((c.carrier||"Package")+(c.delivered?" · DELIVERED":"")):c.kind.toUpperCase();
+  const line2=isPkg?(c.merchant||""):(c.merchant||"");
+  // The amount already sits in the header row for money cards, so the detail
+  // line carries the account/reference instead of repeating it.
+  const detail=isPkg?(c.tracking||c.orderNumber||"")
+    :c.kind==="travel"||c.kind==="appointment"?(c.location||c.confirmation||"")
+    :(c.orderNumber||"");
+  const btn=(label,fn)=>React.createElement("button",{type:"button",onClick:fn,style:{
+    background:"transparent",color:col,border:"1px solid "+col+"66",borderRadius:4,
+    fontSize:9.5,fontWeight:700,letterSpacing:0.4,padding:"3px 7px",cursor:"pointer",
+    fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap"}},label);
+  return React.createElement("div",{key:c.id,style:{
+      border:"1px solid "+col+"40",borderLeft:"3px solid "+col,borderRadius:6,
+      background:col+"12",padding:"6px 9px",marginBottom:5,opacity:c.delivered?0.62:1}},
+    React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:3}},
+      React.createElement("span",{style:{fontSize:9.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:col,lineHeight:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},head),
+      c.amount&&!isPkg&&React.createElement("span",{style:{marginLeft:"auto",fontSize:11.5,fontWeight:800,color:col,whiteSpace:"nowrap"}},c.amount)),
+    line2&&React.createElement("div",{style:{fontSize:12.5,fontWeight:700,color:dayTX,lineHeight:1.3,wordBreak:"break-word"}},line2),
+    detail&&React.createElement("div",{style:{fontSize:10,color:T.TXM,marginTop:2,fontFamily:isPkg?"ui-monospace,SFMono-Regular,Menlo,monospace":"inherit",wordBreak:"break-all"}},detail),
+    React.createElement("div",{style:{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}},
+      isPkg&&c.trackUrl&&btn("Track",()=>{try{window.open(c.trackUrl,"_blank","noopener");}catch(e){}}),
+      isPkg&&c.tracking&&btn("Copy #",e=>OI_copy(e,c.tracking)),
+      btn("Email",()=>OI_openEmail(c))));
+}
+
+// Group the non-coupon cards by the day they belong on, so a weekly cell is one
+// cheap lookup rather than a filter per day.
+function OI_byDay(cards,showOther){
+  const out={};
+  (cards||[]).forEach(c=>{
+    if(c.kind==="coupon")return;
+    if(!showOther&&c.kind!=="package")return;
+    const d=OI_dayKey(c.kind==="package"?c.eta:(c.due||c.when));
+    if(!d)return;
+    (out[d]=out[d]||[]).push(c);
+  });
+  return out;
+}
+
 function Root(){
   return React.createElement(App,null);
 }
@@ -3868,6 +4011,10 @@ function Root(){
 function App(){
   const T=THEMES.dark;
   const CC=CC_DARK;
+  // OneInbox cards — read-only, merged in at render time (see OI_* helpers above).
+  const oiCards=OI_useCards();
+  const oiCoupons=(oiCards||[]).filter(c=>c.kind==="coupon");
+  const oiByDay=OI_byDay(oiCards,true);
   useEffect(()=>{
     document.body.style.background="#1a1a1d";
     document.documentElement.style.background="#1a1a1d";
@@ -4900,6 +5047,11 @@ function App(){
 ),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:10,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
+              /* OneInbox packages / bills / travel due on THIS day. Each card is
+                 keyed by the shipment or the obligation, not by the email, so a
+                 revised ETA moves the existing card to its new day instead of
+                 leaving a stale one behind. */
+              (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX)),
               pvMatches.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:5,cursor:"default",display:"flex",alignItems:"center",gap:5}},
                 React.createElement("div",{style:{border:"1px solid rgba(184,166,208,0.34)",borderLeft:"3px solid #b8a6d0",borderRadius:6,background:"rgba(184,166,208,0.08)",padding:"6px 10px",flex:1,minWidth:0}},
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
@@ -4976,6 +5128,11 @@ function App(){
               ),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
+              /* OneInbox packages / bills / travel due on THIS day. Each card is
+                 keyed by the shipment or the obligation, not by the email, so a
+                 revised ETA moves the existing card to its new day instead of
+                 leaving a stale one behind. */
+              (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX)),
               pvMatches.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:4,cursor:"default",display:"flex",alignItems:"center",gap:4}},
                 React.createElement("div",{style:{border:"1px solid rgba(184,166,208,0.34)",borderLeft:"3px solid #b8a6d0",borderRadius:5,background:"rgba(184,166,208,0.08)",padding:"5px 7px",flex:1,minWidth:0}},
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:3,marginBottom:3}},
@@ -5083,6 +5240,12 @@ function App(){
           React.createElement("button",{type:"button",style:sbtn,onClick:goalTab==="short"?addMM:addM},"+")),
 
         React.createElement("div",{style:{minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},
+          /* OneInbox coupons ride ABOVE the hand-written goals: they are
+             time-boxed (they expire) so they need to be seen first, and they
+             live in OneInbox's own collection rather than in `mgMonthly`, so
+             they never interfere with reordering, editing or drag-and-drop of
+             the real goals below. */
+          goalTab==="short"&&oiCoupons.map(c=>OI_couponRow(c,T,edit)),
           ((goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?(goalTab==="short"?mgMonthly:mg).filter(g=>!g.done):(goalTab==="short"?mgMonthly:mg)).map(g=>React.createElement("div",{key:g.id,...(goalTab==="short"?goalMRowP:goalRowP)(g.id),...(edit?(goalTab==="short"?goalMTouchH:goalTouchH)(g.id):{}),draggable:edit,
             onDragStart:edit?e=>(goalTab==="short"?onDragStartGoalM:onDragStartGoal)(e,g.id):null,
             onDragOver:edit?e=>{e.preventDefault();if(!isMobile)setDragOverId(g.id);}:null,
@@ -5114,7 +5277,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
-  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, clearIndexedDbPersistence, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, clearIndexedDbPersistence, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteField, collection } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -5350,6 +5513,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _mcUnsubscribe  = null;
   let _pvUnsubscribe  = null;
   let _alUnsubscribe  = null;
+  let _oiUnsubscribe  = null;
   window._alSaveTimer = null;
   let _lastOwnSaveAt     = 0;
   let _erLastOwnSaveAt   = 0;
@@ -6757,6 +6921,28 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       const d = snap.data();
       if (window._alApplyRemoteLocks) window._alApplyRemoteLocks(d.locks || {});
     }, (err) => { console.warn('[AppLock] onSnapshot error:', err); });
+
+    // ── OneInbox → Tony's TaskHub cards (READ-ONLY here) ─────────────────────
+    // OneInbox (OneInbox/oneinbox.html) parses incoming Gmail with Gemini and
+    // writes coupons / packages / bills / travel to its OWN collection,
+    // dashboards/oneinbox/cards. TaskHub only READS them and merges them in at
+    // RENDER time — they are never written into dashboards/main.
+    //
+    // That separation is deliberate: dashboards/main is a single document that
+    // TaskHub rewrites WHOLESALE from React state on a 500ms debounce, so a
+    // field-level write from another app would race it and could be silently
+    // clobbered. Keeping OneInbox's data in OneInbox's own collection means the
+    // worst case for any bug over there is "a card is missing" — never "Tony's
+    // TaskHub lost a task".
+    //
+    // The collection is small and self-pruning (oneinbox-api sweeps expired
+    // coupons and delivered packages daily), so a live listener on it is cheap.
+    if (_oiUnsubscribe) { _oiUnsubscribe(); _oiUnsubscribe = null; }
+    _oiUnsubscribe = onSnapshot(collection(db, 'dashboards/oneinbox/cards'), (snap) => {
+      const cards = snap.docs.map(d => d.data()).filter(Boolean);
+      window._oiCards = cards;
+      window.dispatchEvent(new CustomEvent('oi-cards-update', { detail: cards }));
+    }, (err) => { console.warn('[OneInbox] cards onSnapshot error:', err); });
 
     // ── NavOrder — drag-to-reorder app buttons, synced across all devices ──
     const _noDocRef = doc(db, "dashboards/navorder");

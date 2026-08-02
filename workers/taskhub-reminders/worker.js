@@ -124,6 +124,20 @@ export default {
           .catch(e => console.warn('[insight] daily sync trigger failed:', e.message))
       );
     }
+
+    // OneInbox piggyback — same reason as Insight above: no cron slots left.
+    // Fires every 5 minutes rather than daily, because this tick drives
+    // SCHEDULED SENDS (a mail scheduled for 3:00 must not wait for tomorrow),
+    // the Gmail history poll that backstops a dropped Pub/Sub push, and the
+    // daily watch re-arm. The worker itself rate-limits the expensive parts
+    // against timestamps in KV, so most of these calls return immediately.
+    if (t.getUTCMinutes() % 5 === 0) {
+      ctx.waitUntil(
+        fetch('https://oneinbox-api.av1.workers.dev/cron', { method: 'POST' })
+          .then(r => { if (!r.ok) console.warn(`[oneinbox] cron → ${r.status}`); })
+          .catch(e => console.warn('[oneinbox] cron trigger failed:', e.message))
+      );
+    }
   }
 };
 

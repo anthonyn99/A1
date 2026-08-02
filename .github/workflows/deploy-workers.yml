@@ -30,6 +30,7 @@ jobs:
       vaultpwsync: ${{ steps.filter.outputs.vaultpwsync }}
       insight: ${{ steps.filter.outputs.insight }}
       weather: ${{ steps.filter.outputs.weather }}
+      oneinbox: ${{ steps.filter.outputs.oneinbox }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -62,6 +63,8 @@ jobs:
               - 'workers/insight-api/**'
             weather:
               - 'workers/taskhub-weather-api/**'
+            oneinbox:
+              - 'workers/oneinbox-api/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -209,6 +212,22 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/insight-api
+
+  # OneInbox (OneInbox/oneinbox.html) — Gmail multi-account backend + Gemini
+  # email parser. Holds the ONLY copy of the Gmail refresh tokens (in KV) and
+  # every API key. Secrets required on first deploy:
+  #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ONEINBOX_GEMINI_KEY, PUBSUB_TOKEN,
+  #   FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
+  deploy-oneinbox-api:
+    needs: changes
+    if: ${{ needs.changes.outputs.oneinbox == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/oneinbox-api
 
   # Weather widget on both TaskHubs — KV-cached Open-Meteo proxy. No secrets.
   deploy-taskhub-weather-api:

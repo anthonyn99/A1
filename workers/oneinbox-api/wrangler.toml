@@ -1,0 +1,57 @@
+name = "oneinbox-api"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+# No [triggers] block. The account's 5-cron free-plan limit is FULL, so this
+# worker has no cron of its own — taskhub-reminders' every-minute cron POSTs to
+# /cron here (same piggyback pattern insight-api uses). The scheduled() handler
+# below stays ready in case a slot ever frees up.
+
+[vars]
+WORKER_ORIGIN = "https://oneinbox-api.av1.workers.dev"
+# Where oneinbox.html is served from. Used to build the OAuth redirect target
+# and to bounce the browser back after Google consent.
+APP_URL = "https://anthonyn99.github.io/A1/OneInbox/oneinbox.html"
+# Pub/Sub topic Gmail publishes change notifications to. NOT a secret (it is a
+# resource path, and the push endpoint is guarded by PUBSUB_TOKEN instead).
+# Leave empty until the topic exists — real-time push is then simply off and the
+# /cron history poll covers ingestion on its own.
+PUBSUB_TOPIC = ""
+
+[observability]
+enabled = false
+
+[observability.logs]
+enabled = false
+invocation_logs = true
+
+# Shared with taskhub-reminders / personal-ai. OneInbox namespaces every key it
+# owns under "oi:" so it cannot collide with the reminders worker's entries
+# (gat, jlock:*, profilepw:*) or price-watch's (pw_gat, kroger_tok, ...).
+# Reusing this namespace is deliberate: it means no new KV namespace has to be
+# provisioned by hand before the first deploy.
+#
+# Keys this worker owns:
+#   oi:acct:<email>        → { email, refresh_token, name, signature, historyId,
+#                              watchExpiry, addedAt }  ← REFRESH TOKENS LIVE ONLY HERE
+#   oi:accts               → [email, ...] index (avoids a KV list on every request)
+#   oi:tok:<email>         → cached short-lived Gmail access token
+#   oi:locktok:<token>     → { v } app-lock device session (v = password fingerprint)
+#   oi:gat                 → cached Google service-account token (Firestore)
+#   oi:state:<nonce>       → in-flight OAuth state (5 min TTL)
+#   oi:cron                → { lastWatch, lastReconcile, lastSched }
+[[kv_namespaces]]
+binding = "OI_KV"
+id = "b51e916cf3bf4f37ad146af5ca031575"
+
+# ── Secrets — set once with `wrangler secret put <NAME> --name oneinbox-api`.
+#    Never committed. Secrets survive redeploys, so CI auto-deploy keeps working.
+#
+#   GOOGLE_CLIENT_ID       — OAuth 2.0 Web client id   (Google Cloud Console)
+#   GOOGLE_CLIENT_SECRET   — OAuth 2.0 Web client secret
+#   ONEINBOX_GEMINI_KEY    — Gemini API key for the email parser
+#   PUBSUB_TOKEN           — random string; Pub/Sub push subscription must append
+#                            it as ?token=… so nobody else can POST /pubsub/push
+#   FIREBASE_PROJECT_ID    — task-dashboard-d2b53 (same values as taskhub-reminders)
+#   FIREBASE_CLIENT_EMAIL  — service account email
+#   FIREBASE_PRIVATE_KEY   — service account private key (PEM)
