@@ -820,8 +820,8 @@
   <!-- ═══ Recurring (migrated from ExpenseLog) ═══ -->
   <section class="view" id="view-recurring">
     <div class="stats" style="grid-template-columns:1fr 1fr">
-      <div class="stat"><div class="lbl">Monthly total</div><div class="val gold" id="recMo">—</div></div>
-      <div class="stat"><div class="lbl">Annual total</div><div class="val gold" id="recAn">—</div></div>
+      <div class="stat"><div class="lbl">Monthly total</div><div class="val gold money" id="recMo">—</div></div>
+      <div class="stat"><div class="lbl">Annual total</div><div class="val gold money" id="recAn">—</div></div>
     </div>
     <div class="recsubhead">
       <button class="btn" id="addRecBtn">+ Add manual</button>
@@ -1470,10 +1470,10 @@
   // walked through without exposing how much you have:
   //   · Transactions — month in/out/net are swapped for plausible stand-in
   //     figures tagged "(mock)", so the tiles still read as a finished screen.
-  //   · Accounts — net worth (assets / debts / net) and bank balances blur;
-  //     credit card balances stay readable.
-  //   · Import previews blur. Individual transaction amounts, recurring costs
-  //     and the cash balance stay readable throughout.
+  //   · Accounts — net worth (assets / debts / net) and every account
+  //     balance blur, including credit card debt.
+  //   · Import previews blur. Recurring totals and per-item amounts blur too.
+  //     Individual transaction amounts and the cash balance stay readable.
   const DISPLAY_LS = 'insight_display_mode';
   let displayMode = false;
   // `rerender` is false for the restore-from-storage call at load: the data
@@ -1505,7 +1505,7 @@
   }
   $('displayModeBtn').addEventListener('click', () => {
     setDisplayMode(!displayMode);
-    toast(displayMode ? 'Display mode on — balances hidden, month totals mocked' : 'Display mode off — real amounts visible', true);
+    toast(displayMode ? 'Display mode on — balances and recurring costs hidden, month totals mocked' : 'Display mode off — real amounts visible', true);
   });
   try { setDisplayMode(localStorage.getItem(DISPLAY_LS) === '1', false); } catch { setDisplayMode(false, false); }
 
@@ -2130,8 +2130,8 @@
   });
 
   // ── Accounts view ────────────────────────────────────────────────────────
-  // Display mode blurs the net-worth tiles and every bank balance; card
-  // balances (what you owe, not what you have) stay readable.
+  // Display mode blurs the net-worth tiles and every account balance,
+  // including card balances (what you owe).
   function renderAccounts() {
     const DEBT = t => t === 'credit' || t === 'loan';
     let assets = 0, debts = 0;
@@ -2158,7 +2158,7 @@
           <div class="acct">
             <div class="aname">${esc(a.name || 'Account')}${a.mask ? ` <span style="color:var(--faint);font-weight:500">··${esc(a.mask)}</span>` : ''}</div>
             <div class="asub">${esc(a.subtype || a.type || '')}</div>
-            <div class="abal ${a.type === 'credit' ? '' : 'money'} ${DEBT(a.type) ? 'debt' : ''}">${fmt$(a.balance_current ?? 0)}</div>
+            <div class="abal money ${DEBT(a.type) ? 'debt' : ''}">${fmt$(a.balance_current ?? 0)}</div>
           </div>`).join('')}
         </div>
       </div>`).join('');
@@ -2345,7 +2345,7 @@
             </div>
           </div>` : ''}
         </div>
-        <div class="txamt">${fmt$(g.latestAmount)}</div>
+        <div class="txamt money">${fmt$(g.latestAmount)}</div>
       </div>`;
   }
 
@@ -2357,8 +2357,8 @@
           <div class="txname">${esc(r.name)}</div>
           <div class="txsub">
             <span class="chip manual">Manual</span>
-            ${r.monthly != null ? `<span class="chip">${fmt$(r.monthly)}/mo</span>` : ''}
-            ${r.annual != null ? `<span class="chip">${fmt$(r.annual)}/yr</span>` : ''}
+            ${r.monthly != null ? `<span class="chip money">${fmt$(r.monthly)}/mo</span>` : ''}
+            ${r.annual != null ? `<span class="chip money">${fmt$(r.annual)}/yr</span>` : ''}
             ${r.monthly == null && r.annual == null ? '<span class="chip">no amount set</span>' : ''}
           </div>
           ${r.notes ? `<div class="recnote">${esc(r.notes)}</div>` : ''}
