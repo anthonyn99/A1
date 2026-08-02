@@ -193,6 +193,8 @@
   async function deliver(text) {
     var profile = profileFor(location.hostname);
     var el = await waitFor(function () { return findComposer(profile); }, COMPOSER_WAIT_MS);
+    // Returning false leaves the prompt pending in the background, so a reload
+    // (or the real app document, if this one was an auth interstitial) retries.
     if (!el) { console.warn('[Vault] AI prompt: no composer found on ' + location.hostname); return false; }
 
     if (!typeInto(el, text)) { console.warn('[Vault] AI prompt: could not type into the composer'); return false; }
@@ -202,8 +204,13 @@
     if (btn) { try { btn.click(); } catch (e) { pressEnter(el); } }
     else { pressEnter(el); }
 
-    // Confirm it actually went: if our text is still sitting in the composer,
-    // the click landed on the wrong control — fall back to Enter once.
+    // Report the submit straight away — if this page navigates on send (a new
+    // conversation URL), the confirmation has to be already in flight, or the
+    // next document would find the prompt still pending and send it twice.
+    report();
+
+    // Then confirm: if our text is still sitting in the composer, the click
+    // landed on the wrong control — fall back to Enter once.
     await wait(1200);
     if (composerText(el) && composerText(el).slice(0, 40) === text.trim().slice(0, 40)) {
       try { el.focus(); } catch (e) {}
@@ -211,6 +218,11 @@
     }
     console.log('[Vault] AI prompt submitted on ' + profile.name);
     return true;
+  }
+
+  function report() {
+    try { chrome.runtime.sendMessage({ action: 'vaultAiPromptDone' }, function () { void chrome.runtime.lastError; }); }
+    catch (e) {}
   }
 
   // Ask the background whether this tab was opened to receive a prompt.
@@ -228,7 +240,11 @@
   (async function () {
     for (var i = 0; i < PULL_TRIES; i++) {
       var text = await pull();
-      if (text) { deliver(text); return; }
+      if (text) {
+        console.log('[Vault] AI prompt: ' + text.length + ' chars pending for this tab');
+        deliver(text);
+        return;
+      }
       await wait(PULL_GAP_MS);
     }
   })();

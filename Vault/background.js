@@ -232,10 +232,18 @@ chrome.tabs.onCreated.addListener((tab) => {
 // that new tab — collects it and does the paste + send.
 //
 // Handing it over as a PULL (the tab asks us) rather than a push avoids racing
-// the tab's load, and each prompt is released exactly once, so a reload or an
-// auth redirect can never re-fire the same analysis.
-const AI_PENDING_KEY = "aiPromptPending";   // storage.session: { [tabId]: {text, deadline} }
+// the tab's load.
+//
+// The prompt is held until the tab CONFIRMS it submitted, not merely until it
+// was handed over. A fresh chatgpt.com tab routinely runs a short-lived auth /
+// bot-check document before the real app loads: that first document asks for the
+// prompt, then gets replaced mid-flight. Releasing on hand-out lost the prompt
+// there every time — the tab opened and nothing was ever typed. So each new
+// document may retry, capped at AI_MAX_TRIES so a page that can never submit
+// gives up instead of looping.
+const AI_PENDING_KEY = "aiPromptPending";   // storage.session: { [tabId]: {text, deadline, tries} }
 const AI_PENDING_MS = 180000;               // a cold AI page + sign-in can take a while
+const AI_MAX_TRIES = 3;                     // hand-outs per tab before we stop trying
 
 async function loadAiPending() {
   try { const d = await chrome.storage.session.get(AI_PENDING_KEY); return d[AI_PENDING_KEY] || {}; }
@@ -279,7 +287,7 @@ async function launchAnalysis(message, senderTab) {
       const now = Date.now();
       const map = await loadAiPending();
       for (const k of Object.keys(map)) if (!map[k] || map[k].deadline < now) delete map[k];  // prune
-      map[String(aiTabId)] = { text, deadline: now + AI_PENDING_MS };
+      map[String(aiTabId)] = { text, deadline: now + AI_PENDING_MS, tries: 0 };
       await saveAiPending(map);
     }
     if (windowId != null) { try { await chrome.windows.update(windowId, { focused: true }); } catch (_) {} }
@@ -307,16 +315,41 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   // ── vault-ai-prompt.js asking for the prompt this tab was opened to run ──
+  // Handing it out does NOT clear it — only a confirmed submit does (below), so
+  // a document that dies to a redirect before it can type doesn't swallow the
+  // prompt with it.
   if (message.action === "vaultAiPromptPending") {
     const tabId = _sender && _sender.tab ? _sender.tab.id : null;
     (async () => {
       if (tabId == null) return sendResponse({});
       const map = await loadAiPending();
-      const entry = map[String(tabId)];
+      const key = String(tabId);
+      const entry = map[key];
       if (!entry || entry.deadline < Date.now()) return sendResponse({});
-      delete map[String(tabId)];          // release exactly once
+      if ((entry.tries || 0) >= AI_MAX_TRIES) {
+        console.warn("[Vault] AI prompt: giving up on tab", tabId, "after", entry.tries, "tries");
+        delete map[key]; await saveAiPending(map);
+        return sendResponse({});
+      }
+      entry.tries = (entry.tries || 0) + 1;
+      map[key] = entry;
       await saveAiPending(map);
+      console.log("[Vault] AI prompt: handed to tab", tabId, "(try", entry.tries + ")");
       sendResponse({ text: entry.text });
+    })();
+    return true;
+  }
+
+  // ── the tab confirming it typed + sent the prompt → stop offering it ──
+  if (message.action === "vaultAiPromptDone") {
+    const tabId = _sender && _sender.tab ? _sender.tab.id : null;
+    (async () => {
+      if (tabId != null) {
+        const map = await loadAiPending();
+        if (map[String(tabId)]) { delete map[String(tabId)]; await saveAiPending(map); }
+        console.log("[Vault] AI prompt: submitted in tab", tabId);
+      }
+      sendResponse({ ok: true });
     })();
     return true;
   }
