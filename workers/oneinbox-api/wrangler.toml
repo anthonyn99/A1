@@ -55,3 +55,77 @@ id = "b51e916cf3bf4f37ad146af5ca031575"
 #   FIREBASE_PROJECT_ID    — task-dashboard-d2b53 (same values as taskhub-reminders)
 #   FIREBASE_CLIENT_EMAIL  — service account email
 #   FIREBASE_PRIVATE_KEY   — service account private key (PEM)
+#
+# Health check after setting them:
+#   curl https://oneinbox-api.av1.workers.dev/
+# should report ai:true, firestore:true, oauth:true.
+
+# ════════════════════════════════════════════════════════════════════════════
+# GOOGLE CLOUD SETUP — done 2026-08-02, recorded here for rebuild/recovery.
+# All of it lives in the task-dashboard-d2b53 project (the same one Firebase,
+# FCM and reCAPTCHA use).
+#
+#  1. APIs & Services → Library → enable **Gmail API**.
+#
+#  2. Google Auth Platform (the old "OAuth consent screen"):
+#       Branding  → app name OneInbox, support email anthonypn99@gmail.com
+#       Audience  → External, then **Publish app**  ← IMPORTANT
+#
+#     Publishing is not cosmetic. While the consent screen sits in "Testing":
+#       • only addresses on the Test users list may authorize, so every new
+#         mailbox has to be added there first, and
+#       • Google expires refresh tokens after 7 DAYS, so connected accounts go
+#         quiet with no visible error.
+#     In production neither applies. Gmail scopes are "restricted", so the app
+#     stays *unverified* (an "unverified app" interstitial on connect — click
+#     Advanced → Go to OneInbox — and a 100-user cap). Both are fine for
+#     personal use; verification exists only to remove the warning and lift
+#     that cap, and for restricted scopes it requires a security assessment.
+#
+#  3. Credentials → Create credentials → OAuth client ID → **Web application**:
+#       Authorized JavaScript origin : https://anthonyn99.github.io
+#       Authorized redirect URI      : https://oneinbox-api.av1.workers.dev/oauth/callback
+#     The redirect URI must go in the REDIRECT box, not the origins box — the
+#     usual cause of a later redirect_uri_mismatch.
+#
+#  4. OPTIONAL — real-time push. Without it the /cron history poll ingests
+#     everything within ~15 min (see runCron), which is why this is optional and
+#     currently OFF (PUBSUB_TOPIC = ""). Reading mail is unaffected either way:
+#     the inbox is fetched live from Gmail on every open. Only the AI badges and
+#     TaskHub cards ride the poll. Note the worker's own service account cannot
+#     create these resources (it lacks pubsub.topics.create) — use the Console
+#     or a gcloud session authenticated as the project owner:
+#       gcloud pubsub topics create oneinbox-gmail
+#       gcloud pubsub topics add-iam-policy-binding oneinbox-gmail \
+#         --member=serviceAccount:gmail-api-push@system.gserviceaccount.com \
+#         --role=roles/pubsub.publisher
+#       gcloud pubsub subscriptions create oneinbox-push \
+#         --topic=oneinbox-gmail \
+#         --push-endpoint="https://oneinbox-api.av1.workers.dev/pubsub/push?token=<PUBSUB_TOKEN>"
+#     Then set PUBSUB_TOPIC above to
+#       projects/task-dashboard-d2b53/topics/oneinbox-gmail
+#     and redeploy. Watches expire after 7 days; runCron re-arms them daily.
+#
+# ════════════════════════════════════════════════════════════════════════════
+# TROUBLESHOOTING
+#
+#   "Lock service unreachable"
+#       CORS allows only https://anthonyn99.github.io. Opening the file over
+#       file:// or any other host always fails — use the Pages URL.
+#
+#   "Google did not return a refresh token"
+#       That account was authorized before. Remove OneInbox at
+#       myaccount.google.com/permissions, then connect again.
+#
+#   An account silently stops syncing after ~7 days
+#       The consent screen fell back to "Testing". Publish it (step 2).
+#
+#   Cards never reach TaskHub
+#       Check dashboards/oneinbox/cards in the Firebase console. Empty means
+#       ingestion has not run — POST /cron, or press Refresh in the app.
+#       index.html only READS that collection; it never writes it.
+#
+#   AI card shows engine "local"
+#       Every Gemini model in the chain is out of quota for the day and the
+#       regex parser took over. Extraction is thinner; nothing is lost, and it
+#       recovers on the next daily reset.
