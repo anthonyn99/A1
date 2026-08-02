@@ -72,10 +72,14 @@
     return { name: host, input: [], send: [] };
   }
 
-  function visible(el) {
+  function visible(el, minW, minH) {
     if (!el || !el.isConnected) return false;
     var r = el.getBoundingClientRect();
-    if (r.width < 40 || r.height < 12) return false;
+    // minW/minH default to composer-sized. Send buttons MUST pass a much smaller
+    // floor: ChatGPT's is a ~36px circular icon, so a 40px minimum silently
+    // rejected it and we fell through to synthetic Enter, which ProseMirror
+    // ignores — the prompt got typed in and just sat there.
+    if (r.width < (minW == null ? 40 : minW) || r.height < (minH == null ? 12 : minH)) return false;
     var s = getComputedStyle(el);
     return s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0';
   }
@@ -118,7 +122,7 @@
   }
 
   function clickable(el) {
-    return !!el && !el.disabled && el.getAttribute('aria-disabled') !== 'true' && visible(el);
+    return !!el && !el.disabled && el.getAttribute('aria-disabled') !== 'true' && visible(el, 10, 10);
   }
 
   function findSend(profile) {
@@ -199,23 +203,32 @@
 
     if (!typeInto(el, text)) { console.warn('[Vault] AI prompt: could not type into the composer'); return false; }
 
-    // Give the site a moment to register the text and enable its send button.
-    var btn = await waitFor(function () { return findSend(profile); }, 3000);
-    if (btn) { try { btn.click(); } catch (e) { pressEnter(el); } }
-    else { pressEnter(el); }
-
-    // Report the submit straight away — if this page navigates on send (a new
-    // conversation URL), the confirmation has to be already in flight, or the
-    // next document would find the prompt still pending and send it twice.
-    report();
-
-    // Then confirm: if our text is still sitting in the composer, the click
-    // landed on the wrong control — fall back to Enter once.
-    await wait(1200);
-    if (composerText(el) && composerText(el).slice(0, 40) === text.trim().slice(0, 40)) {
-      try { el.focus(); } catch (e) {}
-      pressEnter(el);
+    // Keep trying to send until the composer actually empties — that's the only
+    // reliable proof it went. One fire-and-hope click is how "the prompt is
+    // typed in but just sits there" happens: the send button may not exist yet
+    // (it appears once the site registers input), may be disabled for a beat, or
+    // the click may land on the wrong control.
+    var head = text.trim().slice(0, 40);
+    var sent = false;
+    for (var i = 0; i < 10 && !sent; i++) {
+      var btn = findSend(profile);
+      if (btn) { try { btn.click(); } catch (e) {} }
+      // Enter only when there's no button to click, or after the button has
+      // repeatedly failed — on ProseMirror sites a synthetic Enter is usually
+      // ignored, so it's the fallback, not the first move.
+      if (!btn || i >= 3) { try { el.focus(); } catch (e) {} pressEnter(el); }
+      await wait(600);
+      if (composerText(el).slice(0, 40) !== head) sent = true;
     }
+
+    if (!sent) {
+      console.warn('[Vault] AI prompt: typed it in, but no send control fired — press Enter yourself. ' +
+                   'Send button found: ' + !!findSend(profile));
+      return false;   // stays pending, so a reload retries
+    }
+    // Only now tell the background it's done — a failed attempt must stay
+    // pending so the next document (or a reload) can have another go.
+    report();
     console.log('[Vault] AI prompt submitted on ' + profile.name);
     return true;
   }
