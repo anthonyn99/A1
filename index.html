@@ -2931,6 +2931,22 @@ function _xZoneOf(el){const z=el&&el.closest&&el.closest('[data-dnd-zone]');retu
 // parse a zone string like "week:2026-5-16" | "habit" | "goal"
 function _xParseZone(zs){if(!zs)return null;const i=zs.indexOf(':');if(i<0)return{zone:zs};return{zone:zs.slice(0,i),dayKey:zs.slice(i+1)};}
 
+// ── Drag-to-scroll ──────────────────────────────────────────────────────────
+// Native HTML5 drag operations swallow the mouse wheel (the browser stops
+// forwarding it to page scroll once a drag is live), so a task/event grabbed in
+// edit mode has no way to reach a drop target below the fold — Daily Habits and
+// the Goals sections routinely get pushed off-screen by a busy week. Track any
+// live drag globally and manually drive the page scroll from wheel input while
+// one is in progress, so the wheel keeps working exactly like it does at rest.
+let _dragScrollLive=false;
+document.addEventListener('dragstart',()=>{_dragScrollLive=true;});
+document.addEventListener('dragend',()=>{_dragScrollLive=false;});
+document.addEventListener('wheel',e=>{
+  if(!_dragScrollLive)return;
+  e.preventDefault();
+  window.scrollBy(0,e.deltaY);
+},{passive:false});
+
 // ── Touch drag-to-reorder hook ─────────────────────────────────────────────
 // Returns { getTouchHandlers(id), getRowProps(id) }
 // getTouchHandlers → attach to the grip ⠿ span
