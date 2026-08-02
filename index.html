@@ -5018,12 +5018,13 @@ function App(){
         React.createElement("button",{type:"button",onClick:()=>setTgShowAll(true),title:"View all quotes",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",fontFamily:"inherit",letterSpacing:0.5,opacity:0.6,transition:"all .15s"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.notes}}))))),
 
     // Weekly
-    React.createElement("div",{style:{...sec,flexShrink:0,...(weekCollapsed?{maxHeight:"clamp(240px,42vh,460px)",overflowY:"auto",overflowX:"hidden"}:null)}},
-      React.createElement("div",{style:{...stt,display:"flex",justifyContent:"space-between",alignItems:"center",...(weekCollapsed?{position:"sticky",top:0,zIndex:2,background:T.S1}:null)}},
+    React.createElement("div",{style:{...sec,flexShrink:0}},
+      React.createElement("div",{style:{...stt,display:"flex",justifyContent:"space-between",alignItems:"center"}},
         React.createElement("span",null,"Weekly — "+MO[wd[0].month]+" "+wd[0].day+"–"+wd[6].day),
         React.createElement("button",{type:"button",title:weekCollapsed?"Expand week":"Collapse week",onClick:toggleWeekCollapsed,style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,color:T.TXM,cursor:"pointer",padding:"3px 8px",display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:0.3,transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},
           React.createElement("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0,transform:weekCollapsed?"rotate(180deg)":"none",transition:"transform .2s"},dangerouslySetInnerHTML:{__html:TNI.arrowUp}}),
           weekCollapsed?"Expand":"Collapse")),
+      React.createElement("div",{style:weekCollapsed?{maxHeight:"clamp(240px,42vh,460px)",overflowY:"auto",overflowX:"hidden",paddingRight:4}:null},
       (isMobile||(isNarrow&&narrowSingleDay))?
         // ── Mobile/narrow: day-tab strip + single day card ──
         React.createElement("div",null,
@@ -5185,7 +5186,7 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
               edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:4,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
-          }))),
+          })))),
 
     React.createElement("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"minmax(0,4fr) minmax(0,2.4fr) minmax(0,4fr)",gap:"clamp(6px,1vw,10px)",flexShrink:0,alignItems:"start"}},
 
@@ -10321,12 +10322,13 @@ function App(){
     )),
 
     // ── Weekly ──
-    RC("div",{style:{...sec,flexShrink:0,...(weekCollapsed?{maxHeight:"clamp(240px,42vh,460px)",overflowY:"auto",overflowX:"hidden"}:null)}},
-      RC("div",{style:{...stt,display:"flex",justifyContent:"space-between",alignItems:"center",...(weekCollapsed?{position:"sticky",top:0,zIndex:2,background:S1}:null)}},
+    RC("div",{style:{...sec,flexShrink:0}},
+      RC("div",{style:{...stt,display:"flex",justifyContent:"space-between",alignItems:"center"}},
         RC("span",null,"WEEKLY — "+MO[wd[0].month]+" "+wd[0].day+"–"+wd[6].day+", "+wd[0].year),
         RC("button",{type:"button",title:weekCollapsed?"Expand week":"Collapse week",onClick:toggleWeekCollapsed,style:{background:"transparent",border:"1px solid "+BD,borderRadius:4,color:TXM,cursor:"pointer",padding:"3px 8px",display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,fontFamily:"inherit",letterSpacing:0.3,transition:"all .15s",textTransform:"none"},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;e.currentTarget.style.color=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BD;e.currentTarget.style.color=TXM;}},
           RC("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0,transform:weekCollapsed?"rotate(180deg)":"none",transition:"transform .2s"},dangerouslySetInnerHTML:{__html:TNI.arrowUp}}),
           weekCollapsed?"Expand":"Collapse")),
+      RC("div",{style:weekCollapsed?{maxHeight:"clamp(240px,42vh,460px)",overflowY:"auto",overflowX:"hidden",paddingRight:4}:null},
       (vrMobile||(vrNarrow&&vrNarrowSingleDay))?
         RC("div",null,
           vrNarrow&&vrNarrowSingleDay&&RC("button",{type:"button",onClick:()=>setVrNarrowSingleDay(false),style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+BD,borderRadius:5,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",display:"inline-block",marginBottom:8}},"← Back to week"),
@@ -10413,7 +10415,7 @@ function App(){
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"))}))),
+              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"))})))),
 
     // ── Bottom panels ──
     RC("div",{style:{display:"grid",gridTemplateColumns:vrMobile?"1fr":"minmax(0,4fr) minmax(0,2.5fr) minmax(0,4fr)",gap:10}},
