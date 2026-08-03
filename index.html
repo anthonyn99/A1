@@ -4978,10 +4978,10 @@ function App(){
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}})),
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,minWidth:0,width:"100%",flexWrap:"wrap"}},
           React.createElement("button",{type:"button",key:"vx-voice",title:"Voice control",style:{...hbtn(false),background:vxRec?"#e05a5a":T.AC,color:T.BG,border:"1px solid "+(vxRec?"#e05a5a":T.AC),fontWeight:800,boxShadow:vxRec?"none":"0 2px 10px "+T.AC+"66"},onClick:()=>window._THV&&window._THV.toggleVoice()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
-          /* Text → AI: the typed twin of the mic, so it sits immediately beside
-             it and shares the accent, but stays outlined so the pair doesn't
-             read as two identical primary buttons. */
-          React.createElement("button",{type:"button",key:"vx-text",title:"Text command (AI)","aria-label":"Text command",style:{...hbtn(false),background:T.AC+"1f",color:T.AC,border:"1px solid "+T.AC,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.background=T.AC+"33",onMouseLeave:e=>e.currentTarget.style.background=T.AC+"1f",onClick:()=>window._THV&&window._THV.openText()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),React.createElement("line",{x1:8.5,y1:10,x2:15.5,y2:10}),React.createElement("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
+          /* Text → AI: the typed twin of the mic, sitting immediately beside it.
+             Plain chrome like the rest of the header row — only the mic stays
+             filled, so the pair doesn't read as two primary buttons. */
+          React.createElement("button",{type:"button",key:"vx-text",title:"Text command (AI)","aria-label":"Text command",style:{...hbtn(false),background:"transparent",color:T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.openText()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),React.createElement("line",{x1:8.5,y1:10,x2:15.5,y2:10}),React.createElement("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
           React.createElement("button",{type:"button",key:"vx-dev",title:"Input device",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.openDevicePicker()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
           vxUndo&&React.createElement("button",{type:"button",key:"vx-undo",title:"Undo",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD,fontSize:15,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.undo()},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.undo}})),
           vxRedo&&React.createElement("button",{type:"button",key:"vx-redo",title:"Redo",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD,fontSize:15,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.redo()},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.redo}})),
@@ -10364,7 +10364,7 @@ function App(){
       RC("div",{className:"veda-hbtns",style:{paddingTop:4}},
         RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:vxRec?"none":"0 2px 9px "+A+"66"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23}))),
         /* Text → AI: typed twin of the mic, seated right beside it. */
-        RC("button",{key:"vx-text",title:"Text command (AI)","aria-label":"Text command",onClick:()=>window._THV&&window._THV.openText(),style:{background:A+"1f",color:A,border:"1px solid "+A,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.background=A+"33";},onMouseLeave:e=>{e.currentTarget.style.background=A+"1f";}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),RC("line",{x1:8.5,y1:10,x2:15.5,y2:10}),RC("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
+        RC("button",{key:"vx-text",title:"Text command (AI)","aria-label":"Text command",onClick:()=>window._THV&&window._THV.openText(),style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),RC("line",{x1:8.5,y1:10,x2:15.5,y2:10}),RC("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
         RC("button",{key:"vx-dev",title:"Input device",onClick:()=>window._THV&&window._THV.openDevicePicker(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
         vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↶"),
         vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↷"),
@@ -35132,8 +35132,7 @@ mcApplyTheme();
     </button>
   </div>
   <textarea id="thv-txt-input" rows="3" spellcheck="true" autocomplete="off"
-    placeholder="Tell TaskHub what to do — one instruction or a whole list.&#10;&#10;Plan my entire next two weeks.&#10;Move every workout to Mondays and Thursdays.&#10;Delete all completed tasks from this month."></textarea>
-  <div id="thv-txt-chips"></div>
+    placeholder="What should change?&#10;e.g. Move every workout to Mondays and Thursdays"></textarea>
   <div class="thv-txt-foot">
     <div id="thv-txt-status"><span class="thv-txt-kbd">Ctrl</span>+<span class="thv-txt-kbd">Enter</span> to send · Shift+Enter for a new line</div>
     <button type="button" id="thv-txt-send" onclick="window._THV&&window._THV.sendText()">Send</button>
@@ -35179,7 +35178,7 @@ mcApplyTheme();
    Desktop: a centred card. Phones: a bottom sheet that rides above the
    on-screen keyboard (--thv-kb is kept in sync with visualViewport). */
 #thv-txt-overlay{position:fixed;inset:0;z-index:99400;display:flex;align-items:center;justify-content:center;padding:22px;box-sizing:border-box;
-  background:rgba(8,8,11,.62);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  background:rgba(8,8,11,.62);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);overscroll-behavior:contain;
   opacity:0;pointer-events:none;transition:opacity .18s ease;}
 #thv-txt-overlay.show{opacity:1;pointer-events:auto;}
 #thv-txt-box{width:100%;max-width:620px;display:flex;flex-direction:column;gap:11px;box-sizing:border-box;
@@ -35192,15 +35191,13 @@ mcApplyTheme();
 .thv-txt-dot{width:7px;height:7px;border-radius:50%;background:var(--thv-accent,#e0b874);flex-shrink:0;}
 .thv-txt-x{background:transparent;border:none;color:var(--thv-mute,#8a8a98);cursor:pointer;padding:4px;line-height:0;border-radius:6px;}
 .thv-txt-x:hover{color:var(--thv-text,#f4f3f0);}
-#thv-txt-input{width:100%;box-sizing:border-box;min-height:110px;max-height:42vh;overflow-y:auto;resize:none;
+/* overscroll-behavior:contain stops a scroll that reaches the end of the box
+   from chaining into the TaskHub behind it. */
+#thv-txt-input{width:100%;box-sizing:border-box;min-height:110px;max-height:42vh;overflow-y:auto;overscroll-behavior:contain;resize:none;
   background:rgba(127,127,140,.10);border:1.5px solid var(--thv-border,#33333f);border-radius:11px;padding:12px 13px;
   font-family:inherit;font-size:15px;line-height:1.5;color:var(--thv-text,#f4f3f0);outline:none;transition:border-color .15s;}
 #thv-txt-input:focus{border-color:var(--thv-accent,#e0b874);}
 #thv-txt-input::placeholder{color:var(--thv-mute,#8a8a98);opacity:.85;}
-#thv-txt-chips{display:flex;flex-wrap:wrap;gap:6px;}
-.thv-txt-chip{background:transparent;border:1px solid var(--thv-border,#33333f);color:var(--thv-mute,#8a8a98);
-  border-radius:20px;padding:5px 11px;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;}
-.thv-txt-chip:hover{border-color:var(--thv-accent,#e0b874);color:var(--thv-accent,#e0b874);}
 .thv-txt-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;}
 #thv-txt-status{font-size:11.5px;color:var(--thv-mute,#8a8a98);line-height:1.45;display:flex;align-items:center;gap:7px;min-width:0;}
 #thv-txt-status.err{color:#e89a9a;}
@@ -35678,14 +35675,7 @@ function encodeWav(buffers,inRate,outRate){
 // history, push reminders and Firebase sync all behave identically. The only
 // difference is that the panel reports progress inline instead of by toast, so
 // a 40-change bulk edit can say what actually happened.
-var TXT={open:false,busy:false,kbHandler:null};
-var TXT_CHIPS=[
-  'Plan my entire next two weeks',
-  'Shift everything next week one day later',
-  'Delete all completed tasks from this month',
-  'Move every workout to Mondays and Thursdays',
-  'Clear tomorrow and reschedule it for Friday'
-];
+var TXT={open:false,busy:false,kbHandler:null,scrollLock:null};
 function txtStatus(html,cls){var s=$('thv-txt-status');if(!s)return;s.innerHTML=html;s.className=cls||'';}
 function txtIdle(){txtStatus('<span class="thv-txt-kbd">'+(isMac()?'⌘':'Ctrl')+'</span>+<span class="thv-txt-kbd">Enter</span> to send · Shift+Enter for a new line');}
 function isMac(){return /Mac|iPhone|iPad|iPod/.test(navigator.platform||navigator.userAgent||'');}
@@ -35696,14 +35686,33 @@ function txtBusy(on){
   if(btn){btn.disabled=!!on;btn.textContent=on?'Working…':'Send';}
   if(ta)ta.readOnly=!!on;
 }
-function buildChips(){
-  var box=$('thv-txt-chips');if(!box||box.childNodes.length)return;
-  TXT_CHIPS.forEach(function(text){
-    var b=document.createElement('button');
-    b.type='button';b.className='thv-txt-chip';b.textContent=text;
-    b.onclick=function(){var ta=$('thv-txt-input');if(!ta)return;ta.value=text;ta.focus();txtGrow();txtIdle();};
-    box.appendChild(b);
-  });
+// The TaskHub behind the panel must be completely inert while the composer is
+// open: no wheel/touch scrolling, no scroll chaining out of the textarea when it
+// reaches its end. overscroll-behavior in the CSS covers the chaining case;
+// this freezes the document itself and blocks gestures on the backdrop.
+function txtBlockScroll(e){
+  var ta=$('thv-txt-input');
+  if(ta&&e.target===ta){
+    // let the textarea scroll itself, but not past its own ends
+    var d=e.deltaY||0,atTop=ta.scrollTop<=0,atEnd=ta.scrollTop+ta.clientHeight>=ta.scrollHeight-1;
+    if(!((d<0&&atTop)||(d>0&&atEnd)))return;
+  }
+  e.preventDefault();
+}
+// Cancelling the gestures is enough on its own — and unlike overflow:hidden on
+// <html> it doesn't collapse the page's scroll offset to 0, which made the
+// TaskHub visibly jump to the top the moment the composer opened.
+function txtLockScroll(on){
+  if(on){
+    if(TXT.scrollLock)return;
+    TXT.scrollLock=true;
+    window.addEventListener('wheel',txtBlockScroll,{passive:false});
+    window.addEventListener('touchmove',txtBlockScroll,{passive:false});
+  }else if(TXT.scrollLock){
+    TXT.scrollLock=null;
+    window.removeEventListener('wheel',txtBlockScroll,{passive:false});
+    window.removeEventListener('touchmove',txtBlockScroll,{passive:false});
+  }
 }
 // Keep the sheet above the on-screen keyboard on phones.
 function txtTrackKeyboard(on){
@@ -35723,12 +35732,12 @@ function txtTrackKeyboard(on){
 function openText(){
   if(!bridge()){toast('Open a TaskHub first');return;}
   if(V.active){stop();}                       // typing wins over an open mic
-  themeVars();buildChips();
+  themeVars();
   var who=$('thv-txt-who');if(who)who.textContent=profile()==='veda'?"Ask Veda's TaskHub":"Ask Tony's TaskHub";
   var ov=$('thv-txt-overlay'),ta=$('thv-txt-input');
   ov.setAttribute('aria-hidden','false');
   ov.classList.add('show');TXT.open=true;
-  txtBusy(false);txtIdle();txtTrackKeyboard(true);
+  txtBusy(false);txtIdle();txtTrackKeyboard(true);txtLockScroll(true);
   // wait a frame so the entry transition runs, then focus (iOS needs the delay)
   setTimeout(function(){if(ta){ta.focus();try{ta.setSelectionRange(ta.value.length,ta.value.length);}catch(e){}txtGrow();}},60);
 }
@@ -35736,7 +35745,7 @@ function closeText(){
   if(!TXT.open)return;
   var ov=$('thv-txt-overlay');
   ov.classList.remove('show');ov.setAttribute('aria-hidden','true');
-  TXT.open=false;txtTrackKeyboard(false);
+  TXT.open=false;txtTrackKeyboard(false);txtLockScroll(false);
   var ta=$('thv-txt-input');if(ta)ta.blur();
 }
 async function sendText(){
