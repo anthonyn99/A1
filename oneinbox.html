@@ -57,14 +57,38 @@
   --c-general:#8d8d94;
 
   --hdr-h:56px;
+  /* Notch / home-indicator insets. Needed on iPhone, and on Android phones in
+     landscape where the gesture bar and camera cutout eat the edges. */
+  --safe-t:env(safe-area-inset-top,0px);
   --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;height:100%}
+html{
+  -webkit-text-size-adjust:100%;height:100%;
+  /* clip, NOT hidden. The off-canvas drawer sits at translateX(-100%), which
+     otherwise stretches the document to twice the viewport width and lets the
+     whole app scroll sideways — the single worst mobile bug this file had.
+     `clip` kills that scroll without creating a scroll container, so
+     position:fixed children (drawer, bottom nav) keep behaving normally;
+     `overflow:hidden` here would break them. */
+  overflow-x:clip;
+}
 body{
   background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.55;
-  height:100%;overflow:hidden;-webkit-font-smoothing:antialiased;
-  overscroll-behavior:none;
+  /* dvh tracks the browser chrome as it hides/shows while scrolling. Plain
+     100vh is frozen at the TALLEST viewport, so on Android (Brave/Chrome) and
+     iOS Safari the bottom nav sits under the URL bar until you scroll. The vh
+     line stays first as the fallback for anything without dvh. */
+  height:100vh;
+  height:100dvh;
+  overflow:hidden;overflow-x:clip;
+  -webkit-font-smoothing:antialiased;
+  /* `contain`, not `none`: still stops overscroll chaining to the page, but
+     leaves the in-app pull-to-refresh on .msglist free to work. `none` was
+     also suppressing the gesture entirely. */
+  overscroll-behavior:contain;
 }
 a{color:var(--gold-soft);text-decoration:none}
 a:hover{color:var(--gold)}
@@ -149,10 +173,13 @@ label.fld{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.1px;te
 /* ══════════════════════════════════════════════════════════════════════════
    APP SHELL — three panes on desktop, one pane with push navigation on phones
    ══════════════════════════════════════════════════════════════════════════ */
-#app{display:flex;flex-direction:column;height:100%}
+#app{display:flex;flex-direction:column;height:100%;min-height:0}
 header.topbar{
-  height:var(--hdr-h);flex-shrink:0;display:flex;align-items:center;gap:10px;
-  padding:0 14px;border-bottom:1px solid var(--border-soft);background:var(--surface);
+  height:calc(var(--hdr-h) + var(--safe-t));flex-shrink:0;
+  padding-top:var(--safe-t);
+  display:flex;align-items:center;gap:10px;
+  padding-left:calc(14px + var(--safe-l));padding-right:calc(14px + var(--safe-r));
+  border-bottom:1px solid var(--border-soft);background:var(--surface);
 }
 .brand{
   font-family:var(--suite-display);font-size:19px;font-weight:750;letter-spacing:-.4px;
@@ -205,7 +232,30 @@ aside.sidebar{
 section.listpane{
   width:380px;flex-shrink:0;border-right:1px solid var(--border-soft);
   display:flex;flex-direction:column;min-height:0;background:var(--bg);
+  position:relative;   /* anchors the pull-to-refresh indicator */
 }
+
+/* ── Pull to refresh ──────────────────────────────────────────────────────
+   A fixed app shell can never fire the browser's own pull-to-refresh — that
+   gesture only exists for a scrolling document, which is why it works in the
+   other A1 apps and not here. So the gesture is implemented on .msglist
+   directly, which also means it behaves identically on Brave, Chrome, Safari
+   and Firefox, on both Android and iOS, instead of depending on each
+   browser's native behaviour. */
+.listbody{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+.ptr{
+  position:absolute;left:0;right:0;top:0;height:58px;z-index:6;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;opacity:0;transform:translateY(-58px);
+}
+.ptr.snap{transition:transform .26s cubic-bezier(.22,.61,.36,1),opacity .26s}
+.ptrspin{
+  width:24px;height:24px;border-radius:50%;
+  border:2px solid var(--border);border-top-color:var(--gold);
+  background:var(--surface);box-shadow:0 2px 10px rgba(0,0,0,.35);
+}
+.ptr.armed .ptrspin{border-color:var(--gold-line);border-top-color:var(--gold)}
+.ptr.busy .ptrspin{animation:spin .7s linear infinite}
 .listhead{
   height:44px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 12px;
   border-bottom:1px solid var(--border-soft);
@@ -240,7 +290,16 @@ section.listpane{
 .mtop{display:flex;align-items:baseline;gap:8px}
 .mfrom{font-size:13.5px;font-weight:500;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mdate{font-size:11px;color:var(--faint);flex-shrink:0}
-.msubj{font-size:13.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+/* Subject wraps to two lines rather than truncating at the first ellipsis.
+   In a narrow list — a phone, or the fold-open two-pane layout where the list
+   is ~290px — single-line truncation cut most subjects after two words
+   ("Package scheduled for deli…"), which is the difference between scanning
+   the inbox and having to open every message. */
+.msubj{
+  font-size:13.5px;color:var(--muted);margin-top:1px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;overflow-wrap:anywhere;
+}
 .msnip{font-size:12.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
 .mmeta{display:flex;align-items:center;gap:5px;margin-top:5px;flex-wrap:wrap}
 .cat{
@@ -345,7 +404,10 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
 .crow .ck{font-size:11px;font-weight:600;letter-spacing:.9px;text-transform:uppercase;color:var(--faint);width:54px;flex-shrink:0}
 .crow input,.crow select{border:none;background:transparent;padding:3px 0;font-size:14px}
 .crow input:focus,.crow select:focus{border:none}
-.ctoolbar{display:flex;gap:2px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border-soft)}
+.ctoolbar{display:flex;gap:2px;flex-wrap:wrap;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-soft)}
+/* Kept in CSS rather than inline so the mobile 16px rule can reach it — an
+   inline font-size outranks every stylesheet rule and would keep iOS zooming. */
+#cTemplate{width:auto;max-width:150px;font-size:12px;padding:5px 8px}
 #composeBody{
   min-height:190px;padding:14px 2px;font-size:14.5px;line-height:1.6;outline:none;
   overflow-y:auto;max-height:38vh;
@@ -385,6 +447,13 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
 .toast.ok{border-color:var(--gold-line)}
 .toast.bad{border-color:rgba(214,138,124,.5)}
 
+/* ── App dialog (replaces native confirm/prompt) ─────────────────────────── */
+#askBody{font-size:14px;line-height:1.55;color:var(--muted)}
+#askBody strong{color:var(--text);font-weight:600}
+#askModal .mhead{border-bottom:none;padding-bottom:0}
+#askModal .mscroll{padding-top:8px}
+#askModal .mhead .t{font-size:16px}
+
 /* ── Mobile-only chrome, hidden by default ───────────────────────────────── */
 /* These base rules MUST come before the media queries below: they carry the
    same specificity, so whichever is written last would otherwise win and the
@@ -393,71 +462,176 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
 .bottomnav{display:none}
 
 /* ══════════════════════════════════════════════════════════════════════════
-   RESPONSIVE
-   Tablet  (<1100px): sidebar collapses to an overlay drawer, list + reader stay.
-   Phone   (<760px):  ONE pane at a time, driven by data-view on #app. Bottom
-                      nav replaces the sidebar for the three things reachable
-                      by thumb; everything else lives in the drawer.
-   Foldables: the 760-1100 band covers the unfolded inner screen, and the
-   folded cover screen falls into the phone band — no separate breakpoint.
+   RESPONSIVE — three tiers, chosen around real device widths rather than
+   round numbers.
+
+     ≥1024px   THREE panes. Sidebar pinned, list, reader. Desktop, and a
+               tablet held in landscape (iPad 1024, Tab S 1280).
+     641-1023  TWO panes: list + reader side by side, sidebar as a drawer.
+               This is the band that matters for a Z Fold 7 UNFOLDED (~688px
+               CSS) and for tablets in portrait (768px). Those screens are far
+               too wide to justify showing one pane at a time — you get a real
+               mail-client layout, reading a message without losing the list.
+     ≤640px    ONE pane at a time, bottom nav, drawer. Phones in portrait and
+               the Z Fold 7 COVER screen (~374px CSS).
+
+   A phone in landscape (e.g. 915x412) lands in the two-pane band, which is
+   the right call — it is wide and short, so side-by-side beats stacking.
    ══════════════════════════════════════════════════════════════════════════ */
-@media (max-width:1100px){
+
+/* ── Drawer sidebar: everything below the three-pane breakpoint ──────────── */
+@media (max-width:1023px){
   aside.sidebar{
-    position:fixed;left:0;top:0;bottom:0;z-index:120;width:262px;
-    transform:translateX(-100%);transition:transform .22s ease;
+    position:fixed;left:0;top:0;bottom:0;z-index:120;
+    width:min(280px,82vw);
+    padding-top:var(--safe-t);padding-bottom:var(--safe-b);
+    padding-left:var(--safe-l);
+    transform:translateX(-100%);
+    /* translate3d keeps the drawer on the compositor — a plain translateX
+       repaints the whole panel every frame and visibly stutters on a fold. */
+    transform:translate3d(-100%,0,0);
+    transition:transform .24s cubic-bezier(.22,.61,.36,1);
     box-shadow:0 0 40px rgba(0,0,0,.5);
+    will-change:transform;
+    visibility:hidden;                 /* nothing focusable while off-canvas */
   }
-  body.drawer aside.sidebar{transform:translateX(0)}
+  body.drawer aside.sidebar{transform:translate3d(0,0,0);visibility:visible}
   .scrim{position:fixed;inset:0;z-index:110;background:rgba(10,10,12,.6);display:none}
   body.drawer .scrim{display:block}
-  section.listpane{width:340px}
+
+  /* Inputs below 16px make iOS Safari zoom the whole page on focus, and it
+     never zooms back out. 16px is the documented threshold.
+     Every selector that sets a smaller size elsewhere has to be named here —
+     a bare `input` rule loses to `.crow input` on specificity, which is how
+     the compose To/Subject fields stayed at 14px and kept zooming. */
+  input,textarea,select,
+  .crow input,.crow select,
+  .searchwrap input,
+  .acctcard textarea,
+  .tmplrow input,
+  #cTemplate,
+  #schedAt,
+  #composeBody{font-size:16px}
 }
-@media (max-width:760px){
+@media (min-width:1024px){.scrim{display:none !important}}
+
+/* ── Two panes: fold-open, tablets, phone landscape ─────────────────────── */
+@media (min-width:641px) and (max-width:1023px){
+  section.listpane{
+    /* Proportional, not fixed: at 688px (fold open) this is ~296px and the
+       reader still gets ~390px, which is enough for a real message. */
+    width:clamp(280px,42%,380px);
+  }
+  .readbody{padding:18px 20px 40px}
+  .readbody{padding-left:calc(20px + var(--safe-l));padding-right:calc(20px + var(--safe-r))}
+  /* A fold's inner screen is nearly square, so vertical room is the scarce
+     axis — keep the message header tight. */
+  .readhead{padding:12px 18px 10px}
+  .rsubject{font-size:18px}
+  .mbox{max-width:min(680px,92vw)}
+  .mbox.wide{max-width:min(680px,94vw)}
+}
+
+/* ── Single pane: phones, fold cover screen ─────────────────────────────── */
+@media (max-width:640px){
   :root{--hdr-h:52px}
   section.listpane{width:100%;border-right:none}
   .panes{position:relative}
-  /* One pane at a time. The reader slides over the list rather than replacing
-     it, so going back never loses the list's scroll position. */
+  /* The reader slides OVER the list rather than replacing it, so going back
+     never loses the list's scroll position. */
   section.readpane{
     position:absolute;inset:0;z-index:60;background:var(--bg);
-    transform:translateX(100%);transition:transform .22s ease;
+    transform:translate3d(100%,0,0);
+    transition:transform .24s cubic-bezier(.22,.61,.36,1);
+    will-change:transform;
   }
-  #app[data-view="read"] section.readpane{transform:translateX(0)}
+  #app[data-view="read"] section.readpane{transform:translate3d(0,0,0)}
   .backbtn{display:inline-flex}
   .searchwrap{max-width:none}
   .brand span{display:none}
-  .readhead{padding:12px 14px 10px}
-  .readbody{padding:14px 14px 100px}
+  .readhead{padding:12px calc(14px + var(--safe-r)) 10px calc(14px + var(--safe-l))}
+  .readbody{padding:14px calc(14px + var(--safe-r)) 40px calc(14px + var(--safe-l))}
   .rsubject{font-size:17px}
-  .mbox{max-width:none;max-height:100%;height:100%;border-radius:0;border:none}
+  .listhead{padding-left:calc(12px + var(--safe-l));padding-right:calc(12px + var(--safe-r))}
+  .filterrow{padding-left:calc(12px + var(--safe-l));padding-right:calc(12px + var(--safe-r))}
+  .msgrow{padding-left:calc(12px + var(--safe-l));padding-right:calc(12px + var(--safe-r))}
+  /* Full-screen sheets on a phone. */
+  .mbox,.mbox.wide,.mbox.narrow{
+    max-width:none;max-height:100%;height:100%;border-radius:0;border:none;
+    padding-top:var(--safe-t);
+  }
   .modal{padding:0}
+  .mhead{padding-left:calc(18px + var(--safe-l));padding-right:calc(18px + var(--safe-r))}
+  .mscroll{padding-left:calc(18px + var(--safe-l));padding-right:calc(18px + var(--safe-r))}
+  .mfoot{
+    padding-left:calc(18px + var(--safe-l));padding-right:calc(18px + var(--safe-r));
+    padding-bottom:calc(12px + var(--safe-b));
+  }
   #composeBody{max-height:none;min-height:150px}
-  .msglist{padding-bottom:76px}
-  /* Bottom nav — thumb-reachable, above the iOS home indicator. */
+  /* Clear the fixed bottom nav (and the home indicator under it). */
+  .msglist{padding-bottom:calc(62px + var(--safe-b))}
   .bottomnav{
     display:flex;position:fixed;left:0;right:0;bottom:0;z-index:80;
     background:var(--surface);border-top:1px solid var(--border-soft);
     padding-bottom:var(--safe-b);
+    padding-left:var(--safe-l);padding-right:var(--safe-r);
   }
   .bottomnav button{
     flex:1;background:none;border:none;color:var(--faint);cursor:pointer;
-    display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px 7px;
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    padding:8px 4px 6px;min-height:48px;justify-content:center;
     font-size:9.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;font-family:var(--sans);
   }
   .bottomnav button svg{width:19px;height:19px}
   .bottomnav button.on{color:var(--gold)}
   #app[data-view="read"] .bottomnav{display:none}
-  /* Touch targets never below 40px on a phone. */
-  .iconbtn{padding:10px}
-  .navitem{padding:11px 10px}
-  .msgrow{padding:13px 12px}
+  /* The reader's own bottom padding has to clear the home indicator too,
+     since the nav is hidden while reading. */
+  #app[data-view="read"] .readbody{padding-bottom:calc(40px + var(--safe-b))}
+
+  /* Compose and Settings earn a full-screen sheet — they are long and you work
+     in them. A two-sentence confirmation does not: stretched to a whole phone
+     screen it reads as a broken page. Those stay a bottom sheet, sized to
+     their content and sitting under the thumb. */
+  #askModal{align-items:flex-end;padding:0}
+  #askModal .mbox,#askModal .mbox.narrow{
+    height:auto;max-height:86%;
+    border:1px solid var(--border);border-bottom:none;
+    border-radius:16px 16px 0 0;
+    padding-top:0;
+  }
+  #askModal .mhead{padding-top:18px}
+  #askModal .mfoot .btn{flex:1;justify-content:center}
 }
-@media (min-width:761px){.scrim{display:none !important}}
-/* Coarse pointers (tablets, foldables, touch laptops) get the same generous
-   targets even above the phone breakpoint. */
+
+/* Short-and-wide (phone in landscape): the header is a big fraction of a
+   412px-tall viewport, so tighten it and drop non-essential chrome. */
+@media (max-height:450px) and (orientation:landscape){
+  :root{--hdr-h:46px}
+  .filterrow{display:none}
+  .readhead{padding-top:8px;padding-bottom:8px}
+  .rsubject{font-size:16px;margin-bottom:6px}
+}
+
+/* Coarse pointers (phones, tablets, foldables, touch laptops) get real touch
+   targets at every width. 44x44 is Apple's HIG minimum and the WCAG 2.2
+   enhanced target size; padding alone left these at 39px. */
 @media (pointer:coarse){
-  .iconbtn{padding:10px}
-  .chip{padding:6px 11px}
+  .iconbtn{padding:11px;min-width:44px;min-height:44px}
+  .btn{padding:12px 16px;min-height:44px}
+  .btn.icononly{min-width:44px}
+  /* The filter row is dense and scrolls horizontally, so the chips stay
+     visually compact but get a 40px tap height — the row would eat a third of
+     a phone screen at a full 44. */
+  .chip{padding:7px 13px;min-height:40px;display:inline-flex;align-items:center}
+  .navitem{padding:12px 10px;min-height:46px}
+  .msgrow{padding-top:13px;padding-bottom:13px}
+  .attach{padding:11px 13px;min-height:44px}
+  /* The star sits at the row's edge; grow its hit box inward without moving
+     the glyph, so it never overlaps the row's own tap area awkwardly. */
+  .mstar{padding:10px;margin:-10px -8px 0 0}
+  .bottomnav button{min-height:52px}
+  .pw-eye{padding:11px;min-width:44px;min-height:44px}
 }
 </style>
 </head>
@@ -607,7 +781,10 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
         </button>
       </div>
       <div class="filterrow" id="filterRow"></div>
-      <div class="msglist" id="msgList"></div>
+      <div class="listbody">
+        <div class="ptr" id="ptr" aria-hidden="true"><div class="ptrspin"></div></div>
+        <div class="msglist" id="msgList"></div>
+      </div>
     </section>
 
     <section class="readpane" id="readPane">
@@ -679,7 +856,7 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
         <button class="iconbtn" data-cmd="createLink" title="Link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
         <button class="iconbtn" data-cmd="removeFormat" title="Clear formatting"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/><path d="m3 3 18 18"/></svg></button>
         <span style="flex:1"></span>
-        <select id="cTemplate" style="width:auto;max-width:150px;font-size:12px;padding:5px 8px"></select>
+        <select id="cTemplate"></select>
       </div>
       <div id="composeBody" contenteditable="true" data-ph="Write your message…"></div>
       <div class="attachchips" id="cAttachList"></div>
@@ -752,6 +929,27 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
       <button class="btn gold" id="settingsSave">Save</button>
       <span class="grow"></span>
       <button class="btn" data-close="settingsModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── App dialog ──────────────────────────────────────────────────────────────
+     Replaces every native confirm()/prompt(). Browser dialogs break the app in
+     three ways that matter here: they are chrome-styled (so OneInbox stops
+     looking like an A1 product mid-flow), they block the JS thread, and on
+     iOS/Android they can be suppressed entirely — which would silently skip a
+     confirmation the user never saw. This one is themed, promise-based and
+     keyboard/touch friendly. -->
+<div class="modal" id="askModal">
+  <div class="mbox narrow">
+    <div class="mhead"><div class="t" id="askTitle"></div></div>
+    <div class="mscroll">
+      <div id="askBody"></div>
+      <input id="askInput" style="display:none;margin-top:14px" autocomplete="off">
+    </div>
+    <div class="mfoot">
+      <button class="btn gold" id="askOk">OK</button>
+      <button class="btn" id="askCancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -940,7 +1138,12 @@ async function maybeOfferBio(){
   if (!window.Bio || bioRegistered()) return;
   if (!(await Bio.available())) return;
   const name = Bio.label();
-  if (!confirm(`Use ${name} to unlock OneInbox on this device?\n\nYour password always keeps working.`)) return;
+  const yes = await ask({
+    title: `Use ${name}?`,
+    body: `Unlock OneInbox with <strong>${esc(name)}</strong> on this device instead of typing your password.<br><br>Your password always keeps working, and nothing biometric ever leaves this device — OneInbox only stores a credential handle.`,
+    ok: 'Enable', cancel: 'Not now'
+  });
+  if (!yes) return;
   const r = await Bio.register(BIO_APP, BIO_ID, { rpName:'OneInbox', userName:'oneinbox-tony', displayName:'OneInbox' });
   if (r.ok) toast(name + ' enabled', true);
   else if (r.error !== 'cancelled' && r.error !== 'NotAllowedError') toast('Could not enable ' + name);
@@ -1104,6 +1307,43 @@ async function api(path, body = {}){
 /* ══════════════════════════════════════════════════════════════════════════
    UI HELPERS
    ══════════════════════════════════════════════════════════════════════════ */
+/* App dialog — the only confirm/prompt OneInbox uses. Returns a promise:
+   false/null on cancel, true (or the typed string) on confirm. */
+let askResolve = null;
+function ask(opts){
+  const o = opts || {};
+  el('askTitle').textContent = o.title || 'Are you sure?';
+  el('askBody').innerHTML = o.body || '';
+  el('askBody').style.display = o.body ? '' : 'none';
+  const inp = el('askInput');
+  inp.style.display = o.input ? '' : 'none';
+  if (o.input){
+    inp.value = o.value || '';
+    inp.placeholder = o.placeholder || '';
+    inp.type = o.inputType || 'text';
+  }
+  const okBtn = el('askOk');
+  okBtn.textContent = o.ok || 'OK';
+  okBtn.className = 'btn ' + (o.danger ? 'danger' : 'gold');
+  el('askCancel').textContent = o.cancel || 'Cancel';
+  el('askModal').classList.add('open');
+  // Focus the input if there is one; otherwise the safe (cancel) button, so a
+  // stray Enter never confirms something destructive.
+  setTimeout(() => (o.input ? inp : el('askCancel')).focus(), 90);
+  return new Promise(res => { askResolve = res; });
+}
+function askClose(val){
+  el('askModal').classList.remove('open');
+  const r = askResolve; askResolve = null;
+  if (r) r(val);
+}
+el('askOk').addEventListener('click', () => {
+  const inp = el('askInput');
+  askClose(inp.style.display === 'none' ? true : (inp.value.trim() || null));
+});
+el('askCancel').addEventListener('click', () => askClose(null));
+el('askInput').addEventListener('keydown', e => { if (e.key === 'Enter') el('askOk').click(); });
+
 let toastT;
 function toast(msg, ok){
   const t = el('toast');
@@ -1601,7 +1841,12 @@ function renderSettings(){
 
   el('settingsAccounts').querySelectorAll('[data-disconnect]').forEach(b => b.addEventListener('click', async () => {
     const email = b.dataset.disconnect;
-    if (!confirm(`Disconnect ${email}?\n\nOneInbox forgets its token and revokes access at Google. Nothing in the mailbox itself changes.`)) return;
+    const yes = await ask({
+      title: 'Disconnect account?',
+      body: `<strong>${esc(email)}</strong> will be removed from OneInbox. Its token is forgotten here and access is revoked at Google.<br><br>Nothing in the mailbox itself changes — no mail is deleted.`,
+      ok: 'Disconnect', cancel: 'Keep it', danger: true
+    });
+    if (!yes) return;
     try {
       await api('/accounts/disconnect', { account: email });
       toast(email + ' disconnected', true);
@@ -1784,9 +2029,20 @@ el('cToolbar').addEventListener('click', e => {
   e.preventDefault();
   const cmd = b.dataset.cmd;
   if (cmd === 'createLink'){
-    const url = prompt('Link URL:');
-    if (url) document.execCommand('createLink', false, url);
-  } else document.execCommand(cmd, false, null);
+    // execCommand acts on the live selection, which is lost the moment focus
+    // moves to the dialog — so capture the range first and restore it after.
+    const sel = window.getSelection();
+    const range = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+    ask({ title: 'Add link', input: true, placeholder: 'https://…', inputType: 'url', ok: 'Add link' })
+      .then(url => {
+        if (!url) return;
+        el('composeBody').focus();
+        if (range){ sel.removeAllRanges(); sel.addRange(range); }
+        document.execCommand('createLink', false, /^\w+:/.test(url) ? url : 'https://' + url);
+      });
+    return;
+  }
+  document.execCommand(cmd, false, null);
   el('composeBody').focus();
 });
 el('cAttachBtn').addEventListener('click', () => el('cFileIn').click());
@@ -1853,13 +2109,25 @@ el('tmplAdd').addEventListener('click', () => {
   (S.settings.templates ||= []).push({ name:'New template', body:'' });
   renderSettings();
 });
-document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => el(b.dataset.close).classList.remove('open')));
-document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); }));
+// Closing a modal by any route must settle a pending ask() promise, or the
+// caller awaits forever and the flow silently dies.
+function closeModal(m){
+  if (!m) return;
+  if (m.id === 'askModal') askClose(null);
+  else m.classList.remove('open');
+}
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(el(b.dataset.close))));
+document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModal(m); }));
 
 el('selectAllBtn').addEventListener('click', async () => {
   const unread = visibleMessages().filter(m => m.unread);
   if (!unread.length){ toast('Nothing unread here'); return; }
-  if (!confirm(`Mark ${unread.length} message${unread.length===1?'':'s'} as read?`)) return;
+  const yes = await ask({
+    title: 'Mark all as read?',
+    body: `<strong>${unread.length}</strong> unread message${unread.length===1?'':'s'} in this view will be marked read.`,
+    ok: 'Mark read'
+  });
+  if (!yes) return;
   await Promise.all(unread.map(m => api('/gmail/modify', { account:m.account, id:m.id, op:'read' }).catch(()=>{})));
   unread.forEach(m => m.unread = false);
   renderList(); toast('Marked read', true);
@@ -1880,15 +2148,92 @@ el('bottomNav').addEventListener('click', e => {
   el('listTitle').textContent = (S.activeAccount === 'all' && S.folder === 'INBOX') ? 'Unified Inbox' : S.folderLabel;
   renderSidebar(); loadMessages();
 });
-const syncChrome = () => { el('drawerBtn').style.display = window.innerWidth <= 1100 ? '' : 'none'; };
+// Must match the CSS three-pane breakpoint (1024px) exactly — below it the
+// sidebar is a drawer and needs its button; at or above it the sidebar is
+// pinned and the button would do nothing.
+const syncChrome = () => {
+  el('drawerBtn').style.display = window.innerWidth <= 1023 ? '' : 'none';
+  // Leaving the phone band while a message is open would strand the reader in
+  // its slid-over state; two-pane and three-pane show both at once.
+  if (window.innerWidth > 640 && el('app').dataset.view === 'read') el('app').dataset.view = 'list';
+  if (window.innerWidth > 1023) document.body.classList.remove('drawer');
+};
 window.addEventListener('resize', syncChrome);
+// A fold unfolding fires resize, but some Android browsers only settle the new
+// viewport a frame or two later — and orientationchange doesn't always fire.
+window.addEventListener('orientationchange', () => setTimeout(syncChrome, 120));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', syncChrome);
 syncChrome();
+
+/* ── Pull to refresh ───────────────────────────────────────────────────────
+   The browser's own pull-to-refresh only exists for a scrolling document; this
+   is a fixed app shell with internal scrollers, so it can never fire (that is
+   why it works in the other A1 apps and not here). Implementing the gesture
+   directly means identical behaviour on Brave, Chrome, Samsung Internet,
+   Firefox and iOS Safari, on phone, fold and tablet alike. */
+(function pullToRefresh(){
+  const list = el('msgList'), ind = el('ptr');
+  const TRIGGER = 68, MAX = 104;
+  let startY = 0, dy = 0, dragging = false, busy = false;
+
+  const setPull = y => {
+    ind.style.transform = `translateY(${Math.min(y, MAX) - 58}px)`;
+    ind.style.opacity = String(Math.min(1, y / TRIGGER));
+    ind.classList.toggle('armed', y >= TRIGGER);
+  };
+  const release = () => {
+    ind.classList.add('snap');
+    ind.style.transform = 'translateY(-58px)';
+    ind.style.opacity = '0';
+    setTimeout(() => { ind.classList.remove('snap', 'armed', 'busy'); }, 280);
+  };
+
+  list.addEventListener('touchstart', e => {
+    // Only from a genuine rest-at-top, and never mid-refresh or multi-touch.
+    if (busy || e.touches.length !== 1 || list.scrollTop > 0) return;
+    startY = e.touches[0].clientY; dy = 0; dragging = true;
+    ind.classList.remove('snap');
+  }, { passive: true });
+
+  list.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    dy = e.touches[0].clientY - startY;
+    if (dy <= 0){ dragging = false; setPull(0); return; }
+    if (list.scrollTop > 0){ dragging = false; return; }
+    // Rubber-band: the pull gets progressively heavier, so it feels native
+    // rather than tracking the finger 1:1 off the top of the screen.
+    setPull(dy * 0.5);
+    // Non-passive so this can actually stop the scroller taking the gesture.
+    if (e.cancelable) e.preventDefault();
+  }, { passive: false });
+
+  const end = async () => {
+    if (!dragging) return;
+    dragging = false;
+    if (dy * 0.5 < TRIGGER){ release(); return; }
+    busy = true;
+    ind.classList.add('snap', 'busy');
+    ind.style.transform = 'translateY(6px)';
+    ind.style.opacity = '1';
+    try {
+      // Same work the toolbar refresh button does: let the worker pull anything
+      // Gmail push may have missed, then reload the list.
+      try { await api('/sync'); } catch {}
+      await loadMessages();
+    } finally {
+      busy = false;
+      release();
+    }
+  };
+  list.addEventListener('touchend', end, { passive: true });
+  list.addEventListener('touchcancel', () => { dragging = false; release(); }, { passive: true });
+})();
 
 // Escape closes the top-most surface; on a phone it also backs out of a message.
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   const open = [...document.querySelectorAll('.modal.open')].pop();
-  if (open){ open.classList.remove('open'); return; }
+  if (open){ closeModal(open); return; }
   if (document.body.classList.contains('drawer')){ document.body.classList.remove('drawer'); return; }
   if (el('app').dataset.view === 'read') el('app').dataset.view = 'list';
 });
