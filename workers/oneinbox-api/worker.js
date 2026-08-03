@@ -369,6 +369,24 @@ async function gmailToken(env, email) {
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
+// Bounded-concurrency map. Gmail enforces 250 quota units per USER per SECOND,
+// and messages.get costs 5 — so a Promise.all over a 40-message page fires 200
+// units at once, and the unified inbox does that for every account in parallel.
+// Refreshing with several mailboxes connected would burst well past the limit
+// and come back as rateLimitExceeded. Six at a time stays comfortably inside it
+// while still being far faster than serial.
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      out[idx] = await fn(items[idx], idx);
+    }
+  }));
+  return out;
+}
+
 async function gapi(env, email, path, init = {}) {
   const token = await gmailToken(env, email);
   const r = await fetch(GMAIL + path, {
@@ -481,17 +499,35 @@ function textForAI(m) {
 // header note: this is deliberately not a "small → big" escalation, because
 // escalating measurably hurt. Every entry is a separate daily quota pool, so
 // walking the chain multiplies effective capacity.
+// SHARED-KEY ORDERING. This key is the same one personal-ai uses for MyList
+// voice, TaskHub voice, Journal AI Format and recipes, and Gemini's free-tier
+// quota is per-key-per-model. So the order is chosen to keep OneInbox's bulk,
+// background email volume OFF the models those interactive features depend on.
+//
+//   personal-ai uses : 3.1-flash-lite (PRIMARY for MyList + TaskHub voice +
+//                      recipe edits), 3.5-flash, 2.5-flash, 2.5-flash-lite,
+//                      2.0-flash
+//   OneInbox only    : 3.5-flash-lite, 3.6-flash   ← its own private capacity
+//
+// Email classification is background work where a slightly weaker parse is
+// invisible; a failed voice command is not. So OneInbox burns both of its
+// EXCLUSIVE pools first, and 3.1-flash-lite — the voice primary — is the very
+// last cloud model it will touch, after which it degrades to the local parser
+// rather than competing further.
+// (2.5-flash was dropped entirely: shared, it leads personal-ai's recipe
+// dictation, and it 429'd early in benchmarking anyway.)
 const PARSE_MODELS = [
-  'gemini-3.5-flash-lite',  // 96-97%, p50 660ms — best accuracy AND fastest
-  'gemini-3.1-flash-lite',  // 96-97%, p50 1.09s — equal quality, own quota pool
-  'gemini-3.6-flash',        // flagship; slower and less accurate here, but capacity
-  'gemini-3.5-flash',        // another pool
-  'gemini-2.5-flash'         // last cloud pool before the local parser
+  'gemini-3.5-flash-lite',  // EXCLUSIVE. 96-97%, p50 660ms — best AND fastest
+  'gemini-3.6-flash',       // EXCLUSIVE. flagship; slower here but real capacity
+  'gemini-3.5-flash',       // shared, but only the Journal lead — low volume
+  'gemini-3.1-flash-lite'   // shared VOICE PRIMARY — last resort only
 ];
 
 // Reply drafting is prose, not extraction — quality over latency, and the
-// flagship writes noticeably better replies than the lite models.
-const REPLY_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+// flagship writes noticeably better replies than the lite models. Leads with
+// OneInbox's two exclusive models for the same shared-key reason as above;
+// this is user-initiated and rare, so volume here is negligible either way.
+const REPLY_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
 
 // NARROW ON PURPOSE. A wider schema (one field per category: expiration,
 // deliveryDate, dueDate, renewalDate, startDate…) benchmarked at 68-72% because
@@ -1276,10 +1312,10 @@ async function handleGmail(path, body, env, origin) {
     const list = await gapi(env, email, '/messages?' + p.toString());
     // format=metadata keeps the response small; the full body is fetched only
     // when a message is actually opened.
-    const msgs = await Promise.all((list.messages || []).map(m =>
+    const msgs = await mapLimit(list.messages || [], 6, m =>
       gapi(env, email, `/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`)
         .then(decodeMessage).catch(() => null)
-    ));
+    );
     return json({
       ok: true, nextPageToken: list.nextPageToken || null,
       messages: msgs.filter(Boolean).map(m => ({
