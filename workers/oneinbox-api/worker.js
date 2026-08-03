@@ -591,11 +591,18 @@ SHARED FIELDS - the same field names for every category:
 
 RULES:
  - OMIT any field the email does not support. Never guess a code, tracking number, amount, or date.
- - NOTHING LEFT TO DO -> "general". A category is only for money or action still OWED by the user.
-   A receipt, a payment confirmation, an autopay notice, "thanks for your payment",
-   "nothing is due at this time", or an order already fully settled is "general", NOT "bill".
-   Ask: is there something the user still has to do or still has to pay? If no, it is "general",
-   and you must leave amount, date and code EMPTY so no reminder card gets created.
+ - MONEY ALREADY SETTLED -> "general". This rule is about BILLS AND SUBSCRIPTIONS ONLY:
+   a receipt, a payment confirmation, an autopay notice, "thanks for your payment" or
+   "nothing is due at this time" is "general", NOT "bill", and amount/date stay EMPTY.
+ - IT DOES NOT APPLY TO SHIPMENTS. Every shipping notification is "package" at EVERY stage:
+   ordered, shipped, in transit, out for delivery, delayed, and DELIVERED. The card follows
+   the parcel through its whole life, so a "your order was delivered" email is still "package",
+   never "general".
+ - A PACKAGE ALWAYS GETS A DATE. Resolve the stage into one, against today (${today}):
+     "out for delivery" / "arriving today" / "delivered" / "delivered today"  -> ${today}
+     "arriving tomorrow"                                                      -> the next day
+     a named weekday or explicit date                                         -> that date
+   Only leave a package's date empty when the email genuinely says nothing about timing.
  - confidence is 0..1. Use a LOW confidence when the email is ambiguous or you had to guess.
  - summary: one sentence under 100 characters.
 
@@ -1035,10 +1042,17 @@ function cardFor(msg, ai) {
     // Identity = the tracking number. Ship → out-for-delivery → delivered all
     // update ONE card, and a changed ETA moves that same card's day.
     const id = 'pkg_' + slug(ai.tracking || (ai.orderNumber + '_' + ai.merchant));
+    // A package card with no eta renders NOWHERE — the weekly view is keyed by
+    // day, so a dateless card silently vanishes instead of failing loudly.
+    // Fall back to the day the mail arrived, which for "out for delivery" or a
+    // delivery confirmation is exactly the right day anyway. Better a card on
+    // roughly the right day than a card the user never sees.
+    const eta = ai.date || new Date(msg.internalDate || Date.now()).toISOString().slice(0, 10);
     return {
       id, kind: 'package', ...base,
       carrier: ai.carrier || '', tracking: ai.tracking || '',
-      orderNumber: ai.orderNumber || '', eta: ai.date || '',
+      orderNumber: ai.orderNumber || '', eta,
+      etaExact: !!ai.date,          // false = inferred from the email's own date
       trackUrl: trackingUrl(ai.carrier, ai.tracking),
       delivered: /delivered/i.test(msg.subject + ' ' + (ai.summary || ''))
     };
@@ -1156,7 +1170,13 @@ async function startWatch(env, email) {
 
 // Pub/Sub says only "account X changed". Ask Gmail what actually changed since
 // the historyId we last saw, then ingest only genuinely new message ids.
-async function syncHistory(env, email) {
+// `snapshot` also pulls the newest INBOX messages outright, independently of the
+// history cursor. It is the self-healing path: if the cursor ever skips ahead
+// (a failed batch, an aged-out historyId, a dropped push) the gap would other-
+// wise be permanent, because history is a forward-only stream. Re-checking the
+// newest few is nearly free — fsExisting dedupes them in one batchGet, so
+// already-ingested mail costs no AI and no writes.
+async function syncHistory(env, email, { snapshot = false } = {}) {
   const acct = await getAccount(env, email);
   if (!acct) return { error: 'unknown account' };
 
@@ -1190,6 +1210,22 @@ async function syncHistory(env, email) {
     pageToken = h.nextPageToken;
   } while (pageToken && ++pages < 5);
 
+  // Safety snapshot — merge in the newest inbox ids regardless of the cursor.
+  if (snapshot) {
+    try {
+      const recent = await gapi(env, email, '/messages?maxResults=12&labelIds=INBOX');
+      for (const m of recent.messages || []) ids.add(m.id);
+    } catch (e) { console.warn('snapshot failed', email, e.message); }
+  }
+
+  // INGEST FIRST, THEN advance the cursor. The reverse order loses mail
+  // permanently: if ingestMessages throws (a Firestore hiccup, a batch write
+  // failure) after the cursor has already moved past those ids, the next poll
+  // starts from the new point and those messages are never seen again — which
+  // is exactly how today's newest mail went missing while older mail was fine.
+  // Leaving the cursor put means a failed batch is simply retried next tick.
+  const result = await ingestMessages(env, email, [...ids]);
+
   // Only persist when the cursor actually MOVED. A quiet mailbox hands back the
   // same historyId, and rewriting it anyway cost one KV write per account per
   // poll — 5 accounts x 96 polls/day = 480 writes/day against a 1,000/day free
@@ -1198,7 +1234,7 @@ async function syncHistory(env, email) {
     acct.historyId = newest;
     await saveAccount(env, acct);
   }
-  return ingestMessages(env, email, [...ids]);
+  return result;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1485,12 +1521,17 @@ async function runCron(env) {
   // Pub/Sub delivery or an expired watch — it is incremental, so a quiet
   // mailbox costs one tiny Gmail call and no AI spend.
   if (now - (state.lastPoll || 0) > 15 * 60e3) {
+    // Once an hour the poll also takes a snapshot of the newest inbox ids, so
+    // any gap the forward-only history cursor left behind repairs itself
+    // instead of being lost for good.
+    const snapshot = now - (state.lastSnap || 0) > 60 * 60e3;
     out.polled = [];
     for (const e of accounts) {
-      try { const r = await syncHistory(env, e); out.polled.push({ e, ...r }); }
+      try { const r = await syncHistory(env, e, { snapshot }); out.polled.push({ e, ...r }); }
       catch (err) { out.polled.push({ e, error: err.message }); }
     }
     state.lastPoll = now; dirty = true;
+    if (snapshot) { state.lastSnap = now; out.snapshot = true; }
   }
 
   // Daily: retire cards whose moment has passed, so TaskHub does not accumulate
@@ -1623,9 +1664,12 @@ export default {
 
       if (path === '/sync') {
         const list = body.account ? [String(body.account).toLowerCase()] : await getAccountIndex(env);
+        // A MANUAL sync is always thorough: the user pressed Refresh because
+        // something looked missing, so this is the moment to re-check the
+        // newest mail directly rather than trusting the history cursor.
         const res = [];
         for (const e of list) {
-          try { res.push({ account: e, ...(await syncHistory(env, e)) }); }
+          try { res.push({ account: e, ...(await syncHistory(env, e, { snapshot: true })) }); }
           catch (err) { res.push({ account: e, error: err.message }); }
         }
         await aiBudgetFlush(env);

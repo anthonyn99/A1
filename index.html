@@ -18309,7 +18309,7 @@ window.hideBrainstormJournal = function() {
       if (!(avail && window.Bio.isRegistered('bj', id))) return;
       bioEl.style.display = 'flex'; bioEl.style.flexDirection = 'column'; bioEl.style.gap = '8px'; bioEl.style.marginBottom = '10px';
       var b = document.createElement('button'); b.className = 'tl-btn';
-      b.textContent = '🔓  Unlock with ' + window.Bio.label();
+      b.innerHTML = TNI.unlock + '<span>Unlock with ' + window.Bio.label() + '</span>';
       b.onclick = function() { blBioUnlock(); };
       bioEl.appendChild(b);
       // The password field stays visible alongside it: biometrics run ONLY when
@@ -18419,7 +18419,9 @@ window.hideBrainstormJournal = function() {
   function _blMenuBtn(parent, label, cls, fn, beforeEl) {
     var b = document.createElement('button');
     b.className = 'tl-btn' + (cls ? ' ' + cls : '');
-    b.textContent = label;
+    // Callers pass icon markup + a <span> label, so this must be innerHTML —
+    // textContent printed the raw <svg …> source into the button.
+    b.innerHTML = label;
     b.onclick = fn;
     if (beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b);
     return b;
@@ -18432,7 +18434,9 @@ window.hideBrainstormJournal = function() {
     pwInput.value = '';
     pwInput.classList.remove('error');
     if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
-    lockIcon.textContent = '🔒';
+    // Shared SVG icon set, not emoji: 🔒/🔓/🔑 render as flat black text glyphs
+    // on most phones, so they were unreadable against the button fill.
+    lockIcon.innerHTML = TNI.lock;
     lockTitle.textContent = 'Locked Entry';
     lockSub.textContent = 'Manage lock for this entry.';
     if (inputWrap) inputWrap.style.display = 'none';
@@ -18440,19 +18444,19 @@ window.hideBrainstormJournal = function() {
     if (resetBtn) resetBtn.style.display = 'none';
     var m = menuEl; m.innerHTML = ''; m.style.display = 'flex';
     if (!blIsUnlocked(entry.id)) {
-      _blMenuBtn(m, '🔓  Unlock this device', '', function() { blShowOverlay('unlock'); });
+      _blMenuBtn(m, TNI.unlock + '<span>Unlock this device</span>', '', function() { blShowOverlay('unlock'); });
     } else {
-      _blMenuBtn(m, '🔒  Lock this device', '', function() { blMarkLocked(entry.id); blHideOverlay(); blUpdateLockBtn(); blCheckEntry(); });
+      _blMenuBtn(m, TNI.lock + '<span>Lock this device</span>', '', function() { blMarkLocked(entry.id); blHideOverlay(); blUpdateLockBtn(); blCheckEntry(); });
     }
-    var changeBtn = _blMenuBtn(m, '🔑  Change password', 'ghost', function() { blShowOverlay('changepw'); });
-    _blMenuBtn(m, '🗑  Remove lock', 'danger', function() { blShowOverlay('remove'); });
+    var changeBtn = _blMenuBtn(m, TNI.key + '<span>Change password</span>', 'ghost', function() { blShowOverlay('changepw'); });
+    _blMenuBtn(m, TNI.trash + '<span>Remove lock</span>', 'danger', function() { blShowOverlay('remove'); });
     _blMenuBtn(m, 'Close', 'ghost', function() { blDismiss(); });
     if (window.Bio) window.Bio.available().then(function(avail) {
       if (!avail || state.activeId !== entry.id) return;
       if (window.Bio.isRegistered('bj', entry.id))
-        _blMenuBtn(m, '👤  Remove biometrics', 'ghost', function() { blBioRemovePrompt(entry.id); }, changeBtn);
+        _blMenuBtn(m, TNI.user + '<span>Remove biometrics</span>', 'ghost', function() { blBioRemovePrompt(entry.id); }, changeBtn);
       else
-        _blMenuBtn(m, '👤  Register ' + window.Bio.label(), '', function() { blBioRegister(entry.id, true); }, changeBtn);
+        _blMenuBtn(m, TNI.user + '<span>Register ' + window.Bio.label() + '</span>', '', function() { blBioRegister(entry.id, true); }, changeBtn);
     });
   }
 
@@ -24454,7 +24458,9 @@ window.tjSwitchTo = function(app) {
   function _tlMenuBtn(parent, label, cls, fn, beforeEl) {
     var b = document.createElement('button');
     b.className = 'tl-btn' + (cls ? ' ' + cls : '');
-    b.textContent = label;
+    // Callers pass icon markup + a <span> label, so this must be innerHTML —
+    // textContent printed the raw <svg …> source into the button.
+    b.innerHTML = label;
     b.onclick = fn;
     if (beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b);
     return b;
@@ -25565,6 +25571,28 @@ body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
   color: var(--purple); opacity: 1; font-size: 11px; vertical-align: -1px;
 }
 #tj-root .entry-item .tl-badge svg, #bj-root .entry-item .tl-badge svg { stroke-width: 2; }
+
+/* ════════ Lock overlay menu buttons ════════
+   Each button is icon markup + a <span> label, so it needs to lay out as a row
+   rather than inherit the default centred text run. */
+#tj-lock-overlay .tl-btn, #bj-lock-overlay .tl-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  line-height: 1.25; text-align: center;
+}
+#tj-lock-overlay .tl-btn > svg, #bj-lock-overlay .tl-btn > svg {
+  width: 16px; height: 16px; flex-shrink: 0;
+}
+#tj-lock-overlay .tl-icon svg, #bj-lock-overlay .tl-icon svg {
+  width: 38px; height: 38px; display: block; margin: 0 auto;
+}
+@media (max-width: 900px) {
+  #tj-lock-overlay .tl-btn, #bj-lock-overlay .tl-btn { min-height: 46px; font-size: 13.5px; }
+  #tj-lock-overlay .tl-menu, #bj-lock-overlay .tl-menu { gap: 9px; }
+  /* A long list of menu buttons must not run off a short phone screen. */
+  #tj-lock-overlay .tl-box, #bj-lock-overlay .tl-box {
+    max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain;
+  }
+}
 </style>
 <script>
 (function(){
