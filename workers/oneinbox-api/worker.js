@@ -1515,7 +1515,11 @@ async function sweepCards(env) {
   const today = new Date().toISOString().slice(0, 10);
   const grace = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
 
-  const cards = await fsList(env, token, 'dashboards/oneinbox/cards', 300);
+  // Oldest-touched first, so the sweep is drain-safe: a plain single-page list
+  // would only ever see the first 300 documents, and anything beyond that page
+  // could never be retired. Cards are self-expiring so the collection should
+  // stay far below this, but the bound shouldn't depend on that assumption.
+  const cards = await fsOldest(env, token, 'dashboards/oneinbox', 'cards', 'updatedAt', 400);
   const dead = cards.filter(c => {
     if (c.kind === 'coupon') return c.expires && c.expires < grace;
     if (c.kind === 'package') return c.delivered && c.updatedAt < Date.now() - 5 * 864e5;
@@ -1524,13 +1528,26 @@ async function sweepCards(env) {
     return c.updatedAt < Date.now() - 45 * 864e5;
   });
 
-  // Oldest-first and bounded, so one sweep is cheap and a large backlog simply
-  // drains over successive days rather than in one huge (and failure-prone) run.
-  // The page size has to EXCEED daily inflow or the collection grows forever:
-  // at 200/day a mailbox taking 300/day would accumulate 100 docs a day once
-  // the retention window is reached. 500 sits comfortably above realistic
-  // volume, and Firestore deletes are cheap (20,000/day free).
-  const cutoff = Date.now() - 90 * 864e5;
+  // RETENTION — 1 year of email metadata + AI classifications.
+  //
+  // Your actual mail is untouched: it lives in Gmail and is always fetched
+  // live, so nothing here limits how far back you can read or search. This
+  // only bounds OneInbox's own derived data (classification, extracted
+  // fields), which is what the AI card and the category badges are drawn from.
+  //
+  // Sizing, measured against the real doc shape (~1.6 KB, ~3.9 KB billed once
+  // Firestore's automatic single-field indexes are counted):
+  //     150 mails/day x 365d = 216 MB  (20% of the 1 GiB free tier)
+  //     300 mails/day x 365d = 432 MB  (40%)
+  //     300 mails/day x 3yr  = 1.3 GB  (OVER — hence a year, not "forever")
+  //
+  // Oldest-first and bounded, so one sweep is cheap and a backlog drains over
+  // successive days instead of one huge, failure-prone run. The page size must
+  // EXCEED daily inflow or the collection grows forever: at 200/day a mailbox
+  // taking 300/day accumulates 100 docs a day once the window is reached.
+  // 500 sits above realistic volume, and Firestore deletes are cheap
+  // (20,000/day free).
+  const cutoff = Date.now() - 365 * 864e5;
   const oldEmails = (await fsOldest(env, token, 'dashboards/oneinbox', 'emails', 'date', 500))
     .filter(e => (e.date || 0) < cutoff);
 

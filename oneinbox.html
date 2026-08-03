@@ -1061,7 +1061,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/fireba
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
 import { initializeFirestore, persistentLocalCache, persistentSingleTabManager,
-         doc, setDoc, onSnapshot, collection, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+         doc, setDoc, getDoc, onSnapshot, collection, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 
 const API = 'https://oneinbox-api.av1.workers.dev';
 
@@ -1781,6 +1781,25 @@ async function loadMessages(){
   }
 }
 
+/* The live listener only carries the newest 150 classifications — enough to
+   badge the visible list without an unbounded read cost. Anything older is
+   still STORED (a year of it), it just isn't in memory, so opening an older
+   message used to show no AI card even though it had been classified. Fetch
+   that one document on demand: a single read, only when you actually open it.
+   Must mirror the worker's emailDocId() exactly. */
+const oiSlug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24);
+const emailDocId = (account, id) => `${oiSlug(account.split('@')[0])}_${id}`;
+
+async function fetchAi(account, id){
+  if (S.ai[id]) return S.ai[id];
+  try {
+    await authReady;
+    const snap = await getDoc(doc(db, 'dashboards/oneinbox/emails', emailDocId(account, id)));
+    if (snap.exists()){ S.ai[id] = snap.data(); return S.ai[id]; }
+  } catch (e) { console.warn('ai fetch failed', e.message); }
+  return null;
+}
+
 async function openMessage(id, account){
   const stub = S.messages.find(m => m.id === id);
   S.selected = stub || { id, account };
@@ -1790,6 +1809,10 @@ async function openMessage(id, account){
   try {
     const d = await api('/gmail/message', { account, id });
     if (S.selected?.id !== id) return;   // user moved on while it loaded
+    // Pull this message's stored classification if it's outside the live window,
+    // so the AI card appears on older mail too — not just the newest 150.
+    if (!S.ai[id]) await fetchAi(account, id);
+    if (S.selected?.id !== id) return;
     renderReader(stub, d.message);
     if (d.message.labelIds.includes('UNREAD')){
       api('/gmail/modify', { account, id, op:'read' }).catch(()=>{});
