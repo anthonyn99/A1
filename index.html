@@ -5578,6 +5578,23 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_tjPendingWrites.indexOf(fn) === -1) _tjPendingWrites.push(fn);
     return Promise.resolve();
   }
+  // StudyOS needs the exact same protection and never had it — which is how an
+  // uploaded file could vanish from the device that uploaded it. On a refresh
+  // where the server read fell back to the local cache, StudyOS showed the OLD
+  // class list (no new file), and the very next edit wrote that stale list back
+  // over the good server copy — deleting the file everywhere, permanently.
+  let _sosServerSeen = false, _sosPendingWrites = [];
+  function _sosMarkServerSeen() {
+    if (_sosServerSeen) return;
+    _sosServerSeen = true;
+    const q = _sosPendingWrites; _sosPendingWrites = [];
+    q.forEach(fn => { try { fn(); } catch(e) { console.warn('SOS deferred write failed:', e && e.message); } });
+  }
+  function _sosWhenServerSeen(fn) {
+    if (_sosServerSeen) return fn();
+    if (_sosPendingWrites.indexOf(fn) === -1) _sosPendingWrites.push(fn);
+    return Promise.resolve();
+  }
 
   // Expose to React app via window
   window._fbReady = false;
@@ -6779,6 +6796,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
     if (_sosUnsubscribe) { _sosUnsubscribe(); _sosUnsubscribe = null; }
     _sosUnsubscribe = onSnapshot(sosDocRef, (snap) => {
+      // A snapshot straight off the wire proves we've seen real server state,
+      // so queued saves are now safe to flush.
+      if (snap.metadata && snap.metadata.fromCache === false) _sosMarkServerSeen();
       if (!snap.exists()) return;
       const gap = Date.now() - _sosLastOwnSaveAt;
       if (gap < 6000) {
@@ -6803,6 +6823,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     window._fbLoadStudyOs = async () => {
       try {
         const snap = await _freshGet(sosDocRef);
+        // Only a genuinely-fresh read unlocks writing. If this came from the
+        // offline cache we stay locked, so the stale copy we're about to render
+        // can never be written back over newer server data.
+        if (snap && snap.metadata && snap.metadata.fromCache === false) _sosMarkServerSeen();
         if (snap && snap.exists()) return snap.data();
         return null;
       } catch(e) {
@@ -6811,21 +6835,34 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
     };
 
-    // ── StudyOS save (debounced 1.5s) ─────────────────────────────────────────
+    // ── StudyOS save (debounced 1.5s, guarded) ────────────────────────────────
+    // Was a raw setDoc: no size guard (an oversized write wedges the whole
+    // Firestore queue for every feature), no timeout, and no stale-write
+    // protection. Now it matches how every other shared doc is written.
+    // One stable function reference (not a per-call closure) so the server-seen
+    // queue dedupes it, and one slot holding the LATEST payload — a session that
+    // stays locked for a while coalesces into a single correct write instead of
+    // replaying a backlog of stale ones.
+    let _sosPendingPayload = null;
+    const _sosDoSave = async () => {
+      const payload = _sosPendingPayload;
+      if (!payload) return;
+      _sosPendingPayload = null;
+      try {
+        _sosLastOwnSaveAt = Date.now();
+        const ok = await _guardedWrite(sosDocRef, payload, 'StudyOS');
+        _sosLastOwnSaveAt = Date.now();
+        window.dispatchEvent(new CustomEvent(ok ? "fb-sos-saved" : "fb-sos-error"));
+      } catch(e) {
+        console.warn("Firebase StudyOS save failed:", e);
+        window.dispatchEvent(new CustomEvent("fb-sos-error"));
+      }
+    };
     window._fbSaveStudyOs = (payload) => {
+      _sosPendingPayload = payload;
       _sosLastOwnSaveAt = Date.now();
       if (_sosSaveTimer) clearTimeout(_sosSaveTimer);
-      _sosSaveTimer = setTimeout(async () => {
-        try {
-          _sosLastOwnSaveAt = Date.now();
-          await setDoc(sosDocRef, payload);
-          _sosLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-sos-saved"));
-        } catch(e) {
-          console.warn("Firebase StudyOS save failed:", e);
-          window.dispatchEvent(new CustomEvent("fb-sos-error"));
-        }
-      }, 1500);
+      _sosSaveTimer = setTimeout(() => { _sosWhenServerSeen(_sosDoSave); }, 1500);
     };
 
     // ── MotionCore load ───────────────────────────────────────────────────────
@@ -29265,6 +29302,30 @@ else initAll();
 }
 #study-root .sos-cloud-badge.pending { background: #e0a060; color: #2a1c08; }
 #study-root .sos-cloud-badge.synced  { background: #4f9d6b; color: #fff; }
+/* Cloud capacity meter (sidebar, under Sync to Cloud) */
+#study-root .sos-storage { margin-top: 8px; padding: 0 2px; }
+#study-root .sos-storage-track {
+  height: 4px; border-radius: 3px; background: var(--bg3);
+  overflow: hidden; border: 1px solid var(--border);
+}
+#study-root .sos-storage-fill {
+  height: 100%; width: 0%; background: #4f9d6b; transition: width 0.4s ease;
+}
+#study-root .sos-storage-fill.near-full { background: #e0a060; }
+#study-root .sos-storage-fill.full      { background: #d46a6a; }
+#study-root .sos-storage-text {
+  margin-top: 4px; font-size: 9px; letter-spacing: 0.3px;
+  color: var(--text3); font-family: var(--mono); text-align: center;
+}
+/* Per-file cloud status in the document lists */
+#study-root .doc-item-cloud {
+  font-size: 9px; font-family: var(--mono); letter-spacing: 0.3px;
+  padding: 1px 5px; border-radius: 3px; white-space: nowrap;
+  border: 1px solid transparent; color: var(--text3);
+}
+#study-root .doc-item-cloud.is-up   { color: var(--text3); border-color: var(--border); }
+#study-root .doc-item-cloud.is-ok   { color: #4f9d6b; border-color: rgba(79,157,107,0.4); }
+#study-root .doc-item-cloud.is-warn { color: #e0a060; border-color: rgba(224,160,96,0.4); }
 /* VIEWS */
 #study-root .view { flex: 1; overflow-y: auto; padding: 24px; display: none; }
 #study-root .view.active { display: block; }
@@ -30271,6 +30332,12 @@ else initAll();
         <span class="sos-cloud-sync-label">Sync to Cloud</span>
         <span id="sos-cloud-badge" class="sos-cloud-badge" style="display:none;"></span>
       </button>
+      <!-- Cloud capacity. Hidden until the worker answers, so it can never show
+           a made-up number when storage totals aren't actually known. -->
+      <div id="sos-storage-meter" class="sos-storage" style="display:none;">
+        <div class="sos-storage-track"><div class="sos-storage-fill"></div></div>
+        <div class="sos-storage-text"></div>
+      </div>
     </div>
   </div>
 
@@ -31107,6 +31174,7 @@ function init() {
   _sosMigrateFilesToIdb()
     .then(() => _sosAfterSync())
     .catch(e => console.warn('SOS file migration error:', e));
+  _sosRefreshStorage();
 }
 
 // ── Cloud-URL memory (survives Firestore array-replacement) ───────────────
@@ -31191,6 +31259,109 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) { _sosRetryDelay = SOS_RETRY_MIN; _sosScheduleSync(1000); }
 });
 
+// ── Per-file upload status ────────────────────────────────────────────────
+function _sosFmtBytes(n) {
+  if (typeof n !== 'number' || !isFinite(n)) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+  if (n < 1024 * 1024 * 1024) {
+    const mb = n / (1024 * 1024);
+    return (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
+  }
+  return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+// Single source of truth for how a file's cloud state is worded, so the list
+// render and the live progress ticks can never disagree with each other.
+function _sosApplyCloudStatus(el, f) {
+  if (!el) return;
+  el.classList.remove('is-up', 'is-ok', 'is-warn');
+  if (f._uploading) {
+    el.textContent = 'Uploading ' + Math.round((f._progress || 0) * 100) + '%';
+    el.title = 'Uploading to the cloud…';
+    el.classList.add('is-up');
+  } else if (f.storageUrl) {
+    el.textContent = '✓ Synced';
+    el.title = 'In the cloud — available on all your devices';
+    el.classList.add('is-ok');
+  } else if (f._cloudError) {
+    el.textContent = '⟳ Retrying';
+    el.title = 'Saved on this device — retrying automatically until it reaches the cloud';
+    el.classList.add('is-warn');
+  } else {
+    el.textContent = '· Queued';
+    el.title = 'Waiting to upload to the cloud';
+    el.classList.add('is-up');
+  }
+}
+
+// Repaint just the rows for one fileId. A chunked upload ticks many times, and
+// re-rendering the whole list on each tick would thrash the DOM (and drop the
+// user's scroll position) while a big PDF streams.
+function _sosPaintProgress(fileId, p) {
+  if (!fileId) return;
+  document.querySelectorAll('.doc-item-cloud').forEach(el => {
+    if (el.dataset.fileId !== fileId) return;
+    el.classList.remove('is-ok', 'is-warn');
+    el.classList.add('is-up');
+    el.textContent = 'Uploading ' + Math.round((p || 0) * 100) + '%';
+  });
+}
+
+// ── Cloud capacity indicator ──────────────────────────────────────────────
+// Reads real totals from the worker. If the worker can't be reached the meter
+// hides rather than showing an invented number.
+let _sosStorageBusy = false;
+async function _sosRefreshStorage() {
+  const el = document.getElementById('sos-storage-meter');
+  if (!el || _sosStorageBusy) return;
+  _sosStorageBusy = true;
+  try {
+    const u = await SosCloud.usage();
+    const used  = typeof u.bytes === 'number' ? u.bytes : 0;
+    const limit = typeof u.limit === 'number' && u.limit > 0 ? u.limit : SOS_KV_LIMIT;
+    const pct   = Math.min(100, (used / limit) * 100);
+    const fill = el.querySelector('.sos-storage-fill');
+    const text = el.querySelector('.sos-storage-text');
+    if (fill) {
+      fill.style.width = (pct < 1 && used > 0 ? 1 : pct).toFixed(1) + '%';
+      fill.classList.toggle('near-full', pct >= 80 && pct < 95);
+      fill.classList.toggle('full', pct >= 95);
+    }
+    if (text) text.textContent = _sosFmtBytes(used) + ' / ' + _sosFmtBytes(limit);
+    el.title = 'Cloud storage: ' + _sosFmtBytes(used) + ' of ' + _sosFmtBytes(limit) + ' used'
+             + (u.files ? ' across ' + u.files + ' file' + (u.files > 1 ? 's' : '') : '')
+             + '. Files up to ' + _sosFmtBytes(SOS_CLOUD_MAX) + ' each.';
+    el.style.display = '';
+    if (pct >= 95 && !_sosStorageWarned) {
+      _sosStorageWarned = true;
+      showNotif('⚠️', 'Cloud storage almost full', _sosFmtBytes(used) + ' of ' + _sosFmtBytes(limit) + ' used — remove some files to keep syncing.');
+    }
+  } catch (_) {
+    el.style.display = 'none';
+  } finally {
+    _sosStorageBusy = false;
+  }
+}
+let _sosStorageWarned = false;
+window.sosRefreshStorage = _sosRefreshStorage;
+
+// "Reached the cloud" announcement, coalesced across a batch — dropping ten
+// separate toasts for a ten-file drop would bury the one thing that matters.
+// The per-row pill still reports each file individually and in real time.
+let _sosSyncedN = 0, _sosSyncedName = '', _sosSyncedTimer = null;
+function _sosNoteSynced(name) {
+  _sosSyncedN++;
+  _sosSyncedName = name || 'File';
+  if (_sosSyncedTimer) clearTimeout(_sosSyncedTimer);
+  _sosSyncedTimer = setTimeout(() => {
+    const n = _sosSyncedN, nm = _sosSyncedName;
+    _sosSyncedN = 0; _sosSyncedTimer = null;
+    showNotif('☁️', 'Synced to cloud',
+      (n === 1 ? nm : n + ' files') + ' now available on all your devices.');
+  }, 900);
+}
+
 // Count files not in the cloud, split by whether THIS device holds the blob.
 //   localOnly  → has a local blob, not uploaded yet (this device can fix it)
 //   elsewhere  → no cloud copy and no local blob (lives on another device)
@@ -31273,10 +31444,10 @@ async function _sosBackfillCloud(manual, onProgress) {
       let blob;
       try { blob = await SosFileStore.get(fileId); } catch (_) {}
       if (!blob) { missing++; continue; }          // no local copy on this device → skip
-      if (blob.size > SOS_CLOUD_MAX) { tooBig++; continue; } // over KV cap → local-only
+      if (blob.size > SOS_CLOUD_MAX) { tooBig++; continue; } // absurdly large → local-only
       try {
         const file = new File([blob], meta.name || 'document', { type: meta.mime || blob.type || 'application/octet-stream' });
-        const url = await SosCloud.upload(fileId, file);
+        const url = await SosCloud.upload(fileId, file, p => _sosPaintProgress(fileId, p));
         _sosCloudUrls.set(fileId, url);            // remember so syncs can't drop it
         uploaded++; strikes = 0;
       } catch (e) {
@@ -31291,6 +31462,7 @@ async function _sosBackfillCloud(manual, onProgress) {
       _sosReapplyCloudUrls();
       persist(); persistKsu();
       _sosRefreshAllDocLists();
+      _sosRefreshStorage();
       if (!manual) showNotif('☁️', 'Synced to cloud', uploaded + ' file' + (uploaded > 1 ? 's are' : ' is') + ' now available on all devices.');
     } else if (manual && missing) {
       showNotif('⚠️', 'Files not on this device', missing + ' file' + (missing > 1 ? "s aren't" : " isn't") + ' stored on this device, so they can\'t be uploaded from here. Open StudyOS on the device that has them.');
@@ -31978,44 +32150,88 @@ async function _sosMigrateFilesToIdb() {
 // fetch a file it never uploaded locally. Local IndexedDB stays the fast path
 // / offline cache; the KV worker is the fallback + cross-device link.
 const SOS_CLOUD_BASE = 'https://studyos-files.av1.workers.dev';
-const SOS_CLOUD_MAX  = 25 * 1024 * 1024; // KV value limit (free plan)
+const SOS_CHUNK      = 20 * 1024 * 1024; // per-part size (KV value cap is 25MB)
+// Total we're willing to push for one file. Nothing in KV stops us going
+// higher — this only exists so a mis-drag of a 5GB video fails fast and loud
+// instead of grinding through 250 uploads.
+const SOS_CLOUD_MAX  = 500 * 1024 * 1024;
+const SOS_KV_LIMIT   = 1024 * 1024 * 1024; // free-plan KV total, for the indicator
 let _sosCloudWarned = false;
 
+// One PUT with a bounded retry. The key is derived from the fileId, so every
+// request here is idempotent — a retry can never duplicate or corrupt.
+async function _sosPut(url, body, headers, _attempt) {
+  try {
+    const resp = await fetch(url, { method: 'PUT', headers: headers || {}, body });
+    if (!resp.ok) {
+      const err = new Error('upload ' + resp.status);
+      err.status = resp.status;
+      // 413 means the payload itself is wrong — retrying is pointless and, when
+      // it was reported as a network blip, produced an infinite retry loop.
+      err.retryable = resp.status === 429 || resp.status >= 500;
+      throw err;
+    }
+    return resp;
+  } catch (e) {
+    if (e && e.retryable === false) throw e;
+    if (_attempt >= 2) throw e;
+    await new Promise(r => setTimeout(r, 1500 * ((_attempt || 0) + 1)));
+    return _sosPut(url, body, headers, (_attempt || 0) + 1);
+  }
+}
+
 const SosCloud = {
-  // PUT the raw file bytes under its fileId; returns the GET url to store.
-  // Retries once on a transient failure (dropped wifi, 429, worker 5xx) — the
-  // PUT is idempotent because the key is the fileId, so a retry can't duplicate.
-  async upload(fileId, file, _attempt) {
+  // Store the file under its fileId and return the GET url.
+  //
+  // Files that fit in a single KV value go up whole. Anything bigger is split
+  // into parts and finalized with a manifest — which is what makes a 65-page
+  // PDF (or anything else over 25MB) sync at all; it previously just stayed on
+  // the device that uploaded it. `onProgress(fraction)` reports 0→1.
+  async upload(fileId, file, onProgress) {
     if (file.size > SOS_CLOUD_MAX) { const e = new Error('too-large'); e.tooLarge = true; throw e; }
     const u = SOS_CLOUD_BASE + '/f/' + encodeURIComponent(fileId);
-    try {
-      const resp = await fetch(u, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': file.type || 'application/octet-stream',
-          'X-File-Name': encodeURIComponent(file.name || 'document'),
-        },
-        body: file,
+    const report = f => { try { if (onProgress) onProgress(Math.max(0, Math.min(1, f))); } catch (_) {} };
+
+    if (file.size <= SOS_CHUNK) {
+      report(0);
+      await _sosPut(u, file, {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name || 'document'),
       });
-      if (!resp.ok) {
-        const err = new Error('upload ' + resp.status);
-        err.status = resp.status;
-        // A 4xx (bad key, too large) won't change on a retry; 429/5xx might.
-        err.retryable = resp.status === 429 || resp.status >= 500;
-        throw err;
-      }
+      report(1);
       return u;
-    } catch (e) {
-      // Network/abort errors carry no .retryable — treat those as worth one retry.
-      if (e && e.retryable === false) throw e;
-      if (_attempt) throw e;
-      await new Promise(r => setTimeout(r, 1500));
-      return SosCloud.upload(fileId, file, 1);
     }
+
+    const parts = Math.ceil(file.size / SOS_CHUNK);
+    for (let i = 0; i < parts; i++) {
+      const slice = file.slice(i * SOS_CHUNK, Math.min((i + 1) * SOS_CHUNK, file.size));
+      await _sosPut(
+        SOS_CLOUD_BASE + '/p/' + encodeURIComponent(fileId) + '/' + i,
+        slice,
+        { 'Content-Type': 'application/octet-stream' }
+      );
+      // Hold the last sliver back for the manifest so it can't read "100%"
+      // while the file is still unreadable to other devices.
+      report(((i + 1) / parts) * 0.98);
+    }
+    // Manifest last: until it lands, GET /f/<id> 404s rather than serving a
+    // half-uploaded file.
+    await _sosPut(
+      SOS_CLOUD_BASE + '/m/' + encodeURIComponent(fileId),
+      JSON.stringify({ parts, size: file.size, type: file.type || 'application/octet-stream', name: file.name || 'document' }),
+      { 'Content-Type': 'application/json' }
+    );
+    report(1);
+    return u;
   },
   async remove(fileId) {
     if (!fileId) return;
     try { await fetch(SOS_CLOUD_BASE + '/f/' + encodeURIComponent(fileId), { method: 'DELETE' }); } catch (_) {}
+  },
+  async usage() {
+    const r = await fetch(SOS_CLOUD_BASE + '/usage');
+    if (!r.ok) throw new Error('usage ' + r.status);
+    return r.json();
   },
 };
 
@@ -32073,9 +32289,16 @@ async function sosUploadToCloud(file, meta, cls, mod, modId) {
   if (!meta.fileId) return;
   const fileId = meta.fileId;
   meta._uploading = true;
+  meta._progress = 0;
+  delete meta._cloudError;
   _sosRefreshModFiles(cls, mod, modId);
   try {
-    const url = await SosCloud.upload(fileId, file);
+    const url = await SosCloud.upload(fileId, file, p => {
+      // Repaint the one row rather than the whole list, so a multi-part upload
+      // doesn't thrash the DOM while it streams.
+      meta._progress = p;
+      _sosPaintProgress(fileId, p);
+    });
     // Record the URL by fileId BEFORE persisting. A Firestore sync landing
     // mid-upload swaps `classes`/`ksuData` wholesale and orphans `meta`, so
     // writing storageUrl onto it alone can be silently thrown away — the file
@@ -32085,14 +32308,18 @@ async function sosUploadToCloud(file, meta, cls, mod, modId) {
     meta.storageUrl  = url;
     meta.storagePath = fileId;        // KV key = fileId
     delete meta._uploading;
+    delete meta._progress;
     _sosReapplyCloudUrls();           // stamp onto the CURRENT arrays too
     persistForCls(cls);               // re-sync metadata (now carries storageUrl)
+    _sosNoteSynced(meta.name);
+    _sosRefreshStorage();
   } catch (e) {
     delete meta._uploading;
+    delete meta._progress;
     meta._cloudError = true;
     console.warn('SOS cloud upload failed:', meta.name, e);
     if (e && e.tooLarge) {
-      showNotif('📦', 'Too big to sync', (meta.name || 'File') + ' is over 25MB — kept on this device only.');
+      showNotif('📦', 'Too big to sync', (meta.name || 'File') + ' is over ' + _sosFmtBytes(SOS_CLOUD_MAX) + ' — kept on this device only.');
     } else {
       // Not terminal any more: hand it to the retry loop, which keeps trying
       // until the file is in the cloud and on every device.
@@ -32194,12 +32421,12 @@ function refreshDocList(listEl, cls, mod) {
       sosDownloadFile(f);
     });
 
-    // Cloud-sync status: ☁ synced · ⟳ uploading · ⚠ local-only
+    // Cloud-sync status — a readable word + live percentage, not a lone glyph,
+    // so it's obvious at a glance whether a file has actually reached the cloud.
     const cloudEl = document.createElement('div');
-    cloudEl.style.cssText = 'font-size:11px;padding:0 2px;';
-    if (f._uploading)      { cloudEl.textContent = '⟳'; cloudEl.title = 'Uploading to cloud…';            cloudEl.style.color = 'var(--text3)'; }
-    else if (f.storageUrl) { cloudEl.textContent = '☁'; cloudEl.title = 'Synced — available on all devices'; cloudEl.style.color = 'var(--accent)'; }
-    else if (f._cloudError){ cloudEl.textContent = '⚠'; cloudEl.title = 'Saved on this device only';         cloudEl.style.color = '#e0a060'; }
+    cloudEl.className = 'doc-item-cloud';
+    cloudEl.dataset.fileId = f.fileId || '';
+    _sosApplyCloudStatus(cloudEl, f);
 
     item.appendChild(icon);
     item.appendChild(nameEl);
@@ -32292,6 +32519,8 @@ function removeFile(classId, modId, idx) {
   const listEl = _sosEl('doc-list-' + modId);
   if (listEl) refreshDocList(listEl, cls, mod);
   _sosUpdateCloudBadge();
+  // KV deletes are eventually consistent; give it a moment before re-reading.
+  setTimeout(_sosRefreshStorage, 1200);
 }
 
 function fileEmoji(name) {
