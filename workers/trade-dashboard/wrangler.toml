@@ -2,24 +2,13 @@ name = "trade-dashboard"
 main = "worker.js"
 compatibility_date = "2026-01-01"
 
-# MacroBoard pre-build for the user opening in the morning. ONE daily cron at 12:00 UTC
-# = builds BEGIN at 06:00 MDT (summer) / 05:00 MST (winter) Mountain time. A single UTC
-# cron can't track DST to keep the same local time both seasons, and the account is
-# capped at 5 cron triggers total, so two-per-worker isn't an option. Days 1-5 = Mon-Fri.
-# Market holidays are skipped inside scheduled() (US_MARKET_HOLIDAYS).
-[triggers]
-crons = ["0 12 * * 1-5"]
+# No cron. The weekday MacroBoard pre-build was the only scheduled job here and it
+# was removed with the MacroBoard tab; every remaining route is request-driven.
 
 [[kv_namespaces]]
 binding = "TD_KV"
 id = "897dc1bcd93d4a55ab67836639d3866b"
 
-[[services]]
-binding = "SELF"
-service = "trade-dashboard"
-
-[vars]
-WORKER_ORIGIN = "https://trade-dashboard.av1.workers.dev"
-
-# Secrets: MACRO_GEMINI_KEY, GEMINI_KEY, NVIDIA_KEY, GROQ_KEY,
-# FINNHUB_KEY, FRED_KEY, STAGE_SECRET.
+# Secrets: FINNHUB_KEY (earnings for /calendar).
+# MACRO_GEMINI_KEY, GEMINI_KEY, NVIDIA_KEY, GROQ_KEY, FRED_KEY and STAGE_SECRET are
+# no longer read — delete them with `wrangler secret delete <NAME>` when convenient.

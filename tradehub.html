@@ -310,7 +310,6 @@
   const TB_JOURNAL_PATH  = "dashboards/tradeboard_journal";
   const TB_PROMPTS_PATH  = "dashboards/tradeboard_prompts";
   const TB_NEWS_PATH     = "dashboards/tradeboard_news";
-  const TB_REPORTS_PATH  = "dashboards/tradeboard_reports";
   const TB_ANALYSIS_PATH = "dashboards/tradeboard_analysis";
   const TB_WATCHLIST_PATH= "dashboards/tradeboard_watchlist";
   const MARKET_CAL_PATH  = "dashboards/market_calendar";
@@ -319,11 +318,9 @@
 
   let _tbJournalSaveTimer = null;
   let _tbPromptsSaveTimer = null;
-  let _tbReportsSaveTimer = null;
   let _tbAnalysisSaveTimer = null;
   let _tbJournalLastOwnSaveAt = 0;
   let _tbPromptsLastOwnSaveAt = 0;
-  let _tbReportsLastOwnSaveAt = 0;
   let _tbAnalysisLastOwnSaveAt = 0;
   let _tbJournalUnsub = null;
   let _tbPromptsUnsub = null;
@@ -343,7 +340,6 @@
   let _tbMarketCalUnsub = null;
   let _tbDashUnsub = null;
   let _tbDashLastOwnSaveAt = 0;
-  let _tbDashSaveTimer = null;
 
   window._fbReady = false;
 
@@ -351,7 +347,6 @@
     // ── TradeBoard: Journal entries ───────────────────────────────────────────
     const tbJournalDocRef = doc(db, TB_JOURNAL_PATH);
     const tbPromptsDocRef = doc(db, TB_PROMPTS_PATH);
-    const tbReportsDocRef = doc(db, TB_REPORTS_PATH);
     const tbAnalysisDocRef = doc(db, TB_ANALYSIS_PATH);
     const tbWatchlistDocRef = doc(db, TB_WATCHLIST_PATH);
     const tbPlaybookDocRef = doc(db, TB_PLAYBOOK_PATH);
@@ -515,32 +510,6 @@
       }, 1000);
     };
 
-    // Reports: load
-    window._fbLoadTBReports = async () => {
-      try {
-        const snap = await getDoc(tbReportsDocRef);
-        if (!snap.exists()) return null;
-        const data = snap.data();
-        return Array.isArray(data.reports) ? data.reports : null;
-      } catch(e) { console.warn('Firebase TBReports load failed:', e); return null; }
-    };
-
-    // Reports: save
-    window._fbSaveTBReports = (reports) => {
-      _tbReportsLastOwnSaveAt = Date.now();
-      if (_tbReportsSaveTimer) clearTimeout(_tbReportsSaveTimer);
-      _tbReportsSaveTimer = setTimeout(async () => {
-        try {
-          _tbReportsLastOwnSaveAt = Date.now();
-          await setDoc(tbReportsDocRef, { reports: JSON.parse(JSON.stringify(reports)), savedAt: Date.now() });
-          _tbReportsLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent('fb-tb-reports-saved'));
-        } catch(e) {
-          console.warn('Firebase TBReports save failed:', e.message);
-        }
-      }, 1500);
-    };
-
     // Analysis cfg: load
     window._fbLoadTBAnalysis = async () => {
       try {
@@ -673,29 +642,6 @@
       try { if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} } const snap = await getDoc(tbDashDocRef); return snap.exists() ? (snap.data()||null) : null; }
       catch(e){ console.warn('TBDash load failed:', e); return null; }
     };
-    window._fbSaveTBDash = (payload) => {
-      _tbDashLastOwnSaveAt = Date.now();
-      window.dispatchEvent(new CustomEvent('fb-tb-saving'));
-      if (_tbDashSaveTimer) clearTimeout(_tbDashSaveTimer);
-      _tbDashSaveTimer = setTimeout(async () => {
-        const attempt = async () => {
-          if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} }
-          _tbDashLastOwnSaveAt = Date.now();
-          const clean = JSON.parse(JSON.stringify(payload || {})); // strip undefined
-          // Resolve the ref against the CURRENT db (it may have been recreated by
-          // a teardown). Writing through a stale ref hits a terminated client.
-          await setDoc(doc(db, TB_DASH_PATH), { ...clean, savedAt: Date.now() });
-        };
-        // Retry up to 3 times with backoff — covers auth AND App-Check token races.
-        let ok=false, lastErr=null;
-        for (let i=0;i<3 && !ok;i++){
-          try { if(i>0) await new Promise(r=>setTimeout(r, 1200*i)); await attempt(); ok=true; }
-          catch(e){ lastErr=e; }
-        }
-        if (ok){ _tbDashLastOwnSaveAt = Date.now(); window.dispatchEvent(new CustomEvent('fb-tb-dash-saved')); }
-        else { console.error('[TBDash save FAILED]', lastErr&&(lastErr.code||''), lastErr&&lastErr.message); window.dispatchEvent(new CustomEvent('fb-tb-dash-error')); }
-      }, 1000);
-    };
     // Nav-order (draggable header tabs) — tiny merge write, doesn't touch the report.
     window._fbSaveNavOrder = (order) => {
       if (!Array.isArray(order)) return;
@@ -716,7 +662,6 @@
         window.dispatchEvent(new CustomEvent('fb-tb-dash-prompts-bump', { detail: data.promptsBump }));
       }
       if (Date.now() - _tbDashLastOwnSaveAt < 8000) return;
-      if (data && data.report) window.dispatchEvent(new CustomEvent('fb-tb-dash-remote', { detail: data }));
       if (data && Array.isArray(data.navOrder)) window.dispatchEvent(new CustomEvent('fb-tb-navorder-remote', { detail: data.navOrder }));
     });
     // Merge a tiny promptsBump into the dash doc (doesn't touch the report).
@@ -919,7 +864,6 @@ const TBI=(()=>{
     copy:     I('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
     star:     I('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9Z"/>'),
     trash:    I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
-    save:     I('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>'),
     pencil:   I('<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>'),
     lock:     I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
     unlock:   I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'),
@@ -928,7 +872,6 @@ const TBI=(()=>{
     user:     I('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
     clock:    I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
     calendar: I('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>'),
-    chart:    I('<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m7 15 4-4 3 3 5-6"/>'),
     folder:   I('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
     link:     I('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>'),
     rocket:   I('<path d="M5 13c-1.5 1.5-2 5-2 5s3.5-.5 5-2"/><path d="M14.5 4.5C17 2 21 2 21 2s0 4-2.5 6.5L14 13l-3-3Z"/><path d="M11 10 7 9l-2 2 3 1"/><path d="m14 13 1 4 2-2-1-3"/>'),
@@ -939,7 +882,6 @@ const TBI=(()=>{
     command:  I('<path d="M15 6a3 3 0 1 1 3 3h-3Zm0 0v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12"/>'),
     sparkle:  I('<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9Z"/><path d="M18.5 15.5 19 17l1.5.5L19 18l-.5 1.5L18 18l-1.5-.5L18 17Z"/>'),
     target:   I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>'),
-    diamond:  I('<path d="m12 2 10 10-10 10L2 12Z"/>'),
     pieChart: I('<path d="M12 3a9 9 0 1 0 9 9h-9Z"/><path d="M15 3a6 6 0 0 1 6 6h-6Z"/>'),
     doc:      I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/>'),
     undo:     I('<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/>'),
@@ -976,48 +918,8 @@ function useIsMobile(breakpoint=768){
   return mobile;
 }
 
-/* ── Enums ── */
-const BIAS_ENUM   = { bullish:'bullish', bearish:'bearish', chop:'chop', mixed:'mixed' };
-const REGIME_ENUM = { risk_on:'risk_on', risk_off:'risk_off', mixed:'mixed' };
-const GONOGO_ENUM = { go:'go', no_go:'no_go' };
-const RATING_ENUM = { strong:'strong', neutral:'neutral', weak:'weak' };
-
-function normalizeBias(raw){if(!raw)return null;const s=raw.toLowerCase();if(/bull/.test(s))return'bullish';if(/bear/.test(s))return'bearish';if(/chop|lateral|sideways/.test(s))return'chop';if(/mix|neutral/.test(s))return'mixed';return null;}
-function normalizeRegime(raw){if(!raw)return null;const s=raw.toLowerCase();if(/risk[- ]?on/.test(s))return'risk_on';if(/risk[- ]?off/.test(s))return'risk_off';if(/mix/.test(s))return'mixed';return null;}
-function normalizeGoNogo(raw){if(!raw)return null;if(/no[- ]go/i.test(raw))return'no_go';if(/\bgo\b/i.test(raw))return'go';return null;}
-function normalizeRating(raw){if(!raw)return'neutral';const s=raw.toLowerCase();if(/strong|bull|green|🟢/.test(s))return'strong';if(/weak|bear|avoid|red|🔴/.test(s))return'weak';return'neutral';}
-
-/* ── Canonical state model ── */
-function createEmptyMarketState(){return{marketRegime:null,marketBias:null,riskCondition:null,goNoGo:null,goNoGoReason:'',vix:{value:null,trend:null,sentiment:null},yields:{tenYear:null,direction:null,implication:null},oil:{wti:null,brent:null,trend:null,implication:null},indices:{sp500:null,nasdaq:null,dow:null},macroDrivers:[],geopoliticalRisk:{level:null,summary:'',bullets:[]},trumpStatements:{summary:'',bullets:[]},centralBanks:{summary:'',bullets:[]},economicEvents:{summary:'',bullets:[]},strongestSectors:[],weakestSectors:[],watchlist:[],tradeSetups:[],riskWarnings:[],tierList:{},summary:'',_parsedAt:null,_raw:'',_rawSections:{}};}
-
-function computeDerivedState(state){
-  if(!state)return null;
-  const vixNum=parseFloat(state.vix.value);
-  let volatilityRisk='low';
-  if(vixNum>30)volatilityRisk='extreme';else if(vixNum>25)volatilityRisk='high';else if(vixNum>20)volatilityRisk='elevated';else if(vixNum>16)volatilityRisk='moderate';
-  let macroScore=50;
-  if(state.marketBias==='bullish')macroScore+=20;else if(state.marketBias==='bearish')macroScore-=20;else if(state.marketBias==='chop')macroScore-=5;
-  if(state.riskCondition==='risk_on')macroScore+=15;else if(state.riskCondition==='risk_off')macroScore-=15;
-  if(state.goNoGo==='go')macroScore+=10;else if(state.goNoGo==='no_go')macroScore-=15;
-  if(vixNum>20)macroScore-=10;if(vixNum<15)macroScore+=5;
-  macroScore=Math.max(0,Math.min(100,macroScore));
-  const wtiNum=parseFloat(state.oil.wti);const yieldNum=parseFloat(state.yields.tenYear);
-  let inflationPressure='moderate';
-  if(wtiNum>90||yieldNum>4.5)inflationPressure='high';else if(wtiNum>75||yieldNum>4.0)inflationPressure='elevated';else if(wtiNum<60&&yieldNum<3.5)inflationPressure='low';
-  const geoLevel=state.geopoliticalRisk.level||'';
-  let geoScore=1;if(/high|extreme/i.test(geoLevel))geoScore=3;else if(/elev|moderate/i.test(geoLevel))geoScore=2;
-  const geopoliticalSensitivity=['','low','moderate','elevated','high'][geoScore]||'moderate';
-  const strongCount=state.watchlist.filter(t=>t.rating==='strong').length;
-  const weakCount=state.watchlist.filter(t=>t.rating==='weak').length;
-  const neutralCount=state.watchlist.filter(t=>t.rating==='neutral').length;
-  const wlTotal=state.watchlist.length||1;
-  const watchlistBreadth=Math.round((strongCount/wlTotal)*100);
-  return{volatilityRisk,macroTailwindStrength:macroScore,inflationPressure,geopoliticalSensitivity,watchlistBreadth,strongCount,weakCount,neutralCount,setupCount:state.tradeSetups.length};
-}
-
 /* ── Storage constants ── */
 const TB_PROMPTS_KEY='tradeboard_prompts_v2';
-const TB_REPORTS_KEY='tradeboard_reports_v2';
 
 /* ── Default prompt ── */
 const TB_DEFAULT_PROMPT=`Macro & Long-Only Trading Dashboard
@@ -1090,8 +992,6 @@ MANDATORY: Include live Iran/Middle East + Trump statements in actionable form.`
 /* ── Firebase-backed prompt/report loaders ── */
 function tbLoadPromptsLocal(){try{const r=localStorage.getItem(TB_PROMPTS_KEY);if(r){const a=JSON.parse(r);if(a&&a.length)return a;}return[{id:'default',name:'Default Prompt',text:TB_DEFAULT_PROMPT}];}catch{return[{id:'default',name:'Default Prompt',text:TB_DEFAULT_PROMPT}];}}
 function tbSavePromptsLocal(arr){try{localStorage.setItem(TB_PROMPTS_KEY,JSON.stringify(arr));}catch{}}
-function tbLoadReportsLocal(){try{return JSON.parse(localStorage.getItem(TB_REPORTS_KEY)||'[]');}catch{return[];}}
-function tbSaveReportsLocal(a){try{localStorage.setItem(TB_REPORTS_KEY,JSON.stringify(a));}catch{}}
 
 /* ── API_BASE: Webull Cloudflare Worker ── */
 const TB_API_BASE=(()=>{const PROD='https://tradeboard-api.av1.workers.dev';try{const v=localStorage.getItem('tb_api_base');return(v&&v.startsWith('https'))?v:PROD;}catch{return PROD;}})();
@@ -1149,8 +1049,6 @@ const TB_STYLES=`
 #tradeboard-root .tb-badge-warn{background:transparent;color:#e0b57c;border:1px solid rgba(251,191,36,0.25);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
 #tradeboard-root .tb-badge-neutral{background:transparent;color:#adadb2;border:1px solid rgba(152,152,168,0.2);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
 #tradeboard-root .tb-toast{position:fixed;bottom:28px;right:28px;z-index:9999;background:var(--s3);border:1px solid var(--bdl);border-radius:6px;padding:12px 22px;font-size:13px;font-weight:500;letter-spacing:.2px;color:var(--tx);box-shadow:0 12px 38px rgba(0,0,0,.42);display:flex;align-items:center;gap:8px;}
-#tradeboard-root .tb-go-badge{background:rgba(164,185,134,0.15);color:#a4b986;border:1.5px solid rgba(164,185,134,0.4);border-radius:8px;padding:3px 14px;font-size:13px;font-weight:800;letter-spacing:1px;}
-#tradeboard-root .tb-nogo-badge{background:rgba(214,138,124,0.15);color:#d68a7c;border:1.5px solid rgba(214,138,124,0.4);border-radius:8px;padding:3px 14px;font-size:13px;font-weight:800;letter-spacing:1px;}
 #tradeboard-root .tb-computed-bar{height:6px;border-radius:100px;background:var(--s3);overflow:hidden;}
 #tradeboard-root .tb-computed-bar-fill{height:100%;border-radius:100px;transition:width .6s ease;}
 #tradeboard-root .tb-md-block h1,#tradeboard-root .tb-md-block h2,#tradeboard-root .tb-md-block h3{font-family:'Manrope',system-ui,-apple-system,sans-serif;color:var(--tx);margin:16px 0 8px;line-height:1.3;}
@@ -1257,8 +1155,6 @@ const TB_STYLES=`
   #tradeboard-root .tb-mobile-header{display:block!important;}
   #tradeboard-root .tb-page-content{padding:14px 12px 20px!important;}
   #tradeboard-root .tb-grid-4{grid-template-columns:repeat(2,1fr)!important;}
-  #tradeboard-root .tb-grid-3{grid-template-columns:repeat(2,1fr)!important;}
-  #tradeboard-root .tb-grid-2{grid-template-columns:1fr!important;}
   /* modal: full-bleed, scrollable, safe-area aware */
   #tradeboard-root .tb-modal-inner{border-radius:0!important;min-height:100dvh!important;max-height:100dvh!important;overflow-y:auto!important;}
   #tradeboard-root .tb-modal-overlay{padding:calc(env(safe-area-inset-top,0px) + 0px) 0 0!important;align-items:flex-start!important;}
@@ -1312,7 +1208,7 @@ let TB_WL=[...TB_WATCHLIST];
 function tbSetWatchlist(arr){TB_WL=(Array.isArray(arr)&&arr.length)?arr.slice():[...TB_WATCHLIST];pushWatchlistToWorkers(TB_WL);tbResolveSectors(TB_WL);}
 
 // Push TB_WL to the workers so their CRON pre-builds + on-demand builds use the
-// exact Control-tab list (News, Catalysts, MacroBoard all read it). Debounced;
+// exact Control-tab list (News + Catalysts both read it). Debounced;
 // fire-and-forget. This is what makes the Control watchlist universal.
 let _wlPushTimer=null,_wlPushLast='';
 function pushWatchlistToWorkers(tickers){
@@ -1362,55 +1258,6 @@ async function tbResolveSectors(tickers){
   }catch(e){/* offline / worker down — chips stay 'Diversified' until next add */}
   finally{need.forEach(t=>_sectorResolveInflight.delete(t));}
 }
-
-function tbExtractBullets(text){if(!text)return[];const lines=text.split('\n');const bullets=[];for(const l of lines){const t=l.replace(/^[\s•\-*#▸►▪○]+/,'').trim();if(t.length>5&&t.length<600)bullets.push(t);}return bullets;}
-function tbMatchSectionKey(header,body){const h=(header+' '+body.slice(0,120)).toLowerCase();if(/snapshot|market.*overview|premarket|indices/i.test(h))return'marketSnapshot';if(/macro.*driver|key.*driver|top.*macro/i.test(h))return'macroDrivers';if(/geo|iran|middle.?east|russia|ukraine/i.test(h))return'geopolitics';if(/trump|tariff/i.test(h))return'trump';if(/central.bank|fed|ecb|boj|fomc/i.test(h))return'centralBanks';if(/economic.*event|calendar|key.*data|forward/i.test(h))return'economicEvents';if(/bias|regime|market.*condition/i.test(h))return'marketBias';if(/go.*no|no.*go|signal/i.test(h))return'goNogo';if(/sector.*strength|sector.*focus|strongest/i.test(h))return'sectorStrength';if(/watchlist/i.test(h))return'watchlist';if(/setup|trade.*idea|long.*only.*setup|actionable/i.test(h))return'tradeSetups';if(/not.*do|avoid|what.*not|mistake/i.test(h))return'whatNotToDo';if(/tier.*list|tier.*summ/i.test(h))return'tierList';return null;}
-function tbSplitSections(raw){const lines=raw.split('\n');const sections=[];let cur=null;for(const l of lines){const h=/^#{1,3}\s+(.+)|^\*\*(\d+\.?\s*.+)\*\*\s*$/.exec(l);if(h){if(cur)sections.push(cur);cur={header:(h[1]||h[2]||'').trim(),lines:[]};}else if(cur){cur.lines.push(l);}else{if(!sections.length)sections.push({header:'intro',lines:[]});sections[0].lines.push(l);}}if(cur)sections.push(cur);return sections;}
-function tbParseVix(text){const m=text.match(/VIX[:\s]+(\d+\.?\d*)/i);const v=m?m[1]:null;const t=/rising|elevated|above/i.test(text)?'rising':/falling|below|declining/i.test(text)?'falling':'stable';return{value:v,trend:t,sentiment:parseFloat(v)>20?'fearful':'calm'};}
-function tbParseYields(text){const m=text.match(/10.?[Yy](?:ear|r)?[:\s]+(\d+\.?\d*)%?/i);const t=/rising|higher/i.test(text)?'rising':/falling|lower/i.test(text)?'falling':'stable';return{tenYear:m?m[1]:null,direction:t,implication:/equit|stock/i.test(text)?text.slice(0,80):''};}
-function tbParseOil(text){const wm=text.match(/WTI[:\s$]*(\d+\.?\d*)/i);const bm=text.match(/Brent[:\s$]*(\d+\.?\d*)/i);const t=/rising|higher/i.test(text)?'rising':/falling|lower/i.test(text)?'falling':'stable';return{wti:wm?wm[1]:null,brent:bm?bm[1]:null,trend:t,implication:''};}
-function tbParseIndices(text){const sp=text.match(/S&P\s*500[:\s]*([+-]?\d+\.?\d*%?)/i);const nd=text.match(/NASDAQ[:\s]*([+-]?\d+\.?\d*%?)/i);const dj=text.match(/Dow[:\s]*([+-]?\d+\.?\d*%?)/i);return{sp500:sp?sp[1]:null,nasdaq:nd?nd[1]:null,dow:dj?dj[1]:null};}
-function tbParseBias(text){const b=normalizeBias(text);const c=normalizeRegime(text);return{bias:b,condition:c};}
-function tbParseGoNogo(text){const lines=text.split('\n');for(const l of lines){const gn=normalizeGoNogo(l);if(gn){const rest=l.replace(/no[- ]go|go/i,'').replace(/[*:#\-]/g,'').trim();return{signal:gn,reason:rest.slice(0,200)};}}return{signal:null,reason:''};}
-function tbParseSectors(text){const strong=[];const weak=[];text.split('\n').forEach(l=>{if(/strong|top|best|leading/i.test(l))strong.push(...tbExtractBullets(l));if(/weak|avoid|lag/i.test(l))weak.push(...tbExtractBullets(l));});return{strong:strong.slice(0,3),weak:weak.slice(0,3)};}
-function tbParseWatchlist(text,raw){const src=text||raw||'';const results=[];const seen=new Set();src.split('\n').forEach(line=>{const found=TB_WL.find(t=>!seen.has(t)&&new RegExp(`\\b${t}\\b`).test(line));if(found){seen.add(found);const r=normalizeRating(line);results.push({ticker:found,rating:r,sector:tbInferSector(found),note:line.replace(new RegExp(`^.*${found}[:\\s\\-]*`,'i'),'').slice(0,120).trim()});}});return results;}
-function tbParseSetups(text){const src=text||'';const setups=[];const lines=src.split('\n').filter(l=>l.trim());let cur=null;for(let i=0;i<lines.length;i++){const line=lines[i];const stripped=line.replace(/^[\s•\-*#▸►]+/,'').trim();const detected=TB_WL.find(t=>new RegExp(`^\\*{0,2}${t}\\*{0,2}[\\s:\\-–—]`,'i').test(stripped));if(detected){if(cur)setups.push(cur);const rest=stripped.replace(new RegExp(`^\\*{0,2}${detected}\\*{0,2}[\\s:\\-–—]*`,'i'),'').trim();let confidence='moderate';if(/high.*?conf|strong.*?setup|a\+|best/i.test(rest))confidence='high';else if(/low.*?conf|specul|risky/i.test(rest))confidence='low';let setupType='long';if(/break(out)?/i.test(rest))setupType='breakout';else if(/pullback|dip/i.test(rest))setupType='pullback';else if(/momentum/i.test(rest))setupType='momentum';else if(/reversal/i.test(rest))setupType='reversal';cur={ticker:detected,setupType,confidence,whyStrong:rest,trigger:'',macroAlignment:[],sectorAlignment:tbInferSector(detected)};} else if(cur){const clean=stripped.replace(/\*\*/g,'').trim();if(/confirm|trigger/i.test(line)&&!cur.trigger)cur.trigger=clean.slice(0,200);else if(!cur.whyStrong&&clean.length>5)cur.whyStrong=clean.slice(0,200);}}if(cur)setups.push(cur);return setups.filter(s=>s.ticker);}
-function tbParseTiers(text){const tiers={};if(!text)return tiers;const re=/([SABCD][- ]?Tier)[:\s]+(.+)/gi;let m;while((m=re.exec(text))!==null)tiers[m[1].trim()]=m[2].trim().slice(0,200);return tiers;}
-function tbParseGeoRisk(text){const src=text||'';const bullets=tbExtractBullets(src);let level='moderate';if(/escalat|strike|war|attack|conflict/i.test(src))level='elevated';if(/major.*?escalat|direct.*?war|military.*?action/i.test(src))level='high';if(/de[- ]?escalat|ceasefire|negotiat/i.test(src))level='low';return{level,summary:(bullets[0]||'').slice(0,200),bullets:bullets.slice(0,8)};}
-
-function tbParseReport(raw){
-  if(!raw||raw.trim().length<20)return null;
-  const state=createEmptyMarketState();
-  state._raw=raw;state._parsedAt=new Date().toISOString();
-  const rawSecs=tbSplitSections(raw);const sectionMap={};
-  for(const sec of rawSecs){const body=sec.lines.join('\n');const key=tbMatchSectionKey(sec.header,body);if(key){if(!sectionMap[key])sectionMap[key]={header:sec.header,text:body};else sectionMap[key].text+='\n'+body;}}
-  state._rawSections=sectionMap;
-  state.indices=tbParseIndices(raw);state.vix=tbParseVix(raw);state.yields=tbParseYields(raw);state.oil=tbParseOil(raw);
-  const goSrc=(sectionMap.goNogo?sectionMap.goNogo.text+'\n':'')+raw.slice(0,3000);
-  const gn=tbParseGoNogo(goSrc);state.goNoGo=gn.signal;state.goNoGoReason=gn.reason;
-  const biasSrc=(sectionMap.marketBias?sectionMap.marketBias.text+'\n':'')+raw.slice(0,3000);
-  const bd=tbParseBias(biasSrc);state.marketBias=bd.bias;state.riskCondition=bd.condition;state.marketRegime=bd.bias;
-  if(sectionMap.sectorStrength){const{strong,weak}=tbParseSectors(sectionMap.sectorStrength.text);state.strongestSectors=strong;state.weakestSectors=weak;}
-  state.geopoliticalRisk=tbParseGeoRisk(sectionMap.geopolitics?.text);
-  if(sectionMap.trump)state.trumpStatements={summary:'',bullets:tbExtractBullets(sectionMap.trump.text).slice(0,8)};
-  if(sectionMap.centralBanks)state.centralBanks={summary:'',bullets:tbExtractBullets(sectionMap.centralBanks.text).slice(0,8)};
-  if(sectionMap.economicEvents)state.economicEvents={summary:'',bullets:tbExtractBullets(sectionMap.economicEvents.text).slice(0,8)};
-  if(sectionMap.macroDrivers)state.macroDrivers=tbExtractBullets(sectionMap.macroDrivers.text).slice(0,12);
-  state.watchlist=tbParseWatchlist(sectionMap.watchlist?.text,raw);
-  state.tradeSetups=tbParseSetups(sectionMap.tradeSetups?.text);
-  state.riskWarnings=tbExtractBullets(sectionMap.whatNotToDo?.text||'').slice(0,5);
-  state.tierList=tbParseTiers(sectionMap.tierList?.text||'');
-  if(sectionMap.marketSnapshot)state.summary=sectionMap.marketSnapshot.text.trim().slice(0,400);
-  return state;
-}
-
-/* ── UI helpers ── */
-function tbBiasColor(b){if(b==='bullish')return'var(--tbb)';if(b==='bearish')return'var(--tbr)';if(b==='chop')return'var(--tbw)';return'var(--txm)';}
-function tbBiasLabel(b){if(b==='bullish')return'Bullish';if(b==='bearish')return'Bearish';if(b==='chop')return'Chop';if(b==='mixed')return'Mixed';return'—';}
-function tbRegimeLabel(r){if(r==='risk_on')return'Risk-On';if(r==='risk_off')return'Risk-Off';if(r==='mixed')return'Mixed';return'—';}
-function tbRatingColor(r){if(r==='strong')return'var(--tbb)';if(r==='weak')return'var(--tbr)';return'var(--tbw)';}
-function tbRiskColor(l){if(l==='extreme'||l==='high')return'var(--tbr)';if(l==='elevated'||l==='moderate')return'var(--tbw)';return'var(--tbb)';}
-function tbScoreColor(n){if(n>=70)return'var(--tbb)';if(n>=50)return'var(--tbw)';return'var(--tbr)';}
 
 /* ── Markdown renderer ── */
 function tbRenderMarkdown(text){
@@ -3219,7 +3066,7 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast}){
     <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:18,flexWrap:'wrap'}}>
       <div style={{flex:1,minWidth:180}}>
         <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Watchlist</div>
-        <div style={{fontSize:13,color:'var(--txm)',marginTop:2,lineHeight:1.5}}>{watchlist.length} ticker{watchlist.length!==1?'s':''} · drives News, Catalysts, MacroBoard &amp; report parsing</div>
+        <div style={{fontSize:13,color:'var(--txm)',marginTop:2,lineHeight:1.5}}>{watchlist.length} ticker{watchlist.length!==1?'s':''} · drives News &amp; Catalysts</div>
       </div>
       <div style={{display:'flex',gap:8,flexShrink:0,flexWrap:'wrap'}}>
         <button onClick={setAsDefault} disabled={!watchlist.length} title="Save the current watchlist as your default — this is what Reset to default restores"
@@ -3467,228 +3314,15 @@ function TBPromptPage({prompts,onSave,onToast}){
   </div>);
 }
 
-/* ── Saved Reports Page ── */
-function TBReportsPage({reports,onUpdate,onLoad}){
-  const [fbSaving,setFbSaving]=useState(false);
-  const del=(id)=>{
-    const updated=reports.filter(r=>r.id!==id);
-    onUpdate(updated);if(window._fbSaveTBReports){window._fbSaveTBReports(updated);setFbSaving(true);setTimeout(()=>setFbSaving(false),1600);}
-  };
-  if(!reports.length)return(<div className="tb-fade-in" style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:48,textAlign:'center'}}>
-    <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:18,fontWeight:700,color:'var(--txd)',marginBottom:8}}>No saved reports</div>
-    <div style={{fontSize:14,color:'var(--txm)'}}>Import a macro report to populate state and save it here.</div>
-  </div>);
-  return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:12,padding:'24px 28px 40px'}}>
-    <div style={{display:'flex',alignItems:'center',gap:10}}>
-      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Saved Reports</div><div style={{fontSize:13,color:'var(--txm)'}}>{reports.length} reports · Firebase synced</div></div>
-      {fbSaving&&<span style={{fontSize:13,color:'var(--txm)',display:'inline-flex',alignItems:'center',gap:6}}><TBIcon n="refresh"/> Saving…</span>}
-    </div>
-    {reports.map(r=>(<div key={r.id} className="tb-card" style={{display:'flex',alignItems:'center',gap:12}}>
-      <div style={{flex:1}}>
-        <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:14,fontWeight:700,color:'var(--tx)',marginBottom:2}}>{r.name||'Report'}</div>
-        <div style={{fontSize:13,color:'var(--txm)'}}>{tbFmtDate(r.savedAt)}</div>
-        {r.goNoGo&&<span className={r.goNoGo==='go'?'tb-go-badge':'tb-nogo-badge'} style={{fontSize:10,marginTop:4,display:'inline-block'}}>{r.goNoGo==='go'?'GO':'NO-GO'}</span>}
-      </div>
-      <div style={{display:'flex',gap:8}}>
-        <button className="tb-btn-ghost" onClick={()=>onLoad(r)} style={{fontSize:11}}>Load</button>
-        <button className="tb-btn-danger" onClick={()=>del(r.id)} style={{fontSize:11}}>Delete</button>
-      </div>
-    </div>))}
-  </div>);
-}
-
-/* ── Import Modal ── */
-function TBImportModal({onClose,onGenerate}){
-  const [text,setText]=useState('');const [loading,setLoading]=useState(false);
-  const handle=()=>{if(!text.trim())return;setLoading(true);setTimeout(()=>{onGenerate(text);setLoading(false);},500);};
-  return(<div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:'fixed',inset:0,zIndex:21000,background:'rgba(0,0,0,0.65)',backdropFilter:'blur(5px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
-    <div style={{background:'var(--s1)',border:'1px solid var(--bdl)',borderRadius:18,padding:'32px 32px 28px',width:'100%',maxWidth:680,maxHeight:'85vh',display:'flex',flexDirection:'column',gap:20,boxShadow:'0 32px 80px rgba(0,0,0,0.5)'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-        <div><div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:20,fontWeight:700,color:'var(--tx)',letterSpacing:-0.3}}>Import Market Report</div><div style={{fontSize:14,color:'var(--txm)',marginTop:4}}>Paste ChatGPT macro response to generate structured market state.</div></div>
-        <button onClick={onClose} style={{background:'transparent',border:'none',color:'var(--txm)',cursor:'pointer',padding:'2px 4px',lineHeight:0,display:'inline-flex'}}><TBIcon n="x" size={18}/></button>
-      </div>
-      <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Paste your full ChatGPT macro report here…" style={{flex:1,minHeight:280,background:'var(--s2)',border:'1.5px solid var(--bdl)',borderRadius:12,color:'var(--tx)',fontFamily:'IBM Plex Mono,monospace',fontSize:14,lineHeight:1.8,padding:'16px 18px',outline:'none',resize:'none'}} onFocus={e=>e.target.style.borderColor='var(--ac)'} onBlur={e=>e.target.style.borderColor='var(--bdl)'} autoFocus/>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div style={{fontSize:13,color:'var(--txm)'}}>{text.length>0?`${text.length.toLocaleString()} characters`:'Ready for input'}</div>
-        <div style={{display:'flex',gap:10}}>
-          <button className="tb-btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="tb-btn-primary" onClick={handle} disabled={!text.trim()||loading}>{loading?<span><TBIcon n="refresh"/> Parsing…</span>:<span><TBIcon n="bolt"/> Generate State</span>}</button>
-        </div>
-      </div>
-    </div>
-  </div>);
-}
-
 /* ════════════════════════════════════════════════════════════════════════════
-   TRADEBOARD — AI dashboard that runs a prompt and renders structured blocks.
-   Talks to trade-dashboard Cloudflare Worker. Firebase-synced across devices.
+   trade-dashboard Cloudflare Worker. Support endpoints only now that MacroBoard
+   is gone: /watchlist + /calendar (Catalysts), /analysis-config and
+   /daily-reminder (both read by Trading Auto Launch).
    ════════════════════════════════════════════════════════════════════════════ */
 const TD_WORKER_URL = "https://trade-dashboard.av1.workers.dev";
-const TD_POLL_MS    = 5000;
-const TD_DAILY_LIMIT= 6;
-
-const DEFAULT_PROMPT = `# Daily Macro & Long-Only Trading Report
-Be concise. Rank everything. 1-line per item. Institutional-flow focus.
-Produce: Executive Summary (bias/regime/GO-NO-GO/confidence, top 3 drivers, macro scoreboard, key risk, key opportunity), Market Dashboard (SPX/NDX/QQQ/SOXX/10Y/VIX/DXY/WTI/Brent: direction+why+stock impact), Catalyst Calendar next 10 trading days by S/A/B/C tier, Themes (S/A/B tier, bull+bear), Flows + Leadership, Positioning + Sentiment, AI Infrastructure & Semi Tracker (drivers, what moved, next catalysts, AI spending status, memory/semi cycle, per-ticker scoreboard for NVDA AMD CRDO MU SNDK WDC INTC, bottom line), Sector Strength (top/bottom 3), Watchlist ratings, What Matters Next, Final Market Read with tier list.`;
-
-const TDB_TONE = {
-  good:   {c:"var(--tbb)", bg:"rgba(164,185,134,0.12)"},
-  warn:   {c:"var(--tbw)", bg:"rgba(251,191,36,0.12)"},
-  bad:    {c:"var(--tbr)", bg:"rgba(214,138,124,0.12)"},
-  neutral:{c:"var(--txd)", bg:"var(--s2)"},
-};
-const tdbTone = t => TDB_TONE[t] || TDB_TONE.neutral;
-const tdbDotColor = t => ({good:'#a4b986',warn:'#e0b57c',bad:'#d68a7c',neutral:'#adadb2'}[t]||'#adadb2');
-const tdbDot  = t => <span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:tdbDotColor(t),flexShrink:0}}/>;
-function tdbIsPlaceholder(v){const s=String(v||"").trim();return !s||/^\[.*\]$/.test(s);}
-function tdbFmtTime(sec){if(sec<=0)return"now";if(sec<60)return sec+"s";return Math.ceil(sec/60)+"m";}
-function tdbTimeAgo(ts){if(!ts)return"";const s=(Date.now()-ts)/1000;if(s<60)return"just now";if(s<3600)return Math.round(s/60)+"m ago";if(s<86400)return Math.round(s/3600)+"h ago";return Math.round(s/86400)+"d ago";}
-
-function TDBTitle({children}){
-  if(!children)return null;
-  return <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:800,letterSpacing:.4,textTransform:"uppercase",color:"var(--txd)"}}>{children}</h3>;
-}
-function TDBKPIs({block}){
-  return <div className="tb-card tb-fade-in" style={{marginBottom:14}}>
-    <TDBTitle>{block.title}</TDBTitle>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
-      {(block.items||[]).map((it,i)=>{const T=tdbTone(it.tone);return(
-        <div key={i} style={{background:"var(--s2)",border:`1px solid var(--bd)`,borderRadius:10,padding:"12px 14px"}}>
-          <div style={{fontSize:11,color:"var(--txm)",fontWeight:700,textTransform:"uppercase",letterSpacing:.3}}>{it.label}</div>
-          <div style={{fontSize:18,fontWeight:800,marginTop:4,color:it.tone?T.c:"var(--tx)"}}>{it.value}</div>
-        </div>);})}
-    </div>
-  </div>;
-}
-function TDBScoreboard({block}){
-  return <div className="tb-card tb-fade-in" style={{marginBottom:14}}>
-    <TDBTitle>{block.title}</TDBTitle>
-    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {(block.items||[]).map((it,i)=>{const T=tdbTone(it.rating);return(
-        <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"var(--s2)",borderRadius:9,borderLeft:`3px solid ${T.c}`}}>
-          <span style={{display:'inline-flex',alignItems:'center'}}>{tdbDot(it.rating)}</span>
-          <span style={{fontWeight:700,minWidth:110,color:"var(--tx)"}}>{it.label}</span>
-          <span style={{color:"var(--txd)",fontSize:13,flex:1}}>{it.note}</span>
-        </div>);})}
-    </div>
-  </div>;
-}
-function TDBTable({block}){
-  const cols=block.columns||[]; const rows=block.rows||[]; const tones=block.tone||[];
-  return <div className="tb-card tb-fade-in" style={{marginBottom:14,padding:0,overflow:"hidden"}}>
-    {block.title&&<div style={{padding:"14px 16px 0"}}><TDBTitle>{block.title}</TDBTitle></div>}
-    <div style={{overflowX:"auto"}}>
-      <table style={{width:"100%",fontSize:13,borderCollapse:"collapse"}}>
-        <thead><tr>{cols.map((c,i)=><th key={i} style={{textAlign:"left",padding:"10px 14px",color:"var(--txm)",fontSize:11,fontWeight:800,textTransform:"uppercase",letterSpacing:.3,borderBottom:`1px solid var(--bd)`,whiteSpace:"nowrap"}}>{c}</th>)}</tr></thead>
-        <tbody>{rows.map((r,ri)=>{const T=tones[ri]?tdbTone(tones[ri]):null;return(
-          <tr key={ri} style={{borderBottom:`1px solid var(--bd)`,background:T?T.bg:"transparent"}}>
-            {r.map((cell,ci)=><td key={ci} style={{padding:"9px 14px",color:ci===0?"var(--tx)":"var(--txd)",fontWeight:ci===0?700:400,verticalAlign:"top"}}>{cell}</td>)}
-          </tr>);})}</tbody>
-      </table>
-    </div>
-  </div>;
-}
-function TDBList({block}){
-  const items=(block.items||[]).filter(x=>!tdbIsPlaceholder(x));const Tag=block.ordered?"ol":"ul";
-  if(!items.length)return null;
-  return <div className="tb-card tb-fade-in" style={{marginBottom:14}}>
-    <TDBTitle>{block.title}</TDBTitle>
-    <Tag style={{margin:0,paddingLeft:20,display:"flex",flexDirection:"column",gap:6}}>
-      {items.map((x,i)=><li key={i} style={{color:"var(--txd)"}}>{x}</li>)}
-    </Tag>
-  </div>;
-}
-function TDBCards({block}){
-  return <div className="tb-card tb-fade-in" style={{marginBottom:14}}>
-    <TDBTitle>{block.title}</TDBTitle>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:10}}>
-      {(block.items||[]).map((it,i)=>{const T=tdbTone(it.tone);return(
-        <div key={i} style={{background:"var(--s2)",border:`1px solid var(--bd)`,borderLeft:`3px solid ${T.c}`,borderRadius:10,padding:"12px 14px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:5}}>
-            <span style={{fontWeight:800,fontSize:14,color:"var(--tx)"}}>{it.heading}</span>
-            {it.tag&&<span style={{fontSize:11,fontWeight:800,borderRadius:6,padding:"3px 9px",color:T.c,background:T.bg}}>{it.tag}</span>}
-          </div>
-          <div style={{color:"var(--txd)",fontSize:13}}>{it.body}</div>
-        </div>);})}
-    </div>
-  </div>;
-}
-function TDBTiers({block}){
-  const tiers=(block.tiers||[]).filter(t=>(t.items||[]).some(x=>x&&String(x).trim()));
-  if(!tiers.length)return null;
-  return <div className="tb-card tb-fade-in" style={{marginBottom:14}}>
-    <TDBTitle>{block.title}</TDBTitle>
-    <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      {tiers.map((t,i)=>{const T=tdbTone(t.tone);return(
-        <div key={i} style={{background:"var(--s2)",borderRadius:10,padding:"10px 14px",borderLeft:`3px solid ${T.c}`}}>
-          <div style={{fontSize:11,fontWeight:800,borderRadius:6,padding:"3px 9px",display:"inline-block",color:T.c,background:T.bg,marginBottom:7}}>{t.label}</div>
-          <ul style={{margin:0,paddingLeft:18,display:"flex",flexDirection:"column",gap:4}}>
-            {(t.items||[]).filter(x=>x&&String(x).trim()).map((x,j)=><li key={j} style={{color:"var(--txd)",fontSize:13}}>{x}</li>)}
-          </ul>
-        </div>);})}
-    </div>
-  </div>;
-}
-function TDBKeyValue({block}){
-  const items=(block.items||[]).filter(it=>!tdbIsPlaceholder(it.v));
-  if(!items.length)return null;
-  return <div className="tb-card tb-fade-in" style={{marginBottom:14}}>
-    <TDBTitle>{block.title}</TDBTitle>
-    <div style={{display:"flex",flexDirection:"column",gap:7}}>
-      {items.map((it,i)=>(
-        <div key={i} style={{display:"flex",gap:12,fontSize:13,padding:"6px 0",borderBottom:i<items.length-1?`1px solid var(--bd)`:"none"}}>
-          <span style={{fontWeight:700,minWidth:140,color:"var(--tx)"}}>{it.k}</span>
-          <span style={{color:"var(--txd)",flex:1}}>{it.v}</span>
-        </div>))}
-    </div>
-  </div>;
-}
-function TDBCallout({block}){
-  const T=tdbTone(block.tone);
-  return <div className="tb-fade-in" style={{marginBottom:14,background:T.bg,border:`1px solid ${T.c}`,borderRadius:12,padding:"14px 16px"}}>
-    {block.title&&<div style={{fontWeight:800,color:T.c,marginBottom:4,fontSize:13,textTransform:"uppercase",letterSpacing:.4}}>{block.title}</div>}
-    <div style={{color:"var(--tx)",fontSize:14}}>{block.body}</div>
-  </div>;
-}
-function TDBBlock({block}){
-  switch(block.type){
-    case"kpis":return <TDBKPIs block={block}/>;
-    case"scoreboard":return <TDBScoreboard block={block}/>;
-    case"table":return <TDBTable block={block}/>;
-    case"list":return <TDBList block={block}/>;
-    case"cards":return <TDBCards block={block}/>;
-    case"tiers":return <TDBTiers block={block}/>;
-    case"keyvalue":return <TDBKeyValue block={block}/>;
-    case"callout":return <TDBCallout block={block}/>;
-    default:return null;
-  }
-}
-function TDBReportView({report}){
-  if(!report)return null;
-  const m=report.meta||{};
-  const metaItems=[
-    m.bias&&{label:"Bias",value:m.bias},
-    m.regime&&{label:"Regime",value:m.regime},
-    m.goNoGo&&{label:"GO / NO-GO",value:m.goNoGo,tone:/no/i.test(m.goNoGo)?"bad":"good"},
-    m.confidence&&{label:"Confidence",value:m.confidence},
-  ].filter(Boolean);
-  return <div>
-    {(report.title||report.summary)&&<div className="tb-card tb-fade-in" style={{marginBottom:14,borderColor:"var(--ac)"}}>
-      {report.title&&<div style={{fontSize:20,fontWeight:800,color:"var(--tx)"}}>{report.title}</div>}
-      {report.summary&&<div style={{color:"var(--txd)",marginTop:6}}>{report.summary}</div>}
-      {metaItems.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:12}}>
-        {metaItems.map((it,i)=>{const T=tdbTone(it.tone);return(
-          <span key={i} style={{fontSize:12,fontWeight:800,borderRadius:6,padding:"5px 11px",color:it.tone?T.c:"var(--tx)",background:it.tone?T.bg:"var(--s2)",border:`1px solid var(--bd)`}}>
-            <b>{it.label}:</b> {it.value}</span>);})}
-      </div>}
-    </div>}
-    {(report.blocks||[]).map((b,i)=><TDBBlock key={i} block={b}/>)}
-  </div>;
-}
-
 /* ── Shared prompt picker ──────────────────────────────────────────────────
-   Prompts are now owned solely by the Prompts tab. Analysis + TradeBoard just
-   PICK which one to use. This chip row renders the Prompts-tab list and reports
+   Prompts are owned solely by the Prompts tab. Analysis just PICKS which one
+   to use. This chip row renders the Prompts-tab list and reports
    the chosen prompt id back up. No CRUD here — edit prompts in the Prompts tab. */
 function TBPromptSelect({prompts,value,onChange,onGoToPrompts}){
   if(!prompts||prompts.length===0){
@@ -3705,209 +3339,6 @@ function TBPromptSelect({prompts,value,onChange,onGoToPrompts}){
     {onGoToPrompts&&<button onClick={onGoToPrompts} title="Manage prompts" style={{padding:"6px 12px",borderRadius:100,border:"1px solid var(--bd)",background:"transparent",color:"var(--txm)",fontSize:12,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><TBIcon n="pencil" size={12}/>Edit in Prompts</button>}
   </div>;
 }
-
-/* ── Select-Prompt picker for MacroBoard ───────────────────────────────────
-   Mirrors Analysis's "Clipboard prompts": PICK-ONLY (no editing here — prompts are
-   owned by the Prompts tab). Shows each prompt's name + a short preview so you can
-   tell them apart. Whatever's selected is the prompt MacroBoard builds with. */
-function tdbPromptPreview(text){
-  const t=String(text||'').replace(/\s+/g,' ').trim();
-  return t.length>140?t.slice(0,140)+'…':(t||'No prompt text.');
-}
-function TBBoardPromptPicker({prompts,value,onChange,onGoToPrompts,isMobile}){
-  if(!prompts||prompts.length===0){
-    return <div className="tb-card" style={{marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",color:"var(--txm)",fontSize:13}}>
-      <span>No prompts yet — add one in the Prompts tab.</span>
-      {onGoToPrompts&&<button onClick={onGoToPrompts} style={{padding:"5px 12px",borderRadius:100,border:"1px solid var(--ac)",background:"transparent",color:"var(--ac)",fontSize:12,fontWeight:700,cursor:"pointer"}}>Open Prompts tab →</button>}
-    </div>;
-  }
-  const effective=prompts.some(p=>p.id===value)?value:prompts[0]?.id;
-  return <div className="tb-card" style={{marginBottom:16,padding:isMobile?14:16}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:11}}>
-      <div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:1.5,color:"var(--txm)",display:'flex',alignItems:'center',gap:7}}><TBIcon n="command" size={12}/>Select Prompt</div>
-      {onGoToPrompts&&<button onClick={onGoToPrompts} title="Prompts are edited in the Prompts tab" style={{padding:"5px 12px",borderRadius:100,border:"1px solid var(--bd)",background:"transparent",color:"var(--txm)",fontSize:11.5,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:6}}><TBIcon n="pencil" size={12}/>Edit in Prompts</button>}
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fill,minmax(230px,1fr))",gap:10}}>
-      {prompts.map(p=>{const on=p.id===effective;return(
-        <button key={p.id} onClick={()=>onChange(p.id)} title={p.name}
-          style={{textAlign:"left",padding:"12px 14px",borderRadius:12,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:"var(--s2)",cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",gap:6,boxShadow:on?"0 0 10px rgba(224,184,116,0.30),0 0 0 1px rgba(224,184,116,0.14)":"none"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{width:15,height:15,borderRadius:"50%",border:`2px solid ${on?"var(--ac)":"var(--bd)"}`,background:on?"var(--ac)":"transparent",flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{on&&<span style={{width:5,height:5,borderRadius:"50%",background:"var(--bg)"}}/>}</span>
-            <span style={{fontSize:14,fontWeight:800,color:on?"var(--acs)":"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</span>
-          </div>
-          <div style={{fontSize:11.5,color:"var(--txm)",lineHeight:1.5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{tdbPromptPreview(p.text)}</div>
-        </button>);})}
-    </div>
-  </div>;
-}
-
-function TBDashboardBoard({prompts,boardPromptId,onSelectBoardPrompt,onGoToPrompts}){
-  const [report,setReport]=useState(null);
-  const [generatedAt,setGeneratedAt]=useState(null);
-  const [model,setModel]=useState(null);
-  const [building,setBuilding]=useState(false);
-  const [loading,setLoading]=useState(false);
-  const [degraded,setDegraded]=useState(false);
-  const [notice,setNotice]=useState("");
-  const [rlUsed,setRlUsed]=useState(0);
-  const [rlCooldown,setRlCooldown]=useState(0);
-  const isMobile=useIsMobile();
-  const pollTimer=useRef(null);
-  const cdTimer=useRef(null);
-  const hydrated=useRef(false);
-  const lastSavedSig=useRef(null);
-  const pushedSig=useRef(null);
-
-  // Effective selected prompt (falls back to first prompt).
-  const selPrompt=(prompts&&(prompts.find(p=>p.id===boardPromptId)||prompts[0]))||null;
-
-  useEffect(()=>{
-    if(cdTimer.current)clearInterval(cdTimer.current);
-    if(rlCooldown>0)cdTimer.current=setInterval(()=>setRlCooldown(p=>{if(p<=1){clearInterval(cdTimer.current);return 0;}return p-1;}),1000);
-    return()=>clearInterval(cdTimer.current);
-  },[rlCooldown]);
-
-  const fetchRate=useCallback(async()=>{
-    try{const r=await fetch(TD_WORKER_URL+"/rate-status");if(!r.ok)return;const j=await r.json();
-      setRlUsed(j.usedToday||0);setRlCooldown(Math.max(0,j.cooldownSec||0));}catch(e){}
-  },[]);
-
-  /* Push the selected prompt to the worker's active-prompt slot so BOTH the
-     weekday 6am cron and manual builds run the same one. Deduped so we only POST
-     when the selected name/text actually changes. */
-  const pushActivePrompt=useCallback(async(p)=>{
-    if(!p||!p.text)return false;
-    const sig=(p.name||"")+" "+p.text;
-    if(pushedSig.current===sig)return true;   // already pushed this exact prompt
-    try{
-      const r=await fetch(TD_WORKER_URL+"/active-prompt",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:p.name||"Prompt",text:p.text})});
-      if(r.ok){pushedSig.current=sig;return true;}
-    }catch(e){}
-    return false;
-  },[]);
-
-  // Keep the worker's active prompt in sync with the current selection (so the
-  // cron pre-build uses whatever prompt is selected here).
-  useEffect(()=>{ if(selPrompt&&selPrompt.text) pushActivePrompt(selPrompt); },[selPrompt&&selPrompt.id,selPrompt&&selPrompt.name,selPrompt&&selPrompt.text]);
-
-  useEffect(()=>{
-    const boot=async()=>{
-      try{
-        if(window._fbLoadTBDash){
-          const d=await window._fbLoadTBDash();
-          if(d){lastSavedSig.current=JSON.stringify({r:d.report,g:d.generatedAt,m:d.model}); if(d.report)setReport(d.report);if(d.generatedAt)setGeneratedAt(d.generatedAt);if(d.model)setModel(d.model);}
-        }
-      }catch(e){}
-      // also pull latest ready report straight from worker
-      try{
-        const r=await fetch(TD_WORKER_URL+"/poll");const j=await r.json();
-        if(j&&j.status==="ready"&&j.report){
-          setReport(prev=>{ if(prev&&generatedAt&&j.generatedAt&&generatedAt>=j.generatedAt)return prev;
-            // worker report is newer → adopt it; this DID come from the server so
-            // mark it as already-synced (don't echo back to FB unless it differs).
-            lastSavedSig.current=JSON.stringify({r:j.report,g:j.generatedAt,m:j.model});
-            setGeneratedAt(j.generatedAt);setModel(j.model);return j.report;});
-        }
-      }catch(e){}
-      hydrated.current=true;
-      fetchRate();
-    };
-    if(window._fbReady)boot();
-    else{const h=()=>boot();window.addEventListener("fb-ready",h,{once:true});return()=>window.removeEventListener("fb-ready",h);}
-  },[]);
-
-  // live cross-device sync
-  useEffect(()=>{
-    const onRemote=e=>{const d=e.detail;if(d){lastSavedSig.current=JSON.stringify({r:d.report,g:d.generatedAt,m:d.model}); if(d.report)setReport(d.report);if(d.generatedAt)setGeneratedAt(d.generatedAt);if(d.model)setModel(d.model);}};
-    window.addEventListener("fb-tb-dash-remote",onRemote);
-    return()=>{window.removeEventListener("fb-tb-dash-remote",onRemote);};
-  },[]);
-
-  // save to Firebase ONLY when the report truly changed (not on load/remote echo)
-  useEffect(()=>{
-    if(!hydrated.current||!report)return;
-    const sig=JSON.stringify({r:report,g:generatedAt||null,m:model||null});
-    if(sig===lastSavedSig.current)return;     // unchanged or just-loaded → skip
-    lastSavedSig.current=sig;
-    if(window._fbSaveTBDash)window._fbSaveTBDash({report,generatedAt:generatedAt||Date.now(),model:model||null});
-  },[report,generatedAt,model]);
-
-  const stopPoll=()=>{if(pollTimer.current){clearInterval(pollTimer.current);pollTimer.current=null;}window._tbBuildUntil=0;};
-  const startPoll=()=>{
-    stopPoll();
-    window._tbBuildUntil=Date.now()+180000; // keep Firestore alive through the build
-    pollTimer.current=setInterval(async()=>{
-      try{
-        const r=await fetch(TD_WORKER_URL+"/poll");const j=await r.json();
-        if(j.status==="ready"){
-          stopPoll();setBuilding(false);setLoading(false);setDegraded(false);
-          setReport(j.report);setGeneratedAt(j.generatedAt);setModel(j.model);fetchRate();
-        }else if(j.status==="degraded"){
-          stopPoll();setBuilding(false);setLoading(false);setDegraded(true);
-          setNotice(j.error||"All AI tiers failed. Try again later.");fetchRate();
-        }
-      }catch(e){}
-    },TD_POLL_MS);
-  };
-
-  const run=async(force)=>{
-    if(building||loading)return;
-    // Build with the prompt selected above. The worker grounds it in live data +
-    // web search, then renders it into the board. Falls back to the next model
-    // only when the top model is genuinely exhausted.
-    if(!selPrompt||!selPrompt.text){setNotice("Add a prompt in the Prompts tab first.");return;}
-    setLoading(true);setNotice("");setDegraded(false);
-    window._tbBuildUntil=Date.now()+180000; // hold teardown off during /build too
-    try{
-      await pushActivePrompt(selPrompt); // keep cron in sync even on a fresh device
-      const r=await fetch(TD_WORKER_URL+"/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({force:!!force,prompt:{name:selPrompt.name,text:selPrompt.text}})});
-      const j=await r.json();
-      if(r.status===429){setLoading(false);window._tbBuildUntil=0;setNotice(j.error||"Rate limited.");setRlUsed(j.usedToday||rlUsed);setRlCooldown(j.cooldownSec||0);return;}
-      if(!r.ok){setLoading(false);window._tbBuildUntil=0;setNotice(j.error||"Build failed.");return;}
-      setLoading(false);setBuilding(true);startPoll();
-    }catch(e){setLoading(false);window._tbBuildUntil=0;setNotice("Network error.");}
-  };
-
-  const canRun=rlUsed<TD_DAILY_LIMIT&&rlCooldown<=0&&!loading&&!building;
-
-  return <div className="tb-fade-in" style={{maxWidth:1100,margin:"0 auto",color:"var(--tx)"}}>
-    <div style={{display:"flex",alignItems:isMobile?"stretch":"center",gap:isMobile?10:12,flexWrap:"wrap",marginBottom:16,flexDirection:isMobile?"column":"row"}}>
-      <div style={{flex:1,minWidth:160}}>
-        <div style={{fontSize:20,fontWeight:800,color:"var(--tx)"}}>MacroBoard</div>
-        {generatedAt
-          ?<div style={{fontSize:12,color:"var(--txm)",marginTop:2}}>Updated {tdbTimeAgo(generatedAt)}{model?` · ${model}`:""}</div>
-          :<div style={{fontSize:12,color:"var(--txm)",marginTop:2}}>Auto-builds every weekday morning · grounded in live data</div>}
-      </div>
-      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",justifyContent:isMobile?"flex-start":"flex-end"}}>
-        <span style={{fontSize:12,color:"var(--txm)"}}>{rlUsed}/{TD_DAILY_LIMIT} today</span>
-        {rlCooldown>0&&<span style={{fontSize:12,color:"var(--tbw)",display:'inline-flex',alignItems:'center',gap:5}}><TBIcon n="clock"/> {tdbFmtTime(rlCooldown)}</span>}
-        <button onClick={()=>run(false)} disabled={!canRun} title={!canRun?(rlUsed>=TD_DAILY_LIMIT?"Daily limit reached":rlCooldown>0?`Wait ${tdbFmtTime(rlCooldown)}`:"Working…"):"Build using the selected prompt"}
-          style={{padding:"8px 18px",borderRadius:100,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:800,cursor:canRun?"pointer":"not-allowed",opacity:canRun?1:.5}}>
-          {building||loading?<span><TBIcon n="refresh" style={{animation:"tb-spin 1s linear infinite"}}/> Building…</span>:<span><TBIcon n="bolt"/> Build</span>}
-        </button>
-      </div>
-    </div>
-
-    <TBBoardPromptPicker prompts={prompts} value={boardPromptId} onChange={onSelectBoardPrompt} onGoToPrompts={onGoToPrompts} isMobile={isMobile}/>
-
-    {notice&&<div className="tb-card tb-fade-in" style={{marginBottom:14,borderColor:degraded?"var(--tbr)":"var(--bd)",color:degraded?"var(--tbr)":"var(--txd)"}}>{notice}</div>}
-
-    {building&&!report&&<div className="tb-card tb-fade-in" style={{textAlign:"center",padding:"40px 20px"}}>
-      <TBIcon n="refresh" size={28} style={{animation:"tb-spin 1.2s linear infinite"}}/>
-      <div style={{marginTop:10,fontWeight:700,color:"var(--tx)"}}>Building {selPrompt?`“${selPrompt.name}”`:"today's macro read"}…</div>
-      <div style={{fontSize:12,color:"var(--txm)",marginTop:4}}>Live data (FRED · Yahoo · Finnhub) → grounded web search → render. ~30–90s.</div>
-    </div>}
-
-    {!report&&!building&&<div className="tb-card tb-fade-in" style={{textAlign:"center",padding:"40px 20px",color:"var(--txm)"}}>
-      <TBIcon n="chart" size={32} style={{marginBottom:8,opacity:.5}}/>
-      <div style={{fontWeight:700,color:"var(--txd)"}}>No board yet.</div>
-      <div style={{fontSize:13,marginTop:4}}>Auto-builds every weekday morning (Mon–Fri) — or hit Build now.</div>
-    </div>}
-
-    {report&&<TDBReportView report={report}/>}
-  </div>;
-}
-
 
 /* ════════════════════════════════════════════════════════════════════════════
    PER-TAB LOCK — React layer. Gates an individual tab's content behind the same
@@ -4129,7 +3560,6 @@ const TB_NAV=[
   {id:'playbook', label:'Playbook', icon:'list'},
   {id:'prompt',   label:'Control',  icon:'command'},
   {id:'news',     label:'News',     icon:'sparkle'},
-  {id:'dashboard',label:'MacroBoard',icon:'grid'},
   {id:'analysis', label:'Analysis', icon:''},
 ];
 
@@ -4335,88 +3765,6 @@ function TBMobileHeader({page,syncStatus,portfolioConnected,onNav,onManageTabLoc
 }
 
 /* TBMobileNav removed — tab nav is now in TBMobileHeader */
-
-/* ── Dashboard page (shows loaded report state) ── */
-function TBDashboardPage({report,onImport,onSaveReport,reports,onUpdateReports}){
-  if(!report)return(<div className="tb-fade-in" style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:48,textAlign:'center'}}>
-    <TBIcon n="diamond" size={48} style={{marginBottom:20,opacity:.4}}/>
-    <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:22,fontWeight:700,color:'var(--tx)',marginBottom:8}}>No report loaded</div>
-    <div style={{fontSize:13,color:'var(--txm)',lineHeight:1.8,maxWidth:380,marginBottom:28}}>Import a ChatGPT macro report to populate structured market state.</div>
-    <button className="tb-btn-primary" onClick={onImport}><TBIcon n="bolt"/> Import Report</button>
-  </div>);
-  const derived=useMemo(()=>computeDerivedState(report),[report]);
-  const goLabel=report.goNoGo==='go'?'GO':report.goNoGo==='no_go'?'NO-GO':'—';
-  const bColor=tbBiasColor(report.marketBias);
-  const saveReport=async()=>{
-    const name=await window.uiPrompt('Save report as:',{title:'Save report',default:`Report ${new Date().toLocaleDateString()}`});
-    if(!name)return;
-    const updated=[{id:'r_'+Date.now(),name,savedAt:Date.now(),goNoGo:report.goNoGo,...report},...(reports||[])].slice(0,50);
-    onUpdateReports(updated);if(window._fbSaveTBReports)window._fbSaveTBReports(updated);
-  };
-  return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:16,padding:'24px 28px 40px',maxWidth:1200}}>
-    <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:4}}>
-      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Analysis</div><div style={{fontSize:13,color:'var(--txm)'}}>{new Date(report._parsedAt||Date.now()).toLocaleString()}</div></div>
-      <button className="tb-btn-ghost" onClick={saveReport} style={{fontSize:11}}><TBIcon n="save"/> Save Report</button>
-      <button className="tb-btn-primary" onClick={onImport} style={{fontSize:11}}><TBIcon n="bolt"/> New Import</button>
-    </div>
-    <div style={{display:'grid',gridTemplateColumns:'160px 160px 1fr',gap:14,alignItems:'start'}} className="tb-grid-3">
-      <div className="tb-card" style={{textAlign:'center'}}>
-        <div className="tb-section-label" style={{marginBottom:12}}>Signal</div>
-        <span className={report.goNoGo==='go'?'tb-go-badge':report.goNoGo==='no_go'?'tb-nogo-badge':'tb-badge-neutral'} style={{display:'inline-block',fontSize:20,fontWeight:800,padding:'6px 18px',letterSpacing:2}}>{goLabel}</span>
-        {report.goNoGoReason&&<div style={{fontSize:13,color:'var(--txm)',marginTop:10,lineHeight:1.6}}>{report.goNoGoReason.slice(0,130)}</div>}
-      </div>
-      <div className="tb-card">
-        <div className="tb-section-label" style={{marginBottom:10}}>Bias</div>
-        <div style={{fontSize:20,fontWeight:800,fontFamily:'Manrope,system-ui,sans-serif',color:report.marketBias?bColor:'var(--txm)'}}>{tbBiasLabel(report.marketBias)}</div>
-        <div style={{fontSize:14,color:'var(--txd)',marginTop:6,fontWeight:600}}>{tbRegimeLabel(report.riskCondition)}</div>
-        <div style={{marginTop:8,fontSize:13,color:'var(--txm)'}}>Tailwind <span style={{fontWeight:700,color:tbScoreColor(derived.macroTailwindStrength)}}>{derived.macroTailwindStrength}%</span></div>
-      </div>
-      <div className="tb-card">
-        <div className="tb-section-label" style={{marginBottom:14}}>Market Snapshot</div>
-        <div style={{display:'flex',gap:24,flexWrap:'wrap'}}>
-          {[{l:'S&P 500',v:report.indices?.sp500},{l:'NASDAQ',v:report.indices?.nasdaq},{l:'Dow',v:report.indices?.dow},{l:'WTI',v:report.oil?.wti?`$${report.oil.wti}`:null},{l:'10Y Yield',v:report.yields?.tenYear},{l:'VIX',v:report.vix?.value}].map(({l,v})=>(<div key={l}>
-            <div style={{fontSize:10,color:'var(--txm)',fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>{l}</div>
-            <div style={{fontSize:16,fontWeight:700,color:v?'var(--tx)':'var(--txm)',marginTop:4,fontFamily:'IBM Plex Mono,monospace'}}>{v||'—'}</div>
-          </div>))}
-        </div>
-      </div>
-    </div>
-    {(report.macroDrivers.length>0||report.strongestSectors.length>0||report.riskWarnings.length>0)&&(
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}} className="tb-grid-2">
-        {report.macroDrivers.length>0&&<div className="tb-card">
-          <div className="tb-section-label" style={{marginBottom:12}}>Macro Drivers</div>
-          {report.macroDrivers.map((d,i)=><div key={i} style={{display:'flex',gap:8,alignItems:'flex-start',padding:'4px 0',borderBottom:i<report.macroDrivers.length-1?'1px solid var(--bd)':'none'}}><span style={{color:'var(--ac)',flexShrink:0,marginTop:3,fontSize:10}}>▸</span><div style={{fontSize:14,color:'var(--txd)',lineHeight:1.6,fontFamily:'Manrope,system-ui,sans-serif'}}>{d}</div></div>)}
-        </div>}
-        {(report.strongestSectors.length>0||report.riskWarnings.length>0)&&<div className="tb-card">
-          {report.strongestSectors.length>0&&<><div className="tb-section-label" style={{marginBottom:10}}>Strongest Sectors</div>{report.strongestSectors.map((s,i)=><div key={i} style={{fontSize:12,color:'var(--tbb)',fontWeight:600,padding:'2px 0'}}>{s}</div>)}</>}
-          {report.weakestSectors.length>0&&<><div style={{fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,marginTop:12,marginBottom:8}}>Avoid</div>{report.weakestSectors.map((s,i)=><div key={i} style={{fontSize:12,color:'var(--tbr)',fontWeight:600,padding:'2px 0'}}>{s}</div>)}</>}
-          {report.riskWarnings.length>0&&<><div style={{fontSize:10,fontWeight:800,color:'var(--tbw)',textTransform:'uppercase',letterSpacing:1.5,marginTop:12,marginBottom:8}}>Risk Warnings</div>{report.riskWarnings.map((w,i)=><div key={i} style={{display:'flex',gap:8,padding:'2px 0'}}><span style={{color:'var(--tbr)',fontSize:10,marginTop:3,flexShrink:0}}>✕</span><div style={{fontSize:14,color:'var(--txd)',fontFamily:'Manrope,system-ui,sans-serif',lineHeight:1.6}}>{w}</div></div>)}</>}
-        </div>}
-      </div>
-    )}
-    {report.watchlist.length>0&&<div className="tb-card">
-      <div className="tb-section-label" style={{marginBottom:14}}>Watchlist {report.watchlist.length}/{TB_WL.length}</div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:8}}>
-        {report.watchlist.map(w=>(<div key={w.ticker} style={{background:'var(--s2)',borderRadius:8,padding:'8px 12px',border:`1px solid var(--bd)`}}>
-          <div style={{fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:15,color:'var(--tx)',marginBottom:3}}>{w.ticker}</div>
-          <div style={{fontSize:10,fontWeight:800,color:tbRatingColor(w.rating),textTransform:'uppercase',letterSpacing:1}}>{w.rating||'—'}</div>
-        </div>))}
-      </div>
-    </div>}
-    {report.tradeSetups.length>0&&<div className="tb-card">
-      <div className="tb-section-label" style={{marginBottom:14}}>Trade Setups</div>
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {report.tradeSetups.map((s,i)=>(<div key={i} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'10px 0',borderBottom:i<report.tradeSetups.length-1?'1px solid var(--bd)':'none'}}>
-          <span style={{fontFamily:'IBM Plex Mono,monospace',fontSize:12,fontWeight:700,color:'var(--ac)',background:'rgba(224,184,116,0.1)',padding:'2px 10px',borderRadius:6,letterSpacing:1,flexShrink:0}}>{s.ticker}</span>
-          <div style={{flex:1}}>
-            <div style={{fontSize:12,fontWeight:700,color:'var(--txd)',marginBottom:2}}>{s.setupType}</div>
-            {s.whyStrong&&<div style={{fontSize:13,color:'var(--txm)',fontFamily:'var(--font-accent)'}}>{s.whyStrong.slice(0,160)}</div>}
-          </div>
-        </div>))}
-      </div>
-    </div>}
-  </div>);
-}
 
 /* ── Root App ── */
 
@@ -6988,7 +6336,6 @@ function TBApp(){
     return ()=>{ window.removeEventListener('fb-tb-navorder-remote',onRemote); window.removeEventListener('fb-ready',boot); };
   },[]);
   const [tabLockManage,setTabLockManage]=useState(null);
-  const [report,setReport]=useState(null);
   const [prompts,setPrompts]=useState(tbLoadPromptsLocal);
   const [analysisCfg,setAnalysisCfg]=useState(tbLoadAnalysisCfg);
   const [watchlist,setWatchlist]=useState(tbLoadWatchlistLocal);
@@ -7406,7 +6753,6 @@ function TBApp(){
     catalysts:<TBCatalystsPage watchlist={watchlist}/>,
     prompt:   <TBControlPage prompts={prompts} onSavePrompts={savePrompts} onToast={showToast} watchlist={watchlist} onSaveWatchlist={saveWatchlist}/>,
     analysis: <TBAnalysisPage cfg={analysisCfg} onSave={saveAnalysisCfg} prompts={prompts} onGoToPrompts={()=>setPage('prompt')}/>,
-    dashboard:<TBDashboardBoard prompts={prompts} boardPromptId={analysisCfg.boardPromptId} onSelectBoardPrompt={id=>saveAnalysisCfg({...analysisCfg,boardPromptId:id})} onGoToPrompts={()=>setPage('prompt')}/>,
   };
   const curNav=TB_NAV.find(n=>n.id===page)||TB_NAV[0];
 
