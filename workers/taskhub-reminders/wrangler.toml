@@ -16,6 +16,17 @@ invocation_logs = true
 binding = "TOKEN_CACHE"
 id = "b51e916cf3bf4f37ad146af5ca031575"
 
+# Service binding for the OneInbox piggyback (this worker's cron drives
+# oneinbox-api's /cron — see scheduled()). A binding is the supported way to
+# call another Worker on the same account: it dispatches in-process, needs no
+# public round-trip, doesn't spend a subrequest against the public URL, and is
+# not subject to the same-account workers.dev fetch quirks that can silently
+# swallow a plain fetch(). The URL fetch is kept as a fallback in code so the
+# piggyback still works if the binding is ever missing.
+[[services]]
+binding = "ONEINBOX"
+service = "oneinbox-api"
+
 # Secrets (set via `wrangler secret put <NAME>` — never commit values):
 #   FIREBASE_PROJECT_ID     — already set
 #   FIREBASE_CLIENT_EMAIL   — already set

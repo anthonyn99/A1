@@ -782,18 +782,28 @@ function localParse(text, fromEmail) {
 const AI_BUDGET_KEY = 'oi:aiq';
 const AI_DAILY_MAX = 1200;
 
+// Held in the isolate and flushed ONCE per run, not once per account. A cron
+// tick polls every account in a single invocation, so committing per account
+// cost 5 x 96 = 480 KV writes/day — half the entire 1,000/day free budget, for
+// a counter. Flushing per run makes it ~96. If an isolate dies mid-run the
+// worst case is a slightly low count, which is fine: this is a safety cap, not
+// an accounting ledger.
+let _budget = null, _budgetDirty = false;
+
 async function aiBudget(env) {
   const today = new Date().toISOString().slice(0, 10);
-  let rec;
-  try { rec = await env.OI_KV.get(AI_BUDGET_KEY, 'json'); } catch { rec = null; }
+  if (_budget && _budget.d === today) return _budget;
+  let rec = null;
+  try { rec = await env.OI_KV.get(AI_BUDGET_KEY, 'json'); } catch {}
   if (!rec || rec.d !== today) rec = { d: today, n: 0 };
-  return rec;
+  _budget = rec;
+  return _budget;
 }
-// classify() has already incremented rec.n per call, so this only PERSISTS —
-// adding `used` again here would double-count every message.
-async function aiBudgetCommit(env, rec, used) {
-  if (!used) return;
-  try { await env.OI_KV.put(AI_BUDGET_KEY, JSON.stringify(rec)); } catch {}
+const aiBudgetSpend = () => { _budgetDirty = true; };
+async function aiBudgetFlush(env) {
+  if (!_budget || !_budgetDirty) return;
+  _budgetDirty = false;
+  try { await env.OI_KV.put(AI_BUDGET_KEY, JSON.stringify(_budget)); } catch {}
 }
 
 // One email in, one normalized record out. Cloud chain first, local parser last.
@@ -808,7 +818,7 @@ async function classify(env, msg, budget) {
     : await runChain(PARSE_MODELS, env.ONEINBOX_GEMINI_KEY, {
         prompt: parsePrompt(today) + text, schema: PARSE_SCHEMA
       });
-  if (budget && !overBudget) budget.n++;
+  if (budget && !overBudget) { budget.n++; aiBudgetSpend(); }
 
   const base = result && result.category
     ? { ...result, engine: model }
@@ -1064,7 +1074,8 @@ async function ingestMessages(env, email, ids) {
   const existing = await fsExisting(env, token, 'dashboards/oneinbox/emails',
     batch.map(id => emailDocId(email, id)));
 
-  // One budget read per ingest batch, one write at the end — not per message.
+  // Shared run-scoped budget; persisted by aiBudgetFlush() at the end of the
+  // whole run, not here (see the note on aiBudget).
   const budget = await aiBudget(env);
   const startedAt = budget.n;
 
@@ -1121,7 +1132,6 @@ async function ingestMessages(env, email, ids) {
     });
     await fsBatchWrite(env, token, writes);
   }
-  await aiBudgetCommit(env, budget, budget.n - startedAt);
   return { ingested: writes.length ? writes.length - 1 : 0, cards, aiUsed: budget.n - startedAt, aiToday: budget.n };
 }
 
@@ -1438,6 +1448,7 @@ async function handlePubSub(request, env, origin) {
   if (!email) return new Response(null, { status: 204 });
   try { await syncHistory(env, email); }
   catch (e) { console.warn('pubsub sync failed', email, e.message); }
+  await aiBudgetFlush(env);
   return new Response(null, { status: 204 });
 }
 
@@ -1490,6 +1501,7 @@ async function runCron(env) {
   }
 
   if (dirty) await env.OI_KV.put('oi:cron', JSON.stringify(state));
+  await aiBudgetFlush(env);   // one write per run, covering every account
   return out;
 }
 
@@ -1514,8 +1526,12 @@ async function sweepCards(env) {
 
   // Oldest-first and bounded, so one sweep is cheap and a large backlog simply
   // drains over successive days rather than in one huge (and failure-prone) run.
+  // The page size has to EXCEED daily inflow or the collection grows forever:
+  // at 200/day a mailbox taking 300/day would accumulate 100 docs a day once
+  // the retention window is reached. 500 sits comfortably above realistic
+  // volume, and Firestore deletes are cheap (20,000/day free).
   const cutoff = Date.now() - 90 * 864e5;
-  const oldEmails = (await fsOldest(env, token, 'dashboards/oneinbox', 'emails', 'date', 200))
+  const oldEmails = (await fsOldest(env, token, 'dashboards/oneinbox', 'emails', 'date', 500))
     .filter(e => (e.date || 0) < cutoff);
 
   await fsBatchWrite(env, token, [
@@ -1595,6 +1611,7 @@ export default {
           try { res.push({ account: e, ...(await syncHistory(env, e)) }); }
           catch (err) { res.push({ account: e, error: err.message }); }
         }
+        await aiBudgetFlush(env);
         return json({ ok: true, results: res }, origin);
       }
 

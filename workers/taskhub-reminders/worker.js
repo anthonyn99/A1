@@ -132,11 +132,23 @@ export default {
     // daily watch re-arm. The worker itself rate-limits the expensive parts
     // against timestamps in KV, so most of these calls return immediately.
     if (t.getUTCMinutes() % 5 === 0) {
-      ctx.waitUntil(
-        fetch('https://oneinbox-api.av1.workers.dev/cron', { method: 'POST' })
-          .then(r => { if (!r.ok) console.warn(`[oneinbox] cron → ${r.status}`); })
-          .catch(e => console.warn('[oneinbox] cron trigger failed:', e.message))
-      );
+      // Prefer the SERVICE BINDING. A plain fetch() to another Worker on the
+      // same account can be silently dropped, and that is exactly what happened
+      // here: after this piggyback shipped, oneinbox-api's cron state went
+      // hours without moving while a manual POST to the same URL worked
+      // instantly — so the scheduled call was never arriving. The binding
+      // dispatches in-process and is the documented way to do this. The URL
+      // fetch stays as a fallback for when the binding isn't present.
+      ctx.waitUntil((async () => {
+        try {
+          const r = env.ONEINBOX
+            ? await env.ONEINBOX.fetch('https://oneinbox-api/cron', { method: 'POST' })
+            : await fetch('https://oneinbox-api.av1.workers.dev/cron', { method: 'POST' });
+          if (!r.ok) console.warn(`[oneinbox] cron → ${r.status}`);
+        } catch (e) {
+          console.warn('[oneinbox] cron trigger failed:', e.message);
+        }
+      })());
     }
   }
 };

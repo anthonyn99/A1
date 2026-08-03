@@ -2546,6 +2546,20 @@ async function boot(){
     if (document.visibilityState === 'visible' && lockSession) loadMessages();
   });
 
+  // Safety net: nudge the worker's background tick when the app is opened.
+  // Ingestion is normally driven by taskhub-reminders' cron, but that is one
+  // mechanism and it has failed silently before — this makes "the app is open"
+  // a second, independent trigger. Throttled to once every 10 minutes per
+  // device, and the worker rate-limits the real work internally anyway, so it
+  // costs one tiny request.
+  try {
+    const last = Number(localStorage.getItem('oneinbox_cron_ping') || 0);
+    if (Date.now() - last > 10 * 60e3){
+      localStorage.setItem('oneinbox_cron_ping', String(Date.now()));
+      fetch(API + '/cron', { method: 'POST' }).catch(() => {});
+    }
+  } catch {}
+
   openFromHash();
 }
 
