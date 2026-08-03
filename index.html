@@ -4978,6 +4978,10 @@ function App(){
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}})),
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,minWidth:0,width:"100%",flexWrap:"wrap"}},
           React.createElement("button",{type:"button",key:"vx-voice",title:"Voice control",style:{...hbtn(false),background:vxRec?"#e05a5a":T.AC,color:T.BG,border:"1px solid "+(vxRec?"#e05a5a":T.AC),fontWeight:800,boxShadow:vxRec?"none":"0 2px 10px "+T.AC+"66"},onClick:()=>window._THV&&window._THV.toggleVoice()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
+          /* Text → AI: the typed twin of the mic, so it sits immediately beside
+             it and shares the accent, but stays outlined so the pair doesn't
+             read as two identical primary buttons. */
+          React.createElement("button",{type:"button",key:"vx-text",title:"Text command (AI)","aria-label":"Text command",style:{...hbtn(false),background:T.AC+"1f",color:T.AC,border:"1px solid "+T.AC,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.background=T.AC+"33",onMouseLeave:e=>e.currentTarget.style.background=T.AC+"1f",onClick:()=>window._THV&&window._THV.openText()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),React.createElement("line",{x1:8.5,y1:10,x2:15.5,y2:10}),React.createElement("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
           React.createElement("button",{type:"button",key:"vx-dev",title:"Input device",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.openDevicePicker()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
           vxUndo&&React.createElement("button",{type:"button",key:"vx-undo",title:"Undo",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD,fontSize:15,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.undo()},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.undo}})),
           vxRedo&&React.createElement("button",{type:"button",key:"vx-redo",title:"Redo",style:{...hbtn(false),color:T.AC,border:"1px solid "+T.BD,fontSize:15,fontWeight:800},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD,onClick:()=>window._THV&&window._THV.redo()},React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.redo}})),
@@ -10359,6 +10363,8 @@ function App(){
       // Row 2: program-specific tools, right-aligned
       RC("div",{className:"veda-hbtns",style:{paddingTop:4}},
         RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:vxRec?"none":"0 2px 9px "+A+"66"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23}))),
+        /* Text → AI: typed twin of the mic, seated right beside it. */
+        RC("button",{key:"vx-text",title:"Text command (AI)","aria-label":"Text command",onClick:()=>window._THV&&window._THV.openText(),style:{background:A+"1f",color:A,border:"1px solid "+A,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.background=A+"33";},onMouseLeave:e=>{e.currentTarget.style.background=A+"1f";}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),RC("line",{x1:8.5,y1:10,x2:15.5,y2:10}),RC("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
         RC("button",{key:"vx-dev",title:"Input device",onClick:()=>window._THV&&window._THV.openDevicePicker(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
         vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↶"),
         vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↷"),
@@ -35115,6 +35121,24 @@ mcApplyTheme();
   <button class="thv-dev-close" onclick="window._THV&&window._THV.closeDevicePicker()">Close</button>
 </div></div>
 <div id="thv-toast"></div>
+<!-- Text → AI composer: the typed twin of the mic. Same worker, same actions,
+     same undo/redo and Firebase sync — only the input method differs. Sized for
+     long, multi-line, pasted instructions, and a bottom sheet on phones. -->
+<div id="thv-txt-overlay" aria-hidden="true"><div id="thv-txt-box" role="dialog" aria-modal="true" aria-label="Ask TaskHub AI">
+  <div class="thv-txt-head">
+    <div class="thv-txt-title"><span class="thv-txt-dot"></span><span id="thv-txt-who">Ask TaskHub AI</span></div>
+    <button type="button" class="thv-txt-x" aria-label="Close" onclick="window._THV&&window._THV.closeText()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <textarea id="thv-txt-input" rows="3" spellcheck="true" autocomplete="off"
+    placeholder="Tell TaskHub what to do — one instruction or a whole list.&#10;&#10;Plan my entire next two weeks.&#10;Move every workout to Mondays and Thursdays.&#10;Delete all completed tasks from this month."></textarea>
+  <div id="thv-txt-chips"></div>
+  <div class="thv-txt-foot">
+    <div id="thv-txt-status"><span class="thv-txt-kbd">Ctrl</span>+<span class="thv-txt-kbd">Enter</span> to send · Shift+Enter for a new line</div>
+    <button type="button" id="thv-txt-send" onclick="window._THV&&window._THV.sendText()">Send</button>
+  </div>
+</div></div>
 <style>
 /* anchored to the BOTTOM so it never covers the header mic; grows upward, scrolls */
 #thv-caption{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);left:50%;transform:translateX(-50%);z-index:99000;display:none;
@@ -35150,6 +35174,52 @@ mcApplyTheme();
   transition:opacity .2s,transform .2s;max-width:88vw;text-align:center;}
 #thv-toast.show{opacity:1;}
 #thv-toast.err{border-color:#e05a5a;color:#e89a9a;}
+
+/* ── Text → AI composer ───────────────────────────────────────────────────
+   Desktop: a centred card. Phones: a bottom sheet that rides above the
+   on-screen keyboard (--thv-kb is kept in sync with visualViewport). */
+#thv-txt-overlay{position:fixed;inset:0;z-index:99400;display:flex;align-items:center;justify-content:center;padding:22px;box-sizing:border-box;
+  background:rgba(8,8,11,.62);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);
+  opacity:0;pointer-events:none;transition:opacity .18s ease;}
+#thv-txt-overlay.show{opacity:1;pointer-events:auto;}
+#thv-txt-box{width:100%;max-width:620px;display:flex;flex-direction:column;gap:11px;box-sizing:border-box;
+  background:var(--thv-surface,#1d1d25);border:1px solid var(--thv-border,#33333f);border-radius:16px;padding:16px 16px 14px;
+  box-shadow:0 26px 70px rgba(0,0,0,.55);font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--thv-text,#f4f3f0);
+  transform:translateY(10px) scale(.985);opacity:0;transition:transform .2s cubic-bezier(.2,.8,.3,1),opacity .18s ease;}
+#thv-txt-overlay.show #thv-txt-box{transform:none;opacity:1;}
+.thv-txt-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.thv-txt-title{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--thv-accent,#e0b874);}
+.thv-txt-dot{width:7px;height:7px;border-radius:50%;background:var(--thv-accent,#e0b874);flex-shrink:0;}
+.thv-txt-x{background:transparent;border:none;color:var(--thv-mute,#8a8a98);cursor:pointer;padding:4px;line-height:0;border-radius:6px;}
+.thv-txt-x:hover{color:var(--thv-text,#f4f3f0);}
+#thv-txt-input{width:100%;box-sizing:border-box;min-height:110px;max-height:42vh;overflow-y:auto;resize:none;
+  background:rgba(127,127,140,.10);border:1.5px solid var(--thv-border,#33333f);border-radius:11px;padding:12px 13px;
+  font-family:inherit;font-size:15px;line-height:1.5;color:var(--thv-text,#f4f3f0);outline:none;transition:border-color .15s;}
+#thv-txt-input:focus{border-color:var(--thv-accent,#e0b874);}
+#thv-txt-input::placeholder{color:var(--thv-mute,#8a8a98);opacity:.85;}
+#thv-txt-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.thv-txt-chip{background:transparent;border:1px solid var(--thv-border,#33333f);color:var(--thv-mute,#8a8a98);
+  border-radius:20px;padding:5px 11px;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.thv-txt-chip:hover{border-color:var(--thv-accent,#e0b874);color:var(--thv-accent,#e0b874);}
+.thv-txt-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+#thv-txt-status{font-size:11.5px;color:var(--thv-mute,#8a8a98);line-height:1.45;display:flex;align-items:center;gap:7px;min-width:0;}
+#thv-txt-status.err{color:#e89a9a;}
+#thv-txt-status.ok{color:var(--thv-accent,#e0b874);font-weight:700;}
+.thv-txt-kbd{border:1px solid var(--thv-border,#33333f);border-radius:4px;padding:1px 5px;font-size:10.5px;font-weight:700;}
+#thv-txt-send{background:var(--thv-accent,#e0b874);color:#1a1a1d;border:none;border-radius:9px;padding:10px 22px;
+  font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;transition:opacity .15s,transform .1s;}
+#thv-txt-send:hover{opacity:.88;}
+#thv-txt-send:active{transform:scale(.97);}
+#thv-txt-send:disabled{opacity:.5;cursor:default;transform:none;}
+@media (max-width:640px){
+  #thv-txt-overlay{align-items:flex-end;padding:0;}
+  #thv-txt-box{max-width:none;border-radius:18px 18px 0 0;border-bottom:none;
+    padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));margin-bottom:var(--thv-kb,0px);
+    transform:translateY(18px);}
+  #thv-txt-input{min-height:96px;max-height:34vh;font-size:16px;}  /* 16px stops iOS zooming on focus */
+  .thv-txt-foot{gap:8px;}
+  #thv-txt-send{padding:11px 20px;}
+}
 </style>
 <script>
 (function(){
@@ -35271,8 +35341,12 @@ function isUndo(t){return /^\s*(please\s+)?(undo( that| last| it)?|revert( that)
 function isRedo(t){return /^\s*(please\s+)?(redo( that| last| it)?)\s*[.!?]?\s*$/i.test(t);}
 
 // ── send to worker ──
-async function send(extra){
-  var b=bridge();if(!b){toast('TaskHub not ready',true);return;}
+// Returns {ok,n,say,truncated} / {ok:false,error} so a caller with its own UI
+// (the text composer) can report inline; `silent` suppresses the toasts that
+// the voice path relies on.
+async function send(extra,opts){
+  var silent=!!(opts&&opts.silent);
+  var b=bridge();if(!b){if(!silent)toast('TaskHub not ready',true);return {ok:false,error:'TaskHub not ready'};}
   var d=new Date(),pad=function(n){return String(n).padStart(2,'0');};
   var today=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
   var weekday=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
@@ -35281,9 +35355,17 @@ async function send(extra){
   try{
     var r=await fetch(WORKER+'/taskhub/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var j=await r.json();
-    if(j.ok&&Array.isArray(j.actions)){dispatch(j.actions,j.say);}
-    else{toast(j.error||'Could not understand',true);}
-  }catch(e){toast('Network error',true);}
+    if(j.ok&&Array.isArray(j.actions)){
+      var n=dispatch(j.actions,j.say,silent);
+      return {ok:true,n:n,say:j.say||'',truncated:!!j.truncated};
+    }
+    var err=j.error||'Could not understand';
+    if(!silent)toast(err,true);
+    return {ok:false,error:err};
+  }catch(e){
+    if(!silent)toast('Network error',true);
+    return {ok:false,error:'Network error — check your connection'};
+  }
 }
 
 // ── executor ──
@@ -35318,6 +35400,8 @@ function toMonIdxJS(jsd){return jsd===0?6:jsd-1;}            // JS day (0=Sun) �
 // notifyAt is stored as an ISO string (exactly like the app's modal) so the push scheduler accepts it
 function notifyISO(n){if(!n||!n.date)return '';var p=ymd(n.date);if(!p)return '';var tm=/^(\d{1,2}):(\d{2})/.exec(String(n.time||'09:00'));var hh=tm?+tm[1]:9,mm=tm?+tm[2]:0;var d=new Date(p.y,p.mo-1,p.d,hh,mm,0,0);return isNaN(d.getTime())?'':d.toISOString();}
 function setNotify(it,n){var iso=notifyISO(n);if(!iso)return false;it.notifyAt=iso;it.notifyRepeat='none';it.notifyRepeatDays=[];it.notifyRepeatId=null;return true;}
+var DKEY_RE=/^\d{4}-\d{2}-\d{2}$/;
+function shiftKey(k,days){var p=ymd(k);if(!p)return null;var d=new Date(p.y,p.mo-1,p.d);d.setDate(d.getDate()+days);return dkeyE(d);}
 function habitKey(id,dateStr){var p=dateStr?ymd(dateStr):null,y,m,d;if(p){y=p.y;m=p.mo-1;d=p.d;}else{var dn=new Date();y=dn.getFullYear();m=dn.getMonth();d=dn.getDate();}return id+'-'+y+'-'+m+'-'+d;}
 function buildCalItem(b,a){
   var it={id:b.uid(),type:(a.kind==='event'||a.time)?'event':'task',title:(a.title||'').trim(),done:!!a.done};
@@ -35438,6 +35522,65 @@ function applyTask(b,W,a,mark,fx){
       if(box2==='calendar'){var key3=(a.date?(ymd(a.date)||{}).key:null)||W.selectedDate;(W.data[key3]||[]).forEach(function(x){if(x.notifyAt)fx.cancel.push({id:x.id,notifyRepeatId:x.notifyRepeatId||null});});W.data[key3]=[];mark('calendar');return true;}
       var ca=arrFor(W,box2);if(!ca)return false;ca.length=0;mark(box2);return true;
     }
+    /* ── Bulk range ops. Applied here rather than as N model-authored actions:
+       exact, instant, and they also reach days the model was never shown. ── */
+    case 'shift_range':{
+      var days=parseInt(a.days,10);if(!days||!isFinite(days))return false;
+      var f=a.from?(ymd(a.from)||{}).key:null,t=a.to?(ymd(a.to)||{}).key:null;
+      if(!f&&!t)return false;if(!f)f=t;if(!t)t=f;
+      if(f>t){var swp=f;f=t;t=swp;}
+      // Lift every affected day out first, so a shift that lands inside its own
+      // range can't overwrite a day it hasn't moved yet.
+      var lifted=[];
+      Object.keys(W.data||{}).forEach(function(k){
+        if(!DKEY_RE.test(k)||k<f||k>t)return;
+        var arr=W.data[k];if(!arr||!arr.length)return;
+        lifted.push({key:k,items:arr.slice()});
+      });
+      if(!lifted.length)return false;
+      lifted.forEach(function(g){W.data[g.key]=[];});
+      lifted.forEach(function(g){
+        var nk=shiftKey(g.key,days);if(!nk){W.data[g.key]=g.items;return;}
+        if(!W.data[nk])W.data[nk]=[];
+        g.items.forEach(function(it){
+          var ni=Object.assign({},it);
+          if(ni.notifyAt){
+            fx.cancel.push({id:it.id,notifyRepeatId:it.notifyRepeatId||null});
+            var nd=new Date(ni.notifyAt);
+            if(!isNaN(nd.getTime())){nd.setDate(nd.getDate()+days);ni.notifyAt=nd.toISOString();ni.notifyRepeatId=null;fx.schedule.push(ni);}
+            else{delete ni.notifyAt;delete ni.notifyRepeat;delete ni.notifyRepeatDays;delete ni.notifyRepeatId;}
+          }
+          W.data[nk].push(ni);
+        });
+      });
+      mark('calendar');return true;
+    }
+    case 'clear_completed':{
+      var cbox=a.box||'all',hit=0;
+      var cf=a.from?(ymd(a.from)||{}).key:null,ct=a.to?(ymd(a.to)||{}).key:null;
+      if(cf&&ct&&cf>ct){var sw2=cf;cf=ct;ct=sw2;}
+      if(cbox==='all'||cbox==='calendar'){
+        Object.keys(W.data||{}).forEach(function(k){
+          if(!DKEY_RE.test(k))return;
+          if(cf&&k<cf)return;if(ct&&k>ct)return;
+          var arr=W.data[k];if(!arr||!arr.length)return;
+          var keep=[];
+          arr.forEach(function(it){
+            if(it&&it.done){hit++;if(it.notifyAt)fx.cancel.push({id:it.id,notifyRepeatId:it.notifyRepeatId||null});}
+            else keep.push(it);
+          });
+          if(keep.length!==arr.length)W.data[k]=keep;
+        });
+        if(hit)mark('calendar');
+      }
+      ['shortTermGoals','longTermGoals'].forEach(function(bx){
+        if(cbox!=='all'&&cbox!==bx)return;
+        var arr=arrFor(W,bx);if(!arr)return;var before=arr.length;
+        for(var i=arr.length-1;i>=0;i--)if(arr[i]&&arr[i].done)arr.splice(i,1);
+        if(arr.length!==before){hit+=before-arr.length;mark(bx);}
+      });
+      return hit>0;
+    }
   }
   return false;
 }
@@ -35458,9 +35601,9 @@ function applyControl(b,a){
   }
   return false;
 }
-var TASK_TYPES={add_task:1,edit_task:1,remove_task:1,toggle_task:1,move_task:1,swap:1,reorder:1,clear:1};
-function dispatch(actions,say){
-  var b=bridge();if(!b){toast('TaskHub not ready',true);return;}
+var TASK_TYPES={add_task:1,edit_task:1,remove_task:1,toggle_task:1,move_task:1,swap:1,reorder:1,clear:1,shift_range:1,clear_completed:1};
+function dispatch(actions,say,silent){
+  var b=bridge();if(!b){if(!silent)toast('TaskHub not ready',true);return 0;}
   var s=b.getState();
   var W={data:clone(s.data)||{},habits:clone(s.habits)||[],shortGoals:clone(s.shortGoals)||[],longGoals:clone(s.longGoals)||[],hc:clone(s.hc)||{},selectedDate:s.selectedDate};
   var dirty={};var mark=function(k){dirty[k]=true;};
@@ -35484,9 +35627,12 @@ function dispatch(actions,say){
   fx.cancel.forEach(function(c){if(window.thCancelNotif){try{window.thCancelNotif(c.id,c.notifyRepeatId);}catch(e){}}});
   fx.schedule.forEach(function(it){if(window.thScheduleNotif){try{window.thScheduleNotif(Object.assign({},it,{dashboard:who}));}catch(e){}}});
   refreshButtons();
-  if(say)toast(say);
-  else if(n)toast(n+' change'+(n>1?'s':'')+' applied');
-  else toast("Didn't catch a command — try again",true);
+  if(!silent){
+    if(say)toast(say);
+    else if(n)toast(n+' change'+(n>1?'s':'')+' applied');
+    else toast("Didn't catch a command — try again",true);
+  }
+  return n;
 }
 
 // ── undo / redo / button refresh ──
@@ -35527,12 +35673,119 @@ function encodeWav(buffers,inRate,outRate){
   return buf;
 }
 
+// ── Text → AI composer ──────────────────────────────────────────────────────
+// Typed input takes the SAME path as voice: worker → actions → dispatch(), so
+// history, push reminders and Firebase sync all behave identically. The only
+// difference is that the panel reports progress inline instead of by toast, so
+// a 40-change bulk edit can say what actually happened.
+var TXT={open:false,busy:false,kbHandler:null};
+var TXT_CHIPS=[
+  'Plan my entire next two weeks',
+  'Shift everything next week one day later',
+  'Delete all completed tasks from this month',
+  'Move every workout to Mondays and Thursdays',
+  'Clear tomorrow and reschedule it for Friday'
+];
+function txtStatus(html,cls){var s=$('thv-txt-status');if(!s)return;s.innerHTML=html;s.className=cls||'';}
+function txtIdle(){txtStatus('<span class="thv-txt-kbd">'+(isMac()?'⌘':'Ctrl')+'</span>+<span class="thv-txt-kbd">Enter</span> to send · Shift+Enter for a new line');}
+function isMac(){return /Mac|iPhone|iPad|iPod/.test(navigator.platform||navigator.userAgent||'');}
+function txtGrow(){var ta=$('thv-txt-input');if(!ta)return;ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,Math.round(innerHeight*0.42))+'px';}
+function txtBusy(on){
+  TXT.busy=!!on;
+  var btn=$('thv-txt-send'),ta=$('thv-txt-input');
+  if(btn){btn.disabled=!!on;btn.textContent=on?'Working…':'Send';}
+  if(ta)ta.readOnly=!!on;
+}
+function buildChips(){
+  var box=$('thv-txt-chips');if(!box||box.childNodes.length)return;
+  TXT_CHIPS.forEach(function(text){
+    var b=document.createElement('button');
+    b.type='button';b.className='thv-txt-chip';b.textContent=text;
+    b.onclick=function(){var ta=$('thv-txt-input');if(!ta)return;ta.value=text;ta.focus();txtGrow();txtIdle();};
+    box.appendChild(b);
+  });
+}
+// Keep the sheet above the on-screen keyboard on phones.
+function txtTrackKeyboard(on){
+  var vv=window.visualViewport;if(!vv)return;
+  if(on){
+    if(TXT.kbHandler)return;
+    TXT.kbHandler=function(){
+      var gap=Math.max(0,innerHeight-vv.height-vv.offsetTop);
+      document.documentElement.style.setProperty('--thv-kb',gap+'px');
+    };
+    vv.addEventListener('resize',TXT.kbHandler);vv.addEventListener('scroll',TXT.kbHandler);TXT.kbHandler();
+  }else if(TXT.kbHandler){
+    vv.removeEventListener('resize',TXT.kbHandler);vv.removeEventListener('scroll',TXT.kbHandler);
+    TXT.kbHandler=null;document.documentElement.style.setProperty('--thv-kb','0px');
+  }
+}
+function openText(){
+  if(!bridge()){toast('Open a TaskHub first');return;}
+  if(V.active){stop();}                       // typing wins over an open mic
+  themeVars();buildChips();
+  var who=$('thv-txt-who');if(who)who.textContent=profile()==='veda'?"Ask Veda's TaskHub":"Ask Tony's TaskHub";
+  var ov=$('thv-txt-overlay'),ta=$('thv-txt-input');
+  ov.setAttribute('aria-hidden','false');
+  ov.classList.add('show');TXT.open=true;
+  txtBusy(false);txtIdle();txtTrackKeyboard(true);
+  // wait a frame so the entry transition runs, then focus (iOS needs the delay)
+  setTimeout(function(){if(ta){ta.focus();try{ta.setSelectionRange(ta.value.length,ta.value.length);}catch(e){}txtGrow();}},60);
+}
+function closeText(){
+  if(!TXT.open)return;
+  var ov=$('thv-txt-overlay');
+  ov.classList.remove('show');ov.setAttribute('aria-hidden','true');
+  TXT.open=false;txtTrackKeyboard(false);
+  var ta=$('thv-txt-input');if(ta)ta.blur();
+}
+async function sendText(){
+  if(TXT.busy)return;
+  var ta=$('thv-txt-input');if(!ta)return;
+  var text=(ta.value||'').trim();
+  if(!text){txtStatus('Type what you want changed first.','err');ta.focus();return;}
+  if(isUndo(text)){ta.value='';txtGrow();doUndo();closeText();return;}
+  if(isRedo(text)){ta.value='';txtGrow();doRedo();closeText();return;}
+  txtBusy(true);
+  txtStatus('<span class="thv-spin"></span> Thinking… large requests can take a moment.');
+  var res;
+  try{res=await send({transcript:text,mode:'text'},{silent:true});}
+  catch(e){res={ok:false,error:'Something went wrong — try again'};}
+  txtBusy(false);
+  if(!res||!res.ok){txtStatus(esc((res&&res.error)||'Could not understand — try rewording it.'),'err');ta.focus();return;}
+  if(!res.n){txtStatus('Nothing to change — try naming the tasks or dates directly.','err');ta.focus();return;}
+  var msg=res.n+' change'+(res.n>1?'s':'')+' applied';
+  if(res.truncated)msg+=' (long request — check the tail end)';
+  txtStatus('✓ '+esc(res.say?res.say+' — '+msg:msg),'ok');
+  ta.value='';txtGrow();
+  toast(res.say||msg);
+  setTimeout(function(){if(!TXT.busy)closeText();},res.truncated?2600:850);
+}
+
+// backdrop click closes; keys are bound once
+document.addEventListener('click',function(e){if(e.target&&e.target.id==='thv-txt-overlay')closeText();});
+document.addEventListener('keydown',function(e){
+  if(!TXT.open)return;
+  if(e.key==='Escape'){e.preventDefault();closeText();return;}
+  if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();sendText();}
+},true);
+(function(){
+  var ta=$('thv-txt-input');if(!ta)return;
+  ta.addEventListener('input',function(){txtGrow();if($('thv-txt-status').className)txtIdle();});
+  ta.addEventListener('keydown',function(e){
+    // Plain Enter must insert a newline — bulk requests are written as lists.
+    if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();sendText();}
+  });
+})();
+
 // close device overlay on backdrop click
 document.addEventListener('click',function(e){if(e.target&&e.target.id==='thv-dev-overlay')closeDevicePicker();});
 
 window._THV={
   toggleVoice:toggle, startVoice:start, stopVoice:stop,
   openDevicePicker:openDevicePicker, closeDevicePicker:closeDevicePicker,
+  openText:openText, closeText:closeText, sendText:sendText,
+  toggleText:function(){TXT.open?closeText():openText();},
   undo:doUndo, redo:doRedo, refreshButtons:refreshButtons,
   isActive:function(){return V.active;}
 };

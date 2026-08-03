@@ -57,6 +57,20 @@ const TASKHUB_MODELS = [
   'gemini-2.0-flash',
 ];
 
+// TYPED bulk requests ("plan my entire next two weeks", a pasted list of 20
+// assignments, "shift everything one day later") are a different problem from a
+// one-line voice command: dozens of actions, a much larger state window, and no
+// live user waiting on sub-second latency. Reasoning quality dominates, so this
+// chain leads with the flagship and keeps the fast lite models as capacity
+// fallbacks underneath. Short typed commands still use TASKHUB_MODELS above.
+const TASKHUB_BULK_MODELS = [
+  'gemini-3.5-flash',       // flagship — best at long, many-action plans
+  'gemini-3.1-flash-lite',  // fast + reliable structured ops
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+];
+
 // Recipes split by task, because the two jobs want opposite things:
 //
 //  • TYPED / SHORT edits ("rename this", "change cook time to 45", "delete step 6")
@@ -171,6 +185,193 @@ async function callGemini(model, key, { prompt, schema, maxOutputTokens, feature
   // Surface a persistent quota condition so the caller can report "exhausted".
   if (lastStatus === 429) throw new Error(`gemini ${model} 429 quota/exhausted`);
   return null;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Hardened fallback chain (used by TaskHub; the other features keep the simple
+// loop above, which is enough for their small, fast prompts).
+//
+// The plain "for (model of MODELS) { try 2x }" loop has three failure modes that
+// bite exactly when a bulk request is in flight:
+//   1. no overall budget — 5 models × 2 attempts × 15 s can burn 150 s before
+//      the client ever hears back;
+//   2. it retries a 429 model that is out of quota for the DAY, wasting the two
+//      slowest seconds of the budget on a call that cannot succeed;
+//   3. a long answer that hits maxOutputTokens comes back as unparseable JSON
+//      and is thrown away whole, even though 30 valid actions were already in it.
+//
+// runModelChain fixes all three: one wall-clock deadline for the whole chain,
+// per-outcome routing (quota/fatal → next model immediately, transient → one
+// jittered retry), truncation salvage, and — only for slow bulk work — a hedge
+// that starts the second model if the leader is still silent, taking whichever
+// lands first.
+// ════════════════════════════════════════════════════════════════════════════
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Rescue a truncated JSON response by keeping every COMPLETE object already
+// present in the actions array. A bulk plan cut off at the token limit still
+// carries most of its work; dropping it entirely is the worse answer.
+function salvageJson(text) {
+  const at = text.indexOf('"actions"');
+  if (at < 0) return null;
+  const open = text.indexOf('[', at);
+  if (open < 0) return null;
+  const objs = [];
+  let depth = 0, start = -1, inStr = false, esc = false;
+  for (let i = open + 1; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === '{') { if (depth === 0) start = i; depth++; continue; }
+    if (c === '}') {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        try { objs.push(JSON.parse(text.slice(start, i + 1))); } catch (e) { /* skip */ }
+        start = -1;
+      }
+      continue;
+    }
+    if (c === ']' && depth === 0) break;
+  }
+  return objs.length ? { actions: objs, say: '', truncated: true } : null;
+}
+
+// One request, one attempt. Never throws for an expected condition — returns a
+// classified outcome so the chain can decide retry vs. move on.
+//   ok    → value is the parsed JSON object
+//   retry → transient (network, timeout, 5xx, unusable body) — worth one retry
+//   quota → 429; this model is capped, go to the next one right away
+//   next  → the model answered but can't do this job (truncated/blocked)
+//   fatal → 4xx; this model/key will never work for this request
+// Older Flash tops out at 8 192 output tokens; asking for the bulk budget there
+// is a hard 400, which would burn the model's slot in the chain for no reason.
+const MODEL_MAX_OUT = { 'gemini-2.0-flash': 8192 };
+
+async function geminiOnce(model, key, o, timeoutMs) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  const cap = MODEL_MAX_OUT[model];
+  const gc = {
+    temperature: 0,
+    maxOutputTokens: cap ? Math.min(o.maxOutputTokens, cap) : o.maxOutputTokens,
+    responseMimeType: 'application/json',
+    responseSchema: o.schema,
+  };
+  const tc = thinkingConfig(model, o.feature);
+  if (tc) gc.thinkingConfig = tc;
+  const parts = [{ text: o.prompt }];
+  if (o.audio) parts.push({ inlineData: { mimeType: o.mimeType || 'audio/wav', data: o.audio } });
+  const body = JSON.stringify({ contents: [{ parts }], generationConfig: gc });
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  let r;
+  try {
+    r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, signal: ac.signal });
+  } catch (e) {
+    // A timeout says this model is slow RIGHT NOW; repeating it just spends the
+    // budget twice. Move to the next model, which is usually the faster one.
+    if (e && e.name === 'AbortError') return { cls: 'next', err: `${model}: timeout ${timeoutMs}ms` };
+    return { cls: 'retry', err: `${model}: ${(e && e.message) || 'network'}` };
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (r.status === 429) return { cls: 'quota', err: `${model}: 429 quota` };
+  if (r.status >= 500) return { cls: 'retry', err: `${model}: ${r.status}` };
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    return { cls: 'fatal', err: `${model}: ${r.status} ${t.slice(0, 160)}` };
+  }
+
+  let data;
+  try { data = await r.json(); } catch (e) { return { cls: 'retry', err: `${model}: bad envelope` }; }
+  const cand = data && data.candidates && data.candidates[0];
+  const finish = (cand && cand.finishReason) || '';
+  const text = (cand && cand.content && Array.isArray(cand.content.parts))
+    ? cand.content.parts.map(p => p.text || '').join('')
+    : '';
+  if (!text) {
+    // SAFETY/RECITATION/MAX_TOKENS won't improve on a retry of the same model.
+    return { cls: finish && finish !== 'STOP' ? 'next' : 'retry', err: `${model}: empty (${finish || '?'})` };
+  }
+  try { return { cls: 'ok', value: JSON.parse(text) }; } catch (e) { /* fall through */ }
+  const salvaged = salvageJson(text);
+  if (salvaged) return { cls: 'ok', value: salvaged };
+  return { cls: 'retry', err: `${model}: unparseable output` };
+}
+
+// Resolve with the first promise that yields a truthy value; null if none do.
+// Losers are abandoned in flight (a Worker just drops them).
+function firstTruthy(promises) {
+  return new Promise(resolve => {
+    let pending = promises.length, done = false;
+    const settle = v => {
+      if (done) return;
+      if (v) { done = true; resolve(v); }
+      else if (--pending === 0) resolve(null);
+    };
+    promises.forEach(p => p.then(settle, () => settle(null)));
+  });
+}
+
+async function runModelChain(models, key, o) {
+  const deadline = Date.now() + (o.deadlineMs || 45000);
+  const perCall = o.timeoutMs || GEMINI_TIMEOUT_MS;
+  const left = () => deadline - Date.now();
+  const errs = [];
+  const used = [];
+  // A well-formed answer that failed the quality bar. We move on to the next
+  // model hoping for better, but keep it: a slightly lossy result still beats
+  // telling the user the whole request failed.
+  let soft = null;
+
+  const tryModel = async model => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (left() < 1500) return null;                       // deadline is spent — don't start
+      const budget = Math.min(perCall, left());
+      used.push(model);
+      const r = await geminiOnce(model, key, o, budget);
+      if (r.cls === 'ok') {
+        if (o.validate && !o.validate(r.value)) {
+          if (!soft) soft = { value: r.value, model, soft: true };
+          errs.push(`${model}: lossy extraction`);
+          return null;                                      // escalate to the next model
+        }
+        return { value: r.value, model };
+      }
+      errs.push(r.err);
+      if (r.cls !== 'retry') return null;                   // quota / fatal / next → next model
+      if (attempt === 0) await sleep(220 + Math.floor(Math.random() * 380));
+    }
+    return null;
+  };
+
+  let i = 0;
+  // Hedge only where the wait is long enough to justify a second call: if the
+  // leader is still silent after hedgeAfterMs, run the runner-up alongside it.
+  // Fast responses (the normal case) never trigger it, so quota use is unchanged.
+  if (o.hedgeAfterMs && models.length > 1 && left() > o.hedgeAfterMs + 4000) {
+    let leadDone = false;
+    const lead = tryModel(models[0]).then(v => { leadDone = true; return v; });
+    const hedged = sleep(o.hedgeAfterMs).then(() => (leadDone ? null : tryModel(models[1])));
+    const win = await firstTruthy([lead, hedged]);
+    if (win) return { ...win, tried: used.slice() };
+    i = 2;
+  }
+  for (; i < models.length; i++) {
+    if (left() < 1500) break;
+    const win = await tryModel(models[i]);
+    if (win) return { ...win, tried: used.slice() };
+  }
+  if (soft) return { ...soft, tried: used.slice() };
+  const err = new Error(errs.slice(-3).join(' | ') || 'all models failed');
+  err.tried = used.slice();
+  throw err;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -543,23 +744,113 @@ async function handleList(body, env) {
 // ════════════════════════════════════════════════════════════════════════════
 const CATEGORIES = ['work', 'personal', 'health', 'urgent', 'study', 'finance', 'other'];
 
-function buildTaskPrompt(profile, transcript, state, today, weekday, hasAudio) {
+// ── State projection ────────────────────────────────────────────────────────
+// The client sends its WHOLE TaskHub (every day it has ever held). That used to
+// be JSON.stringify(...).slice(0, 14000), which handed the model TRUNCATED,
+// INVALID JSON — the single worst thing you can do to accuracy, and the reason
+// bulk requests over more than a couple of weeks were unreliable.
+//
+// Instead we project: drop the fields the model can't act on, keep the calendar
+// days nearest to TODAY first, and stop cleanly at a character budget. What the
+// model sees is always valid JSON, and the days it is most likely to be asked
+// about are the ones that survive.
+const TASK_ITEM_FIELDS = ['title', 'type', 'done', 'time', 'category', 'repeat', 'repeatDays', 'notifyAt', 'altSeqTitles'];
+
+function slimTaskItem(it) {
+  if (!it || typeof it !== 'object') return null;
+  const o = {};
+  for (const k of TASK_ITEM_FIELDS) {
+    const v = it[k];
+    if (v === undefined || v === null || v === '' || v === false) continue;
+    if (Array.isArray(v) && !v.length) continue;
+    o[k] = v;
+  }
+  return o.title ? o : null;
+}
+function slimSimple(arr) {
+  return (Array.isArray(arr) ? arr : []).map(it => {
+    if (!it || !it.title) return null;
+    return it.done ? { title: it.title, done: true } : { title: it.title };
+  }).filter(Boolean);
+}
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+function dayShift(key, days) {
+  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+  if (!p) return null;
+  const d = new Date(Date.UTC(+p[1], +p[2] - 1, +p[3]));
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function daysApart(a, b) {
+  const pa = Date.parse(a + 'T00:00:00Z'), pb = Date.parse(b + 'T00:00:00Z');
+  return (isNaN(pa) || isNaN(pb)) ? 9e9 : Math.round((pa - pb) / 86400000);
+}
+
+function compactTaskState(state, today, { back, fwd, budget }) {
+  const src = (state && typeof state === 'object') ? state : {};
+  const out = {
+    today: src.today || today,
+    selectedDate: src.selectedDate,
+    week: src.week,
+    edit: src.edit,
+    dailyHabits: slimSimple(src.habits),
+    shortTermGoals: slimSimple(src.shortGoals),
+    longTermGoals: slimSimple(src.longGoals),
+    habitChecks: src.hc && Object.keys(src.hc).length ? src.hc : undefined,
+    calendar: {},
+  };
+  const lo = dayShift(today, -back), hi = dayShift(today, fwd);
+  const keys = Object.keys(src.data || {})
+    .filter(k => DAY_KEY.test(k) && (src.data[k] || []).length && (!lo || k >= lo) && (!hi || k <= hi))
+    .sort((a, b) => Math.abs(daysApart(a, today)) - Math.abs(daysApart(b, today)));
+
+  let usedChars = JSON.stringify(out).length;
+  const kept = {};
+  let dropped = 0;
+  for (const k of keys) {
+    const arr = (src.data[k] || []).map(slimTaskItem).filter(Boolean);
+    if (!arr.length) continue;
+    const cost = JSON.stringify(arr).length + 16;
+    if (usedChars + cost > budget) { dropped++; continue; }
+    kept[k] = arr;
+    usedChars += cost;
+  }
+  Object.keys(kept).sort().forEach(k => { out.calendar[k] = kept[k]; });
+  out.calendarWindow = { from: lo, to: hi };
+  if (dropped) out.calendarNote = `${dropped} further day(s) in this window were omitted for size`;
+  return out;
+}
+
+// A typed request is "bulk" when it plainly spans many items or many days. Bulk
+// gets a wider state window, a bigger output budget, and the flagship-led chain.
+function isBulkRequest(text) {
+  const t = String(text || '');
+  if (!t) return false;
+  if (t.length > 200) return true;
+  if ((t.match(/\n/g) || []).length >= 2) return true;
+  return /\b(all|every|everything|entire|each|whole|both|multiple|bulk|batch|plan|reorganiz\w*|reorganise|rearrange|reschedul\w*|shift|spread|distribute|fill in|next (two|three|few) weeks?|this (week|month)|next (week|month)|weeks?|month)\b/i.test(t);
+}
+
+function buildTaskPrompt(profile, transcript, state, today, weekday, hasAudio, opts) {
+  const o = opts || {};
+  const typed = !hasAudio;
   const src = hasAudio
     ? `FIRST, transcribe the attached audio of the user speaking (US English), correcting obvious mishearings. Then act on that transcription.`
-    : `Act on the user's command below.`;
+    : `Act on the user's request below. It was TYPED, so take it literally — spelling, names, numbers and dates are exactly as the user intends. It may be long, multi-line, or a pasted list; handle ALL of it.`;
 
   const isTony = profile !== 'veda';
 
   return [
-    `You are the precise voice command engine for "${isTony ? 'Tony' : 'Veda'}'s TaskHub" — a weekly planner with a dated calendar, daily habits, short-term goals, long-term goals, a focus timer, themes, and an edit mode. Your job: convert ONE spoken command into an exact, ordered list of ACTIONS. Be thorough and literal — capture EVERY change and EVERY detail the user mentions.`,
+    `You are the precise command engine for "${isTony ? 'Tony' : 'Veda'}'s TaskHub" — a weekly planner with a dated calendar, daily habits, short-term goals, long-term goals, a focus timer, themes, and an edit mode. Your job: convert ONE user request into an exact, ordered list of ACTIONS. Be thorough and literal — capture EVERY change and EVERY detail the user mentions.`,
     `${src}`,
-    hasAudio ? `` : `USER COMMAND: """${transcript}"""`,
+    hasAudio ? `` : `USER REQUEST: """${transcript}"""`,
     ``,
     `TODAY is ${today} (${weekday}). Resolve relative dates ("today", "tomorrow", "tonight", "next Monday", "the 5th", "this Friday", "in 3 days", "end of month") to absolute YYYY-MM-DD using TODAY. Past, present and future dates are all allowed. If no date is given for a calendar task, use TODAY.`,
     ``,
     `CURRENT STATE (JSON — read-only reference, used ONLY to locate items the user explicitly wants to edit/remove/move/reorder/swap). Never change anything here that the user did not name):`,
-    JSON.stringify(state || {}, null, 0).slice(0, 14000),
+    JSON.stringify(state || {}, null, 0),
     ``,
+    `STATE SHAPE: "calendar" maps YYYY-MM-DD → that day's items; "dailyHabits", "shortTermGoals", "longTermGoals" are lists; "habitChecks" records which habits are ticked on which day; "calendarWindow" is the date range you were shown (days outside it exist but were not sent — never assume they are empty).`,
     `BOXES: "calendar" (dated day tasks/events; needs "date"), "dailyHabits" (a recurring checklist you can tick off for each day of the week), "shortTermGoals", "longTermGoals".`,
     `state.week lists the dates of the currently-shown week as [{date,weekday}] — use it to map weekday names ("check off Exercise on Wednesday") to the exact date.`,
     ``,
@@ -572,6 +863,8 @@ function buildTaskPrompt(profile, transcript, state, today, weekday, hasAudio) {
     `- {type:"swap", first, second}   (swap the positions of two existing tasks)`,
     `- {type:"reorder", match, position?, relativeTo?, before?}   (position: "top"|"bottom"|"up"|"down"; OR relativeTo:{title} with before:true/false to place it before/after another task)`,
     `- {type:"clear", box, date?}`,
+    `- {type:"shift_range", from, to, days}   (BULK: move EVERY calendar item dated between "from" and "to" (inclusive) by "days" — positive = later, negative = earlier. Reminders move with them. Use this for "shift everything one day later", "push next week back two days".)`,
+    `- {type:"clear_completed", box?, from?, to?}   (BULK: delete every COMPLETED item. box: "calendar" | "shortTermGoals" | "longTermGoals" | "all" (default). from/to bound the calendar dates, e.g. the first and last day of the month.)`,
     `- {type:"go_to_date", date}`,
     `- {type:"set_theme", dark:true|false} | {type:"toggle_theme"} | {type:"set_edit_mode", on:true|false} | {type:"refresh_quote"}`,
     `- {type:"timer_set", minutes} | {type:"timer_start"} | {type:"timer_stop"} | {type:"timer_reset"} | {type:"timer_open"}`,
@@ -593,7 +886,11 @@ function buildTaskPrompt(profile, transcript, state, today, weekday, hasAudio) {
     `- ADD vs EDIT (most important): "create / add / new / schedule / make / set up / put down / note / jot" = ALWAYS a brand-new add_task. NEVER edit or overwrite an existing item for these — even if a similar-sounding item already exists (duplicates are fine). Use edit_task / remove_task / move_task / swap / reorder ONLY when the user clearly points at an existing item with a change intent ("change…", "rename…", "reschedule…", "move…", "delete…", "mark … done", "swap…").`,
     `- SUMMARIZE: if the user describes a task in a long or rambling sentence, distil it into a short, clear title that captures the essence — drop filler ("I need to", "remember to", "I really should", "can you"). E.g. "I really have to remember to call the dentist tomorrow to reschedule my cleaning" → title "Call dentist to reschedule".`,
     `- CONSOLIDATE: put ALL attributes the user mentions about a single new task into that ONE add_task — even when said mid-sentence or out of order ("add a dentist appointment, put it in health, tomorrow at 2, and remind me" = ONE add_task with category:"health", date, time:"14:00", notify). Do NOT emit a separate edit for attributes of a task you just added.`,
-    `- BULK: a command may contain many changes. Emit one action per DISTINCT change, in the order stated. Don't merge unrelated changes; don't drop any; don't add extras.`,
+    `- BULK: a request may contain many changes. Emit one action per DISTINCT change, in the order stated. Don't merge unrelated changes; don't drop any; don't add extras.`,
+    `- BULK SHORTCUTS: when a change applies to a whole date range rather than to named items, prefer ONE shift_range or clear_completed over dozens of edit_task/remove_task actions — it is exact, and it also covers days outside calendarWindow. Only fall back to individual actions when the rule really is item-by-item (e.g. "move every workout to Mondays and Thursdays" → one edit_task per workout, each with its new date).`,
+    `- LISTS: if the request is a list (lines, bullets, numbers, semicolons, "and then"), treat EVERY line as its own item and emit an action for each one. Never collapse several lines into one task and never stop early — a 25-line list means 25 actions.`,
+    `- PLANNING: for open-ended planning ("plan my next two weeks", "build my schedule from this list"), spread the work sensibly across the requested days — realistic times, a few items per day, nothing double-booked at the same clock time, and nothing on a day the user excluded. Respect what is ALREADY on those days; add around it, don't duplicate it.`,
+    `- RANGES: "this week" = the dates in state.week. "next week" = the seven days after that. "this month" = the 1st through the last day of TODAY's month. Always convert a range to explicit YYYY-MM-DD dates.`,
     `- SWAP vs reorder: "swap A and B" / "switch their positions" → ONE swap. "move X to the top" / "put X above Y" / "move it up" → reorder.`,
     `- Never echo existing state back as new adds. Never invent tasks. If you cannot map the command to any action, return an empty "actions" array.`,
     `- "say": ≤12-word confirmation of what you did (e.g. "Added dentist 2pm tomorrow with a reminder.").`,
@@ -606,6 +903,10 @@ function buildTaskPrompt(profile, transcript, state, today, weekday, hasAudio) {
     `"add read 20 pages to daily habits and finish taxes to long term goals" → [{"type":"add_task","box":"dailyHabits","title":"Read 20 pages"},{"type":"add_task","box":"longTermGoals","title":"Finish taxes"}]`,
     `"check off exercise for wednesday" → [{"type":"toggle_task","match":{"box":"dailyHabits","title":"Exercise"},"date":"<this week's Wednesday>","done":true}]`,
     `"mark meditate done today and uncheck drink water" → [{"type":"toggle_task","match":{"box":"dailyHabits","title":"Meditate"},"date":"${today}","done":true},{"type":"toggle_task","match":{"box":"dailyHabits","title":"Drink water"},"date":"${today}","done":false}]`,
+    `"shift everything next week one day later" → [{"type":"shift_range","from":"<next Monday>","to":"<next Sunday>","days":1}]`,
+    `"delete all completed tasks from this month" → [{"type":"clear_completed","box":"calendar","from":"<1st of this month>","to":"<last day of this month>"}]`,
+    ``,
+    `Return ONLY the actions object. "actions" may be long — never truncate it, never stop halfway, never summarise instead of acting.`,
   ].join('\n');
 }
 
@@ -668,6 +969,9 @@ const ACTION_SCHEMA = {
           before: { type: 'BOOLEAN' },
           toBox: { type: 'STRING' },
           toDate: { type: 'STRING' },
+          from: { type: 'STRING' },
+          to: { type: 'STRING' },
+          days: { type: 'INTEGER' },
           dark: { type: 'BOOLEAN' },
           on: { type: 'BOOLEAN' },
           minutes: { type: 'INTEGER' },
@@ -678,6 +982,31 @@ const ACTION_SCHEMA = {
   },
   required: ['actions'],
 };
+
+// Deterministic loss check for TYPED requests. ACTION_SCHEMA is necessarily wide
+// (one object shape covering every action type), and a wide schema is exactly
+// where these models quietly drop optional fields — "dentist next Tuesday at 2pm
+// in health" coming back with the date right but no time and no category. We
+// can't detect a wrong answer, but we CAN detect an answer that threw away
+// something the user unmistakably wrote. When that happens runModelChain
+// escalates to the next model and keeps this result only as a fallback.
+//
+// Deliberately conservative: it asks whether ANY action carried the detail, not
+// every action, so a mixed request ("gym at 6 and call mom") still passes.
+function taskExtractionOk(text, out) {
+  if (!out || !Array.isArray(out.actions)) return false;
+  if (!out.actions.length) return true;                 // "nothing to do" is a valid answer
+  const carriers = out.actions.filter(a => a && (a.type === 'add_task' || a.type === 'edit_task'));
+  if (!carriers.length) return true;                    // no action type that could hold these fields
+
+  const hasTime = a => !!(a.time || a.notify || (a.set && (a.set.time || a.set.notify)));
+  if (/\b(\d{1,2}\s*:\s*\d{2}|\d{1,2}\s*(am|pm)|noon|midnight)\b/i.test(text) && !carriers.some(hasTime)) return false;
+
+  const named = CATEGORIES.find(c => c !== 'other' && new RegExp(`\\b${c}\\b`, 'i').test(text));
+  if (named && !carriers.some(a => a.category === named || (a.set && a.set.category === named))) return false;
+
+  return true;
+}
 
 function cleanAction(a) {
   if (!a || typeof a !== 'object' || !a.type) return null;
@@ -704,26 +1033,44 @@ async function handleTaskhub(body, env) {
   const key = keyFor(env, profile);
   if (!key) return json({ ok: false, error: `no Gemini key configured for ${profile}` }, 500);
 
-  const prompt = buildTaskPrompt(profile, transcript, state, today, weekday, !!audio);
-  let lastErr = null;
-  for (const model of TASKHUB_MODELS) {
-    try {
-      const out = await callGemini(model, key, { prompt, schema: ACTION_SCHEMA, maxOutputTokens: 8192, feature: 'taskhub', audio, mimeType });
-      if (out && Array.isArray(out.actions)) {
-        const actions = out.actions.map(cleanAction).filter(Boolean);
-        return json({
-          ok: true,
-          actions,
-          transcript: String(out.transcript || transcript || '').trim(),
-          say: String(out.say || '').trim(),
-          model,
-        });
-      }
-    } catch (e) {
-      lastErr = e.message || String(e);
-    }
+  // Voice is one short spoken command: keep the window tight and the chain fast.
+  // Typed bulk is the opposite — it needs to SEE more of the calendar, write far
+  // more actions, and is allowed to take longer.
+  const bulk = !audio && isBulkRequest(transcript);
+  const shaped = compactTaskState(
+    state, today,
+    bulk ? { back: 45, fwd: 120, budget: 46000 } : { back: 14, fwd: 45, budget: 14000 },
+  );
+  const prompt = buildTaskPrompt(profile, transcript, shaped, today, weekday, !!audio, { bulk });
+
+  try {
+    const { value, model, tried } = await runModelChain(bulk ? TASKHUB_BULK_MODELS : TASKHUB_MODELS, key, {
+      prompt,
+      schema: ACTION_SCHEMA,
+      maxOutputTokens: bulk ? 32768 : 8192,
+      feature: 'taskhub',
+      audio,
+      mimeType,
+      timeoutMs: bulk ? 40000 : 15000,
+      deadlineMs: bulk ? 70000 : 45000,
+      hedgeAfterMs: bulk ? 12000 : 0,
+      // Audio has no transcript to compare against, so the check is a no-op there.
+      validate: v => (v && Array.isArray(v.actions)) && (!!audio || taskExtractionOk(transcript, v)),
+    });
+    const actions = value.actions.map(cleanAction).filter(Boolean);
+    return json({
+      ok: true,
+      actions,
+      transcript: String(value.transcript || transcript || '').trim(),
+      say: String(value.say || '').trim(),
+      truncated: !!value.truncated,
+      bulk,
+      model,
+      tried,
+    });
+  } catch (e) {
+    return json({ ok: false, error: (e && e.message) || 'all models failed', tried: (e && e.tried) || [] }, 502);
   }
-  return json({ ok: false, error: lastErr || 'all models failed' }, 502);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
