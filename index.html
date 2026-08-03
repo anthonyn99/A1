@@ -25095,8 +25095,8 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 #tj-root .docx-reflow .docx-sheet .docx-math-block, #bj-root .docx-reflow .docx-sheet .docx-math-block {
   overflow-x: auto;
 }
-/* Rulers are meaningless once the page has no fixed width. */
-#tj-root .docx-wrap.docx-reflow ~ .docx-ruler, #bj-root .docx-wrap.docx-reflow ~ .docx-ruler,
+/* Rulers set paper margins — meaningless once the page has no fixed width. */
+#tj-root .docx-reflow-on .docx-ruler, #bj-root .docx-reflow-on .docx-ruler,
 #tj-root .docx-reflow .docx-vruler, #bj-root .docx-reflow .docx-vruler { display: none !important; }
 
 /* ════════ TABLET & BELOW (≤900px) — touch sizing, trimmed ribbon ════════ */
@@ -25105,10 +25105,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .docx-ribbonrow > *:not(.docx-r1):not(.docx-r2),
   #bj-root .docx-ribbonrow > *:not(.docx-r1):not(.docx-r2) { display: none !important; }
 
-  #tj-root #tj-page-toolbar, #bj-root #bj-page-toolbar {
-    padding: 5px 8px calc(5px + env(safe-area-inset-left, 0px) * 0) !important;
-    gap: 4px;
-  }
+  #tj-root #tj-page-toolbar, #bj-root #bj-page-toolbar { padding: 5px 8px !important; gap: 4px; }
   #tj-root .docx-ribbonrow, #bj-root .docx-ribbonrow { gap: 4px; }
 
   /* Menu bar becomes the primary navigation on touch — give it real targets. */
@@ -25122,11 +25119,12 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   }
 
   #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn {
-    min-height: 38px; min-width: 38px; padding: 6px 9px;
+    min-height: 38px; min-width: 36px; padding: 6px 7px;
     border-radius: 7px; font-size: 12px;
   }
   #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select {
-    min-height: 38px; font-size: 12px; padding: 4px 6px; border-radius: 7px;
+    min-height: 38px; font-size: 12px; padding: 4px 5px; border-radius: 7px;
+    max-width: 116px;
   }
   #tj-root .docx-ribbonrow #tj-page-color-pick, #bj-root .docx-ribbonrow #bj-page-color-pick {
     width: 32px !important; height: 32px !important;
@@ -25139,6 +25137,18 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .docx-ribbonrow .docx-fontfam-btn, #bj-root .docx-ribbonrow .docx-fontfam-btn {
     min-width: 86px !important;
   }
+
+  /* The Journal-Entries template has its own rich-text toolbar (not a docx
+     context, so it gets no ribbon row) — give it the same touch sizing. */
+  #tj-root #tj-je-toolbar { flex-wrap: wrap; gap: 4px; padding: 5px 8px; }
+  #tj-root #tj-je-toolbar .pt-btn {
+    min-height: 38px; min-width: 36px; padding: 6px 7px; border-radius: 7px; font-size: 12px;
+  }
+  #tj-root #tj-je-toolbar .pt-select {
+    min-height: 38px; font-size: 12px; padding: 4px 5px; border-radius: 7px; max-width: 116px;
+  }
+  #tj-root #tj-je-toolbar .pt-hl-swatch { width: 32px; height: 32px; }
+  #tj-root #tj-jept-hl-palette { width: 150px; z-index: 100030; }
 
   /* Popups/menus: comfortable rows, never wider than the screen. */
   .docx-pop { min-width: 200px; max-width: calc(100vw - 16px); max-height: 68dvh; }
@@ -25164,13 +25174,16 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   .docx-ps-row label { width: 88px; }
 }
 
-/* ════════ PHONE (≤600px) — essentials only ════════ */
-@media (max-width: 600px) {
+/* ════════ PHONE / SMALL FOLDABLE (≤700px) — essentials only ════════ */
+@media (max-width: 700px) {
   #tj-root .docx-ribbonrow > *:not(.docx-r1),
   #bj-root .docx-ribbonrow > *:not(.docx-r1) { display: none !important; }
   /* "AI Format" shrinks to its icon; the label is what made it 110px wide. */
   #tj-root .docx-ai-lbl, #bj-root .docx-ai-lbl { display: none !important; }
-  #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select { max-width: 108px; }
+  #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select,
+  #tj-root #tj-je-toolbar .pt-select {
+    max-width: 116px; font-size: 11.5px; padding-right: 2px;
+  }
   #tj-root .docx-wrap.docx-reflow .docx-sheet, #bj-root .docx-wrap.docx-reflow .docx-sheet {
     padding: 18px 15px calc(84px + env(safe-area-inset-bottom, 0px)) !important;
   }
@@ -25198,16 +25211,22 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 }
 
 /* ════════ SHORT VIEWPORTS (phone landscape, split-screen) ════════
-   Vertical space is the scarce resource — give it back to the document. */
-@media (max-height: 480px) and (max-width: 1024px) {
+   Vertical space is the scarce resource: at 844×390 the un-trimmed chrome left
+   two visible lines of document. One menu row + one ribbon row, nothing more. */
+@media (max-height: 540px) and (max-width: 1024px) {
+  #tj-root .docx-ribbonrow > *:not(.docx-r1),
+  #bj-root .docx-ribbonrow > *:not(.docx-r1) { display: none !important; }
+  #tj-root .docx-ai-lbl, #bj-root .docx-ai-lbl { display: none !important; }
   #tj-root .docx-menubar, #bj-root .docx-menubar { padding: 0 0 3px; margin-bottom: 3px; }
-  #tj-root .docx-menu-btn, #bj-root .docx-menu-btn { min-height: 30px; padding: 5px 10px; }
-  #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn { min-height: 32px; min-width: 32px; }
-  #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select { min-height: 32px; }
-  #tj-root #tj-page-toolbar, #bj-root #bj-page-toolbar { padding: 3px 8px !important; }
+  #tj-root .docx-menu-btn, #bj-root .docx-menu-btn { min-height: 30px; padding: 4px 10px; font-size: 12.5px; }
+  #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn { min-height: 32px; min-width: 32px; padding: 4px 7px; }
+  #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select { min-height: 32px; max-width: 104px; }
+  #tj-root #tj-page-toolbar, #bj-root #bj-page-toolbar { padding: 3px 8px !important; gap: 3px; }
   #tj-root .docx-wrap.docx-reflow .docx-sheet, #bj-root .docx-wrap.docx-reflow .docx-sheet {
     padding-top: 14px !important;
   }
+  .docx-pop { max-height: 80dvh; }
+  .docx-mi { padding: 7px 12px; min-height: 34px; }
 }
 
 /* ════════ TABLET LANDSCAPE / SMALL LAPTOP (901–1180px) ════════
@@ -25218,6 +25237,26 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root #tj-toolbar, #bj-root #bj-toolbar { gap: 5px; padding: 7px 9px; }
   #tj-root .tb-btn, #bj-root .tb-btn { padding: 5px 8px; font-size: 10.5px; }
   #tj-root #tj-toolbar #tj-tags-row, #bj-root #bj-toolbar #bj-tags-row { max-width: 150px; }
+}
+/* A tablet in this range is still a touch device — trim the ribbon to two rows
+   and keep the targets big. A trackpad laptop at the same width is not, and
+   keeps the full ribbon. */
+@media (min-width: 901px) and (max-width: 1180px) and (pointer: coarse) {
+  #tj-root .docx-ribbonrow > *:not(.docx-r1):not(.docx-r2),
+  #bj-root .docx-ribbonrow > *:not(.docx-r1):not(.docx-r2) { display: none !important; }
+  #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn {
+    min-height: 36px; min-width: 36px; border-radius: 7px;
+  }
+  #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select { min-height: 36px; }
+  #tj-root .docx-menu-btn, #bj-root .docx-menu-btn { min-height: 34px; padding: 7px 12px; }
+  #tj-root #tj-page-color-pick, #bj-root #bj-page-color-pick { width: 30px !important; height: 30px !important; }
+}
+
+/* The native colour swatch renders ~10px tall under the roots' padding reset —
+   far too small to hit with a finger on any touch device. */
+@media (pointer: coarse) {
+  #tj-root #tj-page-color-pick, #bj-root #bj-page-color-pick,
+  #tj-root #tj-je-color-pick { width: 32px !important; height: 32px !important; }
 }
 
 /* ════════ Coarse pointers of any size (touch laptops, tablets) ════════ */
@@ -25334,12 +25373,16 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 }
 
 /* ════════ SHORT VIEWPORTS (phone landscape, split-screen) ════════ */
-@media (max-height: 480px) and (max-width: 1024px) {
-  #tj-root #tj-mobile-header, #bj-root #bj-mobile-header { height: 42px; min-height: 42px; }
+@media (max-height: 540px) and (max-width: 1024px) {
+  #tj-root #tj-mobile-header, #bj-root #bj-mobile-header { height: 40px; min-height: 40px; }
   #tj-root #tj-bottom-bar, #bj-root #bj-bottom-bar { padding: 4px 10px; }
   #tj-root #tj-bb-edit, #tj-root #tj-bb-template, #tj-root #tj-bb-new,
   #bj-root #bj-bb-edit, #bj-root #bj-bb-template, #bj-root #bj-bb-new {
-    min-height: 36px !important; padding: 6px 4px !important;
+    min-height: 34px !important; padding: 5px 4px !important;
+  }
+  #tj-root .docx-wrap.docx-reflow .docx-sheet, #bj-root .docx-wrap.docx-reflow .docx-sheet {
+    min-height: 0 !important;
+    padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
   }
   #bj-root .veda-hdr-inner { padding-top: calc(env(safe-area-inset-top, 0px) + 3px); padding-bottom: 3px; }
   #tj-root #tj-template-panel, #bj-root #bj-template-panel { max-height: 92dvh; }
@@ -27404,8 +27447,9 @@ function injectRibbonExtras(ctx) {
   redoB.classList.add('pt-disabled', 'docx-r1');
   redoB.addEventListener('click', function() { if (!redoB.classList.contains('pt-disabled')) ctx.history.redo(); });
   ctx.undoBtn = undoB; ctx.redoBtn = redoB;
+  // Desktop-only in the ribbon: File ▸ Print / Export PDF covers touch, and the
+  // main toolbar already carries an Export PDF button.
   var printB = ptBtn(svg(IC.print), 'Print / Export PDF (Ctrl+P)');
-  printB.classList.add('docx-r2');
   printB.addEventListener('click', function() { var eb = $(APPS[ctx.app].exportBtn); if (eb) eb.click(); });
   startFrag.appendChild(aiB);
   startFrag.appendChild(ptSep());
@@ -27495,8 +27539,10 @@ function injectRibbonExtras(ctx) {
   findB.classList.add('docx-r2');
   findB.addEventListener('click', function() { frOpen(ctx, true); });
   endFrag.appendChild(findB);
+  // Desktop-only: touch defaults to reflow, where zoom is a no-op. View ▸ Zoom
+  // still covers the case where someone switches back to page layout.
   var zoomSel = document.createElement('select');
-  zoomSel.className = 'pt-select docx-zoom-sel docx-r2';
+  zoomSel.className = 'pt-select docx-zoom-sel';
   zoomSel.title = 'Zoom';
   ZOOMS.forEach(function(z) {
     var o = document.createElement('option');
@@ -27566,6 +27612,9 @@ function applyReflow(app) {
   var on = rfGet(app);
   cfg.ctxs.forEach(function(c) {
     var w = $(c.wrap); if (w) w.classList.toggle('docx-reflow', on);
+    // The horizontal ruler is a sibling of the toolbar, above the wrap, so it
+    // can't be reached by a descendant/sibling selector from the wrap.
+    var a = c.area ? $(c.area) : null; if (a) a.classList.toggle('docx-reflow-on', on);
   });
   applyZoom(app);
 }
