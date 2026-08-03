@@ -37,7 +37,11 @@
   --gold:#e0b874;
   --gold-soft:#e0b874;
   --gold-line:rgba(224,184,116,.36);
-  --gold-wash:rgba(224,184,116,.10);
+  /* Selection and emphasis are carried by a GLOWING OUTLINE, never by a tinted
+     fill — a translucent wash behind text muddies the charcoal field and makes
+     the suite look washed out. Same idea as index.html's --gold-glow. */
+  --gold-glow:0 0 8px rgba(224,184,116,.34),0 0 0 1px rgba(224,184,116,.30);
+  --gold-glow-soft:0 0 6px rgba(224,184,116,.22);
   --danger:#d68a7c;
   --ok:#a4b986;
   --radius:9px;
@@ -110,9 +114,16 @@ a:hover{color:var(--gold)}
 .btn:hover{border-color:var(--muted)}
 .btn:active{transform:translateY(1px)}
 .btn.gold{border-color:var(--gold-line);color:var(--gold-soft)}
-.btn.gold:hover{background:var(--gold-wash);border-color:var(--gold)}
-.btn.solid{background:var(--gold);border-color:var(--gold);color:#1a1a1d;font-weight:700}
-.btn.solid:hover{background:#eac488;border-color:#eac488}
+.btn.gold:hover{border-color:var(--gold);box-shadow:var(--gold-glow-soft)}
+/* Primary action (Compose, Send). Reads as primary through a full-strength
+   gold outline + glow rather than a gold fill — insight.html and vault.html
+   both keep every gold button transparent, so a solid one was OneInbox
+   drifting from the suite. */
+.btn.solid{
+  background:transparent;border-color:var(--gold);color:var(--gold);font-weight:700;
+  box-shadow:var(--gold-glow-soft);
+}
+.btn.solid:hover{background:transparent;border-color:#eac488;color:#eac488;box-shadow:var(--gold-glow)}
 .btn.danger{border-color:rgba(214,138,124,.4);color:var(--danger)}
 .btn.danger:hover{background:rgba(214,138,124,.1)}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
@@ -221,7 +232,11 @@ aside.sidebar{
   user-select:none;
 }
 .navitem:hover{background:var(--surface-2);color:var(--text)}
-.navitem.active{background:var(--gold-wash);color:var(--gold);font-weight:600}
+/* Active nav row: glowing outline, no fill. */
+.navitem.active{
+  color:var(--gold);font-weight:600;background:transparent;
+  box-shadow:inset 0 0 0 1px var(--gold-line),var(--gold-glow-soft);
+}
 .navitem svg{width:16px;height:16px;flex-shrink:0}
 .navitem .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .navitem .cnt{font-size:11px;font-weight:600;color:var(--faint);flex-shrink:0}
@@ -269,7 +284,7 @@ section.listpane{
   cursor:pointer;white-space:nowrap;transition:all .15s;background:transparent;
 }
 .chip:hover{border-color:var(--muted);color:var(--text)}
-.chip.on{border-color:var(--gold-line);color:var(--gold);background:var(--gold-wash)}
+.chip.on{border-color:var(--gold);color:var(--gold);background:transparent;box-shadow:var(--gold-glow)}
 .msglist{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .msgrow{
   display:flex;gap:10px;padding:11px 12px;border-bottom:1px solid var(--border-soft);
@@ -277,7 +292,10 @@ section.listpane{
 }
 .msgrow:hover{background:var(--surface)}
 .msgrow.sel{background:var(--surface-2)}
-.msgrow.unread{background:rgba(224,184,116,.045)}
+/* Unread is carried entirely by the bolder, brighter type (see .msgrow.unread
+   .mfrom/.msubj below) — no tinted fill, and no second left rail that would
+   collide with the selection bar on a row that is both unread and selected. */
+.msgrow.unread{background:transparent}
 .msgrow.unread .mfrom,.msgrow.unread .msubj{font-weight:700;color:var(--text)}
 .msgrow::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2.5px;background:transparent}
 .msgrow.sel::before{background:var(--gold)}
@@ -344,7 +362,7 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
 /* ── AI insight card ─────────────────────────────────────────────────────── */
 .aicard{
   border:1px solid var(--gold-line);border-left:3px solid var(--gold);border-radius:var(--radius);
-  background:var(--gold-wash);padding:13px 15px;margin-bottom:16px;
+  background:transparent;padding:13px 15px;margin-bottom:16px;
 }
 .aicard .ahead{
   display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:700;letter-spacing:1.4px;
@@ -1502,7 +1520,7 @@ function aiCard(a, m){
   if (a.code) B.push(`<button class="btn gold" data-copy="${esc(a.code)}">Copy code</button>`);
   if (a.tracking) B.push(`<button class="btn gold" data-track="${esc(a.tracking)}" data-carrier="${esc(a.carrier||'')}">Track package</button>`);
 
-  return `<div class="aicard" style="border-color:${col}59;border-left-color:${col};background:${col}14">
+  return `<div class="aicard" style="border-color:${col}59;border-left-color:${col};background:transparent;box-shadow:0 0 7px ${col}2e">
     <div class="ahead" style="color:${col}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>
       ${esc(a.category)}
@@ -2207,7 +2225,7 @@ syncChrome();
     if (e.cancelable) e.preventDefault();
   }, { passive: false });
 
-  const end = async () => {
+  const end = () => {
     if (!dragging) return;
     dragging = false;
     if (dy * 0.5 < TRIGGER){ release(); return; }
@@ -2215,15 +2233,16 @@ syncChrome();
     ind.classList.add('snap', 'busy');
     ind.style.transform = 'translateY(6px)';
     ind.style.opacity = '1';
-    try {
-      // Same work the toolbar refresh button does: let the worker pull anything
-      // Gmail push may have missed, then reload the list.
-      try { await api('/sync'); } catch {}
-      await loadMessages();
-    } finally {
-      busy = false;
-      release();
-    }
+    // Pull-to-refresh RELOADS THE APP — exactly what the browser's own gesture
+    // does on the other A1 apps, and what the gesture is expected to mean.
+    //
+    // It used to await /sync + loadMessages instead, and with several mailboxes
+    // connected that server round-trip walks every account's Gmail history and
+    // can run the AI parser, taking far longer than a spinner should ever sit
+    // there — which is why it looked stuck. A reload is bounded, predictable,
+    // and cannot hang on a slow mailbox. The toolbar refresh button still does
+    // the lighter in-place sync for when you don't want a full reload.
+    location.reload();
   };
   list.addEventListener('touchend', end, { passive: true });
   list.addEventListener('touchcancel', () => { dragging = false; release(); }, { passive: true });

@@ -1103,8 +1103,14 @@ async function syncHistory(env, email) {
     pageToken = h.nextPageToken;
   } while (pageToken && ++pages < 5);
 
-  acct.historyId = newest;
-  await saveAccount(env, acct);
+  // Only persist when the cursor actually MOVED. A quiet mailbox hands back the
+  // same historyId, and rewriting it anyway cost one KV write per account per
+  // poll — 5 accounts x 96 polls/day = 480 writes/day against a 1,000/day free
+  // limit, purely to store an unchanged value.
+  if (newest && newest !== acct.historyId) {
+    acct.historyId = newest;
+    await saveAccount(env, acct);
+  }
   return ingestMessages(env, email, [...ids]);
 }
 
@@ -1364,6 +1370,12 @@ async function runCron(env) {
   const out = { at: new Date().toISOString() };
   const state = (await env.OI_KV.get('oi:cron', 'json')) || {};
   const now = Date.now();
+  // KV WRITE BUDGET: the free plan allows 100,000 reads/day but only 1,000
+  // WRITES. This function runs every 5 minutes (288 ticks/day), so writing the
+  // state key unconditionally burned 288 writes/day — 29% of the entire daily
+  // budget — just to record "nothing happened". Only persist when a gated task
+  // actually ran and moved a timestamp.
+  let dirty = false;
 
   // Every tick: scheduled sends (cheap — one bounded KV list).
   try { out.sent = await drainScheduled(env); } catch (e) { out.sendErr = e.message; }
@@ -1378,7 +1390,7 @@ async function runCron(env) {
       try { await startWatch(env, e); out.watch.push(e); }
       catch (err) { out.watch.push(e + ':' + err.message); }
     }
-    state.lastWatch = now;
+    state.lastWatch = now; dirty = true;
   }
 
   // Every 15 min: incremental history poll. Pure safety net for a dropped
@@ -1390,17 +1402,17 @@ async function runCron(env) {
       try { const r = await syncHistory(env, e); out.polled.push({ e, ...r }); }
       catch (err) { out.polled.push({ e, error: err.message }); }
     }
-    state.lastPoll = now;
+    state.lastPoll = now; dirty = true;
   }
 
   // Daily: retire cards whose moment has passed, so TaskHub does not accumulate
   // expired coupons and delivered packages forever.
   if (now - (state.lastSweep || 0) > 20 * 3600e3) {
     try { out.swept = await sweepCards(env); } catch (e) { out.sweepErr = e.message; }
-    state.lastSweep = now;
+    state.lastSweep = now; dirty = true;
   }
 
-  await env.OI_KV.put('oi:cron', JSON.stringify(state));
+  if (dirty) await env.OI_KV.put('oi:cron', JSON.stringify(state));
   return out;
 }
 

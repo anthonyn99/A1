@@ -30510,8 +30510,10 @@ async function _sosCloudCounts() {
   _sosEachFile(f => { if (f.fileId && !f.storageUrl && !_sosCloudUrls.has(f.fileId)) pending.add(f.fileId); });
   let localOnly = 0, elsewhere = 0;
   for (const id of pending) {
-    let blob; try { blob = await SosFileStore.get(id); } catch (_) {}
-    if (blob) localOnly++; else elsewhere++;
+    // has() checks the key only — no need to pull whole PDFs into memory
+    // just to count them, which this sweep used to do on every badge refresh.
+    let here = false; try { here = await SosFileStore.has(id); } catch (_) {}
+    if (here) localOnly++; else elsewhere++;
   }
   return { localOnly, elsewhere };
 }
@@ -31112,74 +31114,124 @@ function renderDocumentsModule(body, cls, mod) {
 // Files live here; only metadata ({id,name,size,mime,fileId}) goes in classes[].
 const SosFileStore = (function() {
   const DB = 'sos_file_store', VER = 1, ST = 'files';
-  let _db = null;
+  let _db = null, _opening = null;
+
   function open() {
     if (_db) return Promise.resolve(_db);
+    if (_opening) return _opening;            // coalesce concurrent opens
+    const p = new Promise((res, rej) => {
+      let r;
+      try { r = indexedDB.open(DB, VER); }
+      catch (e) { rej(e); return; }           // storage blocked entirely (private mode / shields)
+      r.onupgradeneeded = e => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(ST)) db.createObjectStore(ST, { keyPath: 'id' });
+      };
+      r.onsuccess = e => {
+        const db = e.target.result;
+        // A connection can die under us: storage eviction while the tab is
+        // backgrounded, another tab upgrading the DB, the browser clearing site
+        // data. Nothing used to clear the cached handle, so once that happened
+        // EVERY later read/write threw InvalidStateError for the life of the
+        // page — which is how a perfectly good upload reported "could not be
+        // saved". Drop the handle so the next call reopens.
+        db.onclose = () => { if (_db === db) _db = null; };
+        db.onversionchange = () => { try { db.close(); } catch (_) {} if (_db === db) _db = null; };
+        _db = db; res(db);
+      };
+      r.onerror   = e => rej((e.target && e.target.error) || new Error('indexedDB.open failed'));
+      // Without this the promise would hang forever instead of failing.
+      r.onblocked = () => rej(new Error('IndexedDB upgrade blocked by another tab'));
+    });
+    _opening = p;
+    const clear = () => { if (_opening === p) _opening = null; };
+    p.then(clear, clear);
+    return p;
+  }
+
+  // Run a transaction; if the cached connection turned out to be dead, throw it
+  // away and try once more on a fresh one. Every job below is keyed by a
+  // caller-supplied id, so a retry is idempotent — it can't duplicate a file.
+  async function withDb(job) {
+    try {
+      return await job(await open());
+    } catch (e) {
+      _db = null; _opening = null;
+      return await job(await open());
+    }
+  }
+
+  // Wrap a readwrite tx. onabort matters as much as onerror: a quota failure
+  // aborts at commit time without firing onerror, which used to leave the
+  // promise pending forever (upload spinner stuck, no error, no file).
+  function writeTx(db, fn) {
     return new Promise((res, rej) => {
-      const r = indexedDB.open(DB, VER);
-      r.onupgradeneeded = e => e.target.result.createObjectStore(ST, { keyPath: 'id' });
-      r.onsuccess = e => { _db = e.target.result; res(_db); };
-      r.onerror = e => rej(e.target.error);
+      let tx;
+      try { tx = db.transaction(ST, 'readwrite'); } catch (e) { rej(e); return; }
+      try { fn(tx.objectStore(ST)); } catch (e) { rej(e); return; }
+      tx.oncomplete = () => res();
+      tx.onerror    = e => rej(tx.error || (e.target && e.target.error) || new Error('write failed'));
+      tx.onabort    = () => rej(tx.error || new Error('transaction aborted'));
     });
   }
+
+  const newId = () => 'sf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
   return {
-    save: async function(file) {
-      const db = await open();
-      const id = 'sf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-      const buf = await file.arrayBuffer();
-      return new Promise((res, rej) => {
-        const tx = db.transaction(ST, 'readwrite');
-        tx.objectStore(ST).put({ id, buf, name: file.name, mime: file.type || 'application/octet-stream' });
-        tx.oncomplete = () => res(id);
-        tx.onerror = e => rej(e.target.error);
-      });
+    save: function(file) {
+      // A File *is* a Blob — same path, no duplicated logic.
+      return this.saveBlob(file, file && file.name);
     },
     saveBlob: async function(blob, name) {
-      const db = await open();
-      const id = 'sf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      const id = newId();
+      // Read the bytes outside the DB retry: a NotReadableError here is a
+      // problem with the file on disk, not with IndexedDB, and retrying is futile.
       const buf = await blob.arrayBuffer();
       const mime = blob.type || 'application/octet-stream';
-      return new Promise((res, rej) => {
-        const tx = db.transaction(ST, 'readwrite');
-        tx.objectStore(ST).put({ id, buf, name, mime });
-        tx.oncomplete = () => res(id);
-        tx.onerror = e => rej(e.target.error);
-      });
+      await withDb(db => writeTx(db, st => st.put({ id, buf, name: name || 'document', mime })));
+      return id;
     },
     // Cache a blob under a specific (existing) id — used to store a file
     // pulled down from the cloud so later views/drags are instant & offline.
     putById: async function(id, blob, name) {
-      const db = await open();
       const buf = await blob.arrayBuffer();
       const mime = blob.type || 'application/octet-stream';
-      return new Promise((res, rej) => {
-        const tx = db.transaction(ST, 'readwrite');
-        tx.objectStore(ST).put({ id, buf, name: name || 'document', mime });
-        tx.oncomplete = () => res(id);
-        tx.onerror = e => rej(e.target.error);
-      });
+      await withDb(db => writeTx(db, st => st.put({ id, buf, name: name || 'document', mime })));
+      return id;
     },
     get: async function(id) {
-      const db = await open();
-      return new Promise((res, rej) => {
-        const tx = db.transaction(ST, 'readonly');
+      if (!id) return null;
+      return withDb(db => new Promise((res, rej) => {
+        let tx;
+        try { tx = db.transaction(ST, 'readonly'); } catch (e) { rej(e); return; }
         const req = tx.objectStore(ST).get(id);
         req.onsuccess = e => {
           const r = e.target.result;
           res(r ? new Blob([r.buf], { type: r.mime }) : null);
         };
-        req.onerror = e => rej(e.target.error);
-      });
+        req.onerror = e => rej((e.target && e.target.error) || new Error('read failed'));
+        tx.onabort  = () => rej(tx.error || new Error('transaction aborted'));
+      }));
+    },
+    // Existence check that does NOT materialize the bytes. The cloud badge runs
+    // this over every un-synced file; pulling whole PDFs into memory just to ask
+    // "is it here?" made that sweep slow and memory-hungry.
+    has: async function(id) {
+      if (!id) return false;
+      return withDb(db => new Promise((res, rej) => {
+        let tx;
+        try { tx = db.transaction(ST, 'readonly'); } catch (e) { rej(e); return; }
+        const st = tx.objectStore(ST);
+        // getKey isn't universal on older WebKit — fall back to a count().
+        const req = st.getKey ? st.getKey(id) : st.count(id);
+        req.onsuccess = e => res(!!e.target.result);
+        req.onerror = e => rej((e.target && e.target.error) || new Error('read failed'));
+        tx.onabort  = () => rej(tx.error || new Error('transaction aborted'));
+      }));
     },
     delete: async function(id) {
       if (!id) return;
-      const db = await open();
-      return new Promise((res, rej) => {
-        const tx = db.transaction(ST, 'readwrite');
-        tx.objectStore(ST).delete(id);
-        tx.oncomplete = () => res();
-        tx.onerror = e => rej(e.target.error);
-      });
+      await withDb(db => writeTx(db, st => st.delete(id)));
     },
     openTab: async function(fileId, name) {
       const blob = await SosFileStore.get(fileId);
@@ -31225,7 +31277,9 @@ async function _sosMigrateFilesToIdb() {
     }
   }
   if (dirty) {
-    localStorage.setItem('studyos_classes', JSON.stringify(classes));
+    // Serialize the same way every other write does, so transient `_`-flags
+    // and any leftover dataUrl can't leak back into storage.
+    localStorage.setItem('studyos_classes', JSON.stringify(_sosSerializeClasses()));
   }
 }
 
@@ -31240,19 +31294,35 @@ let _sosCloudWarned = false;
 
 const SosCloud = {
   // PUT the raw file bytes under its fileId; returns the GET url to store.
-  async upload(fileId, file) {
+  // Retries once on a transient failure (dropped wifi, 429, worker 5xx) — the
+  // PUT is idempotent because the key is the fileId, so a retry can't duplicate.
+  async upload(fileId, file, _attempt) {
     if (file.size > SOS_CLOUD_MAX) { const e = new Error('too-large'); e.tooLarge = true; throw e; }
     const u = SOS_CLOUD_BASE + '/f/' + encodeURIComponent(fileId);
-    const resp = await fetch(u, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream',
-        'X-File-Name': encodeURIComponent(file.name || 'document'),
-      },
-      body: file,
-    });
-    if (!resp.ok) throw new Error('upload ' + resp.status);
-    return u;
+    try {
+      const resp = await fetch(u, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          'X-File-Name': encodeURIComponent(file.name || 'document'),
+        },
+        body: file,
+      });
+      if (!resp.ok) {
+        const err = new Error('upload ' + resp.status);
+        err.status = resp.status;
+        // A 4xx (bad key, too large) won't change on a retry; 429/5xx might.
+        err.retryable = resp.status === 429 || resp.status >= 500;
+        throw err;
+      }
+      return u;
+    } catch (e) {
+      // Network/abort errors carry no .retryable — treat those as worth one retry.
+      if (e && e.retryable === false) throw e;
+      if (_attempt) throw e;
+      await new Promise(r => setTimeout(r, 1500));
+      return SosCloud.upload(fileId, file, 1);
+    }
   },
   async remove(fileId) {
     if (!fileId) return;
@@ -31312,12 +31382,21 @@ async function sosDownloadFile(f) {
 // fully usable locally (degrades to the pre-cloud behaviour).
 async function sosUploadToCloud(file, meta, cls, mod, modId) {
   if (!meta.fileId) return;
+  const fileId = meta.fileId;
   meta._uploading = true;
   _sosRefreshModFiles(cls, mod, modId);
   try {
-    meta.storageUrl  = await SosCloud.upload(meta.fileId, file);
-    meta.storagePath = meta.fileId;   // KV key = fileId
+    const url = await SosCloud.upload(fileId, file);
+    // Record the URL by fileId BEFORE persisting. A Firestore sync landing
+    // mid-upload swaps `classes`/`ksuData` wholesale and orphans `meta`, so
+    // writing storageUrl onto it alone can be silently thrown away — the file
+    // then looks local-only on every device. _sosCloudUrls is what survives
+    // that swap; the backfill path always used it, this path never did.
+    _sosCloudUrls.set(fileId, url);
+    meta.storageUrl  = url;
+    meta.storagePath = fileId;        // KV key = fileId
     delete meta._uploading;
+    _sosReapplyCloudUrls();           // stamp onto the CURRENT arrays too
     persistForCls(cls);               // re-sync metadata (now carries storageUrl)
   } catch (e) {
     delete meta._uploading;
@@ -31336,7 +31415,13 @@ async function sosUploadToCloud(file, meta, cls, mod, modId) {
 
 function _sosRefreshModFiles(cls, mod, modId) {
   const listEl = _sosEl('doc-list-' + modId);
-  if (listEl) refreshDocList(listEl, cls, mod);
+  if (!listEl) return;
+  // Re-resolve against the CURRENT arrays: a Firestore sync may have replaced
+  // the objects the caller was handed, and rendering those orphans would paint
+  // stale state (e.g. a ⚠ local-only badge on a file that just synced).
+  const liveCls = (cls && cls.id && findClassOrKsu(cls.id)) || cls;
+  const liveMod = (liveCls && liveCls.modules && liveCls.modules.find(m => m.id === modId)) || mod;
+  if (liveCls && liveMod) refreshDocList(listEl, liveCls, liveMod);
 }
 
 function refreshDocList(listEl, cls, mod) {
@@ -31456,23 +31541,44 @@ function handleFilesAdded(files, classId, modId) {
   if (!cls) return;
   const mod = cls.modules.find(m => m.id === modId);
   if (!mod) return;
-  let done = 0;
+  let done = 0, added = 0;
+  // Finish once every file has SETTLED — success or failure. The old counter
+  // only advanced on success, so a single bad file in a batch meant the good
+  // ones were never persisted, never rendered, and never announced.
+  const settle = () => {
+    if (++done < files.length || !added) return;
+    try {
+      persistForCls(cls);
+      const listEl = _sosEl('doc-list-' + modId);
+      if (listEl) refreshDocList(listEl, cls, mod);
+      showNotif('📎', 'Uploaded', added + ' file' + (added > 1 ? 's' : '') + ' added.');
+    } catch (err) {
+      // The bytes are already safe in IndexedDB \u2014 a render hiccup is not a lost file.
+      console.error('SOS post-save refresh failed:', err);
+    }
+  };
   files.forEach(file => {
     SosFileStore.save(file).then(fileId => {
-      const meta = { name: file.name, size: file.size, mime: file.type || 'application/octet-stream', fileId };
-      mod.files.push(meta);
-      done++;
-      if (done === files.length) {
-        persistForCls(cls);
-        const listEl = _sosEl('doc-list-' + modId);
-        if (listEl) refreshDocList(listEl, cls, mod);
-        showNotif('📎', 'Uploaded', files.length + ' file' + (files.length > 1 ? 's' : '') + ' added.');
+      try {
+        const meta = { name: file.name, size: file.size, mime: file.type || 'application/octet-stream', fileId };
+        mod.files.push(meta);
+        added++;
+        // Push to cloud so it's viewable/downloadable on every device.
+        sosUploadToCloud(file, meta, cls, mod, modId)
+          .catch(err => console.warn('SOS cloud upload threw:', file.name, err));
+      } catch (err) {
+        console.error('SOS post-save step failed:', file.name, err);
       }
-      // Push to cloud so it's viewable/downloadable on every device.
-      sosUploadToCloud(file, meta, cls, mod, modId);
-    }).catch(e => {
+      settle();
+    // Two-arg then, NOT a trailing .catch: this handler must fire only for a
+    // real save failure. The old .catch also swallowed anything thrown by the
+    // success path above, so a persist/render error was reported to the user as
+    // "could not be saved" even though the file WAS stored and did go on to sync.
+    }, e => {
       console.error('SOS file save failed:', file.name, e);
-      showNotif('\u26a0\ufe0f', 'Upload failed', file.name + ' could not be saved.');
+      const why = e && e.name ? ' (' + e.name + ')' : '';
+      showNotif('\u26a0\ufe0f', 'Upload failed', file.name + ' could not be saved to this device' + why + '.');
+      settle();
     });
   });
 }
