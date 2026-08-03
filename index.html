@@ -15130,12 +15130,16 @@ function _bjApplyRemote(remote) {
   // Only prune when we know Firebase actually responded (_fbHasData:true prevents pruning
   // on a stale/empty initial load before Firebase data arrives).
   var canPrune = !!remote._fbHasData;
+  var _prunedRemotely = [];
   state.entries = state.entries.filter(function(e) {
     if (ownDeletedSet.has(e.id)) return false;               // we deleted it locally
     if (authorizedPresentIds.has(e.id)) return true;          // still in Firebase — keep
-    if (canPrune && e._fbPushed) return false;                // was in Firebase, now gone = remote delete
+    if (canPrune && e._fbPushed) { _prunedRemotely.push(e.id); return false; }  // was in Firebase, now gone = remote delete
     return true;                                              // never synced or no data yet — keep
   });
+  // Remember remote hard-deletes as our own, so a late in-flight write from any
+  // device can never resurrect the entry here, and drop its lock state with it.
+  _bjForgetDeleted(_prunedRemotely);
 
   // Rebuild state.entries: if remote has _order, use it; else preserve local order + append new
   var existingIds = new Set(state.entries.map(function(e) { return e.id; }));
@@ -15173,6 +15177,9 @@ function _bjApplyRemote(remote) {
   // NEVER override local activeId — each device stays on its own entry
   _bjWriteCache();
   renderSidebar();
+  // Re-run the lock check so an entry deleted (or unlocked) on another device
+  // can't leave a lock overlay stranded over a document that no longer exists.
+  if (window._bjLockCheck) window._bjLockCheck();
   if (_activeWasUpdated) { var _ae = getActive(); if (_ae && _ae.template === 'mindmap') loadActiveEntry(); }
 }
 
@@ -15239,10 +15246,32 @@ function deleteEntry(id) {
   // Push the trashed entry itself (it isn't the active one, so the debounced save skips it)
   if (window._fbSaveJournalEntry) window._fbSaveJournalEntry(entry, state.entries);
 }
+// Tombstone one or more ids that are gone for good — locally purged here, or
+// purged on another device and pruned by the remote merge. Recording them in
+// deletedIds is what stops a late in-flight write from any device resurrecting
+// the entry, and clearing the per-entry lock/unlock keys stops a deleted-but-
+// locked document from leaving a lock overlay that can never be satisfied.
+function _bjForgetDeleted(ids) {
+  if (!ids || !ids.length) return;
+  if (!Array.isArray(state.deletedIds)) state.deletedIds = [];
+  ids.forEach(function(id) {
+    if (!state.deletedIds.includes(id)) state.deletedIds.push(id);
+    try {
+      localStorage.removeItem('bj_unlocked_' + id);
+      localStorage.removeItem('bj_unlockedv_' + id);
+      localStorage.removeItem('bj_unlockedat_' + id);
+      sessionStorage.removeItem('bj_unlocked_' + id);
+      sessionStorage.removeItem('bj_unlockedv_' + id);
+      sessionStorage.removeItem('bj_unlockedat_' + id);
+      localStorage.removeItem(BJ_CANVAS_KEY(id));
+    } catch (e) {}
+  });
+  // Keep the tombstone list from growing without bound across years of use.
+  if (state.deletedIds.length > 500) state.deletedIds = state.deletedIds.slice(-500);
+}
 // Permanent delete — used by the Trash UI and the 30-day auto-purge
 function hardDeleteEntry(id) {
-  if (!Array.isArray(state.deletedIds)) state.deletedIds = [];
-  if (!state.deletedIds.includes(id)) state.deletedIds.push(id);
+  _bjForgetDeleted([id]);
   if (window._fbDeleteJournalEntry) window._fbDeleteJournalEntry(id);
   state.entries = state.entries.filter(e => e.id !== id);
   if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
@@ -17879,17 +17908,24 @@ window.addEventListener('resize', bjCheckMobile);
 var bjHamburger = document.getElementById('bj-hamburger');
 var bjBackdrop = document.getElementById('bj-sidebar-backdrop');
 var bjSidebar = document.getElementById('bj-sidebar');
+// One place that owns drawer state, so the root/body classes that lift the
+// drawer above any app-level header can never drift out of sync.
+function bjSetDrawer(open) {
+  if (!bjSidebar || !bjBackdrop) return;
+  bjSidebar.classList.toggle('bj-open', open);
+  bjBackdrop.classList.toggle('bj-open', open);
+  var root = document.getElementById('bj-root');
+  if (root) root.classList.toggle('bj-drawer-open', open);
+  document.body.classList.toggle('bj-drawer-open', open);
+}
+window._bjSetDrawer = bjSetDrawer;
 if (bjHamburger) {
   bjHamburger.addEventListener('click', function() {
-    bjSidebar.classList.toggle('bj-open');
-    bjBackdrop.classList.toggle('bj-open');
+    bjSetDrawer(!bjSidebar.classList.contains('bj-open'));
   });
 }
 if (bjBackdrop) {
-  bjBackdrop.addEventListener('click', function() {
-    bjSidebar.classList.remove('bj-open');
-    bjBackdrop.classList.remove('bj-open');
-  });
+  bjBackdrop.addEventListener('click', function() { bjSetDrawer(false); });
 }
 
 /* Close sidebar after entry selected on mobile */
@@ -17899,10 +17935,7 @@ renderSidebar = function() {
   // Re-attach click handlers to close sidebar on mobile
   document.querySelectorAll('#bj-entries-list .entry-item').forEach(function(el) {
     el.addEventListener('click', function() {
-      if (bjIsMobile) {
-        bjSidebar.classList.remove('bj-open');
-        bjBackdrop.classList.remove('bj-open');
-      }
+      if (bjIsMobile) bjSetDrawer(false);
     });
   });
 };
@@ -18454,11 +18487,14 @@ window.hideBrainstormJournal = function() {
     if (lock) {
       lockBtn.classList.add('locked');
       lockBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Locked';
-      if (mobileLockBtn) { mobileLockBtn.textContent = '🔒'; mobileLockBtn.style.color = '#E0607A'; }
+      // SVG + a class, not an emoji + inline colour: 🔒/🔓 render as a flat black
+      // text glyph on most phones, and the inline colour left the unlocked state
+      // inheriting the UA's black buttontext.
+      if (mobileLockBtn) { mobileLockBtn.innerHTML = TNI.lock; mobileLockBtn.classList.add('tl-locked'); mobileLockBtn.style.color = ''; }
     } else {
       lockBtn.classList.remove('locked');
       lockBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Lock';
-      if (mobileLockBtn) { mobileLockBtn.textContent = '🔓'; mobileLockBtn.style.color = ''; }
+      if (mobileLockBtn) { mobileLockBtn.innerHTML = TNI.unlock; mobileLockBtn.classList.remove('tl-locked'); mobileLockBtn.style.color = ''; }
     }
   }
 
@@ -18476,6 +18512,29 @@ window.hideBrainstormJournal = function() {
     } else {
       blHideOverlay();
     }
+  }
+
+  // Every lock call went through a bare fetch+res.json() inside one try/catch
+  // that reported "Network error" for anything that threw — including a server
+  // that answered with an HTML error page. Tag the failure so the message can
+  // tell the truth about what actually went wrong.
+  async function blAuthPost(path, body) {
+    if (navigator.onLine === false) { var offErr = new Error('offline'); offErr._offline = true; throw offErr; }
+    var res;
+    try { res = await fetch(BJ_AUTH + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+    catch (e) { var netErr = new Error('unreachable'); netErr._offline = true; throw netErr; }
+    var txt = await res.text();
+    try { return JSON.parse(txt); }
+    catch (e) { var srvErr = new Error('bad response'); srvErr._status = res.status; throw srvErr; }
+  }
+  // The server is the source of truth for locks. If it reports no lock for this
+  // entry, the local marker is stale (typically the entry was deleted and
+  // re-synced) — clear it and let the user in rather than trapping them behind
+  // a password that nothing on the server can verify.
+  function blDropStaleLock(entry) {
+    blRemoveLock(entry.id); blMarkUnlocked(entry.id);
+    blHideOverlay(); blUpdateLockBtn();
+    try { loadActiveEntry(); renderSidebar(); } catch (e) {}
   }
 
   submitBtn && submitBtn.addEventListener('click', async function() {
@@ -18531,17 +18590,19 @@ window.hideBrainstormJournal = function() {
         } else blLockErr('Wrong password.');
       } else {
         // unlock
-        var res4 = await fetch(BJ_AUTH + '/auth/journal/verify', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
-        });
-        var data4 = await res4.json();
+        var data4 = await blAuthPost('/auth/journal/verify', { journal: 'bj', entryId: entry.id, password: pw });
         if (data4.ok) {
           if (_blRemoveBioId === entry.id) { blDoRemoveBio(entry.id); }
           else { blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} }
+        } else if (data4.noLock) {
+          blDropStaleLock(entry);
         } else blLockErr('Wrong password.');
       }
-    } catch(e) { errEl.textContent = 'Network error. Try again.'; }
+    } catch(e) {
+      errEl.textContent = e && e._offline
+        ? 'No connection. Check your network and try again.'
+        : (e && e._status ? 'Lock server error (' + e._status + '). Try again.' : 'Could not reach the lock server. Try again.');
+    }
     submitBtn.disabled = false; submitBtn.textContent = _prev;
   });
 
@@ -20770,6 +20831,19 @@ function _tjApplyRemote(remote) {
     }
   });
 
+  // Apply the authoritative trash/recover winner to the merged entries so a
+  // delete or recover on any device reflects live here, regardless of which
+  // content-merge branch ran or how the content `updated` timestamps compared.
+  // (Without this the `remoteUpdated <= localUpdated` guard above silently drops
+  // a remote delete whenever this device's copy has a newer content timestamp.)
+  Object.keys(_winnerTrashed).forEach(function(id) {
+    var m = localById[id];
+    if (!m) return;
+    var w = _winnerTrashed[id];
+    if (w.t) m.trashed = w.t; else if (m.trashed) delete m.trashed;
+    if (w.c) m.trashChangedAt = w.c;   // converge the trash-action clock across devices
+  });
+
   // Remove entries deleted on another device.
   // _allPresentIds from snapshot is the authoritative e_* key list. Absent + _fbPushed = remote delete.
   var remotePresentIds = new Set(remote.entries.map(function(e) { return e.id; }));
@@ -20778,12 +20852,16 @@ function _tjApplyRemote(remote) {
     : remotePresentIds;
   var ownDeletedSet = new Set(state.deletedIds || []);
   var canPrune = !!remote._fbHasData;
+  var _prunedRemotely = [];
   state.entries = state.entries.filter(function(e) {
     if (ownDeletedSet.has(e.id)) return false;
     if (authorizedPresentIds.has(e.id)) return true;
-    if (canPrune && e._fbPushed) return false;              // was in Firebase, now gone = remote delete
+    if (canPrune && e._fbPushed) { _prunedRemotely.push(e.id); return false; }  // was in Firebase, now gone = remote delete
     return true;
   });
+  // Remember remote hard-deletes as our own, so a late in-flight write from any
+  // device can never resurrect the entry here, and drop its lock state with it.
+  _tjForgetDeleted(_prunedRemotely);
 
   // Rebuild state.entries: if remote has _order, use it; else preserve local order + append new
   var existingIds = new Set(state.entries.map(function(e) { return e.id; }));
@@ -20888,10 +20966,32 @@ function deleteEntry(id) {
   // Push the trashed entry itself (it isn't the active one, so the debounced save skips it)
   if (window._fbSaveTonyJournalEntry) window._fbSaveTonyJournalEntry(entry, state.entries);
 }
+// Tombstone one or more ids that are gone for good — locally purged here, or
+// purged on another device and pruned by the remote merge. Recording them in
+// deletedIds is what stops a late in-flight write from any device resurrecting
+// the entry, and clearing the per-entry lock/unlock keys stops a deleted-but-
+// locked document from leaving a lock overlay that can never be satisfied.
+function _tjForgetDeleted(ids) {
+  if (!ids || !ids.length) return;
+  if (!Array.isArray(state.deletedIds)) state.deletedIds = [];
+  ids.forEach(function(id) {
+    if (!state.deletedIds.includes(id)) state.deletedIds.push(id);
+    try {
+      localStorage.removeItem('tj_unlocked_' + id);
+      localStorage.removeItem('tj_unlockedv_' + id);
+      localStorage.removeItem('tj_unlockedat_' + id);
+      sessionStorage.removeItem('tj_unlocked_' + id);
+      sessionStorage.removeItem('tj_unlockedv_' + id);
+      sessionStorage.removeItem('tj_unlockedat_' + id);
+      localStorage.removeItem(TJ_CANVAS_KEY(id));
+    } catch (e) {}
+  });
+  // Keep the tombstone list from growing without bound across years of use.
+  if (state.deletedIds.length > 500) state.deletedIds = state.deletedIds.slice(-500);
+}
 // Permanent delete — used by the Trash UI and the 30-day auto-purge
 function hardDeleteEntry(id) {
-  if (!Array.isArray(state.deletedIds)) state.deletedIds = [];
-  if (!state.deletedIds.includes(id)) state.deletedIds.push(id);
+  _tjForgetDeleted([id]);
   if (window._fbDeleteTonyJournalEntry) window._fbDeleteTonyJournalEntry(id);
   state.entries = state.entries.filter(e => e.id !== id);
   if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
@@ -23765,17 +23865,25 @@ window.addEventListener('resize', tjCheckMobile);
 var tjHamburger = document.getElementById('tj-hamburger');
 var tjBackdrop = document.getElementById('tj-sidebar-backdrop');
 var tjSidebar = document.getElementById('tj-sidebar');
+// One place that owns drawer state. The root class is what lifts #tj-root above
+// the body-level #tony-app-nav (z-index 10001) — without it the app header
+// paints on top of the open drawer instead of being covered by its scrim.
+function tjSetDrawer(open) {
+  if (!tjSidebar || !tjBackdrop) return;
+  tjSidebar.classList.toggle('tj-open', open);
+  tjBackdrop.classList.toggle('tj-open', open);
+  var root = document.getElementById('tj-root');
+  if (root) root.classList.toggle('tj-drawer-open', open);
+  document.body.classList.toggle('tj-drawer-open', open);
+}
+window._tjSetDrawer = tjSetDrawer;
 if (tjHamburger) {
   tjHamburger.addEventListener('click', function() {
-    tjSidebar.classList.toggle('tj-open');
-    tjBackdrop.classList.toggle('tj-open');
+    tjSetDrawer(!tjSidebar.classList.contains('tj-open'));
   });
 }
 if (tjBackdrop) {
-  tjBackdrop.addEventListener('click', function() {
-    tjSidebar.classList.remove('tj-open');
-    tjBackdrop.classList.remove('tj-open');
-  });
+  tjBackdrop.addEventListener('click', function() { tjSetDrawer(false); });
 }
 
 /* Close sidebar after entry selected on mobile */
@@ -23785,10 +23893,7 @@ renderSidebar = function() {
   // Re-attach click handlers to close sidebar on mobile
   document.querySelectorAll('#tj-entries-list .entry-item').forEach(function(el) {
     el.addEventListener('click', function() {
-      if (tjIsMobile) {
-        tjSidebar.classList.remove('tj-open');
-        tjBackdrop.classList.remove('tj-open');
-      }
+      if (tjIsMobile) tjSetDrawer(false);
     });
   });
 };
@@ -24418,11 +24523,13 @@ window.tjSwitchTo = function(app) {
     if (lock) {
       lockBtn.classList.add('locked');
       lockBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Locked';
-      if (mobileLockBtn) { mobileLockBtn.innerHTML = TNI.lock; mobileLockBtn.style.color = '#e0b874'; }
+      // Class, not an inline colour — the unlocked branch used to clear the
+      // inline colour and fall back to the UA's black buttontext.
+      if (mobileLockBtn) { mobileLockBtn.innerHTML = TNI.lock; mobileLockBtn.classList.add('tl-locked'); mobileLockBtn.style.color = ''; }
     } else {
       lockBtn.classList.remove('locked');
       lockBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Lock';
-      if (mobileLockBtn) { mobileLockBtn.innerHTML = TNI.unlock; mobileLockBtn.style.color = ''; }
+      if (mobileLockBtn) { mobileLockBtn.innerHTML = TNI.unlock; mobileLockBtn.classList.remove('tl-locked'); mobileLockBtn.style.color = ''; }
     }
   }
 
@@ -24445,6 +24552,29 @@ window.tjSwitchTo = function(app) {
 
   // Lock button click (desktop) — same logic as mobile via shared handler
   lockBtn && lockBtn.addEventListener('click', _tlHandleLockClick);
+
+  // Every lock call went through a bare fetch+res.json() inside one try/catch
+  // that reported "Network error" for anything that threw — including a server
+  // that answered with an HTML error page. Tag the failure so the message can
+  // tell the truth about what actually went wrong.
+  async function tlAuthPost(path, body) {
+    if (navigator.onLine === false) { var offErr = new Error('offline'); offErr._offline = true; throw offErr; }
+    var res;
+    try { res = await fetch(TJ_AUTH + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+    catch (e) { var netErr = new Error('unreachable'); netErr._offline = true; throw netErr; }
+    var txt = await res.text();
+    try { return JSON.parse(txt); }
+    catch (e) { var srvErr = new Error('bad response'); srvErr._status = res.status; throw srvErr; }
+  }
+  // The server is the source of truth for locks. If it reports no lock for this
+  // entry, the local marker is stale (typically the entry was deleted and
+  // re-synced) — clear it and let the user in rather than trapping them behind
+  // a password that nothing on the server can verify.
+  function tlDropStaleLock(entry) {
+    tlRemoveLock(entry.id); tlMarkUnlocked(entry.id);
+    tlHideOverlay(); tlUpdateLockBtn();
+    try { loadActiveEntry(); renderSidebar(); } catch (e) {}
+  }
 
   // Submit button
   submitBtn && submitBtn.addEventListener('click', async function() {
@@ -24497,17 +24627,19 @@ window.tjSwitchTo = function(app) {
           } else errEl.textContent = 'New password empty.';
         } else tlLockErr('Wrong password.');
       } else {
-        var res4 = await fetch(TJ_AUTH + '/auth/journal/verify', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
-        });
-        var data4 = await res4.json();
+        var data4 = await tlAuthPost('/auth/journal/verify', { journal: 'tj', entryId: entry.id, password: pw });
         if (data4.ok) {
           if (_tlRemoveBioId === entry.id) { tlDoRemoveBio(entry.id); }
           else { tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} }
+        } else if (data4.noLock) {
+          tlDropStaleLock(entry);
         } else tlLockErr('Wrong password.');
       }
-    } catch(e) { errEl.textContent = 'Network error. Try again.'; }
+    } catch(e) {
+      errEl.textContent = e && e._offline
+        ? 'No connection. Check your network and try again.'
+        : (e && e._status ? 'Lock server error (' + e._status + '). Try again.' : 'Could not reach the lock server. Try again.');
+    }
     submitBtn.disabled = false; submitBtn.textContent = _prev;
   });
 
@@ -25393,6 +25525,46 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .entry-drag-handle, #bj-root .entry-drag-handle { opacity: 0.55; width: 18px; }
   #tj-root .entry-delete, #bj-root .entry-delete { opacity: 1; }
 }
+
+/* ════════ Mobile drawer: scrim covers EVERYTHING, header included ════════
+   #tony-app-nav is a body-level fixed bar at z-index 10001 while #tj-root sits
+   at 9999, so the app header painted straight over an open drawer. The drawer's
+   scrim lives inside the root and cannot cross that boundary — so lift the whole
+   root above the nav for as long as the drawer is open. */
+#tj-root.tj-drawer-open { z-index: 10050 !important; }
+#bj-root.bj-drawer-open { z-index: 10050 !important; }
+body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
+  pointer-events: none !important;
+}
+/* A 2px blur read as "slightly smudged", not "behind glass". */
+#tj-root #tj-sidebar-backdrop, #bj-root #bj-sidebar-backdrop {
+  background: rgba(8, 8, 10, 0.58) !important;
+  backdrop-filter: blur(12px) saturate(0.72) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(0.72) !important;
+}
+@media (max-width: 900px) {
+  /* The drawer must clear the header band it now covers. */
+  #tj-root #tj-sidebar, #bj-root #bj-sidebar { z-index: 401; }
+  #tj-root #tj-sidebar-backdrop, #bj-root #bj-sidebar-backdrop { z-index: 400; }
+}
+
+/* ════════ Lock icons ════════
+   The mobile lock button is a bare <button>, so with no colour of its own it
+   inherited the UA's black buttontext — the icon rendered solid black on every
+   phone. Give both states an explicit colour, and make a locked document's
+   badge read at a glance in the entry list. */
+#tj-root #tj-mobile-lock-btn { color: var(--text2); }
+#bj-root #bj-mobile-lock-btn { color: var(--text2); }
+#tj-root #tj-mobile-lock-btn svg, #bj-root #bj-mobile-lock-btn svg {
+  width: 19px; height: 19px; stroke-width: 1.8;
+}
+#tj-root #tj-mobile-lock-btn.tl-locked, #bj-root #bj-mobile-lock-btn.tl-locked {
+  color: var(--purple);
+}
+#tj-root .entry-item .tl-badge, #bj-root .entry-item .tl-badge {
+  color: var(--purple); opacity: 1; font-size: 11px; vertical-align: -1px;
+}
+#tj-root .entry-item .tl-badge svg, #bj-root .entry-item .tl-badge svg { stroke-width: 2; }
 </style>
 <script>
 (function(){
