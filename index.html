@@ -18333,7 +18333,7 @@ window.hideBrainstormJournal = function() {
   function blBioRemovePrompt(id) {
     blShowOverlay('unlock');
     _blRemoveBioId = id;
-    lockIcon.textContent = '👤';
+    lockIcon.innerHTML = TNI.user;
     lockSub.textContent = 'Verify with ' + window.Bio.label() + ' or your password to remove biometrics from this device.';
   }
   function blDoRemoveBio(id) {
@@ -18373,25 +18373,27 @@ window.hideBrainstormJournal = function() {
     cancelBtn.style.display = '';
     forgotBtn.style.display = '';
     if (resetBtn) resetBtn.style.display = '';
+    // Same SVG icon set MyJournal uses — emoji render as flat black glyphs on
+    // most phones, which is unreadable on this dark overlay.
     if (mode === 'setpw') {
-      lockIcon.textContent = '🔐';
+      lockIcon.innerHTML = TNI.shield;
       lockTitle.textContent = 'Set a Password';
       lockSub.textContent = 'Choose a password for this entry. Unlock once on this device — it stays unlocked here until you re-lock it.';
       submitBtn.textContent = 'Set Password';
       forgotBtn.style.display = 'none';
       if (resetBtn) resetBtn.style.display = 'none';
     } else if (mode === 'remove') {
-      lockIcon.textContent = '🔓';
+      lockIcon.innerHTML = TNI.unlock;
       lockTitle.textContent = 'Remove Lock';
       lockSub.textContent = 'Enter the password to remove the lock.';
       submitBtn.textContent = 'Remove Lock';
     } else if (mode === 'changepw') {
-      lockIcon.textContent = '🔑';
+      lockIcon.innerHTML = TNI.key;
       lockTitle.textContent = 'Change Password';
       lockSub.textContent = 'Enter your current password first.';
       submitBtn.textContent = 'Verify';
     } else {
-      lockIcon.textContent = '🔒';
+      lockIcon.innerHTML = TNI.lock;
       lockTitle.textContent = 'Locked Entry';
       lockSub.textContent = 'Enter your password to unlock this entry.';
       submitBtn.textContent = 'Unlock';
