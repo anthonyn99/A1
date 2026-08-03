@@ -1058,14 +1058,23 @@ function cardFor(msg, ai) {
     };
   }
 
+  // These four are placed on the weekly view BY DATE, so without one there is
+  // nowhere to draw them — a card with no date would be written to Firestore
+  // and then be invisible forever, which is worse than no card at all (you'd
+  // never know it existed to go looking for it). Unlike a package, guessing the
+  // email's own date would be actively wrong here: an appointment reminder that
+  // arrives today is not an appointment today. So skip the card and leave the
+  // classification on the message, where the reader still shows it.
   if (ai.category === 'bill' || ai.category === 'subscription') {
+    if (!ai.date) return null;
     const id = (ai.category === 'bill' ? 'bill_' : 'sub_') + slug(ai.merchant || from.name) + '_' + slug(ai.date || ai.amount);
-    return { id, kind: ai.category, ...base, amount: ai.amount || '', due: ai.date || '' };
+    return { id, kind: ai.category, ...base, amount: ai.amount || '', due: ai.date };
   }
 
   if (ai.category === 'travel' || ai.category === 'appointment') {
+    if (!ai.date) return null;
     const id = (ai.category === 'travel' ? 'trv_' : 'apt_') + slug(ai.code || ai.merchant) + '_' + slug(ai.date);
-    return { id, kind: ai.category, ...base, confirmation: ai.code || '', when: ai.date || '', location: ai.location || '' };
+    return { id, kind: ai.category, ...base, confirmation: ai.code || '', when: ai.date, location: ai.location || '' };
   }
 
   return null;   // general / important produce no TaskHub card
@@ -1077,21 +1086,42 @@ function cardFor(msg, ai) {
 
 const emailDocId = (account, id) => `${slug(account.split('@')[0])}_${id}`;
 
-async function ingestMessages(env, email, ids) {
+// SUBREQUEST BUDGET. Cloudflare's free plan allows only 50 subrequests per
+// Worker invocation, and each message costs ~2 (fetch the message, then the
+// Gemini call) on top of per-account overhead. Polling 5 accounts x 12 messages
+// blew straight through it — the later accounts died with "Too many subrequests
+// by single Worker invocation" and ingested nothing at all. So a run processes a
+// bounded number of MESSAGES in total, and runCron rotates which accounts get
+// looked at first, so everything is covered across successive ticks.
+const MSGS_PER_RUN = 8;
+
+async function ingestMessages(env, email, ids, budget) {
   if (!ids.length || !fsConfigured(env)) return { ingested: 0, cards: 0 };
+  const room = budget ? Math.max(0, budget.msgs) : 25;
+  if (!room) return { ingested: 0, cards: 0, deferred: ids.length };
+
   const token = await getGoogleAccessToken(env);
   const root = fsRoot(env);
 
-  // Skip anything already stored — a Pub/Sub redelivery or an overlapping /cron
-  // poll must not re-run the AI (and re-burn quota) on the same message.
-  const batch = ids.slice(0, 25);                   // bounded: one push = a few new mails
-  const existing = await fsExisting(env, token, 'dashboards/oneinbox/emails',
-    batch.map(id => emailDocId(email, id)));
+  // Work out what is ACTUALLY new before spending any budget. The hourly
+  // snapshot hands back the same newest-12 ids every time, so budgeting before
+  // the dedupe check meant each run burned its whole allowance re-confirming
+  // mail it already had, and genuinely new messages never got a turn.
+  // batchGet is a single subrequest for the whole list, so checking all of them
+  // is effectively free.
+  const known = await fsExisting(env, token, 'dashboards/oneinbox/emails',
+    ids.map(id => emailDocId(email, id)));
+  const fresh = ids.filter(id => !known.has(emailDocId(email, id)));
+
+  const batch = fresh.slice(0, Math.min(25, room));
+  if (budget) budget.msgs -= batch.length;
+  const deferred = fresh.length - batch.length;
+  const existing = new Set();   // batch is already known-new
 
   // Shared run-scoped budget; persisted by aiBudgetFlush() at the end of the
   // whole run, not here (see the note on aiBudget).
-  const budget = await aiBudget(env);
-  const startedAt = budget.n;
+  const aiRec = await aiBudget(env);
+  const startedAt = aiRec.n;
 
   const writes = [];
   let cards = 0;
@@ -1108,7 +1138,7 @@ async function ingestMessages(env, email, ids) {
     const isJunk = msg.labelIds.includes('SPAM') || msg.labelIds.includes('TRASH');
     const ai = (isOwn || isJunk)
       ? { category: 'general', confidence: 1, summary: msg.subject, engine: 'skipped' }
-      : await classify(env, msg, budget);
+      : await classify(env, msg, aiRec);
 
     const from = parseAddr(msg.from);
     writes.push({ update: {
@@ -1138,15 +1168,28 @@ async function ingestMessages(env, email, ids) {
   }
 
   if (writes.length) {
+    // DEDUPE BY DOCUMENT NAME. Firestore rejects an entire batchWrite with
+    // "the same document cannot be written more than once in a single request"
+    // if two writes target one doc — and card ids are derived from the OFFER,
+    // not the email, precisely so repeats collapse onto one card. So two
+    // notifications about the same parcel in one batch (very common: "arriving
+    // soon" + "out for delivery" minutes apart, both with no tracking number,
+    // both collapsing to the same id) poisoned the whole batch. Every email in
+    // it was then lost, silently, for that account. Last write wins, which is
+    // the newest state of the parcel.
+    const byName = new Map();
+    for (const w of writes) byName.set(w.update.name, w);
+    const deduped = [...byName.values()];
+
     // updateMask keeps this a FIELD write: the meta doc also holds settings the
     // UI owns, and a maskless update would wipe them.
-    writes.push({
+    deduped.push({
       update: { name: `${root}/dashboards/oneinbox`, fields: fsFields({ lastIngestAt: Date.now() }) },
       updateMask: { fieldPaths: ['lastIngestAt'] }
     });
-    await fsBatchWrite(env, token, writes);
+    await fsBatchWrite(env, token, deduped);
   }
-  return { ingested: writes.length ? writes.length - 1 : 0, cards, aiUsed: budget.n - startedAt, aiToday: budget.n };
+  return { ingested: writes.length, cards, deferred, aiUsed: aiRec.n - startedAt, aiToday: aiRec.n };
 }
 
 // ── Gmail push (watch) ──────────────────────────────────────────────────────
@@ -1176,7 +1219,7 @@ async function startWatch(env, email) {
 // wise be permanent, because history is a forward-only stream. Re-checking the
 // newest few is nearly free — fsExisting dedupes them in one batchGet, so
 // already-ingested mail costs no AI and no writes.
-async function syncHistory(env, email, { snapshot = false } = {}) {
+async function syncHistory(env, email, { snapshot = false, budget = null } = {}) {
   const acct = await getAccount(env, email);
   if (!acct) return { error: 'unknown account' };
 
@@ -1187,7 +1230,7 @@ async function syncHistory(env, email, { snapshot = false } = {}) {
     const list = await gapi(env, email, '/messages?maxResults=15&labelIds=INBOX');
     acct.historyId = prof.historyId;
     await saveAccount(env, acct);
-    return ingestMessages(env, email, (list.messages || []).map(m => m.id));
+    return ingestMessages(env, email, (list.messages || []).map(m => m.id), budget);
   }
 
   let ids = new Set(), pageToken = null, newest = acct.historyId, pages = 0;
@@ -1224,13 +1267,15 @@ async function syncHistory(env, email, { snapshot = false } = {}) {
   // starts from the new point and those messages are never seen again — which
   // is exactly how today's newest mail went missing while older mail was fine.
   // Leaving the cursor put means a failed batch is simply retried next tick.
-  const result = await ingestMessages(env, email, [...ids]);
+  const result = await ingestMessages(env, email, [...ids], budget);
 
   // Only persist when the cursor actually MOVED. A quiet mailbox hands back the
   // same historyId, and rewriting it anyway cost one KV write per account per
   // poll — 5 accounts x 96 polls/day = 480 writes/day against a 1,000/day free
   // limit, purely to store an unchanged value.
-  if (newest && newest !== acct.historyId) {
+  // Hold the cursor when the run hit its message budget: advancing past ids
+  // we deliberately deferred would drop them for good.
+  if (newest && newest !== acct.historyId && !result.deferred) {
     acct.historyId = newest;
     await saveAccount(env, acct);
   }
@@ -1490,8 +1535,13 @@ async function handlePubSub(request, env, origin) {
 
 // Driven by taskhub-reminders' every-minute cron. Most ticks do almost nothing;
 // the expensive work is rate-limited by timestamps in one KV key.
-async function runCron(env) {
-  const out = { at: new Date().toISOString() };
+// `force` ignores the rate-limit gates and runs the poll (with a snapshot) now.
+// Without it, hitting /cron to recover from a problem can silently do nothing
+// because the 15-minute gate has not elapsed — which is exactly what happened
+// while chasing a missing package card: the request returned 200 and skipped
+// every piece of work.
+async function runCron(env, { force = false } = {}) {
+  const out = { at: new Date().toISOString(), forced: force };
   const state = (await env.OI_KV.get('oi:cron', 'json')) || {};
   const now = Date.now();
   // KV WRITE BUDGET: the free plan allows 100,000 reads/day but only 1,000
@@ -1520,18 +1570,27 @@ async function runCron(env) {
   // Every 15 min: incremental history poll. Pure safety net for a dropped
   // Pub/Sub delivery or an expired watch — it is incremental, so a quiet
   // mailbox costs one tiny Gmail call and no AI spend.
-  if (now - (state.lastPoll || 0) > 15 * 60e3) {
+  if (force || now - (state.lastPoll || 0) > 15 * 60e3) {
     // Once an hour the poll also takes a snapshot of the newest inbox ids, so
     // any gap the forward-only history cursor left behind repairs itself
     // instead of being lost for good.
-    const snapshot = now - (state.lastSnap || 0) > 60 * 60e3;
+    const snapshot = force || now - (state.lastSnap || 0) > 60 * 60e3;
+    // Shared message budget for the whole invocation (see MSGS_PER_RUN), and a
+    // rotating start point so a bounded run doesn't always spend its budget on
+    // the same first account and starve the rest. Every mailbox comes up within
+    // a few ticks, and polls run every 15 minutes.
+    const budget = { msgs: MSGS_PER_RUN };
+    const start = (state.acctCursor || 0) % Math.max(1, accounts.length);
+    const ordered = accounts.slice(start).concat(accounts.slice(0, start));
     out.polled = [];
-    for (const e of accounts) {
-      try { const r = await syncHistory(env, e, { snapshot }); out.polled.push({ e, ...r }); }
+    for (const e of ordered) {
+      try { const r = await syncHistory(env, e, { snapshot, budget }); out.polled.push({ e, ...r }); }
       catch (err) { out.polled.push({ e, error: err.message }); }
     }
+    state.acctCursor = (start + 1) % Math.max(1, accounts.length);
     state.lastPoll = now; dirty = true;
     if (snapshot) { state.lastSnap = now; out.snapshot = true; }
+    out.budgetLeft = budget.msgs;
   }
 
   // Daily: retire cards whose moment has passed, so TaskHub does not accumulate
@@ -1626,7 +1685,14 @@ export default {
       if (path === '/oauth/start') return oauthStart(request, env, origin);
       if (path === '/pubsub/push') return handlePubSub(request, env, origin);
       if (path.startsWith('/lock/')) return handleLock(path, request, env, origin);
-      if (path === '/cron') { ctx.waitUntil(runCron(env)); return json({ ok: true, queued: true }, origin); }
+      if (path === '/cron') {
+        const force = url.searchParams.get('force') === '1';
+        // Forced runs are awaited so the caller sees what actually happened;
+        // the scheduled path stays fire-and-forget so the cron tick returns fast.
+        if (force) return json({ ok: true, ...(await runCron(env, { force: true })) }, origin);
+        ctx.waitUntil(runCron(env));
+        return json({ ok: true, queued: true }, origin);
+      }
 
       // ── Everything below requires an unlocked session ───────────────────
       const body = await request.json().catch(() => ({}));
@@ -1667,9 +1733,13 @@ export default {
         // A MANUAL sync is always thorough: the user pressed Refresh because
         // something looked missing, so this is the moment to re-check the
         // newest mail directly rather than trusting the history cursor.
+        // Same per-invocation message budget as the cron path — a manual sync
+        // runs in one Worker invocation too, and is just as subject to the
+        // 50-subrequest limit.
+        const budget = { msgs: MSGS_PER_RUN };
         const res = [];
         for (const e of list) {
-          try { res.push({ account: e, ...(await syncHistory(env, e, { snapshot: true })) }); }
+          try { res.push({ account: e, ...(await syncHistory(env, e, { snapshot: true, budget })) }); }
           catch (err) { res.push({ account: e, error: err.message }); }
         }
         await aiBudgetFlush(env);
