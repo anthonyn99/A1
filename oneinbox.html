@@ -112,6 +112,11 @@ a:hover{color:var(--gold)}
    see the position but you cannot grab it, so a long inbox can only be
    scrolled by repeated swiping. This one is a real drag handle for both a
    finger and a mouse. */
+/* A scroller that has a custom bar must hide its NATIVE one, or you get two
+   scrollbars stacked side by side. */
+.has-vsb{scrollbar-width:none;-ms-overflow-style:none}
+.has-vsb::-webkit-scrollbar{width:0;height:0;display:none}
+
 .vsb{
   position:absolute;top:0;right:0;width:14px;z-index:7;
   opacity:0;transition:opacity .25s;pointer-events:none;touch-action:none;
@@ -122,19 +127,31 @@ a:hover{color:var(--gold)}
    overlay bar. It brightens on hover/scroll/drag. */
 .vsb.on{opacity:.5;pointer-events:auto}
 .vsb.on:hover,.vsb.show,.vsb.drag{opacity:1;pointer-events:auto}
+/* The thumb ELEMENT spans the whole track width and is transparent — that is
+   the grab area, so a finger only has to land somewhere in a 26px column. The
+   visible bar is drawn by ::before, which stays slim. Making the element
+   itself 7px wide (as it was) meant needing pixel-perfect aim on a phone.
+   touch-action does NOT inherit, so it has to be set here too: without it a
+   finger landing on the thumb was still treated as a pan, the browser took
+   over scrolling and fired pointercancel — which is exactly why dragging
+   worked with a mouse but not with a finger. */
 .vsb-thumb{
-  position:absolute;right:3px;width:8px;min-height:36px;border-radius:5px;
-  background:var(--surface-3);border:1px solid var(--border-soft);
-  transition:background .15s,width .15s,right .15s;
+  position:absolute;right:0;width:100%;min-height:36px;
+  background:transparent;touch-action:none;cursor:grab;
 }
-.vsb:hover .vsb-thumb,.vsb.drag .vsb-thumb{background:var(--border);width:10px;right:2px}
-.vsb.drag .vsb-thumb{background:var(--gold);border-color:var(--gold)}
-/* On touch the handle is visually slim but the grab area is a full finger
-   wide, so it can actually be caught without pixel-precision. */
+.vsb-thumb::before{
+  content:"";position:absolute;top:0;bottom:0;right:3px;width:8px;border-radius:5px;
+  background:var(--surface-3);border:1px solid var(--border-soft);
+  transition:background .15s,width .15s,right .15s,border-color .15s;
+}
+.vsb:hover .vsb-thumb::before{background:var(--border);width:10px;right:2px}
+.vsb.drag .vsb-thumb{cursor:grabbing}
+.vsb.drag .vsb-thumb::before{background:var(--gold);border-color:var(--gold);width:10px;right:2px}
 @media (pointer:coarse){
-  .vsb{width:26px}
-  .vsb-thumb{right:5px;width:7px;min-height:48px}
-  .vsb.drag .vsb-thumb{width:10px;right:4px}
+  .vsb{width:28px}
+  .vsb-thumb{min-height:52px}
+  .vsb-thumb::before{right:6px;width:7px}
+  .vsb.drag .vsb-thumb::before{width:10px;right:5px}
 }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
@@ -234,6 +251,18 @@ header.topbar{
 .searchwrap{flex:1;min-width:0;max-width:520px;position:relative;margin:0 auto}
 .searchwrap input{padding-left:34px;background:var(--surface-2);font-size:13.5px}
 .searchwrap svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--faint);pointer-events:none}
+/* The browser's own search-clear button renders as a default blue glyph that
+   belongs to no theme. Replace it with a gold X on the suite's palette. */
+#searchIn::-webkit-search-cancel-button{
+  -webkit-appearance:none;appearance:none;
+  width:16px;height:16px;margin-left:6px;cursor:pointer;opacity:.75;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e0b874' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E") no-repeat center;
+  background-size:contain;
+  transition:opacity .15s;
+}
+#searchIn::-webkit-search-cancel-button:hover{opacity:1}
+/* Firefox/Safari draw no clear button of their own — the Cancel control beside
+   the field covers those. */
 #searchCancel{display:none;flex-shrink:0;padding:9px 4px;background:none;border:none;color:var(--gold-soft);font-family:var(--sans);font-size:13.5px;cursor:pointer}
 .syncind{
   display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:500;
@@ -2304,6 +2333,7 @@ syncChrome();
 function attachScrollbar(scroller){
   const host = scroller.parentElement;
   if (!host || host.querySelector(':scope > .vsb')) return;
+  scroller.classList.add('has-vsb');   // suppress the native bar under ours
   const bar = document.createElement('div');
   bar.className = 'vsb';
   const thumb = document.createElement('div');
