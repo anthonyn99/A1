@@ -6766,12 +6766,39 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     const sosDocRef = doc(db, SOS_DOC_PATH);
 
     // ── StudyOS real-time listener ────────────────────────────────────────────
+    // Snapshots that land inside our own-save echo window used to be DROPPED.
+    // onSnapshot only re-fires on the NEXT change, so a genuine update from
+    // another device (e.g. a file that just finished uploading there) could be
+    // discarded for good — the other device looked permanently out of date.
+    // Now the newest suppressed snapshot is held and re-applied once our write
+    // settles, and skipped only if we queued an even newer local change.
+    let _sosHeldRemote = null, _sosHeldRemoteAt = 0, _sosHeldTimer = null;
+    const _sosEmitRemote = (data) => {
+      window.dispatchEvent(new CustomEvent("fb-sos-remote", { detail: data }));
+      window.dispatchEvent(new CustomEvent("fb-sos-synced"));
+    };
     if (_sosUnsubscribe) { _sosUnsubscribe(); _sosUnsubscribe = null; }
     _sosUnsubscribe = onSnapshot(sosDocRef, (snap) => {
       if (!snap.exists()) return;
-      if (Date.now() - _sosLastOwnSaveAt < 6000) return;
-      window.dispatchEvent(new CustomEvent("fb-sos-remote", { detail: snap.data() }));
-      window.dispatchEvent(new CustomEvent("fb-sos-synced"));
+      const gap = Date.now() - _sosLastOwnSaveAt;
+      if (gap < 6000) {
+        _sosHeldRemote = snap.data();
+        _sosHeldRemoteAt = Date.now();
+        if (_sosHeldTimer) clearTimeout(_sosHeldTimer);
+        _sosHeldTimer = setTimeout(() => {
+          _sosHeldTimer = null;
+          const data = _sosHeldRemote; _sosHeldRemote = null;
+          if (!data) return;
+          // A local edit queued after this snapshot arrived is the newer state —
+          // replaying the older doc over it would undo the user's work.
+          if (_sosLastOwnSaveAt > _sosHeldRemoteAt) return;
+          _sosEmitRemote(data);
+        }, (6000 - gap) + 250);
+        return;
+      }
+      _sosHeldRemote = null;
+      if (_sosHeldTimer) { clearTimeout(_sosHeldTimer); _sosHeldTimer = null; }
+      _sosEmitRemote(snap.data());
     });
     window._fbLoadStudyOs = async () => {
       try {
@@ -31115,15 +31142,54 @@ function _sosReapplyCloudUrls() {
 
 // Called after the initial load AND every remote sync: keep cloud URLs sticky,
 // then upload anything this device has locally that isn't in the cloud yet.
-let _sosAfterSyncTimer = null;
 function _sosAfterSync() {
   _sosLearnCloudUrls();
   if (_sosReapplyCloudUrls()) { persist(); persistKsu(); }
   // debounce backfill so a burst of remote events triggers it once
-  if (_sosAfterSyncTimer) clearTimeout(_sosAfterSyncTimer);
-  _sosAfterSyncTimer = setTimeout(() => { _sosBackfillCloud().then(() => _sosUpdateCloudBadge()); }, 400);
+  _sosScheduleSync(400);
   _sosUpdateCloudBadge(); // refresh the count immediately
 }
+
+// ── Self-healing upload loop ──────────────────────────────────────────────
+// A failed upload used to sit local-only until a remote Firestore change
+// happened to fire _sosAfterSync, or the user pressed "Sync to Cloud" by hand.
+// One dropped request (flaky wifi, a blocked fetch, the worker briefly 5xx-ing)
+// therefore meant the file silently never reached the other devices — which is
+// exactly what the "Cloud sync off" notice was reporting. This retries on its
+// own with backoff for as long as anything is still waiting, and sweeps
+// immediately whenever the tab regains connectivity or comes back to the front.
+const SOS_RETRY_MIN = 5000, SOS_RETRY_MAX = 5 * 60 * 1000;
+// NB: `_sosSyncTimer` is already taken further down (the sync-status pill), and
+// a second top-level declaration in this same scope is a hard SyntaxError.
+let _sosCloudRetryTimer = null, _sosRetryDelay = SOS_RETRY_MIN;
+
+function _sosScheduleSync(delay) {
+  if (_sosCloudRetryTimer) clearTimeout(_sosCloudRetryTimer);
+  _sosCloudRetryTimer = setTimeout(_sosRunSyncPass, delay == null ? _sosRetryDelay : delay);
+}
+
+async function _sosRunSyncPass() {
+  _sosCloudRetryTimer = null;
+  // Offline: don't burn a request — the 'online' listener below wakes us up.
+  if (navigator.onLine === false) { _sosScheduleSync(SOS_RETRY_MAX); return; }
+  let r = null;
+  try { r = await _sosBackfillCloud(); }
+  catch (e) { console.warn('SOS auto-sync pass failed:', e); }
+  _sosUpdateCloudBadge();
+  if (r && r.busy) { _sosScheduleSync(SOS_RETRY_MIN); return; }
+  if (r && r.failed > 0) {
+    // Still broken — back off so a dead worker isn't hammered, but never stop.
+    _sosRetryDelay = Math.min(_sosRetryDelay * 2, SOS_RETRY_MAX);
+    _sosScheduleSync();
+  } else {
+    _sosRetryDelay = SOS_RETRY_MIN;   // clean pass → forget the backoff
+  }
+}
+
+window.addEventListener('online', () => { _sosRetryDelay = SOS_RETRY_MIN; _sosScheduleSync(500); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { _sosRetryDelay = SOS_RETRY_MIN; _sosScheduleSync(1000); }
+});
 
 // Count files not in the cloud, split by whether THIS device holds the blob.
 //   localOnly  → has a local blob, not uploaded yet (this device can fix it)
@@ -32027,9 +32093,15 @@ async function sosUploadToCloud(file, meta, cls, mod, modId) {
     console.warn('SOS cloud upload failed:', meta.name, e);
     if (e && e.tooLarge) {
       showNotif('📦', 'Too big to sync', (meta.name || 'File') + ' is over 25MB — kept on this device only.');
-    } else if (!_sosCloudWarned) {
-      _sosCloudWarned = true;
-      showNotif('☁️', 'Cloud sync off', 'File saved on this device only. The sync worker may not be deployed yet.');
+    } else {
+      // Not terminal any more: hand it to the retry loop, which keeps trying
+      // until the file is in the cloud and on every device.
+      _sosRetryDelay = SOS_RETRY_MIN;
+      _sosScheduleSync(SOS_RETRY_MIN);
+      if (!_sosCloudWarned) {
+        _sosCloudWarned = true;
+        showNotif('☁️', 'Sync retrying', (meta.name || 'File') + ' is saved on this device and will upload automatically as soon as the connection allows.');
+      }
     }
   }
   _sosRefreshModFiles(cls, mod, modId);
@@ -33998,6 +34070,12 @@ window.studyOsOpen = (function() {
     var vr = document.getElementById('veda-root');
     if (vr) vr.style.display = 'none';
     el.style.display = 'flex';
+    // Entry paths other than _vedaNav('study') (profile screen, app-lock gate)
+    // reach us directly, so claim the nav state here too — it drives the
+    // collapsed-header dropdown label on narrow screens like the iPad.
+    window._vdCurApp = 'study';
+    if (window._navOrderModule) { try { window._navOrderModule.render(); } catch (e) {} }
+    if (window._navRecheckOverflow) window._navRecheckOverflow();
     if (!_inited) { window.studyOsInit(); _inited = true; }
   };
 })();
@@ -37720,9 +37798,32 @@ function isVedaNavRow(row){
   return count>=3;
 }
 
+// Every Veda view owns its own header row, so the row's CONTAINER says which
+// button must be lit — authoritatively, at any moment. The old code instead
+// sniffed the highlight back off the buttons it was about to destroy, which is
+// a lossy round-trip: any rebuild landing before that view had been painted
+// (routine on iPad, where layout, font load and the overflow re-measure all
+// settle later than on desktop) found no lit button, rebuilt them all
+// transparent — and then every LATER rebuild sniffed nothing too, so the
+// highlight was gone for good. That's why Study never lit up on the iPad.
+var VEDA_ROOT_APP=[
+  ['#study-root','study'],
+  ['#vt-root',   'timeline'],
+  ['#bj-root',   'journal'],
+  ['#vd-kc-root','links'],
+];
+function vedaAppForRow(row){
+  if(!row||!row.closest) return null;
+  for(var i=0;i<VEDA_ROOT_APP.length;i++){
+    if(row.closest(VEDA_ROOT_APP[i][0])) return VEDA_ROOT_APP[i][1];
+  }
+  return null;
+}
+
 function renderVedaNavIn(row){
-  var activeApp=null;
-  Array.prototype.slice.call(row.children).forEach(function(el){
+  // TaskHub and Gita share #task-view, so they still fall back to the sniff.
+  var activeApp=vedaAppForRow(row);
+  if(!activeApp) Array.prototype.slice.call(row.children).forEach(function(el){
     if(el.tagName!=='BUTTON') return;
     var txt=(el.textContent||'').trim().toUpperCase();
     Object.keys(vedaMap).forEach(function(a){
