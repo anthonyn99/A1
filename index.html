@@ -31180,7 +31180,7 @@ const SosFileStore = (function() {
   return {
     save: function(file) {
       // A File *is* a Blob — same path, no duplicated logic.
-      return this.saveBlob(file, file && file.name);
+      return SosFileStore.saveBlob(file, file && file.name);
     },
     saveBlob: async function(blob, name) {
       const id = newId();
@@ -31553,7 +31553,7 @@ function handleFilesAdded(files, classId, modId) {
       if (listEl) refreshDocList(listEl, cls, mod);
       showNotif('📎', 'Uploaded', added + ' file' + (added > 1 ? 's' : '') + ' added.');
     } catch (err) {
-      // The bytes are already safe in IndexedDB \u2014 a render hiccup is not a lost file.
+      // The bytes are already safe in IndexedDB - a render hiccup is not a lost file.
       console.error('SOS post-save refresh failed:', err);
     }
   };
