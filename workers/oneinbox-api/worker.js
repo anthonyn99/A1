@@ -732,13 +732,47 @@ function localParse(text, fromEmail) {
   return out;
 }
 
+// ── Daily AI budget ─────────────────────────────────────────────────────────
+// One Gemini call per NEW inbox message. Normally that tracks mail volume and
+// is modest, but the ceiling is not: ingestion accepts 25 messages per account
+// per sync, and with several accounts polled every 15 minutes a flooded or
+// newly-connected mailbox could theoretically fire thousands of calls in a day
+// and drain the key — which would also starve anything else sharing it.
+//
+// This caps spend at a predictable number and then degrades to the local
+// parser instead of erroring, so ingestion always completes. The counter is
+// one KV key holding { d: 'YYYY-MM-DD', n }, written only on days AI actually
+// runs (KV writes are the scarce resource — see the runCron note).
+const AI_BUDGET_KEY = 'oi:aiq';
+const AI_DAILY_MAX = 1200;
+
+async function aiBudget(env) {
+  const today = new Date().toISOString().slice(0, 10);
+  let rec;
+  try { rec = await env.OI_KV.get(AI_BUDGET_KEY, 'json'); } catch { rec = null; }
+  if (!rec || rec.d !== today) rec = { d: today, n: 0 };
+  return rec;
+}
+// classify() has already incremented rec.n per call, so this only PERSISTS —
+// adding `used` again here would double-count every message.
+async function aiBudgetCommit(env, rec, used) {
+  if (!used) return;
+  try { await env.OI_KV.put(AI_BUDGET_KEY, JSON.stringify(rec)); } catch {}
+}
+
 // One email in, one normalized record out. Cloud chain first, local parser last.
-async function classify(env, msg) {
+// `budget` (optional) lets a caller spend a shared per-run allowance.
+async function classify(env, msg, budget) {
   const today = new Date().toISOString().slice(0, 10);
   const text = textForAI(msg);
-  const { result, model, error } = await runChain(PARSE_MODELS, env.ONEINBOX_GEMINI_KEY, {
-    prompt: parsePrompt(today) + text, schema: PARSE_SCHEMA
-  });
+
+  const overBudget = budget && budget.n >= AI_DAILY_MAX;
+  const { result, model, error } = overBudget
+    ? { result: null, model: null, error: 'daily-budget' }
+    : await runChain(PARSE_MODELS, env.ONEINBOX_GEMINI_KEY, {
+        prompt: parsePrompt(today) + text, schema: PARSE_SCHEMA
+      });
+  if (budget && !overBudget) budget.n++;
 
   const base = result && result.category
     ? { ...result, engine: model }
@@ -994,6 +1028,10 @@ async function ingestMessages(env, email, ids) {
   const existing = await fsExisting(env, token, 'dashboards/oneinbox/emails',
     batch.map(id => emailDocId(email, id)));
 
+  // One budget read per ingest batch, one write at the end — not per message.
+  const budget = await aiBudget(env);
+  const startedAt = budget.n;
+
   const writes = [];
   let cards = 0;
   for (const id of batch) {
@@ -1007,7 +1045,9 @@ async function ingestMessages(env, email, ids) {
     // Never classify the user's own outbound mail, and never spend AI on spam.
     const isOwn = msg.labelIds.includes('SENT') || msg.labelIds.includes('DRAFT');
     const isJunk = msg.labelIds.includes('SPAM') || msg.labelIds.includes('TRASH');
-    const ai = (isOwn || isJunk) ? { category: 'general', confidence: 1, summary: msg.subject, engine: 'skipped' } : await classify(env, msg);
+    const ai = (isOwn || isJunk)
+      ? { category: 'general', confidence: 1, summary: msg.subject, engine: 'skipped' }
+      : await classify(env, msg, budget);
 
     const from = parseAddr(msg.from);
     writes.push({ update: {
@@ -1045,7 +1085,8 @@ async function ingestMessages(env, email, ids) {
     });
     await fsBatchWrite(env, token, writes);
   }
-  return { ingested: writes.length ? writes.length - 1 : 0, cards };
+  await aiBudgetCommit(env, budget, budget.n - startedAt);
+  return { ingested: writes.length ? writes.length - 1 : 0, cards, aiUsed: budget.n - startedAt, aiToday: budget.n };
 }
 
 // ── Gmail push (watch) ──────────────────────────────────────────────────────
@@ -1459,12 +1500,16 @@ export default {
     try {
       // ── Public / browser-navigation routes ──────────────────────────────
       if (path === '/') {
+        const b = await aiBudget(env).catch(() => ({ d: '?', n: 0 }));
         return json({
           ok: true, service: 'oneinbox-api',
           accounts: (await getAccountIndex(env)).length,
           ai: !!env.ONEINBOX_GEMINI_KEY, firestore: fsConfigured(env),
           oauth: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
-          push: !!(env.PUBSUB_TOPIC && env.PUBSUB_TOKEN)
+          push: !!(env.PUBSUB_TOPIC && env.PUBSUB_TOKEN),
+          // Gemini calls spent today, so usage is inspectable without digging
+          // through logs: one call per new inbox message.
+          aiToday: b.n, aiLimit: AI_DAILY_MAX, aiDay: b.d
         }, origin);
       }
       if (path === '/oauth/callback') return oauthCallback(request, env);
