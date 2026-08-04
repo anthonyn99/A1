@@ -8,22 +8,29 @@
  * into the web root when you deploy — do not leave it in a subfolder.
  *
  * IMPORTANT: a service worker runs in its own global scope and CANNOT read
- * config/config.js. The Firebase values below must be filled in HERE as well.
- * They are the same public values from config §1 — duplicating them is
- * unavoidable, not an oversight.
+ * config/config.js. The Firebase values below are duplicated on purpose —
+ * unavoidable, not an oversight. They are already correct (the Index project,
+ * matching config §1) and need no editing.
+ *
+ * ⚠️ If V1 already has its own firebase-messaging-sw.js at the root for another
+ * app, do NOT overwrite it. Two service workers cannot both own the root scope.
+ * Merge instead: keep the existing file and add this file's
+ * onBackgroundMessage / notificationclick handling to it, branching on
+ * payload.data.app === 'studyos'. The StudyOS worker tags every message it
+ * sends with that field precisely so the two can share one service worker.
  * ------------------------------------------------------------------------- */
 
 importScripts('https://www.gstatic.com/firebasejs/12.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/12.12.0/firebase-messaging-compat.js');
 
-/* ── ‹REPLACE› — must match config/config.js §1 exactly ─────────────────── */
+/* The Index project — same values as config/config.js §1. Already correct. */
 firebase.initializeApp({
-  apiKey:            'REPLACE_WITH_YOUR_FIREBASE_API_KEY',
-  authDomain:        'REPLACE.firebaseapp.com',
-  projectId:         'REPLACE_WITH_YOUR_PROJECT_ID',
-  storageBucket:     'REPLACE.firebasestorage.app',
-  messagingSenderId: 'REPLACE_WITH_YOUR_SENDER_ID',
-  appId:             'REPLACE_WITH_YOUR_APP_ID',
+  apiKey:            'AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4',
+  authDomain:        'task-dashboard-d2b53.firebaseapp.com',
+  projectId:         'task-dashboard-d2b53',
+  storageBucket:     'task-dashboard-d2b53.firebasestorage.app',
+  messagingSenderId: '982539604706',
+  appId:             '1:982539604706:web:e93da1aef499fcee2044bb',
 });
 
 const messaging = firebase.messaging();

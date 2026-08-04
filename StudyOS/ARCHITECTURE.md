@@ -162,10 +162,28 @@ concurrent edit a last-writer-wins race, silently destroying habits, goals, or
 the other side's same-day tasks. With one writer each, neither app can corrupt
 the other no matter how the writes interleave.
 
-Both apps must therefore reach the same Firestore database. Either StudyOS
-points at the Index project outright, or it keeps its own project and opens a
-second named Firebase app (`studyos-mirror`) purely for these two documents.
-Configured in `config/config.js` §7.
+Both apps must therefore reach the same Firestore database — Firestore cannot
+read across projects. **StudyOS is explicitly pointed at the Index project**
+(`task-dashboard-d2b53`), which also means its own data keeps living at the
+`dashboards/studyos` document it already uses, so the move strands nothing.
+`config/config.js` §7 keeps an escape hatch (`taskMirror.firebase`) that would
+open a second named connection if StudyOS were ever split onto its own project.
+
+Two consequences of sharing the project, both handled:
+
+- **Reminder collections are namespaced.** Index runs its own cron over
+  `reminders` / `fcm_tokens`. StudyOS uses `studyos_reminders` /
+  `studyos_fcm_tokens`, because two crons sweeping one collection means
+  duplicate notifications and a race on the delete.
+- **App Check is enforced on this project.** StudyOS now registers reCAPTCHA v3
+  with Index's site key, exactly as `index.html` does. The key is
+  domain-restricted, so V1's host must be added to its allowlist — the one
+  migration step that cannot be done from code. Verified: from an
+  un-allowlisted origin, StudyOS and `index.html` fail identically
+  (`appCheck/recaptcha-error` → `permission-denied`).
+- **No Firestore rules ship with this project.** The Index project's rules cover
+  every path StudyOS uses, and publishing a StudyOS-specific ruleset there would
+  delete the rules protecting a dozen other apps.
 
 ### Derived, not incremental
 

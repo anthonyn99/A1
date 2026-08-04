@@ -23,10 +23,19 @@
  *
  * ── BINDINGS (wrangler.toml / secrets) ────────────────────────────────────
  *   KV   TOKEN_CACHE            lock hashes, reset codes, cached Google token
- *   var  FIREBASE_PROJECT_ID    your Firebase project id
+ *   var  FIREBASE_PROJECT_ID    the Firebase project id (the Index project)
  *   sec  FIREBASE_CLIENT_EMAIL  service-account email   (wrangler secret put)
  *   sec  FIREBASE_PRIVATE_KEY   service-account private key
  *   var  ALLOWED_ORIGINS        comma-separated site origins allowed to call
+ *   var  REMINDERS_COLLECTION   default 'studyos_reminders'
+ *   var  TOKENS_COLLECTION      default 'studyos_fcm_tokens'
+ *
+ * ⚠️ COLLECTION NAMING IS LOAD-BEARING. StudyOS shares the Index project, and
+ * Index runs its OWN reminder cron over the `reminders` / `fcm_tokens`
+ * collections. If this worker swept those same collections, both crons would
+ * pick up the same documents — duplicate notifications, plus a race where one
+ * deletes a document the other is still sending. The studyos_ prefix keeps the
+ * two reminder systems completely separate. Do not "tidy" it away.
  *
  * The cron half needs the two secrets. The App Lock half does NOT — deploy
  * without them and passwords work while push stays dormant.
@@ -261,12 +270,17 @@ async function runReminders(env) {
   const lower = staleSweep ? now - 2 * 60 * 60 * 1000 : now - 90 * 1000;
   const upper = now + 60 * 1000;
 
+  // See the header note: these MUST stay distinct from Index's own
+  // `reminders` / `fcm_tokens`, which have their own cron.
+  const REMINDERS = env.REMINDERS_COLLECTION || 'studyos_reminders';
+  const TOKENS    = env.TOKENS_COLLECTION    || 'studyos_fcm_tokens';
+
   // Single-field range filter on notifyAt → no composite index required.
   const queryRes = await fetch(`${baseUrl}:runQuery`, {
     method: 'POST', headers: authHdr,
     body: JSON.stringify({
       structuredQuery: {
-        from: [{ collectionId: 'reminders' }],
+        from: [{ collectionId: REMINDERS }],
         where: {
           compositeFilter: {
             op: 'AND',
@@ -293,7 +307,7 @@ async function runReminders(env) {
   // Fetch device tokens only when something is actually due.
   let tokens = [];
   try {
-    const tRes = await fetch(`${baseUrl}/fcm_tokens`, { headers: authHdr });
+    const tRes = await fetch(`${baseUrl}/${TOKENS}`, { headers: authHdr });
     if (tRes.ok) {
       const tj = await tRes.json();
       tokens = (tj.documents || [])
@@ -302,7 +316,7 @@ async function runReminders(env) {
     }
   } catch (e) { console.warn('[reminders] token fetch failed:', e.message); }
 
-  if (!tokens.length) { console.warn('[reminders] no device tokens registered'); return; }
+  if (!tokens.length) { console.warn(`[reminders] no device tokens in ${TOKENS}`); return; }
 
   for (const r of due) {
     const f     = r.document.fields || {};

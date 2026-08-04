@@ -4,12 +4,23 @@
  *
  * This is the ONLY file that should ever contain account-specific values.
  * Nothing else in the project hardcodes a project id, a worker URL, an email
- * address, or a form id. If you find one elsewhere, that is a bug.
+ * address, or a form id. (The one unavoidable exception is
+ * firebase/firebase-messaging-sw.js — a service worker runs in its own global
+ * scope and cannot read this file, so the Firebase values are duplicated there.
+ * They are already correct and match §1.)
  *
- * Fill every value marked  ‹REPLACE›  with your own. Until you do, StudyOS
- * still boots and works fully offline (localStorage + IndexedDB); the cloud
- * features simply stay dormant and announce themselves as "not configured"
- * instead of throwing.
+ * ── WHAT STILL NEEDS FILLING IN ──────────────────────────────────────────
+ * Only values marked  ‹REPLACE›  — the two Cloudflare Worker URLs (§2) and
+ * Formspree (§3). Everything else is finished.
+ *
+ * §1 FIREBASE IS ALREADY CORRECT and points at the INDEX project on purpose.
+ * That is a requirement, not a leftover: the TaskHub task mirror (§7) needs
+ * both apps in one Firestore database, and StudyOS's existing data already
+ * lives there. Do not repoint it at a new project.
+ *
+ * Until the remaining values are filled in, StudyOS still boots and works
+ * fully offline (localStorage + IndexedDB); those cloud features simply stay
+ * dormant and announce themselves as "not configured" instead of throwing.
  *
  * Load order matters: this file must be the FIRST script in studyos.html so
  * every later module can read window.STUDYOS_CONFIG synchronously.
@@ -17,35 +28,50 @@
 
 window.STUDYOS_CONFIG = {
 
-  /* ── 1. FIREBASE ─────────────────────────────────────────────────────────
-   * Firebase console → Project settings → General → Your apps → Web app.
-   * Copy the firebaseConfig object it shows you and paste the values here.
+  /* ── 1. FIREBASE — the INDEX project ─────────────────────────────────────
+   * StudyOS deliberately uses the SAME Firebase project as Index. This is not
+   * a placeholder to replace: these are the real, correct values.
+   *
+   * WHY THE INDEX PROJECT AND NOT A NEW ONE:
+   *   1. The task mirror (§7) needs both apps in one Firestore database. That
+   *      is a hard requirement, not a preference — Firestore cannot read across
+   *      projects.
+   *   2. StudyOS's data already lives here, at dashboards/studyos. Pointing
+   *      somewhere else would strand every class, task, note and file that
+   *      exists today. Keeping this config means the move is seamless: open
+   *      StudyOS in V1 and the existing data is simply there.
    *
    * These keys are NOT secrets. A Firebase web apiKey is a public project
-   * identifier; access is controlled by Firestore security rules (see
-   * firebase/firestore.rules), not by hiding this value.
+   * identifier — it already ships in Index's own HTML. Access is controlled by
+   * Firestore security rules, not by hiding this value.
    *
-   * Required Firebase setup:
-   *   - Firestore Database enabled (production mode)
-   *   - Authentication → Sign-in method → Anonymous → ENABLED
-   *   - firestore.rules deployed
+   * The project is already fully set up (Firestore on, Anonymous auth enabled,
+   * rules published). Nothing in §1 needs doing.
    * ------------------------------------------------------------------------ */
   firebase: {
     enabled: true,
-    apiKey:            '‹REPLACE:firebase-api-key›',
-    authDomain:        '‹REPLACE›.firebaseapp.com',
-    projectId:         '‹REPLACE:firebase-project-id›',
-    storageBucket:     '‹REPLACE›.firebasestorage.app',
-    messagingSenderId: '‹REPLACE:sender-id›',
-    appId:             '‹REPLACE:app-id›',
+    apiKey:            'AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4',
+    authDomain:        'task-dashboard-d2b53.firebaseapp.com',
+    projectId:         'task-dashboard-d2b53',
+    storageBucket:     'task-dashboard-d2b53.firebasestorage.app',
+    messagingSenderId: '982539604706',
+    appId:             '1:982539604706:web:e93da1aef499fcee2044bb',
 
-    /* Firestore document paths. Safe defaults — change only if you want
-     * StudyOS to share a database with other apps and need to avoid a clash. */
+    /* Firestore paths.
+     *
+     * studyos / applock keep the documents StudyOS already owns — do NOT
+     * rename them or the existing data disappears from the app's point of view.
+     *
+     * reminders / fcmTokens are DELIBERATELY namespaced away from Index's own
+     * `reminders` and `fcm_tokens` collections. Index runs its own reminder
+     * cron over those; if StudyOS wrote there too, both crons would sweep the
+     * same documents — duplicate notifications and a race on the delete. The
+     * studyos_ prefix keeps the two systems from ever touching. */
     paths: {
-      studyos:   'dashboards/studyos',    // all StudyOS data (classes/events/tasks/notes/ksu)
-      applock:   'dashboards/studyos_lock', // App Lock state, synced across devices
-      reminders: 'reminders',             // scheduled push reminders (read by the cron worker)
-      fcmTokens: 'fcm_tokens',            // per-device push tokens
+      studyos:   'dashboards/studyos',        // classes / events / tasks / notes / ksu (existing)
+      applock:   'dashboards/studyos_lock',   // App Lock state, synced across devices
+      reminders: 'studyos_reminders',         // swept by studyos-api's cron ONLY
+      fcmTokens: 'studyos_fcm_tokens',        // StudyOS's own device tokens
     },
 
     /* Firestore refuses any single document over 1 MiB. StudyOS refuses to
@@ -53,13 +79,32 @@ window.STUDYOS_CONFIG = {
      * of a hard rejection that would wedge the whole sync queue. */
     maxDocBytes: 900 * 1024,
 
-    /* OPTIONAL hardening. App Check proves requests come from your real site,
-     * so a copied apiKey can't be used from someone else's page. Leave
-     * disabled until StudyOS is working end-to-end — a misconfigured App Check
-     * blocks every read and write, and looks exactly like broken rules.
-     * Setup: Firebase console → App Check → register the web app with
-     * reCAPTCHA v3, then paste the site key here and flip enabled to true. */
-    appCheck: { enabled: false, recaptchaSiteKey: '' },
+    /* ⚠️ APP CHECK — ON, and there is a REQUIRED manual step. Read this.
+     *
+     * The Index project enforces App Check on Firestore. Index's own page
+     * registers reCAPTCHA v3 with the site key below, unconditionally; StudyOS
+     * now does the same, because it talks to the same database and would
+     * otherwise be rejected outright.
+     *
+     * REQUIRED: reCAPTCHA site keys are DOMAIN-RESTRICTED. V1's domain must be
+     * added to this key's allowed-domain list or every read and write fails
+     * with permission-denied:
+     *
+     *   Google Cloud console → Security → reCAPTCHA → this key → Domains
+     *   → add V1's host (and 'localhost' / '127.0.0.1' for local testing)
+     *
+     * This was verified, not assumed: served from an un-allowlisted origin,
+     * StudyOS and Index's own index.html fail identically —
+     * `appCheck/recaptcha-error` followed by permission-denied on every
+     * operation — while index.html works normally in production.
+     *
+     * HOW TO RECOGNISE IT: the console logs `appCheck/recaptcha-error`
+     * alongside the denials. A plain auth problem denies without that line.
+     *
+     * Setting enabled:false does NOT work around it — with enforcement on, a
+     * request carrying no App Check token at all is refused just the same. The
+     * domain has to be allowlisted. */
+    appCheck: { enabled: true, recaptchaSiteKey: '6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX' },
   },
 
   /* ── 2. CLOUDFLARE WORKERS ───────────────────────────────────────────────
@@ -123,7 +168,9 @@ window.STUDYOS_CONFIG = {
    * ------------------------------------------------------------------------ */
   push: {
     enabled: true,
-    vapidKey: '‹REPLACE:vapid-public-key›',
+    /* Web Push certificate for the Index project. Same project → same key, so
+     * this is already correct and needs no change. */
+    vapidKey: 'BFCxQOzVGu7pcftOtBrRY3IN9OuAWoiuYYO6lULbwzlF3hDTRVzNrW_uDvGDX1F4jZfVLXKxxsIj20sH8UZwmN8',
     swPath: '/firebase-messaging-sw.js',
     /* Brave on desktop ships with push OFF by default under
      * Settings → Privacy and security → "Use Google services for push
@@ -173,16 +220,9 @@ window.STUDYOS_CONFIG = {
    *               done-state flips, so ticking a StudyOS task inside TaskHub
    *               checks it off in StudyOS too
    *
-   * REQUIREMENT: both apps must reach the SAME Firestore database. Two ways:
-   *
-   *   a) Simplest — point §1 `firebase` at the Index project. StudyOS's own
-   *      data and the mirror then share one project and one connection, and
-   *      you can leave `firebase: null` below.
-   *
-   *   b) Keep StudyOS's data in your OWN Firebase project and reach the Index
-   *      project only for the mirror. Fill in the `firebase` block below with
-   *      the Index project's web config; StudyOS opens a second, separate
-   *      Firebase connection just for these two documents.
+   * REQUIREMENT — ALREADY SATISFIED: both apps must reach the same Firestore
+   * database, and §1 points StudyOS at the Index project, so they do. Nothing
+   * to configure here. Leave `firebase` null.
    *
    * Set enabled:false to run StudyOS completely standalone — it then keeps
    * every feature except this one-way push into TaskHub.
@@ -195,11 +235,13 @@ window.STUDYOS_CONFIG = {
     mirrorDoc: 'dashboards/studyos_mirror',
     ackDoc:    'dashboards/studyos_mirror_ack',
 
-    /* Leave null to use the §1 Firebase project (option a above). To reach a
-     * DIFFERENT project (option b), paste that project's web config here:
-     *   firebase: { apiKey:'…', authDomain:'…', projectId:'…',
-     *               storageBucket:'…', messagingSenderId:'…', appId:'…' }
-     * Anonymous auth must be enabled on that project too. */
+    /* null = use the §1 connection, which is what you want: §1 already points
+     * at the Index project, so the mirror is reachable over the same socket.
+     *
+     * This exists only as an escape hatch. If StudyOS were ever moved onto a
+     * separate Firebase project, paste the INDEX project's web config here and
+     * StudyOS opens a second named connection ('studyos-mirror') purely for
+     * these two documents. Anonymous auth would then be needed on both. */
     firebase: null,
 
     /* Items are tagged so TaskHub can tell them apart from its own tasks and

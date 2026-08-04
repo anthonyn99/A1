@@ -1,13 +1,20 @@
 # README FOR CLAUDE — StudyOS migration into V1
 
 **You are Claude Code, running in VS Code on Veda's computer.** This folder is a
-complete, self-contained StudyOS application that was extracted from another
-project. Your job is to move it into Veda's **V1** project and connect it to
-**her** Firebase, Cloudflare and Formspree accounts.
+complete, self-contained StudyOS application, extracted from the Index project
+so it can live in Veda's **V1** project instead. Your job is to install it there
+and finish wiring it up.
 
 The app is finished and tested. Nothing here needs to be written or redesigned.
-What is missing is **configuration** — every account-specific value is a
-placeholder. Fill those in, deploy two Workers, and it works.
+
+**Firebase is already done.** StudyOS deliberately keeps using the **Index**
+Firebase project — that is required for the TaskHub task mirror (Firestore
+cannot read across projects) and it means Veda's existing classes, tasks, notes
+and files are simply there on first load. `config/config.js` §1 holds the real
+values; do not change them, and **do not deploy Firestore rules** (§3).
+
+What is actually left: deploy two Cloudflare Workers, point Formspree at Veda's
+account, and copy one service worker to the site root. Roughly §2, §4, §5, §6.
 
 > **Do not rewrite the application code.** Several parts look like they could be
 > simplified but each one encodes a real bug fix. The comments say which. If you
@@ -19,9 +26,11 @@ placeholder. Fill those in, deploy two Workers, and it works.
 
 | Rule | Why |
 |---|---|
-| Edit **only** `config/config.js`, the two `wrangler.toml` files, and `firebase/firebase-messaging-sw.js` | Everything else is account-agnostic. If you need to hardcode a value anywhere else, something is wrong. |
+| **Firebase is already configured** — §1 of `config.js` holds the real Index-project values | StudyOS shares the Index database so the TaskHub mirror works and Veda's existing data carries over. Changing it breaks both. |
+| **Never deploy Firestore rules** | The Index project hosts a dozen other apps. There is deliberately no `.rules` file here. See §3. |
+| The only files that still need editing are the **two `wrangler.toml`s** (KV ids + your origin) | Everything else is finished. If you find yourself hardcoding a value elsewhere, something is wrong. |
 | Serve over **http(s)**, never `file://` | Firebase auth rejects the `null` origin, ES modules are blocked, and service workers won't register. `file://` produces a "Sync failed" state that looks like a bug but isn't. |
-| Don't enable Firebase **App Check** until everything else works | A misconfigured App Check blocks every read and write and is indistinguishable from broken security rules. |
+| **Allowlist V1's domain for App Check first** (§3) | The Index project enforces App Check. Until V1's host is on the reCAPTCHA key, every read and write is denied and the app looks empty. |
 | Work top-to-bottom | Each step's verification depends on the previous one. |
 
 ---
@@ -44,8 +53,8 @@ StudyOS/
 │   └── taskmirror.js            pushes tasks/events to TaskHub in Index
 ├── assets/                      app icons (192 / 512)
 ├── firebase/
-│   ├── firestore.rules          deploy these
-│   └── firebase-messaging-sw.js MUST end up at the SITE ROOT
+│   ├── FIRESTORE_RULES_REFERENCE.md  why there is nothing to deploy
+│   └── firebase-messaging-sw.js      MUST end up at the SITE ROOT
 └── workers/
     ├── studyos-files/           file storage on Workers KV
     └── studyos-api/             App Lock auth + reminder push cron
@@ -64,9 +73,9 @@ module tracker, and per-class document storage. Data syncs across devices
 through Firestore; uploaded files sync through Cloudflare Workers KV.
 
 **It also pushes its dated tasks and events into Veda's weekly TaskHub, which
-lives in a different deployment (the Index project).** That cross-app link is
-the one part of this migration with a hard external requirement — see §3a. Read
-it before configuring Firebase, because it decides which project you point at.
+lives in a different deployment (the Index project).** That link is why StudyOS
+points at the Index Firebase project rather than a new one — see §3, which is
+already done for you.
 
 ### Degradation is deliberate
 
@@ -101,77 +110,100 @@ python -m http.server 8080
 # open http://127.0.0.1:8080/StudyOS/studyos.html
 ```
 
-**Expected at this point:** the app renders, you can create a class, and the
-console says *"Firebase not configured — running local-only"* and *"App Lock is
-on but the studyos-api Worker is not configured — running unlocked."* Both are
-correct. If you see anything else, stop and fix it before continuing.
+**Expected at this point:** the app renders and **Veda's existing classes and
+tasks load from Firestore** — that is the fastest confirmation the project and
+document paths are right. The console should say *"App Lock is on but the
+studyos-api Worker is not configured — running unlocked"*, which is correct
+until §5.
+
+If the app comes up empty, or the console shows `permission-denied`, stop and
+read the end of §3 before going further.
 
 ---
 
-## 3a. Decide this first: which Firebase project?
+## 3. Firebase — already configured, do not change it
 
-StudyOS must reach the **same Firestore database as the Index project**, because
-that is how it delivers tasks to TaskHub. Two documents carry the traffic, with
-**exactly one writer each** so neither app can ever overwrite the other:
+**StudyOS uses the Index Firebase project (`task-dashboard-d2b53`), and the real
+values are already filled in.** `config/config.js` §1 is finished. There is no
+Firebase setup step, no new project to create, and **no rules to deploy**.
 
-| Document | Writer | Reader | Carries |
-|---|---|---|---|
-| `dashboards/studyos_mirror` | StudyOS | TaskHub | every dated StudyOS task/event |
-| `dashboards/studyos_mirror_ack` | TaskHub | StudyOS | done-state flips |
+Two reasons it is wired this way, both load-bearing:
 
-That single-writer split is not decoration. TaskHub saves its own document with
-a **whole-document** `setDoc()`. If both apps wrote one shared document, the
-later write would silently erase the other side's habits, goals, or same-day
-edits. Do not "simplify" the two documents into one.
+1. **The task mirror requires it.** StudyOS delivers tasks to TaskHub through
+   two Firestore documents, and Firestore cannot read across projects. Same
+   database or no mirror.
+2. **StudyOS's existing data already lives there**, at `dashboards/studyos`.
+   Pointing anywhere else would strand every class, task, note and file Veda
+   has today. Because the path is unchanged, the move is seamless — open
+   StudyOS in V1 and her data is simply there.
 
-Pick one:
+| Document / collection | Purpose |
+|---|---|
+| `dashboards/studyos` | classes, events, tasks, notes, KSU (**existing data**) |
+| `dashboards/studyos_lock` | App Lock state |
+| `dashboards/studyos_mirror` | StudyOS → TaskHub, StudyOS writes only |
+| `dashboards/studyos_mirror_ack` | TaskHub → StudyOS, TaskHub writes only |
+| `studyos_reminders` | scheduled push, swept by studyos-api's cron |
+| `studyos_fcm_tokens` | StudyOS device push tokens |
 
-**Option A — one project (recommended, and much simpler).**
-Point config §1 at the **Index** Firebase project. StudyOS's own data and the
-mirror then share one project and one connection. Leave
-`taskMirror.firebase: null`.
-⚠️ **Do not deploy `firebase/firestore.rules` in this case.** The Index project
-hosts a dozen other apps whose documents those rules don't list, and they deny
-everything unlisted. The Index project's existing rules already cover
-`dashboards/**`. Skip §3 step 4 entirely.
+> **The `studyos_` prefixes are deliberate.** Index runs its *own* reminder cron
+> over `reminders` and `fcm_tokens`. If StudyOS wrote to those, both crons would
+> sweep the same documents — duplicate notifications plus a race where one
+> deletes a document the other is still sending. Never drop the prefix.
 
-**Option B — Veda keeps her own project for StudyOS data.**
-Config §1 points at her project; paste the **Index** project's web config into
-`taskMirror.firebase`. StudyOS then opens a second, separate Firebase connection
-just for the two mirror documents. Anonymous sign-in must be enabled on **both**
-projects. Deploy `firestore.rules` to *her* project only.
+### ⛔ Do not deploy Firestore rules
 
-If Veda does not want the TaskHub link at all, set `taskMirror.enabled = false`
-and everything else in this guide still applies.
+The Index project hosts a dozen other apps (TaskHub, journals, Vault, ProView,
+EventRec, MotionCore…). Publishing a StudyOS-specific ruleset there would delete
+the rules protecting all of them. There is deliberately **no `.rules` file** in
+this project — see `firebase/FIRESTORE_RULES_REFERENCE.md` for why, and for the
+ruleset you'd need only if StudyOS were ever moved to its own project.
 
----
+The Index project's existing authenticated catch-all already covers every path
+above, and StudyOS signs in anonymously, so it all just works.
 
-## 3. Firebase
+### ⚠️ THE ONE REQUIRED FIREBASE STEP: allowlist V1's domain for App Check
 
-Ask Veda to create a project at <https://console.firebase.google.com> (or use
-her existing one), then:
+**Do this before anything else, or nothing will sync.**
 
-1. **Firestore Database** → Create database → **Production mode**.
-2. **Authentication → Sign-in method → Anonymous → Enable.**
-   StudyOS signs in anonymously so there's no login screen. Without this, every
-   read and write is denied and the app looks permanently offline.
-3. **Project settings → General → Your apps → Web app** (`</>`). Copy the
-   `firebaseConfig` values into `config/config.js` §1.
-4. Deploy the rules — **only if you chose Option B in §3a**:
-   ```bash
-   firebase deploy --only firestore:rules
-   ```
-   …or paste `firebase/firestore.rules` into **Firestore → Rules → Publish**.
-   Under Option A, skip this: publishing them to the Index project would break
-   every other app living there.
+The Index project **enforces App Check** on Firestore, using a reCAPTCHA v3 site
+key. reCAPTCHA keys are **domain-restricted**, so a request from a domain the key
+doesn't know is refused — every read and write comes back `permission-denied`.
 
-> The web `apiKey` is **not** a secret — it's a public project identifier.
-> Access is controlled by the security rules, not by hiding it. It's fine in a
-> public repo.
+Add V1's domain to the key's allowed list:
 
-**Verify:** reload StudyOS. The console message about Firebase should be gone,
-and the sync pill in the sidebar should reach "saved" after you edit something.
-Check Firestore for a `dashboards/studyos` document.
+> **Google Cloud console → Security → reCAPTCHA → key
+> `6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX` → Domains**
+> Add V1's host, plus `localhost` and `127.0.0.1` so local testing works.
+
+This is verified behaviour, not a precaution. Served from an un-allowlisted
+origin, StudyOS **and Index's own `index.html`** fail identically —
+`appCheck/recaptcha-error` followed by `permission-denied` on every operation —
+while `index.html` works normally in production. StudyOS now registers App Check
+exactly the way Index does (already set in `config.js` §1); the allowlist is the
+only piece that can't be done from code.
+
+Setting `appCheck.enabled = false` does **not** work around this. With
+enforcement on, a request carrying no App Check token is refused just the same.
+
+### Verify
+
+Serve StudyOS and reload. **Veda's existing classes and tasks should appear on
+first load** without importing anything — that is the clearest possible signal
+that the project, the paths and App Check are all correct. The sidebar sync pill
+should reach **saved** after an edit.
+
+If the app is empty and the console shows `permission-denied`, check in order:
+
+1. `appCheck/recaptcha-error` in the console → the domain isn't allowlisted yet;
+   do the step above.
+2. No App Check line, just denials → Anonymous sign-in got disabled. Firebase
+   console → Authentication → Sign-in method → Anonymous → Enable.
+
+> A useful safety property while you debug: StudyOS **cannot** write until it has
+> completed one successful server read. So a session that is being denied can
+> never push its empty local state over Veda's real data — you will see an empty
+> app, but nothing is lost, and it fills in as soon as access is fixed.
 
 ---
 
@@ -247,14 +279,12 @@ Only needed for reminders that fire while StudyOS is **closed**. In-app
 reminders already work without any of this. To skip it, set
 `config.push.enabled = false` and move on.
 
-1. **Firebase console → Project settings → Cloud Messaging → Web Push
-   certificates → Generate key pair.** Paste the public key into `config.js` §4
-   `vapidKey`.
-2. Fill the **same** Firebase values into the root
-   `firebase-messaging-sw.js`. A service worker runs in its own global scope and
-   **cannot** read `config.js` — this duplication is unavoidable, not an oversight.
-3. **Project settings → Service accounts → Generate new private key.** From the
-   downloaded JSON:
+The VAPID key and the service worker's Firebase values are **already filled in**
+— same project as Index, so the same Web Push certificate applies. Only the
+service-account secrets are left:
+
+1. **Firebase console → Project settings → Service accounts → Generate new
+   private key.** From the downloaded JSON:
    ```bash
    cd StudyOS/workers/studyos-api
    npx wrangler secret put FIREBASE_CLIENT_EMAIL   # the client_email value
@@ -262,9 +292,19 @@ reminders already work without any of this. To skip it, set
    npx wrangler deploy
    ```
 
+2. Copy `firebase/firebase-messaging-sw.js` to the **site root** if you haven't
+   already (§2 step 2). No edits needed — its values are correct.
+
 **Verify:** `/health` now returns `"fcm": true`. Set a task reminder a couple of
 minutes out, close the tab, and wait. Watch the cron with
 `npx wrangler tail` — a healthy tick logs a single-digit document count.
+
+> **Both reminder systems run in one Firebase project.** StudyOS's cron sweeps
+> `studyos_reminders` / `studyos_fcm_tokens`; Index's existing cron sweeps
+> `reminders` / `fcm_tokens`. They must never share a collection — two crons on
+> one collection means duplicate notifications and a race where one deletes a
+> document the other is still sending. If you ever see StudyOS reminders firing
+> twice, check `REMINDERS_COLLECTION` in `workers/studyos-api/wrangler.toml`.
 
 > **Brave on desktop** ships with *Settings → Privacy and security → "Use Google
 > services for push messaging"* **off**. In-app banners still appear; closed-app
@@ -337,23 +377,25 @@ Work through this on a real device, not just localhost.
 |---|---|---|
 | "Firebase not configured" in console | placeholders left in `config.js` §1 | fill them in; any value containing `‹REPLACE` disables that section |
 | Everything works locally, nothing syncs | Anonymous auth not enabled | Firebase → Authentication → Sign-in method → Anonymous |
-| `permission-denied` on every read | rules not deployed | `firebase deploy --only firestore:rules` |
+| `permission-denied` on every read, app looks empty | V1's domain not allowlisted on the reCAPTCHA key (look for `appCheck/recaptcha-error`), or Anonymous auth disabled | §3 — allowlist the domain; nothing is lost meanwhile, StudyOS can't write before a successful read |
 | "Sync failed" and nothing loads | opened over `file://` | serve over http(s) |
 | Files upload but won't open on another device | `filesWorker.baseUrl` wrong, or KV namespace id still a placeholder | check `/usage` returns JSON |
 | Upload says "Cloud sync not set up" | files Worker unconfigured | step 4 |
 | App Lock button does nothing | `apiWorker.baseUrl` unset — the lock stays dormant by design | step 5 |
 | Hint email never arrives | Formspree confirmation not clicked | check the inbox for Formspree's confirmation |
-| Reminders fire in-app but never when closed | VAPID key, root service worker, or service-account secrets missing | step 7; check `/health` says `fcm:true` |
+| Reminders fire in-app but never when closed | root service worker not copied, or service-account secrets missing | step 7; check `/health` says `fcm:true` |
 | Push works everywhere except Brave desktop | Brave's push toggle is off by default | see the note in step 7 |
 | Every read and write suddenly denied after it worked | App Check enabled without a valid site key | set `firebase.appCheck.enabled = false` |
 | Write refused, "over the safe limit" | a single Firestore doc is nearing 1 MiB | StudyOS refuses at 900 KB on purpose — a hard rejection wedges the whole sync queue. Remove old data. |
 | "Task mirror idle — Firebase is not configured" | §1 still has placeholders | step 3 |
-| Tasks never reach TaskHub | StudyOS and Index are on **different** Firebase projects | §3a — either point §1 at the Index project, or fill in `taskMirror.firebase` |
-| Mirror writes fail with `permission-denied` | mirror project's rules don't cover `dashboards/studyos_mirror`, or anonymous auth is off on that project | add the two `match` blocks from `firestore.rules`; enable Anonymous sign-in |
+| Tasks never reach TaskHub | `config.js` §1 was changed away from the Index project | restore it — Firestore cannot read across projects, so the mirror needs one shared database |
+| Mirror writes fail with `permission-denied` | same causes as any other denial | see the end of §3; the Index project's catch-all already permits these documents |
 | Tasks appear in TaskHub but ticking them doesn't check them off in StudyOS | ack doc unreachable, or the item is an **event** (events have no done-state in StudyOS — correct) | check `dashboards/studyos_mirror_ack` exists and is writable |
 | A StudyOS task shows on the wrong day | date-key mismatch | keys are `YYYY-MM-DD`, zero-padded, month 1-based — same as TaskHub's `dkey()`. Run `window._sosMirrorBuild()` in StudyOS's console and inspect `dateKey`. |
 | Nothing in TaskHub until Veda edits something | first push not triggered | StudyOS pushes a full set on boot; force it with `window._sosMirrorNow()` |
-| Every other app in Index broke after deploying rules | `firestore.rules` published to the **Index** project | restore the Index project's own rules; see §3a Option A |
+| Every other app in Index broke | Firestore rules were published from this project | restore the Index project's own rules from its repo. This is why no `.rules` file ships here — see `firebase/FIRESTORE_RULES_REFERENCE.md` |
+| StudyOS reminders arrive **twice** | StudyOS and Index crons sweeping the same collection | `REMINDERS_COLLECTION` must stay `studyos_reminders` (§7 note) |
+| Veda's existing classes/tasks are missing on first load | `firebase.paths.studyos` was changed | it must stay `dashboards/studyos` — that is where her data already lives |
 
 ---
 
