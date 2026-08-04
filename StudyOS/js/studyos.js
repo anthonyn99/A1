@@ -3464,6 +3464,35 @@ window.studyOsInit = function () {
   scheduleNotifications();
 };
 
+/* ── Bridge for js/taskmirror.js ───────────────────────────────────────────
+ * `classes`, `events` and `tasks` are top-level `let` bindings in this classic
+ * script. They live in the global LEXICAL scope, not on `window`, so another
+ * script can't reach them by property access. This is the one supported way in
+ * and out — taskmirror.js derives the whole mirror from these getters rather
+ * than tracking changes incrementally, which is what makes it self-healing.
+ *
+ * setTaskDone is the return path: TaskHub ticking a StudyOS task lands here. */
+window._sosBridge = {
+  getClasses: () => classes,
+  getEvents:  () => events,
+  getTasks:   () => tasks,
+  setTaskDone: (taskId, done) => {
+    const t = tasks.find(x => x.id === taskId);
+    if (!t || t.done === done) return false;
+    t.done = done;
+    persistTasks();
+    // Repaint whatever is on screen; each of these is a no-op if its view
+    // isn't mounted.
+    try { renderCalendar(); } catch (e) {}
+    try { renderUpcoming(); } catch (e) {}
+    try { updateStats(); } catch (e) {}
+    try { renderPriorityQueue(); } catch (e) {}
+    const cur = classes.find(c => c.id === currentClassId);
+    if (cur) { try { renderClassEvents(cur); } catch (e) {} }
+    return true;
+  },
+};
+
 (function () {
   var booted = false;
   function boot() {

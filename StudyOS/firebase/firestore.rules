@@ -19,6 +19,16 @@ rules_version = '2';
 // single-user app and matches how the original build shipped. The App Lock
 // gates the UI, not this. If StudyOS ever hosts more than one person's data,
 // replace the blanket `request.auth != null` with per-user document ownership.
+//
+// ⚠️  DO NOT DEPLOY THIS FILE TO THE **INDEX** PROJECT.
+// These rules deny everything not listed below. The Index project hosts a dozen
+// other apps (TaskHub, journals, Vault, ProView, …) whose documents are NOT
+// listed here, so publishing this there would break every one of them.
+//
+// Deploy this ONLY to a Firebase project that StudyOS has to itself. If you
+// pointed config §1 at the Index project (task-mirror option "a"), that project
+// already has its own rules covering `dashboards/**` — leave them alone and
+// skip this file entirely.
 // ============================================================================
 
 service cloud.firestore {
@@ -55,6 +65,24 @@ service cloud.firestore {
     // One document per device, keyed by FCM token, so the cron knows where to
     // deliver. Also service-account-read by the Worker.
     match /fcm_tokens/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── StudyOS → TaskHub task mirror ───────────────────────────────────────
+    // Two documents, exactly ONE WRITER EACH — that separation is what stops
+    // the two apps clobbering each other (TaskHub saves with a whole-document
+    // setDoc, so a shared writable doc would mean last-writer-wins).
+    //
+    //   studyos_mirror      StudyOS writes, TaskHub reads
+    //   studyos_mirror_ack  TaskHub writes, StudyOS reads
+    //
+    // These only need to exist in whichever project serves the mirror. If that
+    // is the Index project, its own rules already cover them and this block is
+    // simply unused.
+    match /dashboards/studyos_mirror {
+      allow read, write: if request.auth != null;
+    }
+    match /dashboards/studyos_mirror_ack {
       allow read, write: if request.auth != null;
     }
 

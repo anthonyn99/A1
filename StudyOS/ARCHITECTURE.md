@@ -58,7 +58,7 @@ paid Blaze plan. Firestore holds only `{name, size, mime, storageUrl}`.
 | `window.uiConfirm` | **no** — awaited directly | ported → `js/ui.js` |
 | `window.thScheduleNotif` / `thCancelNotif` | yes | rewritten → `js/push.js` |
 | `window.sosPastel` | yes | moved into `js/studyos.js` |
-| `window._vedaAddTask` / `_vedaUpdateTask` / `_vedaRemoveTask` / `_vedaTogTask` | yes | left as optional hooks (see §4) |
+| `window._vedaAddTask` / `_vedaUpdateTask` / `_vedaRemoveTask` / `_vedaTogTask` | yes | rebuilt on Firestore → `js/taskmirror.js` (see §4) |
 | `window._vdCurApp`, `_navOrderModule`, `_navRecheckOverflow` | yes | host nav chrome — dropped |
 | `window._fbLoadStudyOs` / `_fbSaveStudyOs` / `_fbReady` | mixed | → `js/firebase-sync.js` |
 
@@ -138,21 +138,71 @@ persist call, every guard is unchanged — behaviour is identical by constructio
 
 ---
 
-## 4. The one capability that could not come along
+## 4. The task mirror — the one thing that needed a new transport
 
-In the host page, StudyOS mirrored its dated tasks and events into a **separate
-weekly TaskHub** living on the same page, through
-`window._vedaAddTask / _vedaUpdateTask / _vedaRemoveTask / _vedaTogTask`.
+In the host page, StudyOS mirrored its dated tasks and events into Veda's
+**weekly TaskHub** through four in-page globals
+(`_vedaAddTask` / `_vedaUpdateTask` / `_vedaRemoveTask` / `_vedaTogTask`).
 
-Standalone StudyOS has no such sibling, so there is nothing to mirror into.
-Every one of those calls was **already null-guarded** in the original, so they
-are simply inert — no code changes were needed and nothing throws.
+Those worked only because both apps lived in **one document**. StudyOS now ships
+in a separate deployment, where a JS global call across pages is physically
+impossible. The requirement survived — StudyOS must still feed TaskHub — so the
+transport was rebuilt on **shared Firestore**.
 
-If V1 ever grows a weekly planner, define those four globals before StudyOS
-boots and the mirror reconnects untouched. The contract is documented in
-`config/config.js` §7.
+### Two documents, exactly one writer each
 
-**This is the only functional difference between the two builds.**
+| Document | Writer | Reader | Carries |
+|---|---|---|---|
+| `dashboards/studyos_mirror` | StudyOS | TaskHub | every dated StudyOS task/event |
+| `dashboards/studyos_mirror_ack` | TaskHub | StudyOS | done-state flips |
+
+The single-writer split is the core safety property. TaskHub persists its state
+with a **whole-document** `setDoc()`; a shared writable document would make every
+concurrent edit a last-writer-wins race, silently destroying habits, goals, or
+the other side's same-day tasks. With one writer each, neither app can corrupt
+the other no matter how the writes interleave.
+
+Both apps must therefore reach the same Firestore database. Either StudyOS
+points at the Index project outright, or it keeps its own project and opens a
+second named Firebase app (`studyos-mirror`) purely for these two documents.
+Configured in `config/config.js` §7.
+
+### Derived, not incremental
+
+The mirror is **rebuilt in full** from `tasks` + `events` + `classes` on every
+change, rather than being mutated by the four legacy calls. That is a deliberate
+upgrade over the original: an incremental stream drifts permanently the moment
+one call is missed — a crash mid-edit, an edit made while offline, a call fired
+before the module finished loading. A derived mirror is idempotent, so any write
+reconciles the entire set.
+
+The four globals are still defined (as one-line "mark dirty" triggers) because
+`js/studyos.js` calls them throughout and they are its only signal that dated
+data changed. **That is why `studyos.js` required no edits for any of this.**
+
+It also fixed a latent bug: repeating *events* used to be mirrored under a
+freshly minted `uid()` that matched no stored event, so a done-tick could never
+be routed back. Deriving from source means every item carries its real id.
+
+### Reconcile on the TaskHub side
+
+TaskHub treats the mirror as the sole source of truth for anything tagged
+`_sosId`: it strips all such items and re-adds from the mirror. Anything the
+mirror no longer lists was deleted in StudyOS and disappears — which is what
+`_vedaRemoveTask` used to do. Veda's own tasks carry no `_sosId` and are never
+touched. Both sides skip the write entirely when nothing changed; without that,
+each app's save would re-trigger the other's listener and they would ping-pong
+forever.
+
+### What the bridge is for
+
+`classes`, `events` and `tasks` are top-level `let` bindings in a classic
+script — they live in the global *lexical* scope and are **not** reachable as
+`window.tasks`. `window._sosBridge`, defined at the end of `studyos.js`, is the
+only supported way in and out: three getters plus `setTaskDone`, the return path
+for acks.
+
+**Functional parity with the original build is complete.**
 
 ---
 
@@ -206,8 +256,22 @@ Each of these looks redundant and is a fixed bug.
 - five "Study" header buttons (3 HTML, 2 React)
 - App Lock registry entries: `AL_LABELS`, `AL_APP_ROOTS`, `alNavAppToId`, `alUpdateVedaLockBtns`
 - the NavOrder default entry
-- the cross-app task-injection API and the `studyos_tasks` write-back in TaskHub's `tog()`
+- the in-page cross-app task-injection API and the `studyos_tasks` write-back in TaskHub's `tog()`
 - stray `#study-root` CSS selectors
+
+### Added back to the host page
+
+The cross-app link had to survive the split, so the host page gained a
+Firestore-based receiver in place of the in-page API it lost:
+
+- a read-only `dashboards/studyos_mirror` listener + `window._fbSaveSosAck`
+  writer in the Firebase module
+- a reconcile effect in Veda's TaskHub component that merges mirrored items into
+  the weekly grid and removes ones the mirror has dropped
+- an ack write in `tog()`, so ticking a mirrored task checks it off in StudyOS
+
+This is strictly less coupling than before: the host page no longer knows
+anything about StudyOS's internals, only about a document shape.
 
 ### Deliberately kept
 
@@ -224,8 +288,7 @@ StudyOS dependency. The comment at line 3,233 says so.
 
 ## 7. Verification performed
 
-88 automated checks in headless Chrome against the standalone app, plus 23
-against the modified host page. All passing, no uncaught errors.
+141 automated checks in headless Chrome. All passing, no uncaught errors.
 
 | Suite | Checks | Covers |
 |---|---:|---|
@@ -233,10 +296,12 @@ against the modified host page. All passing, no uncaught errors.
 | App Lock | 31 | create, per-device unlock, gating a fresh device, wrong password, hint email, unlock, change password + version bump, old password rejected, remove lock |
 | Recovery | 9 | reset-code request, bad code rejected, correct code, new password live, old password dead |
 | Files | 10 | small upload/download, cloud-first blob resolution, 45 MB chunked upload with byte-integrity check, usage meter, delete |
+| Task mirror | 30 | item derivation (task/event shape, zero-padded date keys, class badges, repeat ids, undated tasks excluded), deletion propagation, `setTaskDone` ack path, TaskHub reconcile, removal of dropped items, Veda's own tasks untouched, idempotence on a repeated payload |
 | Host page | 23 | boots, React mounts, StudyOS fully absent, other apps still route, `sosPastel` intact |
 
 TaskHub's edited `tog()` was additionally proven semantically identical to the
 untouched Tony equivalent, including non-mutation and `_sos*` field preservation.
 
-Not covered by automation, needs a real device: FCM delivery with the app
-closed, WebAuthn biometrics, and genuine two-device sync.
+Not covered by automation, needs a real device or live Firestore: FCM delivery
+with the app closed, WebAuthn biometrics, genuine two-device sync, and the mirror
+running over a real Firestore connection rather than injected snapshots.

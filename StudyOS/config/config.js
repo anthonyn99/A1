@@ -156,24 +156,62 @@ window.STUDYOS_CONFIG = {
     nav: [],
   },
 
-  /* ── 7. OPTIONAL: EXTERNAL TASK MIRROR ───────────────────────────────────
-   * In the original Index build, StudyOS pushed its dated tasks/events into a
-   * separate weekly TaskHub app living on the same page, via the globals
-   * window._vedaAddTask / _vedaUpdateTask / _vedaRemoveTask / _vedaTogTask.
+  /* ── 7. TASK MIRROR → TaskHub in the Index project ───────────────────────
+   * StudyOS pushes its dated tasks and events into Veda's weekly TaskHub,
+   * which lives in a DIFFERENT deployment (the Index project).
    *
-   * Standalone StudyOS has no such sibling, so every one of those calls is
-   * already null-guarded and simply does nothing. If V1 ever grows a weekly
-   * planner, define those four globals before StudyOS boots and the mirror
-   * reconnects with zero changes to StudyOS itself. Contract:
+   * HOW IT WORKS. Originally both apps shared one page, so the mirror was
+   * plain in-page function calls. Across two separately-hosted pages that is
+   * impossible, so the transport is now shared Firestore, using two documents
+   * with EXACTLY ONE WRITER EACH — neither side can ever clobber the other:
    *
-   *   window._vedaAddTask(dateKey, item)                     // item._sosId tags origin
-   *   window._vedaUpdateTask(oldDateKey, newDateKey, item)
-   *   window._vedaRemoveTask(sosId)                          // or '__repeatId__<rid>'
-   *   window._vedaTogTask(sosId, done)
+   *   mirrorDoc   StudyOS WRITES, TaskHub READS
+   *               the full set of StudyOS-derived items, rebuilt from source
+   *               on every change (so it is self-healing and can't drift)
    *
-   * dateKey format is 'YYYY-M-D' (month and day NOT zero-padded).
+   *   ackDoc      TaskHub WRITES, StudyOS READS
+   *               done-state flips, so ticking a StudyOS task inside TaskHub
+   *               checks it off in StudyOS too
+   *
+   * REQUIREMENT: both apps must reach the SAME Firestore database. Two ways:
+   *
+   *   a) Simplest — point §1 `firebase` at the Index project. StudyOS's own
+   *      data and the mirror then share one project and one connection, and
+   *      you can leave `firebase: null` below.
+   *
+   *   b) Keep StudyOS's data in your OWN Firebase project and reach the Index
+   *      project only for the mirror. Fill in the `firebase` block below with
+   *      the Index project's web config; StudyOS opens a second, separate
+   *      Firebase connection just for these two documents.
+   *
+   * Set enabled:false to run StudyOS completely standalone — it then keeps
+   * every feature except this one-way push into TaskHub.
    * ------------------------------------------------------------------------ */
-  taskMirror: { enabled: false },
+  taskMirror: {
+    enabled: true,
+
+    /* Document paths in whichever project serves the mirror. These must match
+     * what the Index side listens on — do not change one without the other. */
+    mirrorDoc: 'dashboards/studyos_mirror',
+    ackDoc:    'dashboards/studyos_mirror_ack',
+
+    /* Leave null to use the §1 Firebase project (option a above). To reach a
+     * DIFFERENT project (option b), paste that project's web config here:
+     *   firebase: { apiKey:'…', authDomain:'…', projectId:'…',
+     *               storageBucket:'…', messagingSenderId:'…', appId:'…' }
+     * Anonymous auth must be enabled on that project too. */
+    firebase: null,
+
+    /* Items are tagged so TaskHub can tell them apart from its own tasks and
+     * reconcile them safely:
+     *   _sosId          stable per StudyOS task/event  ('t_<taskId>' | '<eventId>')
+     *   _sosRepeatId    groups occurrences of one repeating series
+     *   _sosClassName   class label shown as a badge in TaskHub
+     *   _sosClassColor  badge color (mapped through sosPastel on the TaskHub side)
+     *
+     * dateKey format is 'YYYY-MM-DD', zero-padded, month 1-based — the same
+     * key TaskHub's own dkey() produces. */
+  },
 };
 
 /* ── Config sanity check ────────────────────────────────────────────────────

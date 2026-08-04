@@ -687,6 +687,7 @@
                       for the fb-ready event rather than assuming it is up
        push.js        needs _fbSaveReminder from firebase-sync (checked at call)
        studyos.js     the app; boots once SOS_GATE resolves
+       taskmirror.js  LAST — reads window._sosBridge, which studyos.js defines
      ══════════════════════════════════════════════════════════════════════ -->
 <script src="js/shell.js"></script>
 <script src="js/ui.js"></script>
@@ -694,5 +695,6 @@
 <script type="module" src="js/firebase-sync.js"></script>
 <script src="js/push.js"></script>
 <script src="js/studyos.js"></script>
+<script type="module" src="js/taskmirror.js"></script>
 </body>
 </html>

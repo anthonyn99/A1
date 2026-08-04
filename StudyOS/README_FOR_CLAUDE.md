@@ -40,7 +40,8 @@ StudyOS/
 │   ├── applock.js               App Lock: gate, password lifecycle, biometrics
 │   ├── firebase-sync.js         Firestore sync (ES module)
 │   ├── push.js                  reminders: in-app poll + FCM registration
-│   └── studyos.js               the application itself
+│   ├── studyos.js               the application itself
+│   └── taskmirror.js            pushes tasks/events to TaskHub in Index
 ├── assets/                      app icons (192 / 512)
 ├── firebase/
 │   ├── firestore.rules          deploy these
@@ -53,13 +54,19 @@ StudyOS/
 **Load order in `studyos.html` is load-bearing.** `config.js` first (everything
 reads `window.STUDYOS_CONFIG` synchronously), then `ui.js` → `applock.js` (which
 publishes `window.SOS_GATE`) → `firebase-sync.js` → `push.js` → `studyos.js`
-(which waits on `SOS_GATE` before rendering). Don't reorder them.
+(which waits on `SOS_GATE` before rendering) → `taskmirror.js` **last**, because
+it reads `window._sosBridge` which `studyos.js` defines. Don't reorder them.
 
 ### What the app does
 
 Classes, a calendar, tasks with reminders, quick notes, a Pomodoro timer, a KSU
 module tracker, and per-class document storage. Data syncs across devices
 through Firestore; uploaded files sync through Cloudflare Workers KV.
+
+**It also pushes its dated tasks and events into Veda's weekly TaskHub, which
+lives in a different deployment (the Index project).** That cross-app link is
+the one part of this migration with a hard external requirement — see §3a. Read
+it before configuring Firebase, because it decides which project you point at.
 
 ### Degradation is deliberate
 
@@ -101,6 +108,44 @@ correct. If you see anything else, stop and fix it before continuing.
 
 ---
 
+## 3a. Decide this first: which Firebase project?
+
+StudyOS must reach the **same Firestore database as the Index project**, because
+that is how it delivers tasks to TaskHub. Two documents carry the traffic, with
+**exactly one writer each** so neither app can ever overwrite the other:
+
+| Document | Writer | Reader | Carries |
+|---|---|---|---|
+| `dashboards/studyos_mirror` | StudyOS | TaskHub | every dated StudyOS task/event |
+| `dashboards/studyos_mirror_ack` | TaskHub | StudyOS | done-state flips |
+
+That single-writer split is not decoration. TaskHub saves its own document with
+a **whole-document** `setDoc()`. If both apps wrote one shared document, the
+later write would silently erase the other side's habits, goals, or same-day
+edits. Do not "simplify" the two documents into one.
+
+Pick one:
+
+**Option A — one project (recommended, and much simpler).**
+Point config §1 at the **Index** Firebase project. StudyOS's own data and the
+mirror then share one project and one connection. Leave
+`taskMirror.firebase: null`.
+⚠️ **Do not deploy `firebase/firestore.rules` in this case.** The Index project
+hosts a dozen other apps whose documents those rules don't list, and they deny
+everything unlisted. The Index project's existing rules already cover
+`dashboards/**`. Skip §3 step 4 entirely.
+
+**Option B — Veda keeps her own project for StudyOS data.**
+Config §1 points at her project; paste the **Index** project's web config into
+`taskMirror.firebase`. StudyOS then opens a second, separate Firebase connection
+just for the two mirror documents. Anonymous sign-in must be enabled on **both**
+projects. Deploy `firestore.rules` to *her* project only.
+
+If Veda does not want the TaskHub link at all, set `taskMirror.enabled = false`
+and everything else in this guide still applies.
+
+---
+
 ## 3. Firebase
 
 Ask Veda to create a project at <https://console.firebase.google.com> (or use
@@ -112,11 +157,13 @@ her existing one), then:
    read and write is denied and the app looks permanently offline.
 3. **Project settings → General → Your apps → Web app** (`</>`). Copy the
    `firebaseConfig` values into `config/config.js` §1.
-4. Deploy the rules:
+4. Deploy the rules — **only if you chose Option B in §3a**:
    ```bash
    firebase deploy --only firestore:rules
    ```
    …or paste `firebase/firestore.rules` into **Firestore → Rules → Publish**.
+   Under Option A, skip this: publishing them to the Index project would break
+   every other app living there.
 
 > The web `apiKey` is **not** a secret — it's a public project identifier.
 > Access is controlled by the security rules, not by hiding it. It's fine in a
@@ -271,6 +318,17 @@ Work through this on a real device, not just localhost.
 - [ ] **Mobile** (390px): bottom nav visible, sidebar hidden, no horizontal scroll
 - [ ] **Desktop** (1440px): sidebar visible, bottom nav hidden
 
+**Task mirror → TaskHub** (open StudyOS in V1 and Index's TaskHub side by side):
+
+- [ ] Create a task in StudyOS with a due date → it appears on that day in Veda's TaskHub, badged with the class name
+- [ ] Create an event with a time → appears on its date with the time
+- [ ] Rename the task in StudyOS → the title updates in TaskHub
+- [ ] Move it to another date → it moves in TaskHub, no duplicate left behind
+- [ ] Delete it in StudyOS → it disappears from TaskHub
+- [ ] Tick it off **in TaskHub** → it shows as done in StudyOS
+- [ ] A task with **no due date** never appears in TaskHub (correct — the weekly grid is date-keyed)
+- [ ] One of Veda's **own** TaskHub tasks is untouched through all of the above
+
 ---
 
 ## 10. Troubleshooting
@@ -289,6 +347,13 @@ Work through this on a real device, not just localhost.
 | Push works everywhere except Brave desktop | Brave's push toggle is off by default | see the note in step 7 |
 | Every read and write suddenly denied after it worked | App Check enabled without a valid site key | set `firebase.appCheck.enabled = false` |
 | Write refused, "over the safe limit" | a single Firestore doc is nearing 1 MiB | StudyOS refuses at 900 KB on purpose — a hard rejection wedges the whole sync queue. Remove old data. |
+| "Task mirror idle — Firebase is not configured" | §1 still has placeholders | step 3 |
+| Tasks never reach TaskHub | StudyOS and Index are on **different** Firebase projects | §3a — either point §1 at the Index project, or fill in `taskMirror.firebase` |
+| Mirror writes fail with `permission-denied` | mirror project's rules don't cover `dashboards/studyos_mirror`, or anonymous auth is off on that project | add the two `match` blocks from `firestore.rules`; enable Anonymous sign-in |
+| Tasks appear in TaskHub but ticking them doesn't check them off in StudyOS | ack doc unreachable, or the item is an **event** (events have no done-state in StudyOS — correct) | check `dashboards/studyos_mirror_ack` exists and is writable |
+| A StudyOS task shows on the wrong day | date-key mismatch | keys are `YYYY-MM-DD`, zero-padded, month 1-based — same as TaskHub's `dkey()`. Run `window._sosMirrorBuild()` in StudyOS's console and inspect `dateKey`. |
+| Nothing in TaskHub until Veda edits something | first push not triggered | StudyOS pushes a full set on boot; force it with `window._sosMirrorNow()` |
+| Every other app in Index broke after deploying rules | `firestore.rules` published to the **Index** project | restore the Index project's own rules; see §3a Option A |
 
 ---
 
@@ -308,10 +373,20 @@ Work through this on a real device, not just localhost.
   elects a leader via an IndexedDB lease that iOS never releases when it kills a
   backgrounded PWA, so the next cold launch hangs. A home-screen PWA only ever
   runs one instance, so nothing is lost.
-- **`window._vedaAddTask` and friends are referenced but never defined.** These
-  are optional hooks into a sibling weekly planner that existed in the original
-  host page. Every call is null-guarded, so they're inert. See `config.js` §7 for
-  the contract if V1 ever grows one.
+- **`window._vedaAddTask` and friends look like they do nothing.** They are one
+  line each and only mark the mirror dirty. That is correct: the mirror is
+  *derived* from `tasks` + `events` + `classes` on every write, not accumulated
+  through those calls. `studyos.js` still calls them because they are its only
+  signal that dated data changed — which is exactly why `studyos.js` needed no
+  edits when the transport changed from in-page calls to Firestore.
+- **The mirror re-sends everything, not a delta.** Deliberate. A derived,
+  full-set write is idempotent and self-healing: a missed call, a crash
+  mid-edit, or an edit made offline all reconcile on the next write. A delta
+  stream would drift permanently.
+- **TaskHub deletes mirrored items it doesn't recognise.** The mirror is the sole
+  source of truth for anything tagged `_sosId`. If StudyOS no longer lists an
+  item, it was deleted there and must go. Veda's own tasks carry no `_sosId` and
+  are never touched.
 
 ---
 
@@ -324,3 +399,13 @@ Work through this on a real device, not just localhost.
 - The App Lock's `SOS_GATE` promise is the app's boot gate. If you add another
   module that renders data, make it wait on `SOS_GATE` too, or a locked StudyOS
   will leak that data on screen before the overlay paints.
+- **Never give the two mirror documents a second writer.** The whole no-clobber
+  guarantee rests on one writer each. If TaskHub ever needs to send StudyOS more
+  than done-flags, extend the *ack* document — don't let StudyOS write it.
+- `window._sosBridge` (defined at the end of `studyos.js`) is the only supported
+  way to read or write StudyOS's live `tasks` / `events` / `classes` from another
+  script. They are top-level `let` bindings, so they exist in the global lexical
+  scope and are **not** reachable as `window.tasks`.
+- Two debugging entry points, both safe to call from the console:
+  `window._sosMirrorBuild()` shows exactly what would be pushed;
+  `window._sosMirrorNow()` forces a push immediately.

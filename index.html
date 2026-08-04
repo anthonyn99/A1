@@ -5525,6 +5525,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _bjUnsubscribe  = null;
   let _mjUnsubscribe  = null;
   let _tjUnsubscribe  = null;
+  let _sosMirrorUnsub = null;   // StudyOS → TaskHub task mirror (read-only)
   let _mcUnsubscribe  = null;
   let _pvUnsubscribe  = null;
   let _alUnsubscribe  = null;
@@ -5817,6 +5818,41 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (_vdLastWrittenSavedAt !== 0 && (d.savedAt || 0) === _vdLastWrittenSavedAt) return;
       window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: d }));
     });
+
+    // ── StudyOS task mirror ───────────────────────────────────────────────────
+    // StudyOS now lives in its own deployment (Veda's V1 project), so it can no
+    // longer call into TaskHub through in-page globals. It instead publishes the
+    // full set of its dated tasks/events to `dashboards/studyos_mirror`, and we
+    // reconcile them into Veda's weekly grid.
+    //
+    // OWNERSHIP IS STRICT, and it has to be: TaskHub saves its own document with
+    // a whole-document setDoc, so if both apps wrote one doc, last-writer-wins
+    // would silently wipe habits, goals, or the other side's same-day edits.
+    //   studyos_mirror      StudyOS writes  → we only ever READ
+    //   studyos_mirror_ack  we write        → StudyOS only ever READS
+    const sosMirrorRef = doc(db, "dashboards/studyos_mirror");
+    const sosAckRef    = doc(db, "dashboards/studyos_mirror_ack");
+    if (_sosMirrorUnsub) { _sosMirrorUnsub(); _sosMirrorUnsub = null; }
+    _sosMirrorUnsub = onSnapshot(sosMirrorRef, (snap) => {
+      if (!snap.exists()) return;
+      const d = snap.data() || {};
+      window._sosMirrorLatest = d.items || {};
+      window.dispatchEvent(new CustomEvent("fb-sosmirror-update", { detail: window._sosMirrorLatest }));
+    }, (err) => { console.warn('[StudyOS mirror] onSnapshot error:', err && err.code); });
+
+    // Done-state flips travel back so ticking a StudyOS task inside TaskHub
+    // checks it off in StudyOS too. Debounced, and the whole map is rewritten
+    // each time — it is small (one boolean per mirrored task) and a full write
+    // keeps it self-correcting.
+    let _sosAckTimer = null, _sosAckPending = null;
+    window._fbSaveSosAck = (doneMap) => {
+      _sosAckPending = doneMap || {};
+      if (_sosAckTimer) clearTimeout(_sosAckTimer);
+      _sosAckTimer = setTimeout(async () => {
+        try { await setDoc(sosAckRef, { done: _sosAckPending, savedAt: Date.now(), app: 'taskhub' }); }
+        catch (e) { console.warn('[StudyOS mirror] ack write failed:', e && e.code); }
+      }, 600);
+    };
 
     // ── Veda Timeline real-time listener ──────────────────────────────────────
     if (_vtUnsubscribe) { _vtUnsubscribe(); _vtUnsubscribe = null; }
@@ -6960,6 +6996,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_bjUnsubscribe)  { _bjUnsubscribe();  _bjUnsubscribe  = null; }
     if (_mjUnsubscribe)  { _mjUnsubscribe();  _mjUnsubscribe  = null; }
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
+    if (_sosMirrorUnsub) { _sosMirrorUnsub(); _sosMirrorUnsub = null; }
     if (_mcUnsubscribe)  { _mcUnsubscribe();  _mcUnsubscribe  = null; }
     if (_pvUnsubscribe)  { _pvUnsubscribe();  _pvUnsubscribe  = null; }
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
@@ -9907,9 +9944,80 @@ function App(){
   },[]);
   useEffect(()=>{window._vedaShowGita=()=>{setShowLessons(true);};window._vedaCloseGita=()=>setShowLessons(false);return()=>{delete window._vedaShowGita;delete window._vedaCloseGita;};},[]);
 
+  // ── StudyOS task mirror — receive ──────────────────────────────────────────
+  // StudyOS lives in its own deployment now, so it publishes the FULL set of its
+  // dated tasks/events to dashboards/studyos_mirror and we reconcile them in.
+  //
+  // Reconcile, not merge: the mirror is the sole source of truth for every
+  // _sosId-tagged item. Anything tagged that is no longer in the mirror was
+  // deleted in StudyOS and must go here too — that is what the old
+  // _vedaRemoveTask call used to do. Veda's OWN tasks carry no _sosId and are
+  // never touched.
+  //
+  // The write only happens when something genuinely changed. Without that guard
+  // this effect would re-save on every snapshot, and each save re-triggers the
+  // listener — the two apps would ping-pong writes forever.
+  const sosMirrorSigRef=useRef(null);
+  useEffect(()=>{
+    // Signature of just the mirrored items in a data map, so we can tell a real
+    // mirror change from an unrelated edit to Veda's own tasks.
+    const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._sosId).map(t=>[t._sosId,t.title,t.done,t.time||"",t._sosClassName||""]).sort()]));
+    const apply=(items)=>{
+      items=items||{};
+      // Cheap pre-check. setData ALWAYS pushes to Firestore, even when the
+      // reducer returns the previous state, so we must decide BEFORE calling it
+      // or every snapshot would cost a pointless vedasdash write.
+      const incoming=sig(Object.keys(items).reduce((acc,sid)=>{
+        const it=items[sid];if(it&&it.dateKey)(acc[it.dateKey]=acc[it.dateKey]||[]).push(it);
+        return acc;
+      },{}));
+      if(sosMirrorSigRef.current===incoming)return;
+      sosMirrorSigRef.current=incoming;
+      setData(prev=>{
+        const next={};
+        // 1. Strip every mirrored item; the mirror is the sole source of truth
+        //    for them, so anything it no longer lists was deleted in StudyOS.
+        //    Veda's own tasks carry no _sosId and are never touched.
+        Object.keys(prev).forEach(dk=>{
+          const kept=(prev[dk]||[]).filter(t=>!(t&&t._sosId));
+          if(kept.length)next[dk]=kept;
+        });
+        // 2. Re-add from the mirror, appending so each day keeps its own order.
+        Object.keys(items).forEach(sid=>{
+          const it=items[sid];if(!it||!it.dateKey)return;
+          const {dateKey,...rest}=it;
+          (next[dateKey]=next[dateKey]||[]).push(rest);
+        });
+        return sig(prev)===sig(next)?prev:next;
+      });
+    };
+    const onMirror=e=>apply(e.detail);
+    window.addEventListener("fb-sosmirror-update",onMirror);
+    // A snapshot may already have landed before this component mounted.
+    if(window._sosMirrorLatest)apply(window._sosMirrorLatest);
+    return()=>window.removeEventListener("fb-sosmirror-update",onMirror);
+  },[setData]);
+
+  // ── StudyOS task mirror — acknowledge ──────────────────────────────────────
+  // Ticking a mirrored task here checks it off in StudyOS. We publish the whole
+  // done-map (one boolean per mirrored task) rather than a delta, so a missed
+  // write self-corrects on the next one. Events have no done-state in StudyOS,
+  // so only task acks are sent.
+  const sosAck=useCallback((nextData)=>{
+    if(!window._fbSaveSosAck)return;
+    const map={};
+    Object.keys(nextData||{}).forEach(dk=>{
+      (nextData[dk]||[]).forEach(t=>{
+        if(t&&t._sosId&&String(t._sosId).indexOf("t_")===0)map[t._sosId]=!!t.done;
+      });
+    });
+    window._fbSaveSosAck(map);
+  },[]);
+
   const wd=useMemo(()=>gwk(sel.year,sel.month,sel.day),[sel]);
   const tk=dkey(now.getFullYear(),now.getMonth(),now.getDate());
-  const tog=useCallback((k,id)=>{setData(p=>{const it=[...(p[k]||[])];const i=it.findIndex(t=>t.id===id);if(i>=0){it[i]={...it[i],done:!it[i].done};}return{...p,[k]:it};});},[]);
+  // Toggling a mirrored (_sosId) item also pushes the done-state back to StudyOS.
+  const tog=useCallback((k,id)=>{setData(p=>{const it=[...(p[k]||[])];const i=it.findIndex(t=>t.id===id);let mirrored=false;if(i>=0){it[i]={...it[i],done:!it[i].done};mirrored=!!it[i]._sosId;}const next={...p,[k]:it};if(mirrored)sosAck(next);return next;});},[setData,sosAck]);
   const del=useCallback((k,id)=>{setData(p=>{const item=(p[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return p;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const it=(p[k]||[]).filter(t=>t.id!==id);const n={...p};if(!it.length)delete n[k];else n[k]=it;return n;});},[]);
   const delThisOnly=useCallback(()=>{if(!delConfirm)return;const{dateKey,itemId,item}=delConfirm;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(itemId,null,{notifyAt:item.notifyAt});setData(p=>{const it=(p[dateKey]||[]).filter(t=>t.id!==itemId);const n={...p};if(!it.length)delete n[dateKey];else n[dateKey]=it;return n;});setDelConfirm(null);},[delConfirm]);
   const delAllFuture=useCallback(()=>{if(!delConfirm)return;const{dateKey,item}=delConfirm;const rid=item.repeatId||item.altSeqId;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(item.id,item.notifyRepeatId);setData(p=>{const next={...p};const cutoff=new Date(dateKey);Object.keys(next).forEach(k=>{const kd=new Date(k);if(kd>=cutoff){next[k]=(next[k]||[]).filter(t=>t.repeatId!==rid&&t.altSeqId!==rid);if(!next[k].length)delete next[k];}});return next;});setDelConfirm(null);},[delConfirm]);
