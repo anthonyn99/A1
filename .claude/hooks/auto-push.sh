@@ -26,7 +26,16 @@ fi
 
 if git push origin HEAD >/dev/null 2>&1; then
   echo '{"systemMessage":"Auto-committed and pushed to GitHub."}'
-else
-  echo '{"systemMessage":"Auto-committed locally, but git push failed (check network/auth) — run: git push"}'
+  exit 0
 fi
+
+# Push rejected -- most likely a collaborator pushed while this turn was running.
+# Rebase our commit on top of theirs and try once more.
+if git pull --rebase --quiet >/dev/null 2>&1 && git push origin HEAD >/dev/null 2>&1; then
+  echo '{"systemMessage":"Auto-committed, rebased onto new upstream commits, and pushed to GitHub."}'
+  exit 0
+fi
+
+git rebase --abort >/dev/null 2>&1
+echo '{"systemMessage":"Auto-committed locally, but push failed (conflict with upstream, or network/auth) — run: git pull --rebase && git push"}'
 exit 0

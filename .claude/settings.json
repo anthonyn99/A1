@@ -1,5 +1,31 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/git-sync.sh\" 0 SessionStart",
+            "shell": "bash",
+            "timeout": 60,
+            "statusMessage": "Pulling latest from GitHub…"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/git-sync.sh\" 180 UserPromptSubmit",
+            "shell": "bash",
+            "timeout": 30,
+            "statusMessage": "Checking GitHub for collaborator changes…"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
