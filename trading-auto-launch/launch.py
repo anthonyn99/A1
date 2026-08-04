@@ -778,12 +778,19 @@ def open_webull():
     return hwnd
 
 
-def _click_at(x: int, y: int):
-    """Left-click at absolute screen coords (x, y)."""
+def _click_at(x: int, y: int, hover: float = 0.12):
+    """Left-click at absolute screen coords (x, y).
+
+    `hover` is the pause between the cursor ARRIVING (which is what paints the app's
+    hover highlight) and the button going down. It exists so the target app has
+    processed the move before the press — clicking in the same frame as the move can
+    land on whatever was under the cursor a moment earlier. Menu rows that appear
+    mid-flight need the default; a static, always-present control like the Trackers
+    tab does not, so those callers pass a shorter value."""
     _u32.SetCursorPos(int(x), int(y))
-    time.sleep(0.12)
+    time.sleep(hover)
     _u32.mouse_event(_MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-    time.sleep(0.05)
+    time.sleep(0.03)
     _u32.mouse_event(_MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
 
@@ -965,8 +972,11 @@ def webull_post_launch(hwnd, initial_delay=None):
         time.sleep(0.5)   # let the account switch settle
 
     # 2) Switch to the Trackers tab (last, so it's the final visible state).
+    #    WeBull is already the foreground window here (we just clicked in it), so the
+    #    focus call returns instantly, and the tab is a static control that's been on
+    #    screen the whole time — no need to dwell on it before pressing.
     _focus_window(hwnd)
-    _click_at(ox + WEBULL_TRACKERS_TAB[0], oy + WEBULL_TRACKERS_TAB[1])
+    _click_at(ox + WEBULL_TRACKERS_TAB[0], oy + WEBULL_TRACKERS_TAB[1], hover=0.04)
     log("WeBull: Trackers tab selected.")
 
 
@@ -1183,7 +1193,14 @@ def _focus_window(hwnd) -> bool:
     normally BLOCKED from SetForegroundWindow — Windows just flashes the taskbar. The
     reliable workaround is to briefly AttachThreadInput to the current foreground
     window's thread, which lets our SetForegroundWindow succeed. Returns True if hwnd
-    actually became foreground."""
+    actually became foreground.
+
+    Already-foreground is answered INSTANTLY. That's the common case right after we've
+    just clicked inside the window (WeBull's account switch), and the old code still
+    burned a fixed 0.4s settle before its first check — dead time the user sees as a
+    pause before the next click lands."""
+    if _u32.GetForegroundWindow() == hwnd:
+        return True
     for _ in range(4):
         try:
             fg = _u32.GetForegroundWindow()
@@ -1201,9 +1218,13 @@ def _focus_window(hwnd) -> bool:
                 _u32.AttachThreadInput(cur_tid, fg_tid, False)
         except Exception as e:
             log(f"ChatGPT: focus error: {e}")
-        time.sleep(0.4)
-        if _u32.GetForegroundWindow() == hwnd:
-            return True
+        # Poll for the focus change instead of sleeping a flat 0.4s — the switch is
+        # usually done in well under 100ms, so this returns as soon as it lands and
+        # only spends the full budget when the window is genuinely slow to come up.
+        for _ in range(8):
+            time.sleep(0.05)
+            if _u32.GetForegroundWindow() == hwnd:
+                return True
     return False
 
 

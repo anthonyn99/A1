@@ -1396,6 +1396,14 @@ ${lines}`;
 // ── Calendar config ─────────────────────────────────────────────────────────
 const CAL_TTL        = 12 * 3600;   // 12h cache — macro/earnings calendar barely moves
 const CAL_LOCK_TTL   = 120;         // build-lock auto-expiry
+// The CRON holds the calendar lock for its WHOLE invocation — news pre-warm, the
+// pause, the calendar build and its retry — not just the build. A client that opens
+// TradeHub at 6:01 would otherwise find no lock and no cache and start its own
+// calendar build straight into the news pre-warm's Finnhub fan-out, starving both.
+// While the lock is held, /calendar answers 202 "building" (or a STALE hit) and the
+// client polls / retries on its next tick instead of competing. Auto-expires, so a
+// cron that dies mid-flight can't wedge the endpoint.
+const CAL_CRON_LOCK_TTL = 600;      // 10 min — comfortably covers news + calendar + retry
 const CAL_DAYS_MAX   = 31;          // clamp the lookahead window (front-end asks for 30)
 // Grounded-search calendar. gemini-3.5-flash is a thinking model that 429s (low
 // grounding quota) or lets thinking eat the small output budget → empty, so it is
@@ -1909,14 +1917,36 @@ async function prewarmCalendar(env){
   const days   = 30;
   const calKey = `cal:v1:${wlHash(wl)}:${etDateStr(0)}:${days}`;
   const calLock= `cal:lock:${wlHash(wl)}`;
-  await env.NEWSHUB_CACHE.put(calLock, '1', { expirationTtl: CAL_LOCK_TTL });
+  // Long TTL: the retry below can push this build past the 120s client-facing lock.
+  await env.NEWSHUB_CACHE.put(calLock, '1', { expirationTtl: CAL_CRON_LOCK_TTL });
   try {
-    const result = await buildCalendar(wl, env, days);
-    if (result && result.events && result.events.length){
+    let result = await buildCalendar(wl, env, days);
+    // RETRY a build that lost its earnings. This build runs seconds behind the news
+    // pre-warm, which has just spent the invocation's ~6 outbound connections and
+    // most of Finnhub's 60/min on its own fan-out — so the calendar's three earnings
+    // sources are exactly what gets starved (observed 2026-07-31: 9 earnings, 1
+    // confirmed; and again on 2026-08-04, where the morning calendar reached every
+    // device with no earnings dates at all). Whatever the cron caches is what every
+    // device publishes to the shared doc, so this is the one build worth paying a
+    // minute to get right. Mirrors the same retry cronPrewarmNews does for news.
+    if (result && result.degraded){
+      console.warn(`[cron] calendar degraded (${result.earningsCount || 0} earnings) — pausing for the Finnhub window, then retrying.`);
+      await new Promise(r => setTimeout(r, 65000));   // clear Finnhub's per-minute cap
+      const retry = await buildCalendar(wl, env, days).catch(e => { console.warn('[cron] calendar retry failed:', e.message); return null; });
+      if (retry && (retry.earningsCount || 0) > (result.earningsCount || 0)) result = retry;
+    }
+    // Only a HEALTHY build gets cached: the key lives 12h, so caching an
+    // earnings-less calendar would hand the same broken answer to every device all
+    // day. Leaving it unwritten makes the first real request rebuild instead.
+    if (result && result.events && result.events.length && !result.degraded){
       await env.NEWSHUB_CACHE.put(calKey, JSON.stringify(result), { expirationTtl: CAL_TTL });
       // Push to Firebase so TaskHub weekly view updates without needing TradeHub open.
       // Writes to dashboards/market_calendar — same doc the TradeHub Catalysts tab writes.
+      // (See the App Check note above pushMarketCalToFirebase: this has never actually
+      // succeeded from a Worker. The browser-side orchestrator is what really publishes.)
       await pushMarketCalToFirebase(result).catch(e => console.warn('[cron] firebase push failed:', e.message));
+    } else if (result) {
+      console.warn(`[cron] calendar still degraded after retry (${result.earningsCount || 0} earnings) — NOT cached, so the first client request rebuilds.`);
     }
     return result;
   } finally {
@@ -2084,7 +2114,17 @@ async function buildCalendar(wl, env, days, diag){
   const events = [...earnOut, ...macro, ...holidays]
     .map(ev => ({ ...ev, id: calEventId(ev), ...(ev.kind === 'macro' ? { importance: macroImportance(ev.name) } : {}) }))
     .sort((a,b) => a.date.localeCompare(b.date));
-  return { events, generatedAt: Date.now(), from: fromD, to: toD, degraded: !earnOut.length && !events.length };
+  // DEGRADED means "do not trust this build enough to cache it or overwrite a good
+  // one". Macro is generated from a HARDCODED release schedule, so it shows up even
+  // when every network call failed — which is why `!events.length` alone was a
+  // useless health check: a run where Finnhub was rate-limited, Nasdaq's 8s scan
+  // aborted and AlphaVantage was out of quota still returned a full-looking macro
+  // calendar with degraded:false. It then got cached for 12h and published over the
+  // real one, wiping every earnings date until someone pressed Force. A watchlist
+  // this size ALWAYS has earnings in a 30-day window, so zero earnings is a failed
+  // build, not a quiet quarter.
+  const degraded = !events.length || (wl.length > 0 && !earnOut.length);
+  return { events, generatedAt: Date.now(), from: fromD, to: toD, earningsCount: earnOut.length, degraded };
 }
 
 
@@ -3286,6 +3326,12 @@ export default {
     // and keeps Finnhub under its per-minute cap. Cron invocations get ~15 min of
     // wall clock; news (~90s) + calendar (~30s) fits with room to spare.
     ctx.waitUntil((async () => {
+      // Claim the calendar build lock UP FRONT, before news — see CAL_CRON_LOCK_TTL.
+      // Anyone opening TradeHub while this runs waits for the cron's build instead of
+      // launching a competing one into the same Finnhub minute.
+      const { wl: cronWl } = await resolveCronWatchlist(env).catch(() => ({ wl: null }));
+      const cronCalLock = cronWl ? `cal:lock:${wlHash(cronWl)}` : null;
+      if (cronCalLock) await env.NEWSHUB_CACHE.put(cronCalLock, '1', { expirationTtl: CAL_CRON_LOCK_TTL }).catch(()=>{});
       await cronPrewarmNews(env, ctx);
       // Breathe before the calendar. Finnhub's cap is 60 calls per MINUTE, and the
       // two builds together ask for ~63 on a 31-ticker list — so back-to-back they
@@ -3811,10 +3857,28 @@ export default {
 
       try {
         const result = await buildCalendar(calWl, env, days);
-        const payload = JSON.stringify(result);
-        if (result.events.length) ctx.waitUntil(env.NEWSHUB_CACHE.put(calKey, payload, { expirationTtl: CAL_TTL }));
+        // NEVER cache a degraded build. The key is per-DAY with a 12h TTL, so one
+        // earnings-less result used to poison every plain Refresh for the rest of the
+        // day — Force (fresh=1) was the only way out, which is exactly the symptom
+        // that made earnings vanish every so often. Leaving the key unwritten costs
+        // one extra rebuild and lets the very next request recover on its own.
+        if (result.events.length && !result.degraded)
+          ctx.waitUntil(env.NEWSHUB_CACHE.put(calKey, JSON.stringify(result), { expirationTtl: CAL_TTL }));
         await env.NEWSHUB_CACHE.delete(calLock);
-        return new Response(payload, { headers:{ ...cors(), 'Content-Type':'application/json', 'X-Cache': calFresh ? 'FRESH' : 'MISS' } });
+        // And never hand a degraded build back when a healthy one is already cached —
+        // the caller publishes what it receives to the shared doc that TradeHub and
+        // both TaskHubs read, so returning the worse answer is actively destructive.
+        if (result.degraded){
+          try {
+            const cached = await env.NEWSHUB_CACHE.get(calKey);
+            if (cached){
+              const j = JSON.parse(cached);
+              if ((j.earningsCount || 0) > (result.earningsCount || 0))
+                return new Response(cached, { headers:{ ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT-KEPT' } });
+            }
+          } catch(e){}
+        }
+        return new Response(JSON.stringify(result), { headers:{ ...cors(), 'Content-Type':'application/json', 'X-Cache': calFresh ? 'FRESH' : 'MISS' } });
       } catch(e){
         await env.NEWSHUB_CACHE.delete(calLock);
         return new Response(JSON.stringify({ error: e.message, events: [] }), { status:500, headers:{ ...cors(), 'Content-Type':'application/json' } });

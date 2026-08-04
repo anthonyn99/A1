@@ -5240,7 +5240,13 @@ async function tbBuildCalendar(wl,opts){
   const tq='tickers='+encodeURIComponent(wl.join(','))+'&days=30'+(opts.force?'&fresh=1':'');
   const url=NH_WORKER_URL+'/calendar?'+tq;
   let j=null;
-  for(let tries=0;tries<=20;tries++){
+  // Poll for as long as the worker keeps answering "building". The old 20-try cap
+  // gave up after 60s, which is shorter than the 6am cron's own run — so opening
+  // TradeHub inside that window timed out instead of simply collecting the cron's
+  // build. The worker holds its lock for the whole cron invocation now, so waiting
+  // is the correct behaviour; this only ever runs while a build is genuinely live.
+  const deadline=Date.now()+(opts.waitMs||4*60*1000);
+  while(Date.now()<deadline){
     const r=await fetch(url);
     if(r.status===429){const jj=await r.json().catch(()=>({}));const e=new Error(jj.reason||'Rate limited — try later.');e.rateLimited=true;throw e;}
     if(r.status===202){await new Promise(res=>setTimeout(res,3000));continue;}
@@ -5286,15 +5292,26 @@ const TB_CAL_KEEP_PAST_DAYS=90;
 // on the doc so any device can tell "this calendar predates my current watchlist"
 // and rebuild — see tbSyncCatalystsToWatchlist.
 function tbCalWlSig(wl){ return (Array.isArray(wl)?wl:[]).filter(Boolean).map(t=>String(t).toUpperCase()).sort().join(','); }
+// Is this an earnings event? Macro comes from a hardcoded schedule in the worker and
+// is therefore ALWAYS present, so `events.length > 0` says nothing about whether the
+// earnings providers (Finnhub / Nasdaq / AlphaVantage) actually answered. Only an
+// earnings COUNT can tell a real calendar from a macro-only shell.
+const tbCalIsEarn=e=>!!e&&(e.kind==='earnings'||/earnings/i.test(e.name||''));
+const tbCalEarnCount=list=>(Array.isArray(list)?list:[]).filter(tbCalIsEarn).length;
+// Publish a freshly-built forward window to the shared doc. Returns the future set
+// that was ACTUALLY stored (which may differ from `future` — see the safety net), or
+// null if nothing was written.
 async function tbPublishCalendar(future,wl){
-  if(!window._fbSaveMarketCal)return;
+  if(!window._fbSaveMarketCal)return null;
   const today=tbEtDate(0),cutoff=tbEtDate(-TB_CAL_KEEP_PAST_DAYS);
   const wlList=(Array.isArray(wl)&&wl.length)?wl:tbLoadWatchlistLocal();
   const wlSet=new Set(wlList.map(t=>String(t).toUpperCase()));
-  let past=[];
+  const onWl=e=>!(e.ticker&&!wlSet.has(String(e.ticker).toUpperCase()));
+  let stored=[],past=[];
   try{
     const d=window._fbLoadMarketCal?await window._fbLoadMarketCal():null;
-    past=(d&&Array.isArray(d.events)?d.events:[]).filter(e=>e&&e.date&&e.date<today&&e.date>=cutoff)
+    stored=(d&&Array.isArray(d.events))?d.events:[];
+    past=stored.filter(e=>e&&e.date&&e.date<today&&e.date>=cutoff)
       // Retained past events are how macro cards keep showing on both TaskHubs after
       // the day rolls over — but an EARNINGS event for a ticker you've since removed
       // from Control has no reason to linger, and nothing else ever deletes it (a
@@ -5302,11 +5319,30 @@ async function tbPublishCalendar(future,wl){
       // ticker actually clears it out of Catalysts.
       .filter(e=>!(e.kind==='earnings'&&e.ticker&&!wlSet.has(String(e.ticker).toUpperCase())));
   }catch(e){}
+  let fresh=future||[];
+  // ── EARNINGS SAFETY NET ────────────────────────────────────────────────────
+  // A build replaces the whole FORWARD window, so a run whose earnings providers
+  // all came back empty (rate-limited Finnhub, Nasdaq's 8s abort, AlphaVantage
+  // quota) used to publish a macro-only calendar over a perfectly good one — and
+  // that silently deleted every earnings date from Catalysts AND from both
+  // TaskHubs, with Force the only way to get them back. Zero earnings from a
+  // watchlist this size is never a real answer, so carry the stored ones through
+  // instead of deleting them. This is transient by design: the next build that
+  // DOES return earnings has a non-zero count, skips this branch, and replaces
+  // the forward window wholesale — so carried-over dates can't accumulate or go
+  // stale.
+  let keptEarnings=0;
+  if(!tbCalEarnCount(fresh)){
+    const survivors=stored.filter(e=>e&&e.date>=today&&tbCalIsEarn(e)&&onWl(e));
+    if(survivors.length){ fresh=survivors.concat(fresh); keptEarnings=survivors.length; }
+  }
   const key=e=>e.id||((e.kind||'')+'|'+(e.category||'')+'|'+(e.name||'')+'|'+e.date);
-  const fresh=future||[],seen=new Set(fresh.map(key));
+  const seen=new Set(fresh.map(key));
   const events=past.filter(e=>!seen.has(key(e))).concat(fresh).sort((a,b)=>a.date.localeCompare(b.date));
   const now=Date.now();
   window._fbSaveMarketCal({events,watchlist:wlList,generatedAt:now,savedAt:now});
+  if(keptEarnings)console.warn(`[catalysts] build returned 0 earnings — kept ${keptEarnings} existing earnings date(s) rather than wiping them.`);
+  return fresh.slice().sort((a,b)=>a.date.localeCompare(b.date));
 }
 
 // ── Keep Catalysts in lockstep with the Control-tab watchlist ────────────────
@@ -5376,18 +5412,42 @@ const _tbCatBuild = {
   emit(evt){ this.listeners.forEach(fn=>{ try{ fn(evt); }catch(e){} }); },
 };
 async function tbRunCatBuild(wl, force){
-  if(_tbCatBuild.building) return;                     // one build at a time
+  if(_tbCatBuild.building) return {ok:false,busy:true};   // one build at a time
   wl=(wl&&wl.length)?wl:NH_DEFAULT_TICKERS;
   _tbCatBuild.building=true; _tbCatBuild.emit({type:'start'});
   try{
-    const {future,degraded}=await tbBuildCalendar(wl,{force});
+    let {future,degraded}=await tbBuildCalendar(wl,{force});
+    // ── SELF-HEAL: no earnings → escalate to a real Force, once. ──────────────
+    // The worker caches a calendar for 12h under a per-day key, so a build that
+    // lost its earnings providers poisons every later plain Refresh for the rest
+    // of the day — which is why the fix used to be "hit Force by hand". Do that
+    // automatically: fresh=1 bypasses the cache and rebuilds from the providers.
+    // Only ever ONE escalation per build, and only when earnings are actually
+    // missing, so a healthy morning still costs nothing from the daily budget.
+    if(!force&&!tbCalEarnCount(future)){
+      console.warn('[catalysts] build returned 0 earnings — escalating to a forced rebuild.');
+      try{ const r2=await tbBuildCalendar(wl,{force:true}); if(tbCalEarnCount(r2.future)){ future=r2.future; degraded=r2.degraded; } }
+      catch(e){ console.warn('[catalysts] forced rebuild failed:',e&&e.message); }
+    }
+    let stored=future||[];
     if(future&&future.length){
-      await tbPublishCalendar(future,wl);    // merges past events back in — see tbPublishCalendar
+      // Publishing can carry existing earnings through a bad build, so render what
+      // was actually STORED — otherwise the on-screen list and the shared doc (and
+      // therefore both TaskHubs) would disagree.
+      stored=(await tbPublishCalendar(future,wl))||future;
       _tbCatLastSyncedSig=tbCalWlSig(wl);    // this list is now what the stored calendar reflects
     }
-    _tbCatBuild.emit({type:'done',future:future||[],degraded:!!degraded});
+    _tbCatBuild.emit({type:'done',future:stored,degraded:!!degraded});
+    // `earnings` counts what's actually STORED (what the user sees); `builtEarnings`
+    // counts what THIS build produced. They differ exactly when the safety net kept
+    // existing dates alive through a failed build — and the morning orchestrator has
+    // to gate on the latter, or a day rescued by carried-over dates would be marked
+    // complete and never pick up a newly-announced earnings date.
+    return {ok:true,future:stored,degraded:!!degraded,
+            earnings:tbCalEarnCount(stored),builtEarnings:tbCalEarnCount(future)};
   }catch(e){
     _tbCatBuild.emit({type:'error',error:e});
+    return {ok:false,error:e};
   }finally{
     _tbCatBuild.building=false; _tbCatBuild.emit({type:'end'});
   }
@@ -5421,11 +5481,21 @@ function TBCatalystsPage({watchlist=NH_DEFAULT_TICKERS}){
       else if(evt.type==='end'){ setLoading(false); }
       else if(evt.type==='done'){
         const today=tbEtDate(0);
-        const prevCount=(eventsRef.current||[]).filter(e=>e&&e.date>=today).length;
+        const prev=(eventsRef.current||[]).filter(e=>e&&e.date>=today);
+        const prevCount=prev.length;
         // Guard: a DEGRADED build with fewer events than we already have is likely
-        // partial — keep the richer cached set instead of wiping it.
-        if(evt.degraded&&evt.future.length<prevCount){
+        // partial — keep the richer cached set instead of wiping it. Same for ANY
+        // build that came back empty: nothing was published in that case (see
+        // tbRunCatBuild), so blanking the list would just misreport the stored doc.
+        if(prevCount&&(!evt.future.length||(evt.degraded&&evt.future.length<prevCount))){
           setNotice('Sources partial right now — kept your last full calendar. Try Force again in a bit.');
+          return;
+        }
+        // Same idea one level down: the forward window can be full of macro yet have
+        // lost every earnings date. tbPublishCalendar already refuses to write that
+        // over good data, so mirror its decision here instead of showing the gap.
+        if(prevCount&&!tbCalEarnCount(evt.future)&&tbCalEarnCount(prev)){
+          setNotice('Earnings sources are unavailable right now — kept your existing earnings dates.');
           return;
         }
         const fut=(evt.future||[]).filter(e=>e&&e.date>=today);
@@ -6427,12 +6497,15 @@ function TBApp(){
       const slot=tbLastTradingMorningSlot();
       if(!slot)return;                                      // off-hours / weekend / holiday → nothing to do
 
-      // ── Catalysts: pull the cron-built calendar (free cache HIT, never force) and
-      //    publish to Firebase so every device shows it. The gen-check skips work if
-      //    another device (or the cron's own push) already refreshed this slot — but
-      //    "fresh" is not enough on its own: a calendar built this morning from an
-      //    OLD ticker list is stale for anything added in Control since, so the
-      //    watchlist signature has to match too. ──
+      // ── Catalysts: pull the morning calendar and publish it to Firebase so every
+      //    device — TradeHub, Tony's TaskHub, Veda's TaskHub — shows it without
+      //    anyone opening a tab or pressing a button. The gen-check skips work if
+      //    another device already refreshed this slot, but "fresh" is not enough on
+      //    its own: a calendar built this morning from an OLD ticker list is stale
+      //    for anything added in Control since, so the watchlist signature has to
+      //    match too — AND it has to actually contain earnings. A stored doc that
+      //    was written this morning but lost its earnings dates is NOT done; it's
+      //    the exact state we have to rebuild out of. ──
       if(!_tbAutoForceInFlight && slot!==_tbLastCheckedSlot && window._fbLoadMarketCal && window._fbSaveMarketCal){
         try{
           const wl=tbLoadWatchlistLocal();
@@ -6444,15 +6517,21 @@ function TBApp(){
           // never here on the "can't tell" path, or that rebuild gets suppressed.
           const wlKnown=!!(d&&Array.isArray(d.watchlist));
           const wlMatches=!d||!wlKnown||tbCalWlSig(d.watchlist)===tbCalWlSig(wl);
-          if(gen>=slot&&wlMatches){ _tbLastCheckedSlot=slot; if(wlKnown)_tbCatLastSyncedSig=tbCalWlSig(wl); }
+          const today=tbEtDate(0);
+          const hasEarn=!d||tbCalEarnCount((d.events||[]).filter(e=>e&&e.date>=today))>0;
+          if(gen>=slot&&wlMatches&&hasEarn){ _tbLastCheckedSlot=slot; if(wlKnown)_tbCatLastSyncedSig=tbCalWlSig(wl); }
           else{
             _tbAutoForceInFlight=true;
-            // NON-fresh pull: the 6am cron already did the expensive fresh rebuild and
-            // warmed the worker cache, so this is a free HIT — force=1 shares the daily
-            // counter with News forces, so we must NOT force here.
-            const {future}=await tbBuildCalendar(wl,{force:false});
-            if(future&&future.length){ await tbPublishCalendar(future,wl); _tbCatLastSyncedSig=tbCalWlSig(wl); }
-            _tbLastCheckedSlot=slot;
+            // Runs through the SHARED builder, so the morning gets exactly what the
+            // Force button gets — including its self-heal, which escalates to a real
+            // fresh=1 rebuild the moment a build comes back without earnings. Start
+            // non-fresh: the 6am cron already did the expensive rebuild and warmed
+            // the worker cache, so a healthy morning is a free HIT and never touches
+            // the daily force budget (shared with News). Only mark the slot done if
+            // the build actually landed earnings — otherwise the next 5-min tick
+            // retries instead of leaving the day on a half-empty calendar.
+            const r=await tbRunCatBuild(wl,false);
+            if(r&&r.ok&&r.builtEarnings){ _tbCatLastSyncedSig=tbCalWlSig(wl); _tbLastCheckedSlot=slot; }
           }
         }catch(e){}finally{ _tbAutoForceInFlight=false; }
       }
