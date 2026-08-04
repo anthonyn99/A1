@@ -1,0 +1,45 @@
+# ============================================================================
+# studyos-api — App Lock auth + reminder push cron
+# ============================================================================
+# Deploy:
+#   cd workers/studyos-api
+#   npx wrangler kv namespace create TOKEN_CACHE     # paste the id below
+#   npx wrangler deploy
+#
+# Then add the two service-account secrets (only needed for push):
+#   npx wrangler secret put FIREBASE_CLIENT_EMAIL
+#   npx wrangler secret put FIREBASE_PRIVATE_KEY
+#
+# Both come from Firebase console → Project settings → Service accounts →
+# "Generate new private key". The JSON it downloads has client_email and
+# private_key. Paste private_key INCLUDING the BEGIN/END lines.
+#
+# Verify:  curl https://studyos-api.<your-subdomain>.workers.dev/health
+#          → { "ok": true, "kv": true, "fcm": true }
+# ============================================================================
+
+name = "studyos-api"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+# Your Firebase project id. Must match config/config.js firebase.projectId.
+FIREBASE_PROJECT_ID = "REPLACE_WITH_YOUR_FIREBASE_PROJECT_ID"
+
+# Comma-separated origins allowed to call this worker. Set this to your real
+# site once deployed — "*" lets ANY page attempt password guesses here.
+# e.g. "https://vedaname.github.io,http://localhost:8080"
+ALLOWED_ORIGINS = "*"
+
+# ── KV namespace: lock hashes, reset codes, cached Google token ─────────────
+# Create it ONCE, then paste the id (deploy fails until this is real):
+#   npx wrangler kv namespace create TOKEN_CACHE
+[[kv_namespaces]]
+binding = "TOKEN_CACHE"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# ── Cron: check for due reminders every minute ─────────────────────────────
+# Free plan allows 5 cron triggers per account. Drop this section entirely if
+# you are only using the App Lock and not push notifications.
+[triggers]
+crons = ["* * * * *"]

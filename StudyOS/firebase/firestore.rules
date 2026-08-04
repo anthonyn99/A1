@@ -1,0 +1,68 @@
+rules_version = '2';
+
+// ============================================================================
+// StudyOS — Firestore security rules
+// ============================================================================
+// Deploy:
+//   firebase deploy --only firestore:rules
+// …or paste into: Firebase console → Firestore Database → Rules → Publish.
+//
+// MODEL: StudyOS signs in ANONYMOUSLY (no login screen). That anonymous user
+// still carries a real auth token, so `request.auth != null` keeps the data
+// off the open internet while letting the app work with no sign-in friction.
+//
+// Anonymous auth MUST be enabled or every read and write is denied:
+//   Firebase console → Authentication → Sign-in method → Anonymous → Enable
+//
+// SCOPE, stated plainly: these rules gate the DATABASE. Any anonymous session
+// on your project can read these documents. That is appropriate for a personal
+// single-user app and matches how the original build shipped. The App Lock
+// gates the UI, not this. If StudyOS ever hosts more than one person's data,
+// replace the blanket `request.auth != null` with per-user document ownership.
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── StudyOS application data ────────────────────────────────────────────
+    // One document holding classes, events, tasks, notes and KSU modules.
+    //
+    // File BLOBS are NOT here. Firebase Storage requires the paid Blaze plan,
+    // so file bytes live in Cloudflare Workers KV (the studyos-files worker)
+    // and this document stores only the metadata: name, size, mime, storageUrl.
+    // That is also why no Storage rules ship with this project.
+    match /dashboards/studyos {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── App Lock state ──────────────────────────────────────────────────────
+    // WHICH lock is on, and at what version — so every device knows to prompt.
+    // The password itself is NEVER here; only a salted PBKDF2 hash in the
+    // studyos-api Worker's KV, which this database cannot see.
+    match /dashboards/studyos_lock {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── Scheduled push reminders ────────────────────────────────────────────
+    // Written by the browser, read and deleted by the studyos-api cron. The
+    // Worker authenticates with a service account, which bypasses these rules
+    // entirely, so this match only has to cover the client's own writes.
+    match /reminders/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── Device push tokens ──────────────────────────────────────────────────
+    // One document per device, keyed by FCM token, so the cron knows where to
+    // deliver. Also service-account-read by the Worker.
+    match /fcm_tokens/{id} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── Everything else: denied ─────────────────────────────────────────────
+    // No catch-all. If you add a collection later, add an explicit match for
+    // it — an unmatched path fails closed, which is the behaviour you want.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
