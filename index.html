@@ -143,11 +143,11 @@ body{overflow-y:auto;overflow-x:clip;-webkit-overflow-scrolling:touch;}
 /* Tony's root flows in body — body is scroll container = pull-to-refresh works */
 #root{min-height:100%;overflow-y:visible;overflow-x:clip;padding-bottom:env(safe-area-inset-bottom,0px);}
 /* Other app roots: fixed+hidden when not active so they don't bleed into body scroll */
-#er-root,#tj-root{position:fixed;inset:0;overflow:hidden;display:none;}
+#tj-root{position:fixed;inset:0;overflow:hidden;display:none;}
 #tradeboard-root{position:fixed;inset:0;overflow:hidden;display:none;background:#1a1a1d;}
 body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
   /* Veda's apps keep the body face they inherited before the Insight migration. */
-  #veda-root,#vt-root,#vd-kc-root,#bj-root,#cooking-view{font-family:'Nunito',sans-serif;}
+  #veda-root,#vd-kc-root,#bj-root,#cooking-view{font-family:'Nunito',sans-serif;}
 button{touch-action:manipulation;}
 /* Eliminate 300ms tap delay on all interactive elements for snappy iPad response */
 a,button,label,select,[role="button"],[onclick],[tabindex]{touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer;}
@@ -159,8 +159,6 @@ input[type=time]{color-scheme:dark;}
 @keyframes td-spin{to{transform:rotate(360deg)}}
 @keyframes td-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 /* ── App shell ── */
-#er-root{display:flex;flex-direction:column;}
-#er-root input[type=date]{color-scheme:dark;}
   /* Veda's TaskHub mobile */
   @media(max-width:1000px){
     #vr-root .gita-quote-line{white-space:normal;}
@@ -2837,7 +2835,6 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
     <option value="taskhub">Tony's TaskHub</option>
     <option value="tradeboard">TradeHub</option>
     <option value="health">MotionCore</option>
-    <option value="eventrec">EventRec</option>
     <option value="keychain">Vault</option>
     <option value="brainstormjournal">MyJournal</option>
     <option value="proview">ProView</option>
@@ -2846,7 +2843,6 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   <button class="tn-btn" data-app="taskhub" onclick="window._tonyNav&&window._tonyNav('taskhub')">TaskHub</button>
   <button class="tn-btn" id="thub-nav-btn" data-app="tradeboard" onclick="window._thubClick&&window._thubClick()">TradeHub</button>
   <button class="tn-btn" data-app="health" onclick="window._tonyNav&&window._tonyNav('health')">MotionCore</button>
-  <button class="tn-btn" data-app="eventrec" onclick="window._tonyNav&&window._tonyNav('eventrec')">EventRec</button>
   <button class="tn-btn" data-app="keychain" onclick="window._tonyNav&&window._tonyNav('keychain')">Vault</button>
   <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
   <button class="tn-btn pv-btn" data-app="proview" onclick="window._tonyNav&&window._tonyNav('proview')">ProView</button>
@@ -5528,9 +5524,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   }
   const storage = getStorage(app);
   const DOC_PATH    = "dashboards/main";
-  const ER_DOC_PATH = "dashboards/eventrec";
   const VD_DOC_PATH = "dashboards/vedasdash";
-  const VT_DOC_PATH = "dashboards/vedatimeline";
   const KC_DOC_PATH = "dashboards/keychain";
   const VDKC_DOC_PATH = "dashboards/veda_links";
   const BJ_DOC_PATH   = "dashboards/journal";
@@ -5541,9 +5535,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   const MC_CAL_PATH      = "dashboards/market_calendar";
 
   let _saveTimer = null;
-  let _erSaveTimer = null;
   let _vdSaveTimer = null;
-  let _vtSaveTimer = null;
   let _kcSaveTimer = null;
   let _vdkcSaveTimer = null;
   let _bjSaveTimer   = null;
@@ -5552,9 +5544,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _mcSaveTimer   = null;
   let _unsubscribe    = null;
   let _mcCalUnsub     = null;
-  let _erUnsubscribe  = null;
   let _vdUnsubscribe  = null;
-  let _vtUnsubscribe  = null;
   let _kcUnsubscribe  = null;
   let _vdkcUnsubscribe = null;
   let _bjUnsubscribe  = null;
@@ -5567,9 +5557,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _oiUnsubscribe  = null;
   window._alSaveTimer = null;
   let _lastOwnSaveAt     = 0;
-  let _erLastOwnSaveAt   = 0;
   let _vdLastOwnSaveAt   = 0;
-  let _vtLastOwnSaveAt   = 0;
   let _kcLastOwnSaveAt   = 0;
   let _vdkcLastOwnSaveAt = 0;
   let _bjLastOwnSaveAt   = 0;
@@ -5627,8 +5615,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
   async function init() {
     const docRef   = doc(db, DOC_PATH);
-    const erDocRef = doc(db, ER_DOC_PATH);
-    const vtDocRef = doc(db, VT_DOC_PATH);
 
     // ── TaskHub load ──────────────────────────────────────────────────────────
     window._fbLoad = async () => {
@@ -5754,51 +5740,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         window.dispatchEvent(new CustomEvent("fb-marketcal-update", { detail: snap.data().events }));
     });
 
-    // ── EventRec real-time listener ───────────────────────────────────────────
-    if (_erUnsubscribe) { _erUnsubscribe(); _erUnsubscribe = null; }
-    _erUnsubscribe = onSnapshot(erDocRef, (snap) => {
-      if (Date.now() - _erLastOwnSaveAt < 8000) return;
-      if (snap.exists() && Array.isArray(snap.data().events)) {
-        window.dispatchEvent(new CustomEvent("fb-er-remote-update", { detail: snap.data().events }));
-        window.dispatchEvent(new CustomEvent("fb-er-synced"));
-      }
-    });
-
-    // ── EventRec load ─────────────────────────────────────────────────────────
-    window._fbLoadEventRec = async () => {
-      try {
-        const snap = await _freshGet(erDocRef);
-        if (snap && snap.exists() && Array.isArray(snap.data().events)) return snap.data().events;
-        return null;
-      } catch(e) {
-        console.warn("Firebase EventRec load failed:", e);
-        return null;
-      }
-    };
-
-    // ── EventRec save (getter pattern — always writes latest state) ───────────
-    window._fbSaveEventRec = (getEvents) => {
-      _erLastOwnSaveAt = Date.now();
-      if (_erSaveTimer) clearTimeout(_erSaveTimer);
-      _erSaveTimer = setTimeout(async () => {
-        try {
-          const events = getEvents();
-          const sanitized = events.map(e => {
-            const out = {};
-            Object.entries(e).forEach(([k,v]) => { if(v !== null && v !== undefined) out[k] = v; });
-            return out;
-          });
-          _erLastOwnSaveAt = Date.now();
-          await setDoc(erDocRef, { events: sanitized, savedAt: Date.now() });
-          _erLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-er-saved"));
-        } catch(e) {
-          console.error("Firebase EventRec save failed:", e.code, e.message, e);
-          window.dispatchEvent(new CustomEvent("fb-er-error"));
-        }
-      }, 1500);
-    };
-
 
     // ── Veda's TaskHub load ───────────────────────────────────────────────────
     const vdDocRef = doc(db, VD_DOC_PATH);
@@ -5887,45 +5828,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         try { await setDoc(sosAckRef, { done: _sosAckPending, savedAt: Date.now(), app: 'taskhub' }); }
         catch (e) { console.warn('[StudyOS mirror] ack write failed:', e && e.code); }
       }, 600);
-    };
-
-    // ── Veda Timeline real-time listener ──────────────────────────────────────
-    if (_vtUnsubscribe) { _vtUnsubscribe(); _vtUnsubscribe = null; }
-    _vtUnsubscribe = onSnapshot(vtDocRef, (snap) => {
-      if (Date.now() - _vtLastOwnSaveAt < 8000) return;
-      if (snap.exists()) {
-        window.dispatchEvent(new CustomEvent("fb-vt-remote-update", { detail: snap.data() }));
-        window.dispatchEvent(new CustomEvent("fb-vt-synced"));
-      }
-    });
-
-    // ── Veda Timeline load ────────────────────────────────────────────────────
-    window._fbLoadVedaTimeline = async () => {
-      try {
-        const snap = await _freshGet(vtDocRef);
-        if (snap && snap.exists()) return snap.data();
-        return null;
-      } catch(e) {
-        console.warn("Firebase VedaTimeline load failed:", e);
-        return null;
-      }
-    };
-
-    // ── Veda Timeline save (500ms debounce) ───────────────────────────────────
-    window._fbSaveVedaTimeline = (events) => {
-      _vtLastOwnSaveAt = Date.now();
-      if (_vtSaveTimer) clearTimeout(_vtSaveTimer);
-      _vtSaveTimer = setTimeout(async () => {
-        try {
-          _vtLastOwnSaveAt = Date.now();
-          await setDoc(vtDocRef, { events, savedAt: Date.now() });
-          _vtLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-vt-saved"));
-        } catch(e) {
-          console.error("Firebase VedaTimeline save failed:", e.code, e.message, e);
-          window.dispatchEvent(new CustomEvent("fb-vt-error"));
-        }
-      }, 500);
     };
 
     // ── Veda Links load ───────────────────────────────────────────────────────
@@ -7085,9 +6987,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     clearTimeout(_hideTimer); clearTimeout(_idleTimer);
     _hideTimer = null; _idleTimer = null;
     if (_unsubscribe)    { _unsubscribe();    _unsubscribe    = null; }
-    if (_erUnsubscribe)  { _erUnsubscribe();  _erUnsubscribe  = null; }
     if (_vdUnsubscribe)  { _vdUnsubscribe();  _vdUnsubscribe  = null; }
-    if (_vtUnsubscribe)  { _vtUnsubscribe();  _vtUnsubscribe  = null; }
     if (_kcUnsubscribe)  { _kcUnsubscribe();  _kcUnsubscribe  = null; }
     if (_vdkcUnsubscribe){ _vdkcUnsubscribe();_vdkcUnsubscribe= null; }
     if (_bjUnsubscribe)  { _bjUnsubscribe();  _bjUnsubscribe  = null; }
@@ -7532,387 +7432,6 @@ window.thDragList = function(listEl, getArr, setArr, onDrop, accentColor, placeh
   }, { signal: controller.signal });
 };
 </script>
-<!-- ── EventRec App ────────────────────────────────────────────── -->
-<style>
-/* ── EventRec scoped styles ── */
-#er-root *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-#er-root button,#er-root input,#er-root select,#er-root textarea{font-family:'Inter',system-ui,-apple-system,sans-serif;touch-action:manipulation;}
-#er-root textarea{resize:vertical;}
-#er-root #er-root .er-profile-btn{background:var(--er-bg);border:1px solid var(--er-bd);border-radius:4px;color:var(--er-ac);font-weight:700;padding:0 8px;height:30px;box-sizing:border-box;cursor:pointer;line-height:1;flex-shrink:0;display:inline-flex;align-items:center;transition:border-color .15s;}
-#er-root .er-profile-btn:hover{border-color:var(--er-ac);}
-#er-root .er-textarea{width:100%;background:var(--er-s2);border:1px solid var(--er-bdl);border-radius:4px;color:var(--er-tx);font-size:13px;font-weight:500;padding:9px 12px 28px 12px;outline:none;transition:border-color .15s;min-height:100px;line-height:1.6;resize:vertical;font-family:'Inter',system-ui,-apple-system,sans-serif;}
-#er-root .er-inner{max-width:720px;width:100%;margin:0 auto;padding:clamp(10px,2vw,24px) clamp(12px,3vw,32px) clamp(10px,1.5vw,16px);display:flex;flex-direction:column;gap:clamp(10px,1.5vw,16px);flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
-#er-root .er-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-shrink:0;}
-#er-root .er-header-left{display:flex;flex-direction:column;gap:3px;min-width:0;}
-#er-root .er-logo{font-family:var(--suite-display);font-size:clamp(21px,2.6vw,28px);font-weight:750;letter-spacing:-0.4px;line-height:1.2;white-space:nowrap;color:#e0b874;}
-#er-root .er-logo{color:#e0b874;}
-#er-root .er-logo .base,#er-root .er-logo .accent{color:inherit;font-style:normal;}
-#er-root .er-subtitle{font-size:12px;color:var(--er-txm);font-weight:500;}
-#er-root .er-hbtns{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:nowrap;align-self:flex-start;}
-#er-root .er-switcher{background:var(--er-bg);border:1px solid var(--er-bd);border-radius:4px;color:var(--er-ac);font-size:11px;font-weight:700;padding:0 8px;height:30px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;}#er-root .er-switcher:hover{border-color:var(--er-ac);}#er-root .er-switcher option{background:#1a1a1d;color:#e0b874;}
-select#th-app-switcher option{background:#1a1a1d;color:#e0b874;}
-select#th-app-switcher:hover{border-color:#e0b874;}
-.th-sw{border:1px solid #34343a;}
-@media(hover:hover){.th-sw:hover{border-color:#e0b874;}}
-
-/* ── Shared sticky app header bar ── */
-.app-hbar{position:-webkit-sticky;position:sticky;top:0;left:0;right:0;z-index:200;flex-shrink:0;}
-.app-hbar-inner{max-width:2000px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 10px;display:flex;flex-direction:column;gap:6px;min-width:0;width:100%;}
-.app-hbar-row1{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;min-height:30px;}
-.app-hbar-row2{display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;width:100%;}
-
-#er-root .er-hbtns>button:hover{border-color:var(--er-ac)!important;}
-#er-root .er-card{background:var(--er-s1);border:1px solid var(--er-bd);border-radius:4px;padding:18px 20px;}
-#er-root .er-card-title{font-family:'Manrope',system-ui,sans-serif;font-size:13px;font-weight:700;color:var(--er-tx);margin-bottom:14px;padding-bottom:9px;border-bottom:1px solid var(--er-bd);letter-spacing:.2px;}
-#er-root .er-field{margin-bottom:14px;}
-#er-root .er-field label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--er-txd);margin-bottom:6px;}
-#er-root .er-input{width:100%;background:var(--er-s2);border:1px solid var(--er-bdl);border-radius:4px;color:var(--er-tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;font-family:'Inter',system-ui,-apple-system,sans-serif;}
-#er-root .er-input:focus{border-color:var(--er-ac);}
-#er-root .er-input::placeholder{color:var(--er-txm);}
-#er-root #er-root .er-profile-btn{background:var(--er-bg);border:1px solid var(--er-bd);border-radius:4px;color:var(--er-ac);font-weight:700;padding:0 8px;height:30px;box-sizing:border-box;cursor:pointer;line-height:1;flex-shrink:0;display:inline-flex;align-items:center;transition:border-color .15s;}
-#er-root .er-profile-btn:hover{border-color:var(--er-ac);}
-#er-root .er-textarea{width:100%;background:var(--er-s2);border:1px solid var(--er-bdl);border-radius:4px;color:var(--er-tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color .15s;min-height:90px;line-height:1.6;resize:vertical;font-family:'Inter',system-ui,-apple-system,sans-serif;}
-#er-root .er-textarea:focus{border-color:var(--er-ac);}
-#er-root .er-textarea::placeholder{color:var(--er-txm);}
-#er-root .er-btn{display:inline-flex;align-items:center;gap:5px;font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:11px;font-weight:700;border-radius:4px;padding:6px 14px;cursor:pointer;transition:all .15s;white-space:nowrap;border:none;}
-#er-root .er-btn-primary{background:var(--er-ac);color:var(--er-bg);}
-#er-root .er-btn-primary:hover{opacity:.85;}
-#er-root .er-btn-ghost{background:var(--er-s1);border:1px solid var(--er-bd);color:var(--er-txd);}
-#er-root .er-btn-ghost:hover{border-color:var(--er-ac);color:var(--er-ac);}
-#er-root .er-count{font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:11px;font-weight:600;color:var(--er-txd);font-style:normal;letter-spacing:0.2px;}
-#er-root .er-timeline{position:relative;padding-left:22px;}
-#er-root .er-timeline::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--er-bd);border-radius:2px;}
-#er-root .er-entry{position:relative;margin-bottom:20px;}
-#er-root .er-entry:last-child{margin-bottom:0;}
-#er-root .er-entry::before{content:'';position:absolute;left:-29px;top:18px;width:11px;height:11px;background:var(--er-ac);border-radius:50%;border:3px solid var(--er-bg);transition:border-color .2s;}
-#er-root .er-entry-card{background:var(--er-s1);border:1px solid var(--er-bd);border-radius:4px;padding:14px 46px 14px 16px;transition:transform .15s,border-color .15s;position:relative;}
-#er-root .er-entry-card:hover{transform:translateX(4px);border-color:var(--er-ac);}
-#er-root .er-entry-date{font-size:11px;font-weight:700;color:var(--er-ac);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;}
-#er-root .er-entry-content{font-size:13px;line-height:1.65;color:var(--er-tx);white-space:pre-wrap;word-break:break-word;}
-#er-root .er-entry-btns{position:absolute;top:12px;right:12px;display:flex;gap:4px;}
-#er-root .er-icon-btn{background:transparent;border:none;cursor:pointer;font-size:12px;padding:3px 5px;border-radius:5px;color:var(--er-txm);transition:all .12s;line-height:1;}
-#er-root .er-icon-btn:hover{background:var(--er-s2);}
-#er-root .er-icon-btn.del:hover{color:var(--er-err);}
-#er-root .er-icon-btn.edit:hover{color:var(--er-ac);}
-#er-root .er-empty{text-align:center;padding:32px 0;font-size:13px;color:var(--er-txm);font-style:normal;font-family:var(--font-accent);}
-#er-root .er-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9000;padding:16px;}
-#er-root .er-modal{background:var(--er-s1);border:1px solid var(--er-bdl);border-radius:6px;padding:28px;width:100%;max-width:480px;box-shadow:0 30px 80px var(--er-shadow);max-height:90vh;overflow-y:auto;}
-#er-root .er-modal-title{font-family:'Manrope',system-ui,sans-serif;font-size:17px;font-weight:700;color:var(--er-ac);margin-bottom:20px;}
-#er-root .er-modal-actions{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;}
-#er-root .er-confirm-msg{font-size:13px;color:var(--er-txd);line-height:1.6;margin-bottom:20px;}
-#er-root .er-btn-danger{background:transparent;border:1px solid var(--er-err);color:var(--er-err);border-radius:4px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;transition:all .15s;}
-#er-root .er-btn-danger:hover{background:var(--er-err);color:#fff;}
-@media(max-width:500px){#er-root .er-entry-card{padding-right:40px;}#er-root .er-modal{padding:20px 16px;}#er-root .er-btn{padding:6px 10px;}}
-</style>
-
-<div id="er-root" style="display:none">
-  <div class="app-hbar" style="background:var(--er-bg);border-bottom:1px solid var(--er-bd);transition:background .4s,border-color .4s;">
-    <div class="app-hbar-inner">
-      <div class="app-hbar-row1">
-        <div style="display:flex;flex-direction:column;gap:2px;">
-          <div class="er-logo"><span class="base">Event</span><span class="accent">Rec</span></div>
-          <span id="er-sync-status" style="font-size:10px;font-weight:600;white-space:nowrap;visibility:hidden;display:block;min-height:14px;line-height:1.4;"></span>
-        </div>
-      </div>
-      <div class="app-hbar-row2">
-      </div>
-    </div>
-  </div>
-  <div class="er-inner" style="padding-top:clamp(10px,1.5vw,16px);">
-
-    <!-- Add entry form -->
-    <div class="er-card">
-      <div class="er-field">
-        <label for="er-date-input">Date</label>
-        <input type="date" id="er-date-input" class="er-input">
-      </div>
-      <div class="er-field" style="margin-bottom:16px;">
-        <label for="er-info-input">Details / Information</label>
-        <textarea id="er-info-input" class="er-textarea" placeholder="e.g., Moved to the new apartment on Main St…"></textarea>
-      </div>
-      <button type="button" class="er-btn er-btn-primary" id="er-add-btn">Add to Timeline</button>
-    </div>
-
-    <!-- Timeline -->
-    <div class="er-card" style="padding-bottom:20px;">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
-        <span class="er-count" id="er-entry-count"></span>
-      </div>
-      <div class="er-timeline" id="er-timeline">
-        <div class="er-empty" id="er-empty-msg">No events yet. Add your first event above.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Edit Modal -->
-  <div class="er-overlay" id="er-edit-modal" style="display:none;">
-    <div class="er-modal" onclick="event.stopPropagation()">
-      <div class="er-modal-title">Edit Event</div>
-      <div class="er-field">
-        <label for="er-edit-date">Date</label>
-        <input type="date" id="er-edit-date" class="er-input">
-      </div>
-      <div class="er-field">
-        <label for="er-edit-content">Details / Information</label>
-        <textarea id="er-edit-content" class="er-textarea"></textarea>
-      </div>
-      <div class="er-modal-actions">
-        <button type="button" class="er-btn er-btn-primary" id="er-save-edit-btn">Save Changes</button>
-        <button type="button" class="er-btn er-btn-ghost" id="er-cancel-edit-btn">Cancel</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Confirm Delete Modal -->
-  <div class="er-overlay" id="er-confirm-modal" style="display:none;">
-    <div class="er-modal" style="max-width:380px;" onclick="event.stopPropagation()">
-      <div class="er-modal-title">Delete Event?</div>
-      <div class="er-confirm-msg">This event will be permanently removed from your timeline.</div>
-      <div class="er-modal-actions">
-        <button type="button" class="er-btn-danger" id="er-confirm-del-btn">Delete</button>
-        <button type="button" class="er-btn er-btn-ghost" id="er-cancel-del-btn">Cancel</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-(function(){
-'use strict';
-
-// ── Storage ───────────────────────────────────────────────────────────────────
-const ER_STORAGE_KEY = 'eventRecData';
-
-function erLoad(k,fb){try{const v=localStorage.getItem(k);return v!=null?JSON.parse(v):fb;}catch{return fb;}}
-function erSave(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
-function erUid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
-function erEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function erFormatDate(dateStr){
-  const d=new Date(dateStr);
-  const adj=new Date(d.getTime()+Math.abs(d.getTimezoneOffset()*60000));
-  return adj.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-}
-
-// ── Theme vars ─────────────────────────────────────────────────────────────────
-const ER_DARK  = {bg:'#1a1a1d',s1:'#232327',s2:'#2c2c31',bd:'#34343a',bdl:'#45454c',tx:'#f4f3f0',txd:'#adadb2',txm:'#8d8d94',ac:'#e0b874',grn:'#a4b986',err:'#d68a7c',shadow:'rgba(0,0,0,0.45)'};
-
-function erApplyTheme(){
-  const t=ER_DARK;
-  const root=document.getElementById('er-root');
-  if(!root)return;
-  Object.entries({'--er-bg':t.bg,'--er-s1':t.s1,'--er-s2':t.s2,'--er-bd':t.bd,'--er-bdl':t.bdl,'--er-tx':t.tx,'--er-txd':t.txd,'--er-txm':t.txm,'--er-ac':t.ac,'--er-err':t.err,'--er-shadow':t.shadow}).forEach(([k,v])=>root.style.setProperty(k,v));
-  root.style.background=t.bg;
-  if(root.style.display!=='none'){document.body.style.background=t.bg;document.documentElement.style.background=t.bg;}
-  // Update dot border color to match bg
-  document.querySelectorAll('#er-root .er-entry::before').forEach(()=>{});
-  // Inject dynamic bg var for dot borders (used in ::before pseudo-element)
-  let styleTag=document.getElementById('er-dynamic-style');
-  if(!styleTag){styleTag=document.createElement('style');styleTag.id='er-dynamic-style';document.head.appendChild(styleTag);}
-  styleTag.textContent=`#er-root .er-entry::before{border-color:${t.bg}!important;}`;
-}
-
-// ── State ──────────────────────────────────────────────────────────────────────
-let erEvents = erLoad(ER_STORAGE_KEY,[]);
-// Migrate old data: assign stable ids if missing
-erEvents = erEvents.map(e=>e.id?e:{...e,id:erUid()});
-erSave(ER_STORAGE_KEY,erEvents);
-
-let erEditingId  = null;
-let erDeletingId = null;
-
-// ── Render ─────────────────────────────────────────────────────────────────────
-function erRender(){
-  const container=document.getElementById('er-timeline');
-  const countEl=document.getElementById('er-entry-count');
-  const emptyEl=document.getElementById('er-empty-msg');
-  if(!container)return;
-
-  if(countEl)countEl.textContent=erEvents.length?(erEvents.length+' event'+(erEvents.length!==1?'s':'')):'';
-
-  // Sort newest → oldest
-  const sorted=[...erEvents].sort((a,b)=>new Date(b.date)-new Date(a.date));
-
-  Array.from(container.querySelectorAll('.er-entry')).forEach(el=>el.remove());
-
-  if(!sorted.length){
-    if(emptyEl)emptyEl.style.display='';
-    return;
-  }
-  if(emptyEl)emptyEl.style.display='none';
-
-  sorted.forEach(entry=>{
-    const div=document.createElement('div');
-    div.className='er-entry';
-    div.innerHTML=`
-      <div class="er-entry-card">
-        <div class="er-entry-btns">
-          <button class="er-icon-btn edit" data-id="${erEsc(entry.id)}" title="Edit">${TNI.pencil}</button>
-          <button class="er-icon-btn del" data-id="${erEsc(entry.id)}" title="Delete">${TNI.x}</button>
-        </div>
-        <div class="er-entry-date">${erFormatDate(entry.date)}</div>
-        <div class="er-entry-content">${erEsc(entry.content)}</div>
-      </div>`;
-    container.appendChild(div);
-  });
-
-  container.querySelectorAll('.er-icon-btn.edit').forEach(btn=>btn.addEventListener('click',()=>erOpenEdit(btn.dataset.id)));
-  container.querySelectorAll('.er-icon-btn.del').forEach(btn=>btn.addEventListener('click',()=>erConfirmDelete(btn.dataset.id)));
-}
-
-// ── Add ────────────────────────────────────────────────────────────────────────
-function erAddEntry(){
-  const dateVal=document.getElementById('er-date-input').value;
-  const infoVal=document.getElementById('er-info-input').value.trim();
-  if(!dateVal||!infoVal){
-    const field=!dateVal?document.getElementById('er-date-input'):document.getElementById('er-info-input');
-    field.style.borderColor='var(--er-err)';setTimeout(()=>field.style.borderColor='',1500);return;
-  }
-  erEvents.push({id:erUid(),date:dateVal,content:infoVal});
-  erSaveAll();
-  document.getElementById('er-info-input').value='';
-  erRender();
-}
-
-// ── Delete ─────────────────────────────────────────────────────────────────────
-function erConfirmDelete(id){
-  erDeletingId=id;
-  document.getElementById('er-confirm-modal').style.display='flex';
-}
-function erExecuteDelete(){
-  if(!erDeletingId)return;
-  erEvents=erEvents.filter(e=>e.id!==erDeletingId);
-  erSaveAll();
-  erDeletingId=null;
-  document.getElementById('er-confirm-modal').style.display='none';
-  erRender();
-}
-
-// ── Edit ───────────────────────────────────────────────────────────────────────
-function erOpenEdit(id){
-  const entry=erEvents.find(e=>e.id===id);if(!entry)return;
-  erEditingId=id;
-  document.getElementById('er-edit-date').value=entry.date;
-  document.getElementById('er-edit-content').value=entry.content;
-  document.getElementById('er-edit-modal').style.display='flex';
-  setTimeout(()=>document.getElementById('er-edit-content').focus(),50);
-}
-function erSaveEdit(){
-  if(!erEditingId)return;
-  const dateVal=document.getElementById('er-edit-date').value;
-  const contentVal=document.getElementById('er-edit-content').value.trim();
-  if(!dateVal||!contentVal){
-    const field=!dateVal?document.getElementById('er-edit-date'):document.getElementById('er-edit-content');
-    field.style.borderColor='var(--er-err)';setTimeout(()=>field.style.borderColor='',1500);return;
-  }
-  erEvents=erEvents.map(e=>e.id===erEditingId?{...e,date:dateVal,content:contentVal}:e);
-  erSaveAll();
-  erEditingId=null;
-  document.getElementById('er-edit-modal').style.display='none';
-  erRender();
-}
-
-// ── Sync status badge ──────────────────────────────────────────────────────────
-let erSyncTimer=null;
-function erSetSync(status){
-  const el=document.getElementById('er-sync-status');if(!el)return;
-  const t=ER_DARK;
-  if(status==='saving'){el.style.visibility='visible';el.style.color=t.txm;el.textContent='Syncing…';}
-  else if(status==='saved'){el.style.visibility='visible';el.style.color=t.grn||'#a4b986';el.textContent='Synced';if(erSyncTimer)clearTimeout(erSyncTimer);erSyncTimer=setTimeout(()=>{el.style.visibility='hidden';},2500);}
-  else if(status==='error'){el.style.visibility='visible';el.style.color=t.err;el.textContent='Sync failed';}
-  else{el.style.visibility='hidden';}
-}
-
-// ── Save: localStorage + Firebase ─────────────────────────────────────────────
-function erSaveAll(){
-  erSave(ER_STORAGE_KEY,erEvents);
-  if(window._fbSaveEventRec){
-    erSetSync('saving');
-    window._fbSaveEventRec(()=>erEvents);
-  }
-}
-
-// ── Firebase init ──────────────────────────────────────────────────────────────
-function erInitFirebase(){
-  const doLoad=async()=>{
-    if(!window._fbLoadEventRec)return;
-    const remote=await window._fbLoadEventRec();
-    if(remote&&Array.isArray(remote)){
-      erEvents=remote.map(e=>e.id?e:{...e,id:erUid()});
-      erSave(ER_STORAGE_KEY,erEvents);
-      erRender();
-    }
-  };
-  if(window._fbReady)doLoad();
-  else window.addEventListener('fb-ready',doLoad,{once:true});
-  window.addEventListener('fb-er-saved',()=>erSetSync('saved'));
-  window.addEventListener('fb-er-synced',()=>erSetSync('saved'));
-  window.addEventListener('fb-er-error',()=>erSetSync('error'));
-  window.addEventListener('fb-er-remote-update',(ev)=>{
-    if(!ev.detail||!Array.isArray(ev.detail))return;
-    erEvents=ev.detail.map(e=>e.id?e:{...e,id:erUid()});
-    erSave(ER_STORAGE_KEY,erEvents);
-    erRender();
-    erSetSync('saved');
-  });
-}
-
-// ── App switching ──────────────────────────────────────────────────────────────
-function erSwitchTo(app){
-  const thRoot=document.getElementById('root');
-  const erRoot=document.getElementById('er-root');
-  if(app==='eventrec'){
-    if(thRoot)thRoot.style.display='none';
-    if(erRoot)erRoot.style.display='flex';
-    erApplyTheme();erRender();
-    const sw=document.getElementById('er-app-switcher');if(sw)sw.value='eventrec';
-  } else if(app==='brainstormjournal'){
-    var erRoot2=document.getElementById('er-root');if(erRoot2)erRoot2.style.display='none';
-    var sw3=document.getElementById('er-app-switcher');if(sw3)sw3.value='eventrec';
-    if(window.showTonyJournal)window.showTonyJournal();
-  } else {
-    if(erRoot)erRoot.style.display='none';
-    if(elRoot)elRoot.style.display='none';
-    if(thRoot)thRoot.style.display='';
-    const bg='#0f0f12';
-    document.body.style.background=bg;document.documentElement.style.background=bg;
-    const sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
-  }
-}
-window._erSwitchTo=function(app){erSwitchTo(app);if(app==='eventrec'&&window._updateTonyNavActive)window._updateTonyNavActive('eventrec');};
-
-// ── Keyboard shortcuts ─────────────────────────────────────────────────────────
-document.addEventListener('keydown',e=>{
-  if(document.getElementById('er-root').style.display==='none')return;
-  if(e.key==='Escape'){
-    document.getElementById('er-edit-modal').style.display='none';erEditingId=null;
-    document.getElementById('er-confirm-modal').style.display='none';erDeletingId=null;
-  }
-  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){
-    if(document.getElementById('er-edit-modal').style.display!=='none')erSaveEdit();
-  }
-});
-
-// ── Bind events ────────────────────────────────────────────────────────────────
-document.getElementById('er-add-btn').addEventListener('click',erAddEntry);
-document.getElementById('er-info-input').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')erAddEntry();});
-document.getElementById('er-app-switcher')?.addEventListener('change',e=>{if(e.target.value==='vedasHub'&&window._switchToVeda){e.target.blur();window._switchToVeda();}else if(e.target.value==='keychain'&&window._kcSwitchTo){e.target.blur();window._kcSwitchTo('keychain');}else if(e.target.value==='brainstormjournal'){e.target.value='eventrec';e.target.blur();if(window.showTonyJournal)window.showTonyJournal();}else{e.target.blur();erSwitchTo(e.target.value);}});
-document.getElementById('er-save-edit-btn').addEventListener('click',erSaveEdit);
-document.getElementById('er-cancel-edit-btn').addEventListener('click',()=>{document.getElementById('er-edit-modal').style.display='none';erEditingId=null;});
-document.getElementById('er-confirm-del-btn').addEventListener('click',erExecuteDelete);
-document.getElementById('er-cancel-del-btn').addEventListener('click',()=>{document.getElementById('er-confirm-modal').style.display='none';erDeletingId=null;});
-document.getElementById('er-edit-modal').addEventListener('click',e=>{if(e.target===document.getElementById('er-edit-modal')){document.getElementById('er-edit-modal').style.display='none';erEditingId=null;}});
-document.getElementById('er-confirm-modal').addEventListener('click',e=>{if(e.target===document.getElementById('er-confirm-modal')){document.getElementById('er-confirm-modal').style.display='none';erDeletingId=null;}});
-
-// Listen for theme changes from other apps
-
-// ── Init ───────────────────────────────────────────────────────────────────────
-erApplyTheme();
-erRender();
-window._erApplyTheme=erApplyTheme;
-erInitFirebase();
-
-})();
-</script>
 
 <!-- ══════════════════════════════════════════════════════════════
      VEDA'S TASKHUB  (embedded from Reference.html)
@@ -8208,276 +7727,12 @@ erInitFirebase();
 <div id="veda-root" style="display:none;min-height:100%;background:#1B1C1E;">
 <div id="task-view" style="min-height:100%;"><div id="vr-root"></div></div>
 
-<!-- ── Veda Timeline ── -->
-<style>
-#vt-root{display:none;min-height:100%;background:#1B1C1E;}
-#vt-root *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-#vt-root button,#vt-root input,#vt-root select,#vt-root textarea{font-family:'IBM Plex Mono',monospace;touch-action:manipulation;}
-#vt-root textarea{resize:vertical;}
-#vt-root{
-  --vt-bg:#1B1C1E;--vt-s1:#26272A;--vt-s2:#303135;
-  --vt-bd:#3D3E43;--vt-bdl:#4A4B52;
-  --vt-tx:#ECECEE;--vt-txd:#AFB0B5;--vt-txm:#76777C;
-  --vt-ac:#8D769A;--vt-acl:#2E2535;
-  --vt-err:#E74C3C;--vt-grn:#5DAF6D;--vt-shadow:rgba(0,0,0,0.45);
-}
-#vt-root .vt-inner{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + clamp(10px,2vw,24px)) clamp(12px,3vw,32px) clamp(10px,1.5vw,16px);display:flex;flex-direction:column;gap:clamp(10px,1.5vw,16px);}
-#vt-root .vt-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-shrink:0;}
-#vt-root .vt-header-left{display:flex;flex-direction:column;gap:3px;min-width:0;}
-#vt-root .vt-logo{font-family:'Playfair Display',serif;font-size:clamp(18px,3vw,28px);font-weight:900;letter-spacing:1px;text-transform:uppercase;color:var(--vt-ac);line-height:1;}
-#vt-root .vt-subtitle{font-size:9px;color:var(--vt-txd);font-weight:700;letter-spacing:2px;text-transform:uppercase;line-height:1;margin-top:3px;}
-#vt-root .vt-hbtns{display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:4px;flex-wrap:nowrap;}
-#vt-root .vt-back-btn{background:transparent;color:var(--vt-ac);border:1px solid var(--vt-bd);border-radius:5px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;}
-#vt-root .vt-back-btn:hover{background:var(--vt-acl);}
-#vt-root .vt-sync{font-size:10px;font-weight:600;white-space:nowrap;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;}
-#vt-root .vt-card{background:var(--vt-s1);border:1px solid var(--vt-bd);border-radius:4px;padding:16px 18px;}
-#vt-root .vt-card-title{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--vt-tx);margin-bottom:12px;padding-bottom:9px;border-bottom:1px solid var(--vt-bd);letter-spacing:2px;text-transform:uppercase;}
-#vt-root .vt-field{margin-bottom:13px;}
-#vt-root .vt-field label{display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--vt-txm);margin-bottom:5px;font-family:'IBM Plex Mono',monospace;}
-#vt-root .vt-input{width:100%;background:var(--vt-s2);border:1px solid var(--vt-bdl);border-radius:5px;color:var(--vt-tx);font-size:13px;font-weight:500;padding:7px 10px;outline:none;transition:border-color .15s;font-family:'IBM Plex Mono',monospace;color-scheme:dark;}
-#vt-root .vt-input:focus{border-color:var(--vt-ac);}
-#vt-root .vt-input::placeholder{color:var(--vt-txm);}
-#vt-root .vt-textarea{width:100%;background:var(--vt-s2);border:1px solid var(--vt-bdl);border-radius:5px;color:var(--vt-tx);font-size:13px;font-weight:500;padding:7px 10px;outline:none;transition:border-color .15s;min-height:90px;line-height:1.6;resize:vertical;font-family:'IBM Plex Mono',monospace;}
-#vt-root .vt-textarea:focus{border-color:var(--vt-ac);}
-#vt-root .vt-textarea::placeholder{color:var(--vt-txm);}
-#vt-root .vt-btn{display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;border-radius:5px;padding:5px 14px;cursor:pointer;transition:all .15s;white-space:nowrap;border:none;text-transform:uppercase;letter-spacing:1px;}
-#vt-root .vt-btn-primary{background:var(--vt-ac);color:var(--vt-bg);}
-#vt-root .vt-btn-primary:hover{opacity:.85;}
-#vt-root .vt-btn-ghost{background:var(--vt-s1);border:1px solid var(--vt-bd);color:var(--vt-txd);}
-#vt-root .vt-btn-ghost:hover{border-color:var(--vt-ac);color:var(--vt-ac);}
-#vt-root .vt-btn-danger{background:transparent;border:1px solid var(--vt-err);color:var(--vt-err);border-radius:5px;padding:5px 14px;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;}
-#vt-root .vt-btn-danger:hover{background:var(--vt-err);color:#fff;}
-#vt-root .vt-count{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:var(--vt-ac);letter-spacing:1px;text-transform:uppercase;}
-#vt-root .vt-timeline{position:relative;padding-left:22px;}
-#vt-root .vt-timeline::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--vt-bd);border-radius:2px;}
-#vt-root .vt-entry{position:relative;margin-bottom:16px;}
-#vt-root .vt-entry:last-child{margin-bottom:0;}
-#vt-root .vt-entry::before{content:'';position:absolute;left:-28px;top:15px;width:10px;height:10px;background:var(--vt-ac);border-radius:50%;border:2px solid var(--vt-bg);}
-#vt-root .vt-entry-card{background:var(--vt-s1);border:1px solid var(--vt-bd);border-radius:4px;padding:11px 40px 11px 13px;transition:transform .15s,border-color .15s;position:relative;}
-#vt-root .vt-entry-card:hover{transform:translateX(4px);border-color:var(--vt-ac);}
-#vt-root .vt-entry-date{font-size:9px;font-weight:700;color:var(--vt-ac);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px;font-family:'IBM Plex Mono',monospace;}
-#vt-root .vt-entry-content{font-size:12px;line-height:1.65;color:var(--vt-txd);white-space:pre-wrap;word-break:break-word;font-family:'IBM Plex Mono',monospace;}
-#vt-root .vt-entry-btns{position:absolute;top:9px;right:9px;display:flex;gap:3px;}
-#vt-root .vt-icon-btn{background:transparent;border:none;cursor:pointer;font-size:12px;padding:3px 5px;border-radius:4px;color:var(--vt-txm);transition:all .12s;line-height:1;font-family:'IBM Plex Mono',monospace;}
-#vt-root .vt-icon-btn:hover{background:var(--vt-s2);}
-#vt-root .vt-icon-btn.del:hover{color:var(--vt-err);}
-#vt-root .vt-icon-btn.edit:hover{color:var(--vt-ac);}
-#vt-root .vt-empty{text-align:center;padding:28px 0;font-size:11px;color:var(--vt-txm);font-style:normal;font-family:'IBM Plex Mono',monospace;}
-#vt-root .vt-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:9100;padding:16px;}
-#vt-root .vt-modal{background:var(--vt-s1);border:1px solid var(--vt-bdl);border-radius:4px;padding:24px;width:100%;max-width:480px;box-shadow:0 30px 80px var(--vt-shadow);max-height:90vh;overflow-y:auto;}
-#vt-root .vt-modal-title{font-family:'Playfair Display',serif;font-size:17px;font-weight:900;color:var(--vt-ac);margin-bottom:18px;letter-spacing:.5px;}
-#vt-root .vt-modal-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
-#vt-root .vt-confirm-msg{font-size:12px;color:var(--vt-txd);line-height:1.65;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;}
-@media(max-width:500px){#vt-root .vt-entry-card{padding-right:36px;}#vt-root .vt-modal{padding:18px 14px;}}
-</style>
-
-<div id="vt-root">
-<div class="veda-hdr-outer">
-  <div class="veda-hdr-inner">
-  <div class="veda-hdr-left">
-    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#8D769A;letter-spacing:1px;text-transform:uppercase;line-height:1;">Timeline</div>
-  </div>
-  <div class="veda-hdr-right">
-    <div class="veda-hbtns">
-      <button onclick="window._vedaNav&&window._vedaNav('taskhub')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">TaskHub</button>
-      <button onclick="window._vedaNav&&window._vedaNav('gita')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Gita</button>
-      <button style="background:#8D769A;color:#1B1C1E;border:1px solid #8D769A;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;">Timeline</button>
-      <button onclick="window._vedaNav&&window._vedaNav('journal')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Journal</button>
-      <button onclick="window._vedaNav&&window._vedaNav('links')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Links</button>
-      
-      <button id="al-btn-veda_timeline" onclick="window.alManage&&window.alManage('veda_timeline')" title="App Lock" style="background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;flex-shrink:0;touch-action:manipulation;">🔓</button>
-      <button onclick="window._profileGoSelect&&window._profileGoSelect()" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:17px;line-height:1;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0;transition:all .15s;">✦</button>
-    </div>
-    <div class="veda-hbtns" style="padding-top:4px;">
-      <span id="vt-sync-status" class="vt-sync" style="display:none;"></span>
-    </div>
-  </div>
-  </div>
-</div>
-    <div style="max-width:720px;margin:0 auto;width:100%;padding:0 14px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:clamp(10px,1.5vw,16px);">
-    <div class="vt-card">
-      <div class="vt-field">
-        <label for="vt-date-input">Date</label>
-        <input type="date" id="vt-date-input" class="vt-input">
-      </div>
-      <div class="vt-field" style="margin-bottom:12px;">
-        <label for="vt-info-input">Details / Information</label>
-        <textarea id="vt-info-input" class="vt-textarea" placeholder="e.g., Moved to the new apartment on Main St…"></textarea>
-      </div>
-      <button type="button" class="vt-btn vt-btn-primary" id="vt-add-btn">Add to Timeline</button>
-    </div>
-    <div class="vt-card" style="padding-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid var(--vt-bd);">
-        <span class="vt-card-title" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">Events</span>
-        <span class="vt-count" id="vt-entry-count"></span>
-      </div>
-      <div class="vt-timeline" id="vt-timeline">
-        <div class="vt-empty" id="vt-empty-msg">No events yet. Add your first event above.</div>
-      </div>
-    </div>
-  </div><!-- end 1600px wrapper -->
-  <!-- Edit Modal -->
-  <div class="vt-overlay" id="vt-edit-modal" style="display:none;">
-    <div class="vt-modal" onclick="event.stopPropagation()">
-      <div class="vt-modal-title">Edit Event</div>
-      <div class="vt-field"><label for="vt-edit-date">Date</label><input type="date" id="vt-edit-date" class="vt-input"></div>
-      <div class="vt-field"><label for="vt-edit-content">Details / Information</label><textarea id="vt-edit-content" class="vt-textarea"></textarea></div>
-      <div class="vt-modal-actions">
-        <button type="button" class="vt-btn vt-btn-primary" id="vt-save-edit-btn">Save Changes</button>
-        <button type="button" class="vt-btn vt-btn-ghost" id="vt-cancel-edit-btn">Cancel</button>
-      </div>
-    </div>
-  </div>
-  <!-- Confirm Delete Modal -->
-  <div class="vt-overlay" id="vt-confirm-modal" style="display:none;">
-    <div class="vt-modal" style="max-width:360px;" onclick="event.stopPropagation()">
-      <div class="vt-modal-title">Delete Event?</div>
-      <div class="vt-confirm-msg">This event will be permanently removed from your timeline.</div>
-      <div class="vt-modal-actions">
-        <button type="button" class="vt-btn-danger" id="vt-confirm-del-btn">Delete</button>
-        <button type="button" class="vt-btn vt-btn-ghost" id="vt-cancel-del-btn">Cancel</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
 (function(){
 'use strict';
-const VT_KEY='veda_timeline_data';
-function vtLoad(){try{const v=localStorage.getItem(VT_KEY);return v!=null?JSON.parse(v):[];}catch{return[];}}
-function vtSave(d){try{localStorage.setItem(VT_KEY,JSON.stringify(d));}catch{}}
-function vtUid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
-function vtEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function vtFmtDate(ds){const d=new Date(ds);const a=new Date(d.getTime()+Math.abs(d.getTimezoneOffset()*60000));return a.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});}
-
-let vtEvents=vtLoad().map(e=>e.id?e:{...e,id:vtUid()});
-vtSave(vtEvents);
-let vtEditId=null,vtDelId=null,vtSyncTimer=null;
-
-// ── Sync status ───────────────────────────────────────────────────────────────
-function vtSetSync(s){
-  const el=document.getElementById('vt-sync-status');if(!el)return;
-  if(s==='saving'){el.style.display='';el.style.color='#AFB0B5';el.textContent='Syncing…';}
-  else if(s==='saved'){el.style.display='';el.style.color='#5DAF6D';el.textContent='✓ Synced';if(vtSyncTimer)clearTimeout(vtSyncTimer);vtSyncTimer=setTimeout(()=>{el.style.display='none';},2500);}
-  else if(s==='error'){el.style.display='';el.style.color='#E74C3C';el.textContent='⚠ Sync failed';}
-  else{el.style.display='none';}
-}
-
-// ── Firebase save ─────────────────────────────────────────────────────────────
-function vtSaveAll(){
-  vtSave(vtEvents);
-  if(window._fbSaveVedaTimeline){
-    vtSetSync('saving');
-    window._fbSaveVedaTimeline(vtEvents);
-  }
-}
-
-// ── Firebase init ─────────────────────────────────────────────────────────────
-function vtInitFirebase(){
-  const doLoad=async()=>{
-    if(!window._fbLoadVedaTimeline)return;
-    const remote=await window._fbLoadVedaTimeline();
-    if(remote&&Array.isArray(remote.events)){
-      vtEvents=remote.events.map(e=>e.id?e:{...e,id:vtUid()});
-      vtSave(vtEvents);
-      vtRender();
-    }
-  };
-  if(window._fbReady)doLoad();
-  else window.addEventListener('fb-ready',doLoad,{once:true});
-  window.addEventListener('fb-vt-saved',()=>vtSetSync('saved'));
-  window.addEventListener('fb-vt-synced',()=>vtSetSync('saved'));
-  window.addEventListener('fb-vt-error',()=>vtSetSync('error'));
-  window.addEventListener('fb-vt-remote-update',(ev)=>{
-    if(!ev.detail||!Array.isArray(ev.detail.events))return;
-    vtEvents=ev.detail.events.map(e=>e.id?e:{...e,id:vtUid()});
-    vtSave(vtEvents);
-    vtRender();
-    vtSetSync('saved');
-  });
-}
-
-// ── Render ────────────────────────────────────────────────────────────────────
-function vtRender(){
-  const c=document.getElementById('vt-timeline');
-  const cnt=document.getElementById('vt-entry-count');
-  const emp=document.getElementById('vt-empty-msg');
-  if(!c)return;
-  if(cnt)cnt.textContent=vtEvents.length?(vtEvents.length+' event'+(vtEvents.length!==1?'s':'')):'';
-  const sorted=[...vtEvents].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  Array.from(c.querySelectorAll('.vt-entry')).forEach(el=>el.remove());
-  if(!sorted.length){if(emp)emp.style.display='';return;}
-  if(emp)emp.style.display='none';
-  sorted.forEach(entry=>{
-    const div=document.createElement('div');
-    div.className='vt-entry';
-    div.innerHTML=`<div class="vt-entry-card">
-      <div class="vt-entry-btns">
-        <button class="vt-icon-btn edit" data-id="${vtEsc(entry.id)}" title="Edit">✎</button>
-        <button class="vt-icon-btn del"  data-id="${vtEsc(entry.id)}" title="Delete">✕</button>
-      </div>
-      <div class="vt-entry-date">${vtFmtDate(entry.date)}</div>
-      <div class="vt-entry-content">${vtEsc(entry.content)}</div>
-    </div>`;
-    c.appendChild(div);
-  });
-  c.querySelectorAll('.vt-icon-btn.edit').forEach(b=>b.addEventListener('click',()=>vtOpenEdit(b.dataset.id)));
-  c.querySelectorAll('.vt-icon-btn.del').forEach(b=>b.addEventListener('click',()=>vtConfirmDel(b.dataset.id)));
-}
-
-// ── Add ───────────────────────────────────────────────────────────────────────
-function vtAdd(){
-  const dv=document.getElementById('vt-date-input').value;
-  const iv=document.getElementById('vt-info-input').value.trim();
-  if(!dv||!iv){
-    const f=!dv?document.getElementById('vt-date-input'):document.getElementById('vt-info-input');
-    f.style.borderColor='var(--vt-err)';setTimeout(()=>f.style.borderColor='',1500);return;
-  }
-  vtEvents.push({id:vtUid(),date:dv,content:iv});
-  vtSaveAll();
-  document.getElementById('vt-info-input').value='';
-  vtRender();
-}
-
-// ── Delete ────────────────────────────────────────────────────────────────────
-function vtConfirmDel(id){vtDelId=id;document.getElementById('vt-confirm-modal').style.display='flex';}
-function vtExecDel(){
-  if(!vtDelId)return;
-  vtEvents=vtEvents.filter(e=>e.id!==vtDelId);
-  vtSaveAll();vtDelId=null;
-  document.getElementById('vt-confirm-modal').style.display='none';
-  vtRender();
-}
-
-// ── Edit ──────────────────────────────────────────────────────────────────────
-function vtOpenEdit(id){
-  const e=vtEvents.find(e=>e.id===id);if(!e)return;
-  vtEditId=id;
-  document.getElementById('vt-edit-date').value=e.date;
-  document.getElementById('vt-edit-content').value=e.content;
-  document.getElementById('vt-edit-modal').style.display='flex';
-  setTimeout(()=>document.getElementById('vt-edit-content').focus(),50);
-}
-function vtSaveEdit(){
-  if(!vtEditId)return;
-  const dv=document.getElementById('vt-edit-date').value;
-  const cv=document.getElementById('vt-edit-content').value.trim();
-  if(!dv||!cv){
-    const f=!dv?document.getElementById('vt-edit-date'):document.getElementById('vt-edit-content');
-    f.style.borderColor='var(--vt-err)';setTimeout(()=>f.style.borderColor='',1500);return;
-  }
-  vtEvents=vtEvents.map(e=>e.id===vtEditId?{...e,date:dv,content:cv}:e);
-  vtSaveAll();vtEditId=null;
-  document.getElementById('vt-edit-modal').style.display='none';
-  vtRender();
-}
-
-// ── Show / hide ───────────────────────────────────────────────────────────────
 // ── Universal Veda navigation ────────────────────────────────────────────────
 window._vedaNav=function(target){
-  ['task-view','vt-root','vd-kc-root','bj-root','tj-root',
-   'root','er-root'].forEach(function(id){
+  ['task-view','vd-kc-root','bj-root','tj-root','root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   if(window._vedaCloseGita)window._vedaCloseGita();
@@ -8506,39 +7761,11 @@ window._vedaNav=function(target){
   }
   window._activeDash='task';
   if(target==='taskhub'){var tv=document.getElementById('task-view');if(tv)tv.style.display='';}
-  else if(target==='timeline'){
-    var tv2=document.getElementById('task-view');if(tv2)tv2.style.display='none';
-    var vtr=document.getElementById('vt-root');if(vtr){vtr.style.display='block';vtRender();}
-  } else if(target==='gita'){
+  else if(target==='gita'){
     var tv3=document.getElementById('task-view');if(tv3)tv3.style.display='';
     if(window._vedaShowGita)window._vedaShowGita();
   }
 };
-window.showVedaTimeline=function(){window._vedaNav('timeline');};
-window.hideVedaTimeline=function(){window._vedaNav('taskhub');};
-
-// ── Bindings ──────────────────────────────────────────────────────────────────
-document.getElementById('vt-add-btn').addEventListener('click',vtAdd);
-document.getElementById('vt-info-input').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')vtAdd();});
-document.getElementById('vt-save-edit-btn').addEventListener('click',vtSaveEdit);
-document.getElementById('vt-cancel-edit-btn').addEventListener('click',()=>{document.getElementById('vt-edit-modal').style.display='none';vtEditId=null;});
-document.getElementById('vt-confirm-del-btn').addEventListener('click',vtExecDel);
-document.getElementById('vt-cancel-del-btn').addEventListener('click',()=>{document.getElementById('vt-confirm-modal').style.display='none';vtDelId=null;});
-document.getElementById('vt-edit-modal').addEventListener('click',e=>{if(e.target===document.getElementById('vt-edit-modal')){document.getElementById('vt-edit-modal').style.display='none';vtEditId=null;}});
-document.getElementById('vt-confirm-modal').addEventListener('click',e=>{if(e.target===document.getElementById('vt-confirm-modal')){document.getElementById('vt-confirm-modal').style.display='none';vtDelId=null;}});
-document.addEventListener('keydown',e=>{
-  if(document.getElementById('vt-root').style.display==='none')return;
-  if(e.key==='Escape'){
-    document.getElementById('vt-edit-modal').style.display='none';vtEditId=null;
-    document.getElementById('vt-confirm-modal').style.display='none';vtDelId=null;
-  }
-  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){
-    if(document.getElementById('vt-edit-modal').style.display!=='none')vtSaveEdit();
-  }
-});
-
-vtRender();
-vtInitFirebase();
 })();
 </script>
 <script type="text/babel">
@@ -9806,7 +9033,6 @@ function GitaLessonsBrowser({onClose, onSelectLesson}){
       RC("div",{className:"veda-hdr-right"},RC("div",{className:"veda-hbtns"},
         RC("button",{onClick:onClose,onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"TaskHub"),
         RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:gitaBtnStyle(true)},"Gita"),
-        RC("button",{onClick:()=>window.showVedaTimeline&&window.showVedaTimeline(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"Timeline"),
         RC("button",{onClick:()=>window.showBrainstormJournal&&window.showBrainstormJournal('veda'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"Journal"),
         RC("button",{onClick:()=>window._vdkcShow&&window._vdkcShow(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"Links"),
         RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},RC("span",{style:vdStarGlyph},"\u2726"))
@@ -10412,7 +9638,6 @@ function App(){
       RC("div",{className:"veda-hbtns"},
           RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:{background:A,color:BG,border:"1px solid "+A,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"TaskHub"),
           RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('gita'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Gita"),
-          RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('timeline'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Timeline"),
           RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('journal'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Journal"),
           RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('links'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Links"),
           RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},RC("span",{style:vdStarGlyph},"✦"))),
@@ -10632,7 +9857,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
       // Hide Tony's root and other fixed roots so they don't show through
       const root=document.getElementById("root");
       if(root)root.style.display="none";
-      ["er-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
+      ["mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
       // Let veda-root flow in body (no fixed) so Chrome pull-to-refresh works
       vr.style.display="block";
       vr.style.position="";
@@ -10682,7 +9907,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     hideVeda();
     // Also hide Veda sub-programs in case user was in one
-    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","er-root"].forEach(function(id){
+    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -10690,7 +9915,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     var _tjt=document.getElementById('tj-nav-title');if(_tjt)_tjt.parentNode.removeChild(_tjt);
     const root=document.getElementById("root");
     if(root)root.style.display="";
-    ["er-root","mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
+    ["mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
     const sw=document.getElementById("th-app-switcher");if(sw)sw.value="taskhub";
     // Restore Tony body bg from saved theme
     document.body.style.background="#1a1a1d";document.documentElement.style.background="#1a1a1d"; // light mode removed — always dark
@@ -10712,7 +9937,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     if(window._hideTonyNav)window._hideTonyNav();
     if(window._vedaCloseGita)window._vedaCloseGita();
-    ["vt-root","vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","er-root"].forEach(function(id){
+    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -10858,7 +10083,6 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     const bg="#1a1a1d";
     document.body.style.background=bg;
     document.documentElement.style.background=bg;
-    if(window._erApplyTheme)window._erApplyTheme();
     if(window._mcApplyTheme)window._mcApplyTheme();
     var tnav=document.getElementById('tony-app-nav');
     if(tnav&&tnav.style.display!=='none'){tnav.style.setProperty('--tn-ac','#e0b874');tnav.style.setProperty('--tn-bd','#2e3a35');tnav.style.setProperty('--tn-bg','#1a1a1d');}
@@ -12473,7 +11697,6 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     <div class="veda-hbtns">
       <button onclick="window._vedaNav&&window._vedaNav('taskhub')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">TaskHub</button>
       <button onclick="window._vedaNav&&window._vedaNav('gita')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Gita</button>
-      <button onclick="window._vedaNav&&window._vedaNav('timeline')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Timeline</button>
       <button onclick="window._vedaNav&&window._vedaNav('journal')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Journal</button>
       <button style="background:#8D769A;color:#1B1C1E;border:1px solid #8D769A;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;">Links</button>
       <button id="al-btn-veda_links" onclick="window.alManage&&window.alManage('veda_links')" title="App Lock" style="background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;flex-shrink:0;touch-action:manipulation;">🔓</button>
@@ -13201,8 +12424,7 @@ window.addEventListener('resize',()=>{
 
 // ── Show / Hide ──
 window._vdkcShow=function(){
-  ['veda-root','vt-root','bj-root','tj-root',
-   'root','er-root'].forEach(function(id){
+  ['veda-root','bj-root','tj-root','root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   const vdkc=document.getElementById('vd-kc-root');
@@ -14601,7 +13823,6 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
     <div class="veda-hbtns">
       <button onclick="window._vedaNav&&window._vedaNav('taskhub')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">TaskHub</button>
       <button onclick="window._vedaNav&&window._vedaNav('gita')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Gita</button>
-      <button onclick="window._vedaNav&&window._vedaNav('timeline')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Timeline</button>
       <button style="background:#8D769A;color:#1B1C1E;border:1px solid #8D769A;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;">Journal</button>
       <button onclick="window._vedaNav&&window._vedaNav('links')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Links</button>
       <button id="al-btn-veda_journal" onclick="window.alManage&&window.alManage('veda_journal')" title="App Lock" style="background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;flex-shrink:0;touch-action:manipulation;">🔓</button>
@@ -18237,7 +17458,7 @@ function _bjPdfSection(label, text) {
 
 window.showBrainstormJournal = function(caller) {
   window._bjCalledFrom = caller || (document.getElementById('veda-root') && document.getElementById('veda-root').style.display !== 'none' ? 'veda' : 'tony');
-  ['root','veda-root','er-root','vt-root','tj-root',
+  ['root','veda-root','tj-root',
    'vd-kc-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
@@ -24290,7 +23511,7 @@ window._tonyNav = function(app) {
   if(app==='keychain'){ if(window._vaultClick) window._vaultClick(); return; }
   // Hide ALL tony + other app roots before switching
   if(app!=='proview'&&window._pvHide) window._pvHide();
-  ['root','er-root','tj-root','veda-root','vt-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
+  ['root','tj-root','veda-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.style.display='none';
   });
   if(app==='taskhub') {
@@ -24299,9 +23520,7 @@ window._tonyNav = function(app) {
     var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
   } else if(app==='health' && window._mcSwitchTo) {
     window._mcSwitchTo('health');
-  } else if(app==='eventrec' && window._erSwitchTo) {
-    window._erSwitchTo('eventrec');
-  } else if(app==='brainstormjournal' && window.showTonyJournal) {
+    } else if(app==='brainstormjournal' && window.showTonyJournal) {
     window.showTonyJournal();
     return; // showTonyJournal handles its own display; active update below
   } else if(app==='proview') {
@@ -24312,7 +23531,7 @@ window._tonyNav = function(app) {
   window._updateTonyNavActive(app);
 };
 window.showTonyJournal = function() {
-  ['root','veda-root','er-root','vt-root','bj-root','mc-root','tradeboard-root',
+  ['root','veda-root','bj-root','mc-root','tradeboard-root',
    'vd-kc-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
@@ -24352,7 +23571,6 @@ window.tjSwitchTo = function(app) {
   var te=document.getElementById('tj-nav-title');if(te)te.parentNode.removeChild(te);
   if(window._updateTonyNavActive) window._updateTonyNavActive(app);
   if(app==='taskhub'){var r=document.getElementById('root');if(r)r.style.display='';var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';}
-  else if(app==='eventrec'&&window._erSwitchTo){window._erSwitchTo('eventrec');}
   else if(app==='keychain'&&window._kcSwitchTo){window._kcSwitchTo('keychain');}
   else{var r=document.getElementById('root');if(r)r.style.display='';var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';}
 };
@@ -32443,14 +31661,12 @@ var AL_LABELS  = {
   tony_taskhub:   { label: 'TaskHub',    profile: 'tony', color: '#e0b874' },
   tony_tradehub:  { label: 'TradeHub',   profile: 'tony', color: '#e0b874' },
   tony_health:    { label: 'MotionCore', profile: 'tony', color: '#e0b874' },
-  tony_eventrec:  { label: 'EventRec',   profile: 'tony', color: '#e0b874' },
   tony_keychain:  { label: 'Vault',      profile: 'tony', color: '#e0b874' },
   tony_myjournal: { label: 'MyJournal',  profile: 'tony', color: '#e0b874' },
   tony_proview:   { label: 'ProView',    profile: 'tony', color: '#a78bfa' },
   tony_warroom:   { label: 'WarRoom',    profile: 'tony', color: '#a78bfa' },
   veda_taskhub:   { label: 'TaskHub',    profile: 'veda', color: '#8D769A' },
   veda_gita:      { label: 'Gita',       profile: 'veda', color: '#8D769A' },
-  veda_timeline:  { label: 'Timeline',   profile: 'veda', color: '#8D769A' },
   veda_journal:   { label: 'Journal',    profile: 'veda', color: '#8D769A' },
   veda_links:     { label: 'Links',      profile: 'veda', color: '#8D769A' },
   // ── Profile-entry locks (gate the whole Tony / Veda profile, not just one app).
@@ -32641,11 +31857,9 @@ var _alRemoveBioFor = null;   // when set to an appId, a successful unlock remov
 var AL_APP_ROOTS = {
   tony_taskhub:   ['root'],
   tony_health:    ['mc-root'],
-  tony_eventrec:  ['er-root'],
   tony_myjournal: ['tj-root'],
   tony_proview:   ['pv-root'],
   veda_taskhub:   ['veda-root'],
-  veda_timeline:  ['vt-root'],
   veda_journal:   ['bj-root'],
   veda_links:     ['vd-kc-root']
 };
@@ -32838,11 +32052,9 @@ function alGate(appId, cb, onCancel) {
 function alNavAppToId(profile, navApp) {
   var map = {
     tony: { taskhub:'tony_taskhub', tradeboard:'tony_tradehub', health:'tony_health',
-            eventrec:'tony_eventrec',
             keychain:'tony_keychain', brainstormjournal:'tony_myjournal',
             proview:'tony_proview', warroom:'tony_warroom' },
     veda: { taskhub:'veda_taskhub', gita:'veda_gita',
-            timeline:'veda_timeline',
             journal:'veda_journal', links:'veda_links' }
   };
   return (map[profile] || {})[navApp] || null;
@@ -32871,7 +32083,7 @@ function alUpdateTonyLockBtn() {
 }
 
 function alUpdateVedaLockBtns() {
-  ['veda_timeline','veda_links','veda_journal','veda_taskhub','veda_gita'].forEach(function(id) {
+  ['veda_links','veda_journal','veda_taskhub','veda_gita'].forEach(function(id) {
     var btn = _el('al-btn-' + id);
     if (!btn) return;
     var locked = alIsLocked(id);
@@ -32894,7 +32106,7 @@ function alInjectReactBtns() {
     });
     if (!profileBtn) return;
     // Only inject inside veda-root (not bj/vt/study which have static btns)
-    if (row.closest('#bj-root') || row.closest('#vt-root')) return;
+    if (row.closest('#bj-root')) return;
     var inVedaRoot = row.closest('#veda-root') || row.closest('.lessons-overlay');
     if (!inVedaRoot) return;
     // Determine app from active (filled) button
@@ -33211,7 +32423,6 @@ function _alWrapSwitch(fnName, appId) {
   };
 }
 _alWrapSwitch('_mcSwitchTo', 'tony_health');
-_alWrapSwitch('_erSwitchTo', 'tony_eventrec');
 _alWrapSwitch('_kcSwitchTo', 'tony_keychain');
 _alWrapSwitch('_vdkcShow',   'veda_links');
 
@@ -33417,7 +32628,6 @@ var TONY_DEFAULT = [
   {app:'taskhub',          label:'TaskHub'},
   {app:'tradeboard',       label:'TradeHub'},
   {app:'health',           label:'MotionCore'},
-  {app:'eventrec',         label:'EventRec'},
   {app:'keychain',         label:'Vault'},
   {app:'brainstormjournal',label:'MyJournal'},
   {app:'proview',          label:'ProView'},
@@ -33425,14 +32635,12 @@ var TONY_DEFAULT = [
 ];
 var TONY_SELECT_LABELS = {
   taskhub:"Tony's TaskHub", tradeboard:'TradeHub', health:'MotionCore',
-  eventrec:'EventRec',
   keychain:'Vault', brainstormjournal:'MyJournal', proview:'ProView', warroom:'WarRoom'
 };
 
 var VEDA_DEFAULT = [
   {app:'taskhub',  label:'TaskHub'},
   {app:'gita',     label:'Gita'},
-  {app:'timeline', label:'Timeline'},
   {app:'journal',  label:'Journal'},
   {app:'links',    label:'Links'},
 ];
@@ -33734,7 +32942,6 @@ function isVedaNavRow(row){
 // transparent — and then every LATER rebuild sniffed nothing too, so the
 // highlight was gone for good.
 var VEDA_ROOT_APP=[
-  ['#vt-root',   'timeline'],
   ['#bj-root',   'journal'],
   ['#vd-kc-root','links'],
 ];

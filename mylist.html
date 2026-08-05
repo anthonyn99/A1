@@ -397,10 +397,21 @@ body.dnd-active *{cursor:grabbing !important;}
 #lock-cancel{background:none;border:none;color:var(--textdim);font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:2px 10px;font-family:var(--font-btn);transition:color .15s;}
 #lock-cancel:hover,#lock-forgot:hover,#lock-reset:hover{color:var(--text);}
 
-/* ── View switcher (Lists | Recipes) ── */
+/* ── View switcher (Lists | Recipes | Price Watch | Events) ── */
 #view-switch{display:flex;gap:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px;}
-#view-switch button{flex:1;border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:12px;font-family:var(--font-btn);padding:8px 12px;border-radius:16px;cursor:pointer;transition:all .15s;text-transform:var(--head-transform);letter-spacing:var(--head-spacing);}
+#view-switch button{flex:1;min-width:0;border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:12px;font-family:var(--font-btn);padding:8px 12px;border-radius:16px;cursor:pointer;transition:all .15s;text-transform:var(--head-transform);letter-spacing:var(--head-spacing);white-space:nowrap;}
 #view-switch button.on{background:var(--accent);color:var(--accent-ink);}
+/* four tabs have to survive a 320px phone — tighten type/padding rather than
+   letting "Price Watch" wrap or push the row off-screen */
+@media(max-width:520px){
+  #view-switch{gap:2px;padding:3px;}
+  #view-switch button{font-size:10.5px;padding:8px 4px;letter-spacing:0;}
+}
+/* Veda's mono face sets ~12% wider than Tony's Inter, so "Price Watch" still
+   clipped on a 320px phone at the size above — one more notch clears it. */
+@media(max-width:380px){
+  #view-switch button{font-size:9.5px;padding:8px 2px;}
+}
 /* ── Price Watch ── */
 .pw-add-title{font-weight:800;font-size:15px;margin-bottom:10px;color:var(--text);}
 .pw-confirm{margin-top:12px;border-top:1px solid var(--border);padding-top:12px;}
@@ -592,8 +603,46 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
 .rec-step.editing .se-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
 .rec-step.editing .se-acts{display:flex;gap:8px;justify-content:flex-end;}
 
-/* recipe modal */
-#rec-modal{position:fixed;inset:0;z-index:9700;display:none;align-items:flex-start;justify-content:center;background:rgba(8,8,11,.84);backdrop-filter:blur(6px);padding:max(env(safe-area-inset-top,0px),16px) 14px 24px;overflow-y:auto;}
+/* ── Events ──────────────────────────────────────────────────────────────────
+   Tony's EventRec and Veda's Timeline, rebuilt on MyList's own primitives. Every
+   colour here resolves through the profile variables, so the rail, dots and date
+   ink come out warm gold for Tony and muted purple for Veda with no per-app
+   palette anywhere — the thing the two standalone apps each hard-coded. */
+.ev-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px;}
+.ev-toolbar .ev-search{flex:1;min-width:150px;}
+.ev-toolbar .ev-sort{width:auto;min-width:140px;flex-shrink:0;}
+#ev-date{color-scheme:dark;}
+.ev-year{display:flex;align-items:baseline;gap:10px;margin:22px 2px 12px;}
+.ev-year:first-child{margin-top:4px;}
+.ev-year .yr{font-family:var(--font-btn);font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--accent);}
+.ev-year .yline{flex:1;height:1px;background:var(--border);}
+.ev-year .yn{font-size:11px;color:var(--textmute);}
+/* the rail: a hairline spine with a dot per event, sized off the card padding so
+   the dot lands on the date line at every breakpoint */
+.ev-rail{position:relative;padding-left:24px;}
+.ev-rail::before{content:'';position:absolute;left:6px;top:8px;bottom:8px;width:2px;background:var(--border);border-radius:2px;}
+.ev-item{position:relative;margin-bottom:8px;}
+.ev-item:last-child{margin-bottom:0;}
+.ev-item::before{content:'';position:absolute;left:-24px;top:16px;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);transition:transform .15s;}
+.ev-item:hover::before{transform:scale(1.25);}
+.ev-card{display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;transition:all .15s;}
+.ev-card:hover{border-color:var(--border2);}
+.ev-body{flex:1;min-width:0;}
+.ev-date{font-family:var(--font-btn);font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--accent);margin-bottom:5px;}
+.ev-text{font-size:14.5px;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word;}
+.ev-acts{display:flex;gap:4px;flex-shrink:0;}
+.ev-acts .ib{width:32px;height:32px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--textmute);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;}
+.ev-acts .ib:hover{color:var(--accent);border-color:var(--border);}
+.ev-acts .ib.del:hover{color:var(--bad);border-color:rgba(212,122,106,.4);}
+/* desktop/tablet: the date gets its own column so the eye scans dates down the
+   left edge instead of re-reading a stacked label above every entry */
+@media(min-width:620px){
+  .ev-body{display:grid;grid-template-columns:126px 1fr;gap:14px;align-items:baseline;}
+  .ev-date{margin-bottom:0;line-height:1.6;}
+}
+
+/* recipe + event modals */
+#rec-modal,#ev-modal{position:fixed;inset:0;z-index:9700;display:none;align-items:flex-start;justify-content:center;background:rgba(8,8,11,.84);backdrop-filter:blur(6px);padding:max(env(safe-area-inset-top,0px),16px) 14px 24px;overflow-y:auto;}
 .rec-mbox{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:22px;margin:auto;}
 .rec-mbox h3{font-family:var(--font-head);font-weight:var(--head-weight);font-size:21px;margin-bottom:16px;letter-spacing:var(--head-spacing);text-transform:var(--head-transform);}
 .rec-ing-row{display:grid;grid-template-columns:1fr 92px 38px;gap:8px;margin-bottom:8px;}
@@ -769,6 +818,18 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
   <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
     <button class="btn ghost" onclick="ML.recCloseModal()">Cancel</button>
     <button class="btn solid" onclick="ML.recSave()">Save recipe</button>
+  </div>
+</div></div>
+
+<!-- event add/edit modal — same chrome as the recipe modal so Events reads as a
+     sibling of Recipes rather than a bolted-on screen -->
+<div id="ev-modal"><div class="rec-mbox" style="max-width:460px">
+  <h3 id="ev-modal-title">New event</h3>
+  <label class="field" style="margin-bottom:12px"><span class="lbl">Date *</span><input type="date" id="ev-date"></label>
+  <label class="field" style="margin-bottom:16px"><span class="lbl">Details *</span><div class="ta-wrap"><textarea id="ev-content" rows="4" placeholder="e.g. Moved to the new apartment on Main St…" style="max-height:320px" oninput="ML.autoGrow(this)"></textarea><div class="resize-grip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13 6 L6 13 M13 10 L10 13"/></svg></div></div></label>
+  <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+    <button class="btn ghost" onclick="ML.evCloseModal()">Cancel</button>
+    <button class="btn solid" onclick="ML.evSave()">Save event</button>
   </div>
 </div></div>
 
@@ -1218,6 +1279,42 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
     }, (err) => { console.warn("Recipes snapshot err", err); });
   });
 
+  // ── Events (per profile) — Tony's timeline stays in dashboards/eventrec (the
+  //    doc Index's EventRec always wrote) and Veda's in dashboards/vedatimeline.
+  //    Keeping the ORIGINAL doc paths is the migration: every event either of them
+  //    ever created is already there, in the same {events:[…], savedAt} shape both
+  //    apps used, so nothing is copied, re-keyed, or at risk of being dropped —
+  //    only the UI changed homes. Plumbing is REC_DOCS' exactly: 1200ms debounced
+  //    save, ml-syncing/ml-saved/ml-error, per-profile onSnapshot. ──
+  const EV_DOCS = { tony: doc(db, "dashboards/eventrec"), veda: doc(db, "dashboards/vedatimeline") };
+  const evSaveTimers = { tony:null, veda:null };
+  const evLastOwnSaveAt = { tony:0, veda:0 };
+  window._mlLoadEvents = async (profile) => {
+    const ref = EV_DOCS[profile]; if(!ref) return [];
+    try { await _whenAuthed(); const snap = await getDoc(ref); return (snap.exists() && Array.isArray(snap.data().events)) ? snap.data().events : []; }
+    catch(e){ console.warn("Events load failed:", e); return []; }
+  };
+  window._mlSaveEvents = (profile, events) => {
+    const ref = EV_DOCS[profile]; if(!ref) return;
+    evLastOwnSaveAt[profile] = Date.now();
+    window.dispatchEvent(new CustomEvent("ml-syncing"));
+    if (evSaveTimers[profile]) clearTimeout(evSaveTimers[profile]);
+    evSaveTimers[profile] = setTimeout(async () => {
+      try {
+        evLastOwnSaveAt[profile] = Date.now();
+        await setDoc(ref, { events: events, savedAt: Date.now() });
+        evLastOwnSaveAt[profile] = Date.now();
+        window.dispatchEvent(new CustomEvent("ml-saved"));
+      } catch(e){ console.warn("Events save failed:", e); window.dispatchEvent(new CustomEvent("ml-error")); }
+    }, 1200);
+  };
+  ["tony","veda"].forEach((profile) => {
+    onSnapshot(EV_DOCS[profile], (snap) => {
+      if (Date.now() - evLastOwnSaveAt[profile] < 8000) return;
+      if (snap.exists() && Array.isArray(snap.data().events)) window.dispatchEvent(new CustomEvent("ml-events-update", { detail: { profile: profile, events: snap.data().events } }));
+    }, (err) => { console.warn("Events snapshot err", err); });
+  });
+
   // ── Price Watch (per profile) — Tony lives in dashboards/pricewatch, Veda in
   //    dashboards/pricewatch-veda. Mirrors the REC_DOCS pattern exactly: same
   //    1200ms debounce-save, same ml-syncing/ml-saved/ml-error events, and a
@@ -1374,13 +1471,19 @@ var selectMode = false;
 var selected = {};
 var booted = false;
 // recipes (per profile — Tony & Veda each have their own unique set)
-var view = 'lists';              // 'lists' | 'recipes'
+var view = 'lists';              // 'lists' | 'recipes' | 'watch' | 'events'
 var recipesStore = { tony:[], veda:[] };   // each profile's recipes, kept separate
 var recipes = [];                // alias → active profile's recipes (via setRecipes)
 var recDetailId = null;
 var recEditingId = null;
 var recipesLoaded = { tony:false, veda:false };
 function setRecipes(arr){ recipes = arr; if(activeProfile) recipesStore[activeProfile] = arr; }
+// Events (per profile — Tony's EventRec entries and Veda's Timeline entries, each
+// still in its own Firestore doc, so the two people's histories never mix).
+var eventsStore = { tony:[], veda:[] };
+var events = [];                 // alias → active profile's events (via setEvents)
+var eventsLoaded = { tony:false, veda:false };
+function setEvents(arr){ events = arr; if(activeProfile) eventsStore[activeProfile] = arr; }
 // Price Watch (per profile). Items priced at every ENABLED store; each item keeps a
 // per-store breakdown + a computed daily best. Doc dashboards/pricewatch[-veda] =
 // { items, stores }. The store list is dynamic (add/remove retailers at runtime).
@@ -1550,6 +1653,14 @@ function boot(){
       });
     });
   }
+  if(window._mlLoadEvents){
+    ['tony','veda'].forEach(function(p){
+      window._mlLoadEvents(p).then(function(r){
+        eventsStore[p]=evNormAll(r||[]); eventsLoaded[p]=true;
+        if(activeProfile===p){ events=eventsStore[p]; if(view==='events') render(); }
+      });
+    });
+  }
   if(window._mlLoadPriceWatch){
     ['tony','veda'].forEach(function(p){
       window._mlLoadPriceWatch(p).then(function(res){
@@ -1573,6 +1684,12 @@ window.addEventListener('ml-recipes-update', function(e){
   if(!p||!recipesStore.hasOwnProperty(p)) return;
   recipesStore[p]=rr; recipesLoaded[p]=true;
   if(activeProfile===p){ recipes=recipesStore[p]; if(view==='recipes') render(); }
+});
+window.addEventListener('ml-events-update', function(e){
+  var p=e.detail&&e.detail.profile, ee=(e.detail&&Array.isArray(e.detail.events))?e.detail.events:[];
+  if(!p||!eventsStore.hasOwnProperty(p)) return;
+  eventsStore[p]=evNormAll(ee); eventsLoaded[p]=true;
+  if(activeProfile===p){ events=eventsStore[p]; if(view==='events') render(); }
 });
 window.addEventListener('ml-pricewatch-update', function(e){
   var p=e.detail&&e.detail.profile, items=(e.detail&&Array.isArray(e.detail.items))?e.detail.items:[];
@@ -1865,8 +1982,9 @@ function toggleFav(p){
 }
 function chooseProfile(p){ if(mlMustBlock(p)){ showLock(p,'unlock',function(){ enterProfile(p); }); return; } enterProfile(p); }
 function enterProfile(p){
-  activeProfile=p; manualOpen=false; view='lists'; recDetailId=null; document.body.setAttribute('data-profile',p);
+  activeProfile=p; manualOpen=false; view='lists'; recDetailId=null; evEditingId=null; document.body.setAttribute('data-profile',p);
   recipes = recipesStore[p] || (recipesStore[p]=[]);
+  events  = eventsStore[p]  || (eventsStore[p]=[]);
   document.querySelector('meta[name=theme-color]').setAttribute('content', p==='veda'?'#1B1C1E':'#0f0f12');
   $('profile-overlay').style.display='none'; $('app').style.display='flex';
   var last = localStorage.getItem('ml_last_list_'+p); var L = lists();
@@ -2252,7 +2370,7 @@ var REC_CATS=['Breakfast','Lunch','Dinner','Snack','Dessert','Other'];
 var EDIT_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 var DEL_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 function persistRecipes(){ if(window._mlSaveRecipes && activeProfile) window._mlSaveRecipes(activeProfile, recipes.map(sanitize)); }
-function setView(v){ view=v; recDetailId=null; recEditingStep=null; manualOpen=false; render(); window.scrollTo(0,0); }
+function setView(v){ view=v; recDetailId=null; recEditingStep=null; manualOpen=false; if(evEditingId!==null) evCloseModal(); render(); window.scrollTo(0,0); }
 // NOTE: Price Watch search state (form + results) is deliberately NOT reset here —
 // it persists per profile across tab switches; only a new search or Clear resets it.
 
@@ -2508,10 +2626,135 @@ function recDelete(id){
     if(recDetailId===id) recDetailId=null; render();
   });
 }
+// ════════ EVENTS (Tony's EventRec · Veda's Timeline) ════════
+// One module serves both profiles: the data shape was already identical in the two
+// standalone apps ({id,date,content}), and everything that used to differ between
+// them — fonts, accent colour, chrome — now comes from the profile variables.
+var evEditingId = null;   // null = modal closed · '' = adding · id = editing that event
+var evSort = localStorage.getItem('ml_ev_sort') || 'newest';
+
+// `date` is a plain YYYY-MM-DD string. Parsing it with `new Date(str)` reads it as
+// UTC midnight, which renders as the PREVIOUS day anywhere west of Greenwich — the
+// bug both old apps papered over with an abs(timezoneOffset) fudge. Building the
+// date from its parts is simply correct, in every timezone.
+function evParse(ds){
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ds==null?'':ds));
+  return m ? new Date(+m[1], +m[2]-1, +m[3]) : new Date(ds);
+}
+function evFmtDate(ds){ var d=evParse(ds); return isNaN(d.getTime()) ? String(ds==null?'':ds) : d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}); }
+function evYear(ds){ var d=evParse(ds); return isNaN(d.getTime()) ? 'Undated' : String(d.getFullYear()); }
+// Entries written by the very first EventRec build had no id. Both old apps healed
+// that on load; keep doing it so those events stay editable/deletable here.
+function evNormAll(arr){
+  return (Array.isArray(arr)?arr:[]).map(function(e){
+    return { id:(e&&e.id)||uid(), date:String((e&&e.date)||''), content:String((e&&e.content)||'') };
+  });
+}
+function persistEvents(){ if(window._mlSaveEvents && activeProfile) window._mlSaveEvents(activeProfile, events.map(sanitize)); }
+function evFind(id){ return events.filter(function(e){ return e.id===id; })[0] || null; }
+function evSetSort(v){ evSort=v; try{ localStorage.setItem('ml_ev_sort',v); }catch(e){} evRerender(); }
+
+function evFiltered(){
+  var q=($('ev-search')?$('ev-search').value:'').trim().toLowerCase();
+  var list=events.slice();
+  if(q) list=list.filter(function(e){ return ((e.content||'')+' '+evFmtDate(e.date)).toLowerCase().indexOf(q)>=0; });
+  // newest → oldest by default, matching both apps' original ordering
+  list.sort(function(a,b){ var d=evParse(b.date)-evParse(a.date); return evSort==='oldest' ? -d : d; });
+  return list;
+}
+function evRowsHtml(){
+  var list=evFiltered();
+  if(!list.length) return '<div class="card"><div class="empty">'+(events.length?'No events match.':'No events yet — tap “New event” to add the first one.')+'</div></div>';
+  // Grouped by year so a long history stays scannable; within a year the rail runs
+  // continuously, one dot per event.
+  var groups=[], byYear={};
+  list.forEach(function(e){
+    var y=evYear(e.date);
+    if(!byYear[y]){ byYear[y]=[]; groups.push(y); }
+    byYear[y].push(e);
+  });
+  return groups.map(function(y){
+    var rows=byYear[y];
+    return '<div class="ev-year"><span class="yr">'+esc(y)+'</span><span class="yline"></span><span class="yn">'+rows.length+' event'+(rows.length!==1?'s':'')+'</span></div>'
+      +'<div class="ev-rail">'+rows.map(function(e){
+        return '<div class="ev-item" data-id="'+esc(e.id)+'">'
+          +'<div class="ev-card"><div class="ev-body">'
+            +'<div class="ev-date">'+esc(evFmtDate(e.date))+'</div>'
+            +'<div class="ev-text">'+esc(e.content)+'</div>'
+          +'</div><div class="ev-acts">'
+            +'<button class="ib" onclick="ML.evOpenEdit(\''+jq(e.id)+'\')" title="Edit">'+EDIT_SVG+'</button>'
+            +'<button class="ib del" onclick="ML.evDelete(\''+jq(e.id)+'\')" title="Delete">'+DEL_SVG+'</button>'
+          +'</div></div></div>';
+      }).join('')+'</div>';
+  }).join('');
+}
+function evRerender(){ var el=$('ev-list-rows'); if(el) el.innerHTML=evRowsHtml(); }
+function renderEventsView(){
+  var h='<div class="card">';
+  h+='<div class="list-head"><div style="flex:1"><div class="ttl" style="font-size:24px">Events</div></div>'
+    +'<button class="btn solid sm" onclick="ML.evOpenAdd()">+ New event</button></div>';
+  h+='<div class="list-meta">'+events.length+' event'+(events.length!==1?'s':'')+'</div>';
+  h+='<div class="ev-toolbar" style="margin-top:12px">'
+    +'<input class="ev-search" id="ev-search" placeholder="Search events…" oninput="ML.evRerender()">'
+    +'<select class="ev-sort" id="ev-sort" onchange="ML.evSetSort(this.value)">'
+      +'<option value="newest"'+(evSort==='newest'?' selected':'')+'>Newest first</option>'
+      +'<option value="oldest"'+(evSort==='oldest'?' selected':'')+'>Oldest first</option>'
+    +'</select></div>';
+  h+='</div>';
+  h+='<div id="ev-list-rows">'+evRowsHtml()+'</div>';
+  return h;
+}
+// ── add / edit modal ──
+function evOpenModal(){ $('ev-modal').style.display='flex'; setTimeout(function(){ autoGrow($('ev-content')); var c=$('ev-content'); if(c) c.focus(); }, 40); }
+function evOpenAdd(){
+  evEditingId='';
+  $('ev-modal-title').textContent='New event';
+  var d=new Date();
+  $('ev-date').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  $('ev-content').value=''; $('ev-content').style.height='';
+  evOpenModal();
+}
+function evOpenEdit(id){
+  var e=evFind(id); if(!e) return;
+  evEditingId=id;
+  $('ev-modal-title').textContent='Edit event';
+  $('ev-date').value=e.date||''; $('ev-content').value=e.content||''; $('ev-content').style.height='';
+  evOpenModal();
+}
+function evCloseModal(){ $('ev-modal').style.display='none'; evEditingId=null; }
+function evFlagField(el){ if(!el) return; el.style.borderColor='var(--bad)'; el.focus(); setTimeout(function(){ el.style.borderColor=''; }, 1500); }
+function evSave(){
+  if(evEditingId===null) return;
+  var date=($('ev-date').value||'').trim();
+  var content=($('ev-content').value||'').trim();
+  if(!date){ evFlagField($('ev-date')); return; }
+  if(!content){ evFlagField($('ev-content')); return; }
+  if(evEditingId===''){ setEvents(events.concat([{ id:uid(), date:date, content:content }])); toast('Event added'); }
+  else {
+    var found=false;
+    setEvents(events.map(function(e){ if(e.id!==evEditingId) return e; found=true; return { id:e.id, date:date, content:content }; }));
+    if(!found){ evCloseModal(); return; }   // deleted from another device mid-edit
+    toast('Event updated');
+  }
+  persistEvents(); evCloseModal(); render();
+}
+function evDelete(id){
+  var e=evFind(id); if(!e) return;
+  confirmAsk('This event will be permanently removed from your timeline.', function(){
+    setEvents(events.filter(function(x){ return x.id!==id; }));
+    persistEvents(); render(); toast('Event deleted');
+  });
+}
+$('ev-modal').addEventListener('click', function(e){ if(e.target===this) evCloseModal(); });
+$('ev-content').addEventListener('keydown', function(e){ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); evSave(); } });
+$('ev-date').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); var c=$('ev-content'); if(c) c.focus(); } });
+document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('ev-modal').style.display==='flex') evCloseModal(); });
+
 function renderViewSwitch(){
   var w=$('view-switch-wrap'); if(!w) return;
   w.innerHTML='<div id="view-switch"><button class="'+(view==='lists'?'on':'')+'" onclick="ML.setView(\'lists\')">Lists</button>'
     +'<button class="'+(view==='recipes'?'on':'')+'" onclick="ML.setView(\'recipes\')">Recipes</button>'
+    +'<button class="'+(view==='events'?'on':'')+'" onclick="ML.setView(\'events\')">Events</button>'
     +'<button class="'+(view==='watch'?'on':'')+'" onclick="ML.setView(\'watch\')">Price Watch</button></div>';
 }
 
@@ -2752,6 +2995,15 @@ function render(){
     $('list-view').innerHTML = pwDropsBannerHtml() + renderRecipesView();
     if(!recDetailId){ var rl=$('rec-list-rows'); if(rl && recFiltered().length===recipes.length) enableDrag(rl, 'recipe'); }
     else if(recEditingStep===null){ var rs=$('rec-steps-container'); if(rs) enableDrag(rs, 'recstep'); }
+    return;
+  }
+  // ── Events view (both profiles) ──
+  if(view==='events'){
+    $('lists-bar').style.display='none';
+    $('float-voice').classList.remove('show');   // no voice/AI on this view
+    $('sel-bar').classList.remove('show');
+    var mfe=$('manual-fab'); if(mfe) mfe.style.display='none'; var mpe=$('manual-pop'); if(mpe) mpe.classList.remove('show');
+    $('list-view').innerHTML = pwDropsBannerHtml() + renderEventsView();
     return;
   }
   // ── Price Watch view (both profiles) ──
@@ -3434,6 +3686,7 @@ window.ML = {
   recBack:recBack, recAddIng:recAddIng, recAddTool:recAddTool, recSave:recSave, recCloseModal:recCloseModal, recDelete:recDelete,
   recUndo:recUndo, recRedo:recRedo,
   recEditStep:recEditStep, recAddStep:recAddStep, recSaveStep:recSaveStep, recCancelStep:recCancelStep, recDeleteStep:recDeleteStep,
+  evRerender:evRerender, evSetSort:evSetSort, evOpenAdd:evOpenAdd, evOpenEdit:evOpenEdit, evSave:evSave, evDelete:evDelete, evCloseModal:evCloseModal,
   pwAddFind:pwAddFind, pwTrack:pwTrack, pwTrackVariant:pwTrackVariant, pwSaveAnyway:pwSaveAnyway, pwCancelAdd:pwCancelAdd, pwCheckNow:pwCheckNow, pwDelete:pwDelete, pwToggle:pwToggle, pwSetSort:pwSetSort,
   pwFormInput:pwFormInput, pwClearSearch:pwClearSearch, pwToggleManage:pwToggleManage, pwAddStore:pwAddStore, pwRemoveStore:pwRemoveStore, pwToggleListWatch:pwToggleListWatch, pwCheckListItem:pwCheckListItem, pwClearDrops:pwClearDrops,
   pwExtInstall:pwExtInstall,
