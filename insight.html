@@ -1839,6 +1839,11 @@
     'bill\\s*pay\\b', '\\bpymt\\b', '\\bpmt\\b'
   ].join('|'), 'i');
   const XFER_RE = /internal\s+transfer|\bxfer\b|\btransfer\b/i;
+  // Transfers to Fidelity are money leaving your spending accounts for good
+  // (investing), not a neutral move between your own banks — so they're
+  // deliberately excluded from the transfer/neutral treatment below and
+  // fall through to normal income/spending counting instead.
+  const FIDELITY_RE = /\bfidelity\b/i;
 
   const CARDPAY_LABEL = 'Credit Card Payment';
   const XFER_LABEL = 'Transfer';
@@ -1849,6 +1854,8 @@
     const cat = (t.category || '').toLowerCase();
     const text = (t.merchant || '') + ' ' + (t.name || '');
     if (code === CARDPAY_CODE || cat === 'credit card payment' || CARDPAY_RE.test(text)) return 'cardpay';
+    const toFidelity = FIDELITY_RE.test(text) || FIDELITY_RE.test(t.institution || '');
+    if (toFidelity) return null;
     if (XFER_CODES.has(code) || cat === 'transfer' || cat === 'transfer in' || cat === 'transfer out') return 'transfer';
     if (XFER_RE.test(text)) return 'transfer';
     return null;
