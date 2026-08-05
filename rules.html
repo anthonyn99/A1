@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rules</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Lora:wght@600;700&family=Playfair+Display:wght@900&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   RULES — a standalone program.
+
+   Two halves:
+   1. The Rules tab: authoring. list = [{id, text, created}]; array order IS
+      display order, so reordering is a splice.
+   2. The checklist modal: a HARD gate shown on the first open of each weekday.
+      Checkboxes unlock strictly in sequence — the first 3s after the modal
+      opens, each next one 3s after the box above it is ticked — so the list
+      cannot be skimmed or clicked through. Completion is recorded against the
+      EASTERN date (U.todayET), not UTC, so an evening session still counts as
+      today and doesn't skip tomorrow's prompt.
+
+   Theme tokens mirror Veda's TaskHub so this drops in cleanly on a later merge.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#1B1C1E; --bg-card:#26272A; --bg-inset:#2E2F33; --bg-slot:#3D3E43;
+  --border:#3D3E43; --border-soft:#34353A; --border-l:#4A4B51;
+  --text:#ECECEE; --text-2:#AFB0B5; --muted:#76777C;
+  --accent:#8D769A; --accent-hover:#A892B0;
+  --accent-light:rgba(141,118,154,.08);
+  --red:#f85149; --green:#5DAF6D;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --radius-sm:6px;
+  --transition:.15s ease;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;background:var(--bg);min-height:100%;}
+body{
+  color:var(--text); font-family:var(--mono); font-size:14px; line-height:1.5;
+  padding:calc(env(safe-area-inset-top,0px) + 4px) 14px calc(env(safe-area-inset-bottom,0px) + 20px);
+  -webkit-font-smoothing:antialiased;
+}
+button,input,textarea{font-family:inherit;touch-action:manipulation;}
+.wrap{max-width:900px;margin:0 auto;}
+
+/* ── header ── */
+.hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;padding-bottom:10px;}
+.hdr-title{font-family:'Playfair Display',serif;font-size:26px;font-weight:900;
+  color:var(--accent);letter-spacing:1px;text-transform:uppercase;line-height:1;}
+.hdr-sub{font-size:9px;color:var(--text-2);font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;margin-top:4px;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  background:transparent;color:var(--accent);border:1px solid var(--border-l);
+  border-radius:5px;padding:0 10px;height:28px;font-size:10px;font-weight:700;
+  cursor:pointer;text-transform:uppercase;letter-spacing:1px;
+  transition:all var(--transition);white-space:nowrap;}
+.btn:hover{border-color:var(--accent);}
+.btn-primary{background:var(--accent);color:var(--bg);border-color:var(--accent);}
+.btn-primary:hover{opacity:.85;}
+.btn-icon{background:transparent;border:1px solid transparent;border-radius:4px;
+  color:var(--text-2);cursor:pointer;font-size:12px;line-height:1;padding:3px 6px;
+  transition:all var(--transition);}
+.btn-icon:hover:not(:disabled){border-color:var(--accent);}
+.btn-icon.danger{color:var(--red);}
+.btn-icon.danger:hover:not(:disabled){border-color:var(--red);}
+.btn-icon:disabled{opacity:.25;cursor:default;}
+
+.section-label{font-size:10px;font-weight:700;color:var(--text);letter-spacing:2px;
+  text-transform:uppercase;padding-bottom:9px;}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;}
+
+/* ── the authoring list ── */
+/* The card owns the padding; the header is one quiet toolbar row so the rules
+   themselves are the only thing with visual weight. */
+.rules-card{padding:6px 20px 8px;}
+.rules-head{display:flex;align-items:center;justify-content:space-between;
+  gap:12px;flex-wrap:wrap;padding:14px 0 13px;border-bottom:1px solid var(--border-soft);}
+.rules-head-sub{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
+.rules-head-sub b{color:var(--text-2);font-weight:600;}
+.rules-head-r{display:flex;align-items:center;gap:8px;}
+/* "Prompt daily" as a pill that reads as on/off at a glance, not a stray checkbox */
+.rules-toggle{display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  font-size:12px;font-weight:500;color:var(--muted);user-select:none;
+  white-space:nowrap;padding:6px 11px 6px 9px;border-radius:9px;
+  border:1px solid transparent;transition:var(--transition);}
+.rules-toggle:hover{color:var(--text-2);border-color:var(--border-soft);}
+.rules-toggle input{width:13px;height:13px;accent-color:var(--accent);margin:0;cursor:pointer;}
+.rules-toggle:has(input:checked){color:var(--accent-hover);
+  background:var(--accent-light);border-color:transparent;}
+
+#rules-list{padding-top:4px;}
+.rule-row{display:flex;align-items:baseline;gap:14px;
+  padding:11px 10px 11px 8px;margin:0 -10px 0 -8px;border-radius:var(--radius-sm);
+  transition:background var(--transition);position:relative;}
+/* Separators as an inset hairline sitting on the row's own top edge, not a
+   full-bleed border — the rows read as a list without drawing hard lines
+   across the whole card. Hidden around the hovered row so the highlight
+   block stays clean. */
+.rule-row + .rule-row::before{content:"";position:absolute;top:0;
+  left:30px;right:10px;height:1px;background:var(--border-soft);
+  transition:opacity var(--transition);}
+.rule-row:hover{background:var(--bg-inset);}
+.rule-row:hover::before,.rule-row:hover + .rule-row::before{opacity:0;}
+/* Plain monospace index — a filled chip made every row shout for attention */
+.rule-num{flex-shrink:0;width:16px;text-align:right;color:var(--muted);
+  font-size:11px;font-variant-numeric:tabular-nums;}
+.rule-text{flex:1;font-size:13.5px;line-height:1.55;word-break:break-word;}
+.rule-acts{display:flex;gap:2px;flex-shrink:0;align-self:center;
+  opacity:0;transition:opacity var(--transition);}
+.rule-row:hover .rule-acts,.rule-row:focus-within .rule-acts{opacity:1;}
+.rules-empty{padding:40px 20px 44px;text-align:center;color:var(--muted);font-size:13px;}
+.rules-empty p{margin:0 0 16px;}
+/* Keyboard users get the same affordances a mouse hover reveals. */
+@media (hover:none){.rule-acts{opacity:1;}}
+
+/* ── the checklist modal ── */
+.modal-overlay{position:fixed;inset:0;display:none;align-items:center;
+  justify-content:center;z-index:3000;padding:16px;}
+.modal-overlay.open{display:flex;}
+#rules-modal{background:rgba(6,6,10,.82);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+.modal{background:var(--bg-card);border:1px solid var(--border-l);
+  border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.modal.rules-modal{width:560px;max-width:100%;max-height:88vh;padding:0;
+  overflow:hidden;display:flex;flex-direction:column;}
+/* Head: one line of identity, one line of state. The count carries the progress
+   story so the bar can be a hairline instead of a second focal point. */
+.rc-head{padding:22px 26px 16px;}
+.rc-head-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+.rc-title{font-family:'Lora',serif;font-size:16px;font-weight:700;letter-spacing:-.01em;}
+.rc-count{font-size:11.5px;color:var(--muted);
+  font-variant-numeric:tabular-nums;white-space:nowrap;}
+.rc-date{font-size:11.5px;color:var(--muted);margin-top:3px;}
+.rc-progress{height:2px;border-radius:2px;background:var(--bg-slot);margin-top:16px;overflow:hidden;}
+.rc-progress-bar{height:100%;width:0%;border-radius:2px;background:var(--accent);
+  transition:width .35s cubic-bezier(.4,0,.2,1);}
+#rc-list{padding:4px 26px 8px;overflow-y:auto;flex:1;}
+
+/* Rows are separated by space and state, not rules-plus-borders. Only the row
+   you can act on is at full contrast; the rest recede. */
+.rc-row{display:flex;align-items:flex-start;gap:13px;
+  padding:13px 12px;margin:2px -12px;border-radius:var(--radius-sm);
+  transition:opacity var(--transition),background var(--transition);
+  opacity:.32;animation:rcIn .3s cubic-bezier(.4,0,.2,1) backwards;}
+@keyframes rcIn{from{opacity:0;transform:translateY(6px);}}
+.rc-row.active{opacity:1;background:var(--bg-inset);}
+.rc-row.done{opacity:.55;}
+.rc-box{flex-shrink:0;display:flex;align-items:center;
+  justify-content:center;width:18px;height:22px;}
+.rc-box input{width:17px;height:17px;accent-color:var(--accent);cursor:pointer;margin:0;}
+.rc-box input:disabled{cursor:not-allowed;}
+.rc-body{flex:1;min-width:0;}
+.rc-text{font-size:13.5px;line-height:1.6;color:var(--text-2);transition:var(--transition);}
+.rc-row.active .rc-text{color:var(--text);}
+
+/* Foot is just the action — the progress count in the head already says where
+   you are, so there is nothing left to explain down here. */
+.rc-foot{padding:14px 26px 18px;border-top:1px solid var(--border-soft);
+  background:var(--bg-card);display:flex;align-items:center;
+  justify-content:flex-end;gap:16px;}
+.rc-foot .btn{height:36px;padding:0 22px;font-size:13px;}
+.rc-foot .btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+
+/* ── prompt / confirm modals ── */
+.modal.sm{width:420px;max-width:92vw;padding:22px;}
+.modal-title{font-family:'Lora',serif;font-size:14px;font-weight:700;
+  color:var(--accent);margin-bottom:14px;}
+.modal-title.danger{color:var(--red);}
+.modal-body{font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:8px;}
+.modal-quote{font-size:13px;color:var(--text);line-height:1.55;
+  margin-bottom:18px;word-break:break-word;}
+.field{width:100%;background:var(--bg-inset);border:1px solid var(--border-l);
+  border-radius:7px;color:var(--text);font-size:13px;padding:9px 11px;
+  font-weight:500;outline:none;min-height:88px;line-height:1.55;resize:vertical;}
+.field:focus{border-color:var(--accent);}
+.modal-actions{display:flex;gap:8px;margin-top:14px;}
+.modal-actions .btn{height:34px;padding:0 18px;font-size:12px;}
+.btn-danger{background:var(--red);color:var(--bg);border-color:var(--red);}
+
+/* ── toast ── */
+#toast-host{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 20px);z-index:4000;
+  display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;}
+.toast{background:var(--bg-card);color:var(--text);border:1px solid var(--accent);
+  border-radius:8px;padding:9px 16px;font-size:12px;font-weight:600;
+  box-shadow:0 8px 28px rgba(0,0,0,.45);opacity:0;transition:opacity .18s;max-width:90vw;}
+.toast.show{opacity:1;}
+.toast.err{border-color:var(--red);}
+
+@media (prefers-reduced-motion:reduce){
+  .rc-row{animation:none;}
+  .rc-progress-bar{transition:none;}
+}
+
+/* ── mobile ── */
+@media (max-width:700px){
+  body{padding-left:10px;padding-right:10px;}
+  .hdr-title{font-size:18px;}
+  /* rules tab: header stacks, actions get their own full-width row */
+  .rules-card{padding:4px 16px 6px;}
+  .rules-head{align-items:stretch;flex-direction:column;gap:10px;padding:12px 0;}
+  .rules-head-r{flex-wrap:wrap;}
+  .rules-head-r .btn{flex:1;justify-content:center;}
+  .rules-toggle{order:-1;align-self:flex-start;padding-left:0;}
+  .rules-toggle:has(input:checked){background:transparent;}
+  .rule-row{padding:12px 8px;margin:0 -8px;}
+
+  /* rules checklist: the sheet padding lives on its own head/list/foot bands,
+     so zero out the generic sheet padding and re-inset each band instead. */
+  .modal-overlay{padding:0;}
+  .modal.rules-modal{padding:0;border-radius:14px 14px 0 0;
+    margin-top:auto;max-height:92vh;width:100%;}
+  .rc-head{padding:18px 20px 16px;}
+  #rc-list{padding:4px 20px;}
+  /* Full-width action on phones — it's the only thing in the footer. */
+  .rc-foot{padding:14px calc(env(safe-area-inset-right,0px) + 20px)
+           calc(env(safe-area-inset-bottom,0px) + 16px)
+           calc(env(safe-area-inset-left,0px) + 20px);
+    align-items:stretch;}
+  .rc-foot .btn{flex:1;min-height:46px;}
+  .rc-box input{width:22px;height:22px;}
+  .rc-row{margin:2px -8px;padding:13px 8px;}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="hdr">
+    <div>
+      <div class="hdr-title">Rules</div>
+      <div class="hdr-sub">Pre-Market Discipline</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ RULES ══════════════════════ -->
+  <div class="section-label">Trading Rules</div>
+  <div class="card rules-card">
+    <div class="rules-head">
+      <div class="rules-head-sub" id="rules-sub">No rules yet</div>
+      <div class="rules-head-r">
+        <label class="rules-toggle" title="When on, the checklist pops up the first time you open TaskHub each weekday.">
+          <input type="checkbox" id="rules-enabled" onchange="RULES.toggleDaily(this.checked)">
+          <span>Prompt daily</span>
+        </label>
+        <button class="btn" onclick="RULES.preview()">Run now</button>
+        <button class="btn btn-primary" onclick="RULES.addRule()">Add rule</button>
+      </div>
+    </div>
+    <div id="rules-list"></div>
+  </div>
+</div>
+
+<!-- daily rules checklist — hard gate, no dismiss until every rule is checked -->
+<div class="modal-overlay" id="rules-modal">
+  <div class="modal rules-modal">
+    <div class="rc-head">
+      <div class="rc-head-top">
+        <div class="rc-title">Pre-Market Checklist</div>
+        <div class="rc-count" id="rc-count">0 / 0</div>
+      </div>
+      <div class="rc-date" id="rc-date"></div>
+      <div class="rc-progress"><div class="rc-progress-bar" id="rc-bar"></div></div>
+    </div>
+    <div id="rc-list"></div>
+    <div class="rc-foot">
+      <button class="btn btn-primary" id="rc-start" disabled onclick="RULES._finish()">Start Trading</button>
+    </div>
+  </div>
+</div>
+
+<!-- add / edit rule -->
+<div class="modal-overlay" id="prompt-modal">
+  <div class="modal sm">
+    <div class="modal-title" id="prompt-title">Add rule</div>
+    <div class="modal-body" id="prompt-msg"></div>
+    <textarea class="field" id="prompt-input" placeholder="e.g. No trade without a written plan"></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="RULES._promptOk()">Save</button>
+      <button class="btn" onclick="RULES._promptCancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- delete confirm -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal sm">
+    <div class="modal-title danger">Delete rule</div>
+    <div class="modal-body">Delete this rule?</div>
+    <div class="modal-quote" id="confirm-quote"></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" onclick="RULES._confirmOk()">Delete</button>
+      <button class="btn" onclick="RULES._confirmCancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-host"></div>
+
+<script>
+/* ── storage ──────────────────────────────────────────────────────────────────
+   Two stored values, saved separately so toggling the prompt never rewrites the
+   list. Keys are namespaced `rules.*` — on a merge into TaskHub these become
+   Veda-side keys (td_rules / td_rules_daily) and nothing of Tony's is touched. */
+const STORE = {
+  KEYS: {
+    rules:      "rules.list",   // ordered array of {id, text, created}
+    rulesDaily: "rules.daily",  // {lastCompleted:"YYYY-MM-DD", enabled:bool}
+  },
+  get(key, fb) {
+    try { const v = localStorage.getItem(key); return v == null ? fb : JSON.parse(v); }
+    catch (e) { return fb; }
+  },
+  set(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+  },
+};
+
+/* ── shared utilities ─────────────────────────────────────────────────────── */
+const U = {
+  uid: () => "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+  // Eastern-time day key. A UTC date (toISOString) rolls over at 8pm ET, which
+  // would mis-date an evening session as the next day — anything that must agree
+  // with the TRADING day (i.e. everything below) uses ET instead.
+  etParts(d) {
+    const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York",
+      year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" })
+      .formatToParts(d).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+    return { y: +p.year, mo: +p.month, d: +p.day, wd: p.weekday };
+  },
+  todayET() {
+    const p = U.etParts(new Date());
+    const z = n => String(n).padStart(2, "0");
+    return `${p.y}-${z(p.mo)}-${z(p.d)}`;
+  },
+  isWeekdayET() {
+    const wd = U.etParts(new Date()).wd;   // "Mon".."Sun"
+    return wd !== "Sat" && wd !== "Sun";
+  },
+  // "Monday, July 28" in ET — header line for the checklist.
+  todayLabelET() {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric",
+    }).format(new Date());
+  },
+  esc: (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])),
+  toast(msg, kind) {
+    const host = document.getElementById("toast-host");
+    if (!host) return;
+    const t = document.createElement("div");
+    t.className = "toast" + (kind === "err" ? " err" : "");
+    t.textContent = msg;
+    host.appendChild(t);
+    requestAnimationFrame(() => t.classList.add("show"));
+    setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 220); }, 2600);
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RULES — your trading rules + the once-a-day pre-market checklist.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const RULES = {
+  list: [],
+  daily: { lastCompleted: null, enabled: true },
+
+  // ── checklist run state (live only while the modal is open) ──
+  _unlockedUpTo: -1,      // highest row index whose checkbox is enabled
+  _checked: 0,            // how many rows are ticked
+  _timer: null,           // the single live unlock timer
+  _shownThisSession: false,
+  _open: false,
+  DELAY: 3,               // seconds a rule must be on screen before it can be ticked
+
+  _init() {
+    const raw = STORE.get(STORE.KEYS.rules, null);
+    if (raw != null) RULES.list = raw;
+    else { RULES.list = RULES._seed(); RULES._save(); }
+    const d = STORE.get(STORE.KEYS.rulesDaily, null);
+    if (d && typeof d === "object") RULES.daily = Object.assign(RULES.daily, d);
+  },
+  // Re-hydrate from storage — no re-save (a save here would echo the change
+  // back up to whatever sync layer this is wired into and loop).
+  _reload() {
+    const raw = STORE.get(STORE.KEYS.rules, null);
+    if (raw != null) RULES.list = raw;
+    const d = STORE.get(STORE.KEYS.rulesDaily, null);
+    if (d && typeof d === "object") RULES.daily = Object.assign({}, RULES.daily, d);
+  },
+  _seed() {
+    const now = Date.now();
+    return [
+      "No trade without a plan — entry, stop and target written down first.",
+      "One setup at a time — no revenge trades after a loss.",
+      "Stop trading for the day at -3R or 3 consecutive losses.",
+      "Size every position so the stop risks no more than 1R.",
+    ].map((text, i) => ({ id: U.uid(), text, created: now + i }));
+  },
+  _save() { STORE.set(STORE.KEYS.rules, RULES.list); },
+  _saveDaily() { STORE.set(STORE.KEYS.rulesDaily, RULES.daily); },
+
+  /* ── Rules tab ─────────────────────────────────────────────────────────── */
+  render() {
+    const host = document.getElementById("rules-list");
+    if (!host) return;
+    const n = RULES.list.length;
+    const done = RULES.daily.lastCompleted;
+    const sub = document.getElementById("rules-sub");
+    if (sub) {
+      // "Reviewed today" is the state that actually matters day to day; the raw
+      // date only earns its space once it stops being today.
+      const today = U.todayET();
+      const state = !RULES.daily.enabled ? "prompt off"
+        : done === today ? "reviewed today"
+        : done ? `last reviewed ${done}`
+        : "not reviewed yet";
+      sub.innerHTML = !n ? "No rules yet"
+        : `<b>${n}</b> rule${n === 1 ? "" : "s"} · ${U.esc(state)}`;
+    }
+    const toggle = document.getElementById("rules-enabled");
+    if (toggle) toggle.checked = !!RULES.daily.enabled;
+
+    if (!n) {
+      host.innerHTML = `<div class="rules-empty">
+        <p>Add the rules you want to review before every trading day.</p>
+        <button class="btn btn-primary" onclick="RULES.addRule()">+ Add your first rule</button>
+      </div>`;
+      return;
+    }
+    host.innerHTML = RULES.list.map((r, i) => `
+      <div class="rule-row">
+        <div class="rule-num">${i + 1}</div>
+        <div class="rule-text">${U.esc(r.text)}</div>
+        <div class="rule-acts">
+          <button class="btn-icon" title="Move up" aria-label="Move up" ${i === 0 ? "disabled" : ""}
+                  onclick="RULES.moveRule('${r.id}',-1)">↑</button>
+          <button class="btn-icon" title="Move down" aria-label="Move down" ${i === n - 1 ? "disabled" : ""}
+                  onclick="RULES.moveRule('${r.id}',1)">↓</button>
+          <button class="btn-icon" title="Edit" aria-label="Edit rule" onclick="RULES.editRule('${r.id}')">✎</button>
+          <button class="btn-icon danger" title="Delete" aria-label="Delete rule" onclick="RULES.deleteRule('${r.id}')">✕</button>
+        </div>
+      </div>`).join("");
+  },
+
+  /* ── prompt / confirm (promise-based, so the flows below read linearly) ── */
+  _promptResolve: null,
+  _uiPrompt(msg, opts) {
+    opts = opts || {};
+    return new Promise(resolve => {
+      RULES._promptResolve = resolve;
+      document.getElementById("prompt-title").textContent = opts.title || "";
+      document.getElementById("prompt-msg").textContent = msg || "";
+      const input = document.getElementById("prompt-input");
+      input.value = opts.defaultValue || "";
+      input.placeholder = opts.placeholder || "";
+      document.getElementById("prompt-modal").classList.add("open");
+      setTimeout(() => input.focus(), 0);
+    });
+  },
+  _promptOk() {
+    const v = document.getElementById("prompt-input").value;
+    // required + trim: an all-whitespace entry is not a rule.
+    if (!v || !v.trim()) return;
+    document.getElementById("prompt-modal").classList.remove("open");
+    const r = RULES._promptResolve; RULES._promptResolve = null;
+    if (r) r(v.trim());
+  },
+  _promptCancel() {
+    document.getElementById("prompt-modal").classList.remove("open");
+    const r = RULES._promptResolve; RULES._promptResolve = null;
+    if (r) r(null);
+  },
+  _confirmResolve: null,
+  _uiConfirm(text) {
+    return new Promise(resolve => {
+      RULES._confirmResolve = resolve;
+      document.getElementById("confirm-quote").textContent = '"' + text + '"';
+      document.getElementById("confirm-modal").classList.add("open");
+    });
+  },
+  _confirmOk() {
+    document.getElementById("confirm-modal").classList.remove("open");
+    const r = RULES._confirmResolve; RULES._confirmResolve = null;
+    if (r) r(true);
+  },
+  _confirmCancel() {
+    document.getElementById("confirm-modal").classList.remove("open");
+    const r = RULES._confirmResolve; RULES._confirmResolve = null;
+    if (r) r(false);
+  },
+
+  async addRule() {
+    const text = await RULES._uiPrompt("What rule must you follow before trading?",
+      { title: "Add rule", placeholder: "e.g. No trade without a written plan" });
+    if (!text) return;
+    RULES.list.push({ id: U.uid(), text: text.trim(), created: Date.now() });
+    RULES._save(); RULES.render(); U.toast("Rule added.", "ok");
+  },
+  async editRule(id) {
+    const r = RULES.list.find(x => x.id === id); if (!r) return;
+    const text = await RULES._uiPrompt("Edit this rule.",
+      { title: "Edit rule", defaultValue: r.text });
+    if (!text) return;
+    r.text = text.trim(); RULES._save(); RULES.render();
+  },
+  async deleteRule(id) {
+    const r = RULES.list.find(x => x.id === id); if (!r) return;
+    const ok = await RULES._uiConfirm(r.text);
+    if (!ok) return;
+    RULES.list = RULES.list.filter(x => x.id !== id);
+    RULES._save(); RULES.render(); U.toast("Rule deleted.", "ok");
+  },
+  // ARRAY ORDER IS DISPLAY ORDER — reordering is a splice, not a sort key.
+  moveRule(id, dir) {
+    const i = RULES.list.findIndex(x => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= RULES.list.length) return;
+    const [row] = RULES.list.splice(i, 1);
+    RULES.list.splice(j, 0, row);
+    RULES._save(); RULES.render();
+  },
+  toggleDaily(on) {
+    RULES.daily.enabled = !!on;
+    RULES._saveDaily(); RULES.render();
+    U.toast(on ? "Daily checklist on." : "Daily checklist off.", "ok");
+  },
+
+  /* ── daily checklist ───────────────────────────────────────────────────── */
+  // Idempotent — every guard below must tolerate repeat calls, because a sync
+  // layer re-runs this whenever a remote change lands.
+  //
+  // The flag is set by _openChecklist() (i.e. only when a modal really opens),
+  // not here: an attempt made before remote data has arrived is judged against a
+  // stale cached date, and must stay retryable rather than latching the session.
+  maybeShowDaily() {
+    if (RULES._shownThisSession || RULES._open) return;
+    if (!RULES.daily.enabled) return;
+    if (!RULES.list.length) return;
+    if (!U.isWeekdayET()) return;                             // weekends off
+    if (RULES.daily.lastCompleted === U.todayET()) return;    // already done today
+    RULES._openChecklist();
+  },
+
+  // Progress as a count, so the hairline bar doesn't have to carry the meaning.
+  _paintCount() {
+    const el = document.getElementById("rc-count");
+    if (el) el.textContent = `${RULES._checked} / ${RULES.list.length}`;
+  },
+
+  _openChecklist() {
+    const host = document.getElementById("rc-list");
+    const modal = document.getElementById("rules-modal");
+    if (!host || !modal) return;
+
+    RULES._unlockedUpTo = -1;
+    RULES._checked = 0;
+    RULES._open = true;
+    // Latch here, not in maybeShowDaily() — "shown this session" must mean a modal
+    // actually went up, so an attempt made before remote data lands can be retried.
+    RULES._shownThisSession = true;
+    clearTimeout(RULES._timer); RULES._timer = null;
+
+    document.getElementById("rc-date").textContent = U.todayLabelET() + " · ET";
+    document.getElementById("rc-bar").style.width = "0%";
+    RULES._paintCount();
+    const start = document.getElementById("rc-start");
+    start.disabled = true; start.textContent = "Start Trading";
+
+    host.innerHTML = RULES.list.map((r, i) => `
+      <div class="rc-row" id="rc-row-${i}" style="animation-delay:${Math.min(i * 45, 400)}ms">
+        <div class="rc-box">
+          <input type="checkbox" id="rc-cb-${i}" disabled onchange="RULES._onCheck(${i})">
+        </div>
+        <div class="rc-body">
+          <div class="rc-text">${U.esc(r.text)}</div>
+        </div>
+      </div>`).join("");
+
+    // Assert the locked state in JS rather than trusting the markup's `disabled`
+    // attribute — on a re-run the rows are rebuilt, and this keeps the invariant
+    // ("nothing is tickable until a countdown says so") owned by one place.
+    RULES.list.forEach((_, i) => {
+      const cb = document.getElementById("rc-cb-" + i);
+      if (cb) { cb.checked = false; cb.disabled = true; }
+    });
+
+    modal.classList.add("open");
+    RULES._startCountdown(0);
+  },
+
+  // Hold row i for DELAY seconds, then enable its checkbox. The wait is silent —
+  // the row lights up as active and its box goes live when the time is up. Only
+  // ONE timer is ever live — clearing first means a double-call can't double-tick
+  // and skip a row.
+  _startCountdown(i) {
+    clearTimeout(RULES._timer); RULES._timer = null;
+    const row = document.getElementById("rc-row-" + i);
+    if (!row) return;
+    row.classList.add("active");
+    RULES._timer = setTimeout(() => {
+      RULES._timer = null;
+      RULES._unlock(i);
+    }, RULES.DELAY * 1000);
+  },
+
+  // The countdown finishing is the ONLY thing that advances the frontier, which
+  // is what makes the sequence unskippable.
+  _unlock(i) {
+    const cb = document.getElementById("rc-cb-" + i);
+    if (!cb) return;
+    RULES._unlockedUpTo = i;
+    cb.disabled = false;   // the live checkbox is the only affordance
+    // Only steal focus for rows past the first; on open, focus belongs to the modal.
+    if (i > 0) { try { cb.focus({ preventScroll: false }); } catch (e) {} }
+  },
+
+  _onCheck(i) {
+    const cb = document.getElementById("rc-cb-" + i);
+    if (!cb || !cb.checked) return;
+    // Only the row the countdown just unlocked may be ticked. Anything beyond the
+    // frontier is rejected outright (defensive — those boxes are also disabled).
+    if (i > RULES._unlockedUpTo) { cb.checked = false; return; }
+    // Lock the row down: unchecking would strand the sequence.
+    cb.disabled = true;
+    const row = document.getElementById("rc-row-" + i);
+    if (row) { row.classList.remove("active"); row.classList.add("done"); }
+
+    RULES._checked += 1;
+    const total = RULES.list.length;
+    document.getElementById("rc-bar").style.width = Math.round((RULES._checked / total) * 100) + "%";
+    RULES._paintCount();
+
+    if (RULES._checked >= total) {
+      const start = document.getElementById("rc-start");
+      start.disabled = false;
+      try { start.focus({ preventScroll: true }); } catch (e) {}
+    } else {
+      RULES._startCountdown(i + 1);
+      const next = document.getElementById("rc-row-" + (i + 1));
+      if (next && next.scrollIntoView) {
+        try { next.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) {}
+      }
+    }
+  },
+
+  _finish() {
+    if (RULES._checked < RULES.list.length) return;   // hard gate
+    clearTimeout(RULES._timer); RULES._timer = null;
+    RULES.daily.lastCompleted = U.todayET();
+    RULES._saveDaily();
+    RULES._open = false;
+    document.getElementById("rules-modal").classList.remove("open");
+    RULES.render();
+    U.toast("Checklist complete — trade your plan.", "ok");
+  },
+
+  // Manual re-run from the Rules tab (does not affect the once-a-day record).
+  preview() {
+    if (!RULES.list.length) { U.toast("Add a rule first.", "err"); return; }
+    RULES._openChecklist();
+  },
+};
+
+/* ── boot ─────────────────────────────────────────────────────────────────── */
+RULES._init();
+RULES.render();
+
+// Rules checklist is a HARD gate: swallow Escape (and Tab-out) while it's open,
+// before any other handler sees it. Capture phase so it wins over everything.
+document.addEventListener("keydown", e => {
+  if (!RULES._open) return;
+  if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); }
+}, true);
+
+// Escape closes the ordinary modals (which are NOT gates).
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (document.getElementById("prompt-modal").classList.contains("open")) RULES._promptCancel();
+  else if (document.getElementById("confirm-modal").classList.contains("open")) RULES._confirmCancel();
+});
+// Ctrl/Cmd+Enter saves from the rule textarea (plain Enter inserts a newline).
+document.getElementById("prompt-input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) RULES._promptOk();
+});
+// Backdrop click dismisses the ordinary modals. #rules-modal is deliberately
+// absent here — it has no backdrop dismiss and no close button.
+["prompt-modal", "confirm-modal"].forEach(id => {
+  document.getElementById(id).addEventListener("click", e => {
+    if (e.target.id === id) {
+      id === "prompt-modal" ? RULES._promptCancel() : RULES._confirmCancel();
+    }
+  });
+});
+
+RULES.maybeShowDaily();
+</script>
+</body>
+</html>
