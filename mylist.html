@@ -399,18 +399,24 @@ body.dnd-active *{cursor:grabbing !important;}
 
 /* ── View switcher (Lists | Recipes | Price Watch | Events) ── */
 #view-switch{display:flex;gap:4px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px;}
-#view-switch button{flex:1;min-width:0;border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:12px;font-family:var(--font-btn);padding:8px 12px;border-radius:16px;cursor:pointer;transition:all .15s;text-transform:var(--head-transform);letter-spacing:var(--head-spacing);white-space:nowrap;}
-#view-switch button.on{background:var(--accent);color:var(--accent-ink);}
+/* Styled by CLASS, not as `#view-switch button` — the drag ghost is a clone
+   parented to <body>, so any descendant-of-#view-switch rule would not reach it
+   and the lifted tab would render unstyled. */
+.vs-tab{flex:1;min-width:0;border:none;background:transparent;color:var(--textdim);font-weight:800;font-size:12px;font-family:var(--font-btn);padding:8px 12px;border-radius:16px;cursor:pointer;transition:background .15s,color .15s,box-shadow .15s;text-transform:var(--head-transform);letter-spacing:var(--head-spacing);white-space:nowrap;-webkit-touch-callout:none;user-select:none;}
+.vs-tab.on{background:var(--accent);color:var(--accent-ink);}
+/* the lifted tab: fixed width (no flex stretch) on its own opaque pill */
+.dnd-ghost.vs-tab{flex:0 0 auto;border-radius:16px;background:var(--surface2);color:var(--text);}
+.dnd-ghost.vs-tab.on{background:var(--accent);color:var(--accent-ink);}
 /* four tabs have to survive a 320px phone — tighten type/padding rather than
    letting "Price Watch" wrap or push the row off-screen */
 @media(max-width:520px){
   #view-switch{gap:2px;padding:3px;}
-  #view-switch button{font-size:10.5px;padding:8px 4px;letter-spacing:0;}
+  .vs-tab{font-size:10.5px;padding:8px 4px;letter-spacing:0;}
 }
 /* Veda's mono face sets ~12% wider than Tony's Inter, so "Price Watch" still
    clipped on a 320px phone at the size above — one more notch clears it. */
 @media(max-width:380px){
-  #view-switch button{font-size:9.5px;padding:8px 2px;}
+  .vs-tab{font-size:9.5px;padding:8px 2px;}
 }
 /* ── Price Watch ── */
 .pw-add-title{font-weight:800;font-size:15px;margin-bottom:10px;color:var(--text);}
@@ -502,7 +508,7 @@ body.dnd-active *{cursor:grabbing !important;}
    a tinted or solid interior. Tony-scoped so Veda keeps her filled chips.
    The only exceptions are the checkbox and selection dot: a "checked" mark has
    to be a solid mark to read as checked, and the drag indicator is a line. */
-body:not([data-profile=veda]) #view-switch button.on,
+body:not([data-profile=veda]) .vs-tab.on,
 body:not([data-profile=veda]) .list-chip.active,
 body:not([data-profile=veda]) #manual-fab.on,
 body:not([data-profile=veda]) .btn.solid,
@@ -527,7 +533,7 @@ body:not([data-profile=veda]) #manual-fab.on{
 /* Veda keeps her filled accent, just with the same lifted shadow. */
 body[data-profile=veda] #manual-fab.on{box-shadow:0 6px 20px rgba(0,0,0,.4),0 0 0 1px var(--accent);}
 body:not([data-profile=veda]) .store-chip{color:var(--accent);}
-body:not([data-profile=veda]) #view-switch button.on{box-shadow:inset 0 0 0 1px var(--accent);}
+body:not([data-profile=veda]) .vs-tab.on{box-shadow:inset 0 0 0 1px var(--accent);}
 body:not([data-profile=veda]) #pwx-box ol li:before{
   background:transparent;border:1px solid var(--accent-line);color:var(--accent-bright);font-weight:500;
 }
@@ -1227,11 +1233,13 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
     try { await _whenAuthed(); const snap = await getDoc(ML_DOC); return snap.exists() ? snap.data() : null; }
     catch(e){ console.warn("MyList load failed:", e); return null; }
   };
-  window._mlSave = (payload) => {
+  // `immediate` skips the 1200ms debounce — used for discrete one-shot changes
+  // (tab reordering) where the debounce would only delay the cross-device echo.
+  // Same flag, same meaning as _mlSavePriceWatch's.
+  window._mlSave = (payload, immediate) => {
     lastOwnSaveAt = Date.now();
     window.dispatchEvent(new CustomEvent("ml-syncing"));
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(async () => {
+    const doSave = async () => {
       try {
         lastOwnSaveAt = Date.now();
         await setDoc(ML_DOC, payload);
@@ -1241,7 +1249,10 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
         console.warn("MyList save failed:", e);
         window.dispatchEvent(new CustomEvent("ml-error"));
       }
-    }, 1200);
+    };
+    if (saveTimer) clearTimeout(saveTimer);
+    if (immediate) { saveTimer = null; doSave(); }
+    else saveTimer = setTimeout(doSave, 1200);
   };
   onSnapshot(ML_DOC, (snap) => {
     if (Date.now() - lastOwnSaveAt < 8000) return;
@@ -1624,9 +1635,9 @@ function sanitize(v){
   if(v && typeof v==='object'){ var o={}; for(var k in v){ if(v[k]!==undefined && v[k]!==null) o[k]=sanitize(v[k]); } return o; }
   return v;
 }
-function persist(){
+function persist(immediate){
   if(!window._mlSave) return;
-  window._mlSave(sanitize({ tony:state.tony, veda:state.veda, locks:state.locks, lockV:state.lockV, savedAt:Date.now() }));
+  window._mlSave(sanitize({ tony:state.tony, veda:state.veda, locks:state.locks, lockV:state.lockV, savedAt:Date.now() }), immediate);
 }
 function applyRemote(d){
   if(!d) return;
@@ -2750,12 +2761,28 @@ $('ev-content').addEventListener('keydown', function(e){ if((e.ctrlKey||e.metaKe
 $('ev-date').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); var c=$('ev-content'); if(c) c.focus(); } });
 document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('ev-modal').style.display==='flex') evCloseModal(); });
 
+// ── View switcher: draggable, per-profile tab order ──────────────────────────
+// Tony and Veda each keep their own arrangement in their own half of the mylist
+// doc, so reordering one profile's header never disturbs the other's.
+var VIEW_LABELS = { lists:'Lists', recipes:'Recipes', events:'Events', watch:'Price Watch' };
+var VIEW_DEFAULT_ORDER = ['lists','recipes','events','watch'];
+// Self-healing: unknown keys (a view that was renamed or removed) are dropped and
+// any view missing from a saved order is appended, so a stale or partial order
+// synced from another device can never hide a tab.
+function viewOrder(){
+  var saved = pData().viewOrder;
+  var out = Array.isArray(saved) ? saved.filter(function(v){ return VIEW_LABELS[v]; }) : [];
+  out = out.filter(function(v,i){ return out.indexOf(v)===i; });
+  VIEW_DEFAULT_ORDER.forEach(function(v){ if(out.indexOf(v)<0) out.push(v); });
+  return out;
+}
+function setViewOrder(arr){ pData().viewOrder = arr; persist(true); }   // instant sync
 function renderViewSwitch(){
   var w=$('view-switch-wrap'); if(!w) return;
-  w.innerHTML='<div id="view-switch"><button class="'+(view==='lists'?'on':'')+'" onclick="ML.setView(\'lists\')">Lists</button>'
-    +'<button class="'+(view==='recipes'?'on':'')+'" onclick="ML.setView(\'recipes\')">Recipes</button>'
-    +'<button class="'+(view==='events'?'on':'')+'" onclick="ML.setView(\'events\')">Events</button>'
-    +'<button class="'+(view==='watch'?'on':'')+'" onclick="ML.setView(\'watch\')">Price Watch</button></div>';
+  w.innerHTML='<div id="view-switch">'+viewOrder().map(function(v){
+    return '<button class="vs-tab'+(view===v?' on':'')+'" data-id="'+v+'" onclick="ML.setView(\''+v+'\')">'+esc(VIEW_LABELS[v])+'</button>';
+  }).join('')+'</div>';
+  enableDrag($('view-switch'), 'viewtab');
 }
 
 // ════════ DRAG & DROP (floating ghost + insertion line, no reflow) ════════
@@ -2772,7 +2799,10 @@ function enableDrag(container, kind){
   container.addEventListener('pointerdown', function(e){
     if(dnd) return;
     if(e.button && e.button!==0) return;
-    if(e.target.closest('button, input, select, textarea, a, .chk')) return;
+    // The view tabs ARE buttons, so for them a blanket "ignore buttons" guard
+    // would make the bar undraggable; everywhere else it still protects controls
+    // sitting inside a draggable row.
+    if(e.target.closest(kind==='viewtab' ? 'input, select, textarea, a' : 'button, input, select, textarea, a, .chk')) return;
     var row = e.target.closest('[data-id]');
     if(!row || !container.contains(row)) return;
     var sx=e.clientX, sy=e.clientY, pid=e.pointerId, hold;
@@ -2828,8 +2858,8 @@ function dndLoop(){
 }
 // Determine drop target: {store, beforeId, y}. store=null for recipes/flat lists.
 function computeTarget(a){
-  // horizontal reorder of the list tabs
-  if(a.kind==='listtab'){
+  // horizontal reorder — list tabs and view tabs share the same geometry
+  if(a.kind==='listtab' || a.kind==='viewtab'){
     var chips=Array.prototype.slice.call(a.container.querySelectorAll('[data-id]')).filter(function(el){return el!==a.row;});
     var px=a.px, bId=null, x, done=false;
     for(var c=0;c<chips.length;c++){ var cr2=chips[c].getBoundingClientRect(); if(px<cr2.left+cr2.width/2){ bId=chips[c].dataset.id; x=cr2.left-4; done=true; break; } }
@@ -2916,6 +2946,15 @@ function dndEnd(){
   if(moved && t){ dndLastEnd=Date.now(); applyDrop(kind, id, t); }
 }
 function applyDrop(kind, id, t){
+  if(kind==='viewtab'){
+    var ord=viewOrder(); if(ord.indexOf(id)<0) return;
+    var restV=ord.filter(function(v){ return v!==id; });
+    var iv = t.beforeId ? restV.indexOf(t.beforeId) : restV.length;
+    if(iv<0) iv=restV.length;
+    restV.splice(iv,0,id);
+    if(restV.join(',')===ord.join(',')) return;   // dropped back where it started
+    setViewOrder(restV); render(); return;
+  }
   if(kind==='listtab'){
     var arr=lists(); var src0=arr.filter(function(x){return x.id===id;})[0]; if(!src0) return;
     var rest0=arr.filter(function(x){return x.id!==id;});
