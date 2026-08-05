@@ -1229,14 +1229,38 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
   let saveTimer = null;
   let lastOwnSaveAt = 0;
 
+  // ── Write barrier ───────────────────────────────────────────────────────────
+  // persist() sends a WHOLE-DOCUMENT setDoc, so a save made before we know what
+  // is on the server replaces it. _mlLoad cannot signal that on its own: it
+  // returns null both for "doc does not exist" (legitimately empty — safe to
+  // write) and for "the read was denied/failed" (state is still the empty
+  // default — writing destroys the real lists). This flag distinguishes them and
+  // is the ONLY thing that authorises a write.
+  //
+  // This is not hypothetical: an App Check / rules denial made every read fail,
+  // boot() kept the empty default state, still lit "Synced", and the next edit
+  // would have overwritten the document with empty lists.
+  window._mlLoadOk = false;
+
   window._mlLoad = async () => {
-    try { await _whenAuthed(); const snap = await getDoc(ML_DOC); return snap.exists() ? snap.data() : null; }
-    catch(e){ console.warn("MyList load failed:", e); return null; }
+    try {
+      await _whenAuthed();
+      const snap = await getDoc(ML_DOC);
+      window._mlLoadOk = true;          // a real answer from the server — empty or not
+      return snap.exists() ? snap.data() : null;
+    }
+    catch(e){ console.warn("MyList load failed:", e); window._mlLoadOk = false; return null; }
   };
   // `immediate` skips the 1200ms debounce — used for discrete one-shot changes
   // (tab reordering) where the debounce would only delay the cross-device echo.
   // Same flag, same meaning as _mlSavePriceWatch's.
   window._mlSave = (payload, immediate) => {
+    // Never overwrite a document we were never able to read (see _mlLoadOk).
+    if (!window._mlLoadOk) {
+      console.warn("MyList save BLOCKED — never read the server copy; refusing to overwrite it.");
+      window.dispatchEvent(new CustomEvent("ml-error"));
+      return;
+    }
     lastOwnSaveAt = Date.now();
     window.dispatchEvent(new CustomEvent("ml-syncing"));
     const doSave = async () => {
@@ -1255,6 +1279,11 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
     else saveTimer = setTimeout(doSave, 1200);
   };
   onSnapshot(ML_DOC, (snap) => {
+    // A delivered snapshot proves reads work, so it lifts the write barrier —
+    // that lets a session that booted while access was denied heal itself the
+    // moment access comes back, with no reload. The echo guard below only skips
+    // re-applying our OWN just-written data, which cannot un-prove read access.
+    window._mlLoadOk = true;
     if (Date.now() - lastOwnSaveAt < 8000) return;
     if (snap.exists()) window.dispatchEvent(new CustomEvent("ml-remote-update", { detail: snap.data() }));
   }, (err) => { console.warn("MyList snapshot err", err); window.dispatchEvent(new CustomEvent("ml-error")); });
@@ -1264,13 +1293,22 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
   const REC_DOCS = { tony: doc(db, "dashboards/mealsuite"), veda: doc(db, "dashboards/mealsuite-veda") };
   const recSaveTimers = { tony:null, veda:null };
   const recLastOwnSaveAt = { tony:0, veda:0 };
+  // Same write barrier as ML_DOC's, per profile: a failed load yields [], which
+  // is indistinguishable from "no recipes yet" and would otherwise be saved back
+  // over a full recipe book. See _mlLoadOk.
+  const recLoadOk = { tony:false, veda:false };
   window._mlLoadRecipes = async (profile) => {
     const ref = REC_DOCS[profile]; if(!ref) return [];
-    try { await _whenAuthed(); const snap = await getDoc(ref); return (snap.exists() && Array.isArray(snap.data().recipes)) ? snap.data().recipes : []; }
-    catch(e){ console.warn("Recipes load failed:", e); return []; }
+    try { await _whenAuthed(); const snap = await getDoc(ref); recLoadOk[profile] = true; return (snap.exists() && Array.isArray(snap.data().recipes)) ? snap.data().recipes : []; }
+    catch(e){ console.warn("Recipes load failed:", e); recLoadOk[profile] = false; return []; }
   };
   window._mlSaveRecipes = (profile, recipes) => {
     const ref = REC_DOCS[profile]; if(!ref) return;
+    if (!recLoadOk[profile]) {
+      console.warn("Recipes save BLOCKED for", profile, "— never read the server copy; refusing to overwrite it.");
+      window.dispatchEvent(new CustomEvent("ml-error"));
+      return;
+    }
     recLastOwnSaveAt[profile] = Date.now();
     window.dispatchEvent(new CustomEvent("ml-syncing"));
     if (recSaveTimers[profile]) clearTimeout(recSaveTimers[profile]);
@@ -1285,6 +1323,7 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
   };
   ["tony","veda"].forEach((profile) => {
     onSnapshot(REC_DOCS[profile], (snap) => {
+      recLoadOk[profile] = true;   // reads work — lift the barrier (see _mlLoadOk)
       if (Date.now() - recLastOwnSaveAt[profile] < 8000) return;
       if (snap.exists() && Array.isArray(snap.data().recipes)) window.dispatchEvent(new CustomEvent("ml-recipes-update", { detail: { profile: profile, recipes: snap.data().recipes } }));
     }, (err) => { console.warn("Recipes snapshot err", err); });
@@ -1300,13 +1339,21 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
   const EV_DOCS = { tony: doc(db, "dashboards/eventrec"), veda: doc(db, "dashboards/vedatimeline") };
   const evSaveTimers = { tony:null, veda:null };
   const evLastOwnSaveAt = { tony:0, veda:0 };
+  // Write barrier, as above — these are the ORIGINAL EventRec/timeline docs, so
+  // an empty save here would erase years of events, not just today's.
+  const evLoadOk = { tony:false, veda:false };
   window._mlLoadEvents = async (profile) => {
     const ref = EV_DOCS[profile]; if(!ref) return [];
-    try { await _whenAuthed(); const snap = await getDoc(ref); return (snap.exists() && Array.isArray(snap.data().events)) ? snap.data().events : []; }
-    catch(e){ console.warn("Events load failed:", e); return []; }
+    try { await _whenAuthed(); const snap = await getDoc(ref); evLoadOk[profile] = true; return (snap.exists() && Array.isArray(snap.data().events)) ? snap.data().events : []; }
+    catch(e){ console.warn("Events load failed:", e); evLoadOk[profile] = false; return []; }
   };
   window._mlSaveEvents = (profile, events) => {
     const ref = EV_DOCS[profile]; if(!ref) return;
+    if (!evLoadOk[profile]) {
+      console.warn("Events save BLOCKED for", profile, "— never read the server copy; refusing to overwrite it.");
+      window.dispatchEvent(new CustomEvent("ml-error"));
+      return;
+    }
     evLastOwnSaveAt[profile] = Date.now();
     window.dispatchEvent(new CustomEvent("ml-syncing"));
     if (evSaveTimers[profile]) clearTimeout(evSaveTimers[profile]);
@@ -1321,6 +1368,7 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
   };
   ["tony","veda"].forEach((profile) => {
     onSnapshot(EV_DOCS[profile], (snap) => {
+      evLoadOk[profile] = true;   // reads work — lift the barrier (see _mlLoadOk)
       if (Date.now() - evLastOwnSaveAt[profile] < 8000) return;
       if (snap.exists() && Array.isArray(snap.data().events)) window.dispatchEvent(new CustomEvent("ml-events-update", { detail: { profile: profile, events: snap.data().events } }));
     }, (err) => { console.warn("Events snapshot err", err); });
@@ -1685,7 +1733,12 @@ function boot(){
   }
   window._mlLoad().then(function(d){
     if(d) applyRemote(d);
-    setSync('ok'); refreshProfileScreen();
+    // Never report "Synced" for a read that failed. The old unconditional 'ok'
+    // is what made a denied load look like genuine data loss: empty lists,
+    // green pill, no hint that the server copy was simply unreachable.
+    setSync(window._mlLoadOk ? 'ok' : 'err');
+    if(!window._mlLoadOk) toast('Could not reach your lists. Editing is paused so your saved lists are not overwritten.', true);
+    refreshProfileScreen();
     var fav = localStorage.getItem('ml_fav_profile');
     if(fav && PROFILE_META[fav]) chooseProfile(fav); else goProfileSelect();
   });
