@@ -177,8 +177,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-icon-btn.visit:hover{color:var(--ac);border-color:var(--ac);}
 .kc-icon-btn.copy-btn{padding:3px 5px;}.kc-icon-btn.copy-btn:hover{color:var(--ac);}
 .kc-icon-btn.del-x{color:var(--txm);font-size:14px;font-weight:500;}.kc-icon-btn.del-x:hover{color:var(--err);}
-.kc-doc-zone{border:1.5px dashed var(--bd);border-radius:var(--radius);padding:10px;text-align:center;cursor:pointer;transition:all .15s;color:var(--txm);font-size:11px;font-weight:600;user-select:none;margin-top:4px;}
-.kc-doc-zone:hover,.kc-doc-zone.drag-over{border-color:var(--ac);color:var(--acs);background:transparent;}
+.kc-doc-legacy-note{font-size:10.5px;line-height:1.5;color:var(--txm);margin-top:6px;}
 .kc-storage-bar-wrap{margin-top:8px;margin-bottom:2px;}
 .kc-storage-bar-label{display:flex;justify-content:space-between;font-size:9px;font-weight:500;color:var(--txd);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;}
 .kc-storage-bar-track{height:5px;background:var(--s2);border-radius:4px;overflow:hidden;border:1px solid var(--bd);}
@@ -193,8 +192,6 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-doc-row-status.error{color:var(--err);}
 .kc-doc-del-btn{background:transparent;border:none;cursor:pointer;padding:2px 5px;border-radius:4px;font-size:12px;font-weight:500;font-family:var(--sans);transition:all .12s;color:var(--txm);flex-shrink:0;}
 .kc-doc-del-btn:hover{color:var(--err);}
-.kc-doc-replace-btn{background:transparent;border:1px solid var(--bd);cursor:pointer;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:500;font-family:var(--sans);transition:all .12s;color:var(--txd);flex-shrink:0;}
-.kc-doc-replace-btn:hover{color:var(--ac);border-color:var(--ac);}
 /* Modals */
 /* 100dvh (not vh) so a phone's collapsing URL bar can't push the Save/Cancel
    row off-screen; the insets keep the dialog clear of the notch + home bar. */
@@ -285,8 +282,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   .kc-icon-btn{min-width:32px;min-height:32px;padding:6px 8px;}
   .kc-icon-btn.visit{min-height:30px;padding:4px 10px;}
   .kc-color-dot{width:26px;height:26px;}
-  .kc-doc-zone{padding:14px 10px;}
-  .kc-doc-del-btn,.kc-doc-replace-btn{min-height:30px;padding:4px 10px;}
+  .kc-doc-del-btn{min-height:30px;padding:4px 10px;}
   .kc-remove-link{padding:8px 10px;}
 }
 /* Switcher + header button classes matching Tony's style */
@@ -442,9 +438,11 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
     <!-- Global actions only. "Sync Files" and the edit/view toggle act on the
          Keychain's connection cards, so they live under the Keychain section
          head (see .kc-section-tools) and disappear with the other tabs. -->
-    <div class="app-hbar-row2">
-      <button class="kc-hbtn" id="kc-vault-btn" onclick="kcOpenVaultSetup()" title="Download the Vault browser extension and set it up in your browser (no Web Store needed)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/></svg><span>Install Vault</span></button>
-      <button class="kc-hbtn" id="kc-lock-btn" onclick="window._vaultManageLock&&window._vaultManageLock()" title="Lock Vault behind a password"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg><span>Lock</span></button>
+    <!-- data-hk marks a button as re-orderable; the drag module below picks up
+         anything carrying one, so a future header button needs no extra wiring. -->
+    <div class="app-hbar-row2" id="kc-hbar-actions">
+      <button class="kc-hbtn" data-hk="install" id="kc-vault-btn" onclick="kcOpenVaultSetup()" title="Download the Vault browser extension and set it up in your browser (no Web Store needed)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/></svg><span>Install Vault</span></button>
+      <button class="kc-hbtn" data-hk="lock" id="kc-lock-btn" onclick="window._vaultManageLock&&window._vaultManageLock()" title="Lock Vault behind a password"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg><span>Lock</span></button>
     </div>
   </div>
 </div>
@@ -459,7 +457,6 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
          wholesale into #vault-links-panel — so switching to Passwords / Payments /
          Sensitive Info hides them with the panel, no extra wiring. -->
     <div class="kc-section-tools">
-      <button class="kc-hbtn" id="kc-syncfiles-btn" onclick="kcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable &amp; downloadable on every device"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.2"/></svg><span>Sync Files</span></button>
       <div class="kc-hbtn kc-edit-hover" id="kc-edit-toggle" onclick="kcToggleMode()" role="switch" aria-label="Toggle edit mode for connections" title="Switch between view and edit mode" style="cursor:pointer;user-select:none;">
         <div id="kc-toggle-track" style="width:26px;height:14px;border-radius:7px;background:var(--bd);position:relative;transition:background .25s;flex-shrink:0;"><div id="kc-toggle-thumb" style="width:10px;height:10px;border-radius:50%;background:var(--txd);position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .25s,background .25s;box-shadow:0 1px 3px rgba(0,0,0,.25);"></div></div>
         <span id="kc-edit-icon" style="color:var(--ac);white-space:nowrap;line-height:1;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg></span>
@@ -479,7 +476,11 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
     <div class="kc-field"><label>Emails</label><div id="kc-email-fields" class="kc-link-fields"></div><button class="kc-add-link-btn" onclick="kcAddEmailField()">+ Add Email</button></div>
     <div class="kc-field"><label>Phone Numbers</label><div id="kc-phone-fields" class="kc-link-fields"></div><button class="kc-add-link-btn" onclick="kcAddPhoneField()">+ Add Phone</button></div>
     <div class="kc-field"><label>Usernames</label><div id="kc-username-fields" class="kc-link-fields"></div><button class="kc-add-link-btn" onclick="kcAddUsernameField()">+ Add Username</button></div>
-    <div class="kc-field"><label>Documents</label><div id="kc-doc-fields"></div><div class="kc-storage-bar-wrap" id="kc-storage-bar-wrap" style="display:none"><div class="kc-storage-bar-label"><span>Doc storage used</span><span id="kc-storage-bar-text">0 KB / 900 KB</span></div><div class="kc-storage-bar-track"><div class="kc-storage-bar-fill" id="kc-storage-bar-fill" style="width:0%;background:var(--ac)"></div></div></div><div id="kc-doc-drop-zone" class="kc-doc-zone" onclick="document.getElementById('kc-doc-file-input').click()">Click to attach files, or drag &amp; drop — multiple allowed</div><input type="file" id="kc-doc-file-input" style="display:none" accept="*/*" multiple onchange="kcHandleDocFiles(this.files)"></div>
+    <!-- Attaching files to a connection moved to the Cloud tab, which is now the
+         single place Vault uploads anything. Documents already attached are still
+         listed, renameable and removable below — deleting the surface that shows
+         them would strand real files whose only handle lives in this record. -->
+    <div class="kc-field" id="kc-docs-field" style="display:none"><label>Attached documents</label><div id="kc-doc-fields"></div><div class="kc-doc-legacy-note">Kept from before file management moved to Cloud. New files go to Cloud → Google Drive or Dropbox.</div></div>
     <div class="kc-field" style="margin-top:4px;"><label>Additional Info</label><textarea class="kc-textarea" id="kc-f-info" placeholder="Notes, anything extra…"></textarea></div>
     <div class="kc-modal-actions"><button class="kc-btn-primary" onclick="kcSaveModal()">Save</button><button class="kc-btn-ghost" onclick="kcCloseModal()">Cancel</button></div>
   </div>
@@ -1227,6 +1228,57 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
     }, 350);
   };
 
+  // ── Cloud: dashboards/vault_cloud ─────────────────────────────────────────
+  // Vault-side cloud state ONLY — never file bytes. Holds the header button
+  // order, provider credentials/links, favourites, recents, activity log and UI
+  // prefs. Files themselves live in Google Drive / Dropbox and are fetched from
+  // their APIs; mirroring them here would blow the 1 MiB doc ceiling instantly.
+  //
+  // Unlike the keychain/vault docs above this one carries a WRITE BARRIER. Those
+  // two hold state the page can rebuild from localStorage, but a cloud doc that
+  // saved `{}` after a failed read would drop every favourite, every provider
+  // connection and the whole activity history with no local copy to restore
+  // from. So: no successful read, no write. (Same reasoning as MyList's
+  // _mlLoadOk — an empty save is indistinguishable from a real one on the wire.)
+  const cloudDocRef = doc(db, "dashboards/vault_cloud");
+  let _cloudLastOwnSaveAt = 0, _cloudSaveTimer = null, _cloudLoadOk = false;
+  onSnapshot(cloudDocRef, (snap) => {
+    _cloudLoadOk = true;                                  // reads work — lift the barrier
+    if (Date.now() - _cloudLastOwnSaveAt < 6000) return;   // skip our own echo
+    if (snap.exists()) window.dispatchEvent(new CustomEvent("fb-cloud-remote-update", { detail: snap.data() }));
+  }, (err) => console.warn("Cloud listener error:", err && err.code));
+
+  window._fbLoadCloud = async () => {
+    try {
+      await _whenAuthed();
+      const snap = await freshGet(cloudDocRef);
+      _cloudLoadOk = true;
+      return (snap && snap.exists()) ? snap.data() : {};
+    } catch(e) { console.warn("Cloud load failed:", e); _cloudLoadOk = false; return null; }
+  };
+  window._fbSaveCloud = (getState) => {
+    if (!_cloudLoadOk) {
+      console.warn("Cloud save BLOCKED — never read the server copy; refusing to overwrite it.");
+      window.dispatchEvent(new CustomEvent("fb-cloud-error", { detail: 'no-read' }));
+      return;
+    }
+    _cloudLastOwnSaveAt = Date.now();
+    window.dispatchEvent(new CustomEvent("fb-cloud-saving"));
+    if (_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
+    _cloudSaveTimer = setTimeout(async () => {
+      try {
+        const payload = clean(Object.assign({}, getState() || {}, { savedAt: Date.now() }));
+        _cloudLastOwnSaveAt = Date.now();
+        await setDoc(cloudDocRef, payload);
+        _cloudLastOwnSaveAt = Date.now();
+        window.dispatchEvent(new CustomEvent("fb-cloud-saved"));
+      } catch(e) {
+        console.error("Cloud save failed:", e.code, e.message, e);
+        window.dispatchEvent(new CustomEvent("fb-cloud-error", { detail: (e && (e.code || e.message)) || 'error' }));
+      }
+    }, 350);
+  };
+
   // ── App Lock: dashboards/applock ──────────────────────────────────────────
   // The SAME doc index.html uses, so locking Vault here or there stays in step
   // across every device. _alApplyRemoteLocks rebuilds the whole map, preserving
@@ -1677,7 +1729,6 @@ function kcRenderDocRow(entry){
   row.innerHTML=`<span class="kc-doc-row-icon"><svg width="12" height="13" viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg></span>
     <input class="kc-doc-name-input" data-docid="${entry.id}" placeholder="Document name…" value="${esc(entry.displayName||entry.fileName||'')}" oninput="kcDocRename(this)">
     <span class="kc-doc-row-status" id="kcds-${entry.id}">${entry.saved?'saved':entry.file?'ready':'—'}</span>
-    ${entry.saved?`<button class="kc-doc-replace-btn" onclick="kcDocReplace('${entry.id}')">Replace</button>`:''}
     <button class="kc-doc-del-btn" title="Remove" onclick="kcDocRemove('${entry.id}')">${KCI.x}</button>`;
   df.appendChild(row);
 }
@@ -1710,7 +1761,13 @@ function kcUpdateStorageBar(){
 function kcRebuildDocFields(){
   const df=document.getElementById('kc-doc-fields');if(!df)return;
   df.innerHTML='';
-  _kcDocs.filter(d=>!d.toDelete).forEach(kcRenderDocRow);
+  const live=_kcDocs.filter(d=>!d.toDelete);
+  live.forEach(kcRenderDocRow);
+  // The whole field hides when a connection has no attachments — with no way to
+  // add one, an empty "Attached documents" heading is just noise on every new
+  // connection anyone creates from here on.
+  const field=document.getElementById('kc-docs-field');
+  if(field)field.style.display=live.length?'':'none';
   kcUpdateStorageBar();
 }
 window.kcDocRename=function(input){
@@ -1728,38 +1785,15 @@ window.kcDocRemove=function(id){
   kcRebuildDocFields();
   kcUpdateStorageBar();
 };
-window.kcDocReplace=function(id){
-  const d=_kcDocs.find(x=>x.id===id);if(!d)return;
-  const inp=document.createElement('input');inp.type='file';inp.accept='*/*';
-  inp.onchange=function(){
-    const f=inp.files[0];if(!f)return;
-    const idx=_kcDocs.findIndex(x=>x.id===id);
-    // new entry, remember old fileId + storagePath to delete
-    const newEntry={id:kcDocId(),file:f,_origFile:f,fileName:f.name,displayName:f.name,mimeType:f.type||'application/octet-stream',saved:false,_deleteFileId:d.fileId||null,_deleteStoragePath:d.storagePath||null};
-    _kcDocs.splice(idx,1,newEntry);
-    kcRebuildDocFields();
-    kcUpdateStorageBar();
-  };inp.click();
-};
-window.kcHandleDocFiles=function(fileList){
-  if(!fileList||!fileList.length)return;
-  Array.from(fileList).forEach(f=>{
-    _kcDocs.push({id:kcDocId(),file:f,_origFile:f,fileName:f.name,displayName:f.name,mimeType:f.type||'application/octet-stream',saved:false});
-  });
-  kcRebuildDocFields();
-  kcUpdateStorageBar();
-  const fi=document.getElementById('kc-doc-file-input');if(fi)fi.value='';
-};
-(function setupKcDocDrop(){
-  function initDrop(){
-    const dz=document.getElementById('kc-doc-drop-zone');
-    if(!dz||dz._kcDropBound)return;dz._kcDropBound=true;
-    dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
-    dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
-    dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');if(e.dataTransfer.files.length)kcHandleDocFiles(e.dataTransfer.files);});
-  }
-  setTimeout(initDrop,500);document.addEventListener('click',()=>setTimeout(initDrop,100),{once:true});
-})();
+// Replace was an upload path, so it goes with the rest. Kept as a no-op for the
+// same reason as kcHandleDocFiles — an inline handler in older markup must not
+// throw. Remove the attachment and put the new file in Cloud instead.
+window.kcDocReplace=function(){};
+// Connections no longer accept new files — Cloud is the only upload path in
+// Vault now. Kept as a no-op rather than deleted because the inline onchange in
+// older saved markup (and the extension popup) may still reference it, and a
+// ReferenceError there would break the whole modal, not just the attachment.
+window.kcHandleDocFiles=function(){};
 
 function clearModal(){
   ['kc-f-name','kc-f-info'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -1916,6 +1950,12 @@ applyTheme();render();
   window.addEventListener('fb-kc-saved',()=>{if(window.kcSetSync)window.kcSetSync('saved');});
   window.addEventListener('fb-kc-synced',()=>{if(window.kcSetSync)window.kcSetSync('saved');});
   window.addEventListener('fb-kc-error',()=>{if(window.kcSetSync)window.kcSetSync('error');});
+  // Cloud settings ride the same indicator — one status line for the whole app,
+  // so reordering the header or starring a file reads as "Syncing… / Synced"
+  // exactly like editing a connection does.
+  window.addEventListener('fb-cloud-saving',()=>{if(window.kcSetSync)window.kcSetSync('saving');});
+  window.addEventListener('fb-cloud-saved',()=>{if(window.kcSetSync)window.kcSetSync('saved');});
+  window.addEventListener('fb-cloud-error',()=>{if(window.kcSetSync)window.kcSetSync('error');});
   // Also migrate what's already in localStorage on first open (no wait for remote).
   scheduleMigration();
 })();
@@ -2713,6 +2753,154 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
 <script src="Vault/vault-id-files.js"></script>
 <script src="Vault/vault-store.js"></script>
 <script src="Vault/vault-session.js"></script>
+<!-- ══ Header button reorder ═══════════════════════════════════════════════════
+     Drag the header actions into whatever order you like; the result is written
+     to dashboards/vault_cloud (hdrOrder) the moment you drop, so every signed-in
+     device re-orders live through the same onSnapshot listener.
+
+     Ported from Insight's nav drag — same gestures deliberately, so the two apps
+     feel identical: a mouse arms after 5px of movement, touch arms on a 320ms
+     long press so an ordinary swipe still scrolls the strip. -->
+<style>
+  #kc-hbar-actions .kc-hbtn { touch-action: manipulation; }
+  #kc-hbar-actions .kc-hbtn.hdrag {
+    z-index: 5; cursor: grabbing; opacity: .97;
+    border-color: var(--ac); color: var(--ac);
+    box-shadow: 0 10px 26px var(--shadow);
+  }
+</style>
+<script>
+(function () {
+  var nav = document.getElementById('kc-hbar-actions');
+  if (!nav) return;
+
+  function keys() {
+    return Array.prototype.map.call(nav.querySelectorAll('[data-hk]'), function (b) { return b.getAttribute('data-hk'); });
+  }
+
+  // Apply a saved order. Unknown keys are dropped and missing ones appended, so
+  // an order saved by a build with more (or fewer) buttons can never hide one.
+  function applyOrder(order) {
+    if (!Array.isArray(order) || !order.length) return;
+    var have = {};
+    Array.prototype.forEach.call(nav.querySelectorAll('[data-hk]'), function (b) { have[b.getAttribute('data-hk')] = b; });
+    order.forEach(function (k) { if (have[k]) { nav.appendChild(have[k]); delete have[k]; } });
+    Object.keys(have).forEach(function (k) { nav.appendChild(have[k]); });
+  }
+
+  function saveOrder() {
+    if (!window.VaultCloud) return;
+    window.VaultCloud.settings().hdrOrder = keys();
+    window.VaultCloud.save();
+  }
+
+  // The settings store is the single source of truth for the order — subscribing
+  // means a reorder on another device lands here without any extra plumbing.
+  function bind() {
+    if (!window.VaultCloud) { setTimeout(bind, 150); return; }
+    applyOrder(window.VaultCloud.settings().hdrOrder);
+    window.VaultCloud.onChange(function (s) { if (!dragging) applyOrder(s.hdrOrder); });
+  }
+  bind();
+
+  var d = null, dragging = false, holdTimer = null;
+
+  // FLIP in layout coordinates, not viewport rects: the row can be scrolled, and
+  // a viewport-based delta would fold the scroll jump into the animation.
+  function flipX(mutate, node) {
+    var before = node.offsetLeft;
+    mutate();
+    var after = node.offsetLeft;
+    var dx = before - after;
+    if (!dx) return;
+    node.style.transition = 'none';
+    node.style.transform = 'translateX(' + dx + 'px)';
+    requestAnimationFrame(function () {
+      node.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
+      node.style.transform = '';
+    });
+  }
+
+  function follow(x) { d.btn.style.transform = 'translateX(' + (x - d.grabX) + 'px)'; }
+
+  function checkSwap(x) {
+    var kids = nav.querySelectorAll('[data-hk]');
+    for (var i = 0; i < kids.length; i++) {
+      var other = kids[i];
+      if (other === d.btn) continue;
+      var r = other.getBoundingClientRect();
+      if (x < r.left || x > r.right) continue;
+      var mid = r.left + r.width / 2;
+      var otherIsBefore = !!(d.btn.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
+      if (x < mid && otherIsBefore) nav.insertBefore(d.btn, other);
+      else if (x > mid && !otherIsBefore) nav.insertBefore(d.btn, other.nextSibling);
+      else continue;
+      d.grabX = x;
+      d.btn.style.transform = 'translateX(0px)';
+      break;
+    }
+  }
+
+  function startDrag(e) {
+    dragging = true; d.dragging = true;
+    d.grabX = e.clientX;
+    d.btn.style.transition = '';
+    d.btn.classList.add('hdrag');
+    try { d.btn.setPointerCapture(d.id); } catch (er) {}
+  }
+
+  function cleanup() {
+    if (!d) return;
+    var b = d.btn;
+    b.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
+    b.style.transform = '';
+    setTimeout(function () { b.style.transition = ''; }, 180);
+    b.classList.remove('hdrag');
+    clearTimeout(holdTimer); holdTimer = null;
+    d = null; dragging = false;
+  }
+
+  nav.addEventListener('pointerdown', function (e) {
+    var btn = e.target.closest('[data-hk]');
+    if (!btn || e.button > 0) return;
+    d = { btn: btn, id: e.pointerId, startX: e.clientX, startY: e.clientY, dragging: false, moved: false, touch: e.pointerType === 'touch' };
+    if (d.touch) holdTimer = setTimeout(function () { holdTimer = null; if (d) startDrag(e); }, 320);
+  });
+
+  nav.addEventListener('pointermove', function (e) {
+    if (!d || e.pointerId !== d.id) return;
+    if (!d.dragging) {
+      var dx = Math.abs(e.clientX - d.startX), dy = Math.abs(e.clientY - d.startY);
+      if (d.touch) { if (dx > 8 || dy > 8) cleanup(); return; }   // a swipe — let it scroll
+      if (dx < 5) return;
+      startDrag(e);
+    }
+    d.moved = true;
+    follow(e.clientX);
+    checkSwap(e.clientX);
+  });
+
+  // Non-passive so an armed drag can stop the row scrolling under the finger.
+  nav.addEventListener('touchmove', function (e) { if (d && d.dragging) e.preventDefault(); }, { passive: false });
+
+  function endDrag(e) {
+    if (!d || (e && e.pointerId !== d.id)) return;
+    var wasDrag = d.dragging && d.moved;
+    var btn = d.btn;
+    cleanup();
+    if (!wasDrag) return;
+    // Swallow the click that follows the drop, or releasing over a button fires
+    // its action as well as reordering.
+    btn.addEventListener('click', function swallow(ev) { ev.stopPropagation(); ev.preventDefault(); btn.removeEventListener('click', swallow, true); }, true);
+    setTimeout(function () { saveOrder(); }, 0);
+  }
+  nav.addEventListener('pointerup', endDrag);
+  nav.addEventListener('pointercancel', endDrag);
+})();
+</script>
+
+<script src="Vault/vault-cloud.js"></script>
+<script src="Vault/vault-cloud-ui.js"></script>
 <script src="Vault/vault-ui.js"></script>
 <script src="Vault/vault-pay-ui.js"></script>
 <script src="Vault/vault-id-ui.js"></script>

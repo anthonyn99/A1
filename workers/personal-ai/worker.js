@@ -2431,6 +2431,80 @@ async function handlePwNotifDebug(body, env) {
 // ════════════════════════════════════════════════════════════════════════════
 // Router
 // ════════════════════════════════════════════════════════════════════════════
+/* ── Vault Cloud: natural-language file search ──────────────────────────────
+ * Vault sends a query plus file METADATA only — never file bytes. The model's
+ * whole job is to pick indices out of that list, so the response schema is two
+ * fields wide (i, why) and nothing else. A wider schema measurably guts recall
+ * on this kind of extraction, and there is no reason for the model to be
+ * re-emitting names it was just given.
+ *
+ * The Gemini key is env.TONY_GEMINI_KEY here, server-side. Vault is a static
+ * page on GitHub Pages: a key shipped in its HTML would be public.            */
+const CLOUD_SEARCH_SCHEMA = {
+  type: 'object',
+  properties: {
+    answer: { type: 'string' },
+    matches: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { i: { type: 'integer' }, why: { type: 'string' } },
+        required: ['i'],
+      },
+    },
+  },
+  required: ['matches'],
+};
+
+async function handleCloudSearch(body, env) {
+  const query = String((body && body.query) || '').trim();
+  const files = Array.isArray(body && body.files) ? body.files.slice(0, 400) : [];
+  if (!query) return json({ ok: false, error: 'no query' }, 400);
+  if (!files.length) return json({ ok: true, matches: [], answer: 'There are no files to search yet.' });
+
+  const key = keyFor(env, (body && body.profile) || 'tony');
+  if (!key) return json({ ok: false, error: 'no api key configured' }, 500);
+
+  // Compact, one line per file — index first so the model's job is "return
+  // numbers", the cheapest thing to get right.
+  const listing = files.map((f, i) =>
+    `${i}\t${f.name}\t${f.kind || ''}\t${f.folder ? 'folder' : (f.size || 0) + 'B'}\t${f.modified || ''}\t${f.provider || ''}`
+  ).join('\n');
+
+  const prompt = [
+    'You search a personal cloud drive. Below is a TSV of files:',
+    'index, name, kind, size, last-modified (YYYY-MM-DD), cloud.',
+    '',
+    listing,
+    '',
+    `User request: ${query}`,
+    '',
+    'Return the indices of every file that genuinely matches, most relevant first.',
+    'Match on meaning, not just substring: "tax documents" should find 1099s, W2s and returns;',
+    '"Japan photos" should find images in a Japan-named folder even if the filename is IMG_0421.',
+    'Respect date words ("last year", "recent") against the modified column and today\'s date of',
+    `${new Date().toISOString().slice(0, 10)}.`,
+    'Give at most 40 matches. If nothing matches, return an empty list.',
+    'For each match, "why" is a short phrase (under 8 words) explaining the pick.',
+    '"answer" is one plain sentence summarising what you found, addressed to the user.',
+  ].join('\n');
+
+  const out = await runModelChain(MODELS, key, {
+    prompt,
+    schema: CLOUD_SEARCH_SCHEMA,
+    maxOutputTokens: 2048,
+    feature: 'cloud-search',
+    deadlineMs: 30000,
+  });
+
+  if (!out || !out.value) return json({ ok: false, error: 'ai unavailable' }, 503);
+  const v = out.value;
+  const matches = (Array.isArray(v.matches) ? v.matches : [])
+    .filter(m => Number.isInteger(m.i) && m.i >= 0 && m.i < files.length)
+    .slice(0, 40);
+  return json({ ok: true, matches, answer: String(v.answer || '') });
+}
+
 export default {
   async fetch(req, env) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors() });
@@ -2442,7 +2516,7 @@ export default {
         ok: true,
         service: 'personal-ai',
         version: 15, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'journal', 'watch', 'watch-ingest'],
+        features: ['list', 'recipe', 'taskhub', 'journal', 'watch', 'watch-ingest', 'cloud-search'],
         models: MODELS,
         listModels: LIST_MODELS,
         recipeEditModels: RECIPE_EDIT_MODELS,
@@ -2474,6 +2548,7 @@ export default {
       if (path === '/watch/state')    return handleWatchState(body, env);
       if (path === '/watch/ingest')   return handleWatchIngest(body, env);
       if (path === '/watch/notifdebug') return handlePwNotifDebug(body, env);
+      if (path === '/cloud-search')   return handleCloudSearch(body, env);
     }
 
     return json({ ok: false, error: 'not found' }, 404);

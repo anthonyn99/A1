@@ -347,14 +347,19 @@
     var tabs = el('div', { id: 'vault-tabs', class: 'vault-tabs' }, [
       tabBtn('links', 'Keychain', VI.link), tabBtn('passwords', 'Passwords', VI.key),
       tabBtn('payments', 'Payments', VI.card), tabBtn('iddocs', 'ID Docs', idCardIcon()),
-      tabBtn('sensitive', 'Sensitive Info', VI.archive),
+      tabBtn('sensitive', 'Sensitive Info', VI.archive), tabBtn('cloud', 'Cloud', cloudIcon()),
     ]);
     if (hbar && hbar.nextSibling) root.insertBefore(tabs, hbar.nextSibling); else root.appendChild(tabs);
     var pwPanel = el('div', { id: 'vault-pw-panel', class: 'vault-panel' });
     var payPanel = el('div', { id: 'vault-payments-panel', class: 'vault-panel', style: 'display:none' });
     var idPanel = el('div', { id: 'vault-iddocs-panel', class: 'vault-panel', style: 'display:none' });
     var senPanel = el('div', { id: 'vault-sensitive-panel', class: 'vault-panel', style: 'display:none' });
+    // Cloud is deliberately NOT a secret panel — it holds no decrypted material,
+    // only provider settings and file listings fetched live, so it stays usable
+    // while the rest of Vault is locked.
+    var cloudPanel = el('div', { id: 'vault-cloud-panel', class: 'vault-panel', style: 'display:none' });
     root.appendChild(pwPanel); root.appendChild(payPanel); root.appendChild(idPanel); root.appendChild(senPanel);
+    root.appendChild(cloudPanel);
     if (kcWrap) { kcWrap.parentNode.removeChild(kcWrap); linksWrap.appendChild(kcWrap); }
     linksWrap.style.display = 'none'; root.appendChild(linksWrap);
     // Lock overlay (covers everything but tabs stay to switch to Links which is non-secret? No — links are also under Vault; lock gates pw+sensitive only).
@@ -395,6 +400,14 @@
     });
     var links = $('vault-links-panel');
     if (links) links.style.display = id === 'links' ? '' : 'none';
+    var cloud = $('vault-cloud-panel');
+    if (cloud) {
+      cloud.style.display = id === 'cloud' ? '' : 'none';
+      // Mounted lazily: the first paint kicks off provider quota + folder calls,
+      // and doing that on page load would spend the API budget for a tab nobody
+      // opened. VaultCloudUI.mount() is idempotent.
+      if (id === 'cloud' && window.VaultCloudUI) window.VaultCloudUI.mount();
+    }
     if (SECRET_TABS[id]) {
       if (!session || !session.isUnlocked()) { renderLock(); return; }
       SECRET_TABS[id]();
@@ -1814,6 +1827,7 @@
   function editIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'; }
   // Kept local rather than added to vault-icons.js: that file is also loaded by
   // the browser extension, and ID Docs is a PWA-only section.
+  function cloudIcon() { return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97A6 6 0 0 0 6.3 9.4 4.2 4.2 0 0 0 7 19z"/><path d="M12 12v6"/><path d="m9.5 14.5 2.5-2.5 2.5 2.5"/></svg>'; }
   function idCardIcon() { return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5 16c.6-1.3 1.8-2 3-2s2.4.7 3 2"/><path d="M14 10h5"/><path d="M14 13.5h5"/></svg>'; }
 
   // ── styles ─────────────────────────────────────────────────────────────────
