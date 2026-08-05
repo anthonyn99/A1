@@ -17,7 +17,7 @@
  * OAuth *client ids* (Google) and *app keys* (Dropbox) are public identifiers —
  * they ship in every browser app and are safe in Firestore, so they sync and you
  * only ever paste them once. Access/refresh *tokens* are bearer credentials for
- * your actual files: those stay in localStorage on the device that authorised
+ * your actual files: those stay in localStorage on the device that authorized
  * them and are never written to Firestore. A synced token would hand every
  * signed-in device — and anything that could read the doc — live access to the
  * whole Drive. So each device connects once; the connection itself doesn't sync.
@@ -110,7 +110,7 @@
   // module writes settings the moment you drop a button, which can easily happen
   // before the Cloud tab has ever been opened — and save() serialises the whole
   // object, so a save against un-hydrated DEFAULTS silently replaced the real
-  // providerCfg/favourites in localStorage. Hydrating synchronously here means
+  // providerCfg/favorites in localStorage. Hydrating synchronously here means
   // settings() is never a blank default while real state exists on disk.
   readLocal();
 
@@ -137,7 +137,7 @@
   };
 
   // ── Activity log ──────────────────────────────────────────────────────────
-  // Capped hard: this rides inside the 1 MiB Firestore doc alongside favourites
+  // Capped hard: this rides inside the 1 MiB Firestore doc alongside favorites
   // and tags, and an uncapped log is the one field here that grows forever.
   var ACTIVITY_MAX = 250;
   function logActivity(action, provider, name) {
@@ -240,7 +240,12 @@
   }
 
   var DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
-  var DRIVE_FIELDS = 'files(id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,thumbnailLink,iconLink),nextPageToken';
+  // Two shapes, and mixing them up is a 400. Endpoints returning a single File
+  // (upload, create) take a bare field list; endpoints returning a file LIST
+  // take it wrapped in files(…). Google rejects `files(…)` on a single-resource
+  // response rather than ignoring it.
+  var DRIVE_FILE_FIELDS = 'id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,thumbnailLink,iconLink';
+  var DRIVE_FIELDS = 'files(' + DRIVE_FILE_FIELDS + '),nextPageToken';
   var GDRIVE_FOLDER = 'application/vnd.google-apps.folder';
 
   function driveEntry(f) {
@@ -264,7 +269,9 @@
     label: 'Google Drive',
     accent: '#6aa2e0',
     rootId: 'root',
-    caps: { share: true, move: true, quota: true, preview: true, folders: true },
+    // purge/emptyTrash are Drive-only — Dropbox reserves permanent deletion for
+    // Business accounts, so the UI reads these rather than assuming.
+    caps: { share: true, move: true, quota: true, preview: true, folders: true, trash: true, purge: true, emptyTrash: true },
     icon: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 3 6 10-3 5-6-10z"/><path d="m14 3 6 10H8"/><path d="M2 18h13l-3-5"/></svg>',
     // Setup copy lives with the provider so the settings screen stays generic —
     // it renders whatever each adapter declares and branches on nothing.
@@ -275,7 +282,7 @@
       openPlaceholder: 'https://drive.google.com/drive/my-drive',
       hint: function (origin, redirect) {
         return 'Google Cloud Console → APIs &amp; Services → Credentials → OAuth client ID (Web application). ' +
-          'Add <code>' + origin + '</code> as an authorised JavaScript origin, and enable the Drive API.';
+          'Add <code>' + origin + '</code> as an authorized JavaScript origin, and enable the Drive API.';
       }
     },
 
@@ -352,7 +359,7 @@
       var t = Tokens.get('gdrive');
       if (!t) throw new Error('Google Drive is not connected.');
       var meta = { name: file.name, parents: [parentId || 'root'] };
-      var init = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=' + encodeURIComponent(DRIVE_FIELDS.replace(',nextPageToken', '')), {
+      var init = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=' + encodeURIComponent(DRIVE_FILE_FIELDS), {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + t.access, 'Content-Type': 'application/json; charset=UTF-8' },
         body: JSON.stringify(meta)
@@ -377,13 +384,48 @@
     },
 
     rename: function (id, name) { return this.api('/files/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) }); },
-    remove: function (id) { return this.api('/files/' + id + '?supportsAllDrives=true', { method: 'DELETE' }); },
+
+    // Soft delete. Drive's HTTP DELETE is PERMANENT and skips the trash entirely
+    // — no undo, no recovery, not even from drive.google.com. Vault's confirm
+    // dialog tells you the file is recoverable, so remove() must set trashed
+    // instead. Permanent deletion is purge(), reachable only from the Trash pane
+    // behind its own confirmation.
+    remove: function (id) {
+      return this.api('/files/' + id + '?supportsAllDrives=true', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trashed: true })
+      });
+    },
+    listTrash: async function () {
+      var out = [], token = null;
+      do {
+        var url = '/files?q=' + encodeURIComponent('trashed=true') + '&fields=' +
+          encodeURIComponent('files(' + DRIVE_FILE_FIELDS + ',trashedTime),nextPageToken') +
+          '&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true' + (token ? '&pageToken=' + token : '');
+        var j = await this.api(url);
+        (j.files || []).forEach(function (f) {
+          var e = driveEntry(f);
+          e.deletedAt = f.trashedTime ? Date.parse(f.trashedTime) : 0;
+          out.push(e);
+        });
+        token = j.nextPageToken;
+      } while (token);
+      return out;
+    },
+    restore: function (id) {
+      return this.api('/files/' + id + '?supportsAllDrives=true', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trashed: false })
+      });
+    },
+    purge: function (id) { return this.api('/files/' + id + '?supportsAllDrives=true', { method: 'DELETE' }); },
+    emptyTrash: function () { return this.api('/files/trash', { method: 'DELETE' }); },
     move: function (id, toParent, fromParent) {
       return this.api('/files/' + id + '?addParents=' + encodeURIComponent(toParent) +
         '&removeParents=' + encodeURIComponent(fromParent || 'root') + '&supportsAllDrives=true', { method: 'PATCH' });
     },
     mkdir: async function (name, parentId) {
-      var f = await this.api('/files?fields=' + encodeURIComponent(DRIVE_FIELDS.replace(',nextPageToken', '')), {
+      var f = await this.api('/files?fields=' + encodeURIComponent(DRIVE_FILE_FIELDS), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name, mimeType: GDRIVE_FOLDER, parents: [parentId || 'root'] })
       });
@@ -433,7 +475,10 @@
     label: 'Dropbox',
     accent: '#7aa6d6',
     rootId: '',
-    caps: { share: true, move: true, quota: true, preview: true, folders: true },
+    // No purge: /files/permanently_delete is Business-only, so a personal account
+    // gets an "insufficient permissions" error. Dropbox keeps deleted files for
+    // 30 days (longer on paid plans) and empties itself.
+    caps: { share: true, move: true, quota: true, preview: true, folders: true, trash: true, purge: false, emptyTrash: false },
     icon: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 2 6 4-6 4-6-4z"/><path d="m18 2 6 4-6 4-6-4z"/><path d="m6 10 6 4-6 4-6-4z"/><path d="m18 10 6 4-6 4-6-4z"/><path d="m9 19 3 2 3-2"/></svg>',
     setup: {
       field: 'appKey',
@@ -562,7 +607,50 @@
       var to = id.replace(/\/[^/]*$/, '') + '/' + name;
       return this.api('/files/move_v2', { from_path: id, to_path: to, autorename: true });
     },
+    // Already soft — Dropbox keeps deleted files ~30 days and restores by rev.
     remove: function (id) { return this.api('/files/delete_v2', { path: id }); },
+
+    // Dropbox has no "list my trash" endpoint. The only way to see deleted items
+    // is a recursive listing with include_deleted, then filter for the `deleted`
+    // tag. Capped: recursing a large account is expensive and this is a recovery
+    // screen, not a browser.
+    listTrash: async function () {
+      var out = [], pages = 0;
+      var j = await this.api('/files/list_folder', { path: '', recursive: true, include_deleted: true, limit: 2000 });
+      var take = function (entries) {
+        (entries || []).forEach(function (f) {
+          if (f['.tag'] !== 'deleted') return;
+          out.push({
+            id: f.path_lower || f.path_display || '',
+            name: f.name,
+            // Dropbox doesn't say whether a deleted entry was a file or folder,
+            // and there's no reliable signal — treat everything as a file so the
+            // row still renders and restores correctly either way.
+            folder: false,
+            size: 0, modified: 0, created: 0, deletedAt: 0,
+            mime: guessMime(f.name),
+            parent: (f.path_lower || '').replace(/\/[^/]*$/, ''),
+            provider: 'dropbox', webUrl: '', thumb: ''
+          });
+        });
+      };
+      take(j.entries);
+      while (j && j.has_more && pages++ < 8 && out.length < 500) {
+        j = await this.api('/files/list_folder/continue', { cursor: j.cursor });
+        take(j.entries);
+      }
+      return out;
+    },
+
+    // Two calls: /files/restore needs the revision to restore TO, which only
+    // list_revisions can supply. mode:path is what makes it work on a path that
+    // no longer exists.
+    restore: async function (id) {
+      var revs = await this.api('/files/list_revisions', { path: id, mode: { '.tag': 'path' }, limit: 10 });
+      var rev = revs && revs.entries && revs.entries[0] && revs.entries[0].rev;
+      if (!rev) throw new Error('Dropbox has no recoverable version of this file.');
+      return this.api('/files/restore', { path: id, rev: rev });
+    },
     move: function (id, toParent) {
       var name = id.split('/').pop();
       return this.api('/files/move_v2', { from_path: id, to_path: (toParent || '') + '/' + name, autorename: true });
@@ -651,7 +739,11 @@
       status: 'queued',       // queued | uploading | paused | done | error | cancelled
       loaded: 0, error: '', ctrl: null
     };
-    queue.push(item); qEmit(); runQueue();
+    queue.push(item); qEmit();
+    // Lets a dismissed upload dock reappear for genuinely new work without the
+    // queue needing to know the dock exists.
+    window.dispatchEvent(new CustomEvent('vault-cloud-enqueued'));
+    runQueue();
     return item;
   }
   function qFind(key) { return queue.filter(function (i) { return i.key === key; })[0]; }
@@ -659,7 +751,12 @@
   function qResume(key) { var i = qFind(key); if (!i || i.status !== 'paused') return; i.status = 'queued'; qEmit(); runQueue(); }
   function qRetry(key) { var i = qFind(key); if (!i || (i.status !== 'error' && i.status !== 'cancelled')) return; i.status = 'queued'; i.error = ''; i.loaded = 0; qEmit(); runQueue(); }
   function qCancel(key) { var i = qFind(key); if (!i) return; if (i.ctrl) i.ctrl.abort(); i.status = 'cancelled'; qEmit(); }
-  function qClearDone() { queue = queue.filter(function (i) { return i.status !== 'done' && i.status !== 'cancelled'; }); qEmit(); }
+  // Everything that isn't still going — errors included, so a failed upload
+  // can't wedge the dock open.
+  function qClearDone() {
+    queue = queue.filter(function (i) { return i.status === 'uploading' || i.status === 'queued' || i.status === 'paused'; });
+    qEmit();
+  }
 
   async function runQueue() {
     if (qRunning) return;
@@ -858,7 +955,7 @@
       S.providerCfg[pid] = Object.assign({}, S.providerCfg[pid] || {}, patch);
       save();
     },
-    // favourites / recents / activity
+    // favorites / recents / activity
     isFav: isFav, toggleFav: toggleFav, touchRecent: touchRecent, logActivity: logActivity,
     // queue
     enqueue: enqueue, queue: function () { return queue; }, onQueue: onQueue,

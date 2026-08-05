@@ -79,7 +79,9 @@
     cog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1"/></svg>',
     chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
     activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
-    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
+    restore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>'
   };
   function kindIcon(k) {
     return ICON[k] || (k === 'folder' ? ICON.folder : ICON.file);
@@ -123,6 +125,11 @@
       '.vcl-search svg{font-size:14px;color:var(--txm);flex:0 0 auto;}',
       '.vcl-search input{flex:1;appearance:none;background:transparent;border:0;outline:0;color:var(--tx);font:400 13px/1 var(--sans);padding:9px 0;min-width:0;}',
       '.vcl-search input::placeholder{color:var(--txm);}',
+      /* Chrome/Edge paint their own clear button on search fields — a blue ✕ that
+         ignores the theme entirely. Suppressed here and replaced by .vcl-clear. */
+      '.vcl-search input::-webkit-search-cancel-button,.vcl-search input::-webkit-search-decoration{-webkit-appearance:none;appearance:none;display:none;}',
+      '.vcl-clear{flex:0 0 auto;appearance:none;border:0;background:transparent;color:var(--txm);cursor:pointer;font-size:13px;display:flex;padding:3px;border-radius:4px;transition:color .16s,background .16s;}',
+      '.vcl-clear:hover{color:var(--ac);background:var(--s3);}',
       '.vcl-ai{flex:0 0 auto;border:0;background:transparent;color:var(--txm);cursor:pointer;font-size:14px;display:flex;padding:2px;transition:color .18s;}',
       '.vcl-ai.on{color:var(--ac);}',
       '.vcl-ai:hover{color:var(--tx);}',
@@ -277,6 +284,23 @@
       '.vcl-btn.gold:hover{border-color:var(--ac);}',
       '.vcl-btn.danger{color:var(--err);border-color:rgba(214,138,124,.32);}',
       '.vcl-btn[disabled]{opacity:.45;cursor:not-allowed;}',
+      '.vcl-btn.sm{padding:8px 13px;font-size:12px;}',
+
+      /* setup modal — fields first, instructions folded away */
+      '.vcl-set-h{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding-top:4px;}',
+      '.vcl-set-h + .vcl-set-h{margin-top:22px;}',
+      '.vcl-set-h .ic{font-size:15px;display:flex;}',
+      '.vcl-set-h .nm{flex:1;font:700 13.5px/1 var(--display);color:var(--tx);letter-spacing:.2px;}',
+      '.vcl-set-h .st{display:inline-flex;align-items:center;gap:5px;font:500 11px/1 var(--sans);color:var(--txm);}',
+      '.vcl-set-h .st i{width:6px;height:6px;border-radius:50%;background:var(--txm);}',
+      '.vcl-set-h .st.on{color:var(--grn);}.vcl-set-h .st.on i{background:var(--grn);}',
+      '.vcl-set-act{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:2px 0 4px;}',
+      '.vcl-link{appearance:none;background:transparent;border:0;color:var(--txm);font:500 11.5px/1 var(--sans);cursor:pointer;padding:6px 2px;text-decoration:underline;text-underline-offset:3px;transition:color .16s;}',
+      '.vcl-link:hover{color:var(--ac);}',
+      '.vcl-help{margin:4px 0 18px;padding:11px 13px;border:1px solid var(--bd);border-radius:var(--radius-sm);background:var(--s2);font:400 11.5px/1.65 var(--sans);color:var(--txm);}',
+      '.vcl-help code{font:500 11px/1.4 var(--mono,"IBM Plex Mono",monospace);color:var(--txd);background:var(--s3);padding:1px 5px;border-radius:3px;word-break:break-all;}',
+      '.vcl-help b{color:var(--txd);font-weight:600;}',
+      '.vcl-set-sep{height:1px;background:var(--bd);margin:20px 0 0;}',
 
       /* preview */
       '.vcl-prev{background:var(--s2);border-radius:var(--radius);overflow:auto;max-height:64vh;display:flex;align-items:center;justify-content:center;}',
@@ -464,7 +488,17 @@
     if (!panel || panel.style.display === 'none') return;
     if (rendering) return;
     rendering = true;
+    // Belt and braces for the paths that still do a full rebuild (clearing the
+    // last character, switching panes): if the search box had focus, put it back
+    // with the caret where it was. Without this the mobile keyboard closes.
+    var act = document.activeElement;
+    var hadFocus = act && act.id === 'vcl-q';
+    var caret = hadFocus ? act.selectionStart : 0;
     try { paint(panel); } finally { rendering = false; }
+    if (hadFocus) {
+      var q = $('vcl-q');
+      if (q) { q.focus(); try { q.setSelectionRange(caret, caret); } catch (e) {} }
+    }
   }
 
   function paint(panel) {
@@ -478,7 +512,7 @@
 
     if (!anyConfigured) { panel.appendChild(setupEmpty()); return; }
 
-    // Favourites, Recent and Activity are Vault's own synced data — they read
+    // Favorites, Recent and Activity are Vault's own synced data — they read
     // fine with no live connection, so the connect prompt and the storage cards
     // (both of which need one) stay on the files pane.
     if (ST.pane !== 'files') { panel.appendChild(buildPane(S)); return; }
@@ -524,11 +558,15 @@
         }
       }));
     });
-    [['favorites', 'Favourites', ICON.star], ['recent', 'Recent', ICON.clock], ['activity', 'Activity', ICON.activity]].forEach(function (t) {
+    [['favorites', 'Favorites', ICON.star], ['recent', 'Recent', ICON.clock],
+     ['trash', 'Trash', ICON.trash], ['activity', 'Activity', ICON.activity]].forEach(function (t) {
       r1.appendChild(el('button', {
         class: 'vcl-chip' + (ST.pane === t[0] ? ' on' : ''),
         html: t[2] + esc(t[1]),
-        onclick: function () { ST.pane = t[0]; clearSel(); render(); }
+        onclick: function () {
+          ST.pane = t[0]; clearSel(); render();
+          if (t[0] === 'trash') loadTrash();
+        }
       }));
     });
     r1.appendChild(el('button', { class: 'vcl-chip', html: ICON.cog + 'Setup', onclick: openSetup }));
@@ -536,21 +574,40 @@
 
     // Row 2 — search + views + actions
     var r2 = el('div', { class: 'vcl-row' });
+    // type=text, not type=search: the native search field paints its own clear
+    // button, which Chrome/Edge render as a blue ✕ that ignores the theme. We
+    // draw our own below.
     var input = el('input', {
-      type: 'search', placeholder: ST.aiMode ? 'Ask about your files…' : 'Search files and folders…',
+      type: 'text', id: 'vcl-q', autocomplete: 'off', autocorrect: 'off', spellcheck: 'false',
+      placeholder: ST.aiMode ? 'Ask about your files…' : 'Search files and folders…',
       value: ST.query, 'aria-label': 'Search cloud files'
+    });
+    var clearBtn = el('button', {
+      class: 'vcl-clear', html: ICON.x, title: 'Clear search', 'aria-label': 'Clear search',
+      style: ST.query ? '' : 'display:none',
+      onclick: function () {
+        ST.query = ''; input.value = ''; ST.aiAnswer = '';
+        clearBtn.style.display = 'none';
+        paintFilters(); loadFolder(ST.provider, ST.folder);
+        input.focus();
+      }
     });
     var searchTimer = null;
     input.addEventListener('input', function () {
       ST.query = input.value;
+      clearBtn.style.display = ST.query ? '' : 'none';
       if (ST.aiMode) return;                       // AI runs on Enter, not per keypress
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(function () { runSearch(); }, 220);
+      // Repaint ONLY the filter row and the file list. A full render() rebuilds
+      // this input, and replacing a focused field mid-word tears down the mobile
+      // keyboard — which is what made typing here impossible on a phone.
+      searchTimer = setTimeout(function () { runSearch(); }, 260);
     });
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runSearch(true); } });
     var search = el('div', { class: 'vcl-search' }, [
       el('span', { html: ICON.search }),
       input,
+      clearBtn,
       el('button', {
         class: 'vcl-ai' + (ST.aiMode ? ' on' : ''), html: ICON.spark,
         title: 'Ask in plain English (AI search)', 'aria-label': 'Toggle AI search',
@@ -604,18 +661,30 @@
       });
       bar.appendChild(cr);
     }
-    if (ST.pane === 'files' && (ST.query || ST.filter.kind || ST.filter.since || ST.filter.provider)) {
-      bar.appendChild(buildFilters());
-    }
+    // Always present, filled or emptied by paintFilters(). If this row were
+    // added/removed by render() the toolbar would rebuild on the first keystroke
+    // — taking the focused search box with it.
+    bar.appendChild(el('div', { class: 'vcl-row scrollx', id: 'vcl-filters' }));
+    setTimeout(paintFilters, 0);
     return bar;
   }
 
-  function buildFilters() {
-    var row = el('div', { class: 'vcl-row scrollx' });
+  function filtersActive() {
+    return !!(ST.query || ST.filter.kind || ST.filter.since || ST.filter.minSize || ST.filter.provider);
+  }
+  function paintFilters() {
+    var row = $('vcl-filters');
+    if (!row) return;
+    if (ST.pane !== 'files' || !filtersActive()) { row.innerHTML = ''; return; }
+    row.innerHTML = '';
+    buildFilters(row);
+  }
+
+  function buildFilters(row) {
     function sel(label, key, opts) {
       var s = el('select', { 'aria-label': label, style: 'appearance:none;background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius-sm);color:var(--txd);font:500 11.5px/1 var(--sans);padding:7px 8px;cursor:pointer;flex:0 0 auto;' });
       opts.forEach(function (o) { s.appendChild(el('option', { value: o[0], text: o[1], selected: String(ST.filter[key]) === String(o[0]) ? 'selected' : null })); });
-      s.addEventListener('change', function () { ST.filter[key] = s.value; render(); });
+      s.addEventListener('change', function () { ST.filter[key] = s.value; renderFilesOnly(); });
       return s;
     }
     var d = 86400000;
@@ -626,9 +695,27 @@
     row.appendChild(sel('Cloud', 'provider', provOpts));
     row.appendChild(el('button', {
       class: 'vcl-chip', text: 'Clear',
-      onclick: function () { ST.filter = { kind: '', since: '', minSize: 0, provider: '' }; ST.query = ''; ST.aiAnswer = ''; render(); loadFolder(ST.provider, ST.folder); }
+      onclick: function () {
+        ST.filter = { kind: '', since: '', minSize: 0, provider: '' };
+        ST.query = ''; ST.aiAnswer = '';
+        var q = $('vcl-q'); if (q) q.value = '';
+        paintFilters(); loadFolder(ST.provider, ST.folder);
+      }
     }));
     return row;
+  }
+
+  // Swap ONLY the file surface. Used by every path that changes what's listed
+  // without changing the toolbar — search, filters, background refresh — so the
+  // search box is never torn down while someone is typing into it.
+  function renderFilesOnly() {
+    var panel = $('vault-cloud-panel');
+    if (!panel || panel.style.display === 'none') return;
+    var host = panel.querySelector('.vcl-files');
+    if (!host) { render(); return; }
+    host.parentNode.replaceChild(buildFiles(vc().settings()), host);
+    paintFilters();
+    if (Object.keys(ST.sel).length) mountSelBar(); else unmountSelBar();
   }
 
   /* ── Storage dashboard ───────────────────────────────────────────────────*/
@@ -649,7 +736,7 @@
       card.appendChild(sub);
 
       // Breakdown is computed from what's loaded, not fetched — a full scan of
-      // every file just to colour a bar isn't worth the API budget.
+      // every file just to color a bar isn't worth the API budget.
       var mine = ST.entries.filter(function (e) { return e.provider === p.id && !e.folder; });
       if (mine.length) {
         var buckets = { image: 0, video: 0, doc: 0, other: 0 };
@@ -790,8 +877,8 @@
     var act = el('div', { class: 'vcl-act' }, [
       compact ? el('span', { class: 'vcl-size', text: e.folder ? '—' : vc().fmtSize(e.size) }) : null,
       el('button', {
-        class: 'vcl-ib' + (fav ? ' on' : ''), html: ICON.star, title: fav ? 'Remove from favourites' : 'Add to favourites',
-        'aria-label': 'Favourite', onclick: function (ev) { ev.stopPropagation(); vc().toggleFav(e); render(); }
+        class: 'vcl-ib' + (fav ? ' on' : ''), html: ICON.star, title: fav ? 'Remove from favorites' : 'Add to favorites',
+        'aria-label': 'Favorite', onclick: function (ev) { ev.stopPropagation(); vc().toggleFav(e); render(); }
       }),
       el('button', {
         class: 'vcl-ib', html: ICON.more, title: 'More', 'aria-label': 'More actions',
@@ -925,7 +1012,7 @@
       promptBox('Rename', 'New name', e.name, 'Rename', function (v) { doRename(e, v); });
     });
     item('Move to…', ICON.folder, function () { openMovePicker([e]); }, { disabled: !p.caps.move });
-    item(fav ? 'Remove favourite' : 'Add to favourites', ICON.star, function () { vc().toggleFav(e); render(); });
+    item(fav ? 'Remove favorite' : 'Add to favorites', ICON.star, function () { vc().toggleFav(e); render(); });
     m.appendChild(el('div', { class: 'div' }));
     item('Copy link', ICON.copy, function () { doShare(e, true); }, { disabled: !p.caps.share });
     item('Share…', ICON.ext, function () { doShare(e, false); }, { disabled: !p.caps.share });
@@ -933,7 +1020,7 @@
     m.appendChild(el('div', { class: 'div' }));
     item('Delete', ICON.x, function () {
       confirmBox('Delete ' + (e.folder ? 'folder' : 'file'),
-        '"' + e.name + '" will be moved to ' + ((p && p.label) || 'the cloud') + '’s trash. You can restore it there.',
+        '"' + e.name + '" moves to ' + ((p && p.label) || 'the cloud') + '’s trash. You can put it back from Vault’s Trash tab.',
         'Delete', function () { doDelete(e); }, true);
     }, { danger: true });
 
@@ -1162,29 +1249,31 @@
 
     if (ST.aiMode) {
       if (!force) return;
-      ST.loading = true; ST.err = ''; render();
+      ST.loading = true; ST.err = ''; renderFilesOnly();
       try {
         // Search the whole connected surface, not just the open folder — "where
         // is my resume" has no useful answer scoped to one directory.
         var pool = await gatherAll();
         var res = await vc().aiSearch(q, pool);
         ST.entries = res.entries; ST.aiAnswer = res.answer; ST.loading = false; render();
-      } catch (e) { ST.loading = false; ST.err = vc().fmtErr(e); render(); }
+      } catch (e) { ST.loading = false; ST.err = vc().fmtErr(e); renderFilesOnly(); }
       return;
     }
 
     // Plain search: providers do it server-side so it reaches beyond what's loaded.
+    // Every repaint here is renderFilesOnly() — a full render() would rebuild the
+    // search box the user is still typing into.
     var seq = ++loadSeq;
-    ST.loading = true; ST.err = ''; render();
+    ST.loading = true; ST.err = ''; renderFilesOnly();
     try {
       var targets = ST.provider ? [vc().get(ST.provider)] : vc().connected();
       var lists = await Promise.all(targets.map(function (p) { return p.search(q).catch(function () { return []; }); }));
       if (seq !== loadSeq) return;
       ST.entries = [].concat.apply([], lists);
-      ST.loading = false; render();
+      ST.loading = false; renderFilesOnly();
     } catch (e) {
       if (seq !== loadSeq) return;
-      ST.loading = false; ST.err = vc().fmtErr(e); render();
+      ST.loading = false; ST.err = vc().fmtErr(e); renderFilesOnly();
     }
   }
 
@@ -1216,12 +1305,13 @@
     return out;
   }
 
-  /* ── Panes: favourites / recent / activity / duplicates ───────────────────*/
+  /* ── Panes: favorites / recent / activity / duplicates ───────────────────*/
   function buildPane(S) {
+    if (ST.pane === 'trash') return buildTrashPane();
     var host = el('div', { class: 'vcl-files', style: 'margin-top:12px' });
     if (ST.pane === 'favorites') {
       var favs = S.favorites || [];
-      host.appendChild(sectionHead('Favourites', favs.length));
+      host.appendChild(sectionHead('Favorites', favs.length));
       if (!favs.length) return host.appendChild(emptyNote('Nothing pinned yet', 'Star a file or folder to keep it here.')), host;
       var box = el('div', { class: 'vcl-list' });
       favs.forEach(function (f) {
@@ -1239,7 +1329,7 @@
             el('div', { class: 'vcl-sub' }, [el('span', { text: (vc().get(f.provider) || {}).label || f.provider })])
           ]),
           el('button', {
-            class: 'vcl-ib on', html: ICON.star, title: 'Remove favourite',
+            class: 'vcl-ib on', html: ICON.star, title: 'Remove favorite',
             onclick: function (ev) { ev.stopPropagation(); vc().toggleFav({ provider: f.provider, id: f.id, name: f.name, folder: f.folder }); render(); }
           })
         ]));
@@ -1310,6 +1400,119 @@
     }
     return host;
   }
+  /* ── Trash ────────────────────────────────────────────────────────────────
+   * Both clouds keep deleted files for a while; this surfaces them in one place
+   * so recovery doesn't mean opening drive.google.com and dropbox.com. Restore
+   * is universal; permanent deletion is Drive-only (see caps.purge). */
+  var trashState = { loading: false, entries: [], err: '' };
+
+  async function loadTrash() {
+    trashState.loading = true; trashState.err = ''; render();
+    try {
+      var provs = vc().connected().filter(function (p) { return p.caps && p.caps.trash; });
+      var lists = await Promise.all(provs.map(function (p) {
+        return p.listTrash().catch(function (e) { console.warn('trash', p.id, e); return []; });
+      }));
+      trashState.entries = [].concat.apply([], lists);
+      trashState.loading = false; render();
+    } catch (e) {
+      trashState.loading = false; trashState.err = vc().fmtErr(e); render();
+    }
+  }
+
+  function buildTrashPane() {
+    var host = el('div', { class: 'vcl-files', style: 'margin-top:12px' });
+    var provs = vc().connected().filter(function (p) { return p.caps && p.caps.trash; });
+
+    var head = el('div', { class: 'vcl-sh' }, [
+      el('span', { class: 't', text: 'Trash' }), el('span', { class: 'ln' }),
+      el('span', { class: 'ct', text: trashState.loading ? 'Loading…' : trashState.entries.length + ' items' })
+    ]);
+    host.appendChild(head);
+
+    var tools = el('div', { class: 'vcl-row', style: 'margin-bottom:10px' });
+    tools.appendChild(el('button', { class: 'vcl-chip', html: ICON.restore + 'Refresh', onclick: loadTrash }));
+    provs.forEach(function (p) {
+      if (!p.caps.emptyTrash) return;
+      tools.appendChild(el('button', {
+        class: 'vcl-chip', html: ICON.trash + 'Empty ' + esc(p.label),
+        style: 'color:var(--err);border-color:rgba(214,138,124,.3)',
+        onclick: function () {
+          confirmBox('Empty ' + p.label + ' trash',
+            'Every file in ' + p.label + '’s trash is deleted permanently. This cannot be undone — not from Vault, and not from ' + p.label + '.',
+            'Delete permanently', async function () {
+              try { await p.emptyTrash(); vc().logActivity('Emptied trash', p.id, p.label); toast(p.label + ' trash emptied'); loadTrash(); }
+              catch (e) { toast(vc().fmtErr(e), true); }
+            }, true);
+        }
+      }));
+    });
+    host.appendChild(tools);
+
+    if (trashState.err) { host.appendChild(el('div', { class: 'vcl-err', text: trashState.err })); return host; }
+    if (trashState.loading) {
+      var sk = el('div', { class: 'vcl-list' });
+      for (var i = 0; i < 4; i++) sk.appendChild(el('div', { class: 'vcl-skel' }));
+      host.appendChild(sk); return host;
+    }
+    if (!provs.length) { host.appendChild(emptyNote('No cloud connected', 'Connect Google Drive or Dropbox to see deleted files.')); return host; }
+    if (!trashState.entries.length) { host.appendChild(emptyNote('Trash is empty', 'Deleted files show up here and can be put back.')); return host; }
+
+    var box = el('div', { class: 'vcl-list' });
+    sortedEntries(trashState.entries).forEach(function (e) {
+      var p = vc().get(e.provider) || { caps: {}, label: e.provider };
+      var sub = el('div', { class: 'vcl-sub' }, [
+        el('span', { text: p.label }),
+        e.size ? el('span', { text: vc().fmtSize(e.size) }) : null,
+        el('span', { text: e.deletedAt ? 'Deleted ' + vc().fmtDate(e.deletedAt) : 'Deleted' })
+      ]);
+      var act = el('div', { class: 'vcl-act' }, [
+        el('button', {
+          class: 'vcl-ib', html: ICON.restore, title: 'Put back', 'aria-label': 'Restore',
+          onclick: async function (ev) {
+            ev.stopPropagation();
+            try {
+              await p.restore(e.id);
+              vc().logActivity('Restored', e.provider, e.name);
+              vc().cacheClear();
+              toast('"' + e.name + '" restored');
+              loadTrash();
+            } catch (er) { toast(vc().fmtErr(er), true); }
+          }
+        }),
+        p.caps.purge ? el('button', {
+          class: 'vcl-ib del', html: ICON.trash, title: 'Delete permanently', 'aria-label': 'Delete permanently',
+          style: 'color:var(--err)',
+          onclick: function (ev) {
+            ev.stopPropagation();
+            confirmBox('Delete permanently',
+              '"' + e.name + '" will be gone for good. This cannot be undone.',
+              'Delete permanently', async function () {
+                try { await p.purge(e.id); vc().logActivity('Permanently deleted', e.provider, e.name); toast('Deleted permanently'); loadTrash(); }
+                catch (er) { toast(vc().fmtErr(er), true); }
+              }, true);
+          }
+        }) : null
+      ]);
+      box.appendChild(el('div', { class: 'vcl-item' }, [
+        el('div', { class: 'vcl-ic', html: kindIcon(vc().kindOf(e)), style: 'opacity:.6' }),
+        el('div', { class: 'vcl-meta' }, [el('div', { class: 'vcl-nm', text: e.name }), sub]),
+        act
+      ]));
+    });
+    host.appendChild(box);
+
+    // Dropbox can't permanently delete from a personal account, so say why the
+    // button isn't there rather than leaving it looking half-built.
+    if (provs.some(function (p) { return !p.caps.purge; })) {
+      host.appendChild(el('div', {
+        style: 'margin-top:10px;font:400 11px/1.6 var(--sans);color:var(--txm)',
+        text: 'Dropbox clears its own trash after 30 days and has no permanent-delete API on personal accounts, so only Put back is offered for its files.'
+      }));
+    }
+    return host;
+  }
+
   function sectionHead(t, n) {
     return el('div', { class: 'vcl-sh' }, [
       el('span', { class: 't', text: t }), el('span', { class: 'ln' }),
@@ -1329,11 +1532,11 @@
       el('span', { class: 'ct', text: sel.length + ' selected' }),
       el('button', { class: 'vcl-chip', html: ICON.upload + 'Download', onclick: function () { sel.forEach(function (e) { if (!e.folder) doDownload(e); }); } }),
       el('button', { class: 'vcl-chip', html: ICON.folder + 'Move', onclick: function () { openMovePicker(sel); } }),
-      el('button', { class: 'vcl-chip', html: ICON.star + 'Favourite', onclick: function () { sel.forEach(function (e) { if (!vc().isFav(e.provider, e.id)) vc().toggleFav(e); }); clearSel(); render(); } }),
+      el('button', { class: 'vcl-chip', html: ICON.star + 'Favorite', onclick: function () { sel.forEach(function (e) { if (!vc().isFav(e.provider, e.id)) vc().toggleFav(e); }); clearSel(); render(); } }),
       el('button', {
         class: 'vcl-chip', html: ICON.x + 'Delete', style: 'color:var(--err);border-color:rgba(214,138,124,.3)',
         onclick: function () {
-          confirmBox('Delete ' + sel.length + ' items', 'They’ll be moved to each cloud’s trash, where you can restore them.', 'Delete', async function () {
+          confirmBox('Delete ' + sel.length + ' items', 'They move to each cloud’s trash. You can put them back from the Trash tab.', 'Delete', async function () {
             for (var i = 0; i < sel.length; i++) {
               try { await vc().op(sel[i].provider, 'remove', [sel[i].id], 'Deleted', sel[i].name); } catch (e) {}
             }
@@ -1418,17 +1621,30 @@
     ]);
   }
 
+  // The dock used to be dismissed by "clear finished", which left it pinned open
+  // forever once anything failed — the X did nothing and there was no other way
+  // to close it. Now X always closes; in-flight uploads keep running in the
+  // background, and a newly queued file brings the dock back.
+  var dockDismissed = false;
+  window.addEventListener('vault-cloud-enqueued', function () { dockDismissed = false; });
+
   function renderDock() {
     var q = vc().queue();
-    var live = q.filter(function (i) { return i.status !== 'done' || Date.now() - (i.doneAt || 0) < 4000; });
     var dock = $('vcl-dock');
-    if (!q.length) { if (dock) dock.remove(); return; }
+    if (!q.length || dockDismissed) { if (dock) dock.remove(); return; }
     if (!dock) { dock = el('div', { class: 'vcl-dock', id: 'vcl-dock' }); document.body.appendChild(dock); }
     var active = q.filter(function (i) { return i.status === 'uploading' || i.status === 'queued'; }).length;
+    var failed = q.filter(function (i) { return i.status === 'error'; }).length;
     dock.innerHTML = '';
     dock.appendChild(el('div', { class: 'vcl-dock-h' }, [
-      el('span', { class: 't', text: active ? 'Uploading ' + active + ' file' + (active > 1 ? 's' : '') : 'Uploads' }),
-      el('button', { class: 'vcl-ib', html: ICON.x, title: 'Clear finished', 'aria-label': 'Clear finished uploads', onclick: function () { vc().qClearDone(); renderDock(); } })
+      el('span', { class: 't', text: active ? 'Uploading ' + active + ' file' + (active > 1 ? 's' : '') : failed ? failed + ' upload' + (failed > 1 ? 's' : '') + ' failed' : 'Uploads' }),
+      failed || q.length > active
+        ? el('button', { class: 'vcl-link', text: 'Clear', title: 'Remove finished and failed', onclick: function () { vc().qClearDone(); renderDock(); } })
+        : null,
+      el('button', {
+        class: 'vcl-ib', html: ICON.x, title: 'Close', 'aria-label': 'Close uploads',
+        onclick: function () { dockDismissed = true; renderDock(); }
+      })
     ]));
     var b = el('div', { class: 'vcl-dock-b' });
     q.slice().reverse().forEach(function (i) {
@@ -1525,10 +1741,6 @@
   function openSetup() {
     var S = vc().settings();
     var body = el('div', {});
-    body.appendChild(el('div', {
-      style: 'font:400 12px/1.6 var(--sans);color:var(--txm);margin-bottom:16px',
-      text: 'Client IDs and app keys are public identifiers, so they sync to your other devices. Access tokens never leave the device that created them.'
-    }));
 
     // Field refs are collected per provider rather than read back by index, so a
     // third provider registering doesn't silently shift what "Save" writes where.
@@ -1543,21 +1755,29 @@
       var idField = el('input', { type: 'text', value: cfg[su.field] || '', placeholder: su.placeholder });
       var urlField = el('input', { type: 'url', value: cfg.openUrl || '', placeholder: su.openPlaceholder });
 
-      body.appendChild(el('div', { class: 'vcl-sh' }, [
-        el('span', { class: 't', html: p.icon + ' ' + esc(p.label), style: 'display:inline-flex;gap:6px;align-items:center' }),
-        el('span', { class: 'ln' }),
-        el('span', { class: 'ct', text: p.connected() ? 'Connected' : p.configured() ? 'Not connected' : 'Not set up' })
+      var live = p.connected();
+      body.appendChild(el('div', { class: 'vcl-set-h' }, [
+        el('span', { class: 'ic', html: p.icon, style: 'color:' + p.accent }),
+        el('span', { class: 'nm', text: p.label }),
+        el('span', { class: 'st' + (live ? ' on' : '') }, [
+          el('i', {}), el('span', { text: live ? 'Connected' : p.configured() ? 'Not connected' : 'Not set up' })
+        ])
       ]));
-      body.appendChild(el('div', { class: 'vcl-fld' }, [
-        el('label', { text: su.label }),
-        idField,
-        el('div', { class: 'hint', html: su.hint(origin, redirect) })
-      ]));
-      body.appendChild(el('div', { class: 'vcl-fld' }, [
-        el('label', { text: '"Open ' + p.label + '" link' }),
-        urlField,
-        el('div', { class: 'hint', text: 'Where the Open button takes you. Change it any time — it syncs instantly.' })
-      ]));
+      body.appendChild(el('div', { class: 'vcl-fld' }, [el('label', { text: su.label }), idField]));
+      body.appendChild(el('div', { class: 'vcl-fld' }, [el('label', { text: 'Open link' }), urlField]));
+
+      // Instructions are collapsed by default. Once you're connected they're
+      // pure clutter — but a new device or a second person setting this up from
+      // scratch still needs them, so they stay one click away rather than gone.
+      var help = el('div', { class: 'vcl-help', style: 'display:none' , html: su.hint(origin, redirect) });
+      var helpBtn = el('button', {
+        class: 'vcl-link', text: 'Setup help',
+        onclick: function () {
+          var open = help.style.display !== 'none';
+          help.style.display = open ? 'none' : '';
+          helpBtn.textContent = open ? 'Setup help' : 'Hide help';
+        }
+      });
 
       // One writer for both Save and Connect — they must never disagree.
       function commit() {
@@ -1567,18 +1787,21 @@
       }
       fields.push(commit);
 
-      var actions = el('div', { style: 'display:flex;gap:7px;margin:-4px 0 18px;flex-wrap:wrap' });
+      var actions = el('div', { class: 'vcl-set-act' });
       actions.appendChild(el('button', {
-        class: 'vcl-btn gold', text: p.connected() ? 'Reconnect' : 'Connect',
+        class: 'vcl-btn gold sm', text: live ? 'Reconnect' : 'Connect',
         onclick: function () { commit(); closeOverlays(); doConnect(p); }
       }));
-      if (p.connected()) {
+      if (live) {
         actions.appendChild(el('button', {
-          class: 'vcl-btn danger', text: 'Disconnect',
+          class: 'vcl-btn danger sm', text: 'Disconnect',
           onclick: function () { p.disconnect(); toast(p.label + ' disconnected'); closeOverlays(); render(); }
         }));
       }
+      actions.appendChild(el('span', { style: 'flex:1' }));
+      actions.appendChild(helpBtn);
       body.appendChild(actions);
+      body.appendChild(help);
     });
 
     modal('Cloud setup', body, [
