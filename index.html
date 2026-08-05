@@ -6334,6 +6334,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
 
     // ── AI Format prompt (per-journal, cross-device synced via its own doc) ──
+    // Legacy single-prompt doc. The AI Tools store below superseded it, but the
+    // write is kept so an older device/tab still picks up AI Format prompt edits,
+    // and the listener still seeds a first-time migration into the new store.
     window._fbSaveBJPrompt = async (prompt) => {
       try {
         await setDoc(doc(db, 'dashboards', 'journal_aiprompt'), { prompt: String(prompt), savedAt: Date.now() });
@@ -6346,6 +6349,27 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           try { localStorage.setItem('docx_aiprompt_bj', JSON.stringify(snap.data().prompt)); } catch(e) {}
           window.dispatchEvent(new CustomEvent('docx-prompt-updated', { detail: { app: 'bj', prompt: snap.data().prompt } }));
         }
+      });
+    } catch(e) {}
+
+    // ── AI Tools (built-in prompts + unlimited custom tools) ──
+    // Stored as a single JSON string so the whole tool set moves atomically and
+    // Firestore never has to model nested arrays. Mirrors the AI-prompt doc's
+    // pattern: write drives the sync pill, snapshot mirrors into localStorage.
+    window._fbSaveBJTools = async (json) => {
+      try {
+        await setDoc(doc(db, 'dashboards', 'journal_aitools'), { tools: String(json), savedAt: Date.now() });
+        window.dispatchEvent(new CustomEvent('fb-bj-prompt-saved'));
+      } catch(e) {
+        console.warn('BJ AI tools save failed:', e.message);
+        window.dispatchEvent(new CustomEvent('fb-bj-error'));
+      }
+    };
+    try {
+      onSnapshot(doc(db, 'dashboards', 'journal_aitools'), (snap) => {
+        if (!snap.exists() || typeof snap.data().tools !== 'string') return;
+        try { localStorage.setItem('docx_aitools_bj', snap.data().tools); } catch(e) {}
+        window.dispatchEvent(new CustomEvent('docx-aitools-updated', { detail: { app: 'bj' } }));
       });
     } catch(e) {}
 
@@ -6791,6 +6815,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
 
     // ── AI Format prompt (per-journal, cross-device synced via its own doc) ──
+    // Legacy single-prompt doc. The AI Tools store below superseded it, but the
+    // write is kept so an older device/tab still picks up AI Format prompt edits,
+    // and the listener still seeds a first-time migration into the new store.
     window._fbSaveTJPrompt = async (prompt) => {
       try {
         await setDoc(doc(db, 'dashboards', 'myjournal_aiprompt'), { prompt: String(prompt), savedAt: Date.now() });
@@ -6804,6 +6831,27 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           try { localStorage.setItem('docx_aiprompt_tj', JSON.stringify(snap.data().prompt)); } catch(e) {}
           window.dispatchEvent(new CustomEvent('docx-prompt-updated', { detail: { app: 'tj', prompt: snap.data().prompt } }));
         }
+      });
+    } catch(e) {}
+
+    // ── AI Tools (built-in prompts + unlimited custom tools) ──
+    // Stored as a single JSON string so the whole tool set moves atomically and
+    // Firestore never has to model nested arrays. Mirrors the AI-prompt doc's
+    // pattern: write drives the sync pill, snapshot mirrors into localStorage.
+    window._fbSaveTJTools = async (json) => {
+      try {
+        await setDoc(doc(db, 'dashboards', 'myjournal_aitools'), { tools: String(json), savedAt: Date.now() });
+        window.dispatchEvent(new CustomEvent('fb-tj-prompt-saved'));
+      } catch(e) {
+        console.warn('TJ AI tools save failed:', e.message);
+        window.dispatchEvent(new CustomEvent('fb-tj-error'));
+      }
+    };
+    try {
+      onSnapshot(doc(db, 'dashboards', 'myjournal_aitools'), (snap) => {
+        if (!snap.exists() || typeof snap.data().tools !== 'string') return;
+        try { localStorage.setItem('docx_aitools_tj', snap.data().tools); } catch(e) {}
+        window.dispatchEvent(new CustomEvent('docx-aitools-updated', { detail: { app: 'tj' } }));
       });
     } catch(e) {}
 
@@ -25219,6 +25267,39 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 .docx-prompt-ta { width: 100%; box-sizing: border-box; min-height: 42vh; max-height: 64vh; resize: vertical; background: #16171B; border: 1px solid #3A3C44; border-radius: 11px; color: #EEEFF4; padding: 16px 18px; font-family: 'DM Sans','Segoe UI',system-ui,sans-serif; font-size: 15px; line-height: 1.65; letter-spacing: .005em; outline: none; box-shadow: inset 0 1px 3px rgba(0,0,0,.35); transition: border-color .15s, box-shadow .15s; }
 .docx-prompt-ta::placeholder { color: #6a6b76; }
 .docx-prompt-ta:focus { border-color: #7d8bff; box-shadow: inset 0 1px 3px rgba(0,0,0,.35), 0 0 0 3px rgba(125,139,255,.16); }
+
+/* ── AI Tools manager (tool list + per-tool prompt editor) ── */
+.docx-ait-body { padding: 14px 16px !important; }
+.docx-ait-wrap { display: flex; gap: 14px; align-items: stretch; min-height: 0; }
+.docx-ait-listcol { flex: 0 0 210px; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.docx-ait-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 56vh; padding-right: 2px; }
+.docx-ait-item { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 9px; color: #d6d7de; padding: 9px 11px; font-family: inherit; font-size: 13px; cursor: pointer; }
+.docx-ait-item:hover { background: rgba(255,255,255,.05); }
+.docx-ait-item.on { background: rgba(150,110,255,.14); border-color: rgba(150,110,255,.42); color: #e7dcff; font-weight: 600; }
+.docx-ait-item .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.docx-ait-item .tag { flex-shrink: 0; font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; opacity: .5; font-weight: 700; }
+.docx-ait-add { background: transparent; border: 1px dashed #4a4b54; border-radius: 9px; color: #b9b9c4; padding: 9px 11px; font-family: inherit; font-size: 12.5px; cursor: pointer; }
+.docx-ait-add:hover { border-color: rgba(150,110,255,.7); color: #d9cbff; background: rgba(150,110,255,.08); }
+.docx-ait-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 11px; }
+.docx-ait-head { display: flex; align-items: center; gap: 9px; }
+.docx-ait-lbl { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; opacity: .5; font-weight: 700; margin: 4px 0 -6px; }
+.docx-ait-name { flex: 1; min-width: 0; background: #16171B; border: 1px solid #3A3C44; border-radius: 9px; color: #EEEFF4; padding: 10px 13px; font-family: inherit; font-size: 15px; font-weight: 600; outline: none; }
+.docx-ait-name:focus { border-color: #7d8bff; box-shadow: 0 0 0 3px rgba(125,139,255,.16); }
+.docx-ait-name[readonly] { opacity: .72; cursor: default; }
+.docx-ait-pane .docx-prompt-note { margin-bottom: 0; }
+.docx-ait-pane .docx-prompt-ta { flex: 1; min-height: 34vh; max-height: 50vh; }
+.docx-ait-actions { display: flex; align-items: center; gap: 8px; }
+.docx-ait-status { flex: 1; min-width: 0; font-size: 11.5px; opacity: .55; }
+.docx-ait-status.busy { color: #c3a7ff; opacity: 1; }
+.docx-ait-status.ok { color: #7fd39a; opacity: 1; }
+.docx-ait-status.err { color: #FF9A9A; opacity: 1; }
+.docx-ai-caret { font-size: 9px; opacity: .75; margin-left: 4px; }
+@media (max-width: 720px) {
+  .docx-ait-wrap { flex-direction: column; }
+  .docx-ait-listcol { flex: 0 0 auto; }
+  .docx-ait-list { max-height: 22vh; }
+  .docx-ait-pane .docx-prompt-ta { min-height: 26vh; }
+}
 .docx-kbd-grid { display: grid; grid-template-columns: 1fr auto; gap: 5px 18px; font-size: 12.5px; }
 .docx-kbd-grid kbd { background: #2C2D33; border: 1px solid #3B3C42; border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px; font-size: 11px; font-family: Consolas, monospace; }
 
@@ -27083,12 +27164,13 @@ function docxToast(msg, isErr) {
   setTimeout(function() { t.style.opacity = '0'; }, 3400);
   setTimeout(function() { t.remove(); }, 3900);
 }
-function aiOverlay() {
+function aiOverlay(tool) {
+  var name = (tool && tool.name) || 'AI Format';
   var v = document.createElement('div');
   v.className = 'docx-veil docx-ai-veil';
   v.innerHTML = '<div class="docx-ai-card"><div class="docx-ai-spin"></div>' +
-    '<div class="docx-ai-msg">Formatting…</div>' +
-    '<div class="docx-ai-sub">Reading &amp; reformatting your document with AI</div></div>';
+    '<div class="docx-ai-msg">' + esc(name) + '…</div>' +
+    '<div class="docx-ai-sub">' + esc('Running ' + name + ' on your document with AI') + '</div></div>';
   document.body.appendChild(v);
   return v;
 }
@@ -27123,27 +27205,205 @@ var AI_DEFAULT_PROMPT = [
   '',
   'Output only the fully formatted document.'
 ].join('\n');
-function aiPromptGet(app) { var v = lsGet('docx_aiprompt_' + app, null); return (typeof v === 'string' && v.trim()) ? v : AI_DEFAULT_PROMPT; }
-function aiPromptSet(app, v) {
-  lsSet('docx_aiprompt_' + app, v);
-  // Push to Firebase immediately so the prompt syncs live across all devices,
-  // driving the header sync pill: Saving… → Synced.
-  var setSync = app === 'tj' ? window._tjSetSync : window._bjSetSync;
-  if (typeof setSync === 'function') setSync('syncing');
-  var fn = app === 'tj' ? window._fbSaveTJPrompt : window._fbSaveBJPrompt;
-  if (typeof fn === 'function') { fn(v); } else if (typeof setSync === 'function') { setSync('synced'); }
+// The built-in AI Refine default prompt. Where AI Format only restructures,
+// Refine is allowed to rewrite the prose itself — while the meaning, facts and
+// intent stay locked.
+var AI_REFINE_DEFAULT_PROMPT = [
+  'You are an expert editor and writing coach.',
+  '',
+  'Your task is to REFINE the provided document: improve both the writing and the presentation, while fully preserving the original meaning, facts, intent, and the author\'s voice.',
+  '',
+  'Improve the writing:',
+  '- Rewrite sentences for clarity and precision. Cut padding, hedging, and redundancy.',
+  '- Improve word choice; replace vague or repeated words with sharper ones.',
+  '- Improve readability: prefer plain, direct language and reasonable sentence length.',
+  '- Improve flow: add natural transitions so ideas connect and paragraphs build on each other.',
+  '- Improve organization: group related ideas together and order them logically.',
+  '- Fix grammar, spelling, punctuation, tense, agreement, and awkward phrasing.',
+  '- Polish the writing overall so it reads as a clean, finished piece.',
+  '',
+  'Preserve absolutely:',
+  '- Every fact, number, name, date, quote, citation, and claim — never invent, guess, or "correct" facts.',
+  '- The original meaning and intent of every passage. Rephrasing is encouraged; changing what is being said is not.',
+  '- The author\'s voice, tone, and point of view (first person stays first person; casual stays casual).',
+  '- All substantive content. Never summarize the document or drop ideas, details, examples, or caveats.',
+  '- Verbatim material: quoted text, code, commands, URLs, equations, and anything that is clearly a direct quotation stays exactly as written.',
+  '',
+  'Improve the formatting where it helps:',
+  '- Choose the best presentation automatically — clean paragraphs for narrative writing; headings, lists, tables, quotes, code blocks only when they genuinely improve readability.',
+  '- Create a logical document structure with clear sections where beneficial.',
+  '- Merge broken lines into proper paragraphs; fix spacing, indentation, numbering, and bullet consistency.',
+  '- Convert content into a table when a table communicates it better.',
+  '- Format ALL mathematics as Markdown math: inline math wrapped in single dollar signs like $E = mc^2$, and block/display equations wrapped in double dollar signs on their own lines like $$ ... $$. Convert any plain-text math into proper LaTeX inside those delimiters. Never leave math unformatted.',
+  '- Do not over-format. Simplicity is preferred. Never wrap the entire document in a code block.',
+  '',
+  'Images:',
+  '- Preserve every image.',
+  '- Move images only if doing so improves document flow, and place each one near the most relevant content.',
+  '- Output reasonable display sizes based on importance (large for primary images, medium for supporting images, small for icons or references).',
+  '- Do not remove, duplicate, or describe images.',
+  '',
+  'Output only the fully refined document — no preamble, no commentary, no notes about what you changed.'
+].join('\n');
+
+// A starter skeleton offered when the user creates their own tool, so a new
+// prompt begins from something that already works with the output contract.
+var AI_CUSTOM_STARTER_PROMPT = [
+  'You are an expert writing assistant.',
+  '',
+  'Describe what this tool should do to the document here.',
+  '',
+  'Rules:',
+  '- Preserve the author\'s meaning, facts, and intent.',
+  '- Preserve every image and link exactly as given.',
+  '- Improve formatting only where it genuinely helps readability.',
+  '',
+  'Output only the resulting document.'
+].join('\n');
+
+/* ═══════════ AI Tools registry ═══════════
+   Two built-in tools plus an unlimited number of user-created ones. Everything
+   the user can change lives in ONE object per journal:
+
+     { prompts: { <builtinId>: '<prompt>' },            // only ids the user edited
+       custom:  [ { id, name, prompt, def } ] }         // def = prompt at creation
+
+   That object is mirrored to localStorage under docx_aitools_<app> and pushed to
+   its own Firestore doc on every change, so adds/renames/edits/deletes/resets all
+   sync the moment they happen. A built-in id missing from `prompts` means "still
+   on the default", which is also what makes the one-time migration from the old
+   single-prompt store work without a flag. */
+var AI_BUILTIN_TOOLS = [
+  { id: 'format', name: 'AI Format', def: AI_DEFAULT_PROMPT,
+    hint: 'Fixes structure and layout only — headings, lists, tables, spacing and math. Your wording is left exactly as you wrote it.' },
+  { id: 'refine', name: 'AI Refine', def: AI_REFINE_DEFAULT_PROMPT,
+    hint: 'Rewrites the writing itself — clarity, wording, flow, grammar and organization — then formats it. Meaning, facts and your voice are preserved.' }
+];
+// Shown on hover. Custom tools get the opening line of their own prompt, so a
+// user-made tool explains itself the same way the built-ins do.
+function aiToolHint(t) {
+  if (t.hint) return t.hint;
+  var first = String(t.prompt || '').split('\n').filter(function(l) { return l.trim(); })[0] || '';
+  if (first.length > 160) first = first.slice(0, 157) + '…';
+  return first ? 'Your AI tool — ' + first : 'Your AI tool.';
 }
 
-var AI_COOLDOWN_MS = 6000;      // safe spacing between AI Format runs (protects the free tier)
+function aiToolsStore(app) {
+  var s = lsGet('docx_aitools_' + app, null);
+  if (!s || typeof s !== 'object' || Array.isArray(s)) s = {};
+  if (!s.prompts || typeof s.prompts !== 'object' || Array.isArray(s.prompts)) s.prompts = {};
+  if (!Array.isArray(s.custom)) s.custom = [];
+  // Migrate the pre-AI-Tools single prompt: it was the AI Format prompt, and it
+  // only counts while the user hasn't set an AI Format prompt in the new store.
+  if (typeof s.prompts.format !== 'string') {
+    var legacy = lsGet('docx_aiprompt_' + app, null);
+    if (typeof legacy === 'string' && legacy.trim()) s.prompts.format = legacy;
+  }
+  s.custom = s.custom.filter(function(t) { return t && t.id; }).map(function(t) {
+    return {
+      id: String(t.id),
+      name: String(t.name || 'Untitled tool'),
+      prompt: String(t.prompt || ''),
+      def: String(t.def != null ? t.def : (t.prompt || ''))
+    };
+  });
+  return s;
+}
+
+// Single write path for EVERY AI-tool change (add / rename / edit / reset /
+// delete). Writes localStorage first so the UI is instant, then pushes the whole
+// store to Firebase and drives the header sync pill Saving… → Synced / Sync Failed.
+function aiToolsSave(app, store) {
+  lsSet('docx_aitools_' + app, store);
+  var setSync = app === 'tj' ? window._tjSetSync : window._bjSetSync;
+  if (typeof setSync === 'function') setSync('syncing');
+  var fn = app === 'tj' ? window._fbSaveTJTools : window._fbSaveBJTools;
+  if (typeof fn === 'function') fn(JSON.stringify(store));
+  else if (typeof setSync === 'function') setSync('synced');
+  // Keep the legacy per-journal prompt doc current too, so a device still running
+  // the old build keeps receiving AI Format prompt edits.
+  var fmt = store.prompts && store.prompts.format;
+  if (typeof fmt === 'string') {
+    lsSet('docx_aiprompt_' + app, fmt);
+    var legacyFn = app === 'tj' ? window._fbSaveTJPrompt : window._fbSaveBJPrompt;
+    if (typeof legacyFn === 'function') legacyFn(fmt);
+  }
+  window.dispatchEvent(new CustomEvent('docx-aitools-changed', { detail: { app: app } }));
+}
+
+// The full ordered tool list: built-ins first, then custom tools in creation order.
+function aiToolList(app) {
+  var s = aiToolsStore(app);
+  var out = AI_BUILTIN_TOOLS.map(function(b) {
+    var p = s.prompts[b.id];
+    return {
+      id: b.id, name: b.name, builtin: true, hint: b.hint, def: b.def,
+      prompt: (typeof p === 'string' && p.trim()) ? p : b.def
+    };
+  });
+  s.custom.forEach(function(t) {
+    out.push({ id: t.id, name: t.name, builtin: false, hint: '', def: t.def, prompt: t.prompt || t.def });
+  });
+  return out;
+}
+function aiToolById(app, id) {
+  var list = aiToolList(app);
+  for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+  return list[0];
+}
+function aiToolNewId() { return 'tool_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function aiToolAdd(app, name, prompt) {
+  var s = aiToolsStore(app);
+  var t = { id: aiToolNewId(), name: String(name || 'Untitled tool').trim() || 'Untitled tool',
+            prompt: String(prompt || ''), def: String(prompt || '') };
+  s.custom.push(t);
+  aiToolsSave(app, s);
+  return t.id;
+}
+function aiToolSetPrompt(app, id, prompt) {
+  var s = aiToolsStore(app);
+  var b = AI_BUILTIN_TOOLS.some(function(x) { return x.id === id; });
+  if (b) s.prompts[id] = String(prompt);
+  else { var t = s.custom.filter(function(x) { return x.id === id; })[0]; if (!t) return; t.prompt = String(prompt); }
+  aiToolsSave(app, s);
+}
+function aiToolRename(app, id, name) {
+  var s = aiToolsStore(app);
+  var t = s.custom.filter(function(x) { return x.id === id; })[0];
+  if (!t) return;                                  // built-in names are fixed
+  t.name = String(name || '').trim() || 'Untitled tool';
+  aiToolsSave(app, s);
+}
+function aiToolDelete(app, id) {
+  var s = aiToolsStore(app);
+  s.custom = s.custom.filter(function(x) { return x.id !== id; });
+  aiToolsSave(app, s);
+}
+// Restore a tool's original prompt: the shipped default for a built-in, the
+// prompt it was created with for a custom tool.
+function aiToolReset(app, id) {
+  var s = aiToolsStore(app);
+  var b = AI_BUILTIN_TOOLS.filter(function(x) { return x.id === id; })[0];
+  if (b) s.prompts[id] = b.def;
+  else { var t = s.custom.filter(function(x) { return x.id === id; })[0]; if (!t) return null; t.prompt = t.def; }
+  aiToolsSave(app, s);
+  return b ? b.def : (s.custom.filter(function(x) { return x.id === id; })[0] || {}).prompt;
+}
+
+var AI_COOLDOWN_MS = 6000;      // safe spacing between AI runs (protects the free tier)
 var _aiBusy = {}, _aiLastRun = {};
 
-// — "Already formatted" tracking --------------------------------------------
-// Every top-level block AI Format writes gets tagged data-ai-fmt="1" plus a
-// content hash (data-ai-hash). On the next whole-document run, a block whose
-// current markup still matches its hash is skipped ENTIRELY — never cloned,
-// never sent to the model, never rewritten — so previously-formatted text,
-// links, and structure cannot be altered by a later run. A block whose markup
-// no longer matches (the user edited it) is treated as new again.
+// — "Already processed" tracking --------------------------------------------
+// Every top-level block an AI tool writes gets tagged data-ai-fmt="1", the id of
+// the tool that wrote it (data-ai-tool), and a content hash (data-ai-hash). On
+// the next whole-document run of THAT SAME tool, a block whose current markup
+// still matches its hash is skipped ENTIRELY — never cloned, never sent to the
+// model, never rewritten — so text it already produced can't be churned by a
+// repeat run. A block whose markup no longer matches (the user edited it), or
+// that was written by a DIFFERENT tool, is treated as new again — that's what
+// lets you run AI Refine over a document AI Format already touched.
+// Blocks from before per-tool tagging carry no data-ai-tool and count as 'format'.
 function _aiHash(s) {
   var h = 5381;
   for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
@@ -27154,22 +27414,24 @@ function _aiNodeHash(node) {
   c.removeAttribute('data-ai-hash');
   return _aiHash(c.outerHTML);
 }
-function _aiMarkNode(node) {
+function _aiMarkNode(node, toolId) {
   if (node.nodeType !== 1) return;
   node.setAttribute('data-ai-fmt', '1');
+  node.setAttribute('data-ai-tool', toolId || 'format');
   node.setAttribute('data-ai-hash', _aiNodeHash(node));
 }
-function _aiIsUnchanged(node) {
-  return !!(node.nodeType === 1 && node.getAttribute('data-ai-fmt') === '1' &&
-    node.getAttribute('data-ai-hash') === _aiNodeHash(node));
+function _aiIsUnchanged(node, toolId) {
+  if (node.nodeType !== 1 || node.getAttribute('data-ai-fmt') !== '1') return false;
+  if ((node.getAttribute('data-ai-tool') || 'format') !== (toolId || 'format')) return false;
+  return node.getAttribute('data-ai-hash') === _aiNodeHash(node);
 }
 // Run-length-encodes the editor's top-level children into alternating
 // {isNew, nodes} groups, so a contiguous run of new content can be sent as
-// one chunk while contiguous already-formatted runs are left untouched.
-function _aiSegmentRuns(ed) {
+// one chunk while contiguous already-processed runs are left untouched.
+function _aiSegmentRuns(ed, toolId) {
   var runs = [];
   Array.prototype.slice.call(ed.childNodes).forEach(function(node) {
-    var isNew = !_aiIsUnchanged(node);
+    var isNew = !_aiIsUnchanged(node, toolId);
     var last = runs[runs.length - 1];
     if (last && last.isNew === isNew) last.nodes.push(node);
     else runs.push({ isNew: isNew, nodes: [node] });
@@ -27232,7 +27494,7 @@ function aiRestoreImages(html, imgs) {
 // clears and the only way out is a page refresh. Aborting guarantees the UI
 // always recovers on its own. Normalizes every failure into a rejection
 // carrying { _timedOut }.
-function _aiPostFormat(app, text, prompt) {
+function _aiPostFormat(app, text, prompt, tool) {
   var AI_TIMEOUT_MS = 90000;
   var ac = new AbortController();
   var timedOut = false;
@@ -27240,7 +27502,10 @@ function _aiPostFormat(app, text, prompt) {
   return fetch(AI_FORMAT_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile: APPS[app].aiProfile, text: text, prompt: prompt }),
+    body: JSON.stringify({
+      profile: APPS[app].aiProfile, text: text, prompt: prompt,
+      tool: (tool && tool.id) || 'format', toolName: (tool && tool.name) || 'AI Format'
+    }),
     signal: ac.signal
   }).then(function(r) {
     return r.json().then(function(d) { d._status = r.status; return d; }).catch(function() { return { ok: false, error: 'bad response', _status: r.status }; });
@@ -27262,39 +27527,48 @@ var AI_SECTION_NOTE = '\n\nIMPORTANT — SECTION MARKERS: the document below is 
 var AI_PARTIAL_NOTE = '\n\nIMPORTANT — PARTIAL DOCUMENT: what follows is ONLY the newly-added or edited content that still needs formatting; everything already formatted has been deliberately left out and is not shown to you. Do not reference, summarize, or recreate anything from the rest of the document — just format exactly what is shown, as it will be reinserted in place.';
 var AI_EXCERPT_NOTE = '\n\nIMPORTANT — SELECTION: what follows is only a SELECTED EXCERPT copied out of a larger document, not the whole thing. Format only this excerpt using the rules above; do not add an introduction, summary, or any remark about it being an excerpt.';
 
-function aiFormat(ctx) {
+/* Single entry point for EVERY AI tool — the two built-ins and every custom
+   tool run through here and differ only by the prompt in `tool`. */
+function aiRunTool(ctx, tool) {
   var ed = ctx.edEl, app = ctx.app;
+  if (!tool) tool = aiToolById(app, 'format');
   if (_docxFeatureLocked(app, 'aiFormat')) { _docxLockedToast(); return; }
   if (_aiBusy[app]) return;
   var since = Date.now() - (_aiLastRun[app] || 0);
   if (since < AI_COOLDOWN_MS) {
-    docxToast('Please wait ' + Math.ceil((AI_COOLDOWN_MS - since) / 1000) + 's before running AI Format again.', true);
+    docxToast('Please wait ' + Math.ceil((AI_COOLDOWN_MS - since) / 1000) + 's before running another AI tool.', true);
     return;
   }
-  // A non-collapsed selection inside this editor -> format ONLY the selection.
+  if (!String(tool.prompt || '').trim()) {
+    docxToast('“' + tool.name + '” has an empty prompt — edit it from AI Tools ▸ Edit prompts.', true);
+    return;
+  }
+  // A non-collapsed selection inside this editor -> process ONLY the selection.
   // Read the MOUSEDOWN-captured selection (savedSelFor), not a live
   // window.getSelection() -- by the time this click handler runs, clicking
   // the button has already shifted focus and cleared/collapsed the live
   // selection (same reason every other toolbar button uses saveSel/restoreSel).
   var r = savedSelFor(ctx);
   if (r && !r.collapsed && ed.contains(r.commonAncestorContainer) && r.toString().trim()) {
-    aiFormatSelection(ctx, r);
+    aiRunSelection(ctx, r, tool);
     return;
   }
-  aiFormatWholeDoc(ctx);
+  aiRunWholeDoc(ctx, tool);
 }
+// Back-compat shim: anything still calling aiFormat() gets the AI Format tool.
+function aiFormat(ctx) { aiRunTool(ctx, aiToolById(ctx.app, 'format')); }
 
-// No selection: format the whole document, but skip any top-level block
-// that's already been AI-formatted and hasn't changed since (see
+// No selection: process the whole document, but skip any top-level block this
+// same tool already produced and that hasn't changed since (see
 // _aiSegmentRuns/_aiIsUnchanged above) — only new/edited runs are sent.
-function aiFormatWholeDoc(ctx) {
+function aiRunWholeDoc(ctx, tool) {
   var ed = ctx.edEl, app = ctx.app;
-  var runs = _aiSegmentRuns(ed);
+  var runs = _aiSegmentRuns(ed, tool.id);
   var newRuns = runs.filter(function(r) { return r.isNew && _aiRunHasContent(r.nodes); });
   var hadSkipped = runs.some(function(r) { return !r.isNew && _aiRunHasContent(r.nodes); });
 
   if (!newRuns.length) {
-    docxToast(hadSkipped ? 'Nothing new to format — already up to date.' : 'Nothing to format — the page is empty.');
+    docxToast(hadSkipped ? 'Nothing new for ' + tool.name + ' — already up to date.' : 'Nothing to process — the page is empty.');
     return;
   }
 
@@ -27309,20 +27583,20 @@ function aiFormatWholeDoc(ctx) {
     ? chunks.map(function(c, i) { return '[[SEC' + i + 'S]]\n' + c.text + '\n[[SEC' + i + 'E]]'; }).join('\n\n')
     : chunks[0].text;
   var allImgs = [].concat.apply([], chunks.map(function(c) { return c.imgs; }));
-  if (!combinedText.trim() && !allImgs.length) { docxToast('Nothing to format — the page is empty.'); return; }
+  if (!combinedText.trim() && !allImgs.length) { docxToast('Nothing to process — the page is empty.'); return; }
 
-  var prompt = aiPromptGet(app) + (hadSkipped ? AI_PARTIAL_NOTE : '') + (multi ? AI_SECTION_NOTE : '');
+  var prompt = tool.prompt + (hadSkipped ? AI_PARTIAL_NOTE : '') + (multi ? AI_SECTION_NOTE : '');
 
   _aiBusy[app] = true; _aiLastRun[app] = Date.now();
-  var overlay = aiOverlay();
+  var overlay = aiOverlay(tool);
   var wasEditable = ed.contentEditable; ed.contentEditable = 'false';   // freeze edits while the request is in flight
-  _aiPostFormat(app, combinedText, prompt).then(function(data) {
+  _aiPostFormat(app, combinedText, prompt, tool).then(function(data) {
     _aiFinish(app, ed, overlay, wasEditable);
     if (data && (data.exhausted || data._status === 429)) {
-      docxToast('AI Format is rate-limited right now (too many requests). Please wait a minute and try again.', true);
+      docxToast(tool.name + ' is rate-limited right now (too many requests). Please wait a minute and try again.', true);
       return;
     }
-    if (!data || !data.ok || !data.html) { docxToast('AI Format failed: ' + ((data && data.error) || 'try again'), true); return; }
+    if (!data || !data.ok || !data.html) { docxToast(tool.name + ' failed: ' + ((data && data.error) || 'try again'), true); return; }
     var restored = aiRestoreImages(data.html, allImgs);
 
     var pieces;
@@ -27331,60 +27605,60 @@ function aiFormatWholeDoc(ctx) {
       for (var i = 0; i < chunks.length; i++) {
         var re = new RegExp('\\[\\[SEC' + i + 'S\\]\\]([\\s\\S]*?)\\[\\[SEC' + i + 'E\\]\\]');
         var m = restored.match(re);
-        if (!m) { docxToast('AI Format couldn\'t process multiple new sections at once — try formatting one section at a time (select it first).', true); return; }
+        if (!m) { docxToast(tool.name + ' couldn\'t process multiple new sections at once — try one section at a time (select it first).', true); return; }
         pieces.push(m[1]);
       }
     } else {
       pieces = [restored];
     }
 
-    ctx.history.commit();          // snapshot the pre-format content (so Undo restores it)
+    ctx.history.commit();          // snapshot the pre-run content (so Undo restores it)
     for (var j = 0; j < newRuns.length; j++) {
       var clean = window._docxCleanHTML(pieces[j]);
       if (window._docxMathify) clean = window._docxMathify(clean);   // $...$ text -> math elements (after sanitize)
       var tmp = document.createElement('div'); tmp.innerHTML = clean;
       var newNodes = Array.prototype.slice.call(tmp.childNodes);
-      newNodes.forEach(function(n) { _aiMarkNode(n); });
+      newNodes.forEach(function(n) { _aiMarkNode(n, tool.id); });
       var run = newRuns[j], anchor = run.nodes[0];
       newNodes.forEach(function(n) { ed.insertBefore(n, anchor); });
       run.nodes.forEach(function(n) { if (n.parentNode === ed) ed.removeChild(n); });
     }
     if (window._docxRenderMath) window._docxRenderMath(ed);   // render any $...$ / $$...$$ math
-    ctx.history.commit();          // snapshot the formatted content (discrete Redo step)
+    ctx.history.commit();          // snapshot the new content (discrete Redo step)
     fireInput(ed);                 // autosave the new content
-    docxToast('Formatted — press Undo to revert.');
+    docxToast(tool.name + ' done — press Undo to revert.');
   }).catch(function(e) {
     _aiFinish(app, ed, overlay, wasEditable);
-    docxToast((e && e._timedOut) ? 'AI Format timed out — please try again.' : 'AI Format failed: network error.', true);
+    docxToast((e && e._timedOut) ? tool.name + ' timed out — please try again.' : tool.name + ' failed: network error.', true);
   });
 }
 
-// Text is selected: format ONLY the selected range in place, leaving
+// Text is selected: process ONLY the selected range in place, leaving
 // everything else in the document completely untouched.
-function aiFormatSelection(ctx, range) {
+function aiRunSelection(ctx, range, tool) {
   var ed = ctx.edEl, app = ctx.app;
   var wrap = document.createElement('div');
   wrap.appendChild(range.cloneContents());
   var extracted = aiExtractFragment(wrap);
-  if (!extracted.text.trim() && !extracted.imgs.length) { docxToast('Nothing selected to format.'); return; }
+  if (!extracted.text.trim() && !extracted.imgs.length) { docxToast('Nothing selected to process.'); return; }
 
-  var prompt = aiPromptGet(app) + AI_EXCERPT_NOTE;
+  var prompt = tool.prompt + AI_EXCERPT_NOTE;
   _aiBusy[app] = true; _aiLastRun[app] = Date.now();
-  var overlay = aiOverlay();
+  var overlay = aiOverlay(tool);
   var wasEditable = ed.contentEditable; ed.contentEditable = 'false';   // freeze edits while the request is in flight
-  _aiPostFormat(app, extracted.text, prompt).then(function(data) {
+  _aiPostFormat(app, extracted.text, prompt, tool).then(function(data) {
     _aiFinish(app, ed, overlay, wasEditable);
     if (data && (data.exhausted || data._status === 429)) {
-      docxToast('AI Format is rate-limited right now (too many requests). Please wait a minute and try again.', true);
+      docxToast(tool.name + ' is rate-limited right now (too many requests). Please wait a minute and try again.', true);
       return;
     }
-    if (!data || !data.ok || !data.html) { docxToast('AI Format failed: ' + ((data && data.error) || 'try again'), true); return; }
+    if (!data || !data.ok || !data.html) { docxToast(tool.name + ' failed: ' + ((data && data.error) || 'try again'), true); return; }
     var restored = aiRestoreImages(data.html, extracted.imgs);
     var clean = window._docxCleanHTML(restored);
     if (window._docxMathify) clean = window._docxMathify(clean);   // $...$ text -> math elements (after sanitize)
-    if (!clean || !clean.trim()) { docxToast('AI Format returned nothing — selection unchanged.', true); return; }
+    if (!clean || !clean.trim()) { docxToast(tool.name + ' returned nothing — selection unchanged.', true); return; }
 
-    ctx.history.commit();          // snapshot the pre-format content (so Undo restores it)
+    ctx.history.commit();          // snapshot the pre-run content (so Undo restores it)
     var tmp = document.createElement('div'); tmp.innerHTML = clean;
     // If it formatted down to a single paragraph, insert its INLINE contents
     // instead of the <p> itself -- the selection's range start/end usually sit
@@ -27397,7 +27671,7 @@ function aiFormatSelection(ctx, range) {
       var inner = document.createElement('div'); inner.innerHTML = tmp.firstElementChild.innerHTML; tmp = inner;
     }
     var newNodes = Array.prototype.slice.call(tmp.childNodes);
-    newNodes.forEach(function(n) { _aiMarkNode(n); });
+    newNodes.forEach(function(n) { _aiMarkNode(n, tool.id); });
     range.deleteContents();
     var frag = document.createDocumentFragment();
     var last = newNodes[newNodes.length - 1];
@@ -27409,48 +27683,286 @@ function aiFormatSelection(ctx, range) {
       endRange.setStartAfter(last); endRange.collapse(true);
       var s = window.getSelection(); s.removeAllRanges(); s.addRange(endRange);
     }
-    ctx.history.commit();          // snapshot the formatted content (discrete Redo step)
+    ctx.history.commit();          // snapshot the new content (discrete Redo step)
     fireInput(ed);                 // autosave the new content
-    docxToast('Formatted selection ✓  — press Undo to revert.');
+    docxToast(tool.name + ' — selection done ✓  press Undo to revert.');
   }).catch(function(e) {
     _aiFinish(app, ed, overlay, wasEditable);
-    docxToast((e && e._timedOut) ? 'AI Format timed out — please try again.' : 'AI Format failed: network error.', true);
+    docxToast((e && e._timedOut) ? tool.name + ' timed out — please try again.' : tool.name + ' failed: network error.', true);
   });
 }
 
-// Editable AI Format prompt (per journal) — opened from the Help menu.
-function aiPromptModal(app) {
+function aiJournalName(app) { return app === 'tj' ? 'MyJournal' : 'Brainstorm Journal'; }
+
+/* ═══════════ AI Tools manager (prompt editor for every tool) ═══════════
+   One modal covers everything the spec asks for: each tool's own prompt, edit
+   at any time, Reset to Default per tool, rename/delete for custom tools, and
+   create new ones. Every mutation goes through aiToolsSave(), so nothing here
+   can end up saved locally but not synced. */
+function aiToolsModal(app, focusId) {
   if (_docxFeatureLocked(app, 'aiPrompt')) { _docxLockedToast(); return; }
-  var veil = modal('AI Format Prompt', function(b) {
-    b.classList.add('docx-prompt-body');
+  var curId = focusId || 'format';
+  var saveTimer = null, dirty = false;
+  var list, pane, statusEl;
+
+  function setStatus(txt, cls) {
+    if (!statusEl) return;
+    statusEl.textContent = txt;
+    statusEl.className = 'docx-ait-status' + (cls ? ' ' + cls : '');
+  }
+  // Report what Firebase actually did rather than assuming the write landed:
+  // the same events that drive the header sync pill drive this label.
+  var savedEvt = app === 'tj' ? 'fb-tj-prompt-saved' : 'fb-bj-prompt-saved';
+  var errEvt   = app === 'tj' ? 'fb-tj-error' : 'fb-bj-error';
+  var onSaved = function() { if (!dirty) setStatus('Saved & synced', 'ok'); };
+  var onErr   = function() { setStatus('Sync failed — saved on this device, will retry', 'err'); };
+  window.addEventListener(savedEvt, onSaved);
+  window.addEventListener(errEvt, onErr);
+
+  function commit(prompt, name) {
+    var t = aiToolById(app, curId);
+    var changed = false;
+    if (!t.builtin && typeof name === 'string' && name !== t.name) { aiToolRename(app, curId, name); changed = true; }
+    if (typeof prompt === 'string' && prompt !== t.prompt) { aiToolSetPrompt(app, curId, prompt); changed = true; }
+    dirty = false;
+    if (changed) setStatus('Saving…', 'busy');   // the sync events above settle it
+    renderList();
+  }
+  function flush() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (!dirty || !pane) return;
+    var ta = pane.querySelector('.docx-prompt-ta');
+    var ni = pane.querySelector('.docx-ait-name');
+    commit(ta ? ta.value : undefined, ni ? ni.value : undefined);
+  }
+  function queueSave() {
+    dirty = true;
+    setStatus('Saving…', 'busy');
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(flush, 600);
+  }
+
+  function renderList() {
+    if (!list) return;
+    list.innerHTML = '';
+    aiToolList(app).forEach(function(t) {
+      var row = document.createElement('button');
+      row.className = 'docx-ait-item' + (t.id === curId ? ' on' : '');
+      row.innerHTML = '<span class="n"></span>' + (t.builtin ? '<span class="tag">Built-in</span>' : '');
+      row.querySelector('.n').textContent = t.name;
+      row.addEventListener('click', function() { flush(); curId = t.id; renderList(); renderPane(); });
+      list.appendChild(row);
+    });
+  }
+
+  function renderPane() {
+    if (!pane) return;
+    var t = aiToolById(app, curId);
+    curId = t.id;
+    pane.innerHTML = '';
+
+    var head = document.createElement('div');
+    head.className = 'docx-ait-head';
+    var nameIn = document.createElement('input');
+    nameIn.className = 'docx-ait-name';
+    nameIn.type = 'text';
+    nameIn.value = t.name;
+    nameIn.spellcheck = false;
+    if (t.builtin) { nameIn.readOnly = true; nameIn.title = 'Built-in tools keep their name; their prompt is fully editable.'; }
+    else {
+      nameIn.addEventListener('input', queueSave);
+      nameIn.addEventListener('blur', flush);
+    }
+    head.appendChild(nameIn);
+    pane.appendChild(head);
+
     var note = document.createElement('div');
     note.className = 'docx-prompt-note';
-    note.innerHTML = 'This prompt tells the AI how to restructure your document. It is saved for <b>' +
-      (app === 'tj' ? 'MyJournal' : 'Brainstorm Journal') + '</b> only and syncs across your devices.';
-    b.appendChild(note);
+    note.innerHTML = (t.hint ? '<b>' + esc(t.hint) + '</b><br>' : '') +
+      'This prompt is what the AI is told to do with your text. Highlight something before running the tool and it works on the selection only; with nothing highlighted it works on the whole document. Saved for <b>' + esc(aiJournalName(app)) +
+      '</b> and synced to every device the moment you change it.';
+    pane.appendChild(note);
+
     var ta = document.createElement('textarea');
     ta.className = 'docx-prompt-ta';
     ta.spellcheck = false;
-    ta.value = aiPromptGet(app);
-    b.appendChild(ta);
-  }, function(f, close) {
+    ta.value = t.prompt;
+    ta.addEventListener('input', queueSave);
+    ta.addEventListener('blur', flush);
+    pane.appendChild(ta);
+
+    var row = document.createElement('div');
+    row.className = 'docx-ait-actions';
+    statusEl = document.createElement('div');
+    statusEl.className = 'docx-ait-status';
+    statusEl.textContent = '';
+    row.appendChild(statusEl);
+
     var reset = document.createElement('button');
-    reset.className = 'docx-btn'; reset.textContent = 'Reset to default';
-    reset.addEventListener('click', function() { f.closest('.docx-modal').querySelector('.docx-prompt-ta').value = AI_DEFAULT_PROMPT; });
-    var save = document.createElement('button');
-    save.className = 'docx-btn pri'; save.textContent = 'Save';
-    save.addEventListener('click', function() {
-      var v = f.closest('.docx-modal').querySelector('.docx-prompt-ta').value;
-      aiPromptSet(app, v);   // writes localStorage + Firebase immediately
-      docxToast('AI Format prompt saved & synced for ' + (app === 'tj' ? 'MyJournal' : 'Brainstorm Journal') + '.');
+    reset.className = 'docx-btn';
+    reset.textContent = 'Reset to default';
+    reset.title = t.builtin ? 'Restore the original built-in prompt.' : 'Restore the prompt this tool was created with.';
+    reset.addEventListener('click', function() {
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      dirty = false;
+      aiToolReset(app, curId);
+      renderPane();
+      setStatus('Reset to default — saving…', 'busy');
+      docxToast('“' + t.name + '” prompt reset to default.');
+    });
+    row.appendChild(reset);
+
+    if (!t.builtin) {
+      var del = document.createElement('button');
+      del.className = 'docx-btn danger';
+      del.textContent = 'Delete tool';
+      del.addEventListener('click', async function() {
+        var ok = await window.uiConfirm('Delete the AI tool “' + t.name + '”? This removes it on every device.', { title: 'Delete AI tool', danger: true });
+        if (!ok) return;
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        dirty = false;
+        aiToolDelete(app, t.id);
+        curId = 'format';
+        renderList(); renderPane();
+        docxToast('“' + t.name + '” deleted & synced.');
+      });
+      row.appendChild(del);
+    }
+    pane.appendChild(row);
+  }
+
+  var veil = modal('AI Tools', function(b) {
+    b.classList.add('docx-ait-body');
+    var wrap = document.createElement('div');
+    wrap.className = 'docx-ait-wrap';
+
+    var col = document.createElement('div');
+    col.className = 'docx-ait-listcol';
+    list = document.createElement('div');
+    list.className = 'docx-ait-list';
+    col.appendChild(list);
+    var add = document.createElement('button');
+    add.className = 'docx-ait-add';
+    add.textContent = '+  New AI tool';
+    add.addEventListener('click', function() {
+      flush();
+      aiAddToolModal(app, function(id) { curId = id; renderList(); renderPane(); });
+    });
+    col.appendChild(add);
+
+    pane = document.createElement('div');
+    pane.className = 'docx-ait-pane';
+
+    wrap.appendChild(col);
+    wrap.appendChild(pane);
+    b.appendChild(wrap);
+    renderList();
+    renderPane();
+  }, function(f, close) {
+    var done = document.createElement('button');
+    done.className = 'docx-btn pri';
+    done.textContent = 'Done';
+    done.addEventListener('click', function() { flush(); close(); });
+    f.style.justifyContent = 'flex-end';
+    f.appendChild(done);
+  });
+  var box = veil.querySelector('.docx-modal');
+  if (box) box.style.width = 'min(960px, 100%)';
+  // The modal can also be dismissed by the X or the backdrop, which never runs
+  // our close handler — watch for its removal so the listeners don't leak.
+  var obs = new MutationObserver(function() {
+    if (veil.isConnected) return;
+    window.removeEventListener(savedEvt, onSaved);
+    window.removeEventListener(errEvt, onErr);
+    obs.disconnect();
+  });
+  obs.observe(document.body, { childList: true });
+  return veil;
+}
+
+/* Create a custom tool. Name + prompt only — everything else about it behaves
+   exactly like a built-in. */
+function aiAddToolModal(app, onCreated) {
+  if (_docxFeatureLocked(app, 'aiPrompt')) { _docxLockedToast(); return; }
+  var veil = modal('Add AI Tool', function(b) {
+    b.classList.add('docx-prompt-body');
+    var note = document.createElement('div');
+    note.className = 'docx-prompt-note';
+    note.innerHTML = 'Give the tool a name and tell the AI what to do with your document. It appears in the <b>AI Tools</b> menu right away and syncs to all your devices.';
+    b.appendChild(note);
+
+    var lbl = document.createElement('div');
+    lbl.className = 'docx-ait-lbl';
+    lbl.textContent = 'Tool name';
+    b.appendChild(lbl);
+    var nameIn = document.createElement('input');
+    nameIn.className = 'docx-ait-name docx-ait-newname';
+    nameIn.type = 'text';
+    nameIn.placeholder = 'e.g. Summarize, Make Concise, Translate to Spanish';
+    nameIn.spellcheck = false;
+    b.appendChild(nameIn);
+
+    var lbl2 = document.createElement('div');
+    lbl2.className = 'docx-ait-lbl';
+    lbl2.textContent = 'AI prompt';
+    b.appendChild(lbl2);
+    var ta = document.createElement('textarea');
+    ta.className = 'docx-prompt-ta';
+    ta.spellcheck = false;
+    ta.value = AI_CUSTOM_STARTER_PROMPT;
+    b.appendChild(ta);
+    setTimeout(function() { nameIn.focus(); }, 40);
+  }, function(f, close) {
+    var create = document.createElement('button');
+    create.className = 'docx-btn pri';
+    create.textContent = 'Create tool';
+    create.addEventListener('click', function() {
+      var box = f.closest('.docx-modal');
+      var name = box.querySelector('.docx-ait-newname').value.trim();
+      var prompt = box.querySelector('.docx-prompt-ta').value;
+      if (!name) { docxToast('Give the tool a name first.', true); return; }
+      if (!prompt.trim()) { docxToast('Give the tool a prompt first.', true); return; }
+      var id = aiToolAdd(app, name, prompt);
+      docxToast('“' + name + '” added & synced.');
       close();
+      if (typeof onCreated === 'function') onCreated(id);
     });
     f.style.justifyContent = 'flex-end';
-    f.appendChild(reset); f.appendChild(save);
+    f.appendChild(create);
   });
-  // Make this modal a touch wider for comfortable prompt editing.
   var box = veil.querySelector('.docx-modal');
   if (box) box.style.width = 'min(760px, 100%)';
+}
+
+/* The AI Tools dropdown: every tool, then create/manage. Shared by the ribbon
+   button and the Tools menu so both stay in lockstep. */
+function aiToolsMenuInto(p, ctx) {
+  var app = ctx.app;
+  // Whether a run is selection-only is decided at click time by aiRunTool, but
+  // say so up front so the hover text matches what pressing it will do.
+  var r = savedSelFor(ctx);
+  var hasSel = !!(r && !r.collapsed && ctx.edEl.contains(r.commonAncestorContainer) && r.toString().trim());
+  var scope = hasSel ? '\n\nRuns on your highlighted text only.' : '\n\nNothing highlighted — runs on the whole document.';
+  p.appendChild(mlabel('AI Tools' + (hasSel ? ' · selection' : '')));
+  aiToolList(app).forEach(function(t) {
+    var item = mi(t.name, function() { aiRunTool(ctx, aiToolById(app, t.id)); });
+    item.title = aiToolHint(t) + scope;
+    if (_docxFeatureLocked(app, 'aiFormat')) item.classList.add('docx-feature-locked');
+    p.appendChild(item);
+  });
+  p.appendChild(msep());
+  var add = mi('Add AI Tool…', function() { aiAddToolModal(app); });
+  add.title = 'Create your own AI tool: give it a name and a prompt. It appears in this menu and syncs to all your devices.';
+  var edit = mi('Edit prompts…', function() { aiToolsModal(app); });
+  edit.title = 'Edit any tool\'s prompt, rename or delete your own tools, or reset a prompt back to its default.';
+  if (_docxFeatureLocked(app, 'aiPrompt')) { add.classList.add('docx-feature-locked'); edit.classList.add('docx-feature-locked'); }
+  p.appendChild(add);
+  p.appendChild(edit);
+}
+// NOTE: the selection was already captured on the anchor's mousedown — don't
+// call saveSel() here or the (now collapsed) post-click selection overwrites it.
+function aiToolsPop(ctx, anchor) {
+  showPop(anchor, function(p) { aiToolsMenuInto(p, ctx); });
 }
 
 /* ═══════════ Ribbon / menubar construction ═══════════ */
@@ -27629,9 +28141,8 @@ function buildMenubar(ctx) {
     p.appendChild(mi('Page setup…', function() { pageSetupModal(app); }));
   });
   menu('Tools', function(p) {
-    var aiMi = mi('AI Format', function() { aiFormat(ctx); });
-    if (_docxFeatureLocked(app, 'aiFormat')) aiMi.classList.add('docx-feature-locked');
-    p.appendChild(aiMi);
+    aiToolsMenuInto(p, ctx);
+    p.appendChild(msep());
     if (ctx.mdEl) {
       var mdMi = mi('Render Markdown', function() { ctx.mdEl.click(); });
       if (_docxFeatureLocked(app, 'renderMarkdown')) mdMi.classList.add('docx-feature-locked');
@@ -27658,11 +28169,8 @@ function buildMenubar(ctx) {
     p.appendChild(msep());
     p.appendChild(mi('Toggle header row', function() { restoreSel(ctx); tblToggleHeader(ctx); }));
   });
+  // The AI prompt editor moved out of Help and into the AI Tools menu.
   menu('Help', function(p) {
-    var promptMi = mi('AI Format prompt…', function() { aiPromptModal(app); });
-    if (_docxFeatureLocked(app, 'aiPrompt')) promptMi.classList.add('docx-feature-locked');
-    p.appendChild(promptMi);
-    p.appendChild(msep());
     p.appendChild(mi('Keyboard shortcuts', shortcutsModal));
   });
   ctx.tbEl.insertBefore(bar, ctx.tbEl.firstChild);
@@ -27705,17 +28213,22 @@ function setBtnIcon(btn, paths) {
 
 function injectRibbonExtras(ctx) {
   var tb = ctx.tbEl;
-  // ── AI Format + Undo / Redo / Print at the very start (after menubar) ──
+  // ── AI Tools + Undo / Redo / Print at the very start (after menubar) ──
   var startFrag = document.createDocumentFragment();
-  var aiB = ptBtn(svg(IC.ai) + '<span class="docx-ai-lbl" style="margin-left:4px;font-weight:600;">AI Format</span>', 'AI Format — clean up formatting with AI');
+  var aiB = ptBtn(svg(IC.ai) + '<span class="docx-ai-lbl" style="margin-left:4px;font-weight:600;">AI Tools</span>' +
+                  '<span class="docx-ai-caret">▾</span>',
+                  'AI Tools — AI Format, AI Refine, or your own tools.\nHighlight text to run on the selection only; highlight nothing to run on the whole document.');
   aiB.className = 'pt-btn docx-ai-btn docx-r1';
   if (_docxFeatureLocked(ctx.app, 'aiFormat')) { aiB.classList.add('docx-feature-locked'); aiB.title = 'This feature has been disabled on your journal.'; }
   // Clicking the button steals focus from the editor, which clears/collapses
   // window.getSelection() before the click handler runs -- so a text
   // selection must be captured on mousedown (same pattern as every other
-  // toolbar button) or aiFormat(ctx) always sees "no selection".
+  // toolbar button) or aiRunTool(ctx) always sees "no selection".
   aiB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
-  aiB.addEventListener('click', function() { aiFormat(ctx); });
+  aiB.addEventListener('click', function() {
+    if (openPop && openPop._btn === aiB) { closePop(); return; }
+    aiToolsPop(ctx, aiB);
+  });
   var undoB = ptBtn(svg(IC.undo), 'Undo (Ctrl+Z)');
   undoB.classList.add('pt-disabled', 'docx-r1');
   undoB.addEventListener('click', function() { if (!undoB.classList.contains('pt-disabled')) ctx.history.undo(); });

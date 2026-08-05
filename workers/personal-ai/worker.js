@@ -300,7 +300,9 @@ async function geminiOnce(model, key, o, timeoutMs) {
     return { cls: finish && finish !== 'STOP' ? 'next' : 'retry', err: `${model}: empty (${finish || '?'})` };
   }
   try { return { cls: 'ok', value: JSON.parse(text) }; } catch (e) { /* fall through */ }
-  const salvaged = salvageJson(text);
+  // Feature-specific truncation rescue (actions array by default; journal
+  // formatting passes its own, since a cut-off document salvages differently).
+  const salvaged = (o.salvage || salvageJson)(text);
   if (salvaged) return { cls: 'ok', value: salvaged };
   return { cls: 'retry', err: `${model}: unparseable output` };
 }
@@ -1135,6 +1137,45 @@ const FORMAT_SCHEMA = {
   required: ['html'],
 };
 
+// Rescue a document response that hit the token ceiling mid-string. The JSON is
+// unparseable, but everything before the cut is real formatted HTML — returning
+// it (the editor only replaces the blocks it sent) beats failing the whole run.
+// Only accepted when a worthwhile amount came back and no tag is left dangling.
+function salvageHtml(text) {
+  const at = text.indexOf('"html"');
+  if (at < 0) return null;
+  const open = text.indexOf('"', text.indexOf(':', at) + 1);
+  if (open < 0) return null;
+  let out = '', esc = false;
+  for (let i = open + 1; i < text.length; i++) {
+    const c = text[i];
+    if (esc) {
+      out += c === 'n' ? '\n' : c === 't' ? '\t' : c === 'r' ? '\r' : c === 'u' ? '' : c;
+      if (c === 'u') { out += String.fromCharCode(parseInt(text.slice(i + 1, i + 5), 16) || 0); i += 4; }
+      esc = false; continue;
+    }
+    if (c === '\\') { esc = true; continue; }
+    if (c === '"') { out = ''; break; }   // string closed cleanly → it wasn't truncated; let JSON.parse own it
+    out += c;
+  }
+  const cut = out.lastIndexOf('>');       // drop a half-written trailing tag
+  if (cut > 0) out = out.slice(0, cut + 1);
+  return out.trim().length > 200 ? { html: out } : null;
+}
+
+// Document formatting is the slowest job this worker runs: a full page of prose
+// can take 20-40s on the flagship, far past the 15s default per-attempt timeout
+// that the interactive voice features want. Scale the per-attempt budget with the
+// document, and keep the whole chain inside one wall-clock deadline that lands
+// comfortably before the client's 90s abort — so a slow model falls through to
+// the next one instead of the user watching the spinner until it gives up.
+function formatBudgets(len) {
+  if (len > 40000) return { timeoutMs: 58000, deadlineMs: 78000 };
+  if (len > 12000) return { timeoutMs: 42000, deadlineMs: 76000 };
+  if (len > 3000)  return { timeoutMs: 30000, deadlineMs: 72000 };
+  return { timeoutMs: 22000, deadlineMs: 66000 };
+}
+
 async function handleFormat(body, env) {
   const profile = body.profile === 'veda' ? 'veda' : 'tony';
   const text = String(body.text || '').trim();
@@ -1144,18 +1185,29 @@ async function handleFormat(body, env) {
   const key = keyFor(env, profile);
   if (!key) return json({ ok: false, error: `no Gemini key configured for ${profile}` }, 500);
 
+  // One pipeline for AI Format, AI Refine and every user-created tool — they
+  // differ only by the prompt the client sends. `tool` is carried for logging.
+  const tool = String(body.tool || 'format').slice(0, 60);
   const prompt = buildFormatPrompt(clipped, body.prompt);
-  let lastErr = null, quota = false;
-  for (const model of MODELS) {
-    try {
-      const out = await callGemini(model, key, { prompt, schema: FORMAT_SCHEMA, maxOutputTokens: 65536, feature: 'journal' });
-      if (out && typeof out.html === 'string' && out.html.trim()) return json({ ok: true, html: out.html, model });
-    } catch (e) {
-      lastErr = e.message || String(e);
-      if (/\b429\b|quota|resource_exhausted|exhaust/i.test(lastErr)) quota = true;
-    }
+  const { timeoutMs, deadlineMs } = formatBudgets(clipped.length);
+
+  try {
+    const { value, model, tried, soft } = await runModelChain(MODELS, key, {
+      prompt,
+      schema: FORMAT_SCHEMA,
+      maxOutputTokens: 65536,
+      feature: 'journal',
+      timeoutMs,
+      deadlineMs,
+      salvage: salvageHtml,
+      validate: v => !!(v && typeof v.html === 'string' && v.html.trim()),
+    });
+    return json({ ok: true, html: value.html, model, tool, tried, salvaged: !!soft });
+  } catch (e) {
+    const err = (e && e.message) || 'all models failed';
+    const quota = /\b429\b|quota|resource_exhausted|exhaust/i.test(err);
+    return json({ ok: false, error: err, tool, tried: (e && e.tried) || [], exhausted: quota }, quota ? 429 : 502);
   }
-  return json({ ok: false, error: lastErr || 'all models failed', exhausted: quota }, quota ? 429 : 502);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2389,7 +2441,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 14, // bump when verifying a deploy went live
+        version: 15, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'journal', 'watch', 'watch-ingest'],
         models: MODELS,
         listModels: LIST_MODELS,
