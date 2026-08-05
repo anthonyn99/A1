@@ -694,10 +694,15 @@
     var box = el('div', { class: 'vcl-tree' });
     var p = vc().get(ST.provider);
     if (!p) return box;
-    box.appendChild(treeNode({ id: p.rootId, name: p.label, folder: true, provider: p.id }, 0));
+    box.appendChild(treeNode({ id: p.rootId, name: p.label, folder: true, provider: p.id }, 0, []));
     return box;
   }
-  function treeNode(entry, depth) {
+  // `ancestors` is the real path from the provider root down to (not including)
+  // this node. The breadcrumb is rebuilt from it on click rather than appended
+  // to, because the tree already knows the full path — deriving it from whatever
+  // trail happened to be current left stale crumbs behind (open a folder, then
+  // click the tree root: you'd get "All clouds › <that folder> › Google Drive").
+  function treeNode(entry, depth, ancestors) {
     var key = entry.provider + '|' + entry.id;
     var open = !!ST.treeOpen[key];
     var wrap = el('div', {});
@@ -715,9 +720,7 @@
           }
           render(); return;
         }
-        var idx = ST.trail.map(function (t) { return t.id; }).indexOf(entry.id);
-        if (idx >= 0) ST.trail = ST.trail.slice(0, idx + 1);
-        else ST.trail.push({ id: entry.id, name: entry.name, provider: entry.provider });
+        ST.trail = ancestors.concat([{ id: entry.id, name: entry.name, provider: entry.provider }]);
         navTo(entry.provider, entry.id, entry.name, false);
       }
     }, [tw, el('span', { html: ICON.folder, style: 'font-size:13px;color:var(--ac);display:flex' }), el('span', { class: 'nm', text: entry.name })]);
@@ -729,7 +732,10 @@
       var kw = el('div', { class: 'vcl-tkids' });
       if (!kids) kw.appendChild(el('div', { class: 'vcl-tnode', text: 'Loading…', style: 'color:var(--txm)' }));
       else if (!kids.length) kw.appendChild(el('div', { class: 'vcl-tnode', text: 'No folders', style: 'color:var(--txm)' }));
-      else kids.forEach(function (k) { kw.appendChild(treeNode(k, depth + 1)); });
+      else {
+        var below = ancestors.concat([{ id: entry.id, name: entry.name, provider: entry.provider }]);
+        kids.forEach(function (k) { kw.appendChild(treeNode(k, depth + 1, below)); });
+      }
       wrap.appendChild(kw);
     }
     return wrap;

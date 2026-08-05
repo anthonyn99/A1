@@ -495,10 +495,18 @@
     api: async function (endpoint, body, _retried) {
       var t = Tokens.get('dropbox');
       if (!t) throw new Error('Dropbox is not connected.');
+      var noArgs = (body === null || body === undefined);
+      var headers = { Authorization: 'Bearer ' + t.access };
+      // Argument-less RPC endpoints (users/get_space_usage) must be sent with NO
+      // Content-Type at all. Dropbox doesn't treat an absent body as "no args" —
+      // it sees the JSON content type, tries to parse the empty body and 400s
+      // with "could not decode input as JSON", which surfaces here as a storage
+      // card that reads "Storage unavailable" while every other call works.
+      if (!noArgs) headers['Content-Type'] = 'application/json';
       var r = await fetch('https://api.dropboxapi.com/2' + endpoint, {
         method: 'POST',
-        headers: { Authorization: 'Bearer ' + t.access, 'Content-Type': 'application/json' },
-        body: body === null ? null : JSON.stringify(body)
+        headers: headers,
+        body: noArgs ? null : JSON.stringify(body)
       });
       if (r.status === 401 && !_retried && await this.refresh()) return this.api(endpoint, body, true);
       if (!r.ok) {
