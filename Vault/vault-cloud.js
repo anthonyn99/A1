@@ -64,7 +64,8 @@
   // One object, mirrored to dashboards/vault_cloud. Written through save(),
   // which debounces via _fbSaveCloud and drives the sync indicator.
   var DEFAULTS = {
-    hdrOrder: null,          // header button order — null = file order
+    hdrOrder: null,          // header action button order — null = file order
+    tabOrder: null,          // Vault tab bar order — null = file order
     view: 'list',            // list | grid | compact
     sortKey: 'name',         // name | modified | created | size | type
     sortDir: 'asc',

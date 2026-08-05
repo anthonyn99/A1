@@ -2753,17 +2753,21 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
 <script src="Vault/vault-id-files.js"></script>
 <script src="Vault/vault-store.js"></script>
 <script src="Vault/vault-session.js"></script>
-<!-- ══ Header button reorder ═══════════════════════════════════════════════════
-     Drag the header actions into whatever order you like; the result is written
-     to dashboards/vault_cloud (hdrOrder) the moment you drop, so every signed-in
-     device re-orders live through the same onSnapshot listener.
+<!-- Loads before vault-cloud.js and vault-ui.js: both the header block below and
+     vault-ui's injectShell() mount VaultDrag as they run. -->
+<script src="Vault/vault-drag.js"></script>
+<!-- ══ Header action reorder ═══════════════════════════════════════════════════
+     The header actions use the SAME drag module as the tab bar (Vault/vault-drag.js),
+     so both strips behave identically: mouse arms after 5px, touch on a 320ms
+     long press, edge auto-scroll while dragging. Order is written to
+     dashboards/vault_cloud (hdrOrder) on drop and lands on every other device
+     through its onSnapshot listener.
 
-     Ported from Insight's nav drag — same gestures deliberately, so the two apps
-     feel identical: a mouse arms after 5px of movement, touch arms on a 320ms
-     long press so an ordinary swipe still scrolls the strip. -->
+     data-hk marks a button as re-orderable — a future header button needs no
+     extra wiring, just the attribute. -->
 <style>
-  #kc-hbar-actions .kc-hbtn { touch-action: manipulation; }
-  #kc-hbar-actions .kc-hbtn.hdrag {
+  #kc-hbar-actions .kc-hbtn { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+  #kc-hbar-actions .kc-hbtn.vdrag {
     z-index: 5; cursor: grabbing; opacity: .97;
     border-color: var(--ac); color: var(--ac);
     box-shadow: 0 10px 26px var(--shadow);
@@ -2772,130 +2776,29 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
 <script>
 (function () {
   var nav = document.getElementById('kc-hbar-actions');
-  if (!nav) return;
+  if (!nav || !window.VaultDrag) return;
 
-  function keys() {
-    return Array.prototype.map.call(nav.querySelectorAll('[data-hk]'), function (b) { return b.getAttribute('data-hk'); });
+  window.VaultDrag.enable(nav, {
+    item: '[data-hk]',
+    key: 'data-hk',
+    onDrop: function (order) {
+      if (!window.VaultCloud) return;
+      window.VaultCloud.settings().hdrOrder = order;
+      window.VaultCloud.save();
+    }
+  });
+
+  function apply(s) {
+    if (!s || !s.hdrOrder) return;
+    if (nav.querySelector('.vdrag')) return;          // don't yank a button mid-drag
+    window.VaultDrag.applyOrder(nav, '[data-hk]', 'data-hk', s.hdrOrder);
   }
-
-  // Apply a saved order. Unknown keys are dropped and missing ones appended, so
-  // an order saved by a build with more (or fewer) buttons can never hide one.
-  function applyOrder(order) {
-    if (!Array.isArray(order) || !order.length) return;
-    var have = {};
-    Array.prototype.forEach.call(nav.querySelectorAll('[data-hk]'), function (b) { have[b.getAttribute('data-hk')] = b; });
-    order.forEach(function (k) { if (have[k]) { nav.appendChild(have[k]); delete have[k]; } });
-    Object.keys(have).forEach(function (k) { nav.appendChild(have[k]); });
-  }
-
-  function saveOrder() {
-    if (!window.VaultCloud) return;
-    window.VaultCloud.settings().hdrOrder = keys();
-    window.VaultCloud.save();
-  }
-
-  // The settings store is the single source of truth for the order — subscribing
-  // means a reorder on another device lands here without any extra plumbing.
   function bind() {
     if (!window.VaultCloud) { setTimeout(bind, 150); return; }
-    applyOrder(window.VaultCloud.settings().hdrOrder);
-    window.VaultCloud.onChange(function (s) { if (!dragging) applyOrder(s.hdrOrder); });
+    apply(window.VaultCloud.settings());
+    window.VaultCloud.onChange(apply);
   }
   bind();
-
-  var d = null, dragging = false, holdTimer = null;
-
-  // FLIP in layout coordinates, not viewport rects: the row can be scrolled, and
-  // a viewport-based delta would fold the scroll jump into the animation.
-  function flipX(mutate, node) {
-    var before = node.offsetLeft;
-    mutate();
-    var after = node.offsetLeft;
-    var dx = before - after;
-    if (!dx) return;
-    node.style.transition = 'none';
-    node.style.transform = 'translateX(' + dx + 'px)';
-    requestAnimationFrame(function () {
-      node.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
-      node.style.transform = '';
-    });
-  }
-
-  function follow(x) { d.btn.style.transform = 'translateX(' + (x - d.grabX) + 'px)'; }
-
-  function checkSwap(x) {
-    var kids = nav.querySelectorAll('[data-hk]');
-    for (var i = 0; i < kids.length; i++) {
-      var other = kids[i];
-      if (other === d.btn) continue;
-      var r = other.getBoundingClientRect();
-      if (x < r.left || x > r.right) continue;
-      var mid = r.left + r.width / 2;
-      var otherIsBefore = !!(d.btn.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
-      if (x < mid && otherIsBefore) nav.insertBefore(d.btn, other);
-      else if (x > mid && !otherIsBefore) nav.insertBefore(d.btn, other.nextSibling);
-      else continue;
-      d.grabX = x;
-      d.btn.style.transform = 'translateX(0px)';
-      break;
-    }
-  }
-
-  function startDrag(e) {
-    dragging = true; d.dragging = true;
-    d.grabX = e.clientX;
-    d.btn.style.transition = '';
-    d.btn.classList.add('hdrag');
-    try { d.btn.setPointerCapture(d.id); } catch (er) {}
-  }
-
-  function cleanup() {
-    if (!d) return;
-    var b = d.btn;
-    b.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
-    b.style.transform = '';
-    setTimeout(function () { b.style.transition = ''; }, 180);
-    b.classList.remove('hdrag');
-    clearTimeout(holdTimer); holdTimer = null;
-    d = null; dragging = false;
-  }
-
-  nav.addEventListener('pointerdown', function (e) {
-    var btn = e.target.closest('[data-hk]');
-    if (!btn || e.button > 0) return;
-    d = { btn: btn, id: e.pointerId, startX: e.clientX, startY: e.clientY, dragging: false, moved: false, touch: e.pointerType === 'touch' };
-    if (d.touch) holdTimer = setTimeout(function () { holdTimer = null; if (d) startDrag(e); }, 320);
-  });
-
-  nav.addEventListener('pointermove', function (e) {
-    if (!d || e.pointerId !== d.id) return;
-    if (!d.dragging) {
-      var dx = Math.abs(e.clientX - d.startX), dy = Math.abs(e.clientY - d.startY);
-      if (d.touch) { if (dx > 8 || dy > 8) cleanup(); return; }   // a swipe — let it scroll
-      if (dx < 5) return;
-      startDrag(e);
-    }
-    d.moved = true;
-    follow(e.clientX);
-    checkSwap(e.clientX);
-  });
-
-  // Non-passive so an armed drag can stop the row scrolling under the finger.
-  nav.addEventListener('touchmove', function (e) { if (d && d.dragging) e.preventDefault(); }, { passive: false });
-
-  function endDrag(e) {
-    if (!d || (e && e.pointerId !== d.id)) return;
-    var wasDrag = d.dragging && d.moved;
-    var btn = d.btn;
-    cleanup();
-    if (!wasDrag) return;
-    // Swallow the click that follows the drop, or releasing over a button fires
-    // its action as well as reordering.
-    btn.addEventListener('click', function swallow(ev) { ev.stopPropagation(); ev.preventDefault(); btn.removeEventListener('click', swallow, true); }, true);
-    setTimeout(function () { saveOrder(); }, 0);
-  }
-  nav.addEventListener('pointerup', endDrag);
-  nav.addEventListener('pointercancel', endDrag);
 })();
 </script>
 

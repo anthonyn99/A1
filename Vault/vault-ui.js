@@ -350,6 +350,7 @@
       tabBtn('sensitive', 'Sensitive Info', VI.archive), tabBtn('cloud', 'Cloud', cloudIcon()),
     ]);
     if (hbar && hbar.nextSibling) root.insertBefore(tabs, hbar.nextSibling); else root.appendChild(tabs);
+    enableTabReorder(tabs);
     var pwPanel = el('div', { id: 'vault-pw-panel', class: 'vault-panel' });
     var payPanel = el('div', { id: 'vault-payments-panel', class: 'vault-panel', style: 'display:none' });
     var idPanel = el('div', { id: 'vault-iddocs-panel', class: 'vault-panel', style: 'display:none' });
@@ -366,6 +367,39 @@
     var lock = el('div', { id: 'vault-lock', class: 'vault-lock', style: 'display:none' });
     pwPanel.appendChild(lock);
   }
+  // Tab bar drag-to-reorder. The order is Vault-wide UI state, so it rides in
+  // the same synced settings object as everything else in Cloud and lands on the
+  // other devices through its onSnapshot listener — no separate plumbing.
+  function enableTabReorder(tabs) {
+    if (!window.VaultDrag) return;
+    function VC() { return window.VaultCloud; }
+
+    window.VaultDrag.enable(tabs, {
+      item: '.vault-tab',
+      key: 'data-tab',
+      onDrop: function (order) {
+        if (!VC()) return;
+        VC().settings().tabOrder = order;
+        VC().save();
+      }
+    });
+
+    // VaultCloud hydrates from localStorage synchronously at load, so the saved
+    // order is already there on the first paint; the subscription then catches
+    // a reorder made on another device.
+    function apply(s) {
+      if (!s || !s.tabOrder) return;
+      if (tabs.querySelector('.vdrag')) return;      // don't yank a tab mid-drag
+      window.VaultDrag.applyOrder(tabs, '.vault-tab', 'data-tab', s.tabOrder);
+    }
+    function bind() {
+      if (!VC()) { setTimeout(bind, 150); return; }
+      apply(VC().settings());
+      VC().onChange(apply);
+    }
+    bind();
+  }
+
   function tabBtn(id, label, icon) {
     return el('button', {
       class: 'vault-tab' + (id === activeTab ? ' active' : ''), 'data-tab': id,
@@ -1874,6 +1908,12 @@
       '.vault-tabs::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:5px;background:var(--bg);pointer-events:none}',
       '.vault-tab{flex:0 0 auto;background:transparent;border:1px solid var(--bd);color:var(--txd);font-size:11px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;padding:0 14px;height:34px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:border-color .18s,color .18s}',
       '.vault-tab:hover{color:var(--tx);border-color:var(--txd)}.vault-tab.active{background:transparent;color:var(--acs,#e0b874);border-color:var(--ac)}',
+      /* Tabs are draggable to reorder. `manipulation` keeps the browser's own
+         horizontal panning (so the strip still scrolls on touch) while dropping
+         the 300ms double-tap delay; a reorder drag arms from a long press and
+         suppresses that scrolling only once armed. */
+      '.vault-tab{touch-action:manipulation;-webkit-user-select:none;user-select:none}',
+      '.vault-tab.vdrag{z-index:5;cursor:grabbing;opacity:.97;border-color:var(--ac);color:var(--acs,#e0b874);background:transparent;box-shadow:0 10px 26px var(--shadow)}',
       '.vault-tab svg{display:block;width:15px;height:15px;flex-shrink:0}',
       '.vault-panel{max-width:1100px;margin:0 auto;width:100%;padding:0 var(--vpadr) calc(28px + env(safe-area-inset-bottom,0px)) var(--vpadl)}',
       // Search + Add + Settings + Lock stay pinned just below the tabs.
