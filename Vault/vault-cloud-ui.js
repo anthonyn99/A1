@@ -98,7 +98,13 @@
     s.id = STYLE_ID;
     s.textContent = [
       '#vault-cloud-panel{padding:0 0 120px;}',
-      '#vault-cloud-panel svg{width:1em;height:1em;display:block;}',
+      /* The context menu, modals, upload dock, selection bar, toast and drop
+         overlay all mount to <body>, NOT inside the panel — scoping this rule to
+         #vault-cloud-panel left their icons with no width/height at all, so they
+         painted at the SVG's natural size and swallowed the screen. Every Cloud
+         surface has to be listed here, wherever it lives in the DOM. */
+      '#vault-cloud-panel svg,.vcl-menu svg,.vcl-ov svg,.vcl-dock svg,.vcl-selbar svg,.vcl-toast svg,.vcl-drop svg{width:1em;height:1em;display:block;flex:0 0 auto;}',
+      '.vcl-menu button svg,.vcl-ov .vcl-ib svg,.vcl-dock svg,.vcl-selbar svg{max-width:1em;max-height:1em;}',
 
       /* toolbar */
       '.vcl-bar{position:sticky;top:calc(var(--vhbar-h,0px) + var(--vtabs-h,0px));z-index:24;background:var(--bg);border-bottom:1px solid var(--bd);padding:10px 0 9px;display:flex;flex-direction:column;gap:9px;}',
@@ -607,14 +613,17 @@
     var search = el('div', { class: 'vcl-search' }, [
       el('span', { html: ICON.search }),
       input,
-      clearBtn,
-      el('button', {
-        class: 'vcl-ai' + (ST.aiMode ? ' on' : ''), html: ICON.spark,
-        title: 'Ask in plain English (AI search)', 'aria-label': 'Toggle AI search',
-        onclick: function () { ST.aiMode = !ST.aiMode; render(); }
-      })
+      clearBtn
     ]);
     r2.appendChild(search);
+    // AI search used to be a glyph inside the field, where it read as an
+    // anonymous circle. It's a labelled toggle now — same feature, legible.
+    r2.appendChild(el('button', {
+      class: 'vcl-chip' + (ST.aiMode ? ' on' : ''), html: ICON.spark + 'Ask AI',
+      title: 'Search in plain English, e.g. "tax documents from last year"',
+      'aria-pressed': ST.aiMode ? 'true' : 'false',
+      onclick: function () { ST.aiMode = !ST.aiMode; render(); setTimeout(function () { var q = $('vcl-q'); if (q) q.focus(); }, 30); }
+    }));
 
     var seg = el('div', { class: 'vcl-seg' });
     [['list', ICON.list, 'List view'], ['grid', ICON.grid, 'Grid view'], ['compact', ICON.compact, 'Compact view']].forEach(function (v) {
@@ -1177,7 +1186,7 @@
       el('div', { class: 'vcl-empty', text: 'Loading preview…' })
     ]);
     var buttons = [
-      el('button', { class: 'vcl-btn', text: 'Properties', onclick: function () { openProps(e); } }),
+      el('button', { class: 'vcl-btn', text: 'Properties', onclick: function () { openProps(e, true); } }),
       el('button', { class: 'vcl-btn', text: 'Download', onclick: function () { doDownload(e); } }),
       el('button', { class: 'vcl-btn gold', text: 'Close', onclick: closeOverlays })
     ];
@@ -1186,40 +1195,56 @@
     }
     modal(e.name, host, buttons, true);
 
-    // Anything we can't render inline shouldn't pull bytes down at all.
+    var prov = vc().get(e.provider);
     var inlineKinds = ['image', 'video', 'audio', 'pdf', 'text'];
-    if (inlineKinds.indexOf(k) < 0) {
-      host.innerHTML = '';
-      host.appendChild(el('div', { class: 'vcl-empty' }, [
-        el('div', { class: 'big', text: 'No inline preview' }),
-        el('div', { text: vc().fmtSize(e.size) + ' · ' + (e.mime || 'unknown type') + '. Download it or open it in the cloud.' })
-      ]));
-      return;
-    }
-    // Google-native docs have no byte stream; embed the cloud's own viewer.
+
+    // Google-native docs have no byte stream at all — always the cloud viewer.
     if (/application\/vnd\.google-apps\./.test(e.mime || '')) {
       host.innerHTML = '';
-      host.appendChild(el('iframe', { src: 'https://drive.google.com/file/d/' + e.id + '/preview', allow: 'autoplay' }));
+      host.appendChild(el('iframe', { src: 'https://drive.google.com/file/d/' + e.id + '/preview', allow: 'autoplay', title: e.name }));
       return;
     }
-    try {
-      var url = await vc().get(e.provider).downloadUrl(e);
-      host.innerHTML = '';
-      if (k === 'image') host.appendChild(el('img', { src: url, alt: e.name }));
-      else if (k === 'video') host.appendChild(el('video', { src: url, controls: 'controls', playsinline: 'playsinline' }));
-      else if (k === 'audio') host.appendChild(el('audio', { src: url, controls: 'controls', style: 'width:100%;padding:20px' }));
-      else if (k === 'pdf') host.appendChild(el('iframe', { src: url, title: e.name }));
-      else {
-        var txt = await (await fetch(url)).text();
-        host.appendChild(el('pre', { text: txt.slice(0, 200000) }));
-      }
-    } catch (err) {
-      host.innerHTML = '';
-      host.appendChild(el('div', { class: 'vcl-err', text: vc().fmtErr(err) }));
+
+    // Decode it ourselves when we can — it's faster and works offline-ish.
+    if (inlineKinds.indexOf(k) >= 0) {
+      try {
+        var url = await prov.downloadUrl(e);
+        host.innerHTML = '';
+        if (k === 'image') host.appendChild(el('img', { src: url, alt: e.name }));
+        else if (k === 'video') host.appendChild(el('video', { src: url, controls: 'controls', playsinline: 'playsinline' }));
+        else if (k === 'audio') host.appendChild(el('audio', { src: url, controls: 'controls', style: 'width:100%;padding:20px' }));
+        else if (k === 'pdf') host.appendChild(el('iframe', { src: url, title: e.name }));
+        else {
+          var txt = await (await fetch(url)).text();
+          host.appendChild(el('pre', { text: txt.slice(0, 200000) }));
+        }
+        return;
+      } catch (err) { /* fall through to the provider's viewer */ }
     }
+
+    // Everything else: ask the provider for an embeddable viewer. Drive renders
+    // Office docs, archives, EPUB and more; Dropbox routes Office files through
+    // the Office web viewer. Only when neither can do it do we say so.
+    try {
+      var embed = prov.embedUrl ? await prov.embedUrl(e) : null;
+      if (embed) {
+        host.innerHTML = '';
+        host.appendChild(el('iframe', { src: embed, allow: 'autoplay', title: e.name }));
+        return;
+      }
+    } catch (err) { /* fall through to the notice */ }
+
+    host.innerHTML = '';
+    host.appendChild(el('div', { class: 'vcl-empty' }, [
+      el('div', { class: 'big', text: 'Can’t preview this one' }),
+      el('div', { text: vc().fmtSize(e.size) + (e.mime ? ' · ' + e.mime : '') + '. Download it, or open it in ' + ((prov && prov.label) || 'the cloud') + '.' })
+    ]));
   }
 
-  function openProps(e) {
+  // `back` = reopen the preview this was launched from. modal() tears down every
+  // overlay, so without it "Close" from Properties dropped you all the way to the
+  // file list — losing the file you were looking at.
+  function openProps(e, back) {
     var p = vc().get(e.provider);
     var rows = [
       ['Name', e.name],
@@ -1239,7 +1264,10 @@
         el('div', { class: 'k', text: r[0] }), el('div', { class: 'v', text: String(r[1]) })
       ]));
     });
-    modal('Properties', body, [el('button', { class: 'vcl-btn gold', text: 'Close', onclick: closeOverlays })]);
+    var btns = [];
+    if (back) btns.push(el('button', { class: 'vcl-btn', text: '← Back to file', onclick: function () { openPreview(e); } }));
+    btns.push(el('button', { class: 'vcl-btn gold', text: 'Close', onclick: closeOverlays }));
+    modal('Properties', body, btns);
   }
 
   /* ── Search ───────────────────────────────────────────────────────────────*/
@@ -1404,19 +1432,32 @@
    * Both clouds keep deleted files for a while; this surfaces them in one place
    * so recovery doesn't mean opening drive.google.com and dropbox.com. Restore
    * is universal; permanent deletion is Drive-only (see caps.purge). */
-  var trashState = { loading: false, entries: [], err: '' };
+  var trashState = { loading: false, entries: [], err: '', progress: '', skipped: 0 };
 
   async function loadTrash() {
-    trashState.loading = true; trashState.err = ''; render();
+    trashState.loading = true; trashState.err = ''; trashState.progress = ''; trashState.skipped = 0;
+    render();
     try {
       var provs = vc().connected().filter(function (p) { return p.caps && p.caps.trash; });
       var lists = await Promise.all(provs.map(function (p) {
-        return p.listTrash().catch(function (e) { console.warn('trash', p.id, e); return []; });
+        return p.listTrash(function (done, total, found) {
+          // Verifying Dropbox tombstones takes a few seconds; without this the
+          // pane just sits there looking broken.
+          trashState.progress = 'Checking ' + p.label + ' — ' + done + '/' + total + ', ' + found + ' recoverable';
+          var head = document.querySelector('#vault-cloud-panel .vcl-sh .ct');
+          if (head) head.textContent = trashState.progress;
+        }).catch(function (e) { console.warn('trash', p.id, e); return []; });
       }));
+      trashState.scanned = 0;
+      lists.forEach(function (l) {
+        if (!l) return;
+        trashState.scanned += l.scanned || 0;
+        if (l.tombstones > l.scanned) trashState.skipped += l.tombstones - l.scanned;
+      });
       trashState.entries = [].concat.apply([], lists);
-      trashState.loading = false; render();
+      trashState.loading = false; trashState.progress = ''; render();
     } catch (e) {
-      trashState.loading = false; trashState.err = vc().fmtErr(e); render();
+      trashState.loading = false; trashState.progress = ''; trashState.err = vc().fmtErr(e); render();
     }
   }
 
@@ -1426,7 +1467,7 @@
 
     var head = el('div', { class: 'vcl-sh' }, [
       el('span', { class: 't', text: 'Trash' }), el('span', { class: 'ln' }),
-      el('span', { class: 'ct', text: trashState.loading ? 'Loading…' : trashState.entries.length + ' items' })
+      el('span', { class: 'ct', text: trashState.loading ? (trashState.progress || 'Loading…') : trashState.entries.length + ' recoverable' })
     ]);
     host.appendChild(head);
 
@@ -1456,7 +1497,7 @@
       host.appendChild(sk); return host;
     }
     if (!provs.length) { host.appendChild(emptyNote('No cloud connected', 'Connect Google Drive or Dropbox to see deleted files.')); return host; }
-    if (!trashState.entries.length) { host.appendChild(emptyNote('Trash is empty', 'Deleted files show up here and can be put back.')); return host; }
+    if (!trashState.entries.length) { host.appendChild(emptyNote('Nothing to recover', 'Deleted files show up here while they can still be put back.')); return host; }
 
     var box = el('div', { class: 'vcl-list' });
     sortedEntries(trashState.entries).forEach(function (e) {
@@ -1502,12 +1543,25 @@
     });
     host.appendChild(box);
 
+    var notes = [];
     // Dropbox can't permanently delete from a personal account, so say why the
     // button isn't there rather than leaving it looking half-built.
     if (provs.some(function (p) { return !p.caps.purge; })) {
+      notes.push('Dropbox clears its own trash after 30 days and has no permanent-delete API on personal accounts, so its files only offer Put back.');
+    }
+    if (trashState.skipped) {
+      // Be precise about the three groups: listed (verified recoverable), checked
+      // and found unrecoverable, and not checked at all. Blurring them would
+      // imply files are gone when Vault simply hasn't looked at them.
+      notes.push('Dropbox keeps a permanent record of every file ever deleted, including ones purged long ago. ' +
+        'Vault checked ' + (trashState.scanned || 0).toLocaleString() + ' of those entries and lists only the ones Dropbox can still restore. ' +
+        trashState.skipped.toLocaleString() + ' were not checked — press Refresh to scan again. ' +
+        'Anything past Dropbox’s 30-day window is unrecoverable here and on dropbox.com alike.');
+    }
+    if (notes.length) {
       host.appendChild(el('div', {
-        style: 'margin-top:10px;font:400 11px/1.6 var(--sans);color:var(--txm)',
-        text: 'Dropbox clears its own trash after 30 days and has no permanent-delete API on personal accounts, so only Put back is offered for its files.'
+        style: 'margin-top:12px;font:400 11px/1.65 var(--sans);color:var(--txm)',
+        html: notes.map(esc).join('<br><br>')
       }));
     }
     return host;

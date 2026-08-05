@@ -372,6 +372,13 @@
       });
     },
 
+    // Drive renders almost anything in its own viewer — Office files, RTF, EPUB,
+    // CAD, archives, fonts. Falling back to this means "no preview" is reserved
+    // for things no one can preview, instead of anything we can't decode inline.
+    embedUrl: function (entry) {
+      return entry.folder ? null : 'https://drive.google.com/file/d/' + entry.id + '/preview';
+    },
+
     downloadUrl: async function (entry) {
       var t = Tokens.get('gdrive');
       if (!t) throw new Error('Google Drive is not connected.');
@@ -453,6 +460,13 @@
    * the device connected without re-prompting. Dropbox paths are strings, not
    * ids — root is the empty string, which is why rootId differs from Drive's.
    * ══════════════════════════════════════════════════════════════════════════ */
+  // Trash verification budget. Each check is one API call, so this trades scan
+  // depth against time and Dropbox's rate limit; 6 at a time keeps well clear of
+  // 429s. Anything beyond the cap is reported as "not scanned" rather than
+  // silently dropped.
+  var VERIFY_CAP = 300, VERIFY_CONC = 6;
+  var dbxRevCache = Object.create(null);
+
   function dbxEntry(f) {
     var folder = f['.tag'] === 'folder';
     return {
@@ -592,6 +606,19 @@
       }, function (txt) { try { return dbxEntry(JSON.parse(txt)); } catch (e) { return null; } });
     },
 
+    // Dropbox has no embeddable viewer of its own (dropbox.com refuses to frame),
+    // so Office files go through Microsoft's public Office viewer. That needs a
+    // URL Microsoft's servers can fetch, which is exactly what a temporary link
+    // is — unauthenticated and good for ~4 hours.
+    embedUrl: async function (entry) {
+      if (entry.folder) return null;
+      var ext = String(entry.name).split('.').pop().toLowerCase();
+      if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp'].indexOf(ext) < 0) return null;
+      var j = await this.api('/files/get_temporary_link', { path: entry.id });
+      if (!j || !j.link) return null;
+      return 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(j.link);
+    },
+
     downloadUrl: async function (entry) {
       var t = Tokens.get('dropbox');
       if (!t) throw new Error('Dropbox is not connected.');
@@ -610,23 +637,26 @@
     // Already soft — Dropbox keeps deleted files ~30 days and restores by rev.
     remove: function (id) { return this.api('/files/delete_v2', { path: id }); },
 
-    // Dropbox has no "list my trash" endpoint. The only way to see deleted items
-    // is a recursive listing with include_deleted, then filter for the `deleted`
-    // tag. Capped: recursing a large account is expensive and this is a recovery
-    // screen, not a browser.
-    listTrash: async function () {
-      var out = [], pages = 0;
+    // Dropbox has no "list my trash" endpoint, and — the part that matters — its
+    // namespace index keeps a `deleted` tombstone for every file ever removed,
+    // forever. Listing those raw gives thousands of entries that were purged
+    // years ago and cannot be restored (dropbox.com's own Deleted files screen
+    // shows only the recoverable ones, which is why the counts didn't match).
+    //
+    // There is no flag distinguishing the two, and tombstones carry no date. The
+    // only reliable test is list_revisions: a file still inside the retention
+    // window has revisions, a purged one has none. So we verify, in bounded
+    // concurrent batches, and return only what can actually be put back.
+    listTrash: async function (onProgress) {
+      var self = this;
+      var tombs = [], pages = 0;
       var j = await this.api('/files/list_folder', { path: '', recursive: true, include_deleted: true, limit: 2000 });
       var take = function (entries) {
         (entries || []).forEach(function (f) {
           if (f['.tag'] !== 'deleted') return;
-          out.push({
+          tombs.push({
             id: f.path_lower || f.path_display || '',
-            name: f.name,
-            // Dropbox doesn't say whether a deleted entry was a file or folder,
-            // and there's no reliable signal — treat everything as a file so the
-            // row still renders and restores correctly either way.
-            folder: false,
+            name: f.name, folder: false,
             size: 0, modified: 0, created: 0, deletedAt: 0,
             mime: guessMime(f.name),
             parent: (f.path_lower || '').replace(/\/[^/]*$/, ''),
@@ -635,21 +665,50 @@
         });
       };
       take(j.entries);
-      while (j && j.has_more && pages++ < 8 && out.length < 500) {
+      while (j && j.has_more && pages++ < 12 && tombs.length < VERIFY_CAP * 4) {
         j = await this.api('/files/list_folder/continue', { cursor: j.cursor });
         take(j.entries);
       }
+
+      var candidates = tombs.slice(0, VERIFY_CAP);
+      var out = [];
+      for (var i = 0; i < candidates.length; i += VERIFY_CONC) {
+        var batch = candidates.slice(i, i + VERIFY_CONC);
+        /* eslint-disable no-loop-func */
+        var settled = await Promise.all(batch.map(async function (d) {
+          try {
+            var r = await self.api('/files/list_revisions', { path: d.id, mode: { '.tag': 'path' }, limit: 1 });
+            if (r && r.entries && r.entries.length) {
+              var rev = r.entries[0];
+              d.size = rev.size || 0;
+              d.modified = rev.server_modified ? Date.parse(rev.server_modified) : 0;
+              dbxRevCache[d.id] = rev.rev;      // saves a lookup when restoring
+              return d;
+            }
+          } catch (e) { /* unrecoverable or inaccessible — drop it */ }
+          return null;
+        }));
+        settled.forEach(function (r) { if (r) out.push(r); });
+        if (onProgress) onProgress(Math.min(i + VERIFY_CONC, candidates.length), candidates.length, out.length);
+      }
+      out.scanned = candidates.length;
+      out.tombstones = tombs.length;
       return out;
     },
 
-    // Two calls: /files/restore needs the revision to restore TO, which only
-    // list_revisions can supply. mode:path is what makes it work on a path that
-    // no longer exists.
+    // /files/restore needs the revision to restore TO. listTrash already looked
+    // it up, so the cache usually saves a round trip; the lookup stays for a
+    // restore attempted without a preceding scan.
     restore: async function (id) {
-      var revs = await this.api('/files/list_revisions', { path: id, mode: { '.tag': 'path' }, limit: 10 });
-      var rev = revs && revs.entries && revs.entries[0] && revs.entries[0].rev;
-      if (!rev) throw new Error('Dropbox has no recoverable version of this file.');
-      return this.api('/files/restore', { path: id, rev: rev });
+      var rev = dbxRevCache[id];
+      if (!rev) {
+        var revs = await this.api('/files/list_revisions', { path: id, mode: { '.tag': 'path' }, limit: 1 });
+        rev = revs && revs.entries && revs.entries[0] && revs.entries[0].rev;
+      }
+      if (!rev) throw new Error('Dropbox no longer has a recoverable version of this file.');
+      var r = await this.api('/files/restore', { path: id, rev: rev });
+      delete dbxRevCache[id];
+      return r;
     },
     move: function (id, toParent) {
       var name = id.split('/').pop();
@@ -839,7 +898,10 @@
     if (/^video\//.test(m)) return 'video';
     if (/^audio\//.test(m)) return 'audio';
     if (/pdf/.test(m)) return 'pdf';
-    if (/^text\/|json|javascript|csv|xml/.test(m)) return 'text';
+    if (/^text\/|json|javascript|csv|xml|yaml|x-sh|x-python/.test(m)) return 'text';
+    // Extension fallback: plenty of plain-text formats have no registered MIME
+    // (or Dropbox reports none), and they preview perfectly as text.
+    if (/\.(txt|md|markdown|log|json|jsonl|csv|tsv|xml|yml|yaml|ini|cfg|conf|toml|env|js|mjs|ts|jsx|tsx|css|scss|html|htm|py|rb|go|rs|java|c|h|cpp|sh|bat|ps1|sql|srt|vtt)$/i.test(entry.name || '')) return 'text';
     if (/word|document|spreadsheet|presentation|excel|powerpoint|google-apps/.test(m)) return 'doc';
     if (/zip|compress|tar|rar|7z/.test(m)) return 'archive';
     return 'other';
