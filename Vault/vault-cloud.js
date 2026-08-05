@@ -441,8 +441,14 @@
       placeholder: 'Dropbox app key',
       openPlaceholder: 'https://www.dropbox.com/home',
       hint: function (origin, redirect) {
-        return 'Dropbox App Console → your app → Settings. Add <code>' + redirect + '</code> as a redirect URI, ' +
-          'and tick the <code>files.content.read</code>, <code>files.content.write</code> and <code>sharing.write</code> scopes.';
+        // Every scope Vault actually calls: metadata.read (list/search),
+        // content.read (download/preview), content.write (upload/rename/move/
+        // delete/mkdir), sharing.read+write (share links), account_info.read
+        // (the storage bar). Miss one and only that feature fails, with a
+        // missing_scope error that names it.
+        return 'Dropbox App Console → your app. On <b>Settings</b>, add <code>' + redirect + '</code> under OAuth 2 redirect URIs. ' +
+          'On <b>Permissions</b>, tick <code>account_info.read</code>, <code>files.metadata.read</code>, <code>files.content.read</code>, ' +
+          '<code>files.content.write</code>, <code>sharing.read</code>, <code>sharing.write</code> — then Submit.';
       }
     },
 
