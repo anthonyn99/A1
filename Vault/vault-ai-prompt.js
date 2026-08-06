@@ -222,14 +222,30 @@
     return ok;
   }
 
-  // Put the text in and CONFIRM it is really in the DOM. execCommand silently
-  // no-ops when the composer never took focus, and sending an empty box does
-  // nothing at all.
-  async function ensureTyped(profile, el, text, head) {
+  // Whitespace-normalised compare. Inserting a multi-line prompt into a
+  // contenteditable turns newlines into block elements, and innerText serialises
+  // those back with a DIFFERENT number of newlines than the source had. An exact
+  // prefix compare therefore reports "typing failed" on text that is plainly
+  // sitting in the box — which is exactly how the send got skipped entirely.
+  function norm(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
+
+  // Put the text in and confirm something actually landed. The bar is NON-EMPTY,
+  // not character-identical: a composer holding the prompt should be sent even if
+  // the site reformatted it. Only a still-empty box counts as a typing failure —
+  // that is the one case where there is genuinely nothing to send.
+  async function ensureTyped(profile, el, text) {
+    var want = norm(text).slice(0, 60);
     for (var t = 0; t < TYPE_TRIES; t++) {
       typeInto(el, text);
       await wait(250);
-      if (composerText(el).slice(0, 40) === head) return el;
+      var live = (el && el.isConnected) ? el : (findComposer(profile) || el);
+      if (composerText(live)) {
+        if (norm(composerText(live)).slice(0, 60) !== want) {
+          console.warn('[Vault] AI prompt: composer text does not match the prompt exactly ' +
+                       '(site reformatting or another extension) — sending what is there anyway');
+        }
+        return live;
+      }
       el = findComposer(profile) || el;
     }
     return null;
@@ -388,8 +404,6 @@
     }
     await wait(400);
 
-    var head = text.trim().slice(0, 40);
-
     // WHY THIS IS A LOOP OVER *TYPING*, NOT JUST OVER SENDING
     // These composers are a DOM tree (ProseMirror) driven by a framework's own
     // copy of the text. execCommand writes the DOM and normally the framework
@@ -405,13 +419,13 @@
       var last = (round === TYPE_ROUNDS - 1);
 
       el = findComposer(profile) || el;
-      var typed = await ensureTyped(profile, el, text, head);
+      var typed = await ensureTyped(profile, el, text);
       if (!typed) {
-        console.warn('[Vault] AI prompt: could not type into the composer on ' + location.hostname);
+        console.warn('[Vault] AI prompt: composer is still empty after typing (round ' + (round + 1) + ')');
         await wait(400);
         continue;
       }
-      el = findComposer(profile) || typed;
+      el = typed;
 
       // The readiness proof. On the last round we go ahead regardless, so a site
       // with no send button at all still gets the Enter path rather than nothing.
@@ -467,11 +481,18 @@
   // (which also arms the same retry-on-reload machinery as the TradeHub path).
   function claimAutoLaunch() { return ask({ action: 'vaultAiAutoSubmit' }); }
 
+  // Stamp the build into the console. "Did the extension reload?" has cost real
+  // debugging time — this answers it at a glance, in the same place as everything
+  // else this script logs.
+  function ver() {
+    try { return chrome.runtime.getManifest().version; } catch (e) { return '?'; }
+  }
+
   (async function () {
     if (isAutoLaunch) {
       var auto = await claimAutoLaunch();
       if (auto) {
-        console.log('[Vault] AI prompt: auto-launch marker — ' + auto.length + ' chars from the Analysis config');
+        console.log('[Vault v' + ver() + '] AI prompt: auto-launch marker — ' + auto.length + ' chars from the Analysis config');
         deliver(auto);
         return;
       }
@@ -480,7 +501,7 @@
     for (var i = 0; i < PULL_TRIES; i++) {
       var text = await pull();
       if (text) {
-        console.log('[Vault] AI prompt: ' + text.length + ' chars pending for this tab');
+        console.log('[Vault v' + ver() + '] AI prompt: ' + text.length + ' chars pending for this tab');
         deliver(text);
         return;
       }
