@@ -9221,7 +9221,7 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
       // ── head: identity + progress ──
       RC("div",{style:{padding:"22px 26px 16px",flexShrink:0}},
         RC("div",{style:{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:12}},
-          RC("div",{style:{fontFamily:"'Lora',serif",fontSize:16,fontWeight:700,color:TX,letterSpacing:"-.01em"}},"Pre-Market Checklist"),
+          RC("div",{style:{fontFamily:"'Lora',serif",fontSize:16,fontWeight:700,color:TX,letterSpacing:"-.01em"}},"RULES"),
           RC("div",{style:{fontSize:11.5,color:TXM,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}},done+" / "+total)),
         RC("div",{style:{fontSize:11.5,color:TXM,marginTop:3}},vdTodayLabelET()+" · ET"),
         RC("div",{style:{height:2,borderRadius:2,background:BD,marginTop:16,overflow:"hidden"}},
@@ -9257,7 +9257,7 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
           : RC("div"),
         RC("div",{style:{display:"flex",gap:8,alignItems:"center"}},
           mode==="manage"&&RC("button",{onClick:onClose,style:{background:"transparent",color:TXD,border:"1px solid "+BDL,borderRadius:7,padding:"0 18px",height:36,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}},"Close"),
-          RC("button",{disabled:!complete,onClick:finish,style:{background:A,color:BG,border:"1px solid "+A,borderRadius:7,padding:"0 22px",height:36,fontSize:13,fontWeight:700,cursor:complete?"pointer":"not-allowed",opacity:complete?1:.4,fontFamily:"inherit"}},"Start Trading"))),
+          RC("button",{disabled:!complete,onClick:finish,style:{background:A,color:BG,border:"1px solid "+A,borderRadius:7,padding:"0 22px",height:36,fontSize:13,fontWeight:700,cursor:complete?"pointer":"not-allowed",opacity:complete?1:.4,fontFamily:"inherit"}},"Enter"))),
 
       // Nested authoring modals stack above the checklist (3000).
       RC(VdSimpleEditModal,{open:!!editing,zIndex:3200,multiline:true,
