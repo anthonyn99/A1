@@ -3778,31 +3778,9 @@ function tbLoadAnalysisCfg(){
   try{return JSON.parse(localStorage.getItem(TB_ANALYSIS_KEY)||'{}');}catch{return {};}
 }
 
-/* Morning tab-group settings — the name + color the Trading Auto Launch's Brave
-   window is wrapped into (via the Vault extension). Browser tab groups only
-   support 9 FIXED colors (grey/blue/red/yellow/green/pink/purple/cyan/orange),
-   so these are the only options; `id` is the exact value handed to the browser,
-   `hex` is just the swatch shown here. Default = Teal (cyan). */
-const TB_GROUP_COLORS = [
-  {id:'cyan',   label:'Teal',     hex:'#5FB4AE'},
-  {id:'blue',   label:'Blue',     hex:'#8AB4F8'},
-  {id:'purple', label:'Lavender', hex:'#C58AF9'},
-  {id:'pink',   label:'Rose',     hex:'#F48FB1'},
-  {id:'green',  label:'Sage',     hex:'#81C995'},
-  {id:'yellow', label:'Amber',    hex:'#FDD663'},
-  {id:'orange', label:'Coral',    hex:'#FCAD70'},
-  {id:'red',    label:'Ruby',     hex:'#F28B82'},
-  {id:'grey',   label:'Slate',    hex:'#9AA0A6'},
-];
-const TB_GROUP_NAME_DEFAULT = 'Trading Analysis';
-const TB_GROUP_COLOR_DEFAULT = 'cyan';
-function tbGroupColorLabel(id){const c=TB_GROUP_COLORS.find(x=>x.id===id);return c?c.label:'Teal';}
 /* Custom URL protocol the Trading Auto Launch registers (launch.py --setup).
    The Deploy button navigates here to run the whole flow natively. */
 const TB_AUTOLAUNCH_PROTOCOL = 'tradingautolaunch://deploy';
-/* Ask the Vault extension to group THIS window's launcher tabs into the named group.
-   Only the current TradeHub tab (the seed) + tabs opened afterward are grouped. */
-function tbSignalGroup(name,color){try{window.postMessage({source:'tradehub-vault',action:'groupTradingTabs',name:name||TB_GROUP_NAME_DEFAULT,color:color||TB_GROUP_COLOR_DEFAULT},location.origin);}catch(e){}}
 /* Shared watchlist — single ticker list driving News, parsing, sectors, catalysts. */
 const TB_WATCHLIST_KEY = 'td6_watchlist';
 /* Bump this when TB_WATCHLIST default changes and you want every device's
@@ -3932,14 +3910,6 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
   const [draft,setDraft]=React.useState(searches);
   React.useEffect(()=>{if(!editing)setDraft(getSearches(cfg));},[cfg,editing]);
 
-  // Morning tab-group name + color (opened by the launcher via the Vault extension).
-  const groupName=cfg.groupName!=null?cfg.groupName:TB_GROUP_NAME_DEFAULT;
-  const groupColor=cfg.groupColor||TB_GROUP_COLOR_DEFAULT;
-  const [groupNameDraft,setGroupNameDraft]=React.useState(groupName);
-  React.useEffect(()=>{setGroupNameDraft(cfg.groupName!=null?cfg.groupName:TB_GROUP_NAME_DEFAULT);},[cfg.groupName]);
-  const commitGroupName=()=>{const v=(groupNameDraft||'').trim()||TB_GROUP_NAME_DEFAULT;if(v!==groupName)saveCfg({...cfg,groupName:v});};
-  const setGroupColor=(id)=>saveCfg({...cfg,groupColor:id});
-
   // Selected Prompts-tab prompt (falls back to first). Its text is what gets copied.
   const selPrompt=(prompts.find(p=>p.id===cfg.analysisPromptId)||prompts[0])||null;
   const selPromptText=selPrompt?selPrompt.text:'';
@@ -4042,20 +4012,10 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
   };
 
   // Deploy the ENTIRE Trading Auto Launch (reminder gate → WeBull → TaskHub →
-  // windows → ChatGPT + searches). Because TradeHub is already open here, the native
-  // launcher reuses THIS window: we signal the Vault extension to group this window's
-  // launcher tabs (the current TradeHub tab is the seed; the searches + ChatGPT it
-  // opens are folded in), then trigger the launcher via its URL protocol. The Python
-  // side does the reminder gate + WeBull/TaskHub and copies/pastes the prompt itself.
-  // We keep re-sending the group signal for a few minutes so a slow reminder-gate
-  // read never lets the grouping window lapse before the search/ChatGPT tabs open.
-  const deployIvRef=React.useRef(null);
-  React.useEffect(()=>()=>{if(deployIvRef.current)clearInterval(deployIvRef.current);},[]);
+  // windows → AI site + searches). Because TradeHub is already open here, the native
+  // launcher reuses THIS window; we just trigger it via its URL protocol and the
+  // Python side does the rest.
   const handleDeploy=()=>{
-    const name=groupName,color=groupColor;
-    tbSignalGroup(name,color);
-    if(deployIvRef.current)clearInterval(deployIvRef.current);
-    let n=0; deployIvRef.current=setInterval(()=>{tbSignalGroup(name,color);if(++n>=16){clearInterval(deployIvRef.current);deployIvRef.current=null;}},30000); // ~8 min
     try{window.location.href=TB_AUTOLAUNCH_PROTOCOL;}catch(e){}
     setResults([{ok:true,icon:'rocket',label:'Deploying Trading Auto Launch — confirm the browser prompt if it appears'}]);
   };
@@ -4142,32 +4102,6 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       ))}
     </div>
 
-    {/* Trading Analysis tab group — name + color for the group the launcher opens into */}
-    <div style={{marginBottom:24}}>
-      <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8,display:'flex',alignItems:'center',gap:7}}><TBIcon n="grid" size={12}/>Trading Analysis tab group</div>
-      <div style={{display:'flex',flexDirection:'column',gap:14,padding:'16px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--bgc)'}}>
-        <div>
-          <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:6}}>Group name</div>
-          <input value={groupNameDraft} onChange={e=>setGroupNameDraft(e.target.value)}
-            onBlur={commitGroupName} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();commitGroupName();e.currentTarget.blur();}}}
-            placeholder={TB_GROUP_NAME_DEFAULT} maxLength={60}
-            style={{width:'100%',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',fontSize:13,padding:'10px',boxSizing:'border-box',fontFamily:'inherit'}}/>
-        </div>
-        <div>
-          <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8}}>Tab color <span style={{color:'var(--txd)',fontWeight:600,textTransform:'none',letterSpacing:0}}>· {tbGroupColorLabel(groupColor)}</span></div>
-          <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-            {TB_GROUP_COLORS.map(c=>(
-              <button key={c.id} onClick={()=>setGroupColor(c.id)} title={c.label} aria-label={c.label}
-                style={{width:28,height:28,borderRadius:'50%',background:c.hex,cursor:'pointer',padding:0,
-                  border:groupColor===c.id?'2px solid var(--tx)':'2px solid transparent',
-                  boxShadow:groupColor===c.id?'0 0 0 2px var(--ac)':'inset 0 0 0 1px rgba(0,0,0,0.25)',transition:'all .12s'}}/>
-            ))}
-          </div>
-        </div>
-        <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>Every market morning the Trading Auto Launch opens TradeHub, your searches (left→right) and ChatGPT, then the Vault extension wraps just those tabs into this group (restored tabs stay out). Browser tab groups support these 9 colors only.</div>
-      </div>
-    </div>
-
     {/* Edit panel — add/remove any number of searches */}
     {editing&&(
       <div style={{display:'flex',flexDirection:'column',gap:14,marginBottom:24,padding:'20px',borderRadius:10,border:'1px solid var(--ac)',background:'var(--bgc)'}}>
@@ -4220,7 +4154,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         <TBIcon n="rocket" size={15}/> Deploy Trading Auto Launch
       </button>
       <div style={{fontSize:11,color:'var(--txd)',marginTop:8,lineHeight:1.5,maxWidth:560}}>
-        Runs the whole flow — Daily Reminder → WeBull → TaskHub → window layout — then opens ChatGPT + your searches <b>next to this TradeHub window</b> and groups them as “{groupName}”. Requires the desktop app installed once (<code style={{fontFamily:'monospace'}}>launch.py --setup</code>); Brave asks permission the first time.
+        Runs the whole flow — Daily Reminder → WeBull → TaskHub → window layout — then opens {aiSite.id==='none'?'your searches':<>{aiSite.label} + your searches</>} <b>next to this TradeHub window</b>. Requires the desktop app installed once (<code style={{fontFamily:'monospace'}}>launch.py --setup</code>); Brave asks permission the first time.
       </div>
     </div>
 
@@ -6766,33 +6700,12 @@ function TBApp(){
     if(!sel||!sel.text)return;
     const searches=(Array.isArray(analysisCfg.searches)?analysisCfg.searches
       :[analysisCfg.searchQuery1,analysisCfg.searchQuery2]).map(s=>(s||'').trim()).filter(Boolean);
-    const groupName=analysisCfg.groupName!=null?analysisCfg.groupName:TB_GROUP_NAME_DEFAULT;
-    const groupColor=analysisCfg.groupColor||TB_GROUP_COLOR_DEFAULT;
     const aiUrl=tbAiUrl(analysisCfg);
-    const sig=(sel.name||'')+' '+sel.text+' | '+searches.join(' | ')+' | '+groupName+' | '+groupColor+' | '+aiUrl;
+    const sig=(sel.name||'')+' '+sel.text+' | '+searches.join(' | ')+' | '+aiUrl;
     if(_tbAnalysisPushSig.current===sig)return;
-    const push=()=>{fetch(TD_WORKER_URL+'/analysis-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:sel.name||'Prompt',text:sel.text,searches,groupName,groupColor,aiUrl})}).then(r=>{if(r.ok)_tbAnalysisPushSig.current=sig;}).catch(()=>{});};
+    const push=()=>{fetch(TD_WORKER_URL+'/analysis-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:sel.name||'Prompt',text:sel.text,searches,aiUrl})}).then(r=>{if(r.ok)_tbAnalysisPushSig.current=sig;}).catch(()=>{});};
     if(window._fbReady)push(); else window.addEventListener('fb-ready',push,{once:true});
-  },[prompts,analysisCfg.analysisPromptId,analysisCfg.searches,analysisCfg.groupName,analysisCfg.groupColor,analysisCfg.aiSite,analysisCfg.aiCustomUrl]);
-
-  /* ── Trading Auto Launch tab-group signal ───────────────────────────────────
-     The Trading Auto Launch opens this page with ?autolaunch=1 as the first tab of
-     a new Brave window, then adds the search + ChatGPT tabs. A page can't create a
-     tab GROUP, so we ask the Vault extension to: it wraps ONLY the launcher's tabs
-     into one named, colored group (see Vault/vault-bio-sync.js → background.js). We
-     post the name + color from the Analysis config; the extension folds in each new
-     tab as it opens, so re-posting a few times just guards against a late-ready
-     content script. No-op in any normal (non-launcher) open. */
-  useEffect(()=>{
-    let params;try{params=new URLSearchParams(location.search);}catch{return;}
-    if(!params||!params.has('autolaunch'))return;
-    const name=analysisCfg.groupName!=null?analysisCfg.groupName:TB_GROUP_NAME_DEFAULT;
-    const color=analysisCfg.groupColor||TB_GROUP_COLOR_DEFAULT;
-    const send=()=>{console.log('[TradeHub] auto-launch tab-group signal →',name,color);tbSignalGroup(name,color);};
-    send();
-    const t1=setTimeout(send,1500),t2=setTimeout(send,4000);
-    return()=>{clearTimeout(t1);clearTimeout(t2);};
-  },[]);
+  },[prompts,analysisCfg.analysisPromptId,analysisCfg.searches,analysisCfg.aiSite,analysisCfg.aiCustomUrl]);
 
   /* ── Push Playbook → Daily Reminder to the worker ─────────────────────────────
      Trading Auto Launch GETs /daily-reminder and makes you confirm it before it opens

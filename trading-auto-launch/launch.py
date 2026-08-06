@@ -11,14 +11,7 @@ confirm your Daily Reminder, and only then opens:
   - TaskHub          →  right  panel  (Brave app shortcut)
   - Your AI site     →  your selected TradeHub "Analysis" prompt, AUTO-SUBMITTED,
                         plus your configured Analysis search tabs — all as tabs in
-                        that same new TradeHub window, which the Vault browser
-                        extension then wraps into one named tab group ("Trading
-                        Analysis", teal by default — both configurable in TradeHub →
-                        Analysis). TradeHub is opened with ?autolaunch=1 to trigger
-                        this; the launcher can't create a tab group itself
-                        (extension-only API), so if Vault isn't installed the tabs
-                        just open ungrouped. Only the launcher's own tabs are
-                        grouped — restored session tabs are never pulled in.
+                        that same new TradeHub window.
 
 You can also deploy this whole flow ON DEMAND from TradeHub → Analysis → "Deploy
 Trading Auto Launch". Because TradeHub is already open there, it reuses that
@@ -1049,23 +1042,14 @@ def _open_browser_window(browser: str, url: str, pos: list):
 
 def open_tradehub():
     """Open TradeHub in a brand-new Brave window and return that window's HWND, so
-    the ChatGPT + search tabs can be opened INTO the same window.
-
-    We open it with ?autolaunch=1 so TradeHub knows this is an auto-launch and asks
-    the Vault extension to wrap the launcher's tabs (TradeHub + searches + ChatGPT)
-    into one named "Trading Analysis" tab group. Creating a tab GROUP is only
-    possible via the extension API — the launcher can't do it from the CLI — so the
-    page → Vault extension hand-off is how the group gets made. Harmless if the
-    extension isn't installed: the tabs simply open ungrouped as before."""
+    the AI + search tabs can be opened INTO the same window."""
     brave = _find_brave()
     if not brave:
         log("ERROR: Brave not found. Set BRAVE_EXE_OVERRIDE at the top of this file.")
         return None
 
-    sep = "&" if "?" in TRADEHUB_URL else "?"
-    url = TRADEHUB_URL + sep + "autolaunch=1"
-    log("Opening TradeHub in a new Brave window (auto-launch tab-group signal on)...")
-    return _open_browser_window(brave, url, TRADEHUB_POS)
+    log("Opening TradeHub in a new Brave window...")
+    return _open_browser_window(brave, TRADEHUB_URL, TRADEHUB_POS)
 
 
 def open_taskhub_app():
@@ -1309,14 +1293,6 @@ def open_chatgpt_analysis(target_hwnd=None):
     if "aiUrl" not in cfg:
         ai_url = "https://chatgpt.com/"      # pre-aiUrl config: behave as it always did
     ai_label = _host_of(ai_url) or "AI"
-
-    # The launcher's tabs are grouped into a "Trading Analysis" tab group by the Vault
-    # extension (triggered by TradeHub's ?autolaunch=1 or its Deploy button). Log what
-    # TradeHub configured so the grouping is visible in the log even though the
-    # extension does the actual work.
-    g_name  = cfg.get("groupName") or "Trading Analysis"
-    g_color = cfg.get("groupColor") or "cyan"
-    log(f"AI analysis: tabs will be grouped as '{g_name}' ({g_color}) by the Vault extension.")
 
     # 1) Load the prompt onto the clipboard BEFORE opening anything — the manual
     #    fallback for the case where the extension can't do it.
@@ -1729,8 +1705,7 @@ def _launch_all(test: bool, from_tradehub: bool = False):
     if from_tradehub:
         # Deployed from the TradeHub button: TradeHub is ALREADY open (it's the page
         # that launched us). Reuse that window instead of opening a new one, so the
-        # searches + ChatGPT open next to it and the existing TradeHub tab is the
-        # group's seed. The Deploy button already sent the group signal to Vault.
+        # searches + the AI tab open next to it.
         tradehub_hwnd = _find_open_tradehub_window()
         if tradehub_hwnd:
             _place(tradehub_hwnd, *TRADEHUB_POS)     # move it to the middle panel
@@ -1744,7 +1719,7 @@ def _launch_all(test: bool, from_tradehub: bool = False):
 
     time.sleep(1.5)
     open_taskhub_app()
-    # Open ChatGPT + searches as tabs in the SAME TradeHub window, then paste+submit.
+    # Open the AI site + searches as tabs in the SAME TradeHub window, auto-submitted.
     open_chatgpt_analysis(target_hwnd=tradehub_hwnd)
     # WeBull has now had ~20s to load — switch it to Trackers + Individual Margin.
     webull_post_launch(webull_hwnd)

@@ -125,9 +125,15 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 .kc-mode-btn.editing{background:transparent;border-color:var(--ac);color:var(--acs);}
 #kc-root.view-mode .kc-edit-only{display:none!important;}
 .kc-section{display:flex;flex-direction:column;gap:10px;}
-.kc-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--bd);}
+/* The Connections heading + New Connection button and the edit/view tools pin
+   below the app header and the Vault tab strip while the card board scrolls.
+   --vhbar-h / --vtabs-h are measured live by vault-ui.js's updateStickyOffset(),
+   so this stays correct through rotation, font loading and the sync line
+   appearing. Background is opaque or cards show through the seam. */
+.kc-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--bd);position:sticky;top:calc(var(--vhbar-h,0px) + var(--vtabs-h,0px));z-index:8;background:var(--bg);padding-top:8px;}
+.kc-section-tools{position:sticky;top:calc(var(--vhbar-h,0px) + var(--vtabs-h,0px) + var(--kc-head-h,42px));z-index:7;background:var(--bg);padding-bottom:8px;}
 /* Keychain-only action row, directly under the section head. */
-.kc-section-tools{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:-2px;}
+.kc-section-tools{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:0;}
 .kc-section-title{font-family:var(--sans);font-size:10px;font-weight:500;color:var(--acp,#e0b874);letter-spacing:2px;text-transform:uppercase;opacity:.85;}
 /* 2-col flex layout */
 #kc-conns-list{display:flex;gap:10px;align-items:flex-start;min-height:48px;}
@@ -1262,6 +1268,12 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
       window.dispatchEvent(new CustomEvent("fb-cloud-error", { detail: 'no-read' }));
       return;
     }
+    // 2s debounce, not the 350ms the other sections use. This doc carries UI
+    // prefs, favourites, the recents list and the activity log — browsing a
+    // folder fires touchRecent/logActivity repeatedly, and at 350ms that was a
+    // Firestore write every few file opens. Coalescing to 2s collapses a burst
+    // of activity into a single write with no perceptible delay, since nothing
+    // here is latency-critical.
     _cloudLastOwnSaveAt = Date.now();
     window.dispatchEvent(new CustomEvent("fb-cloud-saving"));
     if (_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
@@ -1276,7 +1288,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
         console.error("Cloud save failed:", e.code, e.message, e);
         window.dispatchEvent(new CustomEvent("fb-cloud-error", { detail: (e && (e.code || e.message)) || 'error' }));
       }
-    }, 350);
+    }, 2000);
   };
 
   // ── App Lock: dashboards/applock ──────────────────────────────────────────
@@ -1896,7 +1908,23 @@ window.kcPickColor=function(dot,c){window.kcModalColor=c;document.querySelectorA
 
 let delIdx=null;
 window.kcConfirmDelete=function(i){delIdx=i;document.getElementById('kc-confirm-msg').textContent=`Delete "${conns[i].name||'this connection'}"? Cannot be undone.`;document.getElementById('kc-confirm-modal').style.display='flex';};
-window.kcExecuteDelete=function(){if(delIdx!==null)conns.splice(delIdx,1);delIdx=null;save();saveColMap(null);kcCloseConfirm();render();};
+window.kcExecuteDelete=function(){
+  if(delIdx!==null){
+    conns.splice(delIdx,1);
+    /* colmap is the COLUMN map — savedMap[i] is which masonry column connection i
+       was dragged into. It's index-aligned with conns, so deleting a connection
+       has to splice the same index out. Discarding it (the old saveColMap(null))
+       — or just leaving it a different length, which makes loadColMap() reject it
+       — drops every card back to default packing, so the whole board appears to
+       shuffle when you delete one card. */
+    const m=_loadColMapRaw();
+    if(Array.isArray(m)&&m.length>delIdx){m.splice(delIdx,1);localStorage.setItem('kc_colmap',JSON.stringify(m));}
+    else localStorage.removeItem('kc_colmap');
+  }
+  delIdx=null;
+  save();   /* writes connections + colmap together — one Firestore write, not two */
+  kcCloseConfirm();render();
+};
 window.kcCloseConfirm=function(){delIdx=null;document.getElementById('kc-confirm-modal').style.display='none';};
 
 window.kcVisit=function(raw){let url=raw;if(!/^https?:\/\//i.test(url)&&url)url='https://'+url;const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';document.body.appendChild(a);a.click();document.body.removeChild(a);};
@@ -2799,6 +2827,28 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
     window.VaultCloud.onChange(apply);
   }
   bind();
+})();
+</script>
+
+<script>
+/* The Connections tools row pins directly beneath the sticky section head, so it
+   needs that head's live height. Measured rather than hard-coded because the head
+   wraps to two lines on narrow screens. */
+(function(){
+  function measure(){
+    var h=document.querySelector('#kc-root .kc-section-head');
+    if(h)document.documentElement.style.setProperty('--kc-head-h',h.offsetHeight+'px');
+  }
+  if(typeof ResizeObserver!=='undefined'){
+    var ro=new ResizeObserver(measure);
+    var tryObserve=function(){
+      var h=document.querySelector('#kc-root .kc-section-head');
+      if(h){ro.observe(h);measure();}else setTimeout(tryObserve,300);
+    };
+    tryObserve();
+  }
+  window.addEventListener('resize',measure);
+  window.addEventListener('load',measure);
 })();
 </script>
 

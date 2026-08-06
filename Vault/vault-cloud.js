@@ -124,17 +124,37 @@
   // ── Token store — device-local, never synced (see header note) ────────────
   var TOK_PREFIX = 'vault_cloud_tok_';
   var Tokens = {
+    // The stored record, expired or not. `connected` means "this device has been
+    // authorised", NOT "the current access token is still valid" — an expired
+    // token is renewable (Google silently, Dropbox by refresh token), so
+    // dropping the record on expiry is what made Drive appear to disconnect
+    // after an hour and demand a fresh consent click.
     get: function (pid) {
-      try {
-        var t = JSON.parse(localStorage.getItem(TOK_PREFIX + pid) || 'null');
-        if (!t) return null;
-        if (t.expires && Date.now() > t.expires - 60000 && !t.refresh) return null;  // expired, unrenewable
-        return t;
-      } catch (e) { return null; }
+      try { return JSON.parse(localStorage.getItem(TOK_PREFIX + pid) || 'null'); } catch (e) { return null; }
+    },
+    fresh: function (pid) {
+      var t = Tokens.get(pid);
+      return !!(t && t.access && (!t.expires || Date.now() < t.expires - 120000));
     },
     set: function (pid, t) { try { localStorage.setItem(TOK_PREFIX + pid, JSON.stringify(t)); } catch (e) {} },
     clear: function (pid) { try { localStorage.removeItem(TOK_PREFIX + pid); } catch (e) {} }
   };
+
+  // Proactive renewal. Each provider registers a renewer; we re-mint a couple of
+  // minutes before expiry so a long-lived tab never hits a 401 mid-action, and
+  // re-check on wake because timers don't fire while a laptop is asleep.
+  var renewers = Object.create(null);
+  function registerRenewer(pid, fn) { renewers[pid] = fn; }
+  async function keepAlive() {
+    for (var pid in renewers) {
+      if (!Tokens.get(pid)) continue;          // never connected here — nothing to keep alive
+      if (Tokens.fresh(pid)) continue;
+      try { await renewers[pid](); } catch (e) { console.warn('[VaultCloud] silent renew failed for', pid, e); }
+    }
+  }
+  setInterval(keepAlive, 4 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) keepAlive(); });
+  window.addEventListener('online', keepAlive);
 
   // ── Activity log ──────────────────────────────────────────────────────────
   // Capped hard: this rides inside the 1 MiB Firestore doc alongside favorites
@@ -290,39 +310,68 @@
     configured: function () { return !!this.cfg().clientId; },
     connected: function () { return !!Tokens.get('gdrive'); },
 
-    connect: async function () {
+    // Google's browser token client issues 1-hour access tokens and NO refresh
+    // token, so staying connected means quietly re-minting. prompt:'' asks GIS
+    // to reuse the existing Google session and grant without any UI; it only
+    // falls back to a visible prompt when that genuinely can't work (signed out
+    // of Google, or consent revoked). `interactive` is what separates a user
+    // pressing Connect from the background keep-alive.
+    _token: function (interactive) {
+      var self = this;
       var clientId = this.cfg().clientId;
-      if (!clientId) throw new Error('Add your Google OAuth client ID in Cloud settings first.');
-      await loadGis();
-      return new Promise(function (resolve, reject) {
-        var client = window.google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: DRIVE_SCOPE,
-          callback: function (resp) {
-            if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
-            Tokens.set('gdrive', { access: resp.access_token, expires: Date.now() + (resp.expires_in || 3600) * 1000 });
-            logActivity('Connected', 'gdrive', 'Google Drive');
-            resolve();
-          },
-          error_callback: function (err) { reject(new Error(fmtErr(err))); }
+      if (!clientId) return Promise.reject(new Error('Add your Google OAuth client ID in Cloud settings first.'));
+      return loadGis().then(function () {
+        return new Promise(function (resolve, reject) {
+          var settled = false;
+          var client = window.google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: DRIVE_SCOPE,
+            callback: function (resp) {
+              if (settled) return; settled = true;
+              if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
+              Tokens.set('gdrive', { access: resp.access_token, expires: Date.now() + (resp.expires_in || 3600) * 1000 });
+              resolve();
+            },
+            error_callback: function (err) {
+              if (settled) return; settled = true;
+              reject(new Error(fmtErr(err)));
+            }
+          });
+          client.requestAccessToken({ prompt: interactive ? 'consent' : '' });
         });
-        client.requestAccessToken({ prompt: '' });
       });
+    },
+    renew: function () { return this._token(false); },
+
+    connect: async function () {
+      var first = !Tokens.get('gdrive');
+      // Try silent first even on an explicit Connect — if the Google session is
+      // still good this completes with no popup at all.
+      try { await this._token(false); }
+      catch (e) { await this._token(true); }
+      if (first) logActivity('Connected', 'gdrive', 'Google Drive');
     },
     disconnect: function () { Tokens.clear('gdrive'); logActivity('Disconnected', 'gdrive', 'Google Drive'); },
 
     // Every Drive call funnels through here so a 401 is retried once with a
     // fresh token instead of surfacing as a random failure an hour in.
+    // Renew BEFORE the call when the token is stale, rather than waiting for a
+    // 401. Saves a wasted round trip and, more importantly, means a mid-upload
+    // expiry doesn't surface as a failure.
+    ready: async function () {
+      if (!Tokens.get('gdrive')) throw new Error('Google Drive is not connected.');
+      if (!Tokens.fresh('gdrive')) await this.renew();
+      return Tokens.get('gdrive');
+    },
+
     api: async function (path, opts, _retried) {
-      var t = Tokens.get('gdrive');
-      if (!t) throw new Error('Google Drive is not connected.');
+      var t = await this.ready();
       opts = opts || {};
       var headers = Object.assign({ Authorization: 'Bearer ' + t.access }, opts.headers || {});
       var r = await fetch(path.indexOf('http') === 0 ? path : 'https://www.googleapis.com/drive/v3' + path,
         Object.assign({}, opts, { headers: headers }));
       if (r.status === 401 && !_retried) {
-        Tokens.clear('gdrive');
-        await this.connect();
+        await this.renew();               // keep the record; only the token was stale
         return this.api(path, opts, true);
       }
       if (!r.ok) {
@@ -356,8 +405,7 @@
     // survive a dropped connection, which the queue's retry depends on.
     upload: async function (file, parentId, opts) {
       opts = opts || {};
-      var t = Tokens.get('gdrive');
-      if (!t) throw new Error('Google Drive is not connected.');
+      var t = await this.ready();
       var meta = { name: file.name, parents: [parentId || 'root'] };
       var init = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=' + encodeURIComponent(DRIVE_FILE_FIELDS), {
         method: 'POST',
@@ -380,8 +428,7 @@
     },
 
     downloadUrl: async function (entry) {
-      var t = Tokens.get('gdrive');
-      if (!t) throw new Error('Google Drive is not connected.');
+      var t = await this.ready();
       // Google-native docs (Docs/Sheets/Slides) have no byte stream — export.
       if (/application\/vnd\.google-apps\./.test(entry.mime)) return entry.webUrl;
       var r = await fetch('https://www.googleapis.com/drive/v3/files/' + entry.id + '?alt=media',
@@ -538,7 +585,7 @@
     disconnect: function () { Tokens.clear('dropbox'); logActivity('Disconnected', 'dropbox', 'Dropbox'); },
 
     refresh: async function () {
-      var t = Tokens.get('dropbox') || JSON.parse(localStorage.getItem(TOK_PREFIX + 'dropbox') || 'null');
+      var t = Tokens.get('dropbox');
       var appKey = this.cfg().appKey;
       if (!t || !t.refresh || !appKey) return false;
       var r = await fetch('https://api.dropboxapi.com/oauth2/token', {
@@ -551,9 +598,14 @@
       return true;
     },
 
+    ready: async function () {
+      if (!Tokens.get('dropbox')) throw new Error('Dropbox is not connected.');
+      if (!Tokens.fresh('dropbox')) await this.refresh();
+      return Tokens.get('dropbox');
+    },
+
     api: async function (endpoint, body, _retried) {
-      var t = Tokens.get('dropbox');
-      if (!t) throw new Error('Dropbox is not connected.');
+      var t = await this.ready();
       var noArgs = (body === null || body === undefined);
       var headers = { Authorization: 'Bearer ' + t.access };
       // Argument-less RPC endpoints (users/get_space_usage) must be sent with NO
@@ -595,8 +647,7 @@
 
     upload: async function (file, parentId, opts) {
       opts = opts || {};
-      var t = Tokens.get('dropbox');
-      if (!t) throw new Error('Dropbox is not connected.');
+      var t = await this.ready();
       var path = (parentId || '') + '/' + file.name;
       var arg = { path: path, mode: 'add', autorename: true, mute: false };
       return await xhrUpload('https://content.dropboxapi.com/2/files/upload', file, opts, {
@@ -620,8 +671,7 @@
     },
 
     downloadUrl: async function (entry) {
-      var t = Tokens.get('dropbox');
-      if (!t) throw new Error('Dropbox is not connected.');
+      var t = await this.ready();
       var r = await fetch('https://content.dropboxapi.com/2/files/download', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + t.access, 'Dropbox-API-Arg': asciiJson({ path: entry.id }) }
@@ -1005,6 +1055,15 @@
 
   register(gdrive);
   register(dropbox);
+
+  // Keep both connections alive without user involvement. Google is re-minted
+  // silently against the existing Google session; Dropbox uses its refresh token
+  // (which is why connect() asks for token_access_type=offline). Neither shows
+  // UI, so a device stays connected until you explicitly Disconnect or revoke
+  // access at the provider.
+  registerRenewer('gdrive', function () { return gdrive.renew(); });
+  registerRenewer('dropbox', function () { return dropbox.refresh(); });
+  keepAlive();
 
   window.VaultCloud = {
     // registry

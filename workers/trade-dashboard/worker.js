@@ -92,12 +92,11 @@ async function currentWatchlist(env){
 }
 
 /* Analysis-tab config — the front-end pushes the Analysis section's selection:
-   the selected prompt PLUS the configured search/URL list. Trading Auto Launch reads it
-   (GET /analysis-config) to open ChatGPT with that exact prompt (auto-submitted)
-   and open each search. */
-/* Browser tab groups only support these 9 fixed colors. Anything else → teal. */
-const TD_GROUP_COLORS=['grey','blue','red','yellow','green','pink','purple','cyan','orange'];
-function tdGroupColor(c){c=String(c||'').toLowerCase();if(c==='teal')c='cyan';if(c==='gray')c='grey';return TD_GROUP_COLORS.includes(c)?c:'cyan';}
+   the selected prompt PLUS the configured search/URL list and the AI destination.
+   Trading Auto Launch reads it (GET /analysis-config) to open that AI site with that
+   exact prompt (auto-submitted) and open each search.
+   (The groupName/groupColor fields that used to live here belonged to the "Trading
+   Analysis" browser tab group, which has been removed. Any left in KV are ignored.) */
 
 /* The AI destination picked in the Analysis tab. Trading Auto Launch opens THIS
    instead of hardcoding ChatGPT, so changing the destination in TradeHub also
@@ -113,7 +112,6 @@ async function getAnalysisConfig(env){
   const p=await kvGet(env,'td_analysis_prompt');
   if(p&&p.text&&String(p.text).trim())
     return { name:p.name||'Prompt', text:String(p.text), searches:Array.isArray(p.searches)?p.searches:[],
-             groupName:p.groupName||'Trading Analysis', groupColor:tdGroupColor(p.groupColor),
              /* Deliberately left UNDEFINED (so JSON.stringify drops the key) for
                 configs written before this field existed: the launcher reads a
                 MISSING aiUrl as "use ChatGPT, as always" but an EMPTY one as the
@@ -130,7 +128,6 @@ async function setAnalysisConfig(env, p){
      aiUrl must not be recorded as having chosen "None". */
   const aiUrl=(p&&p.aiUrl!==undefined&&p.aiUrl!==null)?tdAiUrl(p.aiUrl):undefined;
   await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), searches,
-    groupName:String(p&&p.groupName||'Trading Analysis').slice(0,60), groupColor:tdGroupColor(p&&p.groupColor),
     aiUrl, updatedAt:Date.now() });
   return true;
 }
@@ -218,7 +215,7 @@ async function handle(request, env, ctx){
   if(path==='/analysis-config'&&method==='GET'){
     const p=await getAnalysisConfig(env);
     if(!p) return json({ok:false,error:'no analysis config set'},404,request);
-    return json({ok:true,name:p.name,text:p.text,searches:p.searches,groupName:p.groupName,groupColor:p.groupColor,aiUrl:p.aiUrl},200,request);
+    return json({ok:true,name:p.name,text:p.text,searches:p.searches,aiUrl:p.aiUrl},200,request);
   }
 
   // Daily Reminder — TradeHub (Playbook → Daily Reminder) pushes the page here;

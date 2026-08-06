@@ -290,22 +290,64 @@
     } catch (e) { return false; }
   }
 
-  // The ONLY reliable proof the prompt went: the composer no longer holds it.
-  // Checked against both the element we typed into and whatever the live
-  // composer is now, because these sites routinely swap the node out on submit.
-  function stillHoldingPrompt(profile, el, head) {
-    if (el && el.isConnected && composerText(el).slice(0, 40) === head) return true;
-    var live = findComposer(profile);
-    if (live && live !== el && composerText(live).slice(0, 40) === head) return true;
-    return false;
+  // PROOF OF SENDING — read this before changing it.
+  // The obvious test, "the composer's text no longer matches the prompt", is WRONG
+  // and was the bug: ProseMirror re-normalises whitespace after an insert, and an
+  // extension living in the same box (Grammarly, in Tony's Brave) rewrites its DOM
+  // outright. Either makes the text "not match" while nothing has been sent — so
+  // the send loop concluded it was already done, never clicked, and reported
+  // success with the prompt still sitting there. Whether Grammarly had finished
+  // its pass yet is a race, which is why it alternated run to run.
+  //
+  // Only two things actually prove a send: the composer went EMPTY, or the app
+  // navigated to the new conversation (chatgpt.com/ → /c/<id>). Both are states
+  // the site only produces after accepting the message.
+  var startPath = location.pathname;
+
+  function composerEmpty(profile, el) {
+    var live = (el && el.isConnected) ? el : findComposer(profile);
+    if (!live) return true;                 // composer gone entirely → it went
+    return composerText(live).length === 0; // placeholders are CSS ::before, not innerText
   }
 
-  async function fireSend(profile, el, head) {
+  function looksSent(profile, el) {
+    if (location.pathname !== startPath) return true;
+    return composerEmpty(profile, el);
+  }
+
+  // A plain .click() is enough for most React buttons, but some composers commit
+  // on pointerdown/mousedown and never see a bare click. Fire the whole sequence.
+  function clickHard(btn) {
+    try { btn.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    var r = { left: 0, top: 0, width: 0, height: 0 };
+    try { r = btn.getBoundingClientRect(); } catch (e) {}
+    var base = {
+      bubbles: true, cancelable: true, composed: true, view: window,
+      clientX: r.left + r.width / 2, clientY: r.top + r.height / 2,
+      button: 0, pointerId: 1, isPrimary: true, pointerType: 'mouse',
+    };
+    var down = Object.assign({}, base, { buttons: 1 });
+    var up   = Object.assign({}, base, { buttons: 0 });
+    try { btn.dispatchEvent(new PointerEvent('pointerdown', down)); } catch (e) {}
+    try { btn.dispatchEvent(new MouseEvent('mousedown', down)); } catch (e) {}
+    try { btn.dispatchEvent(new PointerEvent('pointerup', up)); } catch (e) {}
+    try { btn.dispatchEvent(new MouseEvent('mouseup', up)); } catch (e) {}
+    try { btn.click(); } catch (e) {}
+  }
+
+  async function fireSend(profile, el) {
+    // Never return "sent" before we have actually tried something — that single
+    // guard is what stops a false read of the composer from silently skipping the
+    // whole send.
+    var tried = false;
     for (var i = 0; i < SEND_TRIES; i++) {
-      if (!stillHoldingPrompt(profile, el, head)) return true;
+      if (tried && looksSent(profile, el)) return true;
 
       var btn = findSend(profile);
-      if (btn) { try { btn.click(); } catch (e) {} }
+      if (btn) {
+        if (i === 0) console.log('[Vault] AI prompt: clicking send —', (btn.getAttribute('data-testid') || btn.id || btn.getAttribute('aria-label') || btn.tagName));
+        clickHard(btn); tried = true;
+      }
 
       // No button (or clicking it isn't taking) → the form's own submit path,
       // then a synthetic Enter. Enter is last because ProseMirror-based
@@ -315,10 +357,11 @@
         submitForm(live);
         try { live.focus(); } catch (e) {}
         pressEnter(live);
+        tried = true;
       }
       await wait(SEND_GAP_MS);
     }
-    return !stillHoldingPrompt(profile, el, head);
+    return looksSent(profile, el);
   }
 
   async function deliver(text) {
@@ -381,7 +424,7 @@
         continue;
       }
 
-      if (await fireSend(profile, el, head)) {
+      if (await fireSend(profile, el)) {
         // Only now tell the background it's done — a failed attempt must stay
         // pending so the next document (or a reload) can have another go.
         report();

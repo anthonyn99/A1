@@ -434,6 +434,43 @@
     }
   }
 
+  var POLL_MS = 45 * 1000;
+  var refreshing = false;
+
+  // Re-list the open folder in place. `quiet` skips the skeleton and only
+  // repaints if something actually changed, so a background poll never flickers
+  // the list or scrolls it.
+  async function refreshCurrent(quiet) {
+    if (refreshing || !vc().connected().length) return;
+    refreshing = true;
+    try {
+      var entries;
+      if (!ST.provider) {
+        var conn = vc().connected();
+        var lists = await Promise.all(conn.map(function (p) {
+          return vc().list(p.id, p.rootId).catch(function () { return []; });
+        }));
+        entries = [].concat.apply([], lists);
+      } else {
+        entries = await vc().list(ST.provider, ST.folder);
+      }
+      if (quiet && sameEntries(entries, ST.entries)) return;
+      ST.entries = entries; ST.err = '';
+      renderFilesOnly();
+    } catch (e) {
+      if (!quiet) { ST.err = vc().fmtErr(e); renderFilesOnly(); }
+    } finally { refreshing = false; }
+  }
+
+  // Cheap identity check — ids, names, sizes and mtimes. Enough to catch a new
+  // upload, a rename, a delete or an edit from another device.
+  function sameEntries(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    var key = function (e) { return e.provider + ':' + e.id + ':' + e.name + ':' + (e.size || 0) + ':' + (e.modified || 0); };
+    var A = a.map(key).sort().join('|'), B = b.map(key).sort().join('|');
+    return A === B;
+  }
+
   function navTo(providerId, folderId, name, push) {
     ST.provider = providerId;
     ST.folder = folderId;
@@ -729,6 +766,7 @@
 
   /* ── Storage dashboard ───────────────────────────────────────────────────*/
   var quotaCache = {};
+  var QUOTA_TTL = 90 * 1000;
   function buildStores() {
     var wrap = el('div', { class: 'vcl-stores' });
     vc().connected().forEach(function (p) {
@@ -777,9 +815,16 @@
         if (pct > 90) fill.style.background = 'var(--err)';
         sub.textContent = vc().fmtSize(q.used) + ' of ' + vc().fmtSize(q.total) + ' used · ' + vc().fmtSize(Math.max(0, q.total - q.used)) + ' free';
       }
-      if (quotaCache[p.id]) paintQuota(quotaCache[p.id]);
-      p.quota().then(function (q) { quotaCache[p.id] = q; paintQuota(q); })
-        .catch(function () { pctEl.textContent = '—'; sub.textContent = 'Storage unavailable'; });
+      // Quota used to be re-fetched on EVERY render — two provider API calls per
+      // repaint, and render() runs on almost every interaction. Cached with a TTL
+      // and invalidated on a real change, so a browsing session costs a couple of
+      // calls a minute instead of hundreds.
+      var hit = quotaCache[p.id];
+      if (hit) paintQuota(hit.q);
+      if (!hit || Date.now() - hit.at > QUOTA_TTL) {
+        p.quota().then(function (q) { quotaCache[p.id] = { q: q, at: Date.now() }; paintQuota(q); })
+          .catch(function () { if (!hit) { pctEl.textContent = '—'; sub.textContent = 'Storage unavailable'; } });
+      }
     });
     return wrap;
   }
@@ -1880,7 +1925,40 @@
       vc().load().then(function () { render(); });
       vc().onChange(function () { if (isVisible()) render(); });
       vc().onQueue(function () { renderDock(); });
-      window.addEventListener('vault-cloud-changed', function () { quotaCache = {}; treeCache = {}; });
+      // Any mutation anywhere — upload finishing, rename, delete, folder created,
+      // a drag-drop move — re-lists the folder on screen. Previously the event
+      // only cleared caches, so an upload landed in the cloud but the list you
+      // were staring at kept showing the old contents until you left the tab and
+      // came back.
+      window.addEventListener('vault-cloud-changed', function (e) {
+        quotaCache = {}; treeCache = {};
+        if (!isVisible() || ST.pane !== 'files') return;
+        var d = (e && e.detail) || {};
+        // Only reload when the change touches what's actually displayed.
+        var mine = !ST.provider || !d.provider || d.provider === ST.provider;
+        if (mine) refreshCurrent();
+      });
+
+      // Changes made on ANOTHER device (or in drive.google.com / dropbox.com
+      // directly) can't push to us — neither provider offers a browser-reachable
+      // change feed. A light poll while the tab is actually visible is the honest
+      // approximation: it stops entirely when the tab is hidden, so it costs
+      // nothing in the background.
+      setInterval(function () {
+        if (!isVisible() || document.hidden) return;
+        if (ST.pane !== 'files' || ST.query || ST.loading) return;
+        if (document.querySelector('.vcl-ov') || document.querySelector('.vcl-menu')) return;  // don't yank a modal open
+        if (Object.keys(ST.sel).length) return;                                                // nor an active selection
+        refreshCurrent(true);
+      }, POLL_MS);
+
+      // Coming back to the tab is the moment a stale list is most obvious.
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && isVisible() && ST.pane === 'files') refreshCurrent(true);
+      });
+      window.addEventListener('focus', function () {
+        if (isVisible() && ST.pane === 'files') refreshCurrent(true);
+      });
       // Esc closes whatever is on top, innermost first.
       document.addEventListener('keydown', function (e) {
         if (e.key !== 'Escape') return;
