@@ -4112,8 +4112,8 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
               : <>Launch Analysis opens {aiSite.label} with the prompt on your clipboard — paste with Ctrl+V, then Enter. Install the <b>Vault extension</b> to have it typed and sent automatically.</>}
           </span>
         </div>
-        {aiSite.id!=='chatgpt'&&(
-          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>This applies to <b>Launch Analysis</b> only — the morning Trading Auto Launch (Deploy, below) always opens ChatGPT.</div>
+        {aiSite.id!=='chatgpt'&&aiSite.id!=='none'&&(
+          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>The morning Trading Auto Launch (Deploy, below) follows this setting too — it opens {aiSite.label} and submits the prompt there.</div>
         )}
       </div>
     </div>
@@ -6753,11 +6753,13 @@ function TBApp(){
     return()=>clearTimeout(t);
   },[watchlist,fbLoaded]);
 
-  /* ── Push the Analysis-tab selection (prompt + searches) to the worker ─────────
+  /* ── Push the Analysis-tab selection (prompt + searches + AI site) to the worker ──
      App-level (not inside the Analysis tab) so it stays in sync even when that tab
-     is never opened. Trading Auto Launch GETs /analysis-config to open ChatGPT with this
-     exact prompt (auto-submitted) and open each search. Deduped so we only POST on
-     real changes. */
+     is never opened. Trading Auto Launch GETs /analysis-config to open the AI site
+     with this exact prompt (auto-submitted) and open each search. aiUrl is part of
+     the payload so the morning launch follows the SAME destination the Analysis tab
+     is set to, instead of always opening ChatGPT. Deduped so we only POST on real
+     changes. */
   const _tbAnalysisPushSig=useRef(null);
   useEffect(()=>{
     const sel=(prompts.find(p=>p.id===analysisCfg.analysisPromptId)||prompts[0])||null;
@@ -6766,11 +6768,12 @@ function TBApp(){
       :[analysisCfg.searchQuery1,analysisCfg.searchQuery2]).map(s=>(s||'').trim()).filter(Boolean);
     const groupName=analysisCfg.groupName!=null?analysisCfg.groupName:TB_GROUP_NAME_DEFAULT;
     const groupColor=analysisCfg.groupColor||TB_GROUP_COLOR_DEFAULT;
-    const sig=(sel.name||'')+' '+sel.text+' | '+searches.join(' | ')+' | '+groupName+' | '+groupColor;
+    const aiUrl=tbAiUrl(analysisCfg);
+    const sig=(sel.name||'')+' '+sel.text+' | '+searches.join(' | ')+' | '+groupName+' | '+groupColor+' | '+aiUrl;
     if(_tbAnalysisPushSig.current===sig)return;
-    const push=()=>{fetch(TD_WORKER_URL+'/analysis-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:sel.name||'Prompt',text:sel.text,searches,groupName,groupColor})}).then(r=>{if(r.ok)_tbAnalysisPushSig.current=sig;}).catch(()=>{});};
+    const push=()=>{fetch(TD_WORKER_URL+'/analysis-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:sel.name||'Prompt',text:sel.text,searches,groupName,groupColor,aiUrl})}).then(r=>{if(r.ok)_tbAnalysisPushSig.current=sig;}).catch(()=>{});};
     if(window._fbReady)push(); else window.addEventListener('fb-ready',push,{once:true});
-  },[prompts,analysisCfg.analysisPromptId,analysisCfg.searches,analysisCfg.groupName,analysisCfg.groupColor]);
+  },[prompts,analysisCfg.analysisPromptId,analysisCfg.searches,analysisCfg.groupName,analysisCfg.groupColor,analysisCfg.aiSite,analysisCfg.aiCustomUrl]);
 
   /* ── Trading Auto Launch tab-group signal ───────────────────────────────────
      The Trading Auto Launch opens this page with ?autolaunch=1 as the first tab of

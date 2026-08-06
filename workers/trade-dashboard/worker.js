@@ -99,19 +99,39 @@ async function currentWatchlist(env){
 const TD_GROUP_COLORS=['grey','blue','red','yellow','green','pink','purple','cyan','orange'];
 function tdGroupColor(c){c=String(c||'').toLowerCase();if(c==='teal')c='cyan';if(c==='gray')c='grey';return TD_GROUP_COLORS.includes(c)?c:'cyan';}
 
+/* The AI destination picked in the Analysis tab. Trading Auto Launch opens THIS
+   instead of hardcoding ChatGPT, so changing the destination in TradeHub also
+   changes what the morning launch opens. Only http(s) is accepted — the launcher
+   hands the value straight to the browser. '' means "open no AI tab". */
+function tdAiUrl(u){
+  const s=String(u||'').trim();
+  if(!s) return '';
+  return /^https?:\/\//i.test(s) ? s.slice(0,500) : '';
+}
+
 async function getAnalysisConfig(env){
   const p=await kvGet(env,'td_analysis_prompt');
   if(p&&p.text&&String(p.text).trim())
     return { name:p.name||'Prompt', text:String(p.text), searches:Array.isArray(p.searches)?p.searches:[],
-             groupName:p.groupName||'Trading Analysis', groupColor:tdGroupColor(p.groupColor) };
+             groupName:p.groupName||'Trading Analysis', groupColor:tdGroupColor(p.groupColor),
+             /* Deliberately left UNDEFINED (so JSON.stringify drops the key) for
+                configs written before this field existed: the launcher reads a
+                MISSING aiUrl as "use ChatGPT, as always" but an EMPTY one as the
+                explicit "None" destination. Coercing the old shape to '' would
+                silently stop the morning launch opening any AI tab. */
+             aiUrl:(p.aiUrl===undefined||p.aiUrl===null)?undefined:tdAiUrl(p.aiUrl) };
   return null;
 }
 async function setAnalysisConfig(env, p){
   const text=String(p&&p.text||'').trim(); if(!text) return false;
   const searches=Array.isArray(p&&p.searches)
     ? p.searches.map(s=>String(s||'').slice(0,500)).filter(Boolean).slice(0,20) : [];
+  /* Same undefined-vs-'' distinction as on read: a front-end old enough not to send
+     aiUrl must not be recorded as having chosen "None". */
+  const aiUrl=(p&&p.aiUrl!==undefined&&p.aiUrl!==null)?tdAiUrl(p.aiUrl):undefined;
   await kvPut(env,'td_analysis_prompt',{ name:String(p&&p.name||'Prompt').slice(0,80), text:text.slice(0,8000), searches,
-    groupName:String(p&&p.groupName||'Trading Analysis').slice(0,60), groupColor:tdGroupColor(p&&p.groupColor), updatedAt:Date.now() });
+    groupName:String(p&&p.groupName||'Trading Analysis').slice(0,60), groupColor:tdGroupColor(p&&p.groupColor),
+    aiUrl, updatedAt:Date.now() });
   return true;
 }
 
@@ -198,7 +218,7 @@ async function handle(request, env, ctx){
   if(path==='/analysis-config'&&method==='GET'){
     const p=await getAnalysisConfig(env);
     if(!p) return json({ok:false,error:'no analysis config set'},404,request);
-    return json({ok:true,name:p.name,text:p.text,searches:p.searches,groupName:p.groupName,groupColor:p.groupColor},200,request);
+    return json({ok:true,name:p.name,text:p.text,searches:p.searches,groupName:p.groupName,groupColor:p.groupColor,aiUrl:p.aiUrl},200,request);
   }
 
   // Daily Reminder — TradeHub (Playbook → Daily Reminder) pushes the page here;

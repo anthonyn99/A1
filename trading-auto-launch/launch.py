@@ -9,7 +9,7 @@ confirm your Daily Reminder, and only then opens:
                         with your existing browser windows — even on a cold start,
                         where Brave's session restore is kept in its OWN windows)
   - TaskHub          →  right  panel  (Brave app shortcut)
-  - ChatGPT          →  your selected TradeHub "Analysis" prompt, AUTO-SUBMITTED,
+  - Your AI site     →  your selected TradeHub "Analysis" prompt, AUTO-SUBMITTED,
                         plus your configured Analysis search tabs — all as tabs in
                         that same new TradeHub window, which the Vault browser
                         extension then wraps into one named tab group ("Trading
@@ -31,11 +31,14 @@ launches until you click Confirm; closing it cancels the launch and leaves the d
 unmarked, so the next wake/unlock asks again. See the DAILY REMINDER GATE config
 block below.
 
-The ChatGPT step is the automated equivalent of clicking "Launch Analysis": it
-fetches the prompt you picked in TradeHub's Analysis tab (TradeHub pushes it to the
-trade-dashboard Cloudflare worker) and opens ChatGPT with that prompt already sent —
-no manual paste / Enter. See the CHATGPT ANALYSIS AUTOMATION config block below.
-PRECONDITION: stay signed in to ChatGPT in Brave's default profile.
+The AI step is the automated equivalent of clicking "Launch Analysis": it fetches the
+prompt you picked in TradeHub's Analysis tab (TradeHub pushes it to the trade-dashboard
+Cloudflare worker) and opens the AI site with that prompt already sent — no manual
+paste / Enter. WHICH site is whatever TradeHub → Analysis → "AI destination" is set to
+(ChatGPT, Claude, Gemini, …); the two stay in sync automatically. See the AI ANALYSIS
+AUTOMATION config block below.
+PRECONDITIONS: stay signed in to that AI site in Brave's default profile, and keep the
+Vault extension enabled — it is what types the prompt into the composer and sends it.
 
 NOTE: Editing this file's behavior does NOT require re-running --setup — Task
 Scheduler runs the script fresh each trigger. Only re-run --setup if the TRIGGERS
@@ -95,33 +98,37 @@ TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
 # TaskHub opens via its installed Brave app (app-id below) — no URL needed here
 
 # ==============================================================================
-#  CHATGPT ANALYSIS AUTOMATION
+#  AI ANALYSIS AUTOMATION
 #  After the morning windows open, fetch the prompt you selected in TradeHub's
-#  Analysis tab (TradeHub pushes it to this worker) and open ChatGPT with the
+#  Analysis tab (TradeHub pushes it to this worker) and open your AI site with the
 #  prompt already submitted — no manual paste / Enter.
 #
-#  HOW IT WORKS: the prompt goes in via CLIPBOARD PASTE — the launcher copies the
-#  prompt, opens a plain ChatGPT window, focuses it, then sends Ctrl+V + Enter.
-#  (We do NOT put the prompt in a chatgpt.com/?q=... URL: real prompts are long
-#  enough that the URL + ChatGPT's auth cookies overflow the server's header limit
-#  → HTTP 431. Pasting has no length cap.)
+#  WHICH SITE: TradeHub → Analysis → "AI destination" pushes its aiUrl alongside the
+#  prompt, and we open that. Nothing to configure here.
 #
-#  PRECONDITION: you must be signed in to ChatGPT in Brave's default profile, and
-#  ChatGPT should open straight to the composer (no blocking modal stealing focus).
+#  HOW IT WORKS: the AI tab is opened with a "#tbauto" marker in its URL, and the
+#  VAULT EXTENSION does the rest — its content script runs inside the AI page, so it
+#  can pull the prompt, type it into the composer and click send. That is the only
+#  approach that actually works:
+#    · A ?q=<prompt> URL is out — real prompts are long enough that the URL plus the
+#      site's auth cookies overflow the server's header limit (HTTP 431).
+#    · OS keystrokes are out — the old code pressed Shift+Esc to focus ChatGPT's
+#      message box, but Shift+Esc is BRAVE'S OWN Task Manager shortcut. Brave ate it,
+#      the Task Manager opened on top, and the following Ctrl+V + Enter landed in
+#      THAT window, where Enter is "End task". Nothing was ever typed into ChatGPT.
+#
+#  The prompt is still copied to the clipboard as a manual fallback.
+#
+#  PRECONDITIONS: you must be signed in to that AI site in Brave's default profile,
+#  and the Vault extension must be enabled.
 # ==============================================================================
 
-CHATGPT_ANALYSIS_ENABLED = True   # master switch for the whole ChatGPT step
+CHATGPT_ANALYSIS_ENABLED = True   # master switch for the whole AI analysis step
 TD_WORKER_URL            = "https://trade-dashboard.av1.workers.dev"
 
-# On the morning run, ChatGPT + searches open as TABS in the existing TradeHub window,
-# so this position is only used in the standalone --test-chatgpt case (its own window).
+# On the morning run, the AI site + searches open as TABS in the existing TradeHub
+# window, so this position is only used in the standalone --test-chatgpt case.
 CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
-
-# MAX seconds to wait for the ChatGPT tab to come to the front + finish loading before
-# we paste. This is a cap, not a fixed delay — the launcher proceeds the instant the
-# window title confirms ChatGPT is the active tab (usually 1–3s), so raising it only
-# affects the slow/cold case. It never pastes until ChatGPT is confirmed in front.
-CHATGPT_LOAD_WAIT = 12
 
 # ==============================================================================
 #  DAILY REMINDER GATE
@@ -442,15 +449,10 @@ _SWP_NOZORDER  = 0x0004
 _SWP_NOACTIVATE = 0x0010
 _SPI_GETWORKAREA = 0x0030
 _DWMWA_EXTENDED_FRAME_BOUNDS = 9
-_VK_RETURN       = 0x0D
-_VK_TAB          = 0x09
-_VK_SHIFT        = 0x10
-_VK_CONTROL      = 0x11
 _VK_MENU         = 0x12   # ALT
-_VK_ESCAPE       = 0x1B
-_VK_V            = 0x56
-_VK_9            = 0x39
-_KEYEVENTF_KEYUP = 0x0002
+# The keyboard VKs that used to live here (RETURN/TAB/SHIFT/CONTROL/ESCAPE/V/9) went
+# with the ChatGPT paste automation — see the note above _is_ai_url. Nothing here
+# synthesises keystrokes any more.
 _MOUSEEVENTF_LEFTDOWN = 0x0002
 _MOUSEEVENTF_LEFTUP   = 0x0004
 _CF_UNICODETEXT  = 13
@@ -1151,12 +1153,40 @@ def _resolve_search_url(query: str) -> str:
     return "https://www.google.com/search?q=" + urllib.parse.quote(t)
 
 
-def _is_chatgpt_url(u: str) -> bool:
+def _host_of(u: str) -> str:
+    """Hostname, lowercased, without a leading 'www.'. (Not lstrip('www.') — that
+    strips any leading w/. characters and would turn wsj.com into sj.com.)"""
     try:
-        host = (urllib.parse.urlparse(u).hostname or "").lower()
+        h = (urllib.parse.urlparse(u).hostname or "").lower()
     except Exception:
+        return ""
+    return h[4:] if h.startswith("www.") else h
+
+
+def _is_ai_url(u: str, ai_url: str) -> bool:
+    """True if a configured search entry points at the AI destination itself — those
+    are skipped so the AI tab isn't opened a second time (the duplicate would be the
+    one left in front, with nothing typed into it). ChatGPT's two hostnames are
+    always treated as the same site."""
+    h, a = _host_of(u), _host_of(ai_url)
+    if not h or not a:
         return False
-    return host in ("chatgpt.com", "chat.openai.com") or host.endswith((".chatgpt.com", ".chat.openai.com"))
+    chatgpt = {"chatgpt.com", "chat.openai.com"}
+    if h in chatgpt and a in chatgpt:
+        return True
+    return h == a or h.endswith("." + a)
+
+
+def _mark_autosubmit(u: str) -> str:
+    """Tag the AI URL with #tbauto. That marker is the whole hand-off to the Vault
+    extension: its content script sees it, pulls this same Analysis prompt from the
+    worker, brings the tab to the front and types + sends it. A Python process can't
+    tell the extension a tab id, so the URL is the only channel we have.
+
+    Any existing fragment is replaced — none of these sites use one on the entry
+    page, and keeping both would just risk the SPA router choking on it."""
+    base = u.split("#", 1)[0]
+    return base + "#tbauto"
 
 
 def _set_clipboard_text(text: str) -> bool:
@@ -1228,88 +1258,44 @@ def _focus_window(hwnd) -> bool:
     return False
 
 
-def _tap(vk):
-    _u32.keybd_event(vk, 0, 0, 0)
-    time.sleep(0.03)
-    _u32.keybd_event(vk, 0, _KEYEVENTF_KEYUP, 0)
-
-
-def _send_ctrl(vk):
-    """Ctrl+<vk>."""
-    _u32.keybd_event(_VK_CONTROL, 0, 0, 0)
-    _tap(vk)
-    _u32.keybd_event(_VK_CONTROL, 0, _KEYEVENTF_KEYUP, 0)
-
-
-def _send_shift(vk):
-    """Shift+<vk>."""
-    _u32.keybd_event(_VK_SHIFT, 0, 0, 0)
-    _tap(vk)
-    _u32.keybd_event(_VK_SHIFT, 0, _KEYEVENTF_KEYUP, 0)
-
-
-def _active_tab_is_chatgpt(hwnd) -> bool:
-    """The window title reflects the ACTIVE tab's page title. ChatGPT's is 'ChatGPT'
-    (or 'chatgpt.com' while loading); the searches (finviz, Google, …) never contain
-    'chatgpt'. So this tells us whether ChatGPT is the tab currently in front."""
-    return "chatgpt" in _hwnd_title(hwnd).lower()
-
-
-def _activate_chatgpt_tab(hwnd, timeout: int) -> bool:
-    """Make the ChatGPT tab the ACTIVE tab and CONFIRM it via the window title, so we
-    never paste into a search tab. ChatGPT is opened last, so Ctrl+9 (jump to last tab)
-    is the fast path; if that isn't it (or it's still loading), we walk every tab with
-    Ctrl+Tab, checking the title each time. Returns as soon as ChatGPT is confirmed in
-    front (fast when it loads quickly), or False on timeout.
-
-    SAFETY: every tab-switch keystroke is gated on the Brave window being the true
-    foreground window — so keystrokes can never leak into another app (VS Code, a
-    terminal, …)."""
-    deadline = time.time() + max(3, timeout)
-    while time.time() < deadline:
-        if not _focus_window(hwnd):
-            time.sleep(0.3)
-            continue
-        if _active_tab_is_chatgpt(hwnd):
-            return True
-        if _u32.GetForegroundWindow() != hwnd:
-            continue                    # not really in front → do NOT send keys
-        _send_ctrl(_VK_9)               # jump to the last tab (= ChatGPT by position)
-        time.sleep(0.45)
-        if _active_tab_is_chatgpt(hwnd):
-            return True
-        for _ in range(10):             # fallback: walk the tabs looking for ChatGPT
-            if time.time() >= deadline or _u32.GetForegroundWindow() != hwnd:
-                break                   # focus left our window → stop sending keys
-            _send_ctrl(_VK_TAB)         # Ctrl+Tab = next tab
-            time.sleep(0.35)
-            if _active_tab_is_chatgpt(hwnd):
-                return True
-    return _active_tab_is_chatgpt(hwnd)
+#  ── No keyboard automation lives here any more ──────────────────────────────
+#  The old flow was: Ctrl+9 / Ctrl+Tab to find the ChatGPT tab, Shift+Esc to focus
+#  its composer, Ctrl+V, Enter. Shift+Esc is BRAVE'S OWN Task Manager shortcut —
+#  the browser eats it before the page ever sees it, so the Task Manager opened
+#  on top, then Ctrl+V went nowhere and Enter activated its "End task" button.
+#  Blind keystrokes aimed at a web page were never safe: the extension can type
+#  into the composer directly, and does (see Vault/vault-ai-prompt.js).
 
 
 def open_chatgpt_analysis(target_hwnd=None):
-    """Open the configured searches (left tabs) plus ChatGPT (last tab) and submit the
-    selected Analysis prompt into ChatGPT. Fully automated.
+    """Open the configured searches (left tabs) plus the AI site (last tab) and submit
+    the selected Analysis prompt into it. Fully automated.
 
     If target_hwnd is given (the TradeHub window from the morning run), the tabs open
     INSIDE that window so everything shares one browser window. Otherwise (e.g.
     --test-chatgpt) a fresh window is opened at CHATGPT_POS.
 
-    The prompt goes in via CLIPBOARD PASTE, not the ?q= URL: real prompts are far too
-    long for the URL (ChatGPT returns HTTP 431 — request headers too large once the
-    long query is combined with its auth cookies). Pasting has no length limit."""
+    WHICH AI SITE: whatever TradeHub's Analysis tab is set to (it pushes aiUrl with the
+    prompt). Older configs have no aiUrl — those fall back to ChatGPT, as before.
+
+    HOW THE PROMPT GETS IN: the AI tab is opened with a #tbauto marker and the Vault
+    extension takes it from there — it fetches this same prompt from the worker, brings
+    the tab to the front, types into the composer and clicks send. We do NOT drive the
+    page with keystrokes any more; see the AI ANALYSIS AUTOMATION block at the top of
+    this file for why that was actively dangerous in Brave. The prompt still goes on
+    the clipboard, so if the extension is missing or a site redesign defeats it, Ctrl+V
+    is one keypress away."""
     if not CHATGPT_ANALYSIS_ENABLED:
         return
 
     brave = _find_brave()
     if not brave:
-        log("ChatGPT: Brave not found; skipping ChatGPT analysis.")
+        log("AI analysis: Brave not found; skipping.")
         return
 
     cfg = _fetch_analysis_config()
     if not cfg:
-        log("ChatGPT: no analysis prompt available from worker yet — open TradeHub's "
+        log("AI analysis: no analysis prompt available from worker yet — open TradeHub's "
             "Analysis tab once so it syncs, then it'll work next time. Skipping.")
         return
 
@@ -1317,23 +1303,42 @@ def open_chatgpt_analysis(target_hwnd=None):
     name     = cfg.get("name") or "Prompt"
     searches = cfg.get("searches") or []
 
+    # The AI destination chosen in TradeHub. An empty aiUrl there means "open no AI
+    # tab at all", which is a deliberate setting — honour it and just open searches.
+    ai_url = (cfg.get("aiUrl") or "").strip()
+    if "aiUrl" not in cfg:
+        ai_url = "https://chatgpt.com/"      # pre-aiUrl config: behave as it always did
+    ai_label = _host_of(ai_url) or "AI"
+
     # The launcher's tabs are grouped into a "Trading Analysis" tab group by the Vault
     # extension (triggered by TradeHub's ?autolaunch=1 or its Deploy button). Log what
     # TradeHub configured so the grouping is visible in the log even though the
     # extension does the actual work.
     g_name  = cfg.get("groupName") or "Trading Analysis"
     g_color = cfg.get("groupColor") or "cyan"
-    log(f"ChatGPT: tabs will be grouped as '{g_name}' ({g_color}) by the Vault extension.")
+    log(f"AI analysis: tabs will be grouped as '{g_name}' ({g_color}) by the Vault extension.")
 
-    # 1) Load the prompt onto the clipboard BEFORE opening anything.
+    # 1) Load the prompt onto the clipboard BEFORE opening anything — the manual
+    #    fallback for the case where the extension can't do it.
     if not _set_clipboard_text(prompt):
-        log("ChatGPT: could not set clipboard; aborting ChatGPT step.")
-        return
-    log(f"ChatGPT: prompt '{name}' ({len(prompt)} chars) copied to clipboard.")
+        log("AI analysis: could not set clipboard (continuing — the extension submits "
+            "the prompt itself; you just won't have it on the clipboard as a fallback).")
+    else:
+        log(f"AI analysis: prompt '{name}' ({len(prompt)} chars) copied to clipboard.")
 
-    # 2) Build the tab list: searches first (skip any ChatGPT entry), ChatGPT last.
+    # 2) Build the tab list: searches first (skipping any that point at the AI site
+    #    itself), the AI tab last and marked for auto-submit.
     tabs = [u for u in (_resolve_search_url(q) for q in searches)
-            if u and not _is_chatgpt_url(u)] + ["https://chatgpt.com/"]
+            if u and not _is_ai_url(u, ai_url)]
+    if ai_url:
+        tabs.append(_mark_autosubmit(ai_url))
+    else:
+        log("AI analysis: no AI destination set in TradeHub — opening searches only.")
+    if not tabs:
+        log("AI analysis: nothing to open.")
+        return
+
+    n_searches = len(tabs) - (1 if ai_url else 0)
 
     # Only reuse target_hwnd if it's a real BRAVE window (never a lookalike like a
     # VS Code window whose title happens to contain "tradehub").
@@ -1344,13 +1349,15 @@ def open_chatgpt_analysis(target_hwnd=None):
         # there (a bare `brave <urls>` goes to the last-focused browser window).
         hwnd = target_hwnd
         _focus_window(hwnd)
-        log(f"ChatGPT: adding {len(tabs)-1} search tab(s) + ChatGPT to the TradeHub window...")
+        log(f"AI analysis: adding {n_searches} search tab(s)"
+            + (f" + {ai_label} to the TradeHub window..." if ai_url else " to the TradeHub window..."))
         subprocess.Popen([brave] + tabs)
     else:
-        # Standalone: one dedicated new window (searches + ChatGPT as tabs).
+        # Standalone: one dedicated new window (searches + the AI site as tabs).
         x, y, w, h = CHATGPT_POS
         snapshot = _all_brave_hwnds()
-        log(f"ChatGPT: opening 1 window with {len(tabs)-1} search tab(s) + ChatGPT...")
+        log(f"AI analysis: opening 1 window with {n_searches} search tab(s)"
+            + (f" + {ai_label}..." if ai_url else "..."))
         subprocess.Popen([
             brave,
             f"--window-position={x},{y}",
@@ -1359,42 +1366,17 @@ def open_chatgpt_analysis(target_hwnd=None):
         ] + tabs)
         hwnd = _wait_for_new_brave_window(snapshot, timeout=25)
         if not hwnd:
-            log("ChatGPT: new window not detected; skipping paste. Prompt is on the "
-                "clipboard — switch to the ChatGPT tab, focus the box, Ctrl+V, Enter.")
+            log("AI analysis: new window not detected; it may still have opened. The "
+                "extension submits the prompt on its own once the tab loads.")
             return
         time.sleep(1)
         _place(hwnd, x, y, w, h)
 
-    # Safety: never drive a non-Brave window (guards the standalone path too).
-    if not _is_brave_hwnd(hwnd):
-        log("ChatGPT: target window is not Brave; refusing to send keystrokes. Prompt "
-            "is on the clipboard — switch to the ChatGPT tab, Ctrl+V then Enter.")
-        return
-
-    # 3) Make ChatGPT the ACTIVE tab and CONFIRM it by the window title before typing —
-    #    this is what prevents pasting into a search tab. Returns as soon as ChatGPT is
-    #    in front (fast when warm). If we can't confirm it, we must NOT type — bail with
-    #    the prompt left on the clipboard.
-    time.sleep(1.0)             # let the tabs spawn
-    if not _activate_chatgpt_tab(hwnd, CHATGPT_LOAD_WAIT):
-        log("ChatGPT: couldn't confirm the ChatGPT tab is in front; prompt is on the "
-            "clipboard — switch to the ChatGPT tab, focus the box, Ctrl+V then Enter.")
-        return
-
-    # 4) ChatGPT is confirmed active. Focus its message box with ChatGPT's own Shift+Esc
-    #    shortcut (works whether the box is centred on the new-chat screen or docked at
-    #    the bottom), paste, and submit — but ONLY while the Brave window is truly in
-    #    front, so keystrokes can't leak into another app.
-    if not _focus_window(hwnd) or _u32.GetForegroundWindow() != hwnd:
-        log("ChatGPT: lost the Brave window before paste; prompt is on the clipboard — "
-            "switch to the ChatGPT tab, focus the box, Ctrl+V then Enter.")
-        return
-    _send_shift(_VK_ESCAPE)     # ChatGPT shortcut: focus the message box
-    time.sleep(0.15)
-    _send_ctrl(_VK_V)          # paste
-    time.sleep(0.5)            # let the pasted text render in the composer
-    _tap(_VK_RETURN)           # submit
-    log("ChatGPT: confirmed ChatGPT tab, focused box, pasted prompt, pressed Enter.")
+    if ai_url:
+        log(f"AI analysis: {ai_label} opened with the #tbauto marker — the Vault extension "
+            "types the prompt in and sends it, and brings that tab to the front. If nothing "
+            "is submitted, check that the Vault extension is enabled (the prompt is on your "
+            "clipboard as a fallback).")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1975,7 +1957,7 @@ if __name__ == "__main__":
     parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler + unregister the protocol")
     parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time / market / once-per-day checks")
     parser.add_argument("--from-tradehub", action="store_true", help="On-demand deploy from the TradeHub button: run the full flow but reuse the already-open TradeHub window")
-    parser.add_argument("--test-chatgpt", action="store_true", help="Run ONLY the ChatGPT analysis step (fetch prompt + open ChatGPT auto-submitted + searches); prints progress to the console")
+    parser.add_argument("--test-chatgpt", action="store_true", help="Run ONLY the AI analysis step (fetch prompt + open your TradeHub AI destination auto-submitted + searches); prints progress to the console")
     parser.add_argument("--test-reminder", action="store_true", help="Run ONLY the Daily Reminder gate (fetch TradeHub → Playbook → Daily Reminder + show the confirm dialog); launches nothing")
     parser.add_argument("--test-webull", action="store_true", help="Run ONLY the WeBull tab/account switch on an already-open WeBull window (for tuning the click coordinates); prints progress to the console")
     parser.add_argument("--webull-coords", action="store_true", help="Print the mouse cursor's offset from the WeBull window as you hover — use it to read exact click coordinates for the WEBULL_* settings")
@@ -2036,15 +2018,15 @@ if __name__ == "__main__":
         log("=== Daily Reminder gate test done ===")
     elif args.test_chatgpt:
         _ECHO = True
-        log("=== ChatGPT analysis test ===")
-        _apply_work_area()   # size the ChatGPT window to the taskbar-free height
+        log("=== AI analysis test ===")
+        _apply_work_area()   # size the AI window to the taskbar-free height
         # If a TradeHub BRAVE window is already open, add the tabs to it (mirrors the
         # morning run); otherwise open a standalone window. Only Brave windows match —
         # never an editor/terminal window that happens to show "tradehub".
         th = _find_brave_window_by_title("tradehub", timeout=2)
         if th:
-            log("ChatGPT test: found an open TradeHub Brave window — using it.")
+            log("AI analysis test: found an open TradeHub Brave window — using it.")
         open_chatgpt_analysis(target_hwnd=th)
-        log("=== ChatGPT analysis test done ===")
+        log("=== AI analysis test done ===")
     else:
         run_morning(test=args.test)

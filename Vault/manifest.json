@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Vault",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Your links, logins, cards & ID documents - synced with Vault. Autofill, attach a document scan to an upload field, and launch a whole tab group in one click.",
   "permissions": [
     "tabs",
@@ -15,6 +15,7 @@
     "https://keychain-sync.av1.workers.dev/*",
     "https://vault-pw-sync.av1.workers.dev/*",
     "https://vault-files.av1.workers.dev/*",
+    "https://trade-dashboard.av1.workers.dev/*",
     "https://anthonyn99.github.io/*"
   ],
   "action": {

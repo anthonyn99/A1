@@ -253,6 +253,94 @@ async function saveAiPending(map) {
   try { await chrome.storage.session.set({ [AI_PENDING_KEY]: map }); } catch (_) {}
 }
 
+// ── Trading Auto Launch (launch.py) hand-off ──────────────────────────────────
+// The launcher is a Python process: it opens the AI tab from the command line and
+// has no way to tell us its tab id, so it can't use the TradeHub path above.
+// Instead it marks the URL with #tbauto, and the content script in that tab asks
+// us to fetch the very same Analysis selection TradeHub pushed to the worker.
+// That replaces the launcher's old OS-keystroke paste (Shift+Esc / Ctrl+V /
+// Enter), which Brave hijacked — Shift+Esc is Brave's own Task Manager shortcut,
+// so the paste and the Enter landed in the Task Manager instead of the composer.
+const TD_WORKER_URL = "https://trade-dashboard.av1.workers.dev";
+
+const AI_AUTO_MARK = /#tbauto\b/i;
+
+async function fetchAnalysisPrompt() {
+  try {
+    const r = await fetch(TD_WORKER_URL + "/analysis-config", { cache: "no-store" });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const t = d && d.ok ? String(d.text || "") : "";
+    return t.trim() ? t : null;
+  } catch (e) {
+    console.warn("[Vault] AI prompt: analysis-config fetch failed:", e);
+    return null;
+  }
+}
+
+// Register the launcher's prompt against a #tbauto tab. Idempotent: an existing,
+// unexpired entry wins, so the several onUpdated events one navigation produces
+// (and the content script's own claim) can't double-fetch or reset the counter.
+// tries stays 0 here — arming is not a hand-out; only handOutPrompt counts.
+const _aiArming = new Set();   // in-flight guard across the fetch's await gap
+async function armAutoSubmitTab(tabId) {
+  if (tabId == null || _aiArming.has(tabId)) return false;
+  const key = String(tabId);
+  let map = await loadAiPending();
+  if (map[key] && map[key].deadline >= Date.now()) return true;
+
+  _aiArming.add(tabId);
+  try {
+    const text = await fetchAnalysisPrompt();
+    if (!text) {
+      console.warn("[Vault] AI prompt: #tbauto tab", tabId, "— worker had no Analysis prompt.");
+      return false;
+    }
+    const now = Date.now();
+    map = await loadAiPending();   // re-read: the fetch was an await gap
+    if (map[key] && map[key].deadline >= now) return true;
+    for (const k of Object.keys(map)) if (!map[k] || map[k].deadline < now) delete map[k];
+    map[key] = { text, deadline: now + AI_PENDING_MS, tries: 0 };
+    await saveAiPending(map);
+
+    // The launcher no longer drives the tab strip with keystrokes, so bringing the
+    // AI tab to the front is our job now — it's also what lets the content script
+    // type into a composer that has actually laid out.
+    try { await chrome.tabs.update(tabId, { active: true }); } catch (_) {}
+    console.log("[Vault] AI prompt: armed #tbauto tab", tabId, "with", text.length, "chars");
+    return true;
+  } finally { _aiArming.delete(tabId); }
+}
+
+// Catch the marker at NAVIGATION time, not just when the content script asks. These
+// AI sites are SPAs that rewrite the URL as they boot, so by the time a content
+// script runs at document_idle the #tbauto fragment may already be gone — but the
+// tabs API still reports it here, on the very first loading event.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  const url = changeInfo.url || (tab && tab.url) || "";
+  if (AI_AUTO_MARK.test(url)) armAutoSubmitTab(tabId);
+});
+
+// One shared hand-out path for both sources (TradeHub button and #tbauto), so the
+// try cap and the "release only on a confirmed submit" rule apply identically.
+async function handOutPrompt(tabId) {
+  if (tabId == null) return null;
+  const map = await loadAiPending();
+  const key = String(tabId);
+  const entry = map[key];
+  if (!entry || entry.deadline < Date.now()) return null;
+  if ((entry.tries || 0) >= AI_MAX_TRIES) {
+    console.warn("[Vault] AI prompt: giving up on tab", tabId, "after", entry.tries, "tries");
+    delete map[key]; await saveAiPending(map);
+    return null;
+  }
+  entry.tries = (entry.tries || 0) + 1;
+  map[key] = entry;
+  await saveAiPending(map);
+  console.log("[Vault] AI prompt: handed to tab", tabId, "(try", entry.tries + ")");
+  return entry.text;
+}
+
 async function launchAnalysis(message, senderTab) {
   const windowId = senderTab && senderTab.windowId != null ? senderTab.windowId : null;
   const searches = (Array.isArray(message.searches) ? message.searches : []).map(normalize).filter(Boolean);
@@ -321,21 +409,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === "vaultAiPromptPending") {
     const tabId = _sender && _sender.tab ? _sender.tab.id : null;
     (async () => {
-      if (tabId == null) return sendResponse({});
-      const map = await loadAiPending();
-      const key = String(tabId);
-      const entry = map[key];
-      if (!entry || entry.deadline < Date.now()) return sendResponse({});
-      if ((entry.tries || 0) >= AI_MAX_TRIES) {
-        console.warn("[Vault] AI prompt: giving up on tab", tabId, "after", entry.tries, "tries");
-        delete map[key]; await saveAiPending(map);
-        return sendResponse({});
-      }
-      entry.tries = (entry.tries || 0) + 1;
-      map[key] = entry;
-      await saveAiPending(map);
-      console.log("[Vault] AI prompt: handed to tab", tabId, "(try", entry.tries + ")");
-      sendResponse({ text: entry.text });
+      const text = await handOutPrompt(tabId);
+      sendResponse(text ? { text } : {});
+    })();
+    return true;
+  }
+
+  // ── a #tbauto tab (opened by the Trading Auto Launch) claiming its prompt ──
+  // Registering it in the SAME pending map is the point: from here the tab uses
+  // the identical hand-out / retry / confirm path as the TradeHub button, so an
+  // auth interstitial or a reload gets another go instead of losing the prompt.
+  // A tab that already has an entry just gets it back — a re-claim after a
+  // redirect must not reset the try counter or double-fetch.
+  if (message.action === "vaultAiAutoSubmit") {
+    const tabId = _sender && _sender.tab ? _sender.tab.id : null;
+    (async () => {
+      await armAutoSubmitTab(tabId);   // usually already armed by the onUpdated listener
+      const text = await handOutPrompt(tabId);
+      sendResponse(text ? { text } : {});
     })();
     return true;
   }
