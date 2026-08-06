@@ -13,6 +13,12 @@
   // Assets come from ../../dist, which `npm run build` generates from each app's
   // canonical HTML (see scripts/build.mjs). The deploy workflow runs that build
   // first, so one push publishes every app — no console step, no Pages project.
+  //
+  // This suite now lives at V1/ inside the A1 repo (anthonyn99/A1); it was
+  // previously its own repo (VedaCPatel/V1). The relative ../../dist path is
+  // unaffected by that move, and deploys are driven by
+  // .github/workflows/deploy-v1-workers.yml against VEDA'S Cloudflare account
+  // (CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID) — not Tony's CF_API_TOKEN.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tradeboard",
   "compatibility_date": "2026-07-24",
