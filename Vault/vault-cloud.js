@@ -992,9 +992,14 @@
     var slim = entries.slice(0, 400).map(function (e, i) {
       return { i: i, name: e.name, kind: kindOf(e), size: e.size, modified: e.modified ? new Date(e.modified).toISOString().slice(0, 10) : '', folder: !!e.folder, provider: e.provider };
     });
+    // Say which key to bill explicitly. Vault has no profile switcher — it is
+    // Tony's, single-user — so the worker's `|| 'tony'` fallback already routed
+    // here correctly, but only by accident of the default. Naming the profile
+    // means a future change to that default (or a second profile arriving in
+    // Vault) can't silently start charging the wrong person's Gemini quota.
     var r = await fetch(AI_ENDPOINT, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: String(query), files: slim })
+      body: JSON.stringify({ query: String(query), files: slim, profile: 'tony' })
     });
     if (!r.ok) throw new Error('AI search is unavailable right now.');
     var j = await r.json();

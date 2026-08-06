@@ -119,21 +119,18 @@ Then in the app: open any document → **✨** in the toolbar → *Quick summary
 
 **Only if you want to swap the key**
 
-The key you pasted in chat is **not** in this repository and must not be. Set it as
-a Cloudflare secret:
+A key is never committed to this repository. It goes in as a Cloudflare secret:
 
 ```bash
 cd workers/personal-ai
 wrangler secret put TONY_GEMINI_KEY
 ```
 
-Two things worth knowing before you do:
-
-1. That value (`AQ.Ab8RN6…`) is not the shape of a Gemini API key. Keys for
-   `generativelanguage.googleapis.com` start with `AIza…` and come from
-   [aistudio.google.com/apikey](https://aistudio.google.com/apikey). An `AQ.`
-   token is a short-lived OAuth credential and will start returning 401s.
-2. It has been through a chat transcript in plaintext. Rotate it.
+Google AI Studio issues keys in the `AQ.…` format (the older `AIza…` keys still
+work). Both authenticate against `generativelanguage.googleapis.com` as a plain
+`?key=` query parameter, which is what `callGemini` / `geminiOnce` already send —
+verified with a live `generateContent` call returning HTTP 200. No code change is
+needed to switch between the two formats.
 
 ---
 
