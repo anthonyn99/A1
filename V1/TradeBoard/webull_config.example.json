@@ -1,0 +1,7 @@
+{
+  "app_key": "YOUR_WEBULL_APP_KEY",
+  "app_secret": "YOUR_WEBULL_APP_SECRET",
+  "region_id": "us",
+  "account_id": "YOUR_WEBULL_ACCOUNT_ID",
+  "history_start": "2026-01-01"
+}

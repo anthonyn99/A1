@@ -1,0 +1,17 @@
+# ── TradeBoard Auth Worker — Wrangler config ──────────────────────────────────
+# DEPLOYMENT IS AUTOMATED: pushing any change under worker/** to GitHub `main`
+# triggers .github/workflows/deploy-worker.yml, which runs `wrangler deploy` in
+# CI. You do NOT run wrangler locally. (Manual fallback if ever needed:
+# `npx wrangler deploy` from this /worker directory.)
+# The KV namespace id below was created by scripts/setup.ps1
+# (`wrangler kv namespace create LOCKS`). If you ever recreate it, paste the new
+# id into the `id = "..."` line.
+
+name = "tradeboard-auth"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Workers KV that stores the salted+hashed lock passwords and reset codes.
+[[kv_namespaces]]
+binding = "LOCKS"
+id = "3117ae4cb72a4becac184541d3325e57"

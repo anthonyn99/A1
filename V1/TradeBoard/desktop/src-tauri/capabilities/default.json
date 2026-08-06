@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions for the TradeBoard main window. Deliberately narrow. The file picker and every process action go through our own typed commands in state.rs (which validate the target and spawn with an argument array), not through plugin JS — tradeboard.html has no bundler and can only reach Tauri via the window.__TAURI__ global, which carries core + event only.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:webview:allow-create-webview-window"
+  ]
+}

@@ -1,0 +1,388 @@
+/* ── Word-dark workspace + page sheet (scoped: tj dark mode only; bj is dark-only) ── */
+#tj-root .docx-wrap,
+#bj-root .docx-wrap ,
+#so-root .docx-wrap {
+  background: #1a1a1d !important;
+  padding: 26px 14px 80px !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  position: relative;   /* anchor the absolutely-positioned vertical ruler */
+}
+#tj-root .docx-sheet,
+#bj-root .docx-sheet ,
+#so-root .docx-sheet {
+  box-sizing: border-box !important;
+  /* flow-root = block formatting context: keeps the first child's top margin
+     (headings have margin-top) INSIDE the sheet even when the top margin is 0,
+     so dragging the top ruler to the top never clips/jams content at the edge. */
+  display: flow-root !important;
+  width: var(--docx-pw, 816px) !important;
+  max-width: none !important;
+  min-height: var(--docx-ph, 1056px) !important;
+  margin: 0 auto !important;
+  padding: var(--docx-mt,96px) var(--docx-mr,96px) var(--docx-mb,96px) var(--docx-ml,96px) !important;
+  background: #2c2c31 !important;
+  color: #f4f3f0 !important;
+  border-radius: 3px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.55), 0 14px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(224,184,116,.10);
+  zoom: var(--docx-zoom, 1);
+  caret-color: #fff !important;
+  position: relative;
+  font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important;
+  font-size: 12pt !important;
+  line-height: 1.5 !important;
+}
+#tj-root .docx-sheet ::selection,
+#bj-root .docx-sheet ::selection ,
+#so-root .docx-sheet ::selection { background: rgba(120,150,255,.35); }
+/* Page-break slits between pages (Print-layout view) */
+#tj-root .docx-pages .docx-sheet,
+#bj-root .docx-pages .docx-sheet ,
+#so-root .docx-pages .docx-sheet {
+  background-image: repeating-linear-gradient(to bottom,
+    transparent 0, transparent calc(var(--docx-pi, 864px) - 2px),
+    #1a1a1d calc(var(--docx-pi, 864px) - 2px), #1a1a1d var(--docx-pi, 864px)) !important;
+  background-origin: content-box !important;
+  background-clip: border-box;
+  background-repeat: repeat-y;
+}
+/* Word-like neutral typography on the sheet (dark only) */
+#tj-root .docx-sheet h1, #bj-root .docx-sheet h1 , #so-root .docx-sheet h1 { font-family: inherit; font-size: 20pt; font-weight: 700; letter-spacing: 0; color: #fff; margin: 14px 0 8px; line-height: 1.25; }
+#tj-root .docx-sheet h2, #bj-root .docx-sheet h2 , #so-root .docx-sheet h2 { font-family: inherit; font-size: 15pt; font-weight: 700; color: #fff; margin: 12px 0 6px; line-height: 1.3; }
+#tj-root .docx-sheet h3, #bj-root .docx-sheet h3 , #so-root .docx-sheet h3 { font-family: inherit; font-size: 12.5pt; font-weight: 700; color: #fff; margin: 10px 0 5px; text-transform: none; letter-spacing: 0; }
+#tj-root .docx-sheet a, #bj-root .docx-sheet a , #so-root .docx-sheet a { color: #7ab8ff; }
+/* Clearer divider + page break against the dark page */
+#tj-root .docx-sheet hr, #bj-root .docx-sheet hr , #so-root .docx-sheet hr { border: none; height: 2px; background: rgba(255,255,255,.34); border-radius: 2px; margin: 18px 0; }
+#tj-root .docx-sheet hr.docx-pagebreak, #bj-root .docx-sheet hr.docx-pagebreak , #so-root .docx-sheet hr.docx-pagebreak { background: none; height: 0; border-top: 2px dashed rgba(150,170,255,.6); }
+#tj-root .docx-sheet th, #bj-root .docx-sheet th , #so-root .docx-sheet th { background: rgba(255,255,255,.12); color: #fff; text-transform: none; letter-spacing: 0; font-size: inherit; }
+/* Clearer table gridlines against the dark page (bright solid gray reads far better than low-alpha white) */
+#tj-root .docx-sheet th, #tj-root .docx-sheet td,
+#bj-root .docx-sheet th,
+#so-root .docx-sheet th, #bj-root .docx-sheet td , #so-root .docx-sheet td { border: 1.5px solid #c9ccd6 !important; }
+#tj-root .docx-sheet table, #bj-root .docx-sheet table , #so-root .docx-sheet table { border: 1.5px solid #c9ccd6 !important; border-collapse: collapse; }
+#tj-root .docx-sheet table, #bj-root .docx-sheet table , #so-root .docx-sheet table { font-size: inherit; }
+/* Stable text while editing: break only at spaces (no mid-word jitter), never justify by default */
+#tj-root .docx-sheet, #bj-root .docx-sheet , #so-root .docx-sheet { word-break: normal !important; overflow-wrap: break-word; -webkit-hyphens: none; hyphens: none; text-align: left; }
+#tj-root .docx-sheet blockquote, #bj-root .docx-sheet blockquote , #so-root .docx-sheet blockquote { background: rgba(255,255,255,.05); }
+#tj-root .docx-sheet pre, #tj-root .docx-sheet code,
+#bj-root .docx-sheet pre,
+#so-root .docx-sheet pre, #bj-root .docx-sheet code , #so-root .docx-sheet code { background: rgba(0,0,0,.3); border-color: rgba(255,255,255,.12); }
+/* Word-dark toolbar background (dark only) */
+#tj-root #tj-page-toolbar, #tj-root #tj-je-toolbar,
+#bj-root #bj-page-toolbar ,
+#so-root #so-page-toolbar { background: #1B1C1F; border-bottom-color: #2A2B30; }
+
+/* Manual page break */
+.docx-pagebreak { border: none !important; border-top: 2px dashed rgba(140,160,255,.5) !important; margin: 20px 0 !important; page-break-after: always; break-after: page; }
+
+/* ── Checklists ── */
+ul.docx-checklist { list-style: none !important; padding-left: 8px !important; }
+li.docx-cl-item { list-style: none !important; }
+.docx-cl-box { margin-right: 9px; width: 14px; height: 14px; vertical-align: -2px; cursor: pointer; }
+li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .6; }
+
+/* ── Markdown-rendered extras: math, footnotes, definition lists, code labels ── */
+.docx-math-block { display: block; margin: 14px 0; text-align: center; overflow-x: auto; }
+.docx-math-inline { display: inline-block; }
+.docx-math { cursor: pointer; border-radius: 3px; }
+.docx-math:hover { background: rgba(120,150,255,.14); box-shadow: 0 0 0 2px rgba(120,150,255,.14); }
+.docx-math:empty::before, .docx-math:not([data-rendered])::after { content: attr(data-tex); color: #9fb0ff; font-family: 'Consolas',monospace; }
+#tj-root .docx-sheet dl, #bj-root .docx-sheet dl , #so-root .docx-sheet dl { margin: 8px 0; }
+#tj-root .docx-sheet dt, #bj-root .docx-sheet dt , #so-root .docx-sheet dt { font-weight: 700; margin-top: 6px; }
+#tj-root .docx-sheet dd, #bj-root .docx-sheet dd , #so-root .docx-sheet dd { margin: 2px 0 2px 24px; opacity: .92; }
+#tj-root .docx-sheet ol.docx-footnotes, #bj-root .docx-sheet ol.docx-footnotes , #so-root .docx-sheet ol.docx-footnotes { font-size: .86em; opacity: .82; padding-left: 24px; margin-top: 6px; }
+.docx-fnref { font-size: .72em; }
+.docx-fnref a { text-decoration: none; }
+#tj-root .docx-sheet pre.docx-code, #bj-root .docx-sheet pre.docx-code , #so-root .docx-sheet pre.docx-code { position: relative; }
+#tj-root .docx-sheet pre.docx-code[data-lang]::before, #bj-root .docx-sheet pre.docx-code[data-lang]::before , #so-root .docx-sheet pre.docx-code[data-lang]::before { content: attr(data-lang); position: absolute; top: 4px; right: 9px; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; opacity: .5; }
+#tj-root .docx-sheet sub, #bj-root .docx-sheet sub , #so-root .docx-sheet sub { font-size: .72em; }
+#tj-root .docx-sheet sup, #bj-root .docx-sheet sup , #so-root .docx-sheet sup { font-size: .72em; }
+#tj-root .docx-sheet details, #bj-root .docx-sheet details , #so-root .docx-sheet details { margin: 8px 0; padding: 6px 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 7px; background: rgba(255,255,255,.03); }
+#tj-root .docx-sheet summary, #bj-root .docx-sheet summary , #so-root .docx-sheet summary { cursor: pointer; font-weight: 600; }
+#tj-root .docx-sheet div[align="center"], #bj-root .docx-sheet div[align="center"] , #so-root .docx-sheet div[align="center"] { text-align: center; }
+
+/* ── Menu bar (first row inside each rich-text toolbar) ──
+   Scoped with the root IDs so the roots' universal padding:0 reset does not collapse them. */
+#tj-root .docx-menubar, #bj-root .docx-menubar , #so-root .docx-menubar { display: flex; gap: 2px; width: 100%; order: -1; padding: 2px 0 6px; margin-bottom: 5px; border-bottom: 1px solid rgba(128,128,128,.16); overflow-x: auto; scrollbar-width: none; align-items: center; }
+#tj-root .docx-menubar::-webkit-scrollbar, #bj-root .docx-menubar::-webkit-scrollbar , #so-root .docx-menubar::-webkit-scrollbar { display: none; }
+#tj-root .docx-menu-btn, #bj-root .docx-menu-btn , #so-root .docx-menu-btn { background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 5px 12px; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12.5px; font-weight: 500; color: var(--text2, #9a9aa5); cursor: pointer; white-space: nowrap; line-height: 1.2; flex-shrink: 0; transition: background .12s, color .12s; }
+#tj-root .docx-menu-btn:hover, #bj-root .docx-menu-btn:hover, #so-root .docx-menu-btn:hover, #tj-root .docx-menu-btn.open, #bj-root .docx-menu-btn.open , #so-root .docx-menu-btn.open { background: rgba(128,128,128,.2); color: var(--text, #f4f3f0); }
+
+/* ── Popup menus / dropdowns ── */
+.docx-pop { position: fixed; z-index: 100000; background: #232428; border: 1px solid #3B3C42; border-radius: 9px; box-shadow: 0 14px 44px rgba(0,0,0,.55); padding: 5px; min-width: 208px; max-height: 72vh; overflow-y: auto; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12.5px; color: #E8E8EC; }
+.docx-mi { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 12px; border: none; background: transparent; color: inherit; border-radius: 5px; cursor: pointer; text-align: left; font: inherit; white-space: nowrap; }
+.docx-mi:hover { background: rgba(255,255,255,.09); }
+.docx-mi .k { margin-left: auto; opacity: .42; font-size: 10.5px; padding-left: 20px; }
+.docx-mi .chk { width: 14px; display: inline-block; text-align: center; opacity: .9; }
+.docx-msep { height: 1px; background: rgba(255,255,255,.09); margin: 5px 8px; }
+.docx-mlabel { padding: 6px 12px 3px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; opacity: .45; }
+.docx-pop input[type="text"], .docx-pop input[type="search"] { width: 100%; box-sizing: border-box; background: #18191C; border: 1px solid #3B3C42; border-radius: 6px; color: #fff; padding: 6px 9px; font-size: 12.5px; outline: none; font-family: inherit; }
+.docx-pop input[type="text"]:focus, .docx-pop input[type="search"]:focus { border-color: #6f7dff; }
+.docx-fontitem { font-size: 14px; }
+/* Table grid picker */
+.docx-grid { display: grid; grid-template-columns: repeat(8, 17px); gap: 3px; padding: 8px; }
+.docx-grid span { width: 17px; height: 17px; border: 1px solid #4A4B52; border-radius: 3px; background: #1A1B1E; }
+.docx-grid span.on { background: #5B7CFF; border-color: #7A93FF; }
+.docx-grid-lbl { text-align: center; padding: 0 0 7px; font-size: 11px; opacity: .7; }
+
+/* ── Ruler (draggable margins) ── */
+#tj-root .docx-ruler, #bj-root .docx-ruler , #so-root .docx-ruler { display: none; height: 26px; position: relative; flex-shrink: 0; background: #1a1a1d; overflow: visible; user-select: none; }
+#tj-root .docx-ruler-in, #bj-root .docx-ruler-in , #so-root .docx-ruler-in { position: absolute; top: 7px; height: 13px; left: 50%; transform: translateX(-50%); background: #3a3b40; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+/* the writable (inside-margins) span shown lighter */
+#tj-root .docx-ruler-page, #bj-root .docx-ruler-page , #so-root .docx-ruler-page { position: absolute; top: 0; bottom: 0; background: #26272B; }
+#tj-root .docx-ruler-marg, #bj-root .docx-ruler-marg , #so-root .docx-ruler-marg { position: absolute; top: -3px; bottom: -3px; width: 12px; cursor: ew-resize; z-index: 3; display: flex; align-items: flex-start; justify-content: center; touch-action: none; }
+#tj-root .docx-ruler-marg::after, #bj-root .docx-ruler-marg::after , #so-root .docx-ruler-marg::after { content: ''; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid #8b8c94; margin-top: 1px; transition: border-top-color .12s; }
+#tj-root .docx-ruler-marg:hover::after, #bj-root .docx-ruler-marg:hover::after, #so-root .docx-ruler-marg:hover::after, #tj-root .docx-ruler-marg.drag::after, #bj-root .docx-ruler-marg.drag::after , #so-root .docx-ruler-marg.drag::after { border-top-color: var(--purple, #e0b874); }
+#tj-root .docx-ruler-marg.left, #bj-root .docx-ruler-marg.left , #so-root .docx-ruler-marg.left { margin-left: -6px; }
+#tj-root .docx-ruler-marg.right, #bj-root .docx-ruler-marg.right , #so-root .docx-ruler-marg.right { margin-right: -6px; }
+@media (min-width: 900px) {
+  #tj-root #tj-page-toolbar.edit-mode ~ .docx-ruler,
+  #tj-root #tj-je-toolbar.edit-mode ~ .docx-ruler,
+  #bj-root #bj-page-toolbar.edit-mode ~ .docx-ruler ,
+  #so-root #so-page-toolbar.edit-mode ~ .docx-ruler { display: block; }
+}
+
+/* ── Vertical ruler (Batch 11 #1: draggable TOP / BOTTOM margins) ── */
+#tj-root .docx-vruler, #bj-root .docx-vruler , #so-root .docx-vruler { display: none; position: absolute; width: 13px; background: #3a3b40; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); z-index: 4; user-select: none; }
+#tj-root .docx-vruler-page, #bj-root .docx-vruler-page , #so-root .docx-vruler-page { position: absolute; left: 0; right: 0; background: #26272B; }
+#tj-root .docx-vruler-marg, #bj-root .docx-vruler-marg , #so-root .docx-vruler-marg { position: absolute; left: -3px; right: -3px; height: 12px; cursor: ns-resize; z-index: 5; display: flex; align-items: center; justify-content: flex-start; touch-action: none; }
+#tj-root .docx-vruler-marg::after, #bj-root .docx-vruler-marg::after , #so-root .docx-vruler-marg::after { content: ''; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 7px solid #8b8c94; margin-left: 1px; transition: border-left-color .12s; }
+#tj-root .docx-vruler-marg:hover::after, #bj-root .docx-vruler-marg:hover::after, #so-root .docx-vruler-marg:hover::after, #tj-root .docx-vruler-marg.drag::after, #bj-root .docx-vruler-marg.drag::after , #so-root .docx-vruler-marg.drag::after { border-left-color: var(--purple, #e0b874); }
+#tj-root .docx-vruler-marg.top, #bj-root .docx-vruler-marg.top , #so-root .docx-vruler-marg.top { margin-top: -6px; }
+#tj-root .docx-vruler-marg.bottom, #bj-root .docx-vruler-marg.bottom , #so-root .docx-vruler-marg.bottom { margin-top: -6px; }
+@media (min-width: 900px) {
+  #tj-root #tj-page-editor[contenteditable="true"] ~ .docx-vruler,
+  #bj-root #bj-page-editor[contenteditable="true"] ~ .docx-vruler ,
+  #so-root #so-page-editor[contenteditable="true"] ~ .docx-vruler { display: block; }
+}
+
+/* ── Page fullscreen (Batch 10 #4 + Batch 12 #2): the editor overtakes the whole
+   browser window — sidebar, entry-title bar AND the program nav header (MyJournal /
+   Brainstorm Journal title + top-right buttons) all hidden; only the document bar +
+   page remain. A floating control lets you also hide/show the document bar. ── */
+#tj-root.tj-page-fs #tj-toolbar, #tj-root.tj-page-fs #tj-mobile-header, #tj-root.tj-page-fs #tj-nav-header,
+#bj-root.bj-page-fs #bj-toolbar,
+#so-root.so-page-fs #so-toolbar, #bj-root.bj-page-fs #bj-mobile-header, #so-root.so-page-fs #so-mobile-header, #bj-root.bj-page-fs #bj-nav-header , #so-root.so-page-fs #so-nav-header { display: none !important; }
+#tj-root.tj-page-fs #tj-sidebar, #bj-root.bj-page-fs #bj-sidebar , #so-root.so-page-fs #so-sidebar { display: none !important; }
+/* Batch 13 #2: in fullscreen, the sidebar can be toggled back on (as a fixed left
+   panel) to browse / swap between documents; the page insets to make room. */
+#tj-root.tj-page-fs.tj-fs-sidebar #tj-sidebar, #bj-root.bj-page-fs.bj-fs-sidebar #bj-sidebar , #so-root.so-page-fs.so-fs-sidebar #so-sidebar {
+  display: flex !important; position: fixed !important; left: 0; top: 0; height: 100vh !important;
+  width: 268px !important; z-index: 100001; box-shadow: 2px 0 20px rgba(0,0,0,.55);
+}
+#tj-root.tj-page-fs.tj-fs-sidebar #tj-main, #bj-root.bj-page-fs.bj-fs-sidebar #bj-main , #so-root.so-page-fs.so-fs-sidebar #so-main {
+  left: 268px !important; width: calc(100vw - 268px) !important;
+}
+.docx-fs-float button.on { color: #fff; border-color: #6f7dff; background: rgba(70,80,120,.6); }
+/* Body-level shared Tony app nav (outside the root) — hide it in page fullscreen. */
+body.docx-page-fs #tony-app-nav { display: none !important; }
+#tj-root.tj-page-fs #tj-main, #bj-root.bj-page-fs #bj-main , #so-root.so-page-fs #so-main {
+  position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
+  max-width: none !important; margin: 0 !important; z-index: 100000; background: #1a1b1e;
+}
+/* Hide the document bar (menubar + ribbon + rulers) when toggled off in fullscreen. */
+#tj-root.tj-page-fs.tj-fs-nobar #tj-page-toolbar, #tj-root.tj-page-fs.tj-fs-nobar .docx-ruler, #tj-root.tj-page-fs.tj-fs-nobar .docx-vruler,
+#bj-root.bj-page-fs.bj-fs-nobar #bj-page-toolbar,
+#so-root.so-page-fs.so-fs-nobar #so-page-toolbar, #bj-root.bj-page-fs.bj-fs-nobar .docx-ruler, #so-root.so-page-fs.so-fs-nobar .docx-ruler, #bj-root.bj-page-fs.bj-fs-nobar .docx-vruler , #so-root.so-page-fs.so-fs-nobar .docx-vruler { display: none !important; }
+/* Floating fullscreen controls (top-right) — only visible while in page fullscreen. */
+.docx-fs-float { display: none; position: fixed; top: 12px; right: 14px; z-index: 100002; gap: 7px; }
+#tj-root.tj-page-fs .docx-fs-float.for-tj, #bj-root.bj-page-fs .docx-fs-float.for-bj, #so-root.so-page-fs .docx-fs-float.for-so { display: flex; }
+.docx-fs-float button {
+  width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(35,36,40,.9); color: #cfd0d6; border: 1px solid #45464d; border-radius: 8px;
+  cursor: pointer; padding: 0; backdrop-filter: blur(6px); box-shadow: 0 4px 14px rgba(0,0,0,.4); transition: all .12s;
+}
+.docx-fs-float button:hover { color: #fff; border-color: #6f7dff; background: rgba(45,46,52,.95); }
+
+/* ── Tags relocated into the top toolbar (Batch 12 #3) — compact & inline ── */
+#tj-root #tj-toolbar #tj-tags-row, #bj-root #bj-toolbar #bj-tags-row , #so-root #so-toolbar #so-tags-row {
+  margin: 0 !important; flex-wrap: nowrap; gap: 5px; align-items: center;
+  max-width: 300px; overflow-x: auto; flex-shrink: 1; min-width: 0;
+}
+#tj-root #tj-toolbar #tj-tags-row::-webkit-scrollbar, #bj-root #bj-toolbar #bj-tags-row::-webkit-scrollbar , #so-root #so-toolbar #so-tags-row::-webkit-scrollbar { height: 0; width: 0; display: none; }
+#tj-root #tj-toolbar #tj-tags-row .tag, #bj-root #bj-toolbar #bj-tags-row .tag , #so-root #so-toolbar #so-tags-row .tag { flex-shrink: 0; }
+#tj-root #tj-toolbar #tj-tags-row .tags-label, #bj-root #bj-toolbar #bj-tags-row .tags-label , #so-root #so-toolbar #so-tags-row .tags-label { flex-shrink: 0; }
+#tj-root #tj-toolbar #tj-add-tag-input, #bj-root #bj-toolbar #bj-add-tag-input , #so-root #so-toolbar #so-add-tag-input { flex-shrink: 0; }
+
+/* ── Find & Replace panel (fixed overlay — never shifts the page layout) ── */
+.docx-find { position: fixed; top: 74px; right: 22px; z-index: 100020; background: linear-gradient(180deg,#26272C,#202126); border: 1px solid #40424A; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03); padding: 12px 13px 13px; width: 340px; max-width: calc(100vw - 24px); font-family: 'DM Sans','Segoe UI',sans-serif; color: #f4f3f0; display: flex; flex-direction: column; gap: 9px; }
+.docx-find-head { display: flex; align-items: center; }
+.docx-find-title { font-size: 13px; font-weight: 700; letter-spacing: .01em; }
+.docx-find .row { display: flex; gap: 7px; align-items: center; }
+.docx-find-ico { display: inline-flex; opacity: .5; flex-shrink: 0; }
+.docx-find input[type="text"] { flex: 1; min-width: 0; background: #17181B; border: 1px solid #3B3C42; border-radius: 8px; color: #fff; padding: 8px 11px; font-size: 13px; outline: none; font-family: inherit; transition: border-color .12s, box-shadow .12s; }
+.docx-find input[type="text"]:focus { border-color: #6f7dff; box-shadow: 0 0 0 3px rgba(111,125,255,.15); }
+.docx-find button { background: #303138; border: 1px solid #40424A; border-radius: 8px; color: #E8E8EC; padding: 7px 11px; font-size: 12px; cursor: pointer; font-family: inherit; white-space: nowrap; transition: background .12s, border-color .12s; }
+.docx-find button:hover { background: #3c3e46; border-color: #55575f; }
+.docx-find .f-prev, .docx-find .f-next { padding: 7px 9px; font-size: 13px; line-height: 1; }
+.docx-find .f-rall { background: #5B7CFF; border-color: #5B7CFF; color: #fff; font-weight: 700; }
+.docx-find .f-rall:hover { background: #6E8BFF; }
+.docx-find .cnt { font-size: 11.5px; opacity: .6; min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
+.docx-find-opts { gap: 16px; padding-top: 1px; }
+.docx-find label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; opacity: .82; cursor: pointer; }
+.docx-find .x { margin-left: auto; background: transparent; border: none; font-size: 15px; padding: 2px 6px; color: #9a9aa4; }
+.docx-find .x:hover { color: #fff; background: rgba(255,255,255,.08); }
+mark.docx-find-hit { background: #8A6D1A; color: #fff; border-radius: 2px; }
+mark.docx-find-hit.cur { background: #E0A62A; color: #201800; outline: 2px solid #FFD75E; }
+mark.docx-hl { background: rgba(224,184,116,.4); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+/* ── Fading page scrollbar (draggable) ── */
+.docx-scrollbar { position: absolute; right: 5px; width: 9px; border-radius: 5px; background: rgba(255,255,255,.34); opacity: 0; transition: opacity .5s ease; pointer-events: auto; cursor: grab; z-index: 60; touch-action: none; }
+.docx-scrollbar.on { opacity: 1; }
+.docx-scrollbar:active { cursor: grabbing; background: rgba(255,255,255,.55); }
+#tj-root .docx-scrollbar:hover, #bj-root .docx-scrollbar:hover , #so-root .docx-scrollbar:hover { background: rgba(255,255,255,.5); }
+/* File chips: resizable like images */
+#tj-root .docx-sheet a.tj-file-chip, #bj-root .docx-sheet a.tj-file-chip , #so-root .docx-sheet a.tj-file-chip { position: relative; }
+.docx-clip { flex: 0 0 auto; opacity: .8; vertical-align: middle; }
+a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
+.docx-file-resize { position: absolute; right: -5px; bottom: -5px; width: 14px; height: 14px; background: var(--purple, #e0b874); border: 2px solid #fff; border-radius: 3px; cursor: se-resize; display: none; z-index: 6; touch-action: none; }
+#tj-root .docx-sheet a.tj-file-chip:hover .docx-file-resize, #tj-root .docx-sheet a.tj-file-chip.sel .docx-file-resize,
+#bj-root .docx-sheet a.tj-file-chip:hover .docx-file-resize,
+#so-root .docx-sheet a.tj-file-chip:hover .docx-file-resize, #bj-root .docx-sheet a.tj-file-chip.sel .docx-file-resize , #so-root .docx-sheet a.tj-file-chip.sel .docx-file-resize { display: block; }
+/* Rendered math: independent draggable/resizable boxes (never merge) */
+.docx-math-block { max-height: none !important; overflow: visible !important; }
+.docx-math-block .katex-display { margin: 0 !important; overflow-x: auto; overflow-y: visible; padding: 2px 0; }
+.docx-math-block .katex { white-space: normal; }
+.docx-math { position: relative; display: inline-block; vertical-align: middle; border-radius: 5px; margin: 0 2px; }
+.docx-math-block { display: block; }
+.docx-math[draggable="true"] { cursor: grab; }
+.docx-math[draggable="true"]:active { cursor: grabbing; }
+#tj-root .docx-sheet .docx-math:hover, #bj-root .docx-sheet .docx-math:hover , #so-root .docx-sheet .docx-math:hover { outline: 1.5px dashed rgba(150,170,255,.55); outline-offset: 2px; }
+/* Resize handle — works for BOTH inline and display math (item 4). Bigger + a larger invisible
+   hit area (::before) so it's easy to grab even on small inline math. */
+.docx-math-resize { position: absolute; right: -7px; bottom: -7px; width: 15px; height: 15px; background: #6DA8F5; border: 2px solid #fff; border-radius: 4px; cursor: nwse-resize; display: none; z-index: 20; touch-action: none; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+.docx-math-resize::before { content: ''; position: absolute; inset: -9px; }
+#tj-root .docx-sheet .docx-math:hover .docx-math-resize, #bj-root .docx-sheet .docx-math:hover .docx-math-resize , #so-root .docx-sheet .docx-math:hover .docx-math-resize { display: block; }
+/* Math edit MODAL — roomy + elegant */
+.docx-matheditor-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.docx-matheditor { width: min(640px, 94vw); background: var(--card, #23242b); border: 1px solid var(--border, #3a3b45); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.5); padding: 20px 22px; color: var(--text, #eaeaf0); }
+.docx-matheditor-h { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+.docx-matheditor-ta { width: 100%; min-height: 120px; box-sizing: border-box; resize: vertical; font-family: 'Consolas','Courier New',monospace; font-size: 15px; line-height: 1.5; padding: 12px 14px; border: 1px solid var(--border, #3a3b45); border-radius: 9px; background: rgba(0,0,0,.22); color: var(--text, #eaeaf0); outline: none; }
+.docx-matheditor-ta:focus { border-color: #6DA8F5; }
+.docx-matheditor-prev-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .6; margin: 14px 0 6px; }
+.docx-matheditor-prev { min-height: 44px; padding: 12px 14px; border: 1px solid var(--border, #3a3b45); border-radius: 9px; background: rgba(255,255,255,.04); overflow-x: auto; font-size: 18px; }
+.docx-matheditor-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.docx-matheditor-btn { padding: 9px 18px; border-radius: 8px; font-weight: 600; font-size: 13.5px; cursor: pointer; border: 1px solid var(--border, #3a3b45); background: transparent; color: var(--text, #eaeaf0); }
+.docx-matheditor-discard:hover { background: rgba(255,255,255,.08); }
+.docx-matheditor-save { background: #6DA8F5; border-color: #6DA8F5; color: #fff; }
+.docx-matheditor-save:hover { background: #5b97e4; }
+
+/* ── Text-color shortcut popup ── */
+#tj-root .docx-color-btn, #bj-root .docx-color-btn , #so-root .docx-color-btn { display: inline-flex; align-items: center; }
+.docx-color-dot { width: 15px; height: 15px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
+.docx-colorpop { min-width: 0 !important; }
+.docx-color-grid { display: grid; grid-template-columns: repeat(5, 26px); gap: 6px; padding: 4px 4px 8px; }
+.docx-color-sw { width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(255,255,255,.14); cursor: pointer; padding: 0; transition: transform .1s; }
+.docx-color-sw:hover { transform: scale(1.12); }
+
+/* ── Disabled ribbon buttons (nothing to undo/redo) ── */
+#tj-root .pt-btn.pt-disabled, #bj-root .pt-btn.pt-disabled , #so-root .pt-btn.pt-disabled { opacity: .3; cursor: default; pointer-events: none; color: var(--text3, #666) !important; }
+
+/* ── Feature-locked (admin-disabled) buttons/menu items: dimmed but still clickable, so the
+   click still reaches the handler and shows the "disabled on your journal" toast. ── */
+.docx-feature-locked { opacity: .4 !important; cursor: not-allowed !important; }
+.docx-feature-locked:hover { opacity: .5 !important; }
+/* ── Increase / Decrease font-size buttons ── */
+.docx-fs-step { display: inline-flex; align-items: baseline; justify-content: center; min-width: 26px; }
+
+/* ── Page-toolbar buttons get a boxed outline (matches the Journal-Entries edit menu) ── */
+#tj-root #tj-page-toolbar .pt-btn, #bj-root #bj-page-toolbar .pt-btn , #so-root #so-page-toolbar .pt-btn { border: 1px solid var(--border2, #45454c); background: rgba(255,255,255,.02); }
+#tj-root #tj-page-toolbar .pt-btn:hover, #bj-root #bj-page-toolbar .pt-btn:hover , #so-root #so-page-toolbar .pt-btn:hover { border-color: var(--purple, #e0b874); background: rgba(255,255,255,.05); }
+#tj-root #tj-page-toolbar .pt-btn.pt-disabled, #bj-root #bj-page-toolbar .pt-btn.pt-disabled , #so-root #so-page-toolbar .pt-btn.pt-disabled { border-color: var(--border, #34343a); background: transparent; }
+
+/* ── Font-family button: dark box like the block-type <select> ── */
+#tj-root #tj-page-toolbar .pt-btn.docx-fontfam-btn, #bj-root #bj-page-toolbar .pt-btn.docx-fontfam-btn , #so-root #so-page-toolbar .pt-btn.docx-fontfam-btn { background: var(--card2, #2c2c31); border: 1px solid var(--border, #34343a); }
+#tj-root #tj-page-toolbar .pt-btn.docx-fontfam-btn:hover, #bj-root #bj-page-toolbar .pt-btn.docx-fontfam-btn:hover , #so-root #so-page-toolbar .pt-btn.docx-fontfam-btn:hover { border-color: var(--purple, #e0b874); background: var(--card2, #2c2c31); }
+
+/* ── Pinned live word count (bottom-left) ── */
+.docx-wcpin { position: fixed; left: 16px; bottom: 16px; z-index: 100019; background: #24252A; border: 1px solid #3B3C42; border-radius: 9px; padding: 6px 8px 6px 12px; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 12px; color: #D6D6DC; display: flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.docx-wcpin .n { font-weight: 800; color: #fff; }
+.docx-wcpin button { background: transparent; border: none; color: #8a8a94; cursor: pointer; font-size: 12px; padding: 2px 4px; border-radius: 5px; }
+.docx-wcpin button:hover { color: #fff; background: rgba(255,255,255,.08); }
+
+/* ── Floating selection toolbar (removed; kept for legacy safety) ── */
+
+/* ── Floating selection toolbar ── */
+.docx-float { position: fixed; z-index: 100001; display: flex; gap: 2px; align-items: center; background: #232428; border: 1px solid #3B3C42; border-radius: 9px; padding: 4px; box-shadow: 0 10px 32px rgba(0,0,0,.5); }
+.docx-float button { background: transparent; border: none; border-radius: 5px; color: #E8E8EC; min-width: 27px; height: 26px; font-size: 12.5px; cursor: pointer; font-family: 'DM Sans',sans-serif; display: inline-flex; align-items: center; justify-content: center; }
+.docx-float button:hover { background: rgba(255,255,255,.1); }
+.docx-float .sep { width: 1px; height: 16px; background: rgba(255,255,255,.12); margin: 0 2px; }
+.docx-float input[type="color"] { width: 22px; height: 22px; border: none; background: none; padding: 0; cursor: pointer; }
+
+/* ── Table bubble ── */
+.docx-tbl-bubble { position: fixed; z-index: 100001; background: #232428; border: 1px solid #3B3C42; border-radius: 7px; box-shadow: 0 8px 28px rgba(0,0,0,.5); padding: 3px; display: flex; gap: 2px; }
+.docx-tbl-bubble button { background: transparent; border: none; border-radius: 4px; color: #E8E8EC; padding: 4px 8px; font-size: 11px; cursor: pointer; font-family: 'DM Sans',sans-serif; white-space: nowrap; }
+.docx-tbl-bubble button:hover { background: rgba(255,255,255,.1); }
+
+/* ── Sidebar: tag filter chips + Trash button + search highlight ──
+   Scoped so the roots' universal padding:0 reset doesn't flatten them; box-sizing + overflow guard keep chips on-screen. */
+#tj-root .docx-tagchips, #bj-root .docx-tagchips , #so-root .docx-tagchips { display: none; flex-wrap: wrap; gap: 5px; padding: 4px 12px 8px; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden; }
+#tj-root .docx-tagchips.on, #bj-root .docx-tagchips.on , #so-root .docx-tagchips.on { display: flex; }
+#tj-root .docx-tagchips-lbl, #bj-root .docx-tagchips-lbl , #so-root .docx-tagchips-lbl { width: 100%; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text3, #777); margin-bottom: 1px; }
+#tj-root .docx-tagchip, #bj-root .docx-tagchip , #so-root .docx-tagchip { max-width: 100%; box-sizing: border-box; font-size: 10.5px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border2, #444); background: transparent; color: var(--text2, #999); cursor: pointer; font-family: inherit; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all .12s; }
+#tj-root .docx-tagchip:hover, #bj-root .docx-tagchip:hover , #so-root .docx-tagchip:hover { border-color: var(--purple, #e0b874); color: var(--text, #eee); }
+#tj-root .docx-tagchip.on, #bj-root .docx-tagchip.on , #so-root .docx-tagchip.on { background: var(--purple, #e0b874); color: #101014; border-color: var(--purple, #e0b874); font-weight: 700; }
+#tj-root .docx-trash-btn, #bj-root .docx-trash-btn , #so-root .docx-trash-btn { flex-shrink: 0; margin: 0; padding: 11px 16px; display: flex; align-items: center; gap: 9px; box-sizing: border-box; width: 100%; background: transparent; border: none; border-top: 1px solid var(--border, #34343a); border-radius: 0; color: var(--text3, #777); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit; letter-spacing: .05em; text-transform: uppercase; transition: all .12s; }
+#tj-root .docx-trash-btn:hover, #bj-root .docx-trash-btn:hover , #so-root .docx-trash-btn:hover { color: var(--text, #eee); background: rgba(255,255,255,.03); }
+#tj-root .docx-trash-count, #bj-root .docx-trash-count , #so-root .docx-trash-count { margin-left: auto; background: var(--purple, #e0b874); color: #101014; border-radius: 9px; padding: 0 7px; font-weight: 700; font-size: 10px; line-height: 16px; }
+
+/* ── Modals (Trash / Page setup / Word count / Shortcuts) ── */
+.docx-veil { position: fixed; inset: 0; z-index: 100002; background: rgba(0,0,0,.58); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.docx-modal { background: #1E1F23; border: 1px solid #3B3C42; border-radius: 14px; width: min(600px, 100%); max-height: 84vh; display: flex; flex-direction: column; color: #f4f3f0; font-family: 'DM Sans','Segoe UI',sans-serif; overflow: hidden; }
+.docx-modal-h { display: flex; align-items: center; gap: 10px; padding: 15px 18px 11px; font-size: 15px; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,.08); }
+.docx-modal-h .x { margin-left: auto; background: transparent; border: none; color: #999; font-size: 17px; cursor: pointer; padding: 2px 8px; border-radius: 5px; }
+.docx-modal-h .x:hover { background: rgba(255,255,255,.08); color: #fff; }
+.docx-modal-b { padding: 12px 18px; overflow-y: auto; flex: 1; font-size: 13px; }
+.docx-modal-f { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-top: 1px solid rgba(255,255,255,.08); flex-wrap: wrap; }
+.docx-btn { background: #2C2D33; border: 1px solid #3B3C42; border-radius: 7px; color: #f4f3f0; padding: 7px 13px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.docx-btn:hover { background: #37383F; }
+.docx-btn.pri { background: #5B7CFF; border-color: #5B7CFF; color: #fff; font-weight: 700; }
+.docx-btn.pri:hover { background: #6E8BFF; }
+.docx-btn.danger { color: #FF7B7B; border-color: rgba(255,123,123,.4); }
+.docx-btn.danger:hover { background: rgba(255,123,123,.12); }
+.docx-trash-row { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.docx-trash-row .t { flex: 1; min-width: 0; overflow: hidden; }
+.docx-trash-row .t .n { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.docx-trash-row .t .m { font-size: 10.5px; opacity: .55; margin-top: 2px; }
+.docx-trash-row .b { display: flex; gap: 5px; flex-shrink: 0; }
+.docx-trash-row .b button { background: transparent; border: 1px solid #3B3C42; border-radius: 6px; color: #CFCFD6; padding: 4px 9px; font-size: 11px; cursor: pointer; font-family: inherit; }
+.docx-trash-row .b button:hover { border-color: #6f7dff; color: #fff; }
+.docx-trash-row .b button.del:hover { border-color: #FF7B7B; color: #FF7B7B; }
+.docx-empty-note { text-align: center; opacity: .5; padding: 26px 0; font-size: 13px; }
+.docx-ps-row { display: flex; align-items: center; gap: 10px; margin: 9px 0; }
+.docx-ps-row label { width: 105px; font-size: 12.5px; opacity: .75; }
+.docx-ps-row select { flex: 1; background: #18191C; border: 1px solid #3B3C42; border-radius: 6px; color: #fff; padding: 6px 9px; font-size: 12.5px; outline: none; font-family: inherit; }
+.docx-prompt-body { padding: 16px 20px !important; }
+.docx-prompt-note { font-size: 13px; line-height: 1.55; color: #b9b9c4; margin-bottom: 14px; padding: 10px 13px; background: rgba(150,110,255,.09); border: 1px solid rgba(150,110,255,.22); border-radius: 9px; }
+.docx-prompt-note b { color: #d9d0ff; font-weight: 700; }
+.docx-prompt-ta { width: 100%; box-sizing: border-box; min-height: 42vh; max-height: 64vh; resize: vertical; background: #16171B; border: 1px solid #3A3C44; border-radius: 11px; color: #EEEFF4; padding: 16px 18px; font-family: 'DM Sans','Segoe UI',system-ui,sans-serif; font-size: 15px; line-height: 1.65; letter-spacing: .005em; outline: none; box-shadow: inset 0 1px 3px rgba(0,0,0,.35); transition: border-color .15s, box-shadow .15s; }
+.docx-prompt-ta::placeholder { color: #6a6b76; }
+.docx-prompt-ta:focus { border-color: #7d8bff; box-shadow: inset 0 1px 3px rgba(0,0,0,.35), 0 0 0 3px rgba(125,139,255,.16); }
+.docx-kbd-grid { display: grid; grid-template-columns: 1fr auto; gap: 5px 18px; font-size: 12.5px; }
+.docx-kbd-grid kbd { background: #2C2D33; border: 1px solid #3B3C42; border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px; font-size: 11px; font-family: Consolas, monospace; }
+
+/* ── View-mode segmented toggle (main toolbar) ── */
+.docx-viewseg { display: inline-flex; gap: 0; border: 1px solid var(--border2, #444); border-radius: 5px; overflow: hidden; flex-shrink: 0; }
+.docx-viewseg button { background: transparent; border: none; color: var(--text2, #999); font-size: 11px; padding: 5px 9px; cursor: pointer; font-family: inherit; line-height: 1; display: inline-flex; align-items: center; gap: 4px; }
+.docx-viewseg button.on { background: var(--purple, #e0b874); color: #101014; font-weight: 700; }
+
+/* ── AI Format button + overlay + toast ── */
+#tj-root .docx-ai-btn, #bj-root .docx-ai-btn , #so-root .docx-ai-btn { color: #c3a7ff; border: 1px solid rgba(150,110,255,.4); background: rgba(150,110,255,.08); font-weight: 600; }
+#tj-root .docx-ai-btn:hover, #bj-root .docx-ai-btn:hover , #so-root .docx-ai-btn:hover { background: rgba(150,110,255,.2); color: #e2d4ff; border-color: rgba(150,110,255,.7); }
+.docx-ai-veil { z-index: 100010; }
+.docx-ai-card { background: #1E1F23; border: 1px solid #3B3C42; border-radius: 16px; padding: 28px 40px; display: flex; flex-direction: column; align-items: center; gap: 14px; color: #f4f3f0; font-family: 'DM Sans','Segoe UI',sans-serif; box-shadow: 0 24px 70px rgba(0,0,0,.65); }
+.docx-ai-spin { width: 40px; height: 40px; border-radius: 50%; border: 3px solid rgba(150,110,255,.22); border-top-color: #a78bfa; animation: docxspin .8s linear infinite; }
+@keyframes docxspin { to { transform: rotate(360deg); } }
+.docx-ai-msg { font-size: 15px; font-weight: 700; }
+.docx-ai-sub { font-size: 11.5px; opacity: .6; margin-top: -6px; }
+.docx-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 100011; background: #232428; border: 1px solid #3B3C42; color: #f4f3f0; padding: 11px 18px; border-radius: 10px; font-family: 'DM Sans','Segoe UI',sans-serif; font-size: 13px; box-shadow: 0 12px 34px rgba(0,0,0,.55); transition: opacity .4s; max-width: 88vw; text-align: center; }
+.docx-toast.err { border-color: rgba(255,123,123,.5); }
+
+/* ── Mobile / tablet ── */
+@media (max-width: 820px) {
+  #tj-root .pt-btn, #bj-root .pt-btn , #so-root .pt-btn { min-height: 32px; padding: 6px 9px; }
+  #tj-root .docx-menubar, #bj-root .docx-menubar , #so-root .docx-menubar { order: -1; }
+  #tj-root .docx-wrap, #bj-root .docx-wrap , #so-root .docx-wrap { padding: 12px 6px 80px !important; }
+  .docx-find { left: 8px; right: 8px; width: auto; }
+  .docx-float { display: none !important; }
+}

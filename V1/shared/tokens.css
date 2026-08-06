@@ -1,0 +1,68 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   V1 SUITE DESIGN TOKENS
+   ---------------------------------------------------------------------------
+   The single source of truth for how every app in the suite looks. Values are
+   lifted verbatim from TradeBoard, which defines the house style: a warm
+   neutral-gray field with a muted purple accent, DM Sans for text and IBM Plex
+   Mono for figures.
+
+   Apps in this suite are single-file HTML by design (they deploy as one static
+   asset with no build step), so each app INLINES a copy of this block rather
+   than linking it. This file is the canonical reference: when a token changes
+   here, update it in every app's <style> and they stay in lockstep.
+
+   Rule of thumb when building a new app:
+     · Never introduce a new hue. Use --accent for emphasis and the semantic
+       four (green/red/amber/blue) for meaning — nothing else.
+     · Every colour has a `-dim` companion for backgrounds; use the pair, never
+       a hand-mixed opacity.
+     · Radii, shadows and the transition curve are fixed. Reuse them.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── Surfaces ── layered darkest→lightest; cards sit above the field ────── */
+  --bg:            #1B1C1E;   /* page field                                   */
+  --bg-card:       #26272A;   /* panels, cards, rows                          */
+  --bg-slot:       #303135;   /* inputs, chips, controls on a card            */
+  --bg-inset:      #1F2023;   /* wells recessed below the field               */
+
+  /* ── Text ── three weights of emphasis, never pure white ────────────────── */
+  --text:          #ECECEE;   /* primary                                      */
+  --text-2:        #AFB0B5;   /* secondary / supporting                       */
+  --muted:         #76777C;   /* labels, captions, disabled                   */
+
+  /* ── Accent ── the suite's muted purple ─────────────────────────────────── */
+  --accent:        #8D769A;   /* borders, active states, focus rings          */
+  --accent-light:  #2E2535;   /* accent-tinted background wash                */
+  --accent-hover:  #A892B0;   /* hover / pressed                              */
+
+  /* ── Lines ── */
+  --border:        #3D3E43;   /* visible dividers, input outlines             */
+  --border-soft:   #313236;   /* quiet separation between stacked elements    */
+
+  /* ── Semantic pairs ── foreground + its dim background ──────────────────── */
+  --green:         #5DAF6D;   /* gains, income, positive, success             */
+  --green-dim:     #1C2A20;
+  --red:           #E05B4E;   /* losses, spending, negative, danger           */
+  --red-dim:       #331B18;
+  --amber:         #D9A33A;   /* warnings, pending, due soon                  */
+  --amber-dim:     #2C2208;
+  --blue:          #6AA0D8;   /* neutral info, transfers, links               */
+  --blue-dim:      #17232F;
+
+  /* ── Geometry ── */
+  --radius-sm:     10px;      /* inputs, chips, small buttons                 */
+  --radius-md:     14px;      /* cards, panels                                */
+  --radius-lg:     20px;      /* modals, hero surfaces                        */
+
+  /* ── Elevation ── */
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.15);
+  --shadow-md:     0 4px 16px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.15);
+  --shadow-lg:     0 12px 40px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2);
+
+  /* ── Type ── mono is for FIGURES; it keeps columns of money aligned ─────── */
+  --mono:          'IBM Plex Mono', ui-monospace, monospace;
+  --sans:          'DM Sans', system-ui, sans-serif;
+
+  /* ── Motion ── one curve, one duration, everywhere ──────────────────────── */
+  --transition:    0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}

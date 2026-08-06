@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:/Users/vedap/Desktop/TradeBoard/sync.ps1\""
+          }
+        ]
+      }
+    ]
+  }
+}

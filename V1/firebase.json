@@ -1,0 +1,6 @@
+{
+  "//": "V1 suite — Firebase config. The suite's WEBSITE is served by Cloudflare Pages (see scripts/build.mjs), not Firebase Hosting, so no `hosting` block is defined here. Firebase is used only for Firestore (data) and App Check (attestation). Deploy rules with: npx firebase-tools deploy --only firestore:rules",
+  "firestore": {
+    "rules": "firebase/firestore.rules"
+  }
+}

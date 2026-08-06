@@ -1,0 +1,14 @@
+{
+  "name": "v1-site-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static-assets Worker serving every app in the V1 suite (TradeBoard at /, Finance at /finance/) from the generated dist/ directory.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

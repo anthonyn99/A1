@@ -1,0 +1,58 @@
+# ── Finance API Worker — Wrangler config ─────────────────────────────────────
+# DEPLOYMENT IS AUTOMATED: pushing any change under workers/** to GitHub `main`
+# triggers .github/workflows/deploy-workers.yml, which runs `wrangler deploy` in
+# CI. You do NOT run wrangler locally.
+#
+# Before the first deploy, two things must exist (see docs/MANUAL_SETUP.md):
+#   1. the KV namespace referenced below   (`wrangler kv namespace create FINANCE`)
+#   2. the four secrets                    (`wrangler secret put …`)
+# Secrets are stored encrypted by Cloudflare and survive every later deploy —
+# they are never in this file and never in the repository.
+
+name = "finance-api"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[observability]
+enabled = true
+
+# ── Non-secret configuration ────────────────────────────────────────────────
+# PLAID_ENV selects which Plaid host and key pair are used. Now on production:
+# the account is on Plaid's Trial plan (10 free production Items, real bank
+# data, no billing). PLAID_SECRET holds the matching production secret — the
+# sandbox and production secrets differ, though the client_id is shared.
+[vars]
+PLAID_ENV = "production"
+# Browser origin(s) allowed to call this Worker, comma-separated. This is the
+# site Worker's origin (workers/site serves every app from one hostname).
+APP_ORIGIN = "https://tradeboard.vedapatel05.workers.dev"
+# Registered in the Plaid dashboard under "Allowed redirect URIs". Plaid matches
+# this EXACTLY, trailing slash included, so it must stay in lockstep with the
+# dashboard entry and with the path the site Worker serves Finance from.
+# Required for OAuth institutions (Chase, Capital One, Wells Fargo…), which send
+# the user to the bank's own site and back.
+PLAID_REDIRECT_URI = "https://tradeboard.vedapatel05.workers.dev/finance/"
+
+# ── Service binding: the shared App-Lock Worker ─────────────────────────────
+# Cloudflare BLOCKS a Worker from calling another Worker on the same account via
+# its public workers.dev hostname — such a subrequest fails with error 1042.
+# A service binding is the supported path: it dispatches worker-to-worker
+# directly, never leaving Cloudflare's network, so it is also faster and does not
+# count as an internet subrequest.
+[[services]]
+binding = "AUTH"
+service = "tradeboard-auth"
+
+# ── Workers KV ──────────────────────────────────────────────────────────────
+# Stores Plaid access_tokens, per-item sync cursors, and session tokens.
+# Created with `npx wrangler kv namespace create FINANCE`.
+# A KV namespace id is not a secret (it is meaningless without account creds).
+[[kv_namespaces]]
+binding = "FINANCE"
+id = "dc77128063524d10ba9a7f56b69ba5ec"
+
+# ── Cron ────────────────────────────────────────────────────────────────────
+# Daily pull from Plaid so data stays fresh without the app being open.
+# 11:00 UTC — outside US market hours and after most banks post overnight.
+[triggers]
+crons = ["0 11 * * *"]

@@ -1,0 +1,15 @@
+# Two-crate workspace:
+#   core/      — data model + schedule evaluation, no GUI deps, fully testable
+#   src-tauri/ — the Tauri shell: process control, tray, commands, scheduler
+[workspace]
+members = ["core", "src-tauri"]
+resolver = "2"
+
+# Must be declared at the workspace root — Cargo ignores profiles set by a
+# non-root member.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

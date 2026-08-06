@@ -1,0 +1,14 @@
+{
+  "name": "tradeboard-auth-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker storing TradeBoard App-Lock / section-lock passwords (PBKDF2 + KV).",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

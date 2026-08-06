@@ -1,0 +1,172 @@
+name: Deploy V1 Workers
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Deploys every Cloudflare Worker in the V1 suite (Veda's workspace, which
+# lives under V1/ in this repo).
+#
+# HISTORY: V1 used to be its own repository (VedaCPatel/V1) with its own copy
+# of this workflow. It was absorbed into A1 so that one folder pushes to one
+# repo. This file is that workflow, re-anchored to the V1/ subdirectory.
+#
+# TWO CLOUDFLARE ACCOUNTS, ON PURPOSE
+# -----------------------------------
+# A1's own workers (see deploy-workers.yml) deploy to Tony's account using the
+# CF_API_TOKEN secret. The V1 workers below deploy to VEDA'S account using
+# CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID. They are deliberately kept
+# separate:
+#
+#   * `studyos-files` exists in BOTH workers/ and V1/workers/ with DIFFERENT
+#     code and DIFFERENT KV namespace ids. They only coexist because they live
+#     in different accounts. Pointing this workflow at Tony's account would
+#     overwrite his studyos-files worker and orphan its KV data.
+#   * The V1 site Worker is named "tradeboard" because that hostname is already
+#     bookmarked and installed as a PWA. It must keep deploying to the account
+#     that owns that hostname.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions), copied
+# from the old VedaCPatel/V1 repo:
+#   CLOUDFLARE_API_TOKEN   — token with "Edit Cloudflare Workers" permission
+#   CLOUDFLARE_ACCOUNT_ID  — Veda's Cloudflare account id
+#
+# Until BOTH secrets exist this workflow SKIPS cleanly (see the `guard` job)
+# rather than failing red. Worker *runtime* secrets (Plaid keys, etc.) are not
+# set here — they live encrypted in Cloudflare via `wrangler secret put`.
+# ═══════════════════════════════════════════════════════════════════════════
+on:
+  push:
+    branches: [main]
+    paths:
+      - "V1/workers/**"
+      - ".github/workflows/deploy-v1-workers.yml"
+      # The site Worker serves the built apps, so an app edit must redeploy it.
+      - "V1/TradeBoard/tradeboard.html"
+      - "V1/Finance/finance.html"
+      # StudyOS is a multi-file app: its HTML plus the sibling directories that
+      # build.mjs copies beside it, and the root service worker.
+      - "V1/studyos.html"
+      - "V1/manifest.webmanifest"
+      - "V1/css/**"
+      - "V1/js/**"
+      - "V1/config/**"
+      - "V1/assets/**"
+      - "V1/firebase/firebase-messaging-sw.js"
+      - "V1/scripts/build.mjs"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Deploy just one worker (directory name under V1/workers/). Leave blank for all."
+        required: false
+        default: ""
+
+jobs:
+  # ── 0. Skip cleanly when the V1 credentials are not configured yet ────────
+  # A missing secret would otherwise surface as an opaque wrangler auth error
+  # on every push. This turns it into an obvious, non-blocking skip.
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "${TOKEN:-}" ] && [ -n "${ACCOUNT:-}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::V1 worker deploys skipped — set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (copy from the old VedaCPatel/V1 repo) to enable them."
+          fi
+
+  # ── 1. Find every deployable worker ───────────────────────────────────────
+  # Any directory under V1/workers/ containing a wrangler config is deployed,
+  # so adding a future worker needs NO change to this file.
+  discover:
+    needs: guard
+    if: needs.guard.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      workers: ${{ steps.find.outputs.workers }}
+      count: ${{ steps.find.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: find
+        name: Discover workers
+        env:
+          ONLY: ${{ github.event.inputs.only }}
+        run: |
+          set -euo pipefail
+          list='[]'
+          if [ -d V1/workers ]; then
+            list=$(find V1/workers -maxdepth 2 \
+                     \( -name 'wrangler.toml' -o -name 'wrangler.jsonc' -o -name 'wrangler.json' \) \
+                     -printf '%h\n' | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+
+          # workflow_dispatch with an `only` input narrows the matrix.
+          if [ -n "${ONLY:-}" ]; then
+            list=$(printf '%s' "$list" | jq -c --arg o "V1/workers/$ONLY" 'map(select(. == $o))')
+          fi
+
+          count=$(printf '%s' "$list" | jq 'length')
+          echo "workers=$list" >> "$GITHUB_OUTPUT"
+          echo "count=$count"  >> "$GITHUB_OUTPUT"
+          echo "Discovered $count worker(s): $list"
+
+  # ── 2. Deploy each one ────────────────────────────────────────────────────
+  deploy:
+    needs: discover
+    if: needs.discover.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one bad worker must not block the rest
+      matrix:
+        dir: ${{ fromJSON(needs.discover.outputs.workers) }}
+    name: deploy ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The site Worker serves ../../dist (relative to V1/workers/site), which
+      # is generated and gitignored, so it must be built before that Worker is
+      # deployed. Harmless no-op for the API Workers, which have no assets.
+      # Runs inside V1/ because that is where package.json and build.mjs live.
+      - name: Build apps
+        working-directory: V1
+        run: npm run build
+
+      # Install into the worker dir so the deploy uses THAT worker's pinned
+      # wrangler rather than whatever version the runner has cached.
+      #
+      # A worker without a package.json is a hard error, not a fallback: the
+      # deploy action runs `npx --no-install wrangler`, which then resolves to
+      # the runner's cached wrangler (v3 at time of writing). v3 cannot parse a
+      # v4 assets config, so the deploy fails with an opaque "exit code 1".
+      # Failing here instead makes the cause obvious and keeps every worker on
+      # a version it actually declares.
+      - name: Install dependencies
+        working-directory: ${{ matrix.dir }}
+        run: |
+          if [ ! -f package.json ]; then
+            echo "::error::${{ matrix.dir }} has no package.json. Every worker must declare its own wrangler version (devDependencies: { \"wrangler\": \"^4.0.0\" }), otherwise the deploy silently falls back to the runner's cached wrangler."
+            exit 1
+          fi
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          echo "wrangler in use: $(npx --no-install wrangler --version)"
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: ${{ matrix.dir }}
+          # Pin the major version explicitly. Without this the action reuses
+          # whatever wrangler the runner already has cached, which is how a v3
+          # binary ended up deploying v4 configs.
+          wranglerVersion: "4"
+          command: deploy

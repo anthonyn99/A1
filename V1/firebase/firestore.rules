@@ -1,0 +1,46 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// V1 SUITE security rules — App-Lock model over anonymous Firebase auth.
+//
+// Every app in the suite signs in ANONYMOUSLY (no login form). The human access
+// boundary is the App-Lock PASSWORD (PBKDF2, stored in the Cloudflare Worker's
+// KV), not the Firebase identity. Firebase App Check (reCAPTCHA v3) additionally
+// attests that requests come from the real app, so anonymous auth is not an open
+// door.
+//
+// Each app is scoped to its own path and CANNOT read or write another app's
+// data. Everything not named below is denied by default.
+// ═══════════════════════════════════════════════════════════════════════════
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── TradeBoard ────────────────────────────────────────────────────────
+    // One document, pinned to the owner's original uid so the existing data and
+    // the Webull sync (wb_sync.py) keep writing to the same place. An anonymous
+    // session's uid never equals this id, so the rule authorizes any signed-in
+    // request to read/write EXACTLY this document — and nothing else.
+    match /tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12 {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── Finance ───────────────────────────────────────────────────────────
+    // Finance stores far more than one document (transactions, accounts,
+    // budgets), so it gets a subtree rather than a pinned doc. The boundary is
+    // the same: signed-in (anonymous) + App Check attested, with the App-Lock
+    // password gating human access in the UI.
+    //
+    // The Cloudflare Worker writes here too (Plaid transactions and balances)
+    // using a Google service account, which bypasses these rules entirely — a
+    // service account is already fully privileged. These rules therefore govern
+    // only browser clients.
+    match /finance/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── Everything else: deny ─────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

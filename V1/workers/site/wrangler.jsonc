@@ -1,0 +1,31 @@
+{
+  // ── V1 suite website ──────────────────────────────────────────────────────
+  // Serves EVERY app in the suite as static assets from one Worker:
+  //
+  //   dist/index.html          ->  https://tradeboard.<subdomain>.workers.dev/
+  //   dist/finance/index.html  ->  https://tradeboard.<subdomain>.workers.dev/finance/
+  //
+  // The Worker keeps the name "tradeboard" on purpose: that hostname is already
+  // deployed, bookmarked, and installed as a PWA. Renaming it would change the
+  // URL and break every existing install, so the name stays and the wider scope
+  // is documented here instead.
+  //
+  // Assets come from ../../dist, which `npm run build` generates from each app's
+  // canonical HTML (see scripts/build.mjs). The deploy workflow runs that build
+  // first, so one push publishes every app — no console step, no Pages project.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tradeboard",
+  "compatibility_date": "2026-07-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "../../dist",
+    // Serve /finance/ from /finance/index.html and keep the trailing slash
+    // rather than redirecting it away — Plaid's OAuth redirect URI has to match
+    // exactly, so the path must stay stable.
+    "html_handling": "auto-trailing-slash",
+    // A missing path returns 404 instead of silently serving the root app,
+    // which would make a typo look like TradeBoard.
+    "not_found_handling": "none"
+  }
+}

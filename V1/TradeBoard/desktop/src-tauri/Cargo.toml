@@ -1,0 +1,36 @@
+[package]
+name = "tradeboard-desktop"
+version = "1.0.0"
+edition = "2021"
+description = "TradeBoard desktop shell — scheduled app/site launcher"
+authors = ["Veda"]
+# main.rs is a thin wrapper around this library.
+#
+# Deliberately `rlib` ONLY. `tauri init` also emits "staticlib" and "cdylib" for
+# the mobile targets, but this shell is Windows-desktop only, and building a
+# cdylib under the MinGW linker fails with "export ordinal too large" — ld tries
+# to export every symbol of a very large static link. Dropping the unused crate
+# types avoids that entirely.
+[lib]
+name = "tradeboard_desktop_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Data model + schedule maths live in a GUI-free crate so they stay testable.
+tradeboard-core = { path = "../core" }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["time", "sync", "rt", "macros"] }
+chrono = "0.4"
+chrono-tz = "0.10"
+sysinfo = "0.33"
+iana-time-zone = "0.1"
+
+# NOTE: release profile settings live in the WORKSPACE root (../Cargo.toml).
+# Cargo ignores `[profile.*]` in a non-root member.

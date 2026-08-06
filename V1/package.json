@@ -1,0 +1,18 @@
+{
+  "name": "v1-suite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "V1 — Veda's application suite. TradeBoard (trading journal) + Finance (personal finance). Static apps deployed to Cloudflare Pages; Workers in /workers deploy from GitHub Actions.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:desktop": "node TradeBoard/scripts/build-desktop.mjs",
+    "test:apps": "node TradeBoard/scripts/test-apps.mjs",
+    "desktop:dev": "cd TradeBoard/desktop/src-tauri && cargo run",
+    "desktop:build": "cd TradeBoard/desktop/src-tauri && cargo build --release",
+    "desktop:test": "cd TradeBoard/desktop/src-tauri && cargo test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.114.0"
+  }
+}

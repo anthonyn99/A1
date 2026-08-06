@@ -1,0 +1,36 @@
+# ============================================================================
+# studyos-files — cross-device file storage on Workers KV
+# ============================================================================
+# Deploy:
+#   cd workers/studyos-files
+#   npx wrangler kv namespace create FILES     # paste the id below
+#   npx wrangler deploy
+#
+# Then copy the URL wrangler prints into
+#   config/config.js → cloudflare.filesWorker.baseUrl
+#
+# Verify:  curl https://studyos-files.<your-subdomain>.workers.dev/health
+# ============================================================================
+
+name = "studyos-files"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+# Set to the deployed URL after the first deploy (used in log output only).
+WORKER_ORIGIN = "https://studyos-files.vedapatel05.workers.dev"
+
+# ── KV namespace that holds the uploaded files ─────────────────────────────
+# Create it ONCE, then paste its id below (deploy fails until this is real):
+#
+#   npx wrangler kv namespace create FILES
+#
+# …or in the dashboard: Workers & Pages → KV → Create namespace
+# ("studyos-files"), then copy its ID here.
+#
+# KV on the free Workers plan: no credit card, 1 GB total, 25 MB per value,
+# ~1000 writes/day. Files over one value are split client-side into parts and
+# reassembled by the worker on GET, so the 25 MB cap is not a file-size cap.
+[[kv_namespaces]]
+binding = "FILES"
+id = "f3a844dd958e483eaaf0c2faa763efc2"

@@ -1,0 +1,21 @@
+[package]
+name = "tradeboard-core"
+version = "1.0.0"
+edition = "2021"
+description = "Pure data model + schedule evaluation for the TradeBoard desktop shell"
+
+# Deliberately free of any Tauri/GUI dependency. Keeping the schedule maths in
+# its own crate means `cargo test -p tradeboard-core` links a small console
+# binary — the Tauri-linked test harness cannot start on this MinGW toolchain
+# (STATUS_ENTRYPOINT_NOT_FOUND from the WebView2/GUI import chain), and these
+# tests are the ones that actually need running.
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+chrono = "0.4"
+chrono-tz = "0.10"
+iana-time-zone = "0.1"
+
+[dev-dependencies]
+# Used only by the process/re-parenting tests, which mirror the logic in
+# ../src-tauri/src/process.rs so it can be exercised without linking Tauri.
+sysinfo = "0.33"

@@ -1,0 +1,3089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1B1C1E">
+<title>Finance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- App icon: purple line mark on the suite field, drawn on the same grid and
+     stroke weight as TradeBoard's — the suite reads as one family. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231B1C1E%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%238D769A%27%20stroke-width%3D%276%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M26%2064V40%27%2F%3E%3Cpath%20d%3D%27M42%2064V30%27%2F%3E%3Cpath%20d%3D%27M58%2064V46%27%2F%3E%3Cpath%20d%3D%27M74%2064V34%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231B1C1E%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%238D769A%27%20stroke-width%3D%276%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M26%2064V40%27%2F%3E%3Cpath%20d%3D%27M42%2064V30%27%2F%3E%3Cpath%20d%3D%27M58%2064V46%27%2F%3E%3Cpath%20d%3D%27M74%2064V34%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Finance%22%2C%22short_name%22%3A%22Finance%22%2C%22display%22%3A%22standalone%22%2C%22start_url%22%3A%22.%22%2C%22background_color%22%3A%22%231B1C1E%22%2C%22theme_color%22%3A%22%231B1C1E%22%7D">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   V1 SUITE DESIGN TOKENS — mirrored verbatim from shared/tokens.css, which is
+   the canonical source. Finance is a single static file by design (one asset,
+   no build step), so the tokens are inlined rather than linked. When a value
+   changes in shared/tokens.css, change it here too.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg:            #1B1C1E;
+  --bg-card:       #26272A;
+  --bg-slot:       #303135;
+  --bg-inset:      #1F2023;
+  --text:          #ECECEE;
+  --text-2:        #AFB0B5;
+  --muted:         #76777C;
+  --accent:        #8D769A;
+  --accent-light:  #2E2535;
+  --accent-hover:  #A892B0;
+  --border:        #3D3E43;
+  --border-soft:   #313236;
+  --green:         #5DAF6D;
+  --green-dim:     #1C2A20;
+  --red:           #E05B4E;
+  --red-dim:       #331B18;
+  --amber:         #D9A33A;
+  --amber-dim:     #2C2208;
+  --blue:          #6AA0D8;
+  --blue-dim:      #17232F;
+  --radius-sm:     10px;
+  --radius-md:     14px;
+  --radius-lg:     20px;
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.15);
+  --shadow-md:     0 4px 16px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.15);
+  --shadow-lg:     0 12px 40px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2);
+  --mono:          'IBM Plex Mono', ui-monospace, monospace;
+  --sans:          'DM Sans', system-ui, sans-serif;
+  --transition:    0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--sans); font-size: 14px; line-height: 1.55;
+  min-height: 100vh; -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font-family: inherit; }
+button { cursor: pointer; }
+::selection { background: var(--accent-light); color: var(--text); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--mono); }
+.pos { color: var(--green) !important; }
+.neg { color: var(--red) !important; }
+.only-mobile { display: none; }
+
+/* ── App shell ─────────────────────────────────────────────────────────── */
+.wrap {
+  max-width: 1320px; margin: 0 auto;
+  padding: 24px calc(env(safe-area-inset-right, 0px) + 28px)
+           calc(env(safe-area-inset-bottom, 0px) + 60px)
+           calc(env(safe-area-inset-left, 0px) + 28px);
+}
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+header { border-bottom: 1px solid var(--border-soft); background: var(--bg); }
+.hdr {
+  max-width: 1320px; margin: 0 auto; display: flex; align-items: center; gap: 14px;
+  padding: 14px calc(env(safe-area-inset-right, 0px) + 28px) 14px
+           calc(env(safe-area-inset-left, 0px) + 28px);
+}
+.brand { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; gap: 9px; }
+.brand-mark { width: 22px; height: 22px; flex-shrink: 0; }
+/* Title + sync state stacked. The row keeps its height whether or not the
+   indicator is showing, so the header never jumps as sync state changes. */
+.brandwrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hdr-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.sync-ind {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  opacity: 0; transition: opacity var(--transition); min-height: 14px;
+  padding-left: 31px;   /* aligns under the wordmark, clear of the brand icon */
+  pointer-events: none;
+}
+.sync-ind.show { opacity: 1; }
+.sync-ind .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.sync-ind.syncing .dot { background: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
+.sync-ind.synced { color: var(--green); } .sync-ind.synced .dot { background: var(--green); }
+.sync-ind.failed { color: var(--red); }  .sync-ind.failed .dot { background: var(--red); }
+@keyframes pulse { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
+.last-sync { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* ── Buttons ── identical vocabulary to TradeBoard ─────────────────────── */
+.btn {
+  font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+  padding: 8px 15px; border-radius: 9px; border: 1px solid var(--border);
+  background: transparent; color: var(--text); transition: var(--transition);
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent-hover); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn:disabled:hover { border-color: var(--border); color: var(--text); }
+.btn-primary { background: var(--accent); color: #1B1C1E; border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-hover); color: #1B1C1E; }
+.btn-primary:disabled:hover { background: var(--accent); }
+.btn-ghost { color: var(--text-2); }
+.btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+.btn-danger { color: var(--red); border-color: var(--red-dim); }
+.btn-danger:hover { background: var(--red-dim); color: var(--red); border-color: var(--red); }
+.btn-sm { padding: 6px 11px; font-size: 11.5px; }
+.btn-icon {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 8px; padding: 6px 8px; line-height: 1; transition: var(--transition);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.btn-icon:hover { color: var(--text); border-color: var(--accent); }
+.btn-icon.danger:hover { color: var(--red); border-color: var(--red); }
+.btn-icon svg, .btn svg { display: block; width: 15px; height: 15px; }
+.btn-icon[aria-pressed="true"] { color: var(--accent-hover); border-color: var(--accent); }
+#syncBtn.spinning svg { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg) } }
+
+/* ── Nav ───────────────────────────────────────────────────────────────── */
+nav {
+  display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none;
+  border-bottom: 1px solid var(--border-soft); background: var(--bg);
+  padding: 0 calc(env(safe-area-inset-left, 0px) + 28px);
+  max-width: 1320px; margin: 0 auto;
+}
+nav::-webkit-scrollbar { display: none; }
+.tab {
+  flex-shrink: 0; padding: 11px 15px; font-size: 12px; font-weight: 600;
+  color: var(--muted); background: none; border: none; position: relative;
+  white-space: nowrap; transition: var(--transition);
+}
+.tab::after {
+  content: ''; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px;
+  background: var(--accent); border-radius: 2px 2px 0 0;
+  transform: scaleX(0); transition: transform var(--transition);
+}
+.tab:hover { color: var(--text-2); }
+.tab.active { color: var(--accent-hover); }
+.tab.active::after { transform: scaleX(1); }
+/* Tabs drag to reorder. `manipulation` keeps the browser's own panning (so the
+   strip still scrolls on touch) while dropping the 300ms double-tap delay; a
+   reorder drag starts from a long press and suppresses scrolling once armed. */
+.tab { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.tab.navdrag {
+  z-index: 5; cursor: grabbing; opacity: .97;
+  color: var(--accent-hover); background: var(--accent-light);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  box-shadow: var(--shadow-md);
+}
+.tab.navdrag::after { transform: scaleX(1); }
+
+/* ── Sections ──────────────────────────────────────────────────────────── */
+.view { display: none; }
+.view.active { display: block; }
+.section-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 13px; display: flex; align-items: center;
+  justify-content: space-between; gap: 10px;
+}
+.section-label .meta {
+  font-family: var(--mono); font-weight: 500; text-transform: none;
+  letter-spacing: 0; color: var(--muted); font-size: 11px;
+}
+
+/* ── Cards / tiles ─────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+}
+.card-pad { padding: 22px 24px; }
+.grid { display: grid; gap: 12px; }
+.stat-grid { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); margin-bottom: 24px; }
+.tile {
+  background: var(--bg-card); border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm); padding: 14px 16px; box-shadow: var(--shadow-sm);
+}
+.tile .t-name {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+}
+.tile .t-val { font-family: var(--mono); font-size: 22px; font-weight: 600; line-height: 1; }
+.tile .t-sub { font-size: 10.5px; color: var(--muted); margin-top: 6px; }
+.t-val.accent { color: var(--accent-hover); }
+
+/* Display mode — blur figures that reveal overall position. */
+body.privacy .money { filter: blur(0.36em); user-select: none; -webkit-user-select: none; }
+body.privacy input.money:focus { filter: none; user-select: auto; }
+.mocktag {
+  font-family: var(--sans); font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--muted); vertical-align: middle; margin-left: 5px; text-transform: uppercase;
+}
+
+/* ── Inputs ────────────────────────────────────────────────────────────── */
+.input, input[type=text], input[type=search], input[type=number], input[type=date],
+input[type=password], select, textarea {
+  background: var(--bg-slot); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius-sm); font-size: 13px; padding: 9px 12px;
+  outline: none; transition: var(--transition); width: 100%;
+}
+.input:focus, input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input[type=number] { font-family: var(--mono); -moz-appearance: textfield; appearance: textfield; }
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+textarea { resize: vertical; min-height: 62px; line-height: 1.55; }
+select { cursor: pointer; }
+.field { margin-bottom: 14px; }
+.field label {
+  display: block; font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+}
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.help { color: var(--text-2); font-size: 13px; line-height: 1.6; max-width: 68ch; }
+
+/* Segmented control */
+.seg { display: flex; background: var(--bg-slot); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
+.seg button {
+  flex: 1; border: none; background: none; color: var(--muted); font-size: 12px; font-weight: 600;
+  padding: 8px; border-radius: 7px; transition: var(--transition);
+}
+.seg button.on { background: var(--accent); color: #1B1C1E; }
+
+/* ── Filters ───────────────────────────────────────────────────────────── */
+.filters { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; }
+.filters input[type=search] { flex: 1; min-width: 170px; }
+.filters select { width: auto; min-width: 140px; }
+.filters .btn { margin-left: auto; }
+
+/* ── Transaction rows ──────────────────────────────────────────────────── */
+.date-hdr {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--muted); margin: 22px 2px 10px; display: flex; align-items: center; gap: 12px;
+}
+.date-hdr::after { content: ''; flex: 1; height: 1px; background: var(--border-soft); }
+.row {
+  display: flex; align-items: center; gap: 13px; background: var(--bg-card);
+  border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  padding: 12px 15px; margin-bottom: 7px; transition: var(--transition);
+}
+.row:hover { border-color: var(--border); }
+.row-badge {
+  width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: var(--accent-hover);
+  background: var(--bg-slot); border: 1px solid var(--border);
+}
+.row-badge img { width: 100%; height: 100%; object-fit: cover; }
+.row-main { flex: 1; min-width: 0; }
+.row-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-sub { display: flex; gap: 7px; align-items: center; font-size: 11px; color: var(--muted); margin-top: 3px; flex-wrap: wrap; }
+.row-amt { font-family: var(--mono); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.row-amt.in { color: var(--green); }
+.row-amt.xfer { color: var(--muted); }
+.row-acts { display: flex; gap: 4px; flex-shrink: 0; }
+.row-note { font-size: 12px; color: var(--text-2); margin-top: 6px; white-space: pre-wrap; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ── Chips ─────────────────────────────────────────────────────────────── */
+.chip {
+  font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
+  border: 1px solid var(--border); color: var(--text-2); white-space: nowrap;
+  background: transparent;
+}
+.chip.mono { font-family: var(--mono); }
+.chip.manual  { color: var(--accent-hover); border-color: var(--accent); }
+.chip.pending { color: var(--amber); border-color: var(--amber-dim); background: var(--amber-dim); }
+.chip.xfer    { color: var(--blue); border-color: var(--blue-dim); background: var(--blue-dim); }
+.chip.cardpay { color: var(--blue); border-color: var(--blue-dim); background: var(--blue-dim); }
+.chip.ontime  { color: var(--green); border-color: var(--green-dim); background: var(--green-dim); }
+.chip.duesoon { color: var(--accent-hover); border-color: var(--accent); }
+.chip.late    { color: var(--amber); border-color: var(--amber-dim); background: var(--amber-dim); }
+.chip.missing { color: var(--red); border-color: var(--red-dim); background: var(--red-dim); }
+
+/* ── Monthly history ───────────────────────────────────────────────────── */
+.mhist { margin-bottom: 22px; overflow: hidden; }
+.mhist summary {
+  display: flex; align-items: center; gap: 10px; padding: 12px 18px; list-style: none;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--muted); transition: var(--transition);
+}
+.mhist summary::-webkit-details-marker { display: none; }
+.mhist summary:hover { color: var(--text-2); }
+.mhist[open] summary { color: var(--accent-hover); border-bottom: 1px solid var(--border-soft); }
+.mh-chev { width: 15px; height: 15px; margin-left: auto; transition: transform var(--transition); }
+.mhist[open] .mh-chev { transform: rotate(180deg); }
+.mh-body { max-height: 420px; overflow-y: auto; padding: 6px 0; }
+.mh-row {
+  display: grid; grid-template-columns: minmax(0,1fr) repeat(3, minmax(88px, 190px));
+  gap: 12px; align-items: baseline; padding: 9px 18px;
+}
+.mh-row.head { font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.mh-row:not(.head):not(.total):hover { background: var(--bg-slot); }
+.mh-row .mo { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.mh-row .amt { font-family: var(--mono); text-align: right; font-size: 12.5px; white-space: nowrap; }
+.mh-row .amt.in { color: var(--green); }
+.mh-row .amt.neg { color: var(--red); }
+.mh-row.total { border-top: 1px solid var(--border-soft); margin-top: 4px; padding-top: 12px; }
+.mh-row.total .mo { color: var(--text-2); }
+.mh-sofar { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-left: 6px; }
+.mh-empty { padding: 20px 18px; color: var(--muted); font-size: 12.5px; }
+
+/* ── Budgets ───────────────────────────────────────────────────────────── */
+.budget-row { padding: 14px 16px; border-bottom: 1px solid var(--border-soft); }
+.budget-row:last-child { border-bottom: none; }
+.budget-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; flex-wrap: wrap; }
+.budget-name { font-size: 13.5px; font-weight: 600; }
+.budget-fig { font-family: var(--mono); font-size: 12.5px; color: var(--text-2); margin-left: auto; white-space: nowrap; }
+.meter { height: 7px; background: var(--bg-inset); border-radius: 4px; overflow: hidden; }
+.meter-fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width var(--transition); }
+.meter-fill.warn { background: var(--amber); }
+.meter-fill.over { background: var(--red); }
+.budget-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+/* ── Insights (spending analysis) ──────────────────────────────────────── */
+.cat-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+.cat-name { font-size: 13px; font-weight: 600; min-width: 0; flex: 0 0 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-bar { flex: 1; height: 8px; background: var(--bg-inset); border-radius: 4px; overflow: hidden; }
+.cat-bar span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.cat-amt { font-family: var(--mono); font-size: 12.5px; white-space: nowrap; text-align: right; min-width: 92px; }
+.trend { display: flex; align-items: flex-end; gap: 4px; height: 90px; padding: 6px 0; }
+.trend-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; min-width: 0; }
+.trend-bar { width: 100%; max-width: 34px; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; transition: var(--transition); }
+.trend-bar.income { background: var(--green); }
+.trend-lbl { font-size: 8.5px; color: var(--muted); white-space: nowrap; }
+
+/* ── Accounts ──────────────────────────────────────────────────────────── */
+.inst-group { margin-bottom: 26px; }
+.inst-hdr { font-size: 14px; font-weight: 700; color: var(--accent-hover); margin: 0 2px 12px; }
+.acct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.acct { padding: 16px 18px; }
+.acct .a-name { font-size: 13.5px; font-weight: 600; }
+.acct .a-sub { font-size: 10px; color: var(--muted); margin: 3px 0 12px; text-transform: uppercase; letter-spacing: 0.07em; }
+.acct .a-bal { font-family: var(--mono); font-size: 21px; font-weight: 600; line-height: 1.1; }
+.acct .a-bal.debt { color: var(--red); }
+
+/* ── Modal ─────────────────────────────────────────────────────────────── */
+.modal-back {
+  position: fixed; inset: 0; background: rgba(12,12,14,.7); backdrop-filter: blur(4px);
+  display: none; align-items: flex-start; justify-content: center;
+  z-index: 300; padding: 7vh 16px 16px; overflow-y: auto;
+}
+.modal-back.open { display: flex; }
+.modal {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  width: 520px; max-width: 100%; padding: 26px; box-shadow: var(--shadow-lg);
+}
+.modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 18px; }
+.modal-acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+
+/* ── Import ────────────────────────────────────────────────────────────── */
+.filedrop {
+  border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 36px 20px;
+  text-align: center; color: var(--text-2); transition: var(--transition); font-size: 13px;
+}
+.filedrop:hover, .filedrop.drag { border-color: var(--accent); background: var(--accent-light); }
+.impmap { background: var(--bg-inset); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 16px 18px; margin-top: 16px; }
+.impmap h4 { font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 11px; }
+.impmap .r { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 11px; }
+.impmap .r label { font-size: 12px; color: var(--text-2); }
+.impmap .r input, .impmap .r select { width: auto; min-width: 150px; }
+.impcols { font-size: 11.5px; color: var(--muted); line-height: 1.9; }
+.impcols b { color: var(--accent-hover); font-weight: 600; }
+.imppreview { margin-top: 12px; border-top: 1px solid var(--border-soft); padding-top: 12px; }
+.prow { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 3px 0; }
+.prow .nm { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow .am { font-family: var(--mono); white-space: nowrap; }
+.prow .am.in { color: var(--green); }
+.impstat { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-2); margin: 14px 0; }
+.impstat b { color: var(--accent-hover); font-family: var(--mono); }
+.dupe { border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 15px 17px; margin-bottom: 10px; background: var(--bg-card); }
+.dupe .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
+.dupe .tag { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.dupe .nm { font-size: 13px; font-weight: 600; }
+.dupe .dt { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); margin-top: 2px; }
+.dupe .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.dupe.decided { opacity: .45; }
+.bulk-acts { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 14px; }
+
+/* ── Recurring prompt ──────────────────────────────────────────────────── */
+.rec-prompt { margin-top: 9px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-slot); border: 1px solid var(--border); }
+.rec-prompt-msg { font-size: 12px; color: var(--text-2); line-height: 1.5; margin-bottom: 9px; }
+.rec-prompt-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+#recList .row { cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#recList .row:active { cursor: grabbing; }
+#recList .row button { cursor: pointer; }
+.row.dragging { position: relative; z-index: 30; cursor: grabbing; border-color: var(--accent); box-shadow: var(--shadow-lg); background: var(--bg-slot); }
+.row.dropping { transition: transform var(--transition); }
+
+/* ── Cash ──────────────────────────────────────────────────────────────── */
+.cash-hero { text-align: center; padding: 38px 22px; }
+.cash-amt { font-family: var(--mono); font-size: 46px; font-weight: 600; line-height: 1.05; color: var(--accent-hover); margin: 8px 0 20px; }
+.cash-ctl { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: center; }
+.cash-ctl input { width: 160px; text-align: center; font-size: 15px; }
+.cash-set { margin-top: 16px; font-size: 12px; color: var(--muted); }
+.cash-set span { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.cash-set span:hover { color: var(--text-2); }
+
+/* ── Empty / toast ─────────────────────────────────────────────────────── */
+.empty { text-align: center; color: var(--muted); padding: 48px 20px; }
+.empty .big { font-size: 16px; font-weight: 700; color: var(--text-2); margin-bottom: 7px; }
+.toast {
+  position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); left: 50%;
+  transform: translateX(-50%) translateY(90px);
+  background: var(--bg-slot); border: 1px solid var(--border); color: var(--text);
+  padding: 11px 20px; border-radius: var(--radius-sm); font-size: 12.5px; font-weight: 600;
+  box-shadow: var(--shadow-lg); transition: transform var(--transition); z-index: 400; max-width: 92vw;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.accent { border-color: var(--accent); }
+
+/* ── App lock ──────────────────────────────────────────────────────────── */
+#lockScreen { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.lockbox {
+  width: 100%; max-width: 350px; text-align: center; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 30px 26px 20px;
+  box-shadow: var(--shadow-lg);
+}
+.lockbox .lb-brand { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.lockbox .lb-sub { color: var(--muted); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 22px; }
+.lockbox input { text-align: center; margin-bottom: 10px; padding: 12px 14px; font-size: 14px; }
+.lockbox .btn { width: 100%; justify-content: center; padding: 12px; font-size: 13px; }
+/* Remember-this-device toggle. Sits between the fields and the unlock button so
+   the choice is visible at the moment it's made. */
+.remember {
+  display: flex; align-items: center; gap: 9px; margin: 2px 0 12px;
+  font-size: 12.5px; color: var(--text-2); cursor: pointer; user-select: none;
+  text-align: left;
+}
+.remember input { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--accent); cursor: pointer; margin: 0; }
+.remember:hover { color: var(--text); }
+#lockBio { margin-top: 8px; }
+.lockmsg { min-height: 19px; font-size: 12px; color: var(--red); margin-top: 11px; }
+.lockmsg.ok { color: var(--green); }
+.locklinks { display: flex; gap: 18px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+.locklinks:not(:empty) { padding-top: 13px; border-top: 1px solid var(--border-soft); }
+.locklinks span { font-size: 11.5px; color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.locklinks span:hover { color: var(--text-2); }
+.lock-note { font-size: 12px; color: var(--text-2); line-height: 1.6; margin-bottom: 18px; }
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-left: 42px; padding-right: 42px; }
+.pw-eye {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%); margin-top: -5px;
+  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; color: var(--muted); border-radius: 8px; transition: var(--transition);
+}
+.pw-eye:hover { color: var(--accent-hover); }
+.pw-eye svg { width: 16px; height: 16px; display: block; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
+.lockbox.shake { animation: shake .3s; }
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) { .wrap { max-width: 100%; } }
+@media (max-width: 900px) {
+  .stat-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .cat-name { flex-basis: 30%; }
+}
+@media (max-width: 720px) {
+  body { font-size: 13.5px; }
+  .wrap { padding: 18px calc(env(safe-area-inset-right, 0px) + 16px)
+                  calc(env(safe-area-inset-bottom, 0px) + 48px)
+                  calc(env(safe-area-inset-left, 0px) + 16px); }
+  .hdr { padding: 11px 16px; gap: 10px; }
+  nav { padding: 0 16px; }
+  .only-mobile { display: block; }
+  .brand { font-size: 15px; }
+  .last-sync { display: none; }          /* the sync indicator already says it */
+  /* Tighter under a smaller wordmark, and pulled left since the brand icon
+     scales down with the title. */
+  .sync-ind { padding-left: 28px; font-size: 9px; }
+  .stat-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile { padding: 11px 12px; }
+  .tile .t-name { font-size: 8.5px; margin-bottom: 6px; }
+  .tile .t-val { font-size: 16px; }
+  .tile .t-sub { display: none; }
+  .acct-grid { grid-template-columns: 1fr; }
+  .dupe .pair { grid-template-columns: 1fr; gap: 10px; }
+  .field-row { grid-template-columns: 1fr; }
+  .filters input[type=search] { min-width: 100%; }
+  .filters select { flex: 1; min-width: 0; }
+  .filters .btn { margin-left: 0; width: 100%; justify-content: center; }
+  .modal { padding: 20px; border-radius: var(--radius-md); }
+  .modal-acts .btn, .cash-ctl .btn { flex: 1; justify-content: center; }
+  .cash-amt { font-size: 36px; }
+  .cash-ctl input { width: 100%; }
+  .card-pad { padding: 18px; }
+  /* Four money columns can't fit a phone: the month takes its own line and the
+     three figures sit beneath it, each labelled by its own ::before. */
+  .mh-row { grid-template-columns: repeat(3, 1fr); gap: 3px 8px; padding: 10px 14px; }
+  .mh-row.head { display: none; }
+  .mh-row .mo { grid-column: 1 / -1; font-size: 12px; margin-bottom: 2px; }
+  .mh-row .amt { text-align: left; font-size: 12px; }
+  .mh-row .amt::before {
+    content: attr(data-l); display: block; font-family: var(--sans);
+    font-size: 8px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 2px;
+  }
+  .mh-row .amt:nth-of-type(3) { text-align: center; }
+  .mh-row .amt:last-child { text-align: right; }
+  .cat-name { flex-basis: 42%; font-size: 12px; }
+  .cat-amt { min-width: 78px; font-size: 11.5px; }
+}
+@media (max-width: 360px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .tile .t-val { font-size: 15px; }
+}
+/* Touch devices get larger hit targets — same rule TradeBoard uses. */
+@media (hover: none) and (pointer: coarse) {
+  .btn { min-height: 42px; padding: 10px 15px; font-size: 13px; }
+  .btn-sm { min-height: 38px; padding: 8px 13px; }
+  .btn-icon { min-width: 40px; min-height: 40px; }
+  .tab { padding: 13px 15px; }
+  input, select, textarea { font-size: 16px; }   /* prevents iOS zoom-on-focus */
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ Biometric auth helper (WebAuthn / platform passkeys) ═══════════════
+     Dependency-free. Primary auth is the device's own biometric (Face ID /
+     Touch ID / fingerprint / Windows Hello) via the OS secure framework. The
+     app NEVER sees or stores raw biometric data — WebAuthn returns only a
+     public-key credential handle. Credentials are keyed per (app,id), so
+     Finance's credential is isolated from every other app in the suite. -->
+<script>
+(function(){
+  if (window.Bio) return;
+  var NS = 'bio_cred_';
+  function u8(buf){ return new Uint8Array(buf); }
+  function b64u(buf){ var b=u8(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+  function unb64u(str){ str=String(str).replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
+  function rand(n){ var a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
+  function keyOf(app,id){ return NS+app+'_'+id; }
+  function supported(){ return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
+  function available(){
+    if(!supported()) return Promise.resolve(false);
+    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
+    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
+  }
+  function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
+  function isRegistered(app,id){ var r=stored(app,id); return !!(r&&r.id); }
+  function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
+  function label(){
+    var ua=navigator.userAgent||'';
+    if(/iPhone|iPad|iPod/.test(ua)) return 'Face ID';
+    if(/Android/.test(ua)) return 'fingerprint';
+    if(/Windows/.test(ua)) return 'Windows Hello';
+    if(/Mac/.test(ua)) return 'Touch ID';
+    return 'biometrics';
+  }
+  function register(app,id,opts){
+    opts=opts||{};
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    return navigator.credentials.create({publicKey:{
+      challenge: rand(32),
+      rp:{ name: opts.rpName||document.title||'App', id: location.hostname||undefined },
+      user:{ id: rand(16), name: opts.userName||(app+':'+id), displayName: opts.displayName||opts.userName||id },
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred' },
+      timeout: 60000, attestation:'none'
+    }}).then(function(cred){
+      if(!cred) return {ok:false,error:'cancelled'};
+      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now() }));
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error'}; });
+  }
+  function authenticate(app,id){
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    var rec=stored(app,id);
+    if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
+    return navigator.credentials.get({publicKey:{
+      challenge: rand(32),
+      allowCredentials:[{ type:'public-key', id: unb64u(rec.id) }],
+      userVerification:'required', timeout:60000, rpId: location.hostname||undefined
+    }}).then(function(asr){
+      if(!asr) return {ok:false,error:'cancelled'};
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error'}; });
+  }
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label };
+})();
+</script>
+
+<div id="lockScreen">
+  <div class="lockbox" id="lockBox">
+    <div class="lb-brand">Finance</div>
+    <div class="lb-sub" id="lockSub">Locked</div>
+    <div class="lock-note" id="lockNote" style="display:none">
+      First time here — create the password that will protect Finance and its
+      institution-connection flow. It's stored the same way as your other app
+      locks: hashed with PBKDF2, never in plaintext.
+    </div>
+    <input type="text" id="lockCode" placeholder="6-character code from email" style="display:none" autocomplete="one-time-code">
+    <input type="password" id="lockPw1" placeholder="Password" autocomplete="current-password">
+    <input type="password" id="lockPw2" placeholder="Confirm password" style="display:none" autocomplete="new-password">
+    <input type="text" id="lockHintIn" placeholder="Hint (optional)" style="display:none" autocomplete="off">
+    <label class="remember" id="lockRememberRow">
+      <input type="checkbox" id="lockRemember" checked>
+      <span>Remember this device</span>
+    </label>
+    <button class="btn btn-primary" id="lockGo">Unlock</button>
+    <div id="lockBio" style="display:none"><button class="btn" id="bioBtn"></button></div>
+    <div class="lockmsg" id="lockMsg"></div>
+    <div class="locklinks" id="lockLinks"></div>
+  </div>
+</div>
+
+<header>
+  <div class="hdr">
+    <!-- Title with the sync state directly beneath it, so what the app is doing
+         is readable at a glance without scanning the toolbar. -->
+    <div class="brandwrap">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" style="color:var(--accent)">
+          <path d="M26 64V40"/><path d="M42 64V30"/><path d="M58 64V46"/><path d="M74 64V34"/>
+        </svg>
+        Finance
+      </div>
+      <span class="sync-ind" id="syncInd"><span class="dot"></span><span id="syncIndTxt"></span></span>
+    </div>
+    <div class="hdr-right">
+      <span class="last-sync" id="lastSync">connecting…</span>
+      <button class="btn-icon" id="syncBtn" aria-label="Refresh institution data"
+              title="Refresh institution data — your own edits save instantly; this pulls new transactions from connected institutions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6.01"/><polyline points="20.5 3.5 20.5 9 15 9"/></svg>
+      </button>
+      <button class="btn-icon" id="displayBtn" aria-pressed="false" aria-label="Display mode"
+              title="Display mode — hides every account balance and credit-card debt, month totals, recurring amounts and your cash balance and history, so you can show Finance to someone. Individual transaction amounts stay visible.">
+        <svg id="dmOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 12S5.8 5.5 12 5.5 22.2 12 22.2 12 18.2 18.5 12 18.5 1.8 12 1.8 12z"/><circle cx="12" cy="12" r="2.8"/></svg>
+        <svg id="dmOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 19.8c-6.2 0-10.2-6.5-10.2-6.5a18.4 18.4 0 0 1 4.7-5.4M9.9 5.7A9.1 9.1 0 0 1 12 5.5c6.2 0 10.2 6.5 10.2 6.5a18.5 18.5 0 0 1-2 2.9m-6.2-1.1a2.8 2.8 0 1 1-3.9-3.9"/><line x1="2.5" y1="2.5" x2="21.5" y2="21.5"/></svg>
+      </button>
+      <button class="btn-icon" id="lockBtn" aria-label="Lock Finance now" title="Lock Finance now">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<nav id="nav"></nav>
+
+<div class="wrap">
+  <!-- ═══ Transactions ═══ -->
+  <section class="view active" id="view-transactions">
+    <div class="grid stat-grid">
+      <div class="tile"><div class="t-name">In · this month</div><div class="t-val money" id="statIn">—</div></div>
+      <div class="tile"><div class="t-name">Out · this month</div><div class="t-val money" id="statOut">—</div></div>
+      <div class="tile"><div class="t-name">Net</div><div class="t-val money" id="statNet">—</div></div>
+    </div>
+    <details class="card mhist" id="monthHistory">
+      <summary>
+        <span>Monthly history</span>
+        <span class="meta" id="mhHint"></span>
+        <svg class="mh-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </summary>
+      <div class="mh-body" id="mhBody"></div>
+    </details>
+    <div class="filters">
+      <input type="search" id="fSearch" placeholder="Search transactions…">
+      <select id="fCategory"><option value="">All categories</option></select>
+      <select id="fAccount"><option value="">All accounts</option></select>
+      <select id="fSource">
+        <option value="">All sources</option>
+        <option value="plaid">Connected institution</option>
+        <option value="manual">Manual</option>
+        <option value="csv">CSV import</option>
+      </select>
+      <button class="btn btn-primary" id="addTxBtn">+ Add entry</button>
+    </div>
+    <div id="feed"></div>
+  </section>
+
+  <!-- ═══ Accounts ═══ -->
+  <section class="view" id="view-accounts">
+    <div class="grid stat-grid">
+      <div class="tile"><div class="t-name">Assets</div><div class="t-val money" id="nwAssets">—</div></div>
+      <div class="tile"><div class="t-name">Debts</div><div class="t-val money" id="nwDebts">—</div></div>
+      <div class="tile"><div class="t-name">Net worth</div><div class="t-val money" id="nwNet">—</div></div>
+    </div>
+    <div id="acctList"></div>
+  </section>
+
+  <!-- ═══ Insights ═══ -->
+  <section class="view" id="view-insights">
+    <div class="grid stat-grid">
+      <div class="tile"><div class="t-name">Avg monthly spend</div><div class="t-val money" id="inAvgOut">—</div><div class="t-sub" id="inAvgSub"></div></div>
+      <div class="tile"><div class="t-name">Avg monthly income</div><div class="t-val money" id="inAvgIn">—</div></div>
+      <div class="tile"><div class="t-name">Savings rate</div><div class="t-val money" id="inSaveRate">—</div><div class="t-sub">income kept, not spent</div></div>
+      <div class="tile"><div class="t-name">Largest expense</div><div class="t-val money" id="inBiggest">—</div><div class="t-sub" id="inBiggestSub"></div></div>
+    </div>
+    <div class="card card-pad" style="margin-bottom:18px">
+      <div class="section-label">In vs out · last 6 months <span class="meta" id="trendMeta"></span></div>
+      <div class="trend" id="trendChart"></div>
+    </div>
+    <div class="card card-pad">
+      <div class="section-label">Spending by category <span class="meta" id="catMeta"></span></div>
+      <div id="catList"></div>
+    </div>
+  </section>
+
+  <!-- ═══ Budgets ═══ -->
+  <section class="view" id="view-budgets">
+    <div class="grid stat-grid">
+      <div class="tile"><div class="t-name">Budgeted</div><div class="t-val money" id="bTotal">—</div></div>
+      <div class="tile"><div class="t-name">Spent</div><div class="t-val money" id="bSpent">—</div></div>
+      <div class="tile"><div class="t-name">Remaining</div><div class="t-val money" id="bLeft">—</div></div>
+    </div>
+    <div class="section-label">
+      This month's budgets
+      <button class="btn btn-sm" id="addBudgetBtn">+ Add budget</button>
+    </div>
+    <div class="card" id="budgetList"></div>
+  </section>
+
+  <!-- ═══ Recurring ═══ -->
+  <section class="view" id="view-recurring">
+    <div class="grid stat-grid">
+      <div class="tile"><div class="t-name">Monthly total</div><div class="t-val accent money" id="recMo">—</div></div>
+      <div class="tile"><div class="t-name">Annual total</div><div class="t-val accent money" id="recAn">—</div></div>
+    </div>
+    <div class="section-label">
+      Recurring payments
+      <button class="btn btn-sm" id="addRecBtn">+ Add manual</button>
+    </div>
+    <div id="recList"></div>
+  </section>
+
+  <!-- ═══ Cash ═══ -->
+  <section class="view" id="view-cash">
+    <div class="card cash-hero">
+      <div class="t-name" style="font-size:10px;letter-spacing:0.09em">Cash on hand</div>
+      <div class="cash-amt money" id="cashAmt">—</div>
+      <div class="cash-ctl">
+        <input type="number" id="cashInput" min="0" step="0.01" placeholder="Amount" inputmode="decimal">
+        <button class="btn btn-primary" id="cashAdd">+ Add</button>
+        <button class="btn btn-danger" id="cashDeduct">− Deduct</button>
+      </div>
+      <div class="cash-set"><span id="cashSetLink">Set exact balance instead</span></div>
+    </div>
+    <div class="section-label">
+      Cash history
+      <span class="meta" id="cashHistMeta"></span>
+    </div>
+    <div id="cashHist"></div>
+  </section>
+
+  <!-- ═══ Import ═══ -->
+  <section class="view" id="view-import">
+    <div class="card card-pad">
+      <div class="section-label">Import a CSV statement</div>
+      <p class="help" style="margin-bottom:16px">
+        Upload a transaction export from any institution — bank, credit card, or payment
+        account. Columns are detected automatically and you can correct anything before
+        importing. Rows you've already imported are skipped, and anything that looks like a
+        transaction you already have is flagged for review — nothing merges silently.
+      </p>
+      <div class="filedrop" id="fileDrop">
+        <div style="margin-bottom:10px;color:var(--accent)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="28" height="28"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        </div>
+        Drop a CSV here or click to browse
+        <input type="file" id="fileInput" accept=".csv,text/csv" style="display:none">
+      </div>
+      <div class="impmap" id="importMap" style="display:none"></div>
+      <div class="impstat" id="importStat" style="display:none"></div>
+      <div class="bulk-acts" id="bulkActs" style="display:none">
+        <button class="btn" id="bulkSkip">Mark all as duplicates</button>
+        <button class="btn" id="bulkKeep">Keep all</button>
+      </div>
+      <div id="dupeList"></div>
+      <div class="modal-acts" id="importActs" style="display:none">
+        <button class="btn" id="importCancel">Cancel</button>
+        <button class="btn btn-primary" id="importCommit">Import</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Connect ═══ -->
+  <section class="view" id="view-connect">
+    <div class="card card-pad" style="margin-bottom:16px">
+      <div class="section-label">Connect an institution</div>
+      <p class="help" style="margin-bottom:16px">
+        Opens Plaid's secure login for your institution. Credentials go to Plaid only — this
+        app and its server never see them, and the connection is read-only by design
+        (transactions and balances; no ability to move money).
+      </p>
+      <button class="btn btn-primary" id="linkBtn">Connect</button>
+      <span id="linkStatus" style="margin-left:12px;color:var(--text-2);font-size:12.5px"></span>
+    </div>
+    <div class="card card-pad">
+      <div class="section-label">Connected</div>
+      <div id="itemList" class="help">Loading…</div>
+    </div>
+  </section>
+</div>
+
+<!-- ═══ Manual entry modal ═══ -->
+<div class="modal-back" id="txModal">
+  <div class="modal">
+    <h3 id="txTitle">Add entry</h3>
+    <div class="field">
+      <div class="seg" id="typeSeg">
+        <button data-t="expense" class="on">Expense</button>
+        <button data-t="income">Income</button>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Amount</label><input class="money" type="number" id="mAmount" min="0" step="0.01" placeholder="0.00" inputmode="decimal"></div>
+      <div class="field"><label>Date</label><input type="date" id="mDate"></div>
+    </div>
+    <div class="field"><label>Name</label><input type="text" id="mName" placeholder="Coffee, side gig, refund…"></div>
+    <div class="field"><label>Category</label><select id="mCategory"></select></div>
+    <div class="field"><label>Note (optional)</label><textarea id="mNote" rows="2"></textarea></div>
+    <div class="modal-acts">
+      <button class="btn" id="mCancel">Cancel</button>
+      <button class="btn btn-primary" id="mSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Recurring modal ═══ -->
+<div class="modal-back" id="recModal">
+  <div class="modal">
+    <h3 id="recTitle">Add recurring</h3>
+    <div class="field"><label>Name</label><input type="text" id="rName" placeholder="Netflix, Rent, Car Insurance…"></div>
+    <div class="field-row">
+      <div class="field"><label>Monthly cost</label><input type="number" id="rMonthly" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
+      <div class="field"><label>Annual cost</label><input type="number" id="rAnnual" min="0" step="0.01" placeholder="optional" inputmode="decimal"></div>
+    </div>
+    <p class="help" style="font-size:12px;margin:0 0 12px">Fill in monthly, annual, or both — or neither for a bill with no set amount yet.</p>
+    <div class="field"><label>Notes (optional)</label><textarea id="rNotes" rows="3" placeholder="Renewal date, account used, cancellation link…"></textarea></div>
+    <div class="modal-acts">
+      <button class="btn" id="rCancel">Cancel</button>
+      <button class="btn btn-primary" id="rSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Budget modal ═══ -->
+<div class="modal-back" id="budgetModal">
+  <div class="modal">
+    <h3 id="budgetTitle">Add budget</h3>
+    <div class="field"><label>Category</label><select id="bCategory"></select></div>
+    <div class="field"><label>Monthly limit</label><input type="number" id="bLimit" min="0" step="0.01" placeholder="0.00" inputmode="decimal"></div>
+    <p class="help" style="font-size:12px;margin:0 0 12px">
+      Spending is matched to this category from every source — connected institutions,
+      manual entries and CSV imports alike.
+    </p>
+    <div class="modal-acts">
+      <button class="btn btn-danger" id="bDelete" style="margin-right:auto;display:none">Delete</button>
+      <button class="btn" id="bCancel">Cancel</button>
+      <button class="btn btn-primary" id="bSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Confirm modal ═══ -->
+<div class="modal-back" id="confirmModal">
+  <div class="modal" style="max-width:390px">
+    <h3 id="cTitle">Are you sure?</h3>
+    <p id="cMsg" class="help" style="margin:0"></p>
+    <div class="modal-acts">
+      <button class="btn" id="cNo">Cancel</button>
+      <button class="btn btn-primary" id="cYes">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
+import { initializeFirestore, memoryLocalCache, collection, query, orderBy, limit, onSnapshot,
+         doc, getDoc, setDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIG — all of it Veda's own infrastructure.
+
+   Firebase: the SAME project TradeBoard uses (tradeboard-6b2ea), so the suite
+   shares one auth + App Check setup. Finance writes under its own top-level
+   `finance` collection, which the Firestore rules scope separately from
+   TradeBoard's doc — the two apps cannot read or write each other's data.
+
+   The API keys below are PUBLIC by design: a Firebase web apiKey identifies the
+   project, it does not authorize anything. Access is gated by Firestore rules +
+   App Check attestation. Real secrets (Plaid client secret) live only in
+   Cloudflare Worker secrets and never appear in this file.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const FIREBASE_CFG = {
+  apiKey: "AIzaSyDx7PhEyPQO3fsr6aM516iZPp69vnSO0_8",
+  authDomain: "tradeboard-6b2ea.firebaseapp.com",
+  projectId: "tradeboard-6b2ea",
+  storageBucket: "tradeboard-6b2ea.firebasestorage.app",
+  messagingSenderId: "1085173760414",
+  appId: "1:1085173760414:web:96daa4612111cc99ae168f",
+};
+const RECAPTCHA_SITE_KEY = "6LeMmVstAAAAANr6zU3rMIXN3iJgdEKJqR9rc_8c";
+
+// Finance's Plaid/session Worker. Set after the first deploy — see
+// docs/PLAID_SETUP.md. Until then the app runs fully in local/manual mode.
+const API = "https://finance-api.vedapatel05.workers.dev";
+
+// Shared suite App-Lock Worker. Finance uses its OWN entryId, so its password is
+// completely independent of TradeBoard's while sharing one deployment.
+const AUTH_API  = "https://tradeboard-auth.vedapatel05.workers.dev";
+const LOCK_ID   = { journal: "applock", entryId: "finance" };
+const FORM_URL  = "https://formspree.io/f/xrenqnrp";   // the same form TradeBoard uses
+const LOCK_EMAIL = "vedapatel05@gmail.com";
+
+const ROOT = "finance";               // Firestore root collection
+const LOCK_LS   = "finance_lock_session";
+const LOCKED_LS = "finance_locked";
+const REMEMBER_LS = "finance_remember_device";
+const DISPLAY_LS = "finance_display_mode";
+const BIO_APP = "finance", BIO_ID = "veda";
+
+const $ = id => document.getElementById(id);
+
+/* ══ App lock ═══════════════════════════════════════════════════════════════
+   Identical model to the rest of the suite: the PBKDF2 record lives in the auth
+   Worker's KV, reset codes are minted there and emailed by THIS client via
+   Formspree (so no email secrets sit on a server). A verified password is
+   exchanged at the Finance API for a bearer token that authorizes Plaid Link
+   server-side; "Lock" revokes it.
+
+   A device stays trusted until you lock manually or the password changes. */
+let lockSession = null, lockMode = 'unlock', lockHint = '', lockSetupNeeded = false, bioRemoveMode = false;
+
+const bioRegistered = () => !!(window.Bio && Bio.isRegistered(BIO_APP, BIO_ID));
+const isLockedFlag = () => { try { return localStorage.getItem(LOCKED_LS) === '1'; } catch { return false; } };
+const setLockedFlag = on => { try { on ? localStorage.setItem(LOCKED_LS,'1') : localStorage.removeItem(LOCKED_LS); } catch {} };
+
+/* Remember this device — when on (the default), a verified session is kept in
+   localStorage so reopening Finance goes straight in. Turning it off keeps the
+   session in memory only: it survives navigation within the tab but never
+   outlives the browser, so a shared or borrowed device asks every time.
+   Unset means on, so existing installs keep the behaviour they already had. */
+const rememberDevice = () => { try { return localStorage.getItem(REMEMBER_LS) !== '0'; } catch { return true; } };
+function setRememberDevice(on) {
+  try {
+    if (on) localStorage.removeItem(REMEMBER_LS);
+    else { localStorage.setItem(REMEMBER_LS, '0'); localStorage.removeItem(LOCK_LS); }
+  } catch {}
+  // Turning it on mid-session persists the session already in hand, so the
+  // choice takes effect immediately rather than at the next unlock.
+  if (on && lockSession) persistSession();
+}
+// Only a remembered device writes the session to disk. Otherwise `lockSession`
+// stays in memory and dies with the tab.
+const persistSession = () => {
+  if (!rememberDevice()) { try { localStorage.removeItem(LOCK_LS); } catch {} return; }
+  try { localStorage.setItem(LOCK_LS, JSON.stringify(lockSession)); } catch {}
+};
+// A session is valid if it carries a server token OR is a verified local one
+// (minted when the Finance API is unreachable). Requiring `.token` here used to
+// silently discard every local session, forcing a password on every open.
+function getStoredSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LOCK_LS) || 'null');
+    return s && (s.token || s.local) ? s : null;
+  } catch { return null; }
+}
+
+async function authPost(path, body) {
+  return fetch(AUTH_API + path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...LOCK_ID, ...body })
+  }).then(r => r.json());
+}
+function formspree(subject, message) {
+  return fetch(FORM_URL, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ email: LOCK_EMAIL, subject, message })
+  });
+}
+function lockMsg(t, ok) { const m = $('lockMsg'); m.className = 'lockmsg' + (ok ? ' ok' : ''); m.textContent = t; }
+
+// Show/hide toggle inside each password field.
+function addPasswordToggle(id) {
+  const input = $(id);
+  if (!input || input.dataset.eye) return;
+  input.dataset.eye = '1';
+  const wrap = document.createElement('div');
+  wrap.className = 'pw-wrap';
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+  // A field that starts hidden must hand that state to its new wrapper —
+  // lockView() hides the wrapper from here on.
+  if (input.style.display === 'none') { input.style.display = ''; wrap.style.display = 'none'; }
+  const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 12S5.8 5.5 12 5.5 22.2 12 22.2 12 18.2 18.5 12 18.5 1.8 12 1.8 12z"/><circle cx="12" cy="12" r="2.8"/></svg>';
+  const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 19.8c-6.2 0-10.2-6.5-10.2-6.5a18.4 18.4 0 0 1 4.7-5.4M9.9 5.7A9.1 9.1 0 0 1 12 5.5c6.2 0 10.2 6.5 10.2 6.5a18.5 18.5 0 0 1-2 2.9m-6.2-1.1a2.8 2.8 0 1 1-3.9-3.9"/><line x1="2.5" y1="2.5" x2="21.5" y2="21.5"/></svg>';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'pw-eye';
+  const apply = show => {
+    input.type = show ? 'text' : 'password';
+    btn.innerHTML = show ? EYE_OFF : EYE;
+    btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  };
+  apply(false);
+  btn.addEventListener('click', () => { apply(input.type === 'password'); input.focus(); });
+  btn._hide = () => apply(false);
+  wrap.appendChild(btn);
+}
+['lockPw1','lockPw2'].forEach(addPasswordToggle);
+const resetPwToggles = () => ['lockPw1','lockPw2'].forEach(id => {
+  const b = $(id)?.parentNode?.querySelector('.pw-eye'); if (b && b._hide) b._hide();
+});
+
+function renderBioButton() {
+  const box = $('lockBio'), btn = $('bioBtn');
+  box.style.display = 'none';
+  if (lockMode !== 'unlock' || !window.Bio || !bioRegistered()) return;
+  Bio.available().then(avail => {
+    if (!avail || lockMode !== 'unlock') return;
+    // While un-enrolling the button verifies; otherwise it releases a stored
+    // session, so it only shows when there is one.
+    if (!bioRemoveMode && !getStoredSession()) return;
+    btn.textContent = (bioRemoveMode ? 'Verify with ' : 'Unlock with ') + Bio.label();
+    box.style.display = '';
+  });
+}
+
+function lockView(mode) {
+  lockMode = mode;
+  const show = (id, on) => { const el = $(id); (el.closest('.pw-wrap') || el).style.display = on ? '' : 'none'; };
+  resetPwToggles();
+  lockMsg('');
+  ['lockPw1','lockPw2','lockHintIn','lockCode'].forEach(id => $(id).value = '');
+  show('lockNote', mode === 'setup');
+  show('lockCode', mode === 'reset');
+  show('lockPw2', mode !== 'unlock');
+  show('lockHintIn', mode !== 'unlock');
+  // Hidden while un-enrolling biometrics: that flow verifies identity and must
+  // not mint a session, so a "remember me" choice there would mean nothing.
+  $('lockRememberRow').style.display = bioRemoveMode ? 'none' : '';
+  $('lockRemember').checked = rememberDevice();
+  $('lockPw1').placeholder = mode === 'unlock' ? 'Password' : 'New password';
+  $('lockHintIn').placeholder = mode === 'reset' ? 'New hint (optional)' : 'Hint (optional)';
+  const bioName = window.Bio ? Bio.label() : 'biometrics';
+  $('lockSub').textContent = mode === 'setup' ? 'Set up your password'
+    : mode === 'reset' ? 'Reset password' : bioRemoveMode ? 'Remove ' + bioName : 'Locked';
+  $('lockGo').textContent = mode === 'setup' ? 'Create & unlock'
+    : mode === 'reset' ? 'Reset password' : bioRemoveMode ? 'Verify password & remove' : 'Unlock';
+  const L = $('lockLinks'); L.innerHTML = '';
+  const link = (label, fn) => { const s = document.createElement('span'); s.textContent = label; s.addEventListener('click', fn); L.appendChild(s); };
+  if (mode === 'unlock' && bioRemoveMode) link('Cancel', () => { bioRemoveMode = false; lockView('unlock'); });
+  else if (mode === 'unlock') {
+    link('Email me the hint', emailHint);
+    link('Forgot password?', startReset);
+    if (bioRegistered()) link('Remove ' + Bio.label(), forgetBio);
+  } else if (mode === 'reset') {
+    link('Resend code', startReset);
+    link('Back', () => lockView('unlock'));
+  }
+  renderBioButton();
+  setTimeout(() => $(mode === 'reset' ? 'lockCode' : 'lockPw1').focus(), 80);
+}
+function showLock() {
+  const ls = $('lockScreen');
+  ls.style.display = 'flex'; ls.style.opacity = '1';
+  bioRemoveMode = false;
+  lockView(lockSetupNeeded ? 'setup' : 'unlock');
+}
+function hideLock() {
+  const ls = $('lockScreen');
+  ls.style.transition = 'opacity .3s'; ls.style.opacity = '0';
+  setTimeout(() => { ls.style.display = 'none'; }, 320);
+}
+
+async function emailHint() {
+  if (!lockHint) { lockMsg('No hint is saved for this password.'); return; }
+  lockMsg('Sending…', true);
+  try {
+    const fp = await formspree('Finance — Password Hint',
+      'Your Finance password hint:\n\n    ' + lockHint + '\n\n— Finance');
+    lockMsg(fp.ok ? 'Hint emailed to ' + LOCK_EMAIL : 'Email failed — try again shortly.', fp.ok);
+  } catch { lockMsg('Email failed — try again shortly.'); }
+}
+async function startReset() {
+  lockMsg('Emailing you a reset code…', true);
+  try {
+    const rq = await authPost('/auth/reset/request', {});
+    if (rq.noLock) { lockMsg('No password is set yet.'); return; }
+    if (!rq.ok || !rq.code) { lockMsg('Could not start the reset — try again.'); return; }
+    const fp = await formspree('Finance — Password Reset Code',
+      'Your Finance password reset code is:\n\n    ' + rq.code +
+      '\n\nEnter it in Finance to set a new password. It expires in 15 minutes. ' +
+      'If you did not request this, ignore this email.\n\n— Finance');
+    if (!fp.ok) { lockMsg('Could not send the email — try again shortly.'); return; }
+    if (lockMode !== 'reset') lockView('reset');
+    lockMsg('Code sent to ' + LOCK_EMAIL + " — check spam if it's not there in a minute.", true);
+  } catch { lockMsg('Network error — try again.'); }
+}
+
+// Exchange a verified password for a session token at the Finance API. When the
+// API isn't deployed yet, fall back to verifying against the auth Worker so the
+// app is fully usable before Plaid is set up.
+async function openSession(password) {
+  try {
+    const r = await fetch(API + '/lock/session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    }).then(x => x.json());
+    if (r.ok) {
+      const old = getStoredSession();
+      if (old && old.token !== r.token) {
+        fetch(API + '/lock/end', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: old.token })
+        }).catch(() => {});
+      }
+      lockSession = { token: r.token, since: Date.now() };
+      persistSession(); setLockedFlag(false);
+      return true;
+    }
+    if (r.ok === false && r.error !== 'notfound') return false;
+  } catch { /* API not reachable yet — fall through to local verification */ }
+
+  const v = await authPost('/auth/journal/verify', { password }).catch(() => ({ ok: false }));
+  if (!v.ok) return false;
+  lockSession = { token: null, local: true, since: Date.now() };
+  persistSession(); setLockedFlag(false);
+  return true;
+}
+
+async function bioUnlock() {
+  lockMsg('');
+  const r = await Bio.authenticate(BIO_APP, BIO_ID);
+  if (!r.ok) {
+    if (r.error === 'notregistered') { $('lockBio').style.display = 'none'; return; }
+    if (r.error === 'cancelled' || r.error === 'NotAllowedError') { lockMsg('Cancelled — or use your password.'); return; }
+    lockMsg(Bio.label() + ' check failed — use your password.');
+    return;
+  }
+  if (bioRemoveMode) { doRemoveBio(); return; }
+  const s = getStoredSession();
+  if (!s) { lockMsg('Enter your password once on this device.'); return; }
+  // The credential is only a local gate — confirm the session is still valid
+  // server-side (it won't be if the password changed on another device).
+  if (s.token) {
+    try {
+      const chk = await fetch(API + '/lock/check', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: s.token })
+      }).then(x => x.json());
+      if (!chk.ok) {
+        try { localStorage.removeItem(LOCK_LS); } catch {}
+        lockSession = null;
+        $('lockBio').style.display = 'none';
+        lockMsg('The password was changed — enter the new one.');
+        return;
+      }
+    } catch { /* offline: trust the local token */ }
+  }
+  // Honour the checkbox on this path too — it bypasses lockSubmit().
+  setRememberDevice($('lockRemember').checked);
+  lockSession = s; setLockedFlag(false); persistSession(); hideLock();
+}
+async function maybeOfferBio() {
+  if (!window.Bio || bioRegistered()) return;
+  if (!(await Bio.available())) return;
+  const name = Bio.label();
+  if (!(await askConfirm(`Use ${name} on this device?`,
+    `You'll be able to unlock Finance with ${name} instead of typing your password. Your password always keeps working.`,
+    'Enable'))) return;
+  const r = await Bio.register(BIO_APP, BIO_ID, { rpName: 'Finance', userName: 'finance-veda', displayName: 'Finance' });
+  if (r.ok) toast(name + ' enabled', true);
+  else if (r.error === 'cancelled' || r.error === 'NotAllowedError') toast('Setup cancelled');
+  else toast('Could not enable ' + name);
+}
+function forgetBio() {
+  bioRemoveMode = true;
+  lockView('unlock');
+  lockMsg(`Verify with ${Bio.label()} or your password to remove it from this device.`, true);
+}
+function doRemoveBio() {
+  const name = Bio.label();
+  bioRemoveMode = false;
+  Bio.unregister(BIO_APP, BIO_ID);
+  lockView('unlock');
+  toast(name + ' removed from this device');
+}
+
+async function lockSubmit() {
+  const p1 = $('lockPw1').value;
+  lockMsg('');
+  // Record the choice before anything mints a session — persistSession() reads
+  // it, so setting it afterwards would save a session the user opted out of.
+  if (!bioRemoveMode) setRememberDevice($('lockRemember').checked);
+  if (lockMode === 'unlock') {
+    if (!p1) return;
+    const shake = () => {
+      const box = $('lockBox');
+      box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+      $('lockPw1').select();
+    };
+    if (bioRemoveMode) {   // verifying identity to un-enrol: must NOT mint a session
+      const v = await authPost('/auth/journal/verify', { password: p1 });
+      if (v.ok) doRemoveBio(); else { shake(); lockMsg('Wrong password.'); }
+      return;
+    }
+    if (await openSession(p1)) { hideLock(); maybeOfferBio(); return; }
+    shake(); lockMsg('Wrong password.');
+    return;
+  }
+  const p2 = $('lockPw2').value;
+  if (p1.length < 4) { lockMsg('Use at least 4 characters.'); return; }
+  if (p1 !== p2) { lockMsg('Passwords do not match.'); return; }
+  const hint = $('lockHintIn').value.trim();
+  if (lockMode === 'setup') {
+    const r = await authPost('/auth/journal/set-lock', { password: p1, hint });
+    if (!r.ok) { lockMsg(r.error || 'Could not set password.'); return; }
+    lockSetupNeeded = false; lockHint = hint;
+    if (await openSession(p1)) { hideLock(); toast('Password set — Finance is protected', true); maybeOfferBio(); }
+  } else {
+    const code = $('lockCode').value.trim().toUpperCase();
+    if (!code) { lockMsg('Enter the code from your email.'); return; }
+    const r = await authPost('/auth/reset/confirm', { code, password: p1, hint });
+    if (!r.ok) {
+      lockMsg(r.error === 'expired' ? 'Code expired — use "Resend code".'
+        : r.error === 'locked' ? 'Too many wrong tries — request a fresh code.'
+        : r.error === 'badcode' ? `Wrong code${r.remaining ? ` — ${r.remaining} tries left` : ''}.`
+        : (r.error || 'Reset failed.'));
+      return;
+    }
+    lockHint = hint;
+    if (await openSession(p1)) { hideLock(); toast("Password reset — you're unlocked", true); maybeOfferBio(); }
+  }
+}
+$('lockGo').addEventListener('click', lockSubmit);
+$('bioBtn').addEventListener('click', bioUnlock);
+['lockPw1','lockPw2','lockHintIn','lockCode'].forEach(id =>
+  $(id).addEventListener('keydown', e => { if (e.key === 'Enter') lockSubmit(); }));
+
+// Lock now. With biometrics enrolled the session is kept (flagged locked) so a
+// face/finger can release it; without them the token is revoked server-side.
+function lockNow() {
+  const t = lockSession?.token;
+  lockSession = null;
+  if (bioRegistered() && (t || getStoredSession())) setLockedFlag(true);
+  else {
+    setLockedFlag(false);
+    try { localStorage.removeItem(LOCK_LS); } catch {}
+    if (t) fetch(API + '/lock/end', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: t })
+    }).catch(() => {});
+  }
+  showLock();
+}
+$('lockBtn').addEventListener('click', lockNow);
+
+async function confirmDeviceTrust() {
+  if (!lockSession?.token) return;
+  try {
+    const r = await fetch(API + '/lock/check', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: lockSession.token })
+    }).then(x => x.json());
+    if (!r.ok) {
+      lockSession = null;
+      try { localStorage.removeItem(LOCK_LS); } catch {}
+      setLockedFlag(false);
+      showLock();
+      lockMsg('The password was changed — enter the new one.');
+    }
+  } catch { /* offline: keep trusting the local token */ }
+}
+
+// Boot: a trusted device goes straight in unless it was manually locked.
+lockSession = isLockedFlag() ? null : getStoredSession();
+if (lockSession) $('lockScreen').style.display = 'none';
+(async () => {
+  try {
+    const h = await authPost('/auth/journal/hint', {});
+    lockSetupNeeded = !!h.noLock;
+    lockHint = h.hint || '';
+  } catch {
+    if (!lockSession) { lockMsg('Lock service unreachable — reload to retry.'); return; }
+  }
+  if (!lockSession) showLock(); else confirmDeviceTrust();
+})();
+
+/* ══ Confirm dialog (never a browser popup) ═════════════════════════════════ */
+function askConfirm(title, message, confirmLabel = 'Delete') {
+  return new Promise(res => {
+    const m = $('confirmModal');
+    $('cTitle').textContent = title;
+    $('cMsg').textContent = message;
+    $('cYes').textContent = confirmLabel;
+    const done = v => { m.classList.remove('open'); m.onclick = null; res(v); };
+    $('cYes').onclick = () => done(true);
+    $('cNo').onclick = () => done(false);
+    m.onclick = e => { if (e.target === m) done(false); };
+    m.classList.add('open');
+  });
+}
+
+/* ══ Firebase ══════════════════════════════════════════════════════════════ */
+const app = initializeApp(FIREBASE_CFG);
+try {
+  initializeAppCheck(app, { provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY), isTokenAutoRefreshEnabled: true });
+} catch (e) { console.warn('App Check init failed:', e); }
+const auth = getAuth(app);
+let _authResolve; const authReady = new Promise(res => { _authResolve = res; });
+onAuthStateChanged(auth, u => { if (u) _authResolve(); });
+signInAnonymously(auth).catch(e => console.warn('Anon auth failed:', e));
+const db = initializeFirestore(app, { localCache: memoryLocalCache() });
+
+/* ══ State ═════════════════════════════════════════════════════════════════ */
+let plaidTxs = [], manualTxs = [], accounts = [], meta = {};
+let recurring = [], cashBal = 0, budgets = [], cashLog = [];
+let recurringState = {}, recurringOrder = [];
+let editingTxId = null, editingRecId = null, editingBudgetCat = null;
+let manualType = 'expense';
+let importState = null, csvFile = null;
+let activeView = 'transactions';
+
+const ICON = {
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M12.5 2.5 18 8 7 19l-5 1.5L3.5 15z"/><path d="M13.5 3.5 17 7"/></svg>',
+  del:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>'
+};
+
+/* ══ Formatting ════════════════════════════════════════════════════════════ */
+// Plaid's sign convention is used throughout: POSITIVE = money OUT.
+const fmt$ = (n, sign) => {
+  const f = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Math.abs(n));
+  return sign ? (n < 0 ? '+' + f : '−' + f) : f;
+};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toast = (msg, accent) => {
+  const t = $('toast'); t.textContent = msg;
+  t.className = 'toast show' + (accent ? ' accent' : '');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200);
+};
+
+/* ══ Sync indicator ════════════════════════════════════════════════════════
+   Driven by real Firestore activity: every write is wrapped in synced(), and
+   listeners report their first snapshot or any error. "Synced" fades; "Sync
+   failed" persists until the next success so a silent failure can't hide. */
+let syncHideTimer = null, syncPending = 0;
+function setSync(state) {
+  const el = $('syncInd'), txt = $('syncIndTxt');
+  if (!el) return;
+  clearTimeout(syncHideTimer);
+  el.classList.remove('syncing','synced','failed');
+  if (state === 'syncing') { el.classList.add('show','syncing'); txt.textContent = 'Syncing'; }
+  else if (state === 'synced') {
+    el.classList.add('show','synced'); txt.textContent = 'Synced';
+    syncHideTimer = setTimeout(() => el.classList.remove('show'), 2400);
+  } else if (state === 'failed') { el.classList.add('show','failed'); txt.textContent = 'Sync failed'; }
+}
+async function synced(promise) {
+  syncPending++; setSync('syncing');
+  try {
+    const r = await promise;
+    if (--syncPending === 0) setSync('synced');
+    return r;
+  } catch (e) {
+    syncPending = Math.max(0, syncPending - 1);
+    setSync('failed');
+    throw e;
+  }
+}
+
+/* ══ Display mode ══════════════════════════════════════════════════════════
+   Hides figures that reveal overall position so Finance can be walked through
+   without exposing how much you have — every account balance (credit-card debt
+   included), recurring amounts, and the cash balance and its history. Month
+   totals and cash-history entries are swapped for plausible stand-ins tagged
+   "mock" rather than blurred, so those screens still read as finished.
+   Individual transaction amounts stay visible. */
+let displayMode = false, mockStatsCache = null;
+function mockStats() {
+  if (!mockStatsCache) {
+    const r = (lo, hi) => Math.round((lo + Math.random() * (hi - lo)) / 5) * 5;
+    const inn = r(4200, 9800), out = r(2600, 7400);
+    mockStatsCache = { inn, out, net: inn - out };
+  }
+  return mockStatsCache;
+}
+function setDisplayMode(on, rerender = true) {
+  displayMode = !!on;
+  document.body.classList.toggle('privacy', displayMode);
+  $('displayBtn').setAttribute('aria-pressed', displayMode ? 'true' : 'false');
+  $('dmOn').style.display = displayMode ? 'none' : '';
+  $('dmOff').style.display = displayMode ? '' : 'none';
+  try { localStorage.setItem(DISPLAY_LS, displayMode ? '1' : '0'); } catch {}
+  if (rerender) { renderStats(); renderAccounts(); renderInsights(); renderRecurring(); renderCash(); }
+}
+$('displayBtn').addEventListener('click', () => {
+  setDisplayMode(!displayMode);
+  toast(displayMode ? 'Display mode on — balances hidden, month totals mocked'
+                    : 'Display mode off — real amounts visible', true);
+});
+try { setDisplayMode(localStorage.getItem(DISPLAY_LS) === '1', false); } catch { setDisplayMode(false, false); }
+
+/* ══ Live Firestore feeds ══════════════════════════════════════════════════ */
+await authReady;
+
+const firstSnap = new Set();
+function snapOk(key) {
+  if (firstSnap.has(key)) return;
+  firstSnap.add(key);
+  if (!syncPending) setSync('synced');
+}
+function snapFail(key, e) { console.warn(key + ' listen failed:', e); setSync('failed'); }
+
+const metaRef   = doc(db, ROOT, 'meta');
+const prefsRef  = doc(db, ROOT, 'meta', 'sub', 'prefs');
+const ledgerRef = doc(db, ROOT, 'meta', 'sub', 'ledger');
+
+onSnapshot(metaRef, snap => {
+  meta = snap.data() || {};
+  const at = meta.lastSyncAt;
+  $('lastSync').textContent = at ? fmtUpdatedAt(at) : 'No institution data yet';
+  snapOk('meta');
+  maybeAutoSync();
+}, e => snapFail('meta', e));
+
+onSnapshot(query(collection(db, ROOT, 'meta', 'plaid_transactions'), orderBy('date','desc'), limit(2000)), snap => {
+  plaidTxs = snap.docs.map(d => d.data());
+  renderAll(); snapOk('plaid');
+}, e => snapFail('plaid_transactions', e));
+
+onSnapshot(query(collection(db, ROOT, 'meta', 'manual_transactions'), orderBy('date','desc'), limit(2000)), snap => {
+  manualTxs = snap.docs.map(d => d.data());
+  renderAll(); snapOk('manual');
+}, e => snapFail('manual_transactions', e));
+
+onSnapshot(collection(db, ROOT, 'meta', 'accounts'), snap => {
+  accounts = snap.docs.map(d => d.data());
+  renderAccounts(); renderFilterOptions(); snapOk('accounts');
+}, e => snapFail('accounts', e));
+
+// Recurring + cash + budgets share one small document.
+onSnapshot(ledgerRef, snap => {
+  const d = snap.data() || {};
+  recurring      = Array.isArray(d.recurring) ? d.recurring : [];
+  recurringState = (d.recurringState && typeof d.recurringState === 'object') ? d.recurringState : {};
+  recurringOrder = Array.isArray(d.recurringOrder) ? d.recurringOrder : [];
+  budgets        = Array.isArray(d.budgets) ? d.budgets : [];
+  cashBal        = typeof d.cash === 'number' ? d.cash : 0;
+  cashLog        = Array.isArray(d.cashLog) ? d.cashLog : [];
+  renderRecurring(); renderCash(); renderBudgets();
+  snapOk('ledger');
+}, e => snapFail('ledger', e));
+
+async function saveLedger() {
+  await synced(setDoc(ledgerRef, {
+    recurring, recurringState, recurringOrder, budgets,
+    cash: cashBal, cashLog, savedAt: Date.now()
+  }, { merge: true }));
+}
+
+function fmtUpdatedAt(ms) {
+  const d = new Date(ms);
+  return `Updated ${d.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })} · ${d.toLocaleDateString([], { month:'short', day:'numeric' })}`;
+}
+
+/* ══ Navigation ════════════════════════════════════════════════════════════ */
+const NAV = {
+  transactions: 'Transactions', accounts: 'Accounts', insights: 'Insights',
+  budgets: 'Budgets', recurring: 'Recurring', cash: 'Cash',
+  import: 'Import', connect: 'Connect'
+};
+const NAV_DEFAULT = Object.keys(NAV);
+let navOrder = NAV_DEFAULT.slice();
+
+function renderNav() {
+  // Unknown/missing keys are healed so a stale saved order can't hide a tab.
+  const order = navOrder.filter(k => NAV[k]);
+  for (const k of NAV_DEFAULT) if (!order.includes(k)) order.push(k);
+  navOrder = order;
+  $('nav').innerHTML = order.map(k =>
+    `<button class="tab${k === activeView ? ' active' : ''}" data-view="${k}">${NAV[k]}</button>`).join('');
+}
+renderNav();
+
+onSnapshot(prefsRef, snap => {
+  const d = snap.data();
+  if (d && Array.isArray(d.navOrder) && d.navOrder.join() !== navOrder.join()) {
+    navOrder = d.navOrder.slice();
+    renderNav();
+  }
+  snapOk('prefs');
+}, e => snapFail('prefs', e));
+
+let navSuppressClick = false;
+
+$('nav').addEventListener('click', e => {
+  const tab = e.target.closest('.tab'); if (!tab) return;
+  if (navSuppressClick) { navSuppressClick = false; return; }   // just finished a drag
+  activeView = tab.dataset.view;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + activeView));
+  if (activeView === 'connect') refreshItems();
+  if (activeView === 'insights') renderInsights();
+});
+
+async function saveNavOrder() {
+  await synced(setDoc(prefsRef, { navOrder, savedAt: Date.now() }, { merge: true }));
+}
+
+/* ══ Tab reordering ════════════════════════════════════════════════════════
+   Drag a tab to reorder it. The order is written to Firestore, so every device
+   re-orders live through the prefs listener above.
+
+   Pointer-based so one implementation covers mouse, touch and pen. On touch a
+   LONG PRESS arms the drag, leaving an ordinary swipe free to scroll the strip;
+   with a mouse a few pixels of movement is enough. */
+(function enableNavDrag() {
+  const nav = $('nav');
+  let d = null, holdTimer = null, autoRaf = null;
+
+  // FLIP measured in LAYOUT coordinates (offsetLeft), not viewport rects. The
+  // strip scrolls, and scrollLeft shifts as tabs are reordered; viewport deltas
+  // would then include that scroll jump and make neighbours streak across the
+  // screen. offsetLeft is immune to scrolling, so each tab animates only the
+  // distance it actually moved.
+  function flipX(mutate, exclude) {
+    const kids = [...nav.children];
+    const before = new Map(kids.map(k => [k, k.offsetLeft]));
+    mutate();
+    for (const k of kids) {
+      if (k === exclude) continue;
+      const dx = before.get(k) - k.offsetLeft;
+      if (!dx || Math.abs(dx) > nav.clientWidth * 2) continue;   // sanity guard
+      k.style.transition = 'none';
+      k.style.transform = `translateX(${dx}px)`;
+      requestAnimationFrame(() => {
+        k.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
+        k.style.transform = '';
+      });
+    }
+  }
+
+  // Keep the lifted tab under the pointer, compensating for any scrolling that
+  // happened since the drag began.
+  const follow = x => {
+    d.tab.style.transform = `translateX(${(x - d.grabX) + (nav.scrollLeft - d.grabScroll)}px)`;
+  };
+
+  function checkSwap(x) {
+    for (const other of nav.children) {
+      if (other === d.tab) continue;
+      const r = other.getBoundingClientRect();
+      if (x < r.left || x > r.right) continue;
+      const mid = r.left + r.width / 2;
+      const otherIsBefore = !!(d.tab.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
+      if (x < mid && otherIsBefore) flipX(() => nav.insertBefore(d.tab, other), d.tab);
+      else if (x > mid && !otherIsBefore) flipX(() => nav.insertBefore(d.tab, other.nextSibling), d.tab);
+      else continue;
+      // Re-anchor so the tab stays under the pointer after the reflow.
+      d.grabX = x;
+      d.grabScroll = nav.scrollLeft;
+      d.tab.style.transform = 'translateX(0px)';
+      break;
+    }
+  }
+
+  // Dragging toward either edge scrolls the strip, so tabs off-screen on a
+  // phone stay reachable without dropping and re-grabbing.
+  function autoScroll() {
+    if (!d || !d.dragging) { autoRaf = null; return; }
+    const r = nav.getBoundingClientRect();
+    const EDGE = 44, SPEED = 9;
+    let step = 0;
+    if (d.lastX < r.left + EDGE) step = -SPEED;
+    else if (d.lastX > r.right - EDGE) step = SPEED;
+    if (step) {
+      const was = nav.scrollLeft;
+      nav.scrollLeft += step;
+      if (nav.scrollLeft !== was) { follow(d.lastX); checkSwap(d.lastX); }
+    }
+    autoRaf = requestAnimationFrame(autoScroll);
+  }
+
+  function startDrag(e) {
+    d.dragging = true;
+    d.grabX = e.clientX;
+    d.grabScroll = nav.scrollLeft;
+    d.lastX = e.clientX;
+    d.tab.style.transition = '';            // never lag behind the pointer
+    d.tab.classList.add('navdrag');
+    try { d.tab.setPointerCapture(d.id); } catch {}
+    if (!autoRaf) autoRaf = requestAnimationFrame(autoScroll);
+  }
+
+  function cleanup() {
+    if (!d) return;
+    const tab = d.tab;
+    tab.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';   // settle, don't snap
+    tab.style.transform = '';
+    setTimeout(() => { tab.style.transition = ''; }, 180);
+    tab.classList.remove('navdrag');
+    clearTimeout(holdTimer); holdTimer = null;
+    if (autoRaf) { cancelAnimationFrame(autoRaf); autoRaf = null; }
+    d = null;
+  }
+
+  nav.addEventListener('pointerdown', e => {
+    const tab = e.target.closest('.tab');
+    if (!tab || e.button > 0) return;
+    d = { tab, id: e.pointerId, startX: e.clientX, startY: e.clientY, lastX: e.clientX,
+          dragging: false, moved: false, touch: e.pointerType === 'touch' };
+    if (d.touch) holdTimer = setTimeout(() => { holdTimer = null; if (d) startDrag(e); }, 320);
+  });
+
+  nav.addEventListener('pointermove', e => {
+    if (!d || e.pointerId !== d.id) return;
+    if (!d.dragging) {
+      const dx = Math.abs(e.clientX - d.startX), dy = Math.abs(e.clientY - d.startY);
+      if (d.touch) { if (dx > 8 || dy > 8) cleanup(); return; }   // a swipe: let it scroll
+      if (dx < 5) return;
+      startDrag(e);
+    }
+    d.moved = true;
+    d.lastX = e.clientX;
+    follow(e.clientX);
+    checkSwap(e.clientX);
+  });
+
+  // Non-passive so an armed drag can stop the strip scrolling itself under it.
+  nav.addEventListener('touchmove', e => { if (d && d.dragging) e.preventDefault(); }, { passive: false });
+  nav.addEventListener('contextmenu', e => { if (d && d.dragging) e.preventDefault(); });
+
+  async function endDrag(e) {
+    if (!d || (e && e.pointerId !== d.id)) return;
+    const wasDrag = d.dragging && d.moved;
+    cleanup();
+    if (!wasDrag) return;
+    navSuppressClick = true;                     // don't switch views on drop
+    setTimeout(() => { navSuppressClick = false; }, 50);
+    const next = [...nav.querySelectorAll('.tab')].map(t => t.dataset.view);
+    if (next.join() === navOrder.join()) return; // no actual change, no write
+    navOrder = next;
+    try { await saveNavOrder(); } catch { toast('Could not save the new tab order'); }
+  }
+  nav.addEventListener('pointerup', endDrag);
+  nav.addEventListener('pointercancel', endDrag);
+  // Safety net: if capture is lost without a pointerup, still settle the tab so
+  // it can never stay stuck mid-drag.
+  nav.addEventListener('lostpointercapture', e => { if (d && e.pointerId === d.id) endDrag(e); });
+})();
+
+/* ══ Transaction helpers ═══════════════════════════════════════════════════ */
+function allTxs() {
+  return [...plaidTxs, ...manualTxs].sort((a, b) =>
+    (b.date || '').localeCompare(a.date || '') || (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
+/* Transfers & credit-card payments.
+   Paying a credit card moves money between your OWN accounts and shows up twice:
+   an outflow on the funding account and an inflow on the card. Counting the card
+   side as income is wrong, and counting the bank side as spending double-counts
+   the purchases it covers. So BOTH legs are excluded from income/spending — they
+   still appear in the feed, marked, because they're real events. */
+const CARDPAY_CODE = 'LOAN_PAYMENTS_CREDIT_CARD_PAYMENT';
+const XFER_CODES = new Set([
+  'TRANSFER_IN_ACCOUNT_TRANSFER','TRANSFER_OUT_ACCOUNT_TRANSFER',
+  'TRANSFER_IN_SAVINGS','TRANSFER_OUT_SAVINGS',
+  'TRANSFER_IN_INVESTMENT_AND_RETIREMENT_FUNDS','TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS'
+]);
+// Name patterns for card payments some institutions leave uncategorized.
+const CARDPAY_RE = new RegExp([
+  'autopay','auto\\s?pay\\b','directpay','direct\\s?pay\\b','e-?payment','\\bepay\\b',
+  'online\\s+payment','mobile\\s+payment','payment[^a-z]{0,4}thank\\s*you',
+  'thank\\s*you[^a-z]{0,4}payment','credit\\s*card\\s*[^a-z]*\\s*payment',
+  'card\\s*payment','cardmember\\s*payment','bill\\s*pay\\b','\\bpymt\\b','\\bpmt\\b'
+].join('|'), 'i');
+const XFER_RE = /internal\s+transfer|\bxfer\b|\btransfer\b/i;
+
+function txKind(t) {
+  const code = (t.category_detailed || '').toUpperCase();
+  const cat = (t.category || '').toLowerCase();
+  const text = (t.merchant || '') + ' ' + (t.name || '');
+  if (code === CARDPAY_CODE || cat === 'credit card payment' || CARDPAY_RE.test(text)) return 'cardpay';
+  if (XFER_CODES.has(code) || cat === 'transfer' || cat === 'transfer in' || cat === 'transfer out') return 'transfer';
+  if (XFER_RE.test(text)) return 'transfer';
+  return null;
+}
+
+function renderAll() { renderStats(); renderMonthly(); renderFeed(); renderFilterOptions(); renderRecurring(); renderBudgets(); renderInsights(); }
+
+/* ══ Stats ═════════════════════════════════════════════════════════════════ */
+function setStat(el, text, tone) {
+  el.className = 't-val' + (tone ? ' ' + tone : '') + (displayMode ? '' : ' money');
+  el.innerHTML = esc(text) + (displayMode ? ' <span class="mocktag">mock</span>' : '');
+}
+function renderStats() {
+  const ym = new Date().toISOString().slice(0, 7);
+  let inn = 0, out = 0;
+  for (const t of allTxs()) {
+    if ((t.date || '').slice(0, 7) !== ym || t.pending || txKind(t)) continue;
+    if (t.amount < 0) inn += -t.amount; else out += t.amount;
+  }
+  const m = displayMode ? mockStats() : null;
+  const vIn = m ? m.inn : inn, vOut = m ? m.out : out, vNet = m ? m.net : inn - out;
+  setStat($('statIn'), fmt$(vIn), 'pos');
+  setStat($('statOut'), fmt$(vOut), '');
+  setStat($('statNet'), (vNet < 0 ? '−' : '') + fmt$(Math.abs(vNet)), vNet >= 0 ? 'pos' : 'neg');
+}
+
+function monthTotals() {
+  const by = new Map();
+  for (const t of allTxs()) {
+    const ym = (t.date || '').slice(0, 7);
+    if (ym.length !== 7 || t.pending || txKind(t)) continue;
+    let m = by.get(ym);
+    if (!m) by.set(ym, m = { ym, inn: 0, out: 0 });
+    if (t.amount < 0) m.inn += -t.amount; else m.out += t.amount;
+  }
+  return [...by.values()].sort((a, b) => b.ym.localeCompare(a.ym));
+}
+const fmtMonth = ym => new Date(ym + '-01T12:00:00').toLocaleDateString('en-US', { month:'long', year:'numeric' });
+
+function renderMonthly() {
+  const months = monthTotals();
+  $('mhHint').textContent = months.length ? `${months.length} month${months.length === 1 ? '' : 's'}` : '';
+  if (!months.length) {
+    $('mhBody').innerHTML = '<div class="mh-empty">No months tracked yet — totals appear here as transactions come in.</div>';
+    return;
+  }
+  const thisYm = new Date().toISOString().slice(0, 7);
+  const cell = n => `<div class="amt money${n < 0 ? ' neg' : ''}" data-l="Net">${n < 0 ? '−' : ''}${esc(fmt$(Math.abs(n)))}</div>`;
+  let html = `<div class="mh-row head"><div>Month</div><div class="amt">In</div><div class="amt">Out</div><div class="amt">Net</div></div>`;
+  let tIn = 0, tOut = 0;
+  for (const m of months) {
+    tIn += m.inn; tOut += m.out;
+    html += `<div class="mh-row">
+      <div class="mo">${esc(fmtMonth(m.ym))}${m.ym === thisYm ? '<span class="mh-sofar">so far</span>' : ''}</div>
+      <div class="amt in money" data-l="In">${esc(fmt$(m.inn))}</div>
+      <div class="amt money" data-l="Out">${esc(fmt$(m.out))}</div>
+      ${cell(m.inn - m.out)}
+    </div>`;
+  }
+  html += `<div class="mh-row total">
+    <div class="mo">All ${months.length} month${months.length === 1 ? '' : 's'}</div>
+    <div class="amt in money" data-l="In">${esc(fmt$(tIn))}</div>
+    <div class="amt money" data-l="Out">${esc(fmt$(tOut))}</div>
+    ${cell(tIn - tOut)}
+  </div>`;
+  $('mhBody').innerHTML = html;
+}
+
+/* ══ Feed ══════════════════════════════════════════════════════════════════ */
+function renderFilterOptions() {
+  const cats = [...new Set(allTxs().map(t => t.category).filter(Boolean))].sort();
+  const cSel = $('fCategory'), cur = cSel.value;
+  cSel.innerHTML = '<option value="">All categories</option>' +
+    cats.map(c => `<option${c === cur ? ' selected' : ''}>${esc(c)}</option>`).join('');
+  const aSel = $('fAccount'), curA = aSel.value;
+  const insts = [...new Set([...accounts.map(a => a.institution), ...allTxs().map(t => t.institution)].filter(Boolean))].sort();
+  aSel.innerHTML = '<option value="">All accounts</option>' +
+    insts.map(i => `<option${i === curA ? ' selected' : ''}>${esc(i)}</option>`).join('');
+}
+function acctLabel(id) {
+  const a = accounts.find(x => x.account_id === id);
+  return a ? `${a.name}${a.mask ? ' ··' + a.mask : ''}` : '';
+}
+function fmtDate(d) {
+  if (!d) return 'Unknown date';
+  const today = new Date().toISOString().slice(0, 10);
+  const yest = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  if (d === today) return 'Today';
+  if (d === yest) return 'Yesterday';
+  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+}
+
+function renderFeed() {
+  const q = $('fSearch').value.trim().toLowerCase();
+  const cat = $('fCategory').value, inst = $('fAccount').value, src = $('fSource').value;
+  const txs = allTxs().filter(t => {
+    if (cat && t.category !== cat) return false;
+    if (inst && t.institution !== inst) return false;
+    if (src && t.source !== src) return false;
+    if (q && !((t.merchant || '') + ' ' + (t.name || '') + ' ' + (t.note || '')).toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if (!txs.length) {
+    $('feed').innerHTML = `<div class="empty"><div class="big">No transactions</div>${
+      plaidTxs.length || manualTxs.length ? 'Nothing matches these filters.'
+        : 'Connect an institution, import a CSV, or add a manual entry to begin.'}</div>`;
+    return;
+  }
+  let html = '', lastDate = '';
+  for (const t of txs.slice(0, 400)) {
+    if (t.date !== lastDate) { lastDate = t.date; html += `<div class="date-hdr">${fmtDate(t.date)}</div>`; }
+    const nm = t.merchant || t.name || '(no name)';
+    const editable = t.source !== 'plaid';
+    const kind = txKind(t);
+    html += `
+    <div class="row" data-id="${esc(t.id)}">
+      <div class="row-badge">${t.logo_url ? `<img src="${esc(t.logo_url)}" alt="" onerror="this.remove()">` : esc(nm.charAt(0).toUpperCase())}</div>
+      <div class="row-main">
+        <div class="row-name">${esc(nm)}</div>
+        <div class="row-sub">
+          ${kind === 'cardpay'
+            ? `<span class="chip cardpay" title="Paying a credit card bill — not counted as income or spending">Card payment</span>`
+            : kind === 'transfer'
+              ? `<span class="chip xfer" title="Moves money between your own accounts — not counted as income or spending">Transfer</span>`
+              : (t.category ? `<span class="chip">${esc(t.category)}</span>` : '')}
+          ${t.source === 'manual' ? '<span class="chip manual">Manual</span>' : ''}
+          ${t.source === 'csv' ? `<span class="chip manual">${esc(t.import_source || 'CSV')}</span>` : ''}
+          ${t.pending ? '<span class="chip pending">Pending</span>' : ''}
+          <span>${esc(t.institution || '')}${t.account_id && acctLabel(t.account_id) ? ' · ' + esc(acctLabel(t.account_id)) : ''}${t.note ? ' · ' + esc(t.note) : ''}</span>
+        </div>
+      </div>
+      <div class="row-amt ${kind ? 'xfer' : (t.amount < 0 ? 'in' : '')}">${fmt$(t.amount, true)}</div>
+      <div class="row-acts">${editable
+        ? `<button class="btn-icon" data-act="edit" title="Edit">${ICON.edit}</button><button class="btn-icon danger" data-act="del" title="Delete">${ICON.del}</button>`
+        : `<span class="btn-icon" title="Transactions from connected institutions are read-only" style="cursor:default">${ICON.lock}</span>`}</div>
+    </div>`;
+  }
+  $('feed').innerHTML = html;
+}
+['fSearch','fCategory','fAccount','fSource'].forEach(id => $(id).addEventListener('input', renderFeed));
+
+// Records from connected institutions are read-only — no edit/delete path exists.
+$('feed').addEventListener('click', async e => {
+  const btn = e.target.closest('.btn-icon'); if (!btn || !btn.dataset.act) return;
+  const id = e.target.closest('.row').dataset.id;
+  const t = manualTxs.find(x => x.id === id);
+  if (!t) return;
+  if (btn.dataset.act === 'edit') openTx(t);
+  else if (btn.dataset.act === 'del') {
+    if (!(await askConfirm('Delete entry?', `"${t.merchant || t.name}" · ${fmt$(t.amount)} — this can't be undone.`))) return;
+    await synced(deleteDoc(doc(db, ROOT, 'meta', 'manual_transactions', id)));
+    toast('Entry deleted');
+  }
+});
+
+/* ══ Manual entries ════════════════════════════════════════════════════════ */
+const EXPENSE_CATS = ['Food & Drink','Groceries','Transportation','Travel','Shopping','Entertainment',
+  'Bills & Utilities','Subscriptions','Rent','Health','Personal Care','Loan Payments',
+  'Credit Card Payment','Transfer Out','Other'];
+const INCOME_CATS = ['Paycheck','Side Gig','Freelance','Refund','Reimbursement','Gift','Interest',
+  'Investment Income','Cashback & Rewards','Sold Item','Transfer In','Other'];
+
+function setCats(type, selected) {
+  const cats = type === 'income' ? INCOME_CATS : EXPENSE_CATS;
+  const sel = $('mCategory');
+  sel.innerHTML = cats.map(c => `<option${c === selected ? ' selected' : ''}>${esc(c)}</option>`).join('');
+  if (selected && !cats.includes(selected)) sel.insertAdjacentHTML('beforeend', `<option selected>${esc(selected)}</option>`);
+  if (!selected) sel.value = 'Other';
+}
+$('typeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  manualType = b.dataset.t;
+  document.querySelectorAll('#typeSeg button').forEach(x => x.classList.toggle('on', x === b));
+  setCats(manualType);
+});
+function openTx(t) {
+  editingTxId = t ? t.id : null;
+  $('txTitle').textContent = t ? 'Edit entry' : 'Add entry';
+  manualType = t ? (t.amount < 0 ? 'income' : 'expense') : 'expense';
+  document.querySelectorAll('#typeSeg button').forEach(x => x.classList.toggle('on', x.dataset.t === manualType));
+  $('mAmount').value = t ? Math.abs(t.amount) : '';
+  $('mDate').value = t ? t.date : new Date().toISOString().slice(0, 10);
+  $('mName').value = t ? (t.merchant || t.name || '') : '';
+  setCats(manualType, t ? t.category : null);
+  $('mNote').value = t ? (t.note || '') : '';
+  $('txModal').classList.add('open');
+  setTimeout(() => $('mAmount').focus(), 60);
+}
+$('addTxBtn').addEventListener('click', () => openTx(null));
+$('mCancel').addEventListener('click', () => $('txModal').classList.remove('open'));
+$('txModal').addEventListener('click', e => { if (e.target === $('txModal')) $('txModal').classList.remove('open'); });
+
+$('mSave').addEventListener('click', async () => {
+  const amt = parseFloat($('mAmount').value);
+  const date = $('mDate').value, name = $('mName').value.trim();
+  if (!amt || amt <= 0 || !date || !name) { toast('Amount, date and name are required'); return; }
+  const existing = editingTxId ? manualTxs.find(x => x.id === editingTxId) : null;
+  const id = editingTxId || ('m_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+  const rec = {
+    id, source: existing?.source || 'manual',
+    institution: existing?.institution || 'Manual',
+    account_id: null, date, name, merchant: name,
+    amount: manualType === 'income' ? -amt : amt,   // Plaid sign convention
+    currency: 'USD', category: $('mCategory').value, category_detailed: null,
+    note: $('mNote').value.trim() || null, pending: false, logo_url: null,
+    csv_txn_id: existing?.csv_txn_id || null,
+    createdAt: existing?.createdAt || Date.now(), updatedAt: Date.now()
+  };
+  await synced(setDoc(doc(db, ROOT, 'meta', 'manual_transactions', id), rec));
+  $('txModal').classList.remove('open');
+  toast(editingTxId ? 'Entry updated' : 'Entry added', true);
+});
+
+/* ══ Accounts ══════════════════════════════════════════════════════════════ */
+function renderAccounts() {
+  const DEBT = t => t === 'credit' || t === 'loan';
+  let assets = 0, debts = 0;
+  const byInst = {};
+  for (const a of accounts) {
+    (byInst[a.institution || 'Other'] ||= []).push(a);
+    const bal = a.balance_current ?? 0;
+    if (DEBT(a.type)) debts += bal; else assets += bal;
+  }
+  const net = assets - debts;
+  $('nwAssets').className = 't-val money';
+  $('nwAssets').textContent = fmt$(assets);
+  $('nwDebts').className = 't-val money';
+  $('nwDebts').textContent = fmt$(debts);
+  const el = $('nwNet');
+  el.textContent = (net < 0 ? '−' : '') + fmt$(Math.abs(net));
+  el.className = 't-val money ' + (net >= 0 ? 'pos' : 'neg');
+
+  if (!accounts.length) {
+    $('acctList').innerHTML = '<div class="empty"><div class="big">No accounts yet</div>Connect an institution to see live balances.</div>';
+    return;
+  }
+  // Every account figure blurs in display mode — credit-card debt included.
+  // What you owe is as revealing as what you hold.
+  $('acctList').innerHTML = Object.entries(byInst).map(([inst, list]) => `
+    <div class="inst-group">
+      <div class="inst-hdr">${esc(inst)}</div>
+      <div class="acct-grid">${list.map(a => `
+        <div class="card acct">
+          <div class="a-name">${esc(a.name || 'Account')}${a.mask ? ` <span style="color:var(--muted)">··${esc(a.mask)}</span>` : ''}</div>
+          <div class="a-sub">${esc(a.subtype || a.type || '')}</div>
+          <div class="a-bal money ${DEBT(a.type) ? 'debt' : ''}">${fmt$(a.balance_current ?? 0)}</div>
+        </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+/* ══ Insights ══════════════════════════════════════════════════════════════
+   Derived entirely from the transactions already on hand — no extra storage.
+   Transfers and card payments are excluded everywhere, same as the tiles. */
+function spendingByCategory(ym) {
+  const by = new Map();
+  for (const t of allTxs()) {
+    if (t.pending || txKind(t) || t.amount <= 0) continue;
+    if (ym && (t.date || '').slice(0, 7) !== ym) continue;
+    const c = t.category || 'Uncategorized';
+    by.set(c, (by.get(c) || 0) + t.amount);
+  }
+  return [...by.entries()].map(([cat, amt]) => ({ cat, amt })).sort((a, b) => b.amt - a.amt);
+}
+function renderInsights() {
+  const months = monthTotals();
+  const done = months.filter(m => m.ym !== new Date().toISOString().slice(0, 7));
+  const base = done.length ? done : months;
+  const avgOut = base.length ? base.reduce((s, m) => s + m.out, 0) / base.length : 0;
+  const avgIn  = base.length ? base.reduce((s, m) => s + m.inn, 0) / base.length : 0;
+  const rate = avgIn > 0 ? ((avgIn - avgOut) / avgIn) * 100 : 0;
+
+  const setV = (id, txt, tone) => {
+    const el = $(id);
+    el.className = 't-val' + (tone ? ' ' + tone : '') + ' money';
+    el.textContent = txt;
+  };
+  setV('inAvgOut', fmt$(avgOut));
+  setV('inAvgIn', fmt$(avgIn), 'pos');
+  setV('inSaveRate', base.length ? rate.toFixed(0) + '%' : '—', rate >= 0 ? 'pos' : 'neg');
+  $('inAvgSub').textContent = base.length ? `over ${base.length} month${base.length === 1 ? '' : 's'}` : '';
+
+  // Largest single expense, all time.
+  let big = null;
+  for (const t of allTxs()) {
+    if (t.pending || txKind(t) || t.amount <= 0) continue;
+    if (!big || t.amount > big.amount) big = t;
+  }
+  setV('inBiggest', big ? fmt$(big.amount) : '—');
+  $('inBiggestSub').textContent = big ? (big.merchant || big.name || '').slice(0, 28) : '';
+
+  // Six-month in/out trend. Bars are scaled to the largest figure in view.
+  const recent = months.slice(0, 6).reverse();
+  const peak = Math.max(1, ...recent.map(m => Math.max(m.inn, m.out)));
+  $('trendMeta').textContent = recent.length ? `peak ${fmt$(peak)}` : '';
+  $('trendChart').innerHTML = recent.length ? recent.map(m => `
+    <div class="trend-col" title="${esc(fmtMonth(m.ym))} — in ${esc(fmt$(m.inn))}, out ${esc(fmt$(m.out))}">
+      <div style="display:flex;gap:2px;align-items:flex-end;width:100%;justify-content:center;height:64px">
+        <div class="trend-bar income" style="height:${(m.inn / peak * 100).toFixed(1)}%"></div>
+        <div class="trend-bar" style="height:${(m.out / peak * 100).toFixed(1)}%"></div>
+      </div>
+      <div class="trend-lbl">${esc(new Date(m.ym + '-01T12:00:00').toLocaleDateString('en-US',{month:'short'}))}</div>
+    </div>`).join('') : '<div class="mh-empty">Not enough history yet.</div>';
+
+  const ym = new Date().toISOString().slice(0, 7);
+  const cats = spendingByCategory(ym);
+  const total = cats.reduce((s, c) => s + c.amt, 0);
+  $('catMeta').textContent = total ? `${fmt$(total)} this month` : '';
+  $('catList').innerHTML = cats.length ? cats.slice(0, 12).map(c => `
+    <div class="cat-row">
+      <div class="cat-name" title="${esc(c.cat)}">${esc(c.cat)}</div>
+      <div class="cat-bar"><span style="width:${total ? (c.amt / cats[0].amt * 100).toFixed(1) : 0}%"></span></div>
+      <div class="cat-amt money">${esc(fmt$(c.amt))}</div>
+    </div>`).join('') : '<div class="mh-empty">No spending recorded this month yet.</div>';
+}
+
+/* ══ Budgets ═══════════════════════════════════════════════════════════════
+   A budget is a monthly limit on a category. Spending is matched from every
+   source, using the same exclusion rules as the rest of the app. */
+function renderBudgets() {
+  const ym = new Date().toISOString().slice(0, 7);
+  const spend = new Map(spendingByCategory(ym).map(c => [c.cat, c.amt]));
+  const total = budgets.reduce((s, b) => s + (b.limit || 0), 0);
+  const spent = budgets.reduce((s, b) => s + (spend.get(b.category) || 0), 0);
+  const left = total - spent;
+  $('bTotal').textContent = fmt$(total);
+  $('bSpent').textContent = fmt$(spent);
+  const l = $('bLeft');
+  l.textContent = (left < 0 ? '−' : '') + fmt$(Math.abs(left));
+  l.className = 't-val money ' + (left >= 0 ? 'pos' : 'neg');
+
+  if (!budgets.length) {
+    $('budgetList').innerHTML = `<div class="empty"><div class="big">No budgets yet</div>Set a monthly limit on a category to track it here.</div>`;
+    return;
+  }
+  $('budgetList').innerHTML = budgets.map(b => {
+    const used = spend.get(b.category) || 0;
+    const pct = b.limit > 0 ? (used / b.limit) * 100 : 0;
+    const cls = pct > 100 ? 'over' : pct >= 80 ? 'warn' : '';
+    const remain = b.limit - used;
+    return `
+      <div class="budget-row" data-cat="${esc(b.category)}">
+        <div class="budget-head">
+          <span class="budget-name">${esc(b.category)}</span>
+          <span class="chip mono">${pct.toFixed(0)}%</span>
+          <span class="budget-fig money">${esc(fmt$(used))} / ${esc(fmt$(b.limit))}</span>
+        </div>
+        <div class="meter"><div class="meter-fill ${cls}" style="width:${Math.min(100, pct).toFixed(1)}%"></div></div>
+        <div class="budget-sub money">${remain >= 0
+          ? `${esc(fmt$(remain))} left this month`
+          : `<span style="color:var(--red)">${esc(fmt$(-remain))} over budget</span>`}</div>
+      </div>`;
+  }).join('');
+}
+function openBudget(cat) {
+  editingBudgetCat = cat || null;
+  const existing = cat ? budgets.find(b => b.category === cat) : null;
+  $('budgetTitle').textContent = existing ? 'Edit budget' : 'Add budget';
+  // Offer every expense category plus any already seen in the data.
+  const seen = [...new Set([...EXPENSE_CATS, ...allTxs().filter(t => t.amount > 0 && !txKind(t)).map(t => t.category).filter(Boolean)])].sort();
+  $('bCategory').innerHTML = seen.map(c => `<option${c === cat ? ' selected' : ''}>${esc(c)}</option>`).join('');
+  $('bCategory').disabled = !!existing;   // changing the category = a different budget
+  $('bLimit').value = existing ? existing.limit : '';
+  $('bDelete').style.display = existing ? '' : 'none';
+  $('budgetModal').classList.add('open');
+  setTimeout(() => $('bLimit').focus(), 60);
+}
+$('addBudgetBtn').addEventListener('click', () => openBudget(null));
+$('bCancel').addEventListener('click', () => $('budgetModal').classList.remove('open'));
+$('budgetModal').addEventListener('click', e => { if (e.target === $('budgetModal')) $('budgetModal').classList.remove('open'); });
+$('budgetList').addEventListener('click', e => {
+  const row = e.target.closest('.budget-row'); if (row) openBudget(row.dataset.cat);
+});
+$('bSave').addEventListener('click', async () => {
+  const cat = $('bCategory').value;
+  const limit = parseFloat($('bLimit').value);
+  if (!cat || !limit || limit <= 0) { toast('Pick a category and a limit above zero'); return; }
+  const i = budgets.findIndex(b => b.category === cat);
+  if (i >= 0) budgets = budgets.map(b => b.category === cat ? { ...b, limit } : b);
+  else budgets = [...budgets, { category: cat, limit }];
+  await saveLedger();
+  renderBudgets();
+  $('budgetModal').classList.remove('open');
+  toast(i >= 0 ? 'Budget updated' : 'Budget added', true);
+});
+$('bDelete').addEventListener('click', async () => {
+  if (!editingBudgetCat) return;
+  if (!(await askConfirm('Delete budget?', `The ${editingBudgetCat} budget will be removed. Your transactions are untouched.`))) return;
+  budgets = budgets.filter(b => b.category !== editingBudgetCat);
+  await saveLedger();
+  renderBudgets();
+  $('budgetModal').classList.remove('open');
+  toast('Budget deleted');
+});
+
+/* ══ Recurring detection ═══════════════════════════════════════════════════
+   The Recurring tab is derived live from transaction history — no manual
+   upkeep. Charges are fuzzy-clustered by merchant (tolerant of case and
+   descriptor drift), a billing cadence is inferred from the gaps between them,
+   and variable amounts are kept as one subscription showing the latest charge.
+   Keep/remove decisions persist; a payment that vanishes for two cycles
+   auto-cleans, and one that returns is rediscovered automatically. */
+const DAY = 86400000;
+const FREQS = [
+  { unit:'week',     days:7,   label:'Weekly',        lo:5,   hi:9,   perMonth:4.345 },
+  { unit:'biweek',   days:14,  label:'Every 2 weeks', lo:11,  hi:18,  perMonth:2.1725 },
+  { unit:'month',    days:30,  label:'Monthly',       lo:24,  hi:38,  perMonth:1 },
+  { unit:'2month',   days:61,  label:'Every 2 months',lo:52,  hi:74,  perMonth:0.5 },
+  { unit:'quarter',  days:91,  label:'Quarterly',     lo:80,  hi:100, perMonth:1/3 },
+  { unit:'halfyear', days:182, label:'Every 6 months',lo:160, hi:200, perMonth:1/6 },
+  { unit:'year',     days:365, label:'Yearly',        lo:330, hi:400, perMonth:1/12 }
+];
+const freqForGap = g => FREQS.find(f => g >= f.lo && g <= f.hi) || null;
+const dayNum = s => Math.floor(new Date(s + 'T12:00:00').getTime() / DAY);
+const todayDn = () => Math.floor(Date.now() / DAY);
+function median(a) { const b = [...a].sort((x,y) => x-y); const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m-1]+b[m])/2; }
+function addUnit(dateStr, unit) {
+  const d = new Date(dateStr + 'T12:00:00');
+  ({ week:()=>d.setDate(d.getDate()+7), biweek:()=>d.setDate(d.getDate()+14),
+     month:()=>d.setMonth(d.getMonth()+1), '2month':()=>d.setMonth(d.getMonth()+2),
+     quarter:()=>d.setMonth(d.getMonth()+3), halfyear:()=>d.setMonth(d.getMonth()+6),
+     year:()=>d.setFullYear(d.getFullYear()+1) })[unit]();
+  return d;
+}
+const isoOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+function normName(s) {
+  return String(s || '').toLowerCase()
+    .replace(/paypal|\*|inst xfer|des:|indn:/g, ' ')
+    .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function nameSim(a, b) {
+  const A = new Set(normName(a).split(' ').filter(w => w.length > 2));
+  const B = new Set(normName(b).split(' ').filter(w => w.length > 2));
+  if (!A.size || !B.size) return 0;
+  let hit = 0; for (const w of A) if (B.has(w)) hit++;
+  return hit / Math.min(A.size, B.size);
+}
+
+function recurCandidates() {
+  return allTxs().filter(t =>
+    typeof t.amount === 'number' && t.amount > 0 && !t.pending && !txKind(t) && (t.merchant || t.name));
+}
+function clusterByMerchant(txs) {
+  const clusters = [];
+  for (const t of txs) {
+    const nm = normName(t.merchant || t.name);
+    if (!nm) continue;
+    let best = null, bestSim = 0;
+    for (const c of clusters) {
+      const sim = nameSim(nm, c.key);
+      if (sim > bestSim) { bestSim = sim; best = c; }
+    }
+    if (best && bestSim >= 0.5) {
+      best.txs.push(t);
+      best.names[nm] = (best.names[nm] || 0) + 1;
+      if (best.names[nm] > (best.names[best.key] || 0)) best.key = nm;   // rep = most common form
+    } else clusters.push({ key: nm, names: { [nm]: 1 }, txs: [t] });
+  }
+  return clusters;
+}
+function analyzeCluster(cluster) {
+  const byDay = new Map();   // collapse same-day double-posts, keep newest
+  for (const t of cluster.txs) {
+    const dn = dayNum(t.date), cur = byDay.get(dn);
+    if (!cur || (t.updatedAt || 0) > (cur.updatedAt || 0)) byDay.set(dn, t);
+  }
+  const items = [...byDay.values()]
+    .map(t => ({ dn: dayNum(t.date), date: t.date, amount: t.amount, name: t.merchant || t.name }))
+    .sort((a, b) => a.dn - b.dn);
+  if (items.length < 2) return null;
+
+  const gaps = [];
+  for (let i = 1; i < items.length; i++) gaps.push(items[i].dn - items[i-1].dn);
+  const freq = freqForGap(median(gaps));
+  if (!freq) return null;
+  const tol = Math.max(4, freq.days * 0.35);
+  if (gaps.filter(g => Math.abs(g - freq.days) <= tol).length / gaps.length < 0.6) return null;  // irregular
+
+  const amounts = items.map(i => i.amount);
+  const avg = amounts.reduce((s, x) => s + x, 0) / amounts.length;
+  // Two coincidental same-merchant buys shouldn't count — require similar
+  // amounts when that's all the evidence there is.
+  if (items.length === 2 && Math.abs(amounts[0] - amounts[1]) > avg * 0.25) return null;
+  const variable = amounts.some(a => Math.abs(a - avg) > avg * 0.05);
+
+  const raw = {};
+  for (const t of cluster.txs) { const n = (t.merchant || t.name || '').trim(); if (n) raw[n] = (raw[n] || 0) + 1; }
+  const display = Object.entries(raw).sort((a,b) => b[1]-a[1] || b[0].length-a[0].length)[0]?.[0] || items[items.length-1].name;
+
+  const last = items[items.length - 1];
+  return { key: cluster.key, display, freq, variable, count: items.length,
+           latestAmount: last.amount, lastDate: last.date, lastDn: last.dn,
+           monthlyEquiv: last.amount * freq.perMonth };
+}
+function matchDecision(key) {
+  if (recurringState[key]) return { key, ov: recurringState[key] };
+  let best = null, bk = null, bestSim = 0.6;
+  for (const k in recurringState) { const s = nameSim(key, k); if (s > bestSim) { bestSim = s; best = recurringState[k]; bk = k; } }
+  return best ? { key: bk, ov: best } : { key, ov: null };
+}
+function statusOf(g) {
+  const expected = addUnit(g.lastDate, g.freq.unit);
+  const daysUntil = Math.floor(expected.getTime() / DAY) - todayDn();
+  const grace = Math.max(4, Math.round(g.freq.days * 0.25));
+  let status;
+  if (daysUntil > 4) status = 'ontime';
+  else if (daysUntil >= 0) status = 'duesoon';
+  else if (daysUntil >= -grace) status = 'late';
+  else if (daysUntil >= -(g.freq.days + grace)) status = 'missing';
+  else status = 'gone';   // two cycles missed — auto-clean
+  return { status, expectedDate: isoOf(expected), daysUntil };
+}
+const STATUS_LABEL = { ontime:'On time', duesoon:'Due soon', late:'Late', missing:'Missing', gone:'Missing' };
+
+function recurringModel() {
+  const groups = clusterByMerchant(recurCandidates()).map(analyzeCluster).filter(Boolean);
+  const out = [], removed = [];
+  for (const g of groups) {
+    const { key: ovKey, ov } = matchDecision(g.key);
+    // A "yes, still active" answer is about ONE missed cycle, so a newer charge
+    // supersedes it. A removal is a standing instruction — you asked not to
+    // track this merchant — so it holds even when the charge reappears, and is
+    // only undone by explicitly restoring it.
+    const answerLive = ov && (g.lastDn * DAY) <= (ov.at || 0);
+    const st = statusOf(g);
+    let show = true, prompt = false, pinned = false;
+    if (ov && ov.dismissed) { removed.push({ ...g, ...st, ovKey }); show = false; }
+    else if (answerLive && ov.confirmedActive) pinned = true;
+    if (show && !pinned) {
+      if (st.status === 'gone') show = false;
+      else if (st.status === 'missing') prompt = true;
+    }
+    if (show) out.push({ ...g, ...st, ovKey, prompt, pinned });
+  }
+  // Manual drag order wins; new detections fall to the end by urgency.
+  const rank = { missing:0, late:1, duesoon:2, ontime:3 };
+  const pos = k => { const i = recurringOrder.indexOf(k); return i < 0 ? Infinity : i; };
+  out.sort((a, b) => (pos(a.key) - pos(b.key)) || (rank[a.status] - rank[b.status]) ||
+    (dayNum(a.expectedDate) - dayNum(b.expectedDate)) || (b.monthlyEquiv - a.monthlyEquiv));
+  removed.sort((a, b) => b.monthlyEquiv - a.monthlyEquiv);
+  out.removed = removed;
+  return out;
+}
+function manualMonthly(r) {
+  if (r.monthly != null && !isNaN(r.monthly)) return r.monthly;
+  if (r.annual != null && !isNaN(r.annual)) return r.annual / 12;
+  return 0;
+}
+function renderRecurring() {
+  const auto = recurringModel();
+  const monthly = auto.reduce((s, g) => s + g.monthlyEquiv, 0) + recurring.reduce((s, r) => s + manualMonthly(r), 0);
+  $('recMo').textContent = fmt$(monthly);
+  $('recAn').textContent = fmt$(monthly * 12);
+
+  let html = auto.map(g => `
+    <div class="row" data-group="auto" data-key="${esc(g.key)}" data-ovkey="${esc(g.ovKey)}">
+      <div class="row-badge">${esc((g.display || '?').charAt(0).toUpperCase())}</div>
+      <div class="row-main">
+        <div class="row-name">${esc(g.display)}</div>
+        <div class="row-sub">
+          <span class="chip ${g.status}">${STATUS_LABEL[g.status]}${g.pinned ? ' · tracking' : ''}</span>
+          <span class="chip">${g.freq.label}${g.variable ? ' · variable' : ''}</span>
+          <span>last ${esc(fmtDate(g.lastDate))} · next ${esc(fmtDate(g.expectedDate))}</span>
+        </div>
+        ${g.prompt ? `
+        <div class="rec-prompt">
+          <div class="rec-prompt-msg">This payment didn't appear this billing cycle. Is it still active?</div>
+          <div class="rec-prompt-acts">
+            <button class="btn btn-primary btn-sm" data-act="active">Yes, still active</button>
+            <button class="btn btn-sm" data-act="dismiss">No, remove</button>
+          </div>
+        </div>` : ''}
+      </div>
+      <div class="row-amt money">${fmt$(g.latestAmount)}</div>
+      <div class="row-acts">
+        <button class="btn-icon danger" data-act="remove"
+                title="Remove from recurring — stays removed even if it charges again">${ICON.del}</button>
+      </div>
+    </div>`).join('');
+
+  if (recurring.length) {
+    html += `<div class="date-hdr" style="margin-top:${auto.length ? '22px' : '4px'}">Manually added</div>`;
+    html += recurring.map(r => `
+      <div class="row" data-group="manual" data-rid="${esc(r.id)}">
+        <div class="row-badge">${esc((r.name || '?').charAt(0).toUpperCase())}</div>
+        <div class="row-main">
+          <div class="row-name">${esc(r.name)}</div>
+          <div class="row-sub">
+            <span class="chip manual">Manual</span>
+            ${r.monthly != null ? `<span class="chip mono money">${fmt$(r.monthly)}/mo</span>` : ''}
+            ${r.annual != null ? `<span class="chip mono money">${fmt$(r.annual)}/yr</span>` : ''}
+            ${r.monthly == null && r.annual == null ? '<span class="chip">no amount set</span>' : ''}
+          </div>
+          ${r.notes ? `<div class="row-note">${esc(r.notes)}</div>` : ''}
+        </div>
+        <div class="row-acts">
+          <button class="btn-icon" data-act="edit" title="Edit">${ICON.edit}</button>
+          <button class="btn-icon danger" data-act="del" title="Delete">${ICON.del}</button>
+        </div>
+      </div>`).join('');
+  }
+  if (!auto.length && !recurring.length) {
+    html = `<div class="empty"><div class="big">No recurring payments yet</div>They appear here automatically as your transaction history builds. You can also add one manually.</div>`;
+  }
+
+  // Removed payments are kept listed so a removal is never a dead end. These
+  // rows carry no data-group, so drag-to-reorder skips them.
+  const gone = auto.removed || [];
+  if (gone.length) {
+    html += `<div class="date-hdr" style="margin-top:22px">Removed · not counted in totals</div>`;
+    html += gone.map(g => `
+      <div class="row" data-ovkey="${esc(g.ovKey)}" style="opacity:.6">
+        <div class="row-badge">${esc((g.display || '?').charAt(0).toUpperCase())}</div>
+        <div class="row-main">
+          <div class="row-name">${esc(g.display)}</div>
+          <div class="row-sub">
+            <span class="chip">${g.freq.label}</span>
+            <span>last ${esc(fmtDate(g.lastDate))}</span>
+          </div>
+        </div>
+        <div class="row-amt money">${fmt$(g.latestAmount)}</div>
+        <div class="row-acts">
+          <button class="btn btn-sm" data-act="restore">Restore</button>
+        </div>
+      </div>`).join('');
+  }
+  $('recList').innerHTML = html;
+}
+
+$('recList').addEventListener('click', async e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  const row = e.target.closest('.row'); if (!row) return;
+  const act = btn.dataset.act;
+  if (act === 'restore') {                     // bring a removed one back
+    const key = row.dataset.ovkey;
+    const { [key]: _gone, ...rest } = recurringState;
+    recurringState = rest;
+    await saveLedger(); renderRecurring(); toast('Restored — tracking again', true);
+    return;
+  }
+  if (row.dataset.key) {                       // auto-detected group
+    const key = row.dataset.ovkey || row.dataset.key;
+    if (act === 'active') {
+      recurringState = { ...recurringState, [key]: { confirmedActive: true, at: Date.now() } };
+      await saveLedger(); renderRecurring(); toast('Kept — still monitoring', true);
+    } else if (act === 'dismiss' || act === 'remove') {
+      if (act === 'remove') {
+        const nm = row.querySelector('.row-name')?.textContent || 'This payment';
+        if (!(await askConfirm('Remove from recurring?',
+          `"${nm}" won't be tracked as recurring, even if it charges again. Its transactions are untouched, and you can restore it from the removed list.`))) return;
+      }
+      recurringState = { ...recurringState, [key]: { dismissed: true, at: Date.now() } };
+      await saveLedger(); renderRecurring(); toast('Removed from recurring');
+    }
+    return;
+  }
+  const r = recurring.find(x => x.id === row.dataset.rid); if (!r) return;
+  if (act === 'edit') openRec(r);
+  else if (act === 'del') {
+    if (!(await askConfirm('Delete entry?', `"${r.name}" will be removed from your manual recurring list.`))) return;
+    recurring = recurring.filter(x => x.id !== r.id);
+    await saveLedger(); renderRecurring(); toast('Manual entry deleted');
+  }
+});
+
+function openRec(r) {
+  editingRecId = r ? r.id : null;
+  $('recTitle').textContent = r ? 'Edit manual entry' : 'Add manual recurring';
+  $('rName').value = r ? r.name : '';
+  $('rMonthly').value = r && r.monthly != null ? r.monthly : '';
+  $('rAnnual').value = r && r.annual != null ? r.annual : '';
+  $('rNotes').value = r && r.notes ? r.notes : '';
+  $('recModal').classList.add('open');
+  setTimeout(() => $('rName').focus(), 60);
+}
+$('addRecBtn').addEventListener('click', () => openRec(null));
+$('rCancel').addEventListener('click', () => $('recModal').classList.remove('open'));
+$('recModal').addEventListener('click', e => { if (e.target === $('recModal')) $('recModal').classList.remove('open'); });
+$('rName').addEventListener('keydown', e => { if (e.key === 'Enter') $('rSave').click(); });
+$('rSave').addEventListener('click', async () => {
+  const name = $('rName').value.trim();
+  if (!name) { toast('Name is required'); return; }
+  const num = v => { const s = v.trim(); const n = parseFloat(s); return s && !isNaN(n) ? n : null; };
+  const monthly = num($('rMonthly').value), annual = num($('rAnnual').value);
+  const notes = $('rNotes').value.trim() || null;
+  if (editingRecId) recurring = recurring.map(x => x.id === editingRecId ? { ...x, name, monthly, annual, notes } : x);
+  else recurring = [...recurring, { id: 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7), name, monthly, annual, notes }];
+  await saveLedger(); renderRecurring();
+  $('recModal').classList.remove('open');
+  toast(editingRecId ? 'Recurring updated' : 'Recurring added', true);
+});
+
+/* Drag to reorder — auto amongst auto, manual amongst manual. Mouse arms after
+   a few pixels; touch after a long press so an ordinary swipe still scrolls. */
+(function enableRecDrag() {
+  const list = $('recList');
+  let drag = null, holdTimer = null;
+  const sibs = group => [...list.querySelectorAll(`.row[data-group="${group}"]`)];
+  const orderOf = group => sibs(group).map(r => group === 'auto' ? r.dataset.key : r.dataset.rid);
+
+  function flipMove(mutate, exclude) {
+    const rows = [...list.children];
+    const before = new Map(rows.map(r => [r, r.getBoundingClientRect().top]));
+    mutate();
+    for (const r of rows) {
+      if (r === exclude) continue;
+      const delta = before.get(r) - r.getBoundingClientRect().top;
+      if (!delta) continue;
+      r.style.transition = 'none';
+      r.style.transform = `translateY(${delta}px)`;
+      requestAnimationFrame(() => { r.style.transition = 'transform .18s cubic-bezier(.2,.8,.3,1)'; r.style.transform = ''; });
+    }
+  }
+  function armDrag(e, row) {
+    drag.dragging = true;
+    drag.startOrder = orderOf(drag.group).join('|');
+    drag.pointerStart = e.clientY;
+    drag.ty = 0;
+    row.style.transition = 'none';
+    drag.baseTop = row.getBoundingClientRect().top;
+    // Capture on the LIST, not the row: reordering moves the row in the DOM and
+    // capturing it would fire lostpointercapture on every swap.
+    try { list.setPointerCapture(drag.id); } catch {}
+    row.classList.add('dragging');
+  }
+  list.addEventListener('pointerdown', e => {
+    if (e.button > 0 || e.target.closest('button')) return;
+    const row = e.target.closest('.row'); if (!row) return;
+    drag = { row, group: row.dataset.group, id: e.pointerId, startY: e.clientY, startX: e.clientX,
+             dragging: false, touch: e.pointerType === 'touch' };
+    if (drag.touch) holdTimer = setTimeout(() => { holdTimer = null; if (drag) armDrag(e, row); }, 320);
+    else e.preventDefault();
+  });
+  list.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (!drag.dragging) {
+      const dx = Math.abs(e.clientX - drag.startX), dy = Math.abs(e.clientY - drag.startY);
+      if (drag.touch) { if (dx > 8 || dy > 8) { clearTimeout(holdTimer); holdTimer = null; drag = null; } return; }
+      if (dy < 4) return;
+      armDrag(e, drag.row);
+    }
+    const wantTop = drag.baseTop + (e.clientY - drag.pointerStart);
+    for (const other of sibs(drag.group)) {
+      if (other === drag.row) continue;
+      const r = other.getBoundingClientRect();
+      if (e.clientY < r.top || e.clientY > r.bottom) continue;
+      const mid = r.top + r.height / 2;
+      const otherIsBefore = !!(drag.row.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
+      if (e.clientY < mid && otherIsBefore) flipMove(() => list.insertBefore(drag.row, other), drag.row);
+      else if (e.clientY > mid && !otherIsBefore) flipMove(() => list.insertBefore(drag.row, other.nextSibling), drag.row);
+      else continue;
+      break;
+    }
+    // Pin the row to the finger: its natural top may have shifted after a swap,
+    // so recompute the transform rather than letting it snap.
+    const naturalTop = drag.row.getBoundingClientRect().top - drag.ty;
+    drag.ty = wantTop - naturalTop;
+    drag.row.style.transform = `translateY(${drag.ty}px)`;
+  });
+  list.addEventListener('touchmove', e => { if (drag && drag.dragging) e.preventDefault(); }, { passive: false });
+  list.addEventListener('contextmenu', e => { if (drag && drag.dragging) e.preventDefault(); });
+
+  async function endDrag(e) {
+    if (!drag || (e && e.pointerId !== drag.id)) return;
+    const { row, dragging, group, startOrder } = drag;
+    drag = null;
+    clearTimeout(holdTimer); holdTimer = null;
+    row.style.transition = '';
+    row.classList.remove('dragging');
+    row.classList.add('dropping');
+    row.style.transform = '';
+    setTimeout(() => { row.classList.remove('dropping'); row.style.transition = ''; }, 190);
+    if (!dragging) return;
+    const nextOrder = orderOf(group);
+    if (nextOrder.join('|') === startOrder) return;   // no change, no write
+    if (group === 'manual') recurring = nextOrder.map(id => recurring.find(r => r.id === id)).filter(Boolean);
+    else recurringOrder = nextOrder;
+    await saveLedger();
+  }
+  list.addEventListener('pointerup', endDrag);
+  list.addEventListener('pointercancel', endDrag);
+  // Safety net: if capture is lost without a pointerup, still settle the row.
+  list.addEventListener('lostpointercapture', e => { if (drag && e.pointerId === drag.id) endDrag(e); });
+})();
+
+/* ══ Cash ══════════════════════════════════════════════════════════════════
+   Every change to the balance is journalled in `cashLog` so the number on the
+   hero card can always be traced back. Entries are append-only in normal use
+   and each one records the balance it produced, so the history reads as a
+   running statement rather than a list of deltas. Newest first. */
+let cashSetMode = false;
+const CASH_LOG_MAX = 300;
+const CASH_KIND = { add: 'Added', deduct: 'Deducted', set: 'Balance set' };
+
+function renderCash() {
+  $('cashAmt').textContent = fmt$(cashBal);
+  renderCashHistory();
+}
+
+// In display mode the log would leak the same position the hero card hides, so
+// each entry is swapped for a plausible stand-in tagged "mock" — the same
+// treatment the month tiles get, applied to a list. Stand-ins are generated once
+// per session and keyed by entry id, so the history doesn't reshuffle on every
+// re-render while someone is looking at it.
+let mockCashCache = new Map();
+function mockCashEntry(e) {
+  let m = mockCashCache.get(e.id);
+  if (!m) {
+    // Seeded from the entry id so a given row keeps the same stand-in all
+    // session. Deliberately unordered: a mock balance column that tracked the
+    // real one's direction would still give the trend away.
+    let h = 0; for (let i = 0; i < e.id.length; i++) h = (h * 31 + e.id.charCodeAt(i)) >>> 0;
+    const amount = Math.round(((h % 18000) / 100 + 5) / 5) * 5;
+    const balance = Math.round((h >>> 7) % 40000) / 100 + 40;
+    m = { amount, balance };
+    mockCashCache.set(e.id, m);
+  }
+  return m;
+}
+
+function renderCashHistory() {
+  const meta = $('cashHistMeta'), box = $('cashHist');
+  if (!box) return;
+  if (!cashLog.length) {
+    meta.textContent = '';
+    box.innerHTML = `<div class="empty"><div class="big">No cash history yet</div>Adding, deducting or setting your balance records an entry here.</div>`;
+    return;
+  }
+  const n = cashLog.length;
+  meta.textContent = `${n} ${n === 1 ? 'entry' : 'entries'}`;
+  box.innerHTML = cashLog.map(e => {
+    const mk = displayMode ? mockCashEntry(e) : null;
+    const amt = mk ? mk.amount : e.amount;
+    const bal = mk ? mk.balance : e.balance;
+    const kind = e.kind === 'set' ? 'set' : e.kind;
+    const sign = kind === 'add' ? '+' : kind === 'deduct' ? '−' : '';
+    const tone = kind === 'add' ? ' in' : kind === 'deduct' ? '' : ' xfer';
+    return `
+    <div class="row" data-cash-id="${esc(e.id)}">
+      <div class="row-badge">${kind === 'add' ? '+' : kind === 'deduct' ? '−' : '='}</div>
+      <div class="row-main">
+        <div class="row-name">${esc(CASH_KIND[kind] || 'Adjusted')}${
+          mk ? ' <span class="mocktag">mock</span>' : ''}</div>
+        <div class="row-sub">
+          <span>${esc(fmtCashWhen(e.at))}</span>
+          <span class="chip mono">balance ${esc(fmt$(bal))}</span>
+        </div>
+        ${e.note ? `<div class="row-note">${esc(e.note)}</div>` : ''}
+      </div>
+      <div class="row-amt${tone}">${sign}${esc(fmt$(amt))}</div>
+      <div class="row-acts">
+        <button class="btn-icon danger" data-act="del" title="Delete this history entry">${ICON.del}</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function fmtCashWhen(ms) {
+  const d = new Date(ms);
+  const day = d.toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  const yest = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const when = day === today ? 'Today' : day === yest ? 'Yesterday'
+    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `${when} · ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
+
+// One journal entry per balance change. `balance` is what the balance BECAME,
+// so the history stands on its own even if an older entry is later deleted.
+function logCash(kind, amount, balance) {
+  const id = 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  cashLog = [{ id, kind, amount, balance, at: Date.now() }, ...cashLog].slice(0, CASH_LOG_MAX);
+}
+
+// `allowZero` is true only for "set exact balance", where 0 is a legitimate
+// value — it means you're out of cash. Adding or deducting 0 is meaningless, so
+// it stays rejected there.
+function readCashInput(allowZero = false) {
+  const raw = $('cashInput').value.trim();
+  if (!raw) { toast('Enter an amount first'); return null; }
+  const n = parseFloat(raw);
+  if (isNaN(n) || !isFinite(n)) { toast("That isn't a valid number"); return null; }
+  if (n < 0) { toast('Enter a positive amount — use Deduct to subtract'); return null; }
+  if (n === 0 && !allowZero) { toast('Enter an amount greater than zero'); return null; }
+  return Math.round(n * 100) / 100;
+}
+async function applyCash(delta, label) {
+  const next = Math.round((cashBal + delta) * 100) / 100;
+  // The balance can never go negative — you can't hold less than no cash.
+  if (next < 0) { toast(`That would leave ${fmt$(next)} — you only have ${fmt$(cashBal)} on hand`); return; }
+  cashBal = next;
+  logCash(delta >= 0 ? 'add' : 'deduct', Math.abs(delta), cashBal);
+  await saveLedger(); renderCash();
+  $('cashInput').value = '';
+  toast(`${label} — cash on hand is now ${fmt$(cashBal)}`, true);
+}
+$('cashAdd').addEventListener('click', async () => {
+  // Setting an exact balance accepts 0 ("I have no cash"); adding does not.
+  const n = readCashInput(cashSetMode); if (n === null) return;
+  if (cashSetMode) {
+    cashBal = n;
+    logCash('set', n, cashBal);
+    await saveLedger(); renderCash();
+    $('cashInput').value = ''; exitCashSetMode();
+    toast(`Cash on hand set to ${fmt$(n)}`, true);
+    return;
+  }
+  await applyCash(n, `Added ${fmt$(n)}`);
+});
+$('cashDeduct').addEventListener('click', async () => {
+  const n = readCashInput(); if (n === null) return;
+  await applyCash(-n, `Deducted ${fmt$(n)}`);
+});
+
+// Deleting a history entry removes the record only — the current balance is
+// what it is, and rewriting it from a struck-through past would be wrong.
+$('cashHist').addEventListener('click', async e => {
+  const btn = e.target.closest('button[data-act="del"]'); if (!btn) return;
+  const row = e.target.closest('.row'); if (!row) return;
+  const entry = cashLog.find(x => x.id === row.dataset.cashId); if (!entry) return;
+  const what = `${CASH_KIND[entry.kind] || 'Adjusted'} ${fmt$(entry.amount)}`;
+  if (!(await askConfirm('Delete history entry?',
+    `"${what}" will be removed from your cash history. Your current balance of ${fmt$(cashBal)} is not changed.`))) return;
+  cashLog = cashLog.filter(x => x.id !== entry.id);
+  await saveLedger(); renderCashHistory();
+  toast('History entry deleted');
+});
+function exitCashSetMode() {
+  cashSetMode = false;
+  $('cashAdd').textContent = '+ Add';
+  $('cashDeduct').style.display = '';
+  $('cashInput').placeholder = 'Amount';
+  $('cashSetLink').textContent = 'Set exact balance instead';
+}
+$('cashSetLink').addEventListener('click', () => {
+  if (cashSetMode) { exitCashSetMode(); return; }
+  cashSetMode = true;
+  $('cashAdd').textContent = 'Set balance';
+  $('cashDeduct').style.display = 'none';
+  $('cashInput').placeholder = 'Exact balance';
+  $('cashSetLink').textContent = 'Cancel — go back to add / deduct';
+  $('cashInput').focus();
+});
+$('cashInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('cashAdd').click(); });
+
+/* ══ CSV import ════════════════════════════════════════════════════════════
+   Institutions all export different shapes. Rather than hard-coding each one,
+   columns are resolved by header aliases with a positional fallback for
+   headerless exports. Everything detected is shown so a wrong guess can be
+   corrected before importing. */
+const drop = $('fileDrop');
+drop.addEventListener('click', () => $('fileInput').click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); if (e.dataTransfer.files[0]) handleCSV(e.dataTransfer.files[0]); });
+$('fileInput').addEventListener('change', e => { if (e.target.files[0]) handleCSV(e.target.files[0]); });
+
+// RFC-4180-ish parser: quoted fields, embedded commas/quotes/newlines.
+function parseCSV(text) {
+  const rows = []; let row = [], cell = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i+1] === '"') { cell += '"'; i++; } else inQ = false; }
+      else cell += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      row.push(cell); cell = '';
+      if (row.some(x => x.trim() !== '')) rows.push(row);
+      row = [];
+    } else cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); if (row.some(x => x.trim() !== '')) rows.push(row); }
+  return rows;
+}
+const COL_ALIASES = {
+  date:     ['date','transaction date','trans date','trans. date','posting date','posted date','post date','date posted','activity date','value date','completion date','effective date'],
+  desc:     ['description','name','payee','merchant','merchant name','details','transaction description','original description','narrative','description 1','transaction','memo','reference'],
+  amount:   ['amount','gross','net','value','transaction amount','amount (usd)','amt'],
+  debit:    ['debit','withdrawal','withdrawals','money out','paid out','charge','charges','expense'],
+  credit:   ['credit','deposit','deposits','money in','paid in','payment','payments'],
+  currency: ['currency','currency code','iso currency code'],
+  category: ['category','transaction type','type','classification'],
+  id:       ['transaction id','transaction_id','reference id','reference number','confirmation number','trans id','id'],
+  status:   ['status','transaction status'],
+  memo:     ['memo','notes','note']
+};
+function matchCol(hdr, key) {
+  const aliases = COL_ALIASES[key];
+  let i = hdr.findIndex(h => aliases.includes(h));
+  if (i >= 0) return i;
+  return hdr.findIndex(h => h && aliases.some(a => h === a || h.replace(/[^a-z ]/g,'').trim() === a));
+}
+function parseCsvDate(s) {
+  s = String(s || '').trim();
+  if (!s) return null;
+  let m;
+  if ((m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/)))
+    return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/))) {
+    let mo = +m[1], da = +m[2];
+    const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+    if (mo > 12 && da <= 12) { const t = mo; mo = da; da = t; }   // DD/MM export
+    if (mo > 12 || da > 31) return null;
+    return `${yr}-${String(mo).padStart(2,'0')}-${String(da).padStart(2,'0')}`;
+  }
+  if (/[a-z]{3}/i.test(s) && /\d{4}/.test(s)) {                    // "Jan 5, 2026"
+    const d = new Date(s);
+    if (!isNaN(d.getTime()))
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  return null;
+}
+function parseCsvAmount(s) {
+  if (s == null) return NaN;
+  let t = String(s).trim().replace(/[$£€\s,]/g, '');
+  if (!t) return NaN;
+  let neg = false;
+  if (/^\(.*\)$/.test(t)) { neg = true; t = t.slice(1, -1); }   // (12.34) = negative
+  if (t.startsWith('-')) { neg = true; t = t.slice(1); }
+  else if (t.startsWith('+')) t = t.slice(1);
+  if (t.endsWith('-')) { neg = true; t = t.slice(0, -1); }      // trailing-minus exports
+  t = t.replace(/[^0-9.]/g, '');
+  const n = parseFloat(t);
+  if (isNaN(n)) return NaN;
+  return neg ? -n : n;
+}
+// Stable id for institutions that don't export one, so re-importing the same
+// statement is still recognised as already-imported.
+function synthId(inst, date, amount, name, seq) {
+  const s = `${inst}|${date}|${amount.toFixed(2)}|${normName(name)}|${seq}`;
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return 'k' + (h >>> 0).toString(36);
+}
+function guessInstitution(filename, cols) {
+  if (cols.id >= 0 && cols.gross) return 'PayPal';
+  const base = (filename || '').replace(/\.[^.]+$/, '');
+  const word = (base.match(/[A-Za-z]{3,}/) || [])[0];
+  if (!word) return 'Imported';
+  const known = ['paypal','chase','discover','amex','americanexpress','ally','chime','capitalone','wellsfargo','venmo','citi','schwab','fidelity'];
+  const hit = known.find(k => base.toLowerCase().replace(/[^a-z]/g,'').includes(k));
+  const pretty = { americanexpress:'American Express', capitalone:'Capital One', wellsfargo:'Wells Fargo', amex:'American Express', paypal:'PayPal' };
+  if (hit) return pretty[hit] || hit.charAt(0).toUpperCase() + hit.slice(1);
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+async function handleCSV(file) {
+  const text = await file.text();
+  const rows = parseCSV(text);
+  if (!rows.length) { toast('That CSV appears to be empty'); return; }
+  const first = rows[0].map(h => String(h).trim().toLowerCase().replace(/^﻿/, '').replace(/^"|"$/g, ''));
+  const headerLooksReal = matchCol(first,'date') >= 0 || (matchCol(first,'amount') >= 0 && matchCol(first,'desc') >= 0);
+
+  let cols, dataRows, headers;
+  if (headerLooksReal) {
+    headers = first; dataRows = rows.slice(1);
+    cols = {
+      date: matchCol(first,'date'), desc: matchCol(first,'desc'), amount: matchCol(first,'amount'),
+      debit: matchCol(first,'debit'), credit: matchCol(first,'credit'), currency: matchCol(first,'currency'),
+      category: matchCol(first,'category'), id: matchCol(first,'id'), status: matchCol(first,'status'),
+      memo: matchCol(first,'memo'), gross: first.includes('gross')
+    };
+  } else {
+    // Headerless: infer by inspecting the data — first date-shaped column, first
+    // number-shaped column, longest text column.
+    headers = null; dataRows = rows;
+    const probe = rows.slice(0, Math.min(12, rows.length));
+    const width = Math.max(...probe.map(r => r.length));
+    const score = { date: -1, amount: -1, desc: -1 };
+    for (let c = 0; c < width; c++) {
+      const vals = probe.map(r => r[c] ?? '');
+      if (score.date < 0 && vals.filter(v => parseCsvDate(v)).length >= probe.length * 0.7) { score.date = c; continue; }
+      if (score.amount < 0 && vals.filter(v => !isNaN(parseCsvAmount(v)) && String(v).trim()).length >= probe.length * 0.7) { score.amount = c; continue; }
+    }
+    let bestLen = 0;
+    for (let c = 0; c < width; c++) {
+      if (c === score.date || c === score.amount) continue;
+      const len = probe.reduce((s, r) => s + String(r[c] ?? '').trim().length, 0);
+      if (len > bestLen) { bestLen = len; score.desc = c; }
+    }
+    cols = { ...score, debit:-1, credit:-1, currency:-1, category:-1, id:-1, status:-1, memo:-1, gross:false };
+  }
+
+  const hasSplit = cols.debit >= 0 && cols.credit >= 0;
+  if (cols.date < 0 || (cols.amount < 0 && !hasSplit)) {
+    toast('Could not find a date and amount column in that CSV');
+    return;
+  }
+  // Parse every usable row once; the sign convention is applied at render time
+  // so flipping it doesn't require re-reading the file.
+  const parsed = [];
+  for (const r of dataRows) {
+    const date = parseCsvDate(r[cols.date]);
+    if (!date) continue;
+    let raw;
+    if (hasSplit) {
+      const d = parseCsvAmount(r[cols.debit]), c = parseCsvAmount(r[cols.credit]);
+      raw = !isNaN(d) && d !== 0 ? -Math.abs(d) : (!isNaN(c) && c !== 0 ? Math.abs(c) : NaN);
+    } else raw = parseCsvAmount(r[cols.amount]);
+    if (isNaN(raw) || raw === 0) continue;
+    if (cols.status >= 0 && /pending|denied|failed|cancel|reversed|declined/i.test(r[cols.status] || '')) continue;
+    const desc = (cols.desc >= 0 ? String(r[cols.desc] || '').trim() : '') ||
+                 (cols.category >= 0 ? String(r[cols.category] || '').trim() : '') || 'Transaction';
+    parsed.push({
+      date, raw, desc,
+      currency: (cols.currency >= 0 && String(r[cols.currency] || '').trim()) || 'USD',
+      rawCategory: cols.category >= 0 ? String(r[cols.category] || '').trim() : '',
+      memo: cols.memo >= 0 && cols.memo !== cols.desc ? String(r[cols.memo] || '').trim() : '',
+      id: cols.id >= 0 ? String(r[cols.id] || '').trim() : ''
+    });
+  }
+  if (!parsed.length) { toast('No readable transactions found in that CSV'); return; }
+  // Which sign means "money out"? Statements list more spending than income, so
+  // the majority sign is the outflow — a guess the user can flip.
+  const negs = parsed.filter(p => p.raw < 0).length;
+  csvFile = {
+    name: file.name, parsed, cols, headers, hasSplit,
+    institution: guessInstitution(file.name, cols),
+    outflowIsNegative: hasSplit ? true : negs >= parsed.length - negs
+  };
+  buildImport();
+}
+
+function buildImport() {
+  const f = csvFile;
+  const inst = f.institution.trim() || 'Imported';
+  const existingCsvIds = new Set(manualTxs.map(t => t.csv_txn_id).filter(Boolean));
+  const seenInFile = new Map();
+  const newRows = [], exactDupes = [], fuzzy = [];
+  const dayMs = 864e5;
+
+  for (const p of f.parsed) {
+    const amount = f.outflowIsNegative ? -p.raw : p.raw;   // internal: positive = OUT
+    const fileKey = p.id || `${p.date}|${amount}|${p.desc}`;
+    const seq = (seenInFile.get(fileKey) || 0) + 1;
+    seenInFile.set(fileKey, seq);
+    const txnId = p.id || synthId(inst, p.date, amount, p.desc, seq);
+    const rec = {
+      id: 'csv_' + txnId, source: 'csv', import_source: inst, institution: inst,
+      account_id: null, date: p.date, name: p.desc, merchant: p.desc, amount,
+      currency: p.currency || 'USD', category: p.rawCategory || 'Other', category_detailed: null,
+      note: p.memo || null, pending: false, logo_url: null, csv_txn_id: txnId,
+      createdAt: Date.now(), updatedAt: Date.now()
+    };
+    if (existingCsvIds.has(txnId)) { exactDupes.push(rec); continue; }
+    // Fuzzy: same |amount| within a cent, within ±3 days, and either a similar
+    // name or the same institution already connected.
+    const recT = new Date(rec.date + 'T12:00:00').getTime();
+    const match = plaidTxs.find(pt => {
+      if (Math.abs(Math.abs(pt.amount) - Math.abs(rec.amount)) > 0.005) return false;
+      const ptT = new Date(pt.date + 'T12:00:00').getTime();
+      if (Math.abs(ptT - recT) > 3 * dayMs) return false;
+      const pName = (pt.name || '') + ' ' + (pt.merchant || '');
+      if (/paypal|pypl/i.test(pName) && /paypal/i.test(inst)) return true;
+      if ((pt.institution || '').toLowerCase() === inst.toLowerCase()) return true;
+      return nameSim(pName, rec.name) >= 0.5;
+    });
+    if (match) fuzzy.push({ rec, match, decision: null });
+    else newRows.push(rec);
+  }
+  importState = { newRows, exactDupes, fuzzy };
+  renderImportMap();
+  renderImport();
+}
+
+function renderImportMap() {
+  const f = csvFile, el = $('importMap');
+  el.style.display = '';
+  const colName = i => i < 0 ? null : (f.headers ? (f.headers[i] || `column ${i+1}`) : `column ${i+1}`);
+  const bits = [
+    ['Date', colName(f.cols.date)],
+    ['Description', colName(f.cols.desc)],
+    [f.hasSplit ? 'Debit / Credit' : 'Amount', f.hasSplit ? `${colName(f.cols.debit)} / ${colName(f.cols.credit)}` : colName(f.cols.amount)],
+    ['Category', colName(f.cols.category)],
+    ['Transaction ID', colName(f.cols.id)]
+  ].filter(b => b[1]);
+  el.innerHTML = `
+    <h4>Detected from ${esc(f.name)}${f.headers ? '' : ' · no header row'}</h4>
+    <div class="r">
+      <label for="impInst">Institution</label>
+      <input type="text" id="impInst" value="${esc(f.institution)}" placeholder="e.g. Chase">
+      ${f.hasSplit ? '' : `
+      <label for="impSign">Amounts</label>
+      <select id="impSign">
+        <option value="neg"${f.outflowIsNegative ? ' selected' : ''}>Negative = money out</option>
+        <option value="pos"${f.outflowIsNegative ? '' : ' selected'}>Positive = money out</option>
+      </select>`}
+    </div>
+    <div class="impcols">${bits.map(b => `${b[0]}: <b>${esc(b[1])}</b>`).join(' &nbsp;·&nbsp; ')}</div>
+    <div class="imppreview">
+      ${importState.newRows.concat(importState.fuzzy.map(x => x.rec)).slice(0, 4).map(r => `
+        <div class="prow">
+          <span class="nm">${esc(r.date)} · ${esc(r.name)}</span>
+          <span class="am money ${r.amount < 0 ? 'in' : ''}">${fmt$(r.amount, true)}</span>
+        </div>`).join('') || '<div class="prow"><span class="nm">No new rows to preview</span></div>'}
+      <div style="font-size:11px;color:var(--muted);margin-top:7px">
+        Check a few rows above: money going out should show a −. If they're inverted, switch the Amounts setting.
+      </div>
+    </div>`;
+  $('impInst').addEventListener('change', e => { csvFile.institution = e.target.value; buildImport(); });
+  const sign = $('impSign');
+  if (sign) sign.addEventListener('change', e => { csvFile.outflowIsNegative = e.target.value === 'neg'; buildImport(); });
+}
+
+function renderImport() {
+  const s = importState;
+  $('importStat').style.display = '';
+  $('importStat').innerHTML =
+    `<span><b>${s.newRows.length}</b> new</span>` +
+    `<span><b>${s.exactDupes.length}</b> already imported (skipped)</span>` +
+    `<span><b>${s.fuzzy.length}</b> possible duplicate${s.fuzzy.length === 1 ? '' : 's'} to review</span>`;
+  $('bulkActs').style.display = s.fuzzy.length > 1 ? 'flex' : 'none';
+  const shown = s.fuzzy.slice(0, 60);
+  $('dupeList').innerHTML = shown.map((f, i) => `
+    <div class="dupe ${f.decision ? 'decided' : ''}" data-i="${i}">
+      <div class="pair">
+        <div>
+          <div class="tag">CSV row</div>
+          <div class="nm">${esc(f.rec.name)}</div>
+          <div class="dt">${esc(f.rec.date)} · <span class="money">${fmt$(f.rec.amount, true)}</span></div>
+        </div>
+        <div>
+          <div class="tag">Transaction you already have</div>
+          <div class="nm">${esc(f.match.merchant || f.match.name)}</div>
+          <div class="dt">${esc(f.match.date)} · <span class="money">${fmt$(f.match.amount, true)}</span> · ${esc(f.match.institution || '')}</div>
+        </div>
+      </div>
+      <div class="acts">
+        <button class="btn btn-sm ${f.decision === 'skip' ? 'btn-primary' : ''}" data-d="skip">Duplicate — skip it</button>
+        <button class="btn btn-sm ${f.decision === 'keep' ? 'btn-primary' : ''}" data-d="keep">Keep both</button>
+      </div>
+    </div>`).join('') + (s.fuzzy.length > shown.length
+      ? `<div style="font-size:12px;color:var(--muted);padding:6px 2px">
+           +${s.fuzzy.length - shown.length} more possible duplicates — use the buttons above to decide them all at once.
+         </div>` : '');
+  $('importActs').style.display = s.newRows.length || s.fuzzy.length ? 'flex' : 'none';
+  const undecided = s.fuzzy.filter(f => !f.decision).length;
+  $('importCommit').disabled = undecided > 0;
+  $('importCommit').textContent = undecided
+    ? `Review ${undecided} duplicate${undecided === 1 ? '' : 's'} first`
+    : `Import ${s.newRows.length + s.fuzzy.filter(f => f.decision === 'keep').length} transactions`;
+}
+$('dupeList').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !importState) return;
+  importState.fuzzy[+e.target.closest('.dupe').dataset.i].decision = b.dataset.d;
+  renderImport();
+});
+$('bulkSkip').addEventListener('click', () => { if (importState) { importState.fuzzy.forEach(f => f.decision = 'skip'); renderImport(); } });
+$('bulkKeep').addEventListener('click', () => { if (importState) { importState.fuzzy.forEach(f => f.decision = 'keep'); renderImport(); } });
+$('importCancel').addEventListener('click', () => {
+  importState = null; csvFile = null;
+  $('importStat').style.display = 'none';
+  $('importMap').style.display = 'none';
+  $('bulkActs').style.display = 'none';
+  $('dupeList').innerHTML = '';
+  $('importActs').style.display = 'none';
+  $('fileInput').value = '';
+});
+$('importCommit').addEventListener('click', async () => {
+  const s = importState; if (!s) return;
+  const toWrite = [...s.newRows, ...s.fuzzy.filter(f => f.decision === 'keep').map(f => f.rec)];
+  if (!toWrite.length) { toast('Nothing to import'); $('importCancel').click(); return; }
+  $('importCommit').disabled = true;
+  try {
+    for (let i = 0; i < toWrite.length; i += 400) {
+      const batch = writeBatch(db);
+      for (const rec of toWrite.slice(i, i + 400)) batch.set(doc(db, ROOT, 'meta', 'manual_transactions', rec.id), rec);
+      await synced(batch.commit());
+    }
+    toast(`Imported ${toWrite.length} transaction${toWrite.length === 1 ? '' : 's'}`, true);
+    $('importCancel').click();
+  } catch (e) {
+    toast('Import failed: ' + e.message);
+    $('importCommit').disabled = false;
+  }
+});
+
+/* ══ Institution sync (Plaid) ══════════════════════════════════════════════
+   Two different "syncs" exist and only one needs a button:
+     · App-side edits write straight to Firestore the moment they happen.
+     · Institution data must be PULLED from Plaid by the Worker. That runs on
+       the Worker's daily cron plus this manual refresh. */
+async function pullBankData(quiet) {
+  const r = await fetch(API + '/sync', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: lockSession?.token })
+  }).then(x => x.json());
+  if (!r.ok) { if (!quiet) toast('Sync failed: ' + (r.error || 'unknown')); return; }
+  const added = (r.results || []).reduce((s, x) => s + (x.added || 0), 0);
+  if (added) toast(`${added} new transaction${added === 1 ? '' : 's'} synced`, true);
+  else if (!quiet) toast('Synced — up to date', true);
+}
+// Auto-refresh on open, but only when the data is actually stale: each sync
+// costs Plaid calls plus KV writes, so firing on every page open wastes the
+// daily budget. The cron keeps things current; this only catches up after a gap.
+const AUTO_SYNC_AFTER = 6 * 60 * 60 * 1000;
+let autoSyncChecked = false;
+function maybeAutoSync() {
+  if (autoSyncChecked) return;
+  autoSyncChecked = true;
+  if (Date.now() - (meta.lastSyncAt || 0) > AUTO_SYNC_AFTER) pullBankData(true).catch(() => {});
+}
+$('syncBtn').addEventListener('click', async () => {
+  const b = $('syncBtn');
+  b.disabled = true; b.classList.add('spinning');
+  try { await pullBankData(false); } catch (e) { toast('Sync failed: ' + e.message); }
+  b.disabled = false; b.classList.remove('spinning');
+});
+
+/* ══ Plaid Link ════════════════════════════════════════════════════════════ */
+async function refreshItems() {
+  try {
+    const r = await fetch(API + '/items', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: lockSession?.token })
+    }).then(x => x.json());
+    if (r.lockRequired) { showLock(); return; }
+    $('itemList').innerHTML = r.count
+      ? r.items.map(i => `<div style="padding:7px 0;border-bottom:1px solid var(--border-soft)">
+          <b style="color:var(--text)">${esc(i.institution_name || i.institution_id || i.item_id)}</b>
+          <span style="color:var(--muted);font-size:11.5px;margin-left:8px">linked ${new Date(i.createdAt).toLocaleDateString()}</span>
+        </div>`).join('')
+      : 'No institutions connected yet.';
+  } catch {
+    $('itemList').textContent = 'Could not reach the Finance server. If you have not deployed it yet, see docs/PLAID_SETUP.md.';
+  }
+}
+async function linkOnSuccess(public_token, metadata) {
+  const st = $('linkStatus');
+  st.textContent = 'Finishing connection…';
+  const ex = await fetch(API + '/link/exchange', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      token: lockSession?.token, public_token,
+      institution_id: metadata.institution?.institution_id || null,
+      institution_name: metadata.institution?.name || null
+    })
+  }).then(x => x.json());
+  if (ex.lockRequired) { st.textContent = ''; showLock(); return; }
+  if (ex.ok) {
+    st.textContent = '';
+    sessionStorage.removeItem('finance_link_token');
+    toast(`Connected ${metadata.institution?.name || 'institution'} — syncing…`, true);
+    refreshItems();
+    fetch(API + '/sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: lockSession?.token })
+    }).catch(() => {});
+  } else st.textContent = ex.error || 'Exchange failed';
+}
+const linkOnExit = err => { $('linkStatus').textContent = err ? (err.display_message || err.error_code || 'Link closed') : ''; };
+
+$('linkBtn').addEventListener('click', async () => {
+  const st = $('linkStatus'); st.textContent = 'Preparing…';
+  try {
+    const r = await fetch(API + '/link/token/create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: lockSession?.token })
+    }).then(x => x.json());
+    if (r.lockRequired) { st.textContent = ''; showLock(); return; }
+    if (!r.ok) { st.textContent = r.error || 'Link token failed'; return; }
+    st.textContent = r.oauthReady === false
+      ? 'Note: redirect URI not registered in Plaid yet — OAuth institutions (Chase, Capital One, Wells Fargo) will fail until it is.'
+      : '';
+    // OAuth institutions leave the page and redirect back with ?oauth_state_id=…
+    // The link_token must survive that round trip to resume the session.
+    sessionStorage.setItem('finance_link_token', r.link_token);
+    Plaid.create({ token: r.link_token, onSuccess: linkOnSuccess, onExit: linkOnExit }).open();
+  } catch (e) { st.textContent = 'Failed: ' + e.message; }
+});
+
+// Resume a Plaid OAuth redirect (bank login happened on the bank's site).
+if (new URLSearchParams(location.search).get('oauth_state_id')) {
+  const lt = sessionStorage.getItem('finance_link_token');
+  if (lt) {
+    document.querySelector('[data-view="connect"]')?.click();
+    Plaid.create({ token: lt, receivedRedirectUri: window.location.href, onSuccess: linkOnSuccess, onExit: linkOnExit }).open();
+  }
+  history.replaceState(null, '', location.pathname);   // clean the URL either way
+}
+
+// First paint before any data arrives.
+renderAll(); renderCash();
+</script>
+</body>
+</html>

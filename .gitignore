@@ -10,3 +10,55 @@ debug.log
 **/launch.log
 trading-auto-launch/.last_run
 trading-auto-launch/__pycache__/
+
+# ── V1 suite (Veda's workspace) ─────────────────────────────────────────────
+# Ported from V1/.gitignore when V1 was absorbed into this repo (was a separate
+# repo with its own .git). Path-anchored rules are re-anchored under V1/; the
+# **/ rules already match at any depth and are kept as-is.
+#
+# SECRETS — these must never be tracked. Losing an entry here leaks a live
+# credential into a public repo, so treat this block as security-critical.
+**/conf/token.txt
+**/conf/*.txt
+**/webull_config.json
+**/webull_raw_sample.json
+**/broker_import.json
+**/broker_positions.json
+.env
+.env.*
+!.env.example
+*.secret
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Build output & logs
+webull_trade_sdk.log*
+*.log
+__pycache__/
+*.pyc
+dist/
+V1/dist/
+.firebase/
+firebase-debug.log
+target/
+**/desktop/dist/
+**/desktop/src-tauri/gen/
+
+# Generated at build time by V1/scripts/build.mjs — never committed.
+**/public/index.html
+**/public/_headers
+V1/TradeBoard/index.html
+
+# Reference/scratch copies that live beside the canonical app files.
+V1/tradehub.html
+V1/insight.html
+V1/TradeBoard/tradeboard.applock-ref.html
+*.reference.html
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/settings.json

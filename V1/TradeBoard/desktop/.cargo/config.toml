@@ -1,0 +1,21 @@
+# Toolchain note (Windows, no-admin machine)
+# ------------------------------------------
+# This machine has Visual Studio installed WITHOUT the C++ workload, and adding
+# it needs an admin UAC prompt we can't satisfy. So the whole crate builds with
+# the GNU toolchain instead, which needs no elevation:
+#
+#   rustup toolchain install stable-x86_64-pc-windows-gnu
+#   rustup default stable-x86_64-pc-windows-gnu      <- host too, not just target
+#   winget install BrechtSanders.WinLibs.POSIX.UCRT --scope user
+#
+# The `rustup default` part matters: setting only `build.target = "...-gnu"` here
+# still builds BUILD SCRIPTS and PROC-MACROS for the host (msvc), which then fails
+# with "linker `link.exe` not found". Making gnu the default toolchain fixes both.
+#
+# Tauri's WebView2 COM bindings, sysinfo, chrono and chrono-tz all compile cleanly
+# against GNU. If you later install the MSVC C++ workload, just
+# `rustup default stable-x86_64-pc-windows-msvc` — nothing here depends on GNU.
+[target.x86_64-pc-windows-gnu]
+# MinGW's linker needs a bigger stack reserve than the default for the WebView2
+# COM machinery; harmless if unused.
+rustflags = ["-C", "link-arg=-Wl,--stack,8388608"]

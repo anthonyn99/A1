@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>StudyOS</title>
+<meta name="description" content="Classes, calendar, tasks, notes and documents — one study workspace.">
+<meta name="theme-color" content="#1B1C1E">
+
+<!-- Installable as a home-screen app on iOS/Android. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="StudyOS">
+<link rel="icon" href="assets/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+
+<!-- Warm the TLS handshakes to the hosts the first paint depends on. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Nunito:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Playfair+Display:wght@900&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/studyos.css">
+
+<!-- Word-style page editor engine, shared with TradeBoard's journal apps.
+     Lazy-loads KaTeX from jsdelivr only when a math block is used. -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="css/docx-engine.css">
+<link rel="stylesheet" href="css/so-notes.css">
+
+<!-- MUST be first: every module below reads window.STUDYOS_CONFIG synchronously. -->
+<script src="config/config.js"></script>
+</head>
+
+<!-- data-sos-gate="pending" hides #study-root until the App Lock decides whether
+     to gate it, so a locked app can never flash its data before the overlay. -->
+<body data-sos-gate="pending">
+
+<div id="study-root">
+<div class="sos-hdr-outer">
+  <div class="sos-hdr-inner">
+    <div class="sos-hdr-left">
+      <div class="sos-hdr-title">StudyOS</div>
+    </div>
+    <div class="sos-hdr-right">
+      <div class="sos-hbtns" id="sos-shell-nav">
+        <!-- Sibling-app links would render here from STUDYOS_CONFIG.shell.nav,
+             which is now empty. The "Study" pill that used to mark the active
+             app went with them: with no siblings to switch between there is
+             nothing for it to disambiguate, so the header is just the title
+             and the lock. -->
+        <button class="sos-hbtn icon" id="sos-lock-btn" type="button" title="App Lock">&#128275;</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+  <div class="sidebar-logo">
+      <div class="logo-mark">S</div>
+      <div class="logo-text">StudyOS</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-item active" onclick="switchView('home')" id="nav-home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" onclick="switchView('calendar')" id="nav-calendar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Calendar
+      </div>
+      <div class="nav-item" onclick="switchView('notes')" id="nav-notes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Quick Notes
+      </div>
+      <div class="nav-item" onclick="switchView('pomodoro')" id="nav-pomodoro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Pomodoro
+      </div>
+      <div class="nav-section-label">KSU</div>
+      <div class="nav-item" onclick="switchView('ksu')" id="nav-ksu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        KSU
+      </div>
+      <div class="nav-section-label">Semester</div>
+      <div id="sidebar-classes"></div>
+    </div>
+    <div class="sidebar-bottom">
+      <button class="btn" id="sos-cloud-sync-btn" onclick="sosCloudSyncClick()" title="Upload every file on this device to the cloud so it's available everywhere" style="width:100%;justify-content:center;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><polyline points="8 12 12 8 16 12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
+        <span class="sos-cloud-sync-label">Sync to Cloud</span>
+        <span id="sos-cloud-badge" class="sos-cloud-badge" style="display:none;"></span>
+      </button>
+      <!-- Cloud capacity. Hidden until the worker answers, so it can never show
+           a made-up number when storage totals aren't actually known. -->
+      <div id="sos-storage-meter" class="sos-storage" style="display:none;">
+        <div class="sos-storage-track"><div class="sos-storage-fill"></div></div>
+        <div class="sos-storage-text"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- Mobile pomo banner: shown below topbar when timer is active -->
+    <div id="sos-pomo-banner" onclick="switchView('pomodoro')" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="color:var(--accent,#8D769A);flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span class="spb-label" id="spb-label">Focus</span>
+      <span class="spb-time" id="spb-time">25:00</span>
+      <button class="spb-play" onclick="event.stopPropagation();togglePomo()" id="spb-play">
+        <svg id="spb-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none" width="14" height="14"><polygon points="5,3 19,12 5,21"/></svg>
+      </button>
+    </div>
+
+    <div class="topbar">
+      <div class="topbar-title" id="topbar-title">Dashboard</div>
+      <div id="topbar-pomo" style="display:none;align-items:center;gap:8px;background:var(--bg4);border:1px solid var(--border2);border-radius:20px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:13px;font-weight:700" onclick="switchView('pomodoro')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="color:var(--accent)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="topbar-pomo-label" style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:1px"></span>
+        <span id="topbar-pomo-time" style="color:var(--text)">25:00</span>
+        <button onclick="event.stopPropagation();togglePomo()" style="background:none;border:none;cursor:pointer;color:var(--accent);padding:0;display:flex;align-items:center" id="topbar-pomo-playbtn">
+          <svg id="topbar-pomo-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none" width="14" height="14"><polygon points="5,3 19,12 5,21"/></svg>
+        </button>
+      </div>
+      <div class="topbar-actions">
+        <span id="sos-sync-status" style="font-size:10px;font-weight:600;white-space:nowrap;visibility:hidden;display:inline-block;min-width:70px;text-align:right;"></span>
+        <button class="btn" onclick="openAddEvent()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Event
+        </button>
+        <button class="btn" onclick="openAddTaskGlobal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Task
+        </button>
+        <button class="btn primary" onclick="openAddClass()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Class
+        </button>
+      </div>
+    </div>
+
+    <!-- HOME VIEW -->
+    <div class="view active" id="view-home">
+      <!-- STATS BAR -->
+      <div class="stats-bar" id="stats-bar">
+        <div class="stat-card">
+          <div class="stat-label">Events This Week</div>
+          <div class="stat-value" id="stat-events">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Exams Coming Up</div>
+          <div class="stat-value" id="stat-exams">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Next Exam In</div>
+          <div class="stat-value" id="stat-next-exam" style="font-size:18px;padding-top:4px">—</div>
+        </div>
+      </div>
+
+      <!-- EXAM COUNTDOWN + PRIORITY QUEUE (two-column) -->
+      <div id="sos-planner-row" style="display:grid;grid-template-columns:1fr 320px;gap:16px;margin-bottom:24px">
+
+        <!-- LEFT: EXAM COUNTDOWNS -->
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;overflow:hidden">
+          <div class="files-panel-header" style="padding:12px 16px">
+            <h3 style="font-size:13px;font-weight:700;flex:1">📅 Exam Countdown</h3>
+            <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openAddEvent()">+ Add Exam</button>
+          </div>
+          <div id="sos-exam-countdown-list" style="padding:0"></div>
+        </div>
+
+        <!-- RIGHT: PRIORITY QUEUE -->
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;overflow:hidden">
+          <div class="files-panel-header" style="padding:12px 16px">
+            <h3 style="font-size:13px;font-weight:700;flex:1">🎯 Priority Queue</h3>
+            <span id="sos-pq-sort-label" style="font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:600">urgency × weight</span>
+          </div>
+          <div id="sos-priority-queue-list" style="padding:0"></div>
+        </div>
+      </div>
+
+      <!-- CLASSES -->
+      <div class="section-header">
+        <h2>My Classes</h2>
+        <span class="count" id="class-count">0</span>
+      </div>
+      <div class="classes-grid" id="classes-grid">
+        <div class="empty-state" id="empty-msg" style="grid-column:1/-1">
+          <h3>No classes yet</h3>
+          <p>Create your first class to get started this semester.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- CALENDAR VIEW -->
+    <div class="view" id="view-calendar">
+      <div class="calendar-container">
+        <div class="calendar-grid">
+          <div class="cal-header">
+            <button class="btn-icon" onclick="prevMonth()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <h3 id="cal-month-label">Month Year</h3>
+            <button class="btn-icon" onclick="nextMonth()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+          <div class="cal-days">
+            <div class="cal-day-label">SUN</div>
+            <div class="cal-day-label">MON</div>
+            <div class="cal-day-label">TUE</div>
+            <div class="cal-day-label">WED</div>
+            <div class="cal-day-label">THU</div>
+            <div class="cal-day-label">FRI</div>
+            <div class="cal-day-label">SAT</div>
+          </div>
+          <div class="cal-cells" id="cal-cells"></div>
+        </div>
+        <div class="timeline-panel" id="timeline-mini">
+          <div class="files-panel-header">
+            <h3>Upcoming</h3>
+            <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openAddEvent()">+ Add</button>
+          </div>
+          <div id="upcoming-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOTES VIEW -->
+    <div class="view" id="view-notes">
+      <div class="notes-layout">
+        <!-- LIST PANEL -->
+        <div class="notes-list-panel">
+          <div class="notes-list-header">
+            <span>Notes</span>
+            <button class="btn primary" style="padding:4px 10px;font-size:11px" onclick="createNote()">+ New</button>
+          </div>
+          <div class="notes-list-scroll" id="notes-list"></div>
+        </div>
+        <!-- EDITOR PANEL -->
+        <div class="notes-editor-panel" id="notes-editor-panel">
+          <div class="notes-empty-state" id="notes-empty-editor">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span>Select or create a note</span>
+          </div>
+          <div id="notes-editor-active" style="display:none;flex-direction:column;height:100%">
+            <div class="notes-editor-header">
+              <input class="note-title-input" id="note-title-input" placeholder="Untitled" />
+              <button class="btn" style="padding:4px 10px;font-size:11px;color:#ff6b6b" onclick="deleteCurrentNote()">Delete</button>
+            </div>
+            <textarea class="notes-area" id="notes-area" placeholder="Start writing..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- POMODORO VIEW -->
+    <div class="view" id="view-pomodoro">
+      <div class="pomo-wrap">
+        <div class="pomo-modes">
+          <button class="pomo-mode-btn active" id="pomo-btn-work" onclick="setPomoMode('work')">Focus</button>
+          <button class="pomo-mode-btn" id="pomo-btn-short" onclick="setPomoMode('short')">Short Break</button>
+          <button class="pomo-mode-btn" id="pomo-btn-long" onclick="setPomoMode('long')">Long Break</button>
+        </div>
+        <div class="pomo-ring-wrap">
+          <svg width="240" height="240" viewBox="0 0 240 240">
+            <circle class="pomo-ring-bg" cx="120" cy="120" r="108"/>
+            <circle class="pomo-ring-fg" id="pomo-ring" cx="120" cy="120" r="108"
+              stroke-dasharray="678.6" stroke-dashoffset="0"/>
+          </svg>
+          <div class="pomo-time-display">
+            <div class="pomo-time" id="pomo-display">25:00</div>
+            <div class="pomo-label" id="pomo-mode-label">Focus</div>
+          </div>
+        </div>
+        <div class="pomo-controls">
+          <button class="pomo-btn-sec" onclick="resetPomo()" title="Reset">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.48"/></svg>
+          </button>
+          <button class="pomo-btn-main" id="pomo-play-btn" onclick="togglePomo()">
+            <svg id="pomo-play-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg>
+          </button>
+          <button class="pomo-btn-sec" onclick="skipPomo()" title="Skip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="5 4 15 12 5 20"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
+          </button>
+        </div>
+        <div class="pomo-sessions">
+          <div class="pomo-dot" id="pd0"></div>
+          <div class="pomo-dot" id="pd1"></div>
+          <div class="pomo-dot" id="pd2"></div>
+          <div class="pomo-dot" id="pd3"></div>
+        </div>
+        <div class="pomo-settings">
+          <div class="pomo-setting">
+            <label>Focus</label>
+            <input type="number" id="pomo-inp-work" value="25" min="1" max="60" onchange="onPomoSettingChange()">
+          </div>
+          <div class="pomo-setting">
+            <label>Short Break</label>
+            <input type="number" id="pomo-inp-short" value="5" min="1" max="30" onchange="onPomoSettingChange()">
+          </div>
+          <div class="pomo-setting">
+            <label>Long Break</label>
+            <input type="number" id="pomo-inp-long" value="15" min="1" max="60" onchange="onPomoSettingChange()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KSU VIEW -->
+    <div class="view" id="view-ksu">
+      <div class="detail-header" style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border)">
+        <div class="detail-color-bar" style="background:#8D769A"></div>
+        <div>
+          <div class="detail-title">KSU</div>
+        </div>
+        <div style="margin-left:auto">
+          <button class="btn" onclick="openKsuAddModule()">+ Add Module</button>
+        </div>
+      </div>
+      <div class="modules-grid" id="ksu-modules-grid"></div>
+    </div>
+
+    <!-- CLASS DETAIL VIEW -->
+    <div class="view" id="view-class">
+      <div class="breadcrumb">
+        <a onclick="switchView('home')">Dashboard</a>
+        <span>›</span>
+        <span id="breadcrumb-class">Class</span>
+      </div>
+      <div class="detail-header">
+        <div class="detail-color-bar" id="detail-color-bar"></div>
+        <div>
+          <div class="detail-title" id="detail-title">Class Name</div>
+          <div class="detail-subtitle" id="detail-subtitle">Code · Instructor</div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn" onclick="openEditClass()">Edit Class</button>
+          <button class="btn" onclick="openAddModule()">+ Add Module</button>
+          <button class="btn" style="color:#ff6b6b" onclick="deleteCurrentClass()">Remove Class</button>
+        </div>
+      </div>
+      <div class="class-detail-layout">
+        <div class="class-detail-main">
+          <div class="section-header" style="margin-bottom:14px">
+            <h2>Modules</h2>
+          </div>
+          <div class="modules-grid" id="modules-grid"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="class-events-panel">
+            <div class="files-panel-header">
+              <h3>Upcoming</h3>
+              <div style="display:flex;gap:6px">
+                <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openAddEventForClass()">+ Event</button>
+                <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openAddTaskForClass()">+ Task</button>
+              </div>
+            </div>
+            <div id="class-events-list"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Mobile bottom nav (hidden on desktop via CSS) -->
+<nav id="sos-bottom-nav">
+  <button class="sos-bn-item active" id="sos-bn-home" onclick="switchView('home')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Home
+  </button>
+  <button class="sos-bn-item" id="sos-bn-calendar" onclick="switchView('calendar')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Cal
+  </button>
+  <button class="sos-bn-item" id="sos-bn-notes" onclick="switchView('notes')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    Notes
+  </button>
+  <button class="sos-bn-item" id="sos-bn-ksu" onclick="switchView('ksu')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+    KSU
+  </button>
+  <button class="sos-bn-item" id="sos-bn-pomodoro" onclick="switchView('pomodoro')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    Focus
+  </button>
+</nav>
+
+<!-- NOTIFICATION CONTAINER -->
+<div class="notif-container" id="notif-container"></div>
+
+<!-- MODAL: ADD CLASS -->
+<div class="modal-overlay sos-modal" id="modal-add-class">
+  <div class="modal">
+    <div class="modal-title">Create Class</div>
+    <div class="modal-scroll-body">
+    <div class="field">
+      <label>Class Name</label>
+      <input type="text" id="inp-class-name" placeholder="e.g. Discrete Mathematics">
+    </div>
+    <div class="field">
+      <label>Course Code</label>
+      <input type="text" id="inp-class-code" placeholder="e.g. CSE 2813">
+    </div>
+    <div class="field">
+      <label>Instructor</label>
+      <input type="text" id="inp-class-instructor" placeholder="e.g. Prof. Smith">
+    </div>
+    <div class="field">
+      <label>Color</label>
+      <div class="color-grid" id="color-grid"></div>
+    </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="_sosClose('modal-add-class')">Cancel</button>
+      <button class="btn primary" onclick="saveClass()">Create Class</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDIT CLASS -->
+<div class="modal-overlay sos-modal" id="modal-edit-class">
+  <div class="modal">
+    <div class="modal-title">Edit Class</div>
+    <div class="field">
+      <label>Class Name</label>
+      <input type="text" id="inp-edit-class-name" placeholder="e.g. Discrete Mathematics">
+    </div>
+    <div class="field">
+      <label>Course Code</label>
+      <input type="text" id="inp-edit-class-code" placeholder="e.g. CSE 2813">
+    </div>
+    <div class="field">
+      <label>Instructor</label>
+      <input type="text" id="inp-edit-class-instructor" placeholder="e.g. Prof. Smith">
+    </div>
+    <div class="field">
+      <label>Color</label>
+      <div class="color-grid" id="color-grid-edit"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="_sosClose('modal-edit-class')">Cancel</button>
+      <button class="btn primary" onclick="saveEditClass()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADD MODULE (type picker) -->
+<div class="modal-overlay sos-modal" id="modal-add-module">
+  <div class="modal">
+    <div class="modal-title">Add Module</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:20px">Choose a module type:</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="module-type-card" onclick="openModuleCreate('documents')">
+        <div class="module-type-name">Documents</div>
+        <div class="module-type-desc">Upload files from your laptop</div>
+      </div>
+      <div class="module-type-card" onclick="openModuleCreate('prompts')">
+        <div class="module-type-name">AI Prompts</div>
+        <div class="module-type-desc">Save prompts with copy button</div>
+      </div>
+      <div class="module-type-card" onclick="openModuleCreate('notes')">
+        <div class="module-type-name">Notes</div>
+        <div class="module-type-desc">Write and store class notes</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="_sosClose('modal-add-module')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: MODULE CREATE (name step) -->
+<div class="modal-overlay sos-modal" id="modal-module-create">
+  <div class="modal">
+    <div class="modal-title" id="module-create-title">New Module</div>
+    <div class="field">
+      <label>Module Name</label>
+      <input type="text" id="inp-module-name" placeholder="e.g. Lecture Slides, Homework Prompts...">
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="_sosClose('modal-module-create');_sosOpen('modal-add-module')">Back</button>
+      <button class="btn primary" onclick="saveModule()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: RENAME MODULE -->
+<div class="modal-overlay sos-modal" id="modal-rename-module">
+  <div class="modal">
+    <div class="modal-title">Rename Module</div>
+    <div class="field">
+      <label>Module Name</label>
+      <input type="text" id="inp-rename-module-name" placeholder="e.g. Lecture Slides, Homework Prompts...">
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="_sosClose('modal-rename-module')">Cancel</button>
+      <button class="btn primary" onclick="saveRenameModule()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: MODULE DETAIL -->
+<div class="modal-overlay sos-modal" id="modal-module-detail">
+  <div class="modal" id="module-detail-modal" style="width:820px;max-width:96vw;max-height:92vh;overflow-y:auto">
+    <div class="modal-title" id="module-detail-title" style="display:flex;align-items:center;gap:8px">
+      <span id="module-detail-title-text">Module</span>
+      <button class="btn" id="module-detail-rename-btn" style="padding:2px 8px;font-size:11px" title="Rename" onclick="openRenameModule(_sosCurrentModuleClassId, _sosCurrentModuleId)">✎</button>
+    </div>
+    <div id="module-detail-body"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModuleDetail()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- SO-ROOT: Word-style page editor engine (docx-engine.js), shared/mounted into a
+     Notes module's detail modal. One live instance — whichever Notes module's modal
+     is open owns it; see openNotesModule() / mod.id scoping in js/notes-sync.js. -->
+<div id="so-root" style="display:none">
+  <div id="so-body">
+    <div id="so-sidebar">
+      <button id="so-new-entry-btn">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Page
+      </button>
+      <div class="search-wrap">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="so-search-box" type="text" placeholder="Search pages…">
+      </div>
+      <div id="so-entries-list"></div>
+      <div id="so-sidebar-stats">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        <span id="so-entry-count">0</span> pages
+      </div>
+    </div>
+    <div id="so-main">
+      <div id="so-toolbar">
+        <button id="so-fullscreen-btn" title="Toggle sidebar">
+          <svg id="so-fs-icon-show" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          <svg id="so-fs-icon-hide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="9" x2="9" y2="9" opacity="0.5"/><line x1="15" y1="12" x2="9" y2="12" opacity="0.5"/><line x1="15" y1="15" x2="9" y2="15" opacity="0.5"/></svg>
+        </button>
+        <div class="toolbar-sep"></div>
+        <input id="so-entry-title-input" type="text" placeholder="Untitled page…">
+        <div class="toolbar-sep"></div>
+        <div class="mode-toggle-wrap">
+          <span class="mode-toggle-label" id="so-mode-label">VIEW</span>
+          <label class="mode-toggle" title="Toggle Edit / View mode">
+            <input type="checkbox" id="so-btn-edit">
+            <div class="toggle-track"></div>
+            <div class="toggle-knob"></div>
+          </label>
+        </div>
+        <div class="toolbar-sep"></div>
+        <button class="tb-btn" id="so-btn-export-pdf" data-tip="Export as PDF">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Export PDF
+        </button>
+        <div class="toolbar-sep"></div>
+        <div id="so-tags-row" style="display:none">
+          <span class="tags-label">Tags</span>
+          <input id="so-add-tag-input" type="text" placeholder="+ add tag" maxlength="20">
+        </div>
+        <span id="so-sync-pill" class="bj-sync-pill bj-sync-idle">
+          <span class="bj-sync-dot"></span>
+          <span id="so-sync-text">Idle</span>
+        </span>
+      </div>
+      <div id="so-content-area">
+        <div id="so-empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          <h2>No Page Selected</h2>
+          <p>Create a new page to start writing, or select one from the sidebar.</p>
+          <span class="empty-hint">Click "New Page" to get started</span>
+        </div>
+        <div id="so-page-area">
+          <div class="bj-drop-zone" id="so-page-drop-zone"><div class="bj-drop-label">📁 Drop files here</div></div>
+          <div id="so-page-toolbar">
+            <select class="pt-select" id="so-pt-block">
+              <option value="p">Paragraph</option>
+              <option value="h1">Heading 1</option>
+              <option value="h2">Heading 2</option>
+              <option value="h3">Heading 3</option>
+              <option value="pre">Code Block</option>
+              <option value="blockquote">Quote</option>
+            </select>
+            <div class="pt-sep"></div>
+            <select class="pt-select" id="so-pt-fontsize" title="Font size" style="width:46px;padding:3px 2px;">
+              <option value="">—</option>
+              <option value="10">10</option>
+              <option value="12">12</option>
+              <option value="14">14</option>
+              <option value="16">16</option>
+              <option value="18">18</option>
+              <option value="20">20</option>
+              <option value="24">24</option>
+              <option value="28">28</option>
+              <option value="32">32</option>
+              <option value="36">36</option>
+              <option value="48">48</option>
+              <option value="64">64</option>
+            </select>
+            <div class="pt-sep"></div>
+            <button class="pt-btn" id="so-pt-bold" title="Bold (Ctrl+B)"><b>B</b></button>
+            <button class="pt-btn" id="so-pt-italic" title="Italic (Ctrl+I)"><i>I</i></button>
+            <button class="pt-btn" id="so-pt-underline" title="Underline (Ctrl+U)"><u>U</u></button>
+            <button class="pt-btn" id="so-pt-strike" title="Strikethrough"><s>S</s></button>
+            <button class="pt-btn" id="so-pt-code" title="Inline code">&lt;/&gt;</button>
+            <div class="pt-sep"></div>
+            <input type="color" id="so-page-color-pick" value="#ECECEE" title="Text color">
+            <div class="pt-sep"></div>
+            <button class="pt-btn" id="so-pt-ul" title="Bullet list">&#8226;&#8212;</button>
+            <button class="pt-btn" id="so-pt-ol" title="Numbered list">1.</button>
+            <div class="pt-sep"></div>
+            <button class="pt-btn" id="so-pt-alignL" title="Align left">&#8676;</button>
+            <button class="pt-btn" id="so-pt-alignC" title="Center">&#8596;</button>
+            <button class="pt-btn" id="so-pt-alignR" title="Align right">&#8677;</button>
+            <div class="pt-sep"></div>
+            <button class="pt-btn" id="so-pt-link" title="Insert link">&#128279;</button>
+            <button class="pt-btn" id="so-pt-hr" title="Divider">&#8213;</button>
+            <button class="pt-btn" id="so-pt-table" title="Insert table">&#9783;</button>
+            <button class="pt-btn" id="so-pt-md" title="Render Markdown — convert raw Markdown into formatted text" style="font-weight:700;font-size:11px;">Render Markdown</button>
+            <button class="pt-btn" id="so-page-img-btn" title="Insert image / attach file">
+              &#128247;
+              <input type="file" id="so-page-img-file" accept="*/*" multiple>
+            </button>
+            <div class="pt-sep"></div>
+            <div class="pt-hl-wrap" id="so-pt-hl-wrap" title="Highlight text">
+              <button class="pt-btn pt-hl-trigger" id="so-pt-hl-trigger" title="Highlight">
+                <span class="pt-hl-icon" id="so-pt-hl-icon">&#9646;</span><span style="font-size:9px;margin-left:1px;">▾</span>
+              </button>
+              <div class="pt-hl-palette" id="so-pt-hl-palette">
+                <button class="pt-hl-swatch" data-color="#FFE066" style="background:#FFE066;" title="Yellow"></button>
+                <button class="pt-hl-swatch" data-color="#A8F0B0" style="background:#A8F0B0;" title="Green"></button>
+                <button class="pt-hl-swatch" data-color="#A8D8FF" style="background:#A8D8FF;" title="Blue"></button>
+                <button class="pt-hl-swatch" data-color="#FFB3C6" style="background:#FFB3C6;" title="Pink"></button>
+                <button class="pt-hl-swatch" data-color="#F9C784" style="background:#F9C784;" title="Orange"></button>
+                <button class="pt-hl-swatch" data-color="#D4B0FF" style="background:#D4B0FF;" title="Purple"></button>
+                <button class="pt-hl-swatch" data-color="none" style="background:transparent;border:1.5px solid var(--border);color:var(--red);font-size:11px;font-weight:700;" title="Remove highlight">✕</button>
+              </div>
+            </div>
+            <div style="flex:1"></div>
+            <button class="pt-btn" id="so-pt-clear" title="Clear all content" style="color:var(--red);">&#128465;</button>
+          </div>
+          <div id="so-page-editor-wrap">
+            <div id="so-page-editor" contenteditable="false"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADD TASK -->
+<div class="modal-overlay sos-modal" id="modal-add-task">
+  <div class="modal" style="max-height:90vh;overflow-y:auto;">
+    <div class="modal-title" id="add-task-modal-title">New Task</div>
+    <div class="modal-scroll-body">
+    <div class="field">
+      <label>Task Name</label>
+      <input type="text" id="inp-task-name" placeholder="e.g. Read chapter 5, finish problem set...">
+    </div>
+    <div class="field" id="inp-task-class-field">
+      <label>Class (optional)</label>
+      <select id="inp-task-class">
+        <option value="">— None —</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Due Date (optional)</label>
+      <input type="date" id="inp-task-date">
+    </div>
+    <div class="field">
+      <label>Due Time (optional)</label>
+      <input type="time" id="inp-task-time">
+    </div>
+    <div class="field">
+      <label>Priority</label>
+      <select id="inp-task-priority">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="inp-task-notes" rows="2" style="resize:vertical" placeholder="Any extra details..."></textarea>
+    </div>
+    <div class="field">
+      <label>Push Notification <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0">(optional — set exact date &amp; time)</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="date" id="inp-task-notif-date" style="flex:1;min-width:130px;">
+        <input type="time" id="inp-task-notif-time" style="flex:1;min-width:110px;">
+      </div>
+    </div>
+    <!-- TASK REPEAT SECTION -->
+    <div class="field" style="border-top:1px solid var(--border2);padding-top:16px;margin-top:4px;">
+      <label>Repeat</label>
+      <div id="sos-task-repeat-warning" style="display:none;font-size:11px;color:#ff6b6b;font-weight:600;margin-bottom:8px;padding:6px 10px;background:rgba(255,107,107,0.08);border-radius:4px;border:1px solid rgba(255,107,107,0.2);">
+        ⚠ This is a repeating task. Setting "No repeat" will remove all future occurrences.
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <button type="button" class="sos-repeat-btn active" id="sos-trep-none"   onclick="sosSetTaskRepeat('none')"  >No repeat</button>
+        <button type="button" class="sos-repeat-btn"        id="sos-trep-daily"  onclick="sosSetTaskRepeat('daily')" >Every day</button>
+        <button type="button" class="sos-repeat-btn"        id="sos-trep-weekly" onclick="sosSetTaskRepeat('weekly')">Specific days</button>
+      </div>
+      <div id="sos-task-repeat-days" style="display:none;margin-bottom:10px;">
+        <div style="font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;font-family:'Lora',serif;">Repeat on</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;" id="sos-task-day-btns">
+          <button type="button" class="sos-day-btn" data-day="0" data-ctx="task" onclick="sosToggleTaskDay(0)">Mon</button>
+          <button type="button" class="sos-day-btn" data-day="1" data-ctx="task" onclick="sosToggleTaskDay(1)">Tue</button>
+          <button type="button" class="sos-day-btn" data-day="2" data-ctx="task" onclick="sosToggleTaskDay(2)">Wed</button>
+          <button type="button" class="sos-day-btn" data-day="3" data-ctx="task" onclick="sosToggleTaskDay(3)">Thu</button>
+          <button type="button" class="sos-day-btn" data-day="4" data-ctx="task" onclick="sosToggleTaskDay(4)">Fri</button>
+          <button type="button" class="sos-day-btn" data-day="5" data-ctx="task" onclick="sosToggleTaskDay(5)">Sat</button>
+          <button type="button" class="sos-day-btn" data-day="6" data-ctx="task" onclick="sosToggleTaskDay(6)">Sun</button>
+        </div>
+      </div>
+      <div id="sos-task-repeat-until" style="display:none;">
+        <div style="font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;font-family:'Lora',serif;">Until</div>
+        <input type="date" id="inp-task-repeat-end" style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:10px 12px;font-size:14px;color:var(--text);font-family:var(--sans);font-weight:600;width:auto;">
+      </div>
+    </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-delete-task" style="color:#ff6b6b;display:none" onclick="deleteEditingTask()">Delete</button>
+      <button class="btn" onclick="_sosClose('modal-add-task')">Cancel</button>
+      <button class="btn primary" onclick="saveTask()">Save Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADD EVENT -->
+<div class="modal-overlay sos-modal" id="modal-add-event">
+  <div class="modal">
+    <div class="modal-title">Add Event</div>
+    <div class="modal-scroll-body">
+    <div class="field">
+      <label>Event Name</label>
+      <input type="text" id="inp-event-name" placeholder="e.g. Midterm Exam, HW Due...">
+    </div>
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="inp-event-date">
+    </div>
+    <div class="field">
+      <label>Time (optional)</label>
+      <input type="time" id="inp-event-time">
+    </div>
+    <div class="field">
+      <label>Class (optional)</label>
+      <select id="inp-event-class">
+        <option value="">— None —</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Type</label>
+      <select id="inp-event-type">
+        <option value="exam">Exam</option>
+        <option value="hw">Homework Due</option>
+        <option value="quiz">Quiz</option>
+        <option value="lecture">Lecture</option>
+        <option value="lab">Lab</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Grade Weight % <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0">(optional — for priority score)</span></label>
+      <input type="number" id="inp-event-weight" min="0" max="100" step="1" placeholder="e.g. 30 for a 30% final">
+    </div>
+    <div class="field">
+      <label>Push Notification <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0">(optional — set exact date &amp; time)</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="date" id="inp-event-notif-date" style="flex:1;min-width:130px;">
+        <input type="time" id="inp-event-notif-time" style="flex:1;min-width:110px;">
+      </div>
+    </div>
+    <!-- REPEAT SECTION -->
+    <div class="field" style="border-top:1px solid var(--border2);padding-top:16px;margin-top:4px;">
+      <label>Repeat</label>
+      <div id="sos-repeat-warning" style="display:none;font-size:11px;color:#ff6b6b;font-weight:600;margin-bottom:8px;padding:6px 10px;background:rgba(255,107,107,0.08);border-radius:4px;border:1px solid rgba(255,107,107,0.2);">
+        ⚠ This is a repeating event. Setting "No repeat" will remove all future occurrences.
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <button type="button" class="sos-repeat-btn active" id="sos-rep-none"   onclick="sosSetRepeat('none')"   style="">No repeat</button>
+        <button type="button" class="sos-repeat-btn"        id="sos-rep-daily"  onclick="sosSetRepeat('daily')"  style="">Every day</button>
+        <button type="button" class="sos-repeat-btn"        id="sos-rep-weekly" onclick="sosSetRepeat('weekly')" style="">Specific days</button>
+      </div>
+      <div id="sos-repeat-days" style="display:none;margin-bottom:10px;">
+        <div style="font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;font-family:'Lora',serif;">Repeat on</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;" id="sos-day-btns">
+          <button type="button" class="sos-day-btn" data-day="0" onclick="sosToggleDay(0)">Mon</button>
+          <button type="button" class="sos-day-btn" data-day="1" onclick="sosToggleDay(1)">Tue</button>
+          <button type="button" class="sos-day-btn" data-day="2" onclick="sosToggleDay(2)">Wed</button>
+          <button type="button" class="sos-day-btn" data-day="3" onclick="sosToggleDay(3)">Thu</button>
+          <button type="button" class="sos-day-btn" data-day="4" onclick="sosToggleDay(4)">Fri</button>
+          <button type="button" class="sos-day-btn" data-day="5" onclick="sosToggleDay(5)">Sat</button>
+          <button type="button" class="sos-day-btn" data-day="6" onclick="sosToggleDay(6)">Sun</button>
+        </div>
+      </div>
+      <div id="sos-repeat-until" style="display:none;">
+        <div style="font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;font-family:'Lora',serif;">Until</div>
+        <input type="date" id="inp-event-repeat-end" style="background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:10px 12px;font-size:14px;color:var(--text);font-family:var(--sans);font-weight:600;width:auto;">
+      </div>
+    </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btn-delete-event" style="color:#ff6b6b;display:none" onclick="deleteEditingEvent()">Delete</button>
+      <button class="btn" onclick="_sosClose('modal-add-event')">Cancel</button>
+      <button class="btn primary" onclick="saveEvent()">Save Event</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ App Lock overlay ══════════════════════════════════════════════════════
+     Lives outside #study-root so it stays visible while the app is hidden. -->
+<div id="applock-overlay">
+  <div id="applock-box">
+    <div id="applock-icon"></div>
+    <div id="applock-head">
+      <div id="applock-title">Locked</div>
+      <div id="applock-sub">Enter your password to open this app.</div>
+    </div>
+    <div id="applock-form">
+      <div id="applock-bio"></div>
+      <input id="applock-pw" type="password" placeholder="Password" autocomplete="off" />
+      <div id="applock-err"></div>
+      <button id="applock-submit">Unlock</button>
+      <div id="applock-links">
+        <button id="applock-forgot">Forgot password?</button>
+        <button id="applock-reset">Reset password via email</button>
+      </div>
+    </div>
+    <div id="applock-foot">
+      <button id="applock-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Modules ══════════════════════════════════════════════════════════════
+     Order is load-bearing:
+       ui.js          defines uiConfirm/uiPrompt/uiForm, which applock.js uses
+       applock.js     defines window.SOS_GATE before studyos.js waits on it
+       firebase-sync  type=module, so it is deferred by spec — the app listens
+                      for the fb-ready event rather than assuming it is up
+       push.js        needs _fbSaveReminder from firebase-sync (checked at call)
+       studyos.js     the app; boots once SOS_GATE resolves
+       taskmirror.js  LAST — reads window._sosBridge, which studyos.js defines
+     ══════════════════════════════════════════════════════════════════════ -->
+<script src="js/shell.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/applock.js"></script>
+<script type="module" src="js/firebase-sync.js"></script>
+<script src="js/push.js"></script>
+<script src="js/drag-list.js"></script>
+<script src="js/notes-sync.js"></script>
+<script src="js/docx-engine.js"></script>
+<script src="js/studyos.js"></script>
+<script type="module" src="js/taskmirror.js"></script>
+<!-- Last: binds the pull gesture to the renderers studyos.js defines above. -->
+<script src="js/pulltorefresh.js"></script>
+</body>
+</html>
