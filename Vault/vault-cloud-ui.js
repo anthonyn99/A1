@@ -81,7 +81,9 @@
     activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
-    restore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>'
+    restore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
+    caret: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
   };
   function kindIcon(k) {
     return ICON[k] || (k === 'folder' ? ICON.folder : ICON.file);
@@ -103,8 +105,8 @@
          #vault-cloud-panel left their icons with no width/height at all, so they
          painted at the SVG's natural size and swallowed the screen. Every Cloud
          surface has to be listed here, wherever it lives in the DOM. */
-      '#vault-cloud-panel svg,.vcl-menu svg,.vcl-ov svg,.vcl-dock svg,.vcl-selbar svg,.vcl-toast svg,.vcl-drop svg{width:1em;height:1em;display:block;flex:0 0 auto;}',
-      '.vcl-menu button svg,.vcl-ov .vcl-ib svg,.vcl-dock svg,.vcl-selbar svg{max-width:1em;max-height:1em;}',
+      '#vault-cloud-panel svg,.vcl-menu svg,.vcl-ov svg,.vcl-dock svg,.vcl-selbar svg,.vcl-toast svg,.vcl-drop svg,.vcl-ddp svg{width:1em;height:1em;display:block;flex:0 0 auto;}',
+      '.vcl-menu button svg,.vcl-ov .vcl-ib svg,.vcl-dock svg,.vcl-selbar svg,.vcl-ddp svg{max-width:1em;max-height:1em;}',
 
       /* toolbar */
       '.vcl-bar{position:sticky;top:calc(var(--vhbar-h,0px) + var(--vtabs-h,0px));z-index:24;background:var(--bg);border-bottom:1px solid var(--bd);padding:10px 0 9px;display:flex;flex-direction:column;gap:9px;}',
@@ -125,6 +127,24 @@
       '.vcl-seg button:last-child{border-right:0;}',
       '.vcl-seg button.on{color:var(--ac);background:var(--s1);}',
       '.vcl-seg button:hover{color:var(--tx);}',
+
+      /* themed dropdown (replaces <select>) */
+      '.vcl-ddw{flex:0 0 auto;display:inline-flex;}',
+      '.vcl-dd{display:inline-flex;align-items:center;gap:7px;appearance:none;background:transparent;border:1px solid var(--bd);border-radius:var(--radius-sm);color:var(--txd);font:500 12px/1 var(--sans);padding:8px 10px;cursor:pointer;white-space:nowrap;transition:border-color .18s,color .18s;}',
+      '.vcl-dd:hover{border-color:var(--bdl);color:var(--tx);}',
+      '.vcl-dd.open{border-color:var(--ac);color:var(--ac);}',
+      '.vcl-dd svg{font-size:13px;opacity:.75;transition:transform .18s;}',
+      '.vcl-dd.open svg{transform:rotate(180deg);opacity:1;}',
+      '.vcl-dd.sm{font-size:11.5px;padding:7px 9px;background:var(--s1);}',
+      '.vcl-dd .lb{pointer-events:none;}',
+      '.vcl-ddp{position:fixed;z-index:85;padding:5px;border:1px solid var(--bdl);border-radius:var(--radius);background:var(--s2);box-shadow:0 14px 38px var(--shadow);max-height:min(58vh,340px);overflow:auto;animation:vclddin .13s ease;}',
+      '@keyframes vclddin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}',
+      '.vcl-ddp button{display:flex;align-items:center;gap:10px;width:100%;appearance:none;background:transparent;border:0;color:var(--txd);font:500 12.5px/1 var(--sans);padding:9px 10px;border-radius:5px;cursor:pointer;text-align:left;white-space:nowrap;transition:background .14s,color .14s;}',
+      '.vcl-ddp button span{flex:1;}',
+      '.vcl-ddp button:hover{background:var(--s3);color:var(--tx);}',
+      '.vcl-ddp button.on{color:var(--ac);}',
+      '.vcl-ddp button svg{font-size:13px;flex:0 0 auto;}',
+      '@media(prefers-reduced-motion:reduce){.vcl-ddp{animation:none;}.vcl-dd svg{transition:none;}}',
 
       '.vcl-search{flex:1 1 190px;min-width:150px;display:flex;align-items:center;gap:7px;border:1px solid var(--bd);border-radius:var(--radius-sm);padding:0 10px;background:var(--s1);transition:border-color .18s;}',
       '.vcl-search:focus-within{border-color:var(--ac);}',
@@ -401,6 +421,64 @@
     setTimeout(function () { input.focus(); input.select(); }, 40);
   }
 
+  /* ── Themed dropdown ──────────────────────────────────────────────────────
+   * Replaces <select>. The native control's popup is rendered by the operating
+   * system and can't be styled at all — no border-radius, no colours, no font —
+   * so it landed as a white/blue OS list in the middle of a charcoal-and-gold UI.
+   * This is a button plus a positioned panel: same keyboard behaviour, fully
+   * themed, and it flips upward near the bottom of the viewport. */
+  function dropdown(opts, value, label, onPick, small) {
+    var current = opts.filter(function (o) { return String(o[0]) === String(value); })[0] || opts[0];
+    var btn = el('button', {
+      class: 'vcl-dd' + (small ? ' sm' : ''), type: 'button',
+      'aria-haspopup': 'listbox', 'aria-label': label,
+      html: '<span class="lb">' + esc(current[1]) + '</span>' + ICON.caret
+    });
+    var wrap = el('div', { class: 'vcl-ddw' }, [btn]);
+
+    function close() {
+      var p = document.querySelector('.vcl-ddp');
+      if (p) p.remove();
+      btn.classList.remove('open');
+      document.removeEventListener('click', onDoc, true);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    }
+    function onDoc(e) { if (!e.target.closest('.vcl-ddp') && e.target !== btn && !btn.contains(e.target)) close(); }
+
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (btn.classList.contains('open')) { close(); return; }
+      close();
+      var panel = el('div', { class: 'vcl-ddp', role: 'listbox' });
+      opts.forEach(function (o) {
+        panel.appendChild(el('button', {
+          type: 'button', role: 'option',
+          class: String(o[0]) === String(value) ? 'on' : '',
+          'aria-selected': String(o[0]) === String(value) ? 'true' : 'false',
+          html: '<span>' + esc(o[1]) + '</span>' + (String(o[0]) === String(value) ? ICON.check : ''),
+          onclick: function (ev) { ev.stopPropagation(); close(); onPick(o[0]); }
+        }));
+      });
+      document.body.appendChild(panel);
+      var r = btn.getBoundingClientRect();
+      var ph = panel.offsetHeight;
+      // Flip up when there isn't room below — otherwise the list is cut off by
+      // the viewport on a phone.
+      var top = (r.bottom + ph + 8 > window.innerHeight && r.top - ph - 6 > 0) ? r.top - ph - 6 : r.bottom + 6;
+      panel.style.top = Math.max(8, top) + 'px';
+      panel.style.left = Math.max(8, Math.min(r.left, window.innerWidth - panel.offsetWidth - 8)) + 'px';
+      panel.style.minWidth = Math.max(r.width, 132) + 'px';
+      btn.classList.add('open');
+      setTimeout(function () {
+        document.addEventListener('click', onDoc, true);
+        window.addEventListener('resize', close);
+        window.addEventListener('scroll', close, true);
+      }, 0);
+    });
+    return wrap;
+  }
+
   /* ── Data loading ─────────────────────────────────────────────────────────*/
   var loadSeq = 0;
 
@@ -671,12 +749,13 @@
     });
     r2.appendChild(seg);
 
-    var sort = el('select', { 'aria-label': 'Sort files', style: 'appearance:none;background:transparent;border:1px solid var(--bd);border-radius:var(--radius-sm);color:var(--txd);font:500 12px/1 var(--sans);padding:8px 9px;cursor:pointer;flex:0 0 auto;' });
-    [['name', 'Name'], ['modified', 'Modified'], ['created', 'Created'], ['size', 'Size'], ['type', 'Type']].forEach(function (o) {
-      sort.appendChild(el('option', { value: o[0], text: o[1], selected: S.sortKey === o[0] ? 'selected' : null }));
-    });
-    sort.addEventListener('change', function () { S.sortKey = sort.value; vc().save(); render(); });
-    r2.appendChild(sort);
+    // A native <select> can't be themed — its popup is drawn by the OS, which is
+    // why it showed up as a white/blue list against everything else here.
+    r2.appendChild(dropdown(
+      [['name', 'Name'], ['modified', 'Modified'], ['created', 'Created'], ['size', 'Size'], ['type', 'Type']],
+      S.sortKey, 'Sort by',
+      function (v) { S.sortKey = v; vc().save(); render(); }
+    ));
     r2.appendChild(el('button', {
       class: 'vcl-chip', text: S.sortDir === 'asc' ? '↑' : '↓',
       title: S.sortDir === 'asc' ? 'Ascending' : 'Descending', 'aria-label': 'Toggle sort direction',
@@ -728,10 +807,9 @@
 
   function buildFilters(row) {
     function sel(label, key, opts) {
-      var s = el('select', { 'aria-label': label, style: 'appearance:none;background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius-sm);color:var(--txd);font:500 11.5px/1 var(--sans);padding:7px 8px;cursor:pointer;flex:0 0 auto;' });
-      opts.forEach(function (o) { s.appendChild(el('option', { value: o[0], text: o[1], selected: String(ST.filter[key]) === String(o[0]) ? 'selected' : null })); });
-      s.addEventListener('change', function () { ST.filter[key] = s.value; renderFilesOnly(); });
-      return s;
+      return dropdown(opts, ST.filter[key], label, function (v) {
+        ST.filter[key] = v; renderFilesOnly();
+      }, true);
     }
     var d = 86400000;
     row.appendChild(sel('File type', 'kind', [['', 'Any type'], ['folder', 'Folders'], ['image', 'Images'], ['video', 'Video'], ['audio', 'Audio'], ['pdf', 'PDF'], ['doc', 'Documents'], ['text', 'Text'], ['archive', 'Archives'], ['other', 'Other']]));

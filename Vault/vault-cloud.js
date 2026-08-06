@@ -885,6 +885,10 @@
           item.status = 'done'; item.loaded = item.size; item.entry = entry; qEmit();
           logActivity('Uploaded', item.provider, item.name);
           if (entry) touchRecent(entry, 'uploaded');
+          // Drop the cached listing for the folder we just wrote into, or the
+          // refresh this event triggers would re-paint the pre-upload contents
+          // straight back from cache.
+          cacheClear();
           window.dispatchEvent(new CustomEvent('vault-cloud-changed', { detail: { provider: item.provider, parent: item.parent } }));
         } catch (e) {
           if (item.status === 'paused' || item.status === 'cancelled') { qEmit(); continue; }
