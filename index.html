@@ -8821,8 +8821,50 @@ function toMonIdx(jsd){return jsd===0?6:jsd-1;}
 // few dozen rows) → 5yr; annual (≤10 rows) → 10yr.
 function thRepeatMaxYears(mode){return mode==="annually"?10:(mode==="weekly"||mode==="monthly")?5:mode==="daily"?2:1;}
 function getMondayKey(date){const d=new Date(date);const dow=d.getDay();const mo=dow===0?-6:1-dow;d.setDate(d.getDate()+mo);return dkey(d.getFullYear(),d.getMonth(),d.getDate());}
-const SK={data:"td_data",habits:"td_habits",hc:"td_hc",goals:"td_mg",mgoals:"td_mg_short",seeded:"td_seeded",weekKey:"td_week",goalPrefs:"td_goalprefs"};
+const SK={data:"td_data",habits:"td_habits",hc:"td_hc",goals:"td_mg",mgoals:"td_mg_short",seeded:"td_seeded",weekKey:"td_week",goalPrefs:"td_goalprefs",rules:"td_rules",rulesDaily:"td_rules_daily"};
 const GOAL_PREFS_DEF={hideShort:false,hideLong:false};
+
+/* ── RULES — the daily checklist gate (Veda-owned) ──────────────────────────
+   Ported from rules.html. Two halves:
+   1. The list: [{id,text,created}]; ARRAY ORDER IS DISPLAY ORDER, so reordering
+      is a splice, never a sort key.
+   2. The checklist modal: a hard gate on the first open of each day. Boxes
+      unlock strictly in sequence — the first RULES_DELAY seconds after the modal
+      opens, each next one that long after the box above it is ticked — so the
+      list cannot be skimmed or clicked through.
+
+   Completion is recorded against the EASTERN date, not UTC: a UTC date rolls
+   over at 8pm ET, which would mis-date an evening session as tomorrow and skip
+   the next day's prompt.
+
+   NOTE: unlike tradeboard.html / rules.html, this gate runs EVERY day. There is
+   deliberately no isWeekdayET() check — weekends are not skipped. */
+const RULES_DAILY_DEF={lastCompleted:null,enabled:true};
+const RULES_DELAY=3;   // seconds a rule must be on screen before it can be ticked
+function vdEtParts(d){
+  const p=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",
+    year:"numeric",month:"2-digit",day:"2-digit",weekday:"short"})
+    .formatToParts(d).reduce((a,x)=>{a[x.type]=x.value;return a;},{});
+  return{y:+p.year,mo:+p.month,d:+p.day,wd:p.weekday};
+}
+function vdTodayET(){
+  const p=vdEtParts(new Date()),z=n=>String(n).padStart(2,"0");
+  return p.y+"-"+z(p.mo)+"-"+z(p.d);
+}
+// "Monday, July 28" in ET — header line for the checklist.
+function vdTodayLabelET(){
+  return new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",
+    weekday:"long",month:"long",day:"numeric"}).format(new Date());
+}
+function vdSeedRules(){
+  const now=Date.now();
+  return[
+    "No trade without a plan — entry, stop and target written down first.",
+    "One setup at a time — no revenge trades after a loss.",
+    "Stop trading for the day at -3R or 3 consecutive losses.",
+    "Size every position so the stop risks no more than 1R.",
+  ].map((text,i)=>({id:uid(),text,created:now+i}));
+}
 // Auto-delete a checked-off goal 30 days after completion (see Tony's TaskHub for details).
 const DONE_GOAL_TTL=30*24*60*60*1000;
 function pruneDoneGoals(list){return Array.isArray(list)?list.filter(function(g){return !(g&&g.done&&g.completedAt&&(Date.now()-g.completedAt)>DONE_GOAL_TTL);}):list;}
@@ -8875,7 +8917,11 @@ function thSplitArchivable(data){
 function buildSeed(){const n=new Date(),y=n.getFullYear(),m=n.getMonth(),d=n.getDate(),data={},w=gwk(y,m,d);const s=[[{id:uid(),type:"task",title:"Review project notes",category:"work",done:true},{id:uid(),type:"task",title:"Check email & reply",category:"work",done:false},{id:uid(),type:"event",title:"Stand-up meeting",category:"work",time:"09:00"}],[{id:uid(),type:"task",title:"Update roadmap",category:"work",done:false},{id:uid(),type:"task",title:"Exercise (30 min)",category:"health",done:true},{id:uid(),type:"event",title:"Client call",category:"work",time:"14:00"}],[{id:uid(),type:"task",title:"Morning run",category:"health",done:true},{id:uid(),type:"task",title:"Work on assignment",category:"study",done:false},{id:uid(),type:"event",title:"Study group",category:"study",time:"16:00"}],[{id:uid(),type:"task",title:"Shop for groceries",category:"personal",done:false},{id:uid(),type:"task",title:"Update roadmap",category:"work",done:false},{id:uid(),type:"event",title:"Client call",category:"work",time:"11:00"}],[{id:uid(),type:"task",title:"Presentation prep",category:"work",done:false},{id:uid(),type:"task",title:"Wrap-up meeting",category:"work",done:true},{id:uid(),type:"event",title:"Team retrospective",category:"work",time:"15:00"}],[{id:uid(),type:"task",title:"Family time",category:"personal",done:false},{id:uid(),type:"task",title:"Weekly review",category:"personal",done:false}],[{id:uid(),type:"task",title:"Meal prep",category:"health",done:false},{id:uid(),type:"task",title:"Rest & recharge",category:"personal",done:false}]];w.forEach((wd,i)=>{if(s[i])data[dkey(wd.year,wd.month,wd.day)]=s[i];});return data;}
 const HAB_DEF=[{id:uid(),title:"Review daily progress"},{id:uid(),title:"Organize workspace"},{id:uid(),title:"Plan daily emails"},{id:uid(),title:"Check analytics"},{id:uid(),title:"Read 20 pages"},{id:uid(),title:"Exercise"},{id:uid(),title:"Meditate"},{id:uid(),title:"Drink water (8 glasses)"}];
 const MG_DEF=[{id:uid(),title:"Review project roadmap",done:false},{id:uid(),title:"Prepare and send invoices",done:false},{id:uid(),title:"Evaluate expenses",done:true},{id:uid(),title:"Check and restock supplies",done:false},{id:uid(),title:"Audit finances",done:false},{id:uid(),title:"Update software stack",done:false}];
-function initData(){const now=new Date(),cw=getMondayKey(now);if(localStorage.getItem(SK.seeded)){let hcD=loadJ(SK.hc,{});const sw=localStorage.getItem(SK.weekKey);if(sw!==cw){hcD={};saveJ(SK.hc,hcD);localStorage.setItem(SK.weekKey,cw);}return{data:loadJ(SK.data,{}),habits:loadJ(SK.habits,[]),hc:hcD,goals:loadJ(SK.goals,[]),monthlyGoals:loadJ(SK.mgoals,[]),goalPrefs:{...GOAL_PREFS_DEF,...loadJ(SK.goalPrefs,{})}};}else{const d=buildSeed();saveJ(SK.data,d);saveJ(SK.habits,HAB_DEF);saveJ(SK.hc,{});saveJ(SK.goals,MG_DEF);saveJ(SK.mgoals,[]);localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);return{data:d,habits:HAB_DEF,hc:{},goals:MG_DEF,monthlyGoals:[],goalPrefs:{...GOAL_PREFS_DEF}};}}
+function initData(){const now=new Date(),cw=getMondayKey(now);if(localStorage.getItem(SK.seeded)){let hcD=loadJ(SK.hc,{});const sw=localStorage.getItem(SK.weekKey);if(sw!==cw){hcD={};saveJ(SK.hc,hcD);localStorage.setItem(SK.weekKey,cw);}// Rules arrived after this key set shipped, so an already-seeded install has no
+// td_rules yet — seed it here rather than treating "missing" as "empty list".
+const rl=loadJ(SK.rules,null),rules=rl==null?vdSeedRules():rl;
+if(rl==null)saveJ(SK.rules,rules);
+return{data:loadJ(SK.data,{}),habits:loadJ(SK.habits,[]),hc:hcD,goals:loadJ(SK.goals,[]),monthlyGoals:loadJ(SK.mgoals,[]),goalPrefs:{...GOAL_PREFS_DEF,...loadJ(SK.goalPrefs,{})},rules:rules,rulesDaily:{...RULES_DAILY_DEF,...loadJ(SK.rulesDaily,{})}};}else{const d=buildSeed();const rules=vdSeedRules();saveJ(SK.data,d);saveJ(SK.habits,HAB_DEF);saveJ(SK.hc,{});saveJ(SK.goals,MG_DEF);saveJ(SK.mgoals,[]);saveJ(SK.rules,rules);saveJ(SK.rulesDaily,{...RULES_DAILY_DEF});localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);return{data:d,habits:HAB_DEF,hc:{},goals:MG_DEF,monthlyGoals:[],goalPrefs:{...GOAL_PREFS_DEF},rules:rules,rulesDaily:{...RULES_DAILY_DEF}};}}
 const Chk=({s=9})=>React.createElement("svg",{width:s,height:s,viewBox:"0 0 12 12",fill:"none"},React.createElement("path",{d:"M2 6.5L5 9.5L10 3",stroke:BG,strokeWidth:"2.5",strokeLinecap:"round",strokeLinejoin:"round"}));
 function DatePicker({value,onChange,label,maxYears=1}){const now=new Date(),curY=now.getFullYear();const maxDate=new Date(curY+maxYears,now.getMonth(),now.getDate());const years=[];for(let y=curY;y<=curY+maxYears;y++)years.push(y);const selY=value?.year||curY,selM=value?.month!=null?value.month:now.getMonth(),selD=value?.day||1;const maxD=dimM(selY,selM);const days=[];for(let d=1;d<=maxD;d++)days.push(d);const sel={background:BG,border:"1px solid "+BDL,borderRadius:4,color:TX,fontSize:12,fontWeight:600,padding:"5px 5px",fontFamily:"inherit",outline:"none",cursor:"pointer"};const update=(f,v)=>{const nv={month:selM,day:selD,year:selY,...(value||{}),[f]:parseInt(v)};const mx=dimM(nv.year,nv.month);if(nv.day>mx)nv.day=mx;if(new Date(nv.year,nv.month,nv.day)>maxDate){nv.year=maxDate.getFullYear();nv.month=maxDate.getMonth();nv.day=maxDate.getDate();}onChange(nv);};return React.createElement("div",null,React.createElement("div",{style:{fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}},label),React.createElement("div",{style:{display:"flex",gap:5,alignItems:"center"}},React.createElement("select",{style:{...sel,minWidth:72},value:selM,onChange:e=>update("month",e.target.value)},MOS.map((m,i)=>React.createElement("option",{key:i,value:i},m))),React.createElement("select",{style:{...sel,minWidth:50},value:selD,onChange:e=>update("day",e.target.value)},days.map(d=>React.createElement("option",{key:d,value:d},d))),React.createElement("select",{style:{...sel,minWidth:66},value:selY,onChange:e=>update("year",e.target.value)},years.map(y=>React.createElement("option",{key:y,value:y},y)))));}
 function VedaDayPicker({selected,onChange}){const toggle=i=>{if(selected.includes(i))onChange(selected.filter(x=>x!==i));else onChange([...selected,i].sort());};return React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},DS.map((d,i)=>React.createElement("button",{key:i,onClick:()=>toggle(i),style:{fontSize:11,fontWeight:selected.includes(i)?700:600,padding:"5px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:selected.includes(i)?A:BG,color:selected.includes(i)?BG:TXD,border:selected.includes(i)?"1px solid "+A:"1px solid "+BDL,transition:"all .15s"}},d)));}
@@ -9057,21 +9103,178 @@ function GitaLessonsBrowser({onClose, onSelectLesson}){
   );
 }
 
-function VdSimpleEditModal({open,onClose,onSave,initialText,heading}){
+// `multiline` (opt-in) swaps the input for a textarea — rule text is long-form.
+// Plain Enter then inserts a newline and Ctrl/Cmd+Enter saves, matching the
+// rules authoring flow in rules.html. Existing callers omit it and are unchanged.
+// `zIndex` (opt-in) lets it stack above the rules checklist, which sits at 3000.
+function VdSimpleEditModal({open,onClose,onSave,initialText,heading,multiline,zIndex,placeholder}){
   const[val,setVal]=React.useState("");
   React.useEffect(()=>{if(open)setVal(initialText||"");},[open,initialText]);
   if(!open)return null;
   const save=()=>{if(!val.trim())return;onSave(val.trim());onClose();};
-  const ov={position:"fixed",inset:0,background:"rgba(0,0,0,.65)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500};
+  const ov={position:"fixed",inset:0,background:"rgba(0,0,0,.65)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:zIndex||2500};
   const bx={background:S1,border:"1px solid "+BDL,borderRadius:14,padding:22,width:380,maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,.5)"};
   const mi={background:"#26272A",border:"1px solid "+BDL,borderRadius:7,color:TX,fontSize:13,padding:"9px 11px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
   return RC("div",{style:ov,onClick:onClose},
     RC("div",{style:bx,onClick:e=>e.stopPropagation()},
       RC("div",{style:{fontFamily:"'Lora',serif",fontSize:14,fontWeight:700,color:A,marginBottom:14}},heading),
-      RC("input",{style:mi,value:val,autoFocus:true,onChange:e=>setVal(e.target.value),onKeyDown:e=>{if(e.key==="Enter")save();if(e.key==="Escape")onClose();}}),
+      multiline
+        ? RC("textarea",{style:{...mi,minHeight:88,lineHeight:1.55,resize:"vertical"},value:val,autoFocus:true,placeholder:placeholder||"",onChange:e=>setVal(e.target.value),onKeyDown:e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey))save();if(e.key==="Escape")onClose();}})
+        : RC("input",{style:mi,value:val,autoFocus:true,placeholder:placeholder||"",onChange:e=>setVal(e.target.value),onKeyDown:e=>{if(e.key==="Enter")save();if(e.key==="Escape")onClose();}}),
       RC("div",{style:{display:"flex",gap:8,marginTop:14}},
         RC("button",{style:{background:A,color:BG,border:"none",borderRadius:7,padding:"8px 22px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:save},"Save"),
         RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:7,padding:"8px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer"},onClick:onClose},"Cancel"))));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RULES CHECKLIST — the daily pre-market gate. Ported from rules.html.
+
+   mode "gate"   : auto-opened once a day. A HARD gate — no close button, no
+                   backdrop dismiss, Escape swallowed. The only way out is to
+                   read every rule and tick every box.
+   mode "manage" : opened from the header button. Same checklist, plus the
+                   authoring UI, and it IS dismissible — a manual open must
+                   never be able to trap you.
+
+   The unlock invariant: `unlocked` (the highest tickable row) is advanced ONLY
+   by a finished countdown. That is what makes the sequence unskippable — no
+   click path can move the frontier forward.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,onToggleDaily}){
+  const[unlocked,setUnlocked]=React.useState(-1);   // highest row index that may be ticked
+  const[checked,setChecked]=React.useState([]);     // ticked row indices, in order
+  const[editing,setEditing]=React.useState(null);   // {index,text} | {index:-1} for add
+  const[confirmDel,setConfirmDel]=React.useState(null);
+  const timer=React.useRef(null);
+  const listRef=React.useRef(null);
+  const total=rules.length;
+  const done=checked.length;
+  const complete=total>0&&done>=total;
+
+  // Hold row i for RULES_DELAY seconds, then unlock it. Only ONE timer is ever
+  // live — clearing first means a double-call can't double-fire and skip a row.
+  const startCountdown=React.useCallback((i)=>{
+    clearTimeout(timer.current);
+    timer.current=setTimeout(()=>{timer.current=null;setUnlocked(i);},RULES_DELAY*1000);
+  },[]);
+
+  // Reset and arm row 0 on every open. Also re-arms if the list changes while
+  // the manage view is open (adding a rule mid-run must not strand the gate).
+  React.useEffect(()=>{
+    if(!open){clearTimeout(timer.current);timer.current=null;return;}
+    setUnlocked(-1);setChecked([]);
+    if(total>0)startCountdown(0);
+    return()=>{clearTimeout(timer.current);timer.current=null;};
+  },[open,total,startCountdown]);
+
+  // Escape is swallowed in the CAPTURE phase while the gate is up, so it wins
+  // over every other handler on the page. In manage mode it closes normally.
+  React.useEffect(()=>{
+    if(!open)return;
+    const onKey=(e)=>{
+      if(e.key!=="Escape")return;
+      if(editing||confirmDel)return;          // let the nested modal take it
+      if(mode==="gate"){e.preventDefault();e.stopPropagation();}
+      else onClose();
+    };
+    document.addEventListener("keydown",onKey,true);
+    return()=>document.removeEventListener("keydown",onKey,true);
+  },[open,mode,editing,confirmDel,onClose]);
+
+  if(!open)return null;
+
+  const tick=(i)=>{
+    if(i>unlocked||checked.includes(i))return;   // beyond the frontier — reject
+    const next=[...checked,i];
+    setChecked(next);
+    if(next.length<total){
+      startCountdown(i+1);
+      // Keep the newly-active row in view on a long list.
+      setTimeout(()=>{
+        const el=listRef.current&&listRef.current.querySelector('[data-rc-row="'+(i+1)+'"]');
+        if(el&&el.scrollIntoView){try{el.scrollIntoView({block:"nearest",behavior:"smooth"});}catch(_){}}
+      },0);
+    }
+  };
+
+  const finish=()=>{ if(complete)onComplete(); };
+
+  // ── authoring (manage mode only) ──
+  const addRule=(text)=>onSetRules([...rules,{id:uid(),text:text.trim(),created:Date.now()}]);
+  const editRule=(i,text)=>onSetRules(rules.map((r,x)=>x===i?{...r,text:text.trim()}:r));
+  const delRule=(i)=>onSetRules(rules.filter((_,x)=>x!==i));
+  // ARRAY ORDER IS DISPLAY ORDER — reordering is a splice, not a sort key.
+  const moveRule=(i,dir)=>{
+    const j=i+dir;
+    if(j<0||j>=rules.length)return;
+    const arr=[...rules];const[row]=arr.splice(i,1);arr.splice(j,0,row);
+    onSetRules(arr);
+  };
+
+  const ov={position:"fixed",inset:0,background:"rgba(6,6,10,.82)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16};
+  const bx={background:S1,border:"1px solid "+BDL,borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,.5)",width:560,maxWidth:"100%",maxHeight:"88vh",display:"flex",flexDirection:"column",overflow:"hidden",fontFamily:"'IBM Plex Mono',monospace"};
+  const iconBtn={background:"transparent",border:"1px solid transparent",borderRadius:4,color:TXD,cursor:"pointer",fontSize:12,lineHeight:1,padding:"3px 6px",fontFamily:"inherit",transition:"all .15s"};
+
+  return RC("div",{style:ov,onClick:mode==="gate"?undefined:onClose},
+    RC("div",{style:bx,onClick:e=>e.stopPropagation()},
+
+      // ── head: identity + progress ──
+      RC("div",{style:{padding:"22px 26px 16px",flexShrink:0}},
+        RC("div",{style:{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:12}},
+          RC("div",{style:{fontFamily:"'Lora',serif",fontSize:16,fontWeight:700,color:TX,letterSpacing:"-.01em"}},"Pre-Market Checklist"),
+          RC("div",{style:{fontSize:11.5,color:TXM,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}},done+" / "+total)),
+        RC("div",{style:{fontSize:11.5,color:TXM,marginTop:3}},vdTodayLabelET()+" · ET"),
+        RC("div",{style:{height:2,borderRadius:2,background:BD,marginTop:16,overflow:"hidden"}},
+          RC("div",{style:{height:"100%",width:(total?Math.round(done/total*100):0)+"%",borderRadius:2,background:A,transition:"width .35s cubic-bezier(.4,0,.2,1)"}}))),
+
+      // ── the rules ──
+      RC("div",{ref:listRef,style:{padding:"4px 26px 8px",overflowY:"auto",flex:1}},
+        total===0
+          ? RC("div",{style:{padding:"40px 20px 44px",textAlign:"center",color:TXM,fontSize:13}},"No rules yet. Add the rules you want to review before every trading day.")
+          : rules.map((r,i)=>{
+              const isDone=checked.includes(i);
+              const isActive=!isDone&&i===checked.length;
+              return RC("div",{key:r.id,"data-rc-row":i,style:{display:"flex",alignItems:"flex-start",gap:13,padding:"13px 12px",margin:"2px -12px",borderRadius:6,opacity:isDone?.55:isActive?1:.32,background:isActive?"#2E2F33":"transparent",transition:"opacity .15s ease, background .15s ease"}},
+                RC("div",{style:{flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",width:18,height:22}},
+                  RC("input",{type:"checkbox",checked:isDone,disabled:isDone||i>unlocked,onChange:()=>tick(i),style:{width:17,height:17,accentColor:A,margin:0,cursor:(isDone||i>unlocked)?"not-allowed":"pointer"}})),
+                RC("div",{style:{flex:1,minWidth:0}},
+                  RC("div",{style:{fontSize:13.5,lineHeight:1.6,color:isActive?TX:TXD,wordBreak:"break-word"}},r.text)),
+                mode==="manage"&&RC("div",{style:{display:"flex",gap:2,flexShrink:0,alignSelf:"center"}},
+                  RC("button",{title:"Move up",disabled:i===0,onClick:()=>moveRule(i,-1),style:{...iconBtn,opacity:i===0?.25:1,cursor:i===0?"default":"pointer"}},"↑"),
+                  RC("button",{title:"Move down",disabled:i===total-1,onClick:()=>moveRule(i,1),style:{...iconBtn,opacity:i===total-1?.25:1,cursor:i===total-1?"default":"pointer"}},"↓"),
+                  RC("button",{title:"Edit",onClick:()=>setEditing({index:i,text:r.text}),style:iconBtn},"✎"),
+                  RC("button",{title:"Delete",onClick:()=>setConfirmDel({index:i,text:r.text}),style:{...iconBtn,color:"#f85149"}},"✕")));
+            })),
+
+      // ── foot ──
+      RC("div",{style:{padding:"14px 26px 18px",borderTop:"1px solid #34353A",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}},
+        mode==="manage"
+          ? RC("div",{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
+              RC("label",{title:"When on, the checklist pops up the first time you open TaskHub each day.",style:{display:"inline-flex",alignItems:"center",gap:7,cursor:"pointer",fontSize:12,fontWeight:500,color:daily.enabled?AL:TXM,userSelect:"none",whiteSpace:"nowrap",padding:"6px 11px 6px 9px",borderRadius:9,background:daily.enabled?ABG:"transparent"}},
+                RC("input",{type:"checkbox",checked:!!daily.enabled,onChange:e=>onToggleDaily(e.target.checked),style:{width:13,height:13,accentColor:A,margin:0,cursor:"pointer"}}),
+                RC("span",null,"Prompt daily")),
+              RC("button",{onClick:()=>setEditing({index:-1,text:""}),style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 12px",height:32,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1}},"Add rule"))
+          : RC("div"),
+        RC("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+          mode==="manage"&&RC("button",{onClick:onClose,style:{background:"transparent",color:TXD,border:"1px solid "+BDL,borderRadius:7,padding:"0 18px",height:36,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}},"Close"),
+          RC("button",{disabled:!complete,onClick:finish,style:{background:A,color:BG,border:"1px solid "+A,borderRadius:7,padding:"0 22px",height:36,fontSize:13,fontWeight:700,cursor:complete?"pointer":"not-allowed",opacity:complete?1:.4,fontFamily:"inherit"}},"Start Trading"))),
+
+      // Nested authoring modals stack above the checklist (3000).
+      RC(VdSimpleEditModal,{open:!!editing,zIndex:3200,multiline:true,
+        heading:editing&&editing.index>=0?"Edit rule":"Add rule",
+        placeholder:"e.g. No trade without a written plan",
+        initialText:(editing&&editing.text)||"",
+        onClose:()=>setEditing(null),
+        onSave:(text)=>{if(editing.index>=0)editRule(editing.index,text);else addRule(text);}}),
+
+      confirmDel&&RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3200},onClick:()=>setConfirmDel(null)},
+        RC("div",{style:{background:S1,border:"1px solid #f85149",borderRadius:14,padding:22,width:400,maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,.5)"},onClick:e=>e.stopPropagation()},
+          RC("div",{style:{fontFamily:"'Lora',serif",fontSize:14,fontWeight:700,color:"#f85149",marginBottom:12}},"Delete rule"),
+          RC("div",{style:{fontSize:13,color:TX,lineHeight:1.55,marginBottom:18,wordBreak:"break-word"}},'"'+confirmDel.text+'"'),
+          RC("div",{style:{display:"flex",gap:8}},
+            RC("button",{onClick:()=>{delRule(confirmDel.index);setConfirmDel(null);},style:{background:"#f85149",color:BG,border:"none",borderRadius:7,padding:"8px 22px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}},"Delete"),
+            RC("button",{onClick:()=>setConfirmDel(null),style:{background:"transparent",border:"1px solid "+BDL,borderRadius:7,padding:"8px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"}},"Cancel"))))
+    ));
 }
 
 function App(){
@@ -9093,6 +9296,10 @@ function App(){
   const[mgState,setMgState]=useState(init.goals);
   const[mgMonthlyState,setMgMonthlyState]=useState(init.monthlyGoals||[]);
   const[goalPrefs,setGoalPrefsState]=useState(()=>({...GOAL_PREFS_DEF,...(init.goalPrefs||{})}));
+  // ── Rules checklist ──
+  const[rules,setRulesStateRaw]=useState(()=>init.rules||[]);
+  const[rulesDaily,setRulesDailyStateRaw]=useState(()=>({...RULES_DAILY_DEF,...(init.rulesDaily||{})}));
+  const[rulesOpen,setRulesOpen]=useState(null);   // null | "gate" | "manage"
   const[goalTab,setGoalTab]=useState("short");
   useEffect(()=>{window._vGoalTabHover=(tab)=>{setGoalTab(tab);};return()=>{delete window._vGoalTabHover;};},[]);
   const[marketCal,setMarketCal]=useState([]);
@@ -9131,12 +9338,12 @@ function App(){
   useEffect(()=>{const check=()=>{const n=new Date();if(n.getDate()!==now.getDate()||n.getMonth()!==now.getMonth()||n.getFullYear()!==now.getFullYear()){setNow(n);const cw=getMondayKey(n),sw=localStorage.getItem(SK.weekKey);if(sw!==cw){setHcState({});saveJ(SK.hc,{});localStorage.setItem(SK.weekKey,cw);}}};const t=setInterval(check,15000);return()=>clearInterval(t);},[now]);
 
   // ── stateRef: always current, updated synchronously inside wrapped setters ──
-  const vdRef=useRef({data:init.data,habits:init.habits,hc:init.hc,goals:init.goals,monthlyGoals:init.monthlyGoals||[],goalPrefs:{...GOAL_PREFS_DEF,...(init.goalPrefs||{})}});
+  const vdRef=useRef({data:init.data,habits:init.habits,hc:init.hc,goals:init.goals,monthlyGoals:init.monthlyGoals||[],goalPrefs:{...GOAL_PREFS_DEF,...(init.goalPrefs||{})},rules:init.rules||[],rulesDaily:{...RULES_DAILY_DEF,...(init.rulesDaily||{})}});
 
   const buildVdPayload=useCallback(()=>{
     const sanitizeItem=item=>{const out={};Object.entries(item).forEach(([k,v])=>{if(v===null||v===undefined)return;out[k]=v;});return out;};
     const sanitizeData=d=>{const out={};Object.entries(d).forEach(([dk,arr])=>{out[dk]=Array.isArray(arr)?arr.map(sanitizeItem):arr;});return out;};
-    return{data:sanitizeData(vdRef.current.data),habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,monthlyGoals:vdRef.current.monthlyGoals,goalPrefs:vdRef.current.goalPrefs||{...GOAL_PREFS_DEF},weekKey:getMondayKey(new Date()),savedAt:Date.now()};
+    return{data:sanitizeData(vdRef.current.data),habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,monthlyGoals:vdRef.current.monthlyGoals,goalPrefs:vdRef.current.goalPrefs||{...GOAL_PREFS_DEF},rules:vdRef.current.rules||[],rulesDaily:vdRef.current.rulesDaily||{...RULES_DAILY_DEF},weekKey:getMondayKey(new Date()),savedAt:Date.now()};
   },[]);
 
   const vdFbPush=useCallback(()=>{
@@ -9157,6 +9364,8 @@ function App(){
   const setMg=useCallback(fn=>{setMgState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.goals,next);vdRef.current={...vdRef.current,goals:next};vdFbPush();return next;});},[vdFbPush]);
   const setMgMonthly=useCallback(fn=>{setMgMonthlyState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.mgoals,next);vdRef.current={...vdRef.current,monthlyGoals:next};vdFbPush();return next;});},[vdFbPush]);
   const setGoalPrefs=useCallback(fn=>{setGoalPrefsState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.goalPrefs,next);vdRef.current={...vdRef.current,goalPrefs:next};vdFbPush();return next;});},[vdFbPush]);
+  const setRules=useCallback(fn=>{setRulesStateRaw(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.rules,next);vdRef.current={...vdRef.current,rules:next};vdFbPush();return next;});},[vdFbPush]);
+  const setRulesDaily=useCallback(fn=>{setRulesDailyStateRaw(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.rulesDaily,next);vdRef.current={...vdRef.current,rulesDaily:next};vdFbPush();return next;});},[vdFbPush]);
 
   // ── Voice control: undo/redo history (covers BOTH manual edits and AI/voice changes) + button state ──
   const vxHist=useRef({past:[],future:[],base:null,timer:null,applying:false});
@@ -9182,13 +9391,69 @@ function App(){
     const restoreData=d=>{if(!d)return{};const out={};Object.entries(d).forEach(([dk,arr])=>{out[dk]=Array.isArray(arr)?arr.map(restoreItem):arr;});return out;};
     const d=restoreData(remote.data)||{},h=remote.habits||[],g=pruneDoneGoals(remote.goals||[]),gm=pruneDoneGoals(remote.monthlyGoals||[]);
     const gp=remote.goalPrefs?{...GOAL_PREFS_DEF,...remote.goalPrefs}:{...vdRef.current.goalPrefs};
+    // A doc written before rules shipped has no `rules` field — keep the local
+    // list rather than letting "absent" read as "the user deleted everything".
+    const rl=Array.isArray(remote.rules)?remote.rules:(vdRef.current.rules||[]);
+    const rd=remote.rulesDaily?{...RULES_DAILY_DEF,...remote.rulesDaily}:{...vdRef.current.rulesDaily};
     setDataState(d);setHabitsState(h);setHcState(hcD);setMgState(g);setMgMonthlyState(gm);setGoalPrefsState(gp);
-    vdRef.current={data:d,habits:h,hc:hcD,goals:g,monthlyGoals:gm,goalPrefs:gp};
+    setRulesStateRaw(rl);setRulesDailyStateRaw(rd);
+    vdRef.current={data:d,habits:h,hc:hcD,goals:g,monthlyGoals:gm,goalPrefs:gp,rules:rl,rulesDaily:rd};
     saveJ(SK.data,d);saveJ(SK.habits,h);saveJ(SK.hc,hcD);saveJ(SK.goals,g);saveJ(SK.mgoals,gm);saveJ(SK.goalPrefs,gp);
+    saveJ(SK.rules,rl);saveJ(SK.rulesDaily,rd);
     localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);
     if(vxHist&&vxHist.current){vxHist.current.applying=true;vxHist.current.base=null;}
     fbLoadedRef.current=true; // real cloud data is in hand — archiving may now run
+    // The authoritative rules state just landed — re-ask about the daily gate.
+    // Reads vdRef (updated above), so it sees remote values, not stale state.
+    rulesAskRef.current&&rulesAskRef.current();
   },[]);
+
+  /* ── daily rules gate ──────────────────────────────────────────────────────
+     Idempotent: called on mount AND whenever a Firestore snapshot lands, so
+     every guard must tolerate repeat calls.
+
+     The latch is set when the modal ACTUALLY OPENS, never before. On a cold open
+     this runs before the cloud pull, judged against whatever this device cached
+     yesterday. Latching on that attempt would mean the authoritative value
+     arriving a moment later has nothing left to trigger, and the prompt would
+     silently never appear. A pre-cloud attempt is a no-op that a later call retries.
+
+     No weekday check — unlike tradeboard.html/rules.html, this gate runs EVERY day. */
+  const rulesShownRef=useRef(false);
+  const rulesAskRef=useRef(null);
+  const maybeShowDaily=useCallback(()=>{
+    if(rulesShownRef.current)return;
+    // Veda's App stays MOUNTED while Tony's profile is on screen (#veda-root is
+    // just display:none). Without this check the gate would fire behind Tony's
+    // TaskHub, burning the once-a-session latch on a modal nobody could see —
+    // so switching to Veda afterwards would silently skip the prompt.
+    const vr=document.getElementById("veda-root");
+    if(!vr||vr.style.display==="none"||!vr.offsetParent)return;
+    const rl=vdRef.current.rules||[],rd=vdRef.current.rulesDaily||RULES_DAILY_DEF;
+    if(!rd.enabled)return;
+    if(!rl.length)return;
+    if(rd.lastCompleted===vdTodayET())return;   // already done today
+    rulesShownRef.current=true;                 // latch only on a real open
+    setRulesOpen("gate");
+  },[]);
+  rulesAskRef.current=maybeShowDaily;
+  // Poll for Veda becoming visible: the profile switch is plain DOM style
+  // mutation in shared chrome, with no event to subscribe to. Stops as soon as
+  // the gate has been shown (or resolved) so it costs nothing afterwards.
+  useEffect(()=>{
+    maybeShowDaily();
+    if(rulesShownRef.current)return;
+    const iv=setInterval(()=>{
+      maybeShowDaily();
+      if(rulesShownRef.current)clearInterval(iv);
+    },1000);
+    return()=>clearInterval(iv);
+  },[maybeShowDaily]);
+
+  const finishRules=useCallback(()=>{
+    setRulesDaily(prev=>({...prev,lastCompleted:vdTodayET()}));
+    setRulesOpen(null);
+  },[setRulesDaily]);
 
   // ── Archive day-keys older than TH_ARCHIVE_YEARS (see Tony's TaskHub) ──────
   // Same three gates: only after a confirmed remote load, archive write must
@@ -9653,6 +9918,7 @@ function App(){
         RC("button",{key:"vx-dev",title:"Input device",onClick:()=>window._THV&&window._THV.openDevicePicker(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
         vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↶"),
         vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↷"),
+        RC("button",{onClick:()=>setRulesOpen("manage"),title:"Trading rules checklist",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Rules"),
         RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
         RC("div",{style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
           RC("span",{style:{fontSize:10,color:A,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},edit?"Edit":"View"),
@@ -9834,7 +10100,10 @@ function App(){
     showLessons&&RC(GitaLessonsBrowser,{onClose:()=>setShowLessons(false),onSelectLesson:openGitaLesson}),
     RC(HabitModal,{open:!!editingHabit,onClose:()=>setEditingHabit(null),onSave:patch=>saveHabit(editingHabit.id,patch),initial:editingHabit,T:VD_T,titleFont:"'Lora',serif"}),
     RC(VdSimpleEditModal,{open:!!editingGoal,onClose:()=>setEditingGoal(null),onSave:title=>renameM(editingGoal.id,title),initialText:editingGoal?.title||"",heading:"Edit Goal"}),
-    RC(VdSimpleEditModal,{open:!!editingGoalM,onClose:()=>setEditingGoalM(null),onSave:title=>renameMM(editingGoalM.id,title),initialText:editingGoalM?.title||"",heading:"Edit Short-Term Goal"})
+    RC(VdSimpleEditModal,{open:!!editingGoalM,onClose:()=>setEditingGoalM(null),onSave:title=>renameMM(editingGoalM.id,title),initialText:editingGoalM?.title||"",heading:"Edit Short-Term Goal"}),
+    RC(VdRulesChecklist,{open:!!rulesOpen,mode:rulesOpen||"gate",rules:rules,daily:rulesDaily,
+      onComplete:finishRules,onClose:()=>setRulesOpen(null),
+      onSetRules:setRules,onToggleDaily:on=>setRulesDaily(prev=>({...prev,enabled:!!on}))})
   );
 }
 ReactDOM.render(RC(App),document.getElementById("vr-root"));
