@@ -9132,15 +9132,17 @@ function VdSimpleEditModal({open,onClose,onSave,initialText,heading,multiline,zI
    mode "gate"   : auto-opened once a day. A HARD gate — no close button, no
                    backdrop dismiss, Escape swallowed. The only way out is to
                    read every rule and tick every box.
-   mode "manage" : opened from the header button. Same checklist, plus the
-                   authoring UI, and it IS dismissible — a manual open must
-                   never be able to trap you.
+   mode "manage" : opened from the header button. NOT a checklist — a plain
+                   reference list of the rules with the authoring UI (edit,
+                   reorder, delete, add), a "Prompt daily" toggle and a
+                   "Run now" button that hands off to the gate. Dismissible;
+                   a manual open must never be able to trap you.
 
    The unlock invariant: `unlocked` (the highest tickable row) is advanced ONLY
    by a finished countdown. That is what makes the sequence unskippable — no
    click path can move the frontier forward.
    ═══════════════════════════════════════════════════════════════════════════ */
-function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,onToggleDaily}){
+function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,onToggleDaily,onRunNow}){
   const[unlocked,setUnlocked]=React.useState(-1);   // highest row index that may be ticked
   const[checked,setChecked]=React.useState([]);     // ticked row indices, in order
   const[editing,setEditing]=React.useState(null);   // {index,text} | {index:-1} for add
@@ -9158,14 +9160,15 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
     timer.current=setTimeout(()=>{timer.current=null;setUnlocked(i);},RULES_DELAY*1000);
   },[]);
 
-  // Reset and arm row 0 on every open. Also re-arms if the list changes while
-  // the manage view is open (adding a rule mid-run must not strand the gate).
+  // Reset and arm row 0 on every open of the GATE. Manage mode is a plain list
+  // with no ticking, so it never arms a timer. Re-arms if the list length
+  // changes under the gate so a live edit can't strand it.
   React.useEffect(()=>{
-    if(!open){clearTimeout(timer.current);timer.current=null;return;}
+    if(!open||mode!=="gate"){clearTimeout(timer.current);timer.current=null;return;}
     setUnlocked(-1);setChecked([]);
     if(total>0)startCountdown(0);
     return()=>{clearTimeout(timer.current);timer.current=null;};
-  },[open,total,startCountdown]);
+  },[open,mode,total,startCountdown]);
 
   // Escape is swallowed in the CAPTURE phase while the gate is up, so it wins
   // over every other handler on the page. In manage mode it closes normally.
@@ -9214,50 +9217,68 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
   const ov={position:"fixed",inset:0,background:"rgba(6,6,10,.82)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16};
   const bx={background:S1,border:"1px solid "+BDL,borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,.5)",width:560,maxWidth:"100%",maxHeight:"88vh",display:"flex",flexDirection:"column",overflow:"hidden",fontFamily:"'IBM Plex Mono',monospace"};
   const iconBtn={background:"transparent",border:"1px solid transparent",borderRadius:4,color:TXD,cursor:"pointer",fontSize:12,lineHeight:1,padding:"3px 6px",fontFamily:"inherit",transition:"all .15s"};
+  const manage=mode==="manage";
+  // "reviewed today" reflects the gate, not this view — opening the list to read
+  // it is not the same as having run the sequence.
+  const reviewedToday=daily.lastCompleted===vdTodayET();
+  const emptyMsg="No rules yet. Add the rules you want to review before every trading day.";
 
   return RC("div",{style:ov,onClick:mode==="gate"?undefined:onClose},
     RC("div",{style:bx,onClick:e=>e.stopPropagation()},
 
-      // ── head: identity + progress ──
-      RC("div",{style:{padding:"22px 26px 16px",flexShrink:0}},
-        RC("div",{style:{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:12}},
-          RC("div",{style:{fontFamily:"'Lora',serif",fontSize:16,fontWeight:700,color:TX,letterSpacing:"-.01em"}},"RULES"),
-          RC("div",{style:{fontSize:11.5,color:TXM,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}},done+" / "+total)),
-        RC("div",{style:{fontSize:11.5,color:TXM,marginTop:3}},vdTodayLabelET()+" · ET"),
-        RC("div",{style:{height:2,borderRadius:2,background:BD,marginTop:16,overflow:"hidden"}},
-          RC("div",{style:{height:"100%",width:(total?Math.round(done/total*100):0)+"%",borderRadius:2,background:A,transition:"width .35s cubic-bezier(.4,0,.2,1)"}}))),
+      // ── head ──
+      // gate: identity + tick progress. manage: a compact meta strip with the
+      // controls that act on the whole list.
+      manage
+        ? RC("div",{style:{padding:"18px 26px 14px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,flexWrap:"wrap"}},
+            RC("div",{style:{fontSize:11.5,color:TXM,whiteSpace:"nowrap"}},
+              RC("span",{style:{color:TX,fontWeight:700}},total+(total===1?" rule":" rules")),
+              " · ",reviewedToday?"reviewed today":"not reviewed today"),
+            RC("div",{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
+              RC("label",{title:"When on, the rules run as a checklist the first time you open TaskHub each day.",style:{display:"inline-flex",alignItems:"center",gap:7,cursor:"pointer",fontSize:12,fontWeight:500,color:daily.enabled?AL:TXM,userSelect:"none",whiteSpace:"nowrap",padding:"6px 11px 6px 9px",borderRadius:9,background:daily.enabled?ABG:"transparent"}},
+                RC("input",{type:"checkbox",checked:!!daily.enabled,onChange:e=>onToggleDaily(e.target.checked),style:{width:13,height:13,accentColor:A,margin:0,cursor:"pointer"}}),
+                RC("span",null,"Prompt daily")),
+              RC("button",{title:"Run the checklist now",disabled:total===0,onClick:()=>onRunNow&&onRunNow(),style:{background:"transparent",color:total===0?TXM:TX,border:"1px solid "+BDL,borderRadius:5,padding:"0 12px",height:30,fontSize:11.5,fontWeight:700,cursor:total===0?"not-allowed":"pointer",opacity:total===0?.45:1,fontFamily:"inherit"}},"Run now"),
+              RC("button",{onClick:()=>setEditing({index:-1,text:""}),style:{background:ABG,color:AL,border:"1px solid "+BDL,borderRadius:5,padding:"0 12px",height:30,fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}},"Add rule")))
+        : RC("div",{style:{padding:"22px 26px 16px",flexShrink:0}},
+            RC("div",{style:{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:12}},
+              RC("div",{style:{fontFamily:"'Lora',serif",fontSize:16,fontWeight:700,color:TX,letterSpacing:"-.01em"}},"RULES"),
+              RC("div",{style:{fontSize:11.5,color:TXM,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap"}},done+" / "+total)),
+            RC("div",{style:{fontSize:11.5,color:TXM,marginTop:3}},vdTodayLabelET()+" · ET"),
+            RC("div",{style:{height:2,borderRadius:2,background:BD,marginTop:16,overflow:"hidden"}},
+              RC("div",{style:{height:"100%",width:(total?Math.round(done/total*100):0)+"%",borderRadius:2,background:A,transition:"width .35s cubic-bezier(.4,0,.2,1)"}}))),
 
       // ── the rules ──
-      RC("div",{ref:listRef,style:{padding:"4px 26px 8px",overflowY:"auto",flex:1}},
+      RC("div",{ref:listRef,style:{padding:manage?"0 26px 8px":"4px 26px 8px",overflowY:"auto",flex:1,borderTop:manage?"1px solid #34353A":undefined}},
         total===0
-          ? RC("div",{style:{padding:"40px 20px 44px",textAlign:"center",color:TXM,fontSize:13}},"No rules yet. Add the rules you want to review before every trading day.")
+          ? RC("div",{style:{padding:"40px 20px 44px",textAlign:"center",color:TXM,fontSize:13}},emptyMsg)
           : rules.map((r,i)=>{
+              // manage: a flat reference row — numbered, fully legible, no state.
+              if(manage)return RC("div",{key:r.id,style:{display:"flex",alignItems:"flex-start",gap:13,padding:"13px 12px",margin:"0 -12px",borderRadius:6,borderBottom:i===total-1?"none":"1px solid "+BD+"55"},
+                onMouseEnter:e=>{e.currentTarget.style.background="#2E2F33";},
+                onMouseLeave:e=>{e.currentTarget.style.background="transparent";}},
+                RC("div",{style:{flexShrink:0,width:18,textAlign:"right",fontSize:11,color:TXM,lineHeight:"1.6",paddingTop:1,fontVariantNumeric:"tabular-nums"}},i+1),
+                RC("div",{style:{flex:1,minWidth:0,fontSize:13.5,lineHeight:1.6,color:TX,wordBreak:"break-word"}},r.text),
+                RC("div",{style:{display:"flex",gap:2,flexShrink:0,alignSelf:"center"}},
+                  RC("button",{title:"Move up",disabled:i===0,onClick:()=>moveRule(i,-1),style:{...iconBtn,opacity:i===0?.25:1,cursor:i===0?"default":"pointer"}},"↑"),
+                  RC("button",{title:"Move down",disabled:i===total-1,onClick:()=>moveRule(i,1),style:{...iconBtn,opacity:i===total-1?.25:1,cursor:i===total-1?"default":"pointer"}},"↓"),
+                  RC("button",{title:"Edit",onClick:()=>setEditing({index:i,text:r.text}),style:iconBtn},"✎"),
+                  RC("button",{title:"Delete",onClick:()=>setConfirmDel({index:i,text:r.text}),style:{...iconBtn,color:"#f85149"}},"✕")));
               const isDone=checked.includes(i);
               const isActive=!isDone&&i===checked.length;
               return RC("div",{key:r.id,"data-rc-row":i,style:{display:"flex",alignItems:"flex-start",gap:13,padding:"13px 12px",margin:"2px -12px",borderRadius:6,opacity:isDone?.55:isActive?1:.32,background:isActive?"#2E2F33":"transparent",transition:"opacity .15s ease, background .15s ease"}},
                 RC("div",{style:{flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",width:18,height:22}},
                   RC("input",{type:"checkbox",checked:isDone,disabled:isDone||i>unlocked,onChange:()=>tick(i),style:{width:17,height:17,accentColor:A,margin:0,cursor:(isDone||i>unlocked)?"not-allowed":"pointer"}})),
                 RC("div",{style:{flex:1,minWidth:0}},
-                  RC("div",{style:{fontSize:13.5,lineHeight:1.6,color:isActive?TX:TXD,wordBreak:"break-word"}},r.text)),
-                mode==="manage"&&RC("div",{style:{display:"flex",gap:2,flexShrink:0,alignSelf:"center"}},
-                  RC("button",{title:"Move up",disabled:i===0,onClick:()=>moveRule(i,-1),style:{...iconBtn,opacity:i===0?.25:1,cursor:i===0?"default":"pointer"}},"↑"),
-                  RC("button",{title:"Move down",disabled:i===total-1,onClick:()=>moveRule(i,1),style:{...iconBtn,opacity:i===total-1?.25:1,cursor:i===total-1?"default":"pointer"}},"↓"),
-                  RC("button",{title:"Edit",onClick:()=>setEditing({index:i,text:r.text}),style:iconBtn},"✎"),
-                  RC("button",{title:"Delete",onClick:()=>setConfirmDel({index:i,text:r.text}),style:{...iconBtn,color:"#f85149"}},"✕")));
+                  RC("div",{style:{fontSize:13.5,lineHeight:1.6,color:isActive?TX:TXD,wordBreak:"break-word"}},r.text)));
             })),
 
       // ── foot ──
-      RC("div",{style:{padding:"14px 26px 18px",borderTop:"1px solid #34353A",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}},
-        mode==="manage"
-          ? RC("div",{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
-              RC("label",{title:"When on, the checklist pops up the first time you open TaskHub each day.",style:{display:"inline-flex",alignItems:"center",gap:7,cursor:"pointer",fontSize:12,fontWeight:500,color:daily.enabled?AL:TXM,userSelect:"none",whiteSpace:"nowrap",padding:"6px 11px 6px 9px",borderRadius:9,background:daily.enabled?ABG:"transparent"}},
-                RC("input",{type:"checkbox",checked:!!daily.enabled,onChange:e=>onToggleDaily(e.target.checked),style:{width:13,height:13,accentColor:A,margin:0,cursor:"pointer"}}),
-                RC("span",null,"Prompt daily")),
-              RC("button",{onClick:()=>setEditing({index:-1,text:""}),style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 12px",height:32,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1}},"Add rule"))
-          : RC("div"),
-        RC("div",{style:{display:"flex",gap:8,alignItems:"center"}},
-          mode==="manage"&&RC("button",{onClick:onClose,style:{background:"transparent",color:TXD,border:"1px solid "+BDL,borderRadius:7,padding:"0 18px",height:36,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}},"Close"),
-          RC("button",{disabled:!complete,onClick:finish,style:{background:A,color:BG,border:"1px solid "+A,borderRadius:7,padding:"0 22px",height:36,fontSize:13,fontWeight:700,cursor:complete?"pointer":"not-allowed",opacity:complete?1:.4,fontFamily:"inherit"}},"Enter"))),
+      manage
+        ? RC("div",{style:{padding:"12px 26px 16px",borderTop:"1px solid #34353A",flexShrink:0,display:"flex",justifyContent:"flex-end"}},
+            RC("button",{onClick:onClose,style:{background:"transparent",color:TXD,border:"1px solid "+BDL,borderRadius:7,padding:"0 18px",height:34,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}},"Close"))
+        : RC("div",{style:{padding:"14px 26px 18px",borderTop:"1px solid #34353A",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:16,flexWrap:"wrap"}},
+            RC("button",{disabled:!complete,onClick:finish,style:{background:A,color:BG,border:"1px solid "+A,borderRadius:7,padding:"0 22px",height:36,fontSize:13,fontWeight:700,cursor:complete?"pointer":"not-allowed",opacity:complete?1:.4,fontFamily:"inherit"}},"Enter")),
 
       // Nested authoring modals stack above the checklist (3000).
       RC(VdSimpleEditModal,{open:!!editing,zIndex:3200,multiline:true,
@@ -10102,7 +10123,7 @@ function App(){
     RC(VdSimpleEditModal,{open:!!editingGoal,onClose:()=>setEditingGoal(null),onSave:title=>renameM(editingGoal.id,title),initialText:editingGoal?.title||"",heading:"Edit Goal"}),
     RC(VdSimpleEditModal,{open:!!editingGoalM,onClose:()=>setEditingGoalM(null),onSave:title=>renameMM(editingGoalM.id,title),initialText:editingGoalM?.title||"",heading:"Edit Short-Term Goal"}),
     RC(VdRulesChecklist,{open:!!rulesOpen,mode:rulesOpen||"gate",rules:rules,daily:rulesDaily,
-      onComplete:finishRules,onClose:()=>setRulesOpen(null),
+      onComplete:finishRules,onClose:()=>setRulesOpen(null),onRunNow:()=>setRulesOpen("gate"),
       onSetRules:setRules,onToggleDaily:on=>setRulesDaily(prev=>({...prev,enabled:!!on}))})
   );
 }
