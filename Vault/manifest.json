@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Vault",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Your links, logins, cards & ID documents - synced with Vault. Autofill, attach a document scan to an upload field, and launch a whole tab group in one click.",
   "permissions": [
     "tabs",

@@ -54,7 +54,9 @@
   var PULL_TRIES       = 6;       // × PULL_GAP_MS — covers a late tab-id registration
   var PULL_GAP_MS      = 400;
   var TYPE_TRIES       = 3;       // re-type if execCommand silently no-ops
-  var SEND_TRIES       = 24;      // × SEND_GAP_MS ≈ 17s of trying to fire the send control
+  var TYPE_ROUNDS      = 4;       // full clear → type → send cycles (see deliver)
+  var SEND_READY_MS    = 4500;    // wait for the site to ENABLE its send control after typing
+  var SEND_TRIES       = 10;      // × SEND_GAP_MS = 7s of firing, per round
   var SEND_GAP_MS      = 700;
   var VISIBLE_WAIT_MS  = 20000;   // background tab: let it come to the front before typing
 
@@ -204,13 +206,7 @@
   // the composer restored from a previous session is replaced, not appended to.
   function typeInto(el, text) {
     try { el.focus(); el.click(); } catch (e) {}
-    try {
-      if (el.tagName === 'TEXTAREA') { el.select(); }
-      else {
-        var range = document.createRange(); range.selectNodeContents(el);
-        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-      }
-    } catch (e) {}
+    selectAll(el);
     var ok = false;
     try { ok = document.execCommand('insertText', false, text); } catch (e) { ok = false; }
     if (!ok && el.tagName === 'TEXTAREA') {
@@ -219,11 +215,58 @@
       try {
         var setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
         setter.call(el, text);
-        el.dispatchEvent(new Event('input', { bubbles: true }));
         ok = true;
       } catch (e) {}
     }
+    notifyInput(el);
     return ok;
+  }
+
+  // Put the text in and CONFIRM it is really in the DOM. execCommand silently
+  // no-ops when the composer never took focus, and sending an empty box does
+  // nothing at all.
+  async function ensureTyped(profile, el, text, head) {
+    for (var t = 0; t < TYPE_TRIES; t++) {
+      typeInto(el, text);
+      await wait(250);
+      if (composerText(el).slice(0, 40) === head) return el;
+      el = findComposer(profile) || el;
+    }
+    return null;
+  }
+
+  // Nudge the framework into re-reading the DOM. execCommand already fires a
+  // native input event, but a composer that mounted mid-insert can miss it —
+  // and a React state that never saw the text keeps its send button disabled.
+  function notifyInput(el) {
+    if (!el) return;
+    try { el.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: null })); }
+    catch (e) { try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e2) {} }
+  }
+
+  function selectAll(el) {
+    try {
+      if (el.tagName === 'TEXTAREA') { el.focus(); el.select(); return; }
+      el.focus();
+      var range = document.createRange(); range.selectNodeContents(el);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    } catch (e) {}
+  }
+
+  // Empty the composer so the next round starts clean. Going through
+  // execCommand('delete') keeps the framework in sync — blanking .textContent
+  // would leave its state holding the old value.
+  function clearComposer(el) {
+    if (!el || !el.isConnected) return;
+    selectAll(el);
+    try { document.execCommand('delete'); } catch (e) {}
+    if (el.tagName === 'TEXTAREA') {
+      try {
+        var setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+        setter.call(el, '');
+      } catch (e) {}
+    }
+    notifyInput(el);
   }
 
   function pressEnter(el) {
@@ -294,29 +337,67 @@
     // (or the real app document, if this one was an auth interstitial) retries.
     if (!el) { console.warn('[Vault] AI prompt: no composer found on ' + location.hostname); return false; }
 
-    // Type, then CONFIRM the text actually landed. execCommand silently no-ops
-    // when the composer never took focus, and sending an empty box does nothing
-    // — this is the other half of "it opened but nothing happened".
-    var head = text.trim().slice(0, 40);
-    var typed = false;
-    for (var t = 0; t < TYPE_TRIES && !typed; t++) {
-      typeInto(el, text);
-      await wait(250);
-      typed = composerText(el).slice(0, 40) === head;
-      if (!typed) { el = findComposer(profile) || el; }
+    // Let hydration finish before the first insert. The loop below recovers from
+    // typing into a half-mounted composer, but each recovery costs ~10s, so it's
+    // worth not walking into it.
+    if (document.readyState !== 'complete') {
+      await waitFor(function () { return document.readyState === 'complete' || null; }, 10000);
     }
-    if (!typed) { console.warn('[Vault] AI prompt: could not type into the composer on ' + location.hostname); return false; }
+    await wait(400);
 
-    if (!(await fireSend(profile, el, head))) {
-      console.warn('[Vault] AI prompt: typed it in, but no send control fired — press Enter yourself. ' +
-                   'Send button found: ' + !!findSend(profile));
-      return false;   // stays pending, so a reload retries
+    var head = text.trim().slice(0, 40);
+
+    // WHY THIS IS A LOOP OVER *TYPING*, NOT JUST OVER SENDING
+    // These composers are a DOM tree (ProseMirror) driven by a framework's own
+    // copy of the text. execCommand writes the DOM and normally the framework
+    // follows — but if the insert lands while the page is still hydrating, the
+    // framework's state stays EMPTY while the text is plainly visible. Its send
+    // button then stays disabled forever, and Enter is a no-op because the
+    // handler asks the framework (not the DOM) whether there's anything to send.
+    // That is the "it pasted but didn't send" state exactly, and it's a race, so
+    // it hits roughly every other run. No amount of re-clicking send escapes it
+    // — the only way out is to clear and type again. So each round: type, wait
+    // for the site to prove it noticed by ENABLING its send control, then send.
+    for (var round = 0; round < TYPE_ROUNDS; round++) {
+      var last = (round === TYPE_ROUNDS - 1);
+
+      el = findComposer(profile) || el;
+      var typed = await ensureTyped(profile, el, text, head);
+      if (!typed) {
+        console.warn('[Vault] AI prompt: could not type into the composer on ' + location.hostname);
+        await wait(400);
+        continue;
+      }
+      el = findComposer(profile) || typed;
+
+      // The readiness proof. On the last round we go ahead regardless, so a site
+      // with no send button at all still gets the Enter path rather than nothing.
+      var ready = await waitFor(function () { return findSend(profile); }, SEND_READY_MS);
+      if (!ready && !last) {
+        console.warn('[Vault] AI prompt: text is in the box but ' + profile.name +
+                     ' never enabled its send control — clearing and retyping (round ' + (round + 1) + ')');
+        clearComposer(el);
+        await wait(350);
+        continue;
+      }
+
+      if (await fireSend(profile, el, head)) {
+        // Only now tell the background it's done — a failed attempt must stay
+        // pending so the next document (or a reload) can have another go.
+        report();
+        console.log('[Vault] AI prompt submitted on ' + profile.name + ' (round ' + (round + 1) + ')');
+        return true;
+      }
+      if (!last) {
+        console.warn('[Vault] AI prompt: send did not take on round ' + (round + 1) + ' — retyping');
+        clearComposer(el);
+        await wait(350);
+      }
     }
-    // Only now tell the background it's done — a failed attempt must stay
-    // pending so the next document (or a reload) can have another go.
-    report();
-    console.log('[Vault] AI prompt submitted on ' + profile.name);
-    return true;
+
+    console.warn('[Vault] AI prompt: typed it in, but no send control fired — press Enter yourself. ' +
+                 'Send button found: ' + !!findSend(profile));
+    return false;   // stays pending, so a reload retries
   }
 
   function report() {
