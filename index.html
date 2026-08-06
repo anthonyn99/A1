@@ -6776,6 +6776,67 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (_tjCanvasUnsub) { _tjCanvasUnsub(); _tjCanvasUnsub = null; }
     };
 
+    // ── MyJournal cloud documents — PREFERENCES ONLY ──────────────────────────
+    // dashboards/myjournal_docs carries provider client ids, favorites, recents
+    // and view preferences. It deliberately does NOT carry document content:
+    // Google Docs and OneNote are the stores for their own documents, and a
+    // library of thousands would blow the 1 MiB doc limit on its own. Nor does
+    // it carry OAuth tokens — those are bearer credentials for a whole Drive /
+    // OneDrive and stay in localStorage on the device that authorised them.
+    //
+    // WRITE BARRIER (same rule as MyList / Recents / Events): this is a whole-doc
+    // setDoc, so a save that runs before a successful load would serialise empty
+    // defaults straight over real data. _mjdLoadOk gates every write and is set
+    // only by a load that actually completed.
+    let _mjdSaveTimer = null, _mjdLastOwnSaveAt = 0;
+    window._mjdLoadOk = false;
+    const mjdDocRef = doc(db, 'dashboards', 'myjournal_docs');
+
+    window._fbLoadMJDocs = async () => {
+      try {
+        const snap = await _freshGet(mjdDocRef);
+        window._mjdLoadOk = true;                       // a real read happened — writes may proceed
+        return snap && snap.exists() ? snap.data() : {};
+      } catch (e) {
+        console.warn('Firebase MyJournal docs load failed:', e);
+        return null;                                    // barrier stays closed
+      }
+    };
+
+    window._fbSaveMJDocs = (getState) => {
+      if (!window._mjdLoadOk) return;                   // never clobber unread remote state
+      if (_mjdSaveTimer) clearTimeout(_mjdSaveTimer);
+      _mjdSaveTimer = setTimeout(async () => {
+        try {
+          const payload = getState() || {};
+          const savedAt = Date.now();
+          _mjdLastOwnSaveAt = savedAt;
+          await setDoc(mjdDocRef, Object.assign({}, payload, { savedAt }));
+          window.dispatchEvent(new CustomEvent('fb-mjdocs-saved'));
+        } catch (e) {
+          // Deliberately NOT fb-tj-error. That event drives the journal's sync
+          // pill, which reports on the DOCUMENT you are editing — and a failed
+          // preferences write (a starred favourite, a remembered folder) says
+          // nothing about whether your document saved. Reporting it there made
+          // a perfectly-saved cloud document read "Sync Failed".
+          console.error('Firebase MyJournal docs save failed:', e.code, e.message);
+          window.dispatchEvent(new CustomEvent('fb-mjdocs-error', { detail: e && e.message }));
+        }
+      }, 900);
+    };
+
+    // Live cross-device updates. Skip our own echo — the snapshot for a write we
+    // just made would otherwise re-enter the UI mid-edit and fight the user.
+    try {
+      onSnapshot(mjdDocRef, (snap) => {
+        if (!snap.exists()) return;
+        const d = snap.data();
+        if (d.savedAt && Math.abs(d.savedAt - _mjdLastOwnSaveAt) < 1500) return;
+        window._mjdLoadOk = true;
+        window.dispatchEvent(new CustomEvent('fb-mjdocs-remote-update', { detail: d }));
+      });
+    } catch (e) {}
+
     // ── File upload helper ────────────────────────────────────────────────────
     window._fbUploadFile = async (storagePath, file) => {
       const r = storageRef(storage, storagePath);
@@ -20962,6 +21023,7 @@ function loadActiveEntry() {
 }
 
 function saveCurrentEntry() {
+  if (window._tjCloudMode) return;   // the editor belongs to a cloud document — see autoSave
   const entry = getActive(); if (!entry) return;
   // GUARD: see BJ — do not persist a locked-but-not-unlocked entry's blank DOM.
   if (window._tjGetLock && window._tjGetLock(entry.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(entry.id))) return;
@@ -23242,7 +23304,14 @@ document.getElementById('tj-page-editor').addEventListener('keydown', e => {
 
 /* AUTO-SAVE */
 let autoTimer=null;
-function autoSave() { _tjSetSync('syncing'); clearTimeout(autoTimer); autoTimer=setTimeout(saveCurrentEntry, 500); }
+// CLOUD MODE: when a Google Docs / OneNote document is open it borrows this exact
+// editor, so every keystroke still lands here. Hand the edit to MJDocs instead of
+// writing it into a journal entry — otherwise typing in a cloud document would
+// silently overwrite whichever local entry happened to be active.
+function autoSave() {
+  if (window._tjCloudMode) { if (window.MJDocs) window.MJDocs.onEditorInput(); return; }
+  _tjSetSync('syncing'); clearTimeout(autoTimer); autoTimer=setTimeout(saveCurrentEntry, 500);
+}
 // Persist the current entry synchronously RIGHT NOW — see _bjPersistNow.
 window._tjPersistNow = function() {
   try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
@@ -24414,6 +24483,69 @@ window.tjSwitchTo = function(app) {
   window._tjApplyTheme = tjApplyTheme;
   document.addEventListener('DOMContentLoaded', tjApplyTheme);
 })();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Cloud-document bridge — the ONLY seam MJDocs needs into this closure.
+
+   A Google Doc or a OneNote page is not a journal entry: it has no place in
+   `state.entries` and must never be written to Firebase. But it IS edited in
+   this app's Page editor, unchanged — same contenteditable, same ribbon, same
+   shortcuts. So MJDocs borrows the editor rather than building its own, and
+   these four functions are what let it do that safely:
+
+     enter()  — take the editor over: clear the local selection so no entry can
+                receive the cloud document's keystrokes, then show the Page view.
+     leave()  — hand the editor back and repaint whatever entry was active.
+     editor() — the element itself, for reading/writing content.
+     setEdit()— drive the existing Edit/View toggle, so a cloud document gets
+                the same read-only-until-you-ask behaviour as everything else.
+
+   Everything else about the editor — formatting, undo, images, find/replace,
+   AI tools — already works on this element and needs no cloud-specific code.
+   ═══════════════════════════════════════════════════════════════════════════ */
+window._tjCloudBridge = {
+  enter: function() {
+    if (window._tjCloudMode) { showTemplate('page'); return; }
+    // Flush the entry being left BEFORE the flag goes up — saveCurrentEntry
+    // returns early once cloud mode is on, so the last keystrokes would be lost.
+    try { saveCurrentEntry(); } catch (e) {}
+    try { if (window._fbFlushTonyJournal) window._fbFlushTonyJournal(); } catch (e) {}
+    window._tjCloudMode = true;
+    state.activeId = null;
+    renderSidebar();
+    showTemplate('page');
+  },
+  leave: function(restoreId) {
+    if (!window._tjCloudMode) return;
+    window._tjCloudMode = false;
+    if (restoreId && state.entries.some(function(e) { return e.id === restoreId; })) state.activeId = restoreId;
+    renderSidebar();
+    loadActiveEntry();
+  },
+  active: function() { return !!window._tjCloudMode; },
+  editor: function() { return document.getElementById('tj-page-editor'); },
+  titleInput: function() { return document.getElementById('tj-entry-title-input'); },
+  setEdit: function(on) { try { setEditMode(!!on); } catch (e) {} },
+  isEdit: function() { return !!isEditMode; },
+  setSync: function(s) { try { _tjSetSync(s); } catch (e) {} },
+  // Local pages, in the one shape the universal index understands. Locked
+  // entries expose their title only — their content is hidden for a reason and
+  // must not leak into search results or into an AI prompt.
+  localDocs: function() {
+    return state.entries.filter(function(e) { return !e.trashed; }).map(function(e) {
+      var locked = !!(window._tjGetLock && window._tjGetLock(e.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(e.id)));
+      return {
+        id: e.id, title: e.title || 'Untitled', template: e.template,
+        modified: e.updated || 0, tags: e.tags || [], locked: locked,
+        text: locked ? '' : _tjEntryText(e)
+      };
+    });
+  },
+  openLocal: function(id) {
+    if (window._tjCloudMode) window._tjCloudBridge.leave(id);
+    else { saveCurrentEntry(); state.activeId = id; renderSidebar(); loadActiveEntry(); }
+  }
+};
 
 })();
 </script>
@@ -30838,6 +30970,3171 @@ window._THV={
   try { window.alert=function(m){ window.uiAlert(m==null?'':String(m)); }; } catch(e){}
 })();
 </script>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MyJournal Cloud Documents — ENGINE  (Tony's MyJournal only)
+     Brainstorm Journal (#bj-root, Veda's profile) is not touched by any of this.
+
+     WHAT THIS IS
+     MyJournal keeps its own pages in Firebase. This layer adds two more places a
+     document can LIVE — Google Docs and Microsoft OneNote — without adding a
+     second editor, a second toolbar or a second set of keyboard shortcuts. A
+     cloud document opens in the same #tj-page-editor as a native Page; the only
+     things that differ are where its bytes come from and where they go back to.
+
+     PROVIDER ARCHITECTURE
+     Nothing above this file branches on which cloud it is talking to. Each
+     provider is an object satisfying PROVIDER_CONTRACT below, registered with
+     MJDocs.register(). Adding Notion, a Markdown folder or a PDF library later
+     means writing one more adapter — no UI change, no new branches. Where a
+     cloud genuinely cannot do something (OneNote cannot rename a notebook — see
+     the adapter), that is declared in `caps` so the UI greys the action out with
+     a reason, rather than offering it and failing.
+
+     WHERE CREDENTIALS LIVE, AND WHY THEY ARE SPLIT
+     OAuth *client ids* are public identifiers — they ship in every browser app,
+     so they sync through Firebase and you paste them once. Access and refresh
+     *tokens* are bearer credentials for your entire Drive / OneDrive: they stay
+     in localStorage on the device that authorised them and are NEVER written to
+     Firebase. A synced token would hand live access to every signed-in device.
+     Each device therefore connects once; the connection itself does not sync.
+
+     WHAT FIREBASE HOLDS
+     Preferences only — client ids, favourites, recents, view state, the account
+     labels needed to show "signed in as". Never document content: Google and
+     Microsoft are the stores for their own documents, and a real library would
+     blow the 1 MiB Firestore document limit on its own.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+  'use strict';
+  if (window.MJDocs) return;
+
+  // ── PROVIDER_CONTRACT ─────────────────────────────────────────────────────
+  //   id, label, accent, icon, caps
+  //   configured()                     → bool    — has a client id
+  //   accounts()                       → Account[]
+  //   connect(opts)                    → Promise<Account>
+  //   disconnect(accountId)            → void
+  //   children(ref)                    → Promise<Node[]>   — one level, lazily
+  //   read(ref)                        → Promise<{html,title,modified,rev}>
+  //   write(ref, html, opts)           → Promise<{modified,rev}>
+  //   remoteStamp(ref)                 → Promise<{modified,rev}>  — conflict probe
+  //   createDoc(parentRef, title)      → Promise<Node>
+  //   createContainer(parentRef,name,kind) → Promise<Node>
+  //   rename(ref, name)                → Promise<void>
+  //   remove(ref)                      → Promise<void>
+  //   duplicate(ref, name)             → Promise<Node>
+  //   move(ref, toParentRef)           → Promise<void>
+  //   search(accountId, query)         → Promise<Node[]>
+  //   exportFormats()                  → [{id,label,ext}]
+  //   exportDoc(ref, formatId)         → Promise<Blob>
+  //   externalUrl(ref)                 → string
+  //
+  // Node — the one shape the UI understands, whatever cloud produced it:
+  //   { key, id, name, kind, provider, account, parent, hasChildren,
+  //     modified, rev, webUrl, path }
+  // kind ∈ 'folder' | 'notebook' | 'sectiongroup' | 'section' | 'doc'
+  var CONTRACT = ['configured','accounts','connect','disconnect','children','read','write',
+    'remoteStamp','createDoc','createContainer','rename','remove','duplicate','move','search',
+    'exportFormats','exportDoc','externalUrl'];
+
+  var providers = Object.create(null);
+  var order = [];
+
+  function nowIso() { return new Date().toISOString(); }
+  function errText(e) { return (e && (e.message || e.error_description || e.error)) || 'Something went wrong'; }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Settings — Firebase-synced preferences (NEVER content, NEVER tokens)
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var DEFAULTS = {
+    providerCfg: {},        // { gdocs:{clientId}, onenote:{clientId,tenant} }
+    accountMeta: {},        // { "gdocs:uid": {label,email} } — labels only, no tokens
+    favorites: [],          // [{provider,account,id,kind,name,path}]
+    recents: [],            // [{provider,account,id,kind,name,path,at,how}]
+    expanded: {},           // { nodeKey: true } — tree disclosure state
+    lastOpen: null,         // ref of the document open when you last left
+    view: { section: 'pages', sort: 'modified', dir: 'desc' }
+  };
+  var S = JSON.parse(JSON.stringify(DEFAULTS));
+  var listeners = [];
+  function emit() { listeners.forEach(function (f) { try { f(S); } catch (e) {} }); }
+  function onChange(f) { listeners.push(f); return function () { listeners = listeners.filter(function (g) { return g !== f; }); }; }
+
+  // Local mirror so the nav paints instantly on a cold load and still works with
+  // no network. Read synchronously at load time — not on first render — because
+  // a favourite toggled before the panel has ever opened would otherwise
+  // serialise un-hydrated DEFAULTS over the real list.
+  var LS_KEY = 'mjd_settings';
+  function cacheLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) {} }
+  (function readLocal() {
+    try {
+      var r = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      if (r) S = Object.assign(JSON.parse(JSON.stringify(DEFAULTS)), r);
+    } catch (e) {}
+  })();
+
+  // Hard caps. This whole object rides inside ONE Firestore document and the
+  // ceiling is the 1 MiB document limit, not storage cost. Recents and
+  // favourites are the two fields that would otherwise grow forever.
+  var FAV_MAX = 300, RECENT_MAX = 80, EXPANDED_MAX = 400;
+  function trim() {
+    if (S.favorites.length > FAV_MAX) S.favorites = S.favorites.slice(0, FAV_MAX);
+    if (S.recents.length > RECENT_MAX) S.recents.length = RECENT_MAX;
+    var ek = Object.keys(S.expanded);
+    if (ek.length > EXPANDED_MAX) { var keep = {}; ek.slice(-EXPANDED_MAX).forEach(function (k) { keep[k] = true; }); S.expanded = keep; }
+  }
+  function save() {
+    trim(); cacheLocal(); emit();
+    if (window._fbSaveMJDocs) window._fbSaveMJDocs(function () { return S; });
+  }
+  // Merge, never replace: a doc written by an older build must not delete keys
+  // it simply doesn't know about.
+  function applyRemote(d) {
+    if (!d || typeof d !== 'object') return;
+    Object.keys(DEFAULTS).forEach(function (k) { if (d[k] !== undefined && d[k] !== null) S[k] = d[k]; });
+    cacheLocal(); emit();
+  }
+  window.addEventListener('fb-mjdocs-remote-update', function (e) { applyRemote(e.detail); });
+  async function loadSettings() {
+    if (!window._fbLoadMJDocs) return;
+    var d = await window._fbLoadMJDocs();
+    if (d) applyRemote(d);
+  }
+
+  /* ── Tokens — device-local, never synced (see header) ─────────────────────*/
+  var TOK = 'mjd_tok_';
+  var Tokens = {
+    key: function (pid, acc) { return TOK + pid + '_' + acc; },
+    get: function (pid, acc) { try { return JSON.parse(localStorage.getItem(Tokens.key(pid, acc)) || 'null'); } catch (e) { return null; } },
+    set: function (pid, acc, t) { try { localStorage.setItem(Tokens.key(pid, acc), JSON.stringify(t)); } catch (e) {} },
+    clear: function (pid, acc) { try { localStorage.removeItem(Tokens.key(pid, acc)); } catch (e) {} },
+    // "fresh" means the ACCESS TOKEN is still good. An expired record is not a
+    // disconnected account — Google re-mints silently and Microsoft has a
+    // refresh token — so expiry must never delete the record itself.
+    fresh: function (pid, acc) {
+      var t = Tokens.get(pid, acc);
+      return !!(t && t.access && (!t.expires || Date.now() < t.expires - 120000));
+    },
+    // Every account this device has authorised, for one provider.
+    list: function (pid) {
+      var out = [], pre = TOK + pid + '_';
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf(pre) === 0) {
+            var t = null; try { t = JSON.parse(localStorage.getItem(k)); } catch (e) {}
+            if (t) out.push({ id: k.slice(pre.length), label: t.label || '', email: t.email || '' });
+          }
+        }
+      } catch (e) {}
+      return out;
+    }
+  };
+
+  // Proactive renewal: re-mint a couple of minutes before expiry so a long-lived
+  // tab never hits a 401 mid-save, and re-check on wake — timers do not fire
+  // while a laptop is asleep.
+  var renewers = Object.create(null);
+  async function keepAlive() {
+    for (var pid in renewers) {
+      var accs = Tokens.list(pid);
+      for (var i = 0; i < accs.length; i++) {
+        if (Tokens.fresh(pid, accs[i].id)) continue;
+        try { await renewers[pid](accs[i].id); } catch (e) { /* stays stale; next real call retries */ }
+      }
+    }
+  }
+  setInterval(keepAlive, 4 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) keepAlive(); });
+  window.addEventListener('online', function () { keepAlive(); flushQueue(); });
+
+  /* ── OAuth plumbing ───────────────────────────────────────────────────────*/
+  function redirectUri() { return location.origin + location.pathname; }
+  function b64url(buf) {
+    return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  async function pkcePair() {
+    var bytes = new Uint8Array(48); crypto.getRandomValues(bytes);
+    var verifier = b64url(bytes.buffer);
+    var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+    return { verifier: verifier, challenge: b64url(digest) };
+  }
+  // A popup, not a redirect: MyJournal must never navigate away mid-edit. Polling
+  // for `closed` is what turns a dismissed popup into a clean rejection instead
+  // of a promise that never settles.
+  function oauthPopup(url, expect) {
+    return new Promise(function (resolve, reject) {
+      var w = 520, h = 660;
+      var x = window.screenX + (window.outerWidth - w) / 2;
+      var y = window.screenY + (window.outerHeight - h) / 2;
+      var pop = window.open(url, 'mjd_oauth', 'width=' + w + ',height=' + h + ',left=' + x + ',top=' + y);
+      if (!pop) { reject(new Error('Your browser blocked the sign-in window. Allow pop-ups for this site and try again.')); return; }
+      var done = false;
+      var timer = setInterval(function () {
+        try {
+          if (pop.closed) { if (!done) { clearInterval(timer); reject(new Error('Sign-in cancelled.')); } return; }
+          // Same-origin reads throw while the popup sits on the provider's
+          // domain — that is expected and simply means "not back yet".
+          if (!pop.location.href || pop.location.origin !== location.origin) return;
+          var out = {};
+          new URLSearchParams(pop.location.search.slice(1)).forEach(function (v, k) { out[k] = v; });
+          new URLSearchParams(pop.location.hash.slice(1)).forEach(function (v, k) { out[k] = v; });
+          if (out.error) { done = true; clearInterval(timer); pop.close(); reject(new Error(out.error_description || out.error)); return; }
+          if (out[expect]) { done = true; clearInterval(timer); pop.close(); resolve(out); }
+        } catch (e) { /* cross-origin — still on the provider */ }
+      }, 250);
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * HTML normalisation — the one place formats meet
+   *
+   * Both clouds speak HTML, which is why one editor can serve all three
+   * providers. But neither speaks the SAME HTML: Google exports a full document
+   * with a <style> block and class-driven formatting, OneNote returns absolutely
+   * positioned <div>s on a fixed canvas. Both are folded here into the flowing
+   * fragment #tj-page-editor expects, and folded back on the way out.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var ALLOWED = 'P,H1,H2,H3,H4,H5,H6,UL,OL,LI,BLOCKQUOTE,PRE,CODE,B,STRONG,I,EM,U,S,STRIKE,A,BR,HR,TABLE,THEAD,TBODY,TFOOT,TR,TH,TD,IMG,SPAN,DIV,FONT,SUP,SUB,MARK,OBJECT'.split(',');
+
+  function stripDoc(html) {
+    var doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+    doc.querySelectorAll('script,style,meta,link,title,head').forEach(function (n) { n.remove(); });
+    return doc.body || doc.createElement('body');
+  }
+
+  // Google's export leans on a <style> block plus generated class names. The
+  // classes are gone by the time we get here, but the INLINE styles Google also
+  // emits carry the formatting that matters (bold, italic, colour, alignment),
+  // so those are kept and the layout-only ones dropped.
+  var KEEP_STYLE = /^(font-weight|font-style|font-size|font-family|color|background-color|text-align|text-decoration|vertical-align|margin-left|padding-left|list-style-type|width|height)$/;
+  function cleanStyles(root) {
+    root.querySelectorAll('[style]').forEach(function (el) {
+      var keep = [];
+      var st = el.getAttribute('style') || '';
+      st.split(';').forEach(function (decl) {
+        var i = decl.indexOf(':');
+        if (i < 0) return;
+        var prop = decl.slice(0, i).trim().toLowerCase();
+        var val = decl.slice(i + 1).trim();
+        if (!KEEP_STYLE.test(prop)) return;
+        // A hard pixel width on a block would fight the page sheet's own width.
+        if ((prop === 'width' || prop === 'height') && el.tagName !== 'IMG' && el.tagName !== 'TD' && el.tagName !== 'TH') return;
+        keep.push(prop + ':' + val);
+      });
+      if (keep.length) el.setAttribute('style', keep.join(';'));
+      else el.removeAttribute('style');
+    });
+    root.querySelectorAll('[class]').forEach(function (el) {
+      // Keep only the editor's own classes; every other class came from the
+      // provider's stylesheet, which we deliberately did not import.
+      var cls = (el.getAttribute('class') || '').split(/\s+/).filter(function (c) { return /^(pg-|docx-|mjd-)/.test(c); });
+      if (cls.length) el.setAttribute('class', cls.join(' ')); else el.removeAttribute('class');
+    });
+    root.querySelectorAll('*').forEach(function (el) {
+      if (ALLOWED.indexOf(el.tagName) < 0) {
+        // Unwrap rather than delete — the tag is unknown, its text is not.
+        var p = el.parentNode; if (!p) return;
+        while (el.firstChild) p.insertBefore(el.firstChild, el);
+        p.removeChild(el);
+      }
+    });
+    // Google wraps every link in a redirector; unwrap to the real destination so
+    // a link still works after the document leaves Google.
+    root.querySelectorAll('a[href]').forEach(function (a) {
+      var m = /^https?:\/\/www\.google\.com\/url\?q=([^&]+)/.exec(a.getAttribute('href') || '');
+      if (m) { try { a.setAttribute('href', decodeURIComponent(m[1])); } catch (e) {} }
+      a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener');
+    });
+    return root;
+  }
+
+  // OneNote lays a page out as absolutely positioned divs on a canvas. Reading
+  // them in DOM order and dropping the positioning turns that back into the
+  // flowing document the editor edits — and the same content, re-sent as a plain
+  // body, is what OneNote itself renders when you create a page by hand.
+  function flattenOneNote(body) {
+    body.querySelectorAll('div[style]').forEach(function (d) {
+      var st = d.getAttribute('style') || '';
+      if (/position\s*:\s*absolute/i.test(st)) d.removeAttribute('style');
+    });
+    body.removeAttribute('data-absolute-enabled');
+    // OneNote nests a wrapper div per "outline"; a single wrapper around the
+    // whole page is noise, so unwrap it.
+    while (body.children.length === 1 && body.firstElementChild.tagName === 'DIV' && !body.firstElementChild.getAttribute('style')) {
+      var only = body.firstElementChild;
+      while (only.firstChild) body.insertBefore(only.firstChild, only);
+      body.removeChild(only);
+    }
+    return body;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Provider: Google Docs
+   * ────────────────────────────────────────────────────────────────────────
+   * Auth is Google Identity Services' token client — Google does not allow the
+   * PKCE code flow for browser clients without a secret, so GIS (implicit, ~1h
+   * tokens) is the supported public-client path. This is the same flow Vault's
+   * Drive integration already uses.
+   *
+   * CONTENT round-trips through Drive's HTML export/import, not the Docs API's
+   * structural model. batchUpdate speaks in indexed insert/delete operations
+   * against a live document; reproducing an arbitrary edited document through it
+   * means diffing two structural trees, and any bug there silently mangles the
+   * user's document. Drive's export/import converts whole documents in one call,
+   * both directions, and is what Google itself uses for uploads. The Docs API is
+   * still used for document CREATION, which is the one thing it does better than
+   * Drive (a real, empty, correctly-initialised Doc).
+   *
+   * FIDELITY: the round-trip preserves text, structure, headings, lists, tables,
+   * links, inline formatting and images. It does not preserve comments,
+   * suggestions, or revision history — those live only in Google's own model and
+   * have no HTML representation. Editing in MyJournal therefore does not disturb
+   * them, but it does not carry them either.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var GIS_SRC = 'https://accounts.google.com/gsi/client';
+  var gisPromise = null;
+  function loadGis() {
+    if (gisPromise) return gisPromise;
+    gisPromise = new Promise(function (res, rej) {
+      if (window.google && window.google.accounts && window.google.accounts.oauth2) return res();
+      var s = document.createElement('script');
+      s.src = GIS_SRC; s.async = true; s.defer = true;
+      s.onload = res;
+      s.onerror = function () { rej(new Error('Could not reach Google sign-in. Check your connection.')); };
+      document.head.appendChild(s);
+    });
+    return gisPromise;
+  }
+
+  var GDOC_MIME = 'application/vnd.google-apps.document';
+  var GFOLDER_MIME = 'application/vnd.google-apps.folder';
+  // drive: browse, create, move, delete and export documents anywhere in the
+  // user's Drive (drive.file only ever sees files this app itself created, which
+  // cannot show an existing library). documents: create a real Google Doc.
+  var G_SCOPE = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents';
+  var G_FIELDS = 'id,name,mimeType,modifiedTime,createdTime,parents,webViewLink,trashed';
+
+  function gNode(f, account) {
+    var folder = f.mimeType === GFOLDER_MIME;
+    return {
+      key: 'gdocs:' + account + ':' + f.id,
+      id: f.id, name: f.name || 'Untitled', kind: folder ? 'folder' : 'doc',
+      provider: 'gdocs', account: account,
+      parent: (f.parents && f.parents[0]) || 'root',
+      hasChildren: folder,
+      modified: f.modifiedTime ? Date.parse(f.modifiedTime) : 0,
+      rev: f.modifiedTime || '',
+      webUrl: f.webViewLink || ('https://docs.google.com/document/d/' + f.id + '/edit'),
+      path: ''
+    };
+  }
+
+  var gdocs = {
+    id: 'gdocs',
+    label: 'Google Docs',
+    accent: '#6aa2e0',
+    rootId: 'root',
+    rootLabel: 'My Drive',
+    containerKinds: ['folder'],
+    caps: {
+      folders: true, createFolder: true, renameFolder: true, deleteFolder: true,
+      createDoc: true, renameDoc: true, deleteDoc: true, duplicateDoc: true,
+      moveDoc: true, moveFolder: true, exportDoc: true, search: true, multiAccount: true
+    },
+    icon: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>',
+    setup: {
+      field: 'clientId',
+      label: 'OAuth client ID',
+      placeholder: '…apps.googleusercontent.com',
+      hint: function (origin) {
+        return 'Google Cloud Console → APIs &amp; Services → Credentials → OAuth client ID (Web application). ' +
+          'Add <code>' + origin + '</code> as an authorised JavaScript origin, and enable the <b>Google Drive API</b> and <b>Google Docs API</b>.';
+      }
+    },
+
+    cfg: function () { return (S.providerCfg && S.providerCfg.gdocs) || {}; },
+    configured: function () { return !!this.cfg().clientId; },
+    accounts: function () {
+      return Tokens.list('gdocs').map(function (a) {
+        var meta = (S.accountMeta && S.accountMeta['gdocs:' + a.id]) || {};
+        return { id: a.id, label: a.label || meta.label || a.email || meta.email || a.id, email: a.email || meta.email || '' };
+      });
+    },
+
+    // `interactive` separates a user pressing Connect from the background
+    // keep-alive. prompt:'' asks GIS to reuse the existing Google session and
+    // grant with no UI at all; it only falls back to a visible prompt when that
+    // genuinely can't work (signed out, or consent revoked).
+    _token: function (interactive, hint) {
+      var clientId = this.cfg().clientId;
+      if (!clientId) return Promise.reject(new Error('Add your Google OAuth client ID in Document Settings first.'));
+      return loadGis().then(function () {
+        return new Promise(function (resolve, reject) {
+          var settled = false;
+          var client = window.google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: G_SCOPE,
+            hint: hint || undefined,
+            callback: function (resp) {
+              if (settled) return; settled = true;
+              if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
+              resolve({ access: resp.access_token, expires: Date.now() + (resp.expires_in || 3600) * 1000 });
+            },
+            error_callback: function (err) { if (!settled) { settled = true; reject(new Error(errText(err))); } }
+          });
+          // 'select_account' is what makes a SECOND Google account possible —
+          // without it Google silently reuses the one already signed in.
+          client.requestAccessToken({ prompt: interactive === 'add' ? 'select_account' : (interactive ? 'consent' : '') });
+        });
+      });
+    },
+
+    // Identify the account from Drive itself. /about?fields=user needs no extra
+    // scope, so this costs nothing beyond what browsing already requires — and
+    // avoids asking for a profile scope purely to show an email address.
+    _whoami: async function (access) {
+      var r = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', { headers: { Authorization: 'Bearer ' + access } });
+      if (!r.ok) throw new Error('Google rejected the connection (' + r.status + ')');
+      var j = await r.json();
+      return { id: (j.user && j.user.permissionId) || (j.user && j.user.emailAddress) || 'default',
+               email: (j.user && j.user.emailAddress) || '', label: (j.user && j.user.displayName) || (j.user && j.user.emailAddress) || 'Google account' };
+    },
+
+    connect: async function (opts) {
+      var mode = (opts && opts.add) ? 'add' : true;
+      var t;
+      // Try silent first on a plain Connect — if the Google session is still good
+      // this completes with no popup at all. "Add account" always prompts.
+      if (mode === 'add') t = await this._token('add');
+      else { try { t = await this._token(false); } catch (e) { t = await this._token(true); } }
+      var who = await this._whoami(t.access);
+      Tokens.set('gdocs', who.id, { access: t.access, expires: t.expires, label: who.label, email: who.email });
+      S.accountMeta['gdocs:' + who.id] = { label: who.label, email: who.email };
+      save();
+      return { id: who.id, label: who.label, email: who.email };
+    },
+    renew: async function (accountId) {
+      var rec = Tokens.get('gdocs', accountId) || {};
+      var t = await this._token(false, rec.email);
+      Tokens.set('gdocs', accountId, Object.assign({}, rec, { access: t.access, expires: t.expires }));
+    },
+    disconnect: function (accountId) {
+      Tokens.clear('gdocs', accountId);
+      delete S.accountMeta['gdocs:' + accountId];
+      save();
+    },
+
+    ready: async function (accountId) {
+      if (!Tokens.get('gdocs', accountId)) throw new Error('That Google account is not connected on this device.');
+      if (!Tokens.fresh('gdocs', accountId)) await this.renew(accountId);
+      return Tokens.get('gdocs', accountId);
+    },
+
+    // Every Drive call funnels through here, so a 401 is renewed and retried once
+    // rather than surfacing as a random failure an hour into a session. Renewing
+    // BEFORE the call when the token is already stale saves a wasted round trip
+    // and — more importantly — stops a mid-save expiry becoming a lost edit.
+    api: async function (accountId, path, opts, _retried) {
+      var t = await this.ready(accountId);
+      opts = opts || {};
+      var url = path.indexOf('http') === 0 ? path : 'https://www.googleapis.com/drive/v3' + path;
+      var r = await fetch(url, Object.assign({}, opts, {
+        headers: Object.assign({ Authorization: 'Bearer ' + t.access }, opts.headers || {})
+      }));
+      if (r.status === 401 && !_retried) { await this.renew(accountId); return this.api(accountId, path, opts, true); }
+      if (!r.ok) {
+        var msg = '';
+        try { var j = await r.json(); msg = j.error && j.error.message; } catch (e) {}
+        throw new Error(msg || ('Google error ' + r.status));
+      }
+      if (r.status === 204) return null;
+      if (opts.raw) return r;
+      return r.json();
+    },
+
+    children: async function (ref) {
+      var parent = ref.id || 'root';
+      var q = "'" + String(parent).replace(/'/g, "\\'") + "' in parents and trashed=false and (mimeType='" + GFOLDER_MIME + "' or mimeType='" + GDOC_MIME + "')";
+      var out = [], token = null;
+      do {
+        var j = await this.api(ref.account, '/files?q=' + encodeURIComponent(q) +
+          '&fields=' + encodeURIComponent('files(' + G_FIELDS + '),nextPageToken') +
+          '&pageSize=200&orderBy=folder,name&supportsAllDrives=true&includeItemsFromAllDrives=true' +
+          (token ? '&pageToken=' + token : ''));
+        (j.files || []).forEach(function (f) { out.push(gNode(f, ref.account)); });
+        token = j.nextPageToken;
+      } while (token);
+      return out;
+    },
+
+    search: async function (accountId, query) {
+      var q = "name contains '" + String(query).replace(/'/g, "\\'") + "' and trashed=false and (mimeType='" + GFOLDER_MIME + "' or mimeType='" + GDOC_MIME + "')";
+      var j = await this.api(accountId, '/files?q=' + encodeURIComponent(q) +
+        '&fields=' + encodeURIComponent('files(' + G_FIELDS + ')') + '&pageSize=100');
+      return (j.files || []).map(function (f) { return gNode(f, accountId); });
+    },
+
+    read: async function (ref) {
+      var meta = await this.api(ref.account, '/files/' + ref.id + '?fields=' + encodeURIComponent(G_FIELDS) + '&supportsAllDrives=true');
+      var r = await this.api(ref.account, 'https://www.googleapis.com/drive/v3/files/' + ref.id + '/export?mimeType=text%2Fhtml', { raw: true });
+      var raw = await r.text();
+      var body = cleanStyles(stripDoc(raw));
+      return { html: body.innerHTML, title: meta.name, modified: Date.parse(meta.modifiedTime || 0) || 0, rev: meta.modifiedTime || '' };
+    },
+
+    // Drive converts an HTML upload back into Doc structure on the way in — the
+    // exact inverse of the export above, and the same path Drive's own "upload
+    // and convert" uses.
+    write: async function (ref, html) {
+      var doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
+        String(ref.name || 'Document').replace(/[<>&]/g, '') + '</title></head><body>' + html + '</body></html>';
+      var meta = await this.api(ref.account,
+        'https://www.googleapis.com/upload/drive/v3/files/' + ref.id + '?uploadType=media&fields=' + encodeURIComponent(G_FIELDS) + '&supportsAllDrives=true',
+        { method: 'PATCH', headers: { 'Content-Type': 'text/html; charset=UTF-8' }, body: doc });
+      return { modified: Date.parse(meta.modifiedTime || 0) || Date.now(), rev: meta.modifiedTime || '' };
+    },
+
+    remoteStamp: async function (ref) {
+      var m = await this.api(ref.account, '/files/' + ref.id + '?fields=modifiedTime,name&supportsAllDrives=true');
+      return { modified: Date.parse(m.modifiedTime || 0) || 0, rev: m.modifiedTime || '', name: m.name };
+    },
+
+    createDoc: async function (parentRef, title) {
+      // The Docs API makes a correctly-initialised Google Doc in one call; Drive
+      // then files it where the user asked.
+      var t = await this.ready(parentRef.account);
+      var r = await fetch('https://docs.googleapis.com/v1/documents', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + t.access, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title || 'Untitled document' })
+      });
+      if (!r.ok) {
+        var msg = ''; try { var j = await r.json(); msg = j.error && j.error.message; } catch (e) {}
+        throw new Error(msg || ('Google Docs error ' + r.status));
+      }
+      var created = await r.json();
+      var parent = parentRef.id || 'root';
+      var f;
+      if (parent && parent !== 'root') {
+        f = await this.api(parentRef.account, '/files/' + created.documentId + '?addParents=' + encodeURIComponent(parent) +
+          '&removeParents=root&fields=' + encodeURIComponent(G_FIELDS) + '&supportsAllDrives=true', { method: 'PATCH' });
+      } else {
+        f = await this.api(parentRef.account, '/files/' + created.documentId + '?fields=' + encodeURIComponent(G_FIELDS));
+      }
+      return gNode(f, parentRef.account);
+    },
+
+    createContainer: async function (parentRef, name) {
+      var f = await this.api(parentRef.account, '/files?fields=' + encodeURIComponent(G_FIELDS) + '&supportsAllDrives=true', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, mimeType: GFOLDER_MIME, parents: [parentRef.id || 'root'] })
+      });
+      return gNode(f, parentRef.account);
+    },
+
+    rename: function (ref, name) {
+      return this.api(ref.account, '/files/' + ref.id + '?supportsAllDrives=true', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name })
+      });
+    },
+
+    // Soft delete. Drive's HTTP DELETE is PERMANENT and skips the trash entirely —
+    // no undo, not even from drive.google.com. The confirm dialog promises the
+    // document is recoverable, so this must set `trashed` instead.
+    remove: function (ref) {
+      return this.api(ref.account, '/files/' + ref.id + '?supportsAllDrives=true', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true })
+      });
+    },
+
+    duplicate: async function (ref, name) {
+      var f = await this.api(ref.account, '/files/' + ref.id + '/copy?fields=' + encodeURIComponent(G_FIELDS) + '&supportsAllDrives=true', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name || (ref.name + ' (copy)') })
+      });
+      return gNode(f, ref.account);
+    },
+
+    move: function (ref, toParentRef) {
+      return this.api(ref.account, '/files/' + ref.id + '?addParents=' + encodeURIComponent(toParentRef.id || 'root') +
+        '&removeParents=' + encodeURIComponent(ref.parent || 'root') + '&supportsAllDrives=true', { method: 'PATCH' });
+    },
+
+    exportFormats: function () {
+      return [
+        { id: 'application/pdf', label: 'PDF', ext: 'pdf' },
+        { id: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', label: 'Word (.docx)', ext: 'docx' },
+        { id: 'application/vnd.oasis.opendocument.text', label: 'OpenDocument (.odt)', ext: 'odt' },
+        { id: 'application/rtf', label: 'Rich Text (.rtf)', ext: 'rtf' },
+        { id: 'text/plain', label: 'Plain text (.txt)', ext: 'txt' },
+        { id: 'text/html', label: 'Web page (.html)', ext: 'html' },
+        { id: 'application/epub+zip', label: 'EPUB', ext: 'epub' }
+      ];
+    },
+    exportDoc: async function (ref, formatId) {
+      var r = await this.api(ref.account, 'https://www.googleapis.com/drive/v3/files/' + ref.id + '/export?mimeType=' + encodeURIComponent(formatId), { raw: true });
+      return r.blob();
+    },
+    externalUrl: function (ref) {
+      return ref.kind === 'folder'
+        ? 'https://drive.google.com/drive/folders/' + ref.id
+        : 'https://docs.google.com/document/d/' + ref.id + '/edit';
+    }
+  };
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Provider: Microsoft OneNote (Microsoft Graph)
+   * ────────────────────────────────────────────────────────────────────────
+   * Auth is the full PKCE (S256) authorisation-code flow against the v2.0
+   * endpoint, registered as a Single-page application. That platform type is
+   * what lets a browser exchange the code with no client secret, and
+   * offline_access gets a refresh token — so unlike Google, a OneNote connection
+   * survives without any silent re-mint.
+   *
+   * CONTENT is native: a OneNote page IS HTML. Reading gives HTML, writing takes
+   * HTML. This is the closest fit of any provider here.
+   *
+   * WHAT GRAPH CANNOT DO, AND WHY THE UI SAYS SO. The OneNote API supports
+   * creating notebooks, section groups, sections and pages, and updating,
+   * copying, moving and deleting PAGES. It has no rename or delete operation for
+   * notebooks, section groups or sections — those are not gaps in this
+   * integration, they do not exist in the API. `caps` declares them false so the
+   * UI greys those actions out with the reason attached, rather than offering an
+   * action that would fail. Everything else in the spec is implemented.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var GRAPH = 'https://graph.microsoft.com/v1.0';
+  var MS_SCOPE = 'offline_access openid profile User.Read Notes.ReadWrite.All';
+
+  function onNode(o, account, kind, parentId) {
+    return {
+      key: 'onenote:' + account + ':' + o.id,
+      id: o.id,
+      name: o.displayName || o.title || 'Untitled',
+      kind: kind,
+      provider: 'onenote', account: account,
+      parent: parentId || '',
+      hasChildren: kind !== 'doc',
+      modified: o.lastModifiedDateTime ? Date.parse(o.lastModifiedDateTime) : 0,
+      rev: o.lastModifiedDateTime || '',
+      webUrl: (o.links && ((o.links.oneNoteWebUrl && o.links.oneNoteWebUrl.href) || (o.links.oneNoteClientUrl && o.links.oneNoteClientUrl.href))) || '',
+      path: ''
+    };
+  }
+
+  var onenote = {
+    id: 'onenote',
+    label: 'OneNote',
+    accent: '#a892d4',
+    rootId: '',
+    rootLabel: 'Notebooks',
+    containerKinds: ['notebook', 'sectiongroup', 'section'],
+    caps: {
+      folders: true, createFolder: true,
+      // Not a shortfall here — Microsoft Graph exposes no rename or delete for
+      // notebooks / section groups / sections. Use OneNote itself for those.
+      renameFolder: false, deleteFolder: false,
+      renameFolderReason: 'Microsoft Graph cannot rename notebooks, section groups or sections. Open in OneNote to rename.',
+      deleteFolderReason: 'Microsoft Graph cannot delete notebooks, section groups or sections. Open in OneNote to delete.',
+      createDoc: true, renameDoc: true, deleteDoc: true, duplicateDoc: true,
+      moveDoc: true, moveFolder: false, exportDoc: true, search: true, multiAccount: true
+    },
+    icon: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M15 2v5h5"/><path d="M9 2v20"/><path d="M4 8h5"/><path d="M4 13h5"/><path d="M4 18h5"/></svg>',
+    setup: {
+      field: 'clientId',
+      label: 'Application (client) ID',
+      placeholder: '00000000-0000-0000-0000-000000000000',
+      hint: function (origin, redirect) {
+        return 'Entra ID (Azure) → App registrations → New registration. Under <b>Authentication</b>, add a ' +
+          '<b>Single-page application</b> platform with redirect URI <code>' + redirect + '</code>. ' +
+          'Under <b>API permissions</b>, add delegated Microsoft Graph <code>Notes.ReadWrite.All</code>, <code>User.Read</code>, <code>offline_access</code>.';
+      }
+    },
+
+    cfg: function () { return (S.providerCfg && S.providerCfg.onenote) || {}; },
+    configured: function () { return !!this.cfg().clientId; },
+    // 'common' accepts both personal Microsoft accounts and work/school ones.
+    authority: function () { return 'https://login.microsoftonline.com/' + (this.cfg().tenant || 'common') + '/oauth2/v2.0'; },
+    accounts: function () {
+      return Tokens.list('onenote').map(function (a) {
+        var meta = (S.accountMeta && S.accountMeta['onenote:' + a.id]) || {};
+        return { id: a.id, label: a.label || meta.label || a.email || a.id, email: a.email || meta.email || '' };
+      });
+    },
+
+    connect: async function (opts) {
+      var clientId = this.cfg().clientId;
+      if (!clientId) throw new Error('Add your Microsoft application (client) ID in Document Settings first.');
+      var pk = await pkcePair();
+      var state = b64url(crypto.getRandomValues(new Uint8Array(16)).buffer);
+      var url = this.authority() + '/authorize?client_id=' + encodeURIComponent(clientId) +
+        '&response_type=code&redirect_uri=' + encodeURIComponent(redirectUri()) +
+        '&response_mode=query&scope=' + encodeURIComponent(MS_SCOPE) +
+        '&code_challenge=' + pk.challenge + '&code_challenge_method=S256' +
+        '&state=' + state +
+        // Always let the user pick — without this, adding a SECOND Microsoft
+        // account silently returns the one already signed in.
+        '&prompt=select_account';
+      var res = await oauthPopup(url, 'code');
+      if (res.state && res.state !== state) throw new Error('Sign-in could not be verified. Please try again.');
+      var body = new URLSearchParams({
+        client_id: clientId, grant_type: 'authorization_code', code: res.code,
+        redirect_uri: redirectUri(), code_verifier: pk.verifier, scope: MS_SCOPE
+      });
+      var r = await fetch(this.authority() + '/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
+      });
+      if (!r.ok) {
+        var em = ''; try { var ej = await r.json(); em = ej.error_description || ej.error; } catch (e) {}
+        throw new Error(em || ('Microsoft rejected the connection (' + r.status + ')'));
+      }
+      var j = await r.json();
+      var tok = { access: j.access_token, refresh: j.refresh_token || '', expires: Date.now() + (j.expires_in || 3600) * 1000 };
+      var who = await this._whoami(tok.access);
+      tok.label = who.label; tok.email = who.email;
+      Tokens.set('onenote', who.id, tok);
+      S.accountMeta['onenote:' + who.id] = { label: who.label, email: who.email };
+      save();
+      return { id: who.id, label: who.label, email: who.email };
+    },
+
+    _whoami: async function (access) {
+      var r = await fetch(GRAPH + '/me?$select=id,displayName,mail,userPrincipalName', { headers: { Authorization: 'Bearer ' + access } });
+      if (!r.ok) throw new Error('Microsoft rejected the connection (' + r.status + ')');
+      var j = await r.json();
+      return { id: j.id || 'default', email: j.mail || j.userPrincipalName || '', label: j.displayName || j.userPrincipalName || 'Microsoft account' };
+    },
+
+    refresh: async function (accountId) {
+      var t = Tokens.get('onenote', accountId);
+      var clientId = this.cfg().clientId;
+      if (!t || !t.refresh || !clientId) return false;
+      var r = await fetch(this.authority() + '/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ client_id: clientId, grant_type: 'refresh_token', refresh_token: t.refresh, scope: MS_SCOPE })
+      });
+      if (!r.ok) return false;
+      var j = await r.json();
+      // Microsoft rotates refresh tokens — keep the NEW one or the connection
+      // dies at the next renewal.
+      Tokens.set('onenote', accountId, Object.assign({}, t, {
+        access: j.access_token, refresh: j.refresh_token || t.refresh,
+        expires: Date.now() + (j.expires_in || 3600) * 1000
+      }));
+      return true;
+    },
+    disconnect: function (accountId) {
+      Tokens.clear('onenote', accountId);
+      delete S.accountMeta['onenote:' + accountId];
+      save();
+    },
+    ready: async function (accountId) {
+      if (!Tokens.get('onenote', accountId)) throw new Error('That Microsoft account is not connected on this device.');
+      if (!Tokens.fresh('onenote', accountId)) await this.refresh(accountId);
+      return Tokens.get('onenote', accountId);
+    },
+
+    api: async function (accountId, path, opts, _retried) {
+      var t = await this.ready(accountId);
+      opts = opts || {};
+      var r = await fetch(path.indexOf('http') === 0 ? path : GRAPH + path, Object.assign({}, opts, {
+        headers: Object.assign({ Authorization: 'Bearer ' + t.access }, opts.headers || {})
+      }));
+      if (r.status === 401 && !_retried && await this.refresh(accountId)) return this.api(accountId, path, opts, true);
+      if (!r.ok) {
+        var msg = '';
+        try { var j = await r.json(); msg = j.error && (j.error.message || j.error.code); } catch (e) {}
+        throw new Error(msg || ('OneNote error ' + r.status));
+      }
+      if (r.status === 204) return null;
+      if (opts.raw) return r;
+      var txt = await r.text();
+      return txt ? JSON.parse(txt) : null;
+    },
+    // Graph pages results with @odata.nextLink; a real notebook easily exceeds
+    // one page of sections or pages.
+    all: async function (accountId, path) {
+      var out = [], next = path, guard = 0;
+      while (next && guard++ < 40) {
+        var j = await this.api(accountId, next);
+        (j && j.value ? j.value : []).forEach(function (v) { out.push(v); });
+        next = j && j['@odata.nextLink'] ? j['@odata.nextLink'] : null;
+      }
+      return out;
+    },
+
+    children: async function (ref) {
+      var self = this, acc = ref.account, out = [];
+      if (!ref.id) {
+        var nbs = await this.all(acc, '/me/onenote/notebooks?$select=id,displayName,lastModifiedDateTime,links&$orderby=displayName');
+        return nbs.map(function (n) { return onNode(n, acc, 'notebook', ''); });
+      }
+      if (ref.kind === 'notebook' || ref.kind === 'sectiongroup') {
+        var base = ref.kind === 'notebook' ? '/me/onenote/notebooks/' : '/me/onenote/sectionGroups/';
+        var groups = await this.all(acc, base + ref.id + '/sectionGroups?$select=id,displayName,lastModifiedDateTime&$orderby=displayName');
+        var sections = await this.all(acc, base + ref.id + '/sections?$select=id,displayName,lastModifiedDateTime,links&$orderby=displayName');
+        groups.forEach(function (g) { out.push(onNode(g, acc, 'sectiongroup', ref.id)); });
+        sections.forEach(function (s) { out.push(onNode(s, acc, 'section', ref.id)); });
+        return out;
+      }
+      if (ref.kind === 'section') {
+        var pages = await this.all(acc, '/me/onenote/sections/' + ref.id + '/pages?$select=id,title,lastModifiedDateTime,links&$top=100&$orderby=lastModifiedDateTime%20desc');
+        return pages.map(function (p) { return onNode(p, acc, 'doc', ref.id); });
+      }
+      return out;
+    },
+
+    search: async function (accountId, query) {
+      // OneNote's own $search is the fast path but is not available on every
+      // tenant; fall back to fetching page titles and filtering here, so search
+      // degrades in speed rather than disappearing.
+      try {
+        var j = await this.api(accountId, '/me/onenote/pages?$search=' + encodeURIComponent(query) + '&$select=id,title,lastModifiedDateTime,links&$top=60');
+        if (j && j.value) return j.value.map(function (p) { return onNode(p, accountId, 'doc', ''); });
+      } catch (e) { /* fall through */ }
+      var q = String(query).toLowerCase();
+      var pages = await this.all(accountId, '/me/onenote/pages?$select=id,title,lastModifiedDateTime,links&$top=100&$orderby=lastModifiedDateTime%20desc');
+      return pages.filter(function (p) { return String(p.title || '').toLowerCase().indexOf(q) >= 0; })
+                  .map(function (p) { return onNode(p, accountId, 'doc', ''); });
+    },
+
+    // OneNote images and attachments sit behind authenticated Graph resource
+    // URLs — an <img src> pointing at one renders as a broken image, because the
+    // browser sends no bearer token. Each is fetched with the token and swapped
+    // for an object URL, with the ORIGINAL url kept on the element so write()
+    // can put it back. That means editing a page does not re-upload, duplicate
+    // or lose its images.
+    _hydrateResources: async function (accountId, root) {
+      var self = this;
+      var t = await this.ready(accountId);
+      var els = Array.prototype.slice.call(root.querySelectorAll('img[src], object[data]'));
+      await Promise.all(els.map(async function (el) {
+        var attr = el.tagName === 'IMG' ? 'src' : 'data';
+        var url = el.getAttribute(attr) || '';
+        if (url.indexOf('graph.microsoft.com') < 0) return;
+        el.setAttribute('data-mjd-src', url);
+        var full = el.getAttribute('data-fullres-src');
+        if (full) el.setAttribute('data-mjd-fullres', full);
+        try {
+          var r = await fetch(url, { headers: { Authorization: 'Bearer ' + t.access } });
+          if (!r.ok) throw new Error(String(r.status));
+          var blob = await r.blob();
+          el.setAttribute(attr, URL.createObjectURL(blob));
+        } catch (e) {
+          // Leave the placeholder in place rather than deleting the element —
+          // write() restores the real URL either way, so a failed preview never
+          // costs the user the image.
+          if (el.tagName === 'IMG') el.setAttribute('alt', (el.getAttribute('alt') || 'OneNote image') + ' (preview unavailable)');
+        }
+      }));
+      return root;
+    },
+    _dehydrateResources: function (root) {
+      root.querySelectorAll('[data-mjd-src]').forEach(function (el) {
+        var attr = el.tagName === 'IMG' ? 'src' : 'data';
+        el.setAttribute(attr, el.getAttribute('data-mjd-src'));
+        var fr = el.getAttribute('data-mjd-fullres');
+        if (fr) el.setAttribute('data-fullres-src', fr);
+        el.removeAttribute('data-mjd-src'); el.removeAttribute('data-mjd-fullres');
+      });
+      return root;
+    },
+
+    read: async function (ref) {
+      var meta = await this.api(ref.account, '/me/onenote/pages/' + ref.id + '?$select=id,title,lastModifiedDateTime,links');
+      var r = await this.api(ref.account, '/me/onenote/pages/' + ref.id + '/content?includeIDs=true', { raw: true });
+      var raw = await r.text();
+      var body = flattenOneNote(stripDoc(raw));
+      cleanStyles(body);
+      await this._hydrateResources(ref.account, body);
+      return { html: body.innerHTML, title: meta.title || ref.name, modified: Date.parse(meta.lastModifiedDateTime || 0) || 0, rev: meta.lastModifiedDateTime || '' };
+    },
+
+    write: async function (ref, html) {
+      var holder = document.createElement('div');
+      holder.innerHTML = html;
+      this._dehydrateResources(holder);
+      await this.api(ref.account, '/me/onenote/pages/' + ref.id + '/content', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([{ target: 'body', action: 'replace', content: holder.innerHTML }])
+      });
+      // Graph's PATCH returns 204 with no body, so re-read the stamp — the
+      // conflict detector needs an authoritative modified time, not a guess.
+      var m = await this.api(ref.account, '/me/onenote/pages/' + ref.id + '?$select=lastModifiedDateTime');
+      return { modified: Date.parse((m && m.lastModifiedDateTime) || 0) || Date.now(), rev: (m && m.lastModifiedDateTime) || '' };
+    },
+
+    remoteStamp: async function (ref) {
+      var m = await this.api(ref.account, '/me/onenote/pages/' + ref.id + '?$select=lastModifiedDateTime,title');
+      return { modified: Date.parse(m.lastModifiedDateTime || 0) || 0, rev: m.lastModifiedDateTime || '', name: m.title };
+    },
+
+    createDoc: async function (parentRef, title) {
+      if (parentRef.kind !== 'section') throw new Error('OneNote pages live inside a section. Pick a section first.');
+      var docHtml = '<!DOCTYPE html><html><head><title>' + String(title || 'Untitled page').replace(/[<>&]/g, '') +
+        '</title><meta name="created" content="' + nowIso() + '" /></head><body><p></p></body></html>';
+      var p = await this.api(parentRef.account, '/me/onenote/sections/' + parentRef.id + '/pages', {
+        method: 'POST', headers: { 'Content-Type': 'text/html' }, body: docHtml
+      });
+      return onNode(p, parentRef.account, 'doc', parentRef.id);
+    },
+
+    createContainer: async function (parentRef, name, kind) {
+      var acc = parentRef.account, path;
+      if (!parentRef.id) path = '/me/onenote/notebooks';
+      else if (kind === 'sectiongroup') path = (parentRef.kind === 'notebook' ? '/me/onenote/notebooks/' : '/me/onenote/sectionGroups/') + parentRef.id + '/sectionGroups';
+      else path = (parentRef.kind === 'notebook' ? '/me/onenote/notebooks/' : '/me/onenote/sectionGroups/') + parentRef.id + '/sections';
+      var o = await this.api(acc, path, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: name })
+      });
+      var newKind = !parentRef.id ? 'notebook' : (kind === 'sectiongroup' ? 'sectiongroup' : 'section');
+      return onNode(o, acc, newKind, parentRef.id || '');
+    },
+
+    // Only pages can be renamed, and the title is part of the page document —
+    // Graph exposes it as its own PATCH target.
+    rename: function (ref, name) {
+      if (ref.kind !== 'doc') return Promise.reject(new Error(this.caps.renameFolderReason));
+      return this.api(ref.account, '/me/onenote/pages/' + ref.id + '/content', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([{ target: 'title', action: 'replace', content: String(name) }])
+      });
+    },
+    remove: function (ref) {
+      if (ref.kind !== 'doc') return Promise.reject(new Error(this.caps.deleteFolderReason));
+      return this.api(ref.account, '/me/onenote/pages/' + ref.id, { method: 'DELETE' });
+    },
+
+    // copyToSection is asynchronous — Graph returns an operation to poll. Waiting
+    // for it is what lets the caller refresh the tree and actually see the copy.
+    _copy: async function (ref, toSectionId) {
+      var op = await this.api(ref.account, '/me/onenote/pages/' + ref.id + '/copyToSection', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: toSectionId })
+      });
+      var opUrl = op && (op['@odata.context'] || op.id) ? ('/me/onenote/operations/' + op.id) : null;
+      if (!opUrl) return null;
+      for (var i = 0; i < 20; i++) {
+        await new Promise(function (r) { setTimeout(r, 700); });
+        var st = await this.api(ref.account, opUrl);
+        if (st && st.status === 'completed') return st.resourceId || null;
+        if (st && st.status === 'failed') throw new Error((st.error && st.error.message) || 'OneNote could not copy that page.');
+      }
+      return null;   // still running — the tree refresh will pick it up
+    },
+    duplicate: async function (ref) {
+      if (ref.kind !== 'doc') throw new Error('Only pages can be duplicated in OneNote.');
+      var newId = await this._copy(ref, ref.parent);
+      if (!newId) return null;
+      var p = await this.api(ref.account, '/me/onenote/pages/' + newId + '?$select=id,title,lastModifiedDateTime,links');
+      return onNode(p, ref.account, 'doc', ref.parent);
+    },
+    // Graph has no move: a move is a copy followed by deleting the original, and
+    // the delete only runs once the copy has actually completed.
+    move: async function (ref, toParentRef) {
+      if (ref.kind !== 'doc') throw new Error('Only pages can be moved in OneNote.');
+      if (toParentRef.kind !== 'section') throw new Error('A OneNote page can only move into a section.');
+      var newId = await this._copy(ref, toParentRef.id);
+      if (!newId) throw new Error('OneNote is still copying the page. It will appear shortly; the original was left in place.');
+      await this.api(ref.account, '/me/onenote/pages/' + ref.id, { method: 'DELETE' });
+    },
+
+    // OneNote has no server-side export. The page is already HTML, so the
+    // conversions we can honestly offer are the ones done locally.
+    exportFormats: function () {
+      return [
+        { id: 'text/html', label: 'Web page (.html)', ext: 'html' },
+        { id: 'text/plain', label: 'Plain text (.txt)', ext: 'txt' }
+      ];
+    },
+    exportDoc: async function (ref, formatId) {
+      var d = await this.read(ref);
+      if (formatId === 'text/plain') {
+        var t = document.createElement('div'); t.innerHTML = d.html;
+        return new Blob([t.textContent || ''], { type: 'text/plain' });
+      }
+      return new Blob(['<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
+        String(d.title || 'Page').replace(/[<>&]/g, '') + '</title></head><body>' + d.html + '</body></html>'], { type: 'text/html' });
+    },
+    externalUrl: function (ref) { return ref.webUrl || 'https://www.onenote.com/notebooks'; }
+  };
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Provider: MyJournal Pages
+   *
+   * The local journal, wearing the same contract as the two clouds so the
+   * universal search, favourites, recents and AI tools need no "is it local?"
+   * branch anywhere. It delegates to the existing journal engine through
+   * _tjCloudBridge rather than reimplementing any of it — MyJournal's own
+   * entries keep saving exactly the way they always have.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var mjpages = {
+    id: 'mjpages',
+    label: 'MyJournal Pages',
+    accent: '#e0b874',
+    rootId: '',
+    rootLabel: 'MyJournal',
+    containerKinds: [],
+    caps: { folders: false, createDoc: true, renameDoc: true, deleteDoc: true, duplicateDoc: false,
+            moveDoc: false, exportDoc: false, search: true, multiAccount: false, local: true },
+    icon: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M8 7h7"/><path d="M8 11h7"/><path d="M8 15h4"/></svg>',
+    configured: function () { return true; },
+    accounts: function () { return [{ id: 'local', label: 'This journal', email: '' }]; },
+    connect: function () { return Promise.resolve({ id: 'local', label: 'This journal' }); },
+    disconnect: function () {},
+    children: function () {
+      var b = window._tjCloudBridge;
+      if (!b) return Promise.resolve([]);
+      return Promise.resolve(b.localDocs().map(function (d) {
+        return {
+          key: 'mjpages:local:' + d.id, id: d.id, name: d.title, kind: 'doc',
+          provider: 'mjpages', account: 'local', parent: '', hasChildren: false,
+          modified: d.modified, rev: String(d.modified), webUrl: '', path: 'MyJournal',
+          locked: d.locked, template: d.template
+        };
+      }));
+    },
+    // Local pages open through MyJournal's own entry loader, which knows about
+    // locks, templates, attachments and whiteboards. Routing them through the
+    // cloud read/write path would bypass all of that.
+    read: function () { return Promise.reject(new Error('local')); },
+    write: function () { return Promise.reject(new Error('local')); },
+    remoteStamp: function (ref) { return Promise.resolve({ modified: ref.modified || 0, rev: ref.rev || '' }); },
+    createDoc: function () { return Promise.reject(new Error('local')); },
+    createContainer: function () { return Promise.reject(new Error('MyJournal pages are a flat list.')); },
+    rename: function () { return Promise.reject(new Error('local')); },
+    remove: function () { return Promise.reject(new Error('local')); },
+    duplicate: function () { return Promise.reject(new Error('local')); },
+    move: function () { return Promise.reject(new Error('local')); },
+    search: function (accountId, query) {
+      var q = String(query).toLowerCase();
+      return this.children({ account: 'local' }).then(function (docs) {
+        return docs.filter(function (d) { return d.name.toLowerCase().indexOf(q) >= 0; });
+      });
+    },
+    exportFormats: function () { return []; },
+    exportDoc: function () { return Promise.reject(new Error('Use Export PDF in the toolbar.')); },
+    externalUrl: function () { return ''; }
+  };
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Registry
+   * ══════════════════════════════════════════════════════════════════════════ */
+  function register(p) {
+    var missing = CONTRACT.filter(function (m) { return typeof p[m] !== 'function'; });
+    if (missing.length) { console.warn('[MJDocs] provider "' + p.id + '" is missing: ' + missing.join(', ')); return; }
+    providers[p.id] = p;
+    if (order.indexOf(p.id) < 0) order.push(p.id);
+  }
+  function get(id) { return providers[id] || null; }
+  function all() { return order.map(function (id) { return providers[id]; }); }
+  function cloudProviders() { return all().filter(function (p) { return !p.caps.local; }); }
+
+  register(mjpages);
+  register(gdocs);
+  register(onenote);
+
+  renewers.gdocs = function (acc) { return gdocs.renew(acc); };
+  renewers.onenote = function (acc) { return onenote.refresh(acc); };
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Listing cache — paint instantly, then reconcile
+   *
+   * A tree node's children are cached in localStorage so reopening a notebook is
+   * instant and the tree still renders with no network. A cached listing is
+   * ALWAYS replaced by the live one the moment it lands, so it can never mask a
+   * real change — it only removes the wait before the first paint.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var CACHE_KEY = 'mjd_cache', CACHE_TTL = 1000 * 60 * 60 * 24 * 7, CACHE_MAX = 200;
+  function cacheGet(k) {
+    try {
+      var all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+      var hit = all[k];
+      if (hit && Date.now() - hit.at < CACHE_TTL) return hit.v;
+    } catch (e) {}
+    return null;
+  }
+  function cacheSet(k, v) {
+    try {
+      var all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+      all[k] = { at: Date.now(), v: v };
+      var keys = Object.keys(all);
+      if (keys.length > CACHE_MAX) {
+        keys.sort(function (a, b) { return all[a].at - all[b].at; });
+        keys.slice(0, keys.length - CACHE_MAX).forEach(function (x) { delete all[x]; });
+      }
+      localStorage.setItem(CACHE_KEY, JSON.stringify(all));
+    } catch (e) { /* quota — the cache is optional by design */ }
+  }
+  function cacheDrop(prefix) {
+    try {
+      var all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+      Object.keys(all).forEach(function (k) { if (!prefix || k.indexOf(prefix) === 0) delete all[k]; });
+      localStorage.setItem(CACHE_KEY, JSON.stringify(all));
+    } catch (e) {}
+  }
+
+  function refKey(ref) { return ref.provider + ':' + ref.account + ':' + (ref.id || 'ROOT'); }
+
+  // Children, cache-first. onCached fires synchronously with whatever was
+  // stored; the promise resolves with the authoritative listing.
+  async function children(ref, onCached) {
+    var k = 'ch|' + refKey(ref);
+    var hit = cacheGet(k);
+    if (hit && onCached) { try { onCached(hit); } catch (e) {} }
+    var p = providers[ref.provider];
+    if (!p) throw new Error('Unknown provider');
+    var live = await p.children(ref);
+    cacheSet(k, live);
+    return live;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Offline queue
+   *
+   * An edit made with no connection is queued rather than lost, and replayed the
+   * moment the network returns. Keyed by document, so a document edited ten
+   * times offline replays ONCE with its final content — a replay of every
+   * intermediate state would be slower and no more correct.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var Q_KEY = 'mjd_queue';
+  function queueRead() { try { return JSON.parse(localStorage.getItem(Q_KEY) || '[]'); } catch (e) { return []; } }
+  function queueWrite(q) { try { localStorage.setItem(Q_KEY, JSON.stringify(q)); } catch (e) {} }
+  function queueSize() { return queueRead().length; }
+  function enqueue(ref, html) {
+    var q = queueRead().filter(function (i) { return i.key !== refKey(ref); });
+    q.push({ key: refKey(ref), ref: { provider: ref.provider, account: ref.account, id: ref.id, name: ref.name, kind: ref.kind, parent: ref.parent }, html: html, at: Date.now() });
+    queueWrite(q);
+    fire('queue', { size: q.length });
+  }
+  function dequeue(key) { queueWrite(queueRead().filter(function (i) { return i.key !== key; })); fire('queue', { size: queueSize() }); }
+
+  var flushing = false;
+  async function flushQueue() {
+    if (flushing || !navigator.onLine) return;
+    var q = queueRead();
+    if (!q.length) return;
+    flushing = true;
+    try {
+      for (var i = 0; i < q.length; i++) {
+        var item = q[i];
+        var p = providers[item.ref.provider];
+        if (!p) { dequeue(item.key); continue; }
+        try {
+          await p.write(item.ref, item.html);
+          dequeue(item.key);
+          fire('flushed', { ref: item.ref });
+        } catch (e) {
+          // Still unreachable, or the document is gone. Leave it queued unless
+          // the provider says it no longer exists — retrying a 404 forever would
+          // wedge the queue behind a document that can never accept the write.
+          if (/404|not ?found|deleted/i.test(errText(e))) { dequeue(item.key); fire('dropped', { ref: item.ref, error: errText(e) }); }
+          break;
+        }
+      }
+    } finally { flushing = false; }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Favourites / recents
+   * ══════════════════════════════════════════════════════════════════════════ */
+  function favKey(n) { return n.provider + ':' + n.account + ':' + n.id; }
+  function isFav(n) { return S.favorites.some(function (f) { return favKey(f) === favKey(n); }); }
+  function toggleFav(n) {
+    if (isFav(n)) S.favorites = S.favorites.filter(function (f) { return favKey(f) !== favKey(n); });
+    else S.favorites.unshift({ provider: n.provider, account: n.account, id: n.id, kind: n.kind, name: n.name, path: n.path || '' });
+    save();
+    return isFav(n);
+  }
+  function touchRecent(n, how) {
+    var k = favKey(n);
+    S.recents = S.recents.filter(function (r) { return favKey(r) !== k; });
+    S.recents.unshift({ provider: n.provider, account: n.account, id: n.id, kind: n.kind, name: n.name, path: n.path || '', at: Date.now(), how: how || 'opened' });
+    save();
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Universal index — one flat list across every provider, for search and AI
+   *
+   * Built from what is ALREADY cached plus the local journal, so opening search
+   * costs no API calls. `refresh` walks the connected trees to deepen it, in the
+   * background, bounded — a library of thousands must not turn a search box into
+   * a thousand requests.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var index = [];
+  var indexAt = 0;
+  function indexAdd(nodes, path) {
+    nodes.forEach(function (n) {
+      if (index.some(function (x) { return x.key === n.key; })) return;
+      index.push(Object.assign({}, n, { path: path || n.path || '' }));
+    });
+  }
+  function rebuildIndexFromCache() {
+    index = [];
+    try {
+      var all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+      Object.keys(all).forEach(function (k) {
+        if (k.indexOf('ch|') !== 0) return;
+        var v = all[k] && all[k].v;
+        if (Array.isArray(v)) indexAdd(v);
+      });
+    } catch (e) {}
+    return index;
+  }
+  // Bounded background crawl: breadth-first, capped in both nodes visited and
+  // wall-clock time, so a huge OneDrive can never lock the UI or hammer the API.
+  var CRAWL_NODES = 120, CRAWL_MS = 20000;
+  var crawling = false;
+  async function refreshIndex(opts) {
+    if (crawling) return index;
+    crawling = true;
+    var deadline = Date.now() + ((opts && opts.ms) || CRAWL_MS);
+    var budget = (opts && opts.nodes) || CRAWL_NODES;
+    try {
+      var frontier = [];
+      // Local pages first — they are free and always present.
+      var local = await mjpages.children({ account: 'local' });
+      indexAdd(local, 'MyJournal');
+      cloudProviders().forEach(function (p) {
+        p.accounts().forEach(function (a) {
+          frontier.push({ ref: { provider: p.id, account: a.id, id: p.rootId, kind: 'root' }, path: p.rootLabel });
+        });
+      });
+      while (frontier.length && budget-- > 0 && Date.now() < deadline) {
+        var job = frontier.shift();
+        var kids;
+        try { kids = await children(job.ref); } catch (e) { continue; }
+        indexAdd(kids, job.path);
+        kids.forEach(function (k) {
+          if (k.hasChildren) frontier.push({ ref: k, path: (job.path ? job.path + ' / ' : '') + k.name });
+        });
+      }
+      indexAt = Date.now();
+      fire('index', { size: index.length });
+    } finally { crawling = false; }
+    return index;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * AI — every call goes through the personal-ai Worker, which holds the Gemini
+   * key as a server-side secret. A key in this file would be published with the
+   * page (GitHub Pages serves the repo verbatim), so there is deliberately no
+   * key here and no way to set one from the UI.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var AI_ENDPOINT = 'https://personal-ai.av1.workers.dev/docs/ai';
+  async function ai(op, payload) {
+    var r = await fetch(AI_ENDPOINT, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ op: op, profile: 'tony' }, payload || {}))
+    });
+    var j = null;
+    try { j = await r.json(); } catch (e) {}
+    if (!r.ok || !j || !j.ok) {
+      throw new Error((j && j.error === 'ai unavailable')
+        ? 'The AI is busy or out of quota right now. Try again in a minute.'
+        : ((j && j.error) || 'The AI could not be reached.'));
+    }
+    return j;
+  }
+  // Index ops send titles and folder paths only — never document bodies.
+  function aiIndexPayload(docs) {
+    return docs.slice(0, 400).map(function (d) {
+      return { title: d.name, provider: d.provider, path: d.path || '', modified: d.modified || 0, snippet: d.snippet || '' };
+    });
+  }
+
+  /* ── Events ───────────────────────────────────────────────────────────────*/
+  var bus = {};
+  function on(evt, fn) { (bus[evt] = bus[evt] || []).push(fn); return function () { bus[evt] = bus[evt].filter(function (f) { return f !== fn; }); }; }
+  function fire(evt, detail) { (bus[evt] || []).forEach(function (f) { try { f(detail); } catch (e) {} }); }
+
+  window.MJDocs = {
+    // registry
+    register: register, get: get, all: all, cloudProviders: cloudProviders,
+    // settings
+    settings: function () { return S; }, save: save, load: loadSettings, onChange: onChange,
+    setCfg: function (pid, patch) {
+      S.providerCfg = S.providerCfg || {};
+      S.providerCfg[pid] = Object.assign({}, S.providerCfg[pid] || {}, patch);
+      save();
+    },
+    // tree
+    children: children, refKey: refKey, cacheDrop: cacheDrop,
+    // favourites / recents
+    isFav: isFav, toggleFav: toggleFav, touchRecent: touchRecent,
+    // index / search
+    index: function () { return index; }, indexAt: function () { return indexAt; },
+    rebuildIndexFromCache: rebuildIndexFromCache, refreshIndex: refreshIndex,
+    // offline queue
+    enqueue: enqueue, flushQueue: flushQueue, queueSize: queueSize, queueRead: queueRead,
+    // ai
+    ai: ai, aiIndexPayload: aiIndexPayload,
+    // misc
+    Tokens: Tokens, errText: errText, redirectUri: redirectUri,
+    on: on, fire: fire,
+    // set by the UI layer (below) — declared here so the editor bridge can call
+    // it before that layer has finished wiring itself up.
+    onEditorInput: function () {}
+  };
+
+  // Hydrate settings and replay anything stranded offline, as soon as Firebase
+  // is up. The index is built from cache immediately — it costs nothing and
+  // means search works on the very first keystroke.
+  rebuildIndexFromCache();
+  function boot() { loadSettings().then(function () { flushQueue(); }); }
+  if (window._fbLoadMJDocs) boot();
+  else window.addEventListener('fb-ready', boot, { once: true });
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MyJournal Cloud Documents — UI
+     Everything here is scoped to #tj-root (Tony's MyJournal). Nothing in this
+     file can reach #bj-root.
+
+     The design language is MyJournal's, unchanged: the same gold on the same
+     three greys, the same 6px radius, the same uppercase micro-labels. A Google
+     Doc and a OneNote page are meant to look like parts of MyJournal, not like
+     visitors from another product — the only place a provider's own identity
+     shows is a small icon and the "Open in…" action.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<style id="mjd-css">
+/* ── Sidebar: source rail ────────────────────────────────────────────────── */
+#tj-root #mjd-nav { padding: 10px 12px 0; flex-shrink: 0; }
+#tj-root .mjd-rail {
+  display: flex; gap: 3px; background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 3px; overflow-x: auto; scrollbar-width: none;
+}
+#tj-root .mjd-rail::-webkit-scrollbar { display: none; }
+#tj-root .mjd-rail-btn {
+  flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  background: transparent; border: none; border-radius: 4px; color: var(--text3);
+  font-family: var(--font); font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  padding: 6px 7px; cursor: pointer; white-space: nowrap; transition: background .14s, color .14s;
+}
+#tj-root .mjd-rail-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+#tj-root .mjd-rail-btn:hover { color: var(--text2); }
+#tj-root .mjd-rail-btn.on { background: var(--card2); color: var(--purple); box-shadow: inset 0 0 0 1px rgba(224,184,116,.22); }
+#tj-root .mjd-rail-btn .mjd-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex-shrink: 0;
+}
+#tj-root .mjd-rail-btn .mjd-dot.off { background: var(--text3); opacity: .5; }
+
+#tj-root .mjd-quick { display: flex; gap: 4px; margin-top: 6px; }
+#tj-root .mjd-quick button {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  background: transparent; border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text3); font-family: var(--font); font-size: 10px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; padding: 5px 4px; cursor: pointer;
+  transition: border-color .14s, color .14s;
+}
+#tj-root .mjd-quick button svg { width: 12px; height: 12px; }
+#tj-root .mjd-quick button:hover { border-color: rgba(224,184,116,.5); color: var(--purple); }
+#tj-root .mjd-quick button.on { border-color: rgba(224,184,116,.55); color: var(--purple); background: var(--card2); }
+
+/* ── Sidebar: cloud panel (tree / favourites / recents) ──────────────────── */
+#tj-root #mjd-panel { flex: 1 1 0%; min-height: 0; display: none; flex-direction: column; overflow: hidden; }
+#tj-root #mjd-panel.on { display: flex; }
+#tj-root #mjd-panel-head {
+  display: flex; align-items: center; gap: 6px; padding: 8px 12px 6px; flex-shrink: 0;
+}
+#tj-root #mjd-panel-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text3); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#tj-root .mjd-icon-btn {
+  background: transparent; border: 1px solid transparent; border-radius: 4px; color: var(--text3);
+  padding: 4px; cursor: pointer; display: inline-flex; line-height: 0; transition: color .14s, border-color .14s;
+}
+#tj-root .mjd-icon-btn svg { width: 13px; height: 13px; }
+#tj-root .mjd-icon-btn:hover { color: var(--purple); border-color: var(--border2); }
+#tj-root .mjd-icon-btn:disabled { opacity: .35; cursor: not-allowed; }
+#tj-root .mjd-icon-btn.spin svg { animation: mjdspin .9s linear infinite; }
+@keyframes mjdspin { to { transform: rotate(360deg); } }
+
+#tj-root #mjd-tree { flex: 1 1 0%; min-height: 0; overflow-y: auto; padding: 0 8px 12px; }
+#tj-root .mjd-row {
+  display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: var(--radius);
+  border: 1px solid transparent; border-left: 2px solid transparent; cursor: pointer;
+  transition: background .1s, border-color .1s; position: relative; min-height: 30px;
+}
+#tj-root .mjd-row:hover { background: var(--card); border-color: var(--border); }
+#tj-root .mjd-row.active { background: var(--card2); border-color: var(--purple-dim); border-left-color: var(--purple); }
+#tj-root .mjd-tw {
+  width: 14px; height: 14px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text3); transition: transform .16s;
+}
+#tj-root .mjd-tw svg { width: 9px; height: 9px; }
+#tj-root .mjd-tw.open { transform: rotate(90deg); }
+#tj-root .mjd-tw.leaf { visibility: hidden; }
+#tj-root .mjd-ico { flex-shrink: 0; line-height: 0; color: var(--text3); }
+#tj-root .mjd-ico svg { width: 14px; height: 14px; }
+#tj-root .mjd-row.kind-doc .mjd-ico { color: var(--purple); opacity: .8; }
+#tj-root .mjd-name {
+  flex: 1; min-width: 0; font-size: 12.5px; color: var(--text); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#tj-root .mjd-row.active .mjd-name { color: var(--purple); }
+#tj-root .mjd-meta { font-size: 10px; color: var(--text3); font-family: var(--font-mono); flex-shrink: 0; }
+#tj-root .mjd-star { opacity: 0; flex-shrink: 0; }
+#tj-root .mjd-row:hover .mjd-star, #tj-root .mjd-star.on { opacity: 1; }
+#tj-root .mjd-star.on { color: var(--purple); }
+@media (hover: none) { #tj-root .mjd-star { opacity: .55; } }
+#tj-root .mjd-kids { }
+#tj-root .mjd-empty, #tj-root .mjd-note {
+  padding: 22px 16px; text-align: center; color: var(--text3); font-size: 12px; line-height: 1.7;
+}
+#tj-root .mjd-note { padding: 12px 14px; text-align: left; }
+#tj-root .mjd-note b { color: var(--text2); font-weight: 600; }
+#tj-root .mjd-skel { height: 30px; margin: 3px 8px; border-radius: var(--radius); background: var(--card);
+  animation: mjdpulse 1.2s ease-in-out infinite; }
+@keyframes mjdpulse { 0%,100% { opacity: .45; } 50% { opacity: .85; } }
+#tj-root .mjd-connect-cta { padding: 18px 14px; text-align: center; }
+#tj-root .mjd-connect-cta p { font-size: 12px; color: var(--text3); line-height: 1.65; margin-bottom: 12px; }
+#tj-root .mjd-btn {
+  background: transparent; color: var(--purple); border: 1px solid rgba(224,184,116,.32);
+  border-radius: var(--radius); font-family: var(--font); font-size: 11px; font-weight: 600;
+  letter-spacing: .05em; text-transform: uppercase; padding: 8px 14px; cursor: pointer;
+  transition: border-color .15s, background .15s; display: inline-flex; align-items: center; gap: 7px;
+}
+#tj-root .mjd-btn:hover { border-color: rgba(224,184,116,.65); }
+#tj-root .mjd-btn:disabled { opacity: .4; cursor: not-allowed; }
+#tj-root .mjd-btn.ghost { color: var(--text2); border-color: var(--border2); }
+#tj-root .mjd-btn.ghost:hover { border-color: var(--text3); }
+#tj-root .mjd-btn.danger { color: var(--red); border-color: rgba(214,138,124,.4); }
+#tj-root .mjd-btn svg { width: 13px; height: 13px; }
+
+/* ── Toolbar: the open cloud document's chip ─────────────────────────────── */
+#tj-root #mjd-docbar {
+  display: none; align-items: center; gap: 7px; min-width: 0; flex-wrap: wrap;
+}
+#tj-root #mjd-docbar.on { display: flex; }
+#tj-root .mjd-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 260px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+  padding: 4px 11px; font-size: 11px; color: var(--text2); min-width: 0;
+}
+#tj-root .mjd-chip .mjd-chip-ico { line-height: 0; flex-shrink: 0; }
+#tj-root .mjd-chip .mjd-chip-ico svg { width: 12px; height: 12px; }
+#tj-root .mjd-chip .mjd-chip-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#tj-root #mjd-lastsync { font-size: 10px; color: var(--text3); font-family: var(--font-mono); white-space: nowrap; }
+#tj-root #mjd-offline {
+  display: none; align-items: center; gap: 5px; font-size: 10px; font-weight: 600;
+  letter-spacing: .05em; text-transform: uppercase; color: var(--orange);
+  border: 1px solid rgba(224,181,124,.4); border-radius: 20px; padding: 3px 9px;
+}
+#tj-root #mjd-offline.on { display: inline-flex; }
+
+/* ── Modal shell (shared by settings, accounts, move, conflict, export, AI) ── */
+#mjd-modal {
+  position: fixed; inset: 0; z-index: 2147482000; display: none;
+  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(14,14,16,.68); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+}
+#mjd-modal.on { display: flex; }
+#mjd-modal-box {
+  width: 100%; max-width: 560px; max-height: min(84vh, 720px); display: flex; flex-direction: column;
+  background: #2c2c31; border: 1px solid #45454c; border-radius: 10px;
+  box-shadow: 0 30px 70px rgba(0,0,0,.5); font-family: 'DM Sans', sans-serif;
+  animation: mjdin .16s ease; overflow: hidden;
+}
+#mjd-modal-box.wide { max-width: 860px; }
+@keyframes mjdin { from { transform: translateY(10px) scale(.985); opacity: 0; } to { transform: none; opacity: 1; } }
+#mjd-modal-head {
+  display: flex; align-items: flex-start; gap: 12px; padding: 22px 24px 14px; flex-shrink: 0;
+}
+#mjd-modal-title { font-family: 'Manrope', system-ui, sans-serif; font-size: 19px; font-weight: 650;
+  letter-spacing: -.2px; color: #f4f3f0; line-height: 1.25; flex: 1; }
+#mjd-modal-sub { font-size: 12.5px; color: #8d8d94; line-height: 1.55; margin-top: 5px; }
+#mjd-modal-body { padding: 0 24px 4px; overflow-y: auto; flex: 1 1 auto; min-height: 0; color: #adadb2; font-size: 13.5px; line-height: 1.6; }
+#mjd-modal-foot { display: flex; gap: 9px; justify-content: flex-end; padding: 16px 24px 22px; flex-shrink: 0; flex-wrap: wrap; }
+#mjd-modal .mjd-x { background: transparent; border: none; color: #8d8d94; cursor: pointer; padding: 2px; line-height: 0; }
+#mjd-modal .mjd-x:hover { color: #f4f3f0; }
+#mjd-modal .mjd-x svg { width: 17px; height: 17px; }
+
+/* Reusable pieces inside the modal */
+.mjd-field { display: block; margin-bottom: 15px; }
+.mjd-field > span { display: block; font-size: 10px; font-weight: 600; letter-spacing: .13em;
+  text-transform: uppercase; color: #8d8d94; margin: 0 0 7px; }
+.mjd-input, .mjd-select {
+  width: 100%; box-sizing: border-box; background: #232327; border: 1px solid #45454c; border-radius: 6px;
+  color: #f4f3f0; font-size: 13px; padding: 9px 12px; outline: none; font-family: inherit; transition: border-color .16s;
+}
+.mjd-input:focus, .mjd-select:focus { border-color: #e0b874; }
+.mjd-hint { font-size: 11.5px; color: #75757c; line-height: 1.6; margin-top: 7px; }
+.mjd-hint code { font-family: 'DM Mono', monospace; background: #232327; border: 1px solid #3a3a42;
+  border-radius: 3px; padding: 1px 5px; font-size: 10.5px; color: #adadb2; word-break: break-all; }
+.mjd-card {
+  border: 1px solid #3a3a42; border-radius: 8px; padding: 15px 16px; margin-bottom: 12px; background: #26262b;
+}
+.mjd-card-head { display: flex; align-items: center; gap: 9px; margin-bottom: 3px; }
+.mjd-card-head .mjd-pico { line-height: 0; flex-shrink: 0; }
+.mjd-card-head .mjd-pico svg { width: 16px; height: 16px; }
+.mjd-card-head h4 { font-size: 14px; font-weight: 650; color: #f4f3f0; font-family: 'Manrope', sans-serif; flex: 1; }
+.mjd-acct {
+  display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid #34343a;
+}
+.mjd-acct-av {
+  width: 26px; height: 26px; border-radius: 50%; background: #34343a; color: #e0b874;
+  display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.mjd-acct-txt { flex: 1; min-width: 0; }
+.mjd-acct-txt b { display: block; font-size: 12.5px; color: #f4f3f0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mjd-acct-txt span { font-size: 11px; color: #75757c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.mjd-tiny {
+  background: transparent; border: 1px solid #45454c; border-radius: 5px; color: #adadb2;
+  font-family: inherit; font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  padding: 5px 9px; cursor: pointer; transition: border-color .15s, color .15s; flex-shrink: 0;
+}
+.mjd-tiny:hover { border-color: #e0b874; color: #e0b874; }
+.mjd-tiny.danger:hover { border-color: rgba(214,138,124,.6); color: #d68a7c; }
+
+/* Conflict — the two versions side by side */
+.mjd-conflict { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0 6px; }
+.mjd-conflict > div { border: 1px solid #3a3a42; border-radius: 8px; overflow: hidden; background: #232327; }
+.mjd-conflict h5 {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  padding: 9px 12px; border-bottom: 1px solid #3a3a42; color: #8d8d94;
+}
+.mjd-conflict.mine h5, .mjd-conflict > div.mine h5 { color: #e0b874; }
+.mjd-conflict > div.theirs h5 { color: #6da8f5; }
+.mjd-conflict-body {
+  max-height: 260px; overflow: auto; padding: 12px 14px; font-size: 12px; line-height: 1.6; color: #adadb2;
+}
+.mjd-conflict-body ins { background: rgba(93,175,109,.22); color: #cfe6c9; text-decoration: none; }
+.mjd-conflict-body del { background: rgba(214,138,124,.2); color: #e8bdb4; }
+@media (max-width: 620px) { .mjd-conflict { grid-template-columns: 1fr; } }
+
+/* Universal search overlay */
+#mjd-omni { position: fixed; inset: 0; z-index: 2147482100; display: none; padding: 8vh 20px 20px;
+  background: rgba(14,14,16,.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+#mjd-omni.on { display: block; }
+#mjd-omni-box {
+  max-width: 720px; margin: 0 auto; background: #2c2c31; border: 1px solid #45454c; border-radius: 10px;
+  box-shadow: 0 30px 70px rgba(0,0,0,.5); overflow: hidden; display: flex; flex-direction: column;
+  max-height: 78vh; font-family: 'DM Sans', sans-serif; animation: mjdin .16s ease;
+}
+#mjd-omni-top { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid #3a3a42; }
+#mjd-omni-top svg { width: 16px; height: 16px; color: #8d8d94; flex-shrink: 0; }
+#mjd-omni-input {
+  flex: 1; background: transparent; border: none; outline: none; color: #f4f3f0;
+  font-family: inherit; font-size: 15px; min-width: 0;
+}
+#mjd-omni-input::placeholder { color: #75757c; }
+#mjd-omni-filters { display: flex; gap: 6px; padding: 11px 18px; border-bottom: 1px solid #3a3a42;
+  flex-wrap: wrap; align-items: center; }
+.mjd-fchip {
+  background: transparent; border: 1px solid #45454c; border-radius: 20px; color: #8d8d94;
+  font-family: inherit; font-size: 10.5px; font-weight: 600; letter-spacing: .04em;
+  padding: 4px 11px; cursor: pointer; transition: border-color .15s, color .15s;
+}
+.mjd-fchip:hover { color: #adadb2; }
+.mjd-fchip.on { border-color: rgba(224,184,116,.55); color: #e0b874; background: #26262b; }
+#mjd-omni-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding: 6px; }
+.mjd-hit { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 6px;
+  cursor: pointer; border: 1px solid transparent; }
+.mjd-hit:hover, .mjd-hit.sel { background: #26262b; border-color: #3a3a42; }
+.mjd-hit .mjd-ico { line-height: 0; color: #8d8d94; flex-shrink: 0; }
+.mjd-hit .mjd-ico svg { width: 15px; height: 15px; }
+.mjd-hit-txt { flex: 1; min-width: 0; }
+.mjd-hit-txt b { display: block; font-size: 13px; color: #f4f3f0; font-weight: 550;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mjd-hit-txt span { display: block; font-size: 11px; color: #75757c;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mjd-hit mark { background: rgba(224,184,116,.25); color: #f0d9ae; border-radius: 2px; }
+#mjd-omni-foot { padding: 10px 18px; border-top: 1px solid #3a3a42; display: flex; align-items: center;
+  gap: 10px; font-size: 11px; color: #75757c; flex-wrap: wrap; }
+#mjd-omni-answer { padding: 12px 18px; border-bottom: 1px solid #3a3a42; font-size: 12.5px;
+  color: #adadb2; line-height: 1.6; display: none; }
+#mjd-omni-answer.on { display: block; }
+#mjd-omni-answer b { color: #e0b874; font-weight: 600; }
+
+/* AI results list inside the modal */
+.mjd-ai-group { border: 1px solid #3a3a42; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+.mjd-ai-group > h5 { font-size: 12.5px; font-weight: 650; color: #f4f3f0; padding: 11px 14px;
+  background: #26262b; border-bottom: 1px solid #3a3a42; font-family: 'Manrope', sans-serif; }
+.mjd-ai-group > h5 em { font-style: normal; font-size: 11px; color: #75757c; font-weight: 400; margin-left: 8px; }
+.mjd-ai-group ul { list-style: none; padding: 6px 0; }
+.mjd-ai-group li { padding: 6px 14px; font-size: 12.5px; color: #adadb2; display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.mjd-ai-group li:hover { background: #26262b; color: #f4f3f0; }
+.mjd-pill-row { display: flex; flex-wrap: wrap; gap: 7px; margin: 4px 0 10px; }
+.mjd-pill {
+  background: #232327; border: 1px solid #45454c; border-radius: 20px; color: #adadb2;
+  font-family: inherit; font-size: 12px; padding: 6px 13px; cursor: pointer; transition: border-color .15s, color .15s;
+}
+.mjd-pill:hover { border-color: #e0b874; color: #e0b874; }
+.mjd-out {
+  background: #232327; border: 1px solid #3a3a42; border-radius: 8px; padding: 14px 16px;
+  font-size: 13px; line-height: 1.65; color: #d6d6da; white-space: pre-wrap; max-height: 300px; overflow: auto;
+}
+.mjd-spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(224,184,116,.25);
+  border-top-color: #e0b874; border-radius: 50%; animation: mjdspin .7s linear infinite; }
+.mjd-busy { display: flex; align-items: center; gap: 10px; padding: 26px 0; color: #8d8d94; font-size: 13px; justify-content: center; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+/* Tablet and below: the sidebar becomes a drawer, so the rail needs to be
+   comfortably tappable rather than compact. */
+@media (max-width: 900px) {
+  #tj-root .mjd-rail-btn { padding: 9px 8px; font-size: 11px; }
+  #tj-root .mjd-quick button { padding: 8px 4px; font-size: 10.5px; }
+  #tj-root .mjd-row { min-height: 38px; padding: 8px; }
+  #tj-root .mjd-name { font-size: 13px; }
+  #tj-root .mjd-star { opacity: .55; }
+  #mjd-modal-box { max-height: 88vh; }
+  #mjd-omni { padding: 5vh 12px 12px; }
+  #mjd-omni-box { max-height: 86vh; }
+}
+/* Phone: labels off the rail (icons carry it), full-bleed dialogs. */
+@media (max-width: 600px) {
+  #tj-root .mjd-rail-btn span.mjd-lbl { display: none; }
+  #tj-root .mjd-rail-btn { padding: 10px 6px; }
+  #tj-root .mjd-rail-btn svg { width: 15px; height: 15px; }
+  #mjd-modal { padding: 0; align-items: flex-end; }
+  #mjd-modal-box { max-width: none; border-radius: 12px 12px 0 0; max-height: 92vh; }
+  #mjd-modal-head { padding: 18px 18px 12px; }
+  #mjd-modal-body { padding: 0 18px 4px; }
+  #mjd-modal-foot { padding: 14px 18px calc(18px + env(safe-area-inset-bottom, 0px)); }
+  #mjd-modal-foot .mjd-btn { flex: 1 1 46%; justify-content: center; }
+  #tj-root .mjd-chip { max-width: 160px; }
+  #tj-root #mjd-lastsync { display: none; }
+}
+/* Narrow foldables / cover screens */
+@media (max-width: 360px) {
+  #tj-root .mjd-quick button { font-size: 9px; letter-spacing: .03em; }
+  #tj-root .mjd-meta { display: none; }
+}
+/* Short viewports (phone landscape, split screen): dialogs must not exceed the
+   window, and the tree needs every pixel it can get. */
+@media (max-height: 520px) {
+  #mjd-modal-box { max-height: 96vh; }
+  #mjd-modal-head { padding: 13px 18px 8px; }
+  #mjd-modal-foot { padding: 10px 18px 12px; }
+  #mjd-omni { padding: 2vh 12px 12px; }
+  #mjd-omni-box { max-height: 94vh; }
+}
+/* Coarse pointers: hover-only affordances need a permanent home. */
+@media (hover: none) {
+  #tj-root .mjd-row .mjd-star { opacity: .55; }
+}
+</style>
+
+
+<script>
+(function () {
+  'use strict';
+  var D = window.MJDocs;
+  if (!D) return;
+
+  /* ── Icons (same stroke set MyJournal uses; emoji render as flat black glyphs
+        on Windows and would break the palette). ─────────────────────────────*/
+  function svg(p, w) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (w || 1.6) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; }
+  var I = {
+    chevron:  svg('<path d="m9 6 6 6-6 6"/>', 2.2),
+    folder:   svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
+    notebook: svg('<path d="M4 4a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M8 2v20"/>'),
+    group:    svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M7 12h10"/>'),
+    section:  svg('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16"/>'),
+    doc:      svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>'),
+    star:     svg('<path d="m12 3 2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.8 6.7 19.6l1.1-6L3.4 9.4l6-.8Z"/>'),
+    clock:    svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    search:   svg('<circle cx="11" cy="11" r="7.5"/><path d="m21 21-4.3-4.3"/>'),
+    plus:     svg('<path d="M12 5v14"/><path d="M5 12h14"/>', 2.1),
+    refresh:  svg('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>'),
+    more:     svg('<circle cx="5" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="19" cy="12" r="1.4" fill="currentColor"/>'),
+    x:        svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 2),
+    gear:     svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/>', 1.4),
+    external: svg('<path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>'),
+    sparkle:  svg('<path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m6 6 2.5 2.5"/><path d="m15.5 15.5 2.5 2.5"/><path d="m18 6-2.5 2.5"/><path d="m8.5 15.5-2.5 2.5"/>'),
+    cloud:    svg('<path d="M17.5 19a4.5 4.5 0 0 0 .3-9A6 6 0 0 0 6.3 11 3.5 3.5 0 0 0 7 19Z"/>'),
+    download: svg('<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>')
+  };
+  function kindIcon(k) {
+    return k === 'folder' ? I.folder : k === 'notebook' ? I.notebook :
+           k === 'sectiongroup' ? I.group : k === 'section' ? I.section : I.doc;
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function el(id) { return document.getElementById(id); }
+  function fmtWhen(ms) {
+    if (!ms) return '';
+    var d = Date.now() - ms;
+    if (d < 45000) return 'just now';
+    if (d < 3600000) return Math.floor(d / 60000) + 'm ago';
+    if (d < 86400000) return Math.floor(d / 3600000) + 'h ago';
+    if (d < 604800000) return Math.floor(d / 86400000) + 'd ago';
+    return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Modal shell — every dialog in this feature. Nothing here uses alert(),
+   * confirm() or prompt(): a browser dialog would sit outside MyJournal, lose
+   * the app's styling and (on desktop) vanish the moment the window blurs.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var modalStack = [];
+  function ensureModal() {
+    if (el('mjd-modal')) return;
+    var m = document.createElement('div');
+    m.id = 'mjd-modal';
+    m.innerHTML =
+      '<div id="mjd-modal-box" role="dialog" aria-modal="true" aria-labelledby="mjd-modal-title">' +
+        '<div id="mjd-modal-head"><div style="flex:1;min-width:0"><div id="mjd-modal-title"></div><div id="mjd-modal-sub"></div></div>' +
+        '<button class="mjd-x" id="mjd-modal-x" aria-label="Close">' + I.x + '</button></div>' +
+        '<div id="mjd-modal-body"></div><div id="mjd-modal-foot"></div></div>';
+    document.body.appendChild(m);
+    el('mjd-modal-x').addEventListener('click', function () { closeModal(); });
+    m.addEventListener('click', function (e) { if (e.target === m) closeModal(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && m.classList.contains('on')) { e.stopPropagation(); closeModal(); }
+    }, true);
+  }
+  // cfg: {title, sub, body(HTMLElement|string), actions:[{label,cls,fn,keep}], wide}
+  function openModal(cfg) {
+    ensureModal();
+    modalStack.push(cfg);
+    el('mjd-modal-box').classList.toggle('wide', !!cfg.wide);
+    el('mjd-modal-title').textContent = cfg.title || '';
+    var sub = el('mjd-modal-sub');
+    sub.innerHTML = cfg.sub || ''; sub.style.display = cfg.sub ? '' : 'none';
+    var body = el('mjd-modal-body');
+    body.innerHTML = '';
+    if (cfg.body instanceof Node) body.appendChild(cfg.body);
+    else body.innerHTML = cfg.body || '';
+    var foot = el('mjd-modal-foot');
+    foot.innerHTML = '';
+    (cfg.actions || []).forEach(function (a) {
+      var b = document.createElement('button');
+      b.className = 'mjd-btn ' + (a.cls || '');
+      b.innerHTML = a.label;
+      b.addEventListener('click', function () { if (!a.keep) closeModal(); if (a.fn) a.fn(); });
+      foot.appendChild(b);
+    });
+    foot.style.display = (cfg.actions && cfg.actions.length) ? '' : 'none';
+    el('mjd-modal').classList.add('on');
+    setTimeout(function () {
+      var f = body.querySelector('input,select,textarea,button');
+      if (f) try { f.focus(); if (f.select) f.select(); } catch (e) {}
+    }, 50);
+    return body;
+  }
+  function closeModal() {
+    modalStack.pop();
+    var cur = modalStack[modalStack.length - 1];
+    if (cur) { modalStack.pop(); openModal(cur); }        // restore the dialog underneath
+    else { var m = el('mjd-modal'); if (m) m.classList.remove('on'); }
+  }
+  function toast(msg, kind) {
+    // MyJournal already owns a status line in the toolbar; a transient message
+    // belongs there rather than in a floating layer that covers the document.
+    var box = el('mjd-lastsync');
+    if (!box) { if (window.uiAlert) window.uiAlert(msg); return; }
+    box.textContent = msg;
+    box.style.color = kind === 'error' ? 'var(--red)' : (kind === 'ok' ? 'var(--green)' : '');
+    clearTimeout(box._t);
+    box._t = setTimeout(function () { box.style.color = ''; paintStatus(); }, 4200);
+  }
+  async function ask(msg, opts) { return window.uiConfirm ? window.uiConfirm(msg, opts) : Promise.resolve(true); }
+  async function askText(msg, opts) { return window.uiPrompt ? window.uiPrompt(msg, opts) : Promise.resolve(null); }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * State
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var section = 'pages';         // pages | gdocs | onenote | favorites | recents
+  var activeAccount = {};        // { providerId: accountId }
+  var openDocState = null;       // the cloud document currently in the editor
+  var expanded = {};             // nodeKey → true (mirrored into settings)
+  var loadedKids = {};           // nodeKey → Node[]
+  var lastLocalId = null;        // entry to restore when leaving cloud mode
+
+  function S() { return D.settings(); }
+  function accountFor(pid) {
+    var p = D.get(pid); if (!p) return null;
+    var accs = p.accounts();
+    if (!accs.length) return null;
+    var want = activeAccount[pid];
+    return (want && accs.filter(function (a) { return a.id === want; })[0]) || accs[0];
+  }
+  function rootRef(pid) {
+    var p = D.get(pid), a = accountFor(pid);
+    if (!p || !a) return null;
+    return { provider: pid, account: a.id, id: p.rootId, kind: 'root', name: p.rootLabel, hasChildren: true, path: p.rootLabel };
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Sidebar
+   * ══════════════════════════════════════════════════════════════════════════ */
+  function buildNav() {
+    var sidebar = el('tj-sidebar');
+    if (!sidebar || el('mjd-nav')) return;
+
+    var nav = document.createElement('div');
+    nav.id = 'mjd-nav';
+    var rail = D.all().map(function (p) {
+      var connected = p.caps.local || p.accounts().length > 0;
+      return '<button class="mjd-rail-btn" data-sec="' + p.id + '" title="' + esc(p.label) + '">' +
+        p.icon + '<span class="mjd-lbl">' + esc(p.id === 'mjpages' ? 'Journal' : p.label.replace('Google ', '').replace('Microsoft ', '')) + '</span>' +
+        (p.caps.local ? '' : '<span class="mjd-dot' + (connected ? '' : ' off') + '"></span>') +
+        '</button>';
+    }).join('');
+    nav.innerHTML =
+      '<div class="mjd-rail" role="tablist">' + rail + '</div>' +
+      '<div class="mjd-quick">' +
+        '<button data-sec="favorites" title="Favourites">' + I.star + '<span>Starred</span></button>' +
+        '<button data-sec="recents" title="Recent documents">' + I.clock + '<span>Recent</span></button>' +
+        '<button id="mjd-omni-btn" title="Search all documents (Ctrl+Shift+F)">' + I.search + '<span>Find</span></button>' +
+        '<button id="mjd-settings-btn" title="Document settings">' + I.gear + '</button>' +
+      '</div>';
+    sidebar.insertBefore(nav, el('tj-new-entry-btn'));
+
+    var panel = document.createElement('div');
+    panel.id = 'mjd-panel';
+    panel.innerHTML =
+      '<div id="mjd-panel-head">' +
+        '<span id="mjd-panel-title"></span>' +
+        '<button class="mjd-icon-btn" id="mjd-new-btn" title="New">' + I.plus + '</button>' +
+        '<button class="mjd-icon-btn" id="mjd-refresh-btn" title="Refresh">' + I.refresh + '</button>' +
+        '<button class="mjd-icon-btn" id="mjd-acct-btn" title="Accounts">' + I.more + '</button>' +
+      '</div>' +
+      '<div id="mjd-tree"></div>';
+    var list = el('tj-entries-list');
+    list.parentNode.insertBefore(panel, list.nextSibling);
+
+    nav.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-sec]');
+      if (b) { setSection(b.getAttribute('data-sec')); return; }
+      if (e.target.closest('#mjd-omni-btn')) { openOmni(); return; }
+      if (e.target.closest('#mjd-settings-btn')) { openSettings(); return; }
+    });
+    el('mjd-new-btn').addEventListener('click', onNew);
+    el('mjd-refresh-btn').addEventListener('click', function () { hardRefresh(); });
+    el('mjd-acct-btn').addEventListener('click', function () { openAccounts(sectionProvider()); });
+
+    buildDocBar();
+    setSection(S().view && S().view.section || 'pages');
+  }
+
+  function sectionProvider() {
+    return (section === 'favorites' || section === 'recents') ? null : (section === 'pages' ? 'mjpages' : section);
+  }
+
+  function setSection(sec) {
+    section = sec;
+    S().view = Object.assign({}, S().view, { section: sec });
+    D.save();
+    document.querySelectorAll('#mjd-nav [data-sec]').forEach(function (b) {
+      b.classList.toggle('on', b.getAttribute('data-sec') === sec);
+    });
+    var local = sec === 'pages';
+    // The native entries list and its tag filter belong to MyJournal Pages; the
+    // cloud panel replaces them wholesale rather than trying to interleave.
+    el('tj-entries-list').style.display = local ? '' : 'none';
+    var tagRow = el('tj-tagfilter-row'); if (tagRow) tagRow.style.display = local ? '' : 'none';
+    var stats = el('tj-sidebar-stats'); if (stats) stats.style.display = local ? '' : 'none';
+    var trash = document.querySelector('#tj-sidebar .docx-trash-btn'); if (trash) trash.style.display = local ? '' : 'none';
+    el('tj-new-entry-btn').style.display = local ? '' : 'none';
+    el('mjd-panel').classList.toggle('on', !local);
+    var sw = document.querySelector('#tj-sidebar .search-wrap'); if (sw) sw.style.display = local ? '' : 'none';
+    if (!local) renderPanel();
+  }
+
+  function renderPanel() {
+    var titleEl = el('mjd-panel-title'), tree = el('mjd-tree');
+    var pid = sectionProvider();
+    var isList = !pid;
+    el('mjd-new-btn').style.display = isList ? 'none' : '';
+    el('mjd-acct-btn').style.display = (isList || (D.get(pid) && D.get(pid).caps.local)) ? 'none' : '';
+    el('mjd-refresh-btn').style.display = isList ? 'none' : '';
+
+    if (section === 'favorites') { titleEl.textContent = 'Favourites'; renderFlat(S().favorites, 'Nothing starred yet.<br>Star a document, folder or notebook to pin it here.'); return; }
+    if (section === 'recents')   { titleEl.textContent = 'Recent';     renderFlat(S().recents, 'Nothing opened yet.'); return; }
+
+    var p = D.get(pid);
+    titleEl.textContent = p.label;
+    if (!p.caps.local) {
+      if (!p.configured()) {
+        tree.innerHTML = '<div class="mjd-connect-cta"><p>' + esc(p.label) + ' is not set up yet. Add your ' +
+          esc(p.setup.label) + ' to connect.</p></div>';
+        var b0 = document.createElement('button'); b0.className = 'mjd-btn'; b0.innerHTML = I.gear + 'Set up ' + esc(p.label);
+        b0.addEventListener('click', openSettings);
+        tree.querySelector('.mjd-connect-cta').appendChild(b0);
+        return;
+      }
+      if (!p.accounts().length) {
+        tree.innerHTML = '<div class="mjd-connect-cta"><p>Connect your ' + esc(p.label) + ' account to browse and edit your documents inside MyJournal.</p></div>';
+        var b1 = document.createElement('button'); b1.className = 'mjd-btn'; b1.innerHTML = I.cloud + 'Connect ' + esc(p.label);
+        b1.addEventListener('click', function () { doConnect(pid, false); });
+        tree.querySelector('.mjd-connect-cta').appendChild(b1);
+        return;
+      }
+      var acc = accountFor(pid);
+      titleEl.textContent = p.label + (p.accounts().length > 1 ? ' · ' + (acc.email || acc.label).split('@')[0] : '');
+    }
+    tree.innerHTML = '';
+    var root = rootRef(pid);
+    if (!root) { tree.innerHTML = '<div class="mjd-empty">Not connected.</div>'; return; }
+    renderChildren(root, tree, 0);
+  }
+
+  function renderFlat(items, emptyMsg) {
+    var tree = el('mjd-tree');
+    tree.innerHTML = '';
+    if (!items || !items.length) { tree.innerHTML = '<div class="mjd-empty">' + emptyMsg + '</div>'; return; }
+    items.forEach(function (n) {
+      var node = Object.assign({ hasChildren: n.kind !== 'doc', key: n.provider + ':' + n.account + ':' + n.id }, n);
+      tree.appendChild(rowFor(node, 0, { noTwisty: true, showPath: true }));
+    });
+  }
+
+  // One tree row. Rows are built rather than templated because each carries its
+  // own handlers for open, expand, star and the action menu.
+  function rowFor(node, depth, opts) {
+    opts = opts || {};
+    var row = document.createElement('div');
+    row.className = 'mjd-row kind-' + node.kind;
+    row.style.paddingLeft = (8 + depth * 13) + 'px';
+    row.dataset.key = node.key;
+    var starred = D.isFav(node);
+    row.innerHTML =
+      '<span class="mjd-tw' + ((node.hasChildren && !opts.noTwisty) ? '' : ' leaf') + (expanded[node.key] ? ' open' : '') + '">' + I.chevron + '</span>' +
+      '<span class="mjd-ico">' + kindIcon(node.kind) + '</span>' +
+      '<span class="mjd-name" title="' + esc(node.name) + '">' + esc(node.name) + '</span>' +
+      (opts.showPath && node.path ? '<span class="mjd-meta">' + esc(String(node.path).split(' / ').pop()) + '</span>'
+        : (node.kind === 'doc' && node.modified ? '<span class="mjd-meta">' + fmtWhen(node.modified) + '</span>' : '')) +
+      '<button class="mjd-icon-btn mjd-star' + (starred ? ' on' : '') + '" title="' + (starred ? 'Unstar' : 'Star') + '">' + I.star + '</button>' +
+      '<button class="mjd-icon-btn mjd-menu" title="Actions">' + I.more + '</button>';
+
+    row.querySelector('.mjd-star').addEventListener('click', function (e) {
+      e.stopPropagation();
+      var on = D.toggleFav(node);
+      this.classList.toggle('on', on);
+      this.title = on ? 'Unstar' : 'Star';
+      if (section === 'favorites') renderPanel();
+    });
+    row.querySelector('.mjd-menu').addEventListener('click', function (e) { e.stopPropagation(); openActions(node); });
+    row.addEventListener('click', function () {
+      if (node.kind === 'doc') openDocument(node);
+      else if (!opts.noTwisty) toggleNode(node, row, depth);
+      else jumpTo(node);
+    });
+    return row;
+  }
+
+  function toggleNode(node, row, depth) {
+    var tw = row.querySelector('.mjd-tw');
+    var next = row.nextElementSibling;
+    if (expanded[node.key]) {
+      expanded[node.key] = false; delete S().expanded[node.key]; D.save();
+      tw.classList.remove('open');
+      if (next && next.classList.contains('mjd-kids')) next.remove();
+      return;
+    }
+    expanded[node.key] = true; S().expanded[node.key] = true; D.save();
+    tw.classList.add('open');
+    var kids = document.createElement('div');
+    kids.className = 'mjd-kids';
+    row.parentNode.insertBefore(kids, row.nextSibling);
+    renderChildren(node, kids, depth + 1);
+  }
+
+  // Cache-first paint, then reconcile with the live listing. The cached rows are
+  // real and clickable immediately; they are replaced wholesale when the
+  // authoritative answer lands, so a stale cache can never hide a change.
+  function renderChildren(ref, container, depth) {
+    container.innerHTML = '<div class="mjd-skel"></div><div class="mjd-skel" style="width:70%"></div>';
+    var painted = false;
+    function paint(nodes) {
+      container.innerHTML = '';
+      if (!nodes.length) {
+        container.innerHTML = '<div class="mjd-empty" style="padding:14px 12px;font-size:11.5px">' +
+          (ref.kind === 'root' ? 'Nothing here yet.' : 'Empty.') + '</div>';
+        return;
+      }
+      nodes.forEach(function (n) {
+        container.appendChild(rowFor(n, depth));
+        if (expanded[n.key] && n.hasChildren) {
+          var kids = document.createElement('div');
+          kids.className = 'mjd-kids';
+          container.appendChild(kids);
+          renderChildren(n, kids, depth + 1);
+        }
+      });
+      markActive();
+    }
+    D.children(ref, function (cached) { painted = true; loadedKids[ref.key || 'root'] = cached; paint(cached); })
+      .then(function (live) { loadedKids[ref.key || 'root'] = live; paint(live); })
+      .catch(function (e) {
+        if (painted) return;         // a cached listing is better than an error
+        container.innerHTML = '<div class="mjd-note"><b>Could not load.</b><br>' + esc(D.errText(e)) + '</div>';
+      });
+  }
+
+  function markActive() {
+    document.querySelectorAll('#mjd-tree .mjd-row').forEach(function (r) {
+      r.classList.toggle('active', !!openDocState && r.dataset.key === openDocState.node.key);
+    });
+  }
+
+  function hardRefresh() {
+    var btn = el('mjd-refresh-btn');
+    btn.classList.add('spin');
+    var pid = sectionProvider();
+    D.cacheDrop(pid ? 'ch|' + pid : '');
+    loadedKids = {};
+    renderPanel();
+    setTimeout(function () { btn.classList.remove('spin'); }, 700);
+    D.refreshIndex({ ms: 12000 });
+  }
+
+  // Jump from a favourite / search hit to the item in its own provider tree.
+  function jumpTo(node) {
+    if (node.kind === 'doc') { openDocument(node); return; }
+    activeAccount[node.provider] = node.account;
+    setSection(node.provider === 'mjpages' ? 'pages' : node.provider);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Opening a document — the shared editor
+   *
+   * A cloud document and a MyJournal page go into the SAME contenteditable, so
+   * every editor feature (ribbon, undo, find & replace, images, AI tools, the
+   * page sheet, zoom, margins) works on all three providers with no per-provider
+   * code. What differs is only where the HTML came from and where it goes back.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var SAVE_DEBOUNCE = 1400;
+  var saveTimer = null;
+
+  async function openDocument(node) {
+    var B = window._tjCloudBridge;
+    if (!B) return;
+
+    if (node.provider === 'mjpages') {           // a native page: hand it back to MyJournal
+      D.touchRecent(node, 'opened');
+      B.openLocal(node.id);
+      openDocState = null;
+      paintDocBar();
+      return;
+    }
+    if (openDocState) await flushSave(true);
+    else lastLocalId = null;
+
+    var p = D.get(node.provider);
+    B.enter();
+    B.setSync('syncing');
+    var ed = B.editor(), title = B.titleInput();
+    ed.innerHTML = '<p style="color:var(--text3)">Loading…</p>';
+    title.value = node.name;
+    openDocState = { node: node, base: null, dirty: false, loading: true, lastSync: 0 };
+    paintDocBar();
+    markActive();
+
+    try {
+      var got = await p.read(node);
+      // A second document opened while this one was still loading wins — dropping
+      // the stale response is what stops the slower request overwriting it.
+      if (!openDocState || openDocState.node.key !== node.key) return;
+      ed.innerHTML = got.html || '<p></p>';
+      title.value = got.title || node.name;
+      openDocState.base = { html: got.html || '', modified: got.modified || 0, rev: got.rev || '' };
+      openDocState.loading = false;
+      openDocState.lastSync = Date.now();
+      // Give the editor layer the same load hook a native page gets, so undo
+      // history, saved scroll position and image bindings all behave identically.
+      if (window._docxOnLoad) window._docxOnLoad('tj-page-editor', 'mjd_' + node.key);
+      ed.querySelectorAll('.pg-img-wrap').forEach(function (w) { if (window._tjBindImg) window._tjBindImg(w); });
+      B.setSync('synced');
+      D.touchRecent(node, 'opened');
+      S().lastOpen = { provider: node.provider, account: node.account, id: node.id, kind: node.kind, name: node.name, path: node.path || '' };
+      D.save();
+      paintDocBar();
+    } catch (e) {
+      if (!openDocState || openDocState.node.key !== node.key) return;
+      openDocState.loading = false;
+      openDocState.failed = true;
+      ed.innerHTML = '<p style="color:var(--red)">Could not open this document.</p><p style="color:var(--text3);font-size:13px">' + esc(D.errText(e)) + '</p>';
+      B.setSync('error');
+      paintDocBar();
+    }
+  }
+
+  function closeDocument() {
+    var B = window._tjCloudBridge;
+    openDocState = null;
+    paintDocBar();
+    markActive();
+    if (B) B.leave(lastLocalId);
+  }
+
+  // Called from MyJournal's autoSave the moment the editor changes in cloud mode.
+  D.onEditorInput = function () {
+    if (!openDocState || openDocState.loading || openDocState.failed) return;
+    openDocState.dirty = true;
+    var B = window._tjCloudBridge;
+    if (B) B.setSync('syncing');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () { flushSave(false); }, SAVE_DEBOUNCE);
+  };
+  window.MJDocs.onEditorInput = D.onEditorInput;
+
+  /* ── Saving, with conflict detection ──────────────────────────────────────
+   * Before every write the remote stamp is re-read. If it moved since this
+   * document was loaded, someone (or another device) changed it and a blind
+   * write would destroy their work — so the write stops and the conflict dialog
+   * decides. Nothing is ever overwritten silently, in either direction. */
+  var saving = false;
+  async function flushSave(force) {
+    clearTimeout(saveTimer);
+    if (!openDocState || openDocState.loading || openDocState.failed) return;
+    if (!openDocState.dirty && !force) return;
+    if (saving) return;
+    var st = openDocState, B = window._tjCloudBridge;
+    if (!B) return;
+    var html = B.editor().innerHTML;
+    var titleNow = (B.titleInput().value || '').trim();
+
+    if (!navigator.onLine) {
+      D.enqueue(st.node, html);
+      st.dirty = false;
+      B.setSync('idle');
+      paintStatus();
+      return;
+    }
+
+    saving = true;
+    B.setSync('syncing');
+    try {
+      var p = D.get(st.node.provider);
+      var stamp = await p.remoteStamp(st.node);
+      var moved = st.base && stamp.modified && stamp.modified > (st.base.modified || 0) + 1500;
+      if (moved) {
+        saving = false;
+        var remote = await p.read(st.node);
+        showConflict(st, html, remote);
+        return;
+      }
+      if (titleNow && titleNow !== st.node.name && p.caps.renameDoc) {
+        try { await p.rename(st.node, titleNow); st.node.name = titleNow; } catch (e) { /* content still saves */ }
+      }
+      var res = await p.write(st.node, html);
+      st.base = { html: html, modified: res.modified, rev: res.rev };
+      st.dirty = false;
+      st.lastSync = Date.now();
+      st.node.modified = res.modified;
+      B.setSync('synced');
+      paintStatus();
+      D.touchRecent(st.node, 'edited');
+    } catch (e) {
+      // Anything that looks like a lost connection is queued rather than
+      // reported as a failure — the edit is safe and will replay.
+      if (/network|failed to fetch|offline/i.test(D.errText(e))) {
+        D.enqueue(st.node, html); st.dirty = false; B.setSync('idle');
+      } else {
+        B.setSync('error');
+        toast(D.errText(e), 'error');
+      }
+    } finally { saving = false; paintDocBar(); }
+  }
+
+  /* ── Conflict dialog ──────────────────────────────────────────────────────*/
+  function plain(html) {
+    var d = document.createElement('div'); d.innerHTML = html || '';
+    return (d.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+  // Word-level LCS. Small on purpose: this compares two versions of one
+  // document a person just wrote, not arbitrary files.
+  function wordDiff(a, b) {
+    var A = a.split(/(\s+)/), B = b.split(/(\s+)/);
+    var n = A.length, m = B.length;
+    if (n * m > 900000) return null;                 // too big to diff meaningfully
+    var L = [];
+    for (var i = 0; i <= n; i++) L.push(new Uint32Array(m + 1));
+    for (i = n - 1; i >= 0; i--)
+      for (var j = m - 1; j >= 0; j--)
+        L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    var out = [], x = 0, y = 0;
+    while (x < n && y < m) {
+      if (A[x] === B[y]) { out.push(['=', A[x]]); x++; y++; }
+      else if (L[x + 1][y] >= L[x][y + 1]) { out.push(['-', A[x]]); x++; }
+      else { out.push(['+', B[y]]); y++; }
+    }
+    while (x < n) out.push(['-', A[x++]]);
+    while (y < m) out.push(['+', B[y++]]);
+    return out;
+  }
+  function renderDiff(mineText, theirsText) {
+    var d = wordDiff(theirsText, mineText);
+    if (!d) return null;
+    var mine = '', theirs = '';
+    d.forEach(function (p) {
+      var t = esc(p[1]);
+      if (p[0] === '=') { mine += t; theirs += t; }
+      else if (p[0] === '+') { mine += '<ins>' + t + '</ins>'; }
+      else { theirs += '<del>' + t + '</del>'; }
+    });
+    return { mine: mine, theirs: theirs };
+  }
+
+  function showConflict(st, myHtml, remote) {
+    var B = window._tjCloudBridge;
+    B.setSync('error');
+    var p = D.get(st.node.provider);
+    var body = document.createElement('div');
+    body.innerHTML =
+      '<div class="mjd-conflict">' +
+        '<div class="mine"><h5>Your version — in MyJournal</h5><div class="mjd-conflict-body" id="mjd-cf-mine"></div></div>' +
+        '<div class="theirs"><h5>Cloud version — in ' + esc(p.label) + '</h5><div class="mjd-conflict-body" id="mjd-cf-theirs"></div></div>' +
+      '</div>' +
+      '<p class="mjd-hint">The cloud copy changed at ' + esc(new Date(remote.modified || Date.now()).toLocaleString()) +
+      ', after you opened it. Nothing has been overwritten — pick which version to keep.</p>';
+
+    var mineText = plain(myHtml), theirsText = plain(remote.html);
+    var diff = renderDiff(mineText, theirsText);
+    body.querySelector('#mjd-cf-mine').innerHTML = diff ? diff.mine : esc(mineText).slice(0, 6000);
+    body.querySelector('#mjd-cf-theirs').innerHTML = diff ? diff.theirs : esc(theirsText).slice(0, 6000);
+
+    openModal({
+      title: 'This document changed in two places',
+      sub: esc(st.node.name),
+      wide: true,
+      body: body,
+      actions: [
+        { label: 'Keep cloud version', cls: 'ghost', fn: function () {
+            B.editor().innerHTML = remote.html;
+            st.base = { html: remote.html, modified: remote.modified, rev: remote.rev };
+            st.dirty = false; st.lastSync = Date.now();
+            B.setSync('synced'); paintStatus();
+          } },
+        { label: 'Keep both (save mine as a copy)', cls: 'ghost', fn: function () { keepBoth(st, myHtml, remote); } },
+        { label: 'Keep my version', fn: async function () {
+            // Re-base onto the remote stamp first, so this write is an
+            // intentional overwrite rather than another conflict.
+            st.base = { html: remote.html, modified: remote.modified, rev: remote.rev };
+            st.dirty = true;
+            B.editor().innerHTML = myHtml;
+            await flushSave(true);
+          } }
+      ]
+    });
+  }
+
+  // "Keep both" is the answer when neither version is disposable: the cloud copy
+  // stays untouched and the local edit becomes a new sibling document.
+  async function keepBoth(st, myHtml, remote) {
+    var B = window._tjCloudBridge, p = D.get(st.node.provider);
+    try {
+      B.setSync('syncing');
+      var parentRef = { provider: st.node.provider, account: st.node.account, id: st.node.parent, kind: p.id === 'onenote' ? 'section' : 'folder' };
+      var copy = await p.createDoc(parentRef, st.node.name + ' (my version)');
+      await p.write(copy, myHtml);
+      B.editor().innerHTML = remote.html;
+      st.base = { html: remote.html, modified: remote.modified, rev: remote.rev };
+      st.dirty = false; st.lastSync = Date.now();
+      B.setSync('synced');
+      toast('Saved your version as "' + copy.name + '".', 'ok');
+      hardRefresh();
+    } catch (e) {
+      B.setSync('error');
+      toast(D.errText(e), 'error');
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Toolbar chip for the open cloud document
+   * ══════════════════════════════════════════════════════════════════════════ */
+  function buildDocBar() {
+    var tb = el('tj-toolbar'), pill = el('tj-sync-pill');
+    if (!tb || el('mjd-docbar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'mjd-docbar';
+    bar.innerHTML =
+      '<span class="mjd-chip"><span class="mjd-chip-ico" id="mjd-chip-ico"></span><span class="mjd-chip-path" id="mjd-chip-path"></span></span>' +
+      '<button class="mjd-icon-btn" id="mjd-save-now" title="Save now (Ctrl+S)">' + I.cloud + '</button>' +
+      '<button class="mjd-icon-btn" id="mjd-ai-btn" title="AI tools">' + I.sparkle + '</button>' +
+      '<button class="mjd-icon-btn" id="mjd-export-btn" title="Export">' + I.download + '</button>' +
+      '<button class="mjd-icon-btn" id="mjd-open-ext" title="Open in provider">' + I.external + '</button>' +
+      '<button class="mjd-icon-btn" id="mjd-close-doc" title="Close document">' + I.x + '</button>' +
+      '<span id="mjd-offline">' + I.cloud + 'Offline</span>' +
+      '<span id="mjd-lastsync"></span>';
+    tb.insertBefore(bar, pill || null);
+    el('mjd-save-now').addEventListener('click', function () { flushSave(true); });
+    el('mjd-ai-btn').addEventListener('click', openAiPanel);
+    el('mjd-export-btn').addEventListener('click', function () { if (openDocState) openExport(openDocState.node); });
+    el('mjd-open-ext').addEventListener('click', function () {
+      if (!openDocState) return;
+      var url = D.get(openDocState.node.provider).externalUrl(openDocState.node);
+      if (url) window.open(url, '_blank', 'noopener');
+    });
+    el('mjd-close-doc').addEventListener('click', async function () {
+      if (openDocState && openDocState.dirty) await flushSave(true);
+      closeDocument();
+    });
+  }
+
+  function paintDocBar() {
+    var bar = el('mjd-docbar');
+    if (!bar) return;
+    bar.classList.toggle('on', !!openDocState);
+    if (!openDocState) return;
+    var p = D.get(openDocState.node.provider);
+    el('mjd-chip-ico').innerHTML = p.icon;
+    el('mjd-chip-path').textContent = (openDocState.node.path ? openDocState.node.path + ' / ' : '') + openDocState.node.name;
+    el('mjd-chip-path').title = p.label + ' — ' + (openDocState.node.path || '');
+    var ext = el('mjd-open-ext');
+    ext.style.display = p.externalUrl(openDocState.node) ? '' : 'none';
+    ext.title = 'Open in ' + p.label;
+    el('mjd-export-btn').style.display = p.caps.exportDoc ? '' : 'none';
+    paintStatus();
+  }
+
+  function paintStatus() {
+    var ls = el('mjd-lastsync'), off = el('mjd-offline');
+    if (off) off.classList.toggle('on', !navigator.onLine || D.queueSize() > 0);
+    if (!ls) return;
+    var q = D.queueSize();
+    if (q > 0) { ls.textContent = q + ' change' + (q > 1 ? 's' : '') + ' waiting to sync'; return; }
+    if (!navigator.onLine) { ls.textContent = 'Offline — edits are saved on this device'; return; }
+    ls.textContent = openDocState && openDocState.lastSync ? 'Synced ' + fmtWhen(openDocState.lastSync) : '';
+  }
+  setInterval(paintStatus, 30000);
+  window.addEventListener('online', function () { paintStatus(); });
+  window.addEventListener('offline', function () { paintStatus(); });
+  D.on('queue', paintStatus);
+  D.on('flushed', function () { paintStatus(); toast('Offline changes synced.', 'ok'); });
+  D.on('dropped', function (d) { toast('Could not sync "' + (d.ref.name || 'a document') + '" — it no longer exists.', 'error'); });
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Document actions
+   * ══════════════════════════════════════════════════════════════════════════ */
+  function capFor(p, node, action) {
+    var container = node.kind !== 'doc';
+    if (action === 'rename') return container ? { ok: p.caps.renameFolder, why: p.caps.renameFolderReason } : { ok: p.caps.renameDoc };
+    if (action === 'delete') return container ? { ok: p.caps.deleteFolder, why: p.caps.deleteFolderReason } : { ok: p.caps.deleteDoc };
+    if (action === 'move')   return container ? { ok: p.caps.moveFolder, why: p.caps.moveFolderReason } : { ok: p.caps.moveDoc };
+    if (action === 'duplicate') return { ok: !container && p.caps.duplicateDoc };
+    if (action === 'export') return { ok: !container && p.caps.exportDoc };
+    return { ok: true };
+  }
+
+  function openActions(node) {
+    var p = D.get(node.provider);
+    var body = document.createElement('div');
+    var rows = [];
+    function add(label, action, fn, always) {
+      var c = always ? { ok: true } : capFor(p, node, action);
+      rows.push({ label: label, ok: c.ok, why: c.why, fn: fn });
+    }
+    if (node.kind === 'doc') add('Open', null, function () { openDocument(node); }, true);
+    add('Rename…', 'rename', function () { doRename(node); });
+    add('Duplicate', 'duplicate', function () { doDuplicate(node); });
+    add('Move to…', 'move', function () { doMove(node); });
+    add('Export…', 'export', function () { openExport(node); });
+    if (node.kind !== 'doc' && p.caps.createDoc) add(p.id === 'onenote' && node.kind !== 'section' ? 'New section…' : 'New document…', null, function () { onNew(node); }, true);
+    add(D.isFav(node) ? 'Remove from favourites' : 'Add to favourites', null, function () { D.toggleFav(node); renderPanel(); }, true);
+    if (p.externalUrl(node)) add('Open in ' + p.label, null, function () { window.open(p.externalUrl(node), '_blank', 'noopener'); }, true);
+    add('Delete…', 'delete', function () { doDelete(node); });
+
+    var html = '<div style="margin:-4px 0 4px">';
+    rows.forEach(function (r, i) {
+      html += '<button class="mjd-btn ghost" data-i="' + i + '" ' + (r.ok ? '' : 'disabled title="' + esc(r.why || 'Not supported by this provider.') + '"') +
+        ' style="width:100%;justify-content:flex-start;margin-bottom:7px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;padding:10px 14px">' + esc(r.label) + '</button>';
+      if (!r.ok && r.why) html += '<div class="mjd-hint" style="margin:-4px 0 9px">' + esc(r.why) + '</div>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+    body.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-i]');
+      if (!b || b.disabled) return;
+      closeModal();
+      rows[+b.getAttribute('data-i')].fn();
+    });
+    openModal({ title: node.name, sub: p.label + (node.path ? ' · ' + esc(node.path) : ''), body: body });
+  }
+
+  async function doRename(node) {
+    var p = D.get(node.provider);
+    var name = await askText('New name', { title: 'Rename', default: node.name, okLabel: 'Rename' });
+    if (name === null) return;
+    name = String(name).trim();
+    if (!name || name === node.name) return;
+    try {
+      await p.rename(node, name);
+      node.name = name;
+      if (openDocState && openDocState.node.key === node.key) {
+        window._tjCloudBridge.titleInput().value = name;
+        paintDocBar();
+      }
+      D.cacheDrop('ch|' + node.provider);
+      renderPanel();
+      toast('Renamed.', 'ok');
+    } catch (e) { toast(D.errText(e), 'error'); }
+  }
+
+  async function doDuplicate(node) {
+    var p = D.get(node.provider);
+    try {
+      var copy = await p.duplicate(node, node.name + ' (copy)');
+      D.cacheDrop('ch|' + node.provider);
+      renderPanel();
+      toast(copy ? 'Duplicated as "' + copy.name + '".' : 'Copy started — it will appear shortly.', 'ok');
+    } catch (e) { toast(D.errText(e), 'error'); }
+  }
+
+  async function doDelete(node) {
+    var p = D.get(node.provider);
+    var where = p.id === 'gdocs' ? 'It moves to Google Drive’s trash and can be restored from there.'
+                                 : 'This cannot be undone from MyJournal.';
+    var ok = await ask('Delete "' + node.name + '"?\n\n' + where, { title: 'Delete', danger: true, okLabel: 'Delete' });
+    if (!ok) return;
+    try {
+      await p.remove(node);
+      if (openDocState && openDocState.node.key === node.key) closeDocument();
+      D.cacheDrop('ch|' + node.provider);
+      renderPanel();
+      toast('Deleted.', 'ok');
+    } catch (e) { toast(D.errText(e), 'error'); }
+  }
+
+  // Move needs a destination, and the destination has to be a real container in
+  // the same account — so the picker walks the live tree rather than asking the
+  // user to type a path.
+  async function doMove(node) {
+    var p = D.get(node.provider);
+    var body = document.createElement('div');
+    body.innerHTML = '<div class="mjd-hint" style="margin:0 0 12px">Choose where "' + esc(node.name) + '" should go.</div><div id="mjd-pick"></div>';
+    var chosen = null;
+    openModal({
+      title: 'Move to…', sub: p.label, body: body,
+      actions: [
+        { label: 'Cancel', cls: 'ghost' },
+        { label: 'Move here', keep: true, fn: async function () {
+            if (!chosen) { toast('Pick a destination first.', 'error'); return; }
+            closeModal();
+            try {
+              await p.move(node, chosen);
+              D.cacheDrop('ch|' + node.provider);
+              renderPanel();
+              toast('Moved to "' + chosen.name + '".', 'ok');
+            } catch (e) { toast(D.errText(e), 'error'); }
+          } }
+      ]
+    });
+    var host = el('mjd-pick');
+    // OneNote pages can only live in a section; Drive documents in a folder.
+    var wantKind = p.id === 'onenote' ? 'section' : 'folder';
+    buildPicker(host, rootRef(node.provider), 0, wantKind, function (n, rowEl) {
+      chosen = n;
+      host.querySelectorAll('.mjd-row').forEach(function (r) { r.classList.remove('active'); });
+      rowEl.classList.add('active');
+    }, node.key);
+  }
+
+  function buildPicker(host, ref, depth, wantKind, onPick, excludeKey) {
+    var wrap = document.createElement('div');
+    host.appendChild(wrap);
+    wrap.innerHTML = '<div class="mjd-skel"></div>';
+    D.children(ref).then(function (nodes) {
+      wrap.innerHTML = '';
+      var containers = nodes.filter(function (n) { return n.kind !== 'doc' && n.key !== excludeKey; });
+      if (!containers.length && depth === 0) { wrap.innerHTML = '<div class="mjd-empty" style="font-size:12px">No folders here.</div>'; return; }
+      containers.forEach(function (n) {
+        var row = document.createElement('div');
+        row.className = 'mjd-row';
+        row.style.paddingLeft = (8 + depth * 14) + 'px';
+        var selectable = n.kind === wantKind;
+        row.innerHTML = '<span class="mjd-tw' + (n.hasChildren ? '' : ' leaf') + '">' + I.chevron + '</span>' +
+          '<span class="mjd-ico">' + kindIcon(n.kind) + '</span>' +
+          '<span class="mjd-name"' + (selectable ? '' : ' style="opacity:.55"') + '>' + esc(n.name) + '</span>';
+        row.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (e.target.closest('.mjd-tw') || !selectable) {
+            var tw = row.querySelector('.mjd-tw');
+            var nx = row.nextElementSibling;
+            if (nx && nx.classList.contains('mjd-kids')) { nx.remove(); tw.classList.remove('open'); return; }
+            if (!n.hasChildren) return;
+            tw.classList.add('open');
+            var kids = document.createElement('div'); kids.className = 'mjd-kids';
+            row.parentNode.insertBefore(kids, row.nextSibling);
+            buildPicker(kids, n, depth + 1, wantKind, onPick, excludeKey);
+            return;
+          }
+          onPick(n, row);
+        });
+        wrap.appendChild(row);
+      });
+    }).catch(function (e) { wrap.innerHTML = '<div class="mjd-note">' + esc(D.errText(e)) + '</div>'; });
+  }
+
+  async function onNew(parentNode) {
+    var pid = sectionProvider();
+    if (!pid) return;
+    var p = D.get(pid);
+    if (p.caps.local) { el('tj-new-entry-btn').click(); return; }
+    var acc = accountFor(pid);
+    if (!acc) { doConnect(pid, false); return; }
+
+    var parent = parentNode || (openDocState && openDocState.node.provider === pid
+      ? { provider: pid, account: openDocState.node.account, id: openDocState.node.parent, kind: p.id === 'onenote' ? 'section' : 'folder', name: 'current folder' }
+      : rootRef(pid));
+
+    // OneNote's hierarchy is the constraint that shapes this dialog: a page can
+    // only be created inside a section, so anywhere else the offer is a section
+    // (or a notebook at the top) rather than a page that could not be made.
+    var choices = [];
+    if (p.id === 'onenote') {
+      if (!parent.id) choices = [{ k: 'notebook', label: 'New notebook' }];
+      else if (parent.kind === 'section') choices = [{ k: 'doc', label: 'New page' }];
+      else choices = [{ k: 'section', label: 'New section' }, { k: 'sectiongroup', label: 'New section group' }];
+    } else {
+      choices = [{ k: 'doc', label: 'New document' }, { k: 'folder', label: 'New folder' }];
+    }
+
+    var body = document.createElement('div');
+    body.innerHTML =
+      '<label class="mjd-field"><span>Name</span><input class="mjd-input" id="mjd-new-name" placeholder="Untitled" /></label>' +
+      '<div class="mjd-pill-row" id="mjd-new-kind"></div>' +
+      '<div class="mjd-hint">In ' + esc(parent.name || p.rootLabel) + '</div>';
+    var kindWrap = body.querySelector('#mjd-new-kind');
+    var kind = choices[0].k;
+    choices.forEach(function (c, i) {
+      var b = document.createElement('button');
+      b.className = 'mjd-pill' + (i === 0 ? ' on' : '');
+      b.textContent = c.label;
+      b.style.borderColor = i === 0 ? '#e0b874' : '';
+      b.style.color = i === 0 ? '#e0b874' : '';
+      b.addEventListener('click', function () {
+        kind = c.k;
+        kindWrap.querySelectorAll('.mjd-pill').forEach(function (x) { x.style.borderColor = ''; x.style.color = ''; });
+        b.style.borderColor = '#e0b874'; b.style.color = '#e0b874';
+      });
+      kindWrap.appendChild(b);
+    });
+    if (choices.length < 2) kindWrap.style.display = 'none';
+
+    openModal({
+      title: 'New in ' + p.label, body: body,
+      actions: [
+        { label: 'Cancel', cls: 'ghost' },
+        { label: 'Create', fn: async function () {
+            var name = (el('mjd-new-name') ? el('mjd-new-name').value : '').trim();
+            try {
+              var made;
+              if (kind === 'doc') {
+                made = await p.createDoc(parent, name || 'Untitled document');
+                D.cacheDrop('ch|' + pid);
+                renderPanel();
+                openDocument(made);
+              } else {
+                made = await p.createContainer(parent, name || 'Untitled', kind);
+                D.cacheDrop('ch|' + pid);
+                renderPanel();
+              }
+              toast('Created "' + made.name + '".', 'ok');
+            } catch (e) { toast(D.errText(e), 'error'); }
+          } }
+      ]
+    });
+    // The name field is the only thing anyone types here — focus it, and let
+    // Enter submit so creating a document is two keystrokes.
+    setTimeout(function () {
+      var inp = el('mjd-new-name');
+      if (!inp) return;
+      inp.focus();
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); var btns = el('mjd-modal-foot').querySelectorAll('button'); btns[btns.length - 1].click(); }
+      });
+    }, 60);
+  }
+
+  function openExport(node) {
+    var p = D.get(node.provider);
+    var formats = p.exportFormats();
+    if (!formats.length) { toast(p.label + ' has no export formats.', 'error'); return; }
+    var body = document.createElement('div');
+    body.innerHTML = '<div class="mjd-pill-row" id="mjd-exp"></div><div class="mjd-hint">The file downloads to this device. The document in ' + esc(p.label) + ' is not changed.</div>';
+    var wrap = body.querySelector('#mjd-exp');
+    formats.forEach(function (f) {
+      var b = document.createElement('button');
+      b.className = 'mjd-pill'; b.textContent = f.label;
+      b.addEventListener('click', async function () {
+        b.disabled = true; b.textContent = 'Preparing…';
+        try {
+          var blob = await p.exportDoc(node, f.id);
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = String(node.name || 'document').replace(/[\\/:*?"<>|]/g, '-') + '.' + f.ext;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+          closeModal();
+          toast('Exported.', 'ok');
+        } catch (e) { b.disabled = false; b.textContent = f.label; toast(D.errText(e), 'error'); }
+      });
+      wrap.appendChild(b);
+    });
+    openModal({ title: 'Export', sub: esc(node.name), body: body, actions: [{ label: 'Close', cls: 'ghost' }] });
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Accounts & settings
+   * ══════════════════════════════════════════════════════════════════════════ */
+  async function doConnect(pid, add) {
+    var p = D.get(pid);
+    if (!p.configured()) { openSettings(); return; }
+    try {
+      toast('Opening ' + p.label + ' sign-in…');
+      var acc = await p.connect({ add: !!add });
+      activeAccount[pid] = acc.id;
+      D.cacheDrop('ch|' + pid);
+      buildRailDots();
+      renderPanel();
+      toast('Connected as ' + (acc.email || acc.label) + '.', 'ok');
+      D.refreshIndex({ ms: 15000 });
+    } catch (e) { toast(D.errText(e), 'error'); }
+  }
+
+  function buildRailDots() {
+    document.querySelectorAll('#mjd-nav .mjd-rail-btn').forEach(function (b) {
+      var p = D.get(b.getAttribute('data-sec'));
+      var dot = b.querySelector('.mjd-dot');
+      if (p && dot) dot.classList.toggle('off', p.accounts().length === 0);
+    });
+  }
+
+  function openAccounts(pid) {
+    var p = D.get(pid);
+    if (!p || p.caps.local) return;
+    var body = document.createElement('div');
+    function paint() {
+      var accs = p.accounts();
+      var h = '<div class="mjd-card"><div class="mjd-card-head"><span class="mjd-pico" style="color:' + p.accent + '">' + p.icon + '</span><h4>' + esc(p.label) + '</h4></div>';
+      if (!accs.length) h += '<div class="mjd-hint" style="margin:8px 0 0">No accounts connected on this device.</div>';
+      accs.forEach(function (a) {
+        var isActive = (accountFor(pid) || {}).id === a.id;
+        h += '<div class="mjd-acct">' +
+          '<div class="mjd-acct-av">' + esc((a.label || a.email || '?').charAt(0).toUpperCase()) + '</div>' +
+          '<div class="mjd-acct-txt"><b>' + esc(a.label || a.email) + '</b><span>' + esc(a.email || '') + '</span></div>' +
+          (isActive ? '<span class="mjd-meta" style="color:var(--green);font-size:10px">ACTIVE</span>'
+                    : '<button class="mjd-tiny" data-use="' + esc(a.id) + '">Use</button>') +
+          '<button class="mjd-tiny danger" data-out="' + esc(a.id) + '">Sign out</button>' +
+        '</div>';
+      });
+      h += '</div>' +
+        '<div class="mjd-hint">Sign-in is stored on this device only — never in the cloud — so each device connects once. ' +
+        'Signing out here removes that access from this device; it does not change anything in your ' + esc(p.label) + ' account.</div>';
+      body.innerHTML = h;
+    }
+    paint();
+    body.addEventListener('click', function (e) {
+      var use = e.target.closest('[data-use]'), out = e.target.closest('[data-out]');
+      if (use) { activeAccount[pid] = use.getAttribute('data-use'); paint(); renderPanel(); }
+      if (out) {
+        var id = out.getAttribute('data-out');
+        ask('Sign out of this ' + p.label + ' account on this device?', { title: 'Sign out', danger: true, okLabel: 'Sign out' }).then(function (ok) {
+          if (!ok) return;
+          p.disconnect(id);
+          if (activeAccount[pid] === id) delete activeAccount[pid];
+          if (openDocState && openDocState.node.provider === pid && openDocState.node.account === id) closeDocument();
+          D.cacheDrop('ch|' + pid);
+          paint(); buildRailDots(); renderPanel();
+        });
+      }
+    });
+    openModal({
+      title: p.label + ' accounts', body: body,
+      actions: [
+        { label: 'Close', cls: 'ghost' },
+        { label: I.plus + 'Add account', keep: true, fn: function () { closeModal(); doConnect(pid, true); } }
+      ]
+    });
+  }
+
+  function openSettings() {
+    var body = document.createElement('div');
+    var origin = location.origin, redirect = D.redirectUri();
+    var h = '';
+    D.cloudProviders().forEach(function (p) {
+      var cfg = (S().providerCfg && S().providerCfg[p.id]) || {};
+      h += '<div class="mjd-card">' +
+        '<div class="mjd-card-head"><span class="mjd-pico" style="color:' + p.accent + '">' + p.icon + '</span><h4>' + esc(p.label) + '</h4>' +
+        '<button class="mjd-tiny" data-accts="' + p.id + '">' + (p.accounts().length ? p.accounts().length + ' account' + (p.accounts().length > 1 ? 's' : '') : 'Connect') + '</button></div>' +
+        '<label class="mjd-field" style="margin:12px 0 0"><span>' + esc(p.setup.label) + '</span>' +
+        '<input class="mjd-input" data-cfg="' + p.id + '" value="' + esc(cfg[p.setup.field] || '') + '" placeholder="' + esc(p.setup.placeholder) + '" spellcheck="false" autocapitalize="off" /></label>' +
+        '<div class="mjd-hint">' + p.setup.hint(origin, redirect) + '</div>' +
+        '</div>';
+    });
+    h += '<div class="mjd-hint" style="margin-top:14px">Client IDs are public identifiers — they sync across your devices, so you only paste them once. ' +
+      'Access tokens never sync: each device signs in for itself.<br><br>Redirect URI for both providers: <code>' + esc(redirect) + '</code></div>';
+    body.innerHTML = h;
+    body.addEventListener('click', function (e) {
+      var a = e.target.closest('[data-accts]');
+      if (a) { closeModal(); openAccounts(a.getAttribute('data-accts')); }
+    });
+    openModal({
+      title: 'Document settings',
+      sub: 'Connect Google Docs and OneNote to MyJournal.',
+      body: body,
+      actions: [
+        { label: 'Cancel', cls: 'ghost' },
+        { label: 'Save', fn: function () {
+            document.querySelectorAll('#mjd-modal [data-cfg]').forEach(function (inp) {
+              var pid = inp.getAttribute('data-cfg'), p = D.get(pid);
+              var patch = {}; patch[p.setup.field] = inp.value.trim();
+              D.setCfg(pid, patch);
+            });
+            buildRailDots(); renderPanel();
+            toast('Settings saved.', 'ok');
+          } }
+      ]
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Universal search
+   *
+   * Runs over the in-memory index (every provider, one flat list), so typing is
+   * instant and costs no API calls. Filters narrow it; the AI button answers the
+   * questions a substring match cannot ("everything I wrote last week").
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var omniFilters = { provider: null, kind: null, since: null };
+  var omniSel = 0, omniHits = [];
+
+  function ensureOmni() {
+    if (el('mjd-omni')) return;
+    var o = document.createElement('div');
+    o.id = 'mjd-omni';
+    o.innerHTML =
+      '<div id="mjd-omni-box" role="dialog" aria-modal="true" aria-label="Search all documents">' +
+        '<div id="mjd-omni-top">' + I.search +
+          '<input id="mjd-omni-input" placeholder="Search every document — or ask a question" autocomplete="off" spellcheck="false" />' +
+          '<button class="mjd-tiny" id="mjd-omni-ai">Ask AI</button>' +
+          '<button class="mjd-x" id="mjd-omni-x" aria-label="Close">' + I.x + '</button>' +
+        '</div>' +
+        '<div id="mjd-omni-filters"></div>' +
+        '<div id="mjd-omni-answer"></div>' +
+        '<div id="mjd-omni-list"></div>' +
+        '<div id="mjd-omni-foot"><span id="mjd-omni-count"></span><span style="flex:1"></span>' +
+          '<button class="mjd-tiny" id="mjd-omni-dupes">Find duplicates</button>' +
+          '<button class="mjd-tiny" id="mjd-omni-org">Suggest organisation</button>' +
+          '<button class="mjd-tiny" id="mjd-omni-reindex">Refresh index</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(o);
+    o.addEventListener('click', function (e) { if (e.target === o) closeOmni(); });
+    el('mjd-omni-x').addEventListener('click', closeOmni);
+    el('mjd-omni-input').addEventListener('input', function () { omniSel = 0; runOmni(); });
+    el('mjd-omni-input').addEventListener('keydown', onOmniKey);
+    el('mjd-omni-ai').addEventListener('click', runOmniAi);
+    el('mjd-omni-dupes').addEventListener('click', function () { closeOmni(); runGroupOp('duplicates'); });
+    el('mjd-omni-org').addEventListener('click', function () { closeOmni(); runGroupOp('organize'); });
+    el('mjd-omni-reindex').addEventListener('click', async function () {
+      var b = this; b.textContent = 'Indexing…'; b.disabled = true;
+      await D.refreshIndex({ ms: 25000, nodes: 250 });
+      b.textContent = 'Refresh index'; b.disabled = false;
+      runOmni();
+    });
+    buildOmniFilters();
+  }
+
+  function buildOmniFilters() {
+    var f = el('mjd-omni-filters');
+    var chips = [{ k: 'provider', v: null, label: 'All sources' }];
+    D.all().forEach(function (p) { chips.push({ k: 'provider', v: p.id, label: p.label.replace('MyJournal Pages', 'MyJournal') }); });
+    chips.push({ sep: true });
+    chips.push({ k: 'kind', v: null, label: 'Anything' });
+    chips.push({ k: 'kind', v: 'doc', label: 'Documents' });
+    chips.push({ k: 'kind', v: 'container', label: 'Folders' });
+    chips.push({ sep: true });
+    chips.push({ k: 'since', v: null, label: 'Any time' });
+    chips.push({ k: 'since', v: 7, label: 'Past week' });
+    chips.push({ k: 'since', v: 30, label: 'Past month' });
+    chips.push({ k: 'since', v: 365, label: 'Past year' });
+    f.innerHTML = chips.map(function (c) {
+      if (c.sep) return '<span style="width:1px;height:16px;background:#3a3a42;margin:0 3px"></span>';
+      var on = omniFilters[c.k] === c.v;
+      return '<button class="mjd-fchip' + (on ? ' on' : '') + '" data-k="' + c.k + '" data-v="' + (c.v === null ? '' : c.v) + '">' + esc(c.label) + '</button>';
+    }).join('');
+    f.onclick = function (e) {
+      var b = e.target.closest('.mjd-fchip');
+      if (!b) return;
+      var k = b.getAttribute('data-k'), v = b.getAttribute('data-v');
+      omniFilters[k] = v === '' ? null : (k === 'since' ? +v : v);
+      buildOmniFilters(); runOmni();
+    };
+  }
+
+  function omniPool() {
+    var pool = D.index().slice();
+    // The local journal is always live — its titles change without any crawl.
+    var B = window._tjCloudBridge;
+    if (B) {
+      var localKeys = {};
+      pool = pool.filter(function (n) { return n.provider !== 'mjpages'; });
+      B.localDocs().forEach(function (d) {
+        if (localKeys[d.id]) return; localKeys[d.id] = 1;
+        pool.push({ key: 'mjpages:local:' + d.id, id: d.id, name: d.title, kind: 'doc', provider: 'mjpages',
+          account: 'local', path: 'MyJournal', modified: d.modified, snippet: (d.text || '').slice(0, 200), locked: d.locked });
+      });
+    }
+    return pool.filter(function (n) {
+      if (omniFilters.provider && n.provider !== omniFilters.provider) return false;
+      if (omniFilters.kind === 'doc' && n.kind !== 'doc') return false;
+      if (omniFilters.kind === 'container' && n.kind === 'doc') return false;
+      if (omniFilters.since && (!n.modified || Date.now() - n.modified > omniFilters.since * 864e5)) return false;
+      return true;
+    });
+  }
+
+  var omniTimer = null;
+  function runOmni() {
+    clearTimeout(omniTimer);
+    omniTimer = setTimeout(paintOmni, 110);      // debounced: a long index should not re-rank per keystroke
+  }
+  function paintOmni(forced) {
+    var q = (el('mjd-omni-input').value || '').trim().toLowerCase();
+    var pool = omniPool();
+    var hits;
+    if (forced) hits = forced;
+    else if (!q) {
+      hits = pool.slice().sort(function (a, b) { return (b.modified || 0) - (a.modified || 0); }).slice(0, 60);
+    } else {
+      hits = pool.map(function (n) {
+        var name = (n.name || '').toLowerCase(), path = (n.path || '').toLowerCase(), text = (n.snippet || '').toLowerCase();
+        var s = 0;
+        if (name === q) s = 100;
+        else if (name.indexOf(q) === 0) s = 80;
+        else if (name.indexOf(q) >= 0) s = 60;
+        else if (path.indexOf(q) >= 0) s = 30;
+        else if (text.indexOf(q) >= 0) s = 20;
+        return s ? Object.assign({ _s: s }, n) : null;
+      }).filter(Boolean).sort(function (a, b) { return b._s - a._s || (b.modified || 0) - (a.modified || 0); }).slice(0, 80);
+    }
+    omniHits = hits;
+    var list = el('mjd-omni-list');
+    if (!hits.length) {
+      list.innerHTML = '<div class="mjd-empty">' + (q ? 'Nothing matched. Try <b>Ask AI</b> for a meaning-based search.' : 'No documents indexed yet.') + '</div>';
+      el('mjd-omni-count').textContent = '';
+      return;
+    }
+    list.innerHTML = hits.map(function (n, i) {
+      var p = D.get(n.provider);
+      return '<div class="mjd-hit' + (i === omniSel ? ' sel' : '') + '" data-i="' + i + '">' +
+        '<span class="mjd-ico">' + kindIcon(n.kind) + '</span>' +
+        '<span class="mjd-hit-txt"><b>' + hl(n.name, q) + '</b><span>' + esc(p ? p.label : n.provider) +
+        (n.path ? ' · ' + esc(n.path) : '') + (n._why ? ' · ' + esc(n._why) : '') + '</span></span>' +
+        '<span class="mjd-meta">' + esc(fmtWhen(n.modified)) + '</span></div>';
+    }).join('');
+    el('mjd-omni-count').textContent = hits.length + ' result' + (hits.length > 1 ? 's' : '') + ' · ' + D.index().length + ' indexed';
+    list.onclick = function (e) {
+      var r = e.target.closest('[data-i]');
+      if (!r) return;
+      pickOmni(hits[+r.getAttribute('data-i')]);
+    };
+  }
+  function hl(text, q) {
+    if (!q) return esc(text);
+    var i = String(text).toLowerCase().indexOf(q);
+    if (i < 0) return esc(text);
+    return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length));
+  }
+  function pickOmni(n) {
+    if (!n) return;
+    closeOmni();
+    if (n.kind === 'doc') openDocument(n); else jumpTo(n);
+  }
+  function onOmniKey(e) {
+    if (e.key === 'Escape') { e.preventDefault(); closeOmni(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); omniSel = Math.min(omniSel + 1, omniHits.length - 1); paintOmni(omniHits); scrollSel(); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); omniSel = Math.max(omniSel - 1, 0); paintOmni(omniHits); scrollSel(); }
+    if (e.key === 'Enter')     { e.preventDefault(); pickOmni(omniHits[omniSel]); }
+  }
+  function scrollSel() {
+    var s = document.querySelector('#mjd-omni-list .mjd-hit.sel');
+    if (s) s.scrollIntoView({ block: 'nearest' });
+  }
+  function openOmni() {
+    ensureOmni();
+    el('mjd-omni').classList.add('on');
+    el('mjd-omni-answer').classList.remove('on');
+    var inp = el('mjd-omni-input');
+    inp.value = ''; omniSel = 0;
+    paintOmni();
+    setTimeout(function () { inp.focus(); }, 40);
+    // Deepen the index in the background — the panel is already usable from
+    // cache, so this only ever adds results, never blocks the first paint.
+    if (Date.now() - D.indexAt() > 300000) D.refreshIndex({ ms: 15000 }).then(function () { if (el('mjd-omni').classList.contains('on')) paintOmni(); });
+  }
+  function closeOmni() { var o = el('mjd-omni'); if (o) o.classList.remove('on'); }
+
+  async function runOmniAi() {
+    var q = (el('mjd-omni-input').value || '').trim();
+    if (!q) { el('mjd-omni-input').focus(); return; }
+    var btn = el('mjd-omni-ai');
+    btn.disabled = true; btn.textContent = 'Thinking…';
+    var ans = el('mjd-omni-answer');
+    try {
+      var pool = omniPool();
+      var r = await D.ai('search', { query: q, docs: D.aiIndexPayload(pool) });
+      var hits = (r.matches || []).map(function (m) { return Object.assign({ _why: m.why || '' }, pool[m.i]); }).filter(function (x) { return x && x.key; });
+      ans.innerHTML = '<b>AI</b> · ' + esc(r.answer || (hits.length + ' documents matched.'));
+      ans.classList.add('on');
+      omniSel = 0;
+      paintOmni(hits);
+    } catch (e) {
+      ans.innerHTML = '<b>AI</b> · ' + esc(D.errText(e));
+      ans.classList.add('on');
+    } finally { btn.disabled = false; btn.textContent = 'Ask AI'; }
+  }
+
+  /* ── Library-wide AI: duplicates and organisation ─────────────────────────*/
+  async function runGroupOp(op) {
+    var pool = omniPool().filter(function (n) { return n.kind === 'doc'; });
+    if (!pool.length) { toast('Nothing indexed yet — open a few folders first.', 'error'); return; }
+    var body = document.createElement('div');
+    body.innerHTML = '<div class="mjd-busy"><span class="mjd-spinner"></span>Looking through ' + pool.length + ' documents…</div>';
+    openModal({
+      title: op === 'duplicates' ? 'Duplicate & similar documents' : 'Suggested organisation',
+      sub: op === 'duplicates' ? 'Documents that look like copies of each other.' : 'A folder structure based on what your documents are about.',
+      body: body, wide: true, actions: [{ label: 'Close', cls: 'ghost' }]
+    });
+    try {
+      var r = await D.ai(op, { docs: D.aiIndexPayload(pool), query: '' });
+      var groups = r.groups || [];
+      if (!groups.length) {
+        body.innerHTML = '<div class="mjd-empty">' + (op === 'duplicates' ? 'No duplicates found.' : 'Nothing worth regrouping — your library already reads as organised.') + '</div>';
+        return;
+      }
+      body.innerHTML = groups.map(function (g, gi) {
+        return '<div class="mjd-ai-group"><h5>' + esc(g.name || ('Group ' + (gi + 1))) +
+          (g.why ? '<em>' + esc(g.why) + '</em>' : '') + '</h5><ul>' +
+          g.indices.map(function (i) {
+            var n = pool[i]; if (!n) return '';
+            return '<li data-i="' + i + '">' + kindIcon(n.kind) + esc(n.name) +
+              '<span style="margin-left:auto;font-size:11px;color:#75757c">' + esc(n.path || '') + '</span></li>';
+          }).join('') + '</ul></div>';
+      }).join('') +
+      '<div class="mjd-hint">These are suggestions only — nothing has been moved. Click a document to open it, then use <b>Move to…</b> if you want to act on a group.</div>';
+      body.onclick = function (e) {
+        var li = e.target.closest('[data-i]');
+        if (!li) return;
+        closeModal();
+        var n = pool[+li.getAttribute('data-i')];
+        if (n) openDocument(n);
+      };
+    } catch (e) {
+      body.innerHTML = '<div class="mjd-note"><b>The AI could not finish.</b><br>' + esc(D.errText(e)) + '</div>';
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * AI panel for the open document
+   *
+   * Works identically on a MyJournal page, a Google Doc and a OneNote page —
+   * the editor is the same element, so "the document" is the same thing.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  var AI_TOOLS = [
+    { op: 'summarize', label: 'Summarise',        kind: 'text' },
+    { op: 'summarize', label: 'Quick summary',    kind: 'text', extra: { scope: 'brief' } },
+    { op: 'improve',   label: 'Improve writing',  kind: 'html' },
+    { op: 'rewrite',   label: 'Rewrite — professional', kind: 'html', extra: { tone: 'professional' } },
+    { op: 'rewrite',   label: 'Rewrite — plain',  kind: 'html', extra: { tone: 'plain and direct' } },
+    { op: 'expand',    label: 'Expand',           kind: 'html' },
+    { op: 'title',     label: 'Suggest titles',   kind: 'list' },
+    { op: 'tags',      label: 'Suggest tags',     kind: 'list' },
+    { op: 'related',   label: 'Find related',     kind: 'related' }
+  ];
+
+  function openAiPanel() {
+    var B = window._tjCloudBridge;
+    var ed = B && B.editor();
+    if (!ed) return;
+    var body = document.createElement('div');
+    body.innerHTML = '<div class="mjd-pill-row" id="mjd-ai-tools"></div><div id="mjd-ai-out"></div>';
+    var wrap = body.querySelector('#mjd-ai-tools');
+    AI_TOOLS.forEach(function (t) {
+      var b = document.createElement('button');
+      b.className = 'mjd-pill'; b.textContent = t.label;
+      b.addEventListener('click', function () { runAiTool(t, ed); });
+      wrap.appendChild(b);
+    });
+    openModal({
+      title: 'AI', sub: 'Works the same on MyJournal pages, Google Docs and OneNote.',
+      body: body, wide: true, actions: [{ label: 'Close', cls: 'ghost' }]
+    });
+  }
+
+  async function runAiTool(t, ed) {
+    var out = el('mjd-ai-out');
+    out.innerHTML = '<div class="mjd-busy"><span class="mjd-spinner"></span>Working…</div>';
+    // A selection means "this part"; no selection means the whole document.
+    var sel = window.getSelection();
+    var scopedHtml = null;
+    if (t.kind === 'html' && sel && sel.rangeCount && !sel.isCollapsed && ed.contains(sel.anchorNode)) {
+      var frag = sel.getRangeAt(0).cloneContents();
+      var h = document.createElement('div'); h.appendChild(frag);
+      if ((h.textContent || '').trim().length > 40) scopedHtml = h.innerHTML;
+    }
+    var payload = Object.assign({ html: scopedHtml || ed.innerHTML }, t.extra || {});
+    try {
+      var r = await D.ai(t.op, payload);
+      if (t.kind === 'text') {
+        out.innerHTML = '<div class="mjd-out">' + esc(r.text || '') + '</div>';
+        addOutActions(out, function () { return r.text || ''; }, true);
+      } else if (t.kind === 'list') {
+        var items = r.titles || r.tags || [];
+        if (!items.length) { out.innerHTML = '<div class="mjd-empty">Nothing suggested.</div>'; return; }
+        out.innerHTML = '<div class="mjd-pill-row" id="mjd-ai-list"></div>' +
+          '<div class="mjd-hint">' + (r.titles ? 'Click a title to rename the document.' : 'Click a tag to copy it.') + '</div>';
+        var lw = out.querySelector('#mjd-ai-list');
+        items.forEach(function (v) {
+          var b = document.createElement('button'); b.className = 'mjd-pill'; b.textContent = v;
+          b.addEventListener('click', function () {
+            if (r.titles) { applyTitle(v); closeModal(); }
+            else { try { navigator.clipboard.writeText(v); toast('Copied "' + v + '".', 'ok'); } catch (e) {} }
+          });
+          lw.appendChild(b);
+        });
+      } else if (t.kind === 'related') {
+        await showRelated(out);
+      } else {
+        // A rewrite REPLACES the user's writing, so it is previewed and applied
+        // on purpose — never written straight into the document.
+        var prev = document.createElement('div');
+        prev.className = 'mjd-out'; prev.style.whiteSpace = 'normal';
+        prev.innerHTML = r.html;
+        out.innerHTML = '';
+        out.appendChild(prev);
+        addApply(out, r.html, !!scopedHtml, ed);
+      }
+    } catch (e) {
+      out.innerHTML = '<div class="mjd-note"><b>The AI could not finish.</b><br>' + esc(D.errText(e)) + '</div>';
+    }
+  }
+
+  function addOutActions(out, getText) {
+    var row = document.createElement('div');
+    row.className = 'mjd-pill-row'; row.style.marginTop = '12px';
+    var copy = document.createElement('button'); copy.className = 'mjd-pill'; copy.textContent = 'Copy';
+    copy.addEventListener('click', function () { try { navigator.clipboard.writeText(getText()); toast('Copied.', 'ok'); } catch (e) {} });
+    row.appendChild(copy);
+    out.appendChild(row);
+  }
+
+  function addApply(out, html, scoped, ed) {
+    var row = document.createElement('div');
+    row.className = 'mjd-pill-row'; row.style.marginTop = '12px';
+    var apply = document.createElement('button');
+    apply.className = 'mjd-pill';
+    apply.style.borderColor = '#e0b874'; apply.style.color = '#e0b874';
+    apply.textContent = scoped ? 'Replace the selected text' : 'Replace the whole document';
+    apply.addEventListener('click', function () {
+      if (scoped) {
+        var sel = window.getSelection();
+        if (sel && sel.rangeCount) {
+          var r = sel.getRangeAt(0);
+          r.deleteContents();
+          var tmp = document.createElement('div'); tmp.innerHTML = html;
+          var f = document.createDocumentFragment();
+          while (tmp.firstChild) f.appendChild(tmp.firstChild);
+          r.insertNode(f);
+        }
+      } else ed.innerHTML = html;
+      try { ed.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+      closeModal();
+      toast('Applied. Undo with Ctrl+Z if it is not right.', 'ok');
+    });
+    row.appendChild(apply);
+    out.appendChild(row);
+  }
+
+  async function showRelated(out) {
+    var pool = omniPool().filter(function (n) { return n.kind === 'doc'; });
+    var cur = openDocState ? openDocState.node : null;
+    var B = window._tjCloudBridge;
+    var snippet = B ? (B.editor().textContent || '').replace(/\s+/g, ' ').slice(0, 600) : '';
+    var title = B ? B.titleInput().value : '';
+    var others = pool.filter(function (n) { return !cur || n.key !== cur.key; });
+    var r = await D.ai('related', { title: title, snippet: snippet, docs: D.aiIndexPayload(others) });
+    var hits = (r.matches || []).map(function (m) { return Object.assign({ _why: m.why }, others[m.i]); }).filter(function (x) { return x && x.key; });
+    if (!hits.length) { out.innerHTML = '<div class="mjd-empty">Nothing else in your library is closely related.</div>'; return; }
+    out.innerHTML = '<div class="mjd-ai-group"><h5>Related documents</h5><ul>' +
+      hits.map(function (n, i) {
+        return '<li data-i="' + i + '">' + kindIcon(n.kind) + esc(n.name) +
+          '<span style="margin-left:auto;font-size:11px;color:#75757c">' + esc(n._why || n.path || '') + '</span></li>';
+      }).join('') + '</ul></div>';
+    out.onclick = function (e) {
+      var li = e.target.closest('[data-i]');
+      if (!li) return;
+      closeModal();
+      openDocument(hits[+li.getAttribute('data-i')]);
+    };
+  }
+
+  function applyTitle(v) {
+    var B = window._tjCloudBridge;
+    if (!B) return;
+    B.titleInput().value = v;
+    try { B.titleInput().dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
+    if (openDocState) { openDocState.dirty = true; flushSave(true); }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Wiring
+   * ══════════════════════════════════════════════════════════════════════════ */
+  function boot() {
+    if (!el('tj-sidebar')) return;
+    Object.assign(expanded, S().expanded || {});
+    buildNav();
+    buildRailDots();
+    paintStatus();
+    D.onChange(function () { buildRailDots(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+  // MyJournal is created lazily on first open in some paths; retry once the app
+  // is actually shown so the nav is never missing.
+  var _origShow = window.showTonyJournal;
+  if (typeof _origShow === 'function') {
+    window.showTonyJournal = function () {
+      var r = _origShow.apply(this, arguments);
+      setTimeout(boot, 0);
+      return r;
+    };
+  }
+
+  // Ctrl/Cmd+S saves the cloud document immediately; Ctrl/Cmd+Shift+F is the
+  // universal search. Both only fire while MyJournal is the visible app.
+  document.addEventListener('keydown', function (e) {
+    // showTonyJournal sets display directly — it does NOT add a class — so
+    // visibility has to be read off the element, not off .visible. offsetParent
+    // is no good either: #tj-root is position:fixed, and a fixed element always
+    // reports a null offsetParent whether it is on screen or not.
+    var root = el('tj-root');
+    if (!root || getComputedStyle(root).display === 'none') return;
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+      e.preventDefault(); e.stopPropagation();
+      openOmni();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 's' || e.key === 'S') && openDocState) {
+      e.preventDefault(); e.stopPropagation();
+      flushSave(true);
+    }
+  }, true);
+
+  // Never leave the tab with an unsaved cloud edit: a debounced save that has
+  // not fired yet is flushed synchronously into the offline queue, which replays
+  // on the next visit even if the network was the reason it did not go.
+  window.addEventListener('pagehide', function () {
+    if (openDocState && openDocState.dirty) {
+      var B = window._tjCloudBridge;
+      if (B) D.enqueue(openDocState.node, B.editor().innerHTML);
+    }
+  });
+
+  window.MJDocsUI = { open: openDocument, omni: openOmni, settings: openSettings, section: setSection, refresh: hardRefresh };
+})();
+</script>
+
 
 </body>
 </html>

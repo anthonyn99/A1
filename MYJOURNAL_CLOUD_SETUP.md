@@ -1,0 +1,158 @@
+# MyJournal Cloud Documents — setup checklist
+
+Everything below is a **manual, one-time** step. The code is already deployed; until
+these are done, MyJournal shows a "not set up yet" prompt instead of a broken screen.
+
+Both client IDs are pasted **inside the app**: MyJournal → sidebar → **⚙ (Document
+settings)**. They sync through Firebase, so you only paste them on one device.
+
+Your redirect URI / JavaScript origin is the page's own URL. For the live site:
+
+```
+https://anthonyn99.github.io/A1/index.html      ← redirect URI
+https://anthonyn99.github.io                    ← JavaScript origin
+```
+
+The settings dialog prints the exact redirect URI for whatever URL you are on —
+copy it from there if you also run the app somewhere else.
+
+---
+
+## 1. Google Docs / Google Drive
+
+**APIs to enable** — Google Cloud Console → *APIs & Services* → *Library*:
+
+- [ ] **Google Drive API**
+- [ ] **Google Docs API**
+
+**OAuth consent screen** — *APIs & Services* → *OAuth consent screen*:
+
+- [ ] User type: **External**
+- [ ] Add your own Google account under **Test users** (avoids the verification queue)
+- [ ] Add these scopes:
+  - `https://www.googleapis.com/auth/drive`
+  - `https://www.googleapis.com/auth/documents`
+
+> `drive.file` is not enough — it only ever sees files this app itself created, so
+> your existing documents would be invisible. Full `drive` is what makes browsing,
+> moving and trashing your real library possible.
+
+**Credentials** — *APIs & Services* → *Credentials* → *Create credentials* →
+*OAuth client ID*:
+
+- [ ] Application type: **Web application**
+- [ ] **Authorised JavaScript origins**: `https://anthonyn99.github.io`
+- [ ] Authorised redirect URIs: *(leave empty — Google Identity Services uses the
+      origin, not a redirect)*
+- [ ] Copy the **Client ID** (`…apps.googleusercontent.com`)
+
+**Where it goes**
+
+- [ ] MyJournal → ⚙ → **Google Docs → OAuth client ID** → Save
+- [ ] Click **Connect Google Docs**, approve, done
+
+No client secret is used or needed. Nothing is pasted into a file.
+
+---
+
+## 2. Microsoft OneNote
+
+**App registration** — [Entra ID (Azure) portal](https://entra.microsoft.com) →
+*App registrations* → *New registration*:
+
+- [ ] Name: anything (e.g. `MyJournal`)
+- [ ] Supported account types: **Accounts in any organizational directory and
+      personal Microsoft accounts**
+- [ ] Redirect URI: platform **Single-page application (SPA)** →
+      `https://anthonyn99.github.io/A1/index.html`
+
+> The **SPA** platform type is the one that matters. A "Web" platform demands a
+> client secret; SPA enables the PKCE flow a browser can complete on its own.
+
+**API permissions** — *API permissions* → *Add a permission* → *Microsoft Graph* →
+**Delegated permissions**:
+
+- [ ] `Notes.ReadWrite.All`
+- [ ] `User.Read`
+- [ ] `offline_access`
+- [ ] Click **Grant admin consent** (only needed for a work/school account)
+
+**Credentials**
+
+- [ ] Copy the **Application (client) ID** from the app's Overview page
+
+**Where it goes**
+
+- [ ] MyJournal → ⚙ → **OneNote → Application (client) ID** → Save
+- [ ] Click **Connect OneNote**, sign in, done
+
+No client secret. No certificate.
+
+### Known Graph limitation (not a gap in this build)
+
+Microsoft Graph has **no rename or delete operation for notebooks, section groups
+or sections** — only for pages. MyJournal greys those two actions out and says why,
+rather than offering an action that would fail. Everything else in OneNote works:
+create notebooks / section groups / sections / pages, and rename, edit, duplicate,
+move and delete pages. Use OneNote itself to rename or delete a notebook.
+
+---
+
+## 3. Gemini
+
+**Nothing to do.** Document AI reuses the key the rest of your personal AI already
+uses (`TONY_GEMINI_KEY`), which is verified live in Cloudflare right now. It covers
+summarise, rewrite, improve, expand, titles, tags, natural-language search, related
+documents, duplicates and organisation suggestions.
+
+**To verify it is working**
+
+```bash
+curl -s https://personal-ai.av1.workers.dev/health
+```
+
+- [ ] `"tonyKey": true`
+- [ ] `"features"` includes `docs-ai`
+- [ ] `"version": 16` or higher
+
+Then in the app: open any document → **✨** in the toolbar → *Quick summary*.
+
+**Only if you want to swap the key**
+
+The key you pasted in chat is **not** in this repository and must not be. Set it as
+a Cloudflare secret:
+
+```bash
+cd workers/personal-ai
+wrangler secret put TONY_GEMINI_KEY
+```
+
+Two things worth knowing before you do:
+
+1. That value (`AQ.Ab8RN6…`) is not the shape of a Gemini API key. Keys for
+   `generativelanguage.googleapis.com` start with `AIza…` and come from
+   [aistudio.google.com/apikey](https://aistudio.google.com/apikey). An `AQ.`
+   token is a short-lived OAuth credential and will start returning 401s.
+2. It has been through a chat transcript in plaintext. Rotate it.
+
+---
+
+## Model fallback chains
+
+Two chains, because the two jobs fail in opposite directions. Both are five deep so
+a daily free-tier cap on one model never takes the feature down.
+
+| Chain | Used for | Order |
+|---|---|---|
+| `DOC_WRITE_MODELS` | summarise, rewrite, improve, expand | `3.5-flash` → `2.5-flash` → `3.1-flash-lite` → `2.5-flash-lite` → `2.0-flash` |
+| `DOC_INDEX_MODELS` | search, related, duplicates, organise | `3.1-flash-lite` → `3.5-flash` → `2.5-flash` → `2.5-flash-lite` → `2.0-flash` |
+
+The ordering is inherited from the measurements already encoded in this worker
+rather than from a fresh benchmark: on long content the lite models distil and drop
+paragraphs (the finding behind `RECIPE_VOICE_MODELS`), so writing leads with the
+flagship and keeps `2.5-flash` — the one measured as faithful — directly behind it.
+On compact structured work `3.1-flash-lite` is both fastest and most reliable (the
+finding behind `TASKHUB_MODELS`), so index work leads with that.
+
+If you want these re-ordered against your own documents, the two arrays are at the
+top of `workers/personal-ai/worker.js` and changing them needs no other edits.

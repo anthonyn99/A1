@@ -97,6 +97,37 @@ const RECIPE_VOICE_MODELS = [
   'gemini-2.0-flash',
 ];
 
+// ── MyJournal cloud documents (Google Docs / OneNote / MyJournal Pages) ──────
+// Two chains, because the two jobs here fail in opposite directions — the same
+// split that already proved itself on recipes and TaskHub above:
+//
+//  • WRITING over a real document (summarise, rewrite, improve, expand) is the
+//    recipe-VOICE problem: the failure mode is a model that quietly DISTILS —
+//    drops a paragraph, collapses a list, throws away formatting. The lite
+//    models do exactly that on multi-page input. So this chain leads with the
+//    flagship (best at holding a long document intact) and keeps 2.5-flash —
+//    already measured here as the faithful, non-compressing one — directly
+//    behind it. Lites sit at the bottom purely as free-tier capacity.
+const DOC_WRITE_MODELS = [
+  'gemini-3.5-flash',       // flagship — best at long documents, preserves structure
+  'gemini-2.5-flash',       // proven faithful (does not distil) — see RECIPE_VOICE
+  'gemini-3.1-flash-lite',  // capacity fallback; may compress long input
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+];
+
+//  • Reasoning over the LIBRARY INDEX (natural-language search, organise, find
+//    related, find duplicates) is the TaskHub problem: a compact prompt, a
+//    strictly structured answer, and a user waiting on it. 3.1-flash-lite is
+//    already the measured best-and-fastest at exactly that shape, so it leads.
+const DOC_INDEX_MODELS = [
+  'gemini-3.1-flash-lite',  // fastest reliable structured index work — see TASKHUB
+  'gemini-3.5-flash',       // flagship — capacity fallback
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash',
+];
+
 function cors() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -2505,6 +2536,277 @@ async function handleCloudSearch(body, env) {
   return json({ ok: true, matches, answer: String(v.answer || '') });
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// FEATURE 7 — MyJournal document AI  (POST /docs/ai)
+//
+// One route, many ops, because every op shares the same key lookup, the same
+// two fallback chains and the same envelope; branching lives in ONE table
+// (DOC_OPS) rather than in ten near-identical handlers.
+//
+// SCHEMAS ARE DELIBERATELY PER-OP AND NARROW. A single union schema covering
+// {text, html, titles, tags, matches, groups} measurably guts extraction — the
+// model spreads its attention across fields the current op will never read.
+// Each op therefore declares the smallest schema that can carry its answer.
+//
+// CONTENT vs INDEX. Ops that touch document CONTENT (the user's actual writing)
+// take `text`/`html` and run on DOC_WRITE_MODELS. Ops that reason over the
+// LIBRARY take a metadata index and run on DOC_INDEX_MODELS. Index ops send
+// titles and paths only — never document bodies — so "organise my trading
+// documents" does not ship the documents themselves to a model.
+// ════════════════════════════════════════════════════════════════════════════
+const DOC_TEXT_SCHEMA  = { type: 'OBJECT', properties: { text: { type: 'STRING' } }, required: ['text'] };
+const DOC_HTML_SCHEMA  = { type: 'OBJECT', properties: { html: { type: 'STRING' } }, required: ['html'] };
+const DOC_TITLE_SCHEMA = { type: 'OBJECT', properties: { titles: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['titles'] };
+const DOC_TAGS_SCHEMA  = { type: 'OBJECT', properties: { tags: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['tags'] };
+const DOC_PICK_SCHEMA  = {
+  type: 'OBJECT',
+  properties: {
+    answer: { type: 'STRING' },
+    matches: {
+      type: 'ARRAY',
+      items: { type: 'OBJECT', properties: { i: { type: 'INTEGER' }, why: { type: 'STRING' } }, required: ['i'] },
+    },
+  },
+  required: ['matches'],
+};
+const DOC_GROUP_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    groups: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          name: { type: 'STRING' },
+          why: { type: 'STRING' },
+          indices: { type: 'ARRAY', items: { type: 'INTEGER' } },
+        },
+        required: ['indices'],
+      },
+    },
+  },
+  required: ['groups'],
+};
+
+// The tag whitelist the rewrite ops must stay inside. MyJournal's editor is a
+// contenteditable that renders exactly this subset, so anything else either
+// renders wrong or gets stripped on the next save — better to constrain the
+// model than to sanitise a surprise afterwards.
+const DOC_HTML_TAGS = 'p, h1, h2, h3, ul, ol, li, blockquote, pre, code, b, strong, i, em, u, s, a, br, table, thead, tbody, tr, th, td';
+
+// Fold a document down to something a prompt can carry. Documents run to
+// hundreds of KB; the model only ever needs the prose.
+function docPlain(html, limit = 24000) {
+  const t = String(html || '')
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<\/(p|div|h[1-6]|li|tr|blockquote|pre)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return t.length > limit ? t.slice(0, limit) + '\n…[document continues]' : t;
+}
+
+// One TSV line per document. Index first, so the model's job is "return
+// numbers" — the cheapest thing for it to get right.
+function docListing(docs) {
+  return docs.map((d, i) => [
+    i,
+    String(d.title || 'Untitled').slice(0, 120),
+    d.provider || '',
+    String(d.path || '').slice(0, 160),
+    d.modified ? new Date(d.modified).toISOString().slice(0, 10) : '',
+    String(d.snippet || '').replace(/\s+/g, ' ').slice(0, 160),
+  ].join('\t')).join('\n');
+}
+const DOC_LISTING_HEADER = 'index\ttitle\tprovider\tfolder-path\tmodified(YYYY-MM-DD)\tsnippet';
+
+const DOC_OPS = {
+  // ── Content ops — DOC_WRITE_MODELS ──────────────────────────────────────
+  summarize: {
+    kind: 'content', schema: DOC_TEXT_SCHEMA, maxOutputTokens: 1200,
+    prompt: (b, plain) => [
+      'Summarise the document below for its own author, who wrote it and already knows the context.',
+      b.scope === 'brief' ? 'Give 2–3 sentences.' : 'Give a short paragraph, then the key points as "- " lines.',
+      'Use the document\'s own terms and names. Do not invent anything that is not in it.',
+      'Return plain text in "text" — no markdown headings, no preamble like "This document".',
+      '', '--- DOCUMENT ---', plain,
+    ].join('\n'),
+  },
+  rewrite: {
+    kind: 'content', schema: DOC_HTML_SCHEMA, maxOutputTokens: 8192,
+    prompt: (b, plain, html) => [
+      `Rewrite the HTML fragment below in a ${b.tone || 'professional'} tone.`,
+      'Keep EVERY fact, name, number, date and link. Keep the same language.',
+      'Keep the overall structure: a list stays a list, a heading stays a heading, the section order does not change.',
+      'Change the wording, not the meaning. Do not add commentary, and do not drop the ending.',
+      `Return ONE HTML fragment in "html", using only these tags: ${DOC_HTML_TAGS}.`,
+      'No <html>, <head>, <body>, no style/class attributes, no markdown fences.',
+      '', '--- HTML ---', html,
+    ].join('\n'),
+  },
+  improve: {
+    kind: 'content', schema: DOC_HTML_SCHEMA, maxOutputTokens: 8192,
+    prompt: (b, plain, html) => [
+      'Improve the writing in the HTML fragment below: fix grammar, punctuation and awkward phrasing,',
+      'tighten wordy sentences, and make it read cleanly.',
+      'This is an EDIT, not a rewrite — keep the author\'s voice, every fact, and every structural element.',
+      'Never shorten by removing content; if a passage is already good, return it unchanged.',
+      `Return ONE HTML fragment in "html", using only these tags: ${DOC_HTML_TAGS}. No markdown fences.`,
+      '', '--- HTML ---', html,
+    ].join('\n'),
+  },
+  expand: {
+    kind: 'content', schema: DOC_HTML_SCHEMA, maxOutputTokens: 8192,
+    prompt: (b, plain, html) => [
+      'Expand the HTML fragment below: develop each point with the detail it implies, in the author\'s voice.',
+      'Everything already written must survive verbatim or near-verbatim — you are ADDING, never replacing.',
+      'Do not invent specific facts (numbers, dates, names, quotes) that are not already present or clearly implied.',
+      `Return ONE HTML fragment in "html", using only these tags: ${DOC_HTML_TAGS}. No markdown fences.`,
+      '', '--- HTML ---', html,
+    ].join('\n'),
+  },
+  title: {
+    kind: 'content', schema: DOC_TITLE_SCHEMA, maxOutputTokens: 400,
+    prompt: (b, plain) => [
+      'Suggest 5 titles for the document below, best first.',
+      'Each is under 60 characters, specific to THIS document (never "Notes" or "Untitled Document"),',
+      'in Title Case, with no surrounding quotes.',
+      '', '--- DOCUMENT ---', plain,
+    ].join('\n'),
+  },
+  tags: {
+    kind: 'content', schema: DOC_TAGS_SCHEMA, maxOutputTokens: 400,
+    prompt: (b, plain) => [
+      'Suggest up to 8 tags for the document below, most important first.',
+      'Each tag is 1–2 lowercase words naming a topic, project or entity the document is genuinely about.',
+      'Prefer tags that would group this with other documents. No generic filler ("notes", "document", "misc").',
+      '', '--- DOCUMENT ---', plain,
+    ].join('\n'),
+  },
+
+  // ── Index ops — DOC_INDEX_MODELS ────────────────────────────────────────
+  search: {
+    kind: 'index', schema: DOC_PICK_SCHEMA, maxOutputTokens: 2048,
+    prompt: (b, listing, today) => [
+      'You search a personal document library spanning MyJournal pages, Google Docs and OneNote.',
+      'Below is a TSV of every document:', DOC_LISTING_HEADER, '', listing, '',
+      `User request: ${b.query}`, '',
+      'Return the indices of every document that genuinely matches, most relevant first.',
+      'Match on MEANING, not substring: "Japan travel notes" should find a page titled "Kyoto itinerary"',
+      'inside a "Trips" notebook; "investing" should find documents about brokerages, ETFs and portfolios.',
+      `Respect date words ("last week", "recent", "this year") against the modified column and today's date of ${today}.`,
+      'Give at most 40 matches. If nothing matches, return an empty list.',
+      '"why" is a short phrase (under 8 words). "answer" is one plain sentence addressed to the user.',
+    ].join('\n'),
+  },
+  related: {
+    kind: 'index', schema: DOC_PICK_SCHEMA, maxOutputTokens: 1024,
+    prompt: (b, listing, today) => [
+      'Below is a TSV of a personal document library:', DOC_LISTING_HEADER, '', listing, '',
+      `The user is reading: "${b.title || ''}" — about: ${String(b.snippet || '').slice(0, 400)}`, '',
+      'Return up to 8 OTHER documents from the list that are genuinely related — same project, topic,',
+      'trip, person or continuing thread. Exclude the document itself. If nothing is really related,',
+      'return an empty list rather than padding it. "why" is a short phrase (under 8 words).',
+    ].join('\n'),
+  },
+  duplicates: {
+    kind: 'index', schema: DOC_GROUP_SCHEMA, maxOutputTokens: 2048,
+    prompt: (b, listing, today) => [
+      'Below is a TSV of a personal document library:', DOC_LISTING_HEADER, '', listing, '',
+      'Find groups of documents that are DUPLICATES or near-duplicates of each other: the same note saved',
+      'twice, a copy made in another provider, "Meeting notes" and "Meeting notes (1)", or two documents',
+      'clearly covering the identical content.',
+      'Each group needs at least 2 indices. Documents that merely share a topic are NOT duplicates —',
+      'if there are none, return an empty list. "why" is a short phrase explaining the group.',
+    ].join('\n'),
+  },
+  organize: {
+    kind: 'index', schema: DOC_GROUP_SCHEMA, maxOutputTokens: 3072,
+    prompt: (b, listing, today) => [
+      'Below is a TSV of a personal document library:', DOC_LISTING_HEADER, '', listing, '',
+      b.query ? `The user asked: ${b.query}` : 'The user wants this library organised.',
+      '',
+      'Propose a folder structure. Each group is one suggested folder: "name" is a short Title Case folder',
+      'name (under 30 characters), "indices" lists the documents that belong in it, "why" is a short phrase.',
+      'Every document may appear in at most one group. Leave a document out rather than forcing it somewhere.',
+      'Prefer 3–10 meaningful groups over many tiny ones. Respect folders that clearly already work.',
+    ].join('\n'),
+  },
+};
+
+async function handleDocsAi(body, env) {
+  const op = String((body && body.op) || '').trim();
+  const spec = DOC_OPS[op];
+  if (!spec) return json({ ok: false, error: 'unknown op' }, 400);
+
+  const key = keyFor(env, (body && body.profile) || 'tony');
+  if (!key) return json({ ok: false, error: 'no api key configured' }, 500);
+
+  let prompt, models, deadlineMs;
+  if (spec.kind === 'content') {
+    // Cap the fragment we hand back for rewriting. Beyond this the model cannot
+    // return the whole thing inside maxOutputTokens anyway, and a silently
+    // truncated document is the one outcome worth refusing outright.
+    const html = String((body && body.html) || '').slice(0, 60000);
+    const plain = docPlain(body && (body.text || body.html));
+    if (!plain) return json({ ok: false, error: 'empty document' }, 400);
+    prompt = spec.prompt(body || {}, plain, html || plain);
+    models = DOC_WRITE_MODELS;
+    deadlineMs = 60000;
+  } else {
+    const docs = Array.isArray(body && body.docs) ? body.docs.slice(0, 400) : [];
+    if (op === 'search' && !String((body && body.query) || '').trim()) return json({ ok: false, error: 'no query' }, 400);
+    if (!docs.length) return json({ ok: true, matches: [], groups: [], answer: 'There are no documents to look through yet.' });
+    prompt = spec.prompt(body || {}, docListing(docs), new Date().toISOString().slice(0, 10));
+    models = DOC_INDEX_MODELS;
+    deadlineMs = 35000;
+  }
+
+  let out;
+  try {
+    out = await runModelChain(models, key, {
+      prompt, schema: spec.schema, maxOutputTokens: spec.maxOutputTokens,
+      feature: 'docs-' + op, deadlineMs,
+    });
+  } catch (e) {
+    // Every model in the chain refused or ran dry — say which, so the UI can
+    // tell the difference between "quota" and "this document broke it".
+    return json({ ok: false, error: 'ai unavailable', detail: String((e && e.message) || e).slice(0, 300) }, 503);
+  }
+  if (!out || !out.value) return json({ ok: false, error: 'ai unavailable' }, 503);
+
+  const v = out.value;
+  const nDocs = Array.isArray(body && body.docs) ? Math.min(body.docs.length, 400) : 0;
+  const inRange = i => Number.isInteger(i) && i >= 0 && i < nDocs;
+
+  const res = { ok: true, op, model: out.model };
+  if (spec.schema === DOC_TEXT_SCHEMA)  res.text = String(v.text || '');
+  if (spec.schema === DOC_HTML_SCHEMA)  res.html = String(v.html || '').replace(/^```(?:html)?\s*|\s*```$/g, '');
+  if (spec.schema === DOC_TITLE_SCHEMA) res.titles = (Array.isArray(v.titles) ? v.titles : []).map(t => String(t).replace(/^["']|["']$/g, '').slice(0, 120)).filter(Boolean).slice(0, 8);
+  if (spec.schema === DOC_TAGS_SCHEMA)  res.tags = (Array.isArray(v.tags) ? v.tags : []).map(t => String(t).toLowerCase().trim().slice(0, 30)).filter(Boolean).slice(0, 8);
+  if (spec.schema === DOC_PICK_SCHEMA) {
+    res.matches = (Array.isArray(v.matches) ? v.matches : []).filter(m => m && inRange(m.i)).slice(0, 40);
+    res.answer = String(v.answer || '');
+  }
+  if (spec.schema === DOC_GROUP_SCHEMA) {
+    res.groups = (Array.isArray(v.groups) ? v.groups : [])
+      .map(g => ({
+        name: String((g && g.name) || '').slice(0, 60),
+        why: String((g && g.why) || '').slice(0, 120),
+        indices: [...new Set((Array.isArray(g && g.indices) ? g.indices : []).filter(inRange))],
+      }))
+      .filter(g => g.indices.length >= (op === 'duplicates' ? 2 : 1))
+      .slice(0, 20);
+  }
+  // An HTML op that comes back empty is a failure, not an empty document —
+  // returning it would wipe whatever the user was editing.
+  if (spec.schema === DOC_HTML_SCHEMA && !res.html.trim()) return json({ ok: false, error: 'ai returned nothing' }, 503);
+  return json(res);
+}
+
 export default {
   async fetch(req, env) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors() });
@@ -2515,8 +2817,11 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 15, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'journal', 'watch', 'watch-ingest', 'cloud-search'],
+        version: 16, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'docs-ai'],
+        docOps: Object.keys(DOC_OPS),
+        docWriteModels: DOC_WRITE_MODELS,
+        docIndexModels: DOC_INDEX_MODELS,
         models: MODELS,
         listModels: LIST_MODELS,
         recipeEditModels: RECIPE_EDIT_MODELS,
@@ -2549,6 +2854,7 @@ export default {
       if (path === '/watch/ingest')   return handleWatchIngest(body, env);
       if (path === '/watch/notifdebug') return handlePwNotifDebug(body, env);
       if (path === '/cloud-search')   return handleCloudSearch(body, env);
+      if (path === '/docs/ai')        return handleDocsAi(body, env);
     }
 
     return json({ ok: false, error: 'not found' }, 404);
