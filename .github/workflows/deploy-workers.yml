@@ -31,6 +31,7 @@ jobs:
       insight: ${{ steps.filter.outputs.insight }}
       weather: ${{ steps.filter.outputs.weather }}
       oneinbox: ${{ steps.filter.outputs.oneinbox }}
+      tesla: ${{ steps.filter.outputs.tesla }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -65,6 +66,8 @@ jobs:
               - 'workers/taskhub-weather-api/**'
             oneinbox:
               - 'workers/oneinbox-api/**'
+            tesla:
+              - 'workers/tesla-api/**'
 
   # ---------------------------------------------------------------
   # One deploy job per worker. Each runs ONLY if its folder changed.
@@ -240,3 +243,18 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: workers/taskhub-weather-api
+
+  # Tesla widget on Tony's TaskHub only — Fleet API proxy holding the OAuth
+  # refresh token server-side. Secrets required (already set on first deploy,
+  # done by hand from the CLI — see workers/tesla-api/worker.js header):
+  #   TESLA_CLIENT_SECRET, TESLA_ADMIN_KEY, TESLA_STATE
+  deploy-tesla-api:
+    needs: changes
+    if: ${{ needs.changes.outputs.tesla == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: workers/tesla-api

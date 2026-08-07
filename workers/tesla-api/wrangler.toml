@@ -1,0 +1,26 @@
+name = "taskhub-tesla-api"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[[kv_namespaces]]
+binding = "TESLA_KV"
+id = "66ed99d28b9541bd81c8d98c9a483e8c"
+
+# Public app identity — safe to commit, this is not the client secret.
+[vars]
+TESLA_CLIENT_ID = "0c1bb629-26b1-4956-9c48-03178b23e28b"
+TESLA_REDIRECT_URI = "https://taskhub-tesla-api.av1.workers.dev/callback"
+TESLA_AUTH_BASE = "https://auth.tesla.com"
+# NA region base URL — best knowledge as of this writing. Tesla has renamed
+# this hostname before (fleet-api.prd.na.vehicle-data.tesla.services →
+# fleet-api.prd.na.vn.cloud.tesla.com). If /admin/register-partner or
+# /vehicle come back with a DNS/connection error, check the current value on
+# the Fleet API docs page linked from the Tesla developer dashboard and
+# update this one line — nothing else in the Worker needs to change.
+TESLA_API_BASE = "https://fleet-api.prd.na.vn.cloud.tesla.com"
+ALLOWED_ORIGIN = "https://anthonyn99.github.io"
+
+# Secrets — set via `wrangler secret put <NAME>`, never written here:
+#   TESLA_CLIENT_SECRET   from the Tesla developer dashboard (Tony sets this)
+#   TESLA_ADMIN_KEY       protects /admin/* — minted and set by Claude
+#   TESLA_STATE           protects /callback from junk hits — minted and set by Claude

@@ -62,3 +62,7 @@ Thumbs.db
 desktop.ini
 .vscode/*
 !.vscode/settings.json
+
+# Tesla Fleet API partner key — private half never leaves this machine
+workers/tesla-api/tesla-private-key.pem
+workers/tesla-api/.secrets-generated.txt
