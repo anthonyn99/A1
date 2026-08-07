@@ -1,0 +1,11 @@
+{
+  "name": "a1-taskhub",
+  "private": true,
+  "description": "Test tooling for index.html. The app itself has no build step and ships as-is.",
+  "scripts": {
+    "test": "node tests/syntax-check.js && node tests/sync-guard.test.js"
+  },
+  "devDependencies": {
+    "@babel/parser": "^7.25.0"
+  }
+}

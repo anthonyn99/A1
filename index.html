@@ -7160,6 +7160,23 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // offline edit still lands and a stale session can never clobber fresh data.
   let _thServerSeen = false, _thPendingWrites = [];
   let _vdServerSeen = false, _vdPendingWrites = [];
+
+  // ── Generation counter: the clock-independent backstop ─────────────────────
+  // The savedAt comparison in the listeners decides "who is newer" using
+  // Date.now() — the DEVICE's clock. If a phone's clock runs fast, its STALE data
+  // carries a HIGHER savedAt than the desktop's newer edits, wins the comparison,
+  // and the overwrite bug returns with no code change at all. Clock skew across
+  // devices is normal and not something we control, so correctness must not
+  // depend on it.
+  //
+  // _fbGen increments on every teardown (backgrounding, sleep, network drop).
+  // Each payload records the generation it was BUILT in. A payload whose
+  // generation is older than the current one was composed from state this device
+  // had before it lost touch with the server — it cannot be trusted to overwrite
+  // a whole document, whatever its timestamp says. It is dropped, and the device
+  // re-syncs from the server instead. Real edits are unaffected: any edit made
+  // after reconnecting is stamped with the current generation.
+  let _fbGen = 0;
   function _thMarkServerSeen() {
     if (_thServerSeen) return;
     _thServerSeen = true;
@@ -7223,7 +7240,17 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     const _thOwnWrites = new Set();
     const _doTaskHubSave = () => {
       if (!_pendingPayload) return _thSaveInFlight || Promise.resolve();
+      // Generation check — the clock-independent backstop (see _fbGen). A payload
+      // composed before the last disconnect is stale by construction, regardless of
+      // what its timestamp claims, so it must never overwrite the whole document.
+      if (_pendingPayload._gen !== undefined && _pendingPayload._gen !== _fbGen) {
+        console.warn('[TaskHub] dropping stale-generation write (built gen '
+          + _pendingPayload._gen + ', now ' + _fbGen + ') — re-syncing from server instead');
+        _pendingPayload = null; _savePending = false;
+        return Promise.resolve();
+      }
       const payload = _pendingPayload; _pendingPayload = null;
+      delete payload._gen;                       // internal only — never persisted
       _lastWrittenSavedAt = payload.savedAt || Date.now();
       _thOwnWrites.add(_lastWrittenSavedAt);
       if (_thOwnWrites.size > 50) _thOwnWrites.delete(_thOwnWrites.values().next().value);
@@ -7240,6 +7267,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       return _thSaveInFlight;
     };
     window._fbSave = (payload) => {
+      payload._gen = _fbGen;                     // stamp the generation it was built in
       _pendingPayload = payload;
       _savePending = true;
       _lastOwnSaveAt = Date.now();
@@ -7378,7 +7406,17 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     const _vdOwnWrites = new Set();
     const _doVedaSave = () => {
       if (!_vdPendingPayload) return _vdSaveInFlight || Promise.resolve();
+      // Generation check — clock-independent backstop; see _fbGen and the TaskHub
+      // equivalent above. A payload built before the last disconnect is stale by
+      // construction and may not overwrite the document, whatever its timestamp says.
+      if (_vdPendingPayload._gen !== undefined && _vdPendingPayload._gen !== _fbGen) {
+        console.warn('[Veda] dropping stale-generation write (built gen '
+          + _vdPendingPayload._gen + ', now ' + _fbGen + ') — re-syncing from server instead');
+        _vdPendingPayload = null; _vdSavePending = false;
+        return Promise.resolve();
+      }
       const payload = _vdPendingPayload; _vdPendingPayload = null;
+      delete payload._gen;                       // internal only — never persisted
       _vdLastWrittenSavedAt = payload.savedAt || Date.now();
       _vdOwnWrites.add(_vdLastWrittenSavedAt);
       if (_vdOwnWrites.size > 50) _vdOwnWrites.delete(_vdOwnWrites.values().next().value);
@@ -7393,6 +7431,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       return _vdSaveInFlight;
     };
     window._fbSaveVeda = (payload) => {
+      payload._gen = _fbGen;                     // stamp the generation it was built in
       _vdPendingPayload = payload;
       _vdSavePending = true;
       _vdLastOwnSaveAt = Date.now();
@@ -8735,6 +8774,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // dropped, and replays once the new connection confirms.
     _thServerSeen = false;
     _vdServerSeen = false;
+    // New generation: everything composed before this point is now suspect (see
+    // _fbGen). This is what makes the protection independent of device clocks.
+    _fbGen++;
   }
 
   function _startIdleTimer() {
@@ -8781,8 +8823,21 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // visibilitychange when the OS suspends them. Tear down IMMEDIATELY on these
   // — no 5s grace period, because the OS may freeze JS execution before the
   // setTimeout fires, leaving listeners attached overnight.
-  window.addEventListener("pagehide", () => { _teardown(); });
-  document.addEventListener("freeze", () => { _teardown(); });
+  // ORDER IS LOAD-BEARING: flush BEFORE tearing down. _teardown() bumps _fbGen,
+  // and any payload still queued at that moment becomes stale-generation and is
+  // dropped by design. An edit you made a second before backgrounding the app is
+  // NOT stale — it is the newest data that exists — so it must be handed to the
+  // write path while the current generation is still valid. This module's pagehide
+  // listener registers before the global flush handler further down the file, so
+  // relying on that one would lose the edit. Flushing here makes it explicit and
+  // independent of listener registration order (flushing twice is harmless — the
+  // second call finds nothing pending).
+  const _flushThenTeardown = () => {
+    try { window._fbFlushAll && window._fbFlushAll(); } catch(e) {}
+    _teardown();
+  };
+  window.addEventListener("pagehide", _flushThenTeardown);
+  document.addEventListener("freeze", _flushThenTeardown);
 
   // ── Resume (iOS especially) ───────────────────────────────────────────────
   // pagehide/freeze above tear the connection down, but nothing re-established

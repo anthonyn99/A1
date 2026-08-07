@@ -1,0 +1,34 @@
+#!/bin/sh
+# Runs the sync-guard and syntax tests before any commit that touches index.html.
+#
+# index.html ships straight to GitHub Pages with no build step, so a broken commit
+# is live on every device within a minute. The sync guards in particular protect
+# against silent DATA LOSS (the "my edits reverted" bug), which is why they are
+# checked here and not only in CI.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# Bypass in an emergency:  git commit --no-verify
+
+if git diff --cached --name-only | grep -qE '^(index\.html|tests/)'; then
+  command -v node >/dev/null 2>&1 || {
+    echo "pre-commit: node not found; skipping sync-guard tests." >&2
+    exit 0
+  }
+
+  echo "pre-commit: checking index.html syntax…"
+  node tests/syntax-check.js || {
+    echo ""
+    echo "BLOCKED: index.html has a syntax error — this would break the app for everyone."
+    exit 1
+  }
+
+  echo "pre-commit: running sync-guard regression tests…"
+  node tests/sync-guard.test.js || {
+    echo ""
+    echo "BLOCKED: a sync guard regressed. These prevent silent data loss —"
+    echo "please fix the code rather than weakening the test."
+    exit 1
+  }
+fi
+
+exit 0

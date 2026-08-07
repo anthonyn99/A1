@@ -1,0 +1,30 @@
+name: Sync guard tests
+
+# The "my edits reverted" data-loss bug was fixed three times and returned twice.
+# These tests encode every one of those failure modes. Any change to index.html
+# runs them before the change can reach a phone.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'tests/**'
+      - '.github/workflows/sync-guard.yml'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'tests/**'
+  workflow_dispatch:
+
+jobs:
+  sync-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sync-guard regression tests
+        run: node tests/sync-guard.test.js
+      - name: Syntax check index.html
+        run: node tests/syntax-check.js
