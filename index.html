@@ -2633,6 +2633,1283 @@ function Widget(props){
 window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 })();
 </script>
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Tesla Widget — Tony's TaskHub ONLY (Veda's TaskHub never renders it)
+     Public surface: window.THTS = {Widget, refresh, ingest, configure, config,
+                                    disconnect, afterCommand}
+
+     Same shape as the weather widget above: ONE module, ONE data layer, colour
+     supplied entirely by the host through CSS custom properties so the widget
+     inherits TaskHub's palette. Rendered from a plain <script> (not text/babel)
+     for the same reason THWX is — it stays out of the shared babel scope that
+     Tony's and Veda's TaskHub blocks both live in.
+
+     DATA: there is NO hardcoded vehicle data anywhere in here. Until an endpoint
+     is configured the widget reports "Not Connected" and makes zero network
+     calls. Point it at a Tesla Fleet API proxy — a Cloudflare Worker like the
+     weather one, holding the OAuth refresh token SERVER-side so no Tesla
+     credential ever touches the browser — and every field below fills itself in:
+
+         THTS.configure({endpoint:'https://taskhub-tesla-api.av1.workers.dev'})
+         THTS.configure({places:[{name:'Home',lat:…,lon:…,radius_m:150}]})
+
+     The Worker should return Fleet API `vehicle_data` (either the raw
+     {response:{…}} envelope or the bare object), optionally with
+     `charging_history` and `monthly` alongside it. normalize() below is the ONLY
+     place that knows Tesla's field names; the UI reads the neutral view model it
+     produces, so the interface never needs redesigning when the API shape moves.
+     A push transport can skip fetch entirely via THTS.ingest(json).
+
+     Every field hides itself when the vehicle doesn't report it — no "N/A" rows,
+     no placeholder values, no empty sections.
+══════════════════════════════════════════════════════════════════════════ -->
+<style>
+/* Status tints. Semantic (battery health, charging, alerts), not brand, and
+   tuned to read against TaskHub's dark surfaces. Every one is paired with a
+   number or a word in the markup — state never rests on colour alone. */
+.thts{
+  --ts-grn:#7fc48f; --ts-grn-d:#5f9c70;
+  --ts-amb:#e0b874; --ts-amb-d:#b8935a;
+  --ts-red:#d68a7c; --ts-red-d:#a96759;
+  --ts-blu:#6fa8dc; --ts-blu-d:#4d7ea8;
+}
+.thts{
+  position:relative;                 /* anchor for the popup */
+  align-self:stretch;
+  width:100%;
+  box-sizing:border-box;
+  background:var(--ts-s1);
+  border:1px solid var(--ts-bd);
+  border-radius:var(--ts-radius);
+  color:var(--ts-tx);
+  transition:border-color .2s;
+}
+/* Glass sheen on the trigger card, painted under .thts-compact's z-index:2. */
+.thts::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(135deg,rgba(255,255,255,.055),transparent 58%);}
+/* Above the sticky TaskHub header (200) and Tony's app nav (10001) so the scrim
+   can dim the whole page — the same contract the weather panel uses. */
+.thts.thts-open{z-index:10050;}
+
+/* Right-hand column of Tony's band. The band's phantom ::after exists only to
+   centre the quote against the weather bar; with a real card on the right it
+   would double-count, so Tony's band opts out. Veda's band keeps the phantom
+   and is untouched — this class is only ever on Tony's. */
+.thts-band::after{display:none;}
+.thts-band > .thts{flex:0 1 330px;max-width:330px;}
+/* Tablet: two cards plus a column of prose won't fit, so the quote drops to its
+   own full-width row and the two widgets share the top one. */
+@media (max-width:1080px) and (min-width:781px){
+  .thts-band{flex-wrap:wrap;}
+  .thts-band > .thwx,.thts-band > .thts{flex:1 1 260px;max-width:none;}
+  .thts-band > .thwx-bq{flex:1 1 100%;order:3;}
+}
+@media (max-width:780px){
+  .thts-band > .thts{flex:none;max-width:100%;}
+}
+
+/* ── Compact card (always visible) ── */
+.thts-compact{
+  position:relative;z-index:2;       /* stays crisp above the scrim */
+  display:flex;align-items:center;gap:9px;
+  border-radius:inherit;
+  width:100%;height:100%;box-sizing:border-box;
+  padding:7px 11px;
+  background:transparent;border:0;color:inherit;
+  font:inherit;text-align:left;cursor:pointer;
+  transition:background .15s;
+}
+.thts-compact:hover{background:var(--ts-hov);}
+.thts-compact:focus-visible{outline:2px solid var(--ts-ac);outline-offset:-2px;}
+.thts-glyph{flex-shrink:0;display:flex;align-items:center;color:var(--ts-txd);}
+.thts-now{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;}
+.thts-pct{flex-shrink:0;font-size:clamp(19px,4.6vw,23px);font-weight:700;color:var(--ts-tx);
+  line-height:1.1;letter-spacing:-.5px;}
+.thts-sub{min-width:0;font-size:10px;color:var(--ts-txd);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thts-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;
+  flex-shrink:0;font-size:10px;color:var(--ts-txd);line-height:1.3;}
+.thts-name{font-size:11px;font-weight:700;color:var(--ts-tx);letter-spacing:.2px;
+  max-width:min(170px,38vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.thts-hl{white-space:nowrap;}
+.thts-hl b{font-weight:700;color:var(--ts-tx);}
+.thts-chev{flex-shrink:0;color:var(--ts-txm);}
+/* Hairline battery gauge welded to the card's bottom edge — the state of charge
+   at a glance without spending a row on it. */
+.thts-edge{position:absolute;left:0;right:0;bottom:0;height:2px;z-index:2;
+  border-radius:0 0 2px 2px;overflow:hidden;pointer-events:none;}
+.thts-edge i{display:block;height:100%;border-radius:2px;
+  background:linear-gradient(90deg,var(--ts-lvl-d),var(--ts-lvl));
+  transition:width .9s cubic-bezier(.22,.85,.3,1);}
+
+/* Scrim — dims and blurs the whole page; the compact card opts back above it. */
+.thts-scrim{position:fixed;inset:0;z-index:1;
+  background:rgba(0,0,0,.45);
+  backdrop-filter:blur(7px) saturate(.9);
+  -webkit-backdrop-filter:blur(7px) saturate(.9);
+  animation:thts-fade .15s ease-out;}
+@keyframes thts-fade{from{opacity:0}to{opacity:1}}
+
+/* ── Popup ──
+   Anchored to the card's RIGHT edge, because this card lives on the right of
+   the band; opening it never reflows the dashboard. Fixed header + scrolling
+   body so the close control stays reachable however long the report gets. */
+.thts-panel{position:absolute;top:calc(100% + 6px);right:0;z-index:2;
+  width:min(620px,calc(100vw - 24px));
+  max-height:min(78vh,720px);
+  display:flex;flex-direction:column;box-sizing:border-box;
+  background:linear-gradient(168deg,var(--ts-s2),var(--ts-s1) 46%);
+  border:1px solid var(--ts-bdl);
+  border-radius:16px;
+  box-shadow:0 22px 60px rgba(0,0,0,.62),inset 0 0 0 1px rgba(255,255,255,.03);
+  color:var(--ts-tx);
+  overflow:hidden;
+  animation:thts-pop .17s cubic-bezier(.2,.9,.3,1);transform-origin:top right;}
+@keyframes thts-pop{from{opacity:0;transform:translateY(-6px) scale(.99)}to{opacity:1;transform:none}}
+.thts-panel-hd{display:flex;align-items:center;gap:8px;flex-shrink:0;
+  padding:8px 8px 8px 14px;border-bottom:1px solid var(--ts-bd);}
+.thts-panel-t{flex:1;min-width:0;font-size:9.5px;font-weight:700;letter-spacing:1.6px;
+  text-transform:uppercase;color:var(--ts-txd);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thts-panel-b{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;padding:12px 13px 16px;
+  scrollbar-width:thin;scrollbar-color:var(--ts-bdl) transparent;}
+.thts-panel-b::-webkit-scrollbar{width:5px;}
+.thts-panel-b::-webkit-scrollbar-thumb{background:var(--ts-bdl);border-radius:3px;}
+/* Grabber — the affordance for swipe-down dismiss, phones only. */
+.thts-grab{display:none;}
+@media (max-width:640px){
+  .thts-grab{display:block;flex-shrink:0;width:38px;height:4px;border-radius:2px;
+    background:var(--ts-bdl);margin:7px auto 0;}
+  .thts-panel{width:min(620px,calc(100vw - 16px));max-height:82vh;}
+}
+
+/* Header controls — 30px hit target keeps them thumb-safe. */
+.thts-ib{flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--ts-bd);border-radius:8px;
+  color:var(--ts-txd);cursor:pointer;font:inherit;line-height:1;
+  transition:color .15s,border-color .15s;}
+.thts-ib:hover{color:var(--ts-ac);border-color:var(--ts-ac);}
+.thts-ib:focus-visible{outline:2px solid var(--ts-ac);outline-offset:2px;}
+.thts-ib[disabled]{opacity:.45;cursor:default;}
+.thts-ib.spin svg{animation:thts-spin .9s linear infinite;}
+@keyframes thts-spin{to{transform:rotate(360deg)}}
+
+/* ── Hero ── */
+.thts-hero{--ts-glow:transparent;
+  position:relative;overflow:hidden;border-radius:14px;padding:10px 14px 10px;
+  background:linear-gradient(165deg,var(--ts-s2),var(--ts-s1) 70%);
+  border:1px solid var(--ts-bd);}
+.thts-hero::after{content:'';position:absolute;left:50%;top:52%;width:82%;height:66%;
+  transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,var(--ts-glow),transparent 74%);
+  filter:blur(4px);transition:background .5s;}
+.thts-hero.is-charge{--ts-glow:rgba(127,196,143,.5);}
+.thts-hero.is-climate{--ts-glow:rgba(111,168,220,.44);}
+.thts-hero.is-warn{--ts-glow:rgba(214,138,124,.4);}
+.thts-hero.is-charge::after{animation:thts-breathe 2.8s ease-in-out infinite;}
+@keyframes thts-breathe{0%,100%{opacity:.5}50%{opacity:1}}
+.thts-stage{position:relative;z-index:1;display:flex;justify-content:center;align-items:center;
+  touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none;}
+.thts-stage:active{cursor:grabbing;}
+.thts-float{width:100%;display:flex;justify-content:center;
+  animation:thts-float 6.5s ease-in-out infinite;will-change:transform;}
+@keyframes thts-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.thts-tilt{width:100%;display:flex;justify-content:center;
+  transition:transform .45s cubic-bezier(.2,.9,.3,1);will-change:transform;}
+.thts-tilt.dragging{transition:none;}
+.thts-car{display:block;width:100%;max-width:330px;height:auto;pointer-events:none;}
+.thts-id{position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:space-between;
+  gap:10px;margin-top:2px;}
+.thts-model{font-size:15px;font-weight:700;letter-spacing:.2px;color:var(--ts-tx);line-height:1.25;}
+.thts-paint{font-size:10.5px;color:var(--ts-txd);margin-top:1px;}
+.thts-stamp{font-size:9.5px;color:var(--ts-txm);margin-top:3px;letter-spacing:.3px;}
+.thts-pills{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;}
+
+/* Status pills / badges */
+.thts-pill{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;
+  padding:3px 8px;border-radius:999px;
+  font-size:9px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
+  border:1px solid var(--ts-bd);background:var(--ts-s1);color:var(--ts-txd);white-space:nowrap;}
+.thts-pill svg{width:11px;height:11px;flex-shrink:0;}
+.thts-pill.on{color:var(--ts-grn);border-color:rgba(127,196,143,.45);}
+.thts-pill.info{color:var(--ts-blu);border-color:rgba(111,168,220,.45);}
+.thts-pill.warn{color:var(--ts-red);border-color:rgba(214,138,124,.5);}
+.thts-pill.acc{color:var(--ts-ac);border-color:var(--ts-bdl);}
+
+/* ── Blocks + section headings ── */
+.thts-blk{margin-top:15px;}
+.thts-blk:first-child{margin-top:0;}
+.thts-sect{display:flex;align-items:center;gap:7px;margin:0 0 8px;
+  font-size:9px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--ts-txm);}
+.thts-sect svg{width:12px;height:12px;flex-shrink:0;}
+.thts-sect i{flex:1;height:1px;background:var(--ts-bd);font-style:normal;}
+
+/* Information cards. auto-fit is what makes desktop → tablet → phone reflow
+   without a single extra breakpoint. */
+.thts-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:7px;}
+.thts-card{background:var(--ts-s2);border:1px solid var(--ts-bd);border-radius:11px;
+  padding:8px 10px;min-width:0;}
+.thts-k{font-size:8.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--ts-txm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thts-v{font-size:14px;font-weight:700;color:var(--ts-tx);margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thts-v small{font-size:9.5px;font-weight:700;color:var(--ts-txd);margin-left:3px;}
+.thts-v.grn{color:var(--ts-grn);} .thts-v.red{color:var(--ts-red);} .thts-v.blu{color:var(--ts-blu);}
+
+/* ── Battery ── */
+.thts-batt{background:var(--ts-s2);border:1px solid var(--ts-bd);border-radius:14px;
+  padding:12px 13px;}
+.thts-batt-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;}
+.thts-big{font-size:clamp(30px,7vw,38px);font-weight:800;letter-spacing:-1.5px;line-height:1;
+  color:var(--ts-lvl);font-variant-numeric:tabular-nums;}
+.thts-big span{font-size:.45em;font-weight:700;letter-spacing:0;margin-left:2px;}
+.thts-range{text-align:right;min-width:0;}
+.thts-range b{display:block;font-size:19px;font-weight:700;color:var(--ts-tx);line-height:1.1;
+  font-variant-numeric:tabular-nums;}
+.thts-range em{display:block;font-style:normal;font-size:9px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;color:var(--ts-txm);margin-top:2px;}
+.thts-bbar{position:relative;height:11px;border-radius:6px;background:var(--ts-bd);
+  margin:11px 0 6px;}
+.thts-bfill{position:absolute;top:0;bottom:0;left:0;border-radius:6px;overflow:hidden;
+  background:linear-gradient(90deg,var(--ts-lvl-d),var(--ts-lvl));
+  transition:width .9s cubic-bezier(.22,.85,.3,1);}
+/* Energy flowing into the pack — only while current is actually flowing. */
+.thts-charging .thts-bfill::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.42) 50%,transparent 100%);
+  background-size:44% 100%;background-repeat:no-repeat;
+  animation:thts-flow 1.9s linear infinite;}
+@keyframes thts-flow{from{background-position:-50% 0}to{background-position:150% 0}}
+.thts-blimit{position:absolute;top:-2px;bottom:-2px;width:2px;border-radius:1px;
+  background:var(--ts-txd);opacity:.75;transform:translateX(-1px);}
+.thts-bfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:9.5px;font-weight:700;letter-spacing:.5px;color:var(--ts-txm);}
+.thts-batt .thts-cards{margin-top:11px;}
+
+/* ── Tires: top-down, the car body drawn in the gutter between the columns ── */
+.thts-tirebox{position:relative;display:grid;grid-template-columns:1fr 1fr;
+  gap:8px 74px;padding:6px 0;}
+.thts-tirebox::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:56px;
+  transform:translateX(-50%);border:1px solid var(--ts-bd);border-radius:28px/18px;
+  background:linear-gradient(180deg,var(--ts-s2),var(--ts-s1));}
+.thts-tirebox::after{content:'';position:absolute;left:50%;top:30%;height:1px;width:40px;
+  transform:translateX(-50%);background:var(--ts-bd);}
+.thts-tire{position:relative;background:var(--ts-s2);border:1px solid var(--ts-bd);
+  border-radius:10px;padding:7px 9px;text-align:center;min-width:0;}
+.thts-tire.warn{border-color:rgba(214,138,124,.55);}
+.thts-tire .thts-k{white-space:normal;}
+.thts-tire b{display:block;font-size:15px;font-weight:700;color:var(--ts-tx);margin-top:2px;
+  font-variant-numeric:tabular-nums;}
+.thts-tire.warn b{color:var(--ts-red);}
+.thts-tire em{font-style:normal;font-size:9px;font-weight:700;color:var(--ts-txm);margin-left:2px;}
+@media (max-width:400px){ .thts-tirebox{gap:8px 40px;} .thts-tirebox::before{width:30px;} }
+
+/* ── Charging history ── */
+.thts-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:7px;
+  margin-bottom:11px;}
+.thts-chart{display:flex;align-items:flex-end;gap:2px;height:76px;
+  padding-bottom:1px;border-bottom:1px solid var(--ts-bd);}
+/* One series, so one accent. 4px rounded end at the value, square on the
+   baseline; the 2px gap is the panel surface showing between bars. */
+.thts-cbar{flex:1 1 0;min-width:0;position:relative;border:0;padding:0;cursor:pointer;
+  border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--ts-ac),var(--ts-ac-d));
+  opacity:.6;transition:opacity .15s;}
+.thts-cbar:hover,.thts-cbar.on{opacity:1;}
+.thts-cbar:focus-visible{outline:2px solid var(--ts-ac);outline-offset:2px;}
+/* Detail sits in a fixed slot under the chart rather than floating: no overflow
+   maths, and tap-to-inspect behaves exactly like hover on a phone. */
+.thts-detail{margin-top:9px;background:var(--ts-s2);border:1px solid var(--ts-bd);
+  border-radius:11px;padding:9px 11px;}
+.thts-detail-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+  margin-bottom:7px;}
+.thts-detail-h b{font-size:12.5px;font-weight:700;color:var(--ts-tx);flex-shrink:0;}
+.thts-detail-h span{font-size:9.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--ts-txm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.thts-detail-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:6px 10px;}
+.thts-dk{font-size:8.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ts-txm);}
+.thts-dv{font-size:12.5px;font-weight:700;color:var(--ts-tx);margin-top:1px;}
+.thts-soc{display:inline-flex;align-items:center;gap:4px;}
+.thts-soc i{width:12px;height:1.5px;background:var(--ts-txm);border-radius:1px;font-style:normal;}
+
+/* ── Empty / not-connected / error states ── */
+.thts-empty{text-align:center;padding:14px 10px 2px;}
+.thts-empty h4{margin:0 0 5px;font-size:13px;font-weight:700;color:var(--ts-tx);letter-spacing:.2px;}
+.thts-empty p{margin:0 auto;max-width:400px;font-size:11px;line-height:1.65;color:var(--ts-txd);}
+.thts-link{display:flex;gap:6px;margin:13px auto 0;max-width:430px;}
+.thts-link input{flex:1;min-width:0;background:var(--ts-s2);border:1px solid var(--ts-bd);
+  border-radius:8px;padding:8px 10px;color:var(--ts-tx);font:inherit;font-size:11.5px;}
+.thts-link input::placeholder{color:var(--ts-txm);}
+.thts-link input:focus{outline:none;border-color:var(--ts-ac);}
+.thts-btn{flex-shrink:0;background:transparent;border:1px solid var(--ts-bd);border-radius:8px;
+  color:var(--ts-ac);font:inherit;font-size:10px;font-weight:700;letter-spacing:.7px;
+  text-transform:uppercase;padding:6px 13px;cursor:pointer;transition:border-color .15s,background .15s;}
+.thts-btn:hover{border-color:var(--ts-ac);background:var(--ts-acg);}
+.thts-err{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 11px;padding:0 0 9px;
+  border-bottom:1px solid var(--ts-bd);
+  font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--ts-red);}
+.thts-err .thts-btn{margin-left:auto;text-transform:none;letter-spacing:.3px;}
+
+@media (prefers-reduced-motion:reduce){
+  .thts-scrim,.thts-panel,.thts-float,.thts-hero.is-charge::after,
+  .thts-charging .thts-bfill::after,.thts-ib.spin svg{animation:none;}
+  .thts-bfill,.thts-edge i,.thts-tilt{transition:none;}
+}
+</style>
+<script>
+(function(){
+'use strict';
+if(!window.React) return;                  // widget is optional; never break the page
+var h=React.createElement,useState=React.useState,useEffect=React.useEffect,useRef=React.useRef;
+
+var LS_CFG='thts_cfg_v1';
+var LS_CACHE='thts_cache_v1';
+var HYDRATE_MAX=30*60*1000;                // never paint cached vehicle data older than this
+var POLL_AWAKE=60*1000;                    // popup open + car awake
+var POLL_ASLEEP=5*60*1000;                 // popup open + car asleep — don't keep waking it
+var FRESH_MS=25*1000;                      // a non-forced load inside this window is a no-op
+
+// ── Config ───────────────────────────────────────────────────────────────
+// endpoint         : Fleet API proxy URL (a Worker; keeps the OAuth token server-side)
+// model/trim/paint : optional display overrides, for when the car is titled
+//                    differently to the way the API badges it
+// paintHex         : override the hero render's body colour
+// places           : [{name,lat,lon,radius_m}] — turns coordinates into "Home"
+function readCfg(){try{var c=JSON.parse(localStorage.getItem(LS_CFG));return(c&&typeof c==='object')?c:{};}catch(e){return{};}}
+function writeCfg(c){try{localStorage.setItem(LS_CFG,JSON.stringify(c));}catch(e){}}
+var CFG=readCfg();
+
+// ── Store ────────────────────────────────────────────────────────────────
+// linked    = an endpoint is configured, so there is something to fetch/refresh
+// connected = there is a data source at all. A push transport calling ingest()
+//             is connected without ever being linked, which is why these are
+//             two flags and not one.
+var S={data:null,at:0,err:null,loading:false,linked:!!CFG.endpoint,connected:!!CFG.endpoint};
+var subs=[];
+function emit(){
+  S={data:S.data,at:S.at,err:S.err,loading:S.loading,
+     linked:!!CFG.endpoint,connected:!!CFG.endpoint||!!S.data};
+  for(var i=0;i<subs.length;i++)subs[i](S);
+}
+function subscribe(fn){subs.push(fn);return function(){var i=subs.indexOf(fn);if(i>=0)subs.splice(i,1);};}
+
+// ── Coercion. Everything downstream may be null and the UI hides nulls, so
+//    "absent" and "zero" must never be confused. ─────────────────────────
+function N(x){
+  if(x===null||x===undefined||x==='')return null;
+  var n=typeof x==='string'?parseFloat(x):x;
+  return (typeof n==='number'&&isFinite(n))?n:null;
+}
+function B(x){return (x===true||x===false)?x:(x===1?true:(x===0?false:null));}
+function X(x){return (typeof x==='string'&&x.trim())?x.trim():null;}
+function O(x){return (x&&typeof x==='object'&&!Array.isArray(x))?x:{};}
+function ms(t){var n=N(t);return n==null?null:(n<1e11?n*1000:n);}   // seconds → ms
+
+function cToF(c){return c==null?null:c*9/5+32;}
+function barToPsi(b){return b==null?null:b*14.5037738;}
+
+// ── Vehicle catalogue ────────────────────────────────────────────────────
+var MODELS={models:'Model S',model3:'Model 3',modelx:'Model X',modely:'Model Y',modelct:'Cybertruck'};
+var SEDANS={models:1,model3:1};             // lower roofline in the hero render
+var TRIMS={'74':'Long Range','74d':'Long Range','p74d':'Performance','100d':'Long Range',
+  'p100d':'Plaid','90d':'Long Range','p90d':'Performance','50':'Standard Range',
+  '62':'Standard Range Plus','long_range':'Long Range','lr':'Long Range','rwd':'Rear-Wheel Drive',
+  'awd':'All-Wheel Drive','performance':'Performance','plaid':'Plaid','standard':'Standard Range',
+  'launch':'Launch Series','launch_series':'Launch Series'};
+// Tesla's exterior_color codes → the name on the window sticker + a paint hex
+// for the hero render. Anything unlisted falls back to a neutral silver.
+var PAINT={
+  pearlwhite:['Pearl White Multi-Coat','#e9e7e3'],white:['Pearl White','#e9e7e3'],
+  solidblack:['Solid Black','#16171a'],black:['Solid Black','#16171a'],
+  diamondblack:['Obsidian Black','#1b1c20'],obsidianblack:['Obsidian Black','#1b1c20'],
+  midnightsilver:['Midnight Silver Metallic','#43474d'],
+  midnightsilvermetallic:['Midnight Silver Metallic','#43474d'],
+  steelgrey:['Midnight Silver Metallic','#43474d'],stealthgrey:['Stealth Grey','#5a5e63'],
+  quicksilver:['Quicksilver','#9ba2a8'],silver:['Silver Metallic','#a4a9ae'],
+  lunarsilver:['Lunar Silver','#8b8f93'],titanium:['Titanium Metallic','#6d6f72'],
+  deepblue:['Deep Blue Metallic','#20365e'],deepbluemetallic:['Deep Blue Metallic','#20365e'],
+  abyssblue:['Abyss Blue','#2b3f66'],glacierblue:['Glacier Blue','#4b6f9c'],
+  redmulticoat:['Red Multi-Coat','#9e1b1e'],red:['Red Multi-Coat','#9e1b1e'],
+  ultrared:['Ultra Red','#8d1a26'],metallicbrown:['Metallic Brown','#4a3a30'],
+  green:['British Racing Green','#1f3a2c']
+};
+function paintOf(code){
+  var k=String(code||'').toLowerCase().replace(/[^a-z]/g,'');
+  if(PAINT[k])return PAINT[k];
+  return [X(code)?String(code).replace(/([a-z])([A-Z])/g,'$1 $2'):null,'#6f747a'];
+}
+// Shade a hex by pct (-1 dark … +1 light). Done in JS rather than color-mix()
+// so the hero render is identical on older Safari.
+function shade(hex,pct){
+  var m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex||''));
+  if(!m)return hex;
+  var out='#';
+  for(var i=1;i<=3;i++){
+    var v=parseInt(m[i],16);
+    v=pct>=0?v+(255-v)*pct:v*(1+pct);
+    out+=('0'+Math.max(0,Math.min(255,Math.round(v))).toString(16)).slice(-2);
+  }
+  return out;
+}
+
+// ── Normalizer — the ONLY place that knows Tesla's field names ────────────
+// Accepts a Fleet API {response:{…}} envelope, a bare vehicle_data object, or
+// either wrapped alongside `charging_history` / `monthly`.
+function normalize(raw){
+  if(!raw||typeof raw!=='object')return null;
+  var root=(raw.response&&typeof raw.response==='object'&&!Array.isArray(raw.response))?raw.response:raw;
+  var v=(root.vehicle_data&&typeof root.vehicle_data==='object')?root.vehicle_data:root;
+  var cs=O(v.charge_state),cl=O(v.climate_state),ds=O(v.drive_state),
+      vs=O(v.vehicle_state),vc=O(v.vehicle_config),gs=O(v.gui_settings);
+
+  var known=!!(v.charge_state||v.climate_state||v.drive_state||v.vehicle_state||v.vehicle_config||X(v.state));
+  var hist=root.charging_history||root.charging||raw.charging_history||raw.charging;
+  if(!known&&!Array.isArray(hist))return null;
+
+  // Tesla reports temperatures in °C and distances in miles regardless of the
+  // car's display preference; gui_settings says which way to show them.
+  var metricT=X(gs.gui_temperature_units)==='C';
+  var metricD=/km/i.test(X(gs.gui_distance_units)||'');
+  var TU=metricT?'C':'F',DU=metricD?'km':'mi',PU=metricD?'bar':'psi';
+  function temp(c){var n=N(c);return n==null?null:(metricT?n:cToF(n));}
+  function dist(mi){var n=N(mi);return n==null?null:(metricD?n*1.609344:n);}
+  function press(bar){var n=N(bar);return n==null?null:(metricD?n:barToPsi(n));}
+
+  // ── identity ──
+  var carType=String(X(vc.car_type)||'').toLowerCase();
+  var pnt=paintOf(vc.exterior_color);
+  var trimKey=String(X(vc.trim_badging)||'').toLowerCase();
+  var id={
+    name:X(v.display_name)||X(root.display_name)||null,
+    model:X(CFG.model)||MODELS[carType]||null,
+    trim:X(CFG.trim)||TRIMS[trimKey]||(trimKey?trimKey.toUpperCase():null),
+    paint:X(CFG.paint)||pnt[0],
+    hex:X(CFG.paintHex)||pnt[1],
+    sedan:!!SEDANS[carType]
+  };
+
+  // ── power / drive state ──
+  var chargingState=X(cs.charging_state);      // Charging|Complete|Disconnected|Stopped|Starting|NoPower
+  var shift=X(ds.shift_state);
+  var speed=N(ds.speed);
+  var raws=String(X(v.state)||X(root.state)||'').toLowerCase();
+  var moving=(!!shift&&shift!=='P')||(speed!=null&&speed>0);
+  var state=null;
+  if(raws==='offline')state='Offline';
+  else if(raws==='asleep')state='Sleeping';
+  else if(moving)state='Driving';
+  else if(chargingState==='Charging')state='Charging';
+  else if(raws==='online')state='Online';
+  else if(raws)state=raws.charAt(0).toUpperCase()+raws.slice(1);
+  var awake=state==='Online'||state==='Driving'||state==='Charging';
+
+  // ── battery ──
+  var scheduled=B(cs.scheduled_charging_pending)===true||X(cs.scheduled_charging_mode)==='StartAt';
+  var battStatus=chargingState==='Charging'?'Charging'
+    :chargingState==='Complete'?'Complete'
+    :chargingState==='Disconnected'?(scheduled?'Scheduled':'Disconnected')
+    :chargingState==='NoPower'?'No Power'
+    :chargingState==='Starting'?'Starting'
+    :chargingState==='Stopped'?(scheduled?'Scheduled':'Stopped')
+    :(scheduled?'Scheduled':null);
+  var toFull=N(cs.minutes_to_full_charge);
+  if(toFull==null&&N(cs.time_to_full_charge)!=null)toFull=N(cs.time_to_full_charge)*60;
+  var batt={
+    level:N(cs.battery_level),
+    usable:N(cs.usable_battery_level),
+    estRange:dist(cs.est_battery_range),
+    ratedRange:dist(cs.battery_range),
+    idealRange:dist(cs.ideal_battery_range),
+    limit:N(cs.charge_limit_soc),
+    minutesToFull:(toFull!=null&&toFull>0)?toFull:null,
+    power:N(cs.charger_power),
+    volts:N(cs.charger_voltage),
+    amps:N(cs.charger_actual_current),
+    added:N(cs.charge_energy_added),
+    status:battStatus,
+    charging:chargingState==='Charging'
+  };
+  // Idle chargers report zeros; a zero that means "nothing plugged in" is
+  // absent data, not a reading, so it hides rather than showing "0 kW".
+  if(!batt.charging){
+    if(batt.power!=null&&batt.power<=0)batt.power=null;
+    if(batt.amps!=null&&batt.amps<=0)batt.amps=null;
+    if(batt.added!=null&&batt.added<=0)batt.added=null;
+  }
+  if(batt.volts!=null&&batt.volts<=0)batt.volts=null;
+
+  // ── climate ──
+  var clim={
+    inside:temp(cl.inside_temp),outside:temp(cl.outside_temp),
+    driver:temp(cl.driver_temp_setting),passenger:temp(cl.passenger_temp_setting),
+    on:B(cl.is_climate_on),
+    defrostFront:B(cl.is_front_defroster_on),defrostRear:B(cl.is_rear_defroster_on)
+  };
+
+  // ── security / openings ──
+  function anyOpen(list){
+    var vals=list.map(N).filter(function(x){return x!=null;});
+    if(!vals.length)return null;
+    return vals.some(function(x){return x!==0;});
+  }
+  var sec={
+    locked:B(vs.locked),
+    sentry:B(vs.sentry_mode),
+    valet:B(vs.valet_mode),
+    pin:B(vs.pin_to_drive_enabled),
+    alarm:X(vs.alarm_state)||(B(vs.is_user_present)===true?'Occupied':null),
+    doorsOpen:anyOpen([vs.df,vs.dr,vs.pf,vs.pr]),
+    windowsOpen:anyOpen([vs.fd_window,vs.fp_window,vs.rd_window,vs.rp_window]),
+    trunkOpen:anyOpen([vs.ft,vs.rt])
+  };
+
+  // ── software ──
+  var su=O(vs.software_update);
+  var suStatus=X(su.status);
+  var sw={
+    version:(X(vs.car_version)||'').split(' ')[0]||null,
+    updateVersion:X(su.version),
+    status:suStatus?suStatus.replace(/_/g,' ').replace(/\b\w/g,function(m){return m.toUpperCase();}):null,
+    download:N(su.download_perc),install:N(su.install_perc),
+    lastUpdate:ms(root.last_software_update)||ms(su.last_updated)
+  };
+  sw.available=!!(sw.updateVersion||suStatus);
+
+  // ── tires ──
+  var tp={fl:press(vs.tpms_pressure_fl),fr:press(vs.tpms_pressure_fr),
+          rl:press(vs.tpms_pressure_rl),rr:press(vs.tpms_pressure_rr)};
+  var tw={fl:B(vs.tpms_soft_warning_fl)||B(vs.tpms_hard_warning_fl),
+          fr:B(vs.tpms_soft_warning_fr)||B(vs.tpms_hard_warning_fr),
+          rl:B(vs.tpms_soft_warning_rl)||B(vs.tpms_hard_warning_rl),
+          rr:B(vs.tpms_soft_warning_rr)||B(vs.tpms_hard_warning_rr)};
+  var anyTire=tp.fl!=null||tp.fr!=null||tp.rl!=null||tp.rr!=null;
+
+  // ── position ──
+  var lat=N(ds.latitude),lon=N(ds.longitude);
+  if(lat==null)lat=N(ds.native_latitude);
+  if(lon==null)lon=N(ds.native_longitude);
+  var place=null;
+  if(lat!=null&&lon!=null&&Array.isArray(CFG.places)){
+    for(var p=0;p<CFG.places.length;p++){
+      var pl=O(CFG.places[p]);
+      if(N(pl.lat)==null||N(pl.lon)==null)continue;
+      // Equirectangular approximation — plenty accurate at driveway scale.
+      var dy=(N(pl.lat)-lat)*111320;
+      var dx=(N(pl.lon)-lon)*111320*Math.cos(lat*Math.PI/180);
+      if(Math.sqrt(dx*dx+dy*dy)<=(N(pl.radius_m)||150)){place=X(pl.name);break;}
+    }
+  }
+  var drive={
+    shift:shift==='D'?'Drive':shift==='R'?'Reverse':shift==='N'?'Neutral':shift==='P'?'Park':null,
+    speed:(speed!=null&&speed>0)?(metricD?speed*1.609344:speed):null,
+    odometer:dist(vs.odometer),
+    lat:lat,lon:lon,place:place
+  };
+
+  // ── charging history ──
+  var sessions=Array.isArray(hist)?hist.map(normSession).filter(Boolean)
+    .sort(function(a,b){return a.startMs-b.startMs;}):[];
+  var monthly=summarise(sessions,O(root.monthly||root.summary||raw.monthly));
+
+  // Wh/mi isn't a vehicle_data field, so take it from the feed if the proxy
+  // computes it, else derive it from the month's charging. Null → card hides.
+  var wh=N(root.energy_usage_wh_mi);
+  if(wh==null)wh=N(O(root.efficiency).wh_per_mi);
+  if(wh==null&&monthly&&monthly.kwh!=null&&monthly.miles)wh=(monthly.kwh*1000)/monthly.miles;
+  if(monthly&&monthly.cost!=null&&monthly.miles)monthly.costPerMile=monthly.cost/monthly.miles;
+
+  return {id:id,state:state,awake:awake,battery:batt,climate:clim,security:sec,software:sw,
+    tires:anyTire?tp:null,tireWarn:tw,drive:drive,sessions:sessions,monthly:monthly,
+    energyWhMi:wh,units:{temp:TU,dist:DU,press:PU},
+    ts:ms(v.timestamp)||ms(vs.timestamp)||ms(root.timestamp)||Date.now()};
+}
+
+// One charging session, from either a generic feed or Tesla's dx/charging/history rows.
+function normSession(s){
+  if(!s||typeof s!=='object')return null;
+  var startMs=Date.parse(s.start||s.startedAt||s.chargeStartDateTime||s.start_time||s.date||'');
+  if(!isFinite(startMs))return null;
+  var endMs=Date.parse(s.end||s.endedAt||s.chargeStopDateTime||s.unlatchDateTime||s.end_time||'');
+  var kwh=N(s.kwh);
+  if(kwh==null)kwh=N(s.energyUsed);
+  if(kwh==null)kwh=N(s.energy_kwh);
+  if(kwh==null)kwh=N(s.chargingEnergy);
+  if(kwh==null)kwh=N(s.charge_energy_added);
+  var cost=N(s.cost);
+  if(cost==null)cost=N(s.totalCost);
+  if(cost==null&&Array.isArray(s.fees)){
+    var sum=0,seen=false;
+    s.fees.forEach(function(f){
+      var t=N(O(f).totalDue);if(t==null)t=N(O(f).amountDue);
+      if(t!=null){sum+=t;seen=true;}
+    });
+    if(seen)cost=sum;
+  }
+  var dur=N(s.minutes);
+  if(dur==null)dur=N(s.durationMinutes);
+  if(dur==null&&isFinite(endMs)&&endMs>startMs)dur=(endMs-startMs)/60000;
+  var a=N(s.socStart);if(a==null)a=N(s.startSoc);if(a==null)a=N(s.start_soc);
+  var b=N(s.socEnd);  if(b==null)b=N(s.endSoc);  if(b==null)b=N(s.end_soc);
+  var mi=N(s.miles);if(mi==null)mi=N(s.milesAdded);if(mi==null)mi=N(s.charge_miles_added_rated);
+  return {startMs:startMs,endMs:isFinite(endMs)?endMs:null,kwh:kwh,cost:cost,minutes:dur,
+    socStart:a,socEnd:b,miles:mi,
+    location:X(s.location)||X(s.siteLocationName)||X(s.site)||X(s.locationName),
+    currency:X(s.currency)||X(O((s.fees||[])[0]).currencyCode)};
+}
+
+// This calendar month, from the sessions we have — unless the feed already
+// summarised it (a proxy with odometer history knows miles driven; we don't).
+function summarise(sessions,given){
+  var now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  var mine=sessions.filter(function(s){
+    var d=new Date(s.startMs);return d.getFullYear()===y&&d.getMonth()===m;});
+  var kwh=null,cost=null,cur=null;
+  mine.forEach(function(s){
+    if(s.kwh!=null)kwh=(kwh||0)+s.kwh;
+    if(s.cost!=null)cost=(cost||0)+s.cost;
+    if(!cur&&s.currency)cur=s.currency;
+  });
+  var miles=N(given.miles_driven);
+  if(miles==null)miles=N(given.milesDriven);
+  var out={
+    sessions:mine.length||N(given.sessions),
+    kwh:N(given.kwh)!=null?N(given.kwh):kwh,
+    cost:N(given.cost)!=null?N(given.cost):cost,
+    miles:miles,
+    currency:X(given.currency)||cur||'USD',
+    costPerMile:null
+  };
+  return (out.sessions||out.kwh!=null||out.cost!=null||out.miles!=null)?out:null;
+}
+
+// ── Loader ───────────────────────────────────────────────────────────────
+var inflight=null;
+function load(force){
+  if(!CFG.endpoint){
+    // Not linked → no network, ever. Anything already pushed in via ingest()
+    // stays exactly where it is; there is nothing to refresh it against.
+    if(S.err||S.loading){S.err=null;S.loading=false;emit();}
+    return Promise.resolve(S.data);
+  }
+  if(inflight)return inflight;
+  if(!force&&S.data&&Date.now()-S.at<FRESH_MS)return Promise.resolve(S.data);
+  S.loading=true;emit();
+  inflight=fetch(CFG.endpoint,{headers:{Accept:'application/json'},cache:'no-store'})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(j){
+      var m=normalize(j);
+      if(!m)throw new Error('Unrecognised vehicle data');
+      apply(m);
+      return m;
+    })
+    .catch(function(e){
+      inflight=null;
+      S.err=(e&&e.message)||'Vehicle unavailable';S.loading=false;emit();
+      return null;
+    });
+  return inflight;
+}
+function apply(m){
+  inflight=null;
+  S.data=m;S.at=Date.now();S.err=null;S.loading=false;
+  try{localStorage.setItem(LS_CACHE,JSON.stringify({at:S.at,m:m}));}catch(e){}
+  emit();
+}
+// Paint the last good report instantly so the popup is never blank while the
+// first fetch is in flight — but only if it's recent enough to still be true.
+(function hydrate(){
+  if(!CFG.endpoint)return;
+  try{
+    var c=JSON.parse(localStorage.getItem(LS_CACHE));
+    if(c&&c.m&&Date.now()-c.at<HYDRATE_MAX){S.data=c.m;S.at=c.at;}
+  }catch(e){}
+})();
+
+// ── Icons — the Lucide vocabulary window.TNI uses (24 grid, 1.5 stroke,
+//    currentColor), so a lock here is the lock everywhere else in the suite. ─
+function P(d,k){return h('path',{key:k||'p',d:d});}
+var IC={
+  car:[P('M4 16.5v-3.2l2-4.8h12l2 4.8v3.2','a'),P('M4 16.5h16','b'),
+       h('circle',{key:'c',cx:7.5,cy:16.8,r:1.9}),h('circle',{key:'d',cx:16.5,cy:16.8,r:1.9})],
+  bolt:[P('M13 2 4 14h7l-1 8 9-12h-7l1-8Z','a')],
+  battery:[P('M2 8.5h15v7H2z','a'),P('M17.5 10.8h2.5v2.4h-2.5z','b')],
+  lock:[P('M4.5 10.5h15v11h-15z','a'),P('M8 10.5V7a4 4 0 0 1 8 0v3.5','b')],
+  unlock:[P('M4.5 10.5h15v11h-15z','a'),P('M8 10.5V7a4 4 0 0 1 7.9-.8','b')],
+  climate:[P('M3 8h11a3 3 0 1 0-3-3','a'),P('M3 13h15a3.2 3.2 0 1 1-3.2 3.2','b'),P('M3 18h7','c')],
+  shield:[P('M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z','a')],
+  chip:[P('M7 7h10v10H7z','a'),P('M10 2v3M14 2v3M10 19v3M14 19v3M2 10h3M2 14h3M19 10h3M19 14h3','b')],
+  gauge:[h('circle',{key:'a',cx:12,cy:12,r:9}),P('M12 12 16 8','b'),
+         h('circle',{key:'c',cx:12,cy:12,r:1.4,fill:'currentColor'})],
+  speed:[P('M4.5 18a9 9 0 1 1 15 0','a'),P('m12 14 4-4.5','b')],
+  refresh:[P('M21 12a9 9 0 1 1-3-6.7','a'),P('M21 4v5h-5','b')],
+  alert:[P('M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z','a'),
+         P('M12 9v4M12 17h.01','b')],
+  x:[P('M18 6 6 18M6 6l12 12','a')]
+};
+function ico(name,size){
+  return h('svg',{viewBox:'0 0 24 24',width:size||14,height:size||14,fill:'none',
+    stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round',strokeLinejoin:'round',
+    'aria-hidden':'true'},IC[name]);
+}
+
+// ── Formatting ───────────────────────────────────────────────────────────
+function r0(n){return n==null?null:Math.round(n);}
+function n1(n){return n==null?null:Math.round(n*10)/10;}
+function thou(n){return n==null?null:Math.round(n).toLocaleString();}
+// Per-mile energy cost lands in the cents; at 2dp every plausible value
+// collapses to $0.01 or $0.02, so that one figure asks for a third digit.
+function money(n,cur,dp){
+  if(n==null)return null;
+  dp=dp||2;
+  try{return n.toLocaleString(undefined,{style:'currency',currency:cur||'USD',
+    minimumFractionDigits:dp,maximumFractionDigits:dp});}catch(e){return '$'+n.toFixed(dp);}
+}
+function dur(m){
+  if(m==null)return null;
+  m=Math.round(m);
+  if(m<60)return m+' min';
+  var hh=Math.floor(m/60),mm=m%60;
+  return hh+' hr'+(mm?' '+mm+' min':'');
+}
+function ago(t){
+  if(!t)return null;
+  var s=Math.max(0,Math.round((Date.now()-t)/1000));
+  if(s<45)return 'just now';
+  var m=Math.round(s/60);if(m<60)return m+' minute'+(m===1?'':'s')+' ago';
+  var hh=Math.round(m/60);if(hh<24)return hh+' hour'+(hh===1?'':'s')+' ago';
+  var d=Math.round(hh/24);return d+' day'+(d===1?'':'s')+' ago';
+}
+function dayLbl(t){
+  try{return new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'});}
+  catch(e){return '';}
+}
+// Battery status colour: >50 green, 20–50 amber, <20 red. Always rendered right
+// next to the number itself, so the state never rests on hue alone.
+function lvlTone(l){
+  return l==null?['var(--ts-txd)','var(--ts-txm)']
+    :l>50?['var(--ts-grn)','var(--ts-grn-d)']
+    :l>=20?['var(--ts-amb)','var(--ts-amb-d)']
+          :['var(--ts-red)','var(--ts-red-d)'];
+}
+
+// ── Hero render ──────────────────────────────────────────────────────────
+// A drawn Tesla, not a photograph: it takes the car's actual paint code, needs
+// no external asset (the page has to work offline and over file://), and stays
+// crisp at every size. Further model silhouettes slot in by adding path sets.
+function carSvg(hex,sedan,charging){
+  var top=shade(hex,.18),low=shade(hex,-.34),deep=shade(hex,-.6);
+  // Glass is fixed, not derived from the paint: car glass reads near-black from
+  // outside whatever colour the body is, and deriving it left a silver car with
+  // a cabin the same value as its own doors, so the roof looked detached.
+  var glassHi='#39414b',glassLo='#1b2028';
+  // Crossovers carry a tall, upright greenhouse over a short front overhang;
+  // sedans get a lower, longer cabin off the same body line.
+  // Crossovers carry a tall, upright greenhouse over a short front overhang;
+  // sedans get a lower, longer cabin off the same body line. Each segment is
+  // its own short curve — one continuous sweep from bumper to tailgate reads
+  // as a bubble, not a car, because it loses the A-pillar and shoulder breaks.
+  var body=sedan
+    ? 'M32 148C18 148 12 140 13 128 14 112 21 102 37 98 60 94 96 91 132 88 148 76 166 64 190 57 216 50 248 50 272 57 298 64 322 76 344 90 362 101 380 109 385 120 388 133 380 148 366 148Z'
+    : 'M32 148C18 148 12 140 13 128 14 111 21 101 37 97 60 93 96 90 130 86 146 70 164 50 188 41 214 32 246 32 272 40 298 48 322 62 344 81 362 96 380 107 385 119 388 133 380 148 366 148Z';
+  var glass=sedan
+    ? 'M144 86C158 76 174 66 194 60 218 53 246 53 268 60 292 67 314 76 332 86Z'
+    : 'M142 84C156 68 172 55 192 47 216 38 246 38 268 45 292 53 314 67 332 84Z';
+  var cuts=sedan
+    ? ['M214 53v93','M166 84v60','M286 62v84']
+    : ['M214 34v112','M164 82v62','M286 46v100'];
+  return h('svg',{className:'thts-car',viewBox:'0 0 420 190',role:'img',
+      'aria-label':'Vehicle illustration'},
+    h('defs',{key:'d'},
+      h('linearGradient',{id:'thtsBody',x1:'0',y1:'0',x2:'0',y2:'1'},
+        h('stop',{key:'a',offset:'0%',stopColor:top}),
+        h('stop',{key:'b',offset:'46%',stopColor:hex}),
+        h('stop',{key:'c',offset:'100%',stopColor:low})),
+      h('linearGradient',{id:'thtsGlass',x1:'0',y1:'0',x2:'0',y2:'1'},
+        h('stop',{key:'a',offset:'0%',stopColor:glassHi}),
+        h('stop',{key:'b',offset:'100%',stopColor:glassLo})),
+      h('radialGradient',{id:'thtsShade'},
+        h('stop',{key:'a',offset:'0%',stopColor:'rgba(0,0,0,.55)'}),
+        h('stop',{key:'b',offset:'100%',stopColor:'rgba(0,0,0,0)'}))),
+    // Soft contact shadow, drawn first so the car floats above it.
+    h('ellipse',{key:'sh',cx:210,cy:176,rx:168,ry:11,fill:'url(#thtsShade)'}),
+    h('path',{key:'b',d:body,fill:'url(#thtsBody)'}),
+    h('path',{key:'g',d:glass,fill:'url(#thtsGlass)',opacity:.95}),
+    // Pillar and door cuts — enough line work to read as a car, not a blob.
+    h('g',{key:'l',stroke:deep,strokeWidth:1.4,strokeLinecap:'round',opacity:.5,fill:'none'},
+      cuts.map(function(d2,i){return h('path',{key:i,d:d2});})),
+    // Shoulder highlight — the specular line that makes paint look like paint.
+    h('path',{key:'hi',d:'M44 100c60-9 132-14 202-12 46 2 90 12 128 33',
+      stroke:shade(hex,.55),strokeWidth:2,fill:'none',opacity:.38,strokeLinecap:'round'}),
+    h('path',{key:'hl',d:'M17 112h20a4.5 4.5 0 0 1 0 9H18Z',fill:'#f2ead6',opacity:.88}),
+    h('path',{key:'tl',d:'M371 108h13a3.5 3.5 0 0 1 0 8h-13Z',fill:'#c2453c',opacity:.9}),
+    // Wheel wells cut into the body, then the wheels laid on top.
+    h('path',{key:'w1',d:'M81 150a31 31 0 0 1 62 0Z',fill:deep}),
+    h('path',{key:'w2',d:'M285 150a31 31 0 0 1 62 0Z',fill:deep}),
+    [112,316].map(function(cx){
+      return h('g',{key:'wh'+cx,transform:'translate('+cx+',140)'},
+        h('circle',{key:'t',r:30,fill:'#111214'}),
+        h('circle',{key:'r',r:18,fill:'#2b2d31',stroke:'#4a4d52',strokeWidth:1.4}),
+        h('g',{key:'s',stroke:'#6d7075',strokeWidth:2,strokeLinecap:'round'},
+          [0,72,144,216,288].map(function(a){
+            var rad=a*Math.PI/180;
+            return h('line',{key:a,x1:0,y1:0,x2:(Math.cos(rad)*15).toFixed(1),
+              y2:(Math.sin(rad)*15).toFixed(1)});
+          })),
+        h('circle',{key:'h',r:4,fill:'#8b8e93'}));
+    }),
+    // Charge port, alive only while current is actually flowing.
+    charging?h('g',{key:'cp'},
+      h('circle',{key:'c',cx:352,cy:96,r:5,fill:'#7fc48f',opacity:.95},
+        h('animate',{attributeName:'opacity',values:'.35;1;.35',dur:'1.6s',repeatCount:'indefinite'})),
+      [0,1,2].map(function(i){
+        return h('circle',{key:i,cx:352,cy:96,r:2,fill:'#7fc48f'},
+          h('animate',{key:'y',attributeName:'cy',values:'96;70',dur:'1.6s',
+            begin:(i*0.53)+'s',repeatCount:'indefinite'}),
+          h('animate',{key:'o',attributeName:'opacity',values:'1;0',dur:'1.6s',
+            begin:(i*0.53)+'s',repeatCount:'indefinite'}));
+      })):null);
+}
+
+// ── Render helpers. Each returns null when the value is absent, so a section
+//    that knows nothing renders nothing — no "N/A" rows, no empty headings. ─
+function card(k,label,value,unit,tone){
+  if(value==null||value==='')return null;
+  return h('div',{key:k,className:'thts-card'},
+    h('div',{key:'k',className:'thts-k'},label),
+    h('div',{key:'v',className:'thts-v'+(tone?' '+tone:'')},value,
+      unit?h('small',{key:'u'},unit):null));
+}
+function kept(list){return list.filter(Boolean);}
+function cards(list,cls){
+  var kids=kept(list);
+  return kids.length?h('div',{className:cls||'thts-cards'},kids):null;
+}
+function block(key,iconName,title,body){
+  var kids=kept(Array.isArray(body)?body:[body]);
+  if(!kids.length)return null;
+  return h('div',{key:key,className:'thts-blk'},
+    h('div',{key:'s',className:'thts-sect'},ico(iconName,12),h('span',{key:'t'},title),h('i',{key:'r'})),
+    kids);
+}
+function pill(k,label,tone,iconName){
+  return h('span',{key:k,className:'thts-pill'+(tone?' '+tone:'')},
+    iconName?ico(iconName,11):null,h('span',{key:'l'},label));
+}
+
+// ── Component ────────────────────────────────────────────────────────────
+function Widget(props){
+  var t=props.t||{};
+  var sa=useState(S),st=sa[0],set=sa[1];
+  var oa=useState(false),open=oa[0],setOpen=oa[1];
+  var ka=useState(0),setTick=ka[1];                  // re-render so "x minutes ago" stays true
+  var ya=useState(0),tilt=ya[0],setTilt=ya[1];       // drag-to-inspect angle
+  var da=useState(false),dragging=da[0],setDragging=da[1];
+  var ea=useState(''),epv=ea[0],setEpv=ea[1];        // endpoint field, unlinked state
+  var pa=useState(null),pick=pa[0],setPick=pa[1];    // selected charging session
+  var box=useRef(null),panel=useRef(null),bodyRef=useRef(null),
+      drag=useRef(null),swipe=useRef(null);
+
+  useEffect(function(){return subscribe(set);},[]);
+
+  // Open → refresh now, then poll (60s awake / 5 min asleep, so a sleeping car
+  // is never nagged), refresh on regained focus, and tear EVERY timer down on
+  // close. Nothing here runs while the popup is shut.
+  useEffect(function(){
+    if(!open)return;
+    var stopped=false,tid=null;
+    function schedule(){
+      if(stopped)return;
+      clearTimeout(tid);
+      tid=setTimeout(run,(S.data&&S.data.awake)?POLL_AWAKE:POLL_ASLEEP);
+    }
+    function run(){if(stopped)return;load(true).then(schedule,schedule);}
+    run();
+    var clock=setInterval(function(){setTick(function(n){return n+1;});},30000);
+    function onFocus(){if(!document.hidden)load(true);}
+    window.addEventListener('focus',onFocus);
+    document.addEventListener('visibilitychange',onFocus);
+    var prevOverflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';
+    function down(e){if(box.current&&!box.current.contains(e.target))setOpen(false);}
+    function key(e){if(e.key==='Escape')setOpen(false);}
+    document.addEventListener('mousedown',down);
+    document.addEventListener('touchstart',down,{passive:true});
+    document.addEventListener('keydown',key);
+    return function(){
+      stopped=true;clearTimeout(tid);clearInterval(clock);
+      window.removeEventListener('focus',onFocus);
+      document.removeEventListener('visibilitychange',onFocus);
+      document.body.style.overflow=prevOverflow;
+      document.removeEventListener('mousedown',down);
+      document.removeEventListener('touchstart',down);
+      document.removeEventListener('keydown',key);
+    };
+  },[open]);
+
+  var d=st.data;
+  var b=d?d.battery:null,cl=d?d.climate:null,sec=d?d.security:null,
+      sw=d?d.software:null,dr=d?d.drive:null;
+  var U=d?d.units:{temp:'F',dist:'mi',press:'psi'};
+  var lvl=b?b.level:null;
+  var tone=lvlTone(lvl);
+  var acc=t.AC||'#e0b874';
+  var charging=!!(b&&b.charging);
+
+  var vars={
+    '--ts-s1':t.S1,'--ts-s2':t.S2||t.S1,'--ts-bd':t.BD,'--ts-bdl':t.BDL||t.BD,
+    '--ts-tx':t.TX,'--ts-txd':t.TXD,'--ts-txm':t.TXM||t.TXD,
+    '--ts-ac':acc,'--ts-ac-d':shade(acc,-.32),'--ts-acg':t.ACG||'transparent',
+    '--ts-hov':t.hov||t.BD,'--ts-radius':(t.radius==null?6:t.radius)+'px',
+    '--ts-lvl':tone[0],'--ts-lvl-d':tone[1],
+    fontFamily:t.font||'inherit'
+  };
+  var upper=t.upper?{textTransform:'uppercase',letterSpacing:'.6px'}:null;
+
+  // ── Compact card ──
+  var title=d&&d.id?[d.id.model,d.id.trim].filter(Boolean).join(' '):'';
+  var rangeVal=b?(b.estRange!=null?b.estRange:b.ratedRange):null;
+  var subLine=!st.connected?'Not Connected'
+    :d?(charging?'Charging':(d.state||'Vehicle'))
+    :(st.err?'Unavailable':'Connecting…');
+
+  var compact=h('button',{key:'c',type:'button',className:'thts-compact',
+      'aria-haspopup':'dialog','aria-expanded':open?'true':'false',
+      'aria-label':'Tesla — open vehicle status',
+      onClick:function(){setOpen(!open);}},
+    h('span',{key:'g',className:'thts-glyph'},ico('car',30)),
+    h('span',{key:'n',className:'thts-now'},
+      h('span',{key:'p',className:'thts-pct',style:lvl!=null?{color:tone[0]}:null},
+        lvl!=null?lvl+'%':'Tesla'),
+      h('span',{key:'s',className:'thts-sub',style:upper},subLine)),
+    h('span',{key:'m',className:'thts-meta'},
+      title?h('span',{key:'t',className:'thts-name'},title):null,
+      h('span',{key:'h',className:'thts-hl'},
+        rangeVal!=null?h('b',{key:'b'},thou(rangeVal)+' '+U.dist):null,
+        (rangeVal!=null&&dr&&dr.place)?h('span',{key:'p'},' · '+dr.place):null,
+        (!st.connected)?h('span',{key:'l'},'Tap to link'):null)),
+    h('svg',{key:'v',className:'thts-chev',width:12,height:12,viewBox:'0 0 24 24',fill:'none',
+      stroke:'currentColor',strokeWidth:3,strokeLinecap:'round',strokeLinejoin:'round'},
+      h('polyline',{points:'6 9 12 15 18 9'})),
+    lvl!=null?h('span',{key:'e',className:'thts-edge'},
+      h('i',{style:{width:Math.max(2,Math.min(100,lvl))+'%'}})):null);
+
+  if(!open)return h('div',{className:'thts',style:vars,ref:box},compact);
+
+  // ── Hero — always rendered, so an unlinked widget still looks like the
+  //    finished product rather than an error page. ──
+  var climateOn=!!(cl&&cl.on);
+  var warn=!!(sec&&(sec.doorsOpen||sec.windowsOpen||sec.trunkOpen))||(lvl!=null&&lvl<20);
+  var heroCls='thts-hero'+(charging?' is-charge':climateOn?' is-climate':warn?' is-warn':'');
+
+  var pills=[];
+  if(d&&d.state)pills.push(pill('st',d.state,
+    charging?'on':d.state==='Driving'?'info':(d.state==='Offline'||d.state==='Sleeping')?'':'acc',
+    charging?'bolt':d.state==='Driving'?'speed':'car'));
+  if(sec&&sec.locked!=null)pills.push(pill('lk',sec.locked?'Locked':'Unlocked',
+    sec.locked?'':'warn',sec.locked?'lock':'unlock'));
+  if(climateOn)pills.push(pill('cm','Climate','info','climate'));
+  if(sec&&sec.doorsOpen)pills.push(pill('do','Door Open','warn','alert'));
+  if(sec&&sec.windowsOpen)pills.push(pill('wi','Window Open','warn','alert'));
+  if(sec&&sec.trunkOpen)pills.push(pill('tk','Trunk Open','warn','alert'));
+  if(lvl!=null&&lvl<20)pills.push(pill('lb','Low Battery','warn','battery'));
+
+  function dragX(e){return e.touches&&e.touches[0]?e.touches[0].clientX:e.clientX;}
+  function dragStart(e){drag.current={x0:dragX(e),base:tilt};setDragging(true);}
+  function dragMove(e){
+    if(!drag.current)return;
+    setTilt(Math.max(-24,Math.min(24,drag.current.base+(dragX(e)-drag.current.x0)*0.22)));
+  }
+  function dragEnd(){if(!drag.current)return;drag.current=null;setDragging(false);setTilt(0);}
+
+  var hero=h('div',{key:'hero',className:heroCls},
+    h('div',{key:'stage',className:'thts-stage',
+        onMouseDown:dragStart,onMouseMove:dragMove,onMouseUp:dragEnd,onMouseLeave:dragEnd,
+        onTouchStart:dragStart,onTouchMove:dragMove,onTouchEnd:dragEnd},
+      h('div',{className:'thts-float'},
+        h('div',{className:'thts-tilt'+(dragging?' dragging':''),
+            style:{transform:'perspective(1100px) rotateY('+tilt+'deg)'}},
+          carSvg((d&&d.id&&d.id.hex)||'#6f747a',!!(d&&d.id&&d.id.sedan),charging)))),
+    h('div',{key:'id',className:'thts-id'},
+      h('div',{key:'l',style:{minWidth:0}},
+        h('div',{key:'m',className:'thts-model'},title||(d&&d.id&&d.id.name)||'Tesla'),
+        (d&&d.id&&d.id.paint)?h('div',{key:'p',className:'thts-paint'},d.id.paint):null,
+        h('div',{key:'s',className:'thts-stamp'},
+          !st.connected?'Not Connected'
+            :st.loading?'Updating…'
+            :d?('Updated '+(ago(st.at)||''))
+            :(st.err||'No data'))),
+      pills.length?h('div',{key:'p',className:'thts-pills'},pills):null));
+
+  // ── Battery ──
+  var battBlock=null;
+  if(b&&(b.level!=null||rangeVal!=null||b.status)){
+    battBlock=h('div',{key:'b',className:'thts-batt'+(charging?' thts-charging':'')},
+      h('div',{key:'t',className:'thts-batt-top'},
+        h('div',{key:'l',className:'thts-big'},
+          b.level!=null?[b.level,h('span',{key:'p'},'%')]:'—'),
+        rangeVal!=null?h('div',{key:'r',className:'thts-range'},
+          h('b',{key:'v'},thou(rangeVal)),
+          h('em',{key:'u'},U.dist+' est. range')):null),
+      b.level!=null?h('div',{key:'bar',className:'thts-bbar'},
+        h('div',{key:'f',className:'thts-bfill',
+          style:{width:Math.max(2,Math.min(100,b.level))+'%'}}),
+        b.limit!=null?h('div',{key:'lm',className:'thts-blimit',
+          style:{left:Math.min(100,b.limit)+'%'}}):null):null,
+      (b.status||b.limit!=null||b.minutesToFull!=null)?h('div',{key:'ft',className:'thts-bfoot'},
+        h('span',{key:'s'},b.status||''),
+        h('span',{key:'r'},b.minutesToFull!=null?(dur(b.minutesToFull)+' remaining')
+          :(b.limit!=null?('Limit '+b.limit+'%'):''))):null,
+      cards([
+        card('rated','Rated Range',thou(b.ratedRange),U.dist),
+        card('ideal','Ideal Range',thou(b.idealRange),U.dist),
+        card('usable','Usable',(b.usable!=null&&b.usable!==b.level)?b.usable+'%':null),
+        card('limit','Charge Limit',b.limit!=null?b.limit+'%':null),
+        card('eff','Energy Usage',r0(d.energyWhMi),'Wh/'+U.dist),
+        card('pow','Charge Power',n1(b.power),'kW',charging?'grn':null),
+        card('volt','Voltage',r0(b.volts),'V'),
+        card('amp','Amperage',r0(b.amps),'A'),
+        card('added','Added',n1(b.added),'kWh')
+      ]));
+  }
+
+  // ── Vehicle state ──
+  var vehBlock=cards([
+    card('state','Vehicle State',d?d.state:null,null,charging?'grn':null),
+    card('gear','Drive State',dr?dr.shift:null),
+    card('speed','Speed',dr&&dr.speed!=null?Math.round(dr.speed):null,
+      U.dist==='km'?'km/h':'mph'),
+    card('odo','Odometer',dr?thou(dr.odometer):null,U.dist),
+    card('loc','Location',dr?(dr.place||((dr.lat!=null&&dr.lon!=null)
+      ?dr.lat.toFixed(3)+', '+dr.lon.toFixed(3):null)):null),
+    card('upd','Last Updated',d?ago(d.ts):null)
+  ]);
+
+  // ── Climate ──
+  var climBlock=cards([
+    card('in','Cabin',cl&&cl.inside!=null?Math.round(cl.inside)+'°'+U.temp:null),
+    card('out','Outside',cl&&cl.outside!=null?Math.round(cl.outside)+'°'+U.temp:null),
+    card('drv','Driver Set',cl&&cl.driver!=null?Math.round(cl.driver)+'°'+U.temp:null),
+    card('pas','Passenger Set',cl&&cl.passenger!=null?Math.round(cl.passenger)+'°'+U.temp:null),
+    card('on','Climate',cl&&cl.on!=null?(cl.on?'On':'Off'):null,null,climateOn?'blu':null),
+    card('df','Front Defrost',cl&&cl.defrostFront!=null?(cl.defrostFront?'On':'Off'):null),
+    card('dr','Rear Defrost',cl&&cl.defrostRear!=null?(cl.defrostRear?'On':'Off'):null)
+  ]);
+
+  // ── Security ──
+  var secBlock=cards([
+    card('lk','Lock Status',sec&&sec.locked!=null?(sec.locked?'Locked':'Unlocked'):null,null,
+      (sec&&sec.locked===false)?'red':null),
+    card('sn','Sentry Mode',sec&&sec.sentry!=null?(sec.sentry?'On':'Off'):null,null,
+      (sec&&sec.sentry)?'grn':null),
+    card('vl','Valet Mode',sec&&sec.valet!=null?(sec.valet?'On':'Off'):null),
+    card('pn','PIN to Drive',sec&&sec.pin!=null?(sec.pin?'Enabled':'Disabled'):null),
+    card('al','Alarm',sec?sec.alarm:null),
+    card('do','Doors',sec&&sec.doorsOpen!=null?(sec.doorsOpen?'Open':'Closed'):null,null,
+      (sec&&sec.doorsOpen)?'red':null),
+    card('wi','Windows',sec&&sec.windowsOpen!=null?(sec.windowsOpen?'Open':'Closed'):null,null,
+      (sec&&sec.windowsOpen)?'red':null),
+    card('tk','Trunk',sec&&sec.trunkOpen!=null?(sec.trunkOpen?'Open':'Closed'):null,null,
+      (sec&&sec.trunkOpen)?'red':null)
+  ]);
+
+  // ── Software ──
+  var swBlock=(sw&&(sw.version||sw.available))?cards([
+    card('ver','Software',sw.version),
+    card('upd','Update',sw.available?(sw.updateVersion||sw.status||'Available'):'Up To Date',
+      null,sw.available?'blu':'grn'),
+    card('dl','Download',(sw.available&&sw.download!=null)?Math.round(sw.download)+'%':null),
+    card('ins','Install',(sw.available&&sw.install!=null)?Math.round(sw.install)+'%':null),
+    card('last','Last Update',sw.lastUpdate?ago(sw.lastUpdate):null)
+  ]):null;
+
+  // ── Tires — top-down, each corner reading its own pressure ──
+  var tireBlock=null;
+  if(d&&d.tires){
+    var tw=d.tireWarn||{};
+    var corners=kept([['fl','Front Left'],['fr','Front Right'],['rl','Rear Left'],['rr','Rear Right']]
+      .map(function(c){
+        var val=d.tires[c[0]];
+        if(val==null)return null;
+        return h('div',{key:c[0],className:'thts-tire'+(tw[c[0]]?' warn':'')},
+          h('div',{key:'k',className:'thts-k'},c[1]),
+          h('b',{key:'v'},U.press==='bar'?n1(val):Math.round(val),
+            h('em',{key:'u'},U.press)));
+      }));
+    if(corners.length)tireBlock=h('div',{key:'tb',className:'thts-tirebox'},corners);
+  }
+
+  // ── Charging history ──
+  var histBlock=null;
+  if(d&&(d.sessions.length||d.monthly)){
+    var mo=d.monthly,cur=mo?mo.currency:'USD';
+    var sum=mo?cards([
+      card('n','Sessions',mo.sessions),
+      card('k','Energy',thou(mo.kwh),'kWh'),
+      card('c','Cost',money(mo.cost,cur)),
+      card('m','Distance Driven',thou(mo.miles),U.dist)
+    ],'thts-sum'):null;
+
+    var recent=d.sessions.slice(-14);
+    var chart=null,detail=null;
+    if(recent.length){
+      var peak=0;
+      recent.forEach(function(s){if(s.kwh!=null&&s.kwh>peak)peak=s.kwh;});
+      if(peak<=0)peak=1;
+      var at=(pick==null||pick>=recent.length)?recent.length-1:pick;
+      chart=h('div',{key:'ch',className:'thts-chart',role:'group',
+          'aria-label':'Recent charging sessions by energy delivered'},
+        recent.map(function(s,i){
+          return h('button',{key:i,type:'button',className:'thts-cbar'+(at===i?' on':''),
+            style:{height:Math.max(6,Math.round((s.kwh||0)/peak*100))+'%'},
+            'aria-label':dayLbl(s.startMs)+(s.kwh!=null?', '+n1(s.kwh)+' kilowatt hours':''),
+            onMouseEnter:function(){setPick(i);},
+            onFocus:function(){setPick(i);},
+            onClick:function(){setPick(i);}});
+        }));
+      var sel=recent[at];
+      detail=h('div',{key:'dt',className:'thts-detail'},
+        h('div',{key:'h',className:'thts-detail-h'},
+          h('b',{key:'d'},dayLbl(sel.startMs)),
+          h('span',{key:'l'},sel.location||'Charging Session')),
+        h('div',{key:'g',className:'thts-detail-g'},kept([
+          (sel.socStart!=null&&sel.socEnd!=null)?h('div',{key:'soc'},
+            h('div',{key:'k',className:'thts-dk'},'Charge'),
+            h('div',{key:'v',className:'thts-dv thts-soc'},
+              sel.socStart+'%',h('i',{key:'a'}),sel.socEnd+'%')):null,
+          sel.kwh!=null?h('div',{key:'kwh'},
+            h('div',{key:'k',className:'thts-dk'},'Energy'),
+            h('div',{key:'v',className:'thts-dv'},n1(sel.kwh)+' kWh')):null,
+          sel.cost!=null?h('div',{key:'cost'},
+            h('div',{key:'k',className:'thts-dk'},'Cost'),
+            h('div',{key:'v',className:'thts-dv'},money(sel.cost,sel.currency||cur))):null,
+          sel.minutes!=null?h('div',{key:'dur'},
+            h('div',{key:'k',className:'thts-dk'},'Duration'),
+            h('div',{key:'v',className:'thts-dv'},dur(sel.minutes))):null,
+          sel.miles!=null?h('div',{key:'mi'},
+            h('div',{key:'k',className:'thts-dk'},'Added'),
+            h('div',{key:'v',className:'thts-dv'},thou(sel.miles)+' '+U.dist)):null
+        ])));
+    }
+
+    var eff=cards([
+      card('wh','Energy Usage',r0(d.energyWhMi),'Wh/'+U.dist),
+      card('cpm','Cost per '+(U.dist==='km'?'km':'Mile'),
+        (mo&&mo.costPerMile!=null)?money(mo.costPerMile,cur,3):null),
+      card('mc','Monthly Cost',mo?money(mo.cost,cur):null)
+    ]);
+    histBlock=kept([sum,chart,detail,
+      eff?h('div',{key:'e',style:{marginTop:11}},eff):null]);
+  }
+
+  // ── Not-connected — the finished UI with an honest, empty data layer ──
+  var connectPanel=st.connected?null:h('div',{key:'cn',className:'thts-empty'},
+    h('h4',{key:'h'},'Not Connected'),
+    h('p',{key:'p'},'Link a Tesla Fleet API endpoint and every panel here — battery, '
+      +'range, vehicle state, climate, security, software, tires and charging '
+      +'history — fills in on its own. Nothing is shown until real vehicle data arrives.'),
+    h('div',{key:'f',className:'thts-link'},
+      h('input',{key:'i',type:'url',inputMode:'url',placeholder:'https://…/vehicle',value:epv,
+        'aria-label':'Tesla Fleet API endpoint',
+        onChange:function(e){setEpv(e.target.value);},
+        onKeyDown:function(e){if(e.key==='Enter'&&epv.trim()){configure({endpoint:epv.trim()});load(true);}}}),
+      h('button',{key:'b',type:'button',className:'thts-btn',
+        onClick:function(){if(epv.trim()){configure({endpoint:epv.trim()});load(true);}}},'Link')));
+
+  var errBar=(st.connected&&st.err)?h('div',{key:'er',className:'thts-err'},
+    ico('alert',12),h('span',{key:'t'},st.err),
+    h('button',{key:'b',type:'button',className:'thts-btn',
+      onClick:function(){load(true);}},'Retry')):null;
+
+  var body=h('div',{key:'b',className:'thts-panel-b',ref:bodyRef},
+    errBar,
+    hero,
+    connectPanel,
+    block('bt','battery','Battery',battBlock),
+    block('vh','car','Vehicle',vehBlock),
+    block('cm','climate','Climate',climBlock),
+    block('sc','shield','Security',secBlock),
+    block('sw','chip','Software',swBlock),
+    block('tr','gauge','Tires',tireBlock),
+    block('hs','bolt','Charging This Month',histBlock));
+
+  var head=h('div',{key:'h',className:'thts-panel-hd'},
+    h('span',{key:'t',className:'thts-panel-t'},(d&&d.id&&d.id.name)||'Tesla'),
+    h('button',{key:'r',type:'button',className:'thts-ib'+(st.loading?' spin':''),
+      title:'Refresh','aria-label':'Refresh vehicle data',
+      disabled:!st.linked||st.loading,
+      onClick:function(e){e.stopPropagation();load(true);}},ico('refresh',15)),
+    h('button',{key:'x',type:'button',className:'thts-ib',title:'Close',
+      'aria-label':'Close vehicle status',
+      onClick:function(e){e.stopPropagation();setOpen(false);}},ico('x',15)));
+
+  // Swipe down to dismiss — armed only from the top of the scroll region, so
+  // the gesture can never fight the panel's own scrolling.
+  function swipeY(e){return (e.touches&&e.touches[0])?e.touches[0].clientY:null;}
+  var touch={
+    onTouchStart:function(e){
+      if(bodyRef.current&&bodyRef.current.scrollTop>0){swipe.current=null;return;}
+      var y=swipeY(e);
+      swipe.current=(y==null)?null:{y0:y,dy:0};
+    },
+    onTouchMove:function(e){
+      if(!swipe.current||!panel.current)return;
+      var y=swipeY(e);if(y==null)return;
+      swipe.current.dy=Math.max(0,y-swipe.current.y0);
+      var dy=swipe.current.dy;
+      panel.current.style.transform=dy?'translateY('+dy+'px)':'';
+      panel.current.style.opacity=dy?String(Math.max(.35,1-dy/320)):'';
+    },
+    onTouchEnd:function(){
+      var s=swipe.current;swipe.current=null;
+      if(!s||!panel.current)return;
+      var el=panel.current;
+      el.style.transition='transform .2s ease-out,opacity .2s ease-out';
+      el.style.transform='';el.style.opacity='';
+      setTimeout(function(){if(el)el.style.transition='';},210);
+      if(s.dy>70)setOpen(false);
+    }
+  };
+
+  // Scrim: covers the whole page and takes the click that closes the popup.
+  // It has no children, so every mousedown on it IS a background click.
+  var scrim=h('div',{key:'s',className:'thts-scrim',role:'presentation',
+    onMouseDown:function(){setOpen(false);}});
+
+  return h('div',{className:'thts thts-open',style:vars,ref:box},compact,scrim,
+    h('div',Object.assign({key:'p',ref:panel,className:'thts-panel',role:'dialog',
+        'aria-label':'Tesla vehicle status'},touch),
+      h('div',{key:'g',className:'thts-grab'}),head,body));
+}
+
+// ── Public API ───────────────────────────────────────────────────────────
+function configure(patch){
+  if(!patch||typeof patch!=='object')return CFG;
+  var epChanged=('endpoint' in patch)&&patch.endpoint!==CFG.endpoint;
+  Object.keys(patch).forEach(function(k){
+    if(patch[k]===null||patch[k]===undefined)delete CFG[k];else CFG[k]=patch[k];
+  });
+  writeCfg(CFG);
+  if(epChanged){
+    S.data=null;S.at=0;S.err=null;
+    try{localStorage.removeItem(LS_CACHE);}catch(e){}
+  }
+  emit();
+  return CFG;
+}
+window.THTS={
+  Widget:Widget,
+  refresh:function(){return load(true);},
+  // For a push transport (SSE / websocket / native bridge): hand it Fleet API
+  // JSON and the whole widget updates without a fetch.
+  ingest:function(json){var m=normalize(json);if(m)apply(m);return !!m;},
+  configure:configure,
+  config:function(){try{return JSON.parse(JSON.stringify(CFG));}catch(e){return{};}},
+  disconnect:function(){return configure({endpoint:null});},
+  // Call after any successful Tesla command so the UI reflects it immediately.
+  afterCommand:function(){return load(true);}
+};
+})();
+</script>
+
 <style>
 /* ── MotionCore (Health) scoped styles ── */
 #mc-root{position:fixed;inset:0;display:none;flex-direction:column;background:#1a1a1d;color:#f4f3f0;font-family:'DM Sans',sans-serif;}
@@ -5049,9 +6326,13 @@ function App(){
             React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:11,color:T.TXD,letterSpacing:0.3,alignSelf:"flex-end"}},"— "+q.author)))),
         React.createElement("div",{style:{height:"clamp(8px,2vw,16px)",flexShrink:0}}))),
 
-    // Weather bar + Quote Banner share ONE horizontal band, so the compact
-    // weather view costs no vertical space above Weekly. They stack under 780px.
-    React.createElement("div",{className:"thwx-band"},
+    // Weather bar + Quote Banner + Tesla card share ONE horizontal band, so the
+    // compact views cost no vertical space above Weekly. Weather anchors the
+    // left, Tesla the right, quote centred between them. Under 1080px the quote
+    // drops to its own row; under 780px all three stack. The extra thts-band
+    // class is what retires the band's phantom right-hand column (see the Tesla
+    // widget's stylesheet) — Veda's band keeps the phantom and is untouched.
+    React.createElement("div",{className:"thwx-band thts-band"},
       window.THWX&&React.createElement(window.THWX.Widget,{key:"wx",t:{
         BG:T.BG,S1:T.S1,BD:T.BD,BDL:T.BDL,TX:T.TX,TXD:T.TXD,TXM:T.TXM,AC:T.AC,ACG:T.ACG,
         hov:T.S2,radius:4,font:"'Inter',system-ui,-apple-system,sans-serif"}}),
@@ -5060,7 +6341,13 @@ function App(){
       React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",marginTop:2,gap:4}},
         React.createElement("span",{style:{fontFamily:"var(--font-accent)",fontSize:11,color:T.TXM,letterSpacing:0.3,flex:1,textAlign:"right"}},"— "+tgLesson.author),
         React.createElement("button",{type:"button",onClick:tgNext,title:"Next quote",style:{background:"transparent",border:"none",cursor:"pointer",padding:"2px 4px 2px 8px",color:T.TXM,fontSize:13,lineHeight:1,opacity:0.45,transition:"opacity .15s",fontFamily:"inherit"},onMouseEnter:function(e){e.currentTarget.style.opacity="0.85";},onMouseLeave:function(e){e.currentTarget.style.opacity="0.45";}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.refresh}})),
-        React.createElement("button",{type:"button",onClick:()=>setTgShowAll(true),title:"View all quotes",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",fontFamily:"inherit",letterSpacing:0.5,opacity:0.6,transition:"all .15s"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.notes}}))))),
+        React.createElement("button",{type:"button",onClick:()=>setTgShowAll(true),title:"View all quotes",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",fontFamily:"inherit",letterSpacing:0.5,opacity:0.6,transition:"all .15s"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.notes}})))),
+      // Tesla — Tony's only. Same token contract the weather widget takes, so
+      // the card inherits this TaskHub's palette, radius and type instead of
+      // carrying colours of its own.
+      window.THTS&&React.createElement(window.THTS.Widget,{key:"ts",t:{
+        BG:T.BG,S1:T.S1,S2:T.S2,BD:T.BD,BDL:T.BDL,TX:T.TX,TXD:T.TXD,TXM:T.TXM,AC:T.AC,ACG:T.ACG,
+        hov:T.S2,radius:4,font:"'Inter',system-ui,-apple-system,sans-serif"}})),
 
     // Weekly
     React.createElement("div",{style:{...sec,flexShrink:0}},
