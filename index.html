@@ -31152,7 +31152,17 @@ window._THV={
   window.addEventListener('online', function () { keepAlive(); flushQueue(); });
 
   /* ── OAuth plumbing ───────────────────────────────────────────────────────*/
-  function redirectUri() { return location.origin + location.pathname; }
+  // ONE canonical redirect URI, whatever URL you happened to arrive on.
+  //
+  // GitHub Pages serves this app at BOTH /A1/ and /A1/index.html, so a raw
+  // origin+pathname produced two different redirect URIs depending on how you
+  // navigated. Microsoft requires the redirect_uri to match a registered value
+  // EXACTLY — so half the time sign-in would die on AADSTS50011, which reads as
+  // a broken integration rather than a URL mismatch. Folding index.html back to
+  // its directory means there is exactly one value to register.
+  function redirectUri() {
+    return location.origin + location.pathname.replace(/\/index\.html?$/i, '/');
+  }
   function b64url(buf) {
     return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }

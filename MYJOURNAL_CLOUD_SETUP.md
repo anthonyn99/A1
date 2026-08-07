@@ -6,15 +6,22 @@ these are done, MyJournal shows a "not set up yet" prompt instead of a broken sc
 Both client IDs are pasted **inside the app**: MyJournal → sidebar → **⚙ (Document
 settings)**. They sync through Firebase, so you only paste them on one device.
 
-Your redirect URI / JavaScript origin is the page's own URL. For the live site:
+Two values, and they are **not** the same thing:
 
 ```
-https://anthonyn99.github.io/A1/index.html      ← redirect URI
-https://anthonyn99.github.io                    ← JavaScript origin
+https://anthonyn99.github.io                    ← JavaScript origin   (Google)
+https://anthonyn99.github.io/A1/                ← redirect URI        (Microsoft)
 ```
 
-The settings dialog prints the exact redirect URI for whatever URL you are on —
-copy it from there if you also run the app somewhere else.
+Google's Identity Services flow authorises by **origin** and needs no redirect URI
+at all. Microsoft matches the **redirect URI exactly**, character for character.
+
+GitHub Pages serves this app at both `/A1/` and `/A1/index.html`, so
+`redirectUri()` folds `index.html` back to its directory — there is exactly one
+value to register no matter how you navigated. The trailing slash is part of it.
+
+The settings dialog prints the live value at the bottom; copy it from there if you
+ever run the app somewhere else.
 
 ---
 
