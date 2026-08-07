@@ -3590,34 +3590,33 @@ function miniCarSvg(hex,sedan){
 // reads boxier here too, not just in the hero. Neutral chrome, not paint —
 // pressure diagrams read as instrumentation, not as "another car photo".
 //
-// v1 was a single tapered lens — constant curvature nose-to-tail with no
-// wheel arches, which is exactly a boat hull's silhouette, and the glass
-// bands were too close in value to the body to register as glass at all.
-// The fix is the one detail that actually reads as "car" from above: wheel
-// bulges breaking the body's straight edge at each axle. Everything else
-// here (rounded-rect body instead of a tapered curve, near-black glass
-// against mid-grey body, visible mirrors) is secondary to that one cue.
+// v1 was a tapered lens with no wheel arches — a boat hull. v2 fixed that
+// with wheel bulges as four separate rectangles bolted onto a rounded box,
+// which read as a chip on legs. v3 tried one continuous flared outline, but
+// hand-tuned bezier joints between "flare out" and "pull in" segments broke
+// tangent continuity and produced cusps — it came out a kite, not a car.
+// This is the version that stays safe: a single soft-cornered rounded-rect
+// body (no seams to get wrong) with the wheels as dark inset marks near each
+// corner — the same convention actual car dashboards use for a tire-pressure
+// diagram, which is what this section already is.
 function topViewSvg(sedan){
-  var bodyRX=sedan?13:8;                        // sharper corners read "boxier" for the SUV
-  var body={x:14,y:8,w:32,h:116,rx:bodyRX};
-  var windshield=sedan?'M20 20L40 20L45 44L15 44Z':'M17 23L43 23L47 49L13 49Z';
-  var rearGlass=sedan?'M16 88L44 88L39 108L21 108Z':'M13 83L47 83L43 103L17 103Z';
-  var mirrors=sedan?[[8,22,4,8],[48,22,4,8]]:[[6,26,4,8],[50,26,4,8]];
-  // Bulges at both axles, poking a few px past the body's straight sides —
-  // drawn UNDER the body so only the outer curve shows, like a fender flare.
-  var frontY=sedan?26:30,rearY=sedan?90:86,bw=sedan?8:9,bh=sedan?16:18;
-  var bumps=[[6,frontY],[46,frontY],[6,rearY],[46,rearY]];
+  var body=sedan?{x:12,y:8,w:36,h:116,rx:16}:{x:8,y:8,w:44,h:116,rx:10};
+  var glass=sedan
+    ? {w:{x:19,y:50,w:22,h:14,r:5},r:{x:19,y:76,w:22,h:14,r:5}}
+    : {w:{x:15,y:48,w:30,h:16,r:5},r:{x:15,y:76,w:30,h:16,r:5}};
+  var wl=sedan?15:12,wr=sedan?45-9:48-9,ww=9,wh=20;   // wheel-mark x (left/right), width, height
+  var wheels=[[wl,26],[wr,26],[wl,84],[wr,84]];
+  var uid='thtsTop';
   return h('svg',{viewBox:'0 0 60 132',role:'img','aria-label':'Top-down vehicle outline'},
-    h('g',{key:'bumps'},bumps.map(function(p,i){
-      return h('rect',{key:i,x:p[0],y:p[1],width:bw,height:bh,rx:3,fill:'#2f323a',
-        stroke:'#4d5058',strokeWidth:1});})),
+    h('defs',{key:'d'},h('linearGradient',{id:uid,x1:'0',y1:'0',x2:'0',y2:'1'},
+      h('stop',{key:'a',offset:'0%',stopColor:'#4a4e57'}),
+      h('stop',{key:'b',offset:'100%',stopColor:'#34373d'}))),
     h('rect',{key:'body',x:body.x,y:body.y,width:body.w,height:body.h,rx:body.rx,
-      fill:'#3d4048',stroke:'#585c64',strokeWidth:1.3}),
-    h('path',{key:'w',d:windshield,fill:'#121316'}),
-    h('path',{key:'r',d:rearGlass,fill:'#121316'}),
-    h('line',{key:'c',x1:30,y1:46,x2:30,y2:86,stroke:'#121316',strokeWidth:1,opacity:.55}),
-    mirrors.map(function(m,i){return h('rect',{key:'m'+i,x:m[0],y:m[1],width:m[2],height:m[3],
-      rx:1.5,fill:'#585c64'});}));
+      fill:'url(#'+uid+')',stroke:'#5c6069',strokeWidth:1.1}),
+    wheels.map(function(p,i){return h('rect',{key:'wh'+i,x:p[0],y:p[1],width:ww,height:wh,rx:3,
+      fill:'#101216',opacity:.78});}),
+    h('rect',{key:'w',x:glass.w.x,y:glass.w.y,width:glass.w.w,height:glass.w.h,rx:glass.w.r,fill:'#101216'}),
+    h('rect',{key:'r',x:glass.r.x,y:glass.r.y,width:glass.r.w,height:glass.r.h,rx:glass.r.r,fill:'#101216'}));
 }
 // ── Render helpers. Each returns null when the value is absent, so a section
 //    that knows nothing renders nothing — no "N/A" rows, no empty headings. ─
