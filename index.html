@@ -33172,7 +33172,10 @@ window._THV={
       placeholder: '…apps.googleusercontent.com',
       hint: function (origin) {
         return 'Google Cloud Console → APIs &amp; Services → Credentials → OAuth client ID (Web application). ' +
-          'Add <code>' + origin + '</code> as an authorised JavaScript origin, and enable the <b>Google Drive API</b> and <b>Google Docs API</b>.';
+          'Add <code>' + origin + '</code> as an authorised JavaScript origin, and enable the <b>Google Drive API</b> and <b>Google Docs API</b>.' +
+          '<br><br>Then add <code>' + gdocsRedirectUri() + '</code> under <b>Authorized redirect URIs</b> — separate from the origin above, and not the same URI OneNote uses. ' +
+          'That is what lets MyJournal renew its hour-long token in a hidden frame with no sign-in window on screen; without it you stay connected, ' +
+          'but you have to press Connect again roughly once an hour. Vault uses the same callback page, so a client already set up for Vault has it.';
       }
     },
 
@@ -35603,8 +35606,12 @@ window._THV={
         '<div class="mjd-hint">' + p.setup.hint(origin, redirect) + '</div>' +
         '</div>';
     });
+    // The two providers no longer share one redirect URI: OneNote comes back to
+    // the app itself, Google to the hidden callback page it renews through. Each
+    // provider's own hint carries its own URI — a single line here claiming to
+    // cover both would send half of any future setup to the wrong place.
     h += '<div class="mjd-hint" style="margin-top:14px">Client IDs are public identifiers — they sync across your devices, so you only paste them once. ' +
-      'Access tokens never sync: each device signs in for itself.<br><br>Redirect URI for both providers: <code>' + esc(redirect) + '</code></div>';
+      'Access tokens never sync: each device signs in for itself.<br><br>Each provider needs its own redirect URI — see its setup note above.</div>';
     body.innerHTML = h;
     body.addEventListener('click', function (e) {
       var a = e.target.closest('[data-accts]');
