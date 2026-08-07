@@ -7314,13 +7314,21 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
     _unsubscribe = onSnapshot(docRef, { includeMetadataChanges: true }, (snap) => {
       const fromCache = snap.metadata && snap.metadata.fromCache;
-      // A non-cached snapshot IS confirmed server state — this is usually what
-      // unlocks writes on a slow phone where _freshGet fell back to the cache.
-      if (!fromCache) _thMarkServerSeen();
-      if (!snap.exists()) return;
+      if (!snap.exists()) { if (!fromCache) _thMarkServerSeen(); return; }
       if (fromCache) return;                          // cached echo, not remote news
-      if (_savePending) return;                       // protect an unpushed/in-flight local edit
       const d = snap.data();
+      // Drop a pending local write that is OLDER than the server copy — see the
+      // Veda listener for the full account. Unlocking writes on a snapshot we then
+      // discard is what let a resumed phone flush its stale queued save over newer
+      // edits from another device.
+      if (_savePending && (d.savedAt || 0) > (_pendingPayload ? (_pendingPayload.savedAt || 0) : 0)) {
+        _pendingPayload = null;
+        if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+        _savePending = false;
+      }
+      // Unlock only after the snapshot has been allowed to take effect.
+      _thMarkServerSeen();
+      if (_savePending) return;                       // genuinely newer local edit — protect it
       // Our own write echoed back. Compare against every savedAt we've written this
       // session, not just the last one: with rapid edits an older echo can arrive
       // after a newer write, and matching only the latest would let that stale echo
@@ -7404,13 +7412,25 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_vdUnsubscribe) { _vdUnsubscribe(); _vdUnsubscribe = null; }
     _vdUnsubscribe = onSnapshot(vdDocRef, { includeMetadataChanges: true }, (snap) => {
       const fromCache = snap.metadata && snap.metadata.fromCache;
-      // A non-cached snapshot IS confirmed server state — on a slow phone, where
-      // _freshGet fell back to the cache, this is what unlocks writes.
-      if (!fromCache) _vdMarkServerSeen();
-      if (!snap.exists()) return;
+      if (!snap.exists()) { if (!fromCache) _vdMarkServerSeen(); return; }
       if (fromCache) return;                 // cached echo, not remote news
-      if (_vdSavePending) return;            // protect an unpushed/in-flight local edit
       const d = snap.data();
+      // A PENDING LOCAL WRITE THAT IS OLDER THAN THE SERVER COPY MUST BE DROPPED.
+      // This is the bug that reverted the desktop: on resume the phone had an
+      // autosave queued from its stale in-memory state. The fresh server snapshot
+      // unlocked writes (below) but the old `if (_vdSavePending) return;` threw the
+      // snapshot away — so the phone stayed stale AND then flushed that stale queued
+      // write over the newer desktop edits. Unlocking on data we discard is exactly
+      // backwards. savedAt is the authority: if the server copy is newer than what
+      // we have queued, the queued write lost the race and is abandoned.
+      if (_vdSavePending && (d.savedAt || 0) > (_vdPendingPayload ? (_vdPendingPayload.savedAt || 0) : 0)) {
+        _vdPendingPayload = null;
+        if (_vdSaveTimer) { clearTimeout(_vdSaveTimer); _vdSaveTimer = null; }
+        _vdSavePending = false;
+      }
+      // Unlock only now — after the snapshot has been allowed to take effect.
+      _vdMarkServerSeen();
+      if (_vdSavePending) return;            // genuinely newer local edit — protect it
       if (_vdOwnWrites.has(d.savedAt || 0)) return;   // any of our own echoes
       window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: d }));
     }, (err) => { console.warn('[Veda TaskHub] onSnapshot error:', err && err.code); });
