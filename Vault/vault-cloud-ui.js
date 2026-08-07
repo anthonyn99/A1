@@ -1957,6 +1957,18 @@
       body.appendChild(el('div', { class: 'vcl-fld' }, [el('label', { text: su.label }), idField]));
       body.appendChild(el('div', { class: 'vcl-fld' }, [el('label', { text: 'Open link' }), urlField]));
 
+      // Reconnecting repeatedly is the symptom of a missing redirect URI, and it
+      // looks identical to an ordinary expired session — so when background
+      // renewal has never once worked on this device, say which one it is
+      // instead of letting the user press Reconnect every hour forever.
+      if (live && p.renewalWorks && !p.renewalWorks() && p.redirectUri) {
+        body.appendChild(el('div', {
+          class: 'vcl-help',
+          html: 'Background renewal hasn’t worked on this device yet, so the connection needs a manual Reconnect about once an hour. ' +
+            'Add <code>' + esc(p.redirectUri()) + '</code> under <b>Authorized redirect URIs</b> on this OAuth client to fix it.'
+        }));
+      }
+
       // Instructions are collapsed by default. Once you're connected they're
       // pure clutter — but a new device or a second person setting this up from
       // scratch still needs them, so they stay one click away rather than gone.

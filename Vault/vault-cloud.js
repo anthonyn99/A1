@@ -159,18 +159,15 @@
   //
   // HARD RULE: a renewer is background work the user did not ask for, so it may
   // succeed silently or fail silently — it may never put a window on screen.
-  // Dropbox satisfies this for free (its refresh is a plain fetch); Google is
-  // held to it by silentGuard() below.
+  // Dropbox satisfies this for free (its refresh is a plain fetch); Google does
+  // it with a hidden frame (see "Renewal that never draws a window" below).
   var renewers = Object.create(null);
   function registerRenewer(pid, fn) { renewers[pid] = fn; }
   async function keepAlive() {
-    // Nothing renews from a hidden tab. Even a renewal that only *might* need the
-    // user is intolerable here: Vault is usually parked in a background tab, so
-    // anything it opens lands on top of whatever the user is actually doing, from
-    // an app they aren't looking at. Renewal resumes the moment the tab is looked
-    // at again (visibilitychange, below) — well before anything expires, since
-    // renewal starts two minutes early.
-    if (document.hidden) return;
+    // Hidden tabs renew too. They didn't while Google's renewal could still put a
+    // window up — one from a tab you aren't even looking at is the worst version
+    // of the problem — but neither renewer can draw anything now, so there's no
+    // reason to let a backgrounded tab drift out of date.
     for (var pid in renewers) {
       if (!Tokens.get(pid)) continue;          // never connected here — nothing to keep alive
       if (Tokens.fresh(pid)) continue;
@@ -420,7 +417,10 @@
       openPlaceholder: 'https://drive.google.com/drive/my-drive',
       hint: function (origin, redirect) {
         return 'Google Cloud Console → APIs &amp; Services → Credentials → OAuth client ID (Web application). ' +
-          'Add <code>' + origin + '</code> as an authorized JavaScript origin, and enable the Drive API.';
+          'Add <code>' + origin + '</code> as an authorized JavaScript origin, and enable the Drive API.' +
+          '<br><br>Then add <code>' + silentRedirectUri() + '</code> under <b>Authorized redirect URIs</b>. ' +
+          'That one is what lets Vault renew its hour-long token in the background with no sign-in window on screen — ' +
+          'without it you stay connected, but you have to press Reconnect roughly once an hour.';
       }
     },
 
@@ -428,47 +428,57 @@
     configured: function () { return !!this.cfg().clientId; },
     connected: function () { return !!Tokens.get('gdrive'); },
 
-    // Google's browser token client issues 1-hour access tokens and NO refresh
-    // token, so staying connected means quietly re-minting, forever, in the
-    // background. Three things keep that invisible:
+    // Google's browser client issues 1-hour access tokens and NO refresh token,
+    // so staying connected means re-minting one every hour, forever. The two
+    // paths are deliberately different tools:
     //
-    //   1. `hint` — the account this device connected as. Without it GIS has no
-    //      way to know which of several signed-in Google accounts to renew
-    //      against, so it asks: that is the chooser that was appearing at random.
-    //      With it (plus select_account:false) there is nothing to ask.
-    //   2. prompt:'' — reuse the existing Google session, don't re-consent.
-    //   3. silentGuard — a background renewal that still can't finish silently
-    //      fails as `reauth` instead of opening a window. Renewals happen on
-    //      timers and tab focus; a prompt from one is by definition unasked-for.
+    //   _silent()  hidden iframe, prompt=none — draws nothing, ever. Every
+    //              renewal goes through here. Fails rather than asking.
+    //   _gis()     the Identity Services popup — a real window, so it is only
+    //              ever reached from a click.
     //
-    // Interactive requests (the user pressed Connect/Reconnect) skip the guard —
-    // there a window is the point.
+    // Both send the account this device connected as, so neither has any reason
+    // to put up an account chooser.
     _pending: null,
     _reauth: false,
     _quietUntil: 0,
 
-    _token: function (opts) {
-      opts = opts || {};
+    _silent: function (timeoutMs) {
       var self = this;
       var clientId = this.cfg().clientId;
       if (!clientId) return Promise.reject(new Error('Add your Google OAuth client ID in Cloud settings first.'));
-      // One background mint at a time. The keep-alive timer, the folder poll and
-      // a click can all want a token at once; without this each opens its own
-      // client, and three simultaneous renewals meant three chances to show a
-      // window. A click never joins a silent request in progress, though — it
-      // would inherit that request's refusal to open a window, and the user
-      // pressing Reconnect is precisely the case where one should open.
-      if (!opts.interactive && this._pending) return this._pending;
+      // One renewal at a time. The keep-alive timer, the folder poll and a click
+      // can all want a token at once, and three iframes racing to renew the same
+      // session is three ways to get a confusing answer.
+      if (this._pending) return this._pending;
 
-      var p = loadGis().then(function () {
+      var p = googleSilentToken(clientId, DRIVE_SCOPE, Tokens.account('gdrive'), timeoutMs).then(function (tok) {
+        Tokens.set('gdrive', tok);
+        self._reauth = false; self._quietUntil = 0;
+        markSilentWorked('gdrive');
+        self._learnAccount(tok.access);      // fire and forget; next renewal uses it
+      }, function () {
+        // login_required, consent_required, an unregistered redirect URI, cookies
+        // withheld from a third-party frame — all the same from here: this can't
+        // be finished without the user, and the user isn't being asked.
+        throw reauthErr('Google Drive');
+      });
+
+      this._pending = p;
+      var clear = function () { self._pending = null; };
+      p.then(clear, clear);
+      return p;
+    },
+
+    // The window path. Never call this without a click behind it.
+    _gis: function () {
+      var self = this;
+      var clientId = this.cfg().clientId;
+      if (!clientId) return Promise.reject(new Error('Add your Google OAuth client ID in Cloud settings first.'));
+      return loadGis().then(function () {
         return new Promise(function (resolve, reject) {
-          var settled = false, guard = null, timer = null;
-          function finish(err) {
-            if (settled) return; settled = true;
-            if (guard) guard.release(!err);
-            if (timer) clearTimeout(timer);
-            if (err) reject(err); else resolve();
-          }
+          var settled = false;
+          function finish(err) { if (settled) return; settled = true; if (err) reject(err); else resolve(); }
           var hint = Tokens.account('gdrive') || '';
           var client = window.google.accounts.oauth2.initTokenClient({
             client_id: clientId,
@@ -480,35 +490,18 @@
               Tokens.set('gdrive', { access: resp.access_token, expires: Date.now() + (resp.expires_in || 3600) * 1000 });
               self._reauth = false; self._quietUntil = 0;
               finish(null);
-              self._learnAccount(resp.access_token);   // fire and forget; next renewal uses it
+              self._learnAccount(resp.access_token);
             },
             error_callback: function (err) {
               var type = (err && err.type) || '';
-              // Same event, two readings. In the background, "I needed the user"
-              // is a state to record, not an error to shout about; behind a click
-              // it's a plain outcome the user just caused and understands.
-              if (!opts.interactive) { finish(reauthErr('Google Drive')); return; }
               if (type === 'popup_failed_to_open') { finish(new Error('Popup blocked — allow popups for this site and try again.')); return; }
               if (type === 'popup_closed') { finish(new Error('Sign-in cancelled.')); return; }
               finish(new Error(fmtErr(err)));
             }
           });
-          if (!opts.interactive) {
-            guard = silentGuard(function () { finish(reauthErr('Google Drive')); });
-            // GIS's silent path can also simply never call back (a blocked
-            // third-party iframe, a popup we just closed). Left alone that pins
-            // _pending forever and wedges every later renewal, so it gets the
-            // same "needs reconnect" answer as an outright refusal.
-            timer = setTimeout(function () { finish(reauthErr('Google Drive')); }, opts.timeout || 12000);
-          }
           client.requestAccessToken({ prompt: '', hint: hint });
         });
       });
-
-      this._pending = p;
-      var clear = function () { self._pending = null; };
-      p.then(clear, clear);
-      return p;
     },
 
     // Ask Drive who we are, once, so every future renewal can name its account.
@@ -525,19 +518,21 @@
       } catch (e) { /* a missing hint costs a prompt later, never correctness */ }
     },
     account: function () { return Tokens.account('gdrive'); },
-    // True once a silent renewal has come back "I need the user". The UI reads
-    // this to offer a Reconnect button — which is the only place a Google window
-    // is allowed to come from.
+    // True once a renewal has come back "I need the user". The UI reads this to
+    // offer a Reconnect button — the only place a Google window can come from.
     needsReauth: function () { return this._reauth && !Tokens.fresh('gdrive'); },
+    // …and this separates "your session lapsed" from "background renewal has
+    // never once worked here", which is a different problem with a different fix.
+    renewalWorks: function () { return silentEverWorked('gdrive'); },
+    redirectUri: function () { return silentRedirectUri(); },
 
-    // Background renewal. Silent or nothing, and after a refusal it stops trying
-    // for a while: retrying a renewal that needs the user, every four minutes,
-    // for as long as the tab is open, is how one expired session turns into
-    // popups all afternoon.
+    // Background renewal. Invisible or nothing, and after a refusal it stops
+    // trying for a while: re-running a renewal that can't succeed, every four
+    // minutes, for as long as the tab is open, is just noise.
     renew: function () {
       var self = this;
       if (Date.now() < this._quietUntil) return Promise.reject(reauthErr('Google Drive'));
-      return this._token({ interactive: false }).catch(function (e) {
+      return this._silent().catch(function (e) {
         if (e && e.reauth) {
           // On the transition only. Callers share one in-flight request but each
           // sees its own rejection, so announcing per-rejection announces the
@@ -557,16 +552,17 @@
 
     connect: async function () {
       var first = !Tokens.get('gdrive');
-      // Try silent first even on an explicit Connect — if the Google session is
-      // still good this completes with no window at all. Short timeout: the click
-      // that got us here is what lets the real sign-in window open, and browsers
-      // stop honouring a gesture that's seconds old. Skipped once we already know
-      // the answer is "needs you", so Reconnect goes straight there.
+      // A returning device gets one quick invisible attempt first — if the
+      // session is still good, Reconnect resolves with no window at all. Kept
+      // short because the click that got us here is what lets the real sign-in
+      // window open, and browsers stop honouring a gesture that's seconds old.
+      // A device that has never connected has nothing to renew, so it skips
+      // straight to the window it just asked for.
       try {
-        if (this._reauth) throw reauthErr('Google Drive');
-        await this._token({ interactive: false, timeout: 3000 });
+        if (first || !Tokens.account('gdrive')) throw reauthErr('Google Drive');
+        await this._silent(2500);
       }
-      catch (e) { await this._token({ interactive: true }); }
+      catch (e) { await this._gis(); }
       this._reauth = false; this._quietUntil = 0;
       if (first) logActivity('Connected', 'gdrive', 'Google Drive');
     },
