@@ -5739,7 +5739,9 @@ function App(){
     const onReady=async()=>{
       if(!window._fbLoad)return;
       const remote=await window._fbLoad();
-      if(remote&&remote.savedAt){applyRemote(remote);}
+      // Apply any real doc — see Veda's loader: gating on `savedAt` silently
+      // discarded valid cloud data and invited a stale local overwrite.
+      if(remote&&(remote.data||remote.habits||remote.goals||remote.savedAt)){applyRemote(remote);}
       setSyncStatus("live");
     };
     if(window._fbReady)onReady();
@@ -7089,6 +7091,49 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_tjPendingWrites.indexOf(fn) === -1) _tjPendingWrites.push(fn);
     return Promise.resolve();
   }
+
+  // ── Same stale-overwrite guard for the two TaskHub docs (th=Tony, vd=Veda) ──
+  // The journals have had this protection; the TaskHubs did not, and that is the
+  // root cause of "I made a lot of edits and they all reverted".
+  //
+  // THE BUG: the React app mounts from localStorage instantly, but the cloud read
+  // (_freshGet) can take seconds — and on a slow/asleep phone it exhausts its retry
+  // budget and falls back to the STALE IndexedDB cache. Any edit in that window
+  // (or the archive/goal-prune jobs, which fire on timers) queued a debounced 500ms
+  // save that wrote yesterday's local snapshot straight over the newer server doc.
+  // Whole-document setDoc = the newer edits are gone, on every device.
+  //
+  // THE GUARANTEE: no TaskHub write reaches Firestore until this session has seen
+  // real SERVER state at least once (a snapshot with metadata.fromCache === false,
+  // or a loader read that came from the server). Writes before that are HELD, not
+  // dropped — they replay right after the server data is applied, so a genuine
+  // offline edit still lands and a stale session can never clobber fresh data.
+  let _thServerSeen = false, _thPendingWrites = [];
+  let _vdServerSeen = false, _vdPendingWrites = [];
+  function _thMarkServerSeen() {
+    if (_thServerSeen) return;
+    _thServerSeen = true;
+    const q = _thPendingWrites; _thPendingWrites = [];
+    q.forEach(fn => { try { fn(); } catch(e) { console.warn('TaskHub deferred write failed:', e && e.message); } });
+  }
+  function _thWhenServerSeen(fn) {
+    if (_thServerSeen) return fn();
+    // Only the latest pending save matters — each payload is a full snapshot, so
+    // keeping one entry both bounds the queue and replays the newest local state.
+    _thPendingWrites = [fn];
+    return Promise.resolve();
+  }
+  function _vdMarkServerSeen() {
+    if (_vdServerSeen) return;
+    _vdServerSeen = true;
+    const q = _vdPendingWrites; _vdPendingWrites = [];
+    q.forEach(fn => { try { fn(); } catch(e) { console.warn('Veda deferred write failed:', e && e.message); } });
+  }
+  function _vdWhenServerSeen(fn) {
+    if (_vdServerSeen) return fn();
+    _vdPendingWrites = [fn];
+    return Promise.resolve();
+  }
   // Expose to React app via window
   window._fbReady = false;
   window._fbSave = null;
@@ -7101,6 +7146,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     window._fbLoad = async () => {
       try {
         const snap = await _freshGet(docRef);
+        // Only a genuine SERVER read unlocks writes. A cache fallback must NOT —
+        // that is precisely the stale snapshot we must never write back.
+        // (A server read that finds NO doc also unlocks: nothing exists to clobber,
+        // so this session may seed it.)
+        if (snap && !(snap.metadata && snap.metadata.fromCache)) _thMarkServerSeen();
         if (snap && snap.exists()) return snap.data();
         return null;
       } catch(e) {
@@ -7118,10 +7168,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     let _savePending = false;
     let _lastWrittenSavedAt = 0;
     let _thSaveInFlight = null;
+    // Every savedAt this session has written, so the listener can recognise any of
+    // our own echoes (not merely the most recent one) — see the listener comment.
+    const _thOwnWrites = new Set();
     const _doTaskHubSave = () => {
       if (!_pendingPayload) return _thSaveInFlight || Promise.resolve();
       const payload = _pendingPayload; _pendingPayload = null;
       _lastWrittenSavedAt = payload.savedAt || Date.now();
+      _thOwnWrites.add(_lastWrittenSavedAt);
+      if (_thOwnWrites.size > 50) _thOwnWrites.delete(_thOwnWrites.values().next().value);
       _thSaveInFlight = (async () => {
         try {
           _lastOwnSaveAt = Date.now();
@@ -7139,10 +7194,16 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _savePending = true;
       _lastOwnSaveAt = Date.now();
       if (_saveTimer) clearTimeout(_saveTimer);
-      _saveTimer = setTimeout(_doTaskHubSave, 500);
+      // Gate on server-confirmation: before we've seen real server state this only
+      // parks the save (the payload is already stashed above, and each new edit
+      // replaces it), and it fires the moment _thMarkServerSeen() runs.
+      _saveTimer = setTimeout(() => _thWhenServerSeen(_doTaskHubSave), 500);
     };
     // Flush a pending TaskHub write immediately (tab hide / navigate away / entry switch).
-    window._fbFlush = () => { if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; } return _doTaskHubSave(); };
+    // Flush must respect the same guard — a tab-hide/navigate-away during the
+    // pre-confirmation window would otherwise push the stale snapshot immediately,
+    // which is the exact overwrite we're preventing.
+    window._fbFlush = () => { if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; } return _thWhenServerSeen(_doTaskHubSave); };
 
     // ── Weekly-data archiving ────────────────────────────────────────────────
     // The dashboards are SINGLE Firestore documents, so `data` (keyed by day)
@@ -7201,13 +7262,22 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // in-flight (so an unpushed edit can't be clobbered); the instant it's confirmed we
     // accept remote changes immediately — except the echo of our own write.
     if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
-    _unsubscribe = onSnapshot(docRef, (snap) => {
+    _unsubscribe = onSnapshot(docRef, { includeMetadataChanges: true }, (snap) => {
+      const fromCache = snap.metadata && snap.metadata.fromCache;
+      // A non-cached snapshot IS confirmed server state — this is usually what
+      // unlocks writes on a slow phone where _freshGet fell back to the cache.
+      if (!fromCache) _thMarkServerSeen();
       if (!snap.exists()) return;
+      if (fromCache) return;                          // cached echo, not remote news
       if (_savePending) return;                       // protect an unpushed/in-flight local edit
       const d = snap.data();
-      if (_lastWrittenSavedAt !== 0 && (d.savedAt || 0) === _lastWrittenSavedAt) return; // our own echo
+      // Our own write echoed back. Compare against every savedAt we've written this
+      // session, not just the last one: with rapid edits an older echo can arrive
+      // after a newer write, and matching only the latest would let that stale echo
+      // through and visibly revert the user's newest change.
+      if (_thOwnWrites.has(d.savedAt || 0)) return;
       window.dispatchEvent(new CustomEvent("fb-remote-update", { detail: d }));
-    });
+    }, (err) => { console.warn('[TaskHub] onSnapshot error:', err && err.code); });
 
     // ── Market Calendar (read-only; written by TradeHub Catalysts) ────────────
     const mcCalDocRef = doc(db, MC_CAL_PATH);
@@ -7228,6 +7298,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     window._fbLoadVeda = async () => {
       try {
         const snap = await _freshGet(vdDocRef);
+        // Only a genuine SERVER read unlocks writes — a cache fallback is exactly
+        // the stale snapshot that must never be written back. (A server read that
+        // finds no doc also unlocks: nothing exists to clobber.)
+        if (snap && !(snap.metadata && snap.metadata.fromCache)) _vdMarkServerSeen();
         if (snap && snap.exists()) return snap.data();
         return null;
       } catch(e) {
@@ -7241,10 +7315,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     let _vdSavePending = false;
     let _vdLastWrittenSavedAt = 0;
     let _vdSaveInFlight = null;
+    // Every savedAt this session wrote — lets the listener skip ANY of our own
+    // echoes, not just the newest (see the TaskHub listener comment).
+    const _vdOwnWrites = new Set();
     const _doVedaSave = () => {
       if (!_vdPendingPayload) return _vdSaveInFlight || Promise.resolve();
       const payload = _vdPendingPayload; _vdPendingPayload = null;
       _vdLastWrittenSavedAt = payload.savedAt || Date.now();
+      _vdOwnWrites.add(_vdLastWrittenSavedAt);
+      if (_vdOwnWrites.size > 50) _vdOwnWrites.delete(_vdOwnWrites.values().next().value);
       _vdSaveInFlight = (async () => {
         try {
           _vdLastOwnSaveAt = Date.now();
@@ -7260,21 +7339,31 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _vdSavePending = true;
       _vdLastOwnSaveAt = Date.now();
       if (_vdSaveTimer) clearTimeout(_vdSaveTimer);
-      _vdSaveTimer = setTimeout(_doVedaSave, 500);
+      // Gate on server-confirmation: before real server state is seen this only
+      // parks the save (payload already stashed above; later edits replace it),
+      // and it fires the moment _vdMarkServerSeen() runs.
+      _vdSaveTimer = setTimeout(() => _vdWhenServerSeen(_doVedaSave), 500);
     };
-    window._fbFlushVeda = () => { if (_vdSaveTimer) { clearTimeout(_vdSaveTimer); _vdSaveTimer = null; } return _doVedaSave(); };
+    // Flush respects the same guard — a tab-hide during the pre-confirmation
+    // window must not push the stale snapshot.
+    window._fbFlushVeda = () => { if (_vdSaveTimer) { clearTimeout(_vdSaveTimer); _vdSaveTimer = null; } return _vdWhenServerSeen(_doVedaSave); };
 
     // ── Veda's TaskHub real-time listener — live cross-device sync ─────────────
     // Hold off only while a local write is pending/in-flight; otherwise apply remote
     // changes immediately (skipping the echo of our own write). See main TaskHub.
     if (_vdUnsubscribe) { _vdUnsubscribe(); _vdUnsubscribe = null; }
-    _vdUnsubscribe = onSnapshot(vdDocRef, (snap) => {
+    _vdUnsubscribe = onSnapshot(vdDocRef, { includeMetadataChanges: true }, (snap) => {
+      const fromCache = snap.metadata && snap.metadata.fromCache;
+      // A non-cached snapshot IS confirmed server state — on a slow phone, where
+      // _freshGet fell back to the cache, this is what unlocks writes.
+      if (!fromCache) _vdMarkServerSeen();
       if (!snap.exists()) return;
-      if (_vdSavePending) return;
+      if (fromCache) return;                 // cached echo, not remote news
+      if (_vdSavePending) return;            // protect an unpushed/in-flight local edit
       const d = snap.data();
-      if (_vdLastWrittenSavedAt !== 0 && (d.savedAt || 0) === _vdLastWrittenSavedAt) return;
+      if (_vdOwnWrites.has(d.savedAt || 0)) return;   // any of our own echoes
       window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: d }));
-    });
+    }, (err) => { console.warn('[Veda TaskHub] onSnapshot error:', err && err.code); });
 
     // ── StudyOS task mirror ───────────────────────────────────────────────────
     // StudyOS now lives in its own deployment (Veda's V1 project), so it can no
@@ -11054,7 +11143,10 @@ function App(){
     const onReady=async()=>{
       if(!window._fbLoadVeda)return;
       const remote=await window._fbLoadVeda();
-      if(remote&&remote.savedAt)applyRemote(remote);
+      // Apply any real doc. Gating on `savedAt` meant a doc written without that
+      // field was silently ignored — the cloud copy never loaded, and the next
+      // local edit then overwrote it with stale localStorage state.
+      if(remote&&(remote.data||remote.habits||remote.goals||remote.savedAt))applyRemote(remote);
       setVdSync("live");
     };
     if(window._fbReady)onReady();
