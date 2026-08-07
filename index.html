@@ -2909,11 +2909,11 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   margin-bottom:11px;}
 .thts-chart{display:flex;align-items:flex-end;gap:2px;height:76px;
   padding-bottom:1px;border-bottom:1px solid var(--ts-bd);}
-/* One series, so one accent. 4px rounded end at the value, square on the
-   baseline; the 2px gap is the panel surface showing between bars. */
+/* One series, so one accent — flat, never a gradient. 4px rounded end at the
+   value, square on the baseline; the 2px gap is the panel surface between bars. */
 .thts-cbar{flex:1 1 0;min-width:0;position:relative;border:0;padding:0;cursor:pointer;
-  border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--ts-ac),var(--ts-ac-d));
-  opacity:.6;transition:opacity .15s;}
+  border-radius:4px 4px 0 0;background:var(--ts-ac);
+  opacity:.55;transition:opacity .15s;}
 .thts-cbar:hover,.thts-cbar.on{opacity:1;}
 .thts-cbar:focus-visible{outline:2px solid var(--ts-ac);outline-offset:2px;}
 /* Detail sits in a fixed slot under the chart rather than floating: no overflow
@@ -2943,7 +2943,8 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 .thts-btn{flex-shrink:0;background:transparent;border:1px solid var(--ts-bd);border-radius:8px;
   color:var(--ts-ac);font:inherit;font-size:10px;font-weight:700;letter-spacing:.7px;
   text-transform:uppercase;padding:6px 13px;cursor:pointer;transition:border-color .15s,background .15s;}
-.thts-btn:hover{border-color:var(--ts-ac);background:var(--ts-acg);}
+/* Controls never take a fill — hover lights the outline and the label only. */
+.thts-btn:hover{border-color:var(--ts-ac);background:transparent;}
 .thts-err{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 11px;padding:0 0 9px;
   border-bottom:1px solid var(--ts-bd);
   font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--ts-red);}
@@ -3394,81 +3395,158 @@ function lvlTone(l){
 // ── Hero render ──────────────────────────────────────────────────────────
 // A drawn Tesla, not a photograph: it takes the car's actual paint code, needs
 // no external asset (the page has to work offline and over file://), and stays
-// crisp at every size. Further model silhouettes slot in by adding path sets.
+// crisp at every size.
+//
+// Geometry is traced from real dimensions rather than eyeballed — Model Y is
+// 4751×1624mm on a 2890mm wheelbase, so at this viewBox's scale the axles land
+// at x=88 and x=329 with a 30-unit wheel radius, and the roof sits 135 units
+// above the ground line. Getting those ratios right is the whole difference
+// between "a Tesla" and "a car".
+//
+// The single strongest identifier is the panoramic glass roof: on a Model Y the
+// glass runs unbroken from the base of the windshield, over the roof, down the
+// hatch, with only a thin body-coloured rail either side. That is drawn here as
+// ONE continuous dark shape, which is why the profile reads as a Tesla and not
+// as a generic crossover.
+var CAR={
+  // Model Y: 4751mm long, 1624 tall, 2890 wheelbase, 946mm rear overhang. On
+  // this viewBox that puts the nose at x=12, axles at 88 and 329, the roof 135
+  // above the ground line and the tail out at 404 — the rear overhang is what
+  // an earlier pass got wrong, and a Model Y with a short tail reads as a coupe.
+  suv:{                                     // Model Y / Model X
+    body:'M12 138C12 124 16 112 28 107 56 99 92 97 122 95 142 76 170 54 198 44 222 38 248 38 268 43'
+        +' 300 52 330 62 352 74 368 82 384 92 394 106 402 118 404 140 392 152L36 152C20 152 12 148 12 138Z',
+    glass:'M130 94C148 76 174 56 200 47 223 42 248 42 267 47 296 56 324 66 344 77 300 78 210 84 130 94Z',
+    pillar:[214,42,8,44],                   // B-pillar: x, y, w, h
+    cuts:['M142 96v54','M252 90v60','M320 84v64'],
+    handles:[[162,100],[272,95]],
+    headLens:'M16 106C28 102 44 101 56 103L54 115C42 113 28 114 18 117Z',
+    headLed:'M19 108C30 105 44 104 54 106',
+    tailLens:'M366 92C380 98 392 108 398 118L390 124C384 114 374 106 363 101Z',
+    tailLed:'M368 96C381 102 391 111 396 120',
+    intake:'M16 132C28 129 42 128 52 130L52 141C42 140 28 141 17 144Z',
+    mirror:'M124 82C132 79 141 81 144 86L134 88C130 86 126 84 124 82Z',
+    crease:'M50 120C130 113 235 112 344 118',
+    spec:'M30 106C86 97 158 93 232 92 292 92 336 98 366 108',
+    axles:[88,329],arch:[38,46],sill:152,wheel:30,ground:170,mid:208,port:[348,90]
+  },
+  sedan:{                                   // Model 3 / Model S — same method,
+    body:'M12 142C12 129 16 119 28 114 58 106 96 103 130 100 150 84 176 66 204 58 228 53 254 53 274 58'
+        +' 304 68 332 79 352 91 368 99 382 108 390 120 396 130 396 148 384 154L36 154C20 154 12 151 12 142Z',
+    glass:'M138 99C156 84 180 68 206 61 229 56 254 56 273 61 300 70 326 80 344 91 300 92 214 94 138 99Z',
+    pillar:[216,57,8,40],
+    cuts:['M146 101v53','M252 97v57','M318 94v58'],
+    handles:[[168,105],[272,101]],
+    headLens:'M16 114C28 110 44 109 56 111L54 122C42 120 28 121 18 124Z',
+    headLed:'M19 116C30 113 44 112 54 114',
+    tailLens:'M360 106C374 112 386 120 392 128L384 133C378 124 368 117 357 113Z',
+    tailLed:'M362 110C375 116 384 123 389 130',
+    intake:'M16 138C28 135 42 134 52 136L52 147C42 146 28 147 17 150Z',
+    mirror:'M132 88C140 85 149 87 152 92L142 94C138 92 134 90 132 88Z',
+    crease:'M50 126C130 120 235 119 344 124',
+    spec:'M30 114C86 105 158 101 232 100 292 100 336 106 366 116',
+    axles:[82,322],arch:[38,48],sill:154,wheel:30,ground:170,mid:204,port:[346,96]
+  }
+};
 function carSvg(hex,sedan,charging){
-  var top=shade(hex,.18),low=shade(hex,-.34),deep=shade(hex,-.6);
+  var C=sedan?CAR.sedan:CAR.suv;
+  var top=shade(hex,.20),low=shade(hex,-.36),deep=shade(hex,-.62);
   // Glass is fixed, not derived from the paint: car glass reads near-black from
   // outside whatever colour the body is, and deriving it left a silver car with
   // a cabin the same value as its own doors, so the roof looked detached.
-  var glassHi='#39414b',glassLo='#1b2028';
-  // Crossovers carry a tall, upright greenhouse over a short front overhang;
-  // sedans get a lower, longer cabin off the same body line.
-  // Crossovers carry a tall, upright greenhouse over a short front overhang;
-  // sedans get a lower, longer cabin off the same body line. Each segment is
-  // its own short curve — one continuous sweep from bumper to tailgate reads
-  // as a bubble, not a car, because it loses the A-pillar and shoulder breaks.
-  var body=sedan
-    ? 'M32 148C18 148 12 140 13 128 14 112 21 102 37 98 60 94 96 91 132 88 148 76 166 64 190 57 216 50 248 50 272 57 298 64 322 76 344 90 362 101 380 109 385 120 388 133 380 148 366 148Z'
-    : 'M32 148C18 148 12 140 13 128 14 111 21 101 37 97 60 93 96 90 130 86 146 70 164 50 188 41 214 32 246 32 272 40 298 48 322 62 344 81 362 96 380 107 385 119 388 133 380 148 366 148Z';
-  var glass=sedan
-    ? 'M144 86C158 76 174 66 194 60 218 53 246 53 268 60 292 67 314 76 332 86Z'
-    : 'M142 84C156 68 172 55 192 47 216 38 246 38 268 45 292 53 314 67 332 84Z';
-  var cuts=sedan
-    ? ['M214 53v93','M166 84v60','M286 62v84']
-    : ['M214 34v112','M164 82v62','M286 46v100'];
+  var glassHi='#39414b',glassLo='#151a21';
+  var wy=C.ground-C.wheel;                  // axle height
+  var uid='thts';                           // one instance on the page; ids are stable
+
+  function arch(cx){
+    return 'M'+(cx-C.arch[0])+' '+C.sill+'a'+C.arch[0]+' '+C.arch[1]+' 0 0 1 '+(C.arch[0]*2)+' 0Z';
+  }
   return h('svg',{className:'thts-car',viewBox:'0 0 420 190',role:'img',
       'aria-label':'Vehicle illustration'},
     h('defs',{key:'d'},
-      h('linearGradient',{id:'thtsBody',x1:'0',y1:'0',x2:'0',y2:'1'},
+      h('linearGradient',{id:uid+'Body',x1:'0',y1:'0',x2:'0',y2:'1'},
         h('stop',{key:'a',offset:'0%',stopColor:top}),
-        h('stop',{key:'b',offset:'46%',stopColor:hex}),
+        h('stop',{key:'b',offset:'42%',stopColor:hex}),
         h('stop',{key:'c',offset:'100%',stopColor:low})),
-      h('linearGradient',{id:'thtsGlass',x1:'0',y1:'0',x2:'0',y2:'1'},
+      h('linearGradient',{id:uid+'Glass',x1:'0',y1:'0',x2:'0',y2:'1'},
         h('stop',{key:'a',offset:'0%',stopColor:glassHi}),
         h('stop',{key:'b',offset:'100%',stopColor:glassLo})),
-      h('radialGradient',{id:'thtsShade'},
-        h('stop',{key:'a',offset:'0%',stopColor:'rgba(0,0,0,.55)'}),
+      h('radialGradient',{id:uid+'Shade'},
+        h('stop',{key:'a',offset:'0%',stopColor:'rgba(0,0,0,.6)'}),
         h('stop',{key:'b',offset:'100%',stopColor:'rgba(0,0,0,0)'}))),
-    // Soft contact shadow, drawn first so the car floats above it.
-    h('ellipse',{key:'sh',cx:210,cy:176,rx:168,ry:11,fill:'url(#thtsShade)'}),
-    h('path',{key:'b',d:body,fill:'url(#thtsBody)'}),
-    h('path',{key:'g',d:glass,fill:'url(#thtsGlass)',opacity:.95}),
-    // Pillar and door cuts — enough line work to read as a car, not a blob.
-    h('g',{key:'l',stroke:deep,strokeWidth:1.4,strokeLinecap:'round',opacity:.5,fill:'none'},
-      cuts.map(function(d2,i){return h('path',{key:i,d:d2});})),
-    // Shoulder highlight — the specular line that makes paint look like paint.
-    h('path',{key:'hi',d:'M44 100c60-9 132-14 202-12 46 2 90 12 128 33',
-      stroke:shade(hex,.55),strokeWidth:2,fill:'none',opacity:.38,strokeLinecap:'round'}),
-    h('path',{key:'hl',d:'M17 112h20a4.5 4.5 0 0 1 0 9H18Z',fill:'#f2ead6',opacity:.88}),
-    h('path',{key:'tl',d:'M371 108h13a3.5 3.5 0 0 1 0 8h-13Z',fill:'#c2453c',opacity:.9}),
+
+    // Contact shadow first, so the car floats above it.
+    h('ellipse',{key:'sh',cx:C.mid,cy:C.ground+6,rx:178,ry:10,fill:'url(#'+uid+'Shade)'}),
+
+    h('path',{key:'body',d:C.body,fill:'url(#'+uid+'Body)'}),
+    // Rim light. Without it a Midnight Silver or Solid Black car sits at almost
+    // the same value as the hero backdrop and its nose and tail dissolve; this
+    // keeps the silhouette legible for every paint code.
+    h('path',{key:'rim',d:C.body,fill:'none',stroke:shade(hex,.45),strokeWidth:1.3,opacity:.55}),
+    // Panoramic glass: windshield → roof → hatch in one unbroken run.
+    h('path',{key:'glass',d:C.glass,fill:'url(#'+uid+'Glass)'}),
+    h('rect',{key:'pil',x:C.pillar[0],y:C.pillar[1],width:C.pillar[2],height:C.pillar[3],
+      fill:low,opacity:.9}),
+    h('path',{key:'mir',d:C.mirror,fill:deep}),
+
+    // Shut lines and the door crease — the line work that stops it reading as a blob.
+    h('g',{key:'cuts',stroke:deep,strokeWidth:1.3,strokeLinecap:'round',opacity:.45,fill:'none'},
+      C.cuts.map(function(d2,i){return h('path',{key:i,d:d2});})),
+    h('path',{key:'crease',d:C.crease,stroke:deep,strokeWidth:1.6,fill:'none',opacity:.3,
+      strokeLinecap:'round'}),
+    // Specular shoulder — what makes paint look like paint rather than fill.
+    h('path',{key:'spec',d:C.spec,stroke:shade(hex,.5),strokeWidth:2.2,fill:'none',
+      opacity:.32,strokeLinecap:'round'}),
+
+    // Flush door handles.
+    h('g',{key:'hnd',fill:deep,opacity:.85},C.handles.map(function(p,i){
+      return h('rect',{key:i,x:p[0],y:p[1],width:20,height:4,rx:2});
+    })),
+
+    h('path',{key:'intake',d:C.intake,fill:'#0e1013',opacity:.26}),
+    // Lights are a dark lens carrying a thin LED signature, not a bright blob —
+    // that strip is what a modern Tesla actually reads as from the side.
+    h('path',{key:'hl',d:C.headLens,fill:'#2c323b',opacity:.95}),
+    h('path',{key:'hd',d:C.headLed,stroke:'#f6ecd6',strokeWidth:2.4,fill:'none',
+      strokeLinecap:'round',opacity:.95}),
+    h('path',{key:'tl',d:C.tailLens,fill:'#4b262c',opacity:.95}),
+    h('path',{key:'td',d:C.tailLed,stroke:'#d9524a',strokeWidth:2.6,fill:'none',
+      strokeLinecap:'round',opacity:.95}),
+
     // Wheel wells cut into the body, then the wheels laid on top.
-    h('path',{key:'w1',d:'M81 150a31 31 0 0 1 62 0Z',fill:deep}),
-    h('path',{key:'w2',d:'M285 150a31 31 0 0 1 62 0Z',fill:deep}),
-    [112,316].map(function(cx){
-      return h('g',{key:'wh'+cx,transform:'translate('+cx+',140)'},
-        h('circle',{key:'t',r:30,fill:'#111214'}),
-        h('circle',{key:'r',r:18,fill:'#2b2d31',stroke:'#4a4d52',strokeWidth:1.4}),
-        h('g',{key:'s',stroke:'#6d7075',strokeWidth:2,strokeLinecap:'round'},
-          [0,72,144,216,288].map(function(a){
+    h('g',{key:'wells',fill:'#0b0c0e'},
+      C.axles.map(function(cx,i){return h('path',{key:i,d:arch(cx)});})),
+    h('g',{key:'wheels'},C.axles.map(function(cx){
+      return h('g',{key:cx,transform:'translate('+cx+','+wy+')'},
+        h('circle',{key:'t',r:C.wheel,fill:'#0e0f11'}),
+        h('circle',{key:'w',r:C.wheel-3.5,fill:'none',stroke:'#1b1d20',strokeWidth:2}),
+        // Aero-cover face: a near-solid disc broken by turbine slots, which is
+        // what Gemini/Induction wheels read as at this size.
+        h('circle',{key:'r',r:19,fill:'#4a4e55'}),
+        h('g',{key:'s',stroke:'#202327',strokeWidth:3.4,strokeLinecap:'round'},
+          [0,36,72,108,144,180,216,252,288,324].map(function(a){
             var rad=a*Math.PI/180;
-            return h('line',{key:a,x1:0,y1:0,x2:(Math.cos(rad)*15).toFixed(1),
-              y2:(Math.sin(rad)*15).toFixed(1)});
+            return h('line',{key:a,
+              x1:(Math.cos(rad)*8).toFixed(1),y1:(Math.sin(rad)*8).toFixed(1),
+              x2:(Math.cos(rad)*17).toFixed(1),y2:(Math.sin(rad)*17).toFixed(1)});
           })),
-        h('circle',{key:'h',r:4,fill:'#8b8e93'}));
-    }),
-    // Charge port, alive only while current is actually flowing.
+        h('circle',{key:'h',r:5.5,fill:'#2a2d32'}),
+        h('circle',{key:'c',r:2,fill:'#80858c'}));
+    })),
+
+    // Charge port on the rear quarter, alive only while current is flowing.
     charging?h('g',{key:'cp'},
-      h('circle',{key:'c',cx:352,cy:96,r:5,fill:'#7fc48f',opacity:.95},
+      h('circle',{key:'c',cx:C.port[0],cy:C.port[1],r:5,fill:'#7fc48f',opacity:.95},
         h('animate',{attributeName:'opacity',values:'.35;1;.35',dur:'1.6s',repeatCount:'indefinite'})),
       [0,1,2].map(function(i){
-        return h('circle',{key:i,cx:352,cy:96,r:2,fill:'#7fc48f'},
-          h('animate',{key:'y',attributeName:'cy',values:'96;70',dur:'1.6s',
+        return h('circle',{key:i,cx:C.port[0],cy:C.port[1],r:2,fill:'#7fc48f'},
+          h('animate',{key:'y',attributeName:'cy',
+            values:C.port[1]+';'+(C.port[1]-26),dur:'1.6s',
             begin:(i*0.53)+'s',repeatCount:'indefinite'}),
           h('animate',{key:'o',attributeName:'opacity',values:'1;0',dur:'1.6s',
             begin:(i*0.53)+'s',repeatCount:'indefinite'}));
       })):null);
 }
-
 // ── Render helpers. Each returns null when the value is absent, so a section
 //    that knows nothing renders nothing — no "N/A" rows, no empty headings. ─
 function card(k,label,value,unit,tone){
@@ -6338,8 +6416,11 @@ function App(){
         hov:T.S2,radius:4,font:"'Inter',system-ui,-apple-system,sans-serif"}}),
     React.createElement("div",{className:"thwx-bq",style:{flexDirection:"column",justifyContent:"center",alignItems:"stretch",position:"relative"}},
       React.createElement("p",{className:"thwx-bq-line",style:{color:T.TXD}},"“"+tgLesson.text+"”"),
-      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",marginTop:2,gap:4}},
-        React.createElement("span",{style:{fontFamily:"var(--font-accent)",fontSize:11,color:T.TXM,letterSpacing:0.3,flex:1,textAlign:"right"}},"— "+tgLesson.author),
+      // Attribution and controls sit centred directly beneath the quote. They
+      // used to be flushed right, which parked them under the Tesla card rather
+      // than under the line they belong to.
+      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,gap:4}},
+        React.createElement("span",{style:{fontFamily:"var(--font-accent)",fontSize:11,color:T.TXM,letterSpacing:0.3,textAlign:"center"}},"— "+tgLesson.author),
         React.createElement("button",{type:"button",onClick:tgNext,title:"Next quote",style:{background:"transparent",border:"none",cursor:"pointer",padding:"2px 4px 2px 8px",color:T.TXM,fontSize:13,lineHeight:1,opacity:0.45,transition:"opacity .15s",fontFamily:"inherit"},onMouseEnter:function(e){e.currentTarget.style.opacity="0.85";},onMouseLeave:function(e){e.currentTarget.style.opacity="0.45";}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.refresh}})),
         React.createElement("button",{type:"button",onClick:()=>setTgShowAll(true),title:"View all quotes",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",fontFamily:"inherit",letterSpacing:0.5,opacity:0.6,transition:"all .15s"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.notes}})))),
       // Tesla — Tony's only. Same token contract the weather widget takes, so
