@@ -5744,8 +5744,11 @@ function App(){
       if(remote&&(remote.data||remote.habits||remote.goals||remote.savedAt)){applyRemote(remote);}
       setSyncStatus("live");
     };
+    // Not {once:true} — see Veda's loader: mobile tears down and re-inits on every
+    // app switch, and a one-shot listener ignored the re-fire, leaving the phone
+    // permanently stale.
     if(window._fbReady)onReady();
-    else window.addEventListener("fb-ready",onReady,{once:true});
+    window.addEventListener("fb-ready",onReady);
     return()=>window.removeEventListener("fb-ready",onReady);
   },[applyRemote]);
 
@@ -8637,6 +8640,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Reinitialize so future saves/loads work after user returns
     db = initializeFirestore(app, { localCache: _makeCache() });
     window._fbReady = false; // force init() to run on next interaction
+    // Re-arm the TaskHub stale-overwrite guards. This connection is gone, so
+    // "we have seen server state" is no longer true — on mobile a teardown happens
+    // every time the app is backgrounded, and the phone may have missed hours of
+    // remote edits while frozen. Requiring fresh server confirmation before the
+    // next upload is what stops a resumed phone pushing its stale in-memory copy
+    // over newer cloud data. Any write queued in the meantime is still held, not
+    // dropped, and replays once the new connection confirms.
+    _thServerSeen = false;
+    _vdServerSeen = false;
   }
 
   function _startIdleTimer() {
@@ -8667,10 +8679,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       clearTimeout(_hideTimer);
       _hideTimer = setTimeout(_teardown, HIDE_DELAY);
     } else {
-      // Tab visible — cancel pending teardown but do NOT auto-reinit.
-      // Background tab focus is not real user activity.
-      // Listeners reattach only when user actually clicks/taps/types.
       clearTimeout(_hideTimer);
+      // Reattach on becoming visible — not only on tap. On a phone, teardown has
+      // almost always already run (pagehide/freeze fire on every app switch), so
+      // waiting for a click meant you'd stare at hours-old tasks until you happened
+      // to touch something, and any edit you made first was a stale-overwrite risk.
+      // Reconnecting here re-pulls the doc and re-confirms the write guard before
+      // you can interact. Cheap: init() is a no-op when listeners are still live.
+      if (!_fbRecovering && !_unsubscribe) init();
+      _startIdleTimer();
     }
   });
 
@@ -11149,8 +11166,15 @@ function App(){
       if(remote&&(remote.data||remote.habits||remote.goals||remote.savedAt))applyRemote(remote);
       setVdSync("live");
     };
+    // MUST NOT be {once:true}. On mobile the Firebase layer tears down its
+    // listeners on every pagehide/freeze (switching apps, locking the screen) and
+    // re-runs init() — firing "fb-ready" again — when you come back and tap. With a
+    // one-shot listener that re-fire was ignored, so the phone kept showing whatever
+    // was in memory from hours earlier and never re-fetched. That is the mobile
+    // staleness. Re-pulling on every ready is also what makes a resumed phone
+    // converge on the newest cloud copy.
     if(window._fbReady)onReady();
-    else window.addEventListener("fb-ready",onReady,{once:true});
+    window.addEventListener("fb-ready",onReady);
     return()=>window.removeEventListener("fb-ready",onReady);
   },[applyRemote]);
 
