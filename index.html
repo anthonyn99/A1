@@ -4089,17 +4089,20 @@ function applyCfg(patch,push){
     S.data=null;S.at=0;S.err=null;
     try{localStorage.removeItem(LS_CACHE);}catch(e){}
   }
-  // Mirror to Firestore so linking on ONE device links them all. Nulls are
-  // written explicitly rather than omitted — that is what lets an unlink on
-  // the desktop actually clear the phone, instead of the phone's snapshot
-  // handler seeing a missing key and keeping its stale endpoint.
-  if(push&&typeof window._fbSaveTeslaCfg==='function'){
-    var out={};
-    CFG_KEYS.forEach(function(k){out[k]=(CFG[k]===undefined)?null:CFG[k];});
-    try{window._fbSaveTeslaCfg(out);}catch(e){}
-  }
+  if(push)pushCfg();
   emit();
   return CFG;
+}
+
+// Mirror to Firestore so linking on ONE device links them all. Nulls are
+// written explicitly rather than omitted — that is what lets an unlink on the
+// desktop actually clear the phone, instead of the phone's snapshot handler
+// seeing a missing key and keeping its stale endpoint.
+function pushCfg(){
+  if(typeof window._fbSaveTeslaCfg!=='function')return false;
+  var out={};
+  CFG_KEYS.forEach(function(k){out[k]=(CFG[k]===undefined)?null:CFG[k];});
+  try{window._fbSaveTeslaCfg(out);return true;}catch(e){return false;}
 }
 
 function configure(patch){
@@ -4127,6 +4130,22 @@ function applyRemote(remote){
   if(CFG.endpoint)load(true);       // newly linked device — pull data immediately
   return true;
 }
+
+// What the Firestore listener actually calls, with the doc's contents or null
+// when the doc doesn't exist.
+//
+// The null branch is the important one: a device linked BEFORE cross-device
+// sync shipped has a perfectly good local endpoint that was never published,
+// because configure() is the only thing that writes and it hasn't run since.
+// The cloud is empty, every other device sees nothing, and the user is told to
+// re-link a car that is already linked. So a device that IS set up adopts
+// itself as the source of truth and publishes — no re-linking, and it repairs
+// itself on the next page load rather than needing anyone to intervene.
+function syncFromCloud(remote){
+  if(remote&&typeof remote==='object'&&remote.savedAt)return applyRemote(remote);
+  if(CFG.endpoint)pushCfg();
+  return false;
+}
 window.THTS={
   Widget:Widget,
   refresh:function(){return load(true);},
@@ -4135,6 +4154,7 @@ window.THTS={
   ingest:function(json){var m=normalize(json);if(m)apply(m);return !!m;},
   configure:configure,
   // Called by the Firestore listener in the Firebase module block.
+  syncFromCloud:syncFromCloud,
   applyRemote:applyRemote,
   config:function(){try{return JSON.parse(JSON.stringify(CFG));}catch(e){return{};}},
   disconnect:function(){return configure({endpoint:null});},
@@ -8722,10 +8742,14 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
     if (window._tsUnsubscribe) { window._tsUnsubscribe(); window._tsUnsubscribe = null; }
     window._tsUnsubscribe = onSnapshot(_tsDocRef, (snap) => {
-      if (!snap.exists()) return;
+      // Deliberately does NOT bail on a missing doc — "no config in the cloud"
+      // is exactly the case where an already-linked device needs to publish
+      // its own, which is how a device linked before this sync existed gets
+      // carried across without the user re-linking anything.
       // THTS ignores echoes of its own write and no-ops when nothing changed,
       // so this needs no timing window of its own (unlike NavOrder above).
-      if (window.THTS && window.THTS.applyRemote) window.THTS.applyRemote(snap.data());
+      const data = snap.exists() ? snap.data() : null;
+      if (window.THTS && window.THTS.syncFromCloud) window.THTS.syncFromCloud(data);
     }, (err) => { console.warn('[Tesla] onSnapshot error:', err); });
 
     window._fbReady = true;
