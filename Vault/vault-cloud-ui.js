@@ -119,6 +119,10 @@
       '.vcl-chip.on{border-color:var(--ac);color:var(--ac);}',
       '.vcl-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--txm);flex:0 0 auto;}',
       '.vcl-chip .dot.live{background:var(--grn);}',
+      // Authorised on this device but the session lapsed. Amber, not grey: the
+      // files are still there and one click brings them back — this is not the
+      // same state as "never connected here".
+      '.vcl-chip .dot.stale{background:var(--ac);}',
       '.vcl-chip svg{font-size:13px;}',
       '.vcl-chip[disabled]{opacity:.42;cursor:not-allowed;}',
 
@@ -669,11 +673,16 @@
     }));
     vc().all().forEach(function (p) {
       if (!p.configured()) return;
+      // Reconnecting is only ever offered, never taken. The chip is where a
+      // lapsed session shows up, and pressing it is the click that permits the
+      // sign-in window — nothing else in the app is allowed to summon one.
+      var stale = !!(p.needsReauth && p.needsReauth());
       r1.appendChild(el('button', {
         class: 'vcl-chip' + (ST.provider === p.id && ST.pane === 'files' ? ' on' : ''),
-        html: '<span class="dot' + (p.connected() ? ' live' : '') + '"></span>' + p.icon + esc(p.label),
+        title: stale ? 'Session expired — click to reconnect' + (p.account && p.account() ? ' as ' + p.account() : '') : '',
+        html: '<span class="dot' + (p.connected() ? (stale ? ' stale' : ' live') : '') + '"></span>' + p.icon + esc(p.label),
         onclick: function () {
-          if (!p.connected()) { doConnect(p); return; }
+          if (!p.connected() || stale) { doConnect(p); return; }
           ST.trail = [{ id: p.rootId, name: p.label, provider: p.id }];
           navTo(p.id, p.rootId, p.label, false);
         }
@@ -1933,11 +1942,16 @@
       var urlField = el('input', { type: 'url', value: cfg.openUrl || '', placeholder: su.openPlaceholder });
 
       var live = p.connected();
+      var stale = !!(p.needsReauth && p.needsReauth());
+      var acct = (p.account && p.account()) || '';
+      var status = live
+        ? (stale ? 'Session expired — reconnect' : 'Connected' + (acct ? ' as ' + acct : ''))
+        : p.configured() ? 'Not connected' : 'Not set up';
       body.appendChild(el('div', { class: 'vcl-set-h' }, [
         el('span', { class: 'ic', html: p.icon, style: 'color:' + p.accent }),
         el('span', { class: 'nm', text: p.label }),
-        el('span', { class: 'st' + (live ? ' on' : '') }, [
-          el('i', {}), el('span', { text: live ? 'Connected' : p.configured() ? 'Not connected' : 'Not set up' })
+        el('span', { class: 'st' + (live && !stale ? ' on' : '') }, [
+          el('i', {}), el('span', { text: status })
         ])
       ]));
       body.appendChild(el('div', { class: 'vcl-fld' }, [el('label', { text: su.label }), idField]));
@@ -2029,6 +2043,10 @@
         if (Object.keys(ST.sel).length) return;                                                // nor an active selection
         refreshCurrent(true);
       }, POLL_MS);
+
+      // A session lapsing is the one state change that arrives with no user
+      // action behind it — repaint so the chip stops claiming to be live.
+      window.addEventListener('vault-cloud-auth', function () { if (isVisible()) render(); });
 
       // Coming back to the tab is the moment a stale list is most obvious.
       document.addEventListener('visibilitychange', function () {
