@@ -31086,15 +31086,59 @@ window._THV={
     var ek = Object.keys(S.expanded);
     if (ek.length > EXPANDED_MAX) { var keep = {}; ek.slice(-EXPANDED_MAX).forEach(function (k) { keep[k] = true; }); S.expanded = keep; }
   }
-  function save() {
-    trim(); cacheLocal(); emit();
-    if (window._fbSaveMJDocs) window._fbSaveMJDocs(function () { return S; });
+  // TWO WRITE TIERS, because the two kinds of change here have wildly different
+  // value per write — and this all lands in ONE Firestore document.
+  //
+  // Starring a document or connecting an account is durable intent: it should
+  // reach your other devices promptly. Expanding a folder, switching tabs or
+  // opening a document is UI fidget — worth remembering, worthless to sync
+  // within the second. Treating them the same meant a minute of browsing a
+  // notebook tree produced a Firestore write per click and, because our own
+  // write echoes back through onSnapshot, a read for each one too. That is how
+  // a free-tier daily quota disappears into nothing but scrolling.
+  //
+  // Durable changes go now. Ephemeral ones hit localStorage immediately — so
+  // they survive a reload regardless — and coalesce into at most ONE Firestore
+  // write per minute, plus a flush when the tab goes away.
+  var DEFER_MS = 60000;
+  var lastPushed = '';
+  var deferTimer = null;
+
+  function pushNow() {
+    if (deferTimer) { clearTimeout(deferTimer); deferTimer = null; }
+    if (!window._fbSaveMJDocs) return;
+    var body = JSON.stringify(S);
+    // Nothing actually changed — re-expanding the folder you just collapsed
+    // lands back on identical state, and that must not cost a write.
+    if (body === lastPushed) return;
+    lastPushed = body;
+    window._fbSaveMJDocs(function () { return S; });
   }
+
+  function save() {          // durable: favourites, client ids, accounts
+    trim(); cacheLocal(); emit();
+    pushNow();
+  }
+
+  function saveLocal() {     // ephemeral: tree expansion, active section, last opened
+    trim(); cacheLocal(); emit();
+    if (deferTimer) return;  // one timer, not one per click of browsing
+    deferTimer = setTimeout(function () { deferTimer = null; pushNow(); }, DEFER_MS);
+  }
+
+  // Deferred state must not be lost just because it was cheap: flush on the way
+  // out. pagehide covers close/navigate; visibilitychange covers a phone being
+  // backgrounded, which often never fires pagehide at all.
+  window.addEventListener('pagehide', pushNow);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) pushNow(); });
   // Merge, never replace: a doc written by an older build must not delete keys
   // it simply doesn't know about.
   function applyRemote(d) {
     if (!d || typeof d !== 'object') return;
     Object.keys(DEFAULTS).forEach(function (k) { if (d[k] !== undefined && d[k] !== null) S[k] = d[k]; });
+    // Re-baseline the no-op guard against what the server now holds, so the next
+    // local edit compares against remote truth rather than our own last write.
+    try { lastPushed = JSON.stringify(S); } catch (e) {}
     cacheLocal(); emit();
   }
   window.addEventListener('fb-mjdocs-remote-update', function (e) { applyRemote(e.detail); });
@@ -31147,7 +31191,11 @@ window._THV={
       }
     }
   }
-  setInterval(keepAlive, 4 * 60 * 1000);
+  // Only renew for a tab that is actually in front. A backgrounded tab waking
+  // every four minutes to refresh tokens it is not using burns provider rate
+  // limit for nothing; the visibilitychange handler below re-mints the moment
+  // you come back, which is the only point at which a fresh token matters.
+  setInterval(function () { if (!document.hidden) keepAlive(); }, 4 * 60 * 1000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) keepAlive(); });
   window.addEventListener('online', function () { keepAlive(); flushQueue(); });
 
@@ -32089,7 +32137,16 @@ window._THV={
    * ALWAYS replaced by the live one the moment it lands, so it can never mask a
    * real change — it only removes the wait before the first paint.
    * ══════════════════════════════════════════════════════════════════════════ */
-  var CACHE_KEY = 'mjd_cache', CACHE_TTL = 1000 * 60 * 60 * 24 * 7, CACHE_MAX = 200;
+  // BUDGETED IN BYTES, NOT ENTRIES. A listing is an array of full node objects
+  // — roughly 360 bytes each, so a 100-item notebook section is ~35 KB and an
+  // entry cap of 200 would have permitted nearly 7 MB. localStorage is ~5 MB
+  // TOTAL and is shared with tony_journal_v3, which is MyJournal's own cache:
+  // filling it would not fail loudly, it would quietly stop the journal
+  // caching its entries. This cache is a speed optimisation and must never be
+  // the reason something else runs out of room, so it gets a hard 1 MB ceiling
+  // and evicts oldest-first to stay under it.
+  var CACHE_KEY = 'mjd_cache', CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
+  var CACHE_MAX = 200, CACHE_BYTES = 1024 * 1024;
   function cacheGet(k) {
     try {
       var all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
@@ -32103,11 +32160,22 @@ window._THV={
       var all = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
       all[k] = { at: Date.now(), v: v };
       var keys = Object.keys(all);
+      keys.sort(function (a, b) { return all[a].at - all[b].at; });   // oldest first
       if (keys.length > CACHE_MAX) {
-        keys.sort(function (a, b) { return all[a].at - all[b].at; });
-        keys.slice(0, keys.length - CACHE_MAX).forEach(function (x) { delete all[x]; });
+        keys.splice(0, keys.length - CACHE_MAX).forEach(function (x) { delete all[x]; });
       }
-      localStorage.setItem(CACHE_KEY, JSON.stringify(all));
+      // Then trim by size. Serialising once per eviction is fine: this loop
+      // only runs when the cache is genuinely full, and it drops the oldest
+      // listing each pass rather than throwing the whole cache away.
+      var body = JSON.stringify(all);
+      while (body.length > CACHE_BYTES && keys.length > 1) {
+        delete all[keys.shift()];
+        body = JSON.stringify(all);
+      }
+      // The freshest listing on its own exceeding the budget means an enormous
+      // folder; store nothing rather than evict everything for one entry.
+      if (body.length > CACHE_BYTES) return;
+      localStorage.setItem(CACHE_KEY, body);
     } catch (e) { /* quota — the cache is optional by design */ }
   }
   function cacheDrop(prefix) {
@@ -32194,7 +32262,7 @@ window._THV={
     var k = favKey(n);
     S.recents = S.recents.filter(function (r) { return favKey(r) !== k; });
     S.recents.unshift({ provider: n.provider, account: n.account, id: n.id, kind: n.kind, name: n.name, path: n.path || '', at: Date.now(), how: how || 'opened' });
-    save();
+    saveLocal();   // worth keeping, not worth a write per document opened
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
@@ -32266,7 +32334,29 @@ window._THV={
    * key here and no way to set one from the UI.
    * ══════════════════════════════════════════════════════════════════════════ */
   var AI_ENDPOINT = 'https://personal-ai.av1.workers.dev/docs/ai';
+
+  // Response cache. Every call here costs a Gemini free-tier request AND a
+  // Cloudflare Worker invocation, and the same call repeats more than you would
+  // think: summarising a document you did not edit, re-running Find Related,
+  // reopening search and asking the same thing. Keyed on the op plus a hash of
+  // the exact payload, so ANY edit to the document is automatically a cache
+  // miss and you never get a stale answer for changed content.
+  // In memory only — these responses are large and localStorage is shared with
+  // the rest of the app.
+  var AI_TTL = 30 * 60 * 1000, AI_CACHE_MAX = 40;
+  var aiCache = new Map();
+  function aiKey(op, payload) {
+    var str = op + '|' + JSON.stringify(payload);
+    var h = 5381;
+    for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+    return op + ':' + str.length + ':' + h.toString(36);
+  }
+
   async function ai(op, payload) {
+    var key = aiKey(op, payload || {});
+    var hit = aiCache.get(key);
+    if (hit && Date.now() - hit.at < AI_TTL) return hit.v;
+
     var r = await fetch(AI_ENDPOINT, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(Object.assign({ op: op, profile: 'tony' }, payload || {}))
@@ -32278,6 +32368,10 @@ window._THV={
         ? 'The AI is busy or out of quota right now. Try again in a minute.'
         : ((j && j.error) || 'The AI could not be reached.'));
     }
+    // Only successful answers are cached — a quota failure must be retryable
+    // the moment quota returns, not remembered for half an hour.
+    aiCache.set(key, { at: Date.now(), v: j });
+    if (aiCache.size > AI_CACHE_MAX) aiCache.delete(aiCache.keys().next().value);
     return j;
   }
   // Index ops send titles and folder paths only — never document bodies.
@@ -32296,7 +32390,7 @@ window._THV={
     // registry
     register: register, get: get, all: all, cloudProviders: cloudProviders,
     // settings
-    settings: function () { return S; }, save: save, load: loadSettings, onChange: onChange,
+    settings: function () { return S; }, save: save, saveLocal: saveLocal, flush: pushNow, load: loadSettings, onChange: onChange,
     setCfg: function (pid, patch) {
       S.providerCfg = S.providerCfg || {};
       S.providerCfg[pid] = Object.assign({}, S.providerCfg[pid] || {}, patch);
@@ -32866,7 +32960,7 @@ window._THV={
   function setSection(sec) {
     section = sec;
     S().view = Object.assign({}, S().view, { section: sec });
-    D.save();
+    D.saveLocal();   // switching tabs is not worth a round trip
     document.querySelectorAll('#mjd-nav [data-sec]').forEach(function (b) {
       b.classList.toggle('on', b.getAttribute('data-sec') === sec);
     });
@@ -32969,12 +33063,12 @@ window._THV={
     var tw = row.querySelector('.mjd-tw');
     var next = row.nextElementSibling;
     if (expanded[node.key]) {
-      expanded[node.key] = false; delete S().expanded[node.key]; D.save();
+      expanded[node.key] = false; delete S().expanded[node.key]; D.saveLocal();
       tw.classList.remove('open');
       if (next && next.classList.contains('mjd-kids')) next.remove();
       return;
     }
-    expanded[node.key] = true; S().expanded[node.key] = true; D.save();
+    expanded[node.key] = true; S().expanded[node.key] = true; D.saveLocal();
     tw.classList.add('open');
     var kids = document.createElement('div');
     kids.className = 'mjd-kids';
@@ -33105,7 +33199,7 @@ window._THV={
       B.setSync('synced');
       D.touchRecent(node, 'opened');
       S().lastOpen = { provider: node.provider, account: node.account, id: node.id, kind: node.kind, name: node.name, path: node.path || '' };
-      D.save();
+      D.saveLocal();
       paintDocBar();
     } catch (e) {
       if (!openDocState || openDocState.node.key !== node.key) return;
@@ -33355,7 +33449,8 @@ window._THV={
     if (!navigator.onLine) { ls.textContent = 'Offline — edits are saved on this device'; return; }
     ls.textContent = openDocState && openDocState.lastSync ? 'Synced ' + fmtWhen(openDocState.lastSync) : '';
   }
-  setInterval(paintStatus, 30000);
+  // Nothing to repaint unless a document is open or the offline queue has work.
+  setInterval(function () { if (openDocState || D.queueSize()) paintStatus(); }, 30000);
   window.addEventListener('online', function () { paintStatus(); });
   window.addEventListener('offline', function () { paintStatus(); });
   D.on('queue', paintStatus);
@@ -33921,7 +34016,10 @@ window._THV={
     setTimeout(function () { inp.focus(); }, 40);
     // Deepen the index in the background — the panel is already usable from
     // cache, so this only ever adds results, never blocks the first paint.
-    if (Date.now() - D.indexAt() > 300000) D.refreshIndex({ ms: 15000 }).then(function () { if (el('mjd-omni').classList.contains('on')) paintOmni(); });
+    // The crawl walks Drive/Graph, so it spends provider rate limit, not ours.
+    // Search is already usable from cache the instant it opens, so this only
+    // ever deepens results — 20 minutes is plenty, 5 was needlessly eager.
+    if (Date.now() - D.indexAt() > 1200000) D.refreshIndex({ ms: 15000 }).then(function () { if (el('mjd-omni').classList.contains('on')) paintOmni(); });
   }
   function closeOmni() { var o = el('mjd-omni'); if (o) o.classList.remove('on'); }
 
