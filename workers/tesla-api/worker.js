@@ -244,9 +244,44 @@ async function handleVehicle(env, cors) {
     return j({ error: 'Fleet API ' + vd.status }, 502, cors);
   }
 
-  const body = { response: { ...vd.body.response, state: 'online' }, _fetchedAt: Date.now() };
+  // Reverse-geocode into a city label server-side — the browser only ever
+  // sees "Longmont, Colorado" (or a configured place name like "Home"),
+  // never the raw lat/lon a coordinate string would otherwise leak on screen.
+  const ds = vd.body.response.drive_state || {};
+  const lat = num(ds.latitude) ?? num(ds.native_latitude);
+  const lon = num(ds.longitude) ?? num(ds.native_longitude);
+  const place = (lat != null && lon != null) ? await placeLabel(env, lat, lon) : null;
+
+  const body = {
+    response: { ...vd.body.response, state: 'online', place },
+    _fetchedAt: Date.now(),
+  };
   await env.TESLA_KV.put(KV_VEHICLE_CACHE, JSON.stringify(body));
   return j(body, 200, cors);
+}
+
+// Reverse geocode → "Longmont, Colorado". Same free BigDataCloud endpoint and
+// caching shape as taskhub-weather-api's placeLabel() — rounded to 2 decimals
+// (~1.1km) both for cache reuse and so this Worker never stores or returns a
+// precise fix, only the city it resolves to. Best-effort: a failed lookup
+// just means the Location card falls back to a configured place or hides.
+async function placeLabel(env, lat, lon) {
+  const rlat = lat.toFixed(2), rlon = lon.toFixed(2);
+  const key = `place:${rlat}:${rlon}`;
+  try {
+    const hit = await env.TESLA_KV.get(key);
+    if (hit !== null) return hit || null;
+    const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${rlat}&longitude=${rlon}&localityLanguage=en`);
+    if (!res.ok) return null;
+    const g = await res.json();
+    const city = g.locality || g.city || '';
+    const region = g.principalSubdivision || g.countryName || '';
+    const label = [city, region].filter(Boolean).join(', ');
+    await env.TESLA_KV.put(key, label, { expirationTtl: 30 * 24 * 3600 });
+    return label || null;
+  } catch (e) {
+    return null;
+  }
 }
 
 async function refreshToken(env, t) {
@@ -319,3 +354,4 @@ function html(body, status, cors) {
     { status, headers: { ...cors, 'Content-Type': 'text/html' } });
 }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function num(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : null; }

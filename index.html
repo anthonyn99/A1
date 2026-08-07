@@ -2722,6 +2722,7 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 .thts-compact:hover{background:var(--ts-hov);}
 .thts-compact:focus-visible{outline:2px solid var(--ts-ac);outline-offset:-2px;}
 .thts-glyph{flex-shrink:0;display:flex;align-items:center;color:var(--ts-txd);}
+.thts-mini-car{display:block;width:100%;height:auto;pointer-events:none;}
 .thts-now{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;}
 .thts-pct{flex-shrink:0;font-size:clamp(19px,4.6vw,23px);font-weight:700;color:var(--ts-tx);
   line-height:1.1;letter-spacing:-.5px;}
@@ -3199,6 +3200,10 @@ function normalize(raw){
       if(Math.sqrt(dx*dx+dy*dy)<=(N(pl.radius_m)||150)){place=X(pl.name);break;}
     }
   }
+  // A named place (Home, etc.) always wins when the car is inside its
+  // radius; outside all of them, fall back to the city label the Worker
+  // reverse-geocoded server-side — same as raw coordinates never appearing.
+  if(!place)place=X(root.place);
   var drive={
     shift:shift==='D'?'Drive':shift==='R'?'Reverse':shift==='N'?'Neutral':shift==='P'?'Park':null,
     speed:(speed!=null&&speed>0)?(metricD?speed*1.609344:speed):null,
@@ -3547,6 +3552,29 @@ function carSvg(hex,sedan,charging){
             begin:(i*0.53)+'s',repeatCount:'indefinite'}));
       })):null);
 }
+
+// Compact-bar glyph: the same measured body+glass silhouette as the hero,
+// in the real paint colour, but stripped of everything that only reads at
+// hero size — wheel spokes, shut lines, the contact shadow, lamp signatures.
+// Left in, that detail line-work vanishes into mush at ~30px tall; stripped
+// down to body/glass/wheel-discs it still reads unmistakably as "a car" —
+// which is the whole reason it replaces the generic truck glyph at all.
+function miniCarSvg(hex,sedan){
+  var C=sedan?CAR.sedan:CAR.suv;
+  var top=shade(hex,.2),low=shade(hex,-.36);
+  var wy=C.ground-C.wheel,uid='thtsMini';
+  return h('svg',{className:'thts-mini-car',viewBox:'0 0 420 180',role:'img',
+      'aria-label':'Vehicle'},
+    h('defs',{key:'d'},
+      h('linearGradient',{id:uid+'Body',x1:'0',y1:'0',x2:'0',y2:'1'},
+        h('stop',{key:'a',offset:'0%',stopColor:top}),
+        h('stop',{key:'b',offset:'100%',stopColor:low}))),
+    h('path',{key:'body',d:C.body,fill:'url(#'+uid+'Body)'}),
+    h('path',{key:'rim',d:C.body,fill:'none',stroke:shade(hex,.45),strokeWidth:2.5,opacity:.5}),
+    h('path',{key:'glass',d:C.glass,fill:'#20242b'}),
+    h('circle',{key:'w1',cx:C.axles[0],cy:wy,r:C.wheel-4,fill:'#141517'}),
+    h('circle',{key:'w2',cx:C.axles[1],cy:wy,r:C.wheel-4,fill:'#141517'}));
+}
 // ── Render helpers. Each returns null when the value is absent, so a section
 //    that knows nothing renders nothing — no "N/A" rows, no empty headings. ─
 function card(k,label,value,unit,tone){
@@ -3644,6 +3672,11 @@ function Widget(props){
 
   // ── Compact card ──
   var title=d&&d.id?[d.id.model,d.id.trim].filter(Boolean).join(' '):'';
+  // The compact bar identifies the CAR ("The White Phantom"); the expanded
+  // panel identifies the MODEL. Same data, different job — the bar is a
+  // glance, the panel is a spec sheet. Falls back to model+trim when Tesla
+  // hasn't given the vehicle a name.
+  var nameLabel=(d&&d.id&&d.id.name)||title;
   var rangeVal=b?(b.estRange!=null?b.estRange:b.ratedRange):null;
   var subLine=!st.connected?'Not Connected'
     :d?(charging?'Charging':(d.state||'Vehicle'))
@@ -3653,13 +3686,14 @@ function Widget(props){
       'aria-haspopup':'dialog','aria-expanded':open?'true':'false',
       'aria-label':'Tesla — open vehicle status',
       onClick:function(){setOpen(!open);}},
-    h('span',{key:'g',className:'thts-glyph'},ico('car',30)),
+    h('span',{key:'g',className:'thts-glyph',style:{width:38}},
+      (d&&d.id)?miniCarSvg(d.id.hex||'#6f747a',!!d.id.sedan):ico('car',26)),
     h('span',{key:'n',className:'thts-now'},
       h('span',{key:'p',className:'thts-pct',style:lvl!=null?{color:tone[0]}:null},
         lvl!=null?lvl+'%':'Tesla'),
       h('span',{key:'s',className:'thts-sub',style:upper},subLine)),
     h('span',{key:'m',className:'thts-meta'},
-      title?h('span',{key:'t',className:'thts-name'},title):null,
+      nameLabel?h('span',{key:'t',className:'thts-name'},nameLabel):null,
       h('span',{key:'h',className:'thts-hl'},
         rangeVal!=null?h('b',{key:'b'},thou(rangeVal)+' '+U.dist):null,
         (rangeVal!=null&&dr&&dr.place)?h('span',{key:'p'},' · '+dr.place):null,
@@ -3708,7 +3742,11 @@ function Widget(props){
           carSvg((d&&d.id&&d.id.hex)||'#6f747a',!!(d&&d.id&&d.id.sedan),charging)))),
     h('div',{key:'id',className:'thts-id'},
       h('div',{key:'l',style:{minWidth:0}},
-        h('div',{key:'m',className:'thts-model'},title||(d&&d.id&&d.id.name)||'Tesla'),
+        h('div',{key:'m',className:'thts-model'},nameLabel||'Tesla'),
+        // Model+trim only earns its own line when the name above didn't
+        // already say it — otherwise "The White Phantom" / "Model 3 Long
+        // Range" / "Pearl White" is three lines for two facts.
+        (title&&d&&d.id&&d.id.name)?h('div',{key:'mt',className:'thts-paint'},title):null,
         (d&&d.id&&d.id.paint)?h('div',{key:'p',className:'thts-paint'},d.id.paint):null,
         h('div',{key:'s',className:'thts-stamp'},
           !st.connected?'Not Connected'
