@@ -79,10 +79,17 @@ No client secret is used or needed. Nothing is pasted into a file.
 **API permissions** — *API permissions* → *Add a permission* → *Microsoft Graph* →
 **Delegated permissions**:
 
-- [ ] `Notes.ReadWrite.All`
+- [ ] `Notes.ReadWrite`
 - [ ] `User.Read`
 - [ ] `offline_access`
 - [ ] Click **Grant admin consent** (only needed for a work/school account)
+
+> **Use `Notes.ReadWrite`, not `Notes.ReadWrite.All`.** The `.All` OneNote scopes
+> are work/school only — Graph will not grant them to a personal Microsoft
+> account. Requesting `.All` still signs you in and still issues a token, so the
+> connection looks healthy; the first call then fails with *"The request does not
+> contain a valid authentication token"*, which looks like a broken token rather
+> than a scope that was never granted.
 
 **Credentials**
 

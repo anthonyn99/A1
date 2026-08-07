@@ -31617,7 +31617,17 @@ window._THV={
    * action that would fail. Everything else in the spec is implemented.
    * ══════════════════════════════════════════════════════════════════════════ */
   var GRAPH = 'https://graph.microsoft.com/v1.0';
-  var MS_SCOPE = 'offline_access openid profile User.Read Notes.ReadWrite.All';
+  // Notes.ReadWrite, NOT Notes.ReadWrite.All.
+  //
+  // The .All variants of the OneNote scopes are work/school-only — Microsoft
+  // Graph does not support them for personal Microsoft accounts. Requesting
+  // .All against a personal account still completes sign-in and still issues a
+  // token, so the connection LOOKS fine; the first Graph call then fails with
+  // OneNote's "The request does not contain a valid authentication token",
+  // which reads like a broken token rather than a scope that was never granted.
+  // Notes.ReadWrite is supported on both account types and covers every notebook
+  // the signed-in user owns, which is what this integration touches.
+  var MS_SCOPE = 'offline_access openid profile User.Read Notes.ReadWrite';
 
   function onNode(o, account, kind, parentId) {
     return {
@@ -31660,7 +31670,8 @@ window._THV={
       hint: function (origin, redirect) {
         return 'Entra ID (Azure) → App registrations → New registration. Under <b>Authentication</b>, add a ' +
           '<b>Single-page application</b> platform with redirect URI <code>' + redirect + '</code>. ' +
-          'Under <b>API permissions</b>, add delegated Microsoft Graph <code>Notes.ReadWrite.All</code>, <code>User.Read</code>, <code>offline_access</code>.';
+          'Under <b>API permissions</b>, add delegated Microsoft Graph <code>Notes.ReadWrite</code>, <code>User.Read</code>, <code>offline_access</code>. ' +
+          'Use <code>Notes.ReadWrite</code>, not <code>Notes.ReadWrite.All</code> — the <code>.All</code> scopes are work/school only and a personal account cannot be granted them.';
       }
     },
 
@@ -31757,6 +31768,12 @@ window._THV={
       if (!r.ok) {
         var msg = '';
         try { var j = await r.json(); msg = j.error && (j.error.message || j.error.code); } catch (e) {}
+        // OneNote reports a scope it never granted as a malformed token, which
+        // sends you looking at the wrong thing entirely. Say what it actually is.
+        if (/does not contain a valid authentication token/i.test(msg || '')) {
+          throw new Error('OneNote rejected the sign-in. Sign out of this Microsoft account in MyJournal and connect again — ' +
+            'and in Azure make sure the permission is Notes.ReadWrite, not Notes.ReadWrite.All (the .All scopes are work/school only).');
+        }
         throw new Error(msg || ('OneNote error ' + r.status));
       }
       if (r.status === 204) return null;
