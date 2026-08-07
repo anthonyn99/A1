@@ -33,17 +33,29 @@ KROGER_LOCATION_ID_VEDA      = "01100446"
 binding = "TOKEN_CACHE"
 id = "b51e916cf3bf4f37ad146af5ca031575"
 
-# ONE Gemini key per person, shared across ALL three personal features
-# (MyList shopping lists, TaskHub voice, Journal AI Format). Stored as Cloudflare
-# SECRETS (never committed):
-#   TONY_GEMINI_KEY   → Tony's single key (MyList + TaskHub + MyJournal)
+# ONE Gemini key per person, shared across EVERY personal feature (MyList shopping
+# lists, TaskHub voice, Journal AI Format, Vault cloud search, and MyJournal's
+# cloud-document AI). Stored as Cloudflare SECRETS (never committed):
+#   TONY_GEMINI_KEY   → Tony's single key (MyList + TaskHub + MyJournal + Vault)
 #   VEDA_GEMINI_KEY   → Veda's single key (MyList + TaskHub + Brainstorm Journal)
 # Set them once with:
 #   wrangler secret put TONY_GEMINI_KEY
 #   wrangler secret put VEDA_GEMINI_KEY
 # Secrets persist across deploys, so CI auto-deploy keeps working without them in git.
 #
+# KEY FORMAT: Google AI Studio now issues keys as "AQ.…"; older "AIza…" keys still
+# work. Both authenticate as a plain ?key= query parameter, which is what
+# callGemini/geminiOnce already send — no code change to switch between them.
+#
 # This worker REPLACES the old mylist-api / taskhub-voice / journal-ai workers.
+#
+# ── MyJournal cloud documents (POST /docs/ai) ────────────────────────────────
+# Ten ops behind one route, on two fallback chains: DOC_WRITE_MODELS for work over
+# document CONTENT (summarise / rewrite / improve / expand — leads with the
+# flagship, because lite models distil long input) and DOC_INDEX_MODELS for work
+# over the library INDEX (search / related / duplicates / organise — leads with
+# 3.1-flash-lite, fastest at compact structured output). Needs no new secret: it
+# reuses the same per-person key above.
 #
 # ── Price Watch secrets (feature 5) ──────────────────────────────────────────
 # Firebase service account — SAME account taskhub-reminders uses; re-put here so
