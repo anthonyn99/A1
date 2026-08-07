@@ -2731,8 +2731,11 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 .thts-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;
   flex-shrink:0;font-size:10px;color:var(--ts-txd);line-height:1.3;}
 .thts-name{font-size:11px;font-weight:700;color:var(--ts-tx);letter-spacing:.2px;
-  max-width:min(170px,38vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.thts-hl{white-space:nowrap;}
+  max-width:min(140px,32vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* Capped so a long "range · place" can never squeeze .thts-sub down to the
+   truncated "Sleepi…" that motivated this rule — worst case THIS clips,
+   never the state label next to the battery percentage. */
+.thts-hl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;}
 .thts-hl b{font-weight:700;color:var(--ts-tx);}
 .thts-chev{flex-shrink:0;color:var(--ts-txm);}
 /* Hairline battery gauge welded to the card's bottom edge — the state of charge
@@ -2853,8 +2856,12 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   padding:8px 10px;min-width:0;}
 .thts-k{font-size:8.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
   color:var(--ts-txm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* Wraps rather than ellipsis-crops — "Longmont, CO" and "11 minutes ago" both
+   run longer than a grid cell's width, and a clipped reading is worse than a
+   two-line one. Grid rows size to their tallest cell, so a wrapped neighbour
+   just grows that one row, not the whole card. */
 .thts-v{font-size:14px;font-weight:700;color:var(--ts-tx);margin-top:3px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  overflow-wrap:break-word;line-height:1.25;}
 .thts-v small{font-size:9.5px;font-weight:700;color:var(--ts-txd);margin-left:3px;}
 .thts-v.grn{color:var(--ts-grn);} .thts-v.red{color:var(--ts-red);} .thts-v.blu{color:var(--ts-blu);}
 
@@ -2890,11 +2897,12 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 /* ── Tires: top-down, the car body drawn in the gutter between the columns ── */
 .thts-tirebox{position:relative;display:grid;grid-template-columns:1fr 1fr;
   gap:8px 74px;padding:6px 0;}
-.thts-tirebox::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:56px;
-  transform:translateX(-50%);border:1px solid var(--ts-bd);border-radius:28px/18px;
-  background:linear-gradient(180deg,var(--ts-s2),var(--ts-s1));}
-.thts-tirebox::after{content:'';position:absolute;left:50%;top:30%;height:1px;width:40px;
-  transform:translateX(-50%);background:var(--ts-bd);}
+/* The car outline itself is a real SVG child (.thts-tire-car below), not a
+   pseudo-element — it needs to swap shape between sedan and SUV, which
+   content-less ::before/::after can't do. */
+.thts-tire-car{position:absolute;left:50%;top:2px;bottom:2px;width:56px;
+  transform:translateX(-50%);pointer-events:none;}
+.thts-tire-car svg{display:block;width:100%;height:100%;}
 .thts-tire{position:relative;background:var(--ts-s2);border:1px solid var(--ts-bd);
   border-radius:10px;padding:7px 9px;text-align:center;min-width:0;}
 .thts-tire.warn{border-color:rgba(214,138,124,.55);}
@@ -3097,7 +3105,7 @@ function normalize(raw){
   var moving=(!!shift&&shift!=='P')||(speed!=null&&speed>0);
   var state=null;
   if(raws==='offline')state='Offline';
-  else if(raws==='asleep')state='Sleeping';
+  else if(raws==='asleep')state='Asleep';
   else if(moving)state='Driving';
   else if(chargingState==='Charging')state='Charging';
   else if(raws==='online')state='Online';
@@ -3575,6 +3583,29 @@ function miniCarSvg(hex,sedan){
     h('circle',{key:'w1',cx:C.axles[0],cy:wy,r:C.wheel-4,fill:'#141517'}),
     h('circle',{key:'w2',cx:C.axles[1],cy:wy,r:C.wheel-4,fill:'#141517'}));
 }
+
+// Tire section's centre gutter: a schematic top-down outline, nose at the
+// top (Front Left/Right sit above it), tail at the bottom (Rear Left/Right
+// below) — same sedan/SUV split as the side-profile renders, so a Model Y
+// reads boxier here too, not just in the hero. Neutral chrome, not paint —
+// pressure diagrams read as instrumentation, not as "another car photo".
+// Colours are the dark theme's own S2/BD/BDL, written literally rather than
+// via CSS var() because SVG presentation attributes don't reliably resolve
+// custom properties across engines the way an element's own style does.
+function topViewSvg(sedan){
+  var body=sedan
+    ? 'M30 4C22 4 14 13 11 33 9 47 8 68 8 98L8 140C8 169 9 190 13 199 17 207 23 210 30 210 37 210 43 207 47 199 51 190 52 169 52 140L52 98C52 68 51 47 49 33 46 13 38 4 30 4Z'
+    : 'M30 6C18 6 11 12 9 26 8 40 7 60 7 90L7 148C7 176 8 194 12 202 16 209 22 212 30 212 38 212 44 209 48 202 52 194 53 176 53 148L53 90C53 60 52 40 51 26 49 12 42 6 30 6Z';
+  var windshield=sedan?'M17 42L43 42L48 74L12 74Z':'M13 34L47 34L50 66L10 66Z';
+  var rearGlass=sedan?'M12 142L48 142L43 168L17 168Z':'M9 156L51 156L47 182L13 182Z';
+  var mirrors=sedan?[[3,45,5,9],[52,45,5,9]]:[[1,37,5,9],[54,37,5,9]];
+  return h('svg',{viewBox:'0 0 60 216',role:'img','aria-label':'Top-down vehicle outline'},
+    h('path',{key:'b',d:body,fill:'#2c2c31',stroke:'#45454c',strokeWidth:1.4}),
+    mirrors.map(function(m,i){return h('rect',{key:'m'+i,x:m[0],y:m[1],width:m[2],height:m[3],rx:2,fill:'#45454c'});}),
+    h('path',{key:'w',d:windshield,fill:'#34343a'}),
+    h('path',{key:'r',d:rearGlass,fill:'#34343a'}),
+    h('line',{key:'c',x1:30,y1:78,x2:30,y2:140,stroke:'#34343a',strokeWidth:1,opacity:.6}));
+}
 // ── Render helpers. Each returns null when the value is absent, so a section
 //    that knows nothing renders nothing — no "N/A" rows, no empty headings. ─
 function card(k,label,value,unit,tone){
@@ -3714,7 +3745,7 @@ function Widget(props){
 
   var pills=[];
   if(d&&d.state)pills.push(pill('st',d.state,
-    charging?'on':d.state==='Driving'?'info':(d.state==='Offline'||d.state==='Sleeping')?'':'acc',
+    charging?'on':d.state==='Driving'?'info':(d.state==='Offline'||d.state==='Asleep')?'':'acc',
     charging?'bolt':d.state==='Driving'?'speed':'car'));
   if(sec&&sec.locked!=null)pills.push(pill('lk',sec.locked?'Locked':'Unlocked',
     sec.locked?'':'warn',sec.locked?'lock':'unlock'));
@@ -3850,7 +3881,14 @@ function Widget(props){
           h('b',{key:'v'},U.press==='bar'?n1(val):Math.round(val),
             h('em',{key:'u'},U.press)));
       }));
-    if(corners.length)tireBlock=h('div',{key:'tb',className:'thts-tirebox'},corners);
+    if(corners.length){
+      // Same sedan/SUV split the side-profile render uses, so a linked
+      // Model Y draws a boxier top-down outline here too — the car icon
+      // updates everywhere the model does, not just in the hero.
+      corners.unshift(h('div',{key:'car',className:'thts-tire-car'},
+        topViewSvg(!!(d.id&&d.id.sedan))));
+      tireBlock=h('div',{key:'tb',className:'thts-tirebox'},corners);
+    }
   }
 
   // ── Charging history ──

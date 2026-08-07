@@ -275,7 +275,12 @@ async function placeLabel(env, lat, lon) {
     if (!res.ok) return null;
     const g = await res.json();
     const city = g.locality || g.city || '';
-    const region = g.principalSubdivision || g.countryName || '';
+    // US gets the 2-letter postal code ("Colorado" → "CO") — this label has
+    // to fit a ~140px compact-bar column, and the full state name doesn't.
+    // Everywhere else keeps the region/country name as BigDataCloud gives it,
+    // since there's no equivalent universal abbreviation to reach for.
+    const region = (g.countryCode === 'US' && US_STATE_ABBR[g.principalSubdivision])
+      || g.principalSubdivision || g.countryName || '';
     const label = [city, region].filter(Boolean).join(', ');
     await env.TESLA_KV.put(key, label, { expirationTtl: 30 * 24 * 3600 });
     return label || null;
@@ -355,3 +360,16 @@ function html(body, status, cors) {
 }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function num(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : null; }
+
+const US_STATE_ABBR = {
+  Alabama:'AL',Alaska:'AK',Arizona:'AZ',Arkansas:'AR',California:'CA',Colorado:'CO',
+  Connecticut:'CT',Delaware:'DE',Florida:'FL',Georgia:'GA',Hawaii:'HI',Idaho:'ID',
+  Illinois:'IL',Indiana:'IN',Iowa:'IA',Kansas:'KS',Kentucky:'KY',Louisiana:'LA',
+  Maine:'ME',Maryland:'MD',Massachusetts:'MA',Michigan:'MI',Minnesota:'MN',
+  Mississippi:'MS',Missouri:'MO',Montana:'MT',Nebraska:'NE',Nevada:'NV',
+  'New Hampshire':'NH','New Jersey':'NJ','New Mexico':'NM','New York':'NY',
+  'North Carolina':'NC','North Dakota':'ND',Ohio:'OH',Oklahoma:'OK',Oregon:'OR',
+  Pennsylvania:'PA','Rhode Island':'RI','South Carolina':'SC','South Dakota':'SD',
+  Tennessee:'TN',Texas:'TX',Utah:'UT',Vermont:'VT',Virginia:'VA',Washington:'WA',
+  'West Virginia':'WV',Wisconsin:'WI',Wyoming:'WY','District of Columbia':'DC',
+};
