@@ -1140,6 +1140,28 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
   const _whenAuthed = () => Promise.race([_fbAuthReady, new Promise(res => setTimeout(res, 3000))]);
   window._fbAuthReady = _fbAuthReady;
 
+  // Listeners wait for REAL auth — no 3s escape hatch.
+  //
+  // The escape hatch above exists so a slow or offline cold start still paints
+  // from cache instead of hanging; that trade is right for a one-shot read. It is
+  // wrong for a listener. Every rule here is `request.auth != null`, so a listen
+  // that starts before anon auth lands is evaluated unauthenticated and denied —
+  // and a denied listener does not retry. Its error callback logs, and Vault then
+  // silently receives no cross-device updates for the rest of the session, which
+  // is indistinguishable from "nothing changed on the other device". It also
+  // spends a denied rule evaluation per listener per load, on every device.
+  //
+  // Nothing is lost by waiting: first paint comes from localStorage and the
+  // _fbLoad* calls, and these four only carry LATER changes.
+  const authedSnapshot = (ref, next, onErr) => {
+    let live = true, off = null;
+    _fbAuthReady.then(() => {
+      if (!live) return;
+      off = onSnapshot(ref, next, onErr);
+    });
+    return () => { live = false; if (off) off(); };
+  };
+
   // IndexedDB persistence, matching index.html rather than the memory cache the
   // other standalone programs use — Vault must keep working offline, and an
   // encrypted item list should be on screen the instant the page opens.
@@ -1173,7 +1195,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
   // ── Keychain: dashboards/keychain ─────────────────────────────────────────
   const kcDocRef = doc(db, "dashboards/keychain");
   let _kcLastOwnSaveAt = 0, _kcSaveTimer = null;
-  onSnapshot(kcDocRef, (snap) => {
+  authedSnapshot(kcDocRef, (snap) => {
     if (Date.now() - _kcLastOwnSaveAt < 6000) return;   // skip our own echo
     if (snap.exists()) window.dispatchEvent(new CustomEvent("fb-kc-remote-update", { detail: snap.data() }));
   }, (err) => console.warn("Keychain listener error:", err && err.code));
@@ -1209,7 +1231,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
   // contract Vault/vault-ui.js's makeFirebaseBackend() expects.
   const vaultDocRef = doc(db, "dashboards/vault_pw");
   let _vaultLastOwnSaveAt = 0, _vaultSaveTimer = null;
-  onSnapshot(vaultDocRef, (snap) => {
+  authedSnapshot(vaultDocRef, (snap) => {
     if (Date.now() - _vaultLastOwnSaveAt < 6000) return;
     if (snap.exists()) window.dispatchEvent(new CustomEvent("fb-vault-remote-update", { detail: snap.data() }));
   }, (err) => console.warn("Vault listener error:", err && err.code));
@@ -1248,7 +1270,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
   // _mlLoadOk — an empty save is indistinguishable from a real one on the wire.)
   const cloudDocRef = doc(db, "dashboards/vault_cloud");
   let _cloudLastOwnSaveAt = 0, _cloudSaveTimer = null, _cloudLoadOk = false;
-  onSnapshot(cloudDocRef, (snap) => {
+  authedSnapshot(cloudDocRef, (snap) => {
     _cloudLoadOk = true;                                  // reads work — lift the barrier
     if (Date.now() - _cloudLastOwnSaveAt < 6000) return;   // skip our own echo
     if (snap.exists()) window.dispatchEvent(new CustomEvent("fb-cloud-remote-update", { detail: snap.data() }));
@@ -1312,7 +1334,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
     catch(e) { console.warn('[AppLock] load failed:', e); }
     return null;
   };
-  onSnapshot(alDocRef, (snap) => {
+  authedSnapshot(alDocRef, (snap) => {
     if (!snap.exists()) return;
     if (Date.now() - _alLastOwnSaveAt < 2000) return;
     if (window._alApplyRemoteLocks) window._alApplyRemoteLocks(snap.data().locks || {});

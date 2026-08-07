@@ -3620,8 +3620,15 @@ function topViewSvg(sedan){
   var glass=sedan?{x:20,y:26,w:20,h:76,r:8}:{x:15,y:24,w:30,h:78,r:8};
   var mirrors=sedan?[[5,29,5,9],[50,29,5,9]]:[[1,27,5,9],[54,27,5,9]];
   var tail=sedan?{x:16,y:b.y+b.h-6,w:28,h:4}:{x:12,y:b.y+b.h-6,w:36,h:4};
+  // Axles placed off the car's real proportions rather than eyeballed insets:
+  // a Model 3 is 4694mm long on a 2875mm wheelbase, so the front axle sits
+  // ~18% back from the nose and the rear ~79% (slightly more rear overhang
+  // than front). The previous version hard-coded a 38px inset from each end,
+  // which worked out to a 27%-of-length wheelbase — that is why the rear
+  // wheels looked parked halfway up the car.
   var ww=7,wh=18,wl=sedan?12:8,wr=sedan?(b.x+b.w-2-ww):(b.x+b.w-1-ww);
-  var wheels=[[wl,38],[wr,38],[wl,b.y+b.h-38-wh],[wr,b.y+b.h-38-wh]];
+  var axleF=b.y+b.h*0.18,axleR=b.y+b.h*0.79;
+  var wheels=[[wl,axleF-wh/2],[wr,axleF-wh/2],[wl,axleR-wh/2],[wr,axleR-wh/2]];
   var uid='thtsTop';
   return h('svg',{viewBox:'0 0 60 132',role:'img','aria-label':'Top-down vehicle outline'},
     h('defs',{key:'d'},h('linearGradient',{id:uid,x1:'0',y1:'0',x2:'0',y2:'1'},
@@ -4068,8 +4075,11 @@ function Widget(props){
 }
 
 // ── Public API ───────────────────────────────────────────────────────────
-function configure(patch){
-  if(!patch||typeof patch!=='object')return CFG;
+// The fields that belong to the user's setup (as opposed to fetched vehicle
+// state). These are what sync between devices; everything else is per-device.
+var CFG_KEYS=['endpoint','model','trim','paint','paintHex','places'];
+
+function applyCfg(patch,push){
   var epChanged=('endpoint' in patch)&&patch.endpoint!==CFG.endpoint;
   Object.keys(patch).forEach(function(k){
     if(patch[k]===null||patch[k]===undefined)delete CFG[k];else CFG[k]=patch[k];
@@ -4079,8 +4089,43 @@ function configure(patch){
     S.data=null;S.at=0;S.err=null;
     try{localStorage.removeItem(LS_CACHE);}catch(e){}
   }
+  // Mirror to Firestore so linking on ONE device links them all. Nulls are
+  // written explicitly rather than omitted — that is what lets an unlink on
+  // the desktop actually clear the phone, instead of the phone's snapshot
+  // handler seeing a missing key and keeping its stale endpoint.
+  if(push&&typeof window._fbSaveTeslaCfg==='function'){
+    var out={};
+    CFG_KEYS.forEach(function(k){out[k]=(CFG[k]===undefined)?null:CFG[k];});
+    try{window._fbSaveTeslaCfg(out);}catch(e){}
+  }
   emit();
   return CFG;
+}
+
+function configure(patch){
+  if(!patch||typeof patch!=='object')return CFG;
+  return applyCfg(patch,true);
+}
+
+// Inbound from Firestore. Two guards matter here:
+//  1. `savedAt` must be present — a doc without it is not a payload this
+//     widget wrote, and applying it could blank a device that IS configured
+//     (the same class of bug the MyList write barrier exists to prevent).
+//  2. No-op when nothing actually differs, which absorbs the echo of our own
+//     write without needing a timing window, and stops a snapshot from
+//     needlessly dropping the cached vehicle data via the epChanged reset.
+function applyRemote(remote){
+  if(!remote||typeof remote!=='object'||!remote.savedAt)return false;
+  var patch={},changed=false;
+  CFG_KEYS.forEach(function(k){
+    var next=(remote[k]===undefined)?null:remote[k];
+    var cur=(CFG[k]===undefined)?null:CFG[k];
+    if(JSON.stringify(next)!==JSON.stringify(cur)){patch[k]=next;changed=true;}
+  });
+  if(!changed)return false;
+  applyCfg(patch,false);            // false: don't echo straight back to Firestore
+  if(CFG.endpoint)load(true);       // newly linked device — pull data immediately
+  return true;
 }
 window.THTS={
   Widget:Widget,
@@ -4089,6 +4134,8 @@ window.THTS={
   // JSON and the whole widget updates without a fetch.
   ingest:function(json){var m=normalize(json);if(m)apply(m);return !!m;},
   configure:configure,
+  // Called by the Firestore listener in the Firebase module block.
+  applyRemote:applyRemote,
   config:function(){try{return JSON.parse(JSON.stringify(CFG));}catch(e){return{};}},
   disconnect:function(){return configure({endpoint:null});},
   // Call after any successful Tesla command so the UI reflects it immediately.
@@ -8604,6 +8651,24 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (window._navOrderModule) window._navOrderModule.applyRemote(d);
     }, (err) => { console.warn('[NavOrder] onSnapshot error:', err); });
 
+    // ── Tesla widget setup — endpoint + named places, synced across devices ──
+    // Only the SETUP syncs (which Worker to call, what "Home" means), never the
+    // vehicle telemetry itself: that stays a live per-device fetch, so a phone
+    // opening the popup gets current data rather than whatever the desktop last
+    // saw. Linking once on any device links them all.
+    const _tsDocRef = doc(db, "dashboards/tesla_cfg");
+    window._fbSaveTeslaCfg = async (payload) => {
+      try { await setDoc(_tsDocRef, { ...payload, savedAt: Date.now() }); }
+      catch(e) { console.warn('[Tesla] Firebase save failed:', e); }
+    };
+    if (window._tsUnsubscribe) { window._tsUnsubscribe(); window._tsUnsubscribe = null; }
+    window._tsUnsubscribe = onSnapshot(_tsDocRef, (snap) => {
+      if (!snap.exists()) return;
+      // THTS ignores echoes of its own write and no-ops when nothing changed,
+      // so this needs no timing window of its own (unlike NavOrder above).
+      if (window.THTS && window.THTS.applyRemote) window.THTS.applyRemote(snap.data());
+    }, (err) => { console.warn('[Tesla] onSnapshot error:', err); });
+
     window._fbReady = true;
     window.dispatchEvent(new CustomEvent("fb-ready"));
   }
@@ -8631,6 +8696,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_mcUnsubscribe)  { _mcUnsubscribe();  _mcUnsubscribe  = null; }
     if (_pvUnsubscribe)  { _pvUnsubscribe();  _pvUnsubscribe  = null; }
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
+    if (window._tsUnsubscribe) { window._tsUnsubscribe(); window._tsUnsubscribe = null; }
     if (window._fbUnwatchCanvas)   window._fbUnwatchCanvas();
     if (window._fbUnwatchMJCanvas) window._fbUnwatchMJCanvas();
     if (window._fbUnwatchTJCanvas) window._fbUnwatchTJCanvas();
@@ -32961,6 +33027,71 @@ window._THV={
     return gisPromise;
   }
 
+  /* ── Renewal that never draws a window ──────────────────────────────────────
+   * GIS renews through a popup — always, even when it has nothing to ask. With a
+   * live session it opens accounts.google.com, gets an instant approval and
+   * closes itself in a few hundred milliseconds: a correct renewal, and a window
+   * flashing on screen every hour. No option on that API turns it off.
+   *
+   * So renewals don't use it. The client-side flow's own silent path — prompt=none
+   * against the auth endpoint — answers with a redirect either way and renders
+   * nothing, so the whole exchange fits in a hidden iframe. GIS remains how a
+   * *click* connects or adds an account; it is no longer how anything renews.
+   *
+   * The callback page is shared with Vault (same origin, same tiny page, so one
+   * file and one registered URI does both apps). It must be listed under
+   * Authorized redirect URIs on whichever OAuth client this module uses — if that
+   * is the same client ID as Vault's, it is already registered.
+   * ────────────────────────────────────────────────────────────────────────── */
+  var GDOCS_SILENT_PAGE = 'Vault/oauth-silent.html';
+  function gdocsRedirectUri() {
+    return location.origin + location.pathname.replace(/[^/]*$/, '') + GDOCS_SILENT_PAGE;
+  }
+  function gdocsSilentToken(clientId, hint, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var state = 'g' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      var url = 'https://accounts.google.com/o/oauth2/v2/auth' +
+        '?client_id=' + encodeURIComponent(clientId) +
+        '&redirect_uri=' + encodeURIComponent(gdocsRedirectUri()) +
+        '&response_type=token' +
+        '&scope=' + encodeURIComponent(G_SCOPE) +
+        '&include_granted_scopes=true' +
+        '&prompt=none' +
+        '&state=' + encodeURIComponent(state) +
+        (hint ? '&login_hint=' + encodeURIComponent(hint) : '');
+
+      var frame = document.createElement('iframe');
+      frame.setAttribute('aria-hidden', 'true');
+      frame.setAttribute('tabindex', '-1');
+      frame.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;border:0;visibility:hidden';
+
+      var done = false, timer = null;
+      function finish(err, tok) {
+        if (done) return; done = true;
+        window.removeEventListener('message', onMsg);
+        if (timer) clearTimeout(timer);
+        if (frame.parentNode) frame.parentNode.removeChild(frame);
+        if (err) reject(err); else resolve(tok);
+      }
+      function onMsg(e) {
+        // Three gates: our origin, our frame, our nonce.
+        if (e.origin !== location.origin) return;
+        if (frame.contentWindow && e.source !== frame.contentWindow) return;
+        var d = e.data;
+        if (!d || d.type !== 'vault-oauth-silent' || d.state !== state) return;
+        if (d.access_token) finish(null, { access: d.access_token, expires: Date.now() + (parseInt(d.expires_in, 10) || 3600) * 1000 });
+        else finish(new Error(d.error || 'login_required'));
+      }
+      window.addEventListener('message', onMsg);
+      // An unregistered redirect URI is the one case where Google renders a page
+      // instead of redirecting — and that page can neither frame us nor talk to
+      // us, so silence is the only symptom. Time out rather than hang.
+      timer = setTimeout(function () { finish(new Error('silent_timeout')); }, timeoutMs || 8000);
+      frame.src = url;
+      (document.body || document.documentElement).appendChild(frame);
+    });
+  }
+
   var GDOC_MIME = 'application/vnd.google-apps.document';
   var GFOLDER_MIME = 'application/vnd.google-apps.folder';
   // drive: browse, create, move, delete and export documents anywhere in the
@@ -33016,10 +33147,18 @@ window._THV={
       });
     },
 
-    // `interactive` separates a user pressing Connect from the background
-    // keep-alive. prompt:'' asks GIS to reuse the existing Google session and
-    // grant with no UI at all; it only falls back to a visible prompt when that
-    // genuinely can't work (signed out, or consent revoked).
+    // The invisible path. Every renewal goes through here, and it fails rather
+    // than asking — see the block comment above gdocsSilentToken.
+    _silent: function (hint, timeoutMs) {
+      var clientId = this.cfg().clientId;
+      if (!clientId) return Promise.reject(new Error('Add your Google OAuth client ID in Document Settings first.'));
+      return gdocsSilentToken(clientId, hint, timeoutMs);
+    },
+
+    // The window path. Never call this without a click behind it. `interactive`
+    // separates a user pressing Connect ('consent') from Add account
+    // ('select_account', the only way to reach a SECOND Google account — without
+    // it Google silently reuses the one already signed in).
     _token: function (interactive, hint) {
       var clientId = this.cfg().clientId;
       if (!clientId) return Promise.reject(new Error('Add your Google OAuth client ID in Document Settings first.'));
@@ -33061,16 +33200,32 @@ window._THV={
       // Try silent first on a plain Connect — if the Google session is still good
       // this completes with no popup at all. "Add account" always prompts.
       if (mode === 'add') t = await this._token('add');
-      else { try { t = await this._token(false); } catch (e) { t = await this._token(true); } }
+      else {
+        // A device that already has an account gets one quick invisible attempt
+        // first — reconnecting a still-good session then costs no window at all.
+        // Kept short because the click that got us here is what lets the real
+        // sign-in window open, and browsers stop honouring a gesture that's
+        // seconds old. With nothing connected there is nothing to renew, so a
+        // first connect goes straight to the window it just asked for.
+        var known = Tokens.list('gdocs');
+        try {
+          if (!known.length) throw new Error('nothing to renew');
+          t = await this._silent(known[0].email || '', 2500);
+        } catch (e) { t = await this._token(true); }
+      }
       var who = await this._whoami(t.access);
       Tokens.set('gdocs', who.id, { access: t.access, expires: t.expires, label: who.label, email: who.email });
       S.accountMeta['gdocs:' + who.id] = { label: who.label, email: who.email };
       save();
       return { id: who.id, label: who.label, email: who.email };
     },
+    // Background renewal: invisible or nothing. A failure here leaves the record
+    // alone and the account merely stale — the next thing that actually needs the
+    // account retries, and a session that has genuinely lapsed waits for a click
+    // rather than interrupting whatever is on screen.
     renew: async function (accountId) {
       var rec = Tokens.get('gdocs', accountId) || {};
-      var t = await this._token(false, rec.email);
+      var t = await this._silent(rec.email);
       Tokens.set('gdocs', accountId, Object.assign({}, rec, { access: t.access, expires: t.expires }));
     },
     disconnect: function (accountId) {
