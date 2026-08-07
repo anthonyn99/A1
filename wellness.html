@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Wellness</title>
+<meta name="theme-color" content="#1B1C1E">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231B1C1E%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%238D769A%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M26%2052c0-10%208-18%2018-18s18%208%2018%2018%27%2F%3E%3Cpath%20d%3D%27M22%2062h12l5-10%206%2020%205-10h24%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231B1C1E%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%238D769A%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M26%2052c0-10%208-18%2018-18s18%208%2018%2018%27%2F%3E%3Cpath%20d%3D%27M22%2062h12l5-10%206%2020%205-10h24%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Playfair+Display:wght@900&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   WELLNESS — Veda's side
+   --------------------------------------------------------------------------
+   Design tokens are lifted verbatim from Veda's Links (#vd-kc-root) in
+   index.html, which is the canonical Veda component set. Note the deliberate
+   divergence from V1/shared/tokens.css: that file specifies 10/14/20px radii,
+   but every Veda surface that actually ships renders at 5px. Match what the
+   user sees, not the drifted doc.
+
+   Rules inherited from the suite:
+     · Never introduce a new hue. --ac for emphasis, semantic four for meaning.
+     · Titles are Playfair Display 900, uppercase, letter-spacing 1px.
+     · Everything else is IBM Plex Mono.
+     · Chrome pills are 28px tall, 10px/700 uppercase. Active = filled accent,
+       hover = border only.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#1B1C1E; --s1:#26272A; --s2:#303135; --s3:#3A3B40;
+  --bd:#3D3E43; --bdl:#4A4B52;
+  --tx:#ECECEE; --txd:#AFB0B5; --txm:#76777C;
+  --ac:#8D769A; --acd:#6E5C7A; --acl:#A892B0; --acbg:#2E2535;
+  --grn:#5DAF6D; --grn-dim:#1C2A20;
+  --err:#E74C3C; --amber:#D9A33A; --blue:#6AA0D8;
+  --shadow:rgba(0,0,0,0.55);
+  --transition:.15s cubic-bezier(0.4,0,0.2,1);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  background:var(--bg); color:var(--tx);
+  font-family:'IBM Plex Mono',monospace; font-size:13px; letter-spacing:.01em;
+  overflow-y:auto; overflow-x:clip; -webkit-overflow-scrolling:touch;
+  -webkit-font-smoothing:antialiased;
+}
+@supports (-webkit-touch-callout:none){ html{height:-webkit-fill-available;} body{min-height:-webkit-fill-available;} }
+/* Scrollbars are hidden globally across the suite. */
+*{scrollbar-width:none;-ms-overflow-style:none;}
+*::-webkit-scrollbar{display:none;width:0;height:0;}
+a,button,label,select,[role="button"],[onclick],[tabindex]{touch-action:manipulation;cursor:pointer;}
+input,select,textarea,button{font-family:'IBM Plex Mono',monospace;}
+input[type=time],input[type=date],input[type=datetime-local]{color-scheme:dark;}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--ac);outline-offset:1px;}
+
+/* ── Shell header ── copied from .veda-hdr-* in index.html:174-187 ────────── */
+.veda-hdr-outer{background:var(--bg);font-family:'IBM Plex Mono',monospace;box-sizing:border-box;position:sticky;top:0;z-index:200;flex-shrink:0;}
+.veda-hdr-inner{max-width:2000px;margin:0 auto;width:100%;display:flex;flex-direction:row;align-items:flex-start;justify-content:space-between;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 4px) 14px 4px;box-sizing:border-box;}
+.veda-hdr-left{display:flex;flex-direction:column;gap:1px;min-width:0;flex-shrink:0;padding-top:2px;}
+.veda-hdr-right{display:flex;flex-direction:column;gap:4px;align-items:flex-end;min-width:0;flex:1;}
+.veda-hbtns{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px;}
+@media(max-width:1000px){
+  .veda-hdr-inner{flex-direction:column;gap:6px;align-items:stretch;}
+  .veda-hdr-left{flex-shrink:0;min-width:0;}
+  .veda-hdr-right{min-height:unset;align-items:flex-end;width:100%;}
+  .veda-hbtns{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-end;scrollbar-width:none;-ms-overflow-style:none;}
+  .veda-hbtns::-webkit-scrollbar{display:none;}
+}
+.wl-title{font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:var(--ac);letter-spacing:1px;text-transform:uppercase;line-height:1;}
+.wl-tagline{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--txm);margin-top:3px;}
+@media(max-width:520px){ .wl-title{font-size:18px;} }
+
+/* ── Chrome pills ── the canonical 28px Veda nav button ───────────────────── */
+.wl-hbtn{background:transparent;color:var(--ac);border:1px solid var(--bdl);border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:all var(--transition);white-space:nowrap;flex-shrink:0;outline:none;text-decoration:none;}
+.wl-hbtn:hover{border-color:var(--ac);}
+.wl-hbtn.active{background:var(--ac);color:var(--bg);border-color:var(--ac);}
+.wl-hbtn.icon{padding:0 8px;font-size:13px;border-color:rgba(141,118,154,0.45);}
+.wl-sync{font-size:10px;font-weight:600;white-space:nowrap;color:var(--txm);display:inline-flex;align-items:center;height:28px;}
+.wl-sync.ok{color:var(--grn);} .wl-sync.err{color:var(--err);}
+
+/* ── Content wrapper ──────────────────────────────────────────────────────── */
+.wl-wrap{max-width:900px;margin:0 auto;padding:clamp(10px,2vw,20px) clamp(12px,3vw,32px) calc(env(safe-area-inset-bottom,0px) + 40px);}
+.wl-view{display:none;} .wl-view.active{display:block;}
+
+/* ── Section header ───────────────────────────────────────────────────────── */
+.wl-section{display:flex;flex-direction:column;gap:10px;margin-bottom:22px;}
+.wl-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--bd);}
+.wl-section-title{font-size:10px;font-weight:700;color:var(--txd);letter-spacing:.5px;text-transform:uppercase;}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.wl-btn{background:var(--s2);border:1px solid var(--bdl);border-radius:5px;padding:0 16px;font-size:10px;font-weight:600;color:var(--txd);cursor:pointer;transition:all var(--transition);height:30px;display:inline-flex;align-items:center;gap:5px;text-transform:uppercase;letter-spacing:1px;}
+.wl-btn:hover{border-color:var(--ac);color:var(--ac);}
+.wl-btn-primary{background:var(--ac);color:var(--bg);border:1px solid var(--ac);border-radius:5px;padding:0 18px;font-size:10px;font-weight:700;cursor:pointer;transition:opacity var(--transition);display:inline-flex;align-items:center;gap:5px;height:30px;text-transform:uppercase;letter-spacing:1px;}
+.wl-btn-primary:hover{opacity:.85;}
+.wl-btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.wl-btn-danger{background:transparent;border:1px solid var(--err);border-radius:5px;padding:0 18px;font-size:10px;font-weight:700;color:var(--err);cursor:pointer;transition:all var(--transition);height:30px;display:inline-flex;align-items:center;text-transform:uppercase;letter-spacing:1px;}
+.wl-btn-danger:hover{background:var(--err);color:#fff;}
+.wl-new-btn{display:inline-flex;align-items:center;gap:5px;background:transparent;border:1px solid var(--bd);border-radius:5px;padding:0 10px;font-size:10px;font-weight:700;color:var(--txd);cursor:pointer;transition:all var(--transition);height:28px;text-transform:uppercase;letter-spacing:1px;}
+.wl-new-btn:hover{border-color:var(--ac);color:var(--ac);}
+.wl-new-btn.accent{background:var(--ac);border-color:var(--ac);color:var(--bg);}
+.wl-new-btn.accent:hover{opacity:.85;}
+.wl-icon-btn{background:transparent;border:none;padding:3px 6px;border-radius:4px;cursor:pointer;font-size:12px;line-height:1;transition:background .12s,color .12s;color:var(--txd);font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
+.wl-icon-btn:hover{background:var(--s2);color:var(--tx);}
+.wl-icon-btn.del-x{color:var(--txm);font-size:14px;}
+.wl-icon-btn.del-x:hover{color:var(--err);}
+
+/* ── Cards ── signature 2px accent bar on top via ::before ────────────────── */
+.wl-card{background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:12px 16px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;transition:border-color var(--transition);}
+.wl-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--card-accent,var(--ac));opacity:.7;}
+.wl-card:hover{border-color:var(--bdl);}
+
+.wl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;}
+
+/* Dashboard category card */
+.wl-cat-card{cursor:pointer;text-align:left;font-family:inherit;color:inherit;}
+.wl-cat-top{display:flex;align-items:center;gap:8px;min-width:0;}
+.wl-cat-icon{font-size:17px;line-height:1;flex-shrink:0;}
+.wl-cat-name{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wl-cat-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;}
+.wl-streak{color:var(--txm);display:inline-flex;align-items:center;gap:4px;}
+.wl-streak.hot{color:var(--amber);}
+.wl-status{display:inline-flex;align-items:center;gap:4px;color:var(--txm);}
+.wl-status.done{color:var(--grn);}
+.wl-dot{width:7px;height:7px;border-radius:50%;background:var(--txm);flex-shrink:0;}
+.wl-dot.done{background:var(--grn);}
+/* 7-day trailing strip — filled square = logged that day */
+.wl-week{display:flex;gap:3px;margin-top:2px;}
+.wl-week i{width:100%;height:4px;border-radius:1px;background:var(--s2);display:block;}
+.wl-week i.on{background:var(--ac);}
+/* Today reads as a brighter cap rather than a hairline outline, which was
+   almost invisible against the card at this size. */
+.wl-week i.today{background:var(--s3);box-shadow:0 0 0 1px var(--bdl);}
+.wl-week i.today.on{background:var(--acl);box-shadow:0 0 0 1px var(--acl);}
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+.wl-empty{text-align:center;padding:28px 16px;font-size:11px;color:var(--txm);border:1px dashed var(--bd);border-radius:5px;grid-column:1/-1;line-height:1.7;}
+.wl-empty .wl-btn-primary,.wl-empty .wl-btn{margin-top:14px;}
+
+/* ── Forms ────────────────────────────────────────────────────────────────── */
+.wl-field{margin-bottom:13px;}
+.wl-field label{display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--txm);margin-bottom:6px;}
+.wl-field label .req{color:var(--ac);}
+.wl-input,.wl-select,.wl-textarea{width:100%;background:var(--s2);border:1px solid var(--bdl);border-radius:5px;color:var(--tx);font-size:13px;font-weight:500;padding:9px 12px;outline:none;transition:border-color var(--transition);}
+.wl-input:focus,.wl-select:focus,.wl-textarea:focus{border-color:var(--ac);}
+.wl-input::placeholder,.wl-textarea::placeholder{color:var(--txm);}
+.wl-textarea{min-height:90px;resize:vertical;line-height:1.6;}
+.wl-input.invalid,.wl-select.invalid,.wl-textarea.invalid{border-color:var(--err);}
+.wl-err{color:var(--err);font-size:10px;font-weight:600;margin-top:5px;letter-spacing:.3px;display:none;}
+.wl-err.show{display:block;}
+.wl-hint{color:var(--txm);font-size:10px;margin-top:5px;letter-spacing:.3px;}
+.wl-row{display:flex;gap:8px;align-items:center;}
+.wl-row > *{min-width:0;}
+.wl-unit{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--txm);flex-shrink:0;}
+
+/* Scale picker — a row of pills, active is filled */
+.wl-scale{display:flex;gap:5px;flex-wrap:wrap;}
+.wl-scale button{background:var(--s2);border:1px solid var(--bdl);border-radius:5px;min-width:36px;height:34px;padding:0 8px;color:var(--txd);font-size:12px;font-weight:700;cursor:pointer;transition:all var(--transition);}
+.wl-scale button:hover{border-color:var(--ac);color:var(--ac);}
+.wl-scale button.on{background:var(--ac);border-color:var(--ac);color:var(--bg);}
+
+/* Duration input pair */
+.wl-dur{display:flex;gap:8px;align-items:center;}
+.wl-dur input{width:100%;}
+
+/* ── Modal ────────────────────────────────────────────────────────────────── */
+.wl-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:9500;padding:16px;}
+.wl-overlay.show{display:flex;}
+.wl-modal{background:var(--s1);border:1px solid var(--bdl);border-radius:5px;padding:28px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 30px 80px var(--shadow);}
+.wl-modal-title{font-family:'Playfair Display',serif;font-size:17px;font-weight:900;color:var(--ac);margin-bottom:20px;display:flex;align-items:center;gap:8px;}
+.wl-modal-actions{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;}
+.wl-modal-actions .spacer{flex:1;}
+.wl-confirm-msg{font-size:12px;color:var(--txd);line-height:1.65;margin-bottom:18px;}
+@media(max-width:500px){ .wl-modal{padding:18px 14px;} }
+
+/* ── Field builder rows ───────────────────────────────────────────────────── */
+.wl-fb-list{display:flex;flex-direction:column;gap:8px;}
+.wl-fb-row{background:var(--s2);border:1px solid var(--bd);border-radius:5px;padding:10px;display:flex;flex-direction:column;gap:8px;}
+.wl-fb-head{display:flex;align-items:center;gap:8px;}
+.wl-fb-head .wl-input{flex:1;}
+.wl-fb-opts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.wl-fb-opts .wl-input,.wl-fb-opts .wl-select{width:auto;flex:1;min-width:90px;}
+.wl-check{display:inline-flex;align-items:center;gap:6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--txm);cursor:pointer;white-space:nowrap;}
+.wl-check input{width:14px;height:14px;accent-color:var(--ac);cursor:pointer;}
+
+/* ── Entry list rows ──────────────────────────────────────────────────────── */
+.wl-entry{background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:10px 12px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;transition:border-color var(--transition);}
+.wl-entry:hover{border-color:var(--bdl);}
+.wl-entry-main{min-width:0;flex:1;}
+.wl-entry-when{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--txm);margin-bottom:5px;}
+.wl-entry-vals{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--txd);line-height:1.5;}
+.wl-entry-vals b{color:var(--tx);font-weight:600;}
+.wl-entry-vals .k{color:var(--txm);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-right:4px;}
+.wl-entry-acts{display:flex;gap:2px;flex-shrink:0;}
+.wl-list{display:flex;flex-direction:column;gap:6px;}
+
+/* ── Chart ────────────────────────────────────────────────────────────────── */
+.wl-chart-wrap{background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:16px 14px 14px;position:relative;overflow:hidden;}
+.wl-chart-wrap::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac);opacity:.7;}
+.wl-chart-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.wl-chart-stats{display:flex;gap:16px;flex-wrap:wrap;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--txm);}
+.wl-chart-stats b{color:var(--tx);font-weight:700;font-size:13px;display:block;margin-top:2px;letter-spacing:.5px;}
+.wl-chart svg{display:block;width:100%;height:auto;overflow:visible;}
+.wl-chip-row{display:flex;gap:5px;flex-wrap:wrap;}
+.wl-chip{background:transparent;border:1px solid var(--bd);border-radius:5px;height:24px;padding:0 9px;font-size:9px;font-weight:700;color:var(--txd);cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:all var(--transition);display:inline-flex;align-items:center;}
+.wl-chip:hover{border-color:var(--ac);color:var(--ac);}
+.wl-chip.on{background:var(--ac);border-color:var(--ac);color:var(--bg);}
+
+/* ── Manager rows ─────────────────────────────────────────────────────────── */
+.wl-mgr-row{background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:10px 12px;display:flex;align-items:center;gap:10px;transition:border-color var(--transition);}
+.wl-mgr-row:hover{border-color:var(--bdl);}
+.wl-mgr-row.dragging{opacity:.4;}
+.wl-mgr-row.drop-target{border-color:var(--ac);}
+.wl-grip{color:var(--txm);cursor:grab;font-size:13px;flex-shrink:0;line-height:1;user-select:none;}
+.wl-grip:active{cursor:grabbing;}
+.wl-mgr-main{flex:1;min-width:0;}
+.wl-mgr-name{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:7px;}
+.wl-mgr-sub{font-size:10px;color:var(--txm);margin-top:3px;letter-spacing:.3px;}
+.wl-swatch{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+#wl-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--s1);border:1px solid var(--bdl);color:var(--ac);font-size:11px;font-weight:700;padding:8px 18px;border-radius:20px;z-index:10000;pointer-events:none;opacity:0;transition:opacity .2s,transform .2s;text-transform:uppercase;letter-spacing:1px;max-width:calc(100vw - 32px);text-align:center;}
+#wl-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#wl-toast.err{color:var(--err);border-color:var(--err);}
+
+/* ── Banner (unlogged-today nudge / errors) ───────────────────────────────── */
+.wl-banner{border-radius:5px;padding:10px 14px;font-size:11px;line-height:1.6;margin-bottom:16px;display:flex;align-items:center;gap:10px;letter-spacing:.3px;}
+.wl-banner.nudge{background:var(--acbg);border:1px solid var(--acd);color:var(--acl);}
+.wl-banner.error{background:#331B18;border:1px solid var(--err);color:#f0a89f;}
+.wl-banner .x{margin-left:auto;cursor:pointer;color:inherit;opacity:.65;font-weight:700;flex-shrink:0;}
+.wl-banner .x:hover{opacity:1;}
+
+/* ── Settings ─────────────────────────────────────────────────────────────── */
+.wl-set-row{background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+.wl-set-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--tx);}
+.wl-set-desc{font-size:10px;color:var(--txm);margin-top:4px;line-height:1.6;max-width:52ch;}
+.wl-toggle{width:34px;height:18px;border-radius:9px;background:var(--bd);position:relative;cursor:pointer;flex-shrink:0;transition:background .25s;border:none;padding:0;}
+.wl-toggle.on{background:var(--ac);}
+.wl-toggle i{position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--tx);transition:left .25s;display:block;}
+.wl-toggle.on i{left:18px;}
+.wl-toggle:disabled{opacity:.4;cursor:not-allowed;}
+
+.wl-back{display:inline-flex;align-items:center;gap:5px;}
+.wl-muted{color:var(--txm);font-size:11px;line-height:1.7;}
+.wl-loading{text-align:center;padding:60px 16px;color:var(--txm);font-size:11px;text-transform:uppercase;letter-spacing:2px;font-weight:700;}
+</style>
+</head>
+<body>
+
+<div class="veda-hdr-outer">
+  <div class="veda-hdr-inner">
+    <div class="veda-hdr-left">
+      <div class="wl-title">Wellness</div>
+      <div class="wl-tagline" id="wl-tagline">Daily</div>
+    </div>
+    <div class="veda-hdr-right">
+      <div class="veda-hbtns">
+        <a class="wl-hbtn" href="index.html">TaskHub</a>
+        <button class="wl-hbtn active" data-nav="dash">Today</button>
+        <button class="wl-hbtn" data-nav="manage">Categories</button>
+        <button class="wl-hbtn" data-nav="settings">Settings</button>
+        <button class="wl-hbtn icon" id="wl-lock-btn" title="App Lock">🔓</button>
+      </div>
+      <div class="veda-hbtns" style="padding-top:4px;">
+        <span class="wl-sync" id="wl-sync"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wl-wrap">
+  <div id="wl-banner-slot"></div>
+
+  <!-- ── Dashboard ────────────────────────────────────────────────────────── -->
+  <div class="wl-view active" id="view-dash">
+    <div class="wl-section">
+      <div class="wl-section-head">
+        <div class="wl-section-title" id="wl-dash-date">Today</div>
+        <button class="wl-new-btn" data-nav="manage">Manage</button>
+      </div>
+      <div class="wl-grid" id="wl-dash-grid">
+        <div class="wl-loading">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Log entry ────────────────────────────────────────────────────────── -->
+  <div class="wl-view" id="view-log">
+    <div class="wl-section">
+      <div class="wl-section-head">
+        <div class="wl-section-title" id="wl-log-title">Log</div>
+        <button class="wl-new-btn wl-back" data-nav="dash">← Back</button>
+      </div>
+      <form id="wl-log-form" autocomplete="off">
+        <div id="wl-log-fields"></div>
+        <div class="wl-field">
+          <label for="wl-log-when">When</label>
+          <input class="wl-input" type="datetime-local" id="wl-log-when">
+        </div>
+        <div class="wl-modal-actions">
+          <button class="wl-btn-primary" type="submit" id="wl-log-save">Save Entry</button>
+          <button class="wl-btn" type="button" data-nav="dash">Cancel</button>
+          <span class="spacer"></span>
+          <button class="wl-btn" type="button" id="wl-log-history">History &amp; Trends</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── History + chart ──────────────────────────────────────────────────── -->
+  <div class="wl-view" id="view-history">
+    <div class="wl-section">
+      <div class="wl-section-head">
+        <div class="wl-section-title" id="wl-hist-title">History</div>
+        <button class="wl-new-btn wl-back" data-nav="dash">← Back</button>
+      </div>
+      <div id="wl-chart-slot"></div>
+    </div>
+    <div class="wl-section">
+      <div class="wl-section-head">
+        <div class="wl-section-title">Entries</div>
+        <button class="wl-new-btn accent" id="wl-hist-add">+ Log</button>
+      </div>
+      <div class="wl-list" id="wl-hist-list"></div>
+    </div>
+  </div>
+
+  <!-- ── Category manager ─────────────────────────────────────────────────── -->
+  <div class="wl-view" id="view-manage">
+    <div class="wl-section">
+      <div class="wl-section-head">
+        <div class="wl-section-title">Categories</div>
+        <button class="wl-new-btn accent" id="wl-cat-new">+ New Category</button>
+      </div>
+      <div class="wl-list" id="wl-mgr-list"></div>
+    </div>
+    <div class="wl-section" id="wl-arch-section" style="display:none;">
+      <div class="wl-section-head">
+        <div class="wl-section-title">Archived</div>
+      </div>
+      <div class="wl-list" id="wl-arch-list"></div>
+    </div>
+  </div>
+
+  <!-- ── Settings ─────────────────────────────────────────────────────────── -->
+  <div class="wl-view" id="view-settings">
+    <div class="wl-section">
+      <div class="wl-section-head"><div class="wl-section-title">Reminders</div></div>
+      <div class="wl-list">
+        <div class="wl-set-row">
+          <div>
+            <div class="wl-set-label">Daily Reminder</div>
+            <div class="wl-set-desc" id="wl-push-desc">A single nightly push listing anything you haven't logged. Nothing is sent when the day is already complete.</div>
+          </div>
+          <button class="wl-toggle" id="wl-push-toggle"><i></i></button>
+        </div>
+        <div class="wl-set-row">
+          <div>
+            <div class="wl-set-label">Reminder Time</div>
+            <div class="wl-set-desc">Local time the nightly check runs.</div>
+          </div>
+          <input class="wl-input" type="time" id="wl-remind-time" style="width:120px;">
+        </div>
+      </div>
+    </div>
+    <div class="wl-section">
+      <div class="wl-section-head"><div class="wl-section-title">Data</div></div>
+      <div class="wl-list">
+        <div class="wl-set-row">
+          <div>
+            <div class="wl-set-label">Storage</div>
+            <div class="wl-set-desc" id="wl-storage-desc">—</div>
+          </div>
+          <button class="wl-btn" id="wl-reseed">Add Starter Categories</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Category editor modal ──────────────────────────────────────────────── -->
+<div class="wl-overlay" id="wl-cat-overlay">
+  <div class="wl-modal">
+    <div class="wl-modal-title"><span class="wl-swatch" id="wl-cat-swatch" style="background:#8D769A;"></span><span id="wl-cat-modal-title">New Category</span></div>
+    <div class="wl-row" style="gap:10px;align-items:flex-start;">
+      <div class="wl-field" style="flex:1;">
+        <label for="wl-cat-name">Name <span class="req">*</span></label>
+        <input class="wl-input" id="wl-cat-name" placeholder="Sleep" maxlength="40">
+        <div class="wl-err" id="wl-cat-name-err">Name is required</div>
+      </div>
+      <div class="wl-field" style="width:70px;flex-shrink:0;">
+        <label for="wl-cat-icon">Icon</label>
+        <input class="wl-input" id="wl-cat-icon" placeholder="🌙" maxlength="4" style="text-align:center;">
+      </div>
+    </div>
+    <div class="wl-field">
+      <label>Color</label>
+      <div class="wl-chip-row" id="wl-cat-colors"></div>
+    </div>
+    <div class="wl-field">
+      <label>Fields <span class="req">*</span></label>
+      <div class="wl-fb-list" id="wl-fb-list"></div>
+      <div class="wl-err" id="wl-cat-fields-err">Add at least one field</div>
+      <button class="wl-new-btn" type="button" id="wl-fb-add" style="margin-top:8px;">+ Add Field</button>
+    </div>
+    <div class="wl-modal-actions">
+      <button class="wl-btn-primary" id="wl-cat-save">Save</button>
+      <button class="wl-btn" id="wl-cat-cancel">Cancel</button>
+      <span class="spacer"></span>
+      <button class="wl-btn-danger" id="wl-cat-archive" style="display:none;">Archive</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm modal ──────────────────────────────────────────────────────── -->
+<div class="wl-overlay" id="wl-confirm-overlay">
+  <div class="wl-modal" style="max-width:420px;">
+    <div class="wl-modal-title" id="wl-confirm-title">Are you sure?</div>
+    <div class="wl-confirm-msg" id="wl-confirm-msg"></div>
+    <div class="wl-modal-actions">
+      <button class="wl-btn-danger" id="wl-confirm-yes">Confirm</button>
+      <button class="wl-btn" id="wl-confirm-no">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="wl-toast"></div>
+
+<script type="module">
+/* ══════════════════════════════════════════════════════════════════════════
+   FIREBASE
+   --------------------------------------------------------------------------
+   Same project as index.html and the V1 suite — deliberately. App Check with
+   reCAPTCHA v3 is ENFORCED on this project: without initializeAppCheck every
+   read and write is rejected, so it is not optional here.
+
+   Storage shape departs from the design spec's users/{uid}/… paths. Auth on
+   this project is anonymous, so the uid is per-device, not per-person — a
+   uid-scoped path would give the phone and the laptop separate, silently
+   diverging datasets. The suite convention (dashboards/{app}) is both correct
+   here and consistent with vedasdash / veda_links / journal.
+   ══════════════════════════════════════════════════════════════════════════ */
+import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
+import { initializeFirestore, persistentLocalCache, persistentSingleTabManager,
+         doc, collection, setDoc, getDoc, getDocs, addDoc, deleteDoc, updateDoc,
+         onSnapshot, query, where, orderBy, serverTimestamp
+       } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+
+const FB_CONFIG = {
+  apiKey: "AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
+  authDomain: "task-dashboard-d2b53.firebaseapp.com",
+  projectId: "task-dashboard-d2b53",
+  storageBucket: "task-dashboard-d2b53.firebasestorage.app",
+  messagingSenderId: "982539604706",
+  appId: "1:982539604706:web:e93da1aef499fcee2044bb"
+};
+const RECAPTCHA_KEY = '6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX';
+
+const app = getApps().find(a => a.name === '[DEFAULT]') || initializeApp(FB_CONFIG);
+try {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(RECAPTCHA_KEY),
+    isTokenAutoRefreshEnabled: true
+  });
+} catch (e) { console.warn('[wellness] App Check init:', e); }
+
+const auth = getAuth(app);
+let _authResolve;
+// Resolves with true once signed in, false if auth could not complete.
+// It must ALWAYS settle: the UI awaits this before its first render, so a
+// promise that merely never resolves would leave a permanent "Loading…"
+// screen with no explanation. Auth can legitimately fail here (an expired
+// App Check token, a cold offline launch, a browser blocking third-party
+// storage for recaptcha), and every one of those should still paint the app
+// from the local IndexedDB cache instead of hanging.
+let _authSettled = false;
+const authReady = new Promise(res => {
+  _authResolve = ok => { if (!_authSettled){ _authSettled = true; res(ok); } };
+});
+onAuthStateChanged(auth, u => { if (u) _authResolve(true); });
+signInAnonymously(auth).catch(e => {
+  console.warn('[wellness] Anon auth failed:', e);
+  _authResolve(false);
+});
+// Backstop: if neither path fires (network black hole), give up waiting.
+setTimeout(() => _authResolve(false), 8000);
+
+// Single-tab manager, matching index.html. The multi-tab manager coordinates
+// through localStorage and dies fatally when that ~5MB budget is full, which
+// permanently wedges sync on the device. Single-tab keeps its cache in
+// IndexedDB and takes ownership immediately (no stale-lease wait on iOS PWAs).
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({ forceOwnership: true }) })
+});
+
+const DOC_PATH     = 'dashboards/wellness';
+const ENTRIES_PATH = 'dashboards/wellness/entries';
+const wellnessDoc  = doc(db, DOC_PATH);
+const entriesCol   = collection(db, ENTRIES_PATH);
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PURE LOGIC — validation, streaks, formatting
+   These are deliberately standalone and side-effect free. They are the pieces
+   the spec asks to be unit-testable, and they are exported on window.__wellness
+   so a test harness (or the console) can drive them without a DOM.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Local-day key, e.g. "2026-08-06". Local, never UTC — a 11pm entry belongs
+ *  to the day you were awake for, not tomorrow in Greenwich. */
+function dayKey(d){
+  const x = d instanceof Date ? d : new Date(d);
+  return x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0');
+}
+function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
+function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+
+/**
+ * Validate one entry against its category schema.
+ * Pure. Returns { ok, errors: { [fieldId]: message } }.
+ */
+function validateEntry(category, values){
+  const errors = {};
+  const fields = (category && category.fields) || [];
+  for (const f of fields){
+    const raw = values ? values[f.id] : undefined;
+    const empty = raw === undefined || raw === null || raw === '' ||
+                  (typeof raw === 'number' && Number.isNaN(raw));
+    if (empty){
+      if (f.required) errors[f.id] = 'Required';
+      continue;
+    }
+    if (f.type === 'number' || f.type === 'duration'){
+      const n = typeof raw === 'number' ? raw : Number(raw);
+      if (!Number.isFinite(n)) { errors[f.id] = 'Must be a number'; continue; }
+      if (n < 0) { errors[f.id] = 'Cannot be negative'; continue; }
+    }
+    if (f.type === 'scale'){
+      const n = typeof raw === 'number' ? raw : Number(raw);
+      const min = Number.isFinite(f.scaleMin) ? f.scaleMin : 1;
+      const max = Number.isFinite(f.scaleMax) ? f.scaleMax : 5;
+      if (!Number.isFinite(n)) { errors[f.id] = 'Must be a number'; continue; }
+      if (n < min || n > max) { errors[f.id] = 'Must be ' + min + '–' + max; continue; }
+    }
+  }
+  return { ok: Object.keys(errors).length === 0, errors };
+}
+
+/**
+ * Current streak = consecutive days ending today (or yesterday) with >=1 entry.
+ * Derived from entries every time — never stored, so it cannot drift out of
+ * sync with the actual data.
+ * Yesterday still counts as alive: at 9am you have not lost a streak you kept
+ * for 40 days simply because today is young.
+ */
+function computeStreak(timestamps, now){
+  if (!timestamps || !timestamps.length) return 0;
+  const today = startOfDay(now || new Date());
+  const days = new Set(timestamps.map(t => dayKey(t)));
+  let cursor = today;
+  if (!days.has(dayKey(cursor))) {
+    cursor = addDays(today, -1);
+    if (!days.has(dayKey(cursor))) return 0;   // gap of 2+ days: streak is dead
+  }
+  let n = 0;
+  while (days.has(dayKey(cursor))) { n++; cursor = addDays(cursor, -1); }
+  return n;
+}
+
+/** Trailing 7 local days, oldest first: [{key, on, isToday}] */
+function weekStrip(timestamps, now){
+  const today = startOfDay(now || new Date());
+  const days = new Set((timestamps||[]).map(t => dayKey(t)));
+  const out = [];
+  for (let i = 6; i >= 0; i--){
+    const d = addDays(today, -i);
+    const k = dayKey(d);
+    out.push({ key: k, on: days.has(k), isToday: i === 0 });
+  }
+  return out;
+}
+
+/** minutes → "1h 30m" / "45m" */
+function fmtDuration(mins){
+  const n = Number(mins);
+  if (!Number.isFinite(n)) return String(mins);
+  const h = Math.floor(n/60), m = Math.round(n%60);
+  if (h && m) return h + 'h ' + m + 'm';
+  if (h) return h + 'h';
+  return m + 'm';
+}
+function fmtValue(field, v){
+  if (v === undefined || v === null || v === '') return '—';
+  if (field.type === 'duration') return fmtDuration(v);
+  if (field.type === 'scale') {
+    const max = Number.isFinite(field.scaleMax) ? field.scaleMax : 5;
+    return v + '/' + max;
+  }
+  if (field.type === 'number') return field.unit ? v + ' ' + field.unit : String(v);
+  return String(v);
+}
+function fmtWhen(d){
+  const x = d instanceof Date ? d : new Date(d);
+  const today = startOfDay(new Date());
+  const k = dayKey(x);
+  const time = x.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+  if (k === dayKey(today)) return 'Today · ' + time;
+  if (k === dayKey(addDays(today,-1))) return 'Yesterday · ' + time;
+  return x.toLocaleDateString([], { month:'short', day:'numeric' }) +
+         (x.getFullYear() !== today.getFullYear() ? ' ' + x.getFullYear() : '') + ' · ' + time;
+}
+
+window.__wellness = { validateEntry, computeStreak, weekStrip, dayKey, fmtDuration, fmtValue };
+
+/* ══════════════════════════════════════════════════════════════════════════
+   STATE
+   ══════════════════════════════════════════════════════════════════════════ */
+const PALETTE = ['#8D769A','#5DAF6D','#6AA0D8','#D9A33A','#E05B4E','#6FBFA8','#BFA6E0','#B4AEC0'];
+
+const STARTERS = [
+  { name:'Sleep',      icon:'🌙', color:'#8D769A', fields:[
+      { label:'Hours',   type:'duration', required:true },
+      { label:'Quality', type:'scale', scaleMin:1, scaleMax:5, required:false } ] },
+  { name:'Water',      icon:'💧', color:'#6AA0D8', fields:[
+      { label:'Glasses', type:'number', unit:'glasses', required:true } ] },
+  { name:'Mood',       icon:'🌤', color:'#D9A33A', fields:[
+      { label:'Rating',  type:'scale', scaleMin:1, scaleMax:5, required:true },
+      { label:'Notes',   type:'text', required:false } ] },
+  { name:'Exercise',   icon:'🏃', color:'#5DAF6D', fields:[
+      { label:'Activity',  type:'text', required:true },
+      { label:'Duration',  type:'duration', required:true },
+      { label:'Intensity', type:'scale', scaleMin:1, scaleMax:5, required:false } ] },
+  { name:'Meals',      icon:'🍽', color:'#E05B4E', fields:[
+      { label:'Description', type:'text', required:true },
+      { label:'Notes',       type:'text', required:false } ] },
+  { name:'Meditation', icon:'🧘', color:'#6FBFA8', fields:[
+      { label:'Duration', type:'duration', required:true } ] }
+];
+
+const state = {
+  categories: [],           // Category[]
+  settings: { reminderTime:'20:00', remindersEnabled:false },
+  entries: [],              // Entry[] — all of them; a personal tracker stays small
+  loaded: false,
+  offline: false,
+  view: 'dash',
+  activeCatId: null,
+  chartField: null,
+  chartRange: 30,
+  editingCat: null,
+  editingEntryId: null
+};
+
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+/* ── Toast / banner ───────────────────────────────────────────────────────── */
+let toastTimer;
+function toast(msg, isErr){
+  const t = $('#wl-toast');
+  t.textContent = msg;
+  t.classList.toggle('err', !!isErr);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), isErr ? 3200 : 1800);
+}
+function banner(html, kind){
+  const slot = $('#wl-banner-slot');
+  const div = document.createElement('div');
+  div.className = 'wl-banner ' + (kind || 'nudge');
+  div.innerHTML = html + '<span class="x">×</span>';
+  div.querySelector('.x').onclick = () => div.remove();
+  slot.appendChild(div);
+  return div;
+}
+function setSync(text, cls){
+  const el = $('#wl-sync');
+  el.textContent = text || '';
+  el.className = 'wl-sync' + (cls ? ' ' + cls : '');
+}
+
+/* Every Firestore call funnels through here so nothing can fail silently. */
+async function guard(label, fn){
+  try { return await fn(); }
+  catch (e){
+    console.error('[wellness] ' + label + ':', e);
+    // When we already know we are unauthenticated, the offline banner has
+    // said so once — do not stack an identical error per failed read.
+    if (!state.offline){
+      const msg = (e && e.code === 'permission-denied')
+        ? 'Permission denied — App Check or auth failed.'
+        : (e && e.message) || String(e);
+      toast(label + ' failed', true);
+      banner('<b>' + esc(label) + ' failed.</b> ' + esc(msg), 'error');
+      setSync('Error', 'err');
+    }
+    return null;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PERSISTENCE
+   ══════════════════════════════════════════════════════════════════════════ */
+async function saveDocState(){
+  return guard('Save', async () => {
+    await setDoc(wellnessDoc, {
+      categories: state.categories,
+      settings: state.settings,
+      updatedAt: Date.now()
+    }, { merge: true });
+    setSync('Saved', 'ok');
+    setTimeout(() => setSync(''), 1400);
+  });
+}
+
+async function loadAll(){
+  setSync('Syncing…');
+  const signedIn = await authReady;
+
+  // Never let a failed sign-in block the UI. Firestore still answers from its
+  // persistent IndexedDB cache, so the app stays usable and read-only-ish
+  // rather than showing a dead loading state. Writes will fail loudly through
+  // guard() if they are attempted.
+  if (!signedIn){
+    state.offline = true;
+    setSync('Offline', 'err');
+    banner('<b>Not signed in.</b> Showing locally cached data — changes will not sync until the connection is restored.', 'error');
+  }
+
+  const snap = await guard('Load', () => getDoc(wellnessDoc));
+  if (snap && snap.exists()){
+    const d = snap.data() || {};
+    state.categories = Array.isArray(d.categories) ? d.categories : [];
+    state.settings = Object.assign({ reminderTime:'20:00', remindersEnabled:false }, d.settings || {});
+  }
+
+  const es = await guard('Load entries', () => getDocs(query(entriesCol, orderBy('timestamp','desc'))));
+  if (es) state.entries = es.docs.map(d => Object.assign({ id:d.id }, d.data()));
+
+  state.loaded = true;
+  if (!state.offline) setSync('');
+  renderAll();
+
+  if (!signedIn) return;   // listeners would only error out
+
+  // Live updates from other devices.
+  onSnapshot(wellnessDoc, s => {
+    if (!s.exists()) return;
+    const d = s.data() || {};
+    if (Array.isArray(d.categories)) state.categories = d.categories;
+    if (d.settings) state.settings = Object.assign(state.settings, d.settings);
+    renderAll();
+  }, e => console.warn('[wellness] categories listener:', e));
+
+  onSnapshot(query(entriesCol, orderBy('timestamp','desc')), s => {
+    state.entries = s.docs.map(d => Object.assign({ id:d.id }, d.data()));
+    renderAll();
+  }, e => console.warn('[wellness] entries listener:', e));
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DERIVED
+   ══════════════════════════════════════════════════════════════════════════ */
+const activeCats = () => state.categories.filter(c => !c.archived).sort((a,b)=>(a.order||0)-(b.order||0));
+const archivedCats = () => state.categories.filter(c => c.archived).sort((a,b)=>(a.order||0)-(b.order||0));
+const catById = id => state.categories.find(c => c.id === id);
+const entriesFor = id => state.entries.filter(e => e.categoryId === id);
+const loggedToday = id => { const k = dayKey(new Date()); return entriesFor(id).some(e => dayKey(e.timestamp) === k); };
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NAVIGATION
+   ══════════════════════════════════════════════════════════════════════════ */
+function nav(view, opts){
+  state.view = view;
+  if (opts && opts.catId) state.activeCatId = opts.catId;
+  $$('.wl-view').forEach(v => v.classList.remove('active'));
+  const el = $('#view-' + view);
+  if (el) el.classList.add('active');
+  $$('.wl-hbtn[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === view));
+  // Log and History are sub-views of the dashboard; keep Today lit for them.
+  if (view === 'log' || view === 'history'){
+    const t = document.querySelector('.wl-hbtn[data-nav="dash"]');
+    if (t) t.classList.add('active');
+  }
+  window.scrollTo(0,0);
+  renderAll();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-nav]');
+  if (b) { e.preventDefault(); nav(b.dataset.nav); }
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RENDER — dashboard
+   ══════════════════════════════════════════════════════════════════════════ */
+function renderAll(){
+  if (!state.loaded) return;
+  renderDash();
+  if (state.view === 'log') renderLogForm();
+  if (state.view === 'history') renderHistory();
+  if (state.view === 'manage') renderManager();
+  if (state.view === 'settings') renderSettings();
+}
+
+function renderDash(){
+  const grid = $('#wl-dash-grid');
+  const cats = activeCats();
+  $('#wl-dash-date').textContent = new Date().toLocaleDateString([], { weekday:'long', month:'short', day:'numeric' });
+
+  if (!cats.length){
+    grid.innerHTML =
+      '<div class="wl-empty">' +
+        (state.categories.length
+          ? 'Every category is archived.<br>Unarchive one from Categories, or make a new one.'
+          : 'Nothing tracked yet.<br>Start with the six built-ins, or build your own from scratch.') +
+        '<div><button class="wl-btn-primary" id="wl-seed">Add Starter Categories</button> ' +
+        '<button class="wl-btn" data-nav="manage">New Category</button></div>' +
+      '</div>';
+    const s = $('#wl-seed'); if (s) s.onclick = seedStarters;
+    $('#wl-tagline').textContent = 'Daily';
+    return;
+  }
+
+  const done = cats.filter(c => loggedToday(c.id)).length;
+  $('#wl-tagline').textContent = done + ' / ' + cats.length + ' logged';
+
+  grid.innerHTML = cats.map(c => {
+    const ts = entriesFor(c.id).map(e => e.timestamp);
+    const streak = computeStreak(ts);
+    const isDone = loggedToday(c.id);
+    const strip = weekStrip(ts).map(d =>
+      '<i class="' + (d.on ? 'on' : '') + (d.isToday ? ' today' : '') + '" title="' + d.key + '"></i>').join('');
+    return '<button class="wl-card wl-cat-card" data-cat="' + esc(c.id) + '" style="--card-accent:' + esc(c.color || '#8D769A') + ';">' +
+      '<div class="wl-cat-top">' +
+        '<span class="wl-cat-icon">' + esc(c.icon || '•') + '</span>' +
+        '<span class="wl-cat-name">' + esc(c.name) + '</span>' +
+      '</div>' +
+      '<div class="wl-week">' + strip + '</div>' +
+      '<div class="wl-cat-meta">' +
+        '<span class="wl-streak' + (streak >= 3 ? ' hot' : '') + '">' +
+          (streak > 0 ? (streak >= 3 ? '🔥 ' : '') + streak + ' day' + (streak===1?'':'s') : 'No streak') +
+        '</span>' +
+        '<span class="wl-status' + (isDone ? ' done' : '') + '">' +
+          '<span class="wl-dot' + (isDone ? ' done' : '') + '"></span>' + (isDone ? 'Logged' : 'Pending') +
+        '</span>' +
+      '</div>' +
+    '</button>';
+  }).join('');
+
+  grid.querySelectorAll('[data-cat]').forEach(el => {
+    el.onclick = () => { state.editingEntryId = null; nav('log', { catId: el.dataset.cat }); };
+  });
+
+  // In-app fallback for the nightly push: the nudge shows regardless of
+  // whether notification permission was ever granted, so the feature degrades
+  // instead of disappearing.
+  const pending = cats.filter(c => !loggedToday(c.id));
+  const slot = $('#wl-banner-slot');
+  const old = slot.querySelector('.wl-banner.nudge');
+  if (old) old.remove();
+  if (pending.length && pending.length < cats.length){
+    banner('Still unlogged today: <b>' + pending.map(c => esc(c.name)).join(', ') + '</b>');
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RENDER — dynamic entry form
+   The whole point of the schema: ONE renderer driven by CategoryField[], with
+   no per-category branches anywhere.
+   ══════════════════════════════════════════════════════════════════════════ */
+function fieldControl(f, value){
+  const id = 'f-' + f.id;
+  if (f.type === 'scale'){
+    const min = Number.isFinite(f.scaleMin) ? f.scaleMin : 1;
+    const max = Number.isFinite(f.scaleMax) ? f.scaleMax : 5;
+    let out = '<div class="wl-scale" data-scale="' + esc(f.id) + '">';
+    for (let i = min; i <= max; i++){
+      out += '<button type="button" data-v="' + i + '" class="' + (String(value) === String(i) ? 'on' : '') + '">' + i + '</button>';
+    }
+    return out + '</div><input type="hidden" id="' + id + '" value="' + esc(value == null ? '' : value) + '">';
+  }
+  if (f.type === 'duration'){
+    const n = Number(value);
+    const h = Number.isFinite(n) ? Math.floor(n/60) : '';
+    const m = Number.isFinite(n) ? n%60 : '';
+    return '<div class="wl-dur" data-dur="' + esc(f.id) + '">' +
+      '<input class="wl-input" type="number" min="0" step="1" inputmode="numeric" data-h placeholder="0" value="' + esc(h) + '">' +
+      '<span class="wl-unit">hr</span>' +
+      '<input class="wl-input" type="number" min="0" max="59" step="1" inputmode="numeric" data-m placeholder="0" value="' + esc(m) + '">' +
+      '<span class="wl-unit">min</span>' +
+      '</div><input type="hidden" id="' + id + '" value="' + esc(value == null ? '' : value) + '">';
+  }
+  if (f.type === 'text'){
+    return '<textarea class="wl-textarea" id="' + id + '" placeholder="…">' + esc(value == null ? '' : value) + '</textarea>';
+  }
+  // number
+  return '<div class="wl-row">' +
+    '<input class="wl-input" type="number" step="any" min="0" inputmode="decimal" id="' + id + '" value="' + esc(value == null ? '' : value) + '" placeholder="0">' +
+    (f.unit ? '<span class="wl-unit">' + esc(f.unit) + '</span>' : '') +
+    '</div>';
+}
+
+function renderLogForm(){
+  const cat = catById(state.activeCatId);
+  if (!cat){ nav('dash'); return; }
+  const editing = state.editingEntryId ? state.entries.find(e => e.id === state.editingEntryId) : null;
+  const vals = editing ? (editing.values || {}) : {};
+
+  $('#wl-log-title').textContent = (cat.icon ? cat.icon + ' ' : '') + cat.name + (editing ? ' · Edit' : '');
+  $('#wl-log-save').textContent = editing ? 'Update Entry' : 'Save Entry';
+
+  $('#wl-log-fields').innerHTML = (cat.fields || []).map(f =>
+    '<div class="wl-field" data-field="' + esc(f.id) + '">' +
+      '<label for="f-' + esc(f.id) + '">' + esc(f.label) +
+        (f.required ? ' <span class="req">*</span>' : '') + '</label>' +
+      fieldControl(f, vals[f.id]) +
+      '<div class="wl-err" id="e-' + esc(f.id) + '"></div>' +
+    '</div>').join('');
+
+  const when = editing ? new Date(editing.timestamp) : new Date();
+  when.setMinutes(when.getMinutes() - when.getTimezoneOffset());
+  $('#wl-log-when').value = when.toISOString().slice(0,16);
+
+  // Scale pills write through to their hidden input.
+  $('#wl-log-fields').querySelectorAll('[data-scale]').forEach(grp => {
+    grp.querySelectorAll('button').forEach(b => {
+      b.onclick = () => {
+        grp.querySelectorAll('button').forEach(x => x.classList.remove('on'));
+        b.classList.add('on');
+        document.getElementById('f-' + grp.dataset.scale).value = b.dataset.v;
+      };
+    });
+  });
+  // Duration hours+minutes collapse into total minutes.
+  $('#wl-log-fields').querySelectorAll('[data-dur]').forEach(grp => {
+    const sync = () => {
+      const h = Number(grp.querySelector('[data-h]').value) || 0;
+      const m = Number(grp.querySelector('[data-m]').value) || 0;
+      const hasAny = grp.querySelector('[data-h]').value !== '' || grp.querySelector('[data-m]').value !== '';
+      document.getElementById('f-' + grp.dataset.dur).value = hasAny ? String(h*60 + m) : '';
+    };
+    grp.querySelectorAll('input').forEach(i => { i.oninput = sync; });
+  });
+}
+
+function readFormValues(cat){
+  const out = {};
+  for (const f of (cat.fields || [])){
+    const el = document.getElementById('f-' + f.id);
+    if (!el) continue;
+    const raw = el.value;
+    if (raw === '' || raw == null) continue;
+    out[f.id] = (f.type === 'number' || f.type === 'duration' || f.type === 'scale') ? Number(raw) : raw;
+  }
+  return out;
+}
+
+function showFieldErrors(errors){
+  $$('#wl-log-fields .wl-err').forEach(e => { e.classList.remove('show'); e.textContent = ''; });
+  $$('#wl-log-fields .wl-input,#wl-log-fields .wl-textarea').forEach(e => e.classList.remove('invalid'));
+  let first = null;
+  for (const [fid, msg] of Object.entries(errors)){
+    const e = document.getElementById('e-' + fid);
+    if (e){ e.textContent = msg; e.classList.add('show'); }
+    const wrap = document.querySelector('[data-field="' + fid + '"]');
+    if (wrap){
+      wrap.querySelectorAll('.wl-input,.wl-textarea').forEach(i => i.classList.add('invalid'));
+      if (!first) first = wrap;
+    }
+  }
+  if (first) first.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+$('#wl-log-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const cat = catById(state.activeCatId);
+  if (!cat) return;
+  const values = readFormValues(cat);
+  const { ok, errors } = validateEntry(cat, values);
+  if (!ok){ showFieldErrors(errors); toast('Check the highlighted fields', true); return; }
+  showFieldErrors({});
+
+  const whenStr = $('#wl-log-when').value;
+  const ts = whenStr ? new Date(whenStr).getTime() : Date.now();
+  const btn = $('#wl-log-save');
+  btn.disabled = true;
+
+  // Local state is updated immediately rather than waiting for onSnapshot to
+  // echo the write back. The listener can lag on a slow connection, and an
+  // entry that stays invisible after "Logged" is an entry you log twice.
+  // The snapshot that follows is idempotent — it replaces the array wholesale.
+  if (state.editingEntryId){
+    const id = state.editingEntryId;
+    const r = await guard('Update', () => updateDoc(doc(db, ENTRIES_PATH, id), { timestamp: ts, values }));
+    btn.disabled = false;
+    if (r === null) return;
+    const row = state.entries.find(e => e.id === id);
+    if (row){ row.timestamp = ts; row.values = values; }
+    state.editingEntryId = null;
+    toast('Updated');
+    nav('history');
+  } else {
+    const rec = { categoryId: cat.id, timestamp: ts, createdAt: Date.now(), values };
+    const r = await guard('Save', () => addDoc(entriesCol, rec));
+    btn.disabled = false;
+    if (r === null) return;
+    state.entries.unshift(Object.assign({ id: (r && r.id) || uid() }, rec));
+    toast('Logged · ' + cat.name);
+    nav('dash');
+  }
+});
+
+$('#wl-log-history').onclick = () => nav('history');
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RENDER — history + chart
+   ══════════════════════════════════════════════════════════════════════════ */
+function renderHistory(){
+  const cat = catById(state.activeCatId);
+  if (!cat){ nav('dash'); return; }
+  $('#wl-hist-title').textContent = (cat.icon ? cat.icon + ' ' : '') + cat.name;
+
+  const rows = entriesFor(cat.id).slice().sort((a,b) => b.timestamp - a.timestamp);
+  const fieldById = id => (cat.fields || []).find(f => f.id === id);
+
+  $('#wl-hist-list').innerHTML = rows.length ? rows.map(e => {
+    // Orphaned keys (fields removed from the schema) are simply not rendered.
+    const vals = Object.entries(e.values || {})
+      .map(([k,v]) => { const f = fieldById(k); return f ? '<span><span class="k">' + esc(f.label) + '</span><b>' + esc(fmtValue(f,v)) + '</b></span>' : ''; })
+      .filter(Boolean).join('');
+    return '<div class="wl-entry" data-entry="' + esc(e.id) + '">' +
+      '<div class="wl-entry-main">' +
+        '<div class="wl-entry-when">' + esc(fmtWhen(e.timestamp)) + '</div>' +
+        '<div class="wl-entry-vals">' + (vals || '<span class="k">No values</span>') + '</div>' +
+      '</div>' +
+      '<div class="wl-entry-acts">' +
+        '<button class="wl-icon-btn" data-edit="' + esc(e.id) + '" title="Edit">✎</button>' +
+        '<button class="wl-icon-btn del-x" data-del="' + esc(e.id) + '" title="Delete">×</button>' +
+      '</div>' +
+    '</div>';
+  }).join('') : '<div class="wl-empty">No entries yet.</div>';
+
+  $('#wl-hist-list').querySelectorAll('[data-edit]').forEach(b => {
+    b.onclick = () => { state.editingEntryId = b.dataset.edit; nav('log'); };
+  });
+  $('#wl-hist-list').querySelectorAll('[data-del]').forEach(b => {
+    b.onclick = () => confirmModal('Delete entry?', 'This removes the entry permanently. Streaks and charts will recalculate.', async () => {
+      const id = b.dataset.del;
+      const r = await guard('Delete', () => deleteDoc(doc(db, ENTRIES_PATH, id)));
+      if (r === null) return;
+      state.entries = state.entries.filter(e => e.id !== id);   // don't wait for the listener
+      toast('Deleted');
+      renderAll();
+    });
+  });
+
+  renderChart(cat, rows);
+}
+
+function renderChart(cat, rows){
+  const slot = $('#wl-chart-slot');
+  const numeric = (cat.fields || []).filter(f => f.type === 'number' || f.type === 'duration' || f.type === 'scale');
+  if (!numeric.length){
+    slot.innerHTML = '<div class="wl-empty">Text-only category — history below, no chart.</div>';
+    return;
+  }
+  if (!state.chartField || !numeric.some(f => f.id === state.chartField)) state.chartField = numeric[0].id;
+  const field = numeric.find(f => f.id === state.chartField);
+
+  const cutoff = state.chartRange === 0 ? 0 : Date.now() - state.chartRange * 86400000;
+  const pts = rows
+    .filter(e => e.timestamp >= cutoff && Number.isFinite(Number(e.values && e.values[field.id])))
+    .map(e => ({ t: e.timestamp, v: Number(e.values[field.id]) }))
+    .sort((a,b) => a.t - b.t);
+
+  const ranges = [[7,'7d'],[30,'30d'],[90,'90d'],[0,'All']];
+  const head =
+    '<div class="wl-chart-head">' +
+      '<div class="wl-chip-row">' + numeric.map(f =>
+        '<button class="wl-chip' + (f.id === field.id ? ' on' : '') + '" data-cf="' + esc(f.id) + '">' + esc(f.label) + '</button>').join('') + '</div>' +
+      '<div class="wl-chip-row">' + ranges.map(([d,l]) =>
+        '<button class="wl-chip' + (state.chartRange === d ? ' on' : '') + '" data-cr="' + d + '">' + l + '</button>').join('') + '</div>' +
+    '</div>';
+
+  let body;
+  if (pts.length < 2){
+    body = '<div class="wl-empty" style="border:none;padding:34px 12px;">Not enough data in this range to plot.</div>';
+  } else {
+    const vs = pts.map(p => p.v);
+    const sum = vs.reduce((a,b)=>a+b,0);
+    const avg = sum / vs.length;
+    const fmt = v => field.type === 'duration' ? fmtDuration(Math.round(v)) :
+                     (Math.round(v*10)/10) + (field.type === 'number' && field.unit ? ' ' + field.unit : '');
+    const stats =
+      '<div class="wl-chart-stats">' +
+        '<span>Avg<b>' + esc(fmt(avg)) + '</b></span>' +
+        '<span>Min<b>' + esc(fmt(Math.min(...vs))) + '</b></span>' +
+        '<span>Max<b>' + esc(fmt(Math.max(...vs))) + '</b></span>' +
+        '<span>Entries<b>' + pts.length + '</b></span>' +
+      '</div>';
+    body = stats + '<div class="wl-chart">' + svgChart(pts, field, cat.color || '#8D769A') + '</div>';
+  }
+
+  slot.innerHTML = '<div class="wl-chart-wrap">' + head + body + '</div>';
+  slot.querySelectorAll('[data-cf]').forEach(b => b.onclick = () => { state.chartField = b.dataset.cf; renderHistory(); });
+  slot.querySelectorAll('[data-cr]').forEach(b => b.onclick = () => { state.chartRange = Number(b.dataset.cr); renderHistory(); });
+}
+
+/**
+ * Hand-rolled SVG line chart. Deliberately not a library: a single series over
+ * <=90 points is a few dozen lines here, it inherits the palette exactly, and
+ * it keeps this file self-contained (the suite convention).
+ * viewBox + preserveAspectRatio does the responsive work — no resize listener.
+ */
+function svgChart(pts, field, color){
+  const W = 640, H = 220, P = { t:14, r:14, b:26, l:44 };
+  const iw = W - P.l - P.r, ih = H - P.t - P.b;
+
+  let lo = Math.min(...pts.map(p => p.v)), hi = Math.max(...pts.map(p => p.v));
+  if (field.type === 'scale'){
+    lo = Number.isFinite(field.scaleMin) ? field.scaleMin : 1;
+    hi = Number.isFinite(field.scaleMax) ? field.scaleMax : 5;
+  } else if (lo === hi){ lo = Math.max(0, lo - 1); hi = hi + 1; }
+  else { const pad = (hi-lo)*0.12; lo = Math.max(0, lo - pad); hi = hi + pad; }
+
+  const t0 = pts[0].t, t1 = pts[pts.length-1].t, span = Math.max(1, t1 - t0);
+  const X = t => P.l + ((t - t0)/span) * iw;
+  const Y = v => P.t + ih - ((v - lo)/Math.max(1e-9, hi - lo)) * ih;
+
+  const label = v => field.type === 'duration' ? fmtDuration(Math.round(v)) : String(Math.round(v*10)/10);
+
+  // Gridlines
+  const TICKS = 4;
+  let grid = '';
+  for (let i = 0; i <= TICKS; i++){
+    const v = lo + (hi-lo) * (i/TICKS), y = Y(v);
+    grid += '<line x1="' + P.l + '" y1="' + y.toFixed(1) + '" x2="' + (W-P.r) + '" y2="' + y.toFixed(1) +
+            '" stroke="#3D3E43" stroke-width="1" stroke-dasharray="2 4" opacity="0.55"/>' +
+            '<text x="' + (P.l-8) + '" y="' + (y+3.5).toFixed(1) + '" text-anchor="end" fill="#76777C" ' +
+            'font-family="IBM Plex Mono,monospace" font-size="9" font-weight="600">' + esc(label(v)) + '</text>';
+  }
+
+  const line = pts.map((p,i) => (i ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Y(p.v).toFixed(1)).join(' ');
+  const area = line + ' L' + X(t1).toFixed(1) + ' ' + (P.t+ih) + ' L' + X(t0).toFixed(1) + ' ' + (P.t+ih) + ' Z';
+  const gid = 'g' + Math.random().toString(36).slice(2,8);
+
+  const dots = pts.length <= 60 ? pts.map(p =>
+    '<circle cx="' + X(p.t).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="2.6" fill="' + esc(color) + '" ' +
+    'stroke="#1B1C1E" stroke-width="1.5"><title>' + esc(label(p.v) + ' · ' + new Date(p.t).toLocaleDateString()) + '</title></circle>').join('') : '';
+
+  const dfmt = t => new Date(t).toLocaleDateString([], { month:'short', day:'numeric' });
+  const xLabels =
+    '<text x="' + P.l + '" y="' + (H-8) + '" fill="#76777C" font-family="IBM Plex Mono,monospace" font-size="9" font-weight="600">' + esc(dfmt(t0)) + '</text>' +
+    '<text x="' + (W-P.r) + '" y="' + (H-8) + '" text-anchor="end" fill="#76777C" font-family="IBM Plex Mono,monospace" font-size="9" font-weight="600">' + esc(dfmt(t1)) + '</text>';
+
+  // xMidYMid, not "none": stretching the viewBox to the container width
+  // distorts the dots into ellipses and exaggerates every slope.
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" ' +
+         'aria-label="' + esc(field.label) + ' over time">' +
+    '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="' + esc(color) + '" stop-opacity="0.28"/>' +
+      '<stop offset="100%" stop-color="' + esc(color) + '" stop-opacity="0"/>' +
+    '</linearGradient></defs>' +
+    grid +
+    '<path d="' + area + '" fill="url(#' + gid + ')"/>' +
+    '<path d="' + line + '" fill="none" stroke="' + esc(color) + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+    dots + xLabels +
+  '</svg>';
+}
+
+$('#wl-hist-add').onclick = () => { state.editingEntryId = null; nav('log'); };
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RENDER — category manager
+   ══════════════════════════════════════════════════════════════════════════ */
+function renderManager(){
+  const list = $('#wl-mgr-list');
+  const cats = activeCats();
+  list.innerHTML = cats.length ? cats.map(c =>
+    '<div class="wl-mgr-row" draggable="true" data-id="' + esc(c.id) + '">' +
+      '<span class="wl-grip">⠿</span>' +
+      '<div class="wl-mgr-main">' +
+        '<div class="wl-mgr-name"><span class="wl-swatch" style="background:' + esc(c.color||'#8D769A') + ';"></span>' +
+          esc(c.icon || '') + ' ' + esc(c.name) + '</div>' +
+        '<div class="wl-mgr-sub">' + (c.fields||[]).length + ' field' + ((c.fields||[]).length===1?'':'s') +
+          ' · ' + entriesFor(c.id).length + ' entr' + (entriesFor(c.id).length===1?'y':'ies') + '</div>' +
+      '</div>' +
+      '<button class="wl-icon-btn" data-edit-cat="' + esc(c.id) + '" title="Edit">✎</button>' +
+    '</div>').join('') :
+    '<div class="wl-empty">No active categories.' +
+      '<div><button class="wl-btn-primary" id="wl-seed2">Add Starter Categories</button></div></div>';
+  const s2 = $('#wl-seed2'); if (s2) s2.onclick = seedStarters;
+
+  list.querySelectorAll('[data-edit-cat]').forEach(b => b.onclick = () => openCatModal(catById(b.dataset.editCat)));
+  wireDrag(list);
+
+  const arch = archivedCats();
+  $('#wl-arch-section').style.display = arch.length ? '' : 'none';
+  $('#wl-arch-list').innerHTML = arch.map(c =>
+    '<div class="wl-mgr-row" data-id="' + esc(c.id) + '">' +
+      '<div class="wl-mgr-main">' +
+        '<div class="wl-mgr-name" style="color:var(--txm);"><span class="wl-swatch" style="background:' + esc(c.color||'#8D769A') + ';opacity:.5;"></span>' +
+          esc(c.icon||'') + ' ' + esc(c.name) + '</div>' +
+        '<div class="wl-mgr-sub">' + entriesFor(c.id).length + ' entries kept</div>' +
+      '</div>' +
+      '<button class="wl-new-btn" data-unarch="' + esc(c.id) + '">Unarchive</button>' +
+    '</div>').join('');
+  $('#wl-arch-list').querySelectorAll('[data-unarch]').forEach(b => b.onclick = async () => {
+    const c = catById(b.dataset.unarch);
+    if (!c) return;
+    c.archived = false; c.updatedAt = Date.now();
+    await saveDocState(); toast('Unarchived'); renderAll();
+  });
+}
+
+/* Drag to reorder. Order is persisted on the category docs. */
+let dragId = null;
+function wireDrag(list){
+  list.querySelectorAll('.wl-mgr-row').forEach(row => {
+    row.ondragstart = e => { dragId = row.dataset.id; row.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; };
+    row.ondragend   = () => { dragId = null; list.querySelectorAll('.wl-mgr-row').forEach(r => r.classList.remove('dragging','drop-target')); };
+    row.ondragover  = e => { e.preventDefault(); if (row.dataset.id !== dragId) row.classList.add('drop-target'); };
+    row.ondragleave = () => row.classList.remove('drop-target');
+    row.ondrop      = async e => {
+      e.preventDefault();
+      row.classList.remove('drop-target');
+      if (!dragId || row.dataset.id === dragId) return;
+      const order = activeCats().map(c => c.id);
+      const from = order.indexOf(dragId), to = order.indexOf(row.dataset.id);
+      if (from < 0 || to < 0) return;
+      order.splice(to, 0, order.splice(from,1)[0]);
+      order.forEach((id,i) => { const c = catById(id); if (c) c.order = i; });
+      await saveDocState();
+      renderAll();
+    };
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Category editor modal
+   ══════════════════════════════════════════════════════════════════════════ */
+let fbFields = [];       // working copy of CategoryField[]
+let fbOriginal = [];     // snapshot, to detect destructive type changes
+
+function openCatModal(cat){
+  state.editingCat = cat || null;
+  fbFields = cat ? JSON.parse(JSON.stringify(cat.fields || [])) : [{ id: uid(), label:'', type:'number', required:true }];
+  fbOriginal = JSON.parse(JSON.stringify(fbFields));
+  $('#wl-cat-modal-title').textContent = cat ? 'Edit Category' : 'New Category';
+  $('#wl-cat-name').value = cat ? cat.name : '';
+  $('#wl-cat-icon').value = cat ? (cat.icon || '') : '';
+  $('#wl-cat-archive').style.display = cat ? '' : 'none';
+  $('#wl-cat-name-err').classList.remove('show');
+  $('#wl-cat-fields-err').classList.remove('show');
+  renderColors(cat ? (cat.color || PALETTE[0]) : PALETTE[0]);
+  renderFB();
+  $('#wl-cat-overlay').classList.add('show');
+  setTimeout(() => $('#wl-cat-name').focus(), 30);
+}
+function closeCatModal(){ $('#wl-cat-overlay').classList.remove('show'); state.editingCat = null; }
+
+let pickedColor = PALETTE[0];
+function renderColors(sel){
+  pickedColor = sel;
+  $('#wl-cat-swatch').style.background = sel;
+  $('#wl-cat-colors').innerHTML = PALETTE.map(c =>
+    '<button type="button" class="wl-chip' + (c === sel ? ' on' : '') + '" data-color="' + c + '" ' +
+    'style="width:30px;padding:0;' + (c === sel ? '' : 'border-color:' + c + ';') + '">' +
+    '<span style="display:block;width:12px;height:12px;border-radius:50%;background:' + c + ';margin:auto;"></span></button>').join('');
+  $('#wl-cat-colors').querySelectorAll('[data-color]').forEach(b => b.onclick = () => renderColors(b.dataset.color));
+}
+
+function renderFB(){
+  $('#wl-fb-list').innerHTML = fbFields.map((f,i) =>
+    '<div class="wl-fb-row" data-i="' + i + '">' +
+      '<div class="wl-fb-head">' +
+        '<input class="wl-input" data-label placeholder="Field label" value="' + esc(f.label) + '" maxlength="40">' +
+        '<button class="wl-icon-btn del-x" data-rm title="Remove">×</button>' +
+      '</div>' +
+      '<div class="wl-fb-opts">' +
+        '<select class="wl-select" data-type>' +
+          ['number','text','scale','duration'].map(t =>
+            '<option value="' + t + '"' + (f.type === t ? ' selected' : '') + '>' + t + '</option>').join('') +
+        '</select>' +
+        (f.type === 'number' ? '<input class="wl-input" data-unit placeholder="unit" value="' + esc(f.unit||'') + '" maxlength="12">' : '') +
+        (f.type === 'scale'
+          ? '<input class="wl-input" data-min type="number" placeholder="min" value="' + esc(Number.isFinite(f.scaleMin)?f.scaleMin:1) + '" style="max-width:70px;">' +
+            '<input class="wl-input" data-max type="number" placeholder="max" value="' + esc(Number.isFinite(f.scaleMax)?f.scaleMax:5) + '" style="max-width:70px;">'
+          : '') +
+        '<label class="wl-check"><input type="checkbox" data-req' + (f.required ? ' checked' : '') + '>Req</label>' +
+      '</div>' +
+    '</div>').join('');
+
+  $('#wl-fb-list').querySelectorAll('.wl-fb-row').forEach(row => {
+    const i = Number(row.dataset.i);
+    row.querySelector('[data-label]').oninput = e => { fbFields[i].label = e.target.value; };
+    row.querySelector('[data-type]').onchange = e => {
+      fbFields[i].type = e.target.value;
+      if (e.target.value === 'scale'){
+        if (!Number.isFinite(fbFields[i].scaleMin)) fbFields[i].scaleMin = 1;
+        if (!Number.isFinite(fbFields[i].scaleMax)) fbFields[i].scaleMax = 5;
+      }
+      renderFB();
+    };
+    row.querySelector('[data-req]').onchange = e => { fbFields[i].required = e.target.checked; };
+    const u = row.querySelector('[data-unit]'); if (u) u.oninput = e => { fbFields[i].unit = e.target.value; };
+    const mn = row.querySelector('[data-min]'); if (mn) mn.oninput = e => { fbFields[i].scaleMin = Number(e.target.value); };
+    const mx = row.querySelector('[data-max]'); if (mx) mx.oninput = e => { fbFields[i].scaleMax = Number(e.target.value); };
+    row.querySelector('[data-rm]').onclick = () => {
+      if (fbFields.length === 1) { toast('Keep at least one field', true); return; }
+      fbFields.splice(i,1); renderFB();
+    };
+  });
+}
+
+$('#wl-fb-add').onclick = () => { fbFields.push({ id: uid(), label:'', type:'number', required:false }); renderFB(); };
+$('#wl-cat-cancel').onclick = closeCatModal;
+$('#wl-cat-overlay').onclick = e => { if (e.target === $('#wl-cat-overlay')) closeCatModal(); };
+
+$('#wl-cat-save').onclick = async () => {
+  const name = $('#wl-cat-name').value.trim();
+  $('#wl-cat-name-err').classList.toggle('show', !name);
+  const validFields = fbFields.filter(f => f.label.trim());
+  $('#wl-cat-fields-err').classList.toggle('show', !validFields.length);
+  if (!name || !validFields.length) return;
+
+  // Changing a field's type orphans the values already stored under that id.
+  // Warn, but never coerce — silent migration of health data is worse than a
+  // field that renders blank.
+  const changed = state.editingCat ? validFields.filter(f => {
+    const o = fbOriginal.find(x => x.id === f.id);
+    return o && o.type !== f.type;
+  }) : [];
+  const hasEntries = state.editingCat && entriesFor(state.editingCat.id).length > 0;
+
+  const commit = async () => {
+    const clean = validFields.map((f,i) => {
+      const out = { id: f.id || uid(), label: f.label.trim(), type: f.type, required: !!f.required };
+      if (f.type === 'number' && f.unit) out.unit = f.unit.trim();
+      if (f.type === 'scale'){
+        out.scaleMin = Number.isFinite(f.scaleMin) ? f.scaleMin : 1;
+        out.scaleMax = Number.isFinite(f.scaleMax) ? f.scaleMax : 5;
+        if (out.scaleMax <= out.scaleMin) out.scaleMax = out.scaleMin + 1;
+      }
+      return out;
+    });
+    if (state.editingCat){
+      Object.assign(state.editingCat, {
+        name, icon: $('#wl-cat-icon').value.trim(), color: pickedColor,
+        fields: clean, updatedAt: Date.now()
+      });
+    } else {
+      state.categories.push({
+        id: uid(), name, icon: $('#wl-cat-icon').value.trim(), color: pickedColor,
+        order: state.categories.length, archived: false, fields: clean,
+        createdAt: Date.now(), updatedAt: Date.now()
+      });
+    }
+    const r = await saveDocState();
+    if (r === null) return;
+    closeCatModal(); toast('Saved'); renderAll();
+  };
+
+  if (changed.length && hasEntries){
+    confirmModal('Change field type?',
+      'You changed the type of <b>' + changed.map(f => esc(f.label)).join(', ') + '</b>. ' +
+      'Existing entries may not display this field correctly. Old values are kept, not converted.',
+      commit);
+  } else {
+    commit();
+  }
+};
+
+$('#wl-cat-archive').onclick = () => {
+  const c = state.editingCat; if (!c) return;
+  confirmModal('Archive ' + c.name + '?',
+    'It disappears from the dashboard, but its ' + entriesFor(c.id).length +
+    ' entries are kept and stay in history. You can unarchive it any time.',
+    async () => {
+      c.archived = true; c.updatedAt = Date.now();
+      const r = await saveDocState();
+      if (r === null) return;
+      closeCatModal(); toast('Archived'); renderAll();
+    });
+};
+
+$('#wl-cat-new').onclick = () => openCatModal(null);
+
+/* ── Confirm modal ────────────────────────────────────────────────────────── */
+let confirmFn = null;
+function confirmModal(title, msg, fn){
+  $('#wl-confirm-title').textContent = title;
+  $('#wl-confirm-msg').innerHTML = msg;
+  confirmFn = fn;
+  $('#wl-confirm-overlay').classList.add('show');
+}
+$('#wl-confirm-yes').onclick = async () => {
+  $('#wl-confirm-overlay').classList.remove('show');
+  const f = confirmFn; confirmFn = null;
+  if (f) await f();
+};
+$('#wl-confirm-no').onclick = () => { $('#wl-confirm-overlay').classList.remove('show'); confirmFn = null; };
+$('#wl-confirm-overlay').onclick = e => {
+  if (e.target === $('#wl-confirm-overlay')) { $('#wl-confirm-overlay').classList.remove('show'); confirmFn = null; }
+};
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  $('#wl-confirm-overlay').classList.remove('show');
+  if ($('#wl-cat-overlay').classList.contains('show')) closeCatModal();
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SEEDING — explicit, never automatic.
+   An auto-seed on first load can double-fire when the first read answers from
+   a cold cache; a button cannot. Existing names are skipped so pressing it
+   twice is harmless.
+   ══════════════════════════════════════════════════════════════════════════ */
+async function seedStarters(){
+  const have = new Set(state.categories.map(c => c.name.toLowerCase()));
+  let n = state.categories.length, added = 0;
+  for (const s of STARTERS){
+    if (have.has(s.name.toLowerCase())) continue;
+    state.categories.push({
+      id: uid(), name: s.name, icon: s.icon, color: s.color,
+      order: n++, archived: false,
+      fields: s.fields.map(f => Object.assign({ id: uid() }, f)),
+      createdAt: Date.now(), updatedAt: Date.now()
+    });
+    added++;
+  }
+  if (!added){ toast('Already there'); return; }
+  const r = await saveDocState();
+  if (r === null) return;
+  toast('Added ' + added + ' categories');
+  renderAll();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SETTINGS
+   ══════════════════════════════════════════════════════════════════════════ */
+function renderSettings(){
+  const t = $('#wl-push-toggle');
+  const perm = (typeof Notification !== 'undefined') ? Notification.permission : 'unsupported';
+  const on = !!state.settings.remindersEnabled && perm === 'granted';
+  t.classList.toggle('on', on);
+  t.disabled = (perm === 'denied' || perm === 'unsupported');
+
+  const desc = $('#wl-push-desc');
+  if (perm === 'unsupported') desc.textContent = 'This browser does not support notifications.';
+  else if (perm === 'denied') desc.textContent = 'Notifications are blocked for this site in your browser settings. Re-enable them there first — this page will not ask again.';
+  else desc.textContent = 'A single nightly push listing anything you have not logged. Nothing is sent when the day is already complete. The dashboard also shows unlogged categories regardless of this setting.';
+
+  $('#wl-remind-time').value = state.settings.reminderTime || '20:00';
+  $('#wl-storage-desc').textContent = state.categories.length + ' categories · ' +
+    state.entries.length + ' entries · dashboards/wellness';
+}
+
+$('#wl-push-toggle').onclick = async () => {
+  const perm = (typeof Notification !== 'undefined') ? Notification.permission : 'unsupported';
+  if (perm === 'denied' || perm === 'unsupported') return;
+  if (state.settings.remindersEnabled){
+    state.settings.remindersEnabled = false;
+    await saveDocState(); renderSettings(); toast('Reminders off'); return;
+  }
+  if (perm !== 'granted'){
+    const res = await Notification.requestPermission();
+    if (res !== 'granted'){ renderSettings(); toast('Permission denied', true); return; }
+  }
+  state.settings.remindersEnabled = true;
+  await saveDocState(); renderSettings(); toast('Reminders on');
+};
+$('#wl-remind-time').onchange = async e => {
+  state.settings.reminderTime = e.target.value || '20:00';
+  await saveDocState(); toast('Reminder time set');
+};
+$('#wl-reseed').onclick = seedStarters;
+
+/* ── App Lock ── delegates to index.html's shared manager when this page is
+   opened from there; standalone it just reports that it is unavailable. ───── */
+$('#wl-lock-btn').onclick = () => {
+  if (window.alManage) { window.alManage('wellness'); return; }
+  toast('App Lock lives in TaskHub');
+};
+
+/* ── Go ───────────────────────────────────────────────────────────────────── */
+loadAll();
+</script>
+</body>
+</html>
