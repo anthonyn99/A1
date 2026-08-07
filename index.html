@@ -8764,6 +8764,24 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   window.addEventListener("pagehide", () => { _teardown(); });
   document.addEventListener("freeze", () => { _teardown(); });
 
+  // ── Resume (iOS especially) ───────────────────────────────────────────────
+  // pagehide/freeze above tear the connection down, but nothing re-established
+  // it on the way back for iOS. An iOS home-screen web app is restored from the
+  // back/forward cache: the page resumes frozen-in-time and fires `pageshow` with
+  // persisted===true, frequently WITHOUT a visibilitychange — so the reattach in
+  // the visibility handler never ran, and the app sat there showing hours-old
+  // tasks with a dead connection until something happened to be tapped.
+  // `resume` is the Page Lifecycle counterpart to `freeze` (Chrome/Android).
+  // init() is a no-op while listeners are still live, so these are cheap.
+  window.addEventListener("pageshow", (e) => {
+    if (!_fbRecovering && !_unsubscribe) init();
+    _startIdleTimer();
+  });
+  document.addEventListener("resume", () => {
+    if (!_fbRecovering && !_unsubscribe) init();
+    _startIdleTimer();
+  });
+
   // Wait for anon auth before wiring up listeners/loads so the very first
   // reads carry a valid token and hit the server (fresh) instead of only the
   // local cache (stale). Never block forever — if auth is slow/offline, proceed
