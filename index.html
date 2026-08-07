@@ -31774,6 +31774,21 @@ window._THV={
           throw new Error('OneNote rejected the sign-in. Sign out of this Microsoft account in MyJournal and connect again — ' +
             'and in Azure make sure the permission is Notes.ReadWrite, not Notes.ReadWrite.All (the .All scopes are work/school only).');
         }
+        // OneNote's own documented handling for a transient error is to back off
+        // and retry — it is what the service returns while it is still spinning
+        // up a notebook store, which is most of the first minute on an account
+        // that has not used OneNote here before. Surfacing it immediately turns
+        // a wait into what looks like a hard failure. ("occured" is Microsoft's
+        // spelling in the payload, so match both.)
+        var attempts = (opts._tries || 0);
+        if (/transient error occur+ed/i.test(msg || '') && attempts < 3) {
+          await new Promise(function (res) { setTimeout(res, 900 * Math.pow(2, attempts)); });
+          return this.api(accountId, path, Object.assign({}, opts, { _tries: attempts + 1 }), _retried);
+        }
+        if (/transient error occur+ed/i.test(msg || '')) {
+          throw new Error('OneNote is still waking up this account and kept returning a transient error. ' +
+            'Open onenote.com once with this Microsoft account so a notebook exists, then hit refresh here.');
+        }
         throw new Error(msg || ('OneNote error ' + r.status));
       }
       if (r.status === 204) return null;
