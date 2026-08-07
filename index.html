@@ -3594,29 +3594,50 @@ function miniCarSvg(hex,sedan){
 // with wheel bulges as four separate rectangles bolted onto a rounded box,
 // which read as a chip on legs. v3 tried one continuous flared outline, but
 // hand-tuned bezier joints between "flare out" and "pull in" segments broke
-// tangent continuity and produced cusps — it came out a kite, not a car.
-// This is the version that stays safe: a single soft-cornered rounded-rect
-// body (no seams to get wrong) with the wheels as dark inset marks near each
-// corner — the same convention actual car dashboards use for a tire-pressure
-// diagram, which is what this section already is.
+// tangent continuity and produced cusps — it came out a kite, not a car. v4
+// was a safe uniform-corner rounded rect — clean, but too generic.
+//
+// This one matches a real top-down Tesla photo: rounder tapered nose,
+// squarer tail with a light strip, ONE unbroken glass panel (the panoramic
+// roof — not separate windshield/roof/rear-glass bands). The taper comes
+// from an asymmetric-corner rounded rect (bigger radius at the nose, smaller
+// at the tail) built from SVG arcs, not bezier — an arc's radius is fixed by
+// construction, so unlike v3 there is no control-point geometry to get wrong
+// and no way for it to produce a cusp.
+function roundedTaperPath(x,y,w,h,rTop,rBot){
+  var x2=x+w,y2=y+h;
+  return 'M'+(x+rTop)+' '+y+
+    ' L'+(x2-rTop)+' '+y+' A'+rTop+' '+rTop+' 0 0 1 '+x2+' '+(y+rTop)+
+    ' L'+x2+' '+(y2-rBot)+' A'+rBot+' '+rBot+' 0 0 1 '+(x2-rBot)+' '+y2+
+    ' L'+(x+rBot)+' '+y2+' A'+rBot+' '+rBot+' 0 0 1 '+x+' '+(y2-rBot)+
+    ' L'+x+' '+(y+rTop)+' A'+rTop+' '+rTop+' 0 0 1 '+(x+rTop)+' '+y+' Z';
+}
 function topViewSvg(sedan){
-  var body=sedan?{x:12,y:8,w:36,h:116,rx:16}:{x:8,y:8,w:44,h:116,rx:10};
-  var glass=sedan
-    ? {w:{x:19,y:50,w:22,h:14,r:5},r:{x:19,y:76,w:22,h:14,r:5}}
-    : {w:{x:15,y:48,w:30,h:16,r:5},r:{x:15,y:76,w:30,h:16,r:5}};
-  var wl=sedan?15:12,wr=sedan?45-9:48-9,ww=9,wh=20;   // wheel-mark x (left/right), width, height
-  var wheels=[[wl,26],[wr,26],[wl,84],[wr,84]];
+  var b=sedan?{x:10,y:6,w:40,h:120,rTop:17,rBot:9}:{x:6,y:6,w:48,h:120,rTop:13,rBot:8};
+  // Glass is narrower than the body on purpose — it has to leave the side
+  // margins clear for the wheel marks below, or they'd render right under
+  // the glass panel and disappear into it (both are the same near-black).
+  var glass=sedan?{x:20,y:26,w:20,h:76,r:8}:{x:15,y:24,w:30,h:78,r:8};
+  var mirrors=sedan?[[5,29,5,9],[50,29,5,9]]:[[1,27,5,9],[54,27,5,9]];
+  var tail=sedan?{x:16,y:b.y+b.h-6,w:28,h:4}:{x:12,y:b.y+b.h-6,w:36,h:4};
+  var ww=7,wh=18,wl=sedan?12:8,wr=sedan?(b.x+b.w-2-ww):(b.x+b.w-1-ww);
+  var wheels=[[wl,38],[wr,38],[wl,b.y+b.h-38-wh],[wr,b.y+b.h-38-wh]];
   var uid='thtsTop';
   return h('svg',{viewBox:'0 0 60 132',role:'img','aria-label':'Top-down vehicle outline'},
     h('defs',{key:'d'},h('linearGradient',{id:uid,x1:'0',y1:'0',x2:'0',y2:'1'},
-      h('stop',{key:'a',offset:'0%',stopColor:'#4a4e57'}),
+      h('stop',{key:'a',offset:'0%',stopColor:'#4c5058'}),
       h('stop',{key:'b',offset:'100%',stopColor:'#34373d'}))),
-    h('rect',{key:'body',x:body.x,y:body.y,width:body.w,height:body.h,rx:body.rx,
+    h('path',{key:'body',d:roundedTaperPath(b.x,b.y,b.w,b.h,b.rTop,b.rBot),
       fill:'url(#'+uid+')',stroke:'#5c6069',strokeWidth:1.1}),
+    h('rect',{key:'g',x:glass.x,y:glass.y,width:glass.w,height:glass.h,rx:glass.r,fill:'#101216'}),
+    // Wheel marks paint LAST, on top of the glass — the glass panel is wide
+    // enough to reach under where the wheels sit, and drawing wheels first
+    // (as an earlier version did) let the glass paint straight over them.
     wheels.map(function(p,i){return h('rect',{key:'wh'+i,x:p[0],y:p[1],width:ww,height:wh,rx:3,
-      fill:'#101216',opacity:.78});}),
-    h('rect',{key:'w',x:glass.w.x,y:glass.w.y,width:glass.w.w,height:glass.w.h,rx:glass.w.r,fill:'#101216'}),
-    h('rect',{key:'r',x:glass.r.x,y:glass.r.y,width:glass.r.w,height:glass.r.h,rx:glass.r.r,fill:'#101216'}));
+      fill:'#0e1013'});}),
+    mirrors.map(function(m,i){return h('rect',{key:'m'+i,x:m[0],y:m[1],width:m[2],height:m[3],
+      rx:2,fill:'#585c64'});}),
+    h('rect',{key:'tl',x:tail.x,y:tail.y,width:tail.w,height:tail.h,rx:2,fill:'#7a4a45'}));
 }
 // ── Render helpers. Each returns null when the value is absent, so a section
 //    that knows nothing renders nothing — no "N/A" rows, no empty headings. ─

@@ -270,41 +270,88 @@
     return e;
   }
 
-  // Watches, for exactly as long as a background renewal is in flight, for a
-  // sign-in window nobody asked for — and takes it down.
-  //
-  // Google Identity Services doesn't document how it renews: with a live session
-  // and a known account it can finish invisibly, but when it can't it opens
-  // accounts.google.com and *leaves it there* waiting to be clicked. That second
-  // case is the window that kept appearing. Rather than betting on which path GIS
-  // takes, this allows the window and closes it if it's still standing after the
-  // auto-approve round trip should have finished — so an invisible renewal stays
-  // invisible, and a chooser gets seconds rather than the rest of the afternoon.
-  // The URL match is narrow on purpose: a Drive link opened in the same instant
-  // is untouched.
-  var SILENT_UI_MS = 4000;
-  function silentGuard(onNeedsUser) {
-    var real = window.open, pop = null, timer = null;
-    window.open = function (url) {
-      var w = real.apply(window, arguments);
-      if (w && typeof url === 'string' && /^https?:\/\/accounts\.google\.com\//i.test(url)) {
-        pop = w;
-        timer = setTimeout(function () {
-          try { if (pop && !pop.closed) { pop.close(); onNeedsUser(); } } catch (e) { onNeedsUser(); }
-        }, SILENT_UI_MS);
-      }
-      return w;
-    };
-    return {
-      // `ok` says whether a token actually arrived. If one didn't, any window GIS
-      // left standing is a dead end from the user's point of view — clear it off
-      // the screen rather than leaving it for them to dismiss.
-      release: function (ok) {
-        window.open = real;
+  /* ── Renewal that never draws a window ──────────────────────────────────────
+   * Google Identity Services renews through a popup — always, even when it has
+   * nothing to ask. With a live session it opens accounts.google.com, gets an
+   * instant approval and closes itself inside a few hundred milliseconds. That
+   * is a correct renewal and a visible flash on screen every hour, and no option
+   * on that API turns the window off.
+   *
+   * So renewals don't use it. The client-side flow has its own silent path,
+   * documented for exactly this: prompt=none against the auth endpoint. Asked
+   * that way Google never renders anything — it answers with a redirect either
+   * way, carrying the token in the fragment or `error=login_required` — so the
+   * whole exchange fits inside a hidden iframe with nothing to see. GIS is still
+   * how a *click* connects; it is no longer how anything renews.
+   *
+   * Two conditions this has that the popup didn't:
+   *   • the callback page must be registered as an authorised redirect URI, and
+   *   • the browser must let Google's cookies through in a third-party frame.
+   * Neither is checkable from here, and when either is missing the renewal just
+   * fails — which is all it does. It never escalates to a window; the UI offers
+   * Reconnect and waits to be asked.
+   * ────────────────────────────────────────────────────────────────────────── */
+  var SILENT_PAGE = 'Vault/oauth-silent.html';
+  function silentRedirectUri() {
+    return location.origin + location.pathname.replace(/[^/]*$/, '') + SILENT_PAGE;
+  }
+
+  // Remembers, per provider, that background renewal has actually worked here at
+  // least once. A renewal that has never once succeeded is a setup problem (an
+  // unregistered redirect URI, most likely), not an expired session, and the
+  // settings screen says so rather than sending the user round the same
+  // Reconnect loop forever.
+  var SILENT_OK_PREFIX = 'vault_cloud_silentok_';
+  function silentEverWorked(pid) { try { return localStorage.getItem(SILENT_OK_PREFIX + pid) === '1'; } catch (e) { return false; } }
+  function markSilentWorked(pid) { try { localStorage.setItem(SILENT_OK_PREFIX + pid, '1'); } catch (e) {} }
+
+  function googleSilentToken(clientId, scope, hint, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var state = 's' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      var url = 'https://accounts.google.com/o/oauth2/v2/auth' +
+        '?client_id=' + encodeURIComponent(clientId) +
+        '&redirect_uri=' + encodeURIComponent(silentRedirectUri()) +
+        '&response_type=token' +
+        '&scope=' + encodeURIComponent(scope) +
+        '&include_granted_scopes=true' +
+        '&prompt=none' +
+        '&state=' + encodeURIComponent(state) +
+        (hint ? '&login_hint=' + encodeURIComponent(hint) : '');
+
+      var frame = document.createElement('iframe');
+      frame.setAttribute('aria-hidden', 'true');
+      frame.setAttribute('tabindex', '-1');
+      frame.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;border:0;visibility:hidden';
+
+      var done = false, timer = null;
+      function finish(err, tok) {
+        if (done) return; done = true;
+        window.removeEventListener('message', onMsg);
         if (timer) clearTimeout(timer);
-        if (!ok) { try { if (pop && !pop.closed) pop.close(); } catch (e) {} }
+        if (frame.parentNode) frame.parentNode.removeChild(frame);
+        if (err) reject(err); else resolve(tok);
       }
-    };
+      function onMsg(e) {
+        // Three gates: our origin, our frame, our nonce. The callback page is on
+        // this origin, so anything failing these is somebody else's message.
+        if (e.origin !== location.origin) return;
+        if (frame.contentWindow && e.source !== frame.contentWindow) return;
+        var d = e.data;
+        if (!d || d.type !== 'vault-oauth-silent' || d.state !== state) return;
+        if (d.access_token) {
+          finish(null, { access: d.access_token, expires: Date.now() + (parseInt(d.expires_in, 10) || 3600) * 1000 });
+        } else {
+          finish(new Error(d.error || 'login_required'));
+        }
+      }
+      window.addEventListener('message', onMsg);
+      // A redirect URI Google doesn't recognise is the one case where it renders
+      // a page instead of redirecting — and that page can't frame us or talk to
+      // us, so silence is the only symptom. Time out rather than hang.
+      timer = setTimeout(function () { finish(new Error('silent_timeout')); }, timeoutMs || 8000);
+      frame.src = url;
+      (document.body || document.documentElement).appendChild(frame);
+    });
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
