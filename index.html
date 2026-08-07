@@ -32431,6 +32431,8 @@ window._THV={
 }
 #tj-root .mjd-note { padding: 12px 14px; text-align: left; }
 #tj-root .mjd-note b { color: var(--text2); font-weight: 600; }
+#tj-root .mjd-note.mjd-locked { border-left: 2px solid var(--orange); background: rgba(224,181,124,.05); border-radius: 0 var(--radius) var(--radius) 0; padding: 12px 14px; }
+#tj-root .mjd-note.mjd-locked svg { width: 15px; height: 15px; color: var(--orange); display: block; margin-bottom: 7px; }
 #tj-root .mjd-skel { height: 30px; margin: 3px 8px; border-radius: var(--radius); background: var(--card);
   animation: mjdpulse 1.2s ease-in-out infinite; }
 @keyframes mjdpulse { 0%,100% { opacity: .45; } 50% { opacity: .85; } }
@@ -32691,6 +32693,7 @@ window._THV={
     external: svg('<path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>'),
     sparkle:  svg('<path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m6 6 2.5 2.5"/><path d="m15.5 15.5 2.5 2.5"/><path d="m18 6-2.5 2.5"/><path d="m8.5 15.5-2.5 2.5"/>'),
     cloud:    svg('<path d="M17.5 19a4.5 4.5 0 0 0 .3-9A6 6 0 0 0 6.3 11 3.5 3.5 0 0 0 7 19Z"/>'),
+    lock:     svg('<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'),
     download: svg('<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>')
   };
   function kindIcon(k) {
@@ -33007,7 +33010,22 @@ window._THV={
       .then(function (live) { loadedKids[ref.key || 'root'] = live; paint(live); })
       .catch(function (e) {
         if (painted) return;         // a cached listing is better than an error
-        container.innerHTML = '<div class="mjd-note"><b>Could not load.</b><br>' + esc(D.errText(e)) + '</div>';
+        // A password-protected OneNote section is not a load failure — it is a
+        // wall, and a permanent one. Microsoft Graph cannot decrypt those
+        // sections and exposes no way to supply the password, so retrying or
+        // reconnecting will never help. Say that plainly, with the one action
+        // that does work, instead of dressing it up as an error.
+        var em = D.errText(e);
+        if (/encrypted sections? (are|is) not accessible/i.test(em)) {
+          container.innerHTML = '<div class="mjd-note mjd-locked">' + I.lock +
+            '<b>Password-protected section.</b><br>' +
+            'Microsoft Graph cannot read password-protected sections — there is no way to unlock this from MyJournal, ' +
+            'and unlocking it in OneNote on your device does not help either.<br><br>' +
+            'To sync it: OneNote desktop → right-click the section tab → <b>Password Protection → Remove Password</b>, then refresh here. ' +
+            'Otherwise leave it protected; nothing else in this notebook is affected.</div>';
+          return;
+        }
+        container.innerHTML = '<div class="mjd-note"><b>Could not load.</b><br>' + esc(em) + '</div>';
       });
   }
 
