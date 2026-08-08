@@ -2785,7 +2785,31 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 @media (max-width:640px){
   .thts-grab{display:block;flex-shrink:0;width:38px;height:4px;border-radius:2px;
     background:var(--ts-bdl);margin:7px auto 0;}
-  .thts-panel{width:min(620px,calc(100vw - 16px));max-height:82vh;}
+  /* Bottom sheet, not a dropdown.
+     Anchored to the CARD (position:absolute + top:100%) the panel ran to 1001px
+     on a 390x844 phone — 157px past the fold. Opening locks body scroll, so that
+     overflow was unreachable: you could scroll the panel's own list to its very
+     end and the last rows were still rendered below the screen. Pinning it to
+     the viewport bottom means the sheet can never exceed the screen height, and
+     it puts the content under the thumb instead of up under the notch. */
+  .thts-panel{
+    position:fixed;
+    top:auto;
+    left:8px;right:8px;width:auto;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 8px);
+    max-height:86vh;                                       /* fallback */
+    max-height:calc(100dvh - env(safe-area-inset-top,0px) - 52px);
+    border-radius:18px;
+    transform-origin:bottom center;
+    animation:thts-sheet .22s cubic-bezier(.2,.9,.3,1);
+  }
+  @keyframes thts-sheet{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  /* The hero render is the tallest single block; at phone width it reads fine
+     smaller, and the space it gives back is what lets Tires clear the fold. */
+  .thts-car{max-width:236px;}
+  .thts-hero{padding:8px 12px;}
+  .thts-panel-b{padding:11px 12px calc(16px + env(safe-area-inset-bottom,0px));}
+  .thts-cards{grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:6px;}
 }
 
 /* Header controls — 30px hit target keeps them thumb-safe. */
@@ -4038,13 +4062,21 @@ function Widget(props){
   // Swipe down to dismiss — armed only from the top of the scroll region, so
   // the gesture can never fight the panel's own scrolling.
   function swipeY(e){return (e.touches&&e.touches[0])?e.touches[0].clientY:null;}
+  // Every touch that starts inside the sheet is OURS — stop it before it
+  // reaches the document-level listeners. TaskHub's pull-to-refresh arms on any
+  // touchstart while window.scrollY is 0, and opening this popup locks body
+  // scroll at exactly 0, so without this a downward drag inside the sheet
+  // preventDefault()s our scrolling and kicks off a full profile refresh
+  // instead. Stopping propagation here fixes it without editing that handler.
   var touch={
     onTouchStart:function(e){
+      e.stopPropagation();
       if(bodyRef.current&&bodyRef.current.scrollTop>0){swipe.current=null;return;}
       var y=swipeY(e);
       swipe.current=(y==null)?null:{y0:y,dy:0};
     },
     onTouchMove:function(e){
+      e.stopPropagation();
       if(!swipe.current||!panel.current)return;
       var y=swipeY(e);if(y==null)return;
       swipe.current.dy=Math.max(0,y-swipe.current.y0);
@@ -4066,7 +4098,11 @@ function Widget(props){
   // Scrim: covers the whole page and takes the click that closes the popup.
   // It has no children, so every mousedown on it IS a background click.
   var scrim=h('div',{key:'s',className:'thts-scrim',role:'presentation',
-    onMouseDown:function(){setOpen(false);}});
+    onMouseDown:function(){setOpen(false);},
+    // Same reasoning as the sheet's handlers: a drag on the backdrop should
+    // dim-and-dismiss, never trigger the page's pull-to-refresh behind it.
+    onTouchStart:function(e){e.stopPropagation();},
+    onTouchMove:function(e){e.stopPropagation();}});
 
   return h('div',{className:'thts thts-open',style:vars,ref:box},compact,scrim,
     h('div',Object.assign({key:'p',ref:panel,className:'thts-panel',role:'dialog',
