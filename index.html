@@ -7511,6 +7511,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
       const payload = _vdPendingPayload; _vdPendingPayload = null;
       delete payload._gen;                       // internal only — never persisted
+      delete payload._bg;                        // internal only — never persisted
       _vdLastWrittenSavedAt = payload.savedAt || Date.now();
       _vdOwnWrites.add(_vdLastWrittenSavedAt);
       if (_vdOwnWrites.size > 50) _vdOwnWrites.delete(_vdOwnWrites.values().next().value);
@@ -7525,6 +7526,17 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       return _vdSaveInFlight;
     };
     window._fbSaveVeda = (payload) => {
+      // A write composed BEFORE this session ever applied cloud data is built from
+      // empty/stale local state, yet carries a brand-new Date.now() — so neither the
+      // savedAt comparison nor the generation check can catch it. That is precisely
+      // how a background job (the StudyOS mirror reconcile) could queue a wipe during
+      // a cold phone open. The app sets window._vdCloudLoaded once real cloud data
+      // has been applied; until then, only writes that the user genuinely caused are
+      // allowed through. `_bg` marks the automated ones.
+      if (payload && payload._bg && !window._vdCloudLoaded) {
+        console.warn('[Veda] dropping background write issued before cloud load');
+        return;
+      }
       payload._gen = _fbGen;                     // stamp the generation it was built in
       _vdPendingPayload = payload;
       _vdSavePending = true;
@@ -7582,8 +7594,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     const sosMirrorRef = doc(db, "dashboards/studyos_mirror");
     const sosAckRef    = doc(db, "dashboards/studyos_mirror_ack");
     if (_sosMirrorUnsub) { _sosMirrorUnsub(); _sosMirrorUnsub = null; }
-    _sosMirrorUnsub = onSnapshot(sosMirrorRef, (snap) => {
+    // includeMetadataChanges + an explicit fromCache drop, for the same reason the
+    // vedasdash listener does it. THIS IS THE "IT REVERTS RIGHT AFTER I OPEN THE
+    // PHONE" BUG: on a cold open Firestore delivers the CACHED mirror almost
+    // instantly — well before vedasdash has loaded — and the reconcile effect below
+    // then rewrote Veda's whole day-grid from half-initialised state and queued a
+    // full-document write of it. The write was correctly HELD by the _vdServerSeen
+    // gate, but held writes replay the moment the server confirms, so it landed on
+    // top of the good cloud doc a second later. A cached mirror snapshot carries no
+    // news (the live server one follows immediately), so dropping it is free.
+    _sosMirrorUnsub = onSnapshot(sosMirrorRef, { includeMetadataChanges: true }, (snap) => {
       if (!snap.exists()) return;
+      if (snap.metadata && snap.metadata.fromCache) return;
       const d = snap.data() || {};
       window._sosMirrorLatest = d.items || {};
       window.dispatchEvent(new CustomEvent("fb-sosmirror-update", { detail: window._sosMirrorLatest }));
@@ -11272,13 +11294,16 @@ function App(){
   // arriving from the cloud is stale and must not repaint the UI (see applyRemote).
   const vdLastAppliedRef=useRef(0);
 
-  const vdFbPush=useCallback(()=>{
+  // bg=true marks an automated (non-user) write — the StudyOS mirror reconcile.
+  // Those are refused until cloud data has loaded; see window._fbSaveVeda.
+  const vdFbPush=useCallback((bg)=>{
     if(!window._fbSaveVeda)return;
-    setVdSync("saving");
     const payload=buildVdPayload();
+    if(bg)payload._bg=true;
+    else setVdSync("saving");
     // Our own edit is now the newest state we know of — record it BEFORE the write
     // so a cache-fallback load landing mid-flight cannot roll the UI back over it.
-    vdLastAppliedRef.current=payload.savedAt||Date.now();
+    if(!bg||window._vdCloudLoaded)vdLastAppliedRef.current=payload.savedAt||Date.now();
     window._fbSaveVeda(payload);
   },[buildVdPayload]);
 
@@ -11289,6 +11314,10 @@ function App(){
   const mg=mgState;
   const mgMonthly=mgMonthlyState;
   const setData=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.data,next);vdRef.current={...vdRef.current,data:next};vdFbPush();return next;});},[vdFbPush]);
+  // Same as setData but flags the resulting write as automated/background, so the
+  // Firebase layer can refuse it if cloud data has not loaded yet. Used only by the
+  // StudyOS mirror reconcile — the one path that mutates `data` without the user.
+  const setDataBg=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;if(next===prev)return prev;saveJ(SK.data,next);vdRef.current={...vdRef.current,data:next};vdFbPush(true);return next;});},[vdFbPush]);
   const setHabits=useCallback(fn=>{setHabitsState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.habits,next);vdRef.current={...vdRef.current,habits:next};vdFbPush();return next;});},[vdFbPush]);
   const setHc=useCallback(fn=>{setHcState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.hc,next);vdRef.current={...vdRef.current,hc:next};vdFbPush();return next;});},[vdFbPush]);
   const setMg=useCallback(fn=>{setMgState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.goals,next);vdRef.current={...vdRef.current,goals:next};vdFbPush();return next;});},[vdFbPush]);
@@ -11354,6 +11383,9 @@ function App(){
     localStorage.setItem(SK.seeded,"1");localStorage.setItem(SK.weekKey,cw);
     if(vxHist&&vxHist.current){vxHist.current.applying=true;vxHist.current.base=null;}
     fbLoadedRef.current=true; // real cloud data is in hand — archiving may now run
+    // Same fact, visible to the Firebase layer: background writes are unsafe until
+    // this flips (see window._fbSaveVeda).
+    window._vdCloudLoaded=true;
     // The authoritative rules state just landed — re-ask about the daily gate.
     // Reads vdRef (updated above), so it sees remote values, not stale state.
     rulesAskRef.current&&rulesAskRef.current();
@@ -11517,6 +11549,16 @@ function App(){
     const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._sosId).map(t=>[t._sosId,t.title,t.done,t.time||"",t._sosClassName||""]).sort()]));
     const apply=(items)=>{
       items=items||{};
+      // NEVER reconcile before Veda's OWN document has loaded from the cloud.
+      // The mirror lives in a different doc with its own listener, and it usually
+      // wins the race on a phone open. Reconciling against a not-yet-loaded grid
+      // rewrites `data` from stale/empty local state and — because setData always
+      // pushes — queues a whole-document write that replays over the good cloud
+      // copy as soon as the server-seen gate opens. fbLoadedRef flips only when
+      // real cloud data has been applied, so this is the correct barrier.
+      // Nothing is lost by waiting: _sosMirrorLatest holds the newest mirror, and
+      // the post-load effect below replays it.
+      if(!fbLoadedRef.current)return;
       // Cheap pre-check. setData ALWAYS pushes to Firestore, even when the
       // reducer returns the previous state, so we must decide BEFORE calling it
       // or every snapshot would cost a pointless vedasdash write.
@@ -11526,7 +11568,7 @@ function App(){
       },{}));
       if(sosMirrorSigRef.current===incoming)return;
       sosMirrorSigRef.current=incoming;
-      setData(prev=>{
+      setDataBg(prev=>{
         const next={};
         // 1. Strip every mirrored item; the mirror is the sole source of truth
         //    for them, so anything it no longer lists was deleted in StudyOS.
@@ -11548,8 +11590,21 @@ function App(){
     window.addEventListener("fb-sosmirror-update",onMirror);
     // A snapshot may already have landed before this component mounted.
     if(window._sosMirrorLatest)apply(window._sosMirrorLatest);
-    return()=>window.removeEventListener("fb-sosmirror-update",onMirror);
-  },[setData]);
+    // Replay the newest mirror once Veda's own doc has loaded. `apply` above
+    // deliberately no-ops until fbLoadedRef flips, and the mirror listener may
+    // never fire again (StudyOS only writes when something changes), so without
+    // this poll a deferred reconcile would be dropped and StudyOS tasks would
+    // simply not show up. Cheap: it stops as soon as the load lands, and `apply`
+    // is signature-guarded so a replay of unchanged data costs nothing.
+    let tries=0;
+    const iv=setInterval(()=>{
+      if(fbLoadedRef.current){
+        clearInterval(iv);
+        if(window._sosMirrorLatest)apply(window._sosMirrorLatest);
+      } else if(++tries>120) clearInterval(iv);   // ~60s ceiling
+    },500);
+    return()=>{clearInterval(iv);window.removeEventListener("fb-sosmirror-update",onMirror);};
+  },[setDataBg]);
 
   // ── StudyOS task mirror — acknowledge ──────────────────────────────────────
   // Ticking a mirrored task here checks it off in StudyOS. We publish the whole

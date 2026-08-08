@@ -159,6 +159,39 @@ t('Both last-applied refs are declared',
   /const thLastAppliedRef=useRef\(0\);/.test(HTML) &&
   /const vdLastAppliedRef=useRef\(0\);/.test(HTML));
 
+section('Static: cold phone open (StudyOS mirror race)');
+
+// The mirror lives in a DIFFERENT doc with its own listener, and on a cold phone
+// open its cached snapshot lands before vedasdash has loaded. Reconciling then
+// rewrote the day-grid from empty state and queued a whole-doc write of it.
+t('StudyOS mirror listener drops cached snapshots',
+  /_sosMirrorUnsub = onSnapshot\(sosMirrorRef, \{ includeMetadataChanges: true \}[\s\S]{0,220}fromCache\) return;/.test(HTML),
+  'A cached mirror snapshot on a cold open is what starts the wipe.');
+
+t('Mirror reconcile refuses to run before Veda cloud data has loaded',
+  /if\(!fbLoadedRef\.current\)return;/.test(HTML),
+  'Reconciling against a not-yet-loaded grid rewrites data from empty state.');
+
+t('Deferred mirror is replayed once the load lands',
+  /if\(fbLoadedRef\.current\)\{[\s\S]{0,140}_sosMirrorLatest\)apply\(window\._sosMirrorLatest\);/.test(HTML),
+  'Without the replay, StudyOS tasks would silently never appear.');
+
+t('Mirror reconcile writes through the background-flagged setter',
+  /setDataBg\(prev=>\{/.test(HTML) && /const setDataBg=useCallback/.test(HTML),
+  'The one path that mutates data without the user must be distinguishable.');
+
+t('Background writes are refused before cloud data has loaded',
+  /payload\._bg && !window\._vdCloudLoaded/.test(HTML),
+  'A pre-load payload carries a fresh Date.now(), so savedAt and generation checks both miss it.');
+
+t('_bg is stripped before the payload is persisted',
+  /delete payload\._bg;/.test(HTML),
+  'Internal flags must never reach Firestore.');
+
+t('applyRemote publishes the cloud-loaded flag',
+  /window\._vdCloudLoaded=true;/.test(HTML),
+  'The Firebase layer needs this fact to gate background writes.');
+
 section('Static: loader does not discard valid cloud docs');
 
 t('Cloud doc accepted without requiring savedAt',
@@ -330,6 +363,74 @@ function makeUi() {
   ui.applyRemote({ data: 'COLD-START', savedAt: 7000, _fromCache: true });
   t('a cold start still paints from cache (offline open must work)',
     ui.shown === 'COLD-START'); }
+
+section('Behaviour: cold phone open wipes the cloud (the reported repro)');
+
+// Models the cold-open ordering: the mirror doc's listener fires BEFORE vedasdash
+// has loaded, the reconcile rewrites `data` from empty state, and the resulting
+// whole-document write is held by the server-seen gate — then replays over the
+// good cloud copy the moment the gate opens. That replay is the wipe.
+function makePhone(cloud) {
+  const p = {
+    cloudLoaded: false, serverSeen: false, held: null,
+    grid: {},                       // in-memory day grid (starts EMPTY on cold open)
+    save(payload) {
+      if (payload._bg && !p.cloudLoaded) return;      // the fix
+      if (p.serverSeen) cloud.doc = { data: payload.data, savedAt: payload.savedAt };
+      else p.held = payload;                          // held, replays on unlock
+    },
+    reconcile(mirrorItems, savedAt) {
+      if (!p.cloudLoaded) return;                     // the fix (barrier)
+      p.grid = Object.assign({}, p.grid, mirrorItems);
+      p.save({ data: p.grid, savedAt, _bg: true });
+    },
+    load() { p.grid = cloud.doc.data; p.cloudLoaded = true; },
+    markServerSeen() {
+      p.serverSeen = true;
+      if (p.held) { const h = p.held; p.held = null; p.save(h); }
+    },
+  };
+  return p;
+}
+
+{ // The exact repro: open TaskHub on the phone, desktop edits get wiped.
+  const cloud = { doc: { data: { mon: ['DESKTOP-TASK-1', 'DESKTOP-TASK-2'] }, savedAt: 5000 } };
+  const phone = makePhone(cloud);
+  // Cold open: the cached mirror snapshot arrives FIRST, before vedasdash loads.
+  phone.reconcile({ tue: ['STUDYOS-TASK'] }, 9000);
+  t('mirror reconcile before load does not queue a write',
+    phone.held === null,
+    'This queued payload is what replayed over the desktop edits.');
+  // Now the real doc loads and the gate opens.
+  phone.load();
+  phone.markServerSeen();
+  t('desktop tasks survive a cold phone open',
+    cloud.doc.data.mon && cloud.doc.data.mon.length === 2,
+    'THE REPORTED BUG: opening TaskHub on the phone reverted desktop edits.');
+}
+
+{ // After the load, the mirror must still reconcile normally.
+  const cloud = { doc: { data: { mon: ['DESKTOP-TASK'] }, savedAt: 5000 } };
+  const phone = makePhone(cloud);
+  phone.load(); phone.markServerSeen();
+  phone.reconcile({ tue: ['STUDYOS-TASK'] }, 9000);
+  t('mirror still reconciles once loaded (StudyOS tasks appear)',
+    cloud.doc.data.tue && cloud.doc.data.tue[0] === 'STUDYOS-TASK');
+  t('and it does not drop the user\'s own tasks',
+    cloud.doc.data.mon && cloud.doc.data.mon[0] === 'DESKTOP-TASK');
+}
+
+{ // A genuine USER edit before load is still held-and-replayed (not dropped) —
+  // the background rule must not swallow real typing.
+  const cloud = { doc: { data: { mon: ['OLD'] }, savedAt: 1000 } };
+  const phone = makePhone(cloud);
+  phone.save({ data: { mon: ['USER-TYPED'] }, savedAt: 2000 });  // no _bg flag
+  t('a real user edit before load is held, not dropped', phone.held !== null);
+  phone.markServerSeen();
+  t('and it lands once the server confirms',
+    cloud.doc.data.mon[0] === 'USER-TYPED',
+    'Only AUTOMATED writes are refused pre-load; user edits must never be lost.');
+}
 
 // ───────────────────────────────── summary ─────────────────────────────────
 console.log('\n' + '─'.repeat(64));
