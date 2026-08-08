@@ -20555,15 +20555,26 @@ window.hideBrainstormJournal = function() {
 #tj-root .entry-item.tj-dragging { opacity: 0.4; }
 #tj-root .entry-item:hover { background: var(--card); border-color: var(--border); }
 #tj-root .entry-item:active { background: var(--card2) !important; border-left-color: var(--purple) !important; }
-#tj-root .entry-item.active { background: var(--card2); border-color: var(--purple-dim); border-left-color: var(--purple); }
+#tj-root .entry-item.active {
+  background: var(--card2);
+  border-color: var(--gold-line);
+  border-left-color: var(--purple);
+  box-shadow: 0 0 0 1px rgba(224,184,116,.22), 0 0 12px rgba(224,184,116,.10);
+}
 #tj-root .entry-item-title {
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 600;
     font-family: var(--font);
     color: var(--text);
-    white-space: nowrap;
+    /* Two lines, not one hard truncation. A journal entry's title is the only
+       thing distinguishing it in the list, and "Trading Catalysts Week o…" is
+       not a title. Matches the cloud tabs so all three read alike. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
     padding-right: 20px;
   }
 #tj-root .entry-item-title.untitled { color: var(--text3); font-style:normal;font-family:var(--font-accent); font-weight: 400; }
@@ -27853,6 +27864,9 @@ function makeHistory(ctx) {
   function apply(s) {
     ctx._histSuppress = true;
     ctx.edEl.innerHTML = s.html;
+    // The wrappers this just recreated are inert until rebound — see
+    // _docxRebindImages. Without this, one Ctrl+Z kills every image control.
+    if (window._docxRebindImages) window._docxRebindImages(ctx.edEl, ctx.app);
     ctx.edEl.focus();
     setCaret(ctx.edEl, s.caret);
     fireInput(ctx.edEl);           // triggers autoSave; recording is suppressed
@@ -31309,6 +31323,26 @@ function _docxRestoreScroll(ctx) {
   requestAnimationFrame(function() { requestAnimationFrame(set); });
   setTimeout(set, 250);   // again after async image rehydration reflows the page
 }
+/* Re-attach image handlers after anything replaces the editor's innerHTML.
+ *
+ * Setting innerHTML destroys every .pg-img-wrap and builds fresh ones from the
+ * markup. The handlers are not in the markup — they are listeners bound in JS,
+ * plus a _pgBound expando that does not survive serialisation — so the new
+ * wrappers come back inert: no resize grip, no delete, and no right-click
+ * "Copy Image". That is the whole of the "images stop being resizable or
+ * copyable" report, and it only ever showed up AFTER an undo, which is why it
+ * felt random.
+ *
+ * Each journal binds through its own closure, so route by app id. Binding is
+ * idempotent (_pgBound), making this safe to call on any path that might have
+ * replaced content, whether or not it actually did. */
+window._docxRebindImages = function (edEl, app) {
+  if (!edEl) return;
+  var bind = app === 'bj' ? window._bjBindImg : window._tjBindImg;
+  if (typeof bind !== 'function') return;
+  edEl.querySelectorAll('.pg-img-wrap').forEach(function (w) { try { bind(w); } catch (e) {} });
+};
+
 // Snap a page editor's scroll container back to the top (used after "clear all content").
 window._docxScrollToTop = function(edId) {
   var ctx = ALLCTX.find(function(c) { return c.edEl.id === edId; });
@@ -33203,6 +33237,54 @@ window._THV={
   // emits carry the formatting that matters (bold, italic, colour, alignment),
   // so those are kept and the layout-only ones dropped.
   var KEEP_STYLE = /^(font-weight|font-style|font-size|font-family|color|background-color|text-align|text-decoration|vertical-align|margin-left|padding-left|list-style-type|width|height)$/;
+
+  /* ── Colour normalisation for a dark page ──────────────────────────────────
+   * Google exports a document written on white paper, so its HTML is littered
+   * with an explicit black `color:#000000` and white backgrounds. Dropped onto
+   * MyJournal's dark sheet that is black-on-charcoal — unreadable, which is
+   * exactly what you saw.
+   *
+   * The fix is to REMOVE those declarations rather than rewrite them to white.
+   * Removing means "inherit", and inheritance resolves correctly in both
+   * directions: white here, and — because black is already the default text
+   * colour in Google Docs and OneNote — black again the moment it goes back.
+   * Rewriting to #f4f3f0 instead would look right here and then push literal
+   * white text into your Google Doc, invisible on its white page. Deletion is
+   * the only edit that round-trips without damaging the source document.
+   *
+   * Colours the author actually chose (a red heading, a blue link) are far from
+   * black and are kept untouched.
+   */
+  function parseColor(v) {
+    v = String(v || '').trim().toLowerCase();
+    if (v === 'black') return [0, 0, 0];
+    if (v === 'white') return [255, 255, 255];
+    var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(v);
+    if (m) {
+      var h = m[1];
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+    }
+    m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(v);
+    if (m) return [+m[1], +m[2], +m[3]];
+    return null;
+  }
+  function luma(c) { return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255; }
+  // Chroma matters as much as brightness here. Judging on brightness ALONE
+  // throws away real colour: link blue (#0000ee) is dark enough to read as
+  // "black", and a yellow highlight (#FFE066) is bright enough to read as
+  // "white paper" — so both would have been silently stripped. A page default
+  // is not merely dark or light, it is NEUTRAL. Requiring low chroma keeps
+  // every colour the author actually picked and drops only the greys.
+  function chroma(c) { return (Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2])) / 255; }
+  var NEUTRAL = 0.12;
+  function isDefaultText(v) { var c = parseColor(v); return !!c && luma(c) < 0.22 && chroma(c) < NEUTRAL; }
+  function isPaperBg(v) {
+    v = String(v || '').trim().toLowerCase();
+    if (v === 'transparent' || v === 'none') return true;
+    var c = parseColor(v); return !!c && luma(c) > 0.86 && chroma(c) < NEUTRAL;
+  }
+
   function cleanStyles(root) {
     root.querySelectorAll('[style]').forEach(function (el) {
       var keep = [];
@@ -33215,6 +33297,9 @@ window._THV={
         if (!KEEP_STYLE.test(prop)) return;
         // A hard pixel width on a block would fight the page sheet's own width.
         if ((prop === 'width' || prop === 'height') && el.tagName !== 'IMG' && el.tagName !== 'TD' && el.tagName !== 'TH') return;
+        // Drop page-default colours so they inherit — see the note above.
+        if (prop === 'color' && isDefaultText(val)) return;
+        if (prop === 'background-color' && isPaperBg(val)) return;
         keep.push(prop + ':' + val);
       });
       if (keep.length) el.setAttribute('style', keep.join(';'));
@@ -33236,6 +33321,14 @@ window._THV={
     });
     // Google wraps every link in a redirector; unwrap to the real destination so
     // a link still works after the document leaves Google.
+    // Legacy presentational attributes carry the same problem and are not
+    // covered by the style sweep above.
+    root.querySelectorAll('[color]').forEach(function (el) {
+      if (isDefaultText(el.getAttribute('color'))) el.removeAttribute('color');
+    });
+    root.querySelectorAll('[bgcolor]').forEach(function (el) {
+      if (isPaperBg(el.getAttribute('bgcolor'))) el.removeAttribute('bgcolor');
+    });
     root.querySelectorAll('a[href]').forEach(function (a) {
       var m = /^https?:\/\/www\.google\.com\/url\?q=([^&]+)/.exec(a.getAttribute('href') || '');
       if (m) { try { a.setAttribute('href', decodeURIComponent(m[1])); } catch (e) {} }
@@ -33542,7 +33635,7 @@ window._THV={
 
     children: async function (ref) {
       var parent = ref.id || 'root';
-      var q = "'" + String(parent).replace(/'/g, "\\'") + "' in parents and trashed=false and (mimeType='" + GFOLDER_MIME + "' or mimeType='" + GDOC_MIME + "')";
+      var q = "'" + String(parent).replace(/'/g, "\'") + "' in parents and trashed=false and (mimeType='" + GFOLDER_MIME + "' or mimeType='" + GDOC_MIME + "')";
       var out = [], token = null;
       do {
         var j = await this.api(ref.account, '/files?q=' + encodeURIComponent(q) +
@@ -33552,7 +33645,69 @@ window._THV={
         (j.files || []).forEach(function (f) { out.push(gNode(f, ref.account)); });
         token = j.nextPageToken;
       } while (token);
-      return out;
+
+      // Drive is a whole filesystem; MyJournal only edits Google Docs. A folder
+      // holding nothing but spreadsheets, photos or PDFs is pure noise in a
+      // document tree, so folders with no document ANYWHERE beneath them are
+      // dropped from the listing.
+      //
+      // Done as a breadth-first sweep that asks about every folder at a given
+      // depth in ONE query — Drive accepts "'a' in parents or 'b' in parents" —
+      // rather than one call per folder. A 30-folder Drive costs a couple of
+      // requests, not thirty. Bounded in both depth and folders examined, and
+      // anything unresolved when the bounds run out is KEPT: showing an empty
+      // folder is a much smaller sin than hiding a full one.
+      var folders = out.filter(function (n) { return n.kind === 'folder'; });
+      if (!folders.length) return out;
+      try {
+        var keep = await this._foldersWithDocs(ref.account, folders.map(function (f) { return f.id; }));
+        return out.filter(function (n) { return n.kind !== 'folder' || keep[n.id]; });
+      } catch (e) {
+        return out;   // never hide anything because a probe failed
+      }
+    },
+
+    // → { folderId: true } for each input folder that transitively holds a Doc.
+    _foldersWithDocs: async function (accountId, ids) {
+      var MAX_DEPTH = 4, MAX_FOLDERS = 400, BATCH = 40;
+      var keep = Object.create(null);
+      var ancestry = Object.create(null);      // folder id → the top-level folder it descends from
+      var frontier = ids.slice(0, MAX_FOLDERS);
+      frontier.forEach(function (id) { ancestry[id] = id; });
+      var seen = 0, exhausted = false;
+
+      for (var depth = 0; depth < MAX_DEPTH && frontier.length; depth++) {
+        // Stop asking about branches whose ancestor already has a document.
+        var pending = frontier.filter(function (id) { return !keep[ancestry[id]]; });
+        if (!pending.length) break;
+        var next = [];
+        for (var i = 0; i < pending.length; i += BATCH) {
+          var batch = pending.slice(i, i + BATCH);
+          var q = '(' + batch.map(function (id) {
+                return "'" + String(id).replace(/'/g, "\'") + "' in parents";
+              }).join(' or ') +
+              ") and trashed=false and (mimeType='" + GFOLDER_MIME + "' or mimeType='" + GDOC_MIME + "')";
+          var tok = null;
+          do {
+            var j = await this.api(accountId, '/files?q=' + encodeURIComponent(q) +
+              '&fields=' + encodeURIComponent('files(id,mimeType,parents),nextPageToken') +
+              '&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true' + (tok ? '&pageToken=' + tok : ''));
+            (j.files || []).forEach(function (f) {
+              var root = ancestry[(f.parents && f.parents[0]) || ''];
+              if (!root) return;
+              if (f.mimeType === GDOC_MIME) { keep[root] = true; return; }
+              if (seen++ < MAX_FOLDERS) { ancestry[f.id] = root; next.push(f.id); }
+              else exhausted = true;
+            });
+            tok = j.nextPageToken;
+          } while (tok);
+        }
+        frontier = next;
+      }
+      if (exhausted || frontier.length) {
+        frontier.forEach(function (id) { keep[ancestry[id]] = true; });
+      }
+      return keep;
     },
 
     search: async function (accountId, query) {
@@ -34216,13 +34371,34 @@ window._THV={
 
   // Children, cache-first. onCached fires synchronously with whatever was
   // stored; the promise resolves with the authoritative listing.
+  // A permanent, provider-declared refusal — "this section is password
+  // protected" being the only one so far. Unlike a network error it cannot
+  // resolve by retrying, so it is cached exactly like a successful listing:
+  // fetched once, shown instantly thereafter, and cleared only by an explicit
+  // refresh (which is what you would do after removing the password).
+  function isPermanentRefusal(e) {
+    return /encrypted sections? (are|is) not accessible/i.test(errText(e));
+  }
+
   async function children(ref, onCached) {
     var k = 'ch|' + refKey(ref);
     var hit = cacheGet(k);
-    if (hit && onCached) { try { onCached(hit); } catch (e) {} }
+    if (hit) {
+      // A cached refusal is re-thrown rather than painted as an empty folder,
+      // so the UI still renders its explanatory locked state — without the
+      // round trip and without the loading flicker on every tab switch.
+      if (hit && hit.__refused) throw Object.assign(new Error(hit.__refused), { cached: true });
+      if (onCached) { try { onCached(hit); } catch (e) {} }
+    }
     var p = providers[ref.provider];
     if (!p) throw new Error('Unknown provider');
-    var live = await p.children(ref);
+    var live;
+    try {
+      live = await p.children(ref);
+    } catch (e) {
+      if (isPermanentRefusal(e)) cacheSet(k, { __refused: errText(e) });
+      throw e;
+    }
     cacheSet(k, live);
     return live;
   }
@@ -34464,324 +34640,544 @@ window._THV={
      shows is a small icon and the "Open in…" action.
      ══════════════════════════════════════════════════════════════════════════ -->
 <style id="mjd-css">
-/* ── Sidebar: source rail ────────────────────────────────────────────────── */
-#tj-root #mjd-nav { padding: 10px 12px 0; flex-shrink: 0; }
-#tj-root .mjd-rail {
-  display: flex; gap: 3px; background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 3px; overflow-x: auto; scrollbar-width: none;
+/* ══════════════════════════════════════════════════════════════════════════
+   MyJournal Cloud Documents — styles
+
+   SCOPING RULE, and it matters: #mjd-modal and #mjd-omni are appended to
+   document.body, NOT inside #tj-root. Anything they use must therefore be
+   declared UNSCOPED, against the raw palette values. Scoping those rules to
+   #tj-root is what made every dialog button fall back to the browser default
+   (white box, black label) while the same class looked right in the sidebar.
+   Sidebar-only rules stay scoped; shared ones live in the unscoped block and
+   the sidebar simply inherits them.
+
+   NO FILLED CHIPS. Selection and hover are expressed with the border and the
+   text colour only — the ring glows, the box never fills. That is the house
+   style everywhere else in the suite and the cloud UI now matches it.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Shared palette for the body-level surfaces ──────────────────────────── */
+:root {
+  --mjd-bg:      #1a1a1d;
+  --mjd-card:    #232327;
+  --mjd-card2:   #2c2c31;
+  --mjd-line:    #34343a;
+  --mjd-line2:   #45454c;
+  --mjd-text:    #f4f3f0;
+  --mjd-text2:   #adadb2;
+  --mjd-text3:   #8d8d94;
+  --mjd-gold:    #e0b874;
+  --mjd-gold-dim:rgba(224,184,116,.34);
+  --mjd-red:     #d68a7c;
+  --mjd-green:   #a4b986;
+  --mjd-orange:  #e0b57c;
+  --mjd-r:       7px;
+  --mjd-font:    'DM Sans', system-ui, sans-serif;
 }
-#tj-root .mjd-rail::-webkit-scrollbar { display: none; }
+
+/* ══════════════ Sidebar: source rail ══════════════
+   Outline-only. More room between controls — the old version packed four
+   micro-buttons into one strip and read as a single grey mass. */
+#tj-root #mjd-nav { padding: 12px 12px 2px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+
+#tj-root .mjd-rail { display: flex; gap: 6px; }
 #tj-root .mjd-rail-btn {
-  flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  background: transparent; border: none; border-radius: 4px; color: var(--text3);
-  font-family: var(--font); font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
-  padding: 6px 7px; cursor: pointer; white-space: nowrap; transition: background .14s, color .14s;
+  flex: 1 1 0; min-width: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--mjd-r);
+  color: var(--text3);
+  font-family: var(--font); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase;
+  padding: 9px 6px; cursor: pointer; white-space: nowrap;
+  transition: border-color .16s, color .16s, box-shadow .16s;
+  position: relative;
 }
-#tj-root .mjd-rail-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
-#tj-root .mjd-rail-btn:hover { color: var(--text2); }
-#tj-root .mjd-rail-btn.on { background: var(--card2); color: var(--purple); box-shadow: inset 0 0 0 1px rgba(224,184,116,.22); }
+#tj-root .mjd-rail-btn svg { width: 13px; height: 13px; flex-shrink: 0; opacity: .9; }
+#tj-root .mjd-rail-btn:hover { color: var(--text2); border-color: var(--border2); }
+#tj-root .mjd-rail-btn.on {
+  color: var(--purple);
+  border-color: var(--gold-line);
+  box-shadow: 0 0 0 1px rgba(224,184,116,.18), 0 0 10px rgba(224,184,116,.10);
+}
+/* Connection state: a hairline dot, not a badge. */
 #tj-root .mjd-rail-btn .mjd-dot {
-  width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex-shrink: 0;
+  width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+  background: var(--green); box-shadow: 0 0 5px rgba(164,185,134,.55);
 }
-#tj-root .mjd-rail-btn .mjd-dot.off { background: var(--text3); opacity: .5; }
+#tj-root .mjd-rail-btn .mjd-dot.off { background: transparent; box-shadow: none; border: 1px solid var(--text3); opacity: .55; }
 
-#tj-root .mjd-quick { display: flex; gap: 4px; margin-top: 6px; }
+#tj-root .mjd-quick { display: flex; gap: 6px; }
 #tj-root .mjd-quick button {
-  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  background: transparent; border: 1px solid var(--border); border-radius: var(--radius);
-  color: var(--text3); font-family: var(--font); font-size: 10px; font-weight: 600;
-  letter-spacing: .06em; text-transform: uppercase; padding: 5px 4px; cursor: pointer;
-  transition: border-color .14s, color .14s;
+  flex: 1 1 0; min-width: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: transparent; border: 1px solid var(--border); border-radius: var(--mjd-r);
+  color: var(--text3); font-family: var(--font); font-size: 9.5px; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase; padding: 8px 4px; cursor: pointer;
+  transition: border-color .16s, color .16s, box-shadow .16s;
 }
-#tj-root .mjd-quick button svg { width: 12px; height: 12px; }
-#tj-root .mjd-quick button:hover { border-color: rgba(224,184,116,.5); color: var(--purple); }
-#tj-root .mjd-quick button.on { border-color: rgba(224,184,116,.55); color: var(--purple); background: var(--card2); }
+#tj-root .mjd-quick button svg { width: 12px; height: 12px; flex-shrink: 0; opacity: .9; }
+#tj-root .mjd-quick button#mjd-settings-btn { flex: 0 0 40px; }
+#tj-root .mjd-quick button:hover { border-color: var(--border2); color: var(--text2); }
+#tj-root .mjd-quick button.on {
+  color: var(--purple); border-color: var(--gold-line);
+  box-shadow: 0 0 0 1px rgba(224,184,116,.18), 0 0 10px rgba(224,184,116,.10);
+}
 
-/* ── Sidebar: cloud panel (tree / favourites / recents) ──────────────────── */
+/* ══════════════ Sidebar: cloud panel ══════════════ */
 #tj-root #mjd-panel { flex: 1 1 0%; min-height: 0; display: none; flex-direction: column; overflow: hidden; }
 #tj-root #mjd-panel.on { display: flex; }
 #tj-root #mjd-panel-head {
-  display: flex; align-items: center; gap: 6px; padding: 8px 12px 6px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 4px; padding: 12px 14px 8px; flex-shrink: 0;
 }
 #tj-root #mjd-panel-title {
-  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
   color: var(--text3); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 #tj-root .mjd-icon-btn {
-  background: transparent; border: 1px solid transparent; border-radius: 4px; color: var(--text3);
-  padding: 4px; cursor: pointer; display: inline-flex; line-height: 0; transition: color .14s, border-color .14s;
+  background: transparent; border: 1px solid transparent; border-radius: 5px; color: var(--text3);
+  padding: 5px; cursor: pointer; display: inline-flex; line-height: 0;
+  transition: color .16s, border-color .16s;
 }
 #tj-root .mjd-icon-btn svg { width: 13px; height: 13px; }
-#tj-root .mjd-icon-btn:hover { color: var(--purple); border-color: var(--border2); }
+#tj-root .mjd-icon-btn:hover { color: var(--purple); border-color: var(--gold-line); }
 #tj-root .mjd-icon-btn:disabled { opacity: .35; cursor: not-allowed; }
 #tj-root .mjd-icon-btn.spin svg { animation: mjdspin .9s linear infinite; }
 @keyframes mjdspin { to { transform: rotate(360deg); } }
 
-#tj-root #mjd-tree { flex: 1 1 0%; min-height: 0; overflow-y: auto; padding: 0 8px 12px; }
+#tj-root #mjd-tree { flex: 1 1 0%; min-height: 0; overflow-y: auto; padding: 0 8px 14px; }
+
+/* ── Tree row: TWO LINES.
+   The old single-line row spent its width on a twisty, an icon, a date, a star
+   and a menu, leaving a sliver for the title — which is the one thing you
+   actually read. Title now owns the full row and may wrap to two lines; the
+   metadata drops to a second, quieter line. Same shape as MyJournal's own
+   entry cards, so all three tabs read alike. ── */
 #tj-root .mjd-row {
-  display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: var(--radius);
-  border: 1px solid transparent; border-left: 2px solid transparent; cursor: pointer;
-  transition: background .1s, border-color .1s; position: relative; min-height: 30px;
+  display: grid;
+  grid-template-columns: 15px 16px 1fr auto;
+  grid-template-areas: "tw ico name actions" ".  .   meta meta";
+  align-items: center; column-gap: 7px; row-gap: 1px;
+  padding: 8px 8px 8px 6px; border-radius: var(--mjd-r);
+  border: 1px solid transparent; border-left: 2px solid transparent;
+  cursor: pointer; transition: background .12s, border-color .12s; position: relative;
 }
 #tj-root .mjd-row:hover { background: var(--card); border-color: var(--border); }
-#tj-root .mjd-row.active { background: var(--card2); border-color: var(--purple-dim); border-left-color: var(--purple); }
+/* The document you are currently editing. This has to be unmistakable at a
+   glance — the previous rule used --purple-dim, which in Tony's palette
+   resolves to #2c2c31, the SAME colour as the row's own hover background. The
+   outline was technically applied and effectively invisible. */
+#tj-root .mjd-row.active {
+  background: var(--card2);
+  border-color: var(--gold-line);
+  border-left-color: var(--purple);
+  box-shadow: 0 0 0 1px rgba(224,184,116,.22), 0 0 12px rgba(224,184,116,.10);
+}
 #tj-root .mjd-tw {
-  width: 14px; height: 14px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-  color: var(--text3); transition: transform .16s;
+  grid-area: tw; width: 15px; height: 15px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text3); transition: transform .16s; align-self: start; margin-top: 1px;
 }
 #tj-root .mjd-tw svg { width: 9px; height: 9px; }
 #tj-root .mjd-tw.open { transform: rotate(90deg); }
 #tj-root .mjd-tw.leaf { visibility: hidden; }
-#tj-root .mjd-ico { flex-shrink: 0; line-height: 0; color: var(--text3); }
-#tj-root .mjd-ico svg { width: 14px; height: 14px; }
-#tj-root .mjd-row.kind-doc .mjd-ico { color: var(--purple); opacity: .8; }
+#tj-root .mjd-ico { grid-area: ico; line-height: 0; color: var(--text3); align-self: start; margin-top: 1px; }
+#tj-root .mjd-ico svg { width: 15px; height: 15px; }
+#tj-root .mjd-row.kind-doc .mjd-ico { color: var(--purple); opacity: .75; }
 #tj-root .mjd-name {
-  flex: 1; min-width: 0; font-size: 12.5px; color: var(--text); line-height: 1.35;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  grid-area: name; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--text);
+  line-height: 1.35; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 #tj-root .mjd-row.active .mjd-name { color: var(--purple); }
-#tj-root .mjd-meta { font-size: 10px; color: var(--text3); font-family: var(--font-mono); flex-shrink: 0; }
-#tj-root .mjd-star { opacity: 0; flex-shrink: 0; }
-#tj-root .mjd-row:hover .mjd-star, #tj-root .mjd-star.on { opacity: 1; }
+#tj-root .mjd-meta {
+  grid-area: meta; font-size: 10px; color: var(--text3); font-family: var(--font-mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: .02em;
+}
+#tj-root .mjd-actions { grid-area: actions; display: flex; gap: 1px; align-self: start; }
+#tj-root .mjd-star, #tj-root .mjd-menu { opacity: 0; transition: opacity .14s; }
+#tj-root .mjd-row:hover .mjd-star, #tj-root .mjd-row:hover .mjd-menu,
+#tj-root .mjd-star.on { opacity: 1; }
 #tj-root .mjd-star.on { color: var(--purple); }
-@media (hover: none) { #tj-root .mjd-star { opacity: .55; } }
-#tj-root .mjd-kids { }
+@media (hover: none) { #tj-root .mjd-star, #tj-root .mjd-menu { opacity: .6; } }
+
 #tj-root .mjd-empty, #tj-root .mjd-note {
-  padding: 22px 16px; text-align: center; color: var(--text3); font-size: 12px; line-height: 1.7;
+  padding: 24px 16px; text-align: center; color: var(--text3); font-size: 12px; line-height: 1.7;
 }
 #tj-root .mjd-note { padding: 12px 14px; text-align: left; }
 #tj-root .mjd-note b { color: var(--text2); font-weight: 600; }
-#tj-root .mjd-note.mjd-locked { border-left: 2px solid var(--orange); background: rgba(224,181,124,.05); border-radius: 0 var(--radius) var(--radius) 0; padding: 12px 14px; }
+#tj-root .mjd-note.mjd-locked {
+  border-left: 2px solid var(--orange); background: rgba(224,181,124,.05);
+  border-radius: 0 var(--mjd-r) var(--mjd-r) 0; padding: 12px 14px;
+}
 #tj-root .mjd-note.mjd-locked svg { width: 15px; height: 15px; color: var(--orange); display: block; margin-bottom: 7px; }
-#tj-root .mjd-skel { height: 30px; margin: 3px 8px; border-radius: var(--radius); background: var(--card);
-  animation: mjdpulse 1.2s ease-in-out infinite; }
-@keyframes mjdpulse { 0%,100% { opacity: .45; } 50% { opacity: .85; } }
-#tj-root .mjd-connect-cta { padding: 18px 14px; text-align: center; }
-#tj-root .mjd-connect-cta p { font-size: 12px; color: var(--text3); line-height: 1.65; margin-bottom: 12px; }
-#tj-root .mjd-btn {
-  background: transparent; color: var(--purple); border: 1px solid rgba(224,184,116,.32);
-  border-radius: var(--radius); font-family: var(--font); font-size: 11px; font-weight: 600;
-  letter-spacing: .05em; text-transform: uppercase; padding: 8px 14px; cursor: pointer;
-  transition: border-color .15s, background .15s; display: inline-flex; align-items: center; gap: 7px;
+#tj-root .mjd-skel {
+  height: 34px; margin: 4px 8px; border-radius: var(--mjd-r); background: var(--card);
+  animation: mjdpulse 1.2s ease-in-out infinite;
 }
-#tj-root .mjd-btn:hover { border-color: rgba(224,184,116,.65); }
-#tj-root .mjd-btn:disabled { opacity: .4; cursor: not-allowed; }
-#tj-root .mjd-btn.ghost { color: var(--text2); border-color: var(--border2); }
-#tj-root .mjd-btn.ghost:hover { border-color: var(--text3); }
-#tj-root .mjd-btn.danger { color: var(--red); border-color: rgba(214,138,124,.4); }
-#tj-root .mjd-btn svg { width: 13px; height: 13px; }
+@keyframes mjdpulse { 0%,100% { opacity: .4; } 50% { opacity: .8; } }
+#tj-root .mjd-connect-cta { padding: 20px 14px; text-align: center; }
+#tj-root .mjd-connect-cta p { font-size: 12px; color: var(--text3); line-height: 1.65; margin-bottom: 14px; }
 
-/* ── Toolbar: the open cloud document's chip ─────────────────────────────── */
-#tj-root #mjd-docbar {
-  display: none; align-items: center; gap: 7px; min-width: 0; flex-wrap: wrap;
+/* ── The one button, everywhere. Declared UNSCOPED so it works identically in
+      the sidebar and inside body-level dialogs. ── */
+.mjd-btn {
+  background: transparent; color: var(--mjd-gold);
+  border: 1px solid var(--mjd-gold-dim); border-radius: var(--mjd-r);
+  font-family: var(--mjd-font); font-size: 11px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase; padding: 9px 16px; cursor: pointer;
+  transition: border-color .16s, color .16s, box-shadow .16s;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; line-height: 1;
 }
+.mjd-btn:hover { border-color: var(--mjd-gold); box-shadow: 0 0 0 1px rgba(224,184,116,.16), 0 0 10px rgba(224,184,116,.10); }
+.mjd-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; border-color: var(--mjd-line2); color: var(--mjd-text3); }
+.mjd-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+.mjd-btn.ghost { color: var(--mjd-text2); border-color: var(--mjd-line2); }
+.mjd-btn.ghost:hover { color: var(--mjd-text); border-color: var(--mjd-text3); box-shadow: none; }
+.mjd-btn.danger { color: var(--mjd-red); border-color: rgba(214,138,124,.36); }
+.mjd-btn.danger:hover { border-color: var(--mjd-red); box-shadow: 0 0 0 1px rgba(214,138,124,.16); }
+
+/* ══════════════ Toolbar chip for the open cloud document ══════════════ */
+#tj-root #mjd-docbar { display: none; align-items: center; gap: 7px; min-width: 0; flex-wrap: wrap; }
 #tj-root #mjd-docbar.on { display: flex; }
 #tj-root .mjd-chip {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 260px;
-  background: var(--card); border: 1px solid var(--border); border-radius: 20px;
-  padding: 4px 11px; font-size: 11px; color: var(--text2); min-width: 0;
+  display: inline-flex; align-items: center; gap: 7px; max-width: 280px;
+  background: transparent; border: 1px solid var(--border); border-radius: 20px;
+  padding: 5px 12px; font-size: 11px; color: var(--text2); min-width: 0;
 }
-#tj-root .mjd-chip .mjd-chip-ico { line-height: 0; flex-shrink: 0; }
+#tj-root .mjd-chip .mjd-chip-ico { line-height: 0; flex-shrink: 0; color: var(--purple); opacity: .85; }
 #tj-root .mjd-chip .mjd-chip-ico svg { width: 12px; height: 12px; }
 #tj-root .mjd-chip .mjd-chip-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #tj-root #mjd-lastsync { font-size: 10px; color: var(--text3); font-family: var(--font-mono); white-space: nowrap; }
 #tj-root #mjd-offline {
-  display: none; align-items: center; gap: 5px; font-size: 10px; font-weight: 600;
-  letter-spacing: .05em; text-transform: uppercase; color: var(--orange);
-  border: 1px solid rgba(224,181,124,.4); border-radius: 20px; padding: 3px 9px;
+  display: none; align-items: center; gap: 6px; font-size: 9.5px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--orange);
+  border: 1px solid rgba(224,181,124,.36); border-radius: 20px; padding: 4px 10px;
 }
 #tj-root #mjd-offline.on { display: inline-flex; }
+#tj-root #mjd-offline svg { width: 11px; height: 11px; }
 
-/* ── Modal shell (shared by settings, accounts, move, conflict, export, AI) ── */
+/* ══════════════ Dialog shell — UNSCOPED (lives on document.body) ══════════════ */
 #mjd-modal {
   position: fixed; inset: 0; z-index: 2147482000; display: none;
-  align-items: center; justify-content: center; padding: 20px;
-  background: rgba(14,14,16,.68); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+  align-items: center; justify-content: center; padding: 24px;
+  background: rgba(12,12,14,.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  font-family: var(--mjd-font);
 }
 #mjd-modal.on { display: flex; }
 #mjd-modal-box {
-  width: 100%; max-width: 560px; max-height: min(84vh, 720px); display: flex; flex-direction: column;
-  background: #2c2c31; border: 1px solid #45454c; border-radius: 10px;
-  box-shadow: 0 30px 70px rgba(0,0,0,.5); font-family: 'DM Sans', sans-serif;
-  animation: mjdin .16s ease; overflow: hidden;
+  width: 100%; max-width: 540px; max-height: min(86vh, 760px); display: flex; flex-direction: column;
+  background: var(--mjd-card2); border: 1px solid var(--mjd-line2); border-radius: 12px;
+  box-shadow: 0 32px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(224,184,116,.06);
+  animation: mjdin .17s cubic-bezier(.2,.8,.3,1); overflow: hidden; color: var(--mjd-text2);
 }
-#mjd-modal-box.wide { max-width: 860px; }
-@keyframes mjdin { from { transform: translateY(10px) scale(.985); opacity: 0; } to { transform: none; opacity: 1; } }
-#mjd-modal-head {
-  display: flex; align-items: flex-start; gap: 12px; padding: 22px 24px 14px; flex-shrink: 0;
+#mjd-modal-box.wide { max-width: 880px; }
+@keyframes mjdin { from { transform: translateY(12px) scale(.985); opacity: 0; } to { transform: none; opacity: 1; } }
+#mjd-modal-head { display: flex; align-items: flex-start; gap: 14px; padding: 24px 26px 14px; flex-shrink: 0; }
+#mjd-modal-title {
+  font-family: 'Manrope', system-ui, sans-serif; font-size: 19px; font-weight: 650;
+  letter-spacing: -.2px; color: var(--mjd-text); line-height: 1.3; flex: 1; min-width: 0;
+  overflow-wrap: anywhere;
 }
-#mjd-modal-title { font-family: 'Manrope', system-ui, sans-serif; font-size: 19px; font-weight: 650;
-  letter-spacing: -.2px; color: #f4f3f0; line-height: 1.25; flex: 1; }
-#mjd-modal-sub { font-size: 12.5px; color: #8d8d94; line-height: 1.55; margin-top: 5px; }
-#mjd-modal-body { padding: 0 24px 4px; overflow-y: auto; flex: 1 1 auto; min-height: 0; color: #adadb2; font-size: 13.5px; line-height: 1.6; }
-#mjd-modal-foot { display: flex; gap: 9px; justify-content: flex-end; padding: 16px 24px 22px; flex-shrink: 0; flex-wrap: wrap; }
-#mjd-modal .mjd-x { background: transparent; border: none; color: #8d8d94; cursor: pointer; padding: 2px; line-height: 0; }
-#mjd-modal .mjd-x:hover { color: #f4f3f0; }
-#mjd-modal .mjd-x svg { width: 17px; height: 17px; }
+#mjd-modal-sub { font-size: 12.5px; color: var(--mjd-text3); line-height: 1.55; margin-top: 6px; overflow-wrap: anywhere; }
+#mjd-modal-body { padding: 0 26px 6px; overflow-y: auto; flex: 1 1 auto; min-height: 0; font-size: 13.5px; line-height: 1.6; }
+#mjd-modal-foot {
+  display: flex; gap: 10px; justify-content: flex-end; padding: 18px 26px 24px; flex-shrink: 0; flex-wrap: wrap;
+  border-top: 1px solid var(--mjd-line); margin-top: 16px;
+}
+#mjd-modal .mjd-x {
+  background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--mjd-text3);
+  cursor: pointer; padding: 5px; line-height: 0; transition: color .16s, border-color .16s; flex-shrink: 0;
+}
+#mjd-modal .mjd-x:hover { color: var(--mjd-text); border-color: var(--mjd-line2); }
+#mjd-modal .mjd-x svg { width: 16px; height: 16px; }
 
-/* Reusable pieces inside the modal */
-.mjd-field { display: block; margin-bottom: 15px; }
-.mjd-field > span { display: block; font-size: 10px; font-weight: 600; letter-spacing: .13em;
-  text-transform: uppercase; color: #8d8d94; margin: 0 0 7px; }
+/* Menu-style action list (the ⋯ menu on a document) */
+.mjd-menu-list { display: flex; flex-direction: column; gap: 6px; margin: -2px 0 2px; }
+.mjd-menu-item {
+  width: 100%; text-align: left; justify-content: flex-start;
+  text-transform: none; letter-spacing: 0; font-size: 13.5px; font-weight: 500;
+  padding: 11px 15px; color: var(--mjd-text2); border-color: var(--mjd-line);
+  background: transparent; border-width: 1px; border-style: solid; border-radius: var(--mjd-r);
+  font-family: var(--mjd-font); cursor: pointer; transition: border-color .16s, color .16s;
+  display: flex; align-items: center; gap: 10px;
+}
+.mjd-menu-item:hover { color: var(--mjd-gold); border-color: var(--mjd-gold-dim); }
+.mjd-menu-item:disabled { opacity: .38; cursor: not-allowed; color: var(--mjd-text3); border-color: var(--mjd-line); }
+.mjd-menu-item:disabled:hover { color: var(--mjd-text3); border-color: var(--mjd-line); }
+.mjd-menu-item.danger { color: var(--mjd-red); }
+.mjd-menu-item.danger:hover { border-color: rgba(214,138,124,.4); }
+.mjd-menu-why { font-size: 11.5px; color: var(--mjd-text3); line-height: 1.55; margin: -2px 2px 4px 15px; }
+
+/* Form pieces */
+.mjd-field { display: block; margin-bottom: 14px; }
+.mjd-field > span {
+  display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--mjd-text3); margin: 0 0 8px;
+}
 .mjd-input, .mjd-select {
-  width: 100%; box-sizing: border-box; background: #232327; border: 1px solid #45454c; border-radius: 6px;
-  color: #f4f3f0; font-size: 13px; padding: 9px 12px; outline: none; font-family: inherit; transition: border-color .16s;
+  width: 100%; box-sizing: border-box; background: var(--mjd-bg);
+  border: 1px solid var(--mjd-line2); border-radius: var(--mjd-r);
+  color: var(--mjd-text); font-size: 13px; padding: 10px 13px; outline: none;
+  font-family: var(--mjd-font); transition: border-color .16s, box-shadow .16s;
 }
-.mjd-input:focus, .mjd-select:focus { border-color: #e0b874; }
-.mjd-hint { font-size: 11.5px; color: #75757c; line-height: 1.6; margin-top: 7px; }
-.mjd-hint code { font-family: 'DM Mono', monospace; background: #232327; border: 1px solid #3a3a42;
-  border-radius: 3px; padding: 1px 5px; font-size: 10.5px; color: #adadb2; word-break: break-all; }
-.mjd-card {
-  border: 1px solid #3a3a42; border-radius: 8px; padding: 15px 16px; margin-bottom: 12px; background: #26262b;
+.mjd-input::placeholder { color: #6a6a72; }
+.mjd-input:focus, .mjd-select:focus { border-color: var(--mjd-gold); box-shadow: 0 0 0 1px rgba(224,184,116,.16); }
+.mjd-hint { font-size: 11.5px; color: #75757c; line-height: 1.65; margin-top: 8px; }
+.mjd-hint code {
+  font-family: 'DM Mono', monospace; background: var(--mjd-bg); border: 1px solid var(--mjd-line);
+  border-radius: 4px; padding: 2px 6px; font-size: 10.5px; color: var(--mjd-text2); overflow-wrap: anywhere;
 }
-.mjd-card-head { display: flex; align-items: center; gap: 9px; margin-bottom: 3px; }
+.mjd-hint b { color: var(--mjd-text2); font-weight: 600; }
+
+/* Provider card in settings / accounts */
+.mjd-card { border: 1px solid var(--mjd-line); border-radius: 10px; padding: 16px 17px; margin-bottom: 13px; background: #26262b; }
+.mjd-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
 .mjd-card-head .mjd-pico { line-height: 0; flex-shrink: 0; }
-.mjd-card-head .mjd-pico svg { width: 16px; height: 16px; }
-.mjd-card-head h4 { font-size: 14px; font-weight: 650; color: #f4f3f0; font-family: 'Manrope', sans-serif; flex: 1; }
-.mjd-acct {
-  display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid #34343a;
+.mjd-card-head .mjd-pico svg { width: 17px; height: 17px; }
+.mjd-card-head h4 { font-size: 14.5px; font-weight: 650; color: var(--mjd-text); font-family: 'Manrope', sans-serif; flex: 1; margin: 0; }
+
+/* Disclosure for setup instructions — collapsed by default so the dialog reads
+   as two fields rather than two essays. */
+.mjd-disclose {
+  margin-top: 10px; background: transparent; border: 1px solid var(--mjd-line);
+  border-radius: 6px; color: var(--mjd-text3); font-family: var(--mjd-font);
+  font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+  transition: color .16s, border-color .16s;
 }
+.mjd-disclose:hover { color: var(--mjd-gold); border-color: var(--mjd-gold-dim); }
+.mjd-disclose svg { width: 10px; height: 10px; transition: transform .18s; }
+.mjd-disclose.open svg { transform: rotate(90deg); }
+.mjd-instructions { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--mjd-line); }
+.mjd-instructions.on { display: block; animation: mjdfade .18s ease; }
+@keyframes mjdfade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Account rows */
+.mjd-acct { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-top: 1px solid var(--mjd-line); }
 .mjd-acct-av {
-  width: 26px; height: 26px; border-radius: 50%; background: #34343a; color: #e0b874;
-  display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;
+  width: 30px; height: 30px; border-radius: 50%; background: transparent;
+  border: 1px solid var(--mjd-gold-dim); color: var(--mjd-gold);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;
 }
 .mjd-acct-txt { flex: 1; min-width: 0; }
-.mjd-acct-txt b { display: block; font-size: 12.5px; color: #f4f3f0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mjd-acct-txt b { display: block; font-size: 13px; color: var(--mjd-text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mjd-acct-txt span { font-size: 11px; color: #75757c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.mjd-badge {
+  font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--mjd-green); border: 1px solid rgba(164,185,134,.34); border-radius: 20px; padding: 3px 9px; flex-shrink: 0;
+}
 .mjd-tiny {
-  background: transparent; border: 1px solid #45454c; border-radius: 5px; color: #adadb2;
-  font-family: inherit; font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
-  padding: 5px 9px; cursor: pointer; transition: border-color .15s, color .15s; flex-shrink: 0;
+  background: transparent; border: 1px solid var(--mjd-line2); border-radius: 6px; color: var(--mjd-text2);
+  font-family: var(--mjd-font); font-size: 9.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  padding: 6px 11px; cursor: pointer; transition: border-color .16s, color .16s; flex-shrink: 0;
 }
-.mjd-tiny:hover { border-color: #e0b874; color: #e0b874; }
-.mjd-tiny.danger:hover { border-color: rgba(214,138,124,.6); color: #d68a7c; }
+.mjd-tiny:hover { border-color: var(--mjd-gold); color: var(--mjd-gold); }
+.mjd-tiny.danger:hover { border-color: rgba(214,138,124,.6); color: var(--mjd-red); }
 
-/* Conflict — the two versions side by side */
-.mjd-conflict { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0 6px; }
-.mjd-conflict > div { border: 1px solid #3a3a42; border-radius: 8px; overflow: hidden; background: #232327; }
+/* Conflict panes */
+.mjd-conflict { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin: 4px 0 6px; }
+.mjd-conflict > div { border: 1px solid var(--mjd-line); border-radius: 9px; overflow: hidden; background: var(--mjd-bg); }
 .mjd-conflict h5 {
-  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  padding: 9px 12px; border-bottom: 1px solid #3a3a42; color: #8d8d94;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  padding: 10px 13px; border-bottom: 1px solid var(--mjd-line); color: var(--mjd-text3); margin: 0;
 }
-.mjd-conflict.mine h5, .mjd-conflict > div.mine h5 { color: #e0b874; }
+.mjd-conflict > div.mine h5 { color: var(--mjd-gold); }
 .mjd-conflict > div.theirs h5 { color: #6da8f5; }
-.mjd-conflict-body {
-  max-height: 260px; overflow: auto; padding: 12px 14px; font-size: 12px; line-height: 1.6; color: #adadb2;
-}
-.mjd-conflict-body ins { background: rgba(93,175,109,.22); color: #cfe6c9; text-decoration: none; }
-.mjd-conflict-body del { background: rgba(214,138,124,.2); color: #e8bdb4; }
-@media (max-width: 620px) { .mjd-conflict { grid-template-columns: 1fr; } }
+.mjd-conflict-body { max-height: 270px; overflow: auto; padding: 13px 15px; font-size: 12px; line-height: 1.65; color: var(--mjd-text2); }
+.mjd-conflict-body ins { background: rgba(164,185,134,.2); color: #cfe6c9; text-decoration: none; }
+.mjd-conflict-body del { background: rgba(214,138,124,.18); color: #e8bdb4; }
+@media (max-width: 640px) { .mjd-conflict { grid-template-columns: 1fr; } }
 
-/* Universal search overlay */
-#mjd-omni { position: fixed; inset: 0; z-index: 2147482100; display: none; padding: 8vh 20px 20px;
-  background: rgba(14,14,16,.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+/* ══════════════ Universal search — UNSCOPED ══════════════ */
+#mjd-omni {
+  position: fixed; inset: 0; z-index: 2147482100; display: none; padding: 7vh 24px 24px;
+  background: rgba(12,12,14,.74); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+  font-family: var(--mjd-font);
+}
 #mjd-omni.on { display: block; }
 #mjd-omni-box {
-  max-width: 720px; margin: 0 auto; background: #2c2c31; border: 1px solid #45454c; border-radius: 10px;
-  box-shadow: 0 30px 70px rgba(0,0,0,.5); overflow: hidden; display: flex; flex-direction: column;
-  max-height: 78vh; font-family: 'DM Sans', sans-serif; animation: mjdin .16s ease;
+  max-width: 760px; margin: 0 auto; background: var(--mjd-card2);
+  border: 1px solid var(--mjd-line2); border-radius: 12px;
+  box-shadow: 0 32px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(224,184,116,.06);
+  overflow: hidden; display: flex; flex-direction: column; max-height: 80vh;
+  animation: mjdin .17s cubic-bezier(.2,.8,.3,1); color: var(--mjd-text2);
 }
-#mjd-omni-top { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid #3a3a42; }
-#mjd-omni-top svg { width: 16px; height: 16px; color: #8d8d94; flex-shrink: 0; }
+#mjd-omni-top { display: flex; align-items: center; gap: 12px; padding: 17px 20px; border-bottom: 1px solid var(--mjd-line); }
+#mjd-omni-top > svg { width: 17px; height: 17px; color: var(--mjd-text3); flex-shrink: 0; }
 #mjd-omni-input {
-  flex: 1; background: transparent; border: none; outline: none; color: #f4f3f0;
-  font-family: inherit; font-size: 15px; min-width: 0;
+  flex: 1; background: transparent; border: none; outline: none; color: var(--mjd-text);
+  font-family: inherit; font-size: 15.5px; min-width: 0; padding: 2px 0;
 }
-#mjd-omni-input::placeholder { color: #75757c; }
-#mjd-omni-filters { display: flex; gap: 6px; padding: 11px 18px; border-bottom: 1px solid #3a3a42;
-  flex-wrap: wrap; align-items: center; }
+#mjd-omni-input::placeholder { color: #6a6a72; }
+
+/* Filters: three labelled groups instead of one undifferentiated row of chips. */
+#mjd-omni-filters {
+  display: flex; gap: 18px; padding: 13px 20px; border-bottom: 1px solid var(--mjd-line);
+  flex-wrap: wrap; align-items: center;
+}
+.mjd-fgroup { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.mjd-fgroup > span {
+  font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: #6a6a72; flex-shrink: 0;
+}
+.mjd-fchips { display: flex; gap: 5px; flex-wrap: wrap; }
 .mjd-fchip {
-  background: transparent; border: 1px solid #45454c; border-radius: 20px; color: #8d8d94;
-  font-family: inherit; font-size: 10.5px; font-weight: 600; letter-spacing: .04em;
-  padding: 4px 11px; cursor: pointer; transition: border-color .15s, color .15s;
+  background: transparent; border: 1px solid var(--mjd-line); border-radius: 20px; color: var(--mjd-text3);
+  font-family: var(--mjd-font); font-size: 10.5px; font-weight: 600; letter-spacing: .03em;
+  padding: 5px 12px; cursor: pointer; transition: border-color .16s, color .16s, box-shadow .16s; white-space: nowrap;
 }
-.mjd-fchip:hover { color: #adadb2; }
-.mjd-fchip.on { border-color: rgba(224,184,116,.55); color: #e0b874; background: #26262b; }
-#mjd-omni-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding: 6px; }
-.mjd-hit { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 6px;
-  cursor: pointer; border: 1px solid transparent; }
-.mjd-hit:hover, .mjd-hit.sel { background: #26262b; border-color: #3a3a42; }
-.mjd-hit .mjd-ico { line-height: 0; color: #8d8d94; flex-shrink: 0; }
-.mjd-hit .mjd-ico svg { width: 15px; height: 15px; }
-.mjd-hit-txt { flex: 1; min-width: 0; }
-.mjd-hit-txt b { display: block; font-size: 13px; color: #f4f3f0; font-weight: 550;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mjd-hit-txt span { display: block; font-size: 11px; color: #75757c;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mjd-hit mark { background: rgba(224,184,116,.25); color: #f0d9ae; border-radius: 2px; }
-#mjd-omni-foot { padding: 10px 18px; border-top: 1px solid #3a3a42; display: flex; align-items: center;
-  gap: 10px; font-size: 11px; color: #75757c; flex-wrap: wrap; }
-#mjd-omni-answer { padding: 12px 18px; border-bottom: 1px solid #3a3a42; font-size: 12.5px;
-  color: #adadb2; line-height: 1.6; display: none; }
+.mjd-fchip:hover { color: var(--mjd-text2); border-color: var(--mjd-line2); }
+.mjd-fchip.on {
+  border-color: var(--mjd-gold-dim); color: var(--mjd-gold);
+  box-shadow: 0 0 0 1px rgba(224,184,116,.14);
+}
+
+#mjd-omni-answer { padding: 14px 20px; border-bottom: 1px solid var(--mjd-line); font-size: 12.5px; color: var(--mjd-text2); line-height: 1.65; display: none; }
 #mjd-omni-answer.on { display: block; }
-#mjd-omni-answer b { color: #e0b874; font-weight: 600; }
+#mjd-omni-answer b { color: var(--mjd-gold); font-weight: 600; }
 
-/* AI results list inside the modal */
-.mjd-ai-group { border: 1px solid #3a3a42; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
-.mjd-ai-group > h5 { font-size: 12.5px; font-weight: 650; color: #f4f3f0; padding: 11px 14px;
-  background: #26262b; border-bottom: 1px solid #3a3a42; font-family: 'Manrope', sans-serif; }
-.mjd-ai-group > h5 em { font-style: normal; font-size: 11px; color: #75757c; font-weight: 400; margin-left: 8px; }
-.mjd-ai-group ul { list-style: none; padding: 6px 0; }
-.mjd-ai-group li { padding: 6px 14px; font-size: 12.5px; color: #adadb2; display: flex; gap: 8px; align-items: center; cursor: pointer; }
-.mjd-ai-group li:hover { background: #26262b; color: #f4f3f0; }
-.mjd-pill-row { display: flex; flex-wrap: wrap; gap: 7px; margin: 4px 0 10px; }
+#mjd-omni-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding: 8px; }
+.mjd-hit {
+  display: grid; grid-template-columns: 18px 1fr auto; column-gap: 11px; row-gap: 2px;
+  grid-template-areas: "ico name when" ".   sub  sub";
+  padding: 10px 13px; border-radius: var(--mjd-r); cursor: pointer;
+  border: 1px solid transparent; align-items: center;
+}
+.mjd-hit:hover, .mjd-hit.sel { background: #26262b; border-color: var(--mjd-line); }
+.mjd-hit.sel { border-color: var(--mjd-gold-dim); }
+.mjd-hit .mjd-ico { grid-area: ico; line-height: 0; color: var(--mjd-text3); align-self: start; margin-top: 2px; }
+.mjd-hit .mjd-ico svg { width: 15px; height: 15px; }
+.mjd-hit-name {
+  grid-area: name; font-size: 13.5px; color: var(--mjd-text); font-weight: 550; min-width: 0;
+  overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere;
+}
+.mjd-hit-sub { grid-area: sub; font-size: 11px; color: #75757c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mjd-hit-when { grid-area: when; font-size: 10px; color: var(--mjd-text3); font-family: 'DM Mono', monospace; white-space: nowrap; align-self: start; margin-top: 2px; }
+.mjd-hit mark { background: transparent; color: var(--mjd-gold); font-weight: 700; border-radius: 0; }
+
+#mjd-omni-foot {
+  padding: 12px 20px; border-top: 1px solid var(--mjd-line); display: flex; align-items: center;
+  gap: 9px; font-size: 11px; color: #75757c; flex-wrap: wrap;
+}
+#mjd-omni-count { white-space: nowrap; }
+
+/* AI results */
+.mjd-ai-group { border: 1px solid var(--mjd-line); border-radius: 9px; margin-bottom: 11px; overflow: hidden; }
+.mjd-ai-group > h5 {
+  font-size: 12.5px; font-weight: 650; color: var(--mjd-text); padding: 12px 15px; margin: 0;
+  background: #26262b; border-bottom: 1px solid var(--mjd-line); font-family: 'Manrope', sans-serif;
+}
+.mjd-ai-group > h5 em { font-style: normal; font-size: 11px; color: #75757c; font-weight: 400; margin-left: 9px; }
+.mjd-ai-group ul { list-style: none; padding: 6px 0; margin: 0; }
+.mjd-ai-group li {
+  padding: 8px 15px; font-size: 12.5px; color: var(--mjd-text2);
+  display: flex; gap: 9px; align-items: center; cursor: pointer; transition: background .12s, color .12s;
+}
+.mjd-ai-group li:hover { background: #26262b; color: var(--mjd-text); }
+.mjd-ai-group li svg { width: 14px; height: 14px; flex-shrink: 0; opacity: .7; }
+.mjd-pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
 .mjd-pill {
-  background: #232327; border: 1px solid #45454c; border-radius: 20px; color: #adadb2;
-  font-family: inherit; font-size: 12px; padding: 6px 13px; cursor: pointer; transition: border-color .15s, color .15s;
+  background: transparent; border: 1px solid var(--mjd-line2); border-radius: 20px; color: var(--mjd-text2);
+  font-family: var(--mjd-font); font-size: 12px; padding: 7px 14px; cursor: pointer;
+  transition: border-color .16s, color .16s;
 }
-.mjd-pill:hover { border-color: #e0b874; color: #e0b874; }
+.mjd-pill:hover { border-color: var(--mjd-gold); color: var(--mjd-gold); }
+.mjd-pill.on { border-color: var(--mjd-gold-dim); color: var(--mjd-gold); }
 .mjd-out {
-  background: #232327; border: 1px solid #3a3a42; border-radius: 8px; padding: 14px 16px;
-  font-size: 13px; line-height: 1.65; color: #d6d6da; white-space: pre-wrap; max-height: 300px; overflow: auto;
+  background: var(--mjd-bg); border: 1px solid var(--mjd-line); border-radius: 9px; padding: 15px 17px;
+  font-size: 13px; line-height: 1.7; color: #d6d6da; white-space: pre-wrap; max-height: 320px; overflow: auto;
 }
-.mjd-spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(224,184,116,.25);
-  border-top-color: #e0b874; border-radius: 50%; animation: mjdspin .7s linear infinite; }
-.mjd-busy { display: flex; align-items: center; gap: 10px; padding: 26px 0; color: #8d8d94; font-size: 13px; justify-content: center; }
+.mjd-spinner {
+  display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(224,184,116,.22);
+  border-top-color: var(--mjd-gold); border-radius: 50%; animation: mjdspin .7s linear infinite;
+}
+.mjd-busy { display: flex; align-items: center; gap: 11px; padding: 30px 0; color: var(--mjd-text3); font-size: 13px; justify-content: center; }
+.mjd-empty, .mjd-note { padding: 26px 16px; text-align: center; color: var(--mjd-text3); font-size: 12.5px; line-height: 1.7; }
+.mjd-note { padding: 13px 15px; text-align: left; }
+.mjd-note b { color: var(--mjd-text2); font-weight: 600; }
 
-/* ── Responsive ──────────────────────────────────────────────────────────── */
-/* Tablet and below: the sidebar becomes a drawer, so the rail needs to be
-   comfortably tappable rather than compact. */
-@media (max-width: 900px) {
-  #tj-root .mjd-rail-btn { padding: 9px 8px; font-size: 11px; }
-  #tj-root .mjd-quick button { padding: 8px 4px; font-size: 10.5px; }
-  #tj-root .mjd-row { min-height: 38px; padding: 8px; }
-  #tj-root .mjd-name { font-size: 13px; }
-  #tj-root .mjd-star { opacity: .55; }
-  #mjd-modal-box { max-height: 88vh; }
-  #mjd-omni { padding: 5vh 12px 12px; }
-  #mjd-omni-box { max-height: 86vh; }
+/* Transient message surface — always visible, never covers the editor. */
+#mjd-toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 14px);
+  z-index: 2147482500; max-width: min(520px, calc(100vw - 32px));
+  background: var(--mjd-card2); border: 1px solid var(--mjd-line2); border-radius: 9px;
+  color: var(--mjd-text2); font-family: var(--mjd-font); font-size: 13px; line-height: 1.5;
+  padding: 12px 18px; box-shadow: 0 16px 44px rgba(0,0,0,.5);
+  opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s;
 }
-/* Phone: labels off the rail (icons carry it), full-bleed dialogs. */
+#mjd-toast.on { opacity: 1; transform: translate(-50%, 0); }
+#mjd-toast.ok { border-color: rgba(164,185,134,.42); color: #cfe0bd; }
+#mjd-toast.error { border-color: rgba(214,138,124,.46); color: #eec4bb; }
 @media (max-width: 600px) {
+  #mjd-toast { left: 12px; right: 12px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); max-width: none; transform: translateY(14px); }
+  #mjd-toast.on { transform: translateY(0); }
+}
+
+/* ══════════════════════════ RESPONSIVE ══════════════════════════ */
+
+/* Wider sidebar on roomy screens: the title is the point, give it room. */
+@media (min-width: 1100px) { #tj-root { --sidebar-w: 300px; } }
+
+/* Tablet: touch sizing. */
+@media (max-width: 900px) {
+  #tj-root .mjd-rail-btn { padding: 11px 7px; font-size: 11px; }
+  #tj-root .mjd-quick button { padding: 10px 5px; font-size: 10px; }
+  #tj-root .mjd-row { padding: 10px 8px; }
+  #tj-root .mjd-name { font-size: 13px; }
+  #mjd-modal-box { max-height: 90vh; }
+  #mjd-omni { padding: 4vh 14px 14px; }
+  #mjd-omni-box { max-height: 88vh; }
+  #mjd-omni-filters { gap: 12px; }
+}
+
+/* Phone: rail becomes icons, dialogs become sheets. */
+@media (max-width: 600px) {
+  #tj-root #mjd-nav { padding: 10px 10px 2px; gap: 7px; }
   #tj-root .mjd-rail-btn span.mjd-lbl { display: none; }
-  #tj-root .mjd-rail-btn { padding: 10px 6px; }
-  #tj-root .mjd-rail-btn svg { width: 15px; height: 15px; }
-  #mjd-modal { padding: 0; align-items: flex-end; }
-  #mjd-modal-box { max-width: none; border-radius: 12px 12px 0 0; max-height: 92vh; }
-  #mjd-modal-head { padding: 18px 18px 12px; }
-  #mjd-modal-body { padding: 0 18px 4px; }
-  #mjd-modal-foot { padding: 14px 18px calc(18px + env(safe-area-inset-bottom, 0px)); }
-  #mjd-modal-foot .mjd-btn { flex: 1 1 46%; justify-content: center; }
-  #tj-root .mjd-chip { max-width: 160px; }
+  #tj-root .mjd-rail-btn { padding: 12px 6px; }
+  #tj-root .mjd-rail-btn svg { width: 16px; height: 16px; }
+  #tj-root .mjd-quick button span { display: none; }
+  #tj-root .mjd-quick button { padding: 11px 4px; }
+  #tj-root .mjd-quick button svg { width: 15px; height: 15px; }
+  #tj-root .mjd-quick button#mjd-settings-btn { flex: 1 1 0; }
+  #tj-root .mjd-chip { max-width: 170px; }
   #tj-root #mjd-lastsync { display: none; }
+
+  #mjd-modal { padding: 0; align-items: flex-end; }
+  #mjd-modal-box { max-width: none; border-radius: 14px 14px 0 0; max-height: 93vh; }
+  #mjd-modal-head { padding: 20px 18px 12px; }
+  #mjd-modal-body { padding: 0 18px 6px; }
+  #mjd-modal-foot { padding: 15px 18px calc(18px + env(safe-area-inset-bottom, 0px)); }
+  #mjd-modal-foot .mjd-btn { flex: 1 1 46%; }
+
+  #mjd-omni { padding: 0; }
+  #mjd-omni-box { max-width: none; max-height: 100vh; height: 100dvh; border-radius: 0; border: none; }
+  #mjd-omni-top { padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 14px; }
+  #mjd-omni-filters { padding: 11px 16px; gap: 10px; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  #mjd-omni-filters::-webkit-scrollbar { display: none; }
+  .mjd-fgroup { flex-shrink: 0; }
+  #mjd-omni-foot { padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px)); }
+  #mjd-omni-foot .mjd-tiny { flex: 1 1 auto; text-align: center; }
+  #mjd-omni-count { width: 100%; }
+  .mjd-conflict-body { max-height: 180px; }
 }
-/* Narrow foldables / cover screens */
+
+/* Narrow foldables / cover screens. */
 @media (max-width: 360px) {
-  #tj-root .mjd-quick button { font-size: 9px; letter-spacing: .03em; }
-  #tj-root .mjd-meta { display: none; }
+  #tj-root .mjd-meta { font-size: 9px; }
+  #mjd-modal-foot .mjd-btn { flex: 1 1 100%; }
 }
-/* Short viewports (phone landscape, split screen): dialogs must not exceed the
-   window, and the tree needs every pixel it can get. */
+
+/* Short viewports (phone landscape, split screen). */
 @media (max-height: 520px) {
-  #mjd-modal-box { max-height: 96vh; }
-  #mjd-modal-head { padding: 13px 18px 8px; }
-  #mjd-modal-foot { padding: 10px 18px 12px; }
-  #mjd-omni { padding: 2vh 12px 12px; }
-  #mjd-omni-box { max-height: 94vh; }
-}
-/* Coarse pointers: hover-only affordances need a permanent home. */
-@media (hover: none) {
-  #tj-root .mjd-row .mjd-star { opacity: .55; }
+  #mjd-modal-box { max-height: 97vh; }
+  #mjd-modal-head { padding: 14px 20px 8px; }
+  #mjd-modal-foot { padding: 11px 20px 13px; margin-top: 10px; }
+  #mjd-omni { padding: 1vh 12px 12px; }
+  #mjd-omni-box { max-height: 96vh; }
+  .mjd-conflict-body { max-height: 150px; }
 }
 </style>
 
@@ -34889,15 +35285,32 @@ window._THV={
     if (cur) { modalStack.pop(); openModal(cur); }        // restore the dialog underneath
     else { var m = el('mjd-modal'); if (m) m.classList.remove('on'); }
   }
+  /* Transient messages need a surface that is ALWAYS visible.
+   *
+   * These used to be written into #mjd-lastsync, which lives inside #mjd-docbar
+   * — and that bar is hidden unless a cloud document is open. So every message
+   * raised while merely browsing (including the error from a failed "New
+   * document") was written into a hidden element and silently discarded. A
+   * failure you cannot see is indistinguishable from a button that does
+   * nothing, which is exactly how it was reported.
+   *
+   * The status line keeps doing what it is good at — the persistent "Synced
+   * 2m ago" readout — and one-off outcomes now get their own toast. */
   function toast(msg, kind) {
-    // MyJournal already owns a status line in the toolbar; a transient message
-    // belongs there rather than in a floating layer that covers the document.
-    var box = el('mjd-lastsync');
-    if (!box) { if (window.uiAlert) window.uiAlert(msg); return; }
-    box.textContent = msg;
-    box.style.color = kind === 'error' ? 'var(--red)' : (kind === 'ok' ? 'var(--green)' : '');
-    clearTimeout(box._t);
-    box._t = setTimeout(function () { box.style.color = ''; paintStatus(); }, 4200);
+    var t = el('mjd-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'mjd-toast';
+      t.setAttribute('role', 'status');
+      t.setAttribute('aria-live', 'polite');
+      document.body.appendChild(t);
+    }
+    t.className = kind || '';
+    t.textContent = msg;
+    // Restart the animation even if a toast is already showing.
+    t.classList.remove('on'); void t.offsetWidth; t.classList.add('on');
+    clearTimeout(t._t);
+    t._t = setTimeout(function () { t.classList.remove('on'); }, kind === 'error' ? 6000 : 3600);
   }
   async function ask(msg, opts) { return window.uiConfirm ? window.uiConfirm(msg, opts) : Promise.resolve(true); }
   async function askText(msg, opts) { return window.uiPrompt ? window.uiPrompt(msg, opts) : Promise.resolve(null); }
@@ -34971,20 +35384,37 @@ window._THV={
       if (e.target.closest('#mjd-omni-btn')) { openOmni(); return; }
       if (e.target.closest('#mjd-settings-btn')) { openSettings(); return; }
     });
-    el('mjd-new-btn').addEventListener('click', onNew);
+    // Deliberately NOT `addEventListener('click', onNew)`. onNew's first
+    // parameter is the destination folder, and a listener is called with the
+    // MouseEvent — which is truthy, so it was being used AS the folder. The
+    // create then ran against an object with no account or id and failed, and
+    // (see toast below) failed invisibly. Hence "nothing happens".
+    el('mjd-new-btn').addEventListener('click', function () { onNew(); });
     el('mjd-refresh-btn').addEventListener('click', function () { hardRefresh(); });
     el('mjd-acct-btn').addEventListener('click', function () { openAccounts(sectionProvider()); });
 
     buildDocBar();
-    setSection(S().view && S().view.section || 'pages');
+    setSection(validSection((S().view && S().view.section) || 'pages'));
   }
 
   function sectionProvider() {
     return (section === 'favorites' || section === 'recents') ? null : (section === 'pages' ? 'mjpages' : section);
   }
 
+  // The active section is RESTORED FROM SYNCED SETTINGS, so it can name a
+  // provider this build does not have — a provider that was renamed or removed,
+  // or one a newer build on another device knew about. renderPanel then
+  // dereferenced null and took buildNav down with it, leaving no sidebar at all.
+  // Anything unrecognised falls back to the one section that always exists.
+  function validSection(sec) {
+    if (sec === 'favorites' || sec === 'recents' || sec === 'pages') return sec;
+    return D.get(sec) ? sec : 'pages';
+  }
+
   function setSection(sec) {
-    section = sec;
+    bumpGen();                 // abandon any listing still in flight for the old tab
+    section = validSection(sec);
+    sec = section;
     S().view = Object.assign({}, S().view, { section: sec });
     D.saveLocal();   // switching tabs is not worth a round trip
     document.querySelectorAll('#mjd-nav [data-sec]').forEach(function (b) {
@@ -35004,6 +35434,7 @@ window._THV={
   }
 
   function renderPanel() {
+    bumpGen();
     var titleEl = el('mjd-panel-title'), tree = el('mjd-tree');
     var pid = sectionProvider();
     var isList = !pid;
@@ -35015,6 +35446,7 @@ window._THV={
     if (section === 'recents')   { titleEl.textContent = 'Recent';     renderFlat(S().recents, 'Nothing opened yet.'); return; }
 
     var p = D.get(pid);
+    if (!p) { setSection('pages'); return; }   // belt and braces — see validSection
     titleEl.textContent = p.label;
     if (!p.caps.local) {
       if (!p.configured()) {
@@ -35060,14 +35492,22 @@ window._THV={
     row.style.paddingLeft = (8 + depth * 13) + 'px';
     row.dataset.key = node.key;
     var starred = D.isFav(node);
+    // The metadata line carries whatever is genuinely useful for this row —
+    // folder path for a search/favourite hit, modified time for a document —
+    // and simply collapses when there is nothing to say, so the title keeps the
+    // full width either way.
+    var meta = [];
+    if (opts.showPath && node.path) meta.push(String(node.path).split(' / ').pop());
+    if (node.kind === 'doc' && node.modified) meta.push(fmtWhen(node.modified));
     row.innerHTML =
       '<span class="mjd-tw' + ((node.hasChildren && !opts.noTwisty) ? '' : ' leaf') + (expanded[node.key] ? ' open' : '') + '">' + I.chevron + '</span>' +
       '<span class="mjd-ico">' + kindIcon(node.kind) + '</span>' +
       '<span class="mjd-name" title="' + esc(node.name) + '">' + esc(node.name) + '</span>' +
-      (opts.showPath && node.path ? '<span class="mjd-meta">' + esc(String(node.path).split(' / ').pop()) + '</span>'
-        : (node.kind === 'doc' && node.modified ? '<span class="mjd-meta">' + fmtWhen(node.modified) + '</span>' : '')) +
-      '<button class="mjd-icon-btn mjd-star' + (starred ? ' on' : '') + '" title="' + (starred ? 'Unstar' : 'Star') + '">' + I.star + '</button>' +
-      '<button class="mjd-icon-btn mjd-menu" title="Actions">' + I.more + '</button>';
+      (meta.length ? '<span class="mjd-meta">' + esc(meta.join(' · ')) + '</span>' : '') +
+      '<span class="mjd-actions">' +
+        '<button class="mjd-icon-btn mjd-star' + (starred ? ' on' : '') + '" title="' + (starred ? 'Unstar' : 'Star') + '" aria-label="' + (starred ? 'Unstar' : 'Star') + '">' + I.star + '</button>' +
+        '<button class="mjd-icon-btn mjd-menu" title="Actions" aria-label="Actions">' + I.more + '</button>' +
+      '</span>';
 
     row.querySelector('.mjd-star').addEventListener('click', function (e) {
       e.stopPropagation();
@@ -35105,10 +35545,20 @@ window._THV={
   // Cache-first paint, then reconcile with the live listing. The cached rows are
   // real and clickable immediately; they are replaced wholesale when the
   // authoritative answer lands, so a stale cache can never hide a change.
+  // Every paint carries the generation it was requested in. Switching tabs (or
+  // collapsing a branch) bumps the counter, so a listing that arrives late —
+  // OneNote is routinely slower than Drive — is dropped instead of painting
+  // OneNote's notebooks into the Journal tab you already moved to.
+  var renderGen = 0;
+  function bumpGen() { renderGen++; }
+
   function renderChildren(ref, container, depth) {
+    var gen = renderGen;
     container.innerHTML = '<div class="mjd-skel"></div><div class="mjd-skel" style="width:70%"></div>';
     var painted = false;
+    function stale() { return gen !== renderGen || !container.isConnected; }
     function paint(nodes) {
+      if (stale()) return;
       container.innerHTML = '';
       if (!nodes.length) {
         container.innerHTML = '<div class="mjd-empty" style="padding:14px 12px;font-size:11.5px">' +
@@ -35126,9 +35576,10 @@ window._THV={
       });
       markActive();
     }
-    D.children(ref, function (cached) { painted = true; loadedKids[ref.key || 'root'] = cached; paint(cached); })
-      .then(function (live) { loadedKids[ref.key || 'root'] = live; paint(live); })
+    D.children(ref, function (cached) { if (stale() || !Array.isArray(cached)) return; painted = true; loadedKids[ref.key || 'root'] = cached; paint(cached); })
+      .then(function (live) { if (stale()) return; loadedKids[ref.key || 'root'] = live; paint(live); })
       .catch(function (e) {
+        if (stale()) return;
         if (painted) return;         // a cached listing is better than an error
         // A password-protected OneNote section is not a load failure — it is a
         // wall, and a permanent one. Microsoft Graph cannot decrypt those
@@ -35149,10 +35600,19 @@ window._THV={
       });
   }
 
-  function markActive() {
+  // Mark the open document wherever it appears in the panel — the provider
+  // tree, Starred and Recent all render the same rows, so all three light up.
+  function markActive(scroll) {
+    var key = openDocState ? openDocState.node.key : null;
+    var hit = null;
     document.querySelectorAll('#mjd-tree .mjd-row').forEach(function (r) {
-      r.classList.toggle('active', !!openDocState && r.dataset.key === openDocState.node.key);
+      var on = !!key && r.dataset.key === key;
+      r.classList.toggle('active', on);
+      if (on) hit = r;
     });
+    // A document opened from search or Recent is usually somewhere off-screen
+    // in its own tree; highlighting it is no use if you cannot see it.
+    if (hit && scroll) { try { hit.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
   }
 
   function hardRefresh() {
@@ -35193,6 +35653,7 @@ window._THV={
       B.openLocal(node.id);
       openDocState = null;
       paintDocBar();
+      markActive();          // clear any leftover cloud highlight
       return;
     }
     if (openDocState) await flushSave(true);
@@ -35206,7 +35667,7 @@ window._THV={
     title.value = node.name;
     openDocState = { node: node, base: null, dirty: false, loading: true, lastSync: 0 };
     paintDocBar();
-    markActive();
+    markActive(true);
 
     try {
       var got = await p.read(node);
@@ -35221,8 +35682,9 @@ window._THV={
       // Give the editor layer the same load hook a native page gets, so undo
       // history, saved scroll position and image bindings all behave identically.
       if (window._docxOnLoad) window._docxOnLoad('tj-page-editor', 'mjd_' + node.key);
-      ed.querySelectorAll('.pg-img-wrap').forEach(function (w) { if (window._tjBindImg) window._tjBindImg(w); });
+      if (window._docxRebindImages) window._docxRebindImages(ed, 'tj');
       B.setSync('synced');
+      markActive();          // the tree may have finished rendering during the read
       D.touchRecent(node, 'opened');
       S().lastOpen = { provider: node.provider, account: node.account, id: node.id, kind: node.kind, name: node.name, path: node.path || '' };
       D.saveLocal();
@@ -35514,11 +35976,13 @@ window._THV={
     if (p.externalUrl(node)) add('Open in ' + p.label, null, function () { window.open(p.externalUrl(node), '_blank', 'noopener'); }, true);
     add('Delete…', 'delete', function () { doDelete(node); });
 
-    var html = '<div style="margin:-4px 0 4px">';
+    var html = '<div class="mjd-menu-list">';
     rows.forEach(function (r, i) {
-      html += '<button class="mjd-btn ghost" data-i="' + i + '" ' + (r.ok ? '' : 'disabled title="' + esc(r.why || 'Not supported by this provider.') + '"') +
-        ' style="width:100%;justify-content:flex-start;margin-bottom:7px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;padding:10px 14px">' + esc(r.label) + '</button>';
-      if (!r.ok && r.why) html += '<div class="mjd-hint" style="margin:-4px 0 9px">' + esc(r.why) + '</div>';
+      html += '<button class="mjd-menu-item' + (/delete/i.test(r.label) ? ' danger' : '') + '" data-i="' + i + '"' +
+        (r.ok ? '' : ' disabled') + '>' + esc(r.label) + '</button>';
+      // An action that a provider genuinely cannot do says why, right where it
+      // is greyed out — rather than leaving you to guess whether it is broken.
+      if (!r.ok) html += '<div class="mjd-menu-why">' + esc(r.why || 'Not supported by this provider.') + '</div>';
     });
     html += '</div>';
     body.innerHTML = html;
@@ -35646,6 +36110,9 @@ window._THV={
   }
 
   async function onNew(parentNode) {
+    // Guard the same mistake at the other end: a DOM event is never a folder.
+    if (parentNode && (typeof Event !== 'undefined') && parentNode instanceof Event) parentNode = null;
+    if (parentNode && !parentNode.provider) parentNode = null;
     var pid = sectionProvider();
     if (!pid) return;
     var p = D.get(pid);
@@ -35794,7 +36261,7 @@ window._THV={
         h += '<div class="mjd-acct">' +
           '<div class="mjd-acct-av">' + esc((a.label || a.email || '?').charAt(0).toUpperCase()) + '</div>' +
           '<div class="mjd-acct-txt"><b>' + esc(a.label || a.email) + '</b><span>' + esc(a.email || '') + '</span></div>' +
-          (isActive ? '<span class="mjd-meta" style="color:var(--green);font-size:10px">ACTIVE</span>'
+          (isActive ? '<span class="mjd-badge">Active</span>'
                     : '<button class="mjd-tiny" data-use="' + esc(a.id) + '">Use</button>') +
           '<button class="mjd-tiny danger" data-out="' + esc(a.id) + '">Sign out</button>' +
         '</div>';
@@ -35835,12 +36302,16 @@ window._THV={
     var h = '';
     D.cloudProviders().forEach(function (p) {
       var cfg = (S().providerCfg && S().providerCfg[p.id]) || {};
+      // Setup instructions are a wall of text you need exactly once. Collapsed
+      // by default, the dialog reads as what it actually is day to day: two
+      // fields and a connection status.
       h += '<div class="mjd-card">' +
         '<div class="mjd-card-head"><span class="mjd-pico" style="color:' + p.accent + '">' + p.icon + '</span><h4>' + esc(p.label) + '</h4>' +
         '<button class="mjd-tiny" data-accts="' + p.id + '">' + (p.accounts().length ? p.accounts().length + ' account' + (p.accounts().length > 1 ? 's' : '') : 'Connect') + '</button></div>' +
-        '<label class="mjd-field" style="margin:12px 0 0"><span>' + esc(p.setup.label) + '</span>' +
+        '<label class="mjd-field" style="margin:14px 0 0"><span>' + esc(p.setup.label) + '</span>' +
         '<input class="mjd-input" data-cfg="' + p.id + '" value="' + esc(cfg[p.setup.field] || '') + '" placeholder="' + esc(p.setup.placeholder) + '" spellcheck="false" autocapitalize="off" /></label>' +
-        '<div class="mjd-hint">' + p.setup.hint(origin, redirect) + '</div>' +
+        '<button class="mjd-disclose" data-disclose="' + p.id + '">' + I.chevron + 'Setup instructions</button>' +
+        '<div class="mjd-instructions" data-inst="' + p.id + '"><div class="mjd-hint">' + p.setup.hint(origin, redirect) + '</div></div>' +
         '</div>';
     });
     // The two providers no longer share one redirect URI: OneNote comes back to
@@ -35852,7 +36323,14 @@ window._THV={
     body.innerHTML = h;
     body.addEventListener('click', function (e) {
       var a = e.target.closest('[data-accts]');
-      if (a) { closeModal(); openAccounts(a.getAttribute('data-accts')); }
+      if (a) { closeModal(); openAccounts(a.getAttribute('data-accts')); return; }
+      var d = e.target.closest('[data-disclose]');
+      if (d) {
+        var panel = body.querySelector('[data-inst="' + d.getAttribute('data-disclose') + '"]');
+        var open = panel.classList.toggle('on');
+        d.classList.toggle('open', open);
+        d.lastChild.textContent = open ? 'Hide instructions' : 'Setup instructions';
+      }
     });
     openModal({
       title: 'Document settings',
@@ -35933,10 +36411,17 @@ window._THV={
     chips.push({ k: 'since', v: 7, label: 'Past week' });
     chips.push({ k: 'since', v: 30, label: 'Past month' });
     chips.push({ k: 'since', v: 365, label: 'Past year' });
-    f.innerHTML = chips.map(function (c) {
-      if (c.sep) return '<span style="width:1px;height:16px;background:#3a3a42;margin:0 3px"></span>';
-      var on = omniFilters[c.k] === c.v;
-      return '<button class="mjd-fchip' + (on ? ' on' : '') + '" data-k="' + c.k + '" data-v="' + (c.v === null ? '' : c.v) + '">' + esc(c.label) + '</button>';
+    // Grouped and labelled. Eleven bare chips in a row gave no clue which were
+    // mutually exclusive or what they filtered on.
+    var groups = [{ k: 'provider', label: 'Source' }, { k: 'kind', label: 'Type' }, { k: 'since', label: 'Modified' }];
+    f.innerHTML = groups.map(function (g) {
+      var mine = chips.filter(function (c) { return !c.sep && c.k === g.k; });
+      return '<span class="mjd-fgroup"><span>' + esc(g.label) + '</span><span class="mjd-fchips">' +
+        mine.map(function (c) {
+          var on = omniFilters[c.k] === c.v;
+          return '<button class="mjd-fchip' + (on ? ' on' : '') + '" data-k="' + c.k + '" data-v="' +
+            (c.v === null ? '' : c.v) + '"' + (on ? ' aria-pressed="true"' : '') + '>' + esc(c.label) + '</button>';
+        }).join('') + '</span></span>';
     }).join('');
     f.onclick = function (e) {
       var b = e.target.closest('.mjd-fchip');
@@ -36002,11 +36487,14 @@ window._THV={
     }
     list.innerHTML = hits.map(function (n, i) {
       var p = D.get(n.provider);
-      return '<div class="mjd-hit' + (i === omniSel ? ' sel' : '') + '" data-i="' + i + '">' +
+      var sub = [p ? p.label : n.provider];
+      if (n.path) sub.push(n.path);
+      if (n._why) sub.push(n._why);
+      return '<div class="mjd-hit' + (i === omniSel ? ' sel' : '') + '" data-i="' + i + '" role="option">' +
         '<span class="mjd-ico">' + kindIcon(n.kind) + '</span>' +
-        '<span class="mjd-hit-txt"><b>' + hl(n.name, q) + '</b><span>' + esc(p ? p.label : n.provider) +
-        (n.path ? ' · ' + esc(n.path) : '') + (n._why ? ' · ' + esc(n._why) : '') + '</span></span>' +
-        '<span class="mjd-meta">' + esc(fmtWhen(n.modified)) + '</span></div>';
+        '<span class="mjd-hit-name">' + hl(n.name, q) + '</span>' +
+        '<span class="mjd-hit-sub">' + esc(sub.join(' · ')) + '</span>' +
+        '<span class="mjd-hit-when">' + esc(fmtWhen(n.modified)) + '</span></div>';
     }).join('');
     el('mjd-omni-count').textContent = hits.length + ' result' + (hits.length > 1 ? 's' : '') + ' · ' + D.index().length + ' indexed';
     list.onclick = function (e) {
@@ -36226,6 +36714,7 @@ window._THV={
           r.insertNode(f);
         }
       } else ed.innerHTML = html;
+      if (window._docxRebindImages) window._docxRebindImages(ed, 'tj');
       try { ed.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) {}
       closeModal();
       toast('Applied. Undo with Ctrl+Z if it is not right.', 'ok');
