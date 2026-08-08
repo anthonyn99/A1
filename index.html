@@ -25338,8 +25338,14 @@ function setEditMode(enabled) {
   if (pgEd) pgEd.contentEditable = enabled ? 'true' : 'false';
   const pgTb = document.getElementById('tj-page-toolbar');
   if (pgTb) {
+    // A cloud document has NO entry in state.entries — that is the whole point
+    // of cloud mode — so getActive() is null and this test used to fall through
+    // to remove(), stripping the formatting toolbar the instant you switched a
+    // Google Doc or OneNote page into Edit. Cloud documents always render
+    // through the Page template, so treat cloud mode as exactly that.
     const activeEntry = getActive();
-    if (enabled && activeEntry && activeEntry.template === 'page') pgTb.classList.add('edit-mode');
+    const isPage = window._tjCloudMode || (activeEntry && activeEntry.template === 'page');
+    if (enabled && isPage) pgTb.classList.add('edit-mode');
     else pgTb.classList.remove('edit-mode');
   }
   // Journal Entries editor
@@ -33662,68 +33668,15 @@ window._THV={
         token = j.nextPageToken;
       } while (token);
 
-      // Drive is a whole filesystem; MyJournal only edits Google Docs. A folder
-      // holding nothing but spreadsheets, photos or PDFs is pure noise in a
-      // document tree, so folders with no document ANYWHERE beneath them are
-      // dropped from the listing.
+      // EVERY folder is listed, including empty ones.
       //
-      // Done as a breadth-first sweep that asks about every folder at a given
-      // depth in ONE query — Drive accepts "'a' in parents or 'b' in parents" —
-      // rather than one call per folder. A 30-folder Drive costs a couple of
-      // requests, not thirty. Bounded in both depth and folders examined, and
-      // anything unresolved when the bounds run out is KEPT: showing an empty
-      // folder is a much smaller sin than hiding a full one.
-      var folders = out.filter(function (n) { return n.kind === 'folder'; });
-      if (!folders.length) return out;
-      try {
-        var keep = await this._foldersWithDocs(ref.account, folders.map(function (f) { return f.id; }));
-        return out.filter(function (n) { return n.kind !== 'folder' || keep[n.id]; });
-      } catch (e) {
-        return out;   // never hide anything because a probe failed
-      }
-    },
-
-    // → { folderId: true } for each input folder that transitively holds a Doc.
-    _foldersWithDocs: async function (accountId, ids) {
-      var MAX_DEPTH = 4, MAX_FOLDERS = 400, BATCH = 40;
-      var keep = Object.create(null);
-      var ancestry = Object.create(null);      // folder id → the top-level folder it descends from
-      var frontier = ids.slice(0, MAX_FOLDERS);
-      frontier.forEach(function (id) { ancestry[id] = id; });
-      var seen = 0, exhausted = false;
-
-      for (var depth = 0; depth < MAX_DEPTH && frontier.length; depth++) {
-        // Stop asking about branches whose ancestor already has a document.
-        var pending = frontier.filter(function (id) { return !keep[ancestry[id]]; });
-        if (!pending.length) break;
-        var next = [];
-        for (var i = 0; i < pending.length; i += BATCH) {
-          var batch = pending.slice(i, i + BATCH);
-          var q = '(' + batch.map(function (id) {
-                return "'" + String(id).replace(/'/g, "\'") + "' in parents";
-              }).join(' or ') +
-              ") and trashed=false and (mimeType='" + GFOLDER_MIME + "' or mimeType='" + GDOC_MIME + "')";
-          var tok = null;
-          do {
-            var j = await this.api(accountId, '/files?q=' + encodeURIComponent(q) +
-              '&fields=' + encodeURIComponent('files(id,mimeType,parents),nextPageToken') +
-              '&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true' + (tok ? '&pageToken=' + tok : ''));
-            (j.files || []).forEach(function (f) {
-              var root = ancestry[(f.parents && f.parents[0]) || ''];
-              if (!root) return;
-              if (f.mimeType === GDOC_MIME) { keep[root] = true; return; }
-              if (seen++ < MAX_FOLDERS) { ancestry[f.id] = root; next.push(f.id); }
-              else exhausted = true;
-            });
-            tok = j.nextPageToken;
-          } while (tok);
-        }
-        frontier = next;
-      }
-      if (exhausted || frontier.length) {
-        frontier.forEach(function (id) { keep[ancestry[id]] = true; });
-      }
-      return keep;
+      // This used to hide folders with no Google Doc beneath them, reasoning
+      // that a folder of spreadsheets and photos is noise in a document tree.
+      // That ignored the obvious case: a folder you have just created is empty,
+      // so it vanished the instant you made it — which made "New folder" look
+      // broken and left nowhere visible to move a document INTO. Not being able
+      // to see a folder you just created is far worse than seeing an empty one.
+      return out;
     },
 
     search: async function (accountId, query) {
@@ -36253,7 +36206,11 @@ window._THV={
                 openDocument(made);
               } else {
                 made = await p.createContainer(parent, name || 'Untitled', kind);
+                // Clear the cached listing AND the in-memory children before
+                // repainting, or the tree paints the pre-create contents back
+                // from cache and the new folder looks like it was never made.
                 D.cacheDrop('ch|' + pid);
+                loadedKids = {};
                 renderPanel();
               }
               toast('Created "' + made.name + '".', 'ok');
