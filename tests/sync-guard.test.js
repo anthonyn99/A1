@@ -113,6 +113,25 @@ t('Loader only unlocks on a genuine server read',
   (HTML.match(/!\(snap\.metadata\s*&&\s*snap\.metadata\.fromCache\)\)\s*_(th|vd)MarkServerSeen/g) || []).length >= 2,
   'A cache fallback must NOT count as confirmation.');
 
+section('Static: pull-to-refresh');
+
+t('pull-to-refresh re-reads the cloud rather than reloading the page',
+  /pull-to-refresh failed/.test(HTML) &&
+  /profile === 'veda' \? window\._fbLoadVeda : window\._fbLoad/.test(HTML),
+  'location.reload() would discard unsaved edits and re-run the App Lock gate.');
+
+t('pull-to-refresh flushes pending edits before re-reading',
+  /_fbFlushAll[\s\S]{0,400}typeof loader !== 'function'/.test(HTML),
+  'Refreshing must never drop something typed but not yet saved.');
+
+t('pull-to-refresh repaints via the same event a live snapshot uses',
+  /dispatchEvent\(new CustomEvent\(evt, \{ detail: remote \}\)\)/.test(HTML),
+  'A second merge path would drift from the listener implementation.');
+
+t('pull-to-refresh is touch-only',
+  /matchMedia\('\(pointer: coarse\)'\)\.matches\) return;/.test(HTML),
+  'Must be inert on desktop.');
+
 section('Static: loader does not discard valid cloud docs');
 
 t('Cloud doc accepted without requiring savedAt',

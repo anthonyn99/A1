@@ -36165,6 +36165,215 @@ window._THV={
 })();
 </script>
 
+<!-- ── Pull-to-refresh (TaskHub, touch devices) ──────────────────────────────
+     WHY THIS EXISTS: an iOS home-screen web app runs in standalone mode, where
+     Safari removes its own overscroll refresh entirely. There is no built-in way
+     to force a re-sync from the phone, which is exactly what you want when you
+     suspect the screen is showing stale data.
+
+     WHAT "REFRESH" MEANS HERE: re-read the document from Firestore and repaint —
+     NOT location.reload(). A hard reload would discard anything typed but not yet
+     saved and re-run the App Lock gate. The cloud read reaches the same visible
+     result without either cost. If the read path is genuinely unavailable we fall
+     back to a real reload so the gesture is never a silent no-op.
+
+     Gesture heuristics follow V1/js/pulltorefresh.js, which was tuned against a
+     real problem: on mobile browsers whose chrome auto-hides, the way to bring the
+     address bar BACK is an upward drag near the top of the page — the same region
+     this watches. Every ambiguous gesture must resolve to "not a refresh".
+     The scroll container differs: TaskHub's roots flow in the BODY (see the
+     #root comment in the stylesheet), so this reads window.scrollY rather than a
+     .view element's scrollTop. ------------------------------------------------->
+<script>
+(function () {
+  'use strict';
+  // Touch devices only. Pointer type, not a width breakpoint: a touchscreen
+  // laptop should get this, and a phone in desktop mode should not lose it.
+  if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
+
+  var THRESHOLD      = 110;  // px of pull needed to commit
+  var MAX_PULL       = 150;  // px the indicator travels before resisting
+  var TOP_SLOP       = 2;    // must be essentially at the top (iOS rarely rests at exactly 0)
+  var DIRECTION_SLOP = 18;   // px before the gesture is classified
+  var VERTICAL_BIAS  = 1.6;  // dy must exceed dx by this factor
+  var UP_CANCEL      = 6;    // px of upward travel that permanently cancels
+
+  var startY = 0, startX = 0, pulling = false, decided = false;
+  var committed = false, refreshing = false, indicator = null;
+
+  function makeIndicator() {
+    if (indicator) return indicator;
+    indicator = document.createElement('div');
+    indicator.setAttribute('aria-hidden', 'true');
+    indicator.style.cssText =
+      'position:fixed;top:0;left:50%;z-index:100000;pointer-events:none;opacity:0;' +
+      'width:34px;height:34px;margin-top:-42px;border-radius:50%;' +
+      'display:flex;align-items:center;justify-content:center;' +
+      'background:var(--bg,#1B1C1E);border:1px solid rgba(141,118,154,.55);' +
+      'box-shadow:0 4px 14px rgba(0,0,0,.4);color:#8D769A;' +
+      'transform:translateX(-50%) translateY(0);';
+    indicator.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+           'stroke-linecap="round" width="17" height="17">' +
+        '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>' +
+      '</svg>';
+    document.body.appendChild(indicator);
+    return indicator;
+  }
+
+  // Which TaskHub is on screen. Returns the refresh fn for that profile, or null
+  // when neither is visible (a journal, links, MotionCore… own the gesture then).
+  function activeProfile() {
+    // A modal owns the gesture while open — pulling inside a dialog must scroll
+    // the dialog, not refresh the page behind it.
+    if (document.querySelector('.modal-overlay.active, .modal.active, [data-modal-open="1"]')) return null;
+    var vr = document.getElementById('veda-root');
+    if (vr && vr.style.display !== 'none' && vr.offsetParent !== null) {
+      var tv = document.getElementById('task-view');
+      if (!tv || tv.style.display === 'none') return null;   // Gita/other Veda view
+      return 'veda';
+    }
+    var tr = document.getElementById('root');
+    if (tr && tr.style.display !== 'none' && tr.offsetParent !== null) return 'tony';
+    return null;
+  }
+
+  function setPull(px) {
+    var i = makeIndicator();
+    var shown = px > MAX_PULL ? MAX_PULL + (px - MAX_PULL) * 0.25 : px;
+    i.style.transform = 'translateX(-50%) translateY(' + shown + 'px)';
+    i.style.opacity = Math.min(1, px / THRESHOLD).toFixed(2);
+    i.style.borderColor = px >= THRESHOLD ? '#8D769A' : 'rgba(141,118,154,.55)';
+    var sp = i.firstElementChild;
+    if (sp) sp.style.transform = 'rotate(' + (px * 2.4) + 'deg)';
+  }
+
+  function reset(animate) {
+    var i = indicator;
+    if (!i) return;
+    i.style.transition = animate ? 'transform .22s ease, opacity .22s ease' : '';
+    i.style.transform = 'translateX(-50%) translateY(0)';
+    i.style.opacity = '0';
+    if (animate) setTimeout(function () { if (indicator) indicator.style.transition = ''; }, 240);
+  }
+
+  function spin(on) {
+    var i = makeIndicator();
+    var sp = i.firstElementChild;
+    if (!sp) return;
+    if (on) {
+      sp.style.transition = 'none';
+      sp.animate(
+        [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }],
+        { duration: 700, iterations: Infinity }
+      );
+    } else if (sp.getAnimations) {
+      sp.getAnimations().forEach(function (a) { a.cancel(); });
+    }
+  }
+
+  function doRefresh(profile) {
+    if (refreshing) return;
+    refreshing = true;
+    var i = makeIndicator();
+    i.style.transition = 'transform .18s ease';
+    i.style.transform = 'translateX(-50%) translateY(' + THRESHOLD + 'px)';
+    i.style.opacity = '1';
+    spin(true);
+
+    var done = function () {
+      refreshing = false;
+      spin(false);
+      reset(true);
+    };
+
+    var loader = profile === 'veda' ? window._fbLoadVeda : window._fbLoad;
+    var evt    = profile === 'veda' ? 'fb-vd-remote-update' : 'fb-remote-update';
+
+    // Flush anything typed but not yet written FIRST, so a refresh can never
+    // discard a pending local edit. Respects the sync guards (it routes through
+    // _fbFlush/_fbFlushVeda), so it cannot push a stale-generation payload.
+    try { window._fbFlushAll && window._fbFlushAll(); } catch (e) {}
+
+    // No cloud read available (Firebase still booting / disabled): fall back to a
+    // genuine reload rather than pretending the gesture did something.
+    if (typeof loader !== 'function') {
+      setTimeout(function () { window.location.reload(); }, 300);
+      return;
+    }
+
+    Promise.resolve()
+      .then(function () { return loader(); })
+      .then(function (remote) {
+        // Hand the server document to the SAME path a live snapshot uses, so there
+        // is one merge+repaint implementation rather than a second copy that can
+        // drift from it. The apps' applyRemote ignores a doc with nothing in it.
+        if (remote && (remote.data || remote.habits || remote.goals || remote.savedAt)) {
+          window.dispatchEvent(new CustomEvent(evt, { detail: remote }));
+        }
+        // Keep the spinner up briefly so a fast refresh reads as a deliberate
+        // action rather than a flicker.
+        return new Promise(function (r) { setTimeout(r, 320); });
+      })
+      .catch(function (e) { console.warn('[TaskHub] pull-to-refresh failed:', e); })
+      .then(done, done);
+  }
+
+  document.addEventListener('touchstart', function (e) {
+    if (refreshing || e.touches.length !== 1) return;
+    if (!activeProfile()) { pulling = false; return; }
+    // Strictly at rest at the top. Anything else means the user is reading, and
+    // an upward flick there is them chasing the browser chrome, not refreshing.
+    var y = window.scrollY || window.pageYOffset || 0;
+    if (y > TOP_SLOP) { pulling = false; return; }
+    startY = e.touches[0].clientY;
+    startX = e.touches[0].clientX;
+    pulling = true; decided = false; committed = false;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function (e) {
+    if (!pulling || refreshing) return;
+    var dy = e.touches[0].clientY - startY;
+    var dx = e.touches[0].clientX - startX;
+
+    // Any meaningful upward travel ends the gesture for good — even after it was
+    // classified as a pull. A downward wobble followed by a real upward drag must
+    // not still trigger a refresh on release.
+    if (dy < -UP_CANCEL) { pulling = false; committed = false; reset(true); return; }
+
+    if (!decided) {
+      if (Math.abs(dy) < DIRECTION_SLOP && Math.abs(dx) < DIRECTION_SLOP) return;
+      // Must be clearly downward AND clearly more vertical than horizontal.
+      // Ambiguous drags fall through to the browser — the safe default.
+      if (dy <= 0 || Math.abs(dy) < Math.abs(dx) * VERTICAL_BIAS) { pulling = false; return; }
+      decided = true;
+    }
+
+    // Scrolled away from the top mid-gesture: abandon quietly.
+    if ((window.scrollY || window.pageYOffset || 0) > TOP_SLOP) { pulling = false; reset(true); return; }
+
+    if (dy > 0) {
+      // Commit on the CURRENT position, not the furthest reached, so dragging back
+      // up before releasing cancels — matching native pull-to-refresh everywhere.
+      committed = dy >= THRESHOLD;
+      setPull(dy);
+      // Only preventable once we own the gesture; this listener is non-passive for
+      // exactly that reason. Stops the page rubber-banding behind the indicator.
+      if (e.cancelable) e.preventDefault();
+    }
+  }, { passive: false });
+
+  function end() {
+    if (!pulling) return;
+    pulling = false;
+    var p = committed && !refreshing ? activeProfile() : null;
+    if (p) doRefresh(p); else reset(true);
+    committed = false;
+  }
+  document.addEventListener('touchend', end, { passive: true });
+  document.addEventListener('touchcancel', end, { passive: true });
+})();
+</script>
 
 </body>
 </html>
