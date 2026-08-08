@@ -33117,6 +33117,14 @@ window._THV={
   }
 
   /* ── Tokens — device-local, never synced (see header) ─────────────────────*/
+  // A usable bearer token is a non-empty string. Storing anything else — most
+  // easily `undefined`, from a 200 response that carried no access_token —
+  // poisons the record permanently: every later call then sends the literal
+  // string "Bearer undefined", which Microsoft rejects with IDX14100 ("JWT is
+  // not well formed, there are no dots"). Nothing recovers from that except
+  // signing out by hand, so the guard belongs at the point of STORAGE.
+  function usableToken(v) { return typeof v === 'string' && v.length > 20; }
+
   var TOK = 'mjd_tok_';
   var Tokens = {
     key: function (pid, acc) { return TOK + pid + '_' + acc; },
@@ -33128,7 +33136,7 @@ window._THV={
     // refresh token — so expiry must never delete the record itself.
     fresh: function (pid, acc) {
       var t = Tokens.get(pid, acc);
-      return !!(t && t.access && (!t.expires || Date.now() < t.expires - 120000));
+      return !!(t && usableToken(t.access) && (!t.expires || Date.now() < t.expires - 120000));
     },
     // Every account this device has authorised, for one provider.
     list: function (pid) {
@@ -33597,6 +33605,10 @@ window._THV={
     renew: async function (accountId) {
       var rec = Tokens.get('gdocs', accountId) || {};
       var t = await this._silent(rec.email);
+      // Same rule as OneNote: never overwrite a working record with a token we
+      // cannot use. A silent renew that comes back empty must fail and leave
+      // the old token alone, not poison the record.
+      if (!usableToken(t && t.access)) throw new Error('Google returned no usable token.');
       Tokens.set('gdocs', accountId, Object.assign({}, rec, { access: t.access, expires: t.expires }));
     },
     disconnect: function (accountId) {
@@ -33608,7 +33620,11 @@ window._THV={
     ready: async function (accountId) {
       if (!Tokens.get('gdocs', accountId)) throw new Error('That Google account is not connected on this device.');
       if (!Tokens.fresh('gdocs', accountId)) await this.renew(accountId);
-      return Tokens.get('gdocs', accountId);
+      var t = Tokens.get('gdocs', accountId);
+      if (!t || !usableToken(t.access)) {
+        throw new Error('Your Google sign-in expired and could not be renewed. Open Document settings, then Google Docs, Sign out, and Connect again.');
+      }
+      return t;
     },
 
     // Every Drive call funnels through here, so a 401 is renewed and retried once
@@ -33967,11 +33983,17 @@ window._THV={
         body: new URLSearchParams({ client_id: clientId, grant_type: 'refresh_token', refresh_token: t.refresh, scope: MS_SCOPE })
       });
       if (!r.ok) return false;
-      var j = await r.json();
+      var j = null;
+      try { j = await r.json(); } catch (e) { return false; }
+      // Refuse to write a token we cannot use. Overwriting a good record with an
+      // absent access_token is what turned a recoverable refresh failure into a
+      // permanently broken connection that only Sign out could clear.
+      if (!j || !usableToken(j.access_token)) return false;
       // Microsoft rotates refresh tokens — keep the NEW one or the connection
       // dies at the next renewal.
       Tokens.set('onenote', accountId, Object.assign({}, t, {
-        access: j.access_token, refresh: j.refresh_token || t.refresh,
+        access: j.access_token,
+        refresh: usableToken(j.refresh_token) ? j.refresh_token : t.refresh,
         expires: Date.now() + (j.expires_in || 3600) * 1000
       }));
       return true;
@@ -33984,7 +34006,14 @@ window._THV={
     ready: async function (accountId) {
       if (!Tokens.get('onenote', accountId)) throw new Error('That Microsoft account is not connected on this device.');
       if (!Tokens.fresh('onenote', accountId)) await this.refresh(accountId);
-      return Tokens.get('onenote', accountId);
+      var t = Tokens.get('onenote', accountId);
+      // Self-heal a record already corrupted by the old refresh path: report it
+      // as an expired sign-in rather than firing an unusable token at Graph and
+      // surfacing an opaque Microsoft error code.
+      if (!t || !usableToken(t.access)) {
+        throw new Error('Your OneNote sign-in expired and could not be renewed. Open Document settings, then OneNote, Sign out, and Connect again.');
+      }
+      return t;
     },
 
     api: async function (accountId, path, opts, _retried) {
@@ -33999,6 +34028,11 @@ window._THV={
         try { var j = await r.json(); msg = j.error && (j.error.message || j.error.code); } catch (e) {}
         // OneNote reports a scope it never granted as a malformed token, which
         // sends you looking at the wrong thing entirely. Say what it actually is.
+        // IDX14100 / InvalidAuthenticationToken mean the bearer we sent was not
+        // a token at all. Naming the code helps nobody; naming the fix does.
+        if (/IDX14100|not well formed|InvalidAuthenticationToken/i.test(msg || '')) {
+          throw new Error('OneNote rejected the saved sign-in. Open Document settings, then OneNote, Sign out, and Connect again.');
+        }
         if (/does not contain a valid authentication token/i.test(msg || '')) {
           throw new Error('OneNote rejected the sign-in. Sign out of this Microsoft account in MyJournal and connect again — ' +
             'and in Azure make sure the permission is Notes.ReadWrite, not Notes.ReadWrite.All (the .All scopes are work/school only).');
@@ -34754,7 +34788,12 @@ window._THV={
    actually read. Title now owns the full row and may wrap to two lines; the
    metadata drops to a second, quieter line. Same shape as MyJournal's own
    entry cards, so all three tabs read alike. ── */
-#tj-root .mjd-row {
+/* UNSCOPED on purpose. The destination picker inside "Move to..." renders these
+   same rows, and that dialog lives on document.body — scoping them to #tj-root
+   left the picker entirely unstyled, which is why it came up as a blank sheet
+   with one enormous chevron (an <svg> at its natural size). Everything here uses
+   the --mjd-* palette, defined on :root, so it resolves in both places. */
+.mjd-row {
   display: grid;
   grid-template-columns: 15px 16px 1fr auto;
   grid-template-areas: "tw ico name actions" ".  .   meta meta";
@@ -34762,8 +34801,9 @@ window._THV={
   padding: 8px 8px 8px 6px; border-radius: var(--mjd-r);
   border: 1px solid transparent; border-left: 2px solid transparent;
   cursor: pointer; transition: background .12s, border-color .12s; position: relative;
+  font-family: var(--mjd-font);
 }
-#tj-root .mjd-row:hover { background: var(--card); border-color: var(--border); }
+.mjd-row:hover { background: var(--mjd-card); border-color: var(--mjd-line); }
 /* The document you are currently editing. This has to be unmistakable at a
    glance — the previous rule used --purple-dim, which in Tony's palette
    resolves to #2c2c31, the SAME colour as the row's own hover background. The
@@ -34774,28 +34814,28 @@ window._THV={
   border-left-color: var(--purple);
   box-shadow: 0 0 0 1px rgba(224,184,116,.22), 0 0 12px rgba(224,184,116,.10);
 }
-#tj-root .mjd-tw {
+.mjd-tw {
   grid-area: tw; width: 15px; height: 15px; display: inline-flex; align-items: center; justify-content: center;
-  color: var(--text3); transition: transform .16s; align-self: start; margin-top: 1px;
+  color: var(--mjd-text3); transition: transform .16s; align-self: start; margin-top: 1px; flex-shrink: 0;
 }
-#tj-root .mjd-tw svg { width: 9px; height: 9px; }
-#tj-root .mjd-tw.open { transform: rotate(90deg); }
-#tj-root .mjd-tw.leaf { visibility: hidden; }
-#tj-root .mjd-ico { grid-area: ico; line-height: 0; color: var(--text3); align-self: start; margin-top: 1px; }
-#tj-root .mjd-ico svg { width: 15px; height: 15px; }
-#tj-root .mjd-row.kind-doc .mjd-ico { color: var(--purple); opacity: .75; }
-#tj-root .mjd-name {
-  grid-area: name; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--text);
+.mjd-tw svg { width: 9px; height: 9px; display: block; }
+.mjd-tw.open { transform: rotate(90deg); }
+.mjd-tw.leaf { visibility: hidden; }
+.mjd-ico { grid-area: ico; line-height: 0; color: var(--mjd-text3); align-self: start; margin-top: 1px; }
+.mjd-ico svg { width: 15px; height: 15px; display: block; }
+.mjd-row.kind-doc .mjd-ico { color: var(--mjd-gold); opacity: .75; }
+.mjd-name {
+  grid-area: name; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--mjd-text);
   line-height: 1.35; overflow: hidden;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
   overflow-wrap: anywhere;
 }
 #tj-root .mjd-row.active .mjd-name { color: var(--purple); }
-#tj-root .mjd-meta {
-  grid-area: meta; font-size: 10px; color: var(--text3); font-family: var(--font-mono);
+.mjd-meta {
+  grid-area: meta; font-size: 10px; color: var(--mjd-text3); font-family: 'DM Mono', monospace;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: .02em;
 }
-#tj-root .mjd-actions { grid-area: actions; display: flex; gap: 1px; align-self: start; }
+.mjd-actions { grid-area: actions; display: flex; gap: 1px; align-self: start; }
 #tj-root .mjd-star, #tj-root .mjd-menu { opacity: 0; transition: opacity .14s; }
 #tj-root .mjd-row:hover .mjd-star, #tj-root .mjd-row:hover .mjd-menu,
 #tj-root .mjd-star.on { opacity: 1; }
@@ -34812,8 +34852,8 @@ window._THV={
   border-radius: 0 var(--mjd-r) var(--mjd-r) 0; padding: 12px 14px;
 }
 #tj-root .mjd-note.mjd-locked svg { width: 15px; height: 15px; color: var(--orange); display: block; margin-bottom: 7px; }
-#tj-root .mjd-skel {
-  height: 34px; margin: 4px 8px; border-radius: var(--mjd-r); background: var(--card);
+.mjd-skel {
+  height: 34px; margin: 4px 8px; border-radius: var(--mjd-r); background: var(--mjd-card);
   animation: mjdpulse 1.2s ease-in-out infinite;
 }
 @keyframes mjdpulse { 0%,100% { opacity: .4; } 50% { opacity: .8; } }
@@ -34881,7 +34921,9 @@ window._THV={
   overflow-wrap: anywhere;
 }
 #mjd-modal-sub { font-size: 12.5px; color: var(--mjd-text3); line-height: 1.55; margin-top: 6px; overflow-wrap: anywhere; }
-#mjd-modal-body { padding: 0 26px 6px; overflow-y: auto; flex: 1 1 auto; min-height: 0; font-size: 13.5px; line-height: 1.6; }
+/* padding-top gives focus rings and hover outlines somewhere to live; without
+   it a first child's border sits exactly on the scroll clip edge. */
+#mjd-modal-body { padding: 3px 26px 6px; overflow-y: auto; flex: 1 1 auto; min-height: 0; font-size: 13.5px; line-height: 1.6; }
 #mjd-modal-foot {
   display: flex; gap: 10px; justify-content: flex-end; padding: 18px 26px 24px; flex-shrink: 0; flex-wrap: wrap;
   border-top: 1px solid var(--mjd-line); margin-top: 16px;
@@ -34894,7 +34936,10 @@ window._THV={
 #mjd-modal .mjd-x svg { width: 16px; height: 16px; }
 
 /* Menu-style action list (the ⋯ menu on a document) */
-.mjd-menu-list { display: flex; flex-direction: column; gap: 6px; margin: -2px 0 2px; }
+/* No negative top margin. #mjd-modal-body is a scroll container, so pulling the
+   list up by 2px put the first item's border under the clip edge — the top
+   outline of "Open" was sliced off by the header. */
+.mjd-menu-list { display: flex; flex-direction: column; gap: 6px; margin: 2px 0; }
 .mjd-menu-item {
   width: 100%; text-align: left; justify-content: flex-start;
   text-transform: none; letter-spacing: 0; font-size: 13.5px; font-weight: 500;
@@ -35097,6 +35142,16 @@ window._THV={
 .mjd-empty, .mjd-note { padding: 26px 16px; text-align: center; color: var(--mjd-text3); font-size: 12.5px; line-height: 1.7; }
 .mjd-note { padding: 13px 15px; text-align: left; }
 .mjd-note b { color: var(--mjd-text2); font-weight: 600; }
+
+/* Destination picker inside "Move to...". */
+#mjd-pick {
+  border: 1px solid var(--mjd-line); border-radius: 9px; background: var(--mjd-bg);
+  padding: 6px; max-height: 320px; overflow-y: auto; min-height: 110px;
+}
+#mjd-pick .mjd-row.active {
+  background: var(--mjd-card2); border-color: var(--mjd-gold-dim); border-left-color: var(--mjd-gold);
+  box-shadow: 0 0 0 1px rgba(224,184,116,.2);
+}
 
 /* Transient message surface — always visible, never covers the editor. */
 #mjd-toast {
@@ -35350,7 +35405,15 @@ window._THV={
     nav.id = 'mjd-nav';
     var rail = D.all().map(function (p) {
       var connected = p.caps.local || p.accounts().length > 0;
-      return '<button class="mjd-rail-btn" data-sec="' + p.id + '" title="' + esc(p.label) + '">' +
+      // MyJournal's own tab selects 'pages', not the provider id. The mjpages
+      // ADAPTER exists so local pages appear in universal search and favourites
+      // alongside cloud ones — but the Journal TAB must render MyJournal's
+      // native entry list, which owns the trash button, drag-reordering, tag
+      // filters, the entry search box and the active-entry outline. Emitting
+      // p.id sent 'mjpages' into setSection, which is not 'pages', so the tab
+      // quietly rendered the cloud panel and took all of that with it.
+      var railSec = p.caps.local ? 'pages' : p.id;
+      return '<button class="mjd-rail-btn" data-sec="' + railSec + '" title="' + esc(p.label) + '">' +
         p.icon + '<span class="mjd-lbl">' + esc(p.id === 'mjpages' ? 'Journal' : p.label.replace('Google ', '').replace('Microsoft ', '')) + '</span>' +
         (p.caps.local ? '' : '<span class="mjd-dot' + (connected ? '' : ' off') + '"></span>') +
         '</button>';
@@ -35407,6 +35470,12 @@ window._THV={
   // dereferenced null and took buildNav down with it, leaving no sidebar at all.
   // Anything unrecognised falls back to the one section that always exists.
   function validSection(sec) {
+    // 'mjpages' is the PROVIDER id; 'pages' is the native Journal tab. Settings
+    // saved before the rail was corrected carry 'mjpages', which would keep
+    // routing the Journal tab through the cloud panel — and with it lose the
+    // trash button, drag-reordering, tag filters and the active-entry outline,
+    // all of which belong to MyJournal's own list. Normalise it.
+    if (sec === 'mjpages') return 'pages';
     if (sec === 'favorites' || sec === 'recents' || sec === 'pages') return sec;
     return D.get(sec) ? sec : 'pages';
   }
@@ -35964,6 +36033,17 @@ window._THV={
     var rows = [];
     function add(label, action, fn, always) {
       var c = always ? { ok: true } : capFor(p, node, action);
+      // Two very different kinds of "no".
+      //
+      // OneNote genuinely CANNOT rename a notebook — that is a platform limit
+      // worth naming, so it stays visible, greyed, with the reason attached.
+      //
+      // A MyJournal page simply has no concept of Duplicate, Move to or Export
+      // (it is a flat list, and export is the toolbar's Export PDF). Listing
+      // three dead rows each captioned "Not supported by this provider" is
+      // noise that makes the menu look broken. No reason declared means the
+      // action does not APPLY here, so it is omitted entirely.
+      if (!c.ok && !c.why) return;
       rows.push({ label: label, ok: c.ok, why: c.why, fn: fn });
     }
     if (node.kind === 'doc') add('Open', null, function () { openDocument(node); }, true);
