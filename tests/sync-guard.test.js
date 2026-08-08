@@ -110,7 +110,8 @@ t('Pending writes are flushed BEFORE teardown bumps the generation',
   'Otherwise an edit made just before backgrounding is dropped as stale-generation.');
 
 t('Loader only unlocks on a genuine server read',
-  (HTML.match(/!\(snap\.metadata\s*&&\s*snap\.metadata\.fromCache\)\)\s*_(th|vd)MarkServerSeen/g) || []).length >= 2,
+  (HTML.match(/const fromCache = !!\(snap && snap\.metadata && snap\.metadata\.fromCache\);/g) || []).length >= 2 &&
+  (HTML.match(/if \(snap && !fromCache\) _(th|vd)MarkServerSeen\(\);/g) || []).length >= 2,
   'A cache fallback must NOT count as confirmation.');
 
 section('Static: pull-to-refresh');
@@ -131,6 +132,32 @@ t('pull-to-refresh repaints via the same event a live snapshot uses',
 t('pull-to-refresh is touch-only',
   /matchMedia\('\(pointer: coarse\)'\)\.matches\) return;/.test(HTML),
   'Must be inert on desktop.');
+
+section('Static: stale cache must not REPAINT the UI');
+
+// The write path always refused to UPLOAD a cache-fallback read, but nothing
+// stopped it being RENDERED — which is how "I opened the desktop, my additions
+// were gone, I reloaded and they came back" happened.
+t('Loaders tag cache-fallback reads so the caller can tell them apart',
+  (HTML.match(/_fromCache/g) || []).length >= 6,
+  'A cache read must be distinguishable from a genuine server read.');
+
+t('Both applyRemote implementations reject an older document',
+  (HTML.match(/if\(rs&&ls&&rs<ls\)\{/g) || []).length >= 2,
+  'savedAt older than what we already applied carries no news and must be dropped.');
+
+t('Both applyRemote implementations ignore a tie from the cache',
+  (HTML.match(/if\(remote\._fromCache&&rs&&ls&&rs===ls\)return;/g) || []).length >= 2,
+  'Re-applying a tied cache snapshot would clobber unsaved in-flight edits.');
+
+t('Both push paths record their own write as the newest applied state',
+  /thLastAppliedRef\.current=payload\.savedAt\|\|Date\.now\(\);/.test(HTML) &&
+  /vdLastAppliedRef\.current=payload\.savedAt\|\|Date\.now\(\);/.test(HTML),
+  'Set BEFORE the write, or a load landing mid-flight rolls the UI back.');
+
+t('Both last-applied refs are declared',
+  /const thLastAppliedRef=useRef\(0\);/.test(HTML) &&
+  /const vdLastAppliedRef=useRef\(0\);/.test(HTML));
 
 section('Static: loader does not discard valid cloud docs');
 
@@ -243,6 +270,66 @@ section('Behaviour: no data loss in the other direction');
   const d = makeDevice(cloud); d.load(false);
   d.edit('MINE2', 5000); d.snap(false);
   t('our own write echo does not revert the user', d.st.mem === 'MINE2'); }
+
+section('Behaviour: stale cache repainting the UI (the reported glitch)');
+
+// Models the RENDER path: what the user actually sees. Mirrors applyRemote.
+function makeUi() {
+  const ui = { shown: null, lastApplied: 0 };
+  ui.applyRemote = (remote) => {
+    if (!remote) return;
+    const rs = remote.savedAt || 0, ls = ui.lastApplied || 0;
+    if (rs && ls && rs < ls) return;                       // older than what we have
+    if (remote._fromCache && rs && ls && rs === ls) return; // tie from cache: no news
+    ui.lastApplied = rs || ls;
+    ui.shown = remote.data;
+  };
+  ui.edit = (data, savedAt) => { ui.shown = data; ui.lastApplied = savedAt; };
+  return ui;
+}
+
+{ // The exact report: open desktop, a slow server makes the load fall back to a
+  // stale IndexedDB copy, and recent additions vanish until a reload.
+  const ui = makeUi();
+  ui.applyRemote({ data: 'TASKS-A-B-C', savedAt: 5000 });   // fresh server read
+  ui.edit('TASKS-A-B-C-D', 6000);                            // user adds an item
+  // Slow server → _freshGet falls back to the cache, which predates the addition.
+  ui.applyRemote({ data: 'TASKS-A-B-C', savedAt: 5000, _fromCache: true });
+  t('a stale cache-fallback load does NOT revert what is on screen',
+    ui.shown === 'TASKS-A-B-C-D',
+    'This is the "it reverted, then a reload brought it back" glitch.');
+}
+
+{ // A cache read that ties the applied timestamp still must not clobber edits
+  // made since (which have not been stamped into lastApplied yet).
+  const ui = makeUi();
+  ui.applyRemote({ data: 'BASE', savedAt: 5000 });
+  ui.shown = 'BASE+TYPED';                                   // in-flight, unsaved
+  ui.applyRemote({ data: 'BASE', savedAt: 5000, _fromCache: true });
+  t('a tied cache read does not clobber an in-flight edit', ui.shown === 'BASE+TYPED');
+}
+
+{ // The fix must not break genuine cross-device sync.
+  const ui = makeUi();
+  ui.applyRemote({ data: 'OLD', savedAt: 1000 });
+  ui.applyRemote({ data: 'FROM-PHONE', savedAt: 2000 });
+  t('a genuinely newer remote change still applies', ui.shown === 'FROM-PHONE');
+}
+
+{ // A fresh SERVER read that is newer than our last edit must win — otherwise the
+  // guard would itself cause staleness.
+  const ui = makeUi();
+  ui.edit('MY-EDIT', 3000);
+  ui.applyRemote({ data: 'OTHER-DEVICE-NEWER', savedAt: 4000 });
+  t('a newer server doc overrides our older local edit',
+    ui.shown === 'OTHER-DEVICE-NEWER');
+}
+
+{ // First-ever load has no baseline; it must apply regardless of origin.
+  const ui = makeUi();
+  ui.applyRemote({ data: 'COLD-START', savedAt: 7000, _fromCache: true });
+  t('a cold start still paints from cache (offline open must work)',
+    ui.shown === 'COLD-START'); }
 
 // ───────────────────────────────── summary ─────────────────────────────────
 console.log('\n' + '─'.repeat(64));

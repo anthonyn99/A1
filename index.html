@@ -5737,10 +5737,18 @@ function App(){
     };
   },[]);
 
+  // savedAt of the newest state this device has applied or written; anything older
+  // arriving from the cloud is stale and must not repaint the UI (see applyRemote).
+  const thLastAppliedRef=useRef(0);
+
   const fbPush=useCallback(()=>{
     if(!window._fbSave)return;
     setSyncStatus("saving");
-    window._fbSave(buildPayload());
+    const payload=buildPayload();
+    // Record our own edit as the newest known state BEFORE the write, so a
+    // cache-fallback load landing mid-flight cannot roll the UI back over it.
+    thLastAppliedRef.current=payload.savedAt||Date.now();
+    window._fbSave(payload);
   },[buildPayload]);
 
   const setData=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.data,next);stateRef.current={...stateRef.current,data:next};fbPush();return next;});},[fbPush]);
@@ -5768,6 +5776,18 @@ function App(){
   // Load remote state and apply it
   const applyRemote=useCallback((remote)=>{
     if(!remote)return;
+    // Never repaint newer local state with an older document — see Veda's
+    // applyRemote for the full account. _freshGet falls back to the IndexedDB
+    // cache when the server is slow; rendering that hours-old copy is what made
+    // recent edits appear to revert until the page was reloaded.
+    const rs=remote.savedAt||0, ls=thLastAppliedRef.current||0;
+    if(rs&&ls&&rs<ls){
+      console.warn("[TaskHub] ignoring stale doc (savedAt "+rs+" < applied "+ls+")"
+        +(remote._fromCache?" [cache fallback]":""));
+      return;
+    }
+    if(remote._fromCache&&rs&&ls&&rs===ls)return;
+    thLastAppliedRef.current=rs||ls;
     const now2=new Date(),cw=getMondayKey(now2);
     let hcD=remote.hc||{};
     if((remote.weekKey||"")!==cw)hcD={};
@@ -7273,8 +7293,16 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         // that is precisely the stale snapshot we must never write back.
         // (A server read that finds NO doc also unlocks: nothing exists to clobber,
         // so this session may seed it.)
-        if (snap && !(snap.metadata && snap.metadata.fromCache)) _thMarkServerSeen();
-        if (snap && snap.exists()) return snap.data();
+        const fromCache = !!(snap && snap.metadata && snap.metadata.fromCache);
+        if (snap && !fromCache) _thMarkServerSeen();
+        if (snap && snap.exists()) {
+          // See the Veda loader: tag cache-fallback reads so the caller can refuse
+          // to repaint newer local state with an hours-old cached document.
+          const out = snap.data();
+          try { Object.defineProperty(out, '_fromCache', { value: fromCache, enumerable: false }); }
+          catch(_) { out._fromCache = fromCache; }
+          return out;
+        }
         return null;
       } catch(e) {
         console.warn("Firebase load failed:", e);
@@ -7443,8 +7471,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         // Only a genuine SERVER read unlocks writes — a cache fallback is exactly
         // the stale snapshot that must never be written back. (A server read that
         // finds no doc also unlocks: nothing exists to clobber.)
-        if (snap && !(snap.metadata && snap.metadata.fromCache)) _vdMarkServerSeen();
-        if (snap && snap.exists()) return snap.data();
+        const fromCache = !!(snap && snap.metadata && snap.metadata.fromCache);
+        if (snap && !fromCache) _vdMarkServerSeen();
+        if (snap && snap.exists()) {
+          // Tag the origin. The caller MUST NOT repaint the UI from a cache-fallback
+          // read that is older than what it already has: _freshGet falls back to the
+          // IndexedDB copy when the server is slow, and that copy can be hours stale.
+          // Rendering it is what made edits "disappear until you reload".
+          const out = snap.data();
+          try { Object.defineProperty(out, '_fromCache', { value: fromCache, enumerable: false }); }
+          catch(_) { out._fromCache = fromCache; }
+          return out;
+        }
         return null;
       } catch(e) {
         console.warn("Firebase Veda load failed:", e);
@@ -11230,10 +11268,18 @@ function App(){
     return{data:sanitizeData(vdRef.current.data),habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,monthlyGoals:vdRef.current.monthlyGoals,goalPrefs:vdRef.current.goalPrefs||{...GOAL_PREFS_DEF},rules:vdRef.current.rules||[],rulesDaily:vdRef.current.rulesDaily||{...RULES_DAILY_DEF},weekKey:getMondayKey(new Date()),savedAt:Date.now()};
   },[]);
 
+  // savedAt of the newest state this device has applied or written. Anything older
+  // arriving from the cloud is stale and must not repaint the UI (see applyRemote).
+  const vdLastAppliedRef=useRef(0);
+
   const vdFbPush=useCallback(()=>{
     if(!window._fbSaveVeda)return;
     setVdSync("saving");
-    window._fbSaveVeda(buildVdPayload());
+    const payload=buildVdPayload();
+    // Our own edit is now the newest state we know of — record it BEFORE the write
+    // so a cache-fallback load landing mid-flight cannot roll the UI back over it.
+    vdLastAppliedRef.current=payload.savedAt||Date.now();
+    window._fbSaveVeda(payload);
   },[buildVdPayload]);
 
   // Wrapped setters — update ref + push to Firebase synchronously, exactly like TaskHub
@@ -11269,6 +11315,27 @@ function App(){
   // applyRemote — bypass wrapped setters to avoid triggering a re-save
   const applyRemote=useCallback((remote)=>{
     if(!remote)return;
+    // ── Never repaint newer local state with an older document ────────────────
+    // THE BUG THIS FIXES: _freshGet falls back to the IndexedDB cache when the
+    // server is slow, and that cached copy can be hours old. The write path
+    // already refused to UPLOAD it, but nothing stopped it being RENDERED — so
+    // opening the desktop showed a stale doc, recent additions looked reverted,
+    // and a reload (which won the timeout race) brought them back. That is
+    // exactly the reported "it reverted, then came back" glitch.
+    //
+    // savedAt is the authority: a doc older than what we already have in memory
+    // carries no news. Dropping it is always safe — the live onSnapshot listener
+    // delivers the real server state the moment it arrives.
+    const rs=remote.savedAt||0, ls=vdLastAppliedRef.current||0;
+    if(rs&&ls&&rs<ls){
+      console.warn("[Veda] ignoring stale doc (savedAt "+rs+" < applied "+ls+")"
+        +(remote._fromCache?" [cache fallback]":""));
+      return;
+    }
+    // A cache-fallback read that merely TIES the applied timestamp is also news-free;
+    // applying it would clobber unsaved in-flight edits made since that snapshot.
+    if(remote._fromCache&&rs&&ls&&rs===ls)return;
+    vdLastAppliedRef.current=rs||ls;
     const now2=new Date(),cw=getMondayKey(now2);
     let hcD=remote.hc||{};if((remote.weekKey||"")!==cw)hcD={};
     const restoreItem=item=>{if(!item)return item;const out={...item};if(out.repeat&&out.repeat!=="none"&&!Array.isArray(out.repeatDays))out.repeatDays=[];return out;};
