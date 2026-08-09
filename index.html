@@ -2806,7 +2806,7 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   @keyframes thts-sheet{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
   /* The hero render is the tallest single block; at phone width it reads fine
      smaller, and the space it gives back is what lets Tires clear the fold. */
-  .thts-car{max-width:236px;}
+  .thts-car,.thts-photo{max-width:236px;}
   .thts-hero{padding:8px 12px;}
   .thts-panel-b{padding:11px 12px calc(16px + env(safe-area-inset-bottom,0px));}
   .thts-cards{grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:6px;}
@@ -2847,6 +2847,11 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   transition:transform .45s cubic-bezier(.2,.9,.3,1);will-change:transform;}
 .thts-tilt.dragging{transition:none;}
 .thts-car{display:block;width:100%;max-width:330px;height:auto;pointer-events:none;}
+/* Supplied hero photo — same footprint as the drawn car so swapping one for
+   the other doesn't reflow the panel. contain, never cover: a cropped car is
+   worse than a letterboxed one. */
+.thts-photo{display:block;width:100%;max-width:330px;height:auto;object-fit:contain;
+  pointer-events:none;filter:drop-shadow(0 14px 18px rgba(0,0,0,.55));}
 .thts-id{position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:space-between;
   gap:10px;margin-top:2px;}
 .thts-model{font-size:15px;font-weight:700;letter-spacing:.2px;color:var(--ts-tx);line-height:1.25;}
@@ -3001,6 +3006,7 @@ var HYDRATE_MAX=30*60*1000;                // never paint cached vehicle data ol
 var POLL_AWAKE=60*1000;                    // popup open + car awake
 var POLL_ASLEEP=5*60*1000;                 // popup open + car asleep — don't keep waking it
 var FRESH_MS=25*1000;                      // a non-forced load inside this window is a no-op
+var CLOSED_REFRESH_MS=60*1000;             // floor between background refreshes while shut
 
 // ── Config ───────────────────────────────────────────────────────────────
 // endpoint         : Fleet API proxy URL (a Worker; keeps the OAuth token server-side)
@@ -3706,10 +3712,53 @@ function Widget(props){
   var da=useState(false),dragging=da[0],setDragging=da[1];
   var ea=useState(''),epv=ea[0],setEpv=ea[1];        // endpoint field, unlinked state
   var pa=useState(null),pick=pa[0],setPick=pa[1];    // selected charging session
+  var fa=useState(false),photoErr=fa[0],setPhotoErr=fa[1];
+  var photoSrc=X(CFG.photo);
+  // A new path deserves a fresh attempt — otherwise one bad URL would keep the
+  // drawn fallback pinned even after the path is corrected.
+  useEffect(function(){setPhotoErr(false);},[photoSrc]);
   var box=useRef(null),panel=useRef(null),bodyRef=useRef(null),
-      drag=useRef(null),swipe=useRef(null);
+      drag=useRef(null),swipe=useRef(null),openRef=useRef(false);
 
   useEffect(function(){return subscribe(set);},[]);
+  useEffect(function(){openRef.current=open;},[open]);
+
+  // Keep the card current WITHOUT needing the popup opened. Three triggers:
+  //   • first mount            — i.e. every TaskHub page load
+  //   • focus/visibilitychange — tab or home-screen PWA returning to foreground
+  //   • IntersectionObserver   — in-app navigation away to another app and back
+  //
+  // The observer handles that last case rather than wrapping window._tonyNav,
+  // which the app-lock gate already wraps — re-wrapping it would be order
+  // dependent and would break whenever either side changed. Watching our own
+  // node is indifferent to HOW visibility gets toggled.
+  //
+  // Cost is bounded twice over: this throttles to CLOSED_REFRESH_MS, and the
+  // Worker caches for 60s, so the car itself is never polled faster than once
+  // a minute no matter how often these fire. Still never wakes a sleeping car.
+  useEffect(function(){
+    load(false);
+    var io=null;
+    function wake(){
+      if(document.hidden)return;
+      if(openRef.current)return;                     // open-state effect owns polling
+      if(Date.now()-S.at<CLOSED_REFRESH_MS)return;
+      load(true);
+    }
+    window.addEventListener('focus',wake);
+    document.addEventListener('visibilitychange',wake);
+    if(window.IntersectionObserver&&box.current){
+      io=new IntersectionObserver(function(es){
+        for(var i=0;i<es.length;i++){if(es[i].isIntersecting){wake();break;}}
+      },{threshold:0});
+      io.observe(box.current);
+    }
+    return function(){
+      window.removeEventListener('focus',wake);
+      document.removeEventListener('visibilitychange',wake);
+      if(io)io.disconnect();
+    };
+  },[]);
 
   // Open → refresh now, then poll (60s awake / 5 min asleep, so a sleeping car
   // is never nagged), refresh on regained focus, and tear EVERY timer down on
@@ -3834,7 +3883,13 @@ function Widget(props){
       h('div',{className:'thts-float'},
         h('div',{className:'thts-tilt'+(dragging?' dragging':''),
             style:{transform:'perspective(1100px) rotateY('+tilt+'deg)'}},
-          carSvg((d&&d.id&&d.id.hex)||'#6f747a',!!(d&&d.id&&d.id.sedan),charging)))),
+          // A supplied photo wins over the drawn car. It falls back to the
+          // drawing if the file 404s or the path is wrong, so a bad path
+          // degrades to the old behaviour instead of an empty hero.
+          (photoSrc&&!photoErr)
+            ? h('img',{className:'thts-photo',src:photoSrc,alt:'',draggable:false,
+                onError:function(){setPhotoErr(true);}})
+            : carSvg((d&&d.id&&d.id.hex)||'#6f747a',!!(d&&d.id&&d.id.sedan),charging)))),
     h('div',{key:'id',className:'thts-id'},
       h('div',{key:'l',style:{minWidth:0}},
         h('div',{key:'m',className:'thts-model'},nameLabel||'Tesla'),
@@ -4113,7 +4168,13 @@ function Widget(props){
 // ── Public API ───────────────────────────────────────────────────────────
 // The fields that belong to the user's setup (as opposed to fetched vehicle
 // state). These are what sync between devices; everything else is per-device.
-var CFG_KEYS=['endpoint','model','trim','paint','paintHex','places'];
+var CFG_KEYS=['endpoint','model','trim','paint','paintHex','places','photo'];
+// A synced photo rides in the same Firestore doc as the rest of the config,
+// and that doc is subject to Firestore's hard 1 MiB ceiling. A file path or
+// URL costs nothing; an inlined data: URI costs its full base64 length, so
+// anything chunky is refused here rather than silently wedging the whole
+// config doc (the ceiling that already constrains the dashboards).
+var PHOTO_MAX=300*1024;
 
 function applyCfg(patch,push){
   var epChanged=('endpoint' in patch)&&patch.endpoint!==CFG.endpoint;
@@ -4143,6 +4204,12 @@ function pushCfg(){
 
 function configure(patch){
   if(!patch||typeof patch!=='object')return CFG;
+  if(typeof patch.photo==='string'&&patch.photo.slice(0,5)==='data:'&&patch.photo.length>PHOTO_MAX){
+    console.warn('[THTS] photo not set: inlined image is '+Math.round(patch.photo.length/1024)
+      +'KB, over the '+Math.round(PHOTO_MAX/1024)+'KB sync limit. Commit the file to the '
+      +'repo and pass its path instead, e.g. THTS.configure({photo:"assets/my-model3.png"}).');
+    return CFG;
+  }
   return applyCfg(patch,true);
 }
 
