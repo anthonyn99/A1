@@ -2014,6 +2014,100 @@ input[type=time]{color-scheme:dark;}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <!-- ══════════════════════════════════════════════════════════════════════════
+     THSHEET — shared popup positioner for the TaskHub band widgets
+     (the Weather bar and the Tesla card both open a panel from a small card)
+
+     THE BUG THIS EXISTS TO KILL: both panels were `position:absolute;
+     top:100%`, i.e. hung off the BOTTOM OF THEIR CARD, with only a max-height
+     to bound them. Wherever the card sat low in the viewport, the panel ran
+     off the bottom of the screen — and because opening one locks body scroll,
+     that overflow was genuinely unreachable. You could scroll the panel's own
+     list to its end and the last rows were still rendered below the fold.
+
+     A width media query was the wrong fix: whether the panel fits has nothing
+     to do with how wide the screen is, and everything to do with how far down
+     the card happens to be. A tablet at 1024px wide hits it; so does a laptop
+     with a short window. So placement is measured, not guessed:
+
+       enough room under the card  → stay a dropdown, capped to that room
+       not enough                  → become a bottom sheet pinned to the
+                                     viewport, which always fits
+
+     Everything is `position:fixed` in viewport coordinates. Body scroll is
+     locked while a panel is open, so the card cannot move underneath us.
+══════════════════════════════════════════════════════════════════════════ -->
+<style>:root{--thsheet-sab:env(safe-area-inset-bottom,0px);}</style>
+<script>
+(function(){
+'use strict';
+function sab(){
+  try{
+    var v=getComputedStyle(document.documentElement).getPropertyValue('--thsheet-sab');
+    var n=parseFloat(v);
+    return (isFinite(n)&&n>0)?n:0;
+  }catch(e){return 0;}
+}
+window.THSHEET={
+  // card  : the small always-visible trigger, used only for measurement
+  // panel : the popup to place
+  // opts  : {width, cap, align:'left'|'right', minDrop, margin}
+  place:function(card,panel,opts){
+    if(!card||!panel)return;
+    opts=opts||{};
+    var M=opts.margin||8, GAP=6;
+    var MIN_DROP=opts.minDrop||340;           // a dropdown shorter than this isn't worth it
+    var vw=window.innerWidth||document.documentElement.clientWidth;
+    var vh=window.innerHeight||document.documentElement.clientHeight;
+    var bottomInset=M+sab();                  // clear the iOS home indicator
+    var r=card.getBoundingClientRect();
+    var w=Math.min(opts.width||560,vw-2*M);
+    var below=vh-r.bottom-GAP-bottomInset;
+    var s=panel.style;
+
+    s.position='fixed';
+    s.width=w+'px';
+    // Prefer the card's own edge, then clamp so it can never leave the screen.
+    var left=(opts.align==='left')?r.left:(r.right-w);
+    s.left=Math.max(M,Math.min(left,vw-w-M))+'px';
+    s.right='auto';
+
+    if(below>=MIN_DROP){
+      // Clamp the top as well as the height. If the card has been scrolled
+      // above the viewport (reflow, rotate) its bottom is negative, and
+      // anchoring straight to it would hang the panel off the TOP of the
+      // screen — the same unreachable-content bug, mirrored.
+      var top=Math.max(M,r.bottom+GAP);
+      s.top=top+'px';
+      s.bottom='auto';
+      s.maxHeight=Math.min(vh-top-bottomInset,opts.cap||720)+'px';
+    }else{
+      s.top='auto';
+      s.bottom=bottomInset+'px';
+      s.maxHeight=Math.min(vh-M-bottomInset,opts.cap||720)+'px';
+    }
+  },
+  clear:function(panel){
+    if(!panel)return;
+    var s=panel.style;
+    s.position=s.top=s.bottom=s.left=s.right=s.width=s.maxHeight='';
+  },
+  // Place now and keep it placed while the panel is open. Returns a teardown.
+  bind:function(card,getPanel,opts){
+    var self=this;
+    function pos(){self.place(card,getPanel(),opts);}
+    pos();
+    window.addEventListener('resize',pos);
+    window.addEventListener('orientationchange',pos);
+    return function(){
+      window.removeEventListener('resize',pos);
+      window.removeEventListener('orientationchange',pos);
+      self.clear(getPanel());
+    };
+  }
+};
+})();
+</script>
+<!-- ══════════════════════════════════════════════════════════════════════════
      Weather Widget — shared by BOTH TaskHubs (Tony's + Veda's)
      CF Worker: https://taskhub-weather-api.av1.workers.dev  (KV-cached Open-Meteo)
 
@@ -2464,13 +2558,23 @@ function Widget(props){
   var t=props.t||{};
   var sa=useState(S),st=sa[0],set=sa[1];
   var oa=useState(false),open=oa[0],setOpen=oa[1];
-  var box=useRef(null);
+  var box=useRef(null),panelRef=useRef(null);
 
   useEffect(function(){
     var un=subscribe(set);
     attach();
     return function(){un();detach();};
   },[]);
+
+  // Keep the forecast panel inside the viewport wherever the bar happens to
+  // sit. Without this it hangs off the bar's bottom edge and, on a tablet or
+  // a short window, runs past the fold — unreachable, because opening it locks
+  // body scroll. See the THSHEET block above for the full reasoning.
+  useEffect(function(){
+    if(!open||!window.THSHEET)return;
+    return window.THSHEET.bind(box.current,function(){return panelRef.current;},
+      {width:560,cap:600,align:'left'});
+  },[open]);
 
   // Opening the panel pulls fresh data if what we have has gone stale, and arms
   // the dismiss handlers (click/tap outside the widget, or Escape). Body scroll
@@ -2626,7 +2730,7 @@ function Widget(props){
     onMouseDown:function(){setOpen(false);}});
 
   return h('div',{className:'thwx thwx-open',style:vars,ref:box},compact,scrim,
-    h('div',{key:'p',className:'thwx-panel',role:'dialog',
+    h('div',{key:'p',ref:panelRef,className:'thwx-panel',role:'dialog',
       'aria-label':'Weather forecast'+(d.place?' for '+d.place:'')},head,body));
 }
 
@@ -3764,6 +3868,15 @@ function Widget(props){
 
   useEffect(function(){return subscribe(set);},[]);
   useEffect(function(){openRef.current=open;},[open]);
+
+  // Same viewport-fitting placement the weather panel uses — measured, not
+  // guessed from a width breakpoint, because whether this fits depends on how
+  // far down the card is, not how wide the screen is.
+  useEffect(function(){
+    if(!open||!window.THSHEET)return;
+    return window.THSHEET.bind(box.current,function(){return panel.current;},
+      {width:620,cap:720,align:'right'});
+  },[open]);
 
   // Keep the card current WITHOUT needing the popup opened. Three triggers:
   //   • first mount            — i.e. every TaskHub page load
