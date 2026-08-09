@@ -97,7 +97,9 @@ export default {
       if (url.pathname === '/callback') return await handleCallback(url, env, cors);
       if (url.pathname === '/admin/register-partner') return await handleRegisterPartner(url, request, env, cors);
       if (url.pathname === '/admin/status') return await handleStatus(url, env, cors);
-      if (url.pathname === '/vehicle') return await handleVehicle(env, cors);
+      if (url.pathname === '/vehicle') {
+        return await handleVehicle(env, cors, url.searchParams.get('wake') === '1');
+      }
       if (url.pathname === '/') {
         return new Response('taskhub-tesla-api — see index.html Tesla widget', {
           headers: { 'Content-Type': 'text/plain', ...cors },
@@ -197,7 +199,13 @@ async function handleStatus(url, env, cors) {
 }
 
 // ── /vehicle — what the widget polls ───────────────────────────────────────
-async function handleVehicle(env, cors) {
+// `wake` is passed ONLY for an explicit user-initiated refresh (the button in
+// the panel header), never by the widget's background polling. Without it a
+// sleeping car is left alone and the last cached reading is served — which is
+// correct for polling, but means the cache can be many hours old, and a
+// software update that finished overnight still shows as "installing 60%".
+// An explicit refresh is the user asking for current truth, so it may wake.
+async function handleVehicle(env, cors, wake) {
   const raw = await env.TESLA_KV.get(KV_TOKENS);
   if (!raw) return j({ error: 'Not linked yet — complete the OAuth flow first' }, 400, cors);
   let t = JSON.parse(raw);
@@ -220,18 +228,32 @@ async function handleVehicle(env, cors) {
   const mine = list.ok && Array.isArray(list.body.response)
     ? list.body.response.find(x => (x.id_s || String(x.id)) === t.vehicle_id)
     : null;
-  const state = mine ? mine.state : null; // 'online' | 'asleep' | 'offline'
+  let state = mine ? mine.state : null; // 'online' | 'asleep' | 'offline'
+  let wakeTried = false, wakeOk = false;
+
+  if (state !== 'online' && wake) {
+    wakeTried = true;
+    wakeOk = await wakeVehicle(env, t);
+    if (wakeOk) state = 'online';
+  }
 
   if (state !== 'online') {
     const cached = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
     const body = cached || { response: {} };
     body.response = { ...body.response, state: state || 'offline', display_name: t.display_name };
+    // Tell the UI the wake was attempted and the car still didn't answer, so
+    // it can say so instead of silently repeating stale numbers.
+    if (wakeTried) body.wake_failed = true;
     return j(body, 200, cors);
   }
 
-  const fresh = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
-  if (fresh && fresh._fetchedAt && Date.now() - fresh._fetchedAt < CACHE_FRESH_MS) {
-    return j(fresh, 200, cors);
+  // An explicit wake-refresh must not be answered from the 60s cache — the
+  // whole point of it is to go and get the current truth.
+  if (!wakeTried) {
+    const fresh = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
+    if (fresh && fresh._fetchedAt && Date.now() - fresh._fetchedAt < CACHE_FRESH_MS) {
+      return j(fresh, 200, cors);
+    }
   }
 
   const vd = await getJson(
@@ -287,6 +309,27 @@ async function placeLabel(env, lat, lon) {
   } catch (e) {
     return null;
   }
+}
+
+// Wake a sleeping car and wait for it to answer. wake_up returns immediately
+// with state:"asleep"; the car needs a few seconds to actually come up, so the
+// vehicles list is polled until it flips to online. A Model 3 typically takes
+// 5–15s. Bounded well under the Worker request budget — if it hasn't answered
+// by then it is genuinely unreachable (underground, no signal) and the caller
+// falls back to cache rather than hanging.
+async function wakeVehicle(env, t) {
+  try {
+    await postJson(`${env.TESLA_API_BASE}/api/1/vehicles/${t.vehicle_id}/wake_up`, t.access_token, {});
+  } catch (e) { /* the poll below is the real check */ }
+  for (let i = 0; i < 9; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const list = await getJson(`${env.TESLA_API_BASE}/api/1/vehicles`, t.access_token);
+    const me = list.ok && Array.isArray(list.body.response)
+      ? list.body.response.find(x => (x.id_s || String(x.id)) === t.vehicle_id)
+      : null;
+    if (me && me.state === 'online') return true;
+  }
+  return false;
 }
 
 async function refreshToken(env, t) {

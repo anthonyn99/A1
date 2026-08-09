@@ -3121,6 +3121,25 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--ts-red);}
 .thts-err .thts-btn{margin-left:auto;text-transform:none;letter-spacing:.3px;}
 
+/* ── Narrow-screen art sizing — deliberately placed HERE, after the base
+   .thts-car/.thts-photo rules.
+   The earlier @media block near .thts-grab also sets these, but it appears
+   BEFORE the base rules in source order, so at equal specificity the base
+   max-width:330px won every time and the art rendered full size on a phone.
+   The measured symptom was the hero image running under the photo controls
+   in the top-right corner.
+   Belt and braces: the art is capped so it cannot reach the controls, AND
+   the stage is padded so the controls never sit over it whatever the image's
+   aspect ratio turns out to be. ── */
+@media (max-width:640px){
+  .thts-car,.thts-photo{max-width:210px;}
+  .thts-stage{padding-top:30px;}          /* clears the 26px control row + inset */
+}
+@media (min-width:641px) and (max-width:820px){
+  .thts-car,.thts-photo{max-width:260px;}
+  .thts-stage{padding-top:26px;}
+}
+
 @media (prefers-reduced-motion:reduce){
   .thts-scrim,.thts-panel,.thts-float,.thts-hero.is-charge::after,
   .thts-charging .thts-bfill::after,.thts-ib.spin svg{animation:none;}
@@ -3159,7 +3178,7 @@ var CFG=readCfg();
 var S={data:null,at:0,err:null,loading:false,linked:!!CFG.endpoint,connected:!!CFG.endpoint};
 var subs=[];
 function emit(){
-  S={data:S.data,at:S.at,err:S.err,loading:S.loading,
+  S={data:S.data,at:S.at,err:S.err,loading:S.loading,waking:S.waking,
      linked:!!CFG.endpoint,connected:!!CFG.endpoint||!!S.data};
   for(var i=0;i<subs.length;i++)subs[i](S);
 }
@@ -3460,7 +3479,7 @@ function summarise(sessions,given){
 
 // ── Loader ───────────────────────────────────────────────────────────────
 var inflight=null;
-function load(force){
+function load(force,wake){
   if(!CFG.endpoint){
     // Not linked → no network, ever. Anything already pushed in via ingest()
     // stays exactly where it is; there is nothing to refresh it against.
@@ -3469,25 +3488,32 @@ function load(force){
   }
   if(inflight)return inflight;
   if(!force&&S.data&&Date.now()-S.at<FRESH_MS)return Promise.resolve(S.data);
-  S.loading=true;emit();
-  inflight=fetch(CFG.endpoint,{headers:{Accept:'application/json'},cache:'no-store'})
+  // `wake` is set ONLY by the panel's refresh button — an explicit ask for
+  // current truth. Background polling never sets it, so a sleeping car is
+  // still never disturbed on its own.
+  var url=CFG.endpoint+(wake?((CFG.endpoint.indexOf('?')>=0?'&':'?')+'wake=1'):'');
+  S.loading=true;S.waking=!!wake;emit();
+  inflight=fetch(url,{headers:{Accept:'application/json'},cache:'no-store'})
     .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
     .then(function(j){
       var m=normalize(j);
       if(!m)throw new Error('Unrecognised vehicle data');
+      // The car was asked to wake and still didn't answer — genuinely out of
+      // signal. Say so rather than silently re-showing the same stale numbers.
+      m.wakeFailed=!!(j&&j.wake_failed);
       apply(m);
       return m;
     })
     .catch(function(e){
       inflight=null;
-      S.err=(e&&e.message)||'Vehicle unavailable';S.loading=false;emit();
+      S.err=(e&&e.message)||'Vehicle unavailable';S.loading=false;S.waking=false;emit();
       return null;
     });
   return inflight;
 }
 function apply(m){
   inflight=null;
-  S.data=m;S.at=Date.now();S.err=null;S.loading=false;
+  S.data=m;S.at=Date.now();S.err=null;S.loading=false;S.waking=false;
   try{localStorage.setItem(LS_CACHE,JSON.stringify({at:S.at,m:m}));}catch(e){}
   emit();
 }
@@ -4116,7 +4142,9 @@ function Widget(props){
         (d&&d.id&&d.id.paint)?h('div',{key:'p',className:'thts-paint'},d.id.paint):null,
         h('div',{key:'s',className:'thts-stamp'},
           !st.connected?'Not Connected'
+            :st.waking?'Waking the car…'
             :st.loading?'Updating…'
+            :(d&&d.wakeFailed)?('No answer from the car — showing '+(ago(st.at)||'last reading'))
             :d?('Updated '+(ago(st.at)||''))
             :(st.err||'No data'))),
       pills.length?h('div',{key:'p',className:'thts-pills'},pills):null));
@@ -4325,7 +4353,7 @@ function Widget(props){
     h('button',{key:'r',type:'button',className:'thts-ib'+(st.loading?' spin':''),
       title:'Refresh','aria-label':'Refresh vehicle data',
       disabled:!st.linked||st.loading,
-      onClick:function(e){e.stopPropagation();load(true);}},ico('refresh',15)),
+      onClick:function(e){e.stopPropagation();load(true,true);}},ico('refresh',15)),
     h('button',{key:'x',type:'button',className:'thts-ib',title:'Close',
       'aria-label':'Close vehicle status',
       onClick:function(e){e.stopPropagation();setOpen(false);}},ico('x',15)));
@@ -7492,6 +7520,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   const PV_DOC_PATH      = "dashboards/proview";
   const MC_CAL_PATH      = "dashboards/market_calendar";
 
+  // ── TaskHub save cadence ──
+  // The debounce coalesces a burst of edits into one write of the whole
+  // document. It was a flat 500ms restarted on every edit, which has two
+  // costs: a lone edit waits the full 500ms before it even starts crossing
+  // the network, and a CONTINUOUS stream of edits (dragging a task, ticking
+  // a row of checkboxes) keeps resetting the timer, so nothing is written
+  // until the user stops — the sync appears to stall exactly while you are
+  // busiest. MAX_WAIT is the fix for the second case: however long the burst
+  // runs, a write leaves at least this often.
+  const TH_SAVE_DEBOUNCE = 200;
+  const TH_SAVE_MAX_WAIT = 900;
+  let _saveFirstQueuedAt = 0;      // when the current un-written burst began
   let _saveTimer = null;
   let _vdSaveTimer = null;
   let _kcSaveTimer = null;
@@ -7672,6 +7712,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // our own echoes (not merely the most recent one) — see the listener comment.
     const _thOwnWrites = new Set();
     const _doTaskHubSave = () => {
+      // This burst is over (or there was nothing queued) — the next edit starts
+      // a fresh MAX_WAIT window. Reset here rather than in the setTimeout
+      // callback so the callback keeps the exact shape sync-guard.test.js
+      // asserts against.
+      _saveFirstQueuedAt = 0;
       if (!_pendingPayload) return _thSaveInFlight || Promise.resolve();
       // Generation check — the clock-independent backstop (see _fbGen). A payload
       // composed before the last disconnect is stale by construction, regardless of
@@ -7705,10 +7750,16 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _savePending = true;
       _lastOwnSaveAt = Date.now();
       if (_saveTimer) clearTimeout(_saveTimer);
+      if (!_saveFirstQueuedAt) _saveFirstQueuedAt = Date.now();
+      // Normally the debounce window; but never push the write further out than
+      // MAX_WAIT from the first edit of this burst, so a long stream of edits
+      // still syncs continuously instead of only when the user pauses.
+      const _wait = Math.max(0, Math.min(TH_SAVE_DEBOUNCE,
+        (_saveFirstQueuedAt + TH_SAVE_MAX_WAIT) - Date.now()));
       // Gate on server-confirmation: before we've seen real server state this only
       // parks the save (the payload is already stashed above, and each new edit
       // replaces it), and it fires the moment _thMarkServerSeen() runs.
-      _saveTimer = setTimeout(() => _thWhenServerSeen(_doTaskHubSave), 500);
+      _saveTimer = setTimeout(() => _thWhenServerSeen(_doTaskHubSave), _wait);
     };
     // Flush a pending TaskHub write immediately (tab hide / navigate away / entry switch).
     // Flush must respect the same guard — a tab-hide/navigate-away during the
@@ -7786,6 +7837,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         _pendingPayload = null;
         if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
         _savePending = false;
+        _saveFirstQueuedAt = 0;                 // burst abandoned with the payload
       }
       // Unlock only after the snapshot has been allowed to take effect.
       _thMarkServerSeen();
