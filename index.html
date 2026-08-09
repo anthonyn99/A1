@@ -2850,8 +2850,37 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
 /* Supplied hero photo — same footprint as the drawn car so swapping one for
    the other doesn't reflow the panel. contain, never cover: a cropped car is
    worse than a letterboxed one. */
+/* Rounded corners so an OPAQUE photo (white studio background, say) reads as
+   a deliberate card rather than a stray rectangle. A cut-out PNG keeps its
+   transparency and the radius never shows. */
 .thts-photo{display:block;width:100%;max-width:330px;height:auto;object-fit:contain;
+  border-radius:10px;
   pointer-events:none;filter:drop-shadow(0 14px 18px rgba(0,0,0,.55));}
+
+/* ── Hero photo controls ──
+   Invisible until wanted: hidden on desktop until the hero is hovered (or a
+   control takes keyboard focus), and held at low opacity on touch, where
+   there is no hover to reveal them. Outline-only, no fills. */
+.thts-hero-tools{position:absolute;top:8px;right:8px;z-index:3;display:flex;gap:5px;
+  opacity:0;transition:opacity .18s;}
+.thts-hero:hover .thts-hero-tools,
+.thts-hero-tools:focus-within{opacity:1;}
+@media (hover:none){ .thts-hero-tools{opacity:.5;} }
+.thts-tool{width:26px;height:26px;flex-shrink:0;padding:0;
+  display:flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--ts-bd);border-radius:7px;
+  color:var(--ts-txd);cursor:pointer;font:inherit;line-height:1;
+  transition:color .15s,border-color .15s;}
+.thts-tool:hover{color:var(--ts-ac);border-color:var(--ts-ac);}
+.thts-tool:focus-visible{outline:2px solid var(--ts-ac);outline-offset:2px;}
+.thts-tool[disabled]{opacity:.45;cursor:default;}
+/* Drop target — only drawn while a file is genuinely over the hero. */
+.thts-hero.is-drop::before{content:'';position:absolute;inset:5px;z-index:2;
+  border:1.5px dashed var(--ts-ac);border-radius:11px;pointer-events:none;}
+.thts-photo-msg{position:absolute;left:10px;right:44px;top:11px;z-index:2;
+  font-size:9.5px;font-weight:700;letter-spacing:.4px;color:var(--ts-txm);
+  pointer-events:none;text-align:left;}
+.thts-photo-msg.err{color:var(--ts-red);}
 .thts-id{position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:space-between;
   gap:10px;margin-top:2px;}
 .thts-model{font-size:15px;font-weight:700;letter-spacing:.2px;color:var(--ts-tx);line-height:1.25;}
@@ -3387,7 +3416,9 @@ var IC={
   refresh:[P('M21 12a9 9 0 1 1-3-6.7','a'),P('M21 4v5h-5','b')],
   alert:[P('M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z','a'),
          P('M12 9v4M12 17h.01','b')],
-  x:[P('M18 6 6 18M6 6l12 12','a')]
+  x:[P('M18 6 6 18M6 6l12 12','a')],
+  image:[P('M3 5h18v14H3z','a'),P('m3 16 5-5 4 4 3-3 6 6','b'),
+         h('circle',{key:'c',cx:8.5,cy:9,r:1.6})]
 };
 function ico(name,size){
   return h('svg',{viewBox:'0 0 24 24',width:size||14,height:size||14,fill:'none',
@@ -3713,6 +3744,17 @@ function Widget(props){
   var ea=useState(''),epv=ea[0],setEpv=ea[1];        // endpoint field, unlinked state
   var pa=useState(null),pick=pa[0],setPick=pa[1];    // selected charging session
   var fa=useState(false),photoErr=fa[0],setPhotoErr=fa[1];
+  var ba=useState(false),photoBusy=ba[0],setPhotoBusy=ba[1];
+  var ma=useState(null),photoMsg=ma[0],setPhotoMsg=ma[1];   // {text,err}
+  var da=useState(false),dropping=da[0],setDropping=da[1];
+  var fileRef=useRef(null);
+  // Lives up here with the other hooks, NOT down beside the upload helpers:
+  // everything below the `if(!open) return` early exit runs only while the
+  // popup is open, so a hook declared there would be called conditionally and
+  // break React's hook ordering — which is exactly what stopped the panel
+  // from opening at all when this was first written.
+  var msgTimer=useRef(null);
+  useEffect(function(){return function(){clearTimeout(msgTimer.current);};},[]);
   var photoSrc=X(CFG.photo);
   // A new path deserves a fresh attempt — otherwise one bad URL would keep the
   // drawn fallback pinned even after the path is corrected.
@@ -3876,7 +3918,68 @@ function Widget(props){
   }
   function dragEnd(){if(!drag.current)return;drag.current=null;setDragging(false);setTilt(0);}
 
-  var hero=h('div',{key:'hero',className:heroCls},
+  // ── Photo upload ──
+  function flash(text,err){
+    setPhotoMsg(text?{text:text,err:!!err}:null);
+    clearTimeout(msgTimer.current);
+    if(text)msgTimer.current=setTimeout(function(){setPhotoMsg(null);},err?5000:2200);
+  }
+
+  function takeFile(file){
+    if(!file)return;
+    setPhotoBusy(true);flash('Processing…',false);
+    readPhotoFile(file,function(err,dataUri){
+      setPhotoBusy(false);
+      if(err){flash(err,true);return;}
+      configure({photo:dataUri});
+      setPhotoErr(false);
+      flash('Photo updated',false);
+    });
+  }
+  function pickPhoto(e){
+    e.preventDefault();e.stopPropagation();
+    if(fileRef.current)fileRef.current.click();
+  }
+  function clearPhoto(e){
+    e.preventDefault();e.stopPropagation();
+    configure({photo:null});
+    flash('Photo removed',false);
+  }
+
+  var hero=h('div',{key:'hero',className:heroCls+(dropping?' is-drop':''),
+      // Drop an image straight onto the hero. dragOver must preventDefault or
+      // the browser navigates to the file instead of letting us have it.
+      onDragOver:function(e){e.preventDefault();if(!dropping)setDropping(true);},
+      onDragLeave:function(e){
+        if(e.currentTarget.contains(e.relatedTarget))return;   // moving between children
+        setDropping(false);
+      },
+      onDrop:function(e){
+        e.preventDefault();setDropping(false);
+        var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+        if(f)takeFile(f);
+      }},
+    // The input is the real file picker; the visible control is the ghost
+    // button below, so the browser's default "Choose file" chrome never shows.
+    h('input',{key:'file',ref:fileRef,type:'file',accept:'image/*',
+      style:{display:'none'},
+      onChange:function(e){
+        var f=e.target.files&&e.target.files[0];
+        takeFile(f);
+        e.target.value='';                 // re-picking the SAME file must re-fire
+      }}),
+    h('div',{key:'tools',className:'thts-hero-tools'},
+      h('button',{key:'p',type:'button',className:'thts-tool',
+        title:photoSrc?'Replace photo':'Use your own photo',
+        'aria-label':photoSrc?'Replace vehicle photo':'Upload a vehicle photo',
+        disabled:photoBusy,onMouseDown:function(e){e.stopPropagation();},
+        onClick:pickPhoto},ico('image',14)),
+      photoSrc?h('button',{key:'x',type:'button',className:'thts-tool',
+        title:'Remove photo','aria-label':'Remove vehicle photo',
+        disabled:photoBusy,onMouseDown:function(e){e.stopPropagation();},
+        onClick:clearPhoto},ico('x',14)):null),
+    photoMsg?h('div',{key:'msg',className:'thts-photo-msg'+(photoMsg.err?' err':'')},
+      photoMsg.text):null,
     h('div',{key:'stage',className:'thts-stage',
         onMouseDown:dragStart,onMouseMove:dragMove,onMouseUp:dragEnd,onMouseLeave:dragEnd,
         onTouchStart:dragStart,onTouchMove:dragMove,onTouchEnd:dragEnd},
@@ -4175,6 +4278,72 @@ var CFG_KEYS=['endpoint','model','trim','paint','paintHex','places','photo'];
 // anything chunky is refused here rather than silently wedging the whole
 // config doc (the ceiling that already constrains the dashboards).
 var PHOTO_MAX=300*1024;
+var PHOTO_TARGET=210*1024;                 // compress to here; MAX is the hard refusal
+var PHOTO_MAXW=1000;                       // more than the hero can ever show
+
+// Take whatever came out of the file picker and turn it into something small
+// enough to live in a synced config doc. A phone photo is 3–5 MB, which no
+// Firestore document will hold, so this downscales and then steps quality
+// down until it fits — shrinking the canvas again if quality alone can't.
+//
+// Format order matters: WebP first because it keeps ALPHA and still
+// compresses hard, so a cut-out PNG of a car stays transparent against the
+// hero instead of becoming a white brick. PNG next (alpha, but big), JPEG
+// last (no alpha, always available). Browsers that don't support a type
+// silently hand back PNG from toDataURL, so the result is sniffed rather
+// than trusted.
+function encodePhoto(img,cb){
+  var w=img.naturalWidth||img.width,hgt=img.naturalHeight||img.height;
+  if(!w||!hgt)return cb('Could not read that image');
+  var scale=Math.min(1,PHOTO_MAXW/w);
+  var cw=Math.max(1,Math.round(w*scale)),ch=Math.max(1,Math.round(hgt*scale));
+  var cv=document.createElement('canvas'),ctx=cv.getContext('2d');
+  if(!ctx)return cb('Canvas unavailable');
+
+  function draw(){cv.width=cw;cv.height=ch;ctx.clearRect(0,0,cw,ch);ctx.drawImage(img,0,0,cw,ch);}
+  function tryType(type,q){
+    var out;
+    try{out=cv.toDataURL(type,q);}catch(e){return null;}
+    // Unsupported type → the browser hands back PNG. Only accept a real match.
+    if(out.indexOf('data:'+type)!==0)return null;
+    return out;
+  }
+
+  draw();
+  var best=null;
+  for(var pass=0;pass<5;pass++){
+    var q=[0.86,0.78,0.68,0.58,0.5][pass];
+    var candidates=[tryType('image/webp',q),tryType('image/jpeg',q)];
+    for(var i=0;i<candidates.length;i++){
+      var c=candidates[i];
+      if(!c)continue;
+      if(!best||c.length<best.length)best=c;
+      if(c.length<=PHOTO_TARGET)return cb(null,c);
+    }
+    // Quality alone isn't getting there — take the pixels down too.
+    cw=Math.max(120,Math.round(cw*0.8));ch=Math.max(80,Math.round(ch*0.8));
+    draw();
+  }
+  if(best&&best.length<=PHOTO_MAX)return cb(null,best);
+  return cb('That image is too detailed to compress — try a smaller crop');
+}
+
+// File → decoded image → encodePhoto. createImageBitmap is preferred where
+// available because it decodes off the main thread and handles EXIF rotation.
+function readPhotoFile(file,cb){
+  if(!file)return cb('No file');
+  if(!/^image\//.test(file.type||''))return cb('That file is not an image');
+  var url=URL.createObjectURL(file);
+  var img=new Image();
+  img.onload=function(){URL.revokeObjectURL(url);encodePhoto(img,cb);};
+  img.onerror=function(){
+    URL.revokeObjectURL(url);
+    // HEIC is the common one here: iPhones shoot it by default and most
+    // browsers cannot decode it in a canvas.
+    cb('Could not decode that image. HEIC photos often fail — try a JPEG or PNG.');
+  };
+  img.src=url;
+}
 
 function applyCfg(patch,push){
   var epChanged=('endpoint' in patch)&&patch.endpoint!==CFG.endpoint;
