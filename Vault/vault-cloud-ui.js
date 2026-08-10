@@ -611,6 +611,11 @@
   function render() {
     var panel = $('vault-cloud-panel');
     if (!panel || panel.style.display === 'none') return;
+    // A locked vault owns this panel — vault-ui.js has drawn the unlock card
+    // into it. Nothing here may paint over that, and the poll/event paths below
+    // can fire with no user behind them, so the check lives at the paint point
+    // rather than at every caller.
+    if (locked()) return;
     if (rendering) return;
     rendering = true;
     // Belt and braces for the paths that still do a full rebuild (clearing the
@@ -844,6 +849,9 @@
   function renderFilesOnly() {
     var panel = $('vault-cloud-panel');
     if (!panel || panel.style.display === 'none') return;
+    // A listing already in flight when the idle lock fires would otherwise land
+    // as file rows on top of the unlock card.
+    if (locked()) return;
     var host = panel.querySelector('.vcl-files');
     if (!host) { render(); return; }
     host.parentNode.replaceChild(buildFiles(vc().settings()), host);
@@ -1179,6 +1187,31 @@
     }, 10);
   }
   function closeMenu() { document.querySelectorAll('.vcl-menu').forEach(function (m) { m.remove(); }); }
+
+  // A bare menu at the pointer, for callers with no entry behind them (the
+  // Upload button). Same chrome and same edge-flipping as the entry menu.
+  function menuAt(ev, items) {
+    closeMenu();
+    var m = el('div', { class: 'vcl-menu', role: 'menu' });
+    items.forEach(function (it) {
+      m.appendChild(el('button', {
+        html: (it.icon || '') + '<span>' + esc(it.label) + '</span>',
+        onclick: function () { closeMenu(); it.fn(); }
+      }));
+    });
+    document.body.appendChild(m);
+    var r = m.getBoundingClientRect();
+    // No pointer position (keyboard activation) — anchor under the button itself.
+    var t = ev && ev.currentTarget && ev.currentTarget.getBoundingClientRect ? ev.currentTarget.getBoundingClientRect() : null;
+    var px = (ev && ev.clientX) || (t ? t.left : 20);
+    var py = (ev && ev.clientY) || (t ? t.bottom + 4 : 20);
+    m.style.left = Math.max(8, Math.min(px, window.innerWidth - r.width - 8)) + 'px';
+    m.style.top = Math.max(8, Math.min(py, window.innerHeight - r.height - 8)) + 'px';
+    setTimeout(function () {
+      document.addEventListener('click', closeMenu, { once: true });
+      document.addEventListener('scroll', closeMenu, { once: true, capture: true });
+    }, 10);
+  }
 
   /* ── Operations ───────────────────────────────────────────────────────────*/
   function openEntry(e) {
@@ -1738,9 +1771,19 @@
   function unmountSelBar() { var b = $('vcl-selbar'); if (b) b.remove(); }
 
   /* ── Upload ───────────────────────────────────────────────────────────────*/
-  function pickUpload() {
+  // A browser file dialog offers files OR a folder, never both — `webkitdirectory`
+  // switches the OS dialog into folder mode — so the button asks which.
+  function pickUpload(ev) {
     if (!ST.provider) { toast('Pick a cloud first', true); return; }
-    var inp = el('input', { type: 'file', multiple: 'multiple', style: 'display:none' });
+    menuAt(ev, [
+      { label: 'Files…', icon: ICON.file, fn: function () { pickInput(false); } },
+      { label: 'Folder…', icon: ICON.folder, fn: function () { pickInput(true); } }
+    ]);
+  }
+  function pickInput(dir) {
+    var attrs = { type: 'file', multiple: 'multiple', style: 'display:none' };
+    if (dir) { attrs.webkitdirectory = 'webkitdirectory'; attrs.directory = 'directory'; }
+    var inp = el('input', attrs);
     document.body.appendChild(inp);
     inp.addEventListener('change', function () {
       queueFiles(inp.files);
@@ -1749,8 +1792,22 @@
     inp.click();
   }
 
+  /* Everything that can be uploaded is normalised to {file, path} — `path` being
+   * the folder chain the file sat in, outermost first, empty for a loose file.
+   * Drops arrive already expanded (see expandDrop); the folder picker hands back
+   * files that carry their own webkitRelativePath ("Trust/2024/deed.pdf"). */
+  function toUploadList(files) {
+    return Array.prototype.map.call(files || [], function (f) {
+      if (f && f.file) return f;
+      var rel = String(f.webkitRelativePath || '').split('/');
+      rel.pop();                                   // drop the file's own name
+      return { file: f, path: rel.filter(Boolean) };
+    }).filter(function (it) { return it && it.file; });
+  }
+
   function queueFiles(files) {
-    if (!files || !files.length) return;
+    var items = toUploadList(files);
+    if (!items.length) return;
     var target = ST.provider;
     if (!target) {
       var conn = vc().connected();
@@ -1759,19 +1816,27 @@
     }
     var parent = ST.provider ? ST.folder : vc().get(target).rootId;
     // Detect same-name collisions before queueing rather than after — a silent
-    // overwrite of a real file is the one outcome worth a prompt.
+    // overwrite of a real file is the one outcome worth a prompt. Only loose
+    // files can clash: anything inside a dropped folder lands in a folder we are
+    // about to create or merge into, where the provider's own autorename applies.
     var clashes = [];
-    Array.prototype.forEach.call(files, function (f) {
-      var hit = ST.entries.filter(function (e) { return !e.folder && e.name === f.name && e.provider === target; })[0];
-      if (hit) clashes.push({ file: f, existing: hit });
+    items.forEach(function (it) {
+      if (it.path.length) return;
+      var hit = ST.entries.filter(function (e) { return !e.folder && e.name === it.file.name && e.provider === target; })[0];
+      if (hit) clashes.push({ file: it.file, existing: hit });
     });
-    if (clashes.length) { openConflict(clashes, files, target, parent); return; }
-    Array.prototype.forEach.call(files, function (f) { vc().enqueue(f, target, parent); });
-    toast('Queued ' + files.length + ' file' + (files.length > 1 ? 's' : ''));
+    if (clashes.length) { openConflict(clashes, items, target, parent); return; }
+    queueAll(items, target, parent);
+  }
+
+  function queueAll(items, target, parent) {
+    items.forEach(function (it) { vc().enqueue(it.file, target, parent, it.path); });
+    var folders = items.filter(function (it) { return it.path.length; }).length;
+    toast('Queued ' + items.length + ' file' + (items.length > 1 ? 's' : '') + (folders ? ' (folders included)' : ''));
     renderDock();
   }
 
-  function openConflict(clashes, files, target, parent) {
+  function openConflict(clashes, items, target, parent) {
     var body = el('div', {});
     body.appendChild(el('div', { style: 'font:400 13px/1.6 var(--sans);color:var(--txd);margin-bottom:12px', text: clashes.length + ' file' + (clashes.length > 1 ? 's' : '') + ' here already have these names.' }));
     clashes.forEach(function (c) {
@@ -1787,10 +1852,10 @@
         onclick: function () {
           closeOverlays();
           var skip = {}; clashes.forEach(function (c) { skip[c.file.name] = 1; });
-          var n = 0;
-          Array.prototype.forEach.call(files, function (f) { if (!skip[f.name]) { vc().enqueue(f, target, parent); n++; } });
-          toast(n ? 'Queued ' + n + ' file' + (n > 1 ? 's' : '') : 'Nothing to upload');
-          renderDock();
+          // Only loose files were ever compared, so only loose files can be skipped.
+          var keep = items.filter(function (it) { return it.path.length || !skip[it.file.name]; });
+          if (!keep.length) { toast('Nothing to upload'); renderDock(); return; }
+          queueAll(keep, target, parent);
         }
       }),
       el('button', {
@@ -1799,9 +1864,7 @@
           closeOverlays();
           // Both providers autorename on collision, so "keep both" is simply
           // "upload everything" — neither file is ever overwritten.
-          Array.prototype.forEach.call(files, function (f) { vc().enqueue(f, target, parent); });
-          toast('Queued ' + files.length + ' file' + (files.length > 1 ? 's' : ''));
-          renderDock();
+          queueAll(items, target, parent);
         }
       })
     ]);
@@ -1817,7 +1880,9 @@
   function renderDock() {
     var q = vc().queue();
     var dock = $('vcl-dock');
-    if (!q.length || dockDismissed) { if (dock) dock.remove(); return; }
+    // The queue emits with no user behind it, so a lock has to be checked here
+    // too or a finishing upload would re-post the dock over the lock screen.
+    if (!q.length || dockDismissed || locked()) { if (dock) dock.remove(); return; }
     if (!dock) { dock = el('div', { class: 'vcl-dock', id: 'vcl-dock' }); document.body.appendChild(dock); }
     var active = q.filter(function (i) { return i.status === 'uploading' || i.status === 'queued'; }).length;
     var failed = q.filter(function (i) { return i.status === 'error'; }).length;
@@ -1845,7 +1910,7 @@
       if (i.status === 'uploading' || i.status === 'queued' || i.status === 'paused') acts.appendChild(el('button', { class: 'vcl-ib', html: ICON.x, title: 'Cancel', onclick: function () { vc().qCancel(i.key); renderDock(); } }));
       b.appendChild(el('div', { class: 'vcl-up' }, [
         el('div', { class: 'vcl-up-t' }, [
-          el('span', { class: 'nm', text: i.name }),
+          el('span', { class: 'nm', text: i.label || i.name, title: i.label || i.name }),
           el('span', { class: 'st' + (i.status === 'error' ? ' err' : i.status === 'done' ? ' ok' : ''), text: statusText }),
           acts
         ]),
@@ -1884,12 +1949,115 @@
       e.preventDefault();
       dropDepth = 0;
       var d = $('vcl-drop'); if (d) d.remove();
-      queueFiles(e.dataTransfer.files);
+      // BOTH must be read synchronously: a DataTransfer is neutered the moment
+      // this handler returns, so nothing below may await before they're captured.
+      var loose = Array.prototype.slice.call(e.dataTransfer.files || []);
+      var entries = dropEntries(e.dataTransfer);
+      if (!entries.length) { queueFiles(loose); return; }
+      toast('Reading dropped items…');
+      expandEntries(entries).then(function (items) {
+        if (items.length) queueFiles(items);
+        else toast('Nothing to upload — those folders are empty', true);
+      }).catch(function (err) {
+        console.warn('[cloud] drop expand failed', err);
+        queueFiles(loose);
+      });
     });
   }
+
+  /* ── Folder drops ─────────────────────────────────────────────────────────
+   * A dropped folder shows up in dataTransfer.files as a single File that is not
+   * a file at all: reading it throws, which XHR reports as the opaque "Upload
+   * failed — network error". The entries API is the only way to see inside one,
+   * so a drop is expanded into real files — each carrying the folder chain it
+   * came from — before anything reaches the upload queue. */
+  var DROP_MAX = 2000;
+  function dropEntries(dt) {
+    var items = dt && dt.items ? Array.prototype.slice.call(dt.items) : [];
+    return items.map(function (it) {
+      return (it.kind === 'file' && it.webkitGetAsEntry) ? it.webkitGetAsEntry() : null;
+    }).filter(Boolean);
+  }
+  function entryFile(entry) {
+    return new Promise(function (res, rej) { entry.file(res, rej); });
+  }
+  function readBatch(reader) {
+    return new Promise(function (res, rej) { reader.readEntries(res, rej); });
+  }
+  async function walkEntry(entry, path, out) {
+    if (!entry || out.length >= DROP_MAX) return;
+    if (entry.isFile) {
+      try { out.push({ file: await entryFile(entry), path: path }); }
+      catch (e) { console.warn('[cloud] unreadable', entry.name, e); }
+      return;
+    }
+    if (!entry.isDirectory) return;
+    var reader = entry.createReader(), batch, next = path.concat(entry.name);
+    // readEntries answers at most 100 at a time and signals the end with an
+    // empty array — a single call silently truncates any folder bigger than that.
+    do {
+      batch = await readBatch(reader);
+      for (var i = 0; i < batch.length; i++) {
+        if (out.length >= DROP_MAX) return;
+        await walkEntry(batch[i], next, out);
+      }
+    } while (batch.length);
+  }
+  async function expandEntries(entries) {
+    var out = [];
+    for (var i = 0; i < entries.length; i++) await walkEntry(entries[i], [], out);
+    if (out.length >= DROP_MAX) toast('Only the first ' + DROP_MAX + ' files were queued', true);
+    return out;
+  }
   function isVisible() {
+    if (locked()) return false;
     var p = $('vault-cloud-panel');
     return !!p && p.style.display !== 'none' && p.offsetParent !== null;
+  }
+
+  /* ── Lock gate ────────────────────────────────────────────────────────────
+   * Cloud sits behind the SAME master password as Passwords, Payments, ID Docs
+   * and Sensitive Info. It stores no decrypted vault material of its own, but it
+   * is a live window onto every connected drive — file names, previews,
+   * downloads, deletions and the accounts themselves — so an idle-locked vault
+   * that left this tab open handed anyone at the keyboard the lot.
+   *
+   * vault-ui.js owns the one session; this only asks. It fails CLOSED: no
+   * session yet means locked, never "assume fine".
+   *
+   * Not a confidentiality boundary for the data at rest — provider tokens and
+   * Cloud settings live in localStorage exactly as before, unencrypted. This
+   * gates the surface, the same as the other four tabs. */
+  function locked() {
+    try {
+      var s = window.Vault && window.Vault.session && window.Vault.session();
+      return !s || !s.isUnlocked();
+    } catch (e) { return true; }
+  }
+
+  /* Called by vault-ui.js the moment the vault locks. The panel itself is blanked
+   * there, but half of Cloud's chrome lives on <body> — menu, modals, preview,
+   * selection bar, upload dock, drop overlay — and would otherwise stay on
+   * screen above the lock card. In-flight uploads deliberately keep running: a
+   * 30-minute idle lock must not throw away a half-sent file. They just stop
+   * being visible until you unlock. */
+  function lock() {
+    closeMenu();
+    closeOverlays();
+    unmountSelBar();
+    ['vcl-dock', 'vcl-drop'].forEach(function (id) { var n = $(id); if (n) n.remove(); });
+    document.querySelectorAll('.vcl-toast, .vcl-ddp').forEach(function (n) { n.remove(); });
+    // Leave nothing behind that describes what is in the cloud. Re-mounting
+    // after unlock reloads from the provider, so this costs one listing.
+    ST.entries = []; ST.sel = {}; ST.query = ''; ST.aiMode = false; ST.aiAnswer = '';
+    ST.err = ''; ST.loading = false; ST.trail = []; ST.pane = 'files';
+    ST.provider = null; ST.folder = null;
+    ST.filter = { kind: '', since: '', minSize: 0, provider: '' };
+    trashState.entries = []; trashState.err = ''; trashState.progress = ''; trashState.loading = false; trashState.skipped = 0;
+    var panel = $('vault-cloud-panel');
+    // The panel is vault-ui.js's to draw on now; drop our contents so a stale
+    // listing can't flash between the lock and the next paint.
+    if (panel && !panel.querySelector('.vault-lock')) panel.innerHTML = '';
   }
 
   /* ── Setup / connect ──────────────────────────────────────────────────────*/
@@ -2022,6 +2190,9 @@
   /* ── Boot ─────────────────────────────────────────────────────────────────*/
   var booted = false;
   function mount() {
+    // vault-ui.js only calls this once the vault is unlocked; the guard is here
+    // so a future caller can't mount Cloud behind the lock screen by accident.
+    if (locked()) return;
     injectStyles();
     wireDrop();
     if (!booted) {
@@ -2079,5 +2250,5 @@
     render();
   }
 
-  window.VaultCloudUI = { mount: mount, render: render, state: ST };
+  window.VaultCloudUI = { mount: mount, render: render, lock: lock, locked: locked, state: ST };
 })();

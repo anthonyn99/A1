@@ -1066,9 +1066,17 @@
   function qEmit() { qListeners.forEach(function (f) { try { f(queue); } catch (e) {} }); }
 
   var qid = 0;
-  function enqueue(file, providerId, parentId) {
+  // relPath: the folder chain this file sat in inside a dropped/picked FOLDER,
+  // outermost first ([] for a plain file drop). It is created under `parentId`
+  // lazily, at upload time — see ensureFolderPath.
+  function enqueue(file, providerId, parentId, relPath) {
+    relPath = (relPath || []).filter(Boolean);
     var item = {
       key: 'u' + (++qid), file: file, name: file.name, size: file.size,
+      path: relPath,
+      // What the dock shows: "invoices/2024/receipt.pdf" beats three rows all
+      // called receipt.pdf with no way to tell them apart.
+      label: relPath.concat(file.name).join('/'),
       provider: providerId, parent: parentId,
       status: 'queued',       // queued | uploading | paused | done | error | cancelled
       loaded: 0, error: '', ctrl: null
@@ -1092,6 +1100,69 @@
     qEmit();
   }
 
+  /* Folder uploads. Neither provider accepts a directory, so a dropped folder
+   * becomes its files, each carrying the chain of folder names it came from;
+   * this recreates that chain in the cloud on the way past.
+   *
+   * Memoised per (provider, parent, name), so a 200-file folder costs ONE mkdir
+   * per level rather than one per file — and because the queue is serial, the
+   * second file in a folder simply awaits the same promise the first started.
+   * An existing folder of that name is reused rather than duplicated: dropping
+   * a folder twice merges into it, the way every desktop client behaves. */
+  var folderMemo = Object.create(null);
+  async function ensureFolderPath(providerId, parentId, names) {
+    if (!names || !names.length) return parentId;
+    var p = providers[providerId];
+    var cur = parentId;
+    for (var i = 0; i < names.length; i++) {
+      var key = providerId + '|' + cur + '|' + String(names[i]).toLowerCase();
+      if (!folderMemo[key]) {
+        folderMemo[key] = (function (parent, name) {
+          return (async function () {
+            var hit = null;
+            try {
+              var kids = await p.list(parent);
+              hit = kids.filter(function (e) {
+                return e.folder && String(e.name).toLowerCase() === String(name).toLowerCase();
+              })[0] || null;
+            } catch (e) { /* listing is only an optimisation — fall through to mkdir */ }
+            if (hit) return hit.id;
+            var made = await p.mkdir(name, parent);
+            if (!made || made.id == null) throw new Error('Could not create folder "' + name + '"');
+            return made.id;
+          })();
+        })(cur, names[i]);
+        // A rejected lookup must never be cached as a permanent answer, or every
+        // remaining file in the folder inherits one transient failure.
+        (function (k) { folderMemo[k].catch(function () { delete folderMemo[k]; }); })(key);
+      }
+      cur = await folderMemo[key];
+    }
+    return cur;
+  }
+
+  /* A directory dropped as a plain File is not a file at all: it reads as an
+   * empty blob that throws the moment XHR touches it, which surfaced as an
+   * opaque "Upload failed — network error". One 1-byte read up front turns that
+   * into a sentence that names the problem — and catches the other case with
+   * the same symptom, a file moved or deleted between picking and uploading. */
+  async function assertUploadable(file) {
+    if (!file || !file.slice || typeof Blob === 'undefined' || !Blob.prototype.arrayBuffer) return;
+    try { await file.slice(0, 1).arrayBuffer(); }
+    catch (e) {
+      throw new Error(looksLikeFolder(file)
+        ? '“' + file.name + '” is a folder, not a file — drop it on the file list to upload its contents.'
+        : '“' + file.name + '” could not be read — it may have been moved or deleted.');
+    }
+  }
+  // Only ever consulted for a file that ALREADY failed to read, to choose which
+  // sentence to show. A directory has no MIME type and either no size or no
+  // extension — browsers report size 0 for one, but that isn't guaranteed
+  // everywhere, so the name is the second tell.
+  function looksLikeFolder(file) {
+    return !file.type && (!file.size || !/\.[^.\/\\]{1,12}$/.test(String(file.name || '')));
+  }
+
   async function runQueue() {
     if (qRunning) return;
     qRunning = true;
@@ -1103,12 +1174,16 @@
         if (!p) { item.status = 'error'; item.error = 'Unknown provider'; qEmit(); continue; }
         item.status = 'uploading'; item.ctrl = new AbortController(); qEmit();
         try {
-          var entry = await p.upload(item.file, item.parent, {
+          await assertUploadable(item.file);
+          var dest = item.path && item.path.length
+            ? await ensureFolderPath(item.provider, item.parent, item.path)
+            : item.parent;
+          var entry = await p.upload(item.file, dest, {
             signal: item.ctrl.signal,
             onProgress: function (loaded) { item.loaded = loaded; qEmit(); }
           });
           item.status = 'done'; item.loaded = item.size; item.entry = entry; qEmit();
-          logActivity('Uploaded', item.provider, item.name);
+          logActivity('Uploaded', item.provider, item.label || item.name);
           if (entry) touchRecent(entry, 'uploaded');
           // Drop the cached listing for the folder we just wrote into, or the
           // refresh this event triggers would re-paint the pre-upload contents
@@ -1120,7 +1195,13 @@
           item.status = 'error'; item.error = fmtErr(e); qEmit();
         }
       }
-    } finally { qRunning = false; }
+    } finally {
+      qRunning = false;
+      // Folder ids are only valid while the batch that created them is running.
+      // Holding them past that would upload into a folder the user has since
+      // renamed, moved or deleted.
+      folderMemo = Object.create(null);
+    }
   }
 
   /* ── Offline metadata cache ────────────────────────────────────────────────

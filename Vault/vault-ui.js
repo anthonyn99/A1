@@ -355,9 +355,9 @@
     var payPanel = el('div', { id: 'vault-payments-panel', class: 'vault-panel', style: 'display:none' });
     var idPanel = el('div', { id: 'vault-iddocs-panel', class: 'vault-panel', style: 'display:none' });
     var senPanel = el('div', { id: 'vault-sensitive-panel', class: 'vault-panel', style: 'display:none' });
-    // Cloud is deliberately NOT a secret panel — it holds no decrypted material,
-    // only provider settings and file listings fetched live, so it stays usable
-    // while the rest of Vault is locked.
+    // Cloud is a secret panel too. It holds no decrypted vault material, but it
+    // is a live window onto every connected drive, so it gates on the same
+    // master password as Passwords, Payments, ID Docs and Sensitive Info.
     var cloudPanel = el('div', { id: 'vault-cloud-panel', class: 'vault-panel', style: 'display:none' });
     root.appendChild(pwPanel); root.appendChild(payPanel); root.appendChild(idPanel); root.appendChild(senPanel);
     root.appendChild(cloudPanel);
@@ -417,13 +417,17 @@
     } catch (e) {}
   }
 
-  // The tabs that hold decrypted material — each one gates on the SAME session.
-  var SECRET_TABS = { passwords: renderPasswords, payments: renderPayments, iddocs: renderIdDocs, sensitive: renderSensitive };
+  // The tabs that hold protected material — each one gates on the SAME session.
+  var SECRET_TABS = {
+    passwords: renderPasswords, payments: renderPayments, iddocs: renderIdDocs,
+    sensitive: renderSensitive, cloud: renderCloud,
+  };
   // Every secret tab's panel, so lock/blank logic never has to enumerate them
-  // twice (and can't drift when a sixth tab arrives).
+  // twice (and can't drift when a seventh tab arrives).
   var SECRET_PANELS = {
     passwords: 'vault-pw-panel', payments: 'vault-payments-panel',
     iddocs: 'vault-iddocs-panel', sensitive: 'vault-sensitive-panel',
+    cloud: 'vault-cloud-panel',
   };
 
   function showTab(id) {
@@ -434,19 +438,28 @@
     });
     var links = $('vault-links-panel');
     if (links) links.style.display = id === 'links' ? '' : 'none';
-    var cloud = $('vault-cloud-panel');
-    if (cloud) {
-      cloud.style.display = id === 'cloud' ? '' : 'none';
-      // Mounted lazily: the first paint kicks off provider quota + folder calls,
-      // and doing that on page load would spend the API budget for a tab nobody
-      // opened. VaultCloudUI.mount() is idempotent.
-      if (id === 'cloud' && window.VaultCloudUI) window.VaultCloudUI.mount();
-    }
     if (SECRET_TABS[id]) {
       if (!session || !session.isUnlocked()) { renderLock(); return; }
       SECRET_TABS[id]();
     }
     updateStickyOffset();
+  }
+
+  // Cloud holds none of the vault's own decrypted material, but it is a live
+  // window onto every connected drive — file names, previews, downloads,
+  // deletions and the accounts themselves — so it unlocks with the rest rather
+  // than staying open on a locked vault.
+  //
+  // Unlike the other four it needs no `store`: it reads the provider APIs, not
+  // the encrypted document, so it renders as soon as the session is open.
+  function renderCloud() {
+    var panel = $('vault-cloud-panel'); if (!panel) return;
+    if (!session || !session.isUnlocked()) { renderLock(); return; }
+    // Mounted lazily: the first paint kicks off provider quota + folder calls,
+    // and doing that on page load would spend the API budget for a tab nobody
+    // opened. mount() is idempotent and repaints the panel, which is also what
+    // rebuilds it after a lock blanked it.
+    if (window.VaultCloudUI) window.VaultCloudUI.mount();
   }
   // Measure the sticky header heights so the tabs pin below the app-hbar and the
   // toolbar pins below the tabs (both app-hbar and tabs are position:sticky).
@@ -592,6 +605,10 @@
     // …and tears down ID Docs, which is the one section holding decrypted BYTES
     // (object URLs for scans). Those must not outlive the session.
     try { if (window.VaultIdUI) window.VaultIdUI.reset(); } catch (e) {}
+    // Cloud's panel is blanked below like any other secret tab, but half its
+    // chrome — upload dock, selection bar, preview, menus — lives on <body> and
+    // would otherwise float above the lock card.
+    try { if (window.VaultCloudUI) window.VaultCloudUI.lock(); } catch (e) {}
     _senOpen = {};
     // Draw the lock/setup card into whichever secret tab is on screen, and blank
     // every other one — a locked vault must leave no decrypted rows behind in a
@@ -793,7 +810,13 @@
     await store.load();
     // One live subscription drives every tab — a card added on another device
     // lands here the same instant a password does.
-    store.startLive(function () { setVaultSync('synced'); if (SECRET_TABS[activeTab]) SECRET_TABS[activeTab](); });
+    // Cloud is excluded on purpose: it draws from the provider APIs, not this
+    // document, so a vault sync has nothing new for it and the repaint would
+    // fight whatever is on screen (a search being typed, a folder mid-load).
+    store.startLive(function () {
+      setVaultSync('synced');
+      if (activeTab !== 'cloud' && SECRET_TABS[activeTab]) SECRET_TABS[activeTab]();
+    });
     bindActivity();
     // Suppressed on the recovery path so the enrol prompt doesn't collide with
     // the "set a new master password" modal; it re-offers on the next unlock.
