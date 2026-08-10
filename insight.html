@@ -304,6 +304,13 @@
   .chip.pending { color: #d3c2e0; border-color: rgba(197,178,220,.32); }
   .chip.xfer { color: #aed0da; border-color: rgba(158,196,208,.32); }
   .chip.cardpay { color: #cabfe4; border-color: rgba(184,170,216,.32); }
+  /* Transfer-tagged rows that DO count: a deposit from outside, or money that
+     left your accounts for good. Clickable — one press flips the verdict. */
+  .chip.deposit { color: var(--gold-soft); border-color: var(--gold-line); }
+  .chip.sentout { color: #e2b9ad; border-color: rgba(214,138,124,.34); }
+  .chip.treat { font: inherit; font-size: 10.5px; font-weight: 500; letter-spacing: .2px; cursor: pointer; }
+  .chip.treat:hover { border-color: var(--gold-line); color: var(--gold-soft); }
+  .chip.treat.mine::after { content: ' ✓'; opacity: .55; }   /* your own decision */
   .txamt.xfer { color: var(--faint); font-weight: 500; }
   .recnote {
     font-size: 12.5px; color: var(--muted); margin-top: 7px; white-space: pre-wrap; line-height: 1.5;
@@ -1406,6 +1413,8 @@
   let activeView = 'transactions';
   let editingId = null;          // manual entry being edited (null = new)
   let manualType = 'expense';
+  let txRules = {};              // your transfer/deposit corrections, keyed by "in|merchant"
+  let prefsLoadOk = false;       // write barrier: never merge txRules before they've loaded
   let importState = null;        // { newRows, exactDupes, fuzzy:[{rec, match, decision}] }
   let csvFile = null;            // parsed CSV + detected column mapping
 
@@ -1546,7 +1555,11 @@
 
   onSnapshot(collection(db, ROOT, 'accounts'), snap => {
     accounts = snap.docs.map(d => d.data());
+    invalidateTxCaches();   // own-institution names feed the transfer rules
     renderAccounts();
+    renderFeed();
+    renderStats();
+    renderMonthly();
     renderFilterOptions();
     snapOk('accounts');
   }, e => snapFail('accounts', e));
@@ -1660,6 +1673,9 @@
       navOrder = d.navOrder.slice();
       renderNav();
     }
+    const rules = (d && d.txRules && typeof d.txRules === 'object') ? d.txRules : {};
+    if (JSON.stringify(rules) !== JSON.stringify(txRules)) { txRules = rules; renderAll(); }
+    prefsLoadOk = true;
     snapOk('prefs');
   }, e => snapFail('prefs', e));
 
@@ -1808,9 +1824,9 @@
       (b.date || '').localeCompare(a.date || '') || (b.updatedAt || 0) - (a.updatedAt || 0));
   }
 
-  function renderAll() { renderStats(); renderMonthly(); renderFeed(); renderFilterOptions(); renderRecurring(); }
+  function renderAll() { invalidateTxCaches(); renderStats(); renderMonthly(); renderFeed(); renderFilterOptions(); renderRecurring(); }
 
-  // ── Transfers & credit-card payments ─────────────────────────────────────
+  // ── Transfers, deposits & credit-card payments ───────────────────────────
   // Paying a credit card moves money between your OWN accounts. It shows up
   // twice — as an outflow on the funding account ("AMEX EPAYMENT ACH PMT")
   // and as an inflow on the card ("AUTOPAY PAYMENT - THANK YOU"). Counting
@@ -1822,6 +1838,25 @@
   // differently: paying a card bill is a "Credit Card Payment"; moving money
   // between your own accounts is a "Transfer". Card payment is checked first
   // because it's the more specific of the two.
+  //
+  // Everything Plaid filed under TRANSFER_* used to be neutralised the same
+  // way, and that was too blunt: cash deposited at a Walmart or Walgreens
+  // register posts as "Transfer In", but that's money entering your accounts
+  // from outside — income, not a neutral shuffle. Only a move between two of
+  // your OWN accounts is neutral, and the tell for that is that both legs
+  // exist: an outflow somewhere, a matching inflow somewhere else. So
+  // transfer-tagged rows are paired up (pairMap) and each leg is judged:
+  //   1. paired with its opposite leg  → neutral, it's internal
+  //   2. cash / check deposit wording  → counted, money from outside
+  //   3. names one of your own institutions or account types
+  //      ("ONLINE TRANSFER TO SAV 1234") → neutral, the far side just isn't connected
+  //   4. anything else                 → counted, by its sign
+  // Rule 4 is symmetric on purpose. If an unmatched deposit counts as income,
+  // an unmatched withdrawal has to count as spending — otherwise money parked
+  // in an unconnected account and pulled back later would register as income
+  // twice over. Every verdict is one click to change (the chip in the feed),
+  // and the choice is remembered per merchant + direction, so fixing Walmart
+  // once fixes every Walmart deposit after it.
   const CARDPAY_CODE = 'LOAN_PAYMENTS_CREDIT_CARD_PAYMENT';
   const XFER_CODES = new Set([
     'TRANSFER_IN_ACCOUNT_TRANSFER', 'TRANSFER_OUT_ACCOUNT_TRANSFER',
@@ -1845,14 +1880,31 @@
   // fall through to normal income/spending counting instead.
   const FIDELITY_RE = /\bfidelity\b/i;
 
+  // Rule 2 — wording that only ever means "this money came from outside":
+  // register deposits (Green Dot at Walmart/Walgreens), ATM and check
+  // deposits. Deliberately strict — a bare "deposit" is not enough, because
+  // "DEPOSIT FROM ALLY BANK" is an ordinary internal move.
+  const CASH_DEPOSIT_RE = /cash\s*(deposit|in\b)|deposit\s*cash|green\s*dot|moneypak|money\s*pak|rapid\s*reload|\breload\b|atm\s+deposit|check\s+deposit|mobile\s+(check\s+)?deposit|remote\s+deposit|\bbarcode\b/i;
+  // Rule 3 — wording that names one of your own accounts even when the far
+  // side isn't connected: "ONLINE TRANSFER TO SAV 1234", "internal transfer".
+  const SELF_ACCT_RE = /\b(sav|savings|checking|chk|share\s*draft|money\s?market|brokerage|internal|own\s+account)\b/i;
+  const MATCH_DAYS = 5;   // how far apart the two legs of one move may post
+
   const CARDPAY_LABEL = 'Credit Card Payment';
   const XFER_LABEL = 'Transfer';
+  const DEPOSIT_LABEL = 'Deposit';
+  const SENT_OUT_LABEL = 'Sent out';
 
-  // → 'cardpay' | 'transfer' | null
-  function txKind(t) {
+  const txText = t => (t.merchant || '') + ' ' + (t.name || '');
+
+  // First pass — "does this look like a leg of an internal move at all?".
+  // Unchanged from the original rules on purpose: only rows that were already
+  // being neutralised can change verdict, so nothing that counts today stops
+  // counting. → 'cardpay' | 'transfer' | null
+  function txSignal(t) {
     const code = (t.category_detailed || '').toUpperCase();
     const cat = (t.category || '').toLowerCase();
-    const text = (t.merchant || '') + ' ' + (t.name || '');
+    const text = txText(t);
     if (code === CARDPAY_CODE || cat === 'credit card payment' || CARDPAY_RE.test(text)) return 'cardpay';
     const toFidelity = FIDELITY_RE.test(text) || FIDELITY_RE.test(t.institution || '');
     if (toFidelity) return null;
@@ -1860,14 +1912,122 @@
     if (XFER_RE.test(text)) return 'transfer';
     return null;
   }
-  const isTransfer = t => txKind(t) !== null;   // "not income, not spending"
+
+  // Caches rebuilt whenever the transaction or account feeds change.
+  let _pairs = null, _ownNames = null;
+  function invalidateTxCaches() { _pairs = null; _ownNames = null; }
+
+  const dnOf = d => Math.floor(new Date((d || '1970-01-01') + 'T12:00:00').getTime() / 86400000);
+
+  // id → the opposite leg it was matched with. Every feasible pairing (same
+  // amount to the cent, different accounts, at most MATCH_DAYS apart) is
+  // scored by how far apart the two legs posted, and the tightest pairs are
+  // taken first — matching in feed order instead let a stray same-amount row
+  // steal the leg that belonged to a same-day pair. Each leg is consumed
+  // once, so three $500 moves in one week pair off one-to-one. Pending rows
+  // take part (they're skipped in the totals anyway) — otherwise a transfer
+  // whose far leg hasn't settled would spend a few days looking like income.
+  function pairMap() {
+    if (_pairs) return _pairs;
+    const map = new Map();
+    const legs = allTxs().filter(t => typeof t.amount === 'number' && t.amount && txSignal(t) === 'transfer');
+    const outs = new Map();                       // amount in cents → outflow legs
+    for (const t of legs) {
+      if (t.amount <= 0) continue;
+      const k = Math.round(t.amount * 100);
+      let arr = outs.get(k); if (!arr) outs.set(k, arr = []);
+      arr.push(t);
+    }
+    const cands = [];
+    for (const t of legs) {
+      if (t.amount >= 0) continue;
+      const pool = outs.get(Math.round(-t.amount * 100));
+      if (!pool) continue;
+      const dn = dnOf(t.date);
+      for (const o of pool) {
+        if (o.account_id && t.account_id && o.account_id === t.account_id) continue;   // same account: not a move
+        const gap = Math.abs(dnOf(o.date) - dn);
+        if (gap <= MATCH_DAYS) cands.push({ inn: t, out: o, gap });
+      }
+    }
+    cands.sort((a, b) => a.gap - b.gap || (a.inn.date || '').localeCompare(b.inn.date || ''));
+    const used = new Set();
+    for (const c of cands) {
+      if (used.has(c.inn.id) || used.has(c.out.id)) continue;
+      used.add(c.inn.id); used.add(c.out.id);
+      map.set(c.inn.id, c.out); map.set(c.out.id, c.inn);
+    }
+    return _pairs = map;
+  }
+
+  // Normalised names of the institutions and accounts you've actually
+  // connected, longest first — so "TRANSFER FROM ALLY BANK" reads as internal
+  // while "WALGREENS" doesn't.
+  function ownInstNames() {
+    if (_ownNames) return _ownNames;
+    const set = new Set();
+    for (const a of accounts) for (const s of [a.institution, a.official_name, a.name]) {
+      const n = normName(s); if (n.length >= 4) set.add(n);
+    }
+    for (const t of plaidTxs) { const n = normName(t.institution); if (n.length >= 4) set.add(n); }
+    return _ownNames = [...set].sort((a, b) => b.length - a.length);
+  }
+  function namesOwnAccount(t) {
+    const text = normName(txText(t));
+    if (!text) return null;
+    for (const n of ownInstNames()) if (text.includes(n)) return n;
+    return null;
+  }
+
+  // Your override, remembered per merchant + direction so one correction
+  // teaches every future row from the same source.
+  const treatKey = t => (t.amount < 0 ? 'in|' : 'out|') + (normName(t.merchant || t.name) || 'unknown');
+
+  // → { kind, counted, label, why }. kind null = ordinary income/spending.
+  function txTreat(t) {
+    const sig = txSignal(t);
+    if (!sig) return { kind: null, counted: true };
+    if (sig === 'cardpay') return {
+      kind: 'cardpay', counted: false, label: CARDPAY_LABEL,
+      why: 'Paying a credit card bill — money moving between your own accounts, so it counts as neither income nor spending.'
+    };
+    const inflow = t.amount < 0;
+    const neutral = why => ({ kind: 'transfer', counted: false, label: XFER_LABEL, why });
+    const counted = why => ({ kind: 'transfer', counted: true, label: inflow ? DEPOSIT_LABEL : SENT_OUT_LABEL, why });
+
+    const rule = txRules[treatKey(t)];
+    if (rule === 'neutral') return { ...neutral('You marked this as a move between your own accounts — not counted. Click to count it again.'), manual: true };
+    if (rule === 'count') return {
+      ...counted(inflow
+        ? 'You marked this as money arriving from outside — counted as income. Click to treat it as a transfer.'
+        : 'You marked this as money leaving your accounts — counted as spending. Click to treat it as a transfer.'),
+      manual: true
+    };
+
+    const mate = pairMap().get(t.id);
+    if (mate) return neutral(`Matched with ${mate.merchant || mate.name || 'the opposite leg'} on ${mate.date} — the same amount ${inflow ? 'left' : 'landed in'} another of your accounts, so this is a move between your own banks. Click to count it instead.`);
+
+    if (inflow && CASH_DEPOSIT_RE.test(txText(t)))
+      return counted('A cash or check deposit — new money arriving in your accounts, so it counts as income. Click to treat it as a transfer.');
+
+    const own = namesOwnAccount(t);
+    if (own) return neutral(`Looks internal — it names your own ${own}, and no matching leg was found (that account may not be connected). Click to count it.`);
+    if (SELF_ACCT_RE.test(txText(t))) return neutral('Looks internal — it names one of your own account types, and no matching leg was found. Click to count it.');
+
+    return counted(inflow
+      ? 'No matching transfer out anywhere in your accounts, so this is money arriving from outside — counted as income. Click to treat it as a transfer.'
+      : 'No matching deposit anywhere in your accounts, so this money left for good — counted as spending. Click to treat it as a transfer.');
+  }
+
+  // "Neither income nor spending" — the one test the totals use.
+  const excluded = t => txTreat(t).counted === false;
 
   function renderStats() {
     const ym = new Date().toISOString().slice(0, 7);
     let inn = 0, out = 0;
     for (const t of allTxs()) {
       if ((t.date || '').slice(0, 7) !== ym || t.pending) continue;
-      if (txKind(t)) continue;   // card payments / self-transfers: neither
+      if (excluded(t)) continue;   // card payments / matched self-transfers: neither
       if (t.amount < 0) inn += -t.amount; else out += t.amount;
     }
     const net = inn - out;
@@ -1887,7 +2047,7 @@
     const by = new Map();
     for (const t of allTxs()) {
       const ym = (t.date || '').slice(0, 7);
-      if (ym.length !== 7 || t.pending || txKind(t)) continue;
+      if (ym.length !== 7 || t.pending || excluded(t)) continue;
       let m = by.get(ym);
       if (!m) by.set(ym, m = { ym, inn: 0, out: 0 });
       if (t.amount < 0) m.inn += -t.amount; else m.out += t.amount;
@@ -1971,7 +2131,8 @@
       }
       const nm = t.merchant || t.name || '(no name)';
       const editable = t.source !== 'plaid';
-      const kind = txKind(t), xfer = kind !== null;
+      const tr = txTreat(t), kind = tr.kind;
+      const neutralRow = kind !== null && !tr.counted;   // greyed amount: counts for nothing
       html += `
       <div class="txrow" data-id="${esc(t.id)}" data-src="${esc(t.source)}">
         <div class="txbadge">${t.logo_url ? `<img src="${esc(t.logo_url)}" alt="" onerror="this.remove()">` : esc(nm.charAt(0).toUpperCase())}</div>
@@ -1979,9 +2140,9 @@
           <div class="txname">${esc(nm)}</div>
           <div class="txsub">
             ${kind === 'cardpay'
-              ? `<span class="chip cardpay" title="Paying a credit card bill — not counted as income or spending">${CARDPAY_LABEL}</span>`
+              ? `<span class="chip cardpay" title="${esc(tr.why)}">${CARDPAY_LABEL}</span>`
               : kind === 'transfer'
-                ? `<span class="chip xfer" title="Moves money between your own accounts — not counted as income or spending">${XFER_LABEL}</span>`
+                ? `<button type="button" class="chip treat ${tr.counted ? (t.amount < 0 ? 'deposit' : 'sentout') : 'xfer'}${tr.manual ? ' mine' : ''}" data-act="treat" title="${esc(tr.why)}">${esc(tr.label)}</button>`
                 : (t.category ? `<span class="chip">${esc(t.category)}</span>` : '')}
             ${t.source === 'manual' ? '<span class="chip manual">Manual</span>' : ''}
             ${t.source === 'csv' ? `<span class="chip manual">${esc(t.import_source || 'CSV')}</span>` : ''}
@@ -1989,7 +2150,7 @@
             <span>${esc(t.institution || '')}${t.account_id && acctLabel(t.account_id) ? ' · ' + esc(acctLabel(t.account_id)) : ''}${t.note ? ' · ' + esc(t.note) : ''}</span>
           </div>
         </div>
-        <div class="txamt ${xfer ? 'xfer' : (t.amount < 0 ? 'in' : '')}">${fmt$(t.amount, true)}</div>
+        <div class="txamt ${neutralRow ? 'xfer' : (t.amount < 0 ? 'in' : '')}">${fmt$(t.amount, true)}</div>
         <div class="txacts">${editable
           ? `<button class="iconbtn" data-act="edit" title="Edit">${ICON.edit}</button><button class="iconbtn" data-act="del" title="Delete">${ICON.del}</button>`
           : `<button class="iconbtn lock" title="Transactions from connected institutions are read-only">${ICON.lock}</button>`}</div>
@@ -2014,6 +2175,8 @@
   // Feed row actions — plan §3: records with source:'plaid' are read-only,
   // no edit/delete path exists for them anywhere in the UI.
   $('feed').addEventListener('click', async e => {
+    const chip = e.target.closest('[data-act="treat"]');
+    if (chip) { await toggleTreatment(e.target.closest('.txrow').dataset.id); return; }
     const btn = e.target.closest('.iconbtn'); if (!btn || btn.classList.contains('lock')) return;
     const row = e.target.closest('.txrow');
     const id = row.dataset.id;
@@ -2026,6 +2189,28 @@
       toast('Entry deleted');
     }
   });
+
+  // Flip a transfer-tagged row between "counts" and "neutral". The decision is
+  // keyed by merchant + direction, so correcting one Walmart cash deposit
+  // teaches every one after it. Saved only once prefs are known to have
+  // loaded — a merge write from empty local state would wipe earlier rules.
+  async function toggleTreatment(id) {
+    const t = allTxs().find(x => x.id === id);
+    if (!t) return;
+    const cur = txTreat(t);
+    if (cur.kind !== 'transfer') return;
+    const next = cur.counted ? 'neutral' : 'count';
+    const nm = t.merchant || t.name || 'These';
+    if (!prefsLoadOk) { toast("Your settings haven't loaded yet — try again in a moment"); return; }
+    txRules = { ...txRules, [treatKey(t)]: next };
+    renderAll();
+    toast(next === 'count'
+      ? `${nm} now counts as money ${t.amount < 0 ? 'in' : 'out'} — future ones too`
+      : `${nm} now treated as a transfer between your own accounts`, next === 'count');
+    try {
+      await synced(setDoc(prefsRef, { txRules, savedAt: Date.now() }, { merge: true }));
+    } catch { toast('Could not save that change'); }
+  }
 
   // ── Manual entries ───────────────────────────────────────────────────────
   $('addManualBtn').addEventListener('click', () => openManual(null));
@@ -2210,7 +2395,7 @@
   // transfer or card-bill payment).
   function recurCandidates() {
     return allTxs().filter(t =>
-      typeof t.amount === 'number' && t.amount > 0 && !t.pending && !txKind(t) && (t.merchant || t.name));
+      typeof t.amount === 'number' && t.amount > 0 && !t.pending && !txSignal(t) && (t.merchant || t.name));
   }
 
   // Greedy fuzzy clustering on the normalised merchant name (nameSim ≥ 0.5).
