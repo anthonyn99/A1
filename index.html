@@ -39429,22 +39429,94 @@ setTimeout(enforceProfiles, 1200);
 })();
 </script>
 
-<!-- ── WarRoom — opens warroom.html in a new tab ── -->
+<!-- ── Named tabs — one tab per destination, focused instead of re-opened ───────
+     Every header button that leaves this page (TradeHub / WarRoom / Vault and
+     the custom link buttons) routes through _tnOpenTab. It gives each
+     destination a STABLE window name and re-targets that name, so a second
+     click lands on the tab that is already open instead of stacking up a new
+     one.
+
+     How it works (all three behaviours verified in Chromium):
+       • window.open('', NAME) re-targets an existing tab WITHOUT navigating it
+         (empty url = no navigation), so a live app tab is never reloaded and
+         never loses its state — it just comes to the front.
+       • If no tab holds NAME, the same call yields a fresh about:blank tab,
+         which we then point at the url. That's the ordinary "open it" path.
+       • The name survives a reload of THIS page, so the pairing keeps working
+         after a TaskHub refresh.
+
+     Two hard browser limits, not bugs:
+       • The opener link is what MAKES the pairing work, so it has to stay. A
+         cross-origin tab is only findable by name while this page is "familiar
+         with" it, which for a tab we opened means through its opener. So
+         'noopener' is out (it also drops the tab in a separate browsing-context
+         group), and so is the old w.opener = null — measured: with the opener
+         disowned, every click on tradehub.html spawned ANOTHER tab. The cost is
+         that the destination keeps a window.opener handle back to TaskHub;
+         that's fine for our own A1 apps, and custom links are urls Tony
+         himself added.
+       • A tab the user opened themselves (typed URL, bookmark, a second copy of
+         TaskHub) carries no name this page can see. There is no web API to find
+         it, so that one still gets a new tab. Only tabs opened from here pair. -->
+<script>
+(function(){
+'use strict';
+
+function tabName(key){ return 'a1tab_' + String(key).replace(/[^A-Za-z0-9_]/g, '_'); }
+window._tnTabName = tabName;
+
+// Already showing this destination? Compare ignoring the hash, and treat a
+// deeper path (gmail.com → gmail.com/mail/u/0) as "same place", so we focus the
+// tab instead of yanking it back to the root url.
+function atDest(cur, url){
+  var c = String(cur).split('#')[0], u = String(url).split('#')[0];
+  return c === u || c.indexOf(u) === 0;
+}
+
+// Returns the window on success, or null if the browser blocked it (the caller
+// then falls back to its own popup-blocked path).
+window._tnOpenTab = function(url, key){
+  if (!url) return null;
+  // data:/blob:/javascript: can't be assigned into a blank tab — open them the old way.
+  if (/^(data|blob|javascript):/i.test(url)) {
+    var d = null;
+    try { d = window.open(url, '_blank'); } catch(e){}
+    try { if (d) d.opener = null; } catch(e){}
+    return d;
+  }
+  var w = null;
+  try { w = window.open('', tabName(key)); } catch(e){ w = null; }
+  if (!w) return null;
+  var cur = null;
+  try { cur = w.location.href; } catch(e){ cur = null; }   // cross-origin ⇒ a real page is loaded there
+  if (cur === null) {
+    // Unreadable means it isn't blank — it's the destination (or wherever the
+    // user browsed inside it). Leave it alone and just bring it forward.
+  } else if (cur === '' || cur === 'about:blank' || !atDest(cur, url)) {
+    try { w.location.href = url; } catch(e){ try { w.location.replace(url); } catch(e2){} }
+  }
+  try { w.focus(); } catch(e){}   // deliberately NOT w.opener = null — see the note above
+  return w;
+};
+})();
+</script>
+
+<!-- ── WarRoom — opens warroom.html in its own named tab ── -->
 <script>
 (function(){
 'use strict';
 
 window._wrClick = function(){
   var URL_WR = 'https://anthonyn99.github.io/A1/warroom.html';
-  var w = window.open(URL_WR, '_blank');
-  try { if(w) w.opener = null; } catch(e){}
+  var w = window._tnOpenTab(URL_WR, 'warroom');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('WarRoom opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
-      var w2 = window.open(URL_WR, '_blank');
-      try { if(w2) w2.opener = null; } catch(e){}
+      var w2 = window._tnOpenTab(URL_WR, 'warroom');
       if(!w2 || w2.closed || typeof w2.closed === 'undefined'){
+        // Last resort: an anchor with the SAME target name, so even this path
+        // reuses the tab (no rel=noopener — it would break the name).
         var a=document.createElement('a');
-        a.href=URL_WR; a.target='_blank'; a.rel='noopener noreferrer';
+        a.href=URL_WR; a.target=window._tnTabName('warroom');
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
       }
     }
@@ -39459,15 +39531,13 @@ window._wrClick = function() {
 // ── TradeHub ──
 window._thubClick = function(){
   var URL_THUB = 'https://anthonyn99.github.io/A1/tradehub.html';
-  var w = window.open(URL_THUB, '_blank');
-  try { if(w) w.opener = null; } catch(e){}
+  var w = window._tnOpenTab(URL_THUB, 'tradehub');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('TradeHub opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
-      var w2 = window.open(URL_THUB, '_blank');
-      try { if(w2) w2.opener = null; } catch(e){}
+      var w2 = window._tnOpenTab(URL_THUB, 'tradehub');
       if(!w2 || w2.closed || typeof w2.closed === 'undefined'){
         var a=document.createElement('a');
-        a.href=URL_THUB; a.target='_blank'; a.rel='noopener noreferrer';
+        a.href=URL_THUB; a.target=window._tnTabName('tradehub');
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
       }
     }
@@ -39487,15 +39557,13 @@ window._thubClick = function() {
 // in — every route now opens the standalone app, exactly like TradeHub/WarRoom.
 window._vaultClick = function(){
   var URL_VAULT = 'https://anthonyn99.github.io/A1/vault.html';
-  var w = window.open(URL_VAULT, '_blank');
-  try { if(w) w.opener = null; } catch(e){}
+  var w = window._tnOpenTab(URL_VAULT, 'vault');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('Vault opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
-      var w2 = window.open(URL_VAULT, '_blank');
-      try { if(w2) w2.opener = null; } catch(e){}
+      var w2 = window._tnOpenTab(URL_VAULT, 'vault');
       if(!w2 || w2.closed || typeof w2.closed === 'undefined'){
         var a=document.createElement('a');
-        a.href=URL_VAULT; a.target='_blank'; a.rel='noopener noreferrer';
+        a.href=URL_VAULT; a.target=window._tnTabName('vault');
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
       }
     }
@@ -39596,15 +39664,20 @@ function openLink(p, id){
   if (window.alIsLocked && window._alCustomLockId){
     var lockId = window._alCustomLockId(p, id);
     if (window.alIsLocked(lockId)){
-      if (window.alGate){ window.alGate(lockId, function(){ _doOpen(l); }); return; }
+      if (window.alGate){ window.alGate(lockId, function(){ _doOpen(l, p); }); return; }
     }
   }
-  _doOpen(l);
+  _doOpen(l, p);
 }
-function _doOpen(l){
-  var w; try { w = window.open(l.url, '_blank'); if (w) w.opener = null; } catch(e){}
+// Each custom link gets its own named tab (keyed by profile+link id, so Tony's
+// and Veda's links never share one). Clicking a link whose tab is already open
+// focuses that tab instead of opening a duplicate — see _tnOpenTab above.
+function _doOpen(l, p){
+  var w = null;
+  try { w = window._tnOpenTab(l.url, 'link_' + (p || 'tony') + '_' + l.id); } catch(e){}
   if (!w) {
-    var a = document.createElement('a'); a.href = l.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    var a = document.createElement('a'); a.href = l.url;
+    a.target = window._tnTabName ? window._tnTabName('link_' + (p || 'tony') + '_' + l.id) : '_blank';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   }
 }
