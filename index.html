@@ -23276,6 +23276,12 @@ function showTemplate(name) {
 
 function loadActiveEntry() {
   const entry = getActive();
+  // A Journal entry is claiming the editor while a cloud document still holds it
+  // (clicked in the sidebar, created, restored from Trash, opened from a search
+  // hit). Cloud mode always leaves activeId null, so an entry here means MyJournal
+  // won — release the document, or its toolbar chip, buttons and sync line stay
+  // over an entry that isn't it and the next keystroke saves into it.
+  if (entry && window._tjCloudMode && window.MJDocsUI && window.MJDocsUI.release) window.MJDocsUI.release();
   if (!entry) { document.getElementById('tj-entry-title-input').value = ''; showTemplate(null); renderTags([]); return; }
   // Lock guard: if entry is locked and not yet unlocked this session, show lock screen — no content
   if (window._tjGetLock && window._tjGetLock(entry.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(entry.id))) {
@@ -36132,6 +36138,23 @@ window._THV={
     if (B) B.leave(lastLocalId);
   }
 
+  // MyJournal is taking its own editor back — a Journal-tab entry was clicked,
+  // created or restored while a cloud document was open. Unlike closeDocument
+  // this must NOT call B.leave(): MyJournal is already loading the entry it
+  // chose, and leave() would pull the editor back to the previously restored
+  // one. Everything else has to be undone here, or the toolbar keeps showing
+  // the Google Doc / OneNote chip and its buttons over an entry that isn't it,
+  // and the next keystroke is saved into that document.
+  function releaseEditor() {
+    if (!openDocState) return;
+    if (openDocState.dirty) flushSave(true);   // async on purpose; it captures the doc + HTML now
+    clearTimeout(saveTimer);
+    openDocState = null;
+    window._tjCloudMode = false;
+    paintDocBar();
+    markActive();
+  }
+
   // Called from MyJournal's autoSave the moment the editor changes in cloud mode.
   D.onEditorInput = function () {
     if (!openDocState || openDocState.loading || openDocState.failed) return;
@@ -37248,7 +37271,7 @@ window._THV={
     }
   });
 
-  window.MJDocsUI = { open: openDocument, omni: openOmni, settings: openSettings, section: setSection, refresh: hardRefresh };
+  window.MJDocsUI = { open: openDocument, omni: openOmni, settings: openSettings, section: setSection, refresh: hardRefresh, release: releaseEditor };
 })();
 </script>
 
