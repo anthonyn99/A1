@@ -35285,17 +35285,22 @@ window._THV={
 #mjd-modal-sub { font-size: 12.5px; color: var(--mjd-text3); line-height: 1.55; margin-top: 6px; overflow-wrap: anywhere; }
 /* padding-top gives focus rings and hover outlines somewhere to live; without
    it a first child's border sits exactly on the scroll clip edge. */
-#mjd-modal-body { padding: 3px 26px 6px; overflow-y: auto; flex: 1 1 auto; min-height: 0; font-size: 13.5px; line-height: 1.6; }
+#mjd-modal-body { padding: 3px 34px 6px 26px; overflow-y: auto; flex: 1 1 auto; min-height: 0; font-size: 13.5px; line-height: 1.6; position: relative; }
 #mjd-modal-foot {
   display: flex; gap: 10px; justify-content: flex-end; padding: 18px 26px 24px; flex-shrink: 0; flex-wrap: wrap;
   border-top: 1px solid var(--mjd-line); margin-top: 16px;
 }
-#mjd-modal .mjd-x {
+/* UNSCOPED — #mjd-modal and #mjd-omni are two separate top-level surfaces, and
+   both use this class on their close button. Scoping it to #mjd-modal left the
+   search overlay's X with no styling at all: no size on the SVG, no colour, no
+   hit padding — which is what showed up as an undecorated white glyph. */
+.mjd-x {
   background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--mjd-text3);
   cursor: pointer; padding: 5px; line-height: 0; transition: color .16s, border-color .16s; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
 }
-#mjd-modal .mjd-x:hover { color: var(--mjd-text); border-color: var(--mjd-line2); }
-#mjd-modal .mjd-x svg { width: 16px; height: 16px; }
+.mjd-x:hover { color: var(--mjd-text); border-color: var(--mjd-line2); }
+.mjd-x svg { width: 16px; height: 16px; display: block; }
 
 /* Menu-style action list (the ⋯ menu on a document) */
 /* No negative top margin. #mjd-modal-body is a scroll container, so pulling the
@@ -35445,7 +35450,7 @@ window._THV={
 #mjd-omni-answer.on { display: block; }
 #mjd-omni-answer b { color: var(--mjd-gold); font-weight: 600; }
 
-#mjd-omni-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding: 8px; }
+#mjd-omni-list { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding: 8px 14px 8px 8px; position: relative; }
 .mjd-hit {
   display: grid; grid-template-columns: 18px 1fr auto; column-gap: 11px; row-gap: 2px;
   grid-template-areas: "ico name when" ".   sub  sub";
@@ -35504,6 +35509,20 @@ window._THV={
 .mjd-empty, .mjd-note { padding: 26px 16px; text-align: center; color: var(--mjd-text3); font-size: 12.5px; line-height: 1.7; }
 .mjd-note { padding: 13px 15px; text-align: left; }
 .mjd-note b { color: var(--mjd-text2); font-weight: 600; }
+
+/* Grabbable, draggable scroll thumb — the same pattern the DOCX page editor
+   already uses (addFadingScrollbar). A native OS scrollbar in an overlay this
+   size is easy to miss and, on touch, is not draggable at all; this thumb
+   fades in on scroll/drag, works with mouse AND touch, and disappears when
+   the content already fits. */
+.mjd-scrollbar {
+  position: absolute; right: 4px; width: 8px; border-radius: 5px;
+  background: rgba(224,184,116,.30); opacity: 0; transition: opacity .4s ease;
+  pointer-events: auto; cursor: grab; z-index: 5; touch-action: none;
+}
+.mjd-scrollbar.on { opacity: 1; }
+.mjd-scrollbar:hover { background: rgba(224,184,116,.5); }
+.mjd-scrollbar:active { cursor: grabbing; background: rgba(224,184,116,.6); }
 
 /* Destination picker inside "Move to...". */
 #mjd-pick {
@@ -37270,6 +37289,96 @@ window._THV={
       if (B) D.enqueue(openDocState.node, B.editor().innerHTML);
     }
   });
+
+  /* Grabbable, draggable scroll thumb for a scroll container — mirrors
+   * addFadingScrollbar's behaviour for the DOCX editor: shows on scroll or
+   * drag, hides when idle or when content already fits, works with mouse and
+   * touch via Pointer Events.
+   *
+   * SELF-HEALING BY DESIGN. Both hosts re-render with a plain innerHTML
+   * assignment on every repaint — paintOmni on each keystroke, openModal on
+   * every open — which destroys the thumb the instant it is a child of that
+   * same element. Rather than thread a re-wire call through every render site
+   * (fragile: the next new render path would silently regress), a
+   * MutationObserver on the container's OWN childList notices the wipe and
+   * re-creates the thumb node itself. State (scroll position, listeners on
+   * the container) lives outside the thumb node, so nothing is lost when it
+   * is recreated — only the DOM node is disposable. */
+  function wireScrollbar(container) {
+    if (!container || container._mjdSb) { if (container && container._mjdSb) container._mjdSb.place(); return; }
+    if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
+    var st = container._mjdSb = { hideT: null, dragging: false, raf: null, bar: null };
+
+    function ensureBar() {
+      if (st.bar && st.bar.isConnected) return st.bar;
+      var bar = document.createElement('div');
+      bar.className = 'mjd-scrollbar';
+      bar.addEventListener('pointerdown', onDown);
+      container.appendChild(bar);
+      st.bar = bar;
+      return bar;
+    }
+    function geom() {
+      var sh = container.scrollHeight, ch = container.clientHeight;
+      if (sh <= ch + 4) return null;
+      var thumbH = Math.max(28, ch * ch / sh);
+      var maxTop = ch - thumbH;
+      var top = (sh - ch) ? (container.scrollTop / (sh - ch)) * maxTop : 0;
+      return { thumbH: thumbH, top: top, sh: sh, ch: ch, maxTop: maxTop };
+    }
+    function place() {
+      var bar = ensureBar();
+      var g = geom();
+      bar.style.display = g ? '' : 'none';
+      if (!g) return;
+      bar.style.height = g.thumbH + 'px';
+      bar.style.top = (container.scrollTop + g.top) + 'px';
+    }
+    function flash() {
+      place(); st.bar.classList.add('on');
+      if (!st.dragging) { clearTimeout(st.hideT); st.hideT = setTimeout(function () { if (st.bar) st.bar.classList.remove('on'); }, 1100); }
+    }
+    function onDown(e) {
+      var g = geom(); if (!g) return;
+      e.preventDefault(); e.stopPropagation(); st.dragging = true; st.bar.classList.add('on');
+      try { st.bar.setPointerCapture(e.pointerId); } catch (x) {}
+      var startY = e.clientY, startScroll = container.scrollTop;
+      function onMove(ev) {
+        var g2 = geom(); if (!g2 || !g2.maxTop) return;
+        container.scrollTop = startScroll + (ev.clientY - startY) * ((g2.sh - g2.ch) / g2.maxTop);
+        place();
+      }
+      function onUp() {
+        st.dragging = false;
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        clearTimeout(st.hideT); st.hideT = setTimeout(function () { if (st.bar) st.bar.classList.remove('on'); }, 1100);
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    }
+    st.place = place;
+
+    container.addEventListener('scroll', function () {
+      if (st.raf) return; st.raf = requestAnimationFrame(function () { st.raf = null; flash(); });
+    }, { passive: true });
+    // Direct children only — this is exactly the shape of an innerHTML wipe on
+    // the container itself, and stays cheap even while typing fast in search.
+    new MutationObserver(place).observe(container, { childList: true });
+    window.addEventListener('resize', place);
+    place();
+  }
+  // Wire the two body-level scroll surfaces the moment their content exists —
+  // safe to call on every open since wireScrollbar no-ops the second time.
+  var _origOpenOmni = openOmni;
+  openOmni = function () { _origOpenOmni.apply(this, arguments); wireScrollbar(el('mjd-omni-list')); };
+  D.on('index', function () { var l = el('mjd-omni-list'); if (l) wireScrollbar(l); });
+  var _origOpenModal = openModal;
+  openModal = function () {
+    var body = _origOpenModal.apply(this, arguments);
+    wireScrollbar(el('mjd-modal-body'));
+    return body;
+  };
 
   window.MJDocsUI = { open: openDocument, omni: openOmni, settings: openSettings, section: setSection, refresh: hardRefresh, release: releaseEditor };
 })();
