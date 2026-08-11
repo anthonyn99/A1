@@ -3116,7 +3116,7 @@ function render(){
     $('float-voice').classList.add('show');
     $('sel-bar').classList.remove('show');
     var mf=$('manual-fab'); if(mf) mf.style.display='none'; var mp=$('manual-pop'); if(mp) mp.classList.remove('show');
-    $('list-view').innerHTML = pwDropsBannerHtml() + renderRecipesView();
+    $('list-view').innerHTML = renderRecipesView();
     if(!recDetailId){ var rl=$('rec-list-rows'); if(rl && recFiltered().length===recipes.length) enableDrag(rl, 'recipe'); }
     else if(recEditingStep===null){ var rs=$('rec-steps-container'); if(rs) enableDrag(rs, 'recstep'); }
     return;
@@ -3127,7 +3127,7 @@ function render(){
     $('float-voice').classList.remove('show');   // no voice/AI on this view
     $('sel-bar').classList.remove('show');
     var mfe=$('manual-fab'); if(mfe) mfe.style.display='none'; var mpe=$('manual-pop'); if(mpe) mpe.classList.remove('show');
-    $('list-view').innerHTML = pwDropsBannerHtml() + renderEventsView();
+    $('list-view').innerHTML = renderEventsView();
     return;
   }
   // ── Price Watch view (both profiles) ──
