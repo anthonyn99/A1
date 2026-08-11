@@ -5,6 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#1a1a1d" />
 <title>Vault</title>
+<!-- ── Single-tab handoff ──────────────────────────────────────────────────────
+     Keeps exactly one tab per program. TaskHub can only focus an existing tab
+     inside the browsing context group that opened it, so a PWA relaunch lands
+     here in a new tab beside the old one. Chrome forbids focusing the old tab
+     (WindowClient.focus() throws outside a notification click), so instead the
+     newest tab wins: each tab announces itself and older tabs for the same page
+     close themselves. Full rationale in tradehub.html; keep these copies
+     identical. Opt out of being closed with window.__a1BlockTabHandoff = true. -->
+<script>
+(function(){
+  if (typeof BroadcastChannel !== 'function') return;
+  var PAGE = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  var BORN = Date.now() + Math.random();   // random breaks ties on same-ms opens
+  var bc; try { bc = new BroadcastChannel('a1-single-tab'); } catch(e){ return; }
+  function announce(){ try { bc.postMessage({ type:'claim', page:PAGE, born:BORN }); } catch(e){} }
+  bc.onmessage = function(e){
+    var d = e.data || {};
+    if (!d || d.type !== 'claim' || d.page !== PAGE) return;
+    if (d.born > BORN) {
+      if (window.__a1BlockTabHandoff) return;
+      try { window.close(); } catch(_){}
+    } else {
+      announce();   // older tab was still loading when we announced — retell it
+    }
+  };
+  announce();
+})();
+</script>
 <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Vault%22%2C%22short_name%22%3A%22Vault%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fvault.html%22%2C%22scope%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FVault%2Ficons%2Ficon128.png%22%2C%22sizes%22%3A%22128x128%22%2C%22type%22%3A%22image%2Fpng%22%7D%2C%7B%22src%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FVault%2Ficons%2Ficon48.png%22%2C%22sizes%22%3A%2248x48%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D">
 <!-- App icon: gold lock on the suite charcoal, matching the other four marks. -->
 <link rel="apple-touch-icon" href="Vault/icons/icon128.png">

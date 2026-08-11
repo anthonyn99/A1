@@ -105,35 +105,35 @@ html,body{height:100%;}
    comes from a gold outline plus a soft glow, never from a gold fill.
    ProView / WarRoom opt out below and keep their purple identity. */
 #tony-app-nav .tn-btn{
-  background:transparent;color:var(--tn-ac,#e0b874);
+  background:transparent;color:var(--tn-ac,#c8a15f);
   border:1px solid var(--tn-bd,#2e3a35);
   border-radius:4px;padding:0 10px;height:28px;box-sizing:border-box;
   display:inline-flex;align-items:center;font-size:10px;font-weight:700;
   cursor:grab;font-family:'Inter',system-ui,-apple-system,sans-serif;letter-spacing:.5px;
   transition:all .15s;white-space:nowrap;
 }
-#tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#e0b874);border-color:var(--tn-ac,#e0b874);box-shadow:0 0 8px rgba(224,184,116,0.4),0 0 0 1px rgba(224,184,116,0.15);}
+#tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.4),0 0 0 1px rgba(200,161,95,0.15);}
 #tony-app-nav .pv-btn,#tony-app-nav .wr-btn{color:#a78bfa;border-color:rgba(167,139,250,0.35);}
 #tony-app-nav .pv-btn:hover,#tony-app-nav .wr-btn:hover{color:#a78bfa;border-color:#a78bfa;box-shadow:0 0 8px rgba(167,139,250,0.4),0 0 0 1px rgba(167,139,250,0.15);}
 #tn-mobile-select option[value="proview"],#tn-mobile-select option[value="warroom"]{color:#a78bfa!important;}
 #tony-app-nav .tn-btn.tn-active{
-  background:transparent;color:var(--tn-ac,#e0b874);
-  border-color:var(--tn-ac,#e0b874);cursor:default;
-  box-shadow:0 0 8px rgba(224,184,116,0.34),0 0 0 1px rgba(224,184,116,0.14);
+  background:transparent;color:var(--tn-ac,#c8a15f);
+  border-color:var(--tn-ac,#c8a15f);cursor:default;
+  box-shadow:0 0 8px rgba(200,161,95,0.34),0 0 0 1px rgba(200,161,95,0.14);
 }
 #tony-app-nav .tn-star,#tony-app-nav #tn-settings-btn{
   background:transparent;border:1px solid var(--tn-bd,#2e3a35);
-  border-radius:4px;color:var(--tn-ac,#e0b874);font-size:16px;font-weight:700;
+  border-radius:4px;color:var(--tn-ac,#c8a15f);font-size:16px;font-weight:700;
   padding:0 8px;height:28px;box-sizing:border-box;cursor:pointer;line-height:1;
   transition:all .15s;flex-shrink:0;display:inline-flex;align-items:center;
 }
-#tony-app-nav .tn-star:hover,#tony-app-nav #tn-settings-btn:hover{color:var(--tn-ac,#e0b874);border-color:var(--tn-ac,#e0b874);box-shadow:0 0 8px rgba(224,184,116,0.4),0 0 0 1px rgba(224,184,116,0.15);}
+#tony-app-nav .tn-star:hover,#tony-app-nav #tn-settings-btn:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.4),0 0 0 1px rgba(200,161,95,0.15);}
 /* Mobile: hide buttons, show select */
-#tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#e0b874);font-size:11px;font-weight:700;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
-#tn-mobile-select:hover{color:var(--tn-ac,#e0b874);border-color:var(--tn-ac,#e0b874);box-shadow:0 0 8px rgba(224,184,116,0.4),0 0 0 1px rgba(224,184,116,0.15);}
+#tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#c8a15f);font-size:11px;font-weight:700;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
+#tn-mobile-select:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.4),0 0 0 1px rgba(200,161,95,0.15);}
 #tn-mobile-select.tn-pv-active{color:#a78bfa!important;border-color:rgba(167,139,250,0.45)!important;}
 #tn-mobile-select.tn-pv-active:hover{border-color:#c4b5fd!important;box-shadow:0 0 8px rgba(167,139,250,0.4)!important;}
-#tn-mobile-select option{background:#1a1a1d;color:#e0b874;}
+#tn-mobile-select option{background:#1a1a1d;color:#c8a15f;}
 @media(max-width:900px){
   #tony-app-nav .tn-btn{display:none;}
   #tn-mobile-select{display:inline-flex;align-items:center;}
@@ -12775,7 +12775,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.background=bg;
     if(window._mcApplyTheme)window._mcApplyTheme();
     var tnav=document.getElementById('tony-app-nav');
-    if(tnav&&tnav.style.display!=='none'){tnav.style.setProperty('--tn-ac','#e0b874');tnav.style.setProperty('--tn-bd','#2e3a35');tnav.style.setProperty('--tn-bg','#1a1a1d');}
+    if(tnav&&tnav.style.display!=='none'){tnav.style.setProperty('--tn-ac','#c8a15f');tnav.style.setProperty('--tn-bd','#2e3a35');tnav.style.setProperty('--tn-bg','#1a1a1d');}
     if(window._tjApplyTheme)window._tjApplyTheme();
   };
 
@@ -26162,7 +26162,9 @@ window._updateTonyNavActive = function(app) {
   nav.style.display = 'flex';
   // Theme nav colors — always pink accent; pv/wr buttons handled individually below
   var isPvWr = (app === 'proview' || app === 'warroom');
-  nav.style.setProperty('--tn-ac', '#e0b874');
+  // Nav gold sits a shade below the in-app gold (#e0b874) so the top bar reads
+  // as chrome around the content rather than competing with it.
+  nav.style.setProperty('--tn-ac', '#c8a15f');
   nav.style.setProperty('--tn-bd', '#2e3a35');
   nav.style.setProperty('--tn-bg', '#1a1a1d');
   // Star: always pink (uses --tn-ac which is always pink now)
@@ -39634,7 +39636,7 @@ var tonyMap = {}, vedaMap = {};
 TONY_DEFAULT.forEach(function(x){ tonyMap[x.app] = x.label; });
 VEDA_DEFAULT.forEach(function(x){ vedaMap[x.app] = x.label; });
 
-var TONY_AC = 'rgba(224,184,116,0.7)';
+var TONY_AC = 'rgba(200,161,95,0.7)';
 var VEDA_AC = 'rgba(141,118,154,0.7)';
 var _applying = false;
 
@@ -39810,7 +39812,7 @@ function buildTonyDropdown(){
   if(document.getElementById('tn-dd-trigger')) return;
   var trigger=document.createElement('button');
   trigger.id='tn-dd-trigger'; trigger.type='button';
-  trigger.style.cssText='display:none;align-items:center;gap:6px;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#e0b874);font-size:11px;font-weight:700;padding:0 10px;height:28px;box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;white-space:nowrap;pointer-events:auto;';
+  trigger.style.cssText='display:none;align-items:center;gap:6px;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#c8a15f);font-size:11px;font-weight:700;padding:0 10px;height:28px;box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;white-space:nowrap;pointer-events:auto;';
   trigger.innerHTML='<span id="tn-dd-label">Menu</span><span style="font-size:8px;opacity:.7;">▼</span>';
   trigger.addEventListener('click',function(e){ e.stopPropagation(); _ddOpen?closeTonyDD():openTonyDD(); });
   sel.parentNode.insertBefore(trigger,sel);
@@ -39831,13 +39833,13 @@ function injectTonyDropdownCSS(){
     '#tony-app-nav-inner.tn-force-dd .tn-btn{display:none!important;}'+
     '#tony-app-nav-inner.tn-force-dd #tn-mobile-select{display:none!important;}'+
     '#tony-app-nav-inner.tn-force-dd #tn-dd-trigger{display:inline-flex!important;}'+
-    '#tn-dd-panel .tn-dd-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:6px;cursor:pointer;color:var(--tn-ac,#e0b874);font-family:\'Inter\',system-ui,-apple-system,sans-serif;font-size:14px;font-weight:700;user-select:none;-webkit-user-select:none;touch-action:pan-y;transition:all .12s;border:1px solid transparent;}'+
+    '#tn-dd-panel .tn-dd-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:6px;cursor:pointer;color:var(--tn-ac,#c8a15f);font-family:\'Inter\',system-ui,-apple-system,sans-serif;font-size:14px;font-weight:700;user-select:none;-webkit-user-select:none;touch-action:pan-y;transition:all .12s;border:1px solid transparent;}'+
     '#tn-dd-panel .tn-dd-item .dd-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'+
     '#tn-dd-panel .dd-grip{flex:0 0 auto;cursor:grab;color:currentColor;opacity:.4;font-size:13px;line-height:1;letter-spacing:-3px;padding:2px 4px;margin:-2px 0;touch-action:none;}'+
     '#tn-dd-panel .dd-grip:active{cursor:grabbing;}'+
     '#tn-dd-panel .tn-dd-item:hover{background:transparent;color:#e0b874;}'+
     '#tn-dd-panel .tn-dd-item[data-dd-app="proview"]:not(.tn-dd-active):hover,#tn-dd-panel .tn-dd-item[data-dd-app="warroom"]:not(.tn-dd-active):hover{background:rgba(167,139,250,0.12);}'+
-    '#tn-dd-panel .tn-dd-item.tn-dd-active{background:transparent;color:var(--tn-ac,#e0b874);border-color:var(--tn-ac,#e0b874);box-shadow:0 0 8px rgba(224,184,116,0.28) inset;}';
+    '#tn-dd-panel .tn-dd-item.tn-dd-active{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.28) inset;}';
   document.head.appendChild(st);
 }
 

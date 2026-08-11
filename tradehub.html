@@ -7,6 +7,51 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>TradeHub</title>
+<!-- ── Single-tab handoff ──────────────────────────────────────────────────────
+     Keeps exactly one tab per program. TaskHub focuses an already-open tab by
+     re-targeting its window name, but a name only resolves inside the browsing
+     context group that created it — relaunch the TaskHub PWA and that group is
+     gone, so the click lands here in a NEW tab while the old one still sits in
+     the browser. That's the duplicate this script cleans up.
+
+     The old tab cannot simply be raised instead: Chrome refuses to focus a
+     background tab (WindowClient.focus() throws "Not allowed to focus a window"
+     even from a real click — verified — the sole exception being a notification
+     click). So the NEWEST tab wins and older ones step aside. Every tab
+     announces itself on load; any tab showing the same page with an older birth
+     stamp closes itself. You land on the program, duplicates never pile up.
+
+     BroadcastChannel, not the service worker, because it reaches every
+     same-origin tab regardless of browsing context group — exactly the boundary
+     that defeats window names. (Cross-origin custom links can't take part;
+     nothing we can run lives in those pages.)
+
+     window.close() only succeeds in a script-opened tab. One typed in by hand or
+     restored at browser start just stays — no worse than the old behaviour.
+     An app with unsaved work can set window.__a1BlockTabHandoff = true to opt
+     out of being closed. -->
+<script>
+(function(){
+  if (typeof BroadcastChannel !== 'function') return;
+  var PAGE = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  var BORN = Date.now() + Math.random();   // random breaks ties on same-ms opens
+  var bc; try { bc = new BroadcastChannel('a1-single-tab'); } catch(e){ return; }
+  function announce(){ try { bc.postMessage({ type:'claim', page:PAGE, born:BORN }); } catch(e){} }
+  bc.onmessage = function(e){
+    var d = e.data || {};
+    if (!d || d.type !== 'claim' || d.page !== PAGE) return;
+    if (d.born > BORN) {
+      if (window.__a1BlockTabHandoff) return;
+      try { window.close(); } catch(_){}
+    } else {
+      // An older tab only just started listening (it was still loading when we
+      // announced) — re-announce so it learns we're here and steps aside.
+      announce();
+    }
+  };
+  announce();
+})();
+</script>
 <meta name="theme-color" content="#1a1a1d">
 <!-- Both spellings on purpose: `mobile-web-app-capable` is the standard one every
      browser now reads, but iOS still honours the `apple-` prefixed original, so

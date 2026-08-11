@@ -5,6 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1a1a1d">
 <title>Insight</title>
+<!-- ── Single-tab handoff ──────────────────────────────────────────────────────
+     Keeps exactly one tab per program. TaskHub can only focus an existing tab
+     inside the browsing context group that opened it, so a PWA relaunch lands
+     here in a new tab beside the old one. Chrome forbids focusing the old tab
+     (WindowClient.focus() throws outside a notification click), so instead the
+     newest tab wins: each tab announces itself and older tabs for the same page
+     close themselves. Full rationale in tradehub.html; keep these copies
+     identical. Opt out of being closed with window.__a1BlockTabHandoff = true. -->
+<script>
+(function(){
+  if (typeof BroadcastChannel !== 'function') return;
+  var PAGE = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  var BORN = Date.now() + Math.random();   // random breaks ties on same-ms opens
+  var bc; try { bc = new BroadcastChannel('a1-single-tab'); } catch(e){ return; }
+  function announce(){ try { bc.postMessage({ type:'claim', page:PAGE, born:BORN }); } catch(e){} }
+  bc.onmessage = function(e){
+    var d = e.data || {};
+    if (!d || d.type !== 'claim' || d.page !== PAGE) return;
+    if (d.born > BORN) {
+      if (window.__a1BlockTabHandoff) return;
+      try { window.close(); } catch(_){}
+    } else {
+      announce();   // older tab was still loading when we announced — retell it
+    }
+  };
+  announce();
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- App icon: gold line mark on the suite charcoal, drawn on the same grid
@@ -20,10 +48,10 @@
    one accent face; every app in the ecosystem draws from the same values.
    ══════════════════════════════════════════════════════════════════════════ */
 :root{
-  --gold-primary:#e0b874;    /* borders, rings, active states, icons          */
-  --gold-secondary:#e0b874;  /* champagne — accent text on dark surfaces      */
-  --gold-line:rgba(224,184,116,.36);
-  --gold-glow:0 0 8px rgba(224,184,116,0.40),0 0 0 1px rgba(224,184,116,0.15);
+  --gold-primary:#ecc78c;    /* borders, rings, active states, icons          */
+  --gold-secondary:#ecc78c;  /* champagne — accent text on dark surfaces      */
+  --gold-line:rgba(236,199,140,.36);
+  --gold-glow:0 0 8px rgba(236,199,140,0.40),0 0 0 1px rgba(236,199,140,0.15);
   --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
   --font-accent:'Fraunces',Georgia,serif;
 }
@@ -53,12 +81,12 @@
     /* Tan-gold family. Four shades rather than one flat accent, so the metal
        has range: pale sand for quiet labels, primary for rings and borders,
        champagne for accent text, bronze for hover/pressed. */
-    --gold: #e0b874;        /* primary — borders, rings, active states       */
-    --gold-soft: #e0b874;   /* champagne — accent text on dark surfaces      */
-    --gold-deep: #e0b874;   /* bronze — hover / pressed / secondary          */
-    --gold-pale: #e0b874;   /* muted tan — low-emphasis labels and chips     */
-    --gold-line: rgba(224,184,116,.36);
-    --gold-wash: rgba(224,184,116,.10);
+    --gold: #ecc78c;        /* primary — borders, rings, active states       */
+    --gold-soft: #ecc78c;   /* champagne — accent text on dark surfaces      */
+    --gold-deep: #ecc78c;   /* bronze — hover / pressed / secondary          */
+    --gold-pale: #ecc78c;   /* muted tan — low-emphasis labels and chips     */
+    --gold-line: rgba(236,199,140,.36);
+    --gold-wash: rgba(236,199,140,.10);
     --danger: #d68a7c;
     --ok: #a4b986;
     --radius: 9px;
@@ -506,13 +534,13 @@
   #lockScreen {
     position: fixed; inset: 0; z-index: 200;
     background: var(--bg);
-    background-image: radial-gradient(120% 50% at 50% -10%, rgba(224,184,116,.065), transparent 70%);
+    background-image: radial-gradient(120% 50% at 50% -10%, rgba(236,199,140,.065), transparent 70%);
     display: flex; align-items: center; justify-content: center; padding: 20px;
   }
   /* Bordered lock card — the suite's shared authentication surface. */
   .lockbox {
     width: 100%; max-width: 360px; text-align: center;
-    background: var(--surface); border: 1px solid rgba(224,184,116,.22);
+    background: var(--surface); border: 1px solid rgba(236,199,140,.22);
     border-radius: 18px; padding: 32px 28px 22px;
     box-shadow: 0 32px 80px rgba(0,0,0,.7);
   }

@@ -4,6 +4,34 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WarRoom</title>
+<!-- ── Single-tab handoff ──────────────────────────────────────────────────────
+     Keeps exactly one tab per program. TaskHub can only focus an existing tab
+     inside the browsing context group that opened it, so a PWA relaunch lands
+     here in a new tab beside the old one. Chrome forbids focusing the old tab
+     (WindowClient.focus() throws outside a notification click), so instead the
+     newest tab wins: each tab announces itself and older tabs for the same page
+     close themselves. Full rationale in tradehub.html; keep these copies
+     identical. Opt out of being closed with window.__a1BlockTabHandoff = true. -->
+<script>
+(function(){
+  if (typeof BroadcastChannel !== 'function') return;
+  var PAGE = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  var BORN = Date.now() + Math.random();   // random breaks ties on same-ms opens
+  var bc; try { bc = new BroadcastChannel('a1-single-tab'); } catch(e){ return; }
+  function announce(){ try { bc.postMessage({ type:'claim', page:PAGE, born:BORN }); } catch(e){} }
+  bc.onmessage = function(e){
+    var d = e.data || {};
+    if (!d || d.type !== 'claim' || d.page !== PAGE) return;
+    if (d.born > BORN) {
+      if (window.__a1BlockTabHandoff) return;
+      try { window.close(); } catch(_){}
+    } else {
+      announce();   // older tab was still loading when we announced — retell it
+    }
+  };
+  announce();
+})();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 
 <!-- Firebase - loaded dynamically to handle CORS/blocking -->
