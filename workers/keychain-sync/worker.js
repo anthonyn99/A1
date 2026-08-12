@@ -17,15 +17,36 @@
 // which is the exact same document the Index app's Keychain uses — so Vault and
 // Keychain stay in perfect sync, both directions.
 //
-// ENDPOINTS  (all require header  X-Vault-Key: <VAULT_KEY secret>)
-//   GET  /keychain   → { connections, colmap, savedAt }
-//   PUT  /keychain   ← { connections, colmap }   (savedAt stamped server-side)
+// The SAME plumbing now also serves Veda's Links program (Index → Veda → Links)
+// for the Launcher extension, which has the identical App Check problem. Links
+// is a different Firestore document but the same shape — { connections, colmap,
+// savedAt } — so the two routes differ only in DOC_PATHS below.
+//
+// ENDPOINTS  (all require header  X-Vault-Key: <shared key, see AUTH>)
+//   GET  /keychain   → { connections, colmap, savedAt }     dashboards/keychain
+//   PUT  /keychain   ← { connections, colmap }              (savedAt server-side)
+//   GET  /links      → { connections, colmap, savedAt }     dashboards/veda_links
+//   PUT  /links      ← { connections, colmap }              (savedAt server-side)
+//
+// AUTH
+//   /keychain  accepts VAULT_KEY only — unchanged, Tony's Vault is untouched.
+//   /links     accepts LINKS_KEY if that secret is set, otherwise VAULT_KEY. The
+//              fallback means Launcher works the moment this file deploys, with
+//              no new secret to provision; setting LINKS_KEY later splits the two
+//              extensions onto separate keys (update Launcher's LAUNCHER_KEY to
+//              match at the same time).
 //
 // SECRETS (wrangler secret put …): FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL,
-//   FIREBASE_PRIVATE_KEY, VAULT_KEY
+//   FIREBASE_PRIVATE_KEY, VAULT_KEY  [, LINKS_KEY — optional, see AUTH]
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DOC_PATH = "dashboards/keychain";
+// Route → Firestore document. "/" stays on Keychain for older Vault builds that
+// hit the bare origin.
+const DOC_PATHS = {
+  "/keychain": "dashboards/keychain",
+  "/": "dashboards/keychain",
+  "/links": "dashboards/veda_links"
+};
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -46,12 +67,15 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
     const url = new URL(request.url);
-    if (url.pathname !== "/keychain" && url.pathname !== "/") {
-      return json({ error: "not found" }, 404);
-    }
+    const DOC_PATH = DOC_PATHS[url.pathname];
+    if (!DOC_PATH) return json({ error: "not found" }, 404);
 
-    // Shared-key gate — Keychain holds sensitive data, so the proxy is not public.
-    if (!env.VAULT_KEY || request.headers.get("X-Vault-Key") !== env.VAULT_KEY) {
+    // Shared-key gate — these documents hold personal data, so the proxy is not
+    // public. Links may carry its own key; see AUTH in the header comment.
+    const expected = url.pathname === "/links"
+      ? (env.LINKS_KEY || env.VAULT_KEY)
+      : env.VAULT_KEY;
+    if (!expected || request.headers.get("X-Vault-Key") !== expected) {
       return json({ error: "unauthorized" }, 401);
     }
 

@@ -16,3 +16,6 @@ id = "b51e916cf3bf4f37ad146af5ca031575"
 #   FIREBASE_CLIENT_EMAIL  — service-account email  (same as taskhub-reminders)
 #   FIREBASE_PRIVATE_KEY   — service-account private key (same as taskhub-reminders)
 #   VAULT_KEY              — shared secret the Vault extension sends in X-Vault-Key
+#   LINKS_KEY              — OPTIONAL. Separate key for the /links route (Veda's
+#                            Launcher extension). Unset ⇒ /links accepts
+#                            VAULT_KEY, so Launcher works with no extra setup.

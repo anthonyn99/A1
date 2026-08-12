@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Launcher">
+  <title>Launcher</title>
+  <!-- Veda's charcoal tile, same 22px corner radius as the rest of the suite. -->
+  <rect width="96" height="96" rx="22" fill="#1B1C1E"/>
+  <!-- The mark reads at 16px as well as 128px: a link ring at the pad, and the
+       link launching out of it on an arrow. Purple #8D769A is Veda's accent
+       (TaskHub/Links); the pale #C6B4D0 highlights the launched half.
+       Geometry is deliberately chunky — thin strokes disappear in a favicon. -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- the ring left on the pad: a chain link, three-quarters closed -->
+    <path d="M40 40 30.5 49.5a13.5 13.5 0 0 0 19.1 19.1L59 59"
+          stroke="#8D769A" stroke-width="8"/>
+    <!-- launch trail -->
+    <path d="M27 69 21 75" stroke="#8D769A" stroke-width="8" opacity=".45"/>
+    <!-- the launched half, flying up-right -->
+    <path d="M46 50 72 24" stroke="#C6B4D0" stroke-width="8"/>
+    <path d="M53 21h22v22" stroke="#C6B4D0" stroke-width="8"/>
+  </g>
+</svg>

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Launcher</title>
+  <style>
+    /* ── Veda's palette, lifted from index.html #vd-kc-root so Launcher and the
+       Links program are visibly the same product. Webfonts can't be fetched from
+       an extension page (and shouldn't be — it must work offline), so the stacks
+       below name Veda's faces first and fall back to the closest system ones:
+       monospace everywhere, serif for the wordmark. ── */
+    :root {
+      --bg:#1B1C1E; --s1:#26272A; --s2:#303135; --s3:#3A3B40;
+      --bd:#3D3E43; --bdl:#4A4B52;
+      --tx:#ECECEE; --txd:#AFB0B5; --txm:#76777C;
+      --ac:#8D769A; --acd:#6E5C7A; --acl:rgba(141,118,154,.38);
+      --err:#E74C3C; --ok:#5DAF6D;
+      --shadow:rgba(0,0,0,.55);
+      --mono:'IBM Plex Mono',ui-monospace,'Cascadia Mono','Segoe UI Mono',Consolas,monospace;
+      --serif:'Playfair Display',Georgia,'Times New Roman',serif;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+    html, body {
+      margin:0; padding:0; background:var(--bg); color:var(--tx);
+      font-family:var(--mono); -webkit-font-smoothing:antialiased;
+    }
+    /* Resizable, size-persisting container. Drag the bottom-right grip to
+       resize; the size is saved and restored next open. Browsers cap extension
+       popups at 800x600, so we stay just under. */
+    #app {
+      width:352px; height:520px;
+      min-width:300px; min-height:240px;
+      max-width:780px; max-height:590px;
+      display:flex; flex-direction:column; overflow:hidden;
+    }
+    /* Header + section head stay put; only #scroll scrolls. */
+    #scroll { flex:1; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; }
+    #scroll::-webkit-scrollbar { width:11px; }
+    #scroll::-webkit-scrollbar-track { background:var(--s1); }
+    #scroll::-webkit-scrollbar-thumb { background:var(--s3); border-radius:6px; border:2px solid var(--bg); min-height:36px; }
+    #scroll::-webkit-scrollbar-thumb:hover { background:var(--ac); }
+
+    #resize-grip {
+      position:fixed; right:0; bottom:0; width:22px; height:22px;
+      z-index:30; cursor:nwse-resize; touch-action:none; color:var(--txm);
+      border-bottom-right-radius:3px;
+      background:linear-gradient(135deg, transparent 46%, var(--s3) 46%);
+    }
+    #resize-grip:hover { color:var(--ac); background:linear-gradient(135deg, transparent 44%, var(--s3) 44%); }
+    #resize-grip svg { position:absolute; right:3px; bottom:3px; display:block; pointer-events:none; }
+
+    /* ── Header ── */
+    header {
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding:13px 15px 11px; background:var(--bg); border-bottom:1px solid var(--bd);
+      flex-shrink:0;
+    }
+    .brand { display:flex; align-items:center; gap:9px; min-width:0; }
+    .brand-mark { width:26px; height:26px; flex-shrink:0; display:block; }
+    .logo {
+      font-family:var(--serif); font-size:20px; font-weight:900;
+      letter-spacing:1px; text-transform:uppercase; line-height:1; color:var(--ac);
+    }
+    .sync {
+      font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+      color:var(--txm); min-height:12px; margin-top:4px; white-space:nowrap;
+    }
+    .sync.saving { color:var(--txd); }
+    .sync.ok     { color:var(--ok); }
+    .sync.error  { color:var(--err); }
+    .gear {
+      background:transparent; border:1px solid var(--bdl); color:var(--ac);
+      width:30px; height:30px; border-radius:5px; cursor:pointer; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center;
+      transition:border-color .15s, color .15s;
+    }
+    .gear:hover { border-color:var(--ac); }
+
+    /* ── Section head — mirrors Links' "CONNECTIONS" row ── */
+    .section-head {
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:10px 15px 8px; border-bottom:1px solid var(--bd);
+      background:var(--bg); flex-shrink:0;
+    }
+    .section-title {
+      font-size:9.5px; font-weight:700; letter-spacing:1.4px;
+      text-transform:uppercase; color:var(--txd);
+    }
+    .toggle {
+      display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+      user-select:none; background:transparent; color:var(--ac);
+      border:1px solid var(--bdl); border-radius:5px; padding:0 9px; height:26px;
+      font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+      font-family:var(--mono); transition:border-color .15s;
+    }
+    .toggle:hover { border-color:var(--ac); }
+    .toggle-track {
+      width:24px; height:13px; border-radius:7px; background:var(--bd);
+      position:relative; transition:background .25s; flex-shrink:0;
+    }
+    .toggle-thumb {
+      width:9px; height:9px; border-radius:50%; background:var(--txd);
+      position:absolute; top:50%; transform:translateY(-50%); left:2px;
+      transition:left .25s, background .25s; box-shadow:0 1px 3px rgba(0,0,0,.25);
+    }
+    #app.reorder .toggle-track { background:var(--ac); }
+    #app.reorder .toggle-thumb { left:13px; background:#fff; }
+
+    .panel { padding:10px 15px 16px; }
+
+    /* ── Columns + cards ── */
+    #groups { display:flex; gap:10px; align-items:flex-start; }
+    .col { flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:10px; }
+    #app.reorder .col:empty {
+      border:1.5px dashed rgba(141,118,154,.25); border-radius:5px; min-height:56px;
+    }
+    /* Accent along the TOP of the card, matching Links' .kc-card ::before bar. */
+    .card {
+      background:var(--s1); border:1px solid var(--bd); border-radius:5px;
+      padding:11px 12px 10px; position:relative; overflow:hidden;
+      transition:border-color .15s;
+    }
+    .card:hover { border-color:var(--bdl); }
+    .card::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:2px;
+      background:var(--card-accent,var(--ac)); opacity:.7;
+    }
+    .card-placeholder {
+      border-radius:5px; background:rgba(141,118,154,.06);
+      border:1.5px dashed rgba(141,118,154,.35);
+    }
+    .card-fly {
+      position:fixed !important; pointer-events:none !important; z-index:9000;
+      border-radius:5px; box-shadow:0 20px 60px rgba(0,0,0,.7);
+      transform:rotate(1deg) scale(1.03); opacity:.95;
+    }
+    .card-top {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:8px; margin-bottom:8px;
+    }
+    .card-headline { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
+    .grip {
+      display:none; cursor:grab; color:var(--txm); flex-shrink:0;
+      line-height:0; padding:2px; border-radius:3px; touch-action:none;
+      user-select:none; transition:color .12s;
+    }
+    #app.reorder .grip { display:inline-flex; align-items:center; justify-content:center; }
+    .grip:hover { color:var(--txd); }
+    .grip:active { cursor:grabbing; }
+    .grip svg { display:block; width:13px; height:13px; }
+    .card-name {
+      font-size:11.5px; font-weight:800; letter-spacing:1px; text-transform:uppercase;
+      color:var(--card-accent,var(--ac)); min-width:0;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .open-group {
+      flex-shrink:0; background:transparent; color:var(--txd);
+      border:1px solid var(--bd); border-radius:4px; padding:3px 8px;
+      font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase;
+      cursor:pointer; font-family:var(--mono); white-space:nowrap;
+      transition:border-color .15s, color .15s;
+    }
+    .open-group:hover { color:var(--ac); border-color:var(--ac); }
+    .open-group:active { transform:scale(.97); }
+
+    .links { display:flex; flex-direction:column; gap:5px; }
+    .link-row {
+      display:flex; align-items:center; gap:6px; min-width:0;
+      padding:5px 8px; border-radius:4px; background:var(--s2); border:1px solid var(--bdl);
+    }
+    .favicon {
+      flex-shrink:0; width:16px; height:16px; border-radius:3px;
+      object-fit:contain; background:var(--s3);
+    }
+    .link-name {
+      flex:1; min-width:0; font-size:11px; font-weight:500; color:var(--tx);
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .link-btns { display:flex; gap:2px; flex-shrink:0; }
+    .icon-btn {
+      background:transparent; border:none; padding:3px 6px; border-radius:4px;
+      cursor:pointer; line-height:1; color:var(--txd); font-family:var(--mono);
+      font-size:10px; font-weight:700; display:inline-flex; align-items:center;
+      justify-content:center; transition:background .12s, color .12s, border-color .12s;
+    }
+    .icon-btn:hover { background:var(--s3); color:var(--tx); }
+    .icon-btn.visit {
+      border:1px solid var(--bd); padding:2px 7px;
+      text-transform:uppercase; letter-spacing:.5px;
+    }
+    .icon-btn.visit:hover { color:var(--ac); border-color:var(--ac); background:transparent; }
+    .icon-btn.copy:hover { color:var(--ac); background:transparent; }
+    .icon-btn svg { display:block; width:12px; height:12px; }
+
+    /* ── States ── */
+    .empty {
+      flex:1 1 100%; border:1px dashed var(--bd); border-radius:5px;
+      padding:26px 14px; text-align:center; font-size:11px;
+      color:var(--txm); line-height:1.8;
+    }
+    .empty a { color:var(--ac); text-decoration:none; border-bottom:1px solid var(--acl); cursor:pointer; }
+    .loading { text-align:center; color:var(--txm); font-size:11px; padding:30px 0; letter-spacing:1px; text-transform:uppercase; }
+
+    #toast {
+      position:fixed; bottom:14px; left:50%; transform:translateX(-50%) translateY(20px);
+      background:var(--s1); border:1px solid var(--bdl); color:var(--ac);
+      font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:1px;
+      text-transform:uppercase; padding:7px 16px; border-radius:16px;
+      opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; z-index:40;
+    }
+    #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+    /* ── Responsive ──────────────────────────────────────────────────────────
+       On mobile browsers that support extensions the popup is rendered as a
+       full-width sheet rather than a floating panel, so #app has to stop being
+       a fixed box and fill the viewport. The resize grip is meaningless there. */
+    @media (max-width:420px) {
+      #app {
+        width:100%; height:100dvh; max-width:100%; max-height:none;
+        padding-bottom:env(safe-area-inset-bottom,0px);
+      }
+      #resize-grip { display:none; }
+      /* Stack, and STRETCH: #groups is align-items:flex-start for the desktop
+         row layout, which in column direction would shrink each column to its
+         content width and leave the cards floating at ~60% of the screen. */
+      #groups { flex-direction:column; align-items:stretch; }
+      .col { flex:0 0 auto; width:100%; }
+      header { padding-top:calc(env(safe-area-inset-top,0px) + 13px); }
+    }
+    /* Touch ergonomics: ≥34px targets on everything tappable. Keyed on pointer
+       type, NOT width — a touchscreen laptop still gets the desktop layout. */
+    @media (pointer:coarse) {
+      .gear, .toggle { height:34px; min-width:34px; }
+      .icon-btn { min-height:30px; min-width:30px; padding:6px 8px; }
+      .icon-btn.visit { padding:5px 10px; }
+      .open-group { padding:7px 11px; min-height:30px; }
+      .grip { padding:6px; }
+      .grip svg { width:15px; height:15px; }
+      .link-row { padding:7px 8px; }
+    }
+  </style>
+</head>
+<body>
+ <div id="app">
+  <header>
+    <div class="brand">
+      <img class="brand-mark" src="icons/launcher.svg" alt="" width="26" height="26" />
+      <div style="min-width:0;">
+        <div class="logo">Launcher</div>
+        <div class="sync" id="sync"></div>
+      </div>
+    </div>
+    <button class="gear" id="gear" title="Open Links in Index">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <div class="section-head">
+    <div class="section-title">Connections</div>
+    <div class="toggle" id="reorder-toggle" role="switch" aria-checked="false"
+         title="Drag cards to reorder — the new order syncs back to Links">
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      <span>Reorder</span>
+    </div>
+  </div>
+
+  <div id="scroll">
+    <div class="panel">
+      <div class="loading" id="loading">Loading from Links…</div>
+      <div id="groups"></div>
+    </div>
+  </div>
+
+  <div id="toast">Copied</div>
+
+  <div id="resize-grip" title="Drag to resize">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <g stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+        <line x1="11" y1="3.5" x2="3.5" y2="11"/>
+        <line x1="11" y1="7.5" x2="7.5" y2="11"/>
+      </g>
+    </svg>
+  </div>
+ </div>
+
+  <script src="launcher-sync.js"></script>
+  <script src="launcher-drag.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

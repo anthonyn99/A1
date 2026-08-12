@@ -158,10 +158,25 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
    --vhbar-h / --vtabs-h are measured live by vault-ui.js's updateStickyOffset(),
    so this stays correct through rotation, font loading and the sync line
    appearing. Background is opaque or cards show through the seam. */
-.kc-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--bd);position:sticky;top:calc(var(--vhbar-h,0px) + var(--vtabs-h,0px));z-index:8;background:var(--bg);padding-top:8px;}
-.kc-section-tools{position:sticky;top:calc(var(--vhbar-h,0px) + var(--vtabs-h,0px) + var(--kc-head-h,42px));z-index:7;background:var(--bg);padding-bottom:8px;}
-/* Keychain-only action row, directly under the section head. */
-.kc-section-tools{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:0;}
+.kc-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--bd);position:sticky;top:calc(var(--vhbar-h,0px) + var(--vtabs-h,0px));z-index:8;background:var(--bg);padding-top:8px;
+  /* Paints 3px of opaque page colour ABOVE the head without covering its own
+     bottom border. --vhbar-h/--vtabs-h are integer-rounded measurements of
+     fractional element heights, so the head can land up to a pixel below the
+     tab strip; that sliver used to show scrolling cards. */
+  box-shadow:0 -3px 0 var(--bg);}
+/* Keychain-only action row, directly under the section head.
+   ── Seam bleed fix ─────────────────────────────────────────────────────────
+   .kc-section's 10px flex gap used to leave a transparent band between these
+   two sticky rows. Cards scrolling underneath were visible through it — worst
+   during the scroll window after the head pins but before the tools do, which
+   is exactly the "bleed around the horizontal line" that was reported.
+   margin-top cancels the gap (plus 1px of deliberate overlap so integer
+   rounding of --kc-head-h can never reopen it) and the matching padding-top
+   restores the visual spacing as OPAQUE background. The two rows are now one
+   continuous painted block at every scroll position. */
+.kc-section-tools{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;
+  position:sticky;top:calc(var(--vhbar-h,0px) + var(--vtabs-h,0px) + var(--kc-head-h,42px) - 1px);z-index:7;background:var(--bg);
+  margin-top:-11px;padding-top:11px;padding-bottom:8px;}
 .kc-section-title{font-family:var(--sans);font-size:10px;font-weight:500;color:var(--acp,#e0b874);letter-spacing:2px;text-transform:uppercase;opacity:.85;}
 /* 2-col flex layout */
 #kc-conns-list{display:flex;gap:10px;align-items:flex-start;min-height:48px;}
@@ -176,7 +191,10 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 /* Cards — match Tony's sec style */
 .kc-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;transition:border-color .15s;}
 .kc-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--card-accent,var(--ac));opacity:.5;}
-.kc-card:hover{border-color:var(--acl);}
+/* Neutral hover ring. Gold (--acl) read as a selected/active state on a card
+   that isn't one; --txd is the same light grey every ghost button, switcher and
+   tab in this app uses for hover, so cards now match the rest of the UI. */
+.kc-card:hover{border-color:var(--txd);}
 .kc-card-placeholder{border-radius:var(--radius);background:transparent;border:1.5px dashed rgba(224,184,116,0.35);}
 .kc-card-fly{position:fixed!important;pointer-events:none!important;z-index:9000;border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.7);transform:rotate(1deg) scale(1.03);opacity:.95;}
 .kc-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
@@ -542,7 +560,12 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
         <span class="kc-vault-num"></span>
         <div style="flex:1;min-width:0;">
           <div style="font-size:12.5px;font-weight:800;color:var(--tx);margin-bottom:8px;">Download the extension</div>
-          <button class="kc-btn-primary" style="height:34px;" onclick="kcDownloadVault(this)">
+          <!-- The label and </button> were missing, so the parser folded the two
+               notes below INTO the button: it read "Always packages the latest
+               files…", and kcDownloadVault's `btn.textContent = 'Packaging…'`
+               destroyed them on first click — taking #kc-vault-pkg with it, so
+               the packaging summary could never render again. -->
+          <button class="kc-btn-primary" style="height:34px;" onclick="kcDownloadVault(this)">Download Vault</button>
           <div style="font-size:11px;color:var(--txm);line-height:1.5;margin-top:6px;">Always packages the latest files straight from GitHub.</div>
           <div id="kc-vault-pkg" style="display:none;font-size:11px;color:var(--txd);line-height:1.5;margin-top:4px;font-family:monospace;word-break:break-word;"></div>
         </div>
@@ -2885,9 +2908,13 @@ setTimeout(function(){ alUpdateLockBtns(); }, 2000);
    needs that head's live height. Measured rather than hard-coded because the head
    wraps to two lines on narrow screens. */
 (function(){
+  // Floored, not offsetHeight — see the same note in vault-ui.js's
+  // updateStickyOffset(). Rounding a fractional head height UP pins the tools row
+  // a fraction of a pixel too low and a hairline of card shows through the seam;
+  // flooring can only ever overlap, which the row's lower z-index hides.
   function measure(){
     var h=document.querySelector('#kc-root .kc-section-head');
-    if(h)document.documentElement.style.setProperty('--kc-head-h',h.offsetHeight+'px');
+    if(h)document.documentElement.style.setProperty('--kc-head-h',Math.floor(h.getBoundingClientRect().height)+'px');
   }
   if(typeof ResizeObserver!=='undefined'){
     var ro=new ResizeObserver(measure);

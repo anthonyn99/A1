@@ -463,11 +463,17 @@
   }
   // Measure the sticky header heights so the tabs pin below the app-hbar and the
   // toolbar pins below the tabs (both app-hbar and tabs are position:sticky).
+  // FLOOR, not offsetHeight. offsetHeight ROUNDS a fractional layout height, so a
+  // 60.6px header measured as 61 pins the strip below it 0.4px too low — a
+  // hairline of scrolled cards shows through the seam ("bleeds through slightly
+  // while scrolling"). Flooring always errs toward a sub-pixel OVERLAP instead,
+  // and the lower strip's z-index is smaller, so the overlap is invisible.
+  function _hFloor(el) { return Math.floor(el.getBoundingClientRect().height); }
   function updateStickyOffset() {
     var root = $('kc-root');
     var hbar = root && root.querySelector('.app-hbar');
-    if (hbar) document.documentElement.style.setProperty('--vhbar-h', hbar.offsetHeight + 'px');
-    var t = $('vault-tabs'); if (t) document.documentElement.style.setProperty('--vtabs-h', t.offsetHeight + 'px');
+    if (hbar) document.documentElement.style.setProperty('--vhbar-h', _hFloor(hbar) + 'px');
+    var t = $('vault-tabs'); if (t) document.documentElement.style.setProperty('--vtabs-h', _hFloor(t) + 'px');
     _watchStickyHeights(hbar, t);
   }
   // The tab bar pins at exactly the header's height. If that measurement goes
@@ -481,8 +487,8 @@
       var root = $('kc-root');
       var h = root && root.querySelector('.app-hbar');
       var t = $('vault-tabs');
-      if (h) document.documentElement.style.setProperty('--vhbar-h', h.offsetHeight + 'px');
-      if (t) document.documentElement.style.setProperty('--vtabs-h', t.offsetHeight + 'px');
+      if (h) document.documentElement.style.setProperty('--vhbar-h', _hFloor(h) + 'px');
+      if (t) document.documentElement.style.setProperty('--vtabs-h', _hFloor(t) + 'px');
     });
     if (hbar) _stickyRO.observe(hbar);
     if (tabs) _stickyRO.observe(tabs);
