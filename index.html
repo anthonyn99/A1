@@ -13180,6 +13180,11 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     // receive NONE of its own profile's reminders (and legacy broadcasts could leak
     // the other profile's). Only fills an unset value — an explicit choice wins.
     if(!localStorage.getItem("td6_mainDash")){localStorage.setItem("td6_mainDash","tony");if(window._updateMainDashBtn)window._updateMainDashBtn();}
+    // Record the switch so Plans can tell a confirm made moments after changing
+    // profile from one made in a genuinely separate session.
+    if(window._activeProfile&&window._activeProfile!=="tony"){
+      window._plPrevProfile=window._activeProfile;window._plProfileSwitchedAt=Date.now();
+    }
     window._activeProfile="tony";
     const ov=document.getElementById("profile-overlay");
     if(ov)ov.style.display="none";
@@ -13212,6 +13217,10 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     // See goTony: claim an unconfigured device for the profile actually used on it
     // so strict reminder scoping delivers to the right devices with no cross-leak.
     if(!localStorage.getItem("td6_mainDash")){localStorage.setItem("td6_mainDash","veda");if(window._updateMainDashBtn)window._updateMainDashBtn();}
+    // See goTony: the switch is recorded for Plans' provenance check.
+    if(window._activeProfile&&window._activeProfile!=="veda"){
+      window._plPrevProfile=window._activeProfile;window._plProfileSwitchedAt=Date.now();
+    }
     window._activeProfile="veda";
     const ov=document.getElementById("profile-overlay");
     if(ov)ov.style.display="none";
@@ -15199,6 +15208,8 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 .pl-creed{font-size:12px;line-height:1.55;color:var(--pl-txf);border-left:2px solid var(--pl-ac);
   padding:1px 0 1px 11px;margin:12px 0 16px;}
 .pl-creed b{color:var(--pl-txd);font-weight:800;}
+.pl-creed-lim{display:block;margin-top:5px;font-size:11px;line-height:1.5;
+  color:var(--pl-txf);opacity:.75;}
 .pl-secs{display:flex;flex-direction:column;gap:20px;}
 .pl-sec-h{display:flex;align-items:baseline;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--pl-txm);margin-bottom:9px;font-family:var(--pl-mono);}
 .pl-count{background:var(--pl-ac);color:var(--pl-ac-ink);border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center;font-family:var(--pl-mono);}
@@ -15244,6 +15255,17 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   align-items:baseline;gap:5px;font-family:var(--pl-mono);}
 .pl-sig span{color:var(--pl-txf);font-weight:600;}
 .pl-tick{color:#7FCB98;font-weight:800;}
+/* Where each confirmation came from. Quiet, but always present — a record that
+   only appears when something looks wrong is a record nobody trusts. */
+.pl-dev{font-size:9.5px;color:var(--pl-txf);opacity:.7;padding-left:6px;
+  border-left:1px solid var(--pl-s2);}
+/* Both confirmations from one device: stated plainly, not hidden in a tooltip. */
+.pl-suspect{flex-basis:100%;margin-top:8px;font-size:11px;line-height:1.5;
+  color:#D9A863;background:#2A2118;border:1px solid #5A472C;border-radius:7px;
+  padding:8px 10px;font-family:var(--pl-font);}
+.pl-warn-hard{border-color:#8A4A44;background:#2E1D1B;color:#E8A79F;}
+.pl-warn-hard b{color:#fff;}
+.pl-warn-sub{font-size:11.5px;line-height:1.5;color:var(--pl-txf);margin-top:8px;}
 .pl-reason{font-size:11.5px;color:var(--pl-txd);margin-top:6px;padding:7px 9px;background:var(--pl-s3);border-radius:7px;border:1px solid var(--pl-s2);white-space:pre-wrap;word-break:break-word;}
 .pl-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;}
 .pl-btn{background:transparent;color:var(--pl-txd);border:1px solid var(--pl-bdl);border-radius:7px;padding:0 11px;height:29px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;cursor:pointer;font-family:var(--pl-mono);display:inline-flex;align-items:center;gap:5px;transition:all .14s;}
@@ -15335,12 +15357,79 @@ function fmtWhen(ms){
   if(isNaN(dt))return '';
   return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+dt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
 }
+function humanGap(ms){
+  const s=Math.round(ms/1000);
+  if(s<60)return s+(s===1?' second':' seconds');
+  const m=Math.round(s/60);
+  if(m<60)return m+(m===1?' minute':' minutes');
+  const h=Math.round(m/60);
+  return h+(h===1?' hour':' hours');
+}
 function fmtTime(t){
   if(!t)return '';
   const m=String(t).split(':');
   if(m.length<2)return t;
   let h=+m[0];const ap=h>=12?'PM':'AM';h=h%12||12;
   return h+':'+m[1]+' '+ap;
+}
+
+// ── Provenance ──────────────────────────────────────────────────────────────
+// HONEST LIMIT: profiles are a chooser, not authentication. Anyone at an unlocked
+// device can switch to the other profile and press confirm, and no client-side
+// check can prevent that — the password is verified locally and the unlock is
+// remembered in localStorage, so it is bypassable by design.
+//
+// What we CAN do is make a forged confirm impossible to hide. Every confirm
+// records the device it came from and which profile the app was on immediately
+// before it. Two profiles confirming from the same device seconds apart is the
+// signature of one person clicking both, and it is surfaced on the card rather
+// than left for someone to notice. This is accountability, not prevention.
+const DEV_KEY='pl_device_id',DEV_NAME_KEY='pl_device_name';
+function deviceId(){
+  let v='';
+  try{v=localStorage.getItem(DEV_KEY)||'';}catch(e){}
+  if(!v){
+    v=Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+    try{localStorage.setItem(DEV_KEY,v);}catch(e){}
+  }
+  return v;
+}
+function deviceName(){
+  let n='';
+  try{n=localStorage.getItem(DEV_NAME_KEY)||'';}catch(e){}
+  if(n)return n;
+  const ua=navigator.userAgent||'';
+  if(/iPhone/i.test(ua))n='iPhone';
+  else if(/iPad/i.test(ua))n='iPad';
+  else if(/Android/i.test(ua))n='Android';
+  else if(/Mac/i.test(ua))n='Mac';
+  else if(/Windows/i.test(ua))n='Windows PC';
+  else n='Unknown device';
+  return n;
+}
+// The profile the app was on before the current one, and when it switched. A
+// confirm made moments after a profile switch, from the device that just made
+// the OTHER person's confirm, is exactly what one-person forgery looks like.
+window._plProfileSwitchedAt=window._plProfileSwitchedAt||0;
+window._plPrevProfile=window._plPrevProfile||null;
+function stamp(){
+  return {dev:deviceId(),devName:deviceName(),at:Date.now(),
+    prev:window._plPrevProfile||null,
+    sinceSwitch:window._plProfileSwitchedAt?(Date.now()-window._plProfileSwitchedAt):null};
+}
+
+// Two confirmations from the SAME device are not proof of forgery — a couple may
+// genuinely share one laptop — but they are never proof of independent consent
+// either, which is the entire point of this feature. Say so on the card.
+const SAME_DEV_WINDOW=10*60*1000;   // 10 minutes
+function confirmFlags(p){
+  const m=p&&p.confirmMeta;
+  if(!m||!m.veda||!m.tony)return null;
+  const sameDev=m.veda.dev&&m.tony.dev&&m.veda.dev===m.tony.dev;
+  if(!sameDev)return null;
+  const gap=Math.abs((m.veda.at||0)-(m.tony.at||0));
+  return {sameDev:true,gap:gap,rapid:gap<SAME_DEV_WINDOW,
+    devName:m.tony.devName||m.veda.devName||'the same device'};
 }
 
 // Normalise anything we read, so a legacy or half-written record renders instead
@@ -15389,6 +15478,7 @@ function promote(id){
   const p=plans[id];if(!p)return;
   p.stage='proposed';p.proposedBy=w;p.proposedAt=Date.now();
   p.confirms={veda:null,tony:null};p.confirms[w]=Date.now();
+  p.confirmMeta={};p.confirmMeta[w]=stamp();
   p.declined=null;
   save(p);
 }
@@ -15401,6 +15491,8 @@ function confirmPlan(id){
   const p=plans[id];if(!p)return;
   p.confirms=p.confirms||{veda:null,tony:null};
   p.confirms[w]=Date.now();
+  p.confirmMeta=p.confirmMeta||{};
+  p.confirmMeta[w]=stamp();
   if(isConfirmed(p))p.stage='confirmed';
   save(p);
 }
@@ -15410,7 +15502,7 @@ function declinePlan(id,reason){
   const p=plans[id];if(!p)return;
   p.stage='declined';
   p.declined={by:w,reason:reason||'',at:Date.now()};
-  p.confirms={veda:null,tony:null};
+  p.confirms={veda:null,tony:null};p.confirmMeta={};
   p.cancelReq=null;
   save(p);
 }
@@ -15418,7 +15510,7 @@ function declinePlan(id,reason){
 function restorePlan(id){
   const p=plans[id];if(!p)return;
   p.stage='idea';p.declined=null;p.cancelReq=null;
-  p.confirms={veda:null,tony:null};
+  p.confirms={veda:null,tony:null};p.confirmMeta={};
   p.proposedBy=null;p.proposedAt=null;
   save(p);
 }
@@ -15462,6 +15554,7 @@ function applyEdit(id,t,notes,d,tm){
   p.title=t;p.notes=notes||'';p.date=d||null;p.time=tm||null;
   if(material&&(p.stage==='confirmed'||isConfirmed(p))){
     p.confirms={veda:null,tony:null};p.confirms[w]=Date.now();
+    p.confirmMeta={};p.confirmMeta[w]=stamp();
     p.stage='proposed';p.proposedBy=w;p.proposedAt=Date.now();
     p.cancelReq=null;
   }
@@ -15547,9 +15640,22 @@ function card(p,ctx){
   // The visible record of who agreed and when is the artifact this whole feature
   // exists to produce, so confirmed cards always show both timestamps.
   if(isConfirmed(p)){
-    const sig=(who,at)=>'<span class="pl-sig"><span class="pl-tick">✓</span>'
-      +esc(NAMES[who])+'<span>'+esc(fmtWhen(at))+'</span></span>';
-    footer='<div class="pl-confirms">'+sig('veda',c.veda)+sig('tony',c.tony)+'</div>';
+    const m=p.confirmMeta||{};
+    const sig=(who,at)=>{
+      const d=m[who]&&m[who].devName?'<span class="pl-dev">'+esc(m[who].devName)+'</span>':'';
+      return '<span class="pl-sig"><span class="pl-tick">✓</span>'
+        +esc(NAMES[who])+'<span>'+esc(fmtWhen(at))+'</span>'+d+'</span>';
+    };
+    footer='<div class="pl-confirms">'+sig('veda',c.veda)+sig('tony',c.tony);
+    // Both confirmations from one device cannot evidence two independent people.
+    // Surface it rather than let it pass as a normal agreement.
+    const f=confirmFlags(p);
+    if(f){
+      footer+='<div class="pl-suspect">Both confirmations came from '+esc(f.devName)
+        +(f.rapid?', '+humanGap(f.gap)+' apart':'')
+        +'. This cannot show that you each agreed separately.</div>';
+    }
+    footer+='</div>';
   }
   let reason='';
   if(p.stage==='declined'&&p.declined&&p.declined.reason)
@@ -15624,7 +15730,13 @@ function render(){
     +(w==='veda'?'':'<h1 class="pl-title">Plans</h1>')
     +'<span class="pl-who">'+(w?'acting as '+esc(NAMES[w]):'no profile')+'</span></div>';
   h+='<div class="pl-creed">If it is not <b>Confirmed</b> here, it is not a plan. '
-    +'Ideas are not commitments — anything in Ideas is still just talk.</div>';
+    +'Ideas are not commitments — anything in Ideas is still just talk.'
+    // State the limit where it is read, not buried in a design doc. Profiles are
+    // a chooser; anyone at this device can switch and press confirm. The record
+    // shows which device each confirmation came from so that is at least visible.
+    +'<span class="pl-creed-lim">Switching profiles needs no password, so a confirmation '
+    +'proves only that someone using that profile pressed confirm. Each one records '
+    +'the device it came from.</span></div>';
   h+='<button class="pl-add" data-act="new">+ New idea</button>';
   const total=b.mine.length+b.confirmed.length+b.proposed.length+b.ideas.length;
   if(!total&&!b.archive.length){
@@ -15677,6 +15789,15 @@ function modalHtml(){
       +'<label>Notes</label><textarea class="pl-in" id="pl-f-notes" maxlength="2000" placeholder="Optional">'+esc(vN)+'</textarea>'
       +'<div class="pl-err" id="pl-err">'+esc(m.err||'')+'</div>';
     ok=m.id?'Save':'Add idea';
+  } else if(m.mode==='sameDevice'){
+    const w2=me(),o=w2?other(w2):'the other person';
+    title='Is this really '+esc(NAMES[w2]||'you')+'?';
+    body='<div class="pl-warn pl-warn-hard">'+esc(NAMES[o]||'They')+' confirmed this on <b>this same device</b>. '
+      +'If you are '+esc(NAMES[o]||'them')+' pressing confirm for '+esc(NAMES[w2]||'the other profile')+', stop — '
+      +'a plan only means something if you each agreed to it yourself.</div>'
+      +'<div class="pl-warn-sub">Confirming anyway is recorded, and the plan will be marked '
+      +'as having both confirmations from one device.</div>';
+    ok='I am '+(NAMES[w2]||'me')+' — confirm';
   } else if(m.mode==='confirmNoDate'){
     title='No date set';
     body='<div class="pl-warn">This plan has no date. Confirming it still records that you both agreed — it just will not appear in either TaskHub until a date is set.</div>';
@@ -15733,6 +15854,11 @@ function modalOk(){
     applyEdit(m.id,v.t,v.notes,v.d,v.tm);closeModal();return;
   }
   if(m.mode==='resetWarn'){const v=m.pending;applyEdit(m.id,v.t,v.notes,v.d,v.tm);closeModal();return;}
+  if(m.mode==='sameDevice'){
+    const p2=plans[m.id];
+    if(p2&&!p2.date){modal=Object.assign({},m,{mode:'confirmNoDate'});render();return;}
+    confirmPlan(m.id);closeModal();return;
+  }
   if(m.mode==='confirmNoDate'){confirmPlan(m.id);closeModal();return;}
   if(m.mode==='decline'){
     const n=el.querySelector('#pl-f-reason');
@@ -15765,7 +15891,17 @@ function onClick(e){
   switch(act){
     case 'promote':promote(id);break;
     // Warn, do not block, when there is no date.
-    case 'confirm':if(!p.date)openModal({mode:'confirmNoDate',id:id});else confirmPlan(id);break;
+    case 'confirm':{
+      // Confirming FOR the other person is the one thing this feature exists to
+      // prevent, and profiles cannot stop it. So challenge it at the moment it
+      // would happen: their consent came from this very device, which means
+      // either you share a device or you are about to confirm on their behalf.
+      const w2=me(),o=w2?other(w2):null;
+      const om=o&&p.confirmMeta&&p.confirmMeta[o];
+      if(om&&om.dev===deviceId()){openModal({mode:'sameDevice',id:id});break;}
+      if(!p.date)openModal({mode:'confirmNoDate',id:id});else confirmPlan(id);
+      break;
+    }
     case 'decline':openModal({mode:'decline',id:id});break;
     case 'edit':openModal({mode:'edit',id:id});break;
     case 'cancel':openModal({mode:'cancel',id:id});break;
