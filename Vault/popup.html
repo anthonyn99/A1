@@ -17,15 +17,30 @@
       font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
       -webkit-font-smoothing:antialiased;
     }
-    /* Resizable, size-persisting container. Drag the bottom-right corner to
-       resize the popup; the size is saved and restored on next open. Chrome
-       caps extension popups at 800x600, so we stay just under. */
+    /* ── Popup sizing ─────────────────────────────────────────────────────────
+       TWO elements, two jobs — and they must not be the same element:
+
+         body  is the size REQUEST. It is the only thing left in normal flow, so
+               the browser measures it to decide how big to make the popup.
+         #app  is position:fixed inset:0, so it always covers the window the
+               browser actually gave us, whatever that turns out to be.
+
+       Doing both jobs with one element left a large empty strip: a popup window
+       grows to fit its document but will NOT reliably shrink back, so dragging
+       the grip smaller shrank #app while the window stayed wide and the
+       leftover area rendered as bare background. With #app pinned to the
+       viewport that gap cannot exist — the layout just reflows into whatever
+       width the window really is, and the smaller request still takes effect on
+       the next open. Chrome caps popups at 800x600, so we stay just under. */
+    html { overflow:hidden; }
+    body { width:344px; height:520px; overflow:hidden; }
     #app {
-      width:344px; height:520px;
-      min-width:300px; min-height:240px;
-      max-width:780px; max-height:590px;
+      position:fixed; inset:0;
       display:flex; flex-direction:column; overflow:hidden;
     }
+    /* Kill text selection + hover flicker while a resize drag is in flight. */
+    body.resizing { cursor:nwse-resize; }
+    body.resizing #app { user-select:none; }
     /* header + tabs stay fixed; only #scroll scrolls */
     #scroll { flex:1; overflow-y:auto; overflow-x:hidden; }
     #scroll::-webkit-scrollbar { width:11px; }

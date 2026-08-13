@@ -25,15 +25,30 @@
       margin:0; padding:0; background:var(--bg); color:var(--tx);
       font-family:var(--mono); -webkit-font-smoothing:antialiased;
     }
-    /* Resizable, size-persisting container. Drag the bottom-right grip to
-       resize; the size is saved and restored next open. Browsers cap extension
-       popups at 800x600, so we stay just under. */
+    /* ── Popup sizing ─────────────────────────────────────────────────────────
+       TWO elements, two jobs — and they must not be the same element:
+
+         body  is the size REQUEST. It is the only thing left in normal flow, so
+               the browser measures it to decide how big to make the popup.
+         #app  is position:fixed inset:0, so it always covers the window the
+               browser actually gave us, whatever that turns out to be.
+
+       Doing both jobs with one element is what left the large empty strip: a
+       popup window grows to fit its document but will NOT reliably shrink back,
+       so dragging the grip smaller shrank #app while the window stayed wide and
+       the leftover area rendered as bare background. With #app pinned to the
+       viewport that gap cannot exist — the layout just reflows into whatever
+       width the window really is, and the smaller request still takes effect on
+       the next open. Browsers cap popups at 800x600, so we stay just under. */
+    html { overflow:hidden; }
+    body { width:352px; height:520px; overflow:hidden; }
     #app {
-      width:352px; height:520px;
-      min-width:300px; min-height:240px;
-      max-width:780px; max-height:590px;
+      position:fixed; inset:0;
       display:flex; flex-direction:column; overflow:hidden;
     }
+    /* Kill text selection + hover flicker while a resize drag is in flight. */
+    body.resizing { cursor:nwse-resize; }
+    body.resizing #app { user-select:none; }
     /* Header + section head stay put; only #scroll scrolls. */
     #scroll { flex:1; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; }
     #scroll::-webkit-scrollbar { width:11px; }
@@ -239,10 +254,10 @@
        A phone sheet is identified by a coarse pointer AND a narrow viewport,
        which a 352px popup on a desktop never satisfies. */
     @media (pointer:coarse) and (max-width:420px) {
-      #app {
-        width:100%; height:100dvh; max-width:100%; max-height:none;
-        padding-bottom:env(safe-area-inset-bottom,0px);
-      }
+      /* #app already covers the viewport (position:fixed inset:0); it is the
+         REQUEST on body that has to stop asking for a 352px panel. */
+      body { width:100%; height:100dvh; }
+      #app { padding-bottom:env(safe-area-inset-bottom,0px); }
       #resize-grip { display:none; }
       /* One full-width column on a phone sheet, whatever --cols says. */
       #groups { grid-template-columns:1fr; align-items:stretch; }

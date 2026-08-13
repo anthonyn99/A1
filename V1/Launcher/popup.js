@@ -56,42 +56,83 @@ function colCount() {
   return Math.max(1, Math.min(MAX_COLS, fits, byWidth));
 }
 
+// ── Popup size: request vs. reality ──────────────────────────────────────────
+// `body` carries the REQUESTED size — the browser measures it to size the popup
+// window. `#app` is fixed to the viewport and therefore always fills the window
+// we were actually given, which is what stops a window that refuses to shrink
+// from leaving a bare strip beside the content. See the CSS note in popup.html.
+const MIN_W = 300, MAX_W = 780, MIN_H = 240, MAX_H = 590;
+let reqW = 352, reqH = 520;
+
+// On a phone the popup is a full-width sheet, not a floating panel — the CSS
+// hands body over to the viewport there. An inline width would outrank that
+// media query, so the request is tracked but never written to the element.
+const IS_SHEET = window.matchMedia("(pointer:coarse) and (max-width:420px)").matches;
+
+function requestSize(w, h) {
+  reqW = Math.round(Math.max(MIN_W, Math.min(MAX_W, w)));
+  reqH = Math.round(Math.max(MIN_H, Math.min(MAX_H, h)));
+  if (IS_SHEET) return;
+  document.body.style.width  = reqW + "px";
+  document.body.style.height = reqH + "px";
+}
+
 // ── Persisted, user-adjustable popup size ────────────────────────────────────
 chrome.storage.local.get([SIZE_KEY, REORDER_KEY], (d) => {
   const s = d && d[SIZE_KEY];
-  if (s && s.w && s.h) { appEl.style.width = s.w + "px"; appEl.style.height = s.h + "px"; }
+  if (s && s.w && s.h) requestSize(s.w, s.h);
   setReorder(!!(d && d[REORDER_KEY]), false);
 
-  let t = null;
+  // #app is pinned to the viewport, so observing it observes the REAL popup
+  // window. Re-flow whenever the grid gains or loses a column — driven by the
+  // size we actually got, never by the size we asked for.
   new ResizeObserver(() => {
-    // Re-flow whenever the grid gains or loses a column as the popup is dragged.
     const cols = colCount();
     if (cols !== lastCols && connections.length) render();
-    if (t) clearTimeout(t);
-    t = setTimeout(() => {
-      chrome.storage.local.set({
-        [SIZE_KEY]: { w: Math.round(appEl.offsetWidth), h: Math.round(appEl.offsetHeight) }
-      });
-    }, 300);
   }).observe(appEl);
 });
 
 // ── Drag-to-resize grip ──────────────────────────────────────────────────────
-// screenX/Y deltas, so resizing stays stable however the popup re-anchors as it
-// grows. The ResizeObserver above handles reflow + saving.
+// Deltas are INCREMENTAL — each move adjusts the size we last asked for, rather
+// than re-deriving it from where the drag began. An absolute baseline keeps
+// accumulating past the clamp, so dragging well beyond the maximum and then
+// back left the popup frozen until the pointer had travelled all the way back;
+// per-frame deltas reverse the instant the pointer does. Screen coordinates
+// (not client) because the window re-anchors as it grows.
 const gripEl = document.getElementById("resize-grip");
-let grip = null;
+let grip = null, gripRaf = 0, gripNext = null;
+
+function flushGrip() {
+  gripRaf = 0;
+  if (!gripNext) return;
+  requestSize(gripNext.w, gripNext.h);
+  gripNext = null;
+}
+
 gripEl.addEventListener("pointerdown", (e) => {
   e.preventDefault();
-  grip = { sx: e.screenX, sy: e.screenY, w: appEl.offsetWidth, h: appEl.offsetHeight };
+  grip = { sx: e.screenX, sy: e.screenY };
+  document.body.classList.add("resizing");
   try { gripEl.setPointerCapture(e.pointerId); } catch (_) {}
 });
 gripEl.addEventListener("pointermove", (e) => {
   if (!grip) return;
-  appEl.style.width  = Math.max(300, Math.min(780, grip.w + (e.screenX - grip.sx))) + "px";
-  appEl.style.height = Math.max(240, Math.min(590, grip.h + (e.screenY - grip.sy))) + "px";
+  // Accumulate onto any pending frame, so a burst of moves inside one frame
+  // isn't collapsed down to just the last delta.
+  const base = gripNext || { w: reqW, h: reqH };
+  gripNext = { w: base.w + (e.screenX - grip.sx), h: base.h + (e.screenY - grip.sy) };
+  grip.sx = e.screenX; grip.sy = e.screenY;
+  if (!gripRaf) gripRaf = requestAnimationFrame(flushGrip);
 });
-const endGrip = (e) => { grip = null; try { gripEl.releasePointerCapture(e.pointerId); } catch (_) {} };
+const endGrip = (e) => {
+  if (!grip) return;
+  grip = null;
+  if (gripRaf) cancelAnimationFrame(gripRaf);
+  flushGrip();
+  document.body.classList.remove("resizing");
+  chrome.storage.local.set({ [SIZE_KEY]: { w: reqW, h: reqH } });
+  try { gripEl.releasePointerCapture(e.pointerId); } catch (_) {}
+};
 gripEl.addEventListener("pointerup", endGrip);
 gripEl.addEventListener("pointercancel", endGrip);
 
