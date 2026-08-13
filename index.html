@@ -14126,7 +14126,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   if(location.hash==='#notiftest'){setTimeout(()=>{window.thNotifTest();},1500);}
   if(location.hash==='#notifdiag'){setTimeout(()=>{window.thNotifDiag();},1500);}
   // Legacy deep link — Vault used to be this page's Keychain view, and older
-  // Vault extension builds (plus any bookmarks) still point at
+  // Vault Launcher builds (plus any bookmarks) still point at
   // ?goto=keychain / #keychain. Vault now lives at /A1/vault.html, so these
   // REDIRECT there rather than switching views. Kept indefinitely: it costs
   // nothing and means an un-updated extension still lands in the right place.
@@ -14148,8 +14148,8 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 
   // Deep link — Veda → Links.  ?goto=links  (or #links)
   //
-  // The Launcher extension's gear points here, the way Vault's gear points at
-  // ?vaulttab=. Vault got a REDIRECT because it is its own page; Links lives
+  // The Launcher extension's gear points here, the way Vault Launcher's gear
+  // points at ?vaulttab=. Vault got a REDIRECT because it is its own page; Links lives
   // inside this app, so this one selects Veda's profile and opens the program.
   //
   // Both locks still apply. The profile card's own lock is enforced by alGate
@@ -14730,7 +14730,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     <div class="kc-modal-actions"><button class="kc-btn-danger" onclick="vdkcExecuteDelete()">Delete</button><button class="kc-btn-ghost" onclick="vdkcCloseConfirm()">Cancel</button></div>
   </div>
 </div>
-<!-- Launcher Setup Modal — mirrors Vault's "Install Vault" flow (vault.html). -->
+<!-- Launcher Setup Modal — mirrors Vault's "Install Vault Launcher" flow (vault.html). -->
 <div id="vd-kc-launcher-setup" class="kc-overlay" style="display:none" onclick="if(event.target===this)vdkcCloseLauncherSetup()">
   <div class="kc-modal" onclick="event.stopPropagation()" style="max-width:480px;">
     <div class="kc-modal-title"><span style="background:var(--ac)"></span>Install Launcher</div>
@@ -15514,7 +15514,7 @@ window._vdkcBack=function(){if(window._vedaNav)window._vedaNav('taskhub');};
 
 <script>
 /* ── Launcher extension packaging + guided setup (Links "Install Launcher") ───
-   Same machinery as Vault's "Install Vault" (see vault.html): browsers forbid a
+   Same machinery as Vault's "Install Vault Launcher" (see vault.html): browsers forbid a
    page from installing an extension, so we fetch the Launcher files, build a
    Store-method ZIP entirely in the browser (no library, no CDN) and hand it to
    the user with Load-Unpacked steps.

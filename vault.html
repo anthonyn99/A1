@@ -494,7 +494,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
     <!-- data-hk marks a button as re-orderable; the drag module below picks up
          anything carrying one, so a future header button needs no extra wiring. -->
     <div class="app-hbar-row2" id="kc-hbar-actions">
-      <button class="kc-hbtn" data-hk="install" id="kc-vault-btn" onclick="kcOpenVaultSetup()" title="Download the Vault browser extension and set it up in your browser (no Web Store needed)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/></svg><span>Install Vault</span></button>
+      <button class="kc-hbtn" data-hk="install" id="kc-vault-btn" onclick="kcOpenVaultSetup()" title="Download the Vault Launcher browser extension and set it up in your browser (no Web Store needed)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/></svg><span>Install Vault Launcher</span></button>
       <button class="kc-hbtn" data-hk="lock" id="kc-lock-btn" onclick="window._vaultManageLock&&window._vaultManageLock()" title="Lock Vault behind a password"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg><span>Lock</span></button>
     </div>
   </div>
@@ -546,12 +546,13 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
     <div class="kc-modal-actions"><button class="kc-btn-danger" onclick="kcExecuteDelete()">Delete</button><button class="kc-btn-ghost" onclick="kcCloseConfirm()">Cancel</button></div>
   </div>
 </div>
-<!-- Vault Setup Modal -->
+<!-- Vault Launcher Setup Modal -->
 <div id="kc-vault-setup" class="kc-overlay" style="display:none" onclick="if(event.target===this)kcCloseVaultSetup()">
   <div class="kc-modal" onclick="event.stopPropagation()" style="max-width:480px;">
-    <div class="kc-modal-title"><span style="background:var(--ac)"></span>Install Vault</div>
+    <div class="kc-modal-title"><span style="background:var(--ac)"></span>Install Vault Launcher</div>
     <p style="font-size:12px;line-height:1.6;color:var(--txd);margin:-8px 0 18px;">
-      Vault is the browser extension that opens your Keychain groups from the toolbar.
+      Vault Launcher is the browser extension that opens your Keychain groups from the toolbar
+      — and lets you rearrange the connection cards from there, which syncs straight back here.
       Browsers don't allow a website to install an extension silently, so this packages it
       for you and walks you through the one-time load — no Chrome Web Store needed.
     </p>
@@ -566,7 +567,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
                files…", and kcDownloadVault's `btn.textContent = 'Packaging…'`
                destroyed them on first click — taking #kc-vault-pkg with it, so
                the packaging summary could never render again. -->
-          <button class="kc-btn-primary" style="height:34px;" onclick="kcDownloadVault(this)">Download Vault</button>
+          <button class="kc-btn-primary" style="height:34px;" onclick="kcDownloadVault(this)">Download Vault Launcher</button>
           <div style="font-size:11px;color:var(--txm);line-height:1.5;margin-top:6px;">Always packages the latest files straight from GitHub.</div>
           <div id="kc-vault-pkg" style="display:none;font-size:11px;color:var(--txd);line-height:1.5;margin-top:4px;font-family:monospace;word-break:break-word;"></div>
         </div>
@@ -609,13 +610,14 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
       <li style="counter-increment:vstep;display:flex;gap:12px;align-items:flex-start;margin-bottom:4px;">
         <span class="kc-vault-num"></span>
         <div style="flex:1;min-width:0;font-size:12.5px;color:var(--tx);line-height:1.55;">
-          <span style="font-weight:800;">Pin Vault</span> to your toolbar — click it and your
-          Keychain groups appear. Edits you make here sync to it automatically.
+          <span style="font-weight:800;">Pin Vault Launcher</span> to your toolbar — click it and your
+          Keychain groups appear. Edits you make here sync to it automatically, and a
+          reorder done there syncs back to this page.
         </div>
       </li>
       <li style="display:flex;gap:12px;align-items:flex-start;margin-top:14px;padding-top:14px;border-top:1px solid var(--bd);">
         <div style="flex:1;min-width:0;font-size:11.5px;color:var(--txd);line-height:1.55;">
-          <span style="font-weight:800;color:var(--tx);">Already installed?</span> Vault doesn't self-update
+          <span style="font-weight:800;color:var(--tx);">Already installed?</span> Vault Launcher doesn't self-update
           when loaded unpacked. To get the newest version: download again, replace the old
           <span style="font-family:monospace;">Vault</span> folder with the new one (same path),
           then hit <span style="font-weight:600;">Reload</span> 
@@ -933,7 +935,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
 </script>
 
 <script>
-/* ── Vault extension packaging + guided setup (Keychain "Install Vault") ──────
+/* ── Vault Launcher packaging + guided setup (Keychain "Install Vault Launcher")
    Browsers forbid a page from installing an extension, so we fetch the Vault
    files, build a Store-method ZIP entirely in the browser (no library, no CDN —
    keeps the single-file app self-contained), and hand it to the user with
@@ -1146,7 +1148,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
       const entries=Array.from(files.keys()).sort()
         .map(name=>({name:VAULT_DIR+'/'+name, data:files.get(name)}));
       const url=URL.createObjectURL(_buildZip(entries));
-      const fname='Vault-extension'+(version?'-'+version:'')+'.zip';
+      const fname='Vault-Launcher'+(version?'-'+version:'')+'.zip';
       const a=document.createElement('a');
       a.href=url; a.download=fname;
       document.body.appendChild(a); a.click(); a.remove();
@@ -1158,7 +1160,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
           ' · from '+src+(warn.length?' · skipped '+warn.join(', '):'');
       }
     }catch(e){
-      _vToast('Couldn’t package Vault: '+e.message);
+      _vToast('Couldn’t package Vault Launcher: '+e.message);
       if(note){ note.style.display='block'; note.textContent='Failed: '+e.message; }
     }finally{ btn.disabled=false; btn.textContent=orig; }
   };

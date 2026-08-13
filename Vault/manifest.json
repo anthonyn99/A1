@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Vault",
-  "version": "1.3.1",
-  "description": "Your links, logins, cards & ID documents - synced with Vault. Autofill, attach a document scan to an upload field, and launch a whole tab group in one click.",
+  "name": "Vault Launcher",
+  "version": "1.4.0",
+  "description": "Your links, logins, cards & ID documents - synced with Vault. Autofill, attach a document scan to an upload field, launch a whole tab group in one click, and rearrange your connection cards from the toolbar.",
   "permissions": [
     "tabs",
     "tabGroups",
@@ -20,7 +20,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Vault",
+    "default_title": "Vault Launcher",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

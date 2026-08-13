@@ -1,9 +1,14 @@
-# Vault
+# Vault Launcher
 
 A browser extension that displays your links in **groups** and launches an entire
 group of tabs in one click — reading a single source of truth from the **Keychain**
-program in your Index app. Add or edit a site in Keychain and it shows up in Vault
-automatically. No separate database.
+program in your Vault app. Add or edit a site in Keychain and it shows up in Vault
+Launcher automatically. No separate database.
+
+> Formerly just **Vault**. The extension is *Vault Launcher*; the web app at
+> `/A1/vault.html` is still **Vault**. They share the `Vault/` folder — the app
+> loads `vault-ui.js`, `vault-crypto.js` and friends from here — so the file
+> names kept their `vault-` prefix.
 
 Rebuilt from the old *D2L Tabs Automate* class project (used only as a template).
 
@@ -12,12 +17,23 @@ Rebuilt from the old *D2L Tabs Automate* class project (used only as a template)
 ## What it does
 
 - **Groups & links** — each Keychain "connection" is a group; its `link` items are
-  the launchable links. Vault renders them as cards.
+  the launchable links. Vault Launcher renders them as cards.
 - **Open one / open a group** — one click launches a single link or every link in a
   group.
-- **Read-only mirror** — reads `dashboards/keychain` in Firestore, the exact document
-  Keychain uses, and reflects it live. **All editing** (add/remove links, groups,
-  colours, ordering) happens in **TaskHub → Keychain**; Vault only displays & opens.
+- **Rearrange connection cards** — the **Reorder** switch above the Links list turns
+  on a drag grip on every card. Drop a card in a new spot (or, at two columns, a
+  new column) and the new order is PUT straight to `dashboards/keychain` through the
+  same Worker. Vault's Keychain listens on that document with `onSnapshot`, so an
+  open Vault tab re-renders in the new order within a second — and the popup polls
+  every 5s, so an edit made in Vault shows up here without reopening. Groups with no
+  link items aren't rendered but are round-tripped untouched, and a one-column
+  reorder carries each card's existing column forward instead of flattening the
+  app's two-column layout. See `vault-card-drag.js` and `persistOrder()` in
+  `popup.js`. The switch is off by default and its state is remembered.
+- **Read-mostly mirror** — reads `dashboards/keychain` in Firestore, the exact document
+  Keychain uses, and reflects it live. **Card order is the one thing this popup
+  writes**; all other editing (add/remove links, groups, colours) happens in the
+  **Vault app → Keychain**.
 - **Tab-aware settings button** — on the **Links** tab the ⚙ opens TaskHub deep-linked
   straight to Keychain (`…/A1/#keychain` — the installed PWA if the browser routes it,
   otherwise a tab). On the **Passwords** tab the ⚙ opens Vault's own settings page.

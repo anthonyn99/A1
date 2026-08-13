@@ -32,6 +32,21 @@ const TASKHUB_VAULT_PW_URL = VAULT_APP_URL + "?vaulttab=passwords";
 const TASKHUB_VAULT_PAY_URL = VAULT_APP_URL + "?vaulttab=payments";
 const TASKHUB_VAULT_ID_URL = VAULT_APP_URL + "?vaulttab=iddocs";
 
+// ── Popup state ──
+// Declared before the chrome.storage restore below, which calls setReorder():
+// these are `let`, so a storage callback that runs synchronously (as it does
+// under test) would hit the temporal dead zone if they were declared after it.
+let connections = [];
+let colmap = null;          // Keychain's column map (index-aligned to connections)
+let lastCols = 0;           // last-rendered column count (to re-render on width change)
+let reorderMode = false;
+let dragCtl = null;
+let pollTimer = null;
+let lastOwnSaveAt = 0;
+const COL2_MIN = 560;       // px width of #app at/above which we go to 2 columns
+const POLL_MS  = 5000;      // live refresh cadence while the popup is open
+const ECHO_MS  = 8000;      // ignore server reads for this long after our own save
+
 // ── Persisted, user-adjustable popup size ──
 // #app has CSS `resize:both`; drag its bottom-right corner to resize. We restore
 // the last size on open and save changes (debounced).
@@ -82,17 +97,6 @@ gripEl.addEventListener("pointercancel", endGrip);
 
 // Same palette Keychain uses for connection colours, for a consistent look.
 const CD = ['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
-
-let connections = [];
-let colmap = null;          // Keychain's column map (index-aligned to connections)
-let lastCols = 0;           // last-rendered column count (to re-render on width change)
-let reorderMode = false;
-let dragCtl = null;
-let pollTimer = null;
-let lastOwnSaveAt = 0;
-const COL2_MIN = 560;       // px width of #app at/above which we go to 2 columns
-const POLL_MS  = 5000;      // live refresh cadence while the popup is open
-const ECHO_MS  = 8000;      // ignore server reads for this long after our own save
 
 const COPY_SVG ='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 const GRIP_SVG = '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/><circle cx="6" cy="8" r="1.5"/><circle cx="10" cy="8" r="1.5"/><circle cx="6" cy="13" r="1.5"/><circle cx="10" cy="13" r="1.5"/></svg>';
@@ -373,19 +377,51 @@ gearEl.addEventListener("click", () => {
   window.close();
 });
 
-// ── Load from the shared Keychain doc ──
+// ── Load from the shared Keychain doc + live refresh ──
+
+function apply(doc) {
+  connections = Array.isArray(doc.connections) ? doc.connections : [];
+  colmap = Array.isArray(doc.colmap) ? doc.colmap : null;
+  render();
+}
+
+// Don't let a server read stomp a reorder that hasn't round-tripped yet — the
+// same guard vault.html applies to its own Keychain snapshot listener.
+function applyRemote(doc) {
+  if (Date.now() - lastOwnSaveAt < ECHO_MS) return;
+  const before = JSON.stringify({ c: connections, m: colmap });
+  const after  = JSON.stringify({ c: doc.connections, m: doc.colmap });
+  if (before === after) return;
+  apply(doc);
+}
+
 (async () => {
+  // Paint from the cached document first so the popup never opens empty, then
+  // reconcile against the worker.
   try {
-    const data = await VaultDB.load();
-    connections = Array.isArray(data.connections) ? data.connections : [];
-    colmap = Array.isArray(data.colmap) ? data.colmap : null;
-    render();
-    syncEl.textContent = "Synced with Keychain";
+    const cached = await VaultDB.readCache();
+    if (cached && cached.connections.length) { apply(cached); setSync("", "Synced with Keychain"); }
+  } catch (_) {}
+
+  try {
+    const doc = await VaultDB.refresh();
+    if (loadingEl.style.display !== "none") apply(doc);
+    else applyRemote(doc);
+    setSync("", "Synced with Keychain");
   } catch (e) {
     console.error(e);
-    loadingEl.style.display = "none";
-    groupsEl.innerHTML = `<div class="empty">Couldn't reach Keychain.<br />Check your connection and reopen.</div>`;
-    syncEl.textContent = "Offline";
-    syncEl.classList.add("error");
+    if (!connections.length) {
+      loadingEl.style.display = "none";
+      groupsEl.innerHTML = `<div class="empty">Couldn't reach Keychain.<br />Check your connection and reopen.</div>`;
+    }
+    setSync("error", "Offline");
   }
+
+  // Keep the open popup live: an edit made in the Vault app shows up here
+  // without closing and reopening.
+  pollTimer = setInterval(async () => {
+    try { applyRemote(await VaultDB.refresh()); } catch (_) {}
+  }, POLL_MS);
 })();
+
+window.addEventListener("unload", () => { if (pollTimer) clearInterval(pollTimer); });
