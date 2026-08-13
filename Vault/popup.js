@@ -83,49 +83,65 @@ chrome.storage.local.get([SIZE_KEY, REORDER_KEY], (d) => {
   }).observe(appEl);
 });
 
-// ── Big drag-to-resize grip ──
-// Deltas are INCREMENTAL — each move adjusts the size we last asked for, rather
+// ── Resize rails: one per axis ──
+// Width is dragged from the LEFT rail and height from the BOTTOM rail because
+// those are the popup's free edges — see the CSS note in popup.html. Dragging
+// the left rail LEFT widens (the left edge follows the pointer); dragging the
+// bottom rail DOWN heightens.
+//
+// Deltas are INCREMENTAL: each move adjusts the size we last asked for, rather
 // than re-deriving it from where the drag began. An absolute baseline keeps
 // accumulating past the clamp, so dragging well beyond the maximum and then
 // back left the popup frozen until the pointer had travelled all the way back;
 // per-frame deltas reverse the instant the pointer does. Screen coordinates
-// (not client) because the popup window re-anchors as it grows.
-const gripEl = document.getElementById("resize-grip");
-let grip = null, gripRaf = 0, gripNext = null;
+// (not client) because the popup window re-anchors as it resizes.
+function makeRail(el, axis) {
+  let drag = null, raf = 0, next = null;
 
-function flushGrip() {
-  gripRaf = 0;
-  if (!gripNext) return;
-  requestSize(gripNext.w, gripNext.h);
-  gripNext = null;
+  const flush = () => {
+    raf = 0;
+    if (!next) return;
+    requestSize(next.w, next.h);
+    next = null;
+  };
+
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button != null && e.button !== 0) return;
+    e.preventDefault();
+    drag = { sx: e.screenX, sy: e.screenY };
+    el.classList.add("active");
+    document.body.classList.add("resizing-" + axis);
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    // Accumulate onto any pending frame, so a burst of moves inside one frame
+    // isn't collapsed down to just the last delta.
+    const base = next || { w: reqW, h: reqH };
+    next = axis === "x"
+      ? { w: base.w - (e.screenX - drag.sx), h: base.h }
+      : { w: base.w, h: base.h + (e.screenY - drag.sy) };
+    drag.sx = e.screenX; drag.sy = e.screenY;
+    if (!raf) raf = requestAnimationFrame(flush);
+  });
+
+  const end = (e) => {
+    if (!drag) return;
+    drag = null;
+    if (raf) cancelAnimationFrame(raf);
+    flush();
+    el.classList.remove("active");
+    document.body.classList.remove("resizing-" + axis);
+    chrome.storage.local.set({ [SIZE_KEY]: { w: reqW, h: reqH } });
+    try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
 }
 
-gripEl.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  grip = { sx: e.screenX, sy: e.screenY };
-  document.body.classList.add("resizing");
-  try { gripEl.setPointerCapture(e.pointerId); } catch (_) {}
-});
-gripEl.addEventListener("pointermove", (e) => {
-  if (!grip) return;
-  // Accumulate onto any pending frame, so a burst of moves inside one frame
-  // isn't collapsed down to just the last delta.
-  const base = gripNext || { w: reqW, h: reqH };
-  gripNext = { w: base.w + (e.screenX - grip.sx), h: base.h + (e.screenY - grip.sy) };
-  grip.sx = e.screenX; grip.sy = e.screenY;
-  if (!gripRaf) gripRaf = requestAnimationFrame(flushGrip);
-});
-const endGrip = (e) => {
-  if (!grip) return;
-  grip = null;
-  if (gripRaf) cancelAnimationFrame(gripRaf);
-  flushGrip();
-  document.body.classList.remove("resizing");
-  chrome.storage.local.set({ [SIZE_KEY]: { w: reqW, h: reqH } });
-  try { gripEl.releasePointerCapture(e.pointerId); } catch (_) {}
-};
-gripEl.addEventListener("pointerup", endGrip);
-gripEl.addEventListener("pointercancel", endGrip);
+makeRail(document.getElementById("resize-x"), "x");
+makeRail(document.getElementById("resize-y"), "y");
 
 // Same palette Keychain uses for connection colours, for a consistent look.
 const CD = ['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];

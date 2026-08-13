@@ -19,6 +19,7 @@
       --shadow:rgba(0,0,0,.55);
       --mono:'IBM Plex Mono',ui-monospace,'Cascadia Mono','Segoe UI Mono',Consolas,monospace;
       --serif:'Playfair Display',Georgia,'Times New Roman',serif;
+      --rail:9px;
     }
     * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
     html, body {
@@ -45,10 +46,13 @@
     #app {
       position:fixed; inset:0;
       display:flex; flex-direction:column; overflow:hidden;
+      /* Reserve the height rail's strip so #scroll's viewport ENDS above it.
+         Padding on the scroller itself would not do: it only pads the end of
+         the scrollable content, so mid-scroll a link row still rendered under
+         the rail. The left rail needs no such reservation — every child already
+         carries ≥15px of left padding for it to sit in. */
+      padding-bottom:var(--rail);
     }
-    /* Kill text selection + hover flicker while a resize drag is in flight. */
-    body.resizing { cursor:nwse-resize; }
-    body.resizing #app { user-select:none; }
     /* Header + section head stay put; only #scroll scrolls. */
     #scroll { flex:1; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; }
     #scroll::-webkit-scrollbar { width:11px; }
@@ -56,14 +60,38 @@
     #scroll::-webkit-scrollbar-thumb { background:var(--s3); border-radius:6px; border:2px solid var(--bg); min-height:36px; }
     #scroll::-webkit-scrollbar-thumb:hover { background:var(--ac); }
 
-    #resize-grip {
-      position:fixed; right:0; bottom:0; width:22px; height:22px;
-      z-index:30; cursor:nwse-resize; touch-action:none; color:var(--txm);
-      border-bottom-right-radius:3px;
-      background:linear-gradient(135deg, transparent 46%, var(--s3) 46%);
+    /* ── Resize rails: one per axis ───────────────────────────────────────────
+       The popup window is anchored at its TOP and RIGHT edges — it hangs below
+       the toolbar icon — so those two edges physically cannot move. The LEFT
+       and BOTTOM edges are the free ones, which is why the handles live there:
+       drag one and its edge travels exactly as far as the pointer does, so the
+       handle stays under the cursor.
+
+       A single bottom-right corner grip could not do that. It sat ON the pinned
+       edges, so widening the popup moved the far side instead and the grip slid
+       out from under the pointer, with both axes fighting each other in one
+       gesture. Split per axis, each drag is a straight 1:1 slide.
+
+       The rails overlay the existing left/bottom padding (≥15px everywhere), so
+       they cover no content and cost no layout shift. */
+    .rail {
+      position:fixed; z-index:30; touch-action:none;
+      display:flex; align-items:center; justify-content:center;
+      background:transparent; transition:background .15s;
     }
-    #resize-grip:hover { color:var(--ac); background:linear-gradient(135deg, transparent 44%, var(--s3) 44%); }
-    #resize-grip svg { position:absolute; right:3px; bottom:3px; display:block; pointer-events:none; }
+    .rail::before {                       /* the visible pill */
+      content:''; border-radius:3px; background:var(--bd); transition:background .15s;
+    }
+    .rail:hover, .rail.active { background:var(--s2); }
+    .rail:hover::before, .rail.active::before { background:var(--ac); }
+    #resize-x { left:0; top:0; bottom:0; width:var(--rail); cursor:ew-resize; }
+    #resize-x::before { width:3px; height:30px; }
+    #resize-y { left:var(--rail); right:0; bottom:0; height:var(--rail); cursor:ns-resize; }
+    #resize-y::before { width:30px; height:3px; }
+    /* Hold the axis cursor over the whole popup for the length of the drag. */
+    body.resizing-x, body.resizing-x * { cursor:ew-resize !important; }
+    body.resizing-y, body.resizing-y * { cursor:ns-resize !important; }
+    body.resizing-x #app, body.resizing-y #app { user-select:none; }
 
     /* ── Header ── */
     header {
@@ -122,7 +150,9 @@
     #app.reorder .toggle-track { background:var(--ac); }
     #app.reorder .toggle-thumb { left:13px; background:#fff; }
 
-    .panel { padding:10px 15px 16px; }
+    /* 7px + #app's 9px rail reservation = the 16px of bottom breathing room
+       this panel had before the rails existed. */
+    .panel { padding:10px 15px 7px; }
 
     /* ── Columns + cards ──────────────────────────────────────────────────────
        Columns are laid out by an auto-fill grid rather than a fixed 1-or-2 flex
@@ -258,7 +288,7 @@
          REQUEST on body that has to stop asking for a 352px panel. */
       body { width:100%; height:100dvh; }
       #app { padding-bottom:env(safe-area-inset-bottom,0px); }
-      #resize-grip { display:none; }
+      .rail { display:none; }
       /* One full-width column on a phone sheet, whatever --cols says. */
       #groups { grid-template-columns:1fr; align-items:stretch; }
       .col { width:100%; }
@@ -310,14 +340,8 @@
 
   <div id="toast">Copied</div>
 
-  <div id="resize-grip" title="Drag to resize">
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <g stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-        <line x1="11" y1="3.5" x2="3.5" y2="11"/>
-        <line x1="11" y1="7.5" x2="7.5" y2="11"/>
-      </g>
-    </svg>
-  </div>
+  <div class="rail" id="resize-x" title="Drag left or right to set the width"></div>
+  <div class="rail" id="resize-y" title="Drag up or down to set the height"></div>
  </div>
 
   <script src="launcher-sync.js"></script>
