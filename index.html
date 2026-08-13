@@ -72,6 +72,12 @@
   font-weight:750;letter-spacing:-.4px;line-height:1.2;
   color:var(--gold-primary);
 }
+/* The TaskHub wordmark sits alone at the top of the page with nothing to lean on,
+   so it takes a lighter gold than the shared --gold-primary to hold that corner. */
+.suite-title.th-wordmark{color:#eecb92;}
+/* TgScrollBox paints its own draggable thumb — hide the native bar in both engines. */
+.tg-scrollbox{scrollbar-width:none;-ms-overflow-style:none;}
+.tg-scrollbox::-webkit-scrollbar{width:0;height:0;}
 /* Replaces the italic decorative labels ("Resets every Monday", day chips,
    pull-quote attributions). Upright, lightly lettered, never slanted. */
 .suite-accent{
@@ -114,7 +120,11 @@ html,body{height:100%;}
 }
 #tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.4),0 0 0 1px rgba(200,161,95,0.15);}
 #tony-app-nav .pv-btn,#tony-app-nav .wr-btn{color:#a78bfa;border-color:rgba(167,139,250,0.35);}
-#tony-app-nav .pv-btn:hover,#tony-app-nav .wr-btn:hover{color:#a78bfa;border-color:#a78bfa;box-shadow:0 0 8px rgba(167,139,250,0.4),0 0 0 1px rgba(167,139,250,0.15);}
+/* !important because _showTonyNav writes the resting purple border-color inline on
+   every pv/wr button, and an inline value outranks any stylesheet hover rule —
+   that is what left these two with a dim outline on hover while gold ones lit up.
+   The active button keeps its purple fill, so it opts out. */
+#tony-app-nav .pv-btn:not(.tn-active):hover,#tony-app-nav .wr-btn:not(.tn-active):hover{color:#c4b5fd!important;border-color:#a78bfa!important;box-shadow:0 0 8px rgba(167,139,250,0.4),0 0 0 1px rgba(167,139,250,0.15);}
 #tn-mobile-select option[value="proview"],#tn-mobile-select option[value="warroom"]{color:#a78bfa!important;}
 #tony-app-nav .tn-btn.tn-active{
   background:transparent;color:var(--tn-ac,#c8a15f);
@@ -5989,6 +5999,91 @@ function OI_byDay(cards,showOther){
   return out;
 }
 
+// ── Scroll box with its own draggable scrollbar ─────────────────────────────
+// Overlay scrollbars are invisible until you scroll on desktop and can't be
+// grabbed at all on touch, so a long modal list gets no handle. This wraps the
+// list in a relative box and paints a thumb driven by pointer events, which
+// cover mouse and touch with one path. Props: style (on the scroller), children.
+function TgScrollBox(props){
+  const boxRef=React.useRef(null), trackRef=React.useRef(null);
+  const [sb,setSb]=React.useState({h:0,top:0,show:false});
+  const T=props.theme||{};
+
+  const sync=React.useCallback(function(){
+    const el=boxRef.current, tr=trackRef.current;
+    if(!el||!tr) return;
+    const trackH=tr.clientHeight, scrollable=el.scrollHeight-el.clientHeight;
+    if(scrollable<2||trackH<24){ setSb(function(p){ return p.show?{h:0,top:0,show:false}:p; }); return; }
+    const h=Math.max(34,Math.round(trackH*(el.clientHeight/el.scrollHeight)));
+    const top=Math.round((trackH-h)*(el.scrollTop/scrollable));
+    setSb(function(p){ return (p.show&&p.h===h&&p.top===top)?p:{h:h,top:top,show:true}; });
+  },[]);
+
+  React.useEffect(function(){
+    sync();
+    const el=boxRef.current; if(!el) return;
+    let ro=null;
+    if(typeof ResizeObserver!=='undefined'){ ro=new ResizeObserver(sync); ro.observe(el); if(el.firstElementChild) ro.observe(el.firstElementChild); }
+    window.addEventListener('resize',sync);
+    const t=setTimeout(sync,60);   // fonts/images can settle after first paint
+    return function(){ if(ro)ro.disconnect(); window.removeEventListener('resize',sync); clearTimeout(t); };
+  },[sync]);
+
+  // Drag the thumb: thumb travel maps 1:1 onto the remaining scroll range.
+  function dragFrom(e,startTop){
+    const el=boxRef.current, tr=trackRef.current; if(!el||!tr) return;
+    const startY=e.clientY, trackH=tr.clientHeight, h=sb.h;
+    const maxTop=Math.max(1,trackH-h), maxScroll=el.scrollHeight-el.clientHeight;
+    function move(ev){
+      const nt=Math.min(maxTop,Math.max(0,startTop+(ev.clientY-startY)));
+      el.scrollTop=maxScroll*(nt/maxTop);
+      if(ev.cancelable) ev.preventDefault();
+    }
+    function up(){
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);
+      window.removeEventListener('pointercancel',up);
+      document.body.style.userSelect='';
+    }
+    document.body.style.userSelect='none';
+    window.addEventListener('pointermove',move,{passive:false});
+    window.addEventListener('pointerup',up);
+    window.addEventListener('pointercancel',up);
+  }
+
+  function onThumbDown(e){
+    e.preventDefault(); e.stopPropagation();
+    try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
+    dragFrom(e,sb.top);
+  }
+  // Pressing the empty track jumps the thumb under the finger, then drags.
+  function onTrackDown(e){
+    const tr=trackRef.current, el=boxRef.current; if(!tr||!el||!sb.show) return;
+    e.preventDefault(); e.stopPropagation();
+    const rect=tr.getBoundingClientRect();
+    const maxTop=Math.max(1,tr.clientHeight-sb.h);
+    const nt=Math.min(maxTop,Math.max(0,e.clientY-rect.top-sb.h/2));
+    el.scrollTop=(el.scrollHeight-el.clientHeight)*(nt/maxTop);
+    dragFrom(e,nt);
+  }
+
+  const pad=props.trackInset||6;
+  return React.createElement("div",{style:{position:"relative",flex:1,minHeight:0,display:"flex",flexDirection:"column"}},
+    React.createElement("div",{ref:boxRef,onScroll:sync,className:"tg-scrollbox",
+      style:Object.assign({flex:1,minHeight:0,overflowY:"auto",overscrollBehavior:"contain",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"},props.style||{})},
+      props.children),
+    React.createElement("div",{ref:trackRef,onPointerDown:onTrackDown,
+      style:{position:"absolute",top:pad,bottom:pad,right:3,width:10,borderRadius:6,
+        background:sb.show?"rgba(255,255,255,.05)":"transparent",
+        opacity:sb.show?1:0,pointerEvents:sb.show?"auto":"none",
+        touchAction:"none",transition:"opacity .2s"}},
+      React.createElement("div",{onPointerDown:onThumbDown,
+        style:{position:"absolute",left:1,width:8,height:sb.h,top:sb.top,borderRadius:5,
+          background:T.TXD||"rgba(255,255,255,.34)",opacity:.55,cursor:"grab",touchAction:"none"},
+        onMouseEnter:function(e){e.currentTarget.style.opacity=".85";},
+        onMouseLeave:function(e){e.currentTarget.style.opacity=".55";}})));
+}
+
 function Root(){
   return React.createElement(App,null);
 }
@@ -6982,7 +7077,7 @@ function App(){
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0,minHeight:30}},
           React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2,minWidth:0,position:"relative"}},
             React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
-              React.createElement("div",{className:"suite-title",style:{whiteSpace:"nowrap"}},"Tony's TaskHub"),
+              React.createElement("div",{className:"suite-title th-wordmark",style:{whiteSpace:"nowrap"}},"Tony's TaskHub"),
               React.createElement("button",{type:"button",onClick:()=>{localStorage.setItem("td6_mainDash","tony");window._updateMainDashBtn&&window._updateMainDashBtn();},id:"th-setmain-btn",onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=localStorage.getItem("td6_mainDash")==="tony"?T.AC:T.BD;},style:{background:"transparent",color:localStorage.getItem("td6_mainDash")==="tony"?T.ACL:T.AC,border:"1px solid "+(localStorage.getItem("td6_mainDash")==="tony"?T.AC:T.BD),borderRadius:4,fontSize:10,fontWeight:800,padding:"0 10px",height:"28px",boxSizing:"border-box",cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:0.5,whiteSpace:"nowrap",transition:"all .2s"}},localStorage.getItem("td6_mainDash")==="tony"?"Main":"Set as main")),
             React.createElement("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?T.TXM:syncStatus==="error"?T.ERR:T.GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"Sync failed":"Synced")),
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}})),
@@ -7012,7 +7107,7 @@ function App(){
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"clamp(14px,3vw,20px) clamp(16px,4vw,28px)",borderBottom:"1px solid "+T.BD,flexShrink:0,background:T.BG,borderRadius:"12px 12px 0 0"}},
           React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:"clamp(15px,1.6vw,18px)",fontWeight:700,color:T.TX,letterSpacing:0.3}},"All Quotes"),
           React.createElement("button",{type:"button",onClick:()=>setTgShowAll(false),style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:5,cursor:"pointer",padding:"4px 12px",color:T.TXD,fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s",flexShrink:0},onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXD;}},"×")),
-        React.createElement("div",{style:{flex:1,overflowY:"auto",overscrollBehavior:"contain",WebkitOverflowScrolling:"touch",padding:"0 clamp(16px,4vw,28px)",boxSizing:"border-box"}},
+        React.createElement(TgScrollBox,{theme:T,trackInset:8,style:{padding:"0 clamp(22px,4vw,34px) 0 clamp(16px,4vw,28px)",boxSizing:"border-box"}},
           TONY_INSPIRE.map((q,i)=>React.createElement("div",{key:i,style:{padding:"clamp(12px,2vw,16px) 0",borderBottom:"1px solid "+T.BD,display:"flex",flexDirection:"column",gap:6}},
             React.createElement("p",{style:{fontFamily:"var(--font-accent)",fontSize:"clamp(13px,1.3vw,15px)",color:T.TX,lineHeight:1.65,margin:0}},"\u201c"+q.text+"\u201d"),
             React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:11,color:T.TXD,letterSpacing:0.3,alignSelf:"flex-end"}},"— "+q.author)))),
@@ -7051,7 +7146,10 @@ function App(){
         React.createElement("button",{type:"button",title:weekCollapsed?"Expand week":"Collapse week",onClick:toggleWeekCollapsed,style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,color:T.TXM,cursor:"pointer",padding:"3px 8px",display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:0.3,transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},
           React.createElement("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0,transform:weekCollapsed?"rotate(180deg)":"none",transition:"transform .2s"},dangerouslySetInnerHTML:{__html:TNI.arrowUp}}),
           weekCollapsed?"Expand":"Collapse")),
-      React.createElement("div",{style:weekCollapsed?{maxHeight:"clamp(240px,42vh,460px)",overflowY:"auto",overflowX:"hidden",paddingRight:4}:null},
+      // Same box geometry in both states — only maxHeight changes. Staying a scroll
+      // container with a stable gutter is what stops the week jumping sideways by the
+      // scrollbar's width each time it's collapsed or expanded.
+      React.createElement("div",{style:{maxHeight:weekCollapsed?"clamp(240px,42vh,460px)":"none",overflowY:"auto",overflowX:"hidden",paddingRight:4,scrollbarGutter:"stable"}},
       (isMobile||(isNarrow&&narrowSingleDay))?
         // ── Mobile/narrow: day-tab strip + single day card ──
         React.createElement("div",null,
@@ -12366,7 +12464,8 @@ function App(){
         RC("button",{type:"button",title:weekCollapsed?"Expand week":"Collapse week",onClick:toggleWeekCollapsed,style:{background:"transparent",border:"1px solid "+BD,borderRadius:4,color:TXM,cursor:"pointer",padding:"3px 8px",display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,fontFamily:"inherit",letterSpacing:0.3,transition:"all .15s",textTransform:"none"},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;e.currentTarget.style.color=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BD;e.currentTarget.style.color=TXM;}},
           RC("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0,transform:weekCollapsed?"rotate(180deg)":"none",transition:"transform .2s"},dangerouslySetInnerHTML:{__html:TNI.arrowUp}}),
           weekCollapsed?"Expand":"Collapse")),
-      RC("div",{style:weekCollapsed?{maxHeight:"clamp(240px,42vh,460px)",overflowY:"auto",overflowX:"hidden",paddingRight:4}:null},
+      // Same box geometry in both states (see Tony's TaskHub for the reasoning).
+      RC("div",{style:{maxHeight:weekCollapsed?"clamp(240px,42vh,460px)":"none",overflowY:"auto",overflowX:"hidden",paddingRight:4,scrollbarGutter:"stable"}},
       (vrMobile||(vrNarrow&&vrNarrowSingleDay))?
         RC("div",null,
           vrNarrow&&vrNarrowSingleDay&&RC("button",{type:"button",onClick:()=>setVrNarrowSingleDay(false),style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+BD,borderRadius:5,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",display:"inline-block",marginBottom:8}},"← Back to week"),
@@ -21160,6 +21259,12 @@ window.hideBrainstormJournal = function() {
 #tj-root input, #tj-root textarea, #tj-root [contenteditable] { caret-color: var(--purple); }
 #tj-root .veda-hdr-inner { margin: 0 auto; }
 #tj-root #tj-nav-header { flex-shrink: 0; background: var(--bg); }
+/* That strip holds only the light/dark toggles, which are hidden suite-wide for
+   Tony — so it was reserving ~51px of empty band between the app nav and the
+   journal on desktop, and standing in as the nav spacer on mobile. Collapse it
+   whenever it has nothing to render; #tj-root's padding-top clears the app nav in
+   both layouts (see the mobile block below). */
+#tj-root #tj-nav-header:not(:has(#tj-nav-btns > *)):not(:has(#tj-nav-row2 > *)) { display: none; }
 /* Push entire TJ layout below the floating tony-app-nav bar */
 #tj-root { padding-top: 48px; background: var(--bg); }
 #tj-nav-btns::-webkit-scrollbar { display: none; }
@@ -22265,8 +22370,9 @@ window.hideBrainstormJournal = function() {
      main fills 100% width. No flex-direction juggling needed. */
   #tj-root {
     position: fixed !important;
-    /* Safe area handled at root level only */
-    padding-top: env(safe-area-inset-top, 0px);
+    /* Safe area handled at root level only. The +48px clears the fixed app nav —
+       the empty nav strip used to do that job before it was collapsed. */
+    padding-top: calc(env(safe-area-inset-top, 0px) + 48px);
     padding-bottom: 0; /* bottom bar handles its own safe area */
     background: var(--bg);
   }
@@ -33020,7 +33126,8 @@ mcApplyTheme();
   background:rgba(127,127,140,.10);border:1.5px solid var(--thv-border,#33333f);border-radius:11px;padding:12px 13px;
   font-family:inherit;font-size:15px;line-height:1.5;color:var(--thv-text,#f4f3f0);outline:none;transition:border-color .15s;}
 #thv-txt-input:focus{border-color:var(--thv-accent,#e0b874);}
-#thv-txt-input::placeholder{color:var(--thv-mute,#8a8a98);opacity:.85;}
+/* Placeholder sits well behind real input — it is a hint, not content. */
+#thv-txt-input::placeholder{color:var(--thv-mute,#8a8a98);opacity:.5;}
 .thv-txt-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;}
 #thv-txt-status{font-size:11.5px;color:var(--thv-mute,#8a8a98);line-height:1.45;display:flex;align-items:center;gap:7px;min-width:0;}
 #thv-txt-status.err{color:#e89a9a;}
@@ -33594,8 +33701,9 @@ async function sendText(){
   setTimeout(function(){if(!TXT.busy)closeText();},res.truncated?2600:850);
 }
 
-// backdrop click closes; keys are bound once
-document.addEventListener('click',function(e){if(e.target&&e.target.id==='thv-txt-overlay')closeText();});
+// The backdrop deliberately does NOT close this: a half-typed request is easy to
+// lose to a stray click outside the box. Closing is the X (or Escape) only.
+
 document.addEventListener('keydown',function(e){
   if(!TXT.open)return;
   if(e.key==='Escape'){e.preventDefault();closeText();return;}
@@ -38029,6 +38137,9 @@ async function resolveLeagueIds(){
 let _cfg={leagues:[],favorites:[],favLeagues:[],leagueData:{},lastFetch:{}};
 let _mounted=false,_el=null,_pvActive=false;
 let _activeTab='schedule',_activeLeague=null;
+// Schedule sub-view: a league feed carries ~40 upcoming and up to 80 finished
+// matches, so the two live under their own tabs instead of one long scroll.
+let _schedView=(function(){try{return localStorage.getItem('pv_sched_view')==='past'?'past':'upcoming';}catch(_){return 'upcoming';}})();
 let _revealedScores=new Set(),_syncing=false;
 let _favSyncBusy=false; // true while a favorite/unfavorite sync is in flight — locks out concurrent taps
 const _pvUnlocked=true; // always unlocked
@@ -38581,7 +38692,7 @@ function buildSchedule(T,league,ld){
 
   function renderGrouped(list,label){
     if(!list.length) return;
-    wrap.appendChild(secHdr(label));
+    if(label) wrap.appendChild(secHdr(label));
     let lastYr=null;
     list.forEach(ev=>{
       const d=toLT(ev.startTime);
@@ -38592,11 +38703,45 @@ function buildSchedule(T,league,ld){
       wrap.appendChild(matchCard(T,ev,league));
     });
   }
-  if(live.length){wrap.appendChild(secHdr('🔴 Live Now'));live.forEach(e=>wrap.appendChild(matchCard(T,e,league)));}
-  renderGrouped(upcoming,'Upcoming');
-  renderGrouped(past,'Recent Results');
-  if(!live.length&&!upcoming.length&&!past.length)
-    wrap.appendChild(S({fontSize:13,color:T.txd,display:'block',textAlign:'center',padding:'48px 0'},'No matches found for this league.'));
+  const note=txt=>S({fontSize:13,color:T.txd,display:'block',textAlign:'center',padding:'48px 0'},txt);
+
+  if(!live.length&&!upcoming.length&&!past.length){
+    wrap.appendChild(note('No matches found for this league.'));
+    panel.appendChild(wrap);
+    return panel;
+  }
+
+  // ── Upcoming / Past tabs ──────────────────────────────────────────────
+  // Live matches ride along with Upcoming — they are today's games, not history.
+  const tabRow=D({display:'flex',alignItems:'center',gap:6,padding:'12px 0 2px'});
+  const mkTab=(id,label,n)=>{
+    const on=_schedView===id;
+    const b=B({background:on?'rgba(167,139,250,0.14)':'transparent',
+      color:on?T.acl:T.txd,
+      border:'1px solid '+(on?'rgba(167,139,250,0.55)':T.bd),
+      borderRadius:20,padding:'0 14px',height:'30px',fontSize:11,fontWeight:700,
+      letterSpacing:'0.3px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
+      fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",transition:'all .15s'},
+      label+(n?' · '+n:''),
+      ()=>{ if(_schedView===id) return;
+            _schedView=id;
+            try{localStorage.setItem('pv_sched_view',id);}catch(_){}
+            render(); });
+    if(!on) b.className='pv-hglow';
+    return b;
+  };
+  tabRow.appendChild(mkTab('upcoming','Upcoming',live.length+upcoming.length));
+  tabRow.appendChild(mkTab('past','Past matches',past.length));
+  wrap.appendChild(tabRow);
+
+  if(_schedView==='past'){
+    renderGrouped(past,null);
+    if(!past.length) wrap.appendChild(note('No finished matches for this league yet.'));
+  } else {
+    if(live.length){wrap.appendChild(secHdr('🔴 Live Now'));live.forEach(e=>wrap.appendChild(matchCard(T,e,league)));}
+    renderGrouped(upcoming,live.length?'Upcoming':null);
+    if(!live.length&&!upcoming.length) wrap.appendChild(note('No upcoming matches scheduled.'));
+  }
 
   panel.appendChild(wrap);
   return panel;
@@ -41187,11 +41332,12 @@ function renderLinkList(container,profile){
     // lock pill (custom buttons are lockable too)
     var lockId=window._alCustomLockId?window._alCustomLockId(profile,l.id):(profile+'_custom_'+l.id);
     if(window._alRegisterCustom) window._alRegisterCustom(profile,l.id,l.label);
-    var locked=window.alIsLocked&&window.alIsLocked(lockId);
+    var locked=!!(window.alIsLocked&&window.alIsLocked(lockId));
     var pill=document.createElement('button');
     pill.className='thset-pill '+(locked?'locked':'unlocked');
     pill.innerHTML=lockSvg(locked)+'<span>'+(locked?'Locked':'Unlocked')+'</span>';
     pill.title=locked?'Manage lock':'Lock this button';
+    pill.dataset.locked=locked?'1':'0';
     pill.addEventListener('click',function(e){
       e.stopPropagation();
       if(window.alManage) window.alManage(lockId);
@@ -41291,6 +41437,24 @@ function refreshLocks(){
   var c=document.getElementById('thset-locklist');
   if(c) renderLockList(c,_curProfile);
 }
+// Custom-button pills follow the same poll as the program locks so a lock/unlock
+// done in the applock overlay shows here without reopening Settings. Only the
+// pill is touched — re-rendering whole rows would drop an in-progress edit or drag.
+function refreshLinkPills(){
+  if(_overlay.style.display==='none') return;
+  var c=document.getElementById('thset-linklist'); if(!c) return;
+  Array.prototype.slice.call(c.querySelectorAll('.thset-link-row')).forEach(function(row){
+    var id=row.getAttribute('data-link-id'); if(!id) return;
+    var pill=row.querySelector('.thset-pill'); if(!pill) return;
+    var lockId=window._alCustomLockId?window._alCustomLockId(_curProfile,id):(_curProfile+'_custom_'+id);
+    var locked=!!(window.alIsLocked&&window.alIsLocked(lockId));
+    if(pill.dataset.locked===(locked?'1':'0')) return;
+    pill.dataset.locked=locked?'1':'0';
+    pill.className='thset-pill '+(locked?'locked':'unlocked');
+    pill.innerHTML=lockSvg(locked)+'<span>'+(locked?'Locked':'Unlocked')+'</span>';
+    pill.title=locked?'Manage lock':'Lock this button';
+  });
+}
 function refreshLinks(){
   if(_overlay.style.display==='none') return;
   var c=document.getElementById('thset-linklist');
@@ -41334,7 +41498,6 @@ function openSettings(profile){
         '</div>'+
         '<button id="thset-add-btn" class="thset-btn" style="background:'+accent+';color:#fff;">+ Add header button</button>'+
       '</div>'+
-      '<div class="thset-hint">Locks &amp; custom buttons sync live to all your devices.</div>'+
     '</div>';
 
   _box.querySelector('.thset-close').addEventListener('click',closeSettings);
@@ -41356,7 +41519,8 @@ function openSettings(profile){
   _overlay.style.display='flex';
   lockBgScroll();
   clearInterval(_lockPoll);
-  _lockPoll=setInterval(refreshLocks,700); // reflect lock changes made via applock overlay
+  // reflect lock changes made via the applock overlay — programs AND custom buttons
+  _lockPoll=setInterval(function(){ refreshLocks(); refreshLinkPills(); },700);
 }
 
 // ── Background scroll lock (no more scrolling the page behind the modal) ──

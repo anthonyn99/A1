@@ -154,6 +154,10 @@ body:not([data-profile=veda]) .btn.solid{
   background:transparent;color:var(--accent-bright);border-color:var(--accent-line);
 }
 body:not([data-profile=veda]) .btn.solid:hover{border-color:var(--accent);}
+/* Recipes' add button rests on the quiet hairline and earns the full gold ring +
+   glow only under the cursor — a permanently lit outline read as an active state. */
+body:not([data-profile=veda]) .btn.solid.rec-add{border-color:var(--accent-line);box-shadow:none;}
+body:not([data-profile=veda]) .btn.solid.rec-add:hover{border-color:var(--accent);box-shadow:var(--gold-glow);}
 body:not([data-profile=veda]) .btn.ghost{color:var(--textdim);border-color:var(--border);}
 body:not([data-profile=veda]) .btn.ghost:hover{color:var(--text);border-color:var(--textdim);}
 body:not([data-profile=veda]) .btn.danger{color:var(--bad);border-color:rgba(214,138,124,.3);}
@@ -190,7 +194,8 @@ body:not([data-profile=veda]) .wordmark{
 .profile-card:hover{transform:translateY(-4px);box-shadow:0 16px 48px rgba(0,0,0,0.6);}
 .profile-card .emoji{font-size:42px;line-height:1;margin-bottom:0;}
 .profile-card .pname{font-family:'Nunito',sans-serif;font-weight:800;font-size:19px;color:#fff;}
-.profile-card .plock{position:absolute;left:0;right:0;bottom:8px;font-family:'Nunito',sans-serif;font-size:10px;color:#9898a8;line-height:1.2;text-align:center;}
+.profile-card .plock{position:absolute;left:0;right:0;bottom:8px;display:flex;align-items:center;justify-content:center;color:#9898a8;line-height:0;}
+.profile-card .plock svg{width:13px;height:13px;}
 .profile-card .fav-star{position:absolute;top:7px;right:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;
   font-size:22px;color:#41414e;cursor:pointer;transition:all .15s;line-height:1;border-radius:50%;background:rgba(255,255,255,0.03);}
 .profile-card .fav-star:hover{background:rgba(255,255,255,0.08);}
@@ -646,6 +651,10 @@ body[data-profile=veda] .pw-drops{background:rgba(143,174,138,0.09);border-color
    colour here resolves through the profile variables, so the rail, dots and date
    ink come out warm gold for Tony and muted purple for Veda with no per-app
    palette anywhere — the thing the two standalone apps each hard-coded. */
+/* Tony's timeline runs gold on nearly every line — date ink, year label, rail dot
+   and the add button — so it takes a lighter gold than the app accent. Scoped to
+   the Events view via a local --accent, which every rule below already reads. */
+body:not([data-profile=veda]) .ev-view{--accent:#eed3a3;--accent-bright:#eed3a3;--accent-deep:#eed3a3;}
 .ev-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px;}
 .ev-toolbar .ev-search{flex:1;min-width:150px;}
 .ev-toolbar .ev-sort{width:auto;min-width:140px;flex-shrink:0;}
@@ -2057,7 +2066,8 @@ function refreshProfileScreen(){
   var fav = localStorage.getItem('ml_fav_profile');
   ['tony','veda'].forEach(function(p){
     var star=$('fav-'+p); if(star) star.className='fav-star'+(fav===p?' on':'');
-    var lk=$('plock-'+p); if(lk) lk.innerHTML = mlIsLocked(p) ? MLI.lock+'<span>Password protected</span>' : '';
+    // Lock glyph only — the card already reads as protected without the caption.
+    var lk=$('plock-'+p); if(lk){ lk.innerHTML = mlIsLocked(p) ? MLI.lock : ''; lk.title = mlIsLocked(p) ? 'Password protected' : ''; }
   });
 }
 function goProfileSelect(){
@@ -2573,7 +2583,7 @@ function renderRecipesView(){
   h+='<div class="list-head"><div style="flex:1"><div class="ttl" style="font-size:24px">Recipes</div></div>'
     +(recUndoAvailable()?'<button class="btn ghost sm" onclick="ML.recUndo()" title="Undo">'+MLI.undo+'Undo</button>':'')
     +(recRedoAvailable()?'<button class="btn ghost sm" onclick="ML.recRedo()" title="Redo">'+MLI.redo+'Redo</button>':'')
-    +'<button class="btn solid sm" onclick="ML.recOpenAdd()">+ New recipe</button></div>';
+    +'<button class="btn solid sm rec-add" onclick="ML.recOpenAdd()">+ New recipe</button></div>';
   h+='<div class="list-meta">'+recipes.length+' recipe'+(recipes.length!==1?'s':'')+'</div>';
   h+='<div class="rec-toolbar" style="margin-top:12px">'
     +'<input class="rec-search" id="rec-search" placeholder="Search recipes…" oninput="ML.recRerender()">'
@@ -2786,7 +2796,8 @@ function evRowsHtml(){
 }
 function evRerender(){ var el=$('ev-list-rows'); if(el) el.innerHTML=evRowsHtml(); }
 function renderEventsView(){
-  var h='<div class="card">';
+  var h='<div class="ev-view">';
+  h+='<div class="card">';
   h+='<div class="list-head"><div style="flex:1"><div class="ttl" style="font-size:24px">Events</div></div>'
     +'<button class="btn solid sm" onclick="ML.evOpenAdd()">+ New event</button></div>';
   h+='<div class="list-meta">'+events.length+' event'+(events.length!==1?'s':'')+'</div>';
@@ -2798,6 +2809,7 @@ function renderEventsView(){
     +'</select></div>';
   h+='</div>';
   h+='<div id="ev-list-rows">'+evRowsHtml()+'</div>';
+  h+='</div>';
   return h;
 }
 // ── add / edit modal ──

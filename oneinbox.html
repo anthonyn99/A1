@@ -235,6 +235,9 @@ label.fld{display:block;font-size:10.5px;font-weight:600;letter-spacing:1.1px;te
 }
 .lockbox{width:100%;max-width:340px;text-align:center;display:flex;flex-direction:column;gap:11px}
 .lockbox .brand{
+  /* display:block undoes the topbar .brand{display:flex}, which turned this into a
+     flex container and parked the wordmark at flex-start instead of centred. */
+  display:block;text-align:center;
   font-family:var(--suite-display);font-size:30px;font-weight:750;letter-spacing:-.5px;
   color:var(--gold-primary);margin-bottom:-4px;
 }
