@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Launcher</title>
+  <!-- Must run BEFORE <body> is parsed: it restores the saved popup size from
+       localStorage in time for the one layout the browser measures to size the
+       popup window. See the file header. -->
+  <script src="launcher-size.js"></script>
   <style>
     /* ── Veda's palette, lifted from index.html #vd-kc-root so Launcher and the
        Links program are visibly the same product. Webfonts can't be fetched from
@@ -27,24 +31,26 @@
       font-family:var(--mono); -webkit-font-smoothing:antialiased;
     }
     /* ── Popup sizing ─────────────────────────────────────────────────────────
-       TWO elements, two jobs — and they must not be the same element:
+       <html> is the sized element — launcher-size.js sets its width/height, and
+       the browser measures that to size the popup window. Everything below it
+       simply fills it.
 
-         body  is the size REQUEST. It is the only thing left in normal flow, so
-               the browser measures it to decide how big to make the popup.
-         #app  is position:fixed inset:0, so it always covers the window the
-               browser actually gave us, whatever that turns out to be.
+       NOTHING here may be locked to the VIEWPORT. A `position:fixed; inset:0`
+       (or 100vw/100vh) child holds the document's preferred size at the
+       window's current size, so the window can never shrink — the popup could
+       be dragged wider but never narrower again. Percentages of <html> keep the
+       preferred size equal to the REQUEST, which is what lets it shrink.
 
-       Doing both jobs with one element is what left the large empty strip: a
-       popup window grows to fit its document but will NOT reliably shrink back,
-       so dragging the grip smaller shrank #app while the window stayed wide and
-       the leftover area rendered as bare background. With #app pinned to the
-       viewport that gap cannot exist — the layout just reflows into whatever
-       width the window really is, and the smaller request still takes effect on
-       the next open. Browsers cap popups at 800x600, so we stay just under. */
-    html { overflow:hidden; }
-    body { width:352px; height:520px; overflow:hidden; }
+       The default below is only a fallback: launcher-size.js has normally
+       already written the restored size onto <html> before this applies.
+       Browsers cap popups at 800x600, so we stay just under. */
+    html { width:352px; height:520px; overflow:hidden; }
+    /* position:relative makes body the containing block for the rails, the
+       toast and the size badge, so none of them has to be viewport-fixed
+       (which would re-lock the window open — see the note above). */
+    body { width:100%; height:100%; overflow:hidden; position:relative; }
     #app {
-      position:fixed; inset:0;
+      width:100%; height:100%;
       display:flex; flex-direction:column; overflow:hidden;
       /* Reserve the height rail's strip so #scroll's viewport ENDS above it.
          Padding on the scroller itself would not do: it only pads the end of
@@ -75,7 +81,7 @@
        The rails overlay the existing left/bottom padding (≥15px everywhere), so
        they cover no content and cost no layout shift. */
     .rail {
-      position:fixed; z-index:30; touch-action:none;
+      position:absolute; z-index:30; touch-action:none;
       display:flex; align-items:center; justify-content:center;
       background:transparent; transition:background .15s;
     }
@@ -92,6 +98,15 @@
     body.resizing-x, body.resizing-x * { cursor:ew-resize !important; }
     body.resizing-y, body.resizing-y * { cursor:ns-resize !important; }
     body.resizing-x #app, body.resizing-y #app { user-select:none; }
+    #size-badge {
+      position:absolute; left:calc(var(--rail) + 8px); bottom:calc(var(--rail) + 8px);
+      background:var(--s3); border:1px solid var(--bdl); color:var(--tx);
+      font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.5px;
+      font-variant-numeric:tabular-nums;
+      padding:5px 9px; border-radius:5px; pointer-events:none; z-index:35;
+      opacity:0; transition:opacity .12s;
+    }
+    body.resizing-x #size-badge, body.resizing-y #size-badge { opacity:1; }
 
     /* ── Header ── */
     header {
@@ -264,7 +279,7 @@
     .loading { text-align:center; color:var(--txm); font-size:11px; padding:30px 0; letter-spacing:1px; text-transform:uppercase; }
 
     #toast {
-      position:fixed; bottom:14px; left:50%; transform:translateX(-50%) translateY(20px);
+      position:absolute; bottom:14px; left:50%; transform:translateX(-50%) translateY(20px);
       background:var(--s1); border:1px solid var(--bdl); color:var(--ac);
       font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:1px;
       text-transform:uppercase; padding:7px 16px; border-radius:16px;
@@ -284,9 +299,9 @@
        A phone sheet is identified by a coarse pointer AND a narrow viewport,
        which a 352px popup on a desktop never satisfies. */
     @media (pointer:coarse) and (max-width:420px) {
-      /* #app already covers the viewport (position:fixed inset:0); it is the
-         REQUEST on body that has to stop asking for a 352px panel. */
-      body { width:100%; height:100dvh; }
+      /* body and #app already fill <html>; it is the REQUEST on <html> that has
+         to stop asking for a 352px panel. */
+      html { width:100%; height:100dvh; }
       #app { padding-bottom:env(safe-area-inset-bottom,0px); }
       .rail { display:none; }
       /* One full-width column on a phone sheet, whatever --cols says. */
@@ -339,6 +354,10 @@
   </div>
 
   <div id="toast">Copied</div>
+
+  <!-- Live W×H readout while a rail is being dragged. It is the one piece of
+       feedback that is true even if the window lags a frame behind the drag. -->
+  <div id="size-badge" aria-hidden="true"></div>
 
   <div class="rail" id="resize-x" title="Drag left or right to set the width"></div>
   <div class="rail" id="resize-y" title="Drag up or down to set the height"></div>

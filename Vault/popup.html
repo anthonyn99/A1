@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Vault Launcher</title>
+  <!-- Must run BEFORE <body> is parsed: it restores the saved popup size from
+       localStorage in time for the one layout the browser measures to size the
+       popup window. See the file header. -->
+  <script src="vault-size.js"></script>
   <style>
     /* Keychain dark palette (from index.html #kc-root) */
     :root {
@@ -19,24 +23,25 @@
       -webkit-font-smoothing:antialiased;
     }
     /* ── Popup sizing ─────────────────────────────────────────────────────────
-       TWO elements, two jobs — and they must not be the same element:
+       <html> is the sized element — vault-size.js sets its width/height, and
+       the browser measures that to size the popup window. Everything below it
+       simply fills it.
 
-         body  is the size REQUEST. It is the only thing left in normal flow, so
-               the browser measures it to decide how big to make the popup.
-         #app  is position:fixed inset:0, so it always covers the window the
-               browser actually gave us, whatever that turns out to be.
+       NOTHING here may be locked to the VIEWPORT. A `position:fixed; inset:0`
+       (or 100vw/100vh) child holds the document's preferred size at the
+       window's current size, so the window can never shrink — the popup could
+       be dragged wider but never narrower again. Percentages of <html> keep the
+       preferred size equal to the REQUEST, which is what lets it shrink.
 
-       Doing both jobs with one element left a large empty strip: a popup window
-       grows to fit its document but will NOT reliably shrink back, so dragging
-       the grip smaller shrank #app while the window stayed wide and the
-       leftover area rendered as bare background. With #app pinned to the
-       viewport that gap cannot exist — the layout just reflows into whatever
-       width the window really is, and the smaller request still takes effect on
-       the next open. Chrome caps popups at 800x600, so we stay just under. */
-    html { overflow:hidden; }
-    body { width:344px; height:520px; overflow:hidden; }
+       The default below is only a fallback: vault-size.js has normally already
+       written the restored size onto <html> before this stylesheet applies. */
+    html { width:344px; height:520px; overflow:hidden; }
+    /* position:relative makes body the containing block for the rails, the
+       toast and the step-up overlay, so none of them has to be viewport-fixed
+       (which would re-lock the window open — see the note above). */
+    body { width:100%; height:100%; overflow:hidden; position:relative; }
     #app {
-      position:fixed; inset:0;
+      width:100%; height:100%;
       display:flex; flex-direction:column; overflow:hidden;
       /* Reserve the height rail's strip so #scroll's viewport ENDS above it.
          Padding on the scroller itself would not do: it only pads the end of
@@ -66,7 +71,7 @@
        The rails overlay the existing left/bottom padding (≥16px everywhere), so
        they cover no content and cost no layout shift. */
     .rail {
-      position:fixed; z-index:30; touch-action:none;
+      position:absolute; z-index:30; touch-action:none;
       display:flex; align-items:center; justify-content:center;
       background:transparent; transition:background .15s;
     }
@@ -83,6 +88,14 @@
     body.resizing-x, body.resizing-x * { cursor:ew-resize !important; }
     body.resizing-y, body.resizing-y * { cursor:ns-resize !important; }
     body.resizing-x #app, body.resizing-y #app { user-select:none; }
+    #size-badge {
+      position:absolute; left:calc(var(--rail) + 8px); bottom:calc(var(--rail) + 8px);
+      background:var(--s3); border:1px solid var(--bdl); color:var(--tx);
+      font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;
+      padding:5px 9px; border-radius:7px; pointer-events:none; z-index:35;
+      opacity:0; transition:opacity .12s;
+    }
+    body.resizing-x #size-badge, body.resizing-y #size-badge { opacity:1; }
 
     /* ── Header ── */
     header {
@@ -304,7 +317,7 @@
     .pay-exp.warn { color:#e0b874; }
     .pay-exp.bad { color:#d68a7c; }
     /* step-up auth sheet */
-    .pay-overlay { position:fixed; inset:0; background:rgba(0,0,0,.66); display:flex; align-items:center; justify-content:center; z-index:40; padding:14px; }
+    .pay-overlay { position:absolute; inset:0; background:rgba(0,0,0,.66); display:flex; align-items:center; justify-content:center; z-index:40; padding:14px; }
     .pay-modal { background:var(--s1); border:1px solid var(--bdl); border-radius:13px; padding:16px; width:100%; max-width:300px; box-shadow:0 18px 50px var(--shadow); }
     .pay-modal-title { font-size:14px; font-weight:800; color:var(--tx); margin-bottom:4px; }
     .pay-modal-actions { display:flex; gap:6px; }
@@ -373,7 +386,11 @@
     </div>
   </div>
 
-  <div id="toast" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--s3);border:1px solid var(--bdl);color:var(--tx);font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;opacity:0;transition:all .2s;pointer-events:none;z-index:10;">Copied!</div>
+  <div id="toast" style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--s3);border:1px solid var(--bdl);color:var(--tx);font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;opacity:0;transition:all .2s;pointer-events:none;z-index:10;">Copied!</div>
+
+  <!-- Live W×H readout while a rail is being dragged. It is the one piece of
+       feedback that is true even if the window lags a frame behind the drag. -->
+  <div id="size-badge" aria-hidden="true"></div>
 
   <div class="rail" id="resize-x" title="Drag left or right to set the width"></div>
   <div class="rail" id="resize-y" title="Drag up or down to set the height"></div>

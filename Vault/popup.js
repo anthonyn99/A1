@@ -47,37 +47,28 @@ const COL2_MIN = 560;       // px width of #app at/above which we go to 2 column
 const POLL_MS  = 5000;      // live refresh cadence while the popup is open
 const ECHO_MS  = 8000;      // ignore server reads for this long after our own save
 
-// ── Popup size: request vs. reality ──
-// `body` carries the REQUESTED size — Chrome measures it to size the popup
-// window. `#app` is fixed to the viewport and therefore always fills the window
-// we were actually given, which is what stops a window that refuses to shrink
-// from leaving a bare strip beside the content. See the CSS note in popup.html.
+// ── Popup size ──
+// vault-size.js owns this — it already restored the saved size from
+// localStorage before <body> was parsed, so the popup opens at the right size
+// instead of being resized after the fact. Everything here just drives it.
 const appEl = document.getElementById("app");
-const SIZE_KEY = "vault_popup_size";
+const badgeEl = document.getElementById("size-badge");
 const REORDER_KEY = "vault_reorder_mode";
-const MIN_W = 300, MAX_W = 780, MIN_H = 240, MAX_H = 590;
-let reqW = 344, reqH = 520;
 
-function requestSize(w, h) {
-  reqW = Math.round(Math.max(MIN_W, Math.min(MAX_W, w)));
-  reqH = Math.round(Math.max(MIN_H, Math.min(MAX_H, h)));
-  document.body.style.width  = reqW + "px";
-  document.body.style.height = reqH + "px";
-}
-
-// Column count for the REAL window width, not the width we asked for.
+// Column count from the laid-out content width.
 function colCount() {
   return appEl.offsetWidth >= COL2_MIN ? 2 : 1;
 }
 
-chrome.storage.local.get([SIZE_KEY, REORDER_KEY], (d) => {
-  const s = d && d[SIZE_KEY];
-  if (s && s.w && s.h) requestSize(s.w, s.h);
+chrome.storage.local.get([VaultSize.KEY, REORDER_KEY], (d) => {
+  // Only used when localStorage had nothing — a size saved by an older build,
+  // or a profile whose localStorage was cleared. Normally a no-op.
+  if (VaultSize.adoptStored(d && d[VaultSize.KEY])) render();
+
   // Reorder is sticky: leave it on and the grips are there next time.
   setReorder(!!(d && d[REORDER_KEY]), false);
 
-  // #app is pinned to the viewport, so observing it observes the REAL popup
-  // window. Re-flow into 1 or 2 columns whenever that actually changes.
+  // Re-flow into 1 or 2 columns whenever the content box actually changes.
   new ResizeObserver(() => {
     if (colCount() !== lastCols && connections.length) render();
   }).observe(appEl);
@@ -85,24 +76,35 @@ chrome.storage.local.get([SIZE_KEY, REORDER_KEY], (d) => {
 
 // ── Resize rails: one per axis ──
 // Width is dragged from the LEFT rail and height from the BOTTOM rail because
-// those are the popup's free edges — see the CSS note in popup.html. Dragging
-// the left rail LEFT widens (the left edge follows the pointer); dragging the
-// bottom rail DOWN heightens.
+// those are the popup's free edges — it hangs below the toolbar icon, so its
+// top and right edges are pinned by the browser and cannot move. Drag the left
+// rail LEFT to widen, the bottom rail DOWN to heighten; each edge travels
+// exactly as far as the pointer, so the handle stays under the cursor.
 //
 // Deltas are INCREMENTAL: each move adjusts the size we last asked for, rather
 // than re-deriving it from where the drag began. An absolute baseline keeps
 // accumulating past the clamp, so dragging well beyond the maximum and then
-// back left the popup frozen until the pointer had travelled all the way back;
-// per-frame deltas reverse the instant the pointer does. Screen coordinates
-// (not client) because the popup window re-anchors as it resizes.
+// back left the popup frozen until the pointer had travelled all the way back.
+// Screen coordinates (not client) because the window re-anchors as it resizes.
+//
+// The size is saved on EVERY frame of the drag, not on release. A popup
+// dismisses the moment it loses focus, and a rail drag routinely ends with the
+// pointer outside the popup — so a release-only save silently lost the new size
+// and the popup reopened at the old one.
+function showBadge() {
+  badgeEl.textContent = VaultSize.w + " × " + VaultSize.h;
+}
+
 function makeRail(el, axis) {
   let drag = null, raf = 0, next = null;
 
   const flush = () => {
     raf = 0;
     if (!next) return;
-    requestSize(next.w, next.h);
+    VaultSize.apply(next.w, next.h);
     next = null;
+    showBadge();
+    VaultSize.save();
   };
 
   el.addEventListener("pointerdown", (e) => {
@@ -111,6 +113,7 @@ function makeRail(el, axis) {
     drag = { sx: e.screenX, sy: e.screenY };
     el.classList.add("active");
     document.body.classList.add("resizing-" + axis);
+    showBadge();
     try { el.setPointerCapture(e.pointerId); } catch (_) {}
   });
 
@@ -118,7 +121,7 @@ function makeRail(el, axis) {
     if (!drag) return;
     // Accumulate onto any pending frame, so a burst of moves inside one frame
     // isn't collapsed down to just the last delta.
-    const base = next || { w: reqW, h: reqH };
+    const base = next || { w: VaultSize.w, h: VaultSize.h };
     next = axis === "x"
       ? { w: base.w - (e.screenX - drag.sx), h: base.h }
       : { w: base.w, h: base.h + (e.screenY - drag.sy) };
@@ -133,11 +136,32 @@ function makeRail(el, axis) {
     flush();
     el.classList.remove("active");
     document.body.classList.remove("resizing-" + axis);
-    chrome.storage.local.set({ [SIZE_KEY]: { w: reqW, h: reqH } });
-    try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+    VaultSize.save(true);
+    reconcile();
+    try { el.releasePointerCapture(e && e.pointerId); } catch (_) {}
   };
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
+  el.addEventListener("lostpointercapture", end);
+}
+
+// After a drag, re-assert the requested size once. Popup auto-sizing follows a
+// growing document eagerly and a shrinking one lazily, and a second assertion
+// settles the lag.
+//
+// It deliberately does NOT fall back to adopting the window's own size when the
+// window doesn't come down. That was tried and it is actively wrong: any moment
+// the window sits wider than the request — which is the whole symptom being
+// fixed — adopting would snap the size back up AND save it, so a shrink could
+// never stick. The request always wins; if the window trails for a frame that
+// is cosmetic, and the next open is laid out from the saved value anyway.
+function reconcile() {
+  afterFrames(2, () => VaultSize.apply(VaultSize.w, VaultSize.h));
+}
+
+function afterFrames(n, fn) {
+  const step = () => (--n <= 0 ? fn() : requestAnimationFrame(step));
+  requestAnimationFrame(step);
 }
 
 makeRail(document.getElementById("resize-x"), "x");
