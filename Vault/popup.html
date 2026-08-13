@@ -204,11 +204,22 @@
     #app.reorder .col:empty {
       border:1.5px dashed rgba(224,184,116,.25); border-radius:9px; min-height:56px;
     }
+    /* Turning Reorder on must not resize a single card. The grip is therefore a
+       ZERO-HEIGHT flex item: align-items:center puts it on the row's centre
+       line and its dots simply overflow (overflow is visible), so it draws
+       normally while contributing nothing to the row's height. Sized as an
+       ordinary item it was taller than the card title and pushed every card
+       down a few px the moment the dots appeared.
+
+       The hit area comes from ::after, which is absolutely positioned and so is
+       likewise free of layout — and it is a bigger, easier target than the dots
+       themselves, which a 0-height box would otherwise make unclickable. */
     .grip {
-      display:none; cursor:grab; color:var(--txm); flex-shrink:0;
-      line-height:0; padding:2px; border-radius:3px; touch-action:none;
-      user-select:none; transition:color .12s;
+      display:none; position:relative; cursor:grab; color:var(--txm);
+      flex-shrink:0; line-height:0; height:0; padding:0 2px;
+      touch-action:none; user-select:none; transition:color .12s;
     }
+    .grip::after { content:''; position:absolute; inset:-10px -6px; border-radius:4px; }
     #app.reorder .grip { display:inline-flex; align-items:center; justify-content:center; }
     .grip:hover { color:var(--txd); }
     .grip:active { cursor:grabbing; }
