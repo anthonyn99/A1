@@ -15194,27 +15194,56 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 #plans-root.pl-veda .pl-title{font-family:'Playfair Display',serif;font-size:22px;font-weight:900;
   color:var(--pl-ac);letter-spacing:1px;text-transform:uppercase;line-height:1;}
 .pl-who{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--pl-txm);border:1px solid var(--pl-bd);border-radius:999px;padding:3px 10px;white-space:nowrap;font-family:var(--pl-mono);}
-.pl-creed{font-size:12px;line-height:1.5;color:var(--pl-txm);background:var(--pl-s3);border:1px solid var(--pl-bd);border-left:3px solid var(--pl-ac);border-radius:10px;padding:10px 12px;margin:10px 0 18px;}
-.pl-creed b{color:var(--pl-tx);font-weight:800;}
-.pl-sec{margin-bottom:22px;}
-.pl-sec-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--pl-txm);margin-bottom:9px;font-family:var(--pl-mono);}
-.pl-count{background:var(--pl-bd);color:var(--pl-tx);border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center;}
+/* The standing agreement is a reference line, not an alert — no box, just a
+   quiet accent rule. The bordered card competed with the plan cards below it. */
+.pl-creed{font-size:12px;line-height:1.55;color:var(--pl-txf);border-left:2px solid var(--pl-ac);
+  padding:1px 0 1px 11px;margin:12px 0 16px;}
+.pl-creed b{color:var(--pl-txd);font-weight:800;}
+.pl-secs{display:flex;flex-direction:column;gap:20px;}
+.pl-sec-h{display:flex;align-items:baseline;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--pl-txm);margin-bottom:9px;font-family:var(--pl-mono);}
+.pl-count{background:var(--pl-ac);color:var(--pl-ac-ink);border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center;font-family:var(--pl-mono);}
 .pl-sub{font-size:11px;color:var(--pl-txf);font-weight:600;text-transform:none;letter-spacing:0;font-family:var(--pl-font);}
-.pl-empty{font-size:12px;color:var(--pl-txf);padding:12px 2px;font-style:italic;}
-.pl-card{background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:10px;padding:12px 13px;margin-bottom:9px;}
-.pl-card.pl-wait{border-color:var(--pl-ac);}
-.pl-card-top{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;}
-.pl-card-t{font-size:14px;font-weight:700;line-height:1.35;word-break:break-word;flex:1;color:var(--pl-tx);}
-.pl-meta{font-size:11px;color:var(--pl-txm);margin-top:5px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;}
-.pl-nodate{color:var(--pl-txf);font-style:italic;}
+/* An empty bucket is one quiet line, not a header + chip + sentence. */
+.pl-sec-none{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:5px 0;
+  border-top:1px solid var(--pl-s2);}
+.pl-none-t{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.1px;
+  color:var(--pl-txf);font-family:var(--pl-mono);}
+.pl-none-m{font-size:11.5px;color:var(--pl-txf);opacity:.72;}
+/* True empty state — replaces four empty section blocks. */
+.pl-blank{text-align:center;padding:38px 18px 30px;border:1px dashed var(--pl-bd);
+  border-radius:12px;margin-top:16px;}
+.pl-blank-t{font-size:15px;font-weight:800;color:var(--pl-txd);margin-bottom:6px;}
+.pl-blank-s{font-size:12.5px;color:var(--pl-txf);line-height:1.5;max-width:340px;margin:0 auto;}
+.pl-card{background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:10px;padding:12px 13px;margin-bottom:8px;}
+.pl-card:last-child{margin-bottom:0;}
+/* The one card class that must catch the eye: something is waiting on you. */
+.pl-card.pl-wait{border-color:var(--pl-ac);box-shadow:inset 3px 0 0 var(--pl-ac);}
+.pl-card-t{font-size:14px;font-weight:700;line-height:1.35;word-break:break-word;color:var(--pl-tx);}
+.pl-meta{font-size:11px;color:var(--pl-txm);margin-top:6px;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;}
+.pl-when{font-family:var(--pl-mono);font-size:11px;font-weight:700;color:var(--pl-ac);
+  letter-spacing:.3px;display:inline-flex;align-items:baseline;gap:6px;}
+.pl-at{color:var(--pl-txm);font-weight:600;}
+.pl-nodate{color:var(--pl-txf);font-weight:600;}
+/* Author reads as a quiet tag rather than another run of prose. The rule before
+   it separates author from date without spending a bullet character. */
+.pl-from{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;
+  color:var(--pl-txf);font-family:var(--pl-mono);padding-left:9px;
+  border-left:1px solid var(--pl-s2);}
+.pl-from::before{content:'from ';opacity:.66;}
 .pl-notes{font-size:12px;color:var(--pl-txd);margin-top:7px;line-height:1.45;white-space:pre-wrap;word-break:break-word;}
 .pl-badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;border-radius:999px;padding:2px 8px;white-space:nowrap;border:1px solid transparent;}
 .pl-b-wait{background:var(--pl-s2);color:var(--pl-txd);border-color:var(--pl-bdl);}
 .pl-b-ok{background:#1E3226;color:#7FCB98;border-color:#2F5540;}
 .pl-b-warn{background:#33291C;color:#D9A863;border-color:#5A472C;}
 .pl-b-bad{background:#33211F;color:#D98A80;border-color:#5A3330;}
-.pl-confirms{font-size:10.5px;color:#7FCB98;margin-top:8px;padding-top:8px;border-top:1px solid var(--pl-s2);line-height:1.6;}
-.pl-confirms span{color:var(--pl-txm);}
+/* Who agreed and when — the artifact this feature exists to produce. Two clear
+   signatures rather than one dense run-on line. */
+.pl-confirms{margin-top:9px;padding-top:9px;border-top:1px solid var(--pl-s2);
+  display:flex;flex-wrap:wrap;gap:4px 18px;}
+.pl-sig{font-size:10.5px;font-weight:700;color:var(--pl-txd);display:inline-flex;
+  align-items:baseline;gap:5px;font-family:var(--pl-mono);}
+.pl-sig span{color:var(--pl-txf);font-weight:600;}
+.pl-tick{color:#7FCB98;font-weight:800;}
 .pl-reason{font-size:11.5px;color:var(--pl-txd);margin-top:6px;padding:7px 9px;background:var(--pl-s3);border-radius:7px;border:1px solid var(--pl-s2);white-space:pre-wrap;word-break:break-word;}
 .pl-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;}
 .pl-btn{background:transparent;color:var(--pl-txd);border:1px solid var(--pl-bdl);border-radius:7px;padding:0 11px;height:29px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;cursor:pointer;font-family:var(--pl-mono);display:inline-flex;align-items:center;gap:5px;transition:all .14s;}
@@ -15225,10 +15254,13 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 .pl-btn-go:hover{filter:brightness(1.12);color:var(--pl-ac-ink);border-color:var(--pl-ac);}
 .pl-btn-no:hover{border-color:#8A4A44;color:#E8A79F;}
 .pl-btn-q{padding:0 9px;font-size:16px;line-height:1;color:var(--pl-txf);}
-.pl-add{width:100%;background:var(--pl-s1);border:1px dashed var(--pl-bdl);border-radius:10px;color:var(--pl-txm);padding:11px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--pl-mono);text-transform:uppercase;letter-spacing:1px;transition:all .14s;}
+.pl-add{width:100%;background:transparent;border:1px dashed var(--pl-bd);border-radius:9px;color:var(--pl-txm);padding:10px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--pl-mono);text-transform:uppercase;letter-spacing:1px;transition:all .14s;margin-bottom:20px;}
 .pl-add:hover{border-color:var(--pl-ac);color:var(--pl-ac);}
-.pl-arch-h{width:100%;background:transparent;border:1px solid var(--pl-s2);border-radius:8px;color:var(--pl-txf);padding:8px 11px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1px;cursor:pointer;font-family:var(--pl-mono);text-align:left;display:flex;justify-content:space-between;align-items:center;}
-.pl-arch-h:hover{color:var(--pl-txm);border-color:var(--pl-bd);}
+.pl-arch{margin-top:20px;}
+.pl-arch-h{width:100%;background:transparent;border:0;border-top:1px solid var(--pl-s2);border-radius:0;color:var(--pl-txf);padding:11px 2px 0;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1px;cursor:pointer;font-family:var(--pl-mono);text-align:left;display:flex;justify-content:space-between;align-items:center;}
+.pl-arch-h:hover{color:var(--pl-txm);}
+.pl-arch-h .pl-count{background:var(--pl-bd);color:var(--pl-txd);}
+.pl-arch-b{margin-top:10px;}
 .pl-ov{position:fixed;inset:0;background:rgba(0,0,0,.66);display:flex;align-items:center;justify-content:center;padding:16px;z-index:600;}
 .pl-modal{background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:calc(100vh - 32px);overflow-y:auto;}
 .pl-modal h3{margin:0 0 12px;font-size:14px;font-weight:800;letter-spacing:.3px;color:var(--pl-tx);}
@@ -15490,8 +15522,11 @@ function card(p,ctx){
   if(p.stage==='dropped')badges+='<span class="pl-badge pl-b-bad">dropped</span>';
   if(p.stage==='done')badges+='<span class="pl-badge pl-b-ok">done</span>';
 
-  const when=p.date?esc(fmtDate(p.date))+(p.time?' · '+esc(fmtTime(p.time)):'')
-                   :'<span class="pl-nodate">no date</span>';
+  // The date is the single most consequential field on a plan, so it leads the
+  // card in the accent colour instead of sitting in a muted run-on line.
+  const when=p.date
+    ?'<span class="pl-when">'+esc(fmtDate(p.date))+(p.time?'<span class="pl-at">'+esc(fmtTime(p.time))+'</span>':'')+'</span>'
+    :'<span class="pl-when pl-nodate">No date</span>';
 
   let acts='';
   const B=(fn,label,cls)=>'<button class="pl-btn'+(cls?' '+cls:'')+'" data-act="'+fn+'" data-id="'+esc(p.id)+'">'+label+'</button>';
@@ -15512,7 +15547,9 @@ function card(p,ctx){
   // The visible record of who agreed and when is the artifact this whole feature
   // exists to produce, so confirmed cards always show both timestamps.
   if(isConfirmed(p)){
-    footer='<div class="pl-confirms">✓ '+esc(NAMES.veda)+' <span>'+esc(fmtWhen(c.veda))+'</span> &nbsp;·&nbsp; ✓ '+esc(NAMES.tony)+' <span>'+esc(fmtWhen(c.tony))+'</span></div>';
+    const sig=(who,at)=>'<span class="pl-sig"><span class="pl-tick">✓</span>'
+      +esc(NAMES[who])+'<span>'+esc(fmtWhen(at))+'</span></span>';
+    footer='<div class="pl-confirms">'+sig('veda',c.veda)+sig('tony',c.tony)+'</div>';
   }
   let reason='';
   if(p.stage==='declined'&&p.declined&&p.declined.reason)
@@ -15523,8 +15560,10 @@ function card(p,ctx){
     reason='<div class="pl-reason"><b>Cancel reason:</b> '+esc(p.cancelReq.reason)+'</div>';
 
   return '<div class="pl-card'+(ctx==='mine'?' pl-wait':'')+'">'
-    +'<div class="pl-card-top"><div class="pl-card-t">'+esc(p.title||'Untitled')+'</div></div>'
-    +'<div class="pl-meta"><span>'+when+'</span><span>·</span><span>from '+esc(NAMES[p.author]||p.author||'?')+'</span>'+badges+'</div>'
+    +'<div class="pl-card-t">'+esc(p.title||'Untitled')+'</div>'
+    +'<div class="pl-meta">'+when
+    +'<span class="pl-from">'+esc(NAMES[p.author]||p.author||'?')+'</span>'
+    +badges+'</div>'
     +(p.notes?'<div class="pl-notes">'+esc(p.notes)+'</div>':'')
     +reason+footer
     +'<div class="pl-acts">'+acts+'</div></div>';
@@ -15552,12 +15591,17 @@ function vedaHeader(w){
     +'</div></div></div></div>';
 }
 
+// An empty section collapses to one muted line. Rendering a full header, a "0"
+// chip and a sentence for every empty bucket is what made the page read as busy
+// while actually saying nothing — four such blocks filled a whole screen.
 function section(title,list,ctx,emptyMsg,sub){
-  let h='<div class="pl-sec"><div class="pl-sec-h">'+esc(title)
+  if(!list.length)return '<div class="pl-sec pl-sec-none"><span class="pl-none-t">'+esc(title)+'</span>'
+    +'<span class="pl-none-m">'+esc(emptyMsg)+'</span></div>';
+  return '<div class="pl-sec"><div class="pl-sec-h">'+esc(title)
     +'<span class="pl-count">'+list.length+'</span>'
-    +(sub?'<span class="pl-sub">'+esc(sub)+'</span>':'')+'</div>';
-  h+=list.length?list.map(p=>card(p,ctx)).join(''):'<div class="pl-empty">'+esc(emptyMsg)+'</div>';
-  return h+'</div>';
+    +(sub?'<span class="pl-sub">'+esc(sub)+'</span>':'')+'</div>'
+    +list.map(p=>card(p,ctx)).join('')
+    +'</div>';
 }
 
 function render(){
@@ -15581,15 +15625,30 @@ function render(){
     +'<span class="pl-who">'+(w?'acting as '+esc(NAMES[w]):'no profile')+'</span></div>';
   h+='<div class="pl-creed">If it is not <b>Confirmed</b> here, it is not a plan. '
     +'Ideas are not commitments — anything in Ideas is still just talk.</div>';
-  h+='<button class="pl-add" data-act="new">+ New idea</button><div style="height:16px"></div>';
-  h+=section('Needs your response',b.mine,'mine','Nothing waiting on you.');
-  h+=section('Confirmed',b.confirmed,'confirmed','Nothing confirmed yet.');
-  h+=section('Proposed',b.proposed,'proposed','Nothing proposed.',w?'waiting on '+NAMES[other(w)]:'');
-  h+=section('Ideas',b.ideas,'ideas','No ideas yet.','not commitments');
-  h+='<div class="pl-sec"><button class="pl-arch-h" data-act="arch"><span>Archive</span>'
-    +'<span class="pl-count">'+b.archive.length+'</span></button>';
-  if(archOpen)h+='<div style="margin-top:9px">'+(b.archive.length?b.archive.map(p=>card(p,'archive')).join(''):'<div class="pl-empty">Archive is empty.</div>')+'</div>';
-  h+='</div></div>';
+  h+='<button class="pl-add" data-act="new">+ New idea</button>';
+  const total=b.mine.length+b.confirmed.length+b.proposed.length+b.ideas.length;
+  if(!total&&!b.archive.length){
+    // Nothing exists at all: say so once. Five empty section headers said the
+    // same thing five times and buried the one control that matters.
+    h+='<div class="pl-blank"><div class="pl-blank-t">No plans yet</div>'
+      +'<div class="pl-blank-s">Add an idea above. It stays an idea until you both confirm it.</div></div>';
+  }else{
+    h+='<div class="pl-secs">';
+    h+=section('Needs your response',b.mine,'mine','nothing waiting on you');
+    h+=section('Confirmed',b.confirmed,'confirmed','nothing confirmed yet');
+    h+=section('Proposed',b.proposed,'proposed','nothing proposed',w?'waiting on '+NAMES[other(w)]:'');
+    h+=section('Ideas',b.ideas,'ideas','no ideas yet','not commitments');
+    h+='</div>';
+    // The Archive only earns a row once something is actually in it.
+    if(b.archive.length){
+      h+='<div class="pl-sec pl-arch"><button class="pl-arch-h" data-act="arch">'
+        +'<span>'+(archOpen?'▾':'▸')+' Archive</span>'
+        +'<span class="pl-count">'+b.archive.length+'</span></button>';
+      if(archOpen)h+='<div class="pl-arch-b">'+b.archive.map(p=>card(p,'archive')).join('')+'</div>';
+      h+='</div>';
+    }
+  }
+  h+='</div>';
   if(modal)h+=modalHtml();
   el.innerHTML=h;
   if(modal){const f=el.querySelector('[data-focus]');if(f)setTimeout(()=>{try{f.focus();}catch(e){}},0);}
