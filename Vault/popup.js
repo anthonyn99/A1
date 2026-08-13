@@ -269,7 +269,7 @@ function buildCard(conn, ci) {
   return card;
 }
 
-function render() {
+function renderList() {
   loadingEl.style.display = "none";
   groupsEl.innerHTML = "";
 
@@ -335,6 +335,20 @@ function render() {
     isEnabled: () => reorderMode,
     onDrop: persistOrder
   });
+}
+
+
+// Rebuilding the list parks the scroller back at the top. A background poll or
+// a column reflow must never do that to someone who has scrolled down, so the
+// offset is captured around the rebuild and put back — clamped, in case the new
+// list is shorter than the old one.
+function render() {
+  const top = scrollEl ? scrollEl.scrollTop : 0;
+  renderList();
+  if (scrollEl && top) {
+    const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+    scrollEl.scrollTop = Math.max(0, Math.min(top, max));
+  }
 }
 
 // ── Reorder → write back to Keychain ─────────────────────────────────────────
@@ -453,11 +467,32 @@ function apply(doc) {
 
 // Don't let a server read stomp a reorder that hasn't round-tripped yet — the
 // same guard vault.html applies to its own Keychain snapshot listener.
+// Key-ORDER-insensitive serialisation. The document round-trips through
+// Firestore's REST shape, whose `mapValue.fields` key order is not guaranteed
+// stable between reads, so a plain JSON.stringify compare reported "changed"
+// for two byte-identical documents. Every false positive rebuilt the list, and
+// rebuilding the list is what threw a scrolled-down user back to the top.
+function stableJson(v) {
+  if (Array.isArray(v)) return "[" + v.map(stableJson).join(",") + "]";
+  if (v && typeof v === "object") {
+    return "{" + Object.keys(v).sort()
+      .map(k => JSON.stringify(k) + ":" + stableJson(v[k])).join(",") + "}";
+  }
+  return JSON.stringify(v);
+}
+
+// True while the user is mid-gesture. A card drag holds live references into
+// the DOM and a rail drag is measuring it, so a poll must not rebuild under
+// either — the next one, five seconds later, will pick the change up.
+function interacting() {
+  return !!document.querySelector(".card-fly") || /resizing-/.test(document.body.className);
+}
+
 function applyRemote(doc) {
   if (Date.now() - lastOwnSaveAt < ECHO_MS) return;
-  const before = JSON.stringify({ c: connections, m: colmap });
-  const after  = JSON.stringify({ c: doc.connections, m: doc.colmap });
-  if (before === after) return;
+  if (interacting()) return;
+  if (stableJson({ c: connections, m: colmap }) ===
+      stableJson({ c: doc.connections, m: doc.colmap })) return;
   apply(doc);
 }
 
