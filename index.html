@@ -4837,6 +4837,7 @@ window.THTS={
     <option value="health">MotionCore</option>
     <option value="keychain">Vault</option>
     <option value="brainstormjournal">MyJournal</option>
+    <option value="plans">Plans</option>
     <option value="proview">ProView</option>
     <option value="warroom">WarRoom</option>
   </select>
@@ -4845,6 +4846,7 @@ window.THTS={
   <button class="tn-btn" data-app="health" onclick="window._tonyNav&&window._tonyNav('health')">MotionCore</button>
   <button class="tn-btn" data-app="keychain" onclick="window._tonyNav&&window._tonyNav('keychain')">Vault</button>
   <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
+  <button class="tn-btn" data-app="plans" onclick="window._tonyNav&&window._tonyNav('plans')">Plans<span data-plans-badge style="display:none;align-items:center;justify-content:center;min-width:15px;height:15px;margin-left:5px;padding:0 4px;border-radius:999px;background:#c8a15f;color:#1a1a1d;font-size:9px;font-weight:800;line-height:1;"></span></button>
   <button class="tn-btn pv-btn" data-app="proview" onclick="window._tonyNav&&window._tonyNav('proview')">ProView</button>
   <button class="tn-btn wr-btn" id="wr-nav-btn" data-app="warroom" onclick="window._wrClick&&window._wrClick()">WarRoom</button>
   <button id="tn-settings-btn" onclick="window._openSettings&&window._openSettings('tony')" title="Settings" style="padding:0 7px;justify-content:center;touch-action:manipulation;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -6350,18 +6352,33 @@ function App(){
   // savedAt of the newest state this device has applied or written; anything older
   // arriving from the cloud is stale and must not repaint the UI (see applyRemote).
   const thLastAppliedRef=useRef(0);
+  // Declared here rather than beside the archiver below because the Plans mirror
+  // reconcile (further down) needs it as a load barrier and would otherwise hit
+  // the temporal dead zone. useRef has no ordering constraint.
+  const fbLoadedRef=useRef(false);
 
-  const fbPush=useCallback(()=>{
+  // bg=true marks an automated (non-user) write — the Plans mirror reconcile.
+  // Those are refused until cloud data has loaded; see window._fbSave.
+  const fbPush=useCallback((bg)=>{
     if(!window._fbSave)return;
-    setSyncStatus("saving");
+    if(!bg)setSyncStatus("saving");
     const payload=buildPayload();
+    if(bg)payload._bg=true;
     // Record our own edit as the newest known state BEFORE the write, so a
     // cache-fallback load landing mid-flight cannot roll the UI back over it.
-    thLastAppliedRef.current=payload.savedAt||Date.now();
+    // A BACKGROUND write must NOT do this before cloud data has landed: stamping
+    // this ref from empty local state makes the genuine cloud document look stale
+    // to applyRemote, which then refuses it and strands the device on empty data.
+    if(!bg||window._thCloudLoaded)thLastAppliedRef.current=payload.savedAt||Date.now();
     window._fbSave(payload);
   },[buildPayload]);
 
   const setData=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.data,next);stateRef.current={...stateRef.current,data:next};fbPush();return next;});},[fbPush]);
+  // Same as setData but flags the write as automated/background, so the Firebase
+  // layer can refuse it before cloud data has loaded. Returning prev unchanged
+  // skips the push entirely — the mirror reconcile runs on every snapshot and
+  // must not cost a write when nothing actually changed.
+  const setDataBg=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;if(next===prev)return prev;saveJ(T_SK.data,next);stateRef.current={...stateRef.current,data:next};fbPush(true);return next;});},[fbPush]);
   const setHabits=useCallback(fn=>{setHabitsState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.habits,next);stateRef.current={...stateRef.current,habits:next};fbPush();return next;});},[fbPush]);
   const setHc=useCallback(fn=>{setHcState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.hc,next);stateRef.current={...stateRef.current,hc:next};fbPush();return next;});},[fbPush]);
   const setMg=useCallback(fn=>{setMgState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.goals,next);stateRef.current={...stateRef.current,goals:next};fbPush();return next;});},[fbPush]);
@@ -6370,12 +6387,22 @@ function App(){
 
   // ── Voice control: undo/redo history (covers BOTH manual edits and AI/voice changes) + button state ──
   const vxHist=useRef({past:[],future:[],base:null,timer:null,applying:false});
-  const vxSnap=useCallback(()=>JSON.stringify({data:stateRef.current.data,habits:stateRef.current.habits,hc:stateRef.current.hc,goals:stateRef.current.goals,monthlyGoals:stateRef.current.monthlyGoals}),[]);
+  // Mirrored Plans items are excluded from undo snapshots. They are owned by
+  // dashboards/plans, so letting them into history means Ctrl+Z "undoes" a plan
+  // and then pushes that stale grid back to Firestore, fighting the reconcile.
+  // Fall back to identity if the Firebase module has not attached its helpers yet
+  // — before it loads there are no mirrored items to strip anyway.
+  const thStripPlanItems=useCallback(d=>window._thStripPlanItems?window._thStripPlanItems(d):(d||{}),[]);
+  const thGraftPlanItems=useCallback((s,l)=>window._thGraftPlanItems?window._thGraftPlanItems(s,l):s,[]);
+  const vxSnap=useCallback(()=>JSON.stringify({data:thStripPlanItems(stateRef.current.data),habits:stateRef.current.habits,hc:stateRef.current.hc,goals:stateRef.current.goals,monthlyGoals:stateRef.current.monthlyGoals}),[thStripPlanItems]);
   const[vxUndo,setVxUndo]=useState(false);
   const[vxRedo,setVxRedo]=useState(false);
   const[vxRec,setVxRec]=useState(false);
   const vxBtns=useCallback(()=>{const h=vxHist.current;setVxUndo(h.past.length>0);setVxRedo(h.future.length>0);},[]);
-  const vxApply=useCallback((s)=>{vxHist.current.applying=true;setDataState(s.data);setHabitsState(s.habits);setHcState(s.hc);setMgState(s.goals);setMgMonthlyState(s.monthlyGoals);stateRef.current={data:s.data,habits:s.habits,hc:s.hc,goals:s.goals,monthlyGoals:s.monthlyGoals,goalPrefs:stateRef.current.goalPrefs};saveJ(T_SK.data,s.data);saveJ(T_SK.habits,s.habits);saveJ(T_SK.hc,s.hc);saveJ(T_SK.goals,s.goals);saveJ(T_SK.mgoals,s.monthlyGoals);fbPush();},[fbPush]);
+  // Snapshots carry no Plans items (see vxSnap), so restoring one must re-graft
+  // the live ones — otherwise an undo silently deletes every mirrored plan from
+  // the grid until the next reconcile puts them back.
+  const vxApply=useCallback((s)=>{vxHist.current.applying=true;const d=thGraftPlanItems(s.data,stateRef.current.data);setDataState(d);setHabitsState(s.habits);setHcState(s.hc);setMgState(s.goals);setMgMonthlyState(s.monthlyGoals);stateRef.current={data:d,habits:s.habits,hc:s.hc,goals:s.goals,monthlyGoals:s.monthlyGoals,goalPrefs:stateRef.current.goalPrefs};saveJ(T_SK.data,d);saveJ(T_SK.habits,s.habits);saveJ(T_SK.hc,s.hc);saveJ(T_SK.goals,s.goals);saveJ(T_SK.mgoals,s.monthlyGoals);fbPush();},[fbPush,thGraftPlanItems]);
   const vxFlush=useCallback(()=>{const h=vxHist.current;clearTimeout(h.timer);const cur=vxSnap();if(h.base!=null&&cur!==h.base){h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();}},[vxSnap,vxBtns]);
   const vxDoUndo=useCallback(()=>{const h=vxHist.current;vxFlush();if(!h.past.length)return false;h.future.push(vxSnap());const prev=h.past.pop();h.base=prev;vxApply(JSON.parse(prev));vxBtns();return true;},[vxFlush,vxSnap,vxApply,vxBtns]);
   const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;h.past.push(vxSnap());const nxt=h.future.pop();h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
@@ -6424,7 +6451,71 @@ function App(){
     localStorage.setItem(T_SK.seeded,"1");localStorage.setItem(T_SK.weekKey,cw);
     if(vxHist&&vxHist.current){vxHist.current.applying=true;vxHist.current.base=null;}
     fbLoadedRef.current=true; // real cloud data is in hand — archiving may now run
+    window._thCloudLoaded=true; // ...and background (Plans mirror) writes are allowed
   },[]);
+
+  // ── Plans mirror — receive ────────────────────────────────────────────────
+  // Confirmed, dated plans from dashboards/plans appear here as ordinary items
+  // tagged _planId. We only ever READ that document; these items reach Firestore
+  // as part of our OWN whole-document save, which is why nothing external has to
+  // write dashboards/main (see the Plans mirror comment in the Firebase layer).
+  //
+  // Reconcile, not merge: dashboards/plans is the sole source of truth for every
+  // _planId item. Anything tagged that it no longer lists was dropped, declined,
+  // reset to proposed, or deleted, and must disappear here too. Tony's OWN tasks
+  // carry no _planId and are never touched.
+  const planMirrorSigRef=useRef(null);
+  useEffect(()=>{
+    // Signature of just the mirrored items, so an unrelated edit to Tony's own
+    // tasks never looks like a mirror change (and vice versa).
+    const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._planId).map(t=>[t._planId,t.title,t.time||"",t.type||""]).sort()]));
+    const apply=(plans)=>{
+      // NEVER reconcile before our own document has loaded from the cloud —
+      // rewriting `data` from empty local state would queue a write of that
+      // emptiness. window._fbSave refuses _bg writes for the same reason; this
+      // is the first of the two barriers.
+      if(!fbLoadedRef.current)return;
+      if(!window._planToItems)return;
+      const items=window._planToItems(plans||{});
+      // Cheap pre-check. setDataBg pushes to Firestore whenever the reducer
+      // returns a NEW object, so we must decide BEFORE calling it or every
+      // snapshot would cost a pointless write — and each write re-triggers the
+      // listener, so the two would ping-pong forever.
+      const incoming=sig(items);
+      if(planMirrorSigRef.current===incoming)return;
+      planMirrorSigRef.current=incoming;
+      setDataBg(prev=>{
+        const next={};
+        // 1. Strip every mirrored item.
+        Object.keys(prev).forEach(dk=>{
+          const kept=(prev[dk]||[]).filter(t=>!(t&&t._planId));
+          if(kept.length)next[dk]=kept;
+        });
+        // 2. Re-add from the mirror. Item ids are derived from the plan id, so
+        //    this is idempotent no matter how many times it runs.
+        Object.keys(items).forEach(dk=>{
+          (next[dk]=next[dk]||[]).push(...items[dk]);
+        });
+        return sig(prev)===sig(next)?prev:next;
+      });
+    };
+    const onPlans=e=>apply(e.detail);
+    window.addEventListener("fb-plans-update",onPlans);
+    // A snapshot may already have landed before this component mounted.
+    if(window._plansLatest)apply(window._plansLatest);
+    // Replay once our own doc has loaded. `apply` no-ops until fbLoadedRef flips,
+    // and the plans listener is edge-triggered — it may never fire again — so
+    // without this poll a deferred reconcile is dropped and plan items simply
+    // never appear. Cheap: it stops on load and apply is signature-guarded.
+    let tries=0;
+    const iv=setInterval(()=>{
+      if(fbLoadedRef.current){
+        clearInterval(iv);
+        if(window._plansLatest)apply(window._plansLatest);
+      } else if(++tries>120) clearInterval(iv);   // ~60s ceiling
+    },500);
+    return()=>{clearInterval(iv);window.removeEventListener("fb-plans-update",onPlans);};
+  },[setDataBg]);
 
   // ── Archive day-keys older than TH_ARCHIVE_YEARS ──────────────────────────
   // Runs once per device per day, 20s after load. Three safety gates, because
@@ -6433,7 +6524,8 @@ function App(){
   //      "pruned" payload that wipes the cloud copy.
   //   2. the archive write must SUCCEED before the live doc is pruned.
   //   3. only day-keys strictly older than the cutoff ever move.
-  const fbLoadedRef=useRef(false);
+  // (fbLoadedRef is declared up beside thLastAppliedRef — the Plans reconcile
+  //  needs it earlier in the component body.)
   const archiveRanRef=useRef(false);
   useEffect(()=>{
     const run=async()=>{
@@ -6745,9 +6837,11 @@ function App(){
   const wd=useMemo(()=>gwk(sel.year,sel.month,sel.day),[sel]);
   const tk=dkey(now.getFullYear(),now.getMonth(),now.getDate());
 
-  const tog=useCallback((k,id)=>{setData(prev=>{const arr=[...(prev[k]||[])];const i=arr.findIndex(t=>t.id===id);if(i>=0)arr[i]={...arr[i],done:!arr[i].done};return {...prev,[k]:arr};});},[setData]);
+  // Mirrored plan items are owned by dashboards/plans — ticking one here would be
+  // reverted by the next reconcile, so refuse it and say why.
+  const tog=useCallback((k,id)=>{const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Plans.');return;}setData(prev=>{const arr=[...(prev[k]||[])];const i=arr.findIndex(t=>t.id===id);if(i>=0)arr[i]={...arr[i],done:!arr[i].done};return {...prev,[k]:arr};});},[setData]);
 
-  const del=useCallback((k,id)=>{setData(prev=>{const item=(prev[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return prev;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const arr=(prev[k]||[]).filter(t=>t.id!==id);const next={...prev};if(!arr.length)delete next[k];else next[k]=arr;return next;});},[setData]);
+  const del=useCallback((k,id)=>{const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Plans to remove it.');return;}setData(prev=>{const item=(prev[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return prev;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const arr=(prev[k]||[]).filter(t=>t.id!==id);const next={...prev};if(!arr.length)delete next[k];else next[k]=arr;return next;});},[setData]);
 
   const delThisOnly=useCallback(()=>{
     if(!delConfirm)return;const{dateKey,itemId,item}=delConfirm;
@@ -7755,6 +7849,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   const MC_DOC_PATH   = "dashboards/motioncore";
   const PV_DOC_PATH      = "dashboards/proview";
   const MC_CAL_PATH      = "dashboards/market_calendar";
+  const PLANS_DOC_PATH   = "dashboards/plans";
 
   // ── TaskHub save cadence ──
   // The debounce coalesces a burst of edits into one write of the whole
@@ -7785,6 +7880,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _mjUnsubscribe  = null;
   let _tjUnsubscribe  = null;
   let _sosMirrorUnsub = null;   // StudyOS → TaskHub task mirror (read-only)
+  let _plansUnsub     = null;   // Plans → both TaskHubs mirror (read-only)
+  let _plansSaveTimer = null;
   let _mcUnsubscribe  = null;
   let _pvUnsubscribe  = null;
   let _alUnsubscribe  = null;
@@ -7965,6 +8062,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
       const payload = _pendingPayload; _pendingPayload = null;
       delete payload._gen;                       // internal only — never persisted
+      delete payload._bg;                        // ditto
       _lastWrittenSavedAt = payload.savedAt || Date.now();
       _thOwnWrites.add(_lastWrittenSavedAt);
       if (_thOwnWrites.size > 50) _thOwnWrites.delete(_thOwnWrites.values().next().value);
@@ -7981,6 +8079,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       return _thSaveInFlight;
     };
     window._fbSave = (payload) => {
+      // An automated write composed before the cloud document has loaded is built
+      // from empty/stale local state by definition. Letting it through would push
+      // that emptiness over the good cloud copy the moment the server-seen gate
+      // opens. The reconcile that produces these already has its own load barrier;
+      // this is the independent second line of defence, mirroring _fbSaveVeda.
+      if (payload && payload._bg && !window._thCloudLoaded) {
+        console.warn('[TaskHub] dropping background write issued before cloud load');
+        return;
+      }
       payload._gen = _fbGen;                     // stamp the generation it was built in
       _pendingPayload = payload;
       _savePending = true;
@@ -8368,6 +8475,185 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
       return v;
     };
+
+    // ── Plans mirror ──────────────────────────────────────────────────────────
+    // Shared commitments live in dashboards/plans, one top-level field per plan
+    // ("p_{id}") exactly like the journal's e_{id}, so two devices editing two
+    // different plans never collide.
+    //
+    // OWNERSHIP IS STRICT, for the same reason StudyOS's is: dashboards/plans is
+    // written ONLY by the Plans section, and BOTH TaskHubs only ever READ it and
+    // reconcile _planId-tagged items into their own grids through their own save
+    // paths. Nothing ever writes a plan field into dashboards/main or vedasdash.
+    // That matters most for Tony: his TaskHub saves with a WHOLE-DOCUMENT setDoc
+    // built from React's own state, so an outside writer's fields are deleted on
+    // his next save — and a write omitting weekKey would wipe his week's habit
+    // checks via the (remote.weekKey!==cw) reset in applyRemote. Pulling instead
+    // of pushing sidesteps all of it: plan items reach his document as ordinary
+    // `data` entries written by his own buildPayload.
+    const plansRef = doc(db, PLANS_DOC_PATH);
+
+    // A plan counts as agreed ONLY when both profiles confirmed. This is the whole
+    // point of the feature, so it is derived here and never trusted from `stage`.
+    const _planIsConfirmed = (p) => !!(p && p.confirms && p.confirms.veda && p.confirms.tony);
+
+    // Coerce a stored record into a shape the UI can reason about without crashing.
+    // Legacy/corrupt records missing `confirms` become a proper empty pair, and a
+    // record claiming stage==="confirmed" without two confirms is structurally
+    // impossible to have produced legitimately — drop it back to proposed.
+    const _planCoerce = (p) => {
+      const c = (p && p.confirms && typeof p.confirms === 'object') ? p.confirms : {};
+      const out = Object.assign({}, p, { confirms: { veda: c.veda || null, tony: c.tony || null } });
+      if (out.stage === 'confirmed' && !_planIsConfirmed(out)) {
+        console.warn('[Plans] corrupt record ' + out.id + ': stage=confirmed without two confirms — treating as proposed');
+        out.stage = 'proposed';
+      }
+      return out;
+    };
+    window._planIsConfirmed = _planIsConfirmed;
+
+    // Derive the TaskHub items a plan set implies. Both TaskHubs call this so they
+    // can never disagree about what "confirmed" means.
+    // The item id is DERIVED from the plan id, never generated — combined with the
+    // strip-then-re-add reconcile below that makes duplicate _planId items across
+    // reloads structurally impossible.
+    window._planToItems = (plans) => {
+      const out = {};
+      Object.keys(plans || {}).forEach(pid => {
+        const p = plans[pid];
+        if (!p || !p.date) return;                                  // undated plans never mirror
+        if (!_planIsConfirmed(p)) return;
+        if (p.stage === 'dropped' || p.stage === 'declined') return;
+        const it = {
+          id: 'plan_' + p.id,
+          _planId: p.id,
+          type: p.time ? 'event' : 'task',
+          title: p.title || 'Plan',
+          category: 'personal',
+          done: false
+        };
+        if (p.time) it.time = p.time;
+        (out[p.date] = out[p.date] || []).push(it);
+      });
+      return out;
+    };
+
+    // Undo-history helpers, shared by both TaskHubs. Mirrored items are owned by
+    // dashboards/plans and must stay out of history: without the strip, Ctrl+Z
+    // "undoes" a plan and pushes that stale grid back; without the graft, undo
+    // restoring a stripped snapshot would delete every live plan item.
+    // Mirrored plan items are read-only inside both TaskHubs: the Plans document
+    // owns them, so a tick or a delete here would simply be undone by the next
+    // reconcile. Say so instead of letting the change silently revert.
+    window._planReadOnlyNudge = (() => {
+      let el = null, t = null;
+      return (msg) => {
+        try {
+          if (!el) {
+            el = document.createElement('div');
+            el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:2147483600;background:#26272A;color:#E8E8EA;border:1px solid #3D3E43;border-radius:10px;padding:10px 14px;font:600 12px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.45);pointer-events:none;opacity:0;transition:opacity .15s;max-width:min(420px,calc(100vw - 32px));text-align:center;';
+            document.body.appendChild(el);
+          }
+          el.textContent = msg || 'This is a shared plan — manage it in Plans.';
+          el.style.opacity = '1';
+          clearTimeout(t);
+          t = setTimeout(() => { if (el) el.style.opacity = '0'; }, 2600);
+        } catch (e) {}
+      };
+    })();
+
+    window._thStripPlanItems = (d) => {
+      const out = {};
+      Object.keys(d || {}).forEach(dk => {
+        const kept = (d[dk] || []).filter(t => !(t && t._planId));
+        if (kept.length) out[dk] = kept;
+      });
+      return out;
+    };
+    window._thGraftPlanItems = (stripped, live) => {
+      const out = {};
+      Object.keys(stripped || {}).forEach(dk => { out[dk] = (stripped[dk] || []).slice(); });
+      Object.keys(live || {}).forEach(dk => {
+        (live[dk] || []).forEach(t => {
+          if (t && t._planId) (out[dk] = out[dk] || []).push(t);
+        });
+      });
+      return out;
+    };
+
+    if (_plansUnsub) { _plansUnsub(); _plansUnsub = null; }
+    // includeMetadataChanges + an explicit fromCache drop, for the same reason the
+    // vedasdash and studyos_mirror listeners do it — a cached snapshot carries no
+    // news and its arrival ordering on a cold open is what causes phantom reverts.
+    _plansUnsub = onSnapshot(plansRef, { includeMetadataChanges: true }, (snap) => {
+      // A doc that does not exist yet must still publish an empty set, otherwise
+      // _plansLatest stays undefined forever and neither TaskHub can ever REMOVE
+      // stale _planId items left in its grid by a previous session.
+      if (!snap.exists()) {
+        window._plansLatest = {};
+        window.dispatchEvent(new CustomEvent("fb-plans-update", { detail: {} }));
+        return;
+      }
+      if (snap.metadata && snap.metadata.fromCache) return;
+      const d = snap.data() || {};
+      const plans = {};
+      Object.keys(d).forEach(k => {
+        if (k.indexOf('p_') !== 0) return;
+        const p = d[k];
+        if (p && typeof p === 'object' && p.id) plans[p.id] = _planCoerce(p);
+      });
+      window._plansLatest = plans;
+      window.dispatchEvent(new CustomEvent("fb-plans-update", { detail: plans }));
+    }, (err) => { console.warn('[Plans] onSnapshot error:', err && err.code); });
+
+    window._fbLoadPlans = async () => {
+      try {
+        const snap = await _freshGet(plansRef);
+        if (!snap || !snap.exists()) return {};
+        const d = snap.data() || {};
+        const plans = {};
+        Object.keys(d).forEach(k => {
+          if (k.indexOf('p_') !== 0) return;
+          const p = d[k];
+          if (p && typeof p === 'object' && p.id) plans[p.id] = _planCoerce(p);
+        });
+        window._plansLatest = plans;
+        return plans;
+      } catch (e) {
+        console.warn('[Plans] load failed:', e && e.code);
+        return {};
+      }
+    };
+
+    // Field-level write: only this plan's key is touched, so a device editing a
+    // different plan is never overwritten. _bjSanitize is mandatory — the plan
+    // shape is full of nullable fields and Firestore rejects null in nested maps.
+    window._fbSavePlan = (planId, planObj) => {
+      if (!planId || !planObj) return Promise.resolve();
+      return _fbUpsert(plansRef, {
+        ['p_' + planId]: _bjSanitize(planObj),
+        savedAt: Date.now()
+      }, 'Plan save').then(() => {
+        window.dispatchEvent(new CustomEvent("fb-plans-saved"));
+      }).catch(e => {
+        console.error('[Plans] save failed:', e && e.code, e && e.message);
+        window.dispatchEvent(new CustomEvent("fb-plans-error"));
+      });
+    };
+
+    // Raw updateDoc, matching the journal's delete: removing a field from a
+    // document that does not exist is a no-op, so no upsert is wanted here.
+    window._fbDeletePlan = (planId) => {
+      if (!planId) return Promise.resolve();
+      return _fbWriteRetry(() => updateDoc(plansRef, {
+        ['p_' + planId]: deleteField(),
+        savedAt: Date.now()
+      }), 'Plan delete').catch(e => {
+        console.error('[Plans] delete failed:', e && e.code);
+        window.dispatchEvent(new CustomEvent("fb-plans-error"));
+      });
+    };
+
 
     // Extract inline data: images from an HTML string into their own docs. The
     // bj-fbimg:// placeholder is written ONLY after the image is confirmed saved
@@ -9509,6 +9795,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_mjUnsubscribe)  { _mjUnsubscribe();  _mjUnsubscribe  = null; }
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
     if (_sosMirrorUnsub) { _sosMirrorUnsub(); _sosMirrorUnsub = null; }
+    if (_plansUnsub)     { _plansUnsub();     _plansUnsub     = null; }
     if (_mcUnsubscribe)  { _mcUnsubscribe();  _mcUnsubscribe  = null; }
     if (_pvUnsubscribe)  { _pvUnsubscribe();  _pvUnsubscribe  = null; }
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
@@ -10296,7 +10583,7 @@ window.thDragList = function(listEl, getArr, setArr, onDrop, accentColor, placeh
 'use strict';
 // ── Universal Veda navigation ────────────────────────────────────────────────
 window._vedaNav=function(target){
-  ['task-view','vd-kc-root','bj-root','tj-root','root'].forEach(function(id){
+  ['task-view','vd-kc-root','bj-root','tj-root','root','plans-root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   if(window._vedaCloseGita)window._vedaCloseGita();
@@ -10309,6 +10596,12 @@ window._vedaNav=function(target){
   if(target==='links'){
     var vdkc=document.getElementById('vd-kc-root');
     if(vdkc){vdkc.style.display='block';if(typeof vdkc_applyTheme==='function')vdkc_applyTheme();}
+    return;
+  }
+  // Like 'links': Plans is its own fixed root, so it returns BEFORE the
+  // veda-root background/theme reset below ever runs.
+  if(target==='plans'){
+    if(window._plansShow)window._plansShow();
     return;
   }
   var vedaRoot=document.getElementById('veda-root');
@@ -11978,12 +12271,16 @@ function App(){
 
   // ── Voice control: undo/redo history (covers BOTH manual edits and AI/voice changes) + button state ──
   const vxHist=useRef({past:[],future:[],base:null,timer:null,applying:false});
-  const vxSnap=useCallback(()=>JSON.stringify({data:vdRef.current.data,habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,monthlyGoals:vdRef.current.monthlyGoals}),[]);
+  // See Tony's vxSnap: mirrored Plans items are owned by dashboards/plans and
+  // must stay out of undo history, and a restored snapshot must re-graft them.
+  const vdStripPlanItems=useCallback(d=>window._thStripPlanItems?window._thStripPlanItems(d):(d||{}),[]);
+  const vdGraftPlanItems=useCallback((s,l)=>window._thGraftPlanItems?window._thGraftPlanItems(s,l):s,[]);
+  const vxSnap=useCallback(()=>JSON.stringify({data:vdStripPlanItems(vdRef.current.data),habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,monthlyGoals:vdRef.current.monthlyGoals}),[vdStripPlanItems]);
   const[vxUndo,setVxUndo]=useState(false);
   const[vxRedo,setVxRedo]=useState(false);
   const[vxRec,setVxRec]=useState(false);
   const vxBtns=useCallback(()=>{const h=vxHist.current;setVxUndo(h.past.length>0);setVxRedo(h.future.length>0);},[]);
-  const vxApply=useCallback((s)=>{vxHist.current.applying=true;setDataState(s.data);setHabitsState(s.habits);setHcState(s.hc);setMgState(s.goals);setMgMonthlyState(s.monthlyGoals);vdRef.current={data:s.data,habits:s.habits,hc:s.hc,goals:s.goals,monthlyGoals:s.monthlyGoals,goalPrefs:vdRef.current.goalPrefs};saveJ(SK.data,s.data);saveJ(SK.habits,s.habits);saveJ(SK.hc,s.hc);saveJ(SK.goals,s.goals);saveJ(SK.mgoals,s.monthlyGoals);vdFbPush();},[vdFbPush]);
+  const vxApply=useCallback((s)=>{vxHist.current.applying=true;const d=vdGraftPlanItems(s.data,vdRef.current.data);setDataState(d);setHabitsState(s.habits);setHcState(s.hc);setMgState(s.goals);setMgMonthlyState(s.monthlyGoals);vdRef.current={data:d,habits:s.habits,hc:s.hc,goals:s.goals,monthlyGoals:s.monthlyGoals,goalPrefs:vdRef.current.goalPrefs};saveJ(SK.data,d);saveJ(SK.habits,s.habits);saveJ(SK.hc,s.hc);saveJ(SK.goals,s.goals);saveJ(SK.mgoals,s.monthlyGoals);vdFbPush();},[vdFbPush,vdGraftPlanItems]);
   const vxFlush=useCallback(()=>{const h=vxHist.current;clearTimeout(h.timer);const cur=vxSnap();if(h.base!=null&&cur!==h.base){h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();}},[vxSnap,vxBtns]);
   const vxDoUndo=useCallback(()=>{const h=vxHist.current;vxFlush();if(!h.past.length)return false;h.future.push(vxSnap());const prev=h.past.pop();h.base=prev;vxApply(JSON.parse(prev));vxBtns();return true;},[vxFlush,vxSnap,vxApply,vxBtns]);
   const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;h.past.push(vxSnap());const nxt=h.future.pop();h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
@@ -12256,6 +12553,47 @@ function App(){
     return()=>{clearInterval(iv);window.removeEventListener("fb-sosmirror-update",onMirror);};
   },[setDataBg]);
 
+  // ── Plans mirror — receive ────────────────────────────────────────────────
+  // Identical in shape to the StudyOS reconcile above, and for the same reasons:
+  // dashboards/plans is the sole source of truth for every _planId item, we only
+  // ever READ it, and Veda's own tasks (no _planId) are never touched. Tony's
+  // TaskHub runs the very same reconcile against the very same document, so both
+  // grids agree without either app writing into the other's.
+  const planMirrorSigRef=useRef(null);
+  useEffect(()=>{
+    const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._planId).map(t=>[t._planId,t.title,t.time||"",t.type||""]).sort()]));
+    const apply=(plans)=>{
+      if(!fbLoadedRef.current)return;          // see the StudyOS barrier above
+      if(!window._planToItems)return;
+      const items=window._planToItems(plans||{});
+      const incoming=sig(items);
+      if(planMirrorSigRef.current===incoming)return;   // decide BEFORE setDataBg
+      planMirrorSigRef.current=incoming;
+      setDataBg(prev=>{
+        const next={};
+        Object.keys(prev).forEach(dk=>{
+          const kept=(prev[dk]||[]).filter(t=>!(t&&t._planId));
+          if(kept.length)next[dk]=kept;
+        });
+        Object.keys(items).forEach(dk=>{
+          (next[dk]=next[dk]||[]).push(...items[dk]);
+        });
+        return sig(prev)===sig(next)?prev:next;
+      });
+    };
+    const onPlans=e=>apply(e.detail);
+    window.addEventListener("fb-plans-update",onPlans);
+    if(window._plansLatest)apply(window._plansLatest);
+    let tries=0;
+    const iv=setInterval(()=>{
+      if(fbLoadedRef.current){
+        clearInterval(iv);
+        if(window._plansLatest)apply(window._plansLatest);
+      } else if(++tries>120) clearInterval(iv);
+    },500);
+    return()=>{clearInterval(iv);window.removeEventListener("fb-plans-update",onPlans);};
+  },[setDataBg]);
+
   // ── StudyOS task mirror — acknowledge ──────────────────────────────────────
   // Ticking a mirrored task here checks it off in StudyOS. We publish the whole
   // done-map (one boolean per mirrored task) rather than a delta, so a missed
@@ -12275,8 +12613,10 @@ function App(){
   const wd=useMemo(()=>gwk(sel.year,sel.month,sel.day),[sel]);
   const tk=dkey(now.getFullYear(),now.getMonth(),now.getDate());
   // Toggling a mirrored (_sosId) item also pushes the done-state back to StudyOS.
-  const tog=useCallback((k,id)=>{setData(p=>{const it=[...(p[k]||[])];const i=it.findIndex(t=>t.id===id);let mirrored=false;if(i>=0){it[i]={...it[i],done:!it[i].done};mirrored=!!it[i]._sosId;}const next={...p,[k]:it};if(mirrored)sosAck(next);return next;});},[setData,sosAck]);
-  const del=useCallback((k,id)=>{setData(p=>{const item=(p[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return p;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const it=(p[k]||[]).filter(t=>t.id!==id);const n={...p};if(!it.length)delete n[k];else n[k]=it;return n;});},[]);
+  // Plan items are owned by dashboards/plans; a tick here would be reverted by the
+  // next reconcile. (StudyOS items ARE tickable — they have an ack channel back.)
+  const tog=useCallback((k,id)=>{const cur=(vdRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Plans.');return;}setData(p=>{const it=[...(p[k]||[])];const i=it.findIndex(t=>t.id===id);let mirrored=false;if(i>=0){it[i]={...it[i],done:!it[i].done};mirrored=!!it[i]._sosId;}const next={...p,[k]:it};if(mirrored)sosAck(next);return next;});},[setData,sosAck]);
+  const del=useCallback((k,id)=>{const cur=(vdRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Plans to remove it.');return;}setData(p=>{const item=(p[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return p;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const it=(p[k]||[]).filter(t=>t.id!==id);const n={...p};if(!it.length)delete n[k];else n[k]=it;return n;});},[]);
   const delThisOnly=useCallback(()=>{if(!delConfirm)return;const{dateKey,itemId,item}=delConfirm;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(itemId,null,{notifyAt:item.notifyAt});setData(p=>{const it=(p[dateKey]||[]).filter(t=>t.id!==itemId);const n={...p};if(!it.length)delete n[dateKey];else n[dateKey]=it;return n;});setDelConfirm(null);},[delConfirm]);
   const delAllFuture=useCallback(()=>{if(!delConfirm)return;const{dateKey,item}=delConfirm;const rid=item.repeatId||item.altSeqId;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(item.id,item.notifyRepeatId);setData(p=>{const next={...p};const cutoff=new Date(dateKey);Object.keys(next).forEach(k=>{const kd=new Date(k);if(kd>=cutoff){next[k]=(next[k]||[]).filter(t=>t.repeatId!==rid&&t.altSeqId!==rid);if(!next[k].length)delete next[k];}});return next;});setDelConfirm(null);},[delConfirm]);
   const savItem=useCallback((dk2,item,ri)=>{
@@ -12847,7 +13187,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     hideVeda();
     // Also hide Veda sub-programs in case user was in one
-    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root"].forEach(function(id){
+    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","plans-root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -12863,6 +13203,8 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     if(window._updateTonyNavActive)window._updateTonyNavActive('taskhub');
     // Security gate: if TaskHub is locked on this device, hide + prompt
     if(window._alEnforceOnLand)setTimeout(function(){window._alEnforceOnLand('tony_taskhub');},0);
+    // "Needs your response" is per-profile, so the count changes on a switch.
+    if(window._plansRefreshBadges)window._plansRefreshBadges();
   }
 
   function goVeda(){
@@ -12877,7 +13219,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     if(window._hideTonyNav)window._hideTonyNav();
     if(window._vedaCloseGita)window._vedaCloseGita();
-    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root"].forEach(function(id){
+    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","plans-root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -12888,6 +13230,8 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     showVeda();
     // Security gate: if Veda TaskHub is locked on this device, hide + prompt
     if(window._alEnforceOnLand)setTimeout(function(){window._alEnforceOnLand('veda_taskhub');},0);
+    // "Needs your response" is per-profile, so the count changes on a switch.
+    if(window._plansRefreshBadges)window._plansRefreshBadges();
   }
 
   let _who=null;
@@ -14810,6 +15154,581 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 
 </div><!-- end vd-kc-root -->
 
+<!-- ── PLANS ─────────────────────────────────────────────────────────────────
+     Shared commitments with a two-sided confirm. Deliberately neutral-toned:
+     it belongs to BOTH profiles, so it borrows neither Tony's gold nor Veda's
+     purple. Standalone root + vanilla JS, like Veda Links above, so the two
+     profiles see the identical section from the identical code. -->
+<style>
+#plans-root{position:fixed;inset:0;display:none;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;background:#1a1a1d;color:#E8E8EA;font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+#plans-root *{box-sizing:border-box;}
+.pl-wrap{max-width:760px;margin:0 auto;padding:18px 16px calc(64px + env(safe-area-inset-bottom,0px));}
+.pl-hdr{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.pl-title{font-size:19px;font-weight:800;letter-spacing:.4px;margin:0;}
+.pl-who{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9A9BA1;border:1px solid #3D3E43;border-radius:999px;padding:3px 10px;white-space:nowrap;}
+.pl-creed{font-size:12px;line-height:1.5;color:#9A9BA1;background:#212226;border:1px solid #3D3E43;border-left:3px solid #6E7076;border-radius:10px;padding:10px 12px;margin:10px 0 18px;}
+.pl-creed b{color:#D6D7DB;font-weight:800;}
+.pl-sec{margin-bottom:22px;}
+.pl-sec-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#9A9BA1;margin-bottom:9px;}
+.pl-count{background:#3D3E43;color:#E8E8EA;border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center;}
+.pl-sub{font-size:11px;color:#76777C;font-weight:600;text-transform:none;letter-spacing:0;}
+.pl-empty{font-size:12px;color:#76777C;padding:12px 2px;font-style:italic;}
+.pl-card{background:#26272A;border:1px solid #3D3E43;border-radius:10px;padding:12px 13px;margin-bottom:9px;}
+.pl-card.pl-wait{border-color:#5A5C64;}
+.pl-card-top{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;}
+.pl-card-t{font-size:14px;font-weight:700;line-height:1.35;word-break:break-word;flex:1;}
+.pl-meta{font-size:11px;color:#9A9BA1;margin-top:5px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;}
+.pl-nodate{color:#76777C;font-style:italic;}
+.pl-notes{font-size:12px;color:#AFB0B5;margin-top:7px;line-height:1.45;white-space:pre-wrap;word-break:break-word;}
+.pl-badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;border-radius:999px;padding:2px 8px;white-space:nowrap;border:1px solid transparent;}
+.pl-b-wait{background:#2E2F34;color:#B9BABF;border-color:#4A4B52;}
+.pl-b-ok{background:#1E3226;color:#7FCB98;border-color:#2F5540;}
+.pl-b-warn{background:#33291C;color:#D9A863;border-color:#5A472C;}
+.pl-b-bad{background:#33211F;color:#D98A80;border-color:#5A3330;}
+.pl-confirms{font-size:10.5px;color:#7FCB98;margin-top:8px;padding-top:8px;border-top:1px solid #303135;line-height:1.6;}
+.pl-confirms span{color:#9A9BA1;}
+.pl-reason{font-size:11.5px;color:#AFB0B5;margin-top:6px;padding:7px 9px;background:#212226;border-radius:7px;border:1px solid #303135;white-space:pre-wrap;word-break:break-word;}
+.pl-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;}
+.pl-btn{background:transparent;color:#C9CACE;border:1px solid #4A4B52;border-radius:7px;padding:0 11px;height:29px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;transition:all .14s;}
+.pl-btn:hover{border-color:#6E7076;color:#fff;}
+.pl-btn-go{background:#2F5540;border-color:#2F5540;color:#CFEFDA;}
+.pl-btn-go:hover{background:#376449;border-color:#43795A;color:#fff;}
+.pl-btn-no:hover{border-color:#8A4A44;color:#E8A79F;}
+.pl-btn-q{padding:0 9px;font-size:16px;line-height:1;color:#76777C;}
+.pl-add{width:100%;background:#26272A;border:1px dashed #4A4B52;border-radius:10px;color:#9A9BA1;padding:11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .14s;}
+.pl-add:hover{border-color:#6E7076;color:#E8E8EA;}
+.pl-arch-h{width:100%;background:transparent;border:1px solid #303135;border-radius:8px;color:#76777C;padding:8px 11px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1px;cursor:pointer;font-family:inherit;text-align:left;display:flex;justify-content:space-between;align-items:center;}
+.pl-arch-h:hover{color:#9A9BA1;border-color:#3D3E43;}
+.pl-ov{position:fixed;inset:0;background:rgba(0,0,0,.66);display:flex;align-items:center;justify-content:center;padding:16px;z-index:60;}
+.pl-modal{background:#26272A;border:1px solid #3D3E43;border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:calc(100vh - 32px);overflow-y:auto;}
+.pl-modal h3{margin:0 0 12px;font-size:14px;font-weight:800;letter-spacing:.3px;}
+.pl-modal label{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#9A9BA1;margin:11px 0 5px;}
+.pl-in{width:100%;background:#1F2023;border:1px solid #3D3E43;border-radius:8px;color:#E8E8EA;padding:9px 10px;font-size:13px;font-family:inherit;}
+.pl-in:focus{outline:none;border-color:#6E7076;}
+textarea.pl-in{min-height:74px;resize:vertical;line-height:1.45;}
+.pl-row2{display:flex;gap:9px;}
+.pl-row2>div{flex:1;min-width:0;}
+.pl-modal-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
+.pl-warn{font-size:12px;line-height:1.5;color:#D9A863;background:#2A2118;border:1px solid #5A472C;border-radius:8px;padding:10px 11px;margin-bottom:4px;}
+.pl-err{font-size:11.5px;color:#D98A80;margin-top:7px;min-height:14px;}
+@media(max-width:560px){.pl-wrap{padding:14px 12px calc(64px + env(safe-area-inset-bottom,0px));}.pl-row2{flex-direction:column;gap:0;}}
+</style>
+<div id="plans-root"></div>
+
+<script>
+(function(){
+'use strict';
+// ── Plans ───────────────────────────────────────────────────────────────────
+// Every shared commitment gets ONE home with an explicit two-sided confirm.
+// Nothing counts as a plan unless BOTH profiles pressed confirm in the app.
+//
+// This is NOT authentication. Profiles are a chooser with an optional local
+// password, so "tony confirmed" means "someone using the tony profile pressed
+// confirm". That is enough for two people who trust each other and is not
+// proof — do not build anything on top of this that assumes otherwise.
+const PEOPLE=['veda','tony'];
+const NAMES={veda:'Veda',tony:'Tony'};
+
+let plans={};          // id -> plan record
+// Ids the server has confirmed it holds. Until an id is acked, its absence from
+// a snapshot means "our write has not landed yet", not "it was deleted".
+let acked={};
+// Ids we deleted locally, so a snapshot still carrying them cannot resurrect it.
+// Cleared once the snapshot agrees the plan is gone.
+let deleted={};
+let archOpen=false;
+let modal=null;        // {mode,...} while a dialog is open
+let booted=false;
+
+const root=()=>document.getElementById('plans-root');
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+
+// The acting profile. null on the chooser screen — every mutating action checks
+// this, so a stray call can never be attributed to the wrong person.
+function me(){return window._activeProfile==='veda'?'veda':(window._activeProfile==='tony'?'tony':null);}
+function other(w){return w==='veda'?'tony':'veda';}
+function isConfirmed(p){return !!(p&&p.confirms&&p.confirms.veda&&p.confirms.tony);}
+
+function fmtDate(d){
+  if(!d)return null;
+  const parts=String(d).split('-');
+  if(parts.length!==3)return d;
+  const dt=new Date(+parts[0],+parts[1]-1,+parts[2]);
+  if(isNaN(dt))return d;
+  return dt.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+}
+function fmtWhen(ms){
+  if(!ms)return '';
+  const dt=new Date(ms);
+  if(isNaN(dt))return '';
+  return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+dt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+}
+function fmtTime(t){
+  if(!t)return '';
+  const m=String(t).split(':');
+  if(m.length<2)return t;
+  let h=+m[0];const ap=h>=12?'PM':'AM';h=h%12||12;
+  return h+':'+m[1]+' '+ap;
+}
+
+// Normalise anything we read, so a legacy or half-written record renders instead
+// of throwing. Mirrors _planCoerce in the Firebase layer.
+function coerce(p){
+  const c=(p&&p.confirms&&typeof p.confirms==='object')?p.confirms:{};
+  const out=Object.assign({},p,{confirms:{veda:c.veda||null,tony:c.tony||null}});
+  if(out.stage==='confirmed'&&!isConfirmed(out)){
+    console.warn('[Plans] corrupt record '+out.id+': confirmed without two confirms — showing as proposed');
+    out.stage='proposed';
+  }
+  return out;
+}
+
+function save(p){
+  p.updatedAt=Date.now();
+  plans[p.id]=p;
+  render();
+  if(window._fbSavePlan)window._fbSavePlan(p.id,p);
+}
+function removePlan(id){
+  delete plans[id];
+  // Remember the deletion: a snapshot already in flight still carries this plan,
+  // and without this the merge in ingest() would bring it straight back.
+  deleted[id]=Date.now();
+  delete acked[id];
+  render();
+  if(window._fbDeletePlan)window._fbDeletePlan(id);
+}
+
+// ── Lifecycle ───────────────────────────────────────────────────────────────
+function addIdea(title,notes,date,time){
+  const w=me();if(!w)return;
+  const now=Date.now();
+  save({id:uid(),title:title,notes:notes||'',author:w,stage:'idea',
+    date:date||null,time:time||null,proposedBy:null,proposedAt:null,
+    confirms:{veda:null,tony:null},cancelReq:null,declined:null,
+    createdAt:now,updatedAt:now});
+}
+
+// Either person may promote any idea, including one the other wrote. There is no
+// gate here on purpose — the confirm step IS the gate. Proposing implies your own
+// consent, so it sets your confirm and only yours.
+function promote(id){
+  const w=me();if(!w)return;
+  const p=plans[id];if(!p)return;
+  p.stage='proposed';p.proposedBy=w;p.proposedAt=Date.now();
+  p.confirms={veda:null,tony:null};p.confirms[w]=Date.now();
+  p.declined=null;
+  save(p);
+}
+
+// The other person agrees. stage becomes 'confirmed' ONLY when both keys are set
+// — never from a single action. That structural two-sidedness is what makes a
+// one-sided "confirmed" plan impossible to manufacture.
+function confirmPlan(id){
+  const w=me();if(!w)return;
+  const p=plans[id];if(!p)return;
+  p.confirms=p.confirms||{veda:null,tony:null};
+  p.confirms[w]=Date.now();
+  if(isConfirmed(p))p.stage='confirmed';
+  save(p);
+}
+
+function declinePlan(id,reason){
+  const w=me();if(!w)return;
+  const p=plans[id];if(!p)return;
+  p.stage='declined';
+  p.declined={by:w,reason:reason||'',at:Date.now()};
+  p.confirms={veda:null,tony:null};
+  p.cancelReq=null;
+  save(p);
+}
+
+function restorePlan(id){
+  const p=plans[id];if(!p)return;
+  p.stage='idea';p.declined=null;p.cancelReq=null;
+  p.confirms={veda:null,tony:null};
+  p.proposedBy=null;p.proposedAt=null;
+  save(p);
+}
+
+// Cancelling a confirmed plan is symmetric with confirming it: one person files
+// a request, the plan STAYS confirmed (and its TaskHub items stay put) until the
+// other agrees. A second request from the other party IS that agreement.
+function requestCancel(id,reason){
+  const w=me();if(!w)return;
+  const p=plans[id];if(!p)return;
+  if(p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==w){agreeCancel(id);return;}
+  p.cancelReq={by:w,reason:reason||'',at:Date.now()};
+  save(p);
+}
+function withdrawCancel(id){
+  const w=me();if(!w)return;
+  const p=plans[id];if(!p)return;
+  if(!p.cancelReq||p.cancelReq.by!==w)return;   // only the requester withdraws
+  p.cancelReq=null;save(p);
+}
+function agreeCancel(id){
+  const p=plans[id];if(!p)return;
+  p.stage='dropped';save(p);
+}
+function markDone(id){
+  const p=plans[id];if(!p)return;
+  p.stage='done';save(p);
+}
+
+// A plan confirmed for Saturday that silently becomes a plan for Tuesday is the
+// original problem wearing a disguise. So editing title/date/time on a CONFIRMED
+// plan clears both confirms and drops it back to proposed, re-setting only the
+// editor's. Editing notes alone never resets.
+function isMaterialEdit(p,t,d,tm){
+  return p.title!==t||(p.date||null)!==(d||null)||(p.time||null)!==(tm||null);
+}
+function applyEdit(id,t,notes,d,tm){
+  const w=me();if(!w)return;
+  const p=plans[id];if(!p)return;
+  const material=isMaterialEdit(p,t,d,tm);
+  p.title=t;p.notes=notes||'';p.date=d||null;p.time=tm||null;
+  if(material&&(p.stage==='confirmed'||isConfirmed(p))){
+    p.confirms={veda:null,tony:null};p.confirms[w]=Date.now();
+    p.stage='proposed';p.proposedBy=w;p.proposedAt=Date.now();
+    p.cancelReq=null;
+  }
+  save(p);
+}
+
+// Deleting a CONFIRMED plan needs the same two-sided flow as cancelling — one
+// person cannot unilaterally erase something both agreed to. Everything else
+// (ideas, proposed, archived) either person may delete outright.
+function deleteReq(id){
+  const p=plans[id];if(!p)return;
+  if(p.stage==='confirmed'&&isConfirmed(p)){
+    openModal({mode:'cancel',id:id,del:true});
+    return;
+  }
+  openModal({mode:'confirmDelete',id:id});
+}
+
+// ── Buckets ─────────────────────────────────────────────────────────────────
+function bucket(){
+  const w=me();
+  const all=Object.keys(plans).map(k=>plans[k]).filter(Boolean);
+  const byDate=(a,b)=>{
+    const ad=a.date||'9999-99-99',bd=b.date||'9999-99-99';
+    if(ad!==bd)return ad<bd?-1:1;
+    return (a.createdAt||0)-(b.createdAt||0);
+  };
+  const newest=(a,b)=>(b.updatedAt||0)-(a.updatedAt||0);
+  const conf=all.filter(p=>p.stage==='confirmed'&&isConfirmed(p));
+  return {
+    // Awaiting MY confirm, plus confirmed plans where the OTHER person asked to
+    // cancel and it is now my call.
+    mine:all.filter(p=>w&&p.stage==='proposed'&&p.confirms&&!p.confirms[w])
+        .concat(conf.filter(p=>w&&p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==w))
+        .sort(byDate),
+    confirmed:conf.sort(byDate),
+    proposed:all.filter(p=>w&&p.stage==='proposed'&&p.confirms&&p.confirms[w]).sort(byDate),
+    ideas:all.filter(p=>p.stage==='idea').sort(newest),
+    archive:all.filter(p=>p.stage==='declined'||p.stage==='dropped'||p.stage==='done').sort(newest)
+  };
+}
+
+// Nav badge count — how many things are genuinely waiting on the active profile.
+function waitingCount(){try{return bucket().mine.length;}catch(e){return 0;}}
+window._plansWaitingCount=waitingCount;
+
+// ── Render ──────────────────────────────────────────────────────────────────
+function card(p,ctx){
+  const w=me();
+  const c=p.confirms||{veda:null,tony:null};
+  let badges='';
+  if(ctx==='confirmed'&&p.cancelReq)
+    badges+='<span class="pl-badge pl-b-warn">cancel requested by '+esc(NAMES[p.cancelReq.by]||p.cancelReq.by)+'</span>';
+  if(ctx==='proposed'&&w)
+    badges+='<span class="pl-badge pl-b-wait">waiting on '+esc(NAMES[other(w)])+'</span>';
+  if(p.stage==='declined'&&p.declined)
+    badges+='<span class="pl-badge pl-b-bad">declined by '+esc(NAMES[p.declined.by]||p.declined.by)+'</span>';
+  if(p.stage==='dropped')badges+='<span class="pl-badge pl-b-bad">dropped</span>';
+  if(p.stage==='done')badges+='<span class="pl-badge pl-b-ok">done</span>';
+
+  const when=p.date?esc(fmtDate(p.date))+(p.time?' · '+esc(fmtTime(p.time)):'')
+                   :'<span class="pl-nodate">no date</span>';
+
+  let acts='';
+  const B=(fn,label,cls)=>'<button class="pl-btn'+(cls?' '+cls:'')+'" data-act="'+fn+'" data-id="'+esc(p.id)+'">'+label+'</button>';
+  if(ctx==='mine'){
+    if(p.stage==='proposed'){acts=B('confirm','Confirm','pl-btn-go')+B('decline','Decline','pl-btn-no')+B('edit','Edit');}
+    else{acts=B('agreeCancel','Agree — drop it','pl-btn-no')+B('keep','Keep the plan');}
+  } else if(ctx==='confirmed'){
+    acts=B('done','Mark done')+(p.cancelReq&&p.cancelReq.by===w?B('withdraw','Withdraw cancel'):B('cancel','Request cancel','pl-btn-no'))+B('edit','Edit');
+  } else if(ctx==='proposed'){
+    acts=B('edit','Edit')+B('decline','Withdraw','pl-btn-no');
+  } else if(ctx==='ideas'){
+    acts=B('promote','Propose','pl-btn-go')+B('edit','Edit')+B('del','Delete','pl-btn-no');
+  } else {
+    acts=B('restore','Restore to ideas')+B('del','Delete','pl-btn-no');
+  }
+
+  let footer='';
+  // The visible record of who agreed and when is the artifact this whole feature
+  // exists to produce, so confirmed cards always show both timestamps.
+  if(isConfirmed(p)){
+    footer='<div class="pl-confirms">✓ '+esc(NAMES.veda)+' <span>'+esc(fmtWhen(c.veda))+'</span> &nbsp;·&nbsp; ✓ '+esc(NAMES.tony)+' <span>'+esc(fmtWhen(c.tony))+'</span></div>';
+  }
+  let reason='';
+  if(p.stage==='declined'&&p.declined&&p.declined.reason)
+    reason='<div class="pl-reason"><b>Reason:</b> '+esc(p.declined.reason)+'</div>';
+  else if(p.cancelReq&&p.cancelReq.reason&&(ctx==='mine'||ctx==='confirmed'))
+    reason='<div class="pl-reason"><b>Cancel reason:</b> '+esc(p.cancelReq.reason)+'</div>';
+  else if(p.stage==='dropped'&&p.cancelReq&&p.cancelReq.reason)
+    reason='<div class="pl-reason"><b>Cancel reason:</b> '+esc(p.cancelReq.reason)+'</div>';
+
+  return '<div class="pl-card'+(ctx==='mine'?' pl-wait':'')+'">'
+    +'<div class="pl-card-top"><div class="pl-card-t">'+esc(p.title||'Untitled')+'</div></div>'
+    +'<div class="pl-meta"><span>'+when+'</span><span>·</span><span>from '+esc(NAMES[p.author]||p.author||'?')+'</span>'+badges+'</div>'
+    +(p.notes?'<div class="pl-notes">'+esc(p.notes)+'</div>':'')
+    +reason+footer
+    +'<div class="pl-acts">'+acts+'</div></div>';
+}
+
+function section(title,list,ctx,emptyMsg,sub){
+  let h='<div class="pl-sec"><div class="pl-sec-h">'+esc(title)
+    +'<span class="pl-count">'+list.length+'</span>'
+    +(sub?'<span class="pl-sub">'+esc(sub)+'</span>':'')+'</div>';
+  h+=list.length?list.map(p=>card(p,ctx)).join(''):'<div class="pl-empty">'+esc(emptyMsg)+'</div>';
+  return h+'</div>';
+}
+
+function render(){
+  const el=root();
+  if(!el||el.style.display==='none')return;
+  // Capture whatever is typed before the DOM is thrown away. render() is called
+  // by remote snapshots too, so without this an incoming update from the other
+  // person would silently wipe the form the user is filling in.
+  if(modal&&modal.mode==='edit'&&el.querySelector('#pl-f-title'))modal.draft=readEdit();
+  const w=me();
+  const b=bucket();
+  let h='<div class="pl-wrap">';
+  h+='<div class="pl-hdr"><h1 class="pl-title">Plans</h1>'
+    +'<span class="pl-who">'+(w?'acting as '+esc(NAMES[w]):'no profile')+'</span></div>';
+  h+='<div class="pl-creed">If it is not <b>Confirmed</b> here, it is not a plan. '
+    +'Ideas are not commitments — anything in Ideas is still just talk.</div>';
+  h+='<button class="pl-add" data-act="new">+ New idea</button><div style="height:16px"></div>';
+  h+=section('Needs your response',b.mine,'mine','Nothing waiting on you.');
+  h+=section('Confirmed',b.confirmed,'confirmed','Nothing confirmed yet.');
+  h+=section('Proposed',b.proposed,'proposed','Nothing proposed.',w?'waiting on '+NAMES[other(w)]:'');
+  h+=section('Ideas',b.ideas,'ideas','No ideas yet.','not commitments');
+  h+='<div class="pl-sec"><button class="pl-arch-h" data-act="arch"><span>Archive</span>'
+    +'<span class="pl-count">'+b.archive.length+'</span></button>';
+  if(archOpen)h+='<div style="margin-top:9px">'+(b.archive.length?b.archive.map(p=>card(p,'archive')).join(''):'<div class="pl-empty">Archive is empty.</div>')+'</div>';
+  h+='</div></div>';
+  if(modal)h+=modalHtml();
+  el.innerHTML=h;
+  if(modal){const f=el.querySelector('[data-focus]');if(f)setTimeout(()=>{try{f.focus();}catch(e){}},0);}
+  updateBadges();
+}
+
+// ── Modals ──────────────────────────────────────────────────────────────────
+function openModal(m){modal=Object.assign({err:'',draft:null},m);render();}
+function closeModal(){modal=null;render();}
+
+function modalHtml(){
+  const m=modal;const p=m.id?plans[m.id]:null;
+  let body='',title='',ok='Save';
+  if(m.mode==='edit'){
+    title=m.id?'Edit plan':'New idea';
+    // Prefer anything already typed (m.draft) over the stored record, so a
+    // re-render triggered by a remote update mid-edit does not discard input.
+    const d=m.draft||{};
+    const vT=d.t!==undefined?d.t:(p?p.title:'');
+    const vD=d.d!==undefined?d.d:(p&&p.date?p.date:'');
+    const vTm=d.tm!==undefined?d.tm:(p&&p.time?p.time:'');
+    const vN=d.notes!==undefined?d.notes:(p?p.notes:'');
+    body='<label>Title</label><input class="pl-in" id="pl-f-title" data-focus value="'+esc(vT)+'" maxlength="200" placeholder="What is it?">'
+      +'<div class="pl-row2"><div><label>Date</label><input class="pl-in" id="pl-f-date" type="date" value="'+esc(vD)+'"></div>'
+      +'<div><label>Time</label><input class="pl-in" id="pl-f-time" type="time" value="'+esc(vTm)+'"></div></div>'
+      +'<label>Notes</label><textarea class="pl-in" id="pl-f-notes" maxlength="2000" placeholder="Optional">'+esc(vN)+'</textarea>'
+      +'<div class="pl-err" id="pl-err">'+esc(m.err||'')+'</div>';
+    ok=m.id?'Save':'Add idea';
+  } else if(m.mode==='confirmNoDate'){
+    title='No date set';
+    body='<div class="pl-warn">This plan has no date. Confirming it still records that you both agreed — it just will not appear in either TaskHub until a date is set.</div>';
+    ok='Confirm anyway';
+  } else if(m.mode==='resetWarn'){
+    title='This will reset confirmation';
+    body='<div class="pl-warn">You are changing the title, date or time of a plan you have both confirmed. That clears both confirmations and sends it back to Proposed — '+esc(NAMES[other(me())||'tony'])+' will have to confirm the new version.</div>';
+    ok='Change it anyway';
+  } else if(m.mode==='decline'){
+    title='Decline this plan';
+    body='<label>Reason (optional)</label><textarea class="pl-in" id="pl-f-reason" data-focus maxlength="500" placeholder="Why not?"></textarea>';
+    ok='Decline';
+  } else if(m.mode==='cancel'){
+    const two=p&&p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==me();
+    title=m.del?'Delete a confirmed plan':'Request to cancel';
+    body='<div class="pl-warn">'+(two
+      ?'The other person already asked to cancel this. Agreeing drops the plan and removes it from both TaskHubs.'
+      :'This plan stays Confirmed — and stays in both TaskHubs — until '+esc(NAMES[other(me())||'tony'])+' agrees.')+'</div>'
+      +'<label>Reason (optional)</label><textarea class="pl-in" id="pl-f-reason" data-focus maxlength="500"></textarea>';
+    ok=two?'Agree — drop it':'Send request';
+  } else if(m.mode==='confirmDelete'){
+    title='Delete this plan?';
+    body='<div class="pl-warn">This removes it for both of you. It cannot be undone.</div>';
+    ok='Delete';
+  }
+  return '<div class="pl-ov" data-act="ovclose"><div class="pl-modal" data-stop>'
+    +'<h3>'+esc(title)+'</h3>'+body
+    +'<div class="pl-modal-acts"><button class="pl-btn" data-act="mclose">Cancel</button>'
+    +'<button class="pl-btn pl-btn-go" data-act="mok">'+esc(ok)+'</button></div></div></div>';
+}
+
+function readEdit(){
+  const el=root();
+  const g=id=>{const n=el.querySelector('#'+id);return n?n.value.trim():'';};
+  return {t:g('pl-f-title'),d:g('pl-f-date'),tm:g('pl-f-time'),notes:g('pl-f-notes')};
+}
+
+function modalOk(){
+  const m=modal;if(!m)return;
+  const el=root();
+  if(m.mode==='edit'){
+    const v=readEdit();
+    // A plan with no title cannot be reasoned about later, so it is rejected.
+    // The message is stored on the modal, not just written to the DOM: a remote
+    // snapshot arriving mid-edit re-renders the section and would otherwise wipe
+    // it, leaving the dialog refusing to save with no explanation.
+    if(!v.t){modal.err='A plan needs a title.';modal.draft=v;render();return;}
+    modal.err='';
+    if(!m.id){addIdea(v.t,v.notes,v.d,v.tm);closeModal();return;}
+    const p=plans[m.id];
+    if(p&&(p.stage==='confirmed'||isConfirmed(p))&&isMaterialEdit(p,v.t,v.d,v.tm)&&!m.warned){
+      modal=Object.assign({},m,{mode:'resetWarn',pending:v,warned:true,back:m});render();return;
+    }
+    applyEdit(m.id,v.t,v.notes,v.d,v.tm);closeModal();return;
+  }
+  if(m.mode==='resetWarn'){const v=m.pending;applyEdit(m.id,v.t,v.notes,v.d,v.tm);closeModal();return;}
+  if(m.mode==='confirmNoDate'){confirmPlan(m.id);closeModal();return;}
+  if(m.mode==='decline'){
+    const n=el.querySelector('#pl-f-reason');
+    declinePlan(m.id,n?n.value.trim():'');closeModal();return;
+  }
+  if(m.mode==='cancel'){
+    const n=el.querySelector('#pl-f-reason');
+    requestCancel(m.id,n?n.value.trim():'');closeModal();return;
+  }
+  if(m.mode==='confirmDelete'){removePlan(m.id);closeModal();return;}
+}
+
+// ── Events ──────────────────────────────────────────────────────────────────
+function onClick(e){
+  const el=root();
+  // Scoped to our own subtree: this listener is on document, and the nav buttons
+  // of every other app in the suite also carry data- attributes.
+  if(!el||el.style.display==='none')return;
+  if(!e.target||!e.target.closest||!el.contains(e.target))return;
+  const t=e.target.closest('[data-act]');
+  if(!t||!el.contains(t))return;
+  const act=t.getAttribute('data-act'),id=t.getAttribute('data-id');
+  if(act==='ovclose'){if(e.target.closest('[data-stop]'))return;closeModal();return;}
+  if(act==='mclose'){closeModal();return;}
+  if(act==='mok'){modalOk();return;}
+  if(act==='new'){openModal({mode:'edit'});return;}
+  if(act==='arch'){archOpen=!archOpen;render();return;}
+  if(!id)return;
+  const p=plans[id];if(!p)return;
+  switch(act){
+    case 'promote':promote(id);break;
+    // Warn, do not block, when there is no date.
+    case 'confirm':if(!p.date)openModal({mode:'confirmNoDate',id:id});else confirmPlan(id);break;
+    case 'decline':openModal({mode:'decline',id:id});break;
+    case 'edit':openModal({mode:'edit',id:id});break;
+    case 'cancel':openModal({mode:'cancel',id:id});break;
+    case 'withdraw':withdrawCancel(id);break;
+    case 'agreeCancel':agreeCancel(id);break;
+    case 'keep':withdrawOther(id);break;
+    case 'done':markDone(id);break;
+    case 'restore':restorePlan(id);break;
+    case 'del':deleteReq(id);break;
+  }
+}
+// "Keep the plan" on a cancel request I did not file: clear it. Either party may
+// clear a request they are the counterparty to by declining to agree.
+function withdrawOther(id){const p=plans[id];if(!p)return;p.cancelReq=null;save(p);}
+
+function onKey(e){
+  const el=root();
+  if(!el||el.style.display==='none')return;
+  if(e.key==='Escape'&&modal){e.preventDefault();closeModal();}
+}
+
+// ── Nav badge ───────────────────────────────────────────────────────────────
+function updateBadges(){
+  const n=waitingCount();
+  document.querySelectorAll('[data-plans-badge]').forEach(el=>{
+    el.textContent=n>0?String(n):'';
+    el.style.display=n>0?'inline-flex':'none';
+  });
+}
+// Veda's nav is destroyed and rebuilt on every render, taking the badge spans
+// with it, so the nav module calls this afterwards to refill them.
+window._plansRefreshBadges=updateBadges;
+
+// ── Boot ────────────────────────────────────────────────────────────────────
+// Merge, never replace. A snapshot can legitimately arrive with a plan missing:
+// the doc may not exist yet (we publish {} in that case so stale mirrored items
+// can be cleared), or our own write may not have round-tripped. Replacing local
+// state wholesale would then delete a plan the moment after it was created —
+// so a local record that is newer than the snapshot wins until the echo lands.
+function ingest(map){
+  const next={};
+  Object.keys(map||{}).forEach(k=>{
+    const p=map[k];if(!p||!p.id)return;
+    if(deleted[p.id])return;                // we deleted it; ignore the stale copy
+    next[p.id]=coerce(p);
+  });
+  // Once a deletion is reflected remotely, stop suppressing that id.
+  Object.keys(deleted).forEach(id=>{if(!map||!map[id])delete deleted[id];});
+  Object.keys(plans).forEach(id=>{
+    const mine=plans[id],theirs=next[id];
+    if(!theirs){
+      // Absent remotely. Keep ours only while the write is still in flight;
+      // once the server has acknowledged this id, absence means a real delete.
+      if(!acked[id])next[id]=mine;
+      return;
+    }
+    if((mine.updatedAt||0)>(theirs.updatedAt||0))next[id]=mine;
+  });
+  Object.keys(next).forEach(id=>{if(map&&map[id])acked[id]=true;});
+  plans=next;
+  render();
+}
+window.addEventListener('fb-plans-update',e=>ingest(e.detail||{}));
+
+window._plansShow=function(){
+  const el=root();if(!el)return;
+  ['root','veda-root','task-view','vd-kc-root','bj-root','tj-root','mc-root','pv-root','wr-root']
+    .forEach(id=>{const n=document.getElementById(id);if(n)n.style.display='none';});
+  el.style.display='block';
+  document.body.style.background='#1a1a1d';
+  document.documentElement.style.background='#1a1a1d';
+  if(!booted){
+    booted=true;
+    if(window._plansLatest)ingest(window._plansLatest);
+    else if(window._fbLoadPlans)window._fbLoadPlans().then(m=>ingest(m||{}));
+  }
+  render();
+};
+window._plansHide=function(){const el=root();if(el)el.style.display='none';};
+
+document.addEventListener('click',onClick);
+document.addEventListener('keydown',onKey);
+// Keep the badge live even while the section is closed.
+window.addEventListener('fb-plans-update',updateBadges);
+window.addEventListener('fb-ready',function(){
+  if(window._fbLoadPlans&&!booted)window._fbLoadPlans().then(m=>{if(!booted)ingest(m||{});updateBadges();});
+});
+})();
+</script>
+
 <script>
 (function(){
 'use strict';
@@ -15501,7 +16420,7 @@ window.addEventListener('resize',()=>{
 
 // ── Show / Hide ──
 window._vdkcShow=function(){
-  ['veda-root','bj-root','tj-root','root'].forEach(function(id){
+  ['veda-root','bj-root','tj-root','root','plans-root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   const vdkc=document.getElementById('vd-kc-root');
@@ -20784,7 +21703,7 @@ function _bjPdfSection(label, text) {
 window.showBrainstormJournal = function(caller) {
   window._bjCalledFrom = caller || (document.getElementById('veda-root') && document.getElementById('veda-root').style.display !== 'none' ? 'veda' : 'tony');
   ['root','veda-root','tj-root',
-   'vd-kc-root'].forEach(function(id){
+   'vd-kc-root','plans-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
   var bj = document.getElementById('bj-root');
@@ -26878,7 +27797,7 @@ window._tonyNav = function(app) {
   if(app==='keychain'){ if(window._vaultClick) window._vaultClick(); return; }
   // Hide ALL tony + other app roots before switching
   if(app!=='proview'&&window._pvHide) window._pvHide();
-  ['root','tj-root','veda-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
+  ['root','tj-root','veda-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root','plans-root'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.style.display='none';
   });
   if(app==='taskhub') {
@@ -26894,12 +27813,14 @@ window._tonyNav = function(app) {
     var pvr=document.getElementById('pv-root');
     if(pvr){pvr.style.display='flex';pvr.style.flexDirection='column';}
     if(window._pvMount)window._pvMount();
+  } else if(app==='plans') {
+    if(window._plansShow)window._plansShow();
   }
   window._updateTonyNavActive(app);
 };
 window.showTonyJournal = function() {
   ['root','veda-root','bj-root','mc-root','tradeboard-root',
-   'vd-kc-root'].forEach(function(id){
+   'vd-kc-root','plans-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
   var tj = document.getElementById('tj-root');
@@ -39412,6 +40333,9 @@ var AL_LABELS  = {
   veda_gita:      { label: 'Gita',       profile: 'veda', color: '#8D769A' },
   veda_journal:   { label: 'Journal',    profile: 'veda', color: '#8D769A' },
   veda_links:     { label: 'Links',      profile: 'veda', color: '#8D769A' },
+  // Plans belongs to BOTH profiles — one lock, reachable from either nav, so the
+  // neutral grey rather than either profile's accent.
+  shared_plans:   { label: 'Plans',      profile: 'tony', color: '#9A9BA1' },
   // ── Profile-entry locks (gate the whole Tony / Veda profile, not just one app).
   //    Use the SAME app-lock machinery: worker KV hash, Firebase sync, version bump
   //    → every device must re-enter on set/change. isProfile tweaks overlay copy &
@@ -39604,7 +40528,8 @@ var AL_APP_ROOTS = {
   tony_proview:   ['pv-root'],
   veda_taskhub:   ['veda-root'],
   veda_journal:   ['bj-root'],
-  veda_links:     ['vd-kc-root']
+  veda_links:     ['vd-kc-root'],
+  shared_plans:   ['plans-root']
 };
 
 // Hide an app's content roots immediately (security: never flash locked content).
@@ -39794,11 +40719,13 @@ function alGate(appId, cb, onCancel) {
 // ── NAV MAP ───────────────────────────────────────────────────────────────────
 function alNavAppToId(profile, navApp) {
   var map = {
+    // Plans is ONE app reachable from both navs, so both profiles map to the same
+    // shared_plans id — locking it locks it for both, which is the point.
     tony: { taskhub:'tony_taskhub', tradeboard:'tony_tradehub', health:'tony_health',
             keychain:'tony_keychain', brainstormjournal:'tony_myjournal',
-            proview:'tony_proview', warroom:'tony_warroom' },
+            proview:'tony_proview', warroom:'tony_warroom', plans:'shared_plans' },
     veda: { taskhub:'veda_taskhub', gita:'veda_gita',
-            journal:'veda_journal', links:'veda_links' }
+            journal:'veda_journal', links:'veda_links', plans:'shared_plans' }
   };
   return (map[profile] || {})[navApp] || null;
 }
@@ -40441,12 +41368,13 @@ var TONY_DEFAULT = [
   {app:'health',           label:'MotionCore'},
   {app:'keychain',         label:'Vault'},
   {app:'brainstormjournal',label:'MyJournal'},
+  {app:'plans',            label:'Plans'},
   {app:'proview',          label:'ProView'},
   {app:'warroom',          label:'WarRoom'},
 ];
 var TONY_SELECT_LABELS = {
   taskhub:"Tony's TaskHub", tradeboard:'TradeHub', health:'MotionCore',
-  keychain:'Vault', brainstormjournal:'MyJournal', proview:'ProView', warroom:'WarRoom'
+  keychain:'Vault', brainstormjournal:'MyJournal', plans:'Plans', proview:'ProView', warroom:'WarRoom'
 };
 
 var VEDA_DEFAULT = [
@@ -40454,6 +41382,7 @@ var VEDA_DEFAULT = [
   {app:'gita',     label:'Gita'},
   {app:'journal',  label:'Journal'},
   {app:'links',    label:'Links'},
+  {app:'plans',    label:'Plans'},
 ];
 
 var tonyOrder = TONY_DEFAULT.map(function(x){ return x.app; });
@@ -40760,6 +41689,7 @@ function isVedaNavRow(row){
 var VEDA_ROOT_APP=[
   ['#bj-root',   'journal'],
   ['#vd-kc-root','links'],
+  ['#plans-root','plans'],
 ];
 function vedaAppForRow(row){
   if(!row||!row.closest) return null;
@@ -40769,12 +41699,24 @@ function vedaAppForRow(row){
   return null;
 }
 
+// A nav button's LABEL, ignoring any badge span inside it. Buttons here are
+// recognised by their text, so a badge showing "3" would otherwise turn "Plans"
+// into "Plans3", orphan the button, and get a duplicate appended next to it.
+function vedaBtnLabel(el){
+  var t='';
+  Array.prototype.slice.call(el.childNodes).forEach(function(n){
+    if(n.nodeType===3) t+=n.nodeValue;
+    else if(n.nodeType===1&&!n.hasAttribute('data-plans-badge')) t+=(n.textContent||'');
+  });
+  return t.trim().toUpperCase();
+}
+
 function renderVedaNavIn(row){
   // TaskHub and Gita share #task-view, so they still fall back to the sniff.
   var activeApp=vedaAppForRow(row);
   if(!activeApp) Array.prototype.slice.call(row.children).forEach(function(el){
     if(el.tagName!=='BUTTON') return;
-    var txt=(el.textContent||'').trim().toUpperCase();
+    var txt=vedaBtnLabel(el);
     Object.keys(vedaMap).forEach(function(a){
       if(vedaMap[a].toUpperCase()===txt&&!el.id){
         var bg=el.style.background||'';
@@ -40786,7 +41728,7 @@ function renderVedaNavIn(row){
   Array.prototype.slice.call(row.children).forEach(function(el){
     var isNav=false;
     if(el.tagName==='BUTTON'){
-      var txt=(el.textContent||'').trim().toUpperCase();
+      var txt=vedaBtnLabel(el);
       if(Object.keys(vedaMap).some(function(a){ return vedaMap[a].toUpperCase()===txt; })&&!el.id) isNav=true;
     }
     if(el.id==='vd-dd-trigger') return; // skip old trigger, we re-add below
@@ -40809,6 +41751,15 @@ function renderVedaNavIn(row){
       if(app.indexOf('custom:')===0){ openLink('veda',app.slice(7)); return; }
       if(window._vedaNav) window._vedaNav(app);
     });
+    // Plans carries a count of what is waiting on the active profile. Appended
+    // AFTER textContent is set, because the nav matcher above identifies buttons
+    // by their text — the badge must never become part of it.
+    if(app==='plans'){
+      var bdg=document.createElement('span');
+      bdg.setAttribute('data-plans-badge','');
+      bdg.style.cssText='display:none;align-items:center;justify-content:center;min-width:15px;height:15px;margin-left:5px;padding:0 4px;border-radius:999px;background:#8D769A;color:#1B1C1E;font-size:9px;font-weight:800;line-height:1;';
+      btn.appendChild(bdg);
+    }
     attachVedaDrag(btn,app,row);
     row.appendChild(btn);
   });
@@ -40837,6 +41788,8 @@ function renderAllVedaNavs(){
   injectVedaDropdownCSS();
   updateVedaDropdownLabel();
   recheckOverflow();
+  // The badge spans were just recreated empty — refill them.
+  if(window._plansRefreshBadges) window._plansRefreshBadges();
 }
 
 function updateVedaDropdownLabel(){
