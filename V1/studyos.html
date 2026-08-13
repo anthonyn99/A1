@@ -53,7 +53,7 @@
              app went with them: with no siblings to switch between there is
              nothing for it to disambiguate, so the header is just the title
              and the lock. -->
-        <button class="sos-hbtn icon" id="sos-lock-btn" type="button" title="App Lock">&#128275;</button>
+        <button class="sos-hbtn icon" id="sos-lock-btn" type="button" title="App Lock" aria-label="App Lock"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
       </div>
     </div>
   </div>
@@ -168,7 +168,7 @@
         <!-- LEFT: EXAM COUNTDOWNS -->
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;overflow:hidden">
           <div class="files-panel-header" style="padding:12px 16px">
-            <h3 style="font-size:13px;font-weight:700;flex:1">📅 Exam Countdown</h3>
+            <h3 style="font-size:13px;font-weight:700;flex:1;display:flex;align-items:center;gap:7px"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg><span>Exam Countdown</span></h3>
             <button class="btn" style="padding:4px 10px;font-size:11px" onclick="openAddEvent()">+ Add Exam</button>
           </div>
           <div id="sos-exam-countdown-list" style="padding:0"></div>
@@ -177,7 +177,7 @@
         <!-- RIGHT: PRIORITY QUEUE -->
         <div style="background:var(--bg3);border:1px solid var(--border);border-radius:5px;overflow:hidden">
           <div class="files-panel-header" style="padding:12px 16px">
-            <h3 style="font-size:13px;font-weight:700;flex:1">🎯 Priority Queue</h3>
+            <h3 style="font-size:13px;font-weight:700;flex:1;display:flex;align-items:center;gap:7px"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg><span>Priority Queue</span></h3>
             <span id="sos-pq-sort-label" style="font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:600">urgency × weight</span>
           </div>
           <div id="sos-priority-queue-list" style="padding:0"></div>
@@ -513,7 +513,7 @@
   <div class="modal" id="module-detail-modal" style="width:820px;max-width:96vw;max-height:92vh;overflow-y:auto">
     <div class="modal-title" id="module-detail-title" style="display:flex;align-items:center;gap:8px">
       <span id="module-detail-title-text">Module</span>
-      <button class="btn" id="module-detail-rename-btn" style="padding:2px 8px;font-size:11px" title="Rename" onclick="openRenameModule(_sosCurrentModuleClassId, _sosCurrentModuleId)">✎</button>
+      <button class="btn" id="module-detail-rename-btn" style="padding:2px 8px;font-size:11px" title="Rename" aria-label="Rename" onclick="openRenameModule(_sosCurrentModuleClassId, _sosCurrentModuleId)"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
     </div>
     <div id="module-detail-body"></div>
     <div class="modal-footer">
@@ -582,7 +582,7 @@
           <span class="empty-hint">Click "New Page" to get started</span>
         </div>
         <div id="so-page-area">
-          <div class="bj-drop-zone" id="so-page-drop-zone"><div class="bj-drop-label">📁 Drop files here</div></div>
+          <div class="bj-drop-zone" id="so-page-drop-zone"><div class="bj-drop-label"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
           <div id="so-page-toolbar">
             <select class="pt-select" id="so-pt-block">
               <option value="p">Paragraph</option>
@@ -620,22 +620,22 @@
             <button class="pt-btn" id="so-pt-ul" title="Bullet list">&#8226;&#8212;</button>
             <button class="pt-btn" id="so-pt-ol" title="Numbered list">1.</button>
             <div class="pt-sep"></div>
-            <button class="pt-btn" id="so-pt-alignL" title="Align left">&#8676;</button>
-            <button class="pt-btn" id="so-pt-alignC" title="Center">&#8596;</button>
-            <button class="pt-btn" id="so-pt-alignR" title="Align right">&#8677;</button>
+            <button class="pt-btn" id="so-pt-alignL" title="Align left" aria-label="Align left"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h13"/></svg></button>
+            <button class="pt-btn" id="so-pt-alignC" title="Center" aria-label="Center"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M7 12h10"/><path d="M5 18h14"/></svg></button>
+            <button class="pt-btn" id="so-pt-alignR" title="Align right" aria-label="Align right"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M10 12h10"/><path d="M7 18h13"/></svg></button>
             <div class="pt-sep"></div>
-            <button class="pt-btn" id="so-pt-link" title="Insert link">&#128279;</button>
+            <button class="pt-btn" id="so-pt-link" title="Insert link" aria-label="Insert link"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
             <button class="pt-btn" id="so-pt-hr" title="Divider">&#8213;</button>
-            <button class="pt-btn" id="so-pt-table" title="Insert table">&#9783;</button>
+            <button class="pt-btn" id="so-pt-table" title="Insert table" aria-label="Insert table"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M3 15h18"/><path d="M9 10v10"/><path d="M15 10v10"/></svg></button>
             <button class="pt-btn" id="so-pt-md" title="Render Markdown — convert raw Markdown into formatted text" style="font-weight:700;font-size:11px;">Render Markdown</button>
             <button class="pt-btn" id="so-page-img-btn" title="Insert image / attach file">
-              &#128247;
+              <svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="3.5"/></svg>
               <input type="file" id="so-page-img-file" accept="*/*" multiple>
             </button>
             <div class="pt-sep"></div>
             <div class="pt-hl-wrap" id="so-pt-hl-wrap" title="Highlight text">
               <button class="pt-btn pt-hl-trigger" id="so-pt-hl-trigger" title="Highlight">
-                <span class="pt-hl-icon" id="so-pt-hl-icon">&#9646;</span><span style="font-size:9px;margin-left:1px;">▾</span>
+                <span class="pt-hl-icon" id="so-pt-hl-icon"></span><span class="so-pt-caret" aria-hidden="true"></span>
               </button>
               <div class="pt-hl-palette" id="so-pt-hl-palette">
                 <button class="pt-hl-swatch" data-color="#FFE066" style="background:#FFE066;" title="Yellow"></button>
@@ -644,11 +644,11 @@
                 <button class="pt-hl-swatch" data-color="#FFB3C6" style="background:#FFB3C6;" title="Pink"></button>
                 <button class="pt-hl-swatch" data-color="#F9C784" style="background:#F9C784;" title="Orange"></button>
                 <button class="pt-hl-swatch" data-color="#D4B0FF" style="background:#D4B0FF;" title="Purple"></button>
-                <button class="pt-hl-swatch" data-color="none" style="background:transparent;border:1.5px solid var(--border);color:var(--red);font-size:11px;font-weight:700;" title="Remove highlight">✕</button>
+                <button class="pt-hl-swatch" data-color="none" style="background:transparent;border:1.5px solid var(--border);color:var(--red);font-size:11px;font-weight:700;" title="Remove highlight" aria-label="Remove highlight"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
               </div>
             </div>
             <div style="flex:1"></div>
-            <button class="pt-btn" id="so-pt-clear" title="Clear all content" style="color:var(--red);">&#128465;</button>
+            <button class="pt-btn" id="so-pt-clear" title="Clear all content" aria-label="Clear all content" style="color:var(--red);"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
           </div>
           <div id="so-page-editor-wrap">
             <div id="so-page-editor" contenteditable="false"></div>
@@ -705,7 +705,7 @@
     <div class="field" style="border-top:1px solid var(--border2);padding-top:16px;margin-top:4px;">
       <label>Repeat</label>
       <div id="sos-task-repeat-warning" style="display:none;font-size:11px;color:#ff6b6b;font-weight:600;margin-bottom:8px;padding:6px 10px;background:rgba(255,107,107,0.08);border-radius:4px;border:1px solid rgba(255,107,107,0.2);">
-        ⚠ This is a repeating task. Setting "No repeat" will remove all future occurrences.
+        <svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>This is a repeating task. Setting "No repeat" will remove all future occurrences.</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
         <button type="button" class="sos-repeat-btn active" id="sos-trep-none"   onclick="sosSetTaskRepeat('none')"  >No repeat</button>
@@ -787,7 +787,7 @@
     <div class="field" style="border-top:1px solid var(--border2);padding-top:16px;margin-top:4px;">
       <label>Repeat</label>
       <div id="sos-repeat-warning" style="display:none;font-size:11px;color:#ff6b6b;font-weight:600;margin-bottom:8px;padding:6px 10px;background:rgba(255,107,107,0.08);border-radius:4px;border:1px solid rgba(255,107,107,0.2);">
-        ⚠ This is a repeating event. Setting "No repeat" will remove all future occurrences.
+        <svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>This is a repeating event. Setting "No repeat" will remove all future occurrences.</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
         <button type="button" class="sos-repeat-btn active" id="sos-rep-none"   onclick="sosSetRepeat('none')"   style="">No repeat</button>

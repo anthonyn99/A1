@@ -350,7 +350,7 @@ function showPop(anchor, build, opts) {
 function mi(label, fn, key, chk) {
   var b = document.createElement('button');
   b.className = 'docx-mi';
-  b.innerHTML = (chk !== undefined ? '<span class="chk">' + (chk ? '✓' : '') + '</span>' : '') + esc(label) + (key ? '<span class="k">' + esc(key) + '</span>' : '');
+  b.innerHTML = (chk !== undefined ? '<span class="chk">' + (chk ? '<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>' : '') + '</span>' : '') + esc(label) + (key ? '<span class="k">' + esc(key) + '</span>' : '');
   b.addEventListener('click', function() { closePop(); fn(); });
   return b;
 }
@@ -1331,7 +1331,7 @@ window._docxOpenTrash = function(app) {
         row.className = 'docx-trash-row';
         row.innerHTML =
           '<input type="checkbox" ' + (selected[e.id] ? 'checked' : '') + '>' +
-          '<div class="t"><div class="n">' + esc(e.title || 'Untitled') + (e.lock ? ' 🔒' : '') + '</div>' +
+          '<div class="t"><div class="n">' + esc(e.title || 'Untitled') + (e.lock ? ' <span class="docx-lock-badge"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>' : '') + '</div>' +
           '<div class="m">' + (TMAP[e.template] || 'NOTE') + ' · deleted ' + new Date(e.trashed).toLocaleDateString() + ' · auto-deletes in ' + days + 'd</div></div>' +
           '<div class="b"><button class="res">Restore</button><button class="del">Delete forever</button></div>';
         row.querySelector('input').addEventListener('change', function() {
@@ -1752,7 +1752,7 @@ function aiFormatSelection(ctx, range) {
     }
     ctx.history.commit();          // snapshot the formatted content (discrete Redo step)
     fireInput(ed);                 // autosave the new content
-    docxToast('Formatted selection ✓  — press Undo to revert.');
+    docxToast('Formatted selection — press Undo to revert.');
   }).catch(function(e) {
     _aiFinish(app, ed, overlay, wasEditable);
     docxToast((e && e._timedOut) ? 'AI Format timed out — please try again.' : 'AI Format failed: network error.', true);

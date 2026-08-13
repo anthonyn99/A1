@@ -193,7 +193,7 @@ function _soRenderTrashBtn() {
     if (stats && stats.parentNode) stats.parentNode.insertBefore(btn, stats);
   }
   const n = _soState().entries.filter(e => e.trashed).length;
-  btn.innerHTML = '🗑 Trash' + (n ? ' <span class="docx-trash-count">' + n + '</span>' : '');
+  btn.innerHTML = '<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Trash</span>' + (n ? ' <span class="docx-trash-count">' + n + '</span>' : '');
 }
 
 /* ── Sidebar render + drag reorder (native HTML5 DnD, mirrors bj renderSidebar) ── */
@@ -229,7 +229,7 @@ function renderSoSidebar() {
         <span>${date}</span>
         ${(entry.tags || []).length ? `<span>· ${entry.tags.slice(0, 2).join(', ')}${entry.tags.length > 2 ? '…' : ''}</span>` : ''}
       </div>
-      <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">✕</button>
+      <button class="entry-delete" data-id="${entry.id}" title="Move to Trash" aria-label="Move to Trash"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     `;
     div.addEventListener('click', e => {
       if (e.target.classList.contains('entry-delete') || e.target.closest('.entry-delete')) return;
@@ -354,7 +354,7 @@ function renderTags(tags) {
     span.appendChild(label);
     const delBtn = document.createElement('span');
     delBtn.className = 'tag-del';
-    delBtn.textContent = '✕';
+    delBtn.innerHTML = '<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
     delBtn.style.display = isEditMode ? '' : 'none';
     delBtn.onclick = () => {
       const e = getActive(); if (!e) return;
@@ -461,7 +461,7 @@ function pgInsertImage(src) {
     rsz.title = 'Drag to resize';
     const del = document.createElement('span');
     del.className = 'pg-img-del-handle';
-    del.textContent = '✕';
+    del.innerHTML = '<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
     del.title = 'Remove image';
     wrap.appendChild(img);
     wrap.appendChild(rsz);
@@ -483,7 +483,7 @@ function _soPageInsertFileChip(name, dataURL, mimeType) {
   if (!ed) return;
   ed.focus();
   const escaped = name.replace(/"/g, '&quot;');
-  const clip = (window._docxPaperclipSVG || '📎');
+  const clip = (window._docxPaperclipSVG || '<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg>');
   const html = '<a class="tj-file-chip" href="' + dataURL + '" download="' + escaped + '" contenteditable="false" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:var(--card2);border:1px solid var(--border);border-radius:4px;text-decoration:none;color:var(--text2);font-size:11px;font-weight:600;margin:2px 3px;cursor:pointer;">' + clip + '<span class="tj-file-name">' + escaped + '</span></a>';
   document.execCommand('insertHTML', false, html);
   autoSave();

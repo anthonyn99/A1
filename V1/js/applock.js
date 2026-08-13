@@ -499,7 +499,9 @@
   function refreshBtn() {
     var b = el('sos-lock-btn');
     if (!b) return;
-    b.textContent = isLocked() ? '🔒' : '🔓';
+    // SVG, not 🔒/🔓: those render as a flat black text glyph on most
+    // phones, which was unreadable against this button's fill.
+    b.innerHTML = isLocked() ? '<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' : '<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
     b.title = isLocked() ? (LABEL + ' is locked — manage lock') : ('Lock ' + LABEL);
   }
 

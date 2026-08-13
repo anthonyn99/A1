@@ -1083,15 +1083,16 @@ const TB_STYLES=`
 #tradeboard-root .tb-card:hover{border-color:var(--bdl);}
 #tradeboard-root .tb-ico{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:0;vertical-align:-2px;}
 #tradeboard-root .tb-ico svg{width:100%;height:100%;display:block;}
-#tradeboard-root .tb-btn-primary{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--acs);border:1px solid var(--acl);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:border-color .18s,color .18s;}
-#tradeboard-root .tb-btn-primary:hover{border-color:var(--ac);}
+#tradeboard-root .tb-btn-primary{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--acs);border:1px solid var(--acl);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;box-shadow:none;transition:border-color .18s,color .18s,box-shadow .18s;}
+/* Nothing glows at rest; hover lights each button's own colour. */
+#tradeboard-root .tb-btn-primary:hover{border-color:var(--ac);box-shadow:var(--gold-glow);}
 #tradeboard-root .tb-btn-primary:active{transform:translateY(1px);}
 #tradeboard-root .tb-btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none;}
-#tradeboard-root .tb-btn-ghost{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:border-color .18s,color .18s;}
-#tradeboard-root .tb-btn-ghost:hover{border-color:var(--acd);color:var(--acs);}
+#tradeboard-root .tb-btn-ghost{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;box-shadow:none;transition:border-color .18s,color .18s,box-shadow .18s;}
+#tradeboard-root .tb-btn-ghost:hover{border-color:var(--acd);color:var(--acs);box-shadow:var(--gold-glow);}
 #tradeboard-root .tb-btn-ghost:active,#tradeboard-root .tb-btn-danger:active{transform:translateY(1px);}
-#tradeboard-root .tb-btn-danger{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--tbe);border:1px solid rgba(214,138,124,.3);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:border-color .18s;}
-#tradeboard-root .tb-btn-danger:hover{border-color:var(--tbe);}
+#tradeboard-root .tb-btn-danger{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--tbe);border:1px solid rgba(214,138,124,.3);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;box-shadow:none;transition:border-color .18s,box-shadow .18s;}
+#tradeboard-root .tb-btn-danger:hover{border-color:var(--tbe);box-shadow:0 0 8px rgba(214,138,124,.34),0 0 0 1px rgba(214,138,124,.15);}
 #tradeboard-root .tb-section-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:1.6px;color:var(--acp,#e0b874);opacity:.85;}
 #tradeboard-root .tb-badge-bull{background:transparent;color:#a4b986;border:1px solid rgba(164,185,134,0.25);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
 #tradeboard-root .tb-badge-bear{background:transparent;color:#d68a7c;border:1px solid rgba(214,138,124,0.25);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}

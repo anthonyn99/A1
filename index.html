@@ -75,6 +75,15 @@
 /* The TaskHub wordmark sits alone at the top of the page with nothing to lean on,
    so it takes a lighter gold than the shared --gold-primary to hold that corner. */
 .suite-title.th-wordmark{color:#eecb92;}
+/* Tony's TaskHub buttons are inline-styled from React, so the suite's hover glow
+   lives here instead of in ~100 onMouseEnter handlers. Those handlers only set
+   border-color/color — never box-shadow — so this rule never fights them. Nothing
+   glows at rest; a button that wants no hover glow opts out with data-noglow. */
+#root button:hover:not([data-noglow]),
+#root [role="button"]:hover:not([data-noglow]){
+  box-shadow:0 0 8px rgba(224,184,116,.30),0 0 0 1px rgba(224,184,116,.10);
+}
+#root button,#root [role="button"]{transition:box-shadow .15s;}
 /* TgScrollBox paints its own draggable thumb — hide the native bar in both engines. */
 .tg-scrollbox{scrollbar-width:none;-ms-overflow-style:none;}
 .tg-scrollbox::-webkit-scrollbar{width:0;height:0;}
@@ -4606,12 +4615,13 @@ window.THTS={
 #mc-root .section-title{font-family:var(--suite-display);font-size:32px;font-weight:750;letter-spacing:-.6px;line-height:1.1;}
 #mc-root .section-subtitle{font-size:13px;color:#8d8d94;margin-top:4px;font-weight:300;}
 #mc-root .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;transition:all .18s;letter-spacing:.2px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
-#mc-root .btn-primary{background:#e0b874;color:#1a1a1d;box-shadow:0 2px 14px rgba(224,184,116,.3);}
+/* Rest carries no glow — the lift and the gold halo arrive on hover. */
+#mc-root .btn-primary{background:#e0b874;color:#1a1a1d;box-shadow:none;}
 #mc-root .btn-primary:hover{background:#e0b874;box-shadow:0 4px 20px rgba(224,184,116,.45);transform:translateY(-1px);}
 #mc-root .btn-ghost{background:#2c2c31;color:#adadb2;border:1px solid #45454c;}
-#mc-root .btn-ghost:hover{background:#37373d;color:#f4f3f0;transform:translateY(-1px);}
+#mc-root .btn-ghost:hover{background:#37373d;color:#f4f3f0;transform:translateY(-1px);box-shadow:0 0 8px rgba(244,243,240,.12),0 0 0 1px rgba(244,243,240,.08);}
 #mc-root .btn-danger{background:rgba(220,70,80,.12);color:#dc4650;border:1px solid rgba(220,70,80,.2);}
-#mc-root .btn-danger:hover{background:rgba(220,70,80,.22);}
+#mc-root .btn-danger:hover{background:rgba(220,70,80,.22);box-shadow:0 0 8px rgba(220,70,80,.34),0 0 0 1px rgba(220,70,80,.15);}
 #mc-root .btn-sm{padding:6px 12px;font-size:12px;border-radius:6px;}
 #mc-root .btn-icon{padding:7px;border-radius:6px;}
 #mc-root .drag-handle{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;cursor:grab;color:#8d8d94;flex-shrink:0;touch-action:none;transition:color .15s,background .15s;-webkit-tap-highlight-color:transparent;user-select:none;}
@@ -4707,7 +4717,7 @@ window.THTS={
 #mc-root .mbitem-edit-row input[type="text"],#mc-root .mbitem-edit-row input[type="number"]{padding:5px 8px;font-size:13px;}
 #mc-root .mbitem-edit-row input[type="number"]{width:60px;flex-shrink:0;}
 #mc-root .run-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;background:transparent;border:1px solid rgba(224,184,116,.36);border-radius:7px;color:#e0b874;font-size:12px;font-weight:500;cursor:pointer;transition:all .18s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
-#mc-root .run-btn:hover{background:transparent;border-color:#e0b874;transform:translateY(-1px);}
+#mc-root .run-btn:hover{background:transparent;border-color:#e0b874;transform:translateY(-1px);box-shadow:0 0 8px rgba(224,184,116,.4),0 0 0 1px rgba(224,184,116,.15);}
 #mc-root .chevron{transition:transform .2s;flex-shrink:0;}
 #mc-root .chevron.open{transform:rotate(180deg);}
 #mc-root ::-webkit-scrollbar{display:none;width:0;height:0;}
@@ -4764,10 +4774,42 @@ window.THTS={
 .docx-trash-btn{display:inline-flex;align-items:center;gap:7px;justify-content:center;}
 .entry-delete svg,.je-tab-del svg{margin:auto;}
 .docx-clip-wrap{display:inline-flex;align-items:center;}
+.docx-lock-badge{display:inline-flex;align-items:center;vertical-align:-.14em;font-size:.95em;opacity:.8;}
 #applock-icon{line-height:0;color:#e0b874;display:flex;justify-content:center;}
 #applock-icon svg{width:30px;height:30px;display:block;}
 #applock-bio button svg,#al-menu-btns button svg,.tl-menu button svg{width:15px;height:15px;display:block;flex-shrink:0;}
 #applock-bio button,#al-menu-btns button,.tl-menu button{display:inline-flex;align-items:center;justify-content:center;gap:8px;}
+
+/* ── The same migration for Veda's journal (#bj-root), whose chrome used the
+      emoji set this replaces. `.bji` is her counterpart to `.tji`: sizing only,
+      colour always inherited, so each icon takes the purple / red / muted tone
+      its own button already had. Loaded here rather than inside #bj-root's own
+      stylesheet because these are cross-cutting layout rules, exactly like the
+      #tj-root block above — the properties below don't collide with anything
+      that sheet sets, so source order is not load-bearing. ── */
+#bj-root .bji{width:15px;height:15px;display:block;flex-shrink:0;}
+#bj-root .pt-btn .bji{width:15px;height:15px;display:block;}
+#bj-root .pt-btn{display:inline-flex;align-items:center;justify-content:center;}
+#bj-root #bj-mobile-lock-btn svg{width:18px;height:18px;display:block;}
+#bj-root .wb-btn{gap:6px;}
+#bj-root .bj-attach-btn{display:inline-flex;align-items:center;gap:7px;}
+#bj-root .bj-drop-label{display:inline-flex;align-items:center;gap:8px;}
+#bj-root .template-card-icon{display:flex;align-items:center;justify-content:center;color:var(--purple);}
+#bj-root .template-card-icon .bji{width:26px;height:26px;}
+#bj-root .modal-close{display:inline-flex;align-items:center;justify-content:center;}
+#bj-root #bj-bb-edit,#bj-root #bj-bb-saved,#bj-root #bj-bb-template{display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+/* One size for every bottom-bar icon. The Edit button is relabelled from JS
+   with a TNI glyph (1em of its own 10px type) while Template keeps its markup
+   `.bji`, so without this the pair sat at 11px and 15px side by side. */
+#bj-root #bj-bottom-bar svg{width:13px;height:13px;flex:none;}
+#bj-root #bj-lock-overlay .tl-icon{line-height:0;color:var(--purple);display:flex;justify-content:center;}
+/* Dropdown caret for the highlight picker. A border triangle, not a glyph:
+   it stays crisp at any zoom and takes its colour from the button it sits in. */
+#bj-root .bj-pt-caret{
+  width:0;height:0;flex:none;margin-left:4px;opacity:.7;
+  border-left:3.5px solid transparent;border-right:3.5px solid transparent;
+  border-top:4px solid currentColor;
+}
 </style>
 </head>
 <body>
@@ -4867,6 +4909,102 @@ window.THTS={
     star:      I('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9Z"/>')
   };
   window.TNI.starOn = window.TNI.star.replace('fill="none"','fill="currentColor"');
+})();
+</script>
+<!-- ══ VDI — Veda's icon set. Same Lucide-style 24px grid / 1.5 stroke as TNI,
+        but its own registry so Tony's chrome is never touched by a change made
+        for Veda. Two differences from TNI, both learned from the emoji they
+        replace:
+          • every glyph carries `vertical-align:-.14em`, because most of these
+            sit INLINE beside text ("⚠ Sync failed", "✎ Edit") where an emoji
+            sat on the baseline and a bare <svg> would not;
+          • `flex:none` so the icon never collapses inside the flex rows that
+            Veda's header, cards and toolbars are built from.
+        Colour is always `currentColor`: Veda's purple (#8D769A / var(--ac)),
+        her greens and reds all reach the icon through the host's own colour,
+        so nothing renders as an uncoloured black glyph. ══ -->
+<script>
+(function(){
+  var ATTR = 'viewBox="0 0 24 24" width="1em" height="1em" '
+           + 'style="vertical-align:-.14em;flex:none" aria-hidden="true"';
+  function I(body){
+    return '<svg ' + ATTR + ' fill="none" stroke="currentColor" stroke-width="1.5" '
+         + 'stroke-linecap="round" stroke-linejoin="round">' + body + '</svg>';
+  }
+  function F(body){   // filled variants — used where a hairline outline smudges at 10-12px
+    return '<svg ' + ATTR + ' fill="currentColor" stroke="none">' + body + '</svg>';
+  }
+  window.VDI = {
+    // ── status / state ──
+    lock:      I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+    unlock:    I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'),
+    key:       I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/>'),
+    user:      I('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+    check:     I('<path d="M20 6 9 17l-5-5"/>'),
+    alert:     I('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+    info:      I('<circle cx="12" cy="12" r="9"/><path d="M12 16v-5"/><path d="M12 8h.01"/>'),
+    bell:      I('<path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
+    repeat:    I('<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>'),
+    clock:     I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    calendar:  I('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>'),
+    dot:       F('<circle cx="12" cy="12" r="5"/>'),
+
+    // ── actions ──
+    pencil:    I('<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>'),
+    trash:     I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+    x:         I('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+    plus:      I('<path d="M12 5v14"/><path d="M5 12h14"/>'),
+    minus:     I('<path d="M5 12h14"/>'),
+    search:    I('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/>'),
+    settings:  I('<circle cx="12" cy="12" r="3"/><path d="M19.1 14.6a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>'),
+    menu:      I('<path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/>'),
+    copy:      I('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+    download:  I('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'),
+    cloudUp:   I('<path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.2"/>'),
+    refresh:   I('<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>'),
+    rotateCcw: I('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>'),
+    undo:      I('<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/>'),
+    redo:      I('<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h4"/>'),
+    printer:   I('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 15h12v6H6Z"/>'),
+    expand:    I('<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>'),
+
+    // ── arrows & carets ──
+    arrowUp:    I('<path d="M12 20V5"/><path d="m6 11 6-6 6 6"/>'),
+    arrowDown:  I('<path d="M12 4v15"/><path d="m6 13 6 6 6-6"/>'),
+    arrowLeft:  I('<path d="M20 12H5"/><path d="m11 6-6 6 6 6"/>'),
+    arrowRight: I('<path d="M4 12h15"/><path d="m13 6 6 6-6 6"/>'),
+    chevUp:     I('<path d="m6 15 6-6 6 6"/>'),
+    chevDown:   I('<path d="m6 9 6 6 6-6"/>'),
+    chevLeft:   I('<path d="m15 18-6-6 6-6"/>'),
+    chevRight:  I('<path d="m9 18 6-6-6-6"/>'),
+    caretDown:  F('<path d="M12 16 5.5 9h13Z"/>'),
+
+    // ── files & attachments ──
+    folder:    I('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
+    folderIn:  I('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M12 10v6"/><path d="m9.5 13.5 2.5 2.5 2.5-2.5"/>'),
+    clip:      I('<path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/>'),
+    doc:       I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/>'),
+    notes:     I('<path d="M4 4h16v12l-4 4H4Z"/><path d="M20 16h-4v4"/><path d="M8 9h8"/><path d="M8 13h5"/>'),
+    clipboard: I('<rect x="6" y="4" width="12" height="18" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6"/><path d="M9 15h4"/>'),
+    image:     I('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/>'),
+    camera:    I('<path d="M4 8h3l1.5-2h7L17 8h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="3.5"/>'),
+    link:      I('<path d="M10 13a5 5 0 0 0 7.5.5l3-3A5 5 0 0 0 13.5 3.5l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3A5 5 0 0 0 10.5 20.5l1.7-1.7"/>'),
+    table:     I('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M3 15h18"/><path d="M9 10v10"/><path d="M15 10v10"/>'),
+    brain:     I('<path d="M12 5a3 3 0 0 0-6 0 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1Z"/><path d="M12 5a3 3 0 0 1 6 0 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1Z"/>'),
+    pen:       I('<path d="M12 19H5a2 2 0 0 1 0-4h5a2 2 0 0 0 0-4H7"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L15 12l-4 1 1-4Z"/>'),
+    book:      I('<path d="M4 4a2 2 0 0 1 2-2h13v18H6a2 2 0 0 0-2 2Z"/><path d="M19 16H6a2 2 0 0 0-2 2"/>'),
+
+    // ── whiteboard tools ──
+    eraser:    I('<path d="m4 15 7.5-7.5a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L13 19H7Z"/><path d="M20 19h-9"/>'),
+    square:    I('<rect x="4" y="5" width="16" height="14" rx="1.5"/>'),
+    circle:    I('<circle cx="12" cy="12" r="8.5"/>'),
+    highlight: I('<path d="M13 3 6 10l-1 5 5-1 7-7Z"/><path d="M4 21h16"/>'),
+    alignLeft:  I('<path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h14"/>'),
+    alignCenter:I('<path d="M4 6h16"/><path d="M7 12h10"/><path d="M5 18h14"/>'),
+    alignRight: I('<path d="M4 6h16"/><path d="M10 12h10"/><path d="M6 18h14"/>'),
+
+    star:      I('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9Z"/>')
+  };
 })();
 </script>
 <div id="root"></div>
@@ -7082,7 +7220,7 @@ function App(){
             React.createElement("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?T.TXM:syncStatus==="error"?T.ERR:T.GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"Sync failed":"Synced")),
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}})),
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,minWidth:0,width:"100%",flexWrap:"wrap"}},
-          React.createElement("button",{type:"button",key:"vx-voice",title:"Voice control",style:{...hbtn(false),background:vxRec?"#e05a5a":T.AC,color:T.BG,border:"1px solid "+(vxRec?"#e05a5a":T.AC),fontWeight:800,boxShadow:vxRec?"none":"0 2px 10px "+T.AC+"66"},onClick:()=>window._THV&&window._THV.toggleVoice()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
+          React.createElement("button",{type:"button",key:"vx-voice",title:"Voice control",style:{...hbtn(false),background:vxRec?"#e05a5a":T.AC,color:T.BG,border:"1px solid "+(vxRec?"#e05a5a":T.AC),fontWeight:800,boxShadow:"none"},onClick:()=>window._THV&&window._THV.toggleVoice()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
           /* Text → AI: the typed twin of the mic, sitting immediately beside it.
              Plain chrome like the rest of the header row — only the mic stays
              filled, so the pair doesn't read as two primary buttons. */
@@ -11350,6 +11488,17 @@ function VedaDayPicker({selected,onChange}){const toggle=i=>{if(selected.include
 function ConfirmDeleteModal({open,onClose,onConfirm,onThis,isAltSeq}){if(!open)return null;return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},RC("div",{style:{background:S1,border:"1px solid #f85149",borderRadius:4,padding:24,width:400,maxWidth:"90vw"},onClick:e=>e.stopPropagation()},RC("div",{style:{fontSize:16,fontWeight:700,color:"#f85149",marginBottom:12}},isAltSeq?"Delete Sequence Occurrence":"Delete Repeating Task"),RC("div",{style:{fontSize:13,color:TXD,lineHeight:1.6,marginBottom:18}},isAltSeq?"Delete just this occurrence, or this and all future occurrences in the sequence?":"Delete just this occurrence, or this and all future repeats?"),RC("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},RC("button",{style:{flex:1,background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TX,cursor:"pointer",fontFamily:"inherit"},onClick:onThis},"This only"),RC("button",{style:{flex:1,background:"#f85149",color:BG,border:"none",borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:onConfirm},"This + all future"),RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
 function VdConfirmEditTitleModal({open,onClose,onThisOnly,onAllFuture,isAltSeq}){if(!open)return null;return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2100},onClick:onClose},RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:4,padding:24,width:400,maxWidth:"90vw"},onClick:e=>e.stopPropagation()},RC("div",{style:{fontSize:16,fontWeight:700,color:A,marginBottom:12}},isAltSeq?"Edit Alternating Sequence":"Edit Repeating Task"),RC("div",{style:{fontSize:13,color:TXD,lineHeight:1.6,marginBottom:18}},isAltSeq?"Apply changes to just this occurrence, or all future occurrences in the sequence?":"Apply your change to just this day, or all future repeats?"),RC("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},RC("button",{style:{flex:1,background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TX,cursor:"pointer",fontFamily:"inherit"},onClick:onThisOnly},"This day only"),RC("button",{style:{flex:1,background:A,color:BG,border:"none",borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:onAllFuture},isAltSeq?"All future in seq":"All future repeats"),RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
 const RC=React.createElement;
+// ── VdIcon — renders one glyph from the VDI registry (see the VDI <script>).
+// React has no way to drop a raw SVG string into a tree, so it goes through a
+// zero-line-height <span>; the span is what the surrounding flex/text layout
+// sees, and the SVG inside is already 1em + currentColor, so an icon lands
+// exactly where the emoji it replaces used to sit. `size` overrides the em box.
+// Top-level name is Vd-prefixed on purpose: this file's two text/babel blocks
+// share ONE scope, so an unprefixed name here would silently shadow Tony's.
+function VdIcon({name,size,color,style}){
+  const html=(window.VDI&&window.VDI[name])||"";
+  return RC("span",{"aria-hidden":"true",style:{display:"inline-flex",alignItems:"center",justifyContent:"center",lineHeight:0,flex:"none",...(size?{fontSize:size}:null),...(color?{color:color}:null),...(style||null)},dangerouslySetInnerHTML:{__html:html}});
+}
 function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const[type,setType]=useState("task");const[title,setTitle]=useState("");const[cat,setCat]=useState("");
   const[time,setTime]=useState("");const[repeat,setRepeat]=useState("none");
@@ -11427,8 +11576,8 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
       type==="event"&&RC("div",{style:{marginBottom:12}},RC("div",{style:lbl},"Time"),RC("input",{style:{...mi,width:"auto"},type:"time",value:time,onChange:e=>setTime(e.target.value)})),
       RC("div",{style:{marginTop:4,marginBottom:12,borderTop:"1px solid "+BD,paddingTop:12}},
         RC("div",{style:lbl},"Repeat"),
-        initial?.repeatId&&initial?.repeat&&initial.repeat!=="none"&&RC("div",{style:{fontSize:11,color:"#f85149",fontWeight:600,marginBottom:8,padding:"6px 10px",background:"rgba(248,81,73,.08)",borderRadius:4,border:"1px solid rgba(248,81,73,.2)"}},"⚠ This is a repeating task. Selecting \"No repeat\" will delete all future occurrences from this date onward."),
-        initial?.altSeqId&&RC("div",{style:{fontSize:11,color:A,fontWeight:600,marginBottom:8,padding:"6px 10px",background:A+"18",borderRadius:4,border:"1px solid "+A+"40"}},"🔁 Part of an alternating sequence."),
+        initial?.repeatId&&initial?.repeat&&initial.repeat!=="none"&&RC("div",{style:{fontSize:11,color:"#f85149",fontWeight:600,marginBottom:8,padding:"6px 10px",background:"rgba(248,81,73,.08)",borderRadius:4,border:"1px solid rgba(248,81,73,.2)",display:"flex",gap:6,alignItems:"flex-start"}},RC(VdIcon,{name:"alert",size:13,style:{marginTop:1}}),RC("span",null,"This is a repeating task. Selecting \"No repeat\" will delete all future occurrences from this date onward.")),
+        initial?.altSeqId&&RC("div",{style:{fontSize:11,color:A,fontWeight:600,marginBottom:8,padding:"6px 10px",background:A+"18",borderRadius:4,border:"1px solid "+A+"40",display:"flex",gap:6,alignItems:"center"}},RC(VdIcon,{name:"repeat",size:13}),RC("span",null,"Part of an alternating sequence.")),
         RC("div",{style:{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}},
           [["none","No repeat"],["daily","Every day"],["weekly","Specific days"],["monthly","Monthly"],["annually","Annually"],["altSeq","Alternating Seq"]].map(([v,l])=>RC("button",{key:v,onClick:()=>setRepeat(v),style:tb(repeat===v,v==="none"&&!!(initial?.repeatId||initial?.altSeqId))},l))),
         repeat==="weekly"&&RC("div",{style:{marginBottom:10}},RC("div",{style:lbl},"Repeat on"),RC(VedaDayPicker,{selected:repeatDays,onChange:setRepeatDays})),
@@ -11480,9 +11629,9 @@ function GitaQuoteModal({lesson, onClose, onNext, onPrev, onBackToLessons}){
       RC("div",{className:"gita-modal-example-label"},"Real-World Example"),
       RC("div",{className:"gita-modal-example"},lesson.example),
       RC("div",{className:"gita-modal-nav"},
-        RC("button",{onClick:onPrev},"← Previous"),
+        RC("button",{onClick:onPrev,style:{display:"inline-flex",alignItems:"center",gap:5}},RC(VdIcon,{name:"chevLeft",size:13}),RC("span",null,"Previous")),
         RC("button",{onClick:onBackToLessons||onClose,style:{color:"#8D769A",borderColor:"rgba(141,118,154,0.3)",display:"inline-flex",alignItems:"center",gap:6}},RC("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.sparkle}}),lesson.title),
-        RC("button",{onClick:onNext},"Next →")
+        RC("button",{onClick:onNext,style:{display:"inline-flex",alignItems:"center",gap:5}},RC("span",null,"Next"),RC(VdIcon,{name:"chevRight",size:13}))
       )
     )
   );
@@ -11638,7 +11787,9 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
 
   const ov={position:"fixed",inset:0,background:"rgba(6,6,10,.82)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16};
   const bx={background:S1,border:"1px solid "+BDL,borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,.5)",width:560,maxWidth:"100%",maxHeight:"88vh",display:"flex",flexDirection:"column",overflow:"hidden",fontFamily:"'IBM Plex Mono',monospace"};
-  const iconBtn={background:"transparent",border:"1px solid transparent",borderRadius:4,color:TXD,cursor:"pointer",fontSize:12,lineHeight:1,padding:"3px 6px",fontFamily:"inherit",transition:"all .15s"};
+  // display:inline-flex + centring: these hold a 13px SVG now, not a text glyph,
+  // so the button can no longer lean on the glyph's own line box to centre it.
+  const iconBtn={background:"transparent",border:"1px solid transparent",borderRadius:4,color:TXD,cursor:"pointer",fontSize:12,lineHeight:1,padding:"3px 6px",fontFamily:"inherit",transition:"all .15s",display:"inline-flex",alignItems:"center",justifyContent:"center"};
   const manage=mode==="manage";
   // "reviewed today" reflects the gate, not this view — opening the list to read
   // it is not the same as having run the sequence.
@@ -11682,10 +11833,10 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
                 RC("div",{style:{flexShrink:0,width:18,textAlign:"right",fontSize:11,color:TXM,lineHeight:"1.6",paddingTop:1,fontVariantNumeric:"tabular-nums"}},i+1),
                 RC("div",{style:{flex:1,minWidth:0,fontSize:13.5,lineHeight:1.6,color:TX,wordBreak:"break-word"}},r.text),
                 RC("div",{style:{display:"flex",gap:2,flexShrink:0,alignSelf:"center"}},
-                  RC("button",{title:"Move up",disabled:i===0,onClick:()=>moveRule(i,-1),style:{...iconBtn,opacity:i===0?.25:1,cursor:i===0?"default":"pointer"}},"↑"),
-                  RC("button",{title:"Move down",disabled:i===total-1,onClick:()=>moveRule(i,1),style:{...iconBtn,opacity:i===total-1?.25:1,cursor:i===total-1?"default":"pointer"}},"↓"),
-                  RC("button",{title:"Edit",onClick:()=>setEditing({index:i,text:r.text}),style:iconBtn},"✎"),
-                  RC("button",{title:"Delete",onClick:()=>setConfirmDel({index:i,text:r.text}),style:{...iconBtn,color:"#f85149"}},"✕")));
+                  RC("button",{title:"Move up","aria-label":"Move up",disabled:i===0,onClick:()=>moveRule(i,-1),style:{...iconBtn,opacity:i===0?.25:1,cursor:i===0?"default":"pointer"}},RC(VdIcon,{name:"arrowUp",size:13})),
+                  RC("button",{title:"Move down","aria-label":"Move down",disabled:i===total-1,onClick:()=>moveRule(i,1),style:{...iconBtn,opacity:i===total-1?.25:1,cursor:i===total-1?"default":"pointer"}},RC(VdIcon,{name:"arrowDown",size:13})),
+                  RC("button",{title:"Edit","aria-label":"Edit",onClick:()=>setEditing({index:i,text:r.text}),style:iconBtn},RC(VdIcon,{name:"pencil",size:13})),
+                  RC("button",{title:"Delete","aria-label":"Delete",onClick:()=>setConfirmDel({index:i,text:r.text}),style:{...iconBtn,color:"#f85149"}},RC(VdIcon,{name:"trash",size:13}))));
               const isDone=checked.includes(i);
               const isActive=!isDone&&i===checked.length;
               return RC("div",{key:r.id,"data-rc-row":i,style:{display:"flex",alignItems:"flex-start",gap:13,padding:"13px 12px",margin:"2px -12px",borderRadius:6,opacity:isDone?.55:isActive?1:.32,background:isActive?"#2E2F33":"transparent",transition:"opacity .15s ease, background .15s ease"}},
@@ -12417,7 +12568,7 @@ function App(){
         RC("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:8}},
           RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?18:26,fontWeight:900,color:A,letterSpacing:1,textTransform:"uppercase",lineHeight:1}},"Veda's TaskHub"),
           RC("button",{id:"vd-setmain-btn",onClick:()=>{localStorage.setItem("td6_mainDash","veda");window._updateMainDashBtn&&window._updateMainDashBtn();},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:localStorage.getItem("td6_mainDash")==="veda"?A:"transparent",color:localStorage.getItem("td6_mainDash")==="veda"?BG:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:800,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:0.5,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0}},localStorage.getItem("td6_mainDash")==="veda"?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:5}},RC("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.star}}),"Main"):"Set as main")),
-        RC("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?TXD:syncStatus==="error"?"#f85149":GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"⚠ Sync failed":"✓ Synced")),
+        RC("span",{style:{position:"absolute",top:"100%",left:0,marginTop:2,fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?TXD:syncStatus==="error"?"#f85149":GRN,display:"inline-flex",alignItems:"center",gap:4}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?[RC(VdIcon,{key:"i",name:"alert",size:11}),"Sync failed"]:[RC(VdIcon,{key:"i",name:"check",size:11}),"Synced"])),
       RC("div",{style:{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flex:vrMobile?undefined:1,minWidth:0,minHeight:vrMobile?undefined:60}},
       RC("div",{className:"veda-hbtns"},
           RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:{background:A,color:BG,border:"1px solid "+A,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"TaskHub"),
@@ -12427,12 +12578,12 @@ function App(){
           RC("button",{onClick:()=>window._profileGoSelect&&window._profileGoSelect(),title:"Profile Selection",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},RC("span",{style:vdStarGlyph},"✦"))),
       // Row 2: program-specific tools, right-aligned
       RC("div",{className:"veda-hbtns",style:{paddingTop:4}},
-        RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:vxRec?"none":"0 2px 9px "+A+"66"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23}))),
+        RC("button",{key:"vx-voice",title:"Voice control",onClick:()=>window._THV&&window._THV.toggleVoice(),style:{background:vxRec?"#c0564a":A,color:BG,border:"1px solid "+(vxRec?"#c0564a":A),borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",boxShadow:"none"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("line",{x1:8,y1:23,x2:16,y2:23}))),
         /* Text → AI: typed twin of the mic, seated right beside it. */
         RC("button",{key:"vx-text",title:"Text command (AI)","aria-label":"Text command",onClick:()=>window._THV&&window._THV.openText(),style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"}),RC("line",{x1:8.5,y1:10,x2:15.5,y2:10}),RC("line",{x1:8.5,y1:13.5,x2:13,y2:13.5}))),
         RC("button",{key:"vx-dev",title:"Input device",onClick:()=>window._THV&&window._THV.openDevicePicker(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 9px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},RC("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),RC("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),RC("line",{x1:12,y1:19,x2:12,y2:23}),RC("circle",{cx:18.5,cy:5.5,r:3,fill:"currentColor",stroke:"none"}))),
-        vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↶"),
-        vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},"↷"),
+        vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"undo",size:15})),
+        vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"redo",size:15})),
         RC("button",{onClick:()=>setRulesOpen("manage"),title:"Trading rules checklist",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Rules"),
         RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
         RC("div",{style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
@@ -12450,7 +12601,7 @@ function App(){
         hov:"#303135",radius:8,font:"'IBM Plex Mono',monospace",upper:true}}),
     RC("div",{className:"gita-banner",style:{position:"relative"},onClick:openGitaFromBanner},
       RC("div",{className:"gita-banner-text"},
-        RC("div",{className:"gita-banner-hint",style:{marginBottom:4,textAlign:"right"}},"click to explore →"),
+        RC("div",{className:"gita-banner-hint",style:{marginBottom:4,textAlign:"right",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:4}},"click to explore",RC(VdIcon,{name:"chevRight",size:11})),
         RC("div",{className:"gita-quote-line"},'"'+bannerLesson.quote+'"'),
         RC("div",{className:"gita-banner-meta"},bannerLesson.chapter+" · "+bannerLesson.title)
       ),
@@ -12468,7 +12619,7 @@ function App(){
       RC("div",{style:{maxHeight:weekCollapsed?"clamp(240px,42vh,460px)":"none",overflowY:"auto",overflowX:"hidden",paddingRight:4,scrollbarGutter:"stable"}},
       (vrMobile||(vrNarrow&&vrNarrowSingleDay))?
         RC("div",null,
-          vrNarrow&&vrNarrowSingleDay&&RC("button",{type:"button",onClick:()=>setVrNarrowSingleDay(false),style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+BD,borderRadius:5,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",display:"inline-block",marginBottom:8}},"← Back to week"),
+          vrNarrow&&vrNarrowSingleDay&&RC("button",{type:"button",onClick:()=>setVrNarrowSingleDay(false),style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+BD,borderRadius:5,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:5,marginBottom:8}},RC(VdIcon,{name:"chevLeft",size:12}),RC("span",null,"Back to week")),
           RC("div",{style:{display:"flex",gap:3,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4,marginBottom:8,scrollbarWidth:"none",msOverflowStyle:"none"},className:"vd-mob-day-strip"},
             wd.map((w,i)=>{
               const k=dkey(w.year,w.month,w.day),td=k===tk,sel2=vrMobDayIdx===i;
@@ -12581,9 +12732,9 @@ function App(){
       RC("div",{style:{...sec,display:"flex",flexDirection:"column"}},
         RC("div",{style:stt},"CALENDAR"),
         RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}},
-          RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:4,color:TXD,cursor:"pointer",fontSize:13,fontWeight:700,padding:"3px 9px",fontFamily:"inherit"},onClick:pm},"◀"),
+          RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:4,color:TXD,cursor:"pointer",fontSize:13,fontWeight:700,padding:"3px 9px",fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"},onClick:pm,title:"Previous month","aria-label":"Previous month"},RC(VdIcon,{name:"chevLeft",size:13})),
           RC("span",{style:{fontSize:13,color:A,fontWeight:700,letterSpacing:1}},MOS[vm].toUpperCase()+" "+vy),
-          RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:4,color:TXD,cursor:"pointer",fontSize:13,fontWeight:700,padding:"3px 9px",fontFamily:"inherit"},onClick:nm},"▶")),
+          RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:4,color:TXD,cursor:"pointer",fontSize:13,fontWeight:700,padding:"3px 9px",fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"},onClick:nm,title:"Next month","aria-label":"Next month"},RC(VdIcon,{name:"chevRight",size:13}))),
         RC("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center",marginBottom:3}},DS.map(d=>RC("div",{key:d,style:{fontSize:10,color:TXM,fontWeight:700,padding:"2px 0"}},d.charAt(0)))),
         RC("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,textAlign:"center"}},calcCells.map((day,i)=>{if(day===null)return RC("div",{key:"e"+i});const k=dkey(vy,vm,day),isSel=sel.year===vy&&sel.month===vm&&sel.day===day,has=!!data[k]&&data[k].length>0,isToday=vy===now.getFullYear()&&vm===now.getMonth()&&day===now.getDate();return RC("button",{key:i,onClick:()=>{if(day){setSel({year:vy,month:vm,day});const _dw=new Date(vy,vm,day).getDay();setVrMobDayIdx(_dw===0?6:_dw-1);}},style:{fontSize:12,fontWeight:isSel?700:isToday?700:600,padding:"4px 0",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:isSel?A:has?ABG:"transparent",color:isSel?BG:isToday?A:has?AL:TXD,border:isToday&&!isSel?"1px solid "+A+"55":"none",transition:"all .15s"}},day);})),
         RC("div",{style:{marginTop:10,borderTop:"1px solid "+BD,paddingTop:8,flex:1}},
@@ -14187,7 +14338,13 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     var item=document.createElement('div');
     item.style.cssText='background:#2a2a2e;border:1px solid #555;border-radius:6px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.6);display:flex;align-items:center;gap:10px;font-family:Nunito,sans-serif;animation:th-in .25s ease;flex-shrink:0;';
     var safe=String(title).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    item.innerHTML='<div style="flex:1;min-width:0;font-size:13px;font-weight:700;color:#e8e8ec;line-height:1.4">🔔 '+safe+'</div><button style="background:transparent;border:none;color:#888;font-size:20px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">×</button>';
+    // This engine is shared by BOTH dashboards, so the bell is swapped for the
+    // SVG only while Veda's profile is the one on screen — Tony's banner keeps
+    // the glyph it has always rendered, byte for byte.
+    var bell=(window._activeProfile==='veda'&&window.VDI)
+      ? '<span style="display:inline-flex;align-items:center;color:#8D769A;font-size:14px;margin-right:2px;">'+window.VDI.bell+'</span>'
+      : '🔔 ';
+    item.innerHTML='<div style="flex:1;min-width:0;font-size:13px;font-weight:700;color:#e8e8ec;line-height:1.4;display:flex;align-items:center;gap:6px;">'+bell+'<span style="flex:1;min-width:0;">'+safe+'</span></div><button style="background:transparent;border:none;color:#888;font-size:20px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">×</button>';
     item.querySelector('button').onclick=function(){item.style.opacity='0';item.style.transition='opacity .2s';setTimeout(function(){try{item.remove();if(stack&&!stack.children.length)stack.remove();}catch(e){}},220);};
     stack.appendChild(item);
     // Banner stays until user taps × — no auto-dismiss timer.
@@ -14528,13 +14685,13 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       <button onclick="window._vedaNav&&window._vedaNav('gita')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Gita</button>
       <button onclick="window._vedaNav&&window._vedaNav('journal')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Journal</button>
       <button style="background:#8D769A;color:#1B1C1E;border:1px solid #8D769A;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;">Links</button>
-      <button id="al-btn-veda_links" onclick="window.alManage&&window.alManage('veda_links')" title="App Lock" style="background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;flex-shrink:0;touch-action:manipulation;">🔓</button>
+      <button id="al-btn-veda_links" onclick="window.alManage&&window.alManage('veda_links')" title="App Lock" style="background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;flex-shrink:0;touch-action:manipulation;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg></button>
       <button onclick="window._profileGoSelect&&window._profileGoSelect()" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:17px;line-height:1;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0;transition:all .15s;">✦</button>
     </div>
     <div class="veda-hbtns" style="padding-top:4px;">
       <span id="vd-kc-sync-status" style="font-size:10px;font-weight:600;white-space:nowrap;display:none;"></span>
       <button id="vd-kc-launcher-btn" onclick="vdkcOpenLauncherSetup()" title="Download the Launcher browser extension and set it up in your browser (no Web Store needed)" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;white-space:nowrap;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:block;flex-shrink:0;"><path d="M15.5 3.5a2 2 0 0 1 0 4H14v3h3.5a2 2 0 0 1 0 4H14v3.5a2 2 0 0 1-4 0V14.5H6.5a2 2 0 0 1 0-4H10v-3H8.5a2 2 0 0 1 0-4H10V3.5"/></svg><span>Install Launcher</span></button>
-      <button id="vd-kc-syncfiles-btn" onclick="vdkcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable & downloadable on every device" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;white-space:nowrap;">☁ Sync Files</button>
+      <button id="vd-kc-syncfiles-btn" onclick="vdkcSyncFilesClick()" title="Upload existing files to Cloudflare so they're viewable & downloadable on every device" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;white-space:nowrap;"><span style="display:inline-flex;font-size:13px;"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.2"/></svg></span>Sync Files</button>
     <div class="kc-edit-hover" id="vd-kc-edit-toggle" onclick="vdkcToggleMode()" style="cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:6px;background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;"><div id="vd-kc-toggle-track" style="width:26px;height:14px;border-radius:7px;background:var(--vdkc-bd,var(--bd));position:relative;transition:background .25s;flex-shrink:0;"><div id="vd-kc-toggle-thumb" style="width:10px;height:10px;border-radius:50%;background:var(--vdkc-txd,var(--txd));position:absolute;top:50%;transform:translateY(-50%);left:2px;transition:left .25s,background .25s;box-shadow:0 1px 3px rgba(0,0,0,.25);"></div></div><span id="vd-kc-edit-icon" style="color:var(--vdkc-ac,var(--ac));white-space:nowrap;line-height:1;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg></span></div>
     </div>
   </div>
@@ -14660,6 +14817,20 @@ const VDKC_THEMES={
   bg:'#1B1C1E',s1:'#26272A',s2:'#303135',s3:'#3A3B40',bd:'#3D3E43',bdl:'#4A4B52',tx:'#ECECEE',txd:'#AFB0B5',txm:'#76777C',ac:'#8D769A',err:'#E74C3C',shadow:'rgba(0,0,0,0.55)'
 };
 const VDKC_CD=['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
+// ── Icon set — same 24px grid / currentColor rule as VDKC_COPY_SVG below, so
+// every one of these inherits Veda's purple (--ac), her red (--err) or the
+// muted text colour from whatever button holds it. `display:block` keeps them
+// optically centred inside .kc-icon-btn's flex box.
+const _vdkcI=(b,w)=>'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+(w||2)+'" stroke-linecap="round" stroke-linejoin="round" style="display:block" aria-hidden="true">'+b+'</svg>';
+const VDKC_EDIT_SVG=_vdkcI('<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>');
+const VDKC_TRASH_SVG=_vdkcI('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>');
+const VDKC_X_SVG=_vdkcI('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>');
+const VDKC_DOWNLOAD_SVG=_vdkcI('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>');
+// The status glyphs sit INLINE next to a word, so they need the baseline nudge
+// the emoji used to get for free.
+const _vdkcInline=(b)=>'<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.14em;flex:none" aria-hidden="true">'+b+'</svg>';
+const VDKC_CHECK_SVG=_vdkcInline('<path d="M20 6 9 17l-5-5"/>');
+const VDKC_ALERT_SVG=_vdkcInline('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>');
 const VDKC_COPY_SVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
 let vdkc_isEdit=false;
@@ -14685,7 +14856,7 @@ window.vdkcToggleMode=function(){
   const icon=document.getElementById('vd-kc-edit-icon');
   if(track)track.style.background=vdkc_isEdit?'var(--ac)':'var(--bd)';
   if(thumb){thumb.style.left=vdkc_isEdit?'13px':'2px';thumb.style.background=vdkc_isEdit?'#fff':'var(--txd)';}
-  if(icon)icon.innerHTML=vdkc_isEdit?'<span style="font-size:12px;font-weight:800;">✎</span>':'<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>';
+  if(icon)icon.innerHTML=vdkc_isEdit?VDKC_EDIT_SVG:'<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="7" cy="7" rx="5.5" ry="3.5" stroke="currentColor" stroke-width="1.3"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>';
 };
 
 // ── Data & migration ──
@@ -14774,8 +14945,8 @@ function vdkc_fullCard(c,i){
       </div>
       <div class="kc-card-actions">
         ${linkUrls.length>1?`<button class="kc-icon-btn visit kc-open-group" title="Open all ${linkUrls.length} links" onclick="vdkcOpenGroup(+this.closest('.kc-card').dataset.ci)">Open all</button>`:''}
-        <button class="kc-icon-btn kc-edit-only" onclick="vdkcOpenEdit(+this.closest('.kc-card').dataset.ci)">✎</button>
-        <button class="kc-icon-btn del-x kc-edit-only" onclick="vdkcConfirmDelete(+this.closest('.kc-card').dataset.ci)">✕</button>
+        <button class="kc-icon-btn kc-edit-only" title="Edit" aria-label="Edit" onclick="vdkcOpenEdit(+this.closest('.kc-card').dataset.ci)">${VDKC_EDIT_SVG}</button>
+        <button class="kc-icon-btn del-x kc-edit-only" title="Delete" aria-label="Delete" onclick="vdkcConfirmDelete(+this.closest('.kc-card').dataset.ci)">${VDKC_TRASH_SVG}</button>
       </div>
     </div>
     <div class="kc-items" data-ci="${i}">${items}</div>
@@ -14819,7 +14990,7 @@ function vdkc_renderItem(item,ii,ci){
       return `<div class="kc-item-row" data-ci="${ci}" data-ii="${ii}">${h}<span class="kc-link-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${nm}"><span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle"><svg width="12" height="13" viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg> ${nm}</span></span>
         <div class="kc-link-btns">
           ${canView?`<button class="kc-icon-btn visit" onclick="${viewAct}">View</button>`:''}
-          ${canView?`<button class="kc-icon-btn visit" onclick="${dlAct}">⬇</button>`:''}
+          ${canView?`<button class="kc-icon-btn visit" title="Download" aria-label="Download" onclick="${dlAct}">${VDKC_DOWNLOAD_SVG}</button>`:''}
         </div></div>`;
     }
   }
@@ -15035,9 +15206,9 @@ function vdkcRenderDocRow(entry){
   row.className='kc-doc-row';row.dataset.docid=entry.id;
   row.innerHTML=`<span class="kc-doc-row-icon"><svg width="12" height="13" viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg></span>
     <input class="kc-doc-name-input" data-docid="${entry.id}" placeholder="Document name…" value="${vdkc_esc(entry.displayName||entry.fileName||'')}" oninput="vdkcDocRename(this)">
-    <span class="kc-doc-row-status" id="vdkcds-${entry.id}">${entry.saved?'✓':entry.file?'ready':'?'}</span>
+    <span class="kc-doc-row-status" id="vdkcds-${entry.id}">${entry.saved?VDKC_CHECK_SVG:entry.file?'ready':'?'}</span>
     ${entry.saved?`<button class="kc-doc-replace-btn" onclick="vdkcDocReplace('${entry.id}')">Replace</button>`:''}
-    <button class="kc-doc-del-btn" onclick="vdkcDocRemove('${entry.id}')">✕</button>`;
+    <button class="kc-doc-del-btn" title="Remove" aria-label="Remove" onclick="vdkcDocRemove('${entry.id}')">${VDKC_X_SVG}</button>`;
   df.appendChild(row);
 }
 function vdkcCalcDocBytes(){
@@ -15240,8 +15411,8 @@ function vdkc_setSync(status){
   const el=document.getElementById('vd-kc-sync-status');
   if(!el) return;
   if(status==='saving'){el.style.display='';el.style.color='#76777C';el.textContent='Syncing…';}
-  else if(status==='saved'){el.style.display='';el.style.color='#5DAF6D';el.textContent='✓ Synced';if(_vdkcSyncTimer)clearTimeout(_vdkcSyncTimer);_vdkcSyncTimer=setTimeout(()=>{el.style.display='none';},2500);}
-  else if(status==='error'){el.style.display='';el.style.color='#E74C3C';el.textContent='⚠ Sync failed';}
+  else if(status==='saved'){el.style.display='';el.style.color='#5DAF6D';el.innerHTML=VDKC_CHECK_SVG+' Synced';if(_vdkcSyncTimer)clearTimeout(_vdkcSyncTimer);_vdkcSyncTimer=setTimeout(()=>{el.style.display='none';},2500);}
+  else if(status==='error'){el.style.display='';el.style.color='#E74C3C';el.innerHTML=VDKC_ALERT_SVG+' Sync failed';}
   else{el.style.display='none';}
 }
 window.vdkcSetSync=vdkc_setSync;
@@ -16971,7 +17142,7 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
       <button onclick="window._vedaNav&&window._vedaNav('gita')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Gita</button>
       <button style="background:#8D769A;color:#1B1C1E;border:1px solid #8D769A;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;">Journal</button>
       <button onclick="window._vedaNav&&window._vedaNav('links')" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;transition:all .15s;">Links</button>
-      <button id="al-btn-veda_journal" onclick="window.alManage&&window.alManage('veda_journal')" title="App Lock" style="background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;flex-shrink:0;touch-action:manipulation;">🔓</button>
+      <button id="al-btn-veda_journal" onclick="window.alManage&&window.alManage('veda_journal')" title="App Lock" style="background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;flex-shrink:0;touch-action:manipulation;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg></button>
       <button onclick="window._profileGoSelect&&window._profileGoSelect()" onmouseenter="this.style.borderColor='#8D769A'" onmouseleave="this.style.borderColor='#4A4B51'" style="background:transparent;color:#8D769A;border:1px solid #4A4B51;border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:17px;line-height:1;font-weight:700;cursor:pointer;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0;transition:all .15s;">✦</button>
     </div>
     <div class="veda-hbtns" style="padding-top:4px;">
@@ -17008,7 +17179,7 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <input id="bj-mobile-title" type="text" placeholder="Untitled entry…" style="flex:1;background:none;border:none;outline:none;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:var(--text);min-width:0;padding:0 4px;" />
-    <button id="bj-mobile-lock-btn" style="display:none;background:transparent;border:none;cursor:pointer;padding:6px 8px;flex-shrink:0;touch-action:manipulation;font-size:18px;line-height:1;" aria-label="Lock entry">🔓</button>
+    <button id="bj-mobile-lock-btn" style="display:none;background:transparent;border:none;cursor:pointer;padding:6px 8px;flex-shrink:0;touch-action:manipulation;font-size:18px;line-height:0;display:inline-flex;align-items:center;" aria-label="Lock entry"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
   </div>
   <div id="bj-toolbar">
     <button id="bj-fullscreen-btn" title="Toggle sidebar">
@@ -17059,7 +17230,7 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
     <!-- LOCK OVERLAY -->
     <div id="bj-lock-overlay" style="display:none;">
       <div class="tl-box" id="bj-lock-box">
-        <div class="tl-icon" id="bj-lock-icon">🔒</div>
+        <div class="tl-icon" id="bj-lock-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
         <div class="tl-title" id="bj-lock-title">Locked Entry</div>
         <div class="tl-sub" id="bj-lock-sub">Enter your password to unlock this entry.</div>
         <div id="bj-lock-bio" style="display:none;"></div>
@@ -17086,14 +17257,14 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
 
     <!-- WHITEBOARD -->
     <div id="bj-wb-canvas-wrap">
-      <div class="bj-drop-zone" id="bj-wb-drop-zone"><div class="bj-drop-label">📁 Drop files here</div></div>
+      <div class="bj-drop-zone" id="bj-wb-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
       <!-- Vertical tool sidebar -->
       <div id="bj-wb-toolbar">
-        <button class="wb-btn active" id="bj-wb-pen" data-tip="Pen">✏</button>
-        <button class="wb-btn" id="bj-wb-eraser" data-tip="Erase">◻</button>
-        <button class="wb-btn" id="bj-wb-line" data-tip="Line">╱</button>
-        <button class="wb-btn" id="bj-wb-rect" data-tip="Rect">▭</button>
-        <button class="wb-btn" id="bj-wb-circle" data-tip="Circle">○</button>
+        <button class="wb-btn active" id="bj-wb-pen" data-tip="Pen" aria-label="Pen"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19H5a2 2 0 0 1 0-4h5a2 2 0 0 0 0-4H7"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L15 12l-4 1 1-4Z"/></svg></button>
+        <button class="wb-btn" id="bj-wb-eraser" data-tip="Erase" aria-label="Erase"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15.5 11.5 8a2.8 2.8 0 0 1 4 0l4.5 4.5a2.8 2.8 0 0 1 0 4L16 20H8Z"/><path d="M20 20H8"/></svg></button>
+        <button class="wb-btn" id="bj-wb-line" data-tip="Line" aria-label="Line"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19 19 5"/></svg></button>
+        <button class="wb-btn" id="bj-wb-rect" data-tip="Rect" aria-label="Rectangle"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/></svg></button>
+        <button class="wb-btn" id="bj-wb-circle" data-tip="Circle" aria-label="Circle"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg></button>
         <button class="wb-btn" id="bj-wb-text-tool" data-tip="Text">T</button>
         <div class="wb-tsep"></div>
         <div class="wb-color-btn active" style="background:#ede9f4" data-color="#ede9f4" title="White"></div>
@@ -17107,8 +17278,8 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
         <input type="range" id="bj-wb-size" min="1" max="30" value="3" style="writing-mode:vertical-lr;direction:rtl;width:18px;height:70px;">
         <span id="bj-wb-size-lbl" style="font-size:9px;text-align:center;">3</span>
         <div class="wb-flex-spacer"></div>
-        <button class="wb-btn" id="bj-wb-undo" data-tip="Undo">↩</button>
-        <button class="wb-btn" id="bj-wb-clear" data-tip="Clear">✕</button>
+        <button class="wb-btn" id="bj-wb-undo" data-tip="Undo" aria-label="Undo"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg></button>
+        <button class="wb-btn" id="bj-wb-clear" data-tip="Clear" aria-label="Clear"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <!-- Scrollable canvas area -->
       <div id="bj-wb-scroll">
@@ -17118,9 +17289,9 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
 
     <!-- NOTES -->
     <div id="bj-notes-area">
-      <div class="bj-drop-zone" id="bj-notes-drop-zone"><div class="bj-drop-label">📁 Drop files here</div></div>
+      <div class="bj-drop-zone" id="bj-notes-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
       <div class="bj-attach-bar" id="bj-notes-attach-bar">
-        <button class="bj-attach-btn" id="bj-notes-attach-btn" title="Attach files">📎 Attach Files<input type="file" id="bj-notes-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
+        <button class="bj-attach-btn" id="bj-notes-attach-btn" title="Attach files"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="bj-notes-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
         <div class="bj-attach-chips" id="bj-notes-attach-chips"></div>
       </div>
       <div class="notes-section">
@@ -17140,9 +17311,9 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
 
     <!-- CORNELL -->
     <div id="bj-cornell-area">
-      <div class="bj-drop-zone" id="bj-cornell-drop-zone"><div class="bj-drop-label">📁 Drop files here</div></div>
+      <div class="bj-drop-zone" id="bj-cornell-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
       <div class="bj-attach-bar" id="bj-cornell-attach-bar">
-        <button class="bj-attach-btn" id="bj-cornell-attach-btn" title="Attach files">📎 Attach Files<input type="file" id="bj-cornell-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
+        <button class="bj-attach-btn" id="bj-cornell-attach-btn" title="Attach files"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="bj-cornell-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
         <div class="bj-attach-chips" id="bj-cornell-attach-chips"></div>
       </div>
       <div class="bj-attach-images" id="bj-cornell-attach-images"></div>
@@ -17167,16 +17338,16 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
 
     <!-- MIND MAP -->
     <div id="bj-mindmap-area">
-      <div class="bj-drop-zone" id="bj-mm-drop-zone"><div class="bj-drop-label">📁 Drop files here</div></div>
+      <div class="bj-drop-zone" id="bj-mm-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
       <div class="bj-attach-bar" id="bj-mm-attach-bar">
-        <button class="bj-attach-btn" id="bj-mm-attach-btn" title="Attach files">📎 Attach Files<input type="file" id="bj-mm-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
+        <button class="bj-attach-btn" id="bj-mm-attach-btn" title="Attach files"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/></svg><span>Attach Files</span><input type="file" id="bj-mm-attach-input" multiple accept="*/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
         <div class="bj-attach-chips" id="bj-mm-attach-chips"></div>
       </div>
       <div class="bj-attach-images" id="bj-mm-attach-images"></div>
       <div id="bj-mm-toolbar">
-          <button class="wb-btn" id="bj-mm-add-node">＋ Add Node</button>
-          <button class="wb-btn" id="bj-mm-connect-mode">⟷ Connect</button>
-          <button class="wb-btn" id="bj-mm-delete-node">✕ Delete</button>
+          <button class="wb-btn" id="bj-mm-add-node"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add Node</span></button>
+          <button class="wb-btn" id="bj-mm-connect-mode"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="12" r="2.5"/><path d="M7.5 12h9"/></svg><span>Connect</span></button>
+          <button class="wb-btn" id="bj-mm-delete-node"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Delete</span></button>
           <div class="mm-action-sep"></div>
           <div class="mm-palette-sep"></div>
           <span class="mm-palette-label">Color</span>
@@ -17190,8 +17361,8 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
           <div class="mm-color-btn" data-fill="#1a2035" data-stroke="#6da8f5" style="background:#6da8f5;" title="Blue"></div>
           <span class="mm-hint">Dbl-click to rename · Drag to move</span>
           <div style="flex:1"></div>
-          <button class="wb-btn" id="bj-mm-img-btn" title="Add image to selected node" style="position:relative;overflow:hidden;">📷 Image<input type="file" id="bj-mm-img-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
-          <button class="wb-btn" id="bj-mm-reset">↺ Reset</button>
+          <button class="wb-btn" id="bj-mm-img-btn" title="Add image to selected node" style="position:relative;overflow:hidden;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg><span>Image</span><input type="file" id="bj-mm-img-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;"></button>
+          <button class="wb-btn" id="bj-mm-reset"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>Reset</span></button>
         </div>
       <div id="bj-mm-canvas-wrap">
         <canvas id="bj-mm-canvas" height="480"></canvas>
@@ -17202,7 +17373,7 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
 
     <!-- PAGE -->
     <div id="bj-page-area">
-      <div class="bj-drop-zone" id="bj-page-drop-zone"><div class="bj-drop-label">📁 Drop files here</div></div>
+      <div class="bj-drop-zone" id="bj-page-drop-zone"><div class="bj-drop-label"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>Drop files here</div></div>
       <div id="bj-page-toolbar">
         <!-- Block format -->
         <select class="pt-select docx-r1" id="bj-pt-block">
@@ -17246,24 +17417,24 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
         <button class="pt-btn docx-r1" id="bj-pt-ol" title="Numbered list">1.</button>
         <div class="pt-sep"></div>
         <!-- Alignment -->
-        <button class="pt-btn docx-r2" id="bj-pt-alignL" title="Align left">&#8676;</button>
-        <button class="pt-btn docx-r2" id="bj-pt-alignC" title="Center">&#8596;</button>
-        <button class="pt-btn docx-r2" id="bj-pt-alignR" title="Align right">&#8677;</button>
+        <button class="pt-btn docx-r2" id="bj-pt-alignL" title="Align left" aria-label="Align left"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h13"/></svg></button>
+        <button class="pt-btn docx-r2" id="bj-pt-alignC" title="Center" aria-label="Center"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M7 12h10"/><path d="M5 18h14"/></svg></button>
+        <button class="pt-btn docx-r2" id="bj-pt-alignR" title="Align right" aria-label="Align right"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M10 12h10"/><path d="M7 18h13"/></svg></button>
         <div class="pt-sep"></div>
         <!-- Insert -->
-        <button class="pt-btn docx-r2" id="bj-pt-link" title="Insert link">&#128279;</button>
+        <button class="pt-btn docx-r2" id="bj-pt-link" title="Insert link" aria-label="Insert link"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
         <button class="pt-btn docx-r2" id="bj-pt-hr" title="Divider">&#8213;</button>
-        <button class="pt-btn docx-r2" id="bj-pt-table" title="Insert table">&#9783;</button>
+        <button class="pt-btn docx-r2" id="bj-pt-table" title="Insert table" aria-label="Insert table"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M3 15h18"/><path d="M9 10v10"/><path d="M15 10v10"/></svg></button>
         <button class="pt-btn" id="bj-pt-md" title="Render Markdown — convert raw Markdown into formatted text" style="font-weight:700;font-size:11px;">Render Markdown</button>
-        <button class="pt-btn docx-r1" id="bj-page-img-btn" title="Insert image / attach file">
-          &#128247;
+        <button class="pt-btn docx-r1" id="bj-page-img-btn" title="Insert image / attach file" aria-label="Insert image / attach file">
+          <svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z"/><circle cx="12" cy="14" r="3.5"/></svg>
           <input type="file" id="bj-page-img-file" accept="*/*" multiple>
         </button>
         <div class="pt-sep"></div>
         <!-- Highlight colors -->
         <div class="pt-hl-wrap docx-r1" id="bj-pt-hl-wrap" title="Highlight text">
           <button class="pt-btn pt-hl-trigger" id="bj-pt-hl-trigger" title="Highlight">
-            <span class="pt-hl-icon" id="bj-pt-hl-icon">&#9646;</span><span style="font-size:9px;margin-left:1px;">▾</span>
+            <span class="pt-hl-icon" id="bj-pt-hl-icon"></span><span class="bj-pt-caret" aria-hidden="true"></span>
           </button>
           <div class="pt-hl-palette" id="bj-pt-hl-palette">
             <button class="pt-hl-swatch" data-color="#FFE066" style="background:#FFE066;" title="Yellow"></button>
@@ -17272,12 +17443,12 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
             <button class="pt-hl-swatch" data-color="#FFB3C6" style="background:#FFB3C6;" title="Pink"></button>
             <button class="pt-hl-swatch" data-color="#F9C784" style="background:#F9C784;" title="Orange"></button>
             <button class="pt-hl-swatch" data-color="#D4B0FF" style="background:#D4B0FF;" title="Purple"></button>
-            <button class="pt-hl-swatch" data-color="none" style="background:transparent;border:1.5px solid var(--border);color:var(--red);font-size:11px;font-weight:700;" title="Remove highlight">✕</button>
+            <button class="pt-hl-swatch" data-color="none" style="background:transparent;border:1.5px solid var(--border);color:var(--red);font-size:11px;font-weight:700;" title="Remove highlight" aria-label="Remove highlight"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
           </div>
         </div>
         <div style="flex:1"></div>
         <!-- Clear -->
-        <button class="pt-btn" id="bj-pt-clear" title="Clear all content" style="color:var(--red);">&#128465;</button>
+        <button class="pt-btn" id="bj-pt-clear" title="Clear all content" aria-label="Clear all content" style="color:var(--red);"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
       </div>
       <div id="bj-page-editor-wrap">
         <div id="bj-page-editor" contenteditable="false"></div>
@@ -17291,32 +17462,32 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
   <div id="bj-template-panel">
     <div class="modal-header">
       <h2>Choose a Template</h2>
-      <button class="modal-close" id="bj-close-modal">✕</button>
+      <button class="modal-close" id="bj-close-modal" title="Close" aria-label="Close"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     </div>
     <p>Pick a format for this entry</p>
     <div class="template-grid">
       <div class="template-card" data-template="whiteboard">
-        <div class="template-card-icon">🖊️</div>
+        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19H5a2 2 0 0 1 0-4h5a2 2 0 0 0 0-4H7"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L15 12l-4 1 1-4Z"/></svg></div>
         <h3>Whiteboard</h3>
         <p>Free-draw canvas with pen, shapes, text and undo.</p>
       </div>
       <div class="template-card" data-template="notes">
-        <div class="template-card-icon">📝</div>
+        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v12l-4 4H4Z"/><path d="M20 16h-4v4"/><path d="M8 9h8"/><path d="M8 13h5"/></svg></div>
         <h3>Structured Notes</h3>
         <p>Three sections: ideas, connections, next steps.</p>
       </div>
       <div class="template-card" data-template="cornell">
-        <div class="template-card-icon">📋</div>
+        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="4" width="12" height="18" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></div>
         <h3>Cornell Notes</h3>
         <p>Classic format: cues, notes, and summary.</p>
       </div>
       <div class="template-card" data-template="mindmap">
-        <div class="template-card-icon">🧠</div>
+        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5a3 3 0 0 0-6 0 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1Z"/><path d="M12 5a3 3 0 0 1 6 0 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1Z"/></svg></div>
         <h3>Mind Map</h3>
         <p>Visual node-based map for exploring ideas.</p>
       </div>
       <div class="template-card" data-template="page">
-        <div class="template-card-icon">📄</div>
+        <div class="template-card-icon"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg></div>
         <h3>Page</h3>
         <p>Rich document: text, images, lists, tables, headings.</p>
       </div>
@@ -17325,10 +17496,10 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
 </div>
 </div><!-- end bj-body -->
 <div id="bj-bottom-bar" style="display:none;">
-  <button id="bj-bb-edit" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;">✏ Edit</button>
-  <button id="bj-bb-template" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;">⊞ Template</button>
+  <button id="bj-bb-edit" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg><span>Edit</span></button>
+  <button id="bj-bb-template" style="flex:1;background:transparent;color:var(--text2);border:1px solid var(--border2);border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/></svg><span>Template</span></button>
   <button id="bj-bb-new" style="flex:2;background:var(--purple);color:#fff;border:none;border-radius:5px;padding:7px 0;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px;cursor:pointer;touch-action:manipulation;">+ New</button>
-  <span id="bj-bb-saved" style="font-size:10px;color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:700;opacity:0;transition:opacity 0.4s;white-space:nowrap;">✓</span>
+  <span id="bj-bb-saved" style="font-size:10px;color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:700;opacity:0;transition:opacity 0.4s;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
 </div>
 </div>
 
@@ -17352,9 +17523,9 @@ function _bjSetSync(status) {
   txt.textContent = labels[status] || status;
   // Bottom bar indicator on mobile
   if (bb) {
-    if (status === 'syncing') { bb.textContent = '↑ Syncing…'; bb.style.color = 'var(--cyan)'; bb.style.opacity = '1'; }
-    else if (status === 'synced') { bb.textContent = '✓ Synced'; bb.style.color = 'var(--green)'; bb.style.opacity = '1'; clearTimeout(bb._t); bb._t = setTimeout(() => { bb.style.opacity='0'; }, 3000); }
-    else if (status === 'error') { bb.textContent = '⚠ Failed'; bb.style.color = 'var(--red)'; bb.style.opacity = '1'; }
+    if (status === 'syncing') { bb.innerHTML = window.TNI.arrowUp + '<span>Syncing…</span>'; bb.style.color = 'var(--cyan)'; bb.style.opacity = '1'; }
+    else if (status === 'synced') { bb.innerHTML = window.TNI.check + '<span>Synced</span>'; bb.style.color = 'var(--green)'; bb.style.opacity = '1'; clearTimeout(bb._t); bb._t = setTimeout(() => { bb.style.opacity='0'; }, 3000); }
+    else if (status === 'error') { bb.innerHTML = window.TNI.alert + '<span>Failed</span>'; bb.style.color = 'var(--red)'; bb.style.opacity = '1'; }
     else { bb.style.opacity = '0'; }
   }
   // Auto-reset synced → idle after 4s
@@ -17855,7 +18026,7 @@ function _bjRenderTrashBtn() {
     if (stats && stats.parentNode) stats.parentNode.insertBefore(btn, stats);
   }
   const n = state.entries.filter(e => e.trashed).length;
-  btn.innerHTML = '🗑 Trash' + (n ? ' <span class="docx-trash-count">' + n + '</span>' : '');
+  btn.innerHTML = window.TNI.trash + '<span>Trash</span>' + (n ? ' <span class="docx-trash-count">' + n + '</span>' : '');
 }
 
 function renderSidebar() {
@@ -17892,7 +18063,7 @@ function renderSidebar() {
         <span>${date}</span>
         ${(entry.tags||[]).length ? `<span>· ${entry.tags.slice(0,2).join(', ')}${entry.tags.length > 2 ? '…' : ''}</span>` : ''}
       </div>
-      <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">✕</button>
+      <button class="entry-delete" data-id="${entry.id}" title="Move to Trash" aria-label="Move to Trash">${window.TNI.x}</button>
     `;
     div.addEventListener('click', e => {
       if (e.target.classList.contains('entry-delete') || e.target.closest('.entry-delete')) return;
@@ -18140,7 +18311,7 @@ function renderTags(tags) {
     span.appendChild(label);
     const delBtn = document.createElement('span');
     delBtn.className = 'tag-del';
-    delBtn.textContent = '✕';
+    delBtn.innerHTML = window.TNI.x;
     delBtn.style.display = isEditMode ? '' : 'none';
     delBtn.onclick = () => {
       const e = getActive(); if (!e) return;
@@ -18591,9 +18762,14 @@ function renderMindmap() {
         ctx.arc(imgX + iw, imgY + ih, 7, 0, Math.PI*2);
         ctx.fill(); ctx.stroke();
         // Draw resize arrow icon inside
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 9px sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('⤡', imgX + iw, imgY + ih);
+        // Two short strokes, not a glyph: the resize grip has to stay crisp at
+        // any devicePixelRatio, and ⤡ fell back to whatever the system font had.
+        const _gx = imgX + iw, _gy = imgY + ih;
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(_gx - 3.5, _gy + 3.5); ctx.lineTo(_gx + 3.5, _gy - 3.5);
+        ctx.moveTo(_gx + 0.5, _gy + 3.5); ctx.lineTo(_gx + 3.5, _gy + 0.5);
+        ctx.stroke();
       }
     }
     // Draw label text
@@ -18623,9 +18799,12 @@ function renderMindmap() {
         ctx.fillStyle = '#E74C3C';
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(node.x - iw2/2 + 10, imgY2 + 10, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif';
-        ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText('✕', node.x - iw2/2 + 10, imgY2 + 10);
+        const _cx = node.x - iw2/2 + 10, _cy = imgY2 + 10, _r = 3.2;
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(_cx - _r, _cy - _r); ctx.lineTo(_cx + _r, _cy + _r);
+        ctx.moveTo(_cx + _r, _cy - _r); ctx.lineTo(_cx - _r, _cy + _r);
+        ctx.stroke();
       }
     }
   });
@@ -19118,7 +19297,7 @@ function _pgBindImgWrap(wrap) {
     menu.id = '_pg_ctx_menu';
     menu.style.cssText = 'position:fixed;z-index:99999;background:#26272A;border:1px solid #4A4B51;border-radius:7px;padding:4px 0;box-shadow:0 8px 32px rgba(0,0,0,0.55);min-width:160px;font-family:IBM Plex Mono,monospace;font-size:12px;';
     var copyBtn = document.createElement('div');
-    copyBtn.textContent = '📋  Copy Image';
+    copyBtn.innerHTML = window.TNI.copy + '<span>Copy Image</span>';
     copyBtn.style.cssText = 'padding:9px 16px;cursor:pointer;color:#ECECEE;white-space:nowrap;';
     copyBtn.onmouseenter = function() { copyBtn.style.background='rgba(141,118,154,0.15)'; };
     copyBtn.onmouseleave = function() { copyBtn.style.background=''; };
@@ -19137,7 +19316,7 @@ function _pgBindImgWrap(wrap) {
     });
     menu.appendChild(copyBtn);
     var dlBtn = document.createElement('div');
-    dlBtn.textContent = '⬇️  Download';
+    dlBtn.innerHTML = window.TNI.download + '<span>Download</span>';
     dlBtn.style.cssText = 'padding:9px 16px;cursor:pointer;color:#ECECEE;white-space:nowrap;';
     dlBtn.onmouseenter = function() { dlBtn.style.background='rgba(141,118,154,0.15)'; };
     dlBtn.onmouseleave = function() { dlBtn.style.background=''; };
@@ -19188,7 +19367,7 @@ function pgInsertImage(src) {
     rsz.title = 'Drag to resize';
     const del = document.createElement('span');
     del.className = 'pg-img-del-handle';
-    del.textContent = '✕';
+    del.innerHTML = window.TNI.x;
     del.title = 'Remove image';
     wrap.appendChild(img);
     wrap.appendChild(rsz);
@@ -19612,7 +19791,7 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
   const ed = document.getElementById('bj-page-editor');
   ed.focus();
   const escaped = name.replace(/"/g,'&quot;');
-  const clip = (window._docxPaperclipSVG || '📎');
+  const clip = (window._docxPaperclipSVG || window.TNI.clip);
   const html = '<a class="bj-file-chip" href="' + dataURL + '" download="' + escaped + '" contenteditable="false" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:var(--card2);border:1px solid var(--border);border-radius:4px;text-decoration:none;color:var(--text2);font-size:11px;font-weight:600;margin:2px 3px;cursor:pointer;">' + clip + '<span class="tj-file-name">' + escaped + '</span></a>';
   document.execCommand('insertHTML', false, html);
   autoSave();
@@ -19669,7 +19848,7 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
         img.draggable = false;
         var del = document.createElement('div');
         del.className = 'bj-img-del';
-        del.textContent = '✕';
+        del.innerHTML = window.TNI.x;
         del.addEventListener('click', function() { removeAttachment(att.id); });
         var rsz = document.createElement('div');
         rsz.className = 'bj-img-resize';
@@ -19703,11 +19882,11 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
         chip.href = att.data;
         chip.download = att.name;
         chip.title = att.name;
-        chip.innerHTML = '<span>📎</span><span class="bj-chip-name">' + _bjEsc(att.name) + '</span>';
+        chip.innerHTML = '<span class="docx-clip-wrap">' + (window._docxPaperclipSVG || window.TNI.clip) + '</span><span class="bj-chip-name">' + _bjEsc(att.name) + '</span>';
         if (isEditMode) {
           var delSpan = document.createElement('span');
           delSpan.className = 'bj-chip-del';
-          delSpan.textContent = '✕';
+          delSpan.innerHTML = window.TNI.x;
           delSpan.addEventListener('click', function(e) { e.preventDefault(); removeAttachment(att.id); });
           chip.appendChild(delSpan);
         }
@@ -20239,7 +20418,7 @@ function setEditMode(enabled) {
   if (addTagInput) addTagInput.style.display = enabled ? '' : 'none';
   // Sync bottom bar edit button label
   const bbEdit = document.getElementById('bj-bb-edit');
-  if (bbEdit) bbEdit.textContent = enabled ? '✓ Done' : '✏ Edit';
+  if (bbEdit) bbEdit.innerHTML = enabled ? window.TNI.check + '<span>Done</span>' : window.TNI.pencil + '<span>Edit</span>';
   if (enabled && window._docxRefreshRulers) window._docxRefreshRulers('bj');
 }
 
@@ -20322,7 +20501,7 @@ function setEditMode(enabled) {
     if (checkbox) {
       checkbox.checked = !checkbox.checked;
       setEditMode(checkbox.checked);
-      bjBbEditBtn.textContent = checkbox.checked ? '✓ Done' : '✏ Edit';
+      bjBbEditBtn.innerHTML = checkbox.checked ? window.TNI.check + '<span>Done</span>' : window.TNI.pencil + '<span>Edit</span>';
     }
   });
 
@@ -21341,10 +21520,11 @@ window.hideBrainstormJournal = function() {
     display: flex;
     align-items: center;
     gap: 8px;
-    transition: background 0.15s, border-color 0.15s;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    box-shadow: none;
     width: calc(100% - 24px);
   }
-#tj-root #tj-new-entry-btn:hover { background: transparent; border-color: rgba(224,184,116,0.6); }
+#tj-root #tj-new-entry-btn:hover { background: transparent; border-color: rgba(224,184,116,0.6); box-shadow: 0 0 8px rgba(224,184,116,.4), 0 0 0 1px rgba(224,184,116,.15); }
 #tj-root #tj-new-entry-btn svg { flex-shrink: 0; }
 
 #tj-root #tj-search-box {
@@ -21505,7 +21685,7 @@ window.hideBrainstormJournal = function() {
   transition: background 0.12s, color 0.12s, border-color 0.12s;
   opacity: 0.75;
 }
-#tj-root #tj-fullscreen-btn:hover { background: var(--card2); color: var(--purple); border-color: var(--purple); opacity: 1; }
+#tj-root #tj-fullscreen-btn:hover { background: var(--card2); color: var(--purple); border-color: var(--purple); opacity: 1; box-shadow: 0 0 8px rgba(224,184,116,.34), 0 0 0 1px rgba(224,184,116,.12); }
 #tj-root.tj-fullscreen #tj-fullscreen-btn { color: var(--purple); border-color: rgba(141,118,154,0.55); background: rgba(141,118,154,0.08); opacity: 1; }
 
   /* ── TOOLBAR ── */
@@ -21543,10 +21723,11 @@ window.hideBrainstormJournal = function() {
     color: var(--text2);
     cursor: pointer;
     display: flex; align-items: center; gap: 5px; white-space: nowrap;
-    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
+    box-shadow: none;
     letter-spacing: 0.03em;
   }
-#tj-root .tb-btn:hover { background: var(--card2); color: var(--text); border-color: var(--border2); }
+#tj-root .tb-btn:hover { background: var(--card2); color: var(--text); border-color: #e0b874; box-shadow: 0 0 8px rgba(224,184,116,.34), 0 0 0 1px rgba(224,184,116,.12); }
 #tj-root .tb-btn.active { background: transparent; color: var(--purple); border-color: #e0b874; }
 #tj-root .tb-btn.save-btn { color: var(--green); border-color: rgba(93,175,109,0.25); }
 #tj-root .tb-btn.save-btn:hover { background: rgba(93,175,109,0.08); color: var(--green); border-color: rgba(93,175,109,0.45); }
@@ -21795,7 +21976,7 @@ window.hideBrainstormJournal = function() {
     transition: background 0.1s, color 0.1s, border-color 0.1s;
     touch-action: manipulation;
   }
-#tj-root .wb-btn:hover { background: var(--card2); color: var(--text); }
+#tj-root .wb-btn:hover { background: var(--card2); color: var(--text); box-shadow: 0 0 7px rgba(224,184,116,.28), 0 0 0 1px rgba(224,184,116,.10); }
 #tj-root .wb-btn.active { background: rgba(141,118,154,0.15); color: var(--purple); border-color: rgba(141,118,154,0.4); }
 #tj-root .wb-color-btn {
     width: 18px; height: 18px; border-radius: 50%;
@@ -21888,7 +22069,7 @@ window.hideBrainstormJournal = function() {
     transition: background 0.1s, color 0.1s, border-color 0.1s;
     white-space: nowrap; letter-spacing: 0.01em; min-width: 26px; justify-content: center;
   }
-#tj-root .pt-btn:hover { background: var(--card); color: var(--text); border-color: var(--border); }
+#tj-root .pt-btn:hover { background: var(--card); color: var(--text); border-color: rgba(224,184,116,.5); box-shadow: 0 0 7px rgba(224,184,116,.28), 0 0 0 1px rgba(224,184,116,.10); }
 #tj-root .pt-btn.active { background: transparent; color: var(--purple); border-color: #e0b874; }
 #tj-root .pt-select {
     padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px;
@@ -22076,7 +22257,7 @@ window.hideBrainstormJournal = function() {
   background: var(--card); border: 1px solid var(--border); color: var(--text2);
   white-space: nowrap; flex-shrink: 0;
 }
-#tj-root .tj-attach-btn:hover { border-color: var(--purple2); color: var(--purple); }
+#tj-root .tj-attach-btn:hover { border-color: var(--purple2); color: var(--purple); box-shadow: 0 0 7px rgba(224,184,116,.28), 0 0 0 1px rgba(224,184,116,.10); }
 #tj-root .tj-attach-chips { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; min-width: 0; }
 #tj-root .tj-chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -27711,9 +27892,9 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 .docx-modal-b { padding: 12px 18px; overflow-y: auto; flex: 1; font-size: 13px; }
 .docx-modal-f { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-top: 1px solid rgba(255,255,255,.08); flex-wrap: wrap; }
 .docx-btn { background: #2C2D33; border: 1px solid #3B3C42; border-radius: 7px; color: #f4f3f0; padding: 7px 13px; font-size: 12px; cursor: pointer; font-family: inherit; }
-.docx-btn:hover { background: #37383F; }
+.docx-btn:hover { background: #37383F; box-shadow: 0 0 8px rgba(244,243,240,.12), 0 0 0 1px rgba(244,243,240,.08); }
 .docx-btn.pri { background: #5B7CFF; border-color: #5B7CFF; color: #fff; font-weight: 700; }
-.docx-btn.pri:hover { background: #6E8BFF; }
+.docx-btn.pri:hover { background: #6E8BFF; box-shadow: 0 0 8px rgba(91,124,255,.45), 0 0 0 1px rgba(91,124,255,.2); }
 .docx-btn.danger { color: #FF7B7B; border-color: rgba(255,123,123,.4); }
 .docx-btn.danger:hover { background: rgba(255,123,123,.12); }
 .docx-trash-row { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid rgba(255,255,255,.06); }
@@ -29573,7 +29754,10 @@ window._docxOpenTrash = function(app) {
         row.className = 'docx-trash-row';
         row.innerHTML =
           '<input type="checkbox" ' + (selected[e.id] ? 'checked' : '') + '>' +
-          '<div class="t"><div class="n">' + esc(e.title || 'Untitled') + (e.lock ? ' 🔒' : '') + '</div>' +
+          // The Trash modal is shared by both journals, so the lock badge is
+          // swapped for the SVG only for Veda's ('bj') — Tony's list keeps the
+          // glyph it already renders.
+          '<div class="t"><div class="n">' + esc(e.title || 'Untitled') + (e.lock ? (app === 'bj' ? ' <span class="docx-lock-badge">' + window.TNI.lock + '</span>' : ' 🔒') : '') + '</div>' +
           '<div class="m">' + (TMAP[e.template] || 'NOTE') + ' · deleted ' + new Date(e.trashed).toLocaleDateString() + ' · auto-deletes in ' + days + 'd</div></div>' +
           '<div class="b"><button class="res">Restore</button><button class="del">Delete forever</button></div>';
         row.querySelector('input').addEventListener('change', function() {
@@ -38716,9 +38900,12 @@ function buildSchedule(T,league,ld){
   const tabRow=D({display:'flex',alignItems:'center',gap:6,padding:'12px 0 2px'});
   const mkTab=(id,label,n)=>{
     const on=_schedView===id;
-    const b=B({background:on?'rgba(167,139,250,0.14)':'transparent',
+    // Selected reads as a lit purple outline, never a purple fill — same emphasis
+    // language as the rest of the suite's chrome.
+    const b=B({background:'transparent',
       color:on?T.acl:T.txd,
-      border:'1px solid '+(on?'rgba(167,139,250,0.55)':T.bd),
+      border:'1px solid '+(on?'#a78bfa':T.bd),
+      boxShadow:on?'0 0 8px rgba(167,139,250,0.4),0 0 0 1px rgba(167,139,250,0.15)':'none',
       borderRadius:20,padding:'0 14px',height:'30px',fontSize:11,fontWeight:700,
       letterSpacing:'0.3px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
       fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",transition:'all .15s'},
@@ -38861,9 +39048,12 @@ function showLeagueMgr(){
   const overlay=D({position:'fixed',inset:0,background:'rgba(0,0,0,.6)',
     zIndex:10002,display:'flex',alignItems:'center',justifyContent:'center'});
 
+  // overscrollBehavior:contain stops the page behind scrolling once this list hits
+  // its top or bottom (the touchmove guard below covers the backdrop itself).
   const modal=D({background:T.s1,border:'1px solid '+T.bd,borderRadius:16,
     padding:'24px',width:'360px',maxWidth:'90vw',maxHeight:'82vh',
-    overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,.5)'});
+    overflowY:'auto',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch',
+    boxShadow:'0 20px 60px rgba(0,0,0,.5)'});
 
   modal.appendChild(S({fontSize:15,fontWeight:800,color:T.tx,
     display:'block',marginBottom:4},'Select Leagues'));
@@ -38932,6 +39122,8 @@ function showLeagueMgr(){
 
   overlay.appendChild(modal);
   overlay.onclick=e=>{if(e.target===overlay)overlay.parentNode&&overlay.parentNode.removeChild(overlay);};
+  // Dragging the dimmed backdrop must not scroll the schedule underneath.
+  overlay.addEventListener('touchmove',e=>{ if(!modal.contains(e.target)&&e.cancelable) e.preventDefault(); },{passive:false});
   document.body.appendChild(overlay);
 }
 
@@ -40625,7 +40817,11 @@ function renderVedaNavIn(row){
   trig.id='vd-dd-trigger';
   trig.type='button';
   trig.style.cssText='display:none;align-items:center;gap:6px;background:transparent;border:1px solid #8D769A;border-radius:5px;color:#8D769A;font-size:10px;font-weight:700;padding:0 10px;height:28px;box-sizing:border-box;font-family:\'IBM Plex Mono\',monospace;outline:none;cursor:pointer;white-space:nowrap;pointer-events:auto;letter-spacing:.5px;text-transform:uppercase;';
-  trig.innerHTML='<span id="vd-dd-label">'+(vedaMap[window._vdCurApp||'taskhub']||'Menu')+'</span><span style="font-size:8px;opacity:.65;margin-left:4px;">▼</span>';
+  // The label span stays FIRST: updateVedaDropdownLabel() finds it with
+  // querySelector('span'), so the caret must never precede it.
+  trig.innerHTML='<span id="vd-dd-label">'+(vedaMap[window._vdCurApp||'taskhub']||'Menu')+'</span>'
+    +'<span style="display:inline-flex;align-items:center;font-size:11px;opacity:.65;margin-left:4px;" aria-hidden="true">'
+    +'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m6 9 6 6 6-6"/></svg></span>';
   trig.addEventListener('click',function(e){ e.stopPropagation(); _vdOpen?closeVedaDD():openVedaDD(trig); });
   row.appendChild(trig);
   preserved.forEach(function(el){ row.appendChild(el); });

@@ -969,7 +969,21 @@
   #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:38px 30px;background:#16131b;border:1px solid #2c2733;border-radius:22px;width:340px;max-width:90vw;box-shadow:0 32px 80px rgba(0,0,0,0.7);position:relative;box-sizing:border-box;}
   @keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
   #applock-box.shake{animation:applock-shake 0.4s ease;}
-  #applock-icon{font-size:34px;line-height:1;}
+  #applock-icon{font-size:34px;line-height:0;display:flex;justify-content:center;color:var(--accent,#8D769A);}
+  /* ── SVG icon set (replaces the emoji this chrome used to render).
+        Sized in em so every glyph matches the font-size of the control that
+        holds it, and drawn in currentColor so it inherits the button's own
+        colour — accent, muted or danger — instead of a flat black glyph. ── */
+  .tbi{width:1em;height:1em;flex:none;display:block;}
+  th.sortable .arrow{display:inline-flex;align-items:center;margin-left:4px;font-size:.9em;vertical-align:-.1em;}
+  .btn-icon,.tb-btn{display:inline-flex;align-items:center;justify-content:center;}
+  .btn .tbi{margin-right:6px;}
+  .btn{align-items:center;}
+  .asn-ico{display:inline-flex;align-items:center;font-size:15px;line-height:0;flex:none;}
+  .asn-ico.ok{color:var(--good,#6FBF8F);}
+  .sched-hint-ico{display:inline-flex;align-items:center;vertical-align:-.14em;}
+  .section-nav button .navlock .tbi{width:1em;height:1em;}
+  .section-nav button .navlock{display:inline-flex;align-items:center;vertical-align:-.12em;}
   #applock-title{font-size:21px;font-weight:800;color:#efeaf3;margin-bottom:2px;text-align:center;}
   #applock-sub{font-size:13px;color:#8a7f95;text-align:center;line-height:1.5;}
   #applock-pw{background:#0e0c12;border:1px solid #37303f;border-radius:8px;color:#efeaf3;font-size:16px;font-weight:600;padding:12px 16px;font-family:inherit;outline:none;width:100%;text-align:center;letter-spacing:3px;box-sizing:border-box;}
@@ -982,7 +996,7 @@
   #applock-reset{background:transparent;border:none;color:#6b6478;font-size:12px;cursor:pointer;font-family:inherit;padding:2px 0 0;text-decoration:underline;width:100%;text-align:center;}
   /* Per-section lock overlay shown inside a section-view when that section is locked */
   .sec-lock-gate{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:60px 24px;text-align:center;}
-  .sec-lock-gate .sl-icon{font-size:40px;}
+  .sec-lock-gate .sl-icon{font-size:40px;line-height:0;display:flex;justify-content:center;color:var(--accent,#8D769A);}
   .sec-lock-gate .sl-title{font-size:20px;font-weight:800;color:var(--text);}
   .sec-lock-gate .sl-sub{font-size:13px;color:var(--text-2);}
   .sec-lock-gate button{background:#8D769A;color:#fff;border:none;border-radius:8px;padding:10px 22px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
@@ -1001,7 +1015,7 @@
 <!-- ══ App Lock overlay (Worker-KV password + Firebase lock-state sync) ══ -->
 <div id="applock-overlay">
   <div id="applock-box">
-    <div id="applock-icon">🔒</div>
+    <div id="applock-icon"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
     <div>
       <div id="applock-title">Locked</div>
       <div id="applock-sub">Enter your password to open TradeBoard.</div>
@@ -1091,7 +1105,7 @@
       <span class="mkt-status mkt-closed" id="mkt-status"><span class="m-dot"></span><span id="mkt-text">Market —</span></span>
       <span class="curve-meta mono" id="mkt-clock" style="color:var(--muted);"></span>
       <div style="flex:1"></div>
-      <button class="btn btn-ghost btn-sm" onclick="TB.pf.refresh()" title="Re-fetch from sync server (when served) or reload cache">⟳ Refresh</button>
+      <button class="btn btn-ghost btn-sm" onclick="TB.pf.refresh()" title="Re-fetch from sync server (when served) or reload cache"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span>Refresh</span></button>
     </div>
 
     <!-- account hero tiles -->
@@ -1116,8 +1130,8 @@
 
     <!-- toolbar -->
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
-      <button class="btn btn-primary" onclick="TB.jr.openAdd()">＋ Manual trade</button>
-      <button class="btn btn-ghost btn-sm" onclick="TB.jr.remerge()" title="Re-merge fills sharing symbol+side+exit-date into single entries">⧉ Re-merge</button>
+      <button class="btn btn-primary" onclick="TB.jr.openAdd()"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Manual trade</span></button>
+      <button class="btn btn-ghost btn-sm" onclick="TB.jr.remerge()" title="Re-merge fills sharing symbol+side+exit-date into single entries"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="12" height="12" rx="2"/><path d="M15 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h4"/></svg><span>Re-merge</span></button>
       <div style="flex:1"></div>
       <button class="btn btn-ghost btn-sm" onclick="TB.jr.exportCSV()">Export CSV</button>
       <button class="btn btn-ghost btn-sm" onclick="TB.jr.exportJSON()">Export JSON</button>
@@ -1196,7 +1210,7 @@
       <!-- sidebar -->
       <aside class="strats-sidebar">
         <div class="strats-side-head">
-          <button class="btn btn-primary btn-sm" onclick="TB.st.newPage()">＋ New page</button>
+          <button class="btn btn-primary btn-sm" onclick="TB.st.newPage()"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>New page</span></button>
         </div>
         <div class="strats-search">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -1224,7 +1238,7 @@
               <input type="checkbox" class="checkbox" id="st-md-toggle" onchange="TB.st.toggleMarkdown(this.checked)">
               <label for="st-md-toggle" style="cursor:pointer;font-size:11px;">Markdown</label>
             </span>
-            <button class="btn-icon danger" title="Delete page" onclick="TB.st.deletePage()">✕</button>
+            <button class="btn-icon danger" title="Delete page" aria-label="Delete page" onclick="TB.st.deletePage()"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
           </div>
 
           <div class="strats-toolbar" id="st-toolbar">
@@ -1243,10 +1257,10 @@
             <div class="tb-sep"></div>
             <button class="tb-btn" data-cmd="insertUnorderedList" onclick="TB.st.cmd('insertUnorderedList')" title="Bulleted list">•</button>
             <button class="tb-btn" data-cmd="insertOrderedList" onclick="TB.st.cmd('insertOrderedList')" title="Numbered list">1.</button>
-            <button class="tb-btn" onclick="TB.st.cmd('formatBlock','BLOCKQUOTE')" title="Quote">❝</button>
+            <button class="tb-btn" onclick="TB.st.cmd('formatBlock','BLOCKQUOTE')" title="Quote" aria-label="Quote"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6C6 7 4.5 9.5 4.5 13V18h6v-6H7.5c0-2.5.8-4 3-4.6Z"/><path d="M19 6c-3 1-4.5 3.5-4.5 7V18h6v-6h-3c0-2.5.8-4 3-4.6Z"/></svg></button>
             <div class="tb-sep"></div>
-            <button class="tb-btn" onclick="TB.st.insertLink()" title="Insert link">🔗</button>
-            <button class="tb-btn" onclick="TB.st.insertTable()" title="Insert table">▦</button>
+            <button class="tb-btn" onclick="TB.st.insertLink()" title="Insert link" aria-label="Insert link"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
+            <button class="tb-btn" onclick="TB.st.insertTable()" title="Insert table" aria-label="Insert table"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M3 15h18"/><path d="M9 10v10"/><path d="M15 10v10"/></svg></button>
             <button class="tb-btn" onclick="TB.st.cmd('insertHorizontalRule')" title="Divider">―</button>
             <div class="tb-sep"></div>
             <select class="tb-select" onchange="TB.st.cmd('fontName', this.value); this.selectedIndex=0;" title="Font">
@@ -1260,9 +1274,9 @@
               <option value="5">Large</option><option value="6">Huge</option>
             </select>
             <div class="tb-sep"></div>
-            <button class="tb-btn" onclick="TB.st.cmd('undo')" title="Undo (Ctrl+Z)">↶</button>
-            <button class="tb-btn" onclick="TB.st.cmd('redo')" title="Redo (Ctrl+Y)">↷</button>
-            <button class="tb-btn" onclick="TB.st.cmd('removeFormat')" title="Clear formatting">⌫</button>
+            <button class="tb-btn" onclick="TB.st.cmd('undo')" title="Undo (Ctrl+Z)" aria-label="Undo"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg></button>
+            <button class="tb-btn" onclick="TB.st.cmd('redo')" title="Redo (Ctrl+Y)" aria-label="Redo"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h4"/></svg></button>
+            <button class="tb-btn" onclick="TB.st.cmd('removeFormat')" title="Clear formatting" aria-label="Clear formatting"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5 17 17"/><path d="M9 5h9"/><path d="M13.5 5 10 19"/><path d="M6 19h7"/></svg></button>
           </div>
 
           <div class="strats-editor-scroll">
@@ -1309,7 +1323,7 @@
       <div class="apps-head">
         <div class="apps-head-sub" id="apps-sub">No items yet</div>
         <div class="apps-head-r">
-          <button class="btn btn-sm" onclick="TB.apps.refreshStatus()" title="Re-check which items are running">⟳ Status</button>
+          <button class="btn btn-sm" onclick="TB.apps.refreshStatus()" title="Re-check which items are running"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span>Status</span></button>
           <button class="btn btn-sm btn-primary" onclick="TB.apps.openModal()">Add item</button>
         </div>
       </div>
@@ -2207,7 +2221,7 @@ TB.pf = {
   _emptyCallout() {
     return `<div class="callout">
       No portfolio data yet. Serve this page with <code>wb_server.py</code>
-      to auto-sync positions from Webull, then hit <b>⟳ Refresh</b>.
+      to auto-sync positions from Webull, then hit <b>Refresh</b>.
     </div>`;
   },
 
@@ -2549,9 +2563,9 @@ TB.jr = {
     TB.jr._syncSelBar();
     // sort arrows
     document.querySelectorAll("th.sortable").forEach(th => {
-      const arrow = th.dataset.sort === TB.jr.sortKey ? (TB.jr.sortDir < 0 ? " ▼" : " ▲") : "";
+      const arrow = th.dataset.sort === TB.jr.sortKey ? (TB.jr.sortDir < 0 ? `<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>` : `<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>`) : "";
       th.querySelector(".arrow")?.remove();
-      if (arrow) { const s2 = document.createElement("span"); s2.className = "arrow"; s2.textContent = arrow; th.appendChild(s2); }
+      if (arrow) { const s2 = document.createElement("span"); s2.className = "arrow"; s2.innerHTML = arrow; th.appendChild(s2); }
     });
   },
   _renderTable() {
@@ -2562,7 +2576,7 @@ TB.jr = {
     TB.jr._renderCards(rows);
     if (rows.length === 0) {
       body.innerHTML = `<tr><td colspan="12" class="table-empty">${
-        TB.jr.trades.length === 0 ? "No trades yet.<br>Click “＋ Manual trade” or sync from your broker."
+        TB.jr.trades.length === 0 ? "No trades yet.<br>Click “Manual trade” or sync from your broker."
           : "No trades match the current filters."}</td></tr>`;
       return;
     }
@@ -2587,8 +2601,8 @@ TB.jr = {
         <td>${tags}</td>
         <td class="notes-cell" title="${notes}">${notes || '<span style="color:var(--border)">—</span>'}</td>
         <td><div class="row-actions">
-          <button class="btn-icon" title="Edit" onclick="TB.jr.openEdit('${t.id}')">✎</button>
-          <button class="btn-icon danger" title="Delete" onclick="TB.jr.remove('${t.id}')">✕</button>
+          <button class="btn-icon" title="Edit" aria-label="Edit" onclick="TB.jr.openEdit('${t.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+          <button class="btn-icon danger" title="Delete" aria-label="Delete" onclick="TB.jr.remove('${t.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
         </div></td>
       </tr>`;
     }).join("");
@@ -2600,7 +2614,7 @@ TB.jr = {
     if (!host) return;
     if (rows.length === 0) {
       host.innerHTML = `<div class="table-empty">${
-        TB.jr.trades.length === 0 ? "No trades yet.<br>Tap “＋ Manual trade” or sync from your broker."
+        TB.jr.trades.length === 0 ? "No trades yet.<br>Tap “Manual trade” or sync from your broker."
           : "No trades match the current filters."}</div>`;
       return;
     }
@@ -2634,8 +2648,8 @@ TB.jr = {
         ${tags ? `<div class="m-card-tags">${tags}</div>` : ""}
         ${t.notes ? `<div class="m-card-notes">${U.esc(t.notes)}</div>` : ""}
         <div class="m-card-actions">
-          <button class="btn btn-ghost btn-sm" onclick="TB.jr.openEdit('${t.id}')">✎ Edit</button>
-          <button class="btn btn-danger btn-sm" onclick="TB.jr.remove('${t.id}')">✕ Delete</button>
+          <button class="btn btn-ghost btn-sm" onclick="TB.jr.openEdit('${t.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg><span>Edit</span></button>
+          <button class="btn btn-danger btn-sm" onclick="TB.jr.remove('${t.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Delete</span></button>
         </div>
       </div>`;
     }).join("");
@@ -3207,11 +3221,11 @@ TB.rules = {
         <div class="rule-text">${U.esc(r.text)}</div>
         <div class="rule-acts">
           <button class="btn-icon" title="Move up" aria-label="Move up" ${i === 0 ? "disabled" : ""}
-                  onclick="TB.rules.moveRule('${r.id}',-1)">↑</button>
+                  onclick="TB.rules.moveRule('${r.id}',-1)"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V5"/><path d="m6 11 6-6 6 6"/></svg></button>
           <button class="btn-icon" title="Move down" aria-label="Move down" ${i === n - 1 ? "disabled" : ""}
-                  onclick="TB.rules.moveRule('${r.id}',1)">↓</button>
-          <button class="btn-icon" title="Edit" aria-label="Edit rule" onclick="TB.rules.editRule('${r.id}')">✎</button>
-          <button class="btn-icon danger" title="Delete" aria-label="Delete rule" onclick="TB.rules.deleteRule('${r.id}')">✕</button>
+                  onclick="TB.rules.moveRule('${r.id}',1)"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v15"/><path d="m6 13 6 6 6-6"/></svg></button>
+          <button class="btn-icon" title="Edit" aria-label="Edit rule" onclick="TB.rules.editRule('${r.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+          <button class="btn-icon danger" title="Delete" aria-label="Delete rule" onclick="TB.rules.deleteRule('${r.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
         </div>
       </div>`).join("");
   },
@@ -3700,13 +3714,13 @@ TB.apps = {
     if (!host) return;
     if (TB.apps.shell.available) {
       host.innerHTML = `<div class="apps-shell-note">
-        <span>✓</span>
+        <span class="asn-ico ok"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
         <div>Running in the <b>TradeBoard desktop shell</b> — schedules are enforced in the
         background, and keep running while the window is closed to the system tray.</div>
       </div>`;
     } else {
       host.innerHTML = `<div class="apps-shell-note">
-        <span>ℹ</span>
+        <span class="asn-ico"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5"/><path d="M12 8h.01"/></svg></span>
         <div>You're in a <b>web browser</b>, so nothing here can launch or close anything —
         browsers cannot start native programs. You can still add, edit and schedule items,
         and they sync to every device. To actually run them, open TradeBoard in the
@@ -3751,7 +3765,7 @@ TB.apps = {
       const bestEffort = !isApp && item.target && item.target.openIn === "default_browser";
 
       return `<div class="app-row${off ? " disabled" : ""}">
-        <div class="app-icon">${isApp ? "🖥" : "🌐"}</div>
+        <div class="app-icon">${isApp ? `<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="12.5" rx="2"/><path d="M8 20.5h8"/><path d="M12 16.5v4"/></svg>` : `<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17"/><path d="M3.5 15h17"/><path d="M12 3a15 15 0 0 1 0 18"/><path d="M12 3a15 15 0 0 0 0 18"/></svg>`}</div>
         <div class="app-main">
           <div class="app-name">
             ${U.esc(item.name)}
@@ -3767,12 +3781,12 @@ TB.apps = {
           <div style="margin-top:2px;opacity:.75;">${nRules ? `${nOn}/${nRules} rule${nRules === 1 ? "" : "s"} on` : "no schedule"}</div>
         </div>
         <div class="app-acts">
-          <button class="btn-icon" title="Open now" aria-label="Open now" onclick="TB.apps.openNow('${item.id}')">▶</button>
-          <button class="btn-icon" title="Close now" aria-label="Close now" onclick="TB.apps.closeNow('${item.id}')">■</button>
+          <button class="btn-icon" title="Open now" aria-label="Open now" onclick="TB.apps.openNow('${item.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" stroke="none" aria-hidden="true"><path d="M7 4.5v15l13-7.5Z"/></svg></button>
+          <button class="btn-icon" title="Close now" aria-label="Close now" onclick="TB.apps.closeNow('${item.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" stroke="none" aria-hidden="true"><rect x="5.5" y="5.5" width="13" height="13" rx="2"/></svg></button>
           <button class="btn-icon" title="${off ? "Enable" : "Disable"}" aria-label="Toggle enabled"
-                  onclick="TB.apps.toggleItem('${item.id}')">${off ? "○" : "●"}</button>
-          <button class="btn-icon" title="Edit" aria-label="Edit" onclick="TB.apps.openModal('${item.id}')">✎</button>
-          <button class="btn-icon danger" title="Remove" aria-label="Remove" onclick="TB.apps.removeItem('${item.id}')">✕</button>
+                  onclick="TB.apps.toggleItem('${item.id}')">${off ? `<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/></svg>` : `<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="12" cy="12" r="7"/></svg>`}</button>
+          <button class="btn-icon" title="Edit" aria-label="Edit" onclick="TB.apps.openModal('${item.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+          <button class="btn-icon danger" title="Remove" aria-label="Remove" onclick="TB.apps.removeItem('${item.id}')"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
         </div>
       </div>`;
     }).join("");
@@ -4042,7 +4056,7 @@ TB.apps = {
       && document.getElementById("ap-f-openin").value === "default_browser";
 
     if (!d.schedules.length) {
-      host.innerHTML = `<div class="sched-hint">No schedules — this item will only open when you press ▶.</div>`;
+      host.innerHTML = `<div class="sched-hint">No schedules — this item will only open when you press <span class="sched-hint-ico"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" stroke="none" aria-hidden="true"><path d="M7 4.5v15l13-7.5Z"/></svg></span>.</div>`;
       return;
     }
 
@@ -4059,7 +4073,7 @@ TB.apps = {
           </label>
           <div class="grow"></div>
           <button class="btn-icon danger" title="Remove schedule" aria-label="Remove schedule"
-                  onclick="TB.apps._removeSched('${s.id}')">✕</button>
+                  onclick="TB.apps._removeSched('${s.id}')" title="Remove schedule" aria-label="Remove schedule"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         </div>
 
         <div class="dow-row" style="margin-bottom:10px;">
@@ -4494,10 +4508,10 @@ function showOverlay(mode, target, label){
   _el('applock-title').textContent=_label; _el('applock-title').style.color='#efeaf3';
   _el('applock-submit').style.background=AC; _el('applock-submit').style.display='';
   var m=_el('al-menu-btns'); if(m) m.remove();
-  if(mode==='setpw'){ _el('applock-icon').textContent='🔐'; _el('applock-sub').textContent='Choose a password to lock '+_label+'. Unlock once per device.'; _el('applock-submit').textContent='Set Password'; _el('applock-forgot').style.display='none'; }
-  else if(mode==='remove'){ _el('applock-icon').textContent='🔓'; _el('applock-sub').textContent='Enter password to remove the lock.'; _el('applock-submit').textContent='Remove Lock'; _el('applock-forgot').style.display=''; }
-  else if(mode==='changepw'){ _el('applock-icon').textContent='🔑'; _el('applock-sub').textContent='Enter your current password first.'; _el('applock-submit').textContent='Verify & Continue'; _el('applock-forgot').style.display=''; }
-  else { _el('applock-icon').textContent='🔒'; _el('applock-sub').textContent='Enter your password to open '+_label+'.'; _el('applock-submit').textContent='Unlock'; _el('applock-forgot').style.display=''; }
+  if(mode==='setpw'){ _el('applock-icon').innerHTML='<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><path d="M12 15v3"/><path d="M10.5 16.5h3"/></svg>'; _el('applock-sub').textContent='Choose a password to lock '+_label+'. Unlock once per device.'; _el('applock-submit').textContent='Set Password'; _el('applock-forgot').style.display='none'; }
+  else if(mode==='remove'){ _el('applock-icon').innerHTML='<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'; _el('applock-sub').textContent='Enter password to remove the lock.'; _el('applock-submit').textContent='Remove Lock'; _el('applock-forgot').style.display=''; }
+  else if(mode==='changepw'){ _el('applock-icon').innerHTML='<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/></svg>'; _el('applock-sub').textContent='Enter your current password first.'; _el('applock-submit').textContent='Verify & Continue'; _el('applock-forgot').style.display=''; }
+  else { _el('applock-icon').innerHTML='<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'; _el('applock-sub').textContent='Enter your password to open '+_label+'.'; _el('applock-submit').textContent='Unlock'; _el('applock-forgot').style.display=''; }
   _el('applock-cancel').style.display = (mode==='unlock' && _target===APPID && mustBlock(APPID)) ? 'none' : '';
   _el('applock-reset').style.display = _el('applock-forgot').style.display;
   _el('applock-overlay').style.display='flex';
@@ -4513,13 +4527,16 @@ window._tbManageLock = function(){
 window._tbAppIsLocked = function(){ try{ return isLocked(APPID); }catch(e){ return false; } };
 
 function menuButton(txt, style, onclick){
-  var b=document.createElement('button'); b.textContent=txt;
-  b.style.cssText='border:none;border-radius:8px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;width:100%;'+style;
+  // innerHTML, not textContent: these labels now lead with an inline SVG
+  // icon. Every call site passes a literal built here in the file — no user
+  // data reaches this function.
+  var b=document.createElement('button'); b.innerHTML=txt;
+  b.style.cssText='border:none;border-radius:8px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;'+style;
   b.onclick=onclick; return b;
 }
 function showManageMenu(){
   _el('applock-err').textContent=''; _el('applock-pw').value=''; _el('applock-pw').classList.remove('error');
-  _el('applock-icon').textContent='🔒'; _el('applock-title').textContent='TradeBoard Lock'; _el('applock-title').style.color='#efeaf3';
+  _el('applock-icon').innerHTML='<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'; _el('applock-title').textContent='TradeBoard Lock'; _el('applock-title').style.color='#efeaf3';
   _el('applock-submit').style.display='none'; _el('applock-forgot').style.display='none'; _el('applock-reset').style.display='none';
   _el('applock-cancel').style.display=''; _el('applock-sub').textContent='Lock the whole app or an individual section:';
   var existing=_el('al-menu-btns'); if(existing) existing.remove();
@@ -4528,19 +4545,19 @@ function showManageMenu(){
 
   // Whole-app
   if(!isLocked(APPID)){
-    menu.appendChild(menuButton('🔒  Lock whole app', 'background:'+AC+';color:#fff;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('setpw', APPID, 'TradeBoard'); }));
+    menu.appendChild(menuButton('<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Lock whole app</span>', 'background:'+AC+';color:#fff;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('setpw', APPID, 'TradeBoard'); }));
   } else {
-    if(!isUnlocked(APPID)) menu.appendChild(menuButton('🔓  Unlock this device', 'background:'+AC+';color:#fff;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('unlock', APPID, 'TradeBoard'); }));
-    menu.appendChild(menuButton('🔑  Change app password', 'background:#241f2b;color:#efeaf3;border:1px solid #37303f;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('changepw', APPID, 'TradeBoard'); }));
-    menu.appendChild(menuButton('🗑  Remove app lock', 'background:transparent;color:#d47a6a;border:1px solid #d47a6a;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('remove', APPID, 'TradeBoard'); }));
+    if(!isUnlocked(APPID)) menu.appendChild(menuButton('<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg><span>Unlock this device</span>', 'background:'+AC+';color:#fff;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('unlock', APPID, 'TradeBoard'); }));
+    menu.appendChild(menuButton('<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/></svg><span>Change app password</span>', 'background:#241f2b;color:#efeaf3;border:1px solid #37303f;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('changepw', APPID, 'TradeBoard'); }));
+    menu.appendChild(menuButton('<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Remove app lock</span>', 'background:transparent;color:#d47a6a;border:1px solid #d47a6a;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('remove', APPID, 'TradeBoard'); }));
   }
   // Per-section
   Object.keys(SECTIONS).forEach(function(key){
     var id=SEC_PREFIX+key, lbl=SECTIONS[key];
     if(!isLocked(id)){
-      menu.appendChild(menuButton('🔒  Lock “'+lbl+'” section', 'background:#241f2b;color:#cfc7d9;border:1px solid #37303f;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('setpw', id, lbl); }));
+      menu.appendChild(menuButton('<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Lock “'+lbl+'” section</span>', 'background:#241f2b;color:#cfc7d9;border:1px solid #37303f;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('setpw', id, lbl); }));
     } else {
-      menu.appendChild(menuButton('🗑  Remove “'+lbl+'” lock', 'background:transparent;color:#d47a6a;border:1px solid #4a2f33;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('remove', id, lbl); }));
+      menu.appendChild(menuButton('<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Remove “'+lbl+'” lock</span>', 'background:transparent;color:#d47a6a;border:1px solid #4a2f33;', function(){ menu.remove(); _el('applock-submit').style.display=''; showOverlay('remove', id, lbl); }));
     }
   });
   var cancelRow=_el('applock-cancel').parentNode;
@@ -4657,7 +4674,7 @@ function refreshNavLocks(){
   document.querySelectorAll('#section-nav button').forEach(function(b){
     var key=b.dataset.section; var id=SEC_PREFIX+key;
     var existing=b.querySelector('.navlock'); if(existing) existing.remove();
-    if(isLocked(id)){ var s=document.createElement('span'); s.className='navlock'; s.textContent = isUnlocked(id)?'🔓':'🔒'; b.appendChild(s); }
+    if(isLocked(id)){ var s=document.createElement('span'); s.className='navlock'; s.innerHTML = isUnlocked(id)?'<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>':'<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'; b.appendChild(s); }
   });
 }
 // Closed padlock (shackle down) vs open padlock (shackle up/aside).
@@ -4680,7 +4697,7 @@ window._tbSectionLock = {
     var view=document.getElementById('view-'+name); if(!view) return;
     var lbl=SECTIONS[name]||name;
     view.innerHTML='<div class="sec-lock-gate">'
-      +'<div class="sl-icon">🔒</div>'
+      +'<div class="sl-icon"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>'
       +'<div class="sl-title">'+lbl+' is locked</div>'
       +'<div class="sl-sub">Enter the section password to view it.</div>'
       +'<button id="sl-unlock-'+name+'">Unlock '+lbl+'</button></div>';

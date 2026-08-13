@@ -151,15 +151,19 @@
     display: inline-flex; align-items: center; gap: 7px; line-height: 1;
     transition: border-color .18s, background .18s, color .18s, transform .05s;
   }
-  .btn:hover { border-color: var(--muted); background: transparent; }
+  /* Buttons rest quiet and light up only under the cursor, each in its own colour.
+     A ring that is always lit reads as an active state rather than a resting one. */
+  .btn { box-shadow: none; transition: border-color .18s, background .18s, color .18s, box-shadow .18s, transform .05s; }
+  .btn:hover { border-color: var(--muted); background: transparent; box-shadow: 0 0 8px rgba(244,243,240,.12), 0 0 0 1px rgba(244,243,240,.08); }
   .btn:active { transform: translateY(1px); }
   .btn.gold {
-    border-color: var(--gold-line); color: var(--gold-soft); background: transparent;
+    border-color: var(--gold-line); color: var(--gold-soft); background: transparent; box-shadow: none;
   }
-  .btn.gold:hover { border-color: var(--gold); background: transparent; color: var(--gold-soft); }
-  .btn.danger { color: var(--danger); border-color: rgba(214,138,124,.3); }
+  .btn.gold:hover { border-color: var(--gold); background: transparent; color: var(--gold-soft); box-shadow: var(--gold-glow); }
+  .btn.danger { color: var(--danger); border-color: rgba(214,138,124,.3); box-shadow: none; }
+  .btn.danger:hover { border-color: var(--danger); box-shadow: 0 0 8px rgba(214,138,124,.34), 0 0 0 1px rgba(214,138,124,.15); }
   .btn:disabled { opacity: .4; cursor: default; }
-  .btn:disabled:hover { border-color: var(--border); background: transparent; }
+  .btn:disabled:hover { border-color: var(--border); background: transparent; box-shadow: none; }
   .btn.icononly { padding: 9px 10px; }
   /* Refresh busy state: spin the icon in place instead of swapping in text. */
   #syncNowBtn.spinning svg { animation: iconspin .8s linear infinite; transform-origin: 50% 50%; }

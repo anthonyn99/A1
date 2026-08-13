@@ -68,7 +68,7 @@
   function deliverLocal(entry) {
     // Prefer StudyOS's own in-app toast so the styling matches the app.
     if (typeof window.showNotif === 'function') {
-      try { window.showNotif('🔔', 'Reminder', entry.title || 'StudyOS reminder'); } catch (e) {}
+      try { window.showNotif('<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>', 'Reminder', entry.title || 'StudyOS reminder'); } catch (e) {}
     }
     // And a real OS notification if the user granted permission, so it's
     // visible even when StudyOS is in a background tab.
@@ -145,7 +145,7 @@
       msgMod.onMessage(messaging, function (payload) {
         var n = (payload && payload.notification) || {};
         if (typeof window.showNotif === 'function') {
-          try { window.showNotif('🔔', n.title || 'Reminder', n.body || ''); } catch (e) {}
+          try { window.showNotif('<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>', n.title || 'Reminder', n.body || ''); } catch (e) {}
         }
       });
     } catch (e) {

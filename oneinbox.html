@@ -190,21 +190,24 @@ a:hover{color:var(--gold)}
   display:inline-flex;align-items:center;gap:7px;line-height:1;white-space:nowrap;
   transition:border-color .18s,background .18s,color .18s,transform .05s;
 }
-.btn:hover{border-color:var(--muted)}
+/* Rest is always quiet — no glow on any button until the cursor is on it, and the
+   glow that appears matches the button's own colour (gold, red, neutral). A
+   permanently lit ring reads as "active", which is a state, not a resting style. */
+.btn{box-shadow:none;transition:border-color .18s,background .18s,color .18s,box-shadow .18s,transform .05s;}
+.btn:hover{border-color:var(--muted);box-shadow:0 0 8px rgba(244,243,240,.12),0 0 0 1px rgba(244,243,240,.08)}
 .btn:active{transform:translateY(1px)}
-.btn.gold{border-color:var(--gold-line);color:var(--gold-soft)}
-.btn.gold:hover{border-color:var(--gold);box-shadow:var(--gold-glow-soft)}
-/* Primary action (Compose, Send). Reads as primary through a full-strength
-   gold outline + glow rather than a gold fill — insight.html and vault.html
-   both keep every gold button transparent, so a solid one was OneInbox
-   drifting from the suite. */
+.btn.gold{border-color:var(--gold-line);color:var(--gold-soft);box-shadow:none}
+.btn.gold:hover{border-color:var(--gold);box-shadow:var(--gold-glow)}
+/* Primary action (Compose, Send). Reads as primary through a gold outline rather
+   than a gold fill — insight.html and vault.html both keep every gold button
+   transparent, so a solid one was OneInbox drifting from the suite. */
 .btn.solid{
-  background:transparent;border-color:var(--gold);color:var(--gold);font-weight:700;
-  box-shadow:var(--gold-glow-soft);
+  background:transparent;border-color:var(--gold-line);color:var(--gold);font-weight:700;
+  box-shadow:none;
 }
 .btn.solid:hover{background:transparent;border-color:#eac488;color:#eac488;box-shadow:var(--gold-glow)}
-.btn.danger{border-color:rgba(214,138,124,.4);color:var(--danger)}
-.btn.danger:hover{background:rgba(214,138,124,.1)}
+.btn.danger{border-color:rgba(214,138,124,.4);color:var(--danger);box-shadow:none}
+.btn.danger:hover{background:rgba(214,138,124,.1);border-color:var(--danger);box-shadow:0 0 8px rgba(214,138,124,.34),0 0 0 1px rgba(214,138,124,.15)}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
 .btn.icononly{padding:8px;min-width:34px;justify-content:center}
 .btn svg{width:15px;height:15px;flex-shrink:0}
@@ -216,6 +219,11 @@ a:hover{color:var(--gold)}
 .iconbtn:hover{background:var(--surface-2);color:var(--text)}
 .iconbtn.on{color:var(--gold)}
 .iconbtn svg{width:17px;height:17px}
+/* Mobile: kill the browser's blue tap flash and the focus ring it leaves behind on
+   chrome buttons (the drawer/hamburger especially). Keyboard focus still shows. */
+button,a,[role="button"],summary,label,select{-webkit-tap-highlight-color:transparent;}
+button:focus:not(:focus-visible){outline:none;box-shadow:none;}
+.iconbtn:focus:not(:focus-visible){background:transparent;color:var(--muted);}
 input,textarea,select{
   font-family:var(--sans);font-size:14px;color:var(--text);background:var(--surface-2);
   border:1px solid var(--border-soft);border-radius:var(--radius-sm);padding:9px 11px;width:100%;

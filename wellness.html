@@ -107,6 +107,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .wl-new-btn.accent:hover{opacity:.85;}
 .wl-icon-btn{background:transparent;border:none;padding:3px 6px;border-radius:4px;cursor:pointer;font-size:12px;line-height:1;transition:background .12s,color .12s;color:var(--txd);font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
 .wl-icon-btn:hover{background:var(--s2);color:var(--tx);}
+/* SVG icon set — sized in em so each glyph tracks the font-size of the
+   control it sits in, and coloured by currentColor so it picks up Veda's
+   accent (--ac), the muted text tone or the amber streak colour. */
+.wli{width:1em;height:1em;flex:none;display:block;}
+.wl-streak .wli{width:1.05em;height:1.05em;}
 .wl-icon-btn.del-x{color:var(--txm);font-size:14px;}
 .wl-icon-btn.del-x:hover{color:var(--err);}
 
@@ -264,7 +269,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         <button class="wl-hbtn active" data-nav="dash">Today</button>
         <button class="wl-hbtn" data-nav="manage">Categories</button>
         <button class="wl-hbtn" data-nav="settings">Settings</button>
-        <button class="wl-hbtn icon" id="wl-lock-btn" title="App Lock">🔓</button>
+        <button class="wl-hbtn icon" id="wl-lock-btn" title="App Lock" aria-label="App Lock"><svg class="wli" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
       </div>
       <div class="veda-hbtns" style="padding-top:4px;">
         <span class="wl-sync" id="wl-sync"></span>
@@ -294,7 +299,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     <div class="wl-section">
       <div class="wl-section-head">
         <div class="wl-section-title" id="wl-log-title">Log</div>
-        <button class="wl-new-btn wl-back" data-nav="dash">← Back</button>
+        <button class="wl-new-btn wl-back" data-nav="dash"><svg class="wli" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>Back</span></button>
       </div>
       <form id="wl-log-form" autocomplete="off">
         <div id="wl-log-fields"></div>
@@ -317,7 +322,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
     <div class="wl-section">
       <div class="wl-section-head">
         <div class="wl-section-title" id="wl-hist-title">History</div>
-        <button class="wl-new-btn wl-back" data-nav="dash">← Back</button>
+        <button class="wl-new-btn wl-back" data-nav="dash"><svg class="wli" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>Back</span></button>
       </div>
       <div id="wl-chart-slot"></div>
     </div>
@@ -847,7 +852,7 @@ function renderDash(){
       '<div class="wl-week">' + strip + '</div>' +
       '<div class="wl-cat-meta">' +
         '<span class="wl-streak' + (streak >= 3 ? ' hot' : '') + '">' +
-          (streak > 0 ? (streak >= 3 ? '🔥 ' : '') + streak + ' day' + (streak===1?'':'s') : 'No streak') +
+          (streak > 0 ? (streak >= 3 ? '<svg class="wli" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" stroke="none" aria-hidden="true"><path d="M12 2.5c.6 3-1 4.4-2.4 5.7C8 9.6 6.5 11 6.5 13.6a5.5 5.5 0 0 0 11 0c0-2-.8-3.6-1.9-4.9-.3.9-.9 1.6-1.7 1.9.5-2.6-.4-5.5-1.9-8.1Z"/></svg>' : '') + streak + ' day' + (streak===1?'':'s') : 'No streak') +
         '</span>' +
         '<span class="wl-status' + (isDone ? ' done' : '') + '">' +
           '<span class="wl-dot' + (isDone ? ' done' : '') + '"></span>' + (isDone ? 'Logged' : 'Pending') +
@@ -1043,7 +1048,7 @@ function renderHistory(){
         '<div class="wl-entry-vals">' + (vals || '<span class="k">No values</span>') + '</div>' +
       '</div>' +
       '<div class="wl-entry-acts">' +
-        '<button class="wl-icon-btn" data-edit="' + esc(e.id) + '" title="Edit">✎</button>' +
+        '<button class="wl-icon-btn" data-edit="' + esc(e.id) + '" title="Edit" aria-label="Edit"><svg class="wli" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>' +
         '<button class="wl-icon-btn del-x" data-del="' + esc(e.id) + '" title="Delete">×</button>' +
       '</div>' +
     '</div>';
@@ -1194,7 +1199,7 @@ function renderManager(){
         '<div class="wl-mgr-sub">' + (c.fields||[]).length + ' field' + ((c.fields||[]).length===1?'':'s') +
           ' · ' + entriesFor(c.id).length + ' entr' + (entriesFor(c.id).length===1?'y':'ies') + '</div>' +
       '</div>' +
-      '<button class="wl-icon-btn" data-edit-cat="' + esc(c.id) + '" title="Edit">✎</button>' +
+      '<button class="wl-icon-btn" data-edit-cat="' + esc(c.id) + '" title="Edit" aria-label="Edit"><svg class="wli" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>' +
     '</div>').join('') :
     '<div class="wl-empty">No active categories.' +
       '<div><button class="wl-btn-primary" id="wl-seed2">Add Starter Categories</button></div></div>';

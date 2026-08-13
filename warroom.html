@@ -259,7 +259,8 @@ body { cursor: default; }
   cursor: pointer; transition: all 0.15s;
   margin-top: 6px;
 }
-.btn-primary:hover { background: var(--gold2); }
+/* Hover lights the button in its own accent; nothing glows at rest. */
+.btn-primary:hover { background: var(--gold2); box-shadow: 0 0 8px rgba(167,139,250,0.4), 0 0 0 1px rgba(167,139,250,0.15); }
 .setup-error { color: var(--red); font-family: var(--mono); font-size: 12px; margin-top: 10px; display: none; }
 
 /* ── LOADING SPINNER ── */
@@ -748,7 +749,7 @@ body { cursor: default; }
   font-weight: 600; letter-spacing: 0.2px;
   cursor: pointer; transition: all 0.15s;
 }
-.btn-cancel:hover { border-color: var(--tx2); color: var(--tx); }
+.btn-cancel:hover { border-color: var(--tx2); color: var(--tx); box-shadow: 0 0 8px rgba(244,243,240,.12), 0 0 0 1px rgba(244,243,240,.08); }
 .btn-save {
   flex: 2; height: 38px; background: var(--gold);
   border: none; border-radius: 4px;
@@ -756,7 +757,7 @@ body { cursor: default; }
   font-weight: 700; letter-spacing: 0.3px;
   cursor: pointer; transition: background 0.15s;
 }
-.btn-save:hover { background: var(--gold2); }
+.btn-save:hover { background: var(--gold2); box-shadow: 0 0 8px rgba(167,139,250,0.4), 0 0 0 1px rgba(167,139,250,0.15); }
 
 /* Item search in modal */
 .item-search-wrap { position: relative; }
@@ -1244,8 +1245,8 @@ input:-webkit-autofill:active {
 
 /* ── MISC ── */
 .error-msg { font-family: var(--mono); font-size: 12px; color: var(--red); padding: 20px; }
-.btn-ghost { transition: border-color 0.15s, color 0.15s; }
-.btn-ghost:hover { border-color: var(--gold) !important; color: var(--gold) !important; }
+.btn-ghost { transition: border-color 0.15s, color 0.15s, box-shadow 0.15s; box-shadow: none; }
+.btn-ghost:hover { border-color: var(--gold) !important; color: var(--gold) !important; box-shadow: 0 0 8px rgba(167,139,250,0.4), 0 0 0 1px rgba(167,139,250,0.15); }
 
 .tab-btn, #topbar-logo { font-feature-settings: "liga" 0, "calt" 0; }
 

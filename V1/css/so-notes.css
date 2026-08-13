@@ -263,6 +263,32 @@
 .pt-hl-wrap { position: relative; flex-shrink: 0; }
 .pt-hl-trigger { display: flex; align-items: center; gap: 1px; }
 .pt-hl-icon { display: inline-block; width: 13px; height: 13px; border-radius: 2px; background: #FFE066; border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0; }
+
+/* ── SVG icon set (replaces the emoji this chrome used to render) ──
+   Sized in em so every glyph tracks the font-size of the control holding it,
+   and drawn in currentColor so it inherits StudyOS's accent / muted / red
+   tones instead of arriving as a flat black glyph. */
+.soi { width: 1em; height: 1em; flex: none; display: block; }
+/* Icons that sit inline inside a run of text (a menu tick, a lock badge on an
+   entry title) need the baseline nudge the emoji used to get for free. */
+.chk .soi, .docx-lock-badge .soi { display: inline-block; vertical-align: -.14em; }
+.docx-lock-badge { display: inline-flex; align-items: center; opacity: .8; font-size: .95em; }
+.entry-delete .soi, .docx-trash-btn .soi { width: 14px; height: 14px; }
+.docx-trash-btn { display: inline-flex; align-items: center; gap: 7px; justify-content: center; }
+/* The two repeat warnings are shown by clearing their inline display, so their
+   flex layout has to live here rather than on the element. */
+#sos-repeat-warning, #sos-task-repeat-warning { align-items: flex-start; gap: 6px; }
+#sos-repeat-warning, #sos-task-repeat-warning { display: flex; }
+#sos-repeat-warning .soi, #sos-task-repeat-warning .soi { margin-top: 1px; }
+.pt-btn .soi { width: 15px; height: 15px; }
+.bj-drop-label { display: inline-flex; align-items: center; gap: 8px; }
+/* Dropdown caret for the highlight picker: a border triangle, so it stays
+   crisp at any zoom and takes its colour from the button around it. */
+.so-pt-caret {
+  width: 0; height: 0; flex: none; margin-left: 4px; opacity: .7;
+  border-left: 3.5px solid transparent; border-right: 3.5px solid transparent;
+  border-top: 4px solid currentColor;
+}
 .pt-hl-palette {
   position: absolute; top: calc(100% + 4px); right: 0; left: auto; z-index: 9999;
   display: none; flex-wrap: wrap; gap: 4px; padding: 7px;

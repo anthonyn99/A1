@@ -22,6 +22,45 @@
  * See config.js §7 for the contract if you want to reconnect them.
  * ------------------------------------------------------------------------- */
 
+/* ── SOI — StudyOS icon set ────────────────────────────────────────────────
+ * Replaces the emoji this file used to render as UI chrome. Every glyph is a
+ * 24px-grid line icon drawn in `currentColor`, so it inherits whatever colour
+ * its host already sets — Veda's accent (--accent), the muted text tone, the
+ * red of a delete control — instead of arriving as a flat black character.
+ * Sized in em (see `.soi` in css/so-notes.css) so an icon is exactly as big as
+ * the text it replaced.
+ *
+ * The emoji that remain in this file are deliberate CONTENT, not chrome: the
+ * per-file-type map in _sosFileIcon(), the module-type ICONS, and the titles
+ * pushed into OS notifications (which render plain text, never markup).
+ * ------------------------------------------------------------------------ */
+var SOI = (function () {
+  function I(body, w) {
+    return '<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" ' +
+           'stroke="currentColor" stroke-width="' + (w || 1.5) + '" stroke-linecap="round" ' +
+           'stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+  }
+  return {
+    check:    I('<path d="M20 6 9 17l-5-5"/>'),
+    checkBold:I('<path d="M20 6 9 17l-5-5"/>', 2.5),
+    x:        I('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+    pencil:   I('<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>'),
+    trash:    I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+    alert:    I('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+    refresh:  I('<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>'),
+    cloud:    I('<path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 4 16.2"/>'),
+    download: I('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'),
+    clip:     I('<path d="M21.4 11 12.3 20a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.9-2.9l8.5-8.5"/>'),
+    calendar: I('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>'),
+    bell:     I('<path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
+    settings: I('<circle cx="12" cy="12" r="3"/><path d="M12 2.5a1.5 1.5 0 0 1 1.5 1.3l.1 1a7.6 7.6 0 0 1 1.7.7l.8-.6a1.5 1.5 0 0 1 2 .2l.8.8a1.5 1.5 0 0 1 .2 2l-.6.8c.3.5.5 1.1.7 1.7l1 .1a1.5 1.5 0 0 1 1.3 1.5v1.1a1.5 1.5 0 0 1-1.3 1.5l-1 .1a7.6 7.6 0 0 1-.7 1.7l.6.8a1.5 1.5 0 0 1-.2 2l-.8.8a1.5 1.5 0 0 1-2 .2l-.8-.6a7.6 7.6 0 0 1-1.7.7l-.1 1a1.5 1.5 0 0 1-1.5 1.3h-1.1a1.5 1.5 0 0 1-1.5-1.3l-.1-1a7.6 7.6 0 0 1-1.7-.7l-.8.6a1.5 1.5 0 0 1-2-.2l-.8-.8a1.5 1.5 0 0 1-.2-2l.6-.8a7.6 7.6 0 0 1-.7-1.7l-1-.1A1.5 1.5 0 0 1 2.5 13.1V12a1.5 1.5 0 0 1 1.3-1.5l1-.1c.2-.6.4-1.2.7-1.7l-.6-.8a1.5 1.5 0 0 1 .2-2l.8-.8a1.5 1.5 0 0 1 2-.2l.8.6c.5-.3 1.1-.5 1.7-.7l.1-1A1.5 1.5 0 0 1 11.9 2.5Z"/>'),
+    box:      I('<path d="m12 2 9 5v10l-9 5-9-5V7Z"/><path d="m3 7 9 5 9-5"/><path d="M12 12v10"/>'),
+    printer:  I('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 15h12v6H6Z"/>'),
+    expand:   I('<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>'),
+    task:     I('<path d="M9 11.5 11 13.5 15.5 9"/><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4"/><path d="M16 2v4"/>')
+  };
+})();
+
 /* ── Config-derived constants ──────────────────────────────────────────────
  * Read once at load. If the files worker is unconfigured, baseUrl stays null
  * and every SosCloud call fails fast and visibly rather than firing requests
@@ -212,8 +251,8 @@ function renderKsuModules() {
     btn.dataset.id = m.id;
     btn.innerHTML = `
       <div class="th-drag-handle" title="Drag to reorder" onclick="event.stopPropagation()">⠿</div>
-      <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('ksu','${m.id}')">✎</button>
-      <button class="delete-btn" onclick="event.stopPropagation();deleteKsuModule('${m.id}')">✕</button>
+      <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('ksu','${m.id}')">${SOI.pencil}</button>
+      <button class="delete-btn" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteKsuModule('${m.id}')">${SOI.x}</button>
       <div class="module-btn-icon" style="background:#8D769A22;color:#8D769A;font-size:11px">${m.type.toUpperCase().slice(0,3)}</div>
       <div class="module-btn-name">${m.name}</div>
       <div class="module-btn-meta">${meta}</div>
@@ -432,11 +471,11 @@ function _sosApplyCloudStatus(el, f) {
     el.title = 'Uploading to the cloud…';
     el.classList.add('is-up');
   } else if (f.storageUrl) {
-    el.textContent = '✓ Synced';
+    el.innerHTML = SOI.check + ' Synced';
     el.title = 'In the cloud — available on all your devices';
     el.classList.add('is-ok');
   } else if (f._cloudError) {
-    el.textContent = '⟳ Retrying';
+    el.innerHTML = SOI.refresh + ' Retrying';
     el.title = 'Saved on this device — retrying automatically until it reaches the cloud';
     el.classList.add('is-warn');
   } else {
@@ -486,7 +525,7 @@ async function _sosRefreshStorage() {
     el.style.display = '';
     if (pct >= 95 && !_sosStorageWarned) {
       _sosStorageWarned = true;
-      showNotif('⚠️', 'Cloud storage almost full', _sosFmtBytes(used) + ' of ' + _sosFmtBytes(limit) + ' used — remove some files to keep syncing.');
+      showNotif(SOI.alert, 'Cloud storage almost full', _sosFmtBytes(used) + ' of ' + _sosFmtBytes(limit) + ' used — remove some files to keep syncing.');
     }
   } catch (_) {
     el.style.display = 'none';
@@ -508,7 +547,7 @@ function _sosNoteSynced(name) {
   _sosSyncedTimer = setTimeout(() => {
     const n = _sosSyncedN, nm = _sosSyncedName;
     _sosSyncedN = 0; _sosSyncedTimer = null;
-    showNotif('☁️', 'Synced to cloud',
+    showNotif(SOI.cloud, 'Synced to cloud',
       (n === 1 ? nm : n + ' files') + ' now available on all your devices.');
   }, 900);
 }
@@ -555,7 +594,7 @@ async function _sosUpdateCloudBadge() {
         badge.classList.add('synced');
         btn.title = 'All files on THIS device are synced. ' + elsewhere + ' file' + (elsewhere > 1 ? 's' : '') + ' not yet uploaded live on another device — open StudyOS there and click Sync.';
       } else {
-        badge.textContent = '✓';
+        badge.innerHTML = SOI.check;
         badge.classList.add('synced');
         btn.title = 'All files are synced to the cloud and available on every device.';
       }
@@ -584,7 +623,7 @@ async function _sosBackfillCloud(manual, onProgress) {
     });
     const total = want.size;
     if (!total) {
-      if (manual) showNotif('☁️', 'All synced', 'Every file on this device is already in the cloud.');
+      if (manual) showNotif(SOI.cloud, 'All synced', 'Every file on this device is already in the cloud.');
       return { uploaded: 0, total: 0, missing: 0, tooBig: 0, failed: 0 };
     }
 
@@ -614,9 +653,9 @@ async function _sosBackfillCloud(manual, onProgress) {
       persist(); persistKsu();
       _sosRefreshAllDocLists();
       _sosRefreshStorage();
-      if (!manual) showNotif('☁️', 'Synced to cloud', uploaded + ' file' + (uploaded > 1 ? 's are' : ' is') + ' now available on all devices.');
+      if (!manual) showNotif(SOI.cloud, 'Synced to cloud', uploaded + ' file' + (uploaded > 1 ? 's are' : ' is') + ' now available on all devices.');
     } else if (manual && missing) {
-      showNotif('⚠️', 'Files not on this device', missing + ' file' + (missing > 1 ? "s aren't" : " isn't") + ' stored on this device, so they can\'t be uploaded from here. Open StudyOS on the device that has them.');
+      showNotif(SOI.alert, 'Files not on this device', missing + ' file' + (missing > 1 ? "s aren't" : " isn't") + ' stored on this device, so they can\'t be uploaded from here. Open StudyOS on the device that has them.');
     }
     return { uploaded, total, missing, tooBig, failed };
   } finally {
@@ -639,20 +678,20 @@ async function sosCloudSyncClick() {
     const r = await _sosBackfillCloud(true, (done, total) => setLabel('Syncing ' + done + '/' + total + '…'));
     if (r && r.busy) { setLabel('Already running…'); }
     else if (r && r.uploaded) {
-      setLabel('✓ ' + r.uploaded + ' synced');
+      setLabel(SOI.check + ' ' + r.uploaded + ' synced');
       const extra = [];
       if (r.tooBig)  extra.push(r.tooBig + ' over 25MB');
       if (r.missing) extra.push(r.missing + ' not on this device');
       if (r.failed)  extra.push(r.failed + ' failed');
-      showNotif('☁️', 'Sync complete', r.uploaded + ' file' + (r.uploaded > 1 ? 's' : '') + ' uploaded — now on all devices.' + (extra.length ? ' (' + extra.join(', ') + ')' : ''));
+      showNotif(SOI.cloud, 'Sync complete', r.uploaded + ' file' + (r.uploaded > 1 ? 's' : '') + ' uploaded — now on all devices.' + (extra.length ? ' (' + extra.join(', ') + ')' : ''));
     } else if (r && r.total === 0) {
-      setLabel('✓ All synced');
+      setLabel(SOI.check + ' All synced');
     } else {
       setLabel('Nothing to upload');
     }
   } catch (e) {
     console.warn('Sync to Cloud failed:', e);
-    setLabel('⚠ Failed — retry');
+    setLabel(SOI.alert + ' Failed — retry');
   } finally {
     if (btn) btn.disabled = false;
     setTimeout(() => setLabel('Sync to Cloud'), 4000);
@@ -788,7 +827,7 @@ function saveEditClass() {
   openClassDetail(currentClassId);
   renderClasses();
   renderSidebarClasses();
-  showNotif('✏️', 'Class Updated', cls.name + ' saved.');
+  showNotif(SOI.pencil, 'Class Updated', cls.name + ' saved.');
 }
 
 async function deleteCurrentClass() {
@@ -930,12 +969,12 @@ function renderClassEvents(cls) {
       const pColor = PRIORITY_COLORS[t.priority] || '#888';
       item.style.cursor = 'default';
       item.innerHTML = `
-        <div style="width:8px;height:8px;border-radius:2px;margin-top:5px;flex-shrink:0;border:1.5px solid ${pColor};background:${t.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#fff;font-weight:700;transition:0.2s" onclick="toggleTaskDone('${t.id}')">${t.done ? '✓' : ''}</div>
+        <div style="width:8px;height:8px;border-radius:2px;margin-top:5px;flex-shrink:0;border:1.5px solid ${pColor};background:${t.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#fff;font-weight:700;transition:0.2s" onclick="toggleTaskDone('${t.id}')">${t.done ? SOI.checkBold : ''}</div>
         <div style="flex:1;min-width:0">
           <div class="class-event-name" style="${t.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${t.name}</div>
           ${t.dueDate ? `<div class="class-event-meta">${formatDate(t.dueDate)}${t.dueTime ? ' · ' + t.dueTime : ''} · task</div>` : (t.notes ? `<div class="class-event-meta">${t.notes.slice(0,40)}${t.notes.length>40?'…':''}</div>` : '')}
         </div>
-        <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" onclick="openEditTask('${t.id}')">✎</button>
+        <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditTask('${t.id}')">${SOI.pencil}</button>
         <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s" title="Convert to Event" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="convertTaskToEvent('${t.id}')">→ Event</button>
       `;
     }
@@ -977,8 +1016,8 @@ function renderModules(cls) {
                 : 'Notes';
     btn.innerHTML = `
       <div class="th-drag-handle" title="Drag to reorder" onclick="event.stopPropagation()">⠿</div>
-      <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('${cls.id}','${m.id}')">✎</button>
-      <button class="delete-btn" onclick="event.stopPropagation();deleteModule('${cls.id}','${m.id}')">✕</button>
+      <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('${cls.id}','${m.id}')">${SOI.pencil}</button>
+      <button class="delete-btn" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteModule('${cls.id}','${m.id}')">${SOI.x}</button>
       <div class="module-btn-icon" style="background:${cls.color}22;color:${cls.color};font-size:11px">${m.type.toUpperCase().slice(0,3)}</div>
       <div class="module-btn-name">${m.name}</div>
       <div class="module-btn-meta">${meta}</div>
@@ -1177,7 +1216,7 @@ function renderDocumentsModule(body, cls, mod) {
     const zone = document.createElement('div');
     zone.className = 'upload-zone';
     zone.innerHTML = `
-      <div style="font-size:28px;margin-bottom:8px">📎</div>
+      <div style="font-size:28px;margin-bottom:8px;opacity:.45;display:flex;justify-content:center">${SOI.clip}</div>
       <div style="font-weight:700;margin-bottom:4px">Drop files or click to upload</div>
       <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">Any file type — stored locally in browser</div>
       <input type="file" multiple id="file-input-${mod.id}" onchange="handleFileUpload(event,'${cls.id}','${mod.id}')">
@@ -1317,7 +1356,7 @@ const SosFileStore = (function() {
     },
     openTab: async function(fileId, name) {
       const blob = await SosFileStore.get(fileId);
-      if (!blob) { showNotif('⚠️', 'File missing', 'File data not found. It may have been cleared.'); return; }
+      if (!blob) { showNotif(SOI.alert, 'File missing', 'File data not found. It may have been cleared.'); return; }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
@@ -1325,7 +1364,7 @@ const SosFileStore = (function() {
     },
     download: async function(fileId, name) {
       const blob = await SosFileStore.get(fileId);
-      if (!blob) { showNotif('⚠️', 'File missing', 'File data not found.'); return; }
+      if (!blob) { showNotif(SOI.alert, 'File missing', 'File data not found.'); return; }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = name || 'document';
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
@@ -1501,7 +1540,7 @@ async function sosOpenFile(f) {
     return;
   }
   if (f && f.storageUrl) { window.open(f.storageUrl, '_blank', 'noopener'); return; }
-  showNotif('⚠️', 'File missing', 'No local copy and the cloud copy is unavailable.');
+  showNotif(SOI.alert, 'File missing', 'No local copy and the cloud copy is unavailable.');
 }
 
 async function sosDownloadFile(f) {
@@ -1514,7 +1553,7 @@ async function sosDownloadFile(f) {
     return;
   }
   if (f && f.storageUrl) { window.open(f.storageUrl, '_blank', 'noopener'); return; }
-  showNotif('⚠️', 'File missing', 'No local copy and the cloud copy is unavailable.');
+  showNotif(SOI.alert, 'File missing', 'No local copy and the cloud copy is unavailable.');
 }
 
 // Push a freshly-uploaded file to Firebase Storage, then re-sync metadata so
@@ -1554,13 +1593,13 @@ async function sosUploadToCloud(file, meta, cls, mod, modId) {
     meta._cloudError = true;
     console.warn('SOS cloud upload failed:', meta.name, e);
     if (e && e.tooLarge) {
-      showNotif('📦', 'Too big to sync', (meta.name || 'File') + ' is over ' + _sosFmtBytes(SOS_CLOUD_MAX) + ' — kept on this device only.');
+      showNotif(SOI.box, 'Too big to sync', (meta.name || 'File') + ' is over ' + _sosFmtBytes(SOS_CLOUD_MAX) + ' — kept on this device only.');
     } else if (e && e.notConfigured) {
       // Terminal, not transient: no amount of retrying invents a worker URL.
       // The file is safe in IndexedDB; it just can't reach other devices yet.
       if (!_sosCloudWarned) {
         _sosCloudWarned = true;
-        showNotif('⚙️', 'Cloud sync not set up', 'Files are saved on this device. Add your studyos-files Worker URL in config/config.js to sync across devices.');
+        showNotif(SOI.settings, 'Cloud sync not set up', 'Files are saved on this device. Add your studyos-files Worker URL in config/config.js to sync across devices.');
       }
     } else {
       // Not terminal any more: hand it to the retry loop, which keeps trying
@@ -1569,7 +1608,7 @@ async function sosUploadToCloud(file, meta, cls, mod, modId) {
       _sosScheduleSync(SOS_RETRY_MIN);
       if (!_sosCloudWarned) {
         _sosCloudWarned = true;
-        showNotif('☁️', 'Sync retrying', (meta.name || 'File') + ' is saved on this device and will upload automatically as soon as the connection allows.');
+        showNotif(SOI.cloud, 'Sync retrying', (meta.name || 'File') + ' is saved on this device and will upload automatically as soon as the connection allows.');
       }
     }
   }
@@ -1644,7 +1683,7 @@ function refreshDocList(listEl, cls, mod) {
 
     const icon = document.createElement('div');
     icon.className = 'doc-item-icon';
-    icon.textContent = fileEmoji(f.name);
+      icon.innerHTML = fileEmoji(f.name);
 
     const nameEl = document.createElement('div');
     nameEl.className = 'doc-item-name';
@@ -1658,7 +1697,7 @@ function refreshDocList(listEl, cls, mod) {
     // Download button
     const dlBtn = document.createElement('a');
     dlBtn.title = 'Download';
-    dlBtn.textContent = '⬇';
+    dlBtn.innerHTML = SOI.download;
     dlBtn.style.cssText = 'color:var(--text3);text-decoration:none;font-size:14px;padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border)';
     dlBtn.addEventListener('mouseover', () => { dlBtn.style.color='var(--accent)'; dlBtn.style.borderColor='var(--accent)'; });
     dlBtn.addEventListener('mouseout',  () => { dlBtn.style.color='var(--text3)';  dlBtn.style.borderColor='var(--border)'; });
@@ -1693,7 +1732,7 @@ function refreshDocList(listEl, cls, mod) {
       const delBtn = document.createElement('button');
       delBtn.className = 'doc-item-del';
       delBtn.title = 'Remove';
-      delBtn.textContent = '✕';
+      delBtn.innerHTML = SOI.x;
       delBtn.addEventListener('click', e => {
         e.stopPropagation();
         removeFile(cls.id, mod.id, idx);
@@ -1732,7 +1771,7 @@ function handleFilesAdded(files, classId, modId) {
       persistForCls(cls);
       const listEl = _sosEl('doc-list-' + modId);
       if (listEl) refreshDocList(listEl, cls, mod);
-      showNotif('📎', 'Uploaded', added + ' file' + (added > 1 ? 's' : '') + ' added.');
+      showNotif(SOI.clip, 'Uploaded', added + ' file' + (added > 1 ? 's' : '') + ' added.');
     } catch (err) {
       // The bytes are already safe in IndexedDB - a render hiccup is not a lost file.
       console.error('SOS post-save refresh failed:', err);
@@ -1782,10 +1821,32 @@ function removeFile(classId, modId, idx) {
   setTimeout(_sosRefreshStorage, 1200);
 }
 
+// File-type badge in the documents list. Each type gets a drawn icon rather
+// than an emoji, so the column reads as one set at any size and takes the
+// list's own colour instead of the platform's emoji font.
 function fileEmoji(name) {
   const ext = name.split('.').pop().toLowerCase();
-  const map = { pdf:'📕', doc:'📝', docx:'📝', ppt:'📊', pptx:'📊', xls:'📊', xlsx:'📊', png:'🖼', jpg:'🖼', jpeg:'🖼', gif:'🖼', mp4:'🎬', mp3:'🎵', zip:'🗜', txt:'📃', md:'📃' };
-  return map[ext] || '📄';
+  const PAGE = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>';
+  const map = {
+    pdf:   PAGE + '<path d="M8 13h2.2a1.4 1.4 0 0 1 0 2.8H8V13v5"/><path d="M14 18v-5h2.4"/><path d="M14 15.5h2"/>',
+    doc:   PAGE + '<path d="M8 13h8"/><path d="M8 17h5"/>',
+    docx:  PAGE + '<path d="M8 13h8"/><path d="M8 17h5"/>',
+    ppt:   PAGE + '<path d="M8 18v-5h2.3a1.6 1.6 0 0 1 0 3.2H8"/>',
+    pptx:  PAGE + '<path d="M8 18v-5h2.3a1.6 1.6 0 0 1 0 3.2H8"/>',
+    xls:   PAGE + '<path d="m8.5 13 5 5"/><path d="m13.5 13-5 5"/>',
+    xlsx:  PAGE + '<path d="m8.5 13 5 5"/><path d="m13.5 13-5 5"/>',
+    png:   '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/>',
+    mp4:   '<rect x="2.5" y="5" width="14" height="14" rx="2"/><path d="m16.5 14 5 3V7l-5 3Z"/>',
+    mp3:   '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+    zip:   '<path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M11 4v3"/><path d="M13 7v3"/><path d="M11 10v3"/><rect x="10.5" y="13" width="3" height="4" rx="1"/>',
+    txt:   PAGE + '<path d="M8 13h8"/><path d="M8 17h8"/>',
+    md:    PAGE + '<path d="M8 13h8"/><path d="M8 17h8"/>'
+  };
+  map.jpg = map.jpeg = map.gif = map.png;
+  const body = map[ext] || PAGE;
+  return '<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" ' +
+         'stroke="currentColor" stroke-width="1.5" stroke-linecap="round" ' +
+         'stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
 }
 
 function formatBytes(b) {
@@ -1832,7 +1893,7 @@ function refreshPromptList(listEl, cls, mod) {
       ${editOn ? `<div class="th-drag-handle row-drag-handle prompt-drag-handle" title="Drag to reorder">⠿</div>` : ''}
       <div class="prompt-entry-text">${safeText}</div>
       <div class="prompt-entry-actions">
-        ${editOn ? `<button class="prompt-del-btn" onclick="removePrompt('${cls.id}','${mod.id}','${p.id}')">✕ Remove</button>` : ''}
+        ${editOn ? `<button class="prompt-del-btn" onclick="removePrompt('${cls.id}','${mod.id}','${p.id}')">${SOI.x}<span>Remove</span></button>` : ''}
         <button class="prompt-copy-btn" id="cpbtn-${p.id}" onclick="copyPromptById('${p.id}')">Copy</button>
       </div>
     `;
@@ -1882,7 +1943,7 @@ function copyPromptById(promptId) {
   const btn = _sosEl('cpbtn-' + promptId);
   if (btn) {
     const orig = btn.textContent;
-    btn.textContent = '✓ Copied!';
+    btn.innerHTML = SOI.check + ' Copied!';
     btn.classList.add('copied');
     setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1800);
   }
@@ -1929,8 +1990,8 @@ function renderNotesModule(body, cls, mod) {
     <div id="modnote-editor-${mod.id}" style="display:none;flex-direction:column;height:100%">
       <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">
         <input id="modnote-title-${mod.id}" style="flex:1;background:transparent;border:none;font-size:13px;font-weight:700;color:var(--text);font-family:var(--sans);outline:none;pointer-events:${editOn ? 'auto' : 'none'}" placeholder="Note title" ${editOn ? '' : 'readonly'}>
-        <button class="btn" style="padding:3px 8px;font-size:10px" title="Fullscreen" onclick="fullscreenModuleNote('${cls.id}','${mod.id}')">⛶</button>
-        <button class="btn" style="padding:3px 8px;font-size:10px" title="Print / Save as PDF" onclick="printModuleNote('${mod.id}')">🖨</button>
+        <button class="btn" style="padding:3px 8px;font-size:10px" title="Fullscreen" aria-label="Fullscreen" onclick="fullscreenModuleNote('${cls.id}','${mod.id}')">${SOI.expand}</button>
+        <button class="btn" style="padding:3px 8px;font-size:10px" title="Print / Save as PDF" aria-label="Print" onclick="printModuleNote('${mod.id}')">${SOI.printer}</button>
         ${editOn ? `<button class="btn" style="padding:3px 8px;font-size:10px;color:#ff6b6b" onclick="deleteModuleNote('${cls.id}','${mod.id}')">Delete</button>` : ''}
       </div>
       <textarea id="modnote-body-${mod.id}" style="flex:1;background:transparent;border:none;padding:12px;font-family:var(--mono);font-size:12px;color:var(--text);resize:none;line-height:1.7;outline:none;${editOn ? '' : 'pointer-events:none'}" placeholder="${editOn ? 'Write here...' : ''}" ${editOn ? '' : 'readonly'}></textarea>
@@ -1996,7 +2057,7 @@ function openModuleNote(cls, mod, noteId) {
       if (bodyEl) n.body = bodyEl.value;
       n.updated = Date.now();
       persistForCls(cls);
-      if (statusEl) { statusEl.textContent = 'Saved ✓'; clearTimeout(titleEl._st); titleEl._st = setTimeout(() => { statusEl.textContent = 'Auto-saved'; }, 1500); }
+      if (statusEl) { statusEl.innerHTML = 'Saved ' + SOI.check; clearTimeout(titleEl._st); titleEl._st = setTimeout(() => { statusEl.textContent = 'Auto-saved'; }, 1500); }
       refreshModuleNoteList(cls, mod);
     };
     if (titleEl) titleEl.oninput = save;
@@ -2054,8 +2115,8 @@ function fullscreenModuleNote(classId, modId) {
   overlay.innerHTML = `
     <div class="note-fullscreen-header">
       <input class="note-fullscreen-title" id="fs-title-${modId}" value="${titleEl.value.replace(/"/g,'&quot;')}" ${editOn ? '' : 'readonly'} placeholder="Untitled">
-      <button class="btn" style="padding:5px 12px;font-size:12px" title="Print / Save as PDF" onclick="printModuleNoteFs('${modId}')">🖨 Print</button>
-      <button class="btn" style="padding:5px 12px;font-size:12px" onclick="_sosEl('fs-overlay-${modId}').remove()">✕ Close</button>
+      <button class="btn" style="padding:5px 12px;font-size:12px" title="Print / Save as PDF" onclick="printModuleNoteFs('${modId}')">${SOI.printer}<span>Print</span></button>
+      <button class="btn" style="padding:5px 12px;font-size:12px" onclick="_sosEl('fs-overlay-${modId}').remove()">${SOI.x}<span>Close</span></button>
     </div>
     <textarea class="note-fullscreen-body" id="fs-body-${modId}" ${editOn ? '' : 'readonly'} placeholder="${editOn ? 'Write here...' : ''}">${bodyEl.value}</textarea>
   `;
@@ -2332,7 +2393,7 @@ function saveEvent() {
         }
       }
     }
-    showNotif('📅', 'Event Updated', baseData.name + ' on ' + formatDate(date));
+    showNotif(SOI.calendar, 'Event Updated', baseData.name + ' on ' + formatDate(date));
 
   } else {
     // ── ADD ─────────────────────────────────────────────────────────────────
@@ -2351,7 +2412,7 @@ function saveEvent() {
           });
         });
       }
-      showNotif('📅', 'Repeating Event Added', baseData.name + ' · ' + dates.length + ' occurrences');
+      showNotif(SOI.calendar, 'Repeating Event Added', baseData.name + ' · ' + dates.length + ' occurrences');
     } else {
       const newId = Date.now().toString();
       events.push({ id: newId, ...baseData });
@@ -2363,7 +2424,7 @@ function saveEvent() {
           _sosClassName: _sosClsName, _sosClassColor: _sosClsColor,
         });
       }
-      showNotif('📅', 'Event Added', baseData.name + ' on ' + formatDate(date));
+      showNotif(SOI.calendar, 'Event Added', baseData.name + ' on ' + formatDate(date));
     }
   }
 
@@ -2420,7 +2481,7 @@ async function deleteEditingEvent() {
   renderCalendar();
   renderUpcoming();
   updateStats();
-  showNotif('🗑', 'Event Deleted', 'Event removed.');
+  showNotif(SOI.trash, 'Event Deleted', 'Event removed.');
   const affectedIds = new Set([deletedClassId, currentClassId].filter(Boolean));
   affectedIds.forEach(id => {
     const cls = classes.find(c => c.id === id);
@@ -2492,13 +2553,13 @@ function renderCalendar() {
       row.style.cssText = `display:flex;align-items:center;gap:3px;font-size:10px;padding:2px 4px;border-radius:4px;margin-bottom:2px;background:${pColor}18;color:${pColor};font-family:var(--mono);font-weight:700;min-width:0;overflow:hidden;`;
       const box = document.createElement('div');
       box.style.cssText = `width:9px;height:9px;border-radius:2px;flex-shrink:0;border:1.5px solid ${pColor};background:${task.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#fff;transition:0.15s`;
-      box.textContent = task.done ? '✓' : '';
+      box.innerHTML = task.done ? SOI.checkBold : '';
       box.onclick = e => {
         e.stopPropagation();
         task.done = !task.done;
         persistTasks();
         box.style.background = task.done ? pColor : 'transparent';
-        box.textContent = task.done ? '✓' : '';
+        box.innerHTML = task.done ? SOI.checkBold : '';
         label.style.textDecoration = task.done ? 'line-through' : '';
         label.style.opacity = task.done ? '0.5' : '1';
         // Sync to Veda TaskHub
@@ -2632,7 +2693,7 @@ function scheduleNotifications() {
 }
 
 function openNotifSettings() {
-  showNotif('🔔', 'Notifications', 'Set reminders when adding events via "Add Event" button.');
+  showNotif(SOI.bell, 'Notifications', 'Set reminders when adding events via "Add Event" button.');
 }
 
 // ===== STATS =====
@@ -2965,7 +3026,7 @@ function saveTask() {
         }
       }
     }
-    showNotif('✅', 'Task Updated', baseData.name);
+    showNotif(SOI.task, 'Task Updated', baseData.name);
 
   } else {
     // ── ADD ─────────────────────────────────────────────────────────────────
@@ -2982,7 +3043,7 @@ function saveTask() {
           window._vedaAddTask(toVedaKey(d), item);
         });
       }
-      showNotif('✅', 'Repeating Task Added', baseData.name + ' · ' + dates.length + ' occurrences');
+      showNotif(SOI.task, 'Repeating Task Added', baseData.name + ' · ' + dates.length + ' occurrences');
     } else {
       const newId = Date.now().toString();
       tasks.push({ id: newId, done: false, createdAt: Date.now(), ...baseData });
@@ -2990,7 +3051,7 @@ function saveTask() {
         const item = mkVedaItem(newId, dueDate);
         window._vedaAddTask(toVedaKey(dueDate), item);
       }
-      showNotif('✅', 'Task Added', baseData.name);
+      showNotif(SOI.task, 'Task Added', baseData.name);
     }
   }
 
@@ -3046,7 +3107,7 @@ async function deleteEditingTask() {
   renderCalendar();
   const cls = classes.find(c => c.id === currentClassId);
   if (cls) renderClassTasks(cls);
-  showNotif('🗑', 'Task Deleted', 'Task removed.');
+  showNotif(SOI.trash, 'Task Deleted', 'Task removed.');
 }
 
 function toggleTaskDone(taskId) {
@@ -3303,13 +3364,13 @@ function _sosSetSync(status) {
   } else if (status === 'saved') {
     el.style.visibility = 'visible';
     el.style.color = greenColor;
-    el.textContent = '✓ Synced';
+    el.innerHTML = SOI.check + ' Synced';
     if (_sosSyncTimer) clearTimeout(_sosSyncTimer);
     _sosSyncTimer = setTimeout(function() { el.style.visibility = 'hidden'; }, 2500);
   } else if (status === 'error') {
     el.style.visibility = 'visible';
     el.style.color = errColor;
-    el.textContent = '⚠ Sync failed';
+    el.innerHTML = SOI.alert + ' Sync failed';
     if (_sosSyncTimer) { clearTimeout(_sosSyncTimer); _sosSyncTimer = null; }
   } else {
     el.style.visibility = 'hidden';
@@ -3413,7 +3474,7 @@ async function convertEventToTask(evId) {
   updateStats();
   const curCls = classes.find(c => c.id === currentClassId);
   if (curCls) { renderClassEvents(curCls); }
-  showNotif('✅', 'Converted to Task', ev.name + ' is now a task.');
+  showNotif(SOI.task, 'Converted to Task', ev.name + ' is now a task.');
 }
 
 async function convertTaskToEvent(taskId) {
@@ -3466,7 +3527,7 @@ async function convertTaskToEvent(taskId) {
   updateStats();
   const curCls = classes.find(c => c.id === currentClassId);
   if (curCls) { renderClassEvents(curCls); }
-  showNotif('📅', 'Converted to Event', t.name + ' is now an event.');
+  showNotif(SOI.calendar, 'Converted to Event', t.name + ' is now an event.');
 }
 
 // ── Firebase init for StudyOS ──────────────────────────────────────────────
