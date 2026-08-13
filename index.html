@@ -4837,7 +4837,6 @@ window.THTS={
     <option value="health">MotionCore</option>
     <option value="keychain">Vault</option>
     <option value="brainstormjournal">MyJournal</option>
-    <option value="plans">Plans</option>
     <option value="proview">ProView</option>
     <option value="warroom">WarRoom</option>
   </select>
@@ -4846,7 +4845,6 @@ window.THTS={
   <button class="tn-btn" data-app="health" onclick="window._tonyNav&&window._tonyNav('health')">MotionCore</button>
   <button class="tn-btn" data-app="keychain" onclick="window._tonyNav&&window._tonyNav('keychain')">Vault</button>
   <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
-  <button class="tn-btn" data-app="plans" onclick="window._tonyNav&&window._tonyNav('plans')">Plans<span data-plans-badge style="display:none;align-items:center;justify-content:center;min-width:15px;height:15px;margin-left:5px;padding:0 4px;border-radius:999px;background:#c8a15f;color:#1a1a1d;font-size:9px;font-weight:800;line-height:1;"></span></button>
   <button class="tn-btn pv-btn" data-app="proview" onclick="window._tonyNav&&window._tonyNav('proview')">ProView</button>
   <button class="tn-btn wr-btn" id="wr-nav-btn" data-app="warroom" onclick="window._wrClick&&window._wrClick()">WarRoom</button>
   <button id="tn-settings-btn" onclick="window._openSettings&&window._openSettings('tony')" title="Settings" style="padding:0 7px;justify-content:center;touch-action:manipulation;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -7638,6 +7636,11 @@ function App(){
             edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>(goalTab==="short"?delMM:delM)(g.id)},"×")))),
 
 )),
+
+      // Edit-mode-only, intentionally unobtrusive: not part of the normal nav —
+      // reachable here rather than in the header so it stays out of daily sight.
+      edit&&React.createElement("div",{style:{textAlign:"center",padding:"22px 0 2px"}},
+        React.createElement("span",{style:{fontSize:9,color:T.TXD,opacity:0.3,letterSpacing:0.4,cursor:"pointer",userSelect:"none",transition:"opacity .15s"},onClick:()=>window._tonyNav&&window._tonyNav("plans"),onMouseEnter:e=>e.currentTarget.style.opacity=0.55,onMouseLeave:e=>e.currentTarget.style.opacity=0.3},"Plans")),
 
         React.createElement(ItemModal,{open:mo,onClose:()=>{setMo(false);setEi(null);},onSave:savItem,initial:ei,startDateKey:mdt,T,dateLabel:mdt?(()=>{const p=mdt.split("-");return MOS[parseInt(p[1])-1]+" "+parseInt(p[2]);})():""}),
 
@@ -41860,7 +41863,6 @@ var TONY_DEFAULT = [
   {app:'health',           label:'MotionCore'},
   {app:'keychain',         label:'Vault'},
   {app:'brainstormjournal',label:'MyJournal'},
-  {app:'plans',            label:'Plans'},
   {app:'proview',          label:'ProView'},
   {app:'warroom',          label:'WarRoom'},
 ];
