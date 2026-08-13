@@ -2073,8 +2073,8 @@ function injectRibbonExtras(ctx) {
   fontLbl.style.cssText = 'max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   fontB.appendChild(fontLbl);
   var caret = document.createElement('span');
-  caret.textContent = '▾';
-  caret.style.cssText = 'font-size:9px;opacity:.7;margin-left:3px;';
+  caret.className = 'docx-caret';
+  caret.setAttribute('aria-hidden', 'true');
   fontB.appendChild(caret);
   fontB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   fontB.addEventListener('click', function() { fontPop(ctx, fontB); });
@@ -2479,10 +2479,10 @@ function rebindPageButtons(ctx) {
     if (!tb.querySelector('.docx-fs-step')) {
       var decB = document.createElement('button');
       decB.className = 'pt-btn docx-fs-step'; decB.title = 'Decrease font size';
-      decB.innerHTML = '<span style="font-size:10px;font-weight:800;line-height:1;">A</span><span style="font-size:8px;margin-left:1px;">▼</span>';
+      decB.innerHTML = '<span style="font-size:10px;font-weight:800;line-height:1;">A</span>' + '<span class="docx-caret" aria-hidden="true"></span>';
       var incB = document.createElement('button');
       incB.className = 'pt-btn docx-fs-step'; incB.title = 'Increase font size';
-      incB.innerHTML = '<span style="font-size:14px;font-weight:800;line-height:1;">A</span><span style="font-size:8px;margin-left:1px;">▲</span>';
+      incB.innerHTML = '<span style="font-size:14px;font-weight:800;line-height:1;">A</span>' + '<span class="docx-caret up" aria-hidden="true"></span>';
       [decB, incB].forEach(function(b) { b.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); }); });
       decB.addEventListener('click', function() { stepFontSize(ctx, -1); });
       incB.addEventListener('click', function() { stepFontSize(ctx, 1); });
@@ -3275,7 +3275,7 @@ function wireColorShortcuts(ctx) {
   var btn = document.createElement('button');
   btn.className = 'pt-btn docx-color-btn';
   btn.title = 'Text color';
-  btn.innerHTML = '<span class="docx-color-dot" style="background:#EDEEF0"></span><span style="font-size:9px;opacity:.7;margin-left:2px;">▾</span>';
+  btn.innerHTML = '<span class="docx-color-dot" style="background:#EDEEF0"></span>' + '<span class="docx-caret" aria-hidden="true"></span>';
   input.parentNode.insertBefore(btn, input);
   // keep the native input in the DOM (its position anchors the OS picker) but invisible
   input.style.cssText = 'position:absolute;width:22px;height:10px;opacity:0;border:none;padding:0;margin:0;pointer-events:none;';

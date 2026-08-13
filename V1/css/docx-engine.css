@@ -386,3 +386,16 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   .docx-find { left: 8px; right: 8px; width: auto; }
   .docx-float { display: none !important; }
 }
+
+
+/* ── Dropdown / stepper carets ──────────────────────────────────────────────
+   Border triangles rather than ▾ / ▼ / ▲ glyphs: they stay crisp at any zoom
+   or device pixel ratio, size themselves off the control, and take the
+   button's own colour instead of falling back to a platform symbol font. */
+.docx-caret {
+  display: inline-block; width: 0; height: 0; flex: none;
+  margin-left: 4px; opacity: .7; vertical-align: middle;
+  border-left: 3.5px solid transparent; border-right: 3.5px solid transparent;
+  border-top: 4px solid currentColor;
+}
+.docx-caret.up { border-top: 0; border-bottom: 4px solid currentColor; }
