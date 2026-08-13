@@ -1,7 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Launcher">
   <title>Launcher</title>
-  <!-- Veda's charcoal tile, same 22px corner radius as the rest of the suite. -->
-  <rect width="96" height="96" rx="22" fill="#1B1C1E"/>
+  <!-- Veda's charcoal tile, drawn FULLY SQUARE and edge-to-edge. Rounded
+       corners here left the corner pixels transparent, which read as white
+       spots wherever the icon sits on a light surface; the browser applies its
+       own rounding to the toolbar icon anyway. -->
+  <rect width="96" height="96" fill="#1B1C1E"/>
   <!-- The mark reads at 16px as well as 128px: a link ring at the pad, and the
        link launching out of it on an arrow. Purple #8D769A is Veda's accent
        (TaskHub/Links); the pale #C6B4D0 highlights the launched half.

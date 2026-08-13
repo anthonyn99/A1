@@ -7,7 +7,8 @@
     "tabs",
     "tabGroups",
     "storage",
-    "alarms"
+    "alarms",
+    "scripting"
   ],
   "host_permissions": [
     "https://keychain-sync.av1.workers.dev/*",

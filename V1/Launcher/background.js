@@ -108,6 +108,112 @@ async function openPlainTabs(urls) {
   return urls.length;
 }
 
+// ── Gear → Veda's Links, preferring the installed Index PWA ──────────────────
+//
+// An extension cannot enumerate installed PWAs (chrome.management's app APIs
+// are ChromeOS-only), but it does not need to: when Index is installed AND
+// open, it lives in its own window whose tab is on the Index start_url. So:
+//
+//   1. Index open in a PWA window   → focus it and steer it to Links.
+//   2. Index open in a normal tab   → focus that tab and steer it.
+//   3. Neither                      → open a fresh tab on ?goto=links.
+//
+// Steering is done by setting the hash rather than re-navigating to
+// ?goto=links: a full navigation would reload the app, losing unsaved state and
+// re-running the profile/app-lock gates. index.html listens for hashchange on
+// '#links' and runs the very same _gotoVedaLinks() the query param triggers.
+// The hash is cleared first, because re-assigning an identical hash fires no
+// event.
+//
+// ── Chromium-fork compatibility (Brave, Edge, Vivaldi, Opera) ──
+// Everything below is plain MV3 that every Chromium fork implements; there are
+// no Chrome-only APIs. The two places the forks actually differ are handled:
+//
+//  * PWA window type. Chrome reports an installed PWA's window as type "app";
+//    some forks/versions report "popup" instead. So a window counts as a PWA
+//    window if it is anything OTHER than "normal" — and, since that is a
+//    heuristic and not a guarantee, the tab is steered correctly either way.
+//    Misreading the type only changes WHICH open Index is reused, never
+//    whether the gear works.
+//  * Brave Shields. Shields can block an extension's scripting injection on a
+//    site. executeScript is therefore treated as best-effort: if it throws OR
+//    reports no result, we fall back to a plain tabs.update navigation to
+//    ?goto=links on that same tab, which needs no scripting at all.
+const INDEX_ORIGIN    = "https://anthonyn99.github.io";
+const INDEX_PAGE      = INDEX_ORIGIN + "/A1/index.html";
+const INDEX_LINKS_URL = INDEX_PAGE + "?goto=links";
+
+// Bring a window/tab to the front. Both calls are best-effort: a minimised or
+// otherwise odd window can reject focus on some forks without that meaning the
+// steer failed.
+async function focusTab(tab) {
+  try { await chrome.windows.update(tab.windowId, { focused: true, drawAttention: true }); } catch (_) {}
+  try { await chrome.tabs.update(tab.id, { active: true }); } catch (_) {}
+}
+
+// Steer an already-open Index to Links without reloading it. Returns false if
+// the injection could not run (restricted page, Shields, missing permission),
+// so the caller can fall back to a real navigation.
+async function steerToLinks(tab) {
+  if (!chrome.scripting || !chrome.scripting.executeScript) return false;
+  try {
+    const res = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        // Prefer the app's own entry point when it is already parsed — it
+        // honours the profile and app locks exactly as clicking through does.
+        if (typeof window._gotoVedaLinks === "function") { window._gotoVedaLinks(); return true; }
+        if (location.hash === "#links") location.hash = "";
+        location.hash = "links";
+        return true;
+      },
+    });
+    return Array.isArray(res) && res.length > 0 && res[0] && res[0].result === true;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function openIndexLinks() {
+  // Match the Index page on any query/hash. Two patterns because the installed
+  // PWA's start_url is the bare page while a browser tab may carry ?goto=.
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({ url: [INDEX_PAGE, INDEX_PAGE + "?*", INDEX_PAGE + "#*"] });
+  } catch (_) {
+    try { tabs = await chrome.tabs.query({ url: INDEX_PAGE + "*" }); } catch (_) { tabs = []; }
+  }
+
+  if (tabs.length) {
+    // Prefer a PWA window: any window type other than "normal". Chrome says
+    // "app", some forks say "popup" — treating both as the PWA is what makes
+    // this work on Brave as well as Chrome.
+    let pwaTab = null;
+    try {
+      const wins = await chrome.windows.getAll({});
+      const byId = new Map(wins.map(w => [w.id, w]));
+      pwaTab = tabs.find(t => {
+        const w = byId.get(t.windowId);
+        return w && w.type && w.type !== "normal";
+      }) || null;
+    } catch (_) { /* windows API unavailable — fall through to the first tab */ }
+
+    const target = pwaTab || tabs[0];
+    await focusTab(target);
+    if (await steerToLinks(target)) return pwaTab ? "pwa" : "tab";
+
+    // Injection blocked — navigate that same tab instead. Still reuses the PWA
+    // window rather than opening Index in the browser.
+    try {
+      await chrome.tabs.update(target.id, { url: INDEX_LINKS_URL });
+      return pwaTab ? "pwa-nav" : "tab-nav";
+    } catch (_) { /* fall through to a new tab */ }
+  }
+
+  await chrome.tabs.create({ url: INDEX_LINKS_URL });
+  return "opened";
+}
+
 // ── Background refresh ───────────────────────────────────────────────────────
 async function refreshCache() {
   try { await LauncherDB.refresh(); } catch (e) { /* offline / worker down — keep the cache */ }
@@ -134,6 +240,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!urls.length) { sendResponse({ ok: false, opened: 0 }); return true; }
     (message.group ? openLinksAsGroup(urls, message.groupName, message.groupColor) : openPlainTabs(urls))
       .then(n => sendResponse({ ok: true, opened: n }))
+      .catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }));
+    return true;   // async response
+  }
+
+  if (message.action === "openIndexLinks") {
+    openIndexLinks()
+      .then(how => sendResponse({ ok: true, how }))
       .catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }));
     return true;   // async response
   }

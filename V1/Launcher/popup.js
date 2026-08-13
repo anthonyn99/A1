@@ -23,7 +23,15 @@ const CD = ['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec
 
 const SIZE_KEY    = "launcher_popup_size";
 const REORDER_KEY = "launcher_reorder_mode";
-const COL2_MIN    = 560;    // px width of #app at/above which we go to 2 columns
+// Column sizing. The cards wrap into a second column as soon as two columns of
+// at least COL_MIN_W fit, and never into a third: the Links program is itself a
+// two-column layout, so its saved colmap only ever holds 0 or 1 and a third
+// column here would always be empty. COL2_MIN is the resulting #app width at
+// which the split happens — the same 560px the old fixed layout used, so
+// existing colmap positions carry over unchanged.
+const COL_MIN_W   = 240;
+const MAX_COLS    = 2;
+const COL2_MIN    = 560;
 const POLL_MS     = 5000;   // live refresh cadence while the popup is open
 const ECHO_MS     = 8000;   // ignore server reads for this long after our own save
 
@@ -38,6 +46,16 @@ let pollTimer = null;
 const COPY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 const GRIP_SVG = '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/><circle cx="6" cy="8" r="1.5"/><circle cx="10" cy="8" r="1.5"/><circle cx="6" cy="13" r="1.5"/><circle cx="10" cy="13" r="1.5"/></svg>';
 
+// How many columns to lay out at the current popup width. Measured from the
+// real content box when it is available (so the padding/scrollbar are already
+// accounted for), falling back to #app's width before first paint.
+function colCount() {
+  const inner = groupsEl.clientWidth || (appEl.offsetWidth - 41);
+  const fits  = Math.floor((inner + 10) / (COL_MIN_W + 10));
+  const byWidth = appEl.offsetWidth >= COL2_MIN ? 2 : 1;
+  return Math.max(1, Math.min(MAX_COLS, fits, byWidth));
+}
+
 // ── Persisted, user-adjustable popup size ────────────────────────────────────
 chrome.storage.local.get([SIZE_KEY, REORDER_KEY], (d) => {
   const s = d && d[SIZE_KEY];
@@ -46,8 +64,8 @@ chrome.storage.local.get([SIZE_KEY, REORDER_KEY], (d) => {
 
   let t = null;
   new ResizeObserver(() => {
-    // Re-flow into 1 or 2 columns as the width crosses the threshold.
-    const cols = appEl.offsetWidth >= COL2_MIN ? 2 : 1;
+    // Re-flow whenever the grid gains or loses a column as the popup is dragged.
+    const cols = colCount();
     if (cols !== lastCols && connections.length) render();
     if (t) clearTimeout(t);
     t = setTimeout(() => {
@@ -190,9 +208,12 @@ function render() {
     return;
   }
 
-  // 1 column when narrow, 2 when widened — mirrors Links. At 2 columns, honour
-  // the colmap Links saved so cards sit in the same columns and order.
-  const cols = appEl.offsetWidth >= COL2_MIN ? 2 : 1;
+  // Lay the grid out at the column count the current width supports, and drive
+  // the CSS from the same number so layout and distribution can never disagree.
+  // At 2 columns honour the colmap Links saved, so a card keeps the position
+  // Veda gave it in the Links program.
+  const cols = colCount();
+  groupsEl.style.setProperty("--cols", String(cols));
   lastCols = cols;
   const colDivs = Array.from({ length: cols }, () => {
     const d = document.createElement("div");
@@ -202,7 +223,7 @@ function render() {
   const perCol = Math.ceil(visible.length / cols);
   visible.forEach(({ conn, ci }, vi) => {
     let colIdx;
-    if (cols === 2 && Array.isArray(colmap) && typeof colmap[ci] === "number") {
+    if (cols >= 2 && Array.isArray(colmap) && typeof colmap[ci] === "number") {
       colIdx = Math.max(0, Math.min(colmap[ci], cols - 1));
     } else {
       colIdx = Math.min(Math.floor(vi / perCol), cols - 1);
@@ -346,9 +367,31 @@ async function boot() {
 
 window.addEventListener("unload", () => { if (pollTimer) clearInterval(pollTimer); });
 
+// The worker does the real work — it can see window types and inject the hash
+// nudge, so an installed Index PWA is reused (and steered straight to Links)
+// instead of Index being opened again in a browser tab. See background.js.
+//
+// If the worker is unreachable (lastError) or reports failure, open a plain tab
+// here so the gear always does something. window.close() runs on every path.
 function openIndexLinks() {
-  chrome.tabs.create({ url: INDEX_LINKS_URL });
-  window.close();
+  let done = false;
+  const finish = (fallback) => {
+    if (done) return;
+    done = true;
+    if (fallback) { try { chrome.tabs.create({ url: INDEX_LINKS_URL }); } catch (_) {} }
+    window.close();
+  };
+  // A service worker that has to cold-start can be slow; don't hang the gear.
+  const t = setTimeout(() => finish(true), 1500);
+  try {
+    chrome.runtime.sendMessage({ action: "openIndexLinks" }, (resp) => {
+      clearTimeout(t);
+      finish(!!chrome.runtime.lastError || !(resp && resp.ok));
+    });
+  } catch (_) {
+    clearTimeout(t);
+    finish(true);
+  }
 }
 gearEl.addEventListener("click", openIndexLinks);
 

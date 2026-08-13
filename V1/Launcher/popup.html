@@ -56,11 +56,11 @@
       padding:13px 15px 11px; background:var(--bg); border-bottom:1px solid var(--bd);
       flex-shrink:0;
     }
-    .brand { display:flex; align-items:center; gap:9px; min-width:0; }
-    .brand-mark { width:26px; height:26px; flex-shrink:0; display:block; }
+    .brand { display:flex; align-items:center; gap:8px; min-width:0; }
+    .brand-mark { width:21px; height:21px; flex-shrink:0; display:block; }
     .logo {
-      font-family:var(--serif); font-size:20px; font-weight:900;
-      letter-spacing:1px; text-transform:uppercase; line-height:1; color:var(--ac);
+      font-family:var(--serif); font-size:15px; font-weight:900;
+      letter-spacing:.8px; text-transform:uppercase; line-height:1; color:var(--ac);
     }
     .sync {
       font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
@@ -109,9 +109,25 @@
 
     .panel { padding:10px 15px 16px; }
 
-    /* ── Columns + cards ── */
-    #groups { display:flex; gap:10px; align-items:flex-start; }
-    .col { flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:10px; }
+    /* ── Columns + cards ──────────────────────────────────────────────────────
+       Columns are laid out by an auto-fill grid rather than a fixed 1-or-2 flex
+       split, so as the popup is dragged wider the cards WRAP into as many
+       columns as actually fit — the same behaviour as the Links program's
+       connection grid. popup.js measures the available width, decides the
+       count, and sets --cols — one source of truth for both the CSS track
+       list and the JS that distributes cards into the columns.
+
+       The count is capped at TWO columns (popup.js sets --cols): Links itself
+       is a two-column layout, so its saved colmap only ever holds 0 or 1.
+       Letting the popup open a third column at full width would leave that
+       column permanently empty and break the "same positions as in Links"
+       promise. Below the 2-column threshold --cols is 1 and the cards fill the
+       full width, exactly as a narrow popup should. */
+    #groups {
+      display:grid; gap:10px; align-items:start;
+      grid-template-columns:repeat(var(--cols,1), minmax(0, 1fr));
+    }
+    .col { min-width:0; display:flex; flex-direction:column; gap:10px; }
     #app.reorder .col:empty {
       border:1.5px dashed rgba(141,118,154,.25); border-radius:5px; min-height:56px;
     }
@@ -221,11 +237,9 @@
         padding-bottom:env(safe-area-inset-bottom,0px);
       }
       #resize-grip { display:none; }
-      /* Stack, and STRETCH: #groups is align-items:flex-start for the desktop
-         row layout, which in column direction would shrink each column to its
-         content width and leave the cards floating at ~60% of the screen. */
-      #groups { flex-direction:column; align-items:stretch; }
-      .col { flex:0 0 auto; width:100%; }
+      /* One full-width column on a phone sheet, whatever --cols says. */
+      #groups { grid-template-columns:1fr; align-items:stretch; }
+      .col { width:100%; }
       header { padding-top:calc(env(safe-area-inset-top,0px) + 13px); }
     }
     /* Touch ergonomics: ≥34px targets on everything tappable. Keyed on pointer
