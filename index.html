@@ -5474,6 +5474,8 @@ function tBuildSeed(){
   return data;
 }
 const T_HAB_DEF=[{id:uid(),title:"Review daily progress"},{id:uid(),title:"Organize workspace"},{id:uid(),title:"Read 20 pages"},{id:uid(),title:"Exercise"},{id:uid(),title:"Meditate"},{id:uid(),title:"Drink water (8 glasses)"}];
+// Mirrored plan goals are owned by dashboards/plans — read-only here.
+const _plGuard=(arr,id,msg)=>{const g=(arr||[]).find(x=>x&&x.id===id);if(g&&g._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge(msg);return true;}return false;};
 const MG_DEF=[{id:uid(),title:"Review project roadmap",done:false},{id:uid(),title:"Prepare and send invoices",done:false},{id:uid(),title:"Evaluate expenses",done:true},{id:uid(),title:"Audit finances",done:false},{id:uid(),title:"Update software stack",done:false}];
 function tInitData(){
   const now=new Date(),cw=getMondayKey(now);
@@ -6379,6 +6381,8 @@ function App(){
   // skips the push entirely — the mirror reconcile runs on every snapshot and
   // must not cost a write when nothing actually changed.
   const setDataBg=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;if(next===prev)return prev;saveJ(T_SK.data,next);stateRef.current={...stateRef.current,data:next};fbPush(true);return next;});},[fbPush]);
+  // Background variant for short-term goals — undated confirmed plans mirror here.
+  const setMgMonthlyBg=useCallback(fn=>{setMgMonthlyState(prev=>{const next=typeof fn==="function"?fn(prev):fn;if(next===prev)return prev;saveJ(T_SK.mgoals,next);stateRef.current={...stateRef.current,monthlyGoals:next};fbPush(true);return next;});},[fbPush]);
   const setHabits=useCallback(fn=>{setHabitsState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.habits,next);stateRef.current={...stateRef.current,habits:next};fbPush();return next;});},[fbPush]);
   const setHc=useCallback(fn=>{setHcState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.hc,next);stateRef.current={...stateRef.current,hc:next};fbPush();return next;});},[fbPush]);
   const setMg=useCallback(fn=>{setMgState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.goals,next);stateRef.current={...stateRef.current,goals:next};fbPush();return next;});},[fbPush]);
@@ -6469,6 +6473,8 @@ function App(){
     // Signature of just the mirrored items, so an unrelated edit to Tony's own
     // tasks never looks like a mirror change (and vice versa).
     const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._planId).map(t=>[t._planId,t.title,t.time||"",t.type||""]).sort()]));
+    // Signature of just the mirrored GOALS, for the same reason.
+    const gsig=a=>JSON.stringify((a||[]).filter(g=>g&&g._planId).map(g=>[g._planId,g.title,!!g.done]).sort());
     const apply=(plans)=>{
       // NEVER reconcile before our own document has loaded from the cloud —
       // rewriting `data` from empty local state would queue a write of that
@@ -6477,11 +6483,12 @@ function App(){
       if(!fbLoadedRef.current)return;
       if(!window._planToItems)return;
       const items=window._planToItems(plans||{});
+      const goals=(window._planToGoals?window._planToGoals(plans||{}):[]);
       // Cheap pre-check. setDataBg pushes to Firestore whenever the reducer
       // returns a NEW object, so we must decide BEFORE calling it or every
       // snapshot would cost a pointless write — and each write re-triggers the
       // listener, so the two would ping-pong forever.
-      const incoming=sig(items);
+      const incoming=sig(items)+'|'+gsig(goals);
       if(planMirrorSigRef.current===incoming)return;
       planMirrorSigRef.current=incoming;
       setDataBg(prev=>{
@@ -6497,6 +6504,13 @@ function App(){
           (next[dk]=next[dk]||[]).push(...items[dk]);
         });
         return sig(prev)===sig(next)?prev:next;
+      });
+      // Undated confirmed plans live in short-term goals. Same reconcile shape:
+      // strip everything tagged, re-add from the mirror, never touch own goals.
+      setMgMonthlyBg(prev=>{
+        const kept=(prev||[]).filter(g=>!(g&&g._planId));
+        const next=kept.concat(goals);
+        return gsig(prev||[])===gsig(next)?prev:next;
       });
     };
     const onPlans=e=>apply(e.detail);
@@ -6515,7 +6529,7 @@ function App(){
       } else if(++tries>120) clearInterval(iv);   // ~60s ceiling
     },500);
     return()=>{clearInterval(iv);window.removeEventListener("fb-plans-update",onPlans);};
-  },[setDataBg]);
+  },[setDataBg,setMgMonthlyBg]);
 
   // ── Archive day-keys older than TH_ARCHIVE_YEARS ──────────────────────────
   // Runs once per device per day, 20s after load. Three safety gates, because
@@ -7208,8 +7222,8 @@ function App(){
   const addM=useCallback(()=>{if(!nmt.trim())return;setMg(prev=>[...prev,{id:uid(),title:nmt.trim(),done:false}]);setNmt("");},[nmt,setMg]);
   const renameM=useCallback((id,title)=>setMg(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMg]);
 
-  const togMM=useCallback(id=>{setMgMonthly(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...prev];cp[i]=ng;return cp;});},[setMgMonthly]);
-  const delMM=useCallback(id=>setMgMonthly(prev=>prev.filter(g=>g.id!==id)),[setMgMonthly]);
+  const togMM=useCallback(id=>{if(_plGuard(stateRef.current.monthlyGoals,id,"This is a shared plan — manage it in Plans."))return;setMgMonthly(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...prev];cp[i]=ng;return cp;});},[setMgMonthly]);
+  const delMM=useCallback(id=>{if(_plGuard(stateRef.current.monthlyGoals,id,"This is a shared plan — cancel it in Plans to remove it."))return;setMgMonthly(prev=>prev.filter(g=>g.id!==id));},[setMgMonthly]);
   const addMM=useCallback(()=>{if(!nmmt.trim())return;setMgMonthly(prev=>[...prev,{id:uid(),title:nmmt.trim(),done:false}]);setNmmt("");},[nmmt,setMgMonthly]);
   const renameMM=useCallback((id,title)=>setMgMonthly(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMgMonthly]);
 
@@ -8517,11 +8531,32 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // The item id is DERIVED from the plan id, never generated — combined with the
     // strip-then-re-add reconcile below that makes duplicate _planId items across
     // reloads structurally impossible.
+    // A confirmed plan with NO date cannot sit on a day grid, but it is still a
+    // real commitment — so it mirrors into both profiles' short-term goals
+    // instead of disappearing. Same ownership rule as the dated ones: the Plans
+    // doc owns every _planId goal, and untagged goals are never touched.
+    window._planToGoals = (plans) => {
+      const out = [];
+      Object.keys(plans || {}).forEach(pid => {
+        const p = plans[pid];
+        if (!p || p.date) return;                       // dated ones go on the grid
+        if (!_planIsConfirmed(p)) return;
+        if (p.stage === 'dropped' || p.stage === 'declined') return;
+        out.push({
+          id: 'plan_' + p.id,        // derived, same idempotency guarantee
+          _planId: p.id,
+          title: p.title || 'Plan',
+          done: p.stage === 'done'
+        });
+      });
+      return out;
+    };
+
     window._planToItems = (plans) => {
       const out = {};
       Object.keys(plans || {}).forEach(pid => {
         const p = plans[pid];
-        if (!p || !p.date) return;                                  // undated plans never mirror
+        if (!p || !p.date) return;                      // undated → _planToGoals
         if (!_planIsConfirmed(p)) return;
         if (p.stage === 'dropped' || p.stage === 'declined') return;
         const it = {
@@ -12265,6 +12300,8 @@ function App(){
   const setHc=useCallback(fn=>{setHcState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.hc,next);vdRef.current={...vdRef.current,hc:next};vdFbPush();return next;});},[vdFbPush]);
   const setMg=useCallback(fn=>{setMgState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.goals,next);vdRef.current={...vdRef.current,goals:next};vdFbPush();return next;});},[vdFbPush]);
   const setMgMonthly=useCallback(fn=>{setMgMonthlyState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.mgoals,next);vdRef.current={...vdRef.current,monthlyGoals:next};vdFbPush();return next;});},[vdFbPush]);
+  // Background variant for short-term goals — undated confirmed plans mirror here.
+  const setMgMonthlyBg=useCallback(fn=>{setMgMonthlyState(prev=>{const next=typeof fn==="function"?fn(prev):fn;if(next===prev)return prev;saveJ(SK.mgoals,next);vdRef.current={...vdRef.current,monthlyGoals:next};vdFbPush(true);return next;});},[vdFbPush]);
   const setGoalPrefs=useCallback(fn=>{setGoalPrefsState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.goalPrefs,next);vdRef.current={...vdRef.current,goalPrefs:next};vdFbPush();return next;});},[vdFbPush]);
   const setRules=useCallback(fn=>{setRulesStateRaw(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.rules,next);vdRef.current={...vdRef.current,rules:next};vdFbPush();return next;});},[vdFbPush]);
   const setRulesDaily=useCallback(fn=>{setRulesDailyStateRaw(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(SK.rulesDaily,next);vdRef.current={...vdRef.current,rulesDaily:next};vdFbPush();return next;});},[vdFbPush]);
@@ -12562,11 +12599,13 @@ function App(){
   const planMirrorSigRef=useRef(null);
   useEffect(()=>{
     const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._planId).map(t=>[t._planId,t.title,t.time||"",t.type||""]).sort()]));
+    const gsig=a=>JSON.stringify((a||[]).filter(g=>g&&g._planId).map(g=>[g._planId,g.title,!!g.done]).sort());
     const apply=(plans)=>{
       if(!fbLoadedRef.current)return;          // see the StudyOS barrier above
       if(!window._planToItems)return;
       const items=window._planToItems(plans||{});
-      const incoming=sig(items);
+      const goals=(window._planToGoals?window._planToGoals(plans||{}):[]);
+      const incoming=sig(items)+'|'+gsig(goals);
       if(planMirrorSigRef.current===incoming)return;   // decide BEFORE setDataBg
       planMirrorSigRef.current=incoming;
       setDataBg(prev=>{
@@ -12580,6 +12619,12 @@ function App(){
         });
         return sig(prev)===sig(next)?prev:next;
       });
+      // Undated confirmed plans live in short-term goals (see Tony's effect).
+      setMgMonthlyBg(prev=>{
+        const kept=(prev||[]).filter(g=>!(g&&g._planId));
+        const next=kept.concat(goals);
+        return gsig(prev||[])===gsig(next)?prev:next;
+      });
     };
     const onPlans=e=>apply(e.detail);
     window.addEventListener("fb-plans-update",onPlans);
@@ -12592,7 +12637,7 @@ function App(){
       } else if(++tries>120) clearInterval(iv);
     },500);
     return()=>{clearInterval(iv);window.removeEventListener("fb-plans-update",onPlans);};
-  },[setDataBg]);
+  },[setDataBg,setMgMonthlyBg]);
 
   // ── StudyOS task mirror — acknowledge ──────────────────────────────────────
   // Ticking a mirrored task here checks it off in StudyOS. We publish the whole
@@ -12784,8 +12829,8 @@ function App(){
   const delM=useCallback(id=>{setMg(p=>p.filter(g=>g.id!==id));},[]);
   const addM=useCallback(()=>{if(!nmt.trim())return;setMg(p=>[...p,{id:uid(),title:nmt.trim(),done:false}]);setNmt("");},[nmt]);
   const renameMM=useCallback((id,title)=>setMgMonthly(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMgMonthly]);
-  const togMM=useCallback(id=>{setMgMonthly(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...p];cp[i]=ng;return cp;});},[setMgMonthly]);
-  const delMM=useCallback(id=>{setMgMonthly(p=>p.filter(g=>g.id!==id));},[setMgMonthly]);
+  const togMM=useCallback(id=>{if(_plGuard(vdRef.current.monthlyGoals,id,"This is a shared plan — manage it in Plans."))return;setMgMonthly(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...p];cp[i]=ng;return cp;});},[setMgMonthly]);
+  const delMM=useCallback(id=>{if(_plGuard(vdRef.current.monthlyGoals,id,"This is a shared plan — cancel it in Plans to remove it."))return;setMgMonthly(p=>p.filter(g=>g.id!==id));},[setMgMonthly]);
   const addMM=useCallback(()=>{if(!nmmt.trim())return;setMgMonthly(p=>[...p,{id:uid(),title:nmmt.trim(),done:false}]);setNmmt("");},[nmmt,setMgMonthly]);
   const calcCells=useMemo(()=>{const d=dimM(vy,vm),f=fdow(vy,vm),c=[];for(let i=0;i<f;i++)c.push(null);for(let i=1;i<=d;i++)c.push(i);return c;},[vy,vm]);
   const pm=()=>{if(vm===0){setVm(11);setVy(y=>y-1);}else setVm(m=>m-1);};
@@ -15210,6 +15255,16 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 .pl-creed b{color:var(--pl-txd);font-weight:800;}
 .pl-creed-lim{display:block;margin-top:5px;font-size:11px;line-height:1.5;
   color:var(--pl-txf);opacity:.75;}
+.pl-bio-cta{width:100%;background:transparent;border:1px solid var(--pl-ac);border-radius:9px;
+  color:var(--pl-ac);padding:9px 10px;font-size:10.5px;font-weight:800;cursor:pointer;
+  font-family:var(--pl-mono);text-transform:uppercase;letter-spacing:.9px;
+  margin-bottom:16px;transition:all .14s;}
+.pl-bio-cta:hover{background:var(--pl-ac);color:var(--pl-ac-ink);}
+/* A verified signature is visually distinct from an unverified one. */
+.pl-vbadge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;
+  padding:1px 5px;border-radius:4px;margin-left:2px;}
+.pl-v-bio{background:#1E3226;color:#7FCB98;}
+.pl-v-none{background:var(--pl-s2);color:var(--pl-txf);}
 .pl-secs{display:flex;flex-direction:column;gap:20px;}
 .pl-sec-h{display:flex;align-items:baseline;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--pl-txm);margin-bottom:9px;font-family:var(--pl-mono);}
 .pl-count{background:var(--pl-ac);color:var(--pl-ac-ink);border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center;font-family:var(--pl-mono);}
@@ -15230,6 +15285,22 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 /* The one card class that must catch the eye: something is waiting on you. */
 .pl-card.pl-wait{border-color:var(--pl-ac);box-shadow:inset 3px 0 0 var(--pl-ac);}
 .pl-card-t{font-size:14px;font-weight:700;line-height:1.35;word-break:break-word;color:var(--pl-tx);}
+/* Collapsed confirmed / archived cards: the whole header is the toggle. */
+.pl-fold{padding:0;}
+.pl-head{display:flex;align-items:flex-start;gap:9px;width:100%;background:transparent;
+  border:0;padding:12px 13px;cursor:pointer;text-align:left;font-family:inherit;color:inherit;}
+.pl-head:hover .pl-card-t{color:var(--pl-ac);}
+.pl-head-in{flex:1;min-width:0;display:block;}
+.pl-head .pl-card-t{display:block;}
+.pl-head .pl-meta{display:flex;}
+.pl-chev{color:var(--pl-txf);font-size:11px;line-height:1.5;flex-shrink:0;
+  transition:color .14s;}
+.pl-head:hover .pl-chev{color:var(--pl-ac);}
+/* The opened body keeps the card's padding without doubling the header's. */
+.pl-fold .pl-notes,.pl-fold .pl-reason,.pl-fold .pl-confirms,.pl-fold .pl-acts{
+  margin-left:13px;margin-right:13px;}
+.pl-fold .pl-acts{padding-bottom:13px;}
+.pl-fold.pl-open .pl-notes{margin-top:0;}
 .pl-meta{font-size:11px;color:var(--pl-txm);margin-top:6px;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;}
 .pl-when{font-family:var(--pl-mono);font-size:11px;font-weight:700;color:var(--pl-ac);
   letter-spacing:.3px;display:inline-flex;align-items:baseline;gap:6px;}
@@ -15330,6 +15401,9 @@ let acked={};
 // Cleared once the snapshot agrees the plan is gone.
 let deleted={};
 let archOpen=false;
+// Confirmed plans are settled business, so they collapse to title + date and
+// open on click. Ids expanded in THIS session only — a reload starts tidy.
+let expanded={};
 let modal=null;        // {mode,...} while a dialog is open
 let booted=false;
 
@@ -15412,10 +15486,65 @@ function deviceName(){
 // the OTHER person's confirm, is exactly what one-person forgery looks like.
 window._plProfileSwitchedAt=window._plProfileSwitchedAt||0;
 window._plPrevProfile=window._plPrevProfile||null;
-function stamp(){
+function stamp(verified){
   return {dev:deviceId(),devName:deviceName(),at:Date.now(),
     prev:window._plPrevProfile||null,
-    sinceSwitch:window._plProfileSwitchedAt?(Date.now()-window._plProfileSwitchedAt):null};
+    sinceSwitch:window._plProfileSwitchedAt?(Date.now()-window._plProfileSwitchedAt):null,
+    // 'bio'  = the OS verified this person's biometric on this device
+    // 'none' = no biometric was enrolled here, so the profile chooser is the only
+    //          evidence — exactly as forgeable as before, and labelled as such.
+    v:verified?'bio':'none'};
+}
+
+// ── Biometric consent ───────────────────────────────────────────────────────
+// This is the part that actually closes the forgery hole. The profile chooser
+// cannot tell two people apart; the device's secure enclave can. Each profile
+// enrols its OWN credential under ('plans', profile), and window.Bio only ever
+// allows that one credential id — so Tony's fingerprint cannot satisfy a check
+// registered to Veda, even on a device they share.
+//
+// The app never sees biometric data. WebAuthn returns a public-key handle only.
+const BIO_APP='plans';
+function bioEnrolled(who){return !!(window.Bio&&who&&window.Bio.isRegistered(BIO_APP,who));}
+function bioLabel(){return (window.Bio&&window.Bio.label())||'biometrics';}
+// render() is synchronous but availability is a promise, so it is resolved once
+// at boot and cached. Defaults to false: never advertise a capability we have
+// not actually confirmed the device has.
+let bioOK=false;
+function bioAvailable(){
+  if(!window.Bio)return Promise.resolve(false);
+  return window.Bio.available().catch(()=>false);
+}
+// window.Bio is defined much further down the file, so it does not exist when
+// this script parses and may still be missing when the section is first opened.
+// Poll briefly until it appears, then cache the answer and re-render once.
+let bioChecked=false;
+function refreshBioOK(){
+  if(bioChecked)return Promise.resolve(bioOK);
+  if(!window.Bio){
+    // Not loaded yet — try again shortly rather than answering "unavailable".
+    setTimeout(refreshBioOK,300);
+    return Promise.resolve(false);
+  }
+  bioChecked=true;
+  return bioAvailable().then(v=>{bioOK=v;window._plBioOK=v;render();return v;});
+}
+refreshBioOK();
+window.addEventListener('load',refreshBioOK);
+// Resolves true only when the OS positively verified this profile's own
+// credential. A cancelled prompt or a failure resolves false — never throws, so
+// a confirm can still proceed as unverified rather than dead-ending.
+function bioVerify(who){
+  if(!bioEnrolled(who))return Promise.resolve(false);
+  return window.Bio.authenticate(BIO_APP,who)
+    .then(r=>!!(r&&r.ok)).catch(()=>false);
+}
+function bioEnrol(who){
+  if(!window.Bio||!who)return Promise.resolve({ok:false,error:'unsupported'});
+  return window.Bio.register(BIO_APP,who,{
+    rpName:'Plans',userName:'plans-'+who,
+    displayName:(NAMES[who]||who)+' — Plans confirmation'
+  }).catch(e=>({ok:false,error:(e&&e.name)||'error'}));
 }
 
 // Two confirmations from the SAME device are not proof of forgery — a couple may
@@ -15425,6 +15554,9 @@ const SAME_DEV_WINDOW=10*60*1000;   // 10 minutes
 function confirmFlags(p){
   const m=p&&p.confirmMeta;
   if(!m||!m.veda||!m.tony)return null;
+  // Both biometrically verified means the OS proved two different people, even on
+  // one shared device — that is real evidence, so there is nothing to warn about.
+  if(m.veda.v==='bio'&&m.tony.v==='bio')return null;
   const sameDev=m.veda.dev&&m.tony.dev&&m.veda.dev===m.tony.dev;
   if(!sameDev)return null;
   const gap=Math.abs((m.veda.at||0)-(m.tony.at||0));
@@ -15473,14 +15605,18 @@ function addIdea(title,notes,date,time){
 // Either person may promote any idea, including one the other wrote. There is no
 // gate here on purpose — the confirm step IS the gate. Proposing implies your own
 // consent, so it sets your confirm and only yours.
+// Promoting records YOUR consent, so it is verified exactly like a confirm.
 function promote(id){
   const w=me();if(!w)return;
   const p=plans[id];if(!p)return;
-  p.stage='proposed';p.proposedBy=w;p.proposedAt=Date.now();
-  p.confirms={veda:null,tony:null};p.confirms[w]=Date.now();
-  p.confirmMeta={};p.confirmMeta[w]=stamp();
-  p.declined=null;
-  save(p);
+  bioVerify(w).then(ok=>{
+    const q=plans[id];if(!q)return;
+    q.stage='proposed';q.proposedBy=w;q.proposedAt=Date.now();
+    q.confirms={veda:null,tony:null};q.confirms[w]=Date.now();
+    q.confirmMeta={};q.confirmMeta[w]=stamp(ok);
+    q.declined=null;
+    save(q);
+  });
 }
 
 // The other person agrees. stage becomes 'confirmed' ONLY when both keys are set
@@ -15489,12 +15625,20 @@ function promote(id){
 function confirmPlan(id){
   const w=me();if(!w)return;
   const p=plans[id];if(!p)return;
-  p.confirms=p.confirms||{veda:null,tony:null};
-  p.confirms[w]=Date.now();
-  p.confirmMeta=p.confirmMeta||{};
-  p.confirmMeta[w]=stamp();
-  if(isConfirmed(p))p.stage='confirmed';
-  save(p);
+  const enrolled=bioEnrolled(w);
+  bioVerify(w).then(ok=>{
+    // Enrolled but NOT verified means the prompt was cancelled or failed. That is
+    // the case this whole feature exists for: someone on the wrong profile who
+    // cannot produce the other person's face or fingerprint. Record nothing.
+    if(enrolled&&!ok){openModal({mode:'bioFailed',id:id});return;}
+    const q=plans[id];if(!q)return;
+    q.confirms=q.confirms||{veda:null,tony:null};
+    q.confirms[w]=Date.now();
+    q.confirmMeta=q.confirmMeta||{};
+    q.confirmMeta[w]=stamp(ok);
+    if(isConfirmed(q))q.stage='confirmed';
+    save(q);
+  });
 }
 
 function declinePlan(id,reason){
@@ -15551,14 +15695,22 @@ function applyEdit(id,t,notes,d,tm){
   const w=me();if(!w)return;
   const p=plans[id];if(!p)return;
   const material=isMaterialEdit(p,t,d,tm);
-  p.title=t;p.notes=notes||'';p.date=d||null;p.time=tm||null;
-  if(material&&(p.stage==='confirmed'||isConfirmed(p))){
-    p.confirms={veda:null,tony:null};p.confirms[w]=Date.now();
-    p.confirmMeta={};p.confirmMeta[w]=stamp();
-    p.stage='proposed';p.proposedBy=w;p.proposedAt=Date.now();
-    p.cancelReq=null;
+  if(!(material&&(p.stage==='confirmed'||isConfirmed(p)))){
+    // Not a reset: no consent is being asserted, so nothing to verify.
+    p.title=t;p.notes=notes||'';p.date=d||null;p.time=tm||null;
+    save(p);return;
   }
-  save(p);
+  // A material edit re-asserts the editor's own consent, so verify it the same
+  // way a confirm is verified rather than stamping it unchecked.
+  bioVerify(w).then(ok=>{
+    const q=plans[id];if(!q)return;
+    q.title=t;q.notes=notes||'';q.date=d||null;q.time=tm||null;
+    q.confirms={veda:null,tony:null};q.confirms[w]=Date.now();
+    q.confirmMeta={};q.confirmMeta[w]=stamp(ok);
+    q.stage='proposed';q.proposedBy=w;q.proposedAt=Date.now();
+    q.cancelReq=null;
+    save(q);
+  });
 }
 
 // Deleting a CONFIRMED plan needs the same two-sided flow as cancelling — one
@@ -15642,9 +15794,14 @@ function card(p,ctx){
   if(isConfirmed(p)){
     const m=p.confirmMeta||{};
     const sig=(who,at)=>{
-      const d=m[who]&&m[who].devName?'<span class="pl-dev">'+esc(m[who].devName)+'</span>':'';
+      const mm=m[who]||{};
+      const d=mm.devName?'<span class="pl-dev">'+esc(mm.devName)+'</span>':'';
+      // Say plainly whether the OS actually proved who this was.
+      const v=mm.v==='bio'
+        ?'<span class="pl-vbadge pl-v-bio" title="Verified by '+esc(bioLabel())+'">verified</span>'
+        :'<span class="pl-vbadge pl-v-none" title="No biometric check — profile chooser only">unverified</span>';
       return '<span class="pl-sig"><span class="pl-tick">✓</span>'
-        +esc(NAMES[who])+'<span>'+esc(fmtWhen(at))+'</span>'+d+'</span>';
+        +esc(NAMES[who])+'<span>'+esc(fmtWhen(at))+'</span>'+d+v+'</span>';
     };
     footer='<div class="pl-confirms">'+sig('veda',c.veda)+sig('tony',c.tony);
     // Both confirmations from one device cannot evidence two independent people.
@@ -15665,14 +15822,29 @@ function card(p,ctx){
   else if(p.stage==='dropped'&&p.cancelReq&&p.cancelReq.reason)
     reason='<div class="pl-reason"><b>Cancel reason:</b> '+esc(p.cancelReq.reason)+'</div>';
 
-  return '<div class="pl-card'+(ctx==='mine'?' pl-wait':'')+'">'
-    +'<div class="pl-card-t">'+esc(p.title||'Untitled')+'</div>'
-    +'<div class="pl-meta">'+when
-    +'<span class="pl-from">'+esc(NAMES[p.author]||p.author||'?')+'</span>'
-    +badges+'</div>'
-    +(p.notes?'<div class="pl-notes">'+esc(p.notes)+'</div>':'')
-    +reason+footer
-    +'<div class="pl-acts">'+acts+'</div></div>';
+  // Confirmed plans are settled — the agreement is already made, so the card
+  // shows only what identifies it and opens on click for the rest. Anything
+  // still needing a decision stays open, because that is the whole point of it.
+  const collapsible=(ctx==='confirmed'||ctx==='archive');
+  const open=!collapsible||!!expanded[p.id];
+  const body=open
+    ?(p.notes?'<div class="pl-notes">'+esc(p.notes)+'</div>':'')
+      +reason+footer+'<div class="pl-acts">'+acts+'</div>'
+    :'';
+  return '<div class="pl-card'+(ctx==='mine'?' pl-wait':'')
+      +(collapsible?' pl-fold'+(open?' pl-open':''):'')+'">'
+    +(collapsible
+      ?'<button class="pl-head" data-act="fold" data-id="'+esc(p.id)+'">'
+        +'<span class="pl-chev">'+(open?'▾':'▸')+'</span><span class="pl-head-in">'
+        +'<span class="pl-card-t">'+esc(p.title||'Untitled')+'</span>'
+        +'<span class="pl-meta">'+when
+        +'<span class="pl-from">'+esc(NAMES[p.author]||p.author||'?')+'</span>'
+        +badges+'</span></span></button>'
+      :'<div class="pl-card-t">'+esc(p.title||'Untitled')+'</div>'
+        +'<div class="pl-meta">'+when
+        +'<span class="pl-from">'+esc(NAMES[p.author]||p.author||'?')+'</span>'
+        +badges+'</div>')
+    +body+'</div>';
 }
 
 // Veda's sections each carry their own header — it is her only route back to
@@ -15731,12 +15903,18 @@ function render(){
     +'<span class="pl-who">'+(w?'acting as '+esc(NAMES[w]):'no profile')+'</span></div>';
   h+='<div class="pl-creed">If it is not <b>Confirmed</b> here, it is not a plan. '
     +'Ideas are not commitments — anything in Ideas is still just talk.'
-    // State the limit where it is read, not buried in a design doc. Profiles are
-    // a chooser; anyone at this device can switch and press confirm. The record
-    // shows which device each confirmation came from so that is at least visible.
-    +'<span class="pl-creed-lim">Switching profiles needs no password, so a confirmation '
-    +'proves only that someone using that profile pressed confirm. Each one records '
-    +'the device it came from.</span></div>';
+    // The security posture is stated where it is read. Which sentence applies
+    // depends on whether THIS profile has a biometric on THIS device.
+    +'<span class="pl-creed-lim">'
+    +(w&&bioEnrolled(w)
+      ?'Your confirmations on this device require '+esc(bioLabel())+', so nobody else can make one as you.'
+      :'Switching profiles needs no password, so a confirmation only proves someone using that '
+       +'profile pressed confirm. Each one records the device it came from.')
+    +'</span></div>';
+  // Offer enrolment when this device can do it and this profile has not yet.
+  if(w&&!bioEnrolled(w)&&bioOK)
+    h+='<button class="pl-bio-cta" data-act="bioEnrol">Require '+esc(bioLabel())
+      +' for '+esc(NAMES[w])+'’s confirmations</button>';
   h+='<button class="pl-add" data-act="new">+ New idea</button>';
   const total=b.mine.length+b.confirmed.length+b.proposed.length+b.ideas.length;
   if(!total&&!b.archive.length){
@@ -15789,6 +15967,34 @@ function modalHtml(){
       +'<label>Notes</label><textarea class="pl-in" id="pl-f-notes" maxlength="2000" placeholder="Optional">'+esc(vN)+'</textarea>'
       +'<div class="pl-err" id="pl-err">'+esc(m.err||'')+'</div>';
     ok=m.id?'Save':'Add idea';
+  } else if(m.mode==='bioFailed'){
+    const w2=me();
+    title=bioLabel()+' check failed';
+    body='<div class="pl-warn pl-warn-hard">Nothing was recorded. A confirmation from '
+      +esc(NAMES[w2]||'this profile')+' requires '+esc(bioLabel())+' on this device.</div>'
+      +'<div class="pl-warn-sub">If you are '+esc(NAMES[w2]||'them')+', try again. '
+      +'If you are not, that is exactly what this check is for.</div>';
+    ok='Try again';
+  } else if(m.mode==='bioEnrol'){
+    const w2=me();
+    title='Protect '+esc(NAMES[w2]||'your')+' confirmations';
+    body='<div class="pl-warn">Right now anyone using this device can switch to '
+      +esc(NAMES[w2]||'your')+'’s profile and confirm a plan as you. '
+      +'Registering '+esc(bioLabel())+' makes that impossible on this device.</div>'
+      +'<div class="pl-warn-sub">Your '+esc(bioLabel())+' never leaves the device — the app '
+      +'only stores a key handle, never your fingerprint or face. Register on each device you use.</div>';
+    ok='Register '+bioLabel();
+  } else if(m.mode==='bioDone'){
+    const w2=me();
+    title=bioLabel()+' registered';
+    body='<div class="pl-warn">Confirmations from '+esc(NAMES[w2]||'this profile')
+      +' now require '+esc(bioLabel())+' on this device. Register on your other devices too.</div>';
+    ok='Done';
+  } else if(m.mode==='bioErr'){
+    title='Could not register';
+    body='<div class="pl-warn pl-warn-hard">'+esc(bioLabel())+' registration did not complete'
+      +(m.err?' ('+esc(m.err)+')':'')+'. Confirmations stay unverified on this device.</div>';
+    ok='Close';
   } else if(m.mode==='sameDevice'){
     const w2=me(),o=w2?other(w2):'the other person';
     title='Is this really '+esc(NAMES[w2]||'you')+'?';
@@ -15854,6 +16060,18 @@ function modalOk(){
     applyEdit(m.id,v.t,v.notes,v.d,v.tm);closeModal();return;
   }
   if(m.mode==='resetWarn'){const v=m.pending;applyEdit(m.id,v.t,v.notes,v.d,v.tm);closeModal();return;}
+  if(m.mode==='bioFailed'){closeModal();confirmPlan(m.id);return;}
+  if(m.mode==='bioEnrol'){
+    const w2=me();closeModal();
+    if(!w2)return;
+    bioEnrol(w2).then(r=>{
+      if(r&&r.ok){render();openModal({mode:'bioDone'});}
+      else if(r&&r.error!=='NotAllowedError'&&r.error!=='cancelled')
+        openModal({mode:'bioErr',err:r&&(r.error||'')});
+    });
+    return;
+  }
+  if(m.mode==='bioDone'||m.mode==='bioErr'){closeModal();return;}
   if(m.mode==='sameDevice'){
     const p2=plans[m.id];
     if(p2&&!p2.date){modal=Object.assign({},m,{mode:'confirmNoDate'});render();return;}
@@ -15885,6 +16103,12 @@ function onClick(e){
   if(act==='mclose'){closeModal();return;}
   if(act==='mok'){modalOk();return;}
   if(act==='new'){openModal({mode:'edit'});return;}
+  if(act==='bioEnrol'){openModal({mode:'bioEnrol'});return;}
+  if(act==='fold'){
+    if(!id)return;
+    if(expanded[id])delete expanded[id];else expanded[id]=true;
+    render();return;
+  }
   if(act==='arch'){archOpen=!archOpen;render();return;}
   if(!id)return;
   const p=plans[id];if(!p)return;
@@ -15898,7 +16122,9 @@ function onClick(e){
       // either you share a device or you are about to confirm on their behalf.
       const w2=me(),o=w2?other(w2):null;
       const om=o&&p.confirmMeta&&p.confirmMeta[o];
-      if(om&&om.dev===deviceId()){openModal({mode:'sameDevice',id:id});break;}
+      // If this profile is enrolled here, the biometric IS the check — a nagging
+      // "are you really you?" dialog adds nothing the OS has not already proven.
+      if(om&&om.dev===deviceId()&&!bioEnrolled(w2)){openModal({mode:'sameDevice',id:id});break;}
       if(!p.date)openModal({mode:'confirmNoDate',id:id});else confirmPlan(id);
       break;
     }
@@ -15978,6 +16204,9 @@ window._plansShow=function(){
     if(window._plansLatest)ingest(window._plansLatest);
     else if(window._fbLoadPlans)window._fbLoadPlans().then(m=>ingest(m||{}));
   }
+  // The availability check may have resolved while this section was hidden, when
+  // render() is a no-op — so always repaint once it settles, not only on change.
+  refreshBioOK().then(render);
   render();
 };
 window._plansHide=function(){const el=root();if(el)el.style.display='none';};
