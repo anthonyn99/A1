@@ -44,7 +44,7 @@
        The default below is only a fallback: launcher-size.js has normally
        already written the restored size onto <html> before this applies.
        Browsers cap popups at 800x600, so we stay just under. */
-    html { width:352px; height:520px; overflow:hidden; }
+    html { width:352px; height:580px; overflow:hidden; }
     /* position:relative makes body the containing block for the rails, the
        toast and the size badge, so none of them has to be viewport-fixed
        (which would re-lock the window open — see the note above). */
@@ -94,19 +94,14 @@
     #resize-x::before { width:3px; height:30px; }
     #resize-y { left:var(--rail); right:0; bottom:0; height:var(--rail); cursor:ns-resize; }
     #resize-y::before { width:30px; height:3px; }
-    /* Hold the axis cursor over the whole popup for the length of the drag. */
-    body.resizing-x, body.resizing-x * { cursor:ew-resize !important; }
-    body.resizing-y, body.resizing-y * { cursor:ns-resize !important; }
-    body.resizing-x #app, body.resizing-y #app { user-select:none; }
-    #size-badge {
-      position:absolute; left:calc(var(--rail) + 8px); bottom:calc(var(--rail) + 8px);
-      background:var(--s3); border:1px solid var(--bdl); color:var(--tx);
-      font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.5px;
-      font-variant-numeric:tabular-nums;
-      padding:5px 9px; border-radius:5px; pointer-events:none; z-index:35;
-      opacity:0; transition:opacity .12s;
-    }
-    body.resizing-x #size-badge, body.resizing-y #size-badge { opacity:1; }
+    /* Hold the axis cursor over the whole popup for the length of the drag.
+       #app stops taking pointer events rather than every descendant restating
+       the cursor: a `body.resizing-x *` rule re-matched the entire DOM on each
+       toggle, which showed up as a hitch at the start of every drag. The rails
+       live outside #app, so they keep working. */
+    body.resizing-x { cursor:ew-resize; }
+    body.resizing-y { cursor:ns-resize; }
+    body.resizing-x #app, body.resizing-y #app { pointer-events:none; user-select:none; }
 
     /* ── Header ── */
     header {
@@ -355,13 +350,12 @@
 
   <div id="toast">Copied</div>
 
-  <!-- Live W×H readout while a rail is being dragged. It is the one piece of
-       feedback that is true even if the window lags a frame behind the drag. -->
-  <div id="size-badge" aria-hidden="true"></div>
+ </div>
 
+ <!-- Outside #app on purpose: #app drops pointer events for the length of
+      a resize drag, and the rails have to keep receiving them. -->
   <div class="rail" id="resize-x" title="Drag left or right to set the width"></div>
   <div class="rail" id="resize-y" title="Drag up or down to set the height"></div>
- </div>
 
   <script src="launcher-sync.js"></script>
   <script src="launcher-drag.js"></script>

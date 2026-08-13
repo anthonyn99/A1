@@ -50,10 +50,15 @@ const GRIP_SVG = '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy
 // How many columns to lay out at the current popup width. Measured from the
 // real content box when it is available (so the padding/scrollbar are already
 // accounted for), falling back to #app's width before first paint.
+// HYSTERESIS on the split: two columns at 560px, but it doesn't fold back until
+// 530px. Without the dead band, easing the width rail across the threshold
+// re-rendered every card on alternate frames, which is what made the drag feel
+// like it was seizing up.
 function colCount() {
-  const inner = groupsEl.clientWidth || (appEl.offsetWidth - 41);
+  const w = appEl.offsetWidth;
+  const inner = groupsEl.clientWidth || (w - 41);
   const fits  = Math.floor((inner + 10) / (COL_MIN_W + 10));
-  const byWidth = appEl.offsetWidth >= COL2_MIN ? 2 : 1;
+  const byWidth = lastCols >= 2 ? (w < COL2_MIN - 30 ? 1 : 2) : (w >= COL2_MIN ? 2 : 1);
   return Math.max(1, Math.min(MAX_COLS, fits, byWidth));
 }
 
@@ -61,7 +66,6 @@ function colCount() {
 // launcher-size.js owns this — it already restored the saved size from
 // localStorage before <body> was parsed, so the popup opens at the right size
 // instead of being resized after the fact. Everything here just drives it.
-const badgeEl = document.getElementById("size-badge");
 
 // On a phone the popup is a full-width sheet, not a floating panel, and the CSS
 // hands <html> over to the viewport. An inline size would outrank that media
@@ -99,14 +103,11 @@ chrome.storage.local.get([LauncherSize.KEY, REORDER_KEY], (d) => {
 // back left the popup frozen until the pointer had travelled all the way back.
 // Screen coordinates (not client) because the window re-anchors as it resizes.
 //
-// The size is saved on EVERY frame of the drag, not on release. A popup
-// dismisses the moment it loses focus, and a rail drag routinely ends with the
-// pointer outside the popup — so a release-only save silently lost the new size
-// and the popup reopened at the old one.
-function showBadge() {
-  badgeEl.textContent = LauncherSize.w + " × " + LauncherSize.h;
-}
-
+// The size is saved DURING the drag, not on release: a popup dismisses the
+// moment it loses focus, and a rail drag routinely ends with the pointer
+// outside the popup, so a release-only save silently lost the new size. The
+// write itself is throttled inside launcher-size.js — localStorage is
+// synchronous, and writing it every frame was enough to make the drag stutter.
 function makeRail(el, axis) {
   let drag = null, raf = 0, next = null;
 
@@ -115,7 +116,6 @@ function makeRail(el, axis) {
     if (!next) return;
     LauncherSize.apply(next.w, next.h);
     next = null;
-    showBadge();
     LauncherSize.save();
   };
 
@@ -125,7 +125,6 @@ function makeRail(el, axis) {
     drag = { sx: e.screenX, sy: e.screenY };
     el.classList.add("active");
     document.body.classList.add("resizing-" + axis);
-    showBadge();
     try { el.setPointerCapture(e.pointerId); } catch (_) {}
   });
 

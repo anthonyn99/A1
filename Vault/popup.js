@@ -10,7 +10,6 @@ const syncEl    = document.getElementById("sync");
 const toastEl   = document.getElementById("toast");
 const scrollEl  = document.getElementById("scroll");
 const barEl     = document.getElementById("reorder-bar");
-const hintEl    = document.getElementById("reorder-hint");
 const toggleEl  = document.getElementById("reorder-toggle");
 
 // Vault is its own program at /A1/vault.html — it used to live inside the
@@ -52,12 +51,15 @@ const ECHO_MS  = 8000;      // ignore server reads for this long after our own s
 // localStorage before <body> was parsed, so the popup opens at the right size
 // instead of being resized after the fact. Everything here just drives it.
 const appEl = document.getElementById("app");
-const badgeEl = document.getElementById("size-badge");
 const REORDER_KEY = "vault_reorder_mode";
 
-// Column count from the laid-out content width.
+// Column count from the laid-out content width, with HYSTERESIS: it splits into
+// two columns at 560px but doesn't fold back until 530px. Without the dead band,
+// easing the width rail across the threshold re-rendered every card on
+// alternate frames, which is what made the drag feel like it was seizing up.
 function colCount() {
-  return appEl.offsetWidth >= COL2_MIN ? 2 : 1;
+  const w = appEl.offsetWidth;
+  return lastCols >= 2 ? (w < COL2_MIN - 30 ? 1 : 2) : (w >= COL2_MIN ? 2 : 1);
 }
 
 chrome.storage.local.get([VaultSize.KEY, REORDER_KEY], (d) => {
@@ -87,14 +89,11 @@ chrome.storage.local.get([VaultSize.KEY, REORDER_KEY], (d) => {
 // back left the popup frozen until the pointer had travelled all the way back.
 // Screen coordinates (not client) because the window re-anchors as it resizes.
 //
-// The size is saved on EVERY frame of the drag, not on release. A popup
-// dismisses the moment it loses focus, and a rail drag routinely ends with the
-// pointer outside the popup — so a release-only save silently lost the new size
-// and the popup reopened at the old one.
-function showBadge() {
-  badgeEl.textContent = VaultSize.w + " × " + VaultSize.h;
-}
-
+// The size is saved DURING the drag, not on release: a popup dismisses the
+// moment it loses focus, and a rail drag routinely ends with the pointer
+// outside the popup, so a release-only save silently lost the new size. The
+// write itself is throttled inside vault-size.js — localStorage is synchronous,
+// and writing it every frame was enough to make the drag stutter.
 function makeRail(el, axis) {
   let drag = null, raf = 0, next = null;
 
@@ -103,7 +102,6 @@ function makeRail(el, axis) {
     if (!next) return;
     VaultSize.apply(next.w, next.h);
     next = null;
-    showBadge();
     VaultSize.save();
   };
 
@@ -113,7 +111,6 @@ function makeRail(el, axis) {
     drag = { sx: e.screenX, sy: e.screenY };
     el.classList.add("active");
     document.body.classList.add("resizing-" + axis);
-    showBadge();
     try { el.setPointerCapture(e.pointerId); } catch (_) {}
   });
 
@@ -346,9 +343,6 @@ function setReorder(on, persist) {
   reorderMode = !!on;
   appEl.classList.toggle("reorder", reorderMode);
   toggleEl.setAttribute("aria-checked", reorderMode ? "true" : "false");
-  hintEl.textContent = reorderMode
-    ? "Drag a card by its grip"
-    : "Rearrange your connection cards";
   if (persist !== false) chrome.storage.local.set({ [REORDER_KEY]: reorderMode });
 }
 toggleEl.addEventListener("click", () => setReorder(!reorderMode, true));

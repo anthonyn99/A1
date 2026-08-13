@@ -23,9 +23,16 @@
 
 const LauncherSize = (() => {
   const KEY = "launcher_popup_size";
-  const MIN_W = 300, MAX_W = 780;     // browsers cap popups at 800x600
-  const MIN_H = 240, MAX_H = 590;
-  const DEF_W = 352, DEF_H = 520;
+  // Browsers cap popups at 800x600, so the maxima stay just under.
+  //
+  // The default opens NEAR the full allowed height: this popup is a list, and
+  // the only thing a short default achieved was hiding the second card behind a
+  // scroll. The vertical minimum is high for the same reason — below roughly
+  // one card plus the header there is nothing left to look at, so shrinking
+  // further is not a size anyone wants, just a way to break the view.
+  const MIN_W = 300, MAX_W = 780;
+  const MIN_H = 430, MAX_H = 590;
+  const DEF_W = 352, DEF_H = 580;
 
   let w = DEF_W, h = DEF_H;
 
@@ -49,22 +56,45 @@ const LauncherSize = (() => {
   if (!restored) apply(DEF_W, DEF_H);
 
   // ── Persistence ──
-  // localStorage is written every time (it is what the next open reads, and it
-  // is synchronous, so a popup dismissed mid-drag still keeps the new size).
-  // chrome.storage.local has a per-minute write quota, so it is throttled.
-  let lastWrite = 0, pending = 0;
+  // BOTH stores are throttled, for different reasons:
+  //
+  //   localStorage is SYNCHRONOUS. Writing it on every animation frame of a
+  //   resize drag — 60 to 120 times a second — is enough on its own to make the
+  //   drag stutter, because each write blocks the frame it is on. 150ms is far
+  //   inside the time a popup takes to dismiss, so a gesture cut short still
+  //   keeps its size, and the flush handlers below close the gap entirely.
+  //
+  //   chrome.storage.local has a per-minute write quota, so it is slower still.
+  let lsTimer = 0, csTimer = 0;
 
-  function save(immediate) {
+  function writeLocal() {
+    lsTimer = 0;
     try { localStorage.setItem(KEY, JSON.stringify({ w, h })); } catch (_) {}
-    const now = Date.now();
-    if (!immediate && now - lastWrite < 500) {
-      if (!pending) pending = setTimeout(() => { pending = 0; save(true); }, 500);
-      return;
-    }
-    if (pending) { clearTimeout(pending); pending = 0; }
-    lastWrite = now;
+  }
+  function writeSynced() {
+    csTimer = 0;
     try { chrome.storage.local.set({ [KEY]: { w, h } }); } catch (_) {}
   }
+
+  function save(immediate) {
+    if (immediate) {
+      if (lsTimer) { clearTimeout(lsTimer); }
+      if (csTimer) { clearTimeout(csTimer); }
+      writeLocal(); writeSynced();
+      return;
+    }
+    if (!lsTimer) lsTimer = setTimeout(writeLocal, 150);
+    if (!csTimer) csTimer = setTimeout(writeSynced, 600);
+  }
+
+  // A popup is dismissed the instant it loses focus, which can land between two
+  // throttled writes. Flushing here means the size is never more than the last
+  // frame stale, without paying for a write on every frame.
+  addEventListener("pagehide", () => save(true));
+  addEventListener("blur", () => save(true));
+  addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") save(true);
+  });
 
   // One-time migration for a size saved by a build that only wrote
   // chrome.storage. Applied late (the window is already open), but it seeds
