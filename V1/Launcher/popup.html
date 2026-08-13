@@ -230,8 +230,15 @@
     /* ── Responsive ──────────────────────────────────────────────────────────
        On mobile browsers that support extensions the popup is rendered as a
        full-width sheet rather than a floating panel, so #app has to stop being
-       a fixed box and fill the viewport. The resize grip is meaningless there. */
-    @media (max-width:420px) {
+       a fixed box and fill the viewport. The resize grip is meaningless there.
+
+       Keyed on POINTER TYPE, not width. Keying this on max-width:420px was a
+       bug: the popup's own default width is 352px, so a desktop popup matched
+       the phone rule and hid its own resize grip — and because the grip is the
+       only way to widen the popup past 420px, there was no way to get it back.
+       A phone sheet is identified by a coarse pointer AND a narrow viewport,
+       which a 352px popup on a desktop never satisfies. */
+    @media (pointer:coarse) and (max-width:420px) {
       #app {
         width:100%; height:100dvh; max-width:100%; max-height:none;
         padding-bottom:env(safe-area-inset-bottom,0px);
