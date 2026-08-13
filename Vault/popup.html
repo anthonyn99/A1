@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vault</title>
+  <title>Vault Launcher</title>
   <style>
     /* Keychain dark palette (from index.html #kc-root) */
     :root {
@@ -50,15 +50,21 @@
       padding:14px 16px 12px;
       background:var(--bg); border-bottom:1px solid var(--bd);
     }
-    .logo { font-family:"Manrope",system-ui,sans-serif; font-size:22px; font-weight:750; letter-spacing:-.3px;
+    /* "Vault Launcher" is twice the width the old one-word mark was, so the
+       wordmark drops to 19px and the second word sits a shade lighter — it
+       still clears the gear at the 344px default width. */
+    .logo { font-family:"Manrope",system-ui,sans-serif; font-size:19px; font-weight:750; letter-spacing:-.3px;
+      white-space:nowrap;
       background:linear-gradient(180deg,#f4d795 0%,#e0b874 90%); -webkit-background-clip:text; background-clip:text;
       -webkit-text-fill-color:transparent; color:#e0b874; }
     .logo .base, .logo .dot { color:inherit; }
+    .logo .sub { font-weight:500; letter-spacing:0; }
     .sync {
       font-size:10px; font-weight:600; color:var(--txd);
       min-height:13px; margin-top:2px; white-space:nowrap;
     }
     .sync.saving { color:var(--ac); }
+    .sync.ok     { color:#8fc99c; }
     .sync.error  { color:#d68a7c; }
     .gear {
       background:none; border:none; color:var(--txd);
@@ -102,10 +108,65 @@
       display:flex; align-items:center; justify-content:space-between;
       gap:8px; margin-bottom:8px;
     }
+    .card-headline { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
     /* Group name takes the card's own accent, as it does in the app. */
     .card-name {
       font-size:13px; font-weight:600; color:var(--card-accent,#e0b874); min-width:0;
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+
+    /* ── Reorder mode ──
+       The grips, the empty-column target and the drag chrome only exist while
+       Reorder is switched on, so normal use is untouched by it. */
+    .reorder-bar {
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin:0 0 10px;
+    }
+    .reorder-hint { font-size:10px; color:var(--txm); letter-spacing:.3px; min-width:0;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .toggle {
+      display:inline-flex; align-items:center; gap:7px; cursor:pointer; flex-shrink:0;
+      user-select:none; background:transparent; color:var(--txd);
+      border:1px solid var(--bd); border-radius:6px; padding:0 9px; height:26px;
+      font-size:10px; font-weight:600; letter-spacing:1px; text-transform:uppercase;
+      transition:border-color .18s,color .18s;
+    }
+    .toggle:hover { color:var(--tx); border-color:var(--txd); }
+    .toggle-track {
+      width:24px; height:13px; border-radius:7px; background:var(--bd);
+      position:relative; transition:background .25s; flex-shrink:0;
+    }
+    .toggle-thumb {
+      width:9px; height:9px; border-radius:50%; background:var(--txd);
+      position:absolute; top:50%; transform:translateY(-50%); left:2px;
+      transition:left .25s, background .25s; box-shadow:0 1px 3px rgba(0,0,0,.25);
+    }
+    #app.reorder .toggle { color:#e0b874; border-color:rgba(224,184,116,.45); }
+    #app.reorder .toggle-track { background:var(--ac); }
+    #app.reorder .toggle-thumb { left:13px; background:#1a1a1d; }
+    /* At two columns a column can be emptied entirely; show it as a drop target
+       so the last card out of a column can be dropped back into it. */
+    #app.reorder .col:empty {
+      border:1.5px dashed rgba(224,184,116,.25); border-radius:9px; min-height:56px;
+    }
+    .grip {
+      display:none; cursor:grab; color:var(--txm); flex-shrink:0;
+      line-height:0; padding:2px; border-radius:3px; touch-action:none;
+      user-select:none; transition:color .12s;
+    }
+    #app.reorder .grip { display:inline-flex; align-items:center; justify-content:center; }
+    .grip:hover { color:var(--txd); }
+    .grip:active { cursor:grabbing; }
+    .grip svg { display:block; width:13px; height:13px; }
+    .card-placeholder {
+      border-radius:9px; margin-bottom:10px;
+      background:rgba(224,184,116,.06);
+      border:1.5px dashed rgba(224,184,116,.35);
+    }
+    .card-fly {
+      position:fixed !important; pointer-events:none !important; z-index:9000;
+      border-radius:9px; box-shadow:0 20px 60px rgba(0,0,0,.7);
+      transform:rotate(1deg) scale(1.03); opacity:.95; margin:0 !important;
     }
     .open-group {
       flex-shrink:0; background:transparent; color:var(--txd);
@@ -224,7 +285,7 @@
  <div id="app">
   <header>
     <div>
-      <div class="logo"><span class="base">V</span><span class="dot">ault</span></div>
+      <div class="logo"><span class="base">V</span><span class="dot">ault</span> <span class="sub">Launcher</span></div>
       <div class="sync" id="sync"></div>
     </div>
     <button class="gear" id="gear" title="Open the Vault app">
@@ -241,6 +302,14 @@
 
   <div id="scroll">
     <div class="panel" id="panel-links">
+      <div class="reorder-bar" id="reorder-bar" hidden>
+        <span class="reorder-hint" id="reorder-hint">Drag a card by its grip</span>
+        <div class="toggle" id="reorder-toggle" role="switch" aria-checked="false" tabindex="0"
+             title="Drag cards to reorder — the new order syncs to Firebase and back to the Vault app">
+          <div class="toggle-track"><div class="toggle-thumb"></div></div>
+          <span>Reorder</span>
+        </div>
+      </div>
       <div class="loading" id="loading">Loading from Keychain…</div>
       <div id="groups"></div>
     </div>
@@ -272,6 +341,7 @@
 
   <script src="vault-icons.js"></script>
   <script src="vault-sync.js"></script>
+  <script src="vault-card-drag.js"></script>
   <script src="vault-crypto.js"></script>
   <script src="vault-pay.js"></script>
   <script src="vault-id.js"></script>

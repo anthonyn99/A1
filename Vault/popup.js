@@ -1,11 +1,17 @@
-// Vault popup — reads the shared Keychain document, renders each connection as
-// a group, and launches links (a single link or a whole group). Link editing
-// lives entirely in the Vault app (vault.html); this popup only displays and opens.
+// Vault Launcher popup — reads the shared Keychain document, renders each
+// connection as a group, launches links (a single link or a whole group), and
+// writes card ORDER back. Everything else about a link (adding, renaming,
+// recolouring, deleting) lives in the Vault app (vault.html); this popup
+// displays, opens, and re-orders.
 
 const groupsEl  = document.getElementById("groups");
 const loadingEl = document.getElementById("loading");
 const syncEl    = document.getElementById("sync");
 const toastEl   = document.getElementById("toast");
+const scrollEl  = document.getElementById("scroll");
+const barEl     = document.getElementById("reorder-bar");
+const hintEl    = document.getElementById("reorder-hint");
+const toggleEl  = document.getElementById("reorder-toggle");
 
 // Vault is its own program at /A1/vault.html — it used to live inside the
 // TaskHub PWA and was reached with ?goto=keychain. Nothing else about the
@@ -31,12 +37,15 @@ const TASKHUB_VAULT_ID_URL = VAULT_APP_URL + "?vaulttab=iddocs";
 // the last size on open and save changes (debounced).
 const appEl = document.getElementById("app");
 const SIZE_KEY = "vault_popup_size";
-chrome.storage.local.get(SIZE_KEY, (d) => {
+const REORDER_KEY = "vault_reorder_mode";
+chrome.storage.local.get([SIZE_KEY, REORDER_KEY], (d) => {
   const s = d && d[SIZE_KEY];
   if (s && s.w && s.h) {
     appEl.style.width = s.w + "px";
     appEl.style.height = s.h + "px";
   }
+  // Reorder is sticky: leave it on and the grips are there next time.
+  setReorder(!!(d && d[REORDER_KEY]), false);
   let t = null;
   new ResizeObserver(() => {
     // Re-flow into 1 or 2 columns as the width crosses the threshold.
@@ -77,9 +86,16 @@ const CD = ['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec
 let connections = [];
 let colmap = null;          // Keychain's column map (index-aligned to connections)
 let lastCols = 0;           // last-rendered column count (to re-render on width change)
+let reorderMode = false;
+let dragCtl = null;
+let pollTimer = null;
+let lastOwnSaveAt = 0;
 const COL2_MIN = 560;       // px width of #app at/above which we go to 2 columns
+const POLL_MS  = 5000;      // live refresh cadence while the popup is open
+const ECHO_MS  = 8000;      // ignore server reads for this long after our own save
 
 const COPY_SVG ='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const GRIP_SVG = '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/><circle cx="6" cy="8" r="1.5"/><circle cx="10" cy="8" r="1.5"/><circle cx="6" cy="13" r="1.5"/><circle cx="10" cy="13" r="1.5"/></svg>';
 
 // Map any stored color to the nearest pastel in CD by hue (non-destructive —
 // mirrors index.html's _pastelize so Vault matches Keychain/Links exactly).
@@ -127,6 +143,11 @@ function openUrls(urls, group) {
   chrome.runtime.sendMessage(msg, () => window.close());
 }
 
+function setSync(state, text) {
+  syncEl.className = "sync" + (state ? " " + state : "");
+  syncEl.textContent = text || "";
+}
+
 function toast(msg) {
   toastEl.textContent = msg;
   toastEl.style.opacity = "1";
@@ -145,6 +166,9 @@ function buildCard(conn, ci) {
   const card = document.createElement("div");
   card.className = "card";
   card.style.setProperty("--card-accent", color);
+  // The drag module reads/rewrites this — it is the ORIGINAL index into
+  // `connections`, which is what a reorder write has to be expressed in.
+  card.dataset.ci = String(ci);
 
   const linkRows = links.map(l => `
     <div class="link-row">
@@ -162,7 +186,10 @@ function buildCard(conn, ci) {
 
   card.innerHTML = `
     <div class="card-top">
-      <div class="card-name">${esc(conn.name || "Untitled")}</div>
+      <div class="card-headline">
+        <span class="grip" data-role="card-grip" title="Drag to reorder">${GRIP_SVG}</span>
+        <div class="card-name">${esc(conn.name || "Untitled")}</div>
+      </div>
       ${openGroupBtn}
     </div>
     ${linkRows}`;
@@ -178,6 +205,9 @@ function render() {
   const visible = connections
     .map((conn, ci) => ({ conn, ci }))
     .filter(({ conn }) => VaultDB.linksOf(conn).length > 0);
+
+  // Nothing to rearrange with fewer than two cards.
+  barEl.hidden = visible.length < 2;
 
   if (!visible.length) {
     groupsEl.innerHTML = `<div class="empty">No link groups yet.<br />Add links in the Vault app under Settings \u2014 they sync here automatically.</div>`;
@@ -224,6 +254,80 @@ function render() {
       const color = conn.color ? pastelize(conn.color) : CD[(+b.dataset.group) % CD.length];
       openUrls(links.map(l => l.url), { name: conn.name || "Group", color });
     }));
+
+  // The grips are recreated on every render, so the drag module has to rebind.
+  if (dragCtl) dragCtl.rebind();
+  else dragCtl = VaultCardDrag.enable(groupsEl, {
+    scroller: scrollEl,
+    isEnabled: () => reorderMode,
+    onDrop: persistOrder
+  });
+}
+
+// ── Reorder → write back to Keychain ─────────────────────────────────────────
+
+function setReorder(on, persist) {
+  reorderMode = !!on;
+  appEl.classList.toggle("reorder", reorderMode);
+  toggleEl.setAttribute("aria-checked", reorderMode ? "true" : "false");
+  hintEl.textContent = reorderMode
+    ? "Drag a card by its grip"
+    : "Rearrange your connection cards";
+  if (persist !== false) chrome.storage.local.set({ [REORDER_KEY]: reorderMode });
+}
+toggleEl.addEventListener("click", () => setReorder(!reorderMode, true));
+toggleEl.addEventListener("keydown", (e) => {
+  if (e.key === " " || e.key === "Enter") { e.preventDefault(); setReorder(!reorderMode, true); }
+});
+
+// `order` holds the ORIGINAL connection indices in their new DOM order, and only
+// covers the cards that are rendered — groups with no links are filtered out of
+// the view. Those hidden entries must survive the write, so they are appended in
+// their existing relative order rather than dropped.
+function persistOrder(result) {
+  if (!result || !Array.isArray(result.order)) { render(); return; }
+
+  const shown = new Set(result.order);
+  const hidden = connections.map((_, i) => i).filter(i => !shown.has(i));
+  const finalIdx = result.order.concat(hidden);
+
+  const reordered = finalIdx.map(i => connections[i]);
+  if (reordered.length !== connections.length || reordered.some(c => !c)) { render(); return; }
+
+  // colmap is keyed by the NEW index of each connection.
+  //
+  // At two columns the popup shows the real layout, so the drop result IS the
+  // truth. At one column it is not: writing "everything in column 0" would
+  // flatten the two-column layout in the Vault app's Keychain the next time it
+  // is opened. So a one-column reorder carries each card's EXISTING column
+  // forward through the permutation and only changes the vertical order.
+  const oldMap = Array.isArray(colmap) ? colmap : null;
+  let newMap;
+  if (lastCols >= 2) {
+    newMap = finalIdx.map((origIdx, n) =>
+      (n < result.order.length && typeof result.colmap[n] === "number")
+        ? result.colmap[n]
+        : (oldMap && typeof oldMap[origIdx] === "number" ? oldMap[origIdx] : 0));
+  } else if (oldMap) {
+    newMap = finalIdx.map(origIdx => (typeof oldMap[origIdx] === "number" ? oldMap[origIdx] : 0));
+  } else {
+    newMap = null;   // Keychain falls back to reading-order distribution
+  }
+
+  connections = reordered;
+  colmap = newMap;
+  render();
+
+  lastOwnSaveAt = Date.now();
+  setSync("saving", "Syncing…");
+  VaultDB.save({ connections, colmap })
+    .then(() => {
+      lastOwnSaveAt = Date.now();
+      VaultDB.writeCache({ connections, colmap, savedAt: Date.now() });
+      setSync("ok", "✓ Synced");
+      setTimeout(() => { if (syncEl.textContent === "✓ Synced") setSync("", "Synced with Keychain"); }, 2200);
+    })
+    .catch((e) => { console.error(e); setSync("error", "⚠ Sync failed"); });
 }
 
 // ── Tabs + tab-aware settings button ──
