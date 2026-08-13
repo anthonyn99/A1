@@ -15155,62 +15155,101 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 </div><!-- end vd-kc-root -->
 
 <!-- ── PLANS ─────────────────────────────────────────────────────────────────
-     Shared commitments with a two-sided confirm. Deliberately neutral-toned:
-     it belongs to BOTH profiles, so it borrows neither Tony's gold nor Veda's
-     purple. Standalone root + vanilla JS, like Veda Links above, so the two
-     profiles see the identical section from the identical code. -->
+     Shared commitments with a two-sided confirm. The DATA is shared, but the
+     CHROME follows whoever is looking: acting as Veda it wears her palette and
+     header (Playfair title, IBM Plex Mono nav, purple accent); acting as Tony it
+     wears his (gold accent, his sticky top nav bar). Every colour below comes
+     from a custom property so a single class swap re-themes the section. -->
 <style>
-#plans-root{position:fixed;inset:0;display:none;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;background:#1a1a1d;color:#E8E8EA;font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+#plans-root{
+  /* Tony is the default; .pl-veda overrides. */
+  --pl-bg:#1a1a1d; --pl-s1:#26272A; --pl-s2:#2E2F34; --pl-s3:#212226;
+  --pl-bd:#3D3E43; --pl-bdl:#4A4B52;
+  --pl-tx:#E8E8EA; --pl-txd:#AFB0B5; --pl-txm:#9A9BA1; --pl-txf:#76777C;
+  --pl-ac:#c8a15f; --pl-ac-ink:#1a1a1d;
+  --pl-font:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --pl-mono:'IBM Plex Mono',monospace;
+  position:fixed;inset:0;display:none;overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;background:var(--pl-bg);color:var(--pl-tx);
+  font-family:var(--pl-font);
+}
+#plans-root.pl-veda{
+  --pl-bg:#1B1C1E; --pl-s1:#26272A; --pl-s2:#303135; --pl-s3:#212226;
+  --pl-bd:#3D3E43; --pl-bdl:#4A4B51;
+  --pl-tx:#ECECEE; --pl-txd:#AFB0B5; --pl-txm:#9A9BA1; --pl-txf:#76777C;
+  --pl-ac:#8D769A; --pl-ac-ink:#1B1C1E;
+}
 #plans-root *{box-sizing:border-box;}
 .pl-wrap{max-width:760px;margin:0 auto;padding:18px 16px calc(64px + env(safe-area-inset-bottom,0px));}
+/* Tony's #tony-app-nav is position:fixed and overlays the page, so his view must
+   reserve room for it (28px button + 20px padding) or the first row sits under
+   the nav buttons. Veda's header is in-flow and needs no offset. */
+#plans-root:not(.pl-veda) .pl-wrap{padding-top:calc(env(safe-area-inset-top,0px) + 60px);}
 .pl-hdr{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:6px;}
-.pl-title{font-size:19px;font-weight:800;letter-spacing:.4px;margin:0;}
-.pl-who{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#9A9BA1;border:1px solid #3D3E43;border-radius:999px;padding:3px 10px;white-space:nowrap;}
-.pl-creed{font-size:12px;line-height:1.5;color:#9A9BA1;background:#212226;border:1px solid #3D3E43;border-left:3px solid #6E7076;border-radius:10px;padding:10px 12px;margin:10px 0 18px;}
-.pl-creed b{color:#D6D7DB;font-weight:800;}
+/* Veda's header already carries the title, so the chip is alone on this row and
+   sits left rather than drifting under the nav on the right. */
+#plans-root.pl-veda .pl-hdr{justify-content:flex-start;}
+.pl-title{font-size:19px;font-weight:800;letter-spacing:.4px;margin:0;color:var(--pl-tx);}
+/* Veda's sections title themselves in Playfair; Tony's use the plain stack. */
+#plans-root.pl-veda .pl-title{font-family:'Playfair Display',serif;font-size:22px;font-weight:900;
+  color:var(--pl-ac);letter-spacing:1px;text-transform:uppercase;line-height:1;}
+.pl-who{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--pl-txm);border:1px solid var(--pl-bd);border-radius:999px;padding:3px 10px;white-space:nowrap;font-family:var(--pl-mono);}
+.pl-creed{font-size:12px;line-height:1.5;color:var(--pl-txm);background:var(--pl-s3);border:1px solid var(--pl-bd);border-left:3px solid var(--pl-ac);border-radius:10px;padding:10px 12px;margin:10px 0 18px;}
+.pl-creed b{color:var(--pl-tx);font-weight:800;}
 .pl-sec{margin-bottom:22px;}
-.pl-sec-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#9A9BA1;margin-bottom:9px;}
-.pl-count{background:#3D3E43;color:#E8E8EA;border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center;}
-.pl-sub{font-size:11px;color:#76777C;font-weight:600;text-transform:none;letter-spacing:0;}
-.pl-empty{font-size:12px;color:#76777C;padding:12px 2px;font-style:italic;}
-.pl-card{background:#26272A;border:1px solid #3D3E43;border-radius:10px;padding:12px 13px;margin-bottom:9px;}
-.pl-card.pl-wait{border-color:#5A5C64;}
+.pl-sec-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--pl-txm);margin-bottom:9px;font-family:var(--pl-mono);}
+.pl-count{background:var(--pl-bd);color:var(--pl-tx);border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center;}
+.pl-sub{font-size:11px;color:var(--pl-txf);font-weight:600;text-transform:none;letter-spacing:0;font-family:var(--pl-font);}
+.pl-empty{font-size:12px;color:var(--pl-txf);padding:12px 2px;font-style:italic;}
+.pl-card{background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:10px;padding:12px 13px;margin-bottom:9px;}
+.pl-card.pl-wait{border-color:var(--pl-ac);}
 .pl-card-top{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;}
-.pl-card-t{font-size:14px;font-weight:700;line-height:1.35;word-break:break-word;flex:1;}
-.pl-meta{font-size:11px;color:#9A9BA1;margin-top:5px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;}
-.pl-nodate{color:#76777C;font-style:italic;}
-.pl-notes{font-size:12px;color:#AFB0B5;margin-top:7px;line-height:1.45;white-space:pre-wrap;word-break:break-word;}
+.pl-card-t{font-size:14px;font-weight:700;line-height:1.35;word-break:break-word;flex:1;color:var(--pl-tx);}
+.pl-meta{font-size:11px;color:var(--pl-txm);margin-top:5px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;}
+.pl-nodate{color:var(--pl-txf);font-style:italic;}
+.pl-notes{font-size:12px;color:var(--pl-txd);margin-top:7px;line-height:1.45;white-space:pre-wrap;word-break:break-word;}
 .pl-badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;border-radius:999px;padding:2px 8px;white-space:nowrap;border:1px solid transparent;}
-.pl-b-wait{background:#2E2F34;color:#B9BABF;border-color:#4A4B52;}
+.pl-b-wait{background:var(--pl-s2);color:var(--pl-txd);border-color:var(--pl-bdl);}
 .pl-b-ok{background:#1E3226;color:#7FCB98;border-color:#2F5540;}
 .pl-b-warn{background:#33291C;color:#D9A863;border-color:#5A472C;}
 .pl-b-bad{background:#33211F;color:#D98A80;border-color:#5A3330;}
-.pl-confirms{font-size:10.5px;color:#7FCB98;margin-top:8px;padding-top:8px;border-top:1px solid #303135;line-height:1.6;}
-.pl-confirms span{color:#9A9BA1;}
-.pl-reason{font-size:11.5px;color:#AFB0B5;margin-top:6px;padding:7px 9px;background:#212226;border-radius:7px;border:1px solid #303135;white-space:pre-wrap;word-break:break-word;}
+.pl-confirms{font-size:10.5px;color:#7FCB98;margin-top:8px;padding-top:8px;border-top:1px solid var(--pl-s2);line-height:1.6;}
+.pl-confirms span{color:var(--pl-txm);}
+.pl-reason{font-size:11.5px;color:var(--pl-txd);margin-top:6px;padding:7px 9px;background:var(--pl-s3);border-radius:7px;border:1px solid var(--pl-s2);white-space:pre-wrap;word-break:break-word;}
 .pl-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;}
-.pl-btn{background:transparent;color:#C9CACE;border:1px solid #4A4B52;border-radius:7px;padding:0 11px;height:29px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;transition:all .14s;}
-.pl-btn:hover{border-color:#6E7076;color:#fff;}
-.pl-btn-go{background:#2F5540;border-color:#2F5540;color:#CFEFDA;}
-.pl-btn-go:hover{background:#376449;border-color:#43795A;color:#fff;}
+.pl-btn{background:transparent;color:var(--pl-txd);border:1px solid var(--pl-bdl);border-radius:7px;padding:0 11px;height:29px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;cursor:pointer;font-family:var(--pl-mono);display:inline-flex;align-items:center;gap:5px;transition:all .14s;}
+.pl-btn:hover{border-color:var(--pl-ac);color:var(--pl-ac);}
+/* The primary action wears the profile accent, so "Confirm" reads as Veda's
+   purple for her and Tony's gold for him. */
+.pl-btn-go{background:var(--pl-ac);border-color:var(--pl-ac);color:var(--pl-ac-ink);}
+.pl-btn-go:hover{filter:brightness(1.12);color:var(--pl-ac-ink);border-color:var(--pl-ac);}
 .pl-btn-no:hover{border-color:#8A4A44;color:#E8A79F;}
-.pl-btn-q{padding:0 9px;font-size:16px;line-height:1;color:#76777C;}
-.pl-add{width:100%;background:#26272A;border:1px dashed #4A4B52;border-radius:10px;color:#9A9BA1;padding:11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .14s;}
-.pl-add:hover{border-color:#6E7076;color:#E8E8EA;}
-.pl-arch-h{width:100%;background:transparent;border:1px solid #303135;border-radius:8px;color:#76777C;padding:8px 11px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1px;cursor:pointer;font-family:inherit;text-align:left;display:flex;justify-content:space-between;align-items:center;}
-.pl-arch-h:hover{color:#9A9BA1;border-color:#3D3E43;}
-.pl-ov{position:fixed;inset:0;background:rgba(0,0,0,.66);display:flex;align-items:center;justify-content:center;padding:16px;z-index:60;}
-.pl-modal{background:#26272A;border:1px solid #3D3E43;border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:calc(100vh - 32px);overflow-y:auto;}
-.pl-modal h3{margin:0 0 12px;font-size:14px;font-weight:800;letter-spacing:.3px;}
-.pl-modal label{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#9A9BA1;margin:11px 0 5px;}
-.pl-in{width:100%;background:#1F2023;border:1px solid #3D3E43;border-radius:8px;color:#E8E8EA;padding:9px 10px;font-size:13px;font-family:inherit;}
-.pl-in:focus{outline:none;border-color:#6E7076;}
+.pl-btn-q{padding:0 9px;font-size:16px;line-height:1;color:var(--pl-txf);}
+.pl-add{width:100%;background:var(--pl-s1);border:1px dashed var(--pl-bdl);border-radius:10px;color:var(--pl-txm);padding:11px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--pl-mono);text-transform:uppercase;letter-spacing:1px;transition:all .14s;}
+.pl-add:hover{border-color:var(--pl-ac);color:var(--pl-ac);}
+.pl-arch-h{width:100%;background:transparent;border:1px solid var(--pl-s2);border-radius:8px;color:var(--pl-txf);padding:8px 11px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1px;cursor:pointer;font-family:var(--pl-mono);text-align:left;display:flex;justify-content:space-between;align-items:center;}
+.pl-arch-h:hover{color:var(--pl-txm);border-color:var(--pl-bd);}
+.pl-ov{position:fixed;inset:0;background:rgba(0,0,0,.66);display:flex;align-items:center;justify-content:center;padding:16px;z-index:600;}
+.pl-modal{background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:calc(100vh - 32px);overflow-y:auto;}
+.pl-modal h3{margin:0 0 12px;font-size:14px;font-weight:800;letter-spacing:.3px;color:var(--pl-tx);}
+.pl-modal label{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--pl-txm);margin:11px 0 5px;font-family:var(--pl-mono);}
+.pl-in{width:100%;background:var(--pl-bg);border:1px solid var(--pl-bd);border-radius:8px;color:var(--pl-tx);padding:9px 10px;font-size:13px;font-family:var(--pl-font);}
+.pl-in:focus{outline:none;border-color:var(--pl-ac);}
 textarea.pl-in{min-height:74px;resize:vertical;line-height:1.45;}
 .pl-row2{display:flex;gap:9px;}
 .pl-row2>div{flex:1;min-width:0;}
 .pl-modal-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
 .pl-warn{font-size:12px;line-height:1.5;color:#D9A863;background:#2A2118;border:1px solid #5A472C;border-radius:8px;padding:10px 11px;margin-bottom:4px;}
 .pl-err{font-size:11.5px;color:#D98A80;margin-top:7px;min-height:14px;}
+/* ── Header (Veda only) ──────────────────────────────────────────────────
+   Tony reaches Plans through his own sticky #tony-app-nav, so his view needs
+   no in-page header. Veda's sections each carry their own, which is also the
+   ONLY way back to her TaskHub — without it the section is a dead end. */
+#plans-root .pl-vhdr{display:none;}
+#plans-root.pl-veda .pl-vhdr{display:block;}
+#plans-root .pl-vnav-btn{background:transparent;color:var(--pl-ac);border:1px solid var(--pl-bdl);border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--pl-mono);text-transform:uppercase;letter-spacing:1px;transition:all .15s;}
+#plans-root .pl-vnav-btn:hover{border-color:var(--pl-ac);}
+#plans-root .pl-vnav-btn.pl-vnav-on{background:var(--pl-ac);color:var(--pl-ac-ink);border-color:var(--pl-ac);cursor:default;}
 @media(max-width:560px){.pl-wrap{padding:14px 12px calc(64px + env(safe-area-inset-bottom,0px));}.pl-row2{flex-direction:column;gap:0;}}
 </style>
 <div id="plans-root"></div>
@@ -15491,6 +15530,28 @@ function card(p,ctx){
     +'<div class="pl-acts">'+acts+'</div></div>';
 }
 
+// Veda's sections each carry their own header — it is her only route back to
+// TaskHub, and without one this section is a dead end. Tony reaches Plans from
+// his persistent #tony-app-nav bar, so his view renders no header at all.
+//
+// The nav row is emitted as a .veda-hbtns row so the shared nav module
+// (renderVedaNavIn) adopts it: it rebuilds the buttons from vedaOrder/vedaMap,
+// applies the saved custom order, marks Plans active via VEDA_ROOT_APP, and
+// attaches the mobile dropdown — exactly as it does for Links and Journal.
+function vedaHeader(w){
+  if(w!=='veda')return '';
+  const B=(app,label)=>'<button class="pl-vnav-btn" onclick="window._vedaNav&&window._vedaNav(\''+app+'\')">'+label+'</button>';
+  return '<div class="pl-vhdr veda-hdr-outer"><div class="veda-hdr-inner">'
+    +'<div class="veda-hdr-left">'
+    +'<div style="font-family:\'Playfair Display\',serif;font-size:22px;font-weight:900;color:var(--pl-ac);letter-spacing:1px;text-transform:uppercase;line-height:1;">Plans</div>'
+    +'</div><div class="veda-hdr-right"><div class="veda-hbtns">'
+    +B('taskhub','TaskHub')+B('gita','Gita')+B('journal','Journal')+B('links','Links')
+    +'<button class="pl-vnav-btn pl-vnav-on">Plans</button>'
+    +'<button class="pl-vnav-btn" onclick="window._profileGoSelect&&window._profileGoSelect()" '
+    +'style="font-size:17px;line-height:1;letter-spacing:0;">✦</button>'
+    +'</div></div></div></div>';
+}
+
 function section(title,list,ctx,emptyMsg,sub){
   let h='<div class="pl-sec"><div class="pl-sec-h">'+esc(title)
     +'<span class="pl-count">'+list.length+'</span>'
@@ -15508,8 +15569,15 @@ function render(){
   if(modal&&modal.mode==='edit'&&el.querySelector('#pl-f-title'))modal.draft=readEdit();
   const w=me();
   const b=bucket();
-  let h='<div class="pl-wrap">';
-  h+='<div class="pl-hdr"><h1 class="pl-title">Plans</h1>'
+  // The section wears whichever profile is looking at it. Data is shared; chrome
+  // is not — Veda sees her palette and header, Tony sees his.
+  el.classList.toggle('pl-veda',w==='veda');
+  let h=vedaHeader(w);
+  h+='<div class="pl-wrap">';
+  // Veda's sticky header already names the section, so the body only repeats the
+  // title for Tony, whose chrome is just the app-nav bar.
+  h+='<div class="pl-hdr">'
+    +(w==='veda'?'':'<h1 class="pl-title">Plans</h1>')
     +'<span class="pl-who">'+(w?'acting as '+esc(NAMES[w]):'no profile')+'</span></div>';
   h+='<div class="pl-creed">If it is not <b>Confirmed</b> here, it is not a plan. '
     +'Ideas are not commitments — anything in Ideas is still just talk.</div>';
