@@ -1930,16 +1930,37 @@ function go(sectionId, tabId, opts){
 
   if (tab.onEnter) { try { tab.onEnter(); } catch(e){ console.warn('onEnter', tab.id, e); } }
 
+  // The route lives in localStorage, NOT in the URL — see the URL policy below.
   try { localStorage.setItem('sol_route', sec.id+'/'+tab.id); } catch(e){}
-  // Always normalise the address bar to the resolved route. Comparing first is
-  // what makes this safe to run on a hashchange-driven navigation too: arriving
-  // from '#nutrition/recipes' is already equal and rewrites nothing, while a
-  // partial '#nutrition' or an empty hash on first load gets completed. Deliberately
-  // NOT gated on opts.fromHash — that gate also swallowed the very first write, so
-  // a fresh load left the URL bare and un-shareable.
-  var hash = '#'+sec.id+'/'+tab.id;
-  if (location.hash !== hash) { try { history.replaceState(null,'',hash); } catch(e){ location.hash = hash; } }
   if (!opts.keepScroll) window.scrollTo(0,0);
+}
+
+/* ══ URL POLICY: Solace never writes to its own address. ═══════════════════════
+   It used to replaceState a '#fitness/motioncore' route on every switch. That is
+   the ONE thing no other standalone A1 program does (mylist / vault / tradehub /
+   warroom all write zero URL state), and on mobile it cost us the single-tab
+   guarantee:
+
+     • the manifest sets launch_handler client_mode 'navigate-existing', so
+       relaunching the installed PWA navigates the EXISTING client to start_url;
+     • start_url has no hash. If the live tab sat at '#nutrition/recipes', that
+       relaunch is a same-document navigation to a DIFFERENT url, which PUSHES a
+       session-history entry;
+     • Chromium only lets a script close a tab it did not open while that tab has a
+       single history entry — and self-closing the older tab is exactly how the
+       shared single-tab handoff retires duplicates.
+
+   So after the first relaunch the old tab could no longer close itself, and Brave
+   settled on two tabs permanently, focusing the newest. Keeping the address equal
+   to start_url at all times makes the launch navigation inert and restores parity
+   with every other program.
+
+   Deep links still work — an incoming hash is read once and then stripped, so the
+   bare url is all that is ever left behind. stripHash uses replaceState, which does
+   not fire hashchange, so there is no loop. ══════════════════════════════════════ */
+function stripHash(){
+  if(!location.hash) return;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
 }
 
 // Deep link: #fitness/motioncore, #nutrition/recipes, or just #nutrition.
@@ -1957,8 +1978,12 @@ function initialRoute(){
   if(saved){ var p=saved.split('/'); if(findSection(p[0])) return { sec:p[0], tab:p[1]||null }; }
   return { sec:SOLACE_SECTIONS[0].id, tab:null };
 }
+// A hash pasted into an already-running Solace still routes; we consume it and put
+// the address straight back to the bare url.
 window.addEventListener('hashchange', function(){
-  var r=routeFromHash(); if(r) go(r.sec, r.tab, {fromHash:true});
+  var r=routeFromHash();
+  stripHash();
+  if(r) go(r.sec, r.tab);
 });
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -2571,7 +2596,12 @@ window.SOL = {
   // load when unlocked, or a successful unlock later) — the nav is only built
   // once, and the visible pane is repainted so it is never a blank surface.
   onUnlocked: function(){
-    if(!window.SOL._navBuilt){ window.SOL._navBuilt=true; buildNav(); var r=initialRoute(); go(r.sec, r.tab, {fromHash:true}); }
+    if(!window.SOL._navBuilt){
+      window.SOL._navBuilt=true; buildNav();
+      var r=initialRoute();          // reads an incoming deep-link hash, if any
+      stripHash();                   // …then the address is the bare url, for good
+      go(r.sec, r.tab);
+    }
     else { renderRecipesIfVisible(); }
   },
   micTap: micTap, sendFloatText: sendFloatText,

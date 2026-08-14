@@ -7827,6 +7827,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // offline edit still lands and a stale session can never clobber fresh data.
   let _thServerSeen = false, _thPendingWrites = [];
   let _vdServerSeen = false, _vdPendingWrites = [];
+  // dashboards/navorder (header button order + the External Links list). Whole-doc
+  // setDoc, and the in-memory order it serialises starts life as the hardcoded
+  // DEFAULT order — so an ungated write before this connection has confirmed
+  // server state publishes those defaults over a real saved order. That is why a
+  // reordered header kept snapping back to an older arrangement.
+  let _noServerSeen = false, _noPendingWrites = [];
 
   // ── Generation counter: the clock-independent backstop ─────────────────────
   // The savedAt comparison in the listeners decides "who is newer" using
@@ -7866,6 +7872,19 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   function _vdWhenServerSeen(fn) {
     if (_vdServerSeen) return fn();
     _vdPendingWrites = [fn];
+    return Promise.resolve();
+  }
+  function _noMarkServerSeen() {
+    if (_noServerSeen) return;
+    _noServerSeen = true;
+    const q = _noPendingWrites; _noPendingWrites = [];
+    q.forEach(fn => { try { fn(); } catch(e) { console.warn('NavOrder deferred write failed:', e && e.message); } });
+  }
+  function _noWhenServerSeen(fn) {
+    if (_noServerSeen) return fn();
+    // Each payload is a full snapshot of the order, so keeping only the latest
+    // both bounds the queue and replays the newest local arrangement.
+    _noPendingWrites = [fn];
     return Promise.resolve();
   }
   // Expose to React app via window
@@ -9597,20 +9616,48 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
 
     // ── NavOrder — drag-to-reorder app buttons, synced across all devices ──
+    // Protected exactly like TaskHub/Veda, because it has the same shape of risk:
+    // a whole-doc setDoc whose payload is built from in-memory state that begins
+    // as the hardcoded defaults. Three guards, all of which it previously lacked:
+    //   1. server-seen gate — never publish before this connection has confirmed
+    //      real server state, or the defaults land on top of the saved order;
+    //   2. generation stamp  — a payload composed before a teardown is stale by
+    //      construction, whatever its clock says (see _fbGen);
+    //   3. exact-echo suppression — the old code ignored EVERY snapshot within
+    //      1500ms of our own write, so a genuine reorder from another device that
+    //      happened to land in that window was silently dropped, and this device
+    //      then overwrote it on its next save.
     const _noDocRef = doc(db, "dashboards/navorder");
-    let _noLastOwnSaveAt = 0;
-    window._fbSaveNavOrder = async (payload) => {
-      _noLastOwnSaveAt = Date.now();
-      try {
-        await setDoc(_noDocRef, { ...payload, savedAt: Date.now() });
-      } catch(e) { console.warn('[NavOrder] Firebase save failed:', e); }
+    // Every savedAt this session has written, so the listener recognises any of
+    // our own echoes rather than blanket-ignoring a time window.
+    const _noOwnWrites = new Set();
+    window._fbSaveNavOrder = (payload) => {
+      const gen = _fbGen;                    // the generation this payload was built in
+      return _noWhenServerSeen(async () => {
+        if (gen !== _fbGen) {
+          console.warn('[NavOrder] dropping stale-generation write (built gen '
+            + gen + ', now ' + _fbGen + ') — re-syncing from server instead');
+          return;
+        }
+        const savedAt = Date.now();
+        _noOwnWrites.add(savedAt);
+        if (_noOwnWrites.size > 50) _noOwnWrites.delete(_noOwnWrites.values().next().value);
+        try {
+          await setDoc(_noDocRef, { ...payload, savedAt });
+        } catch(e) { console.warn('[NavOrder] Firebase save failed:', e); }
+      });
     };
     if (window._noUnsubscribe) { window._noUnsubscribe(); window._noUnsubscribe = null; }
     window._noUnsubscribe = onSnapshot(_noDocRef, (snap) => {
-      if (!snap.exists()) return;
-      if (Date.now() - _noLastOwnSaveAt < 1500) return;
+      const fromCache = !!(snap.metadata && snap.metadata.fromCache);
+      if (!snap.exists()) { if (!fromCache) _noMarkServerSeen(); return; }
       const d = snap.data();
+      // Our own write echoed back — apply nothing, but this IS server contact.
+      if (d.savedAt && _noOwnWrites.has(d.savedAt)) { if (!fromCache) _noMarkServerSeen(); return; }
       if (window._navOrderModule) window._navOrderModule.applyRemote(d);
+      // Marked AFTER the merge so any write held by the gate replays on top of
+      // the server state we just reconciled with, never underneath it.
+      if (!fromCache) _noMarkServerSeen();
     }, (err) => { console.warn('[NavOrder] onSnapshot error:', err); });
 
     // ── Tesla widget setup — endpoint + named places, synced across devices ──
@@ -9681,6 +9728,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // dropped, and replays once the new connection confirms.
     _thServerSeen = false;
     _vdServerSeen = false;
+    // The journals need re-arming for exactly the same reason, and for a long time
+    // they did not get it — which is how "newer MyJournal content is just gone"
+    // happened. Their writes are field-merges that also rewrite `_order` (the entry
+    // ID list), so a write let through before this connection has re-confirmed
+    // server state republishes a stale `_order` and every entry created elsewhere
+    // vanishes from the list (the e_<id> payloads survive, but nothing renders
+    // them). Teardown runs 1s after the tab is hidden, so this window opened every
+    // single time the tab lost focus.
+    _bjServerSeen = false;
+    _tjServerSeen = false;
+    // Same rule for the header button order (dashboards/navorder).
+    _noServerSeen = false;
     // New generation: everything composed before this point is now suspect (see
     // _fbGen). This is what makes the protection independent of device clocks.
     _fbGen++;
