@@ -4841,12 +4841,14 @@ window.THTS={
     <option value="warroom">WarRoom</option>
   </select>
   <button class="tn-btn" data-app="taskhub" onclick="window._tonyNav&&window._tonyNav('taskhub')">TaskHub</button>
-  <button class="tn-btn" id="thub-nav-btn" data-app="tradeboard" onclick="window._thubClick&&window._thubClick()">TradeHub</button>
   <button class="tn-btn" data-app="health" onclick="window._tonyNav&&window._tonyNav('health')">MotionCore</button>
-  <button class="tn-btn" data-app="keychain" onclick="window._tonyNav&&window._tonyNav('keychain')">Vault</button>
   <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
   <button class="tn-btn pv-btn" data-app="proview" onclick="window._tonyNav&&window._tonyNav('proview')">ProView</button>
-  <button class="tn-btn wr-btn" id="wr-nav-btn" data-app="warroom" onclick="window._wrClick&&window._wrClick()">WarRoom</button>
+  <!-- TradeHub / Vault / WarRoom used to be hardcoded here — they're now seeded
+       External-Links entries (see LEGACY_PROGRAMS below) so they live in Settings
+       like any other custom button, while still opening through the SAME gated
+       _thubClick/_vaultClick/_wrClick functions (locks, popup-blocked fallback,
+       named tabs unchanged). ensureTonyCustomBtns() injects their <button>s here. -->
   <button id="tn-settings-btn" onclick="window._openSettings&&window._openSettings('tony')" title="Settings" style="padding:0 7px;justify-content:center;touch-action:manipulation;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   <button class="tn-star" onclick="window._profileGoSelect&&window._profileGoSelect()" title="Profile Selection" aria-label="Profile Selection"><span style="font-size:17px;line-height:1;display:inline-flex;align-items:center;justify-content:center;">&#x2726;</span></button>
   </div>
@@ -41979,18 +41981,19 @@ window.addEventListener('focus', _initNavTabGear);
 'use strict';
 
 // ─── CONFIG ────────────────────────────────────────────────────────────────
+// TradeHub / Vault / WarRoom used to be fixed entries here (and fixed header
+// buttons). They're now seeded into tonyLinks as legacy External Links instead
+// — see LEGACY_PROGRAMS — so they're not listed as default program keys here
+// anymore (that would duplicate them in the dropdown/overflow menu).
 var TONY_DEFAULT = [
   {app:'taskhub',          label:'TaskHub'},
-  {app:'tradeboard',       label:'TradeHub'},
   {app:'health',           label:'MotionCore'},
-  {app:'keychain',         label:'Vault'},
   {app:'brainstormjournal',label:'MyJournal'},
   {app:'proview',          label:'ProView'},
-  {app:'warroom',          label:'WarRoom'},
 ];
 var TONY_SELECT_LABELS = {
-  taskhub:"Tony's TaskHub", tradeboard:'TradeHub', health:'MotionCore',
-  keychain:'Vault', brainstormjournal:'MyJournal', plans:'Plans', proview:'ProView', warroom:'WarRoom'
+  taskhub:"Tony's TaskHub", health:'MotionCore',
+  brainstormjournal:'MyJournal', plans:'Plans', proview:'ProView'
 };
 
 var VEDA_DEFAULT = [
@@ -42030,8 +42033,61 @@ function linkById(p, id){ var a = _linksFor(p); for (var i=0;i<a.length;i++){ if
 function persistLinks(){ try { localStorage.setItem('td6_navlinks', JSON.stringify({ tony: tonyLinks, veda: vedaLinks })); } catch(e){} }
 function _sanLink(l){ return { id: String(l.id||''), label: String(l.label||'Link'), url: String(l.url||''), color: l.color ? String(l.color) : '' }; }
 
+// ── Legacy programs — TradeHub / Vault / WarRoom used to be their own fixed
+// header buttons with their own App Lock (tony_tradehub / tony_keychain /
+// tony_warroom), popup-blocked confirm dialogs and named tabs. They're now
+// entries in tonyLinks like any other External Link (editable label, reorderable,
+// deletable, listed in Settings), but opening one still runs through the exact
+// same gated function so nothing about the lock/confirm/tab behavior changes.
+var LEGACY_PROGRAMS = [
+  { id:'tradehub', label:'TradeHub', url:'https://anthonyn99.github.io/A1/tradehub.html', color:'#e0b874', lockId:'tony_tradehub', openFn:'_thubClick' },
+  { id:'vault',    label:'Vault',    url:'https://anthonyn99.github.io/A1/vault.html',    color:'#e0b874', lockId:'tony_keychain', openFn:'_vaultClick' },
+  { id:'warroom',  label:'WarRoom',  url:'https://anthonyn99.github.io/A1/warroom.html',  color:'#a78bfa', lockId:'tony_warroom', openFn:'_wrClick' }
+];
+function _legacyProgram(id){
+  for (var i=0;i<LEGACY_PROGRAMS.length;i++){ if(LEGACY_PROGRAMS[i].id===id) return LEGACY_PROGRAMS[i]; }
+  return null;
+}
+// One-time seed, gated by a flag synced in the SAME Firebase doc (not just
+// localStorage) so it runs exactly once across every device — after that, a
+// deliberate delete of one of these three sticks instead of being re-added.
+var _tonyLinksMigrated = false;
+try { _tonyLinksMigrated = localStorage.getItem('td6_legacy_migrated')==='1'; } catch(e){}
+function _markLegacyMigrated(){
+  _tonyLinksMigrated=true;
+  try { localStorage.setItem('td6_legacy_migrated','1'); } catch(e){}
+}
+// Unconditional — used both by the one-time local seed below AND by applyRemote,
+// which must re-add on top of a just-merged remote snapshot regardless of this
+// device's own flag (an older pre-migration Firebase doc would otherwise wipe
+// out a local seed that ran before Firebase responded).
+function _addMissingLegacyPrograms(){
+  var changed=false;
+  LEGACY_PROGRAMS.forEach(function(p){
+    if (!linkById('tony',p.id)){
+      tonyLinks.push({ id:p.id, label:p.label, url:p.url, color:p.color });
+      changed=true;
+    }
+  });
+  return changed;
+}
+function seedLegacyProgramsOnce(){
+  if (_tonyLinksMigrated) return false;
+  var changed=_addMissingLegacyPrograms();
+  _markLegacyMigrated();
+  return changed;
+}
+// Local-only pass so the header isn't missing TradeHub/Vault/WarRoom for the
+// instant before Firebase responds; applyRemote() below reconciles for real.
+if (seedLegacyProgramsOnce()) persistLinks();
+
 function openLink(p, id){
   var l = linkById(p, id); if (!l || !l.url) return;
+  // Legacy programs: delegate straight to their own gated opener — it already
+  // handles the App Lock check, the popup-blocked confirm dialog and the named
+  // tab, so don't run the generic (differently-locked) path below for these.
+  var lp = (p==='tony') ? _legacyProgram(id) : null;
+  if (lp){ if (window[lp.openFn]) window[lp.openFn](); return; }
   // If this custom button is locked, require the password BEFORE opening. Cancel
   // (X) just closes the prompt and leaves the user on the current program.
   if (window.alIsLocked && window._alCustomLockId){
@@ -42055,6 +42111,8 @@ function _doOpen(l, p){
   }
 }
 window._navOpenLink = openLink;
+window._navLegacyProgram = _legacyProgram;
+window._navLinkLockId = _linkLockId;
 
 // Register custom links into the label maps + order arrays (idempotent).
 function registerLinks(){
@@ -42067,11 +42125,22 @@ function registerLinks(){
   vedaLinks.forEach(function(l){ if(vedaOrder.indexOf(_ck(l.id))===-1) vedaOrder.push(_ck(l.id)); });
   tonyOrder = tonyOrder.filter(function(a){ return !_isCustom(a) || tonyMap[a]; });
   vedaOrder = vedaOrder.filter(function(a){ return !_isCustom(a) || vedaMap[a]; });
-  // Make custom buttons lockable: give applock a label/color for each.
+  // Make custom buttons lockable: give applock a label/color for each. Legacy
+  // programs skip this — they're locked through their own existing lockId
+  // (tony_tradehub/tony_keychain/tony_warroom), registering a second generic
+  // one for them would just be an unused duplicate.
   if(window._alRegisterCustom){
-    tonyLinks.forEach(function(l){ window._alRegisterCustom('tony', l.id, l.label); });
+    tonyLinks.forEach(function(l){ if(!_legacyProgram(l.id)) window._alRegisterCustom('tony', l.id, l.label); });
     vedaLinks.forEach(function(l){ window._alRegisterCustom('veda', l.id, l.label); });
   }
+}
+// Lock id for a custom-link row: legacy programs use their real, pre-existing
+// lock (same one Program Locks manages) so there's a single source of truth;
+// everything else uses the generic per-custom-button lock.
+function _linkLockId(profile, id){
+  var lp = profile==='tony' ? _legacyProgram(id) : null;
+  if (lp) return lp.lockId;
+  return window._alCustomLockId ? window._alCustomLockId(profile, id) : (profile + '_custom_' + id);
 }
 
 // Build/update the DOM buttons for Tony custom links inside the header. The
@@ -42089,7 +42158,11 @@ function ensureTonyCustomBtns(){
     var ex = inner.querySelector('.tn-btn[data-app="'+key+'"]');
     if (ex){ ex.textContent = l.label; ex.style.color = l.color || ''; return; }
     var b = document.createElement('button');
-    b.className = 'tn-btn tn-custom-btn'; b.setAttribute('data-app', key);
+    // WarRoom keeps its 'wr-btn' class so _updateTonyNavActive's purple-accent
+    // handling (which keys off that class, not the app string) still applies —
+    // otherwise its inline color gets reset to the default gold on every nav click.
+    b.className = 'tn-btn tn-custom-btn' + (l.id==='warroom' ? ' wr-btn' : '');
+    b.setAttribute('data-app', key);
     b.textContent = l.label;
     if (l.color) b.style.color = l.color;
     var _dg = false, _tx=0, _ty=0, _tm=false;
@@ -42209,7 +42282,7 @@ function injectTonyDropdownCSS(){
     '#tn-dd-panel .dd-grip{flex:0 0 auto;cursor:grab;color:currentColor;opacity:.4;font-size:13px;line-height:1;letter-spacing:-3px;padding:2px 4px;margin:-2px 0;touch-action:none;}'+
     '#tn-dd-panel .dd-grip:active{cursor:grabbing;}'+
     '#tn-dd-panel .tn-dd-item:hover{background:transparent;color:#e0b874;}'+
-    '#tn-dd-panel .tn-dd-item[data-dd-app="proview"]:not(.tn-dd-active):hover,#tn-dd-panel .tn-dd-item[data-dd-app="warroom"]:not(.tn-dd-active):hover{background:rgba(167,139,250,0.12);}'+
+    '#tn-dd-panel .tn-dd-item[data-dd-app="proview"]:not(.tn-dd-active):hover,#tn-dd-panel .tn-dd-item[data-dd-app="custom:warroom"]:not(.tn-dd-active):hover{background:rgba(167,139,250,0.12);}'+
     '#tn-dd-panel .tn-dd-item.tn-dd-active{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.28) inset;}';
   document.head.appendChild(st);
 }
@@ -42225,19 +42298,19 @@ function renderTonyDropdownPanel(){
     var _grip=document.createElement('span'); _grip.className='dd-grip'; _grip.innerHTML='&#8942;&#8942;'; _grip.setAttribute('aria-hidden','true');
     var _lbl=document.createElement('span'); _lbl.className='dd-text'; _lbl.textContent=TONY_SELECT_LABELS[app]||tonyMap[app];
     item.appendChild(_grip); item.appendChild(_lbl);
-    var isPvWr=(app==='proview'||app==='warroom');
+    var isPvWr=(app==='proview'||app==='custom:warroom');
     if(isPvWr&&app!==cur) item.style.color='#a78bfa';
     if(isPvWr&&app===cur){ item.style.background='#a78bfa'; item.style.color='#0d0b14'; }
     item.addEventListener('click',function(e){
       e.stopPropagation();
       if(item._ddDragged){ item._ddDragged=false; return; }
       if(app.indexOf('custom:')===0){ openLink('tony',app.slice(7)); }
-      else if(app==='warroom'){if(window._wrClick)window._wrClick();}else if(app==='tradeboard'){if(window._thubClick)window._thubClick();}else{if(window._tonyNav)window._tonyNav(app);}
+      else{if(window._tonyNav)window._tonyNav(app);}
       closeTonyDD();
     });
     attachPanelDrag(item,app,_ddPanel,tonyOrder,'tn-dd-item','data-dd-app','tony');
     // Mobile: long-press (600ms, no movement ≥6px) → manage lock
-    if(app==='tradeboard'||app==='warroom'){
+    if(app==='custom:tradehub'||app==='custom:warroom'){
       (function(a,el){
         var _lpt=null,_lpy=0,_lpm=false;
         function _lpc(){ if(_lpt){ clearTimeout(_lpt); _lpt=null; } }
@@ -42246,7 +42319,7 @@ function renderTonyDropdownPanel(){
           _lpy=e.touches[0].clientY; _lpm=false;
           _lpt=setTimeout(function(){
             _lpt=null;
-            if(!_lpm&&window.alManage) window.alManage(a==='tradeboard'?'tony_tradehub':'tony_warroom');
+            if(!_lpm&&window.alManage) window.alManage(a==='custom:tradehub'?'tony_tradehub':'tony_warroom');
           },600);
         },{passive:true});
         el.addEventListener('touchmove',function(e){
@@ -42633,7 +42706,10 @@ function saveNavOrder(who){
   if(!window._fbSaveNavOrder) return;
   window._fbSaveNavOrder({
     tony:tonyOrder.slice(), veda:vedaOrder.slice(),
-    tonyLinks:tonyLinks.map(_sanLink), vedaLinks:vedaLinks.map(_sanLink)
+    tonyLinks:tonyLinks.map(_sanLink), vedaLinks:vedaLinks.map(_sanLink),
+    // Once true this never goes back to false — it's what tells every device
+    // "the legacy-program seed already happened, stop re-adding deleted ones".
+    tonyLinksMigrated:true
   });
   pulseSynced(who);
 }
@@ -42648,6 +42724,16 @@ function applyRemote(data){
   if(Array.isArray(data.vedaLinks)){
     var vs=data.vedaLinks.map(_sanLink);
     if(JSON.stringify(vs)!==JSON.stringify(vedaLinks.map(_sanLink))){ vedaLinks=vs; changed=true; }
+  }
+  // Legacy-program migration: if Firebase hasn't confirmed it happened yet, add
+  // any of TradeHub/Vault/WarRoom missing from what was just merged in above
+  // (covers an older pre-migration doc overwriting a local pre-seed) and push
+  // the result + flag right back up. Once the flag is true, respect deletions.
+  var needsMigrationPush=false;
+  if(data.tonyLinksMigrated){
+    _markLegacyMigrated();
+  } else if(_addMissingLegacyPrograms()){
+    changed=true; needsMigrationPush=true; _markLegacyMigrated();
   }
   if(changed){ persistLinks(); }
   registerLinks();
@@ -42664,6 +42750,7 @@ function applyRemote(data){
     if(vedaOrder.join(',')!==newV.join(',')){ vedaOrder=newV; changed=true; }
   }
   if(changed){ ensureTonyCustomBtns(); renderTonyNav(); renderTonyDropdownPanel(); renderAllVedaNavs(); recheckOverflow(); }
+  if(needsMigrationPush) saveNavOrder('tony');
   if(window._thsetRefreshLinks) window._thsetRefreshLinks();
   if(window._thsetRefreshOrder) window._thsetRefreshOrder();
 }
@@ -43022,11 +43109,14 @@ function appsForProfile(profile){
   // fallback: any lockable program not represented in the nav order
   Object.keys(labels).forEach(function(id){
     if(labels[id] && labels[id].profile===profile && !seen[id] && id.indexOf('_custom_')===-1){
-      seen[id]=1; out.push({ id:id, label:labels[id].label, color:labels[id].color||ACCENT[profile] });
+      seen[id]=1; out.push({ id:id, label:LOCKLIST_LABEL_OVERRIDES[id]||labels[id].label, color:labels[id].color||ACCENT[profile] });
     }
   });
   return out;
 }
+// Settings' Program Locks list reads friendlier than the plain profile name (used
+// elsewhere — applock overlay title, reset-email copy — so those stay untouched).
+var LOCKLIST_LABEL_OVERRIDES = { profile_tony: "Tony's Suite", profile_veda: "Veda's Suite" };
 
 // ── Modal builders ──
 var _curProfile='tony';
@@ -43079,7 +43169,7 @@ function renderLinkList(container,profile){
   var links=orderedLinks(profile);
   if(!links.length){
     var e=document.createElement('div'); e.className='thset-empty';
-    e.textContent='No custom buttons yet. Add one below.';
+    e.textContent='No external links yet. Add one below.';
     container.appendChild(e); return;
   }
   links.forEach(function(l){
@@ -43094,9 +43184,11 @@ function renderLinkList(container,profile){
     var url=document.createElement('div'); url.className='thset-url'; url.textContent=l.url; url.style.overflow='hidden'; url.style.textOverflow='ellipsis'; url.style.whiteSpace='nowrap';
     col.appendChild(lab); col.appendChild(url);
 
-    // lock pill (custom buttons are lockable too)
-    var lockId=window._alCustomLockId?window._alCustomLockId(profile,l.id):(profile+'_custom_'+l.id);
-    if(window._alRegisterCustom) window._alRegisterCustom(profile,l.id,l.label);
+    // lock pill (custom buttons are lockable too; legacy programs reuse their
+    // own pre-existing lock instead of registering a second, generic one)
+    var lockId=window._navLinkLockId?window._navLinkLockId(profile,l.id):(window._alCustomLockId?window._alCustomLockId(profile,l.id):(profile+'_custom_'+l.id));
+    var isLegacyBtn=!!(window._navLegacyProgram&&window._navLegacyProgram(l.id));
+    if(window._alRegisterCustom&&!isLegacyBtn) window._alRegisterCustom(profile,l.id,l.label);
     var locked=!!(window.alIsLocked&&window.alIsLocked(lockId));
     var pill=document.createElement('button');
     pill.className='thset-pill '+(locked?'locked':'unlocked');
@@ -43173,15 +43265,28 @@ function attachSettingsDrag(grip,row,container,profile){
 function startEdit(row,profile,l){
   row.innerHTML='';
   row.style.flexDirection='column'; row.style.alignItems='stretch'; row.style.gap='8px';
+  var isLegacy=!!(profile==='tony'&&window._navLegacyProgram&&window._navLegacyProgram(l.id));
   var li=document.createElement('input'); li.className='thset-input'; li.value=l.label; li.placeholder='Button name';
   var ui=document.createElement('input'); ui.className='thset-input'; ui.value=l.url; ui.placeholder='https://… or file link';
+  if(isLegacy){
+    // The destination is wired to this program's own gated opener, not this
+    // URL field — editing it wouldn't change where the button goes, so keep
+    // it visible for reference but not editable.
+    ui.disabled=true; ui.title="This button opens "+l.label+" itself — its destination isn't editable here.";
+  }
   var btns=document.createElement('div'); btns.style.cssText='display:flex;gap:8px;justify-content:flex-end;';
   var save=document.createElement('button'); save.className='thset-btn'; save.textContent='Save';
   save.style.background=ACCENT[profile]; save.style.color='#fff';
   var cancel=document.createElement('button'); cancel.className='thset-mini'; cancel.textContent='Cancel';
   save.addEventListener('click',function(){
-    var lbl=li.value.trim(), url=normalizeUrl(ui.value.trim());
-    if(!lbl||!url){ (lbl?ui:li).focus(); return; }
+    var lbl=li.value.trim();
+    if(!lbl){ li.focus(); return; }
+    if(isLegacy){
+      if(window._navUpdateLink) window._navUpdateLink(profile,l.id,{label:lbl});
+      return;
+    }
+    var url=normalizeUrl(ui.value.trim());
+    if(!url){ ui.focus(); return; }
     if(window._navUpdateLink) window._navUpdateLink(profile,l.id,{label:lbl,url:url});
   });
   cancel.addEventListener('click',function(){ refreshLinks(); });
@@ -43211,7 +43316,7 @@ function refreshLinkPills(){
   Array.prototype.slice.call(c.querySelectorAll('.thset-link-row')).forEach(function(row){
     var id=row.getAttribute('data-link-id'); if(!id) return;
     var pill=row.querySelector('.thset-pill'); if(!pill) return;
-    var lockId=window._alCustomLockId?window._alCustomLockId(_curProfile,id):(_curProfile+'_custom_'+id);
+    var lockId=window._navLinkLockId?window._navLinkLockId(_curProfile,id):(window._alCustomLockId?window._alCustomLockId(_curProfile,id):(_curProfile+'_custom_'+id));
     var locked=!!(window.alIsLocked&&window.alIsLocked(lockId));
     if(pill.dataset.locked===(locked?'1':'0')) return;
     pill.dataset.locked=locked?'1':'0';
@@ -43254,7 +43359,7 @@ function openSettings(profile){
       '<div id="thset-locklist"></div>'+
     '</div>'+
     '<div class="thset-sec">'+
-      '<div class="thset-sec-title">Custom Buttons</div>'+
+      '<div class="thset-sec-title">External Links</div>'+
       '<div id="thset-linklist"></div>'+
       '<div class="thset-addrow" style="margin-top:6px;">'+
         '<div class="thset-add-fields">'+
