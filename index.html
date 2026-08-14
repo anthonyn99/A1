@@ -7869,6 +7869,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // server state publishes those defaults over a real saved order. That is why a
   // reordered header kept snapping back to an older arrangement.
   let _noServerSeen = false, _noPendingWrites = [];
+  // Veda Links (dashboards/veda_links) — also a whole-doc setDoc of the entire
+  // connection list, so it carries the same risk as the two dashboards and needs
+  // the same gate on Veda's side.
+  let _vdkcServerSeen = false, _vdkcPendingWrites = [];
 
   // ── Generation counter: the clock-independent backstop ─────────────────────
   // The savedAt comparison in the listeners decides "who is newer" using
@@ -7921,6 +7925,17 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Each payload is a full snapshot of the order, so keeping only the latest
     // both bounds the queue and replays the newest local arrangement.
     _noPendingWrites = [fn];
+    return Promise.resolve();
+  }
+  function _vdkcMarkServerSeen() {
+    if (_vdkcServerSeen) return;
+    _vdkcServerSeen = true;
+    const q = _vdkcPendingWrites; _vdkcPendingWrites = [];
+    q.forEach(fn => { try { fn(); } catch(e) { console.warn('Veda Links deferred write failed:', e && e.message); } });
+  }
+  function _vdkcWhenServerSeen(fn) {
+    if (_vdkcServerSeen) return fn();
+    _vdkcPendingWrites = [fn];
     return Promise.resolve();
   }
   // Expose to React app via window
@@ -8297,31 +8312,52 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     const vdkcDocRef = doc(db, VDKC_DOC_PATH);
 
     // ── Veda Links real-time listener ─────────────────────────────────────────
+    // Own writes are recognised by their exact savedAt rather than by a blanket
+    // 6-second window: that window also swallowed genuine edits from another
+    // device, which this one would then overwrite on its next whole-doc save.
+    const _vdkcOwnWrites = new Set();
+    window._vdkcNoteOwnWrite = (savedAt) => {
+      _vdkcOwnWrites.add(savedAt);
+      if (_vdkcOwnWrites.size > 50) _vdkcOwnWrites.delete(_vdkcOwnWrites.values().next().value);
+    };
     if (_vdkcUnsubscribe) { _vdkcUnsubscribe(); _vdkcUnsubscribe = null; }
     _vdkcUnsubscribe = onSnapshot(vdkcDocRef, (snap) => {
-      if (Date.now() - _vdkcLastOwnSaveAt < 6000) return;
-      if (snap.exists()) {
-        window.dispatchEvent(new CustomEvent("fb-vdkc-remote-update", { detail: snap.data() }));
-        window.dispatchEvent(new CustomEvent("fb-vdkc-synced"));
-      }
+      const fromCache = !!(snap.metadata && snap.metadata.fromCache);
+      if (!snap.exists()) { if (!fromCache) _vdkcMarkServerSeen(); return; }
+      const d = snap.data();
+      if (d.savedAt && _vdkcOwnWrites.has(d.savedAt)) { if (!fromCache) _vdkcMarkServerSeen(); return; }
+      window.dispatchEvent(new CustomEvent("fb-vdkc-remote-update", { detail: d }));
+      window.dispatchEvent(new CustomEvent("fb-vdkc-synced"));
+      // Marked AFTER the merge, so a held write replays on top of the state we
+      // just reconciled with rather than underneath it.
+      if (!fromCache) _vdkcMarkServerSeen();
     });
 
     window._fbLoadVedaLinks = async () => {
       try {
         const snap = await _freshGet(vdkcDocRef);
+        // A cache fallback is NOT server confirmation — same rule as the loaders
+        // for TaskHub and Veda's dashboard.
+        const fromCache = !!(snap && snap.metadata && snap.metadata.fromCache);
+        if (snap && !fromCache) _vdkcMarkServerSeen();
         if (snap && snap.exists()) return snap.data();
         return null;
       } catch(e) {
         console.warn("Firebase Veda Links load failed:", e);
-        return null;
+        return null;                                   // barrier stays closed
       }
     };
 
     // ── Veda Links save (500ms debounce, getter pattern) ─────────────────────
+    // Whole-doc setDoc of her entire connection list, so it is gated on server
+    // confirmation like every other whole-doc writer: writing before this
+    // connection has seen real server state would push an empty/stale list over
+    // the good copy. The getter is re-read at write time, so a held save
+    // publishes the state as reconciled, not as it was when the edit happened.
     window._fbSaveVedaLinks = (getState) => {
       _vdkcLastOwnSaveAt = Date.now();
       if (_vdkcSaveTimer) clearTimeout(_vdkcSaveTimer);
-      _vdkcSaveTimer = setTimeout(async () => {
+      _vdkcSaveTimer = setTimeout(() => _vdkcWhenServerSeen(async () => {
         try {
           const { connections, colmap } = getState();
           const sanitize = obj => {
@@ -8341,6 +8377,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
             savedAt: Date.now()
           };
           _vdkcLastOwnSaveAt = Date.now();
+          // Register the exact savedAt BEFORE the write, so the echo cannot beat
+          // us back through the listener and get treated as a remote change.
+          if (window._vdkcNoteOwnWrite) window._vdkcNoteOwnWrite(payload.savedAt);
           await setDoc(vdkcDocRef, payload);
           _vdkcLastOwnSaveAt = Date.now();
           window.dispatchEvent(new CustomEvent("fb-vdkc-saved"));
@@ -8348,7 +8387,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           console.error("Firebase Veda Links save failed:", e.code, e.message, e);
           window.dispatchEvent(new CustomEvent("fb-vdkc-error"));
         }
-      }, 500);
+      }), 500);
     };
 
 
@@ -9670,14 +9709,23 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Every savedAt this session has written, so the listener recognises any of
     // our own echoes rather than blanket-ignoring a time window.
     const _noOwnWrites = new Set();
-    window._fbSaveNavOrder = (payload) => {
-      const gen = _fbGen;                    // the generation this payload was built in
+    // Takes a GETTER, not a payload — same contract as _fbSaveJournal/_fbSaveMJDocs,
+    // and it is load-bearing here. A write held by the gate is released straight
+    // after the snapshot handler merges the server's order into the in-memory
+    // arrays; a payload captured at call time would be the PRE-merge order, so
+    // replaying it would re-publish exactly the stale arrangement the gate exists
+    // to suppress. Re-reading at write time means the release publishes the merged
+    // order — the user's reorder AND whatever the other device had saved.
+    window._fbSaveNavOrder = (getPayload) => {
+      const gen = _fbGen;                    // the generation this write was requested in
       return _noWhenServerSeen(async () => {
         if (gen !== _fbGen) {
-          console.warn('[NavOrder] dropping stale-generation write (built gen '
+          console.warn('[NavOrder] dropping stale-generation write (requested gen '
             + gen + ', now ' + _fbGen + ') — re-syncing from server instead');
           return;
         }
+        const payload = (typeof getPayload === 'function') ? getPayload() : getPayload;
+        if (!payload) return;
         const savedAt = Date.now();
         _noOwnWrites.add(savedAt);
         if (_noOwnWrites.size > 50) _noOwnWrites.delete(_noOwnWrites.values().next().value);
@@ -9777,8 +9825,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // single time the tab lost focus.
     _bjServerSeen = false;
     _tjServerSeen = false;
-    // Same rule for the header button order (dashboards/navorder).
+    // Same rule for the header button order (dashboards/navorder) and for Veda's
+    // Links, both of which replace their whole document on every save.
     _noServerSeen = false;
+    _vdkcServerSeen = false;
     // New generation: everything composed before this point is now suspect (see
     // _fbGen). This is what makes the protection independent of device clocks.
     _fbGen++;
@@ -42058,12 +42108,19 @@ function attachTouchDrag(btn,app,opts){
 // ════════════════════════════════════════════════════════════════════════════
 function saveNavOrder(who){
   if(!window._fbSaveNavOrder) return;
-  window._fbSaveNavOrder({
-    tony:tonyOrder.slice(), veda:vedaOrder.slice(),
-    tonyLinks:tonyLinks.map(_sanLink), vedaLinks:vedaLinks.map(_sanLink),
-    // Once true this never goes back to false — it's what tells every device
-    // "the legacy-program seed already happened, stop re-adding deleted ones".
-    tonyLinksMigrated:true
+  // A GETTER, deliberately: the write may be held until Firebase has confirmed
+  // server state, and it is released immediately after the incoming order has
+  // been merged into these arrays. Serialising them at release time publishes the
+  // merged result; serialising them here would publish the pre-merge order and
+  // re-introduce the "my button order reverted" bug the gate exists to stop.
+  window._fbSaveNavOrder(function(){
+    return {
+      tony:tonyOrder.slice(), veda:vedaOrder.slice(),
+      tonyLinks:tonyLinks.map(_sanLink), vedaLinks:vedaLinks.map(_sanLink),
+      // Once true this never goes back to false — it's what tells every device
+      // "the legacy-program seed already happened, stop re-adding deleted ones".
+      tonyLinksMigrated:true
+    };
   });
   pulseSynced(who);
 }
