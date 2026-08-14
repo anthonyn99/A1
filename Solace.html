@@ -1,0 +1,3179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Solace</title>
+<!-- ── Single-tab handoff ──────────────────────────────────────────────────────
+     Keeps exactly one tab per program. Verbatim copy of the block in
+     tradehub.html / mylist.html / vault.html — keep these copies identical.
+     Opt out of being closed with window.__a1BlockTabHandoff = true. -->
+<script>
+(function(){
+  if (typeof BroadcastChannel !== 'function') return;
+  var PAGE = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  var BORN = Date.now() + Math.random();   // random breaks ties on same-ms opens
+  var bc; try { bc = new BroadcastChannel('a1-single-tab'); } catch(e){ return; }
+  function announce(){ try { bc.postMessage({ type:'claim', page:PAGE, born:BORN }); } catch(e){} }
+  bc.onmessage = function(e){
+    var d = e.data || {};
+    if (!d || d.type !== 'claim' || d.page !== PAGE) return;
+    if (d.born > BORN) {
+      if (window.__a1BlockTabHandoff) return;
+      try { window.close(); } catch(_){}
+    } else {
+      announce();   // older tab was still loading when we announced — retell it
+    }
+  };
+  announce();
+})();
+</script>
+<meta name="theme-color" content="#1a1a1d">
+<!-- Both spellings on purpose: `mobile-web-app-capable` is the standard one every
+     browser now reads, but iOS still honours the `apple-` prefixed original, so
+     dropping it would cost the standalone home-screen launch on iPhone. -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Solace">
+<!-- App icon: gold line mark on the suite charcoal, drawn on the same 96-grid and
+     5px stroke as MyList's list and Vault's lock — a heart over a pulse line, the
+     two halves of Solace (Fitness + Nutrition) read as one program in the suite. -->
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Solace%22%2C%22short_name%22%3A%22Solace%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FSolace.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FSolace.html%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D'http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg'%2520viewBox%253D'0%25200%252096%252096'%253E%253Crect%2520width%253D'96'%2520height%253D'96'%2520rx%253D'22'%2520fill%253D'%25231a1a1d'%252F%253E%253Cg%2520fill%253D'none'%2520stroke%253D'%2523e0b874'%2520stroke-linecap%253D'round'%2520stroke-linejoin%253D'round'%253E%253Cpath%2520d%253D'M48%252070C33.5%252059.5%252025%252051%252025%252041.5%252025%252034%252030.5%252028.5%252037.5%252028.5%252042.5%252028.5%252046%252031.5%252048%252034.5%252050%252031.5%252053.5%252028.5%252058.5%252028.5%252065.5%252028.5%252071%252034%252071%252041.5%252071%252051%252062.5%252059.5%252048%252070Z'%2520stroke-width%253D'5'%252F%253E%253Cpath%2520d%253D'M34%252045h6l4-8.5%25205.5%252016%25204-7.5h8.5'%2520stroke-width%253D'4'%252F%253E%253C%252Fg%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke%3D'%23e0b874'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2070C33.5%2059.5%2025%2051%2025%2041.5%2025%2034%2030.5%2028.5%2037.5%2028.5%2042.5%2028.5%2046%2031.5%2048%2034.5%2050%2031.5%2053.5%2028.5%2058.5%2028.5%2065.5%2028.5%2071%2034%2071%2041.5%2071%2051%2062.5%2059.5%2048%2070Z'%20stroke-width%3D'5'%2F%3E%3Cpath%20d%3D'M34%2045h6l4-8.5%205.5%2016%204-7.5h8.5'%20stroke-width%3D'4'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke%3D'%23e0b874'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2070C33.5%2059.5%2025%2051%2025%2041.5%2025%2034%2030.5%2028.5%2037.5%2028.5%2042.5%2028.5%2046%2031.5%2048%2034.5%2050%2031.5%2053.5%2028.5%2058.5%2028.5%2065.5%2028.5%2071%2034%2071%2041.5%2071%2051%2062.5%2059.5%2048%2070Z'%20stroke-width%3D'5'%2F%3E%3Cpath%20d%3D'M34%2045h6l4-8.5%205.5%2016%204-7.5h8.5'%20stroke-width%3D'4'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<!-- Fonts: the union of what the two migrated programs used. Inter/Manrope/
+     Fraunces are the suite faces (mirrored from index.html and mylist.html);
+     DM Sans + Bebas Neue are MotionCore's, and its cards/timer read wrong
+     without them. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   SUITE DESIGN TOKENS — mirrored from index.html / mylist.html. Two golds, one
+   display face, one accent face; every app in the ecosystem draws from the same
+   values. Solace is a TONY-ONLY program, so there is no Veda palette here by
+   construction — nothing in this file can restyle or reach her apps.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --gold-primary:#e0b874;    /* borders, rings, active states, icons          */
+  --gold-secondary:#e0b874;  /* champagne — accent text on dark surfaces      */
+  --gold-line:rgba(224,184,116,.36);
+  --gold-glow:0 0 8px rgba(224,184,116,0.40),0 0 0 1px rgba(224,184,116,0.15);
+  --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
+  --font-accent:'Fraunces',Georgia,serif;
+}
+.suite-title{
+  font-family:var(--suite-display);
+  font-size:clamp(21px,2.6vw,28px);
+  font-weight:750;letter-spacing:-.4px;line-height:1.2;
+  color:var(--gold-primary);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+*{scrollbar-width:none;-ms-overflow-style:none;}
+*::-webkit-scrollbar{display:none;width:0;height:0;}
+a,button,label,select,input,textarea,[role=button],[onclick]{touch-action:manipulation;}
+
+/* Tony's profile — the Insight design system (warm charcoal + tan gold). */
+body{
+  --bg:#1a1a1d; --surface:#232327; --surface2:#2c2c31; --border:#34343a; --border2:#45454c;
+  --text:#f4f3f0; --textdim:#adadb2; --textmute:#8d8d94;
+  --accent:#e0b874; --accent-ink:#1a1a1d; --accent-soft:rgba(224,184,116,0.12);
+  --accent-bright:#e0b874; --accent-deep:#e0b874; --accent-pale:#e0b874;
+  --good:#a4b986; --bad:#d68a7c;
+  --font-body:'Inter',system-ui,-apple-system,sans-serif;
+  --font-head:'Manrope',system-ui,-apple-system,sans-serif;
+  --font-btn:'Inter',system-ui,-apple-system,sans-serif;
+  --head-weight:600; --head-spacing:-0.2px; --head-transform:none;
+  --radius:9px;
+  background:var(--bg);color:var(--text);
+  font-family:var(--font-body);-webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body{ --accent-line: color-mix(in srgb, var(--accent) 36%, transparent); }
+
+/* ── Shared primitives (mirrored from mylist.html; the Insight component
+      language is inlined here rather than guarded behind :not([data-profile])
+      because Solace only ever renders Tony's chrome) ── */
+button,input,select,textarea{font-family:var(--font-body);color:var(--text);}
+input,textarea,select{background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px 13px;font-size:13.5px;font-weight:500;outline:none;width:100%;transition:border-color .18s;}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);}
+input::placeholder,textarea::placeholder{color:var(--textmute);}
+select{appearance:none;-webkit-appearance:none;cursor:pointer;}
+textarea{resize:none;line-height:1.45;overflow:hidden;}
+.field{display:block;}
+.field>.lbl{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:var(--accent-pale);opacity:.8;margin:0 0 7px;font-family:var(--font-btn);}
+
+.wordmark{font-family:var(--suite-display);font-weight:750;letter-spacing:-.4px;line-height:1.2;color:#e0b874;}
+
+/* ONE rule for every button: at rest a quiet hairline and no glow; under the
+   cursor the accent border lights up with the suite glow. A permanently lit
+   outline reads as an active/selected state, which is why it is reserved for
+   things that really are selected (tabs, chips — further down). */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--border2);background:transparent;color:var(--text);
+  border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;
+  font-family:var(--font-btn);white-space:nowrap;box-shadow:none;transition:border-color .18s,color .18s,transform .05s;}
+.btn:hover{border-color:var(--accent-deep);color:var(--accent-bright);box-shadow:var(--gold-glow);}
+.btn:active{transform:translateY(1px);}
+/* "solid" keeps its emphasis through a gold outline rather than a gold fill. */
+.btn.solid{background:transparent;color:var(--accent-bright);border-color:var(--accent-line);box-shadow:none;}
+.btn.solid:hover{border-color:var(--accent);box-shadow:var(--gold-glow);}
+.btn.ghost{color:var(--textdim);border-color:var(--border);}
+.btn.ghost:hover{color:var(--text);border-color:var(--textdim);}
+.btn.danger{color:var(--bad);border-color:rgba(214,138,124,.3);}
+.btn.danger:hover{border-color:var(--bad);}
+.btn.danger.solid{background:transparent;color:var(--bad);border-color:rgba(214,138,124,.45);}
+.btn.sm{padding:7px 13px;font-size:11px;border-radius:6px;}
+/* Icon sizing for the SHARED .btn only — deliberately enumerated per surface
+   instead of a blanket `.btn svg`. MotionCore's markup sizes its own icons with
+   width/height ATTRIBUTES (11, 12, 13px, and 1em for the TNI glyphs), and a
+   blanket rule outranks a presentation attribute — it silently inflated every one
+   of them to 15px, which is not how MotionCore looked in index.html. Scoping the
+   rule to the surfaces that actually use the shared button keeps MyList's icon
+   sizing for Recipes and leaves #mc-root exactly as it was. */
+#rec-root .btn svg,
+#rec-modal .btn svg,
+#confirm-overlay .btn svg,
+#dev-overlay .btn svg,
+#float-voice .btn svg,
+.icon-btn svg{display:block;width:15px;height:15px;flex-shrink:0;}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--textdim);cursor:pointer;flex-shrink:0;box-shadow:none;transition:border-color .18s,color .18s,box-shadow .18s;}
+.icon-btn:hover{color:var(--accent-bright);border-color:var(--accent);box-shadow:var(--gold-glow);}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
+.empty{text-align:center;color:var(--textmute);font-size:14px;padding:30px 10px;}
+.list-head{display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap;}
+.list-head .ttl{font-family:var(--font-head);font-weight:var(--head-weight);font-size:18px;color:var(--text);letter-spacing:var(--head-spacing);flex:1;min-width:0;border:none;background:transparent;padding:1px 0;}
+.list-meta{font-size:11px;color:var(--textmute);margin-bottom:1px;}
+.spin{width:15px;height:15px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite;display:inline-block;}
+@keyframes sp{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SOLACE SHELL — header (wordmark + sync + lock), primary sections and subtabs.
+   The nav is DATA-DRIVEN (see SOLACE_SECTIONS in the shell script): adding a
+   future Fitness or Nutrition feature is one registry entry plus one pane div,
+   with no change to any of the CSS or routing below.
+   ══════════════════════════════════════════════════════════════════════════ */
+#sol-root{display:none;min-height:100%;flex-direction:column;}
+#sol-root.on{display:flex;}
+#sol-hbar{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--border);
+  padding:calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,4vw,22px) 0;}
+#sol-hbar-inner{max-width:1100px;margin:0 auto;width:100%;}
+.sol-hbar-row1{display:flex;align-items:center;gap:10px;min-height:38px;}
+#sol-title{font-size:clamp(21px,2.6vw,28px);flex-shrink:0;}
+.sol-spacer{flex:1;}
+.sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--textdim);font-family:var(--font-btn);
+  padding:5px 9px;border-radius:20px;border:1px solid var(--border);white-space:nowrap;transition:opacity .45s;}
+.sync-pill.idle{opacity:0;pointer-events:none;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--textmute);flex-shrink:0;}
+.sync-pill.ok .sync-dot{background:var(--good);}
+.sync-pill.busy .sync-dot{background:var(--gold-primary);animation:pulse 1s infinite;}
+.sync-pill.err{color:var(--bad);border-color:rgba(212,122,106,0.5);} .sync-pill.err .sync-dot{background:var(--bad);}
+
+/* Primary sections — the top-level rail. Underline, not a pill: it reads as
+   "which part of the program am I in", one level above the subtabs' chips. */
+#sol-sections{display:flex;gap:2px;margin-top:12px;overflow-x:auto;}
+.sol-sec-btn{position:relative;background:none;border:none;color:var(--textmute);cursor:pointer;font-family:var(--font-btn);
+  font-size:12px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;padding:10px 16px 12px;white-space:nowrap;
+  transition:color .18s;}
+.sol-sec-btn:hover{color:var(--textdim);}
+.sol-sec-btn.on{color:var(--accent);}
+.sol-sec-btn::after{content:'';position:absolute;left:12px;right:12px;bottom:0;height:2px;border-radius:2px;background:transparent;transition:background .18s,box-shadow .18s;}
+.sol-sec-btn.on::after{background:var(--accent);box-shadow:0 0 8px rgba(224,184,116,.45);}
+
+/* Subtabs — the same segmented control MotionCore used for Circuits/Routines, so
+   the two levels of nav are visually distinct but obviously from one family. */
+#sol-subnav{max-width:1100px;margin:0 auto;width:100%;padding:18px clamp(12px,4vw,22px) 0;}
+.sol-subnav-group{display:none;}
+.sol-subnav-group.on{display:inline-flex;gap:4px;background:var(--surface);padding:4px;border-radius:10px;border:1px solid var(--border2);max-width:100%;overflow-x:auto;}
+.sol-sub-btn{background:none;border:none;color:var(--textdim);padding:7px 18px;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;
+  font-size:13px;font-weight:500;letter-spacing:.3px;transition:all .18s;white-space:nowrap;}
+.sol-sub-btn:hover{color:var(--text);background:var(--surface2);}
+.sol-sub-btn.on{background:transparent;color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent),0 0 8px rgba(224,184,116,.28);}
+/* A section with exactly one feature has nothing to switch between — the chip
+   would be decoration that never changes. Hidden until a second one ships. */
+.sol-subnav-group.solo{display:none !important;}
+
+#sol-main{flex:1;max-width:1100px;width:100%;margin:0 auto;
+  padding:18px clamp(12px,4vw,22px) calc(env(safe-area-inset-bottom,0px) + 170px);}
+.sol-pane{display:none;}
+.sol-pane.on{display:block;animation:solFadeUp .25s ease;}
+@keyframes solFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+@media(max-width:520px){
+  .sol-sec-btn{font-size:11px;padding:9px 12px 11px;letter-spacing:.9px;}
+  .sol-sec-btn::after{left:9px;right:9px;}
+  .sol-sub-btn{padding:6px 13px;font-size:12px;}
+}
+
+/* ── Toast ── */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 92px);
+  background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:700;
+  z-index:9500;box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:88vw;text-align:center;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.err{border-color:var(--bad);color:var(--bad);}
+
+/* ── Confirm modal ── */
+#confirm-overlay{position:fixed;inset:0;z-index:9700;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.82);backdrop-filter:blur(5px);padding:22px;}
+#confirm-box{width:100%;max-width:340px;background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:22px;text-align:center;}
+#confirm-msg{font-size:15px;color:var(--text);margin-bottom:18px;line-height:1.4;font-weight:600;}
+#confirm-row{display:flex;gap:8px;} #confirm-row .btn{flex:1;justify-content:center;}
+
+/* ── App Lock overlay (mirrors index.html / vault.html applock) ── */
+#applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;
+  background-image:radial-gradient(120% 50% at 50% -10%,rgba(224,184,116,.065),transparent 70%);
+  display:none;align-items:center;justify-content:center;font-family:var(--font-body);}
+#applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:34px 30px 22px;background:var(--surface);
+  border:1px solid rgba(224,184,116,.22);border-radius:18px;width:350px;max-width:calc(100vw - 32px);box-shadow:0 32px 80px rgba(0,0,0,.7);position:relative;}
+#applock-head{text-align:center;display:flex;flex-direction:column;gap:5px;}
+#applock-form{width:100%;display:flex;flex-direction:column;gap:10px;}
+#applock-links{display:flex;flex-direction:column;align-items:center;gap:5px;}
+#applock-foot{width:100%;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:center;}
+@keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+#applock-box.shake{animation:applock-shake 0.4s ease;}
+#applock-icon{line-height:0;color:var(--accent);}
+#applock-icon svg{width:30px;height:30px;display:block;}
+#applock-title{font-family:var(--suite-display);font-size:25px;font-weight:750;letter-spacing:-.4px;color:var(--text);}
+#applock-sub{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:var(--textmute);text-align:center;line-height:1.6;}
+#applock-pw{background:var(--surface);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:15px;font-weight:500;
+  padding:14px 16px;font-family:var(--font-body);outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s;}
+#applock-pw:focus{border-color:var(--accent);}
+#applock-pw.error{border-color:var(--bad);}
+#applock-err{font-size:12.5px;color:var(--bad);font-weight:500;text-align:center;min-height:16px;}
+#applock-submit{background:transparent;color:var(--accent-bright);border:1px solid var(--accent-line);border-radius:6px;padding:14px 0;
+  font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:var(--font-body);width:100%;transition:border-color .18s,opacity .18s;}
+#applock-submit:hover:not(:disabled){border-color:var(--accent);}
+#applock-submit:disabled{opacity:0.4;cursor:default;}
+#applock-cancel{background:transparent;border:none;color:var(--textmute);font-size:13px;cursor:pointer;font-family:var(--font-body);
+  padding:2px 10px;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
+#applock-forgot{background:transparent;border:none;color:var(--textmute);font-size:12px;cursor:pointer;font-family:var(--font-body);
+  padding:0;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
+#applock-reset{background:transparent;border:none;color:var(--textmute);font-size:12px;cursor:pointer;font-family:var(--font-body);
+  padding:2px 0 0;text-decoration:underline;text-underline-offset:3px;width:100%;text-align:center;transition:color .15s;}
+#applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:var(--textdim);}
+#applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0;}
+#applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--textdim);}
+</style>
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   FITNESS ▸ MOTIONCORE — scoped styles, migrated from index.html's #mc-root
+   block. Every selector below is identical to the original except the root box
+   itself: MotionCore used to be a `position:fixed; inset:0` full-screen app with
+   its own header, and inside Solace it is a PANE in the shared scroll container
+   instead. So the root loses its fixed positioning, its own header chrome
+   (.app-hbar / .mc-hbar-logo — Solace's header replaces it) and the noise wash
+   that was painted against it; `main` loses its padding because #sol-main
+   already owns the page gutter. Nothing else moved, which is why the cards,
+   modals, drag ghost and timer are pixel-for-pixel what they were.
+
+   NOTE ON display: the root deliberately sets NO display property. Visibility is
+   owned by .sol-pane / .sol-pane.on, and an #id rule would outrank those.
+
+   The .btn family here is MotionCore's own (filled gold primary, 8px radius,
+   mixed case) and is scoped under #mc-root, so it never collides with the
+   suite-wide .btn used by Recipes and the shell. text-transform/box-shadow are
+   restated explicitly because the shared .btn sets them.
+   ══════════════════════════════════════════════════════════════════════════ */
+#mc-root{color:var(--text);font-family:'DM Sans',sans-serif;}
+#mc-root *{box-sizing:border-box;margin:0;padding:0;}
+#mc-root main{max-width:none;margin:0;padding:0;position:relative;}
+#mc-root .mc-view{display:none;}
+#mc-root .mc-view.active{display:block;animation:mcFadeUp .25s ease;}
+@keyframes mcFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+#mc-root .mc-inner-nav{display:flex;gap:4px;background:#232327;padding:4px;border-radius:10px;border:1px solid #45454c;}
+#mc-root .mc-inner-nav button{background:none;border:none;color:#adadb2;padding:7px 18px;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;letter-spacing:.3px;transition:all .18s;white-space:nowrap;touch-action:manipulation;}
+#mc-root .mc-inner-nav button:hover{color:#f4f3f0;background:#2c2c31;}
+#mc-root .mc-inner-nav button.active{background:transparent;color:#e0b874;box-shadow:inset 0 0 0 1px #e0b874,0 0 8px rgba(224,184,116,.28);}
+#mc-root .section-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;gap:12px;}
+#mc-root .section-title{font-family:var(--suite-display);font-size:32px;font-weight:750;letter-spacing:-.6px;line-height:1.1;}
+#mc-root .section-subtitle{font-size:13px;color:#8d8d94;margin-top:4px;font-weight:300;}
+#mc-root .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;transition:all .18s;letter-spacing:.2px;text-transform:none;box-shadow:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+/* Rest carries no glow — the lift and the gold halo arrive on hover. */
+#mc-root .btn-primary{background:#e0b874;color:#1a1a1d;box-shadow:none;}
+#mc-root .btn-primary:hover{background:#e0b874;box-shadow:0 4px 20px rgba(224,184,116,.45);transform:translateY(-1px);}
+#mc-root .btn-ghost{background:#2c2c31;color:#adadb2;border:1px solid #45454c;}
+#mc-root .btn-ghost:hover{background:#37373d;color:#f4f3f0;transform:translateY(-1px);box-shadow:0 0 8px rgba(244,243,240,.12),0 0 0 1px rgba(244,243,240,.08);}
+#mc-root .btn-danger{background:rgba(220,70,80,.12);color:#dc4650;border:1px solid rgba(220,70,80,.2);}
+#mc-root .btn-danger:hover{background:rgba(220,70,80,.22);box-shadow:0 0 8px rgba(220,70,80,.34),0 0 0 1px rgba(220,70,80,.15);}
+#mc-root .btn-sm{padding:6px 12px;font-size:12px;border-radius:6px;}
+#mc-root .btn-icon{padding:7px;border-radius:6px;}
+#mc-root .drag-handle{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;cursor:grab;color:#8d8d94;flex-shrink:0;touch-action:none;transition:color .15s,background .15s;-webkit-tap-highlight-color:transparent;user-select:none;}
+#mc-root .drag-handle:hover{color:#adadb2;background:#2c2c31;}
+#mc-root .drag-handle:active{cursor:grabbing;}
+#mc-root .drag-placeholder{border:2px dashed #e0b874;border-radius:12px;background:rgba(224,184,116,.05);flex-shrink:0;transition:height .15s;}
+#mc-root .circuit-card{background:#232327;border:1px solid #34343a;border-radius:14px;margin-bottom:14px;overflow:hidden;transition:border-color .18s;}
+#mc-root .circuit-card:hover{border-color:#45454c;}
+#mc-root .circuit-card-header{display:flex;align-items:center;gap:10px;padding:18px 20px;cursor:pointer;user-select:none;}
+#mc-root .circuit-card-info{flex:1;min-width:0;pointer-events:none;}
+#mc-root .circuit-card-title{font-size:16px;font-weight:500;letter-spacing:-.2px;white-space:normal;word-break:break-word;}
+#mc-root .circuit-card-meta{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;}
+#mc-root .circuit-card-desc{font-size:12px;color:#adadb2;font-weight:300;margin-top:2px;white-space:normal;word-break:break-word;}
+#mc-root .circuit-card-actions{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+#mc-root .circuit-body{border-top:1px solid #34343a;padding:16px 20px 20px;}
+#mc-root .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;letter-spacing:.3px;}
+#mc-root .badge-accent{background:transparent;color:#e0b874;border:1px solid rgba(224,184,116,.4);}
+#mc-root .badge-muted{background:#2c2c31;color:#adadb2;border:1px solid #45454c;}
+#mc-root .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:16px;opacity:0;visibility:hidden;transition:none;}
+#mc-root .modal-overlay.open{display:flex;opacity:1;visibility:visible;animation:mcFadeIn .18s ease;}
+@keyframes mcFadeIn{from{opacity:0}to{opacity:1}}
+#mc-root .modal{background:#232327;border:1px solid #45454c;border-radius:18px;padding:28px 24px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;animation:mcSlideUp .22s ease;transform:none;}
+#mc-root .modal-overlay.open .modal{transform:none;}
+@keyframes mcSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+#mc-root .modal-title{font-family:var(--suite-display);font-size:21px;font-weight:750;letter-spacing:-.3px;margin-bottom:22px;}
+#mc-root .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;padding-top:18px;border-top:1px solid #34343a;}
+#mc-root .form-group{margin-bottom:16px;}
+#mc-root label{display:block;font-size:11px;font-weight:500;color:#adadb2;margin-bottom:7px;letter-spacing:.5px;text-transform:uppercase;}
+#mc-root input[type="text"],#mc-root input[type="number"],#mc-root textarea,#mc-root select{width:100%;background:#1a1a1d;border:1px solid #45454c;border-radius:8px;padding:11px 14px;color:#f4f3f0;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:400;outline:none;transition:border-color .18s,box-shadow .18s;resize:vertical;-webkit-appearance:none;}
+#mc-root input:focus,#mc-root textarea:focus,#mc-root select:focus{border-color:#e0b874;box-shadow:0 0 0 3px rgba(224,184,116,.1);}
+#mc-root textarea{min-height:80px;}
+#mc-root input[type="number"]{-moz-appearance:textfield;}
+#mc-root input[type="number"]::-webkit-inner-spin-button{display:none;}
+#mc-root .modules-list{display:flex;flex-direction:column;gap:8px;}
+#mc-root .module-item{display:flex;align-items:center;gap:12px;background:#2c2c31;border:1px solid #45454c;border-radius:10px;padding:11px 14px;}
+#mc-root .module-num{font-family:'Bebas Neue',sans-serif;font-size:18px;color:#8d8d94;min-width:22px;text-align:center;}
+#mc-root .module-info{flex:1;min-width:0;}
+#mc-root .module-name{font-size:14px;font-weight:500;}
+#mc-root .module-meta{font-size:12px;color:#8d8d94;margin-top:2px;font-weight:300;}
+#mc-root .module-time{font-family:'Bebas Neue',sans-serif;font-size:17px;color:#e0b874;min-width:44px;text-align:right;flex-shrink:0;}
+#mc-root .timer-overlay{display:none;position:fixed;inset:0;background:rgba(10,10,12,.97);backdrop-filter:blur(8px);z-index:10000;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;}
+#mc-root .timer-overlay.open{display:flex;}
+#mc-root .timer-circuit-name{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:4px;color:#8d8d94;text-transform:uppercase;}
+#mc-root .timer-exercise{font-family:'Bebas Neue',sans-serif;font-size:clamp(32px,8vw,52px);letter-spacing:2px;max-width:90vw;}
+#mc-root .timer-desc{font-size:14px;color:#8d8d94;max-width:380px;font-weight:300;}
+#mc-root .timer-display{position:relative;width:clamp(160px,45vw,210px);height:clamp(160px,45vw,210px);margin:4px 0;}
+#mc-root .timer-ring{position:absolute;inset:0;transform:rotate(-90deg);}
+#mc-root .timer-ring-track{fill:none;stroke:#232327;stroke-width:8;}
+#mc-root .timer-ring-fill{fill:none;stroke:#e0b874;stroke-width:8;stroke-linecap:round;stroke-dasharray:628;stroke-dashoffset:0;transition:stroke-dashoffset 1s linear,stroke .3s;filter:drop-shadow(0 0 8px rgba(224,184,116,0.35));}
+#mc-root .timer-number{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+#mc-root .timer-seconds{font-family:'Bebas Neue',sans-serif;font-size:clamp(56px,14vw,80px);line-height:1;letter-spacing:-2px;}
+#mc-root .timer-label{font-size:10px;letter-spacing:3px;color:#8d8d94;text-transform:uppercase;margin-top:-4px;}
+#mc-root .timer-progress{font-size:13px;color:#8d8d94;letter-spacing:2px;}
+#mc-root .timer-controls{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;justify-content:center;}
+#mc-root .timer-next{font-family:'Bebas Neue',sans-serif;font-size:clamp(18px,4.5vw,28px);color:#8d8d94;letter-spacing:2px;text-transform:uppercase;max-width:90vw;}
+#mc-root .timer-next span{color:#e0b874;}
+#mc-root .routine-card{background:#232327;border:1px solid #34343a;border-radius:14px;margin-bottom:14px;overflow:hidden;transition:border-color .18s;}
+#mc-root .routine-card:hover{border-color:#45454c;}
+#mc-root .routine-card-header{display:flex;align-items:center;gap:10px;padding:18px 20px;cursor:pointer;user-select:none;}
+#mc-root .routine-card-header:hover .routine-title{color:#e0b874;}
+#mc-root .routine-title{font-family:var(--suite-display);font-size:17px;font-weight:750;letter-spacing:-.2px;color:#f4f3f0;transition:color .18s;flex:1;min-width:0;pointer-events:none;}
+#mc-root .routine-body{padding:0 20px 20px;border-top:1px solid #45454c;}
+#mc-root .routine-content{font-size:14px;color:#f4f3f0;line-height:1.55;font-weight:400;padding-top:14px;word-break:break-word;display:flex;flex-direction:column;gap:14px;}
+/* Each blank-line block becomes a card of its own so a long routine scans as
+   sections (chest / shoulders / triceps) rather than one wall of lines. */
+#mc-root .routine-group{background:#2c2c31;border:1px solid #45454c;border-left:2px solid var(--gold-primary,#e0b874);border-radius:8px;overflow:hidden;}
+#mc-root .routine-line{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:9px 14px;}
+#mc-root .routine-line + .routine-line{border-top:1px solid rgba(255,255,255,.06);}
+#mc-root .routine-line-name{color:#f4f3f0;font-weight:500;min-width:0;}
+/* The quantity half is a number, not a label — quiet, tabular, right-aligned. */
+#mc-root .routine-line-detail{color:#e0b874;font-size:12.5px;font-weight:600;white-space:nowrap;flex-shrink:0;font-variant-numeric:tabular-nums;}
+#mc-root .routine-empty{color:#8d8d94;font-family:var(--font-accent);}
+@media(max-width:520px){
+  #mc-root .routine-line{flex-direction:column;align-items:flex-start;gap:2px;}
+}
+#mc-root .empty-state{text-align:center;padding:56px 20px;color:#8d8d94;}
+#mc-root .empty-icon{font-size:36px;margin-bottom:12px;opacity:.4;}
+#mc-root .empty-title{font-size:15px;font-weight:500;color:#adadb2;margin-bottom:5px;}
+#mc-root .empty-sub{font-size:13px;font-weight:300;}
+#mc-root hr{border:none;border-top:1px solid #34343a;margin:18px 0;}
+#mc-root .add-module-row{display:flex;gap:10px;align-items:flex-end;}
+#mc-root .add-module-row .form-group{margin-bottom:0;}
+#mc-root .add-module-row .fg-name{flex:2;}
+#mc-root .add-module-row .fg-time{flex:1;min-width:80px;}
+#mc-root .modules-builder{background:#1a1a1d;border:1px solid #45454c;border-radius:10px;padding:14px;margin-top:14px;}
+#mc-root .modules-builder-title{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#8d8d94;margin-bottom:10px;}
+#mc-root .module-builder-item{display:flex;align-items:center;gap:8px;background:#2c2c31;border:1px solid #45454c;border-radius:8px;padding:9px 10px;margin-bottom:7px;touch-action:none;}
+#mc-root .module-builder-item:last-child{margin-bottom:0;}
+#mc-root .mbitem-name{flex:1;font-size:13px;font-weight:500;min-width:0;}
+#mc-root .mbitem-time{font-family:'Bebas Neue',sans-serif;font-size:15px;color:#e0b874;min-width:40px;text-align:right;flex-shrink:0;}
+#mc-root .mbitem-desc{font-size:12px;color:#8d8d94;font-weight:300;}
+#mc-root .mbitem-edit-row{display:flex;gap:6px;align-items:center;flex:1;min-width:0;}
+#mc-root .mbitem-edit-row input[type="text"],#mc-root .mbitem-edit-row input[type="number"]{padding:5px 8px;font-size:13px;}
+#mc-root .mbitem-edit-row input[type="number"]{width:60px;flex-shrink:0;}
+#mc-root .run-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;background:transparent;border:1px solid rgba(224,184,116,.36);border-radius:7px;color:#e0b874;font-size:12px;font-weight:500;cursor:pointer;transition:all .18s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
+#mc-root .run-btn:hover{background:transparent;border-color:#e0b874;transform:translateY(-1px);box-shadow:0 0 8px rgba(224,184,116,.4),0 0 0 1px rgba(224,184,116,.15);}
+#mc-root .chevron{transition:transform .2s;flex-shrink:0;}
+#mc-root .chevron.open{transform:rotate(180deg);}
+#mc-root .pulse{animation:mcPulse 1.5s ease-in-out infinite;}
+@keyframes mcPulse{0%,100%{opacity:1}50%{opacity:.5}}
+@media(max-width:480px){
+  #mc-root .section-title{font-size:30px;}
+  #mc-root .btn{padding:9px 14px;font-size:12px;}
+  #mc-root .circuit-card-header,#mc-root .routine-card-header{padding:14px 14px;}
+  #mc-root .circuit-body{padding:12px 14px 16px;}
+  #mc-root .modal{padding:22px 18px;}
+  #mc-root .add-module-row{flex-direction:column;}
+  #mc-root .add-module-row .fg-time{min-width:unset;}
+  #mc-root .timer-controls .btn{padding:8px 12px;font-size:12px;}
+  #mc-root .mc-inner-nav button{padding:6px 13px;font-size:12px;}
+}
+@media(max-width:360px){
+  #mc-root .circuit-card-actions{gap:4px;}
+  #mc-root .run-btn{padding:5px 10px;font-size:11px;}
+  #mc-root .btn-icon{padding:6px;}
+}
+</style>
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   NUTRITION ▸ RECIPES — scoped styles, migrated from mylist.html. Identical to
+   the originals; the only change is that MyList's `body:not([data-profile=veda])`
+   guards are gone, because Solace has no Veda profile to guard against — the
+   Insight component language they used to gate is simply the base style here
+   (see the shared primitives at the top of this file).
+   ══════════════════════════════════════════════════════════════════════════ */
+.rec-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.rec-toolbar .rec-search{flex:1;min-width:150px;}
+.rec-toolbar .rec-filter{width:auto;min-width:140px;flex-shrink:0;}
+.rec-row{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s;}
+.rec-row:hover{border-color:var(--border2);}
+.rec-row .rec-info{flex:1;min-width:0;}
+.rec-row .rec-name{font-family:var(--font-head);font-weight:700;font-size:16px;color:var(--text);word-break:break-word;}
+.rec-row .rec-meta{font-size:12px;color:var(--textdim);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap;}
+.rec-tag{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:5px;letter-spacing:.2px;white-space:nowrap;font-family:var(--font-btn);display:inline-flex;align-items:center;gap:4px;}
+.rec-tag.time{background:var(--surface2);border:1px solid var(--border2);color:var(--textdim);}
+.rec-row .rec-acts{display:flex;gap:4px;flex-shrink:0;}
+.rec-row .rec-acts .ib{width:32px;height:32px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--textmute);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.rec-row .rec-acts .ib:hover{color:var(--accent);border-color:var(--border);}
+.rec-row .rec-acts .ib.del:hover{color:var(--bad);border-color:rgba(212,122,106,.4);}
+.rec-detail-name{font-family:var(--font-head);font-weight:var(--head-weight);font-size:25px;letter-spacing:var(--head-spacing);color:var(--text);margin-bottom:10px;word-break:break-word;}
+.rec-detail-tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+.rec-sec{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin:20px 0 10px;font-family:var(--font-btn);}
+.rec-ing{display:flex;justify-content:space-between;gap:12px;padding:9px 2px;border-bottom:1px solid var(--border);}
+.rec-ing .nm{color:var(--text);font-weight:600;font-size:14px;}
+.rec-ing .qt{color:var(--accent);font-weight:700;font-size:13px;white-space:nowrap;}
+.rec-tools{display:flex;gap:8px;flex-wrap:wrap;}
+.rec-tool{background:var(--surface2);border:1px solid var(--border2);border-radius:18px;padding:6px 13px;font-size:12.5px;color:var(--textdim);font-weight:600;}
+.rec-instr{white-space:pre-wrap;line-height:1.65;color:var(--text);font-size:14.5px;}
+.rec-muted{font-size:13px;color:var(--textmute);font-style:normal;font-family:var(--font-accent);}
+/* editable instruction steps (detail view) */
+.rec-steps{display:flex;flex-direction:column;gap:1px;margin-bottom:4px;}
+.rec-step{display:flex;gap:10px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid var(--border);}
+.rec-step .rec-step-n{color:var(--accent);font-weight:700;font-size:14.5px;min-width:20px;line-height:1.55;flex-shrink:0;}
+.rec-step .rec-step-t{flex:1;min-width:0;color:var(--text);font-size:14.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word;}
+.rec-step .rec-step-acts{display:flex;gap:2px;flex-shrink:0;}
+.rec-step .rec-step-acts .ib{width:28px;height:28px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--textmute);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.rec-step .rec-step-acts .ib:hover{color:var(--accent);border-color:var(--border);}
+.rec-step .rec-step-acts .ib.del:hover{color:var(--bad);border-color:rgba(212,122,106,.4);}
+.rec-step.editing{flex-direction:row;align-items:flex-start;gap:8px;}
+.rec-step.editing .se-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
+.rec-step.editing .se-acts{display:flex;gap:8px;justify-content:flex-end;}
+
+/* recipe modal */
+#rec-modal{position:fixed;inset:0;z-index:9700;display:none;align-items:flex-start;justify-content:center;background:rgba(8,8,11,.84);backdrop-filter:blur(6px);padding:max(env(safe-area-inset-top,0px),16px) 14px 24px;overflow-y:auto;}
+.rec-mbox{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border2);border-radius:18px;padding:22px;margin:auto;}
+.rec-mbox h3{font-family:var(--font-head);font-weight:var(--head-weight);font-size:21px;margin-bottom:16px;letter-spacing:var(--head-spacing);text-transform:var(--head-transform);}
+.rec-ing-row{display:grid;grid-template-columns:1fr 92px 38px;gap:8px;margin-bottom:8px;}
+.rec-tool-row{display:grid;grid-template-columns:1fr 38px;gap:8px;margin-bottom:8px;}
+.rec-rm{border:1px solid var(--border2);background:transparent;color:var(--bad);border-radius:9px;cursor:pointer;font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+.rec-rm:hover{background:var(--bad);color:#fff;border-color:var(--bad);}
+.rec-addrow{background:transparent;border:1px dashed var(--border2);color:var(--accent);border-radius:9px;padding:9px;width:100%;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--font-btn);margin-top:4px;}
+.rec-addrow:hover{border-color:var(--accent);}
+
+/* ── resizable textarea wrapper ── */
+.ta-wrap{position:relative;width:100%;}
+.ta-wrap textarea{padding-right:22px;padding-bottom:22px;}
+.resize-grip{position:absolute;right:5px;bottom:4px;width:18px;height:18px;cursor:ns-resize;touch-action:none;display:flex;align-items:center;justify-content:center;
+  color:var(--accent);opacity:.6;background:transparent;border:none;}
+.resize-grip:hover{opacity:1;}
+.resize-grip svg{width:15px;height:15px;}
+
+/* ── Voice: live caption + the floating voice/type bar ── */
+#top-caption{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);z-index:9600;display:none;
+  width:min(560px,92vw);max-height:30vh;overflow-y:auto;background:var(--surface2);border:1.5px solid var(--accent);border-radius:14px;
+  padding:13px 16px;font-size:16px;color:var(--text);line-height:1.45;text-align:left;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+#top-caption.show{display:block;}
+#top-caption .cap-h{font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:6px;font-family:var(--font-btn);display:flex;align-items:center;gap:6px;}
+#top-caption .cap-h .rdot{width:8px;height:8px;border-radius:50%;background:var(--bad);animation:pulse 1s infinite;}
+#top-caption .interim{color:var(--textmute);}
+
+#float-voice{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);z-index:55;display:none;
+  align-items:flex-end;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:24px;padding:8px;
+  width:min(580px,94vw);box-shadow:0 12px 40px rgba(0,0,0,.5);}
+#float-voice.show{display:flex;}
+#float-mic{width:46px;height:46px;border-radius:50%;border:none;background:var(--accent);color:var(--accent-ink);flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+#float-mic.recording{background:var(--bad);color:#fff;animation:recpulse 1.3s infinite;}
+@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(212,122,106,.5)}50%{box-shadow:0 0 0 18px rgba(212,122,106,0)}}
+#float-mic svg{width:22px;height:22px;}
+#float-dev{width:40px;height:46px;border-radius:14px;border:1px solid var(--border);background:transparent;color:var(--textdim);flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+#float-dev:hover{border-color:var(--accent);color:var(--accent);}
+#float-dev svg{width:18px;height:18px;}
+.fv-input{flex:1;min-width:0;}
+#float-text{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:12px 14px;font-size:14px;width:100%;max-height:120px;line-height:1.4;display:block;}
+#float-voice .fgo{flex-shrink:0;height:46px;border-radius:18px;padding:0 16px;}
+#float-rec-hint{display:none;flex:1;min-width:0;align-items:center;justify-content:center;color:var(--bad);font-weight:800;font-size:13px;font-family:var(--font-btn);text-align:center;padding:0 6px;min-height:46px;line-height:1.25;}
+#float-voice.recording .fv-input,#float-voice.recording .fgo,#float-voice.recording #float-dev{display:none;}
+#float-voice.recording #float-rec-hint{display:flex;}
+
+/* device picker popover */
+#dev-overlay{position:fixed;inset:0;z-index:9650;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.7);backdrop-filter:blur(4px);padding:22px;}
+#dev-box{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:18px;}
+#dev-box h3{font-family:var(--font-head);font-weight:var(--head-weight);font-size:17px;margin-bottom:4px;letter-spacing:var(--head-spacing);}
+#dev-box .dev-sub{font-size:12px;color:var(--textdim);margin-bottom:14px;}
+.dev-item{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:14px;color:var(--text);}
+.dev-item:hover{border-color:var(--accent);}
+.dev-item.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700;}
+.dev-item .tick{margin-left:auto;color:var(--accent);}
+
+/* drag-and-drop: floating ghost + insertion line (no list reflow = smooth) */
+.dnd-ghost{position:fixed;left:0;top:0;margin:0;pointer-events:none;z-index:9999;opacity:.96;border-radius:12px;
+  box-shadow:0 14px 38px rgba(0,0,0,.55),0 0 0 1.5px var(--accent);will-change:transform;}
+.dnd-src{opacity:.32;}
+.rec-row,.rec-step{-webkit-touch-callout:none;}
+.dnd-indicator{position:fixed;height:3px;background:var(--accent);border-radius:3px;z-index:9998;pointer-events:none;box-shadow:0 0 10px var(--accent);}
+body.dnd-active{cursor:grabbing;}
+body.dnd-active *{cursor:grabbing !important;}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ Biometric auth (WebAuthn / platform passkeys) ══════════════
+     Shared, dependency-free helper — the SAME one index.html, vault.html and
+     mylist.html carry. Primary auth = the device's own biometric (Face ID /
+     Touch ID on iOS, fingerprint on Android/Samsung, Windows Hello on Windows)
+     through the OS secure framework. The app NEVER sees or stores raw biometric
+     data — WebAuthn returns only a public-key credential handle. Credentials are
+     keyed per (app,id) so Solace keeps its own isolated credential: no other
+     program's biometric can satisfy this unlock, because each unlock only allows
+     its own stored credential id. -->
+<script>
+(function(){
+  if (window.Bio) return;
+  var NS = 'bio_cred_';
+  function u8(buf){ return new Uint8Array(buf); }
+  function b64u(buf){ var b=u8(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+  function unb64u(str){ str=String(str).replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
+  function rand(n){ var a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
+  function keyOf(app,id){ return NS+app+'_'+id; }
+  function supported(){ return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
+  function available(){
+    if(!supported()) return Promise.resolve(false);
+    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
+    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
+  }
+  function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
+  function isRegistered(app,id){ var r=stored(app,id); return !!(r&&r.id); }
+  function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
+  function label(){
+    var ua=navigator.userAgent||'';
+    if(/iPhone|iPad|iPod/.test(ua)) return 'Face ID';
+    if(/Android/.test(ua)) return 'fingerprint';
+    if(/Windows/.test(ua)) return 'Windows Hello';
+    if(/Mac/.test(ua)) return 'Touch ID';
+    return 'biometrics';
+  }
+  function register(app,id,opts){
+    opts=opts||{};
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    return navigator.credentials.create({publicKey:{
+      challenge: rand(32),
+      rp:{ name: opts.rpName||document.title||'App', id: location.hostname||undefined },
+      user:{ id: rand(16), name: opts.userName||(app+':'+id), displayName: opts.displayName||opts.userName||id },
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred' },
+      timeout: 60000, attestation:'none'
+    }}).then(function(cred){
+      if(!cred) return {ok:false,error:'cancelled'};
+      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), label:opts.displayName||opts.userName||id }));
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
+  }
+  function authenticate(app,id){
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    var rec=stored(app,id);
+    if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
+    return navigator.credentials.get({publicKey:{
+      challenge: rand(32),
+      allowCredentials:[{ type:'public-key', id: unb64u(rec.id) }],
+      userVerification:'required', timeout:60000, rpId: location.hostname||undefined
+    }}).then(function(asr){
+      if(!asr) return {ok:false,error:'cancelled'};
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
+  }
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label };
+})();
+</script>
+
+<script>
+  /* DURABLE LOCK STORE — localStorage mirrored into a long-lived cookie.
+     Why: the "unlocked once per device" record lived ONLY in localStorage, which
+     Brave (Tony's desktop) and mobile PWABs evict aggressively — so a plain
+     refresh/reopen silently dropped the unlock and re-prompted for the password.
+     The cookie survives many of those evictions; on read we prefer localStorage
+     and rehydrate it from the cookie when missing, so a device stays unlocked
+     until the password genuinely changes or the app is manually re-locked.
+     Identical to vault.html's copy; defined here BEFORE the gate so every lock
+     reader in this file shares it. */
+  (function(){
+    if (window.alDur) return;
+    var YEAR400 = 34560000; // seconds — browsers cap cookie lifetime near 400 days
+    function ck(k){
+      var m = document.cookie.match(new RegExp('(?:^|; )' + k.replace(/[.$?*|{}()\[\]\\\/+^-]/g,'\\$&') + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+    function writeCookie(k,v){
+      try { document.cookie = k + '=' + encodeURIComponent(v) + '; path=/; max-age=' + YEAR400 + '; SameSite=Lax'; } catch(e){}
+    }
+    window.alDur = {
+      get: function(k){
+        var v = null; try { v = localStorage.getItem(k); } catch(e){}
+        if (v != null) {
+          // Write-through: back-fill the cookie so a device already unlocked BEFORE
+          // this durable layer existed becomes eviction-proof on its very first load.
+          if (ck(k) == null) writeCookie(k, v);
+          return v;
+        }
+        var c = ck(k);
+        if (c != null) { try { localStorage.setItem(k, c); } catch(e){} }  // rehydrate
+        return c;
+      },
+      set: function(k,v){
+        try { localStorage.setItem(k, v); } catch(e){}
+        writeCookie(k, v);
+      },
+      remove: function(k){
+        try { localStorage.removeItem(k); } catch(e){}
+        try { document.cookie = k + '=; path=/; max-age=0; SameSite=Lax'; } catch(e){}
+      }
+    };
+  })();
+
+  /* SECURITY GATE — runs BEFORE first paint. If Solace is locked (per the durable
+     lock cache shared with index.html) and this device has not unlocked it, keep
+     the root hidden so no circuit, routine or recipe ever flashes on screen
+     before the password.
+
+     APPID is DISTINCT from index.html's 'tony_solace' (the lock on its Solace nav
+     BUTTON) so the two are fully independent: you can lock this app without
+     locking the button, lock the button without locking this app, or give them
+     different passwords. Exactly the split Vault uses between 'tony_keychain' and
+     'tony_vault_standalone', and TradeHub between 'tony_tradehub' and
+     'tony_tradehub_standalone'. All of them live in the one shared
+     dashboards/applock doc under separate keys, so each preserves the others'
+     entries on write. */
+  (function(){
+    var APPID = 'tony_solace_standalone';
+    var locks = {};
+    try { locks = JSON.parse(window.alDur.get('al_locks') || '{}'); } catch(e) {}
+    var entry = locks[APPID];
+    var isLocked = !!entry;
+    var v = (entry && entry.v) || 0;
+    var gotV = parseInt(window.alDur.get('al_unlockedv_' + APPID) || '0', 10);
+    var isUnlocked = v === 0
+      ? (window.alDur.get('al_unlocked_' + APPID) === '1' || gotV > 0)
+      : (gotV > 0 && gotV >= v);
+    window.__solGateBlocked = !!(isLocked && !isUnlocked);
+  })();
+</script>
+
+<!-- ══ Icon set — Lucide-style line icons, 24px grid, 1.5 stroke, currentColor.
+        The same vocabulary index.html (TNI), Vault, TradeHub and MyList (MLI)
+        draw from, so a "lock" or "refresh" is identical everywhere in the suite.
+        Exposed as SLI, and ALSO aliased to TNI/MLI so the migrated MotionCore and
+        Recipes code keeps rendering the exact glyphs it did in its old home. ══ -->
+<script>
+(function(){
+  function I(body){
+    return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" '
+         + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+  }
+  var SLI = {
+    lock:      I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+    unlock:    I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'),
+    key:       I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/>'),
+    shield:    I('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>'),
+    user:      I('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+    trash:     I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+    pencil:    I('<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>'),
+    x:         I('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+    check:     I('<path d="M20 6 9 17l-5-5"/>'),
+    alert:     I('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+    search:    I('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
+    undo:      I('<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/>'),
+    redo:      I('<path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h4"/>'),
+    arrowLeft: I('<path d="M19 12H5"/><path d="m11 6-6 6 6 6"/>'),
+    clock:     I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    plate:     I('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>'),
+    clipboard: I('<rect x="6" y="4" width="12" height="18" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6"/><path d="M9 15h4"/>'),
+    sparkle:   I('<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9Z"/><path d="M18.5 15.5 19 17l1.5.5L19 18l-.5 1.5L18 18l-1.5-.5L18 17Z"/>'),
+    refresh:   I('<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>')
+  };
+  // MotionCore reads TNI.*, Recipes reads MLI.* — same registry, so a glyph
+  // change here reaches both and neither port needed editing.
+  window.SLI = SLI; window.TNI = SLI; window.MLI = SLI;
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     SOLACE — Tony's health program.
+
+       Solace
+       ├── Fitness
+       │   └── MotionCore   (migrated from index.html, doc dashboards/motioncore)
+       └── Nutrition
+           └── Recipes      (migrated from mylist.html, doc dashboards/mealsuite)
+
+     Both sections are primary, both carry a subtab rail, and both read their
+     registry from SOLACE_SECTIONS in the shell script below — a future Fitness or
+     Nutrition feature is one registry entry plus one .sol-pane div.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div id="sol-root">
+  <div id="sol-hbar">
+    <div id="sol-hbar-inner">
+      <div class="sol-hbar-row1">
+        <span class="wordmark" id="sol-title">Solace</span>
+        <span class="sol-spacer"></span>
+        <span class="sync-pill" id="sync-pill"><span class="sync-dot"></span><span id="sync-text">Offline</span></span>
+        <button class="icon-btn" id="sol-lock-btn" title="Lock" onclick="SOL.manageLock()"></button>
+      </div>
+      <div id="sol-sections"></div>
+    </div>
+  </div>
+
+  <div id="sol-subnav"></div>
+
+  <div id="sol-main">
+
+    <!-- ══════════ FITNESS ▸ MOTIONCORE ══════════ -->
+    <div id="mc-root" class="sol-pane">
+      <main>
+        <div style="margin-bottom:20px;">
+          <div class="mc-inner-nav" style="display:inline-flex;">
+            <button id="mc-nav-circuits" class="active" onclick="mcSwitchView('circuits',this)">Circuits</button>
+            <button id="mc-nav-routines" onclick="mcSwitchView('routines',this)">Routines</button>
+          </div>
+        </div>
+        <div id="mc-view-circuits" class="mc-view active">
+          <div class="section-header">
+            <div>
+              <div class="section-title">Circuits</div>
+              <div class="section-subtitle">Timed exercise sequences with auto-advance</div>
+            </div>
+            <button class="btn btn-primary" onclick="mcOpenNewCircuitModal()">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              New Circuit
+            </button>
+          </div>
+          <div id="mc-circuits-list"></div>
+        </div>
+
+        <div id="mc-view-routines" class="mc-view">
+          <div class="section-header">
+            <div>
+              <div class="section-title">Routines</div>
+              <div class="section-subtitle">Your workout plans, sessions, and notes</div>
+            </div>
+            <button class="btn btn-primary" onclick="mcOpenNewRoutineModal()">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              New Routine
+            </button>
+          </div>
+          <div id="mc-routines-list"></div>
+        </div>
+      </main>
+
+      <!-- Circuit Modal -->
+      <div id="mc-circuit-modal" class="modal-overlay">
+        <div class="modal">
+          <div class="modal-title" id="mc-circuit-modal-title">NEW CIRCUIT</div>
+          <div class="form-group">
+            <label>Circuit Name</label>
+            <input type="text" id="mc-circuit-name" placeholder="e.g. Morning HIIT">
+          </div>
+          <div class="form-group">
+            <label>Description <span style="color:#8d8d94;font-weight:300;text-transform:none;letter-spacing:0">(optional)</span></label>
+            <textarea id="mc-circuit-desc" placeholder="What's this circuit about?"></textarea>
+          </div>
+          <hr>
+          <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#8d8d94;margin-bottom:12px;">Add Module</div>
+          <div class="add-module-row">
+            <div class="form-group fg-name"><label>Exercise Name</label><input type="text" id="mc-mod-name" placeholder="e.g. Plank Hold"></div>
+            <div class="form-group fg-time"><label>Seconds</label><input type="number" id="mc-mod-time" placeholder="30" min="1"></div>
+          </div>
+          <div class="form-group" style="margin-top:8px;">
+            <label>Description <span style="color:#8d8d94;font-weight:300;text-transform:none;letter-spacing:0">(optional)</span></label>
+            <input type="text" id="mc-mod-desc" placeholder="Optional notes">
+          </div>
+          <button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="mcAddModuleToBuild()">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            Add Module
+          </button>
+          <div class="modules-builder" id="mc-modules-builder" style="display:none;">
+            <div class="modules-builder-title">Modules <span id="mc-modules-count" style="color:#e0b874"></span> <span style="font-weight:300;color:#8d8d94;text-transform:none;letter-spacing:0;font-size:10px;">drag to reorder • tap edit</span></div>
+            <div id="mc-modules-build-list"></div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="mcCloseModal('mc-circuit-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="mcSaveCircuit()">Save Circuit</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Routine Modal -->
+      <div id="mc-routine-modal" class="modal-overlay">
+        <div class="modal">
+          <div class="modal-title" id="mc-routine-modal-title">NEW ROUTINE</div>
+          <div class="form-group"><label>Routine Name</label><input type="text" id="mc-routine-name" placeholder="e.g. Push Day A"></div>
+          <div class="form-group">
+            <label>Workout Content</label>
+            <textarea id="mc-routine-content" style="min-height:180px;" placeholder="Bench Press — 4x8 @ 185lb&#10;Incline DB Press — 3x10 @ 60lb&#10;Cable Fly — 3x12&#10;Tricep Pushdown — 3x15&#10;&#10;Cardio: 20min treadmill @ 3.5mph incline 6"></textarea>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="mcCloseModal('mc-routine-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="mcSaveRoutine()">Save Routine</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timer -->
+      <div id="mc-timer-overlay" class="timer-overlay">
+        <div class="timer-circuit-name" id="mc-timer-circuit-name"></div>
+        <div class="timer-exercise" id="mc-timer-exercise"></div>
+        <div class="timer-desc" id="mc-timer-exercise-desc"></div>
+        <div class="timer-display">
+          <svg class="timer-ring" viewBox="0 0 220 220">
+            <circle class="timer-ring-track" cx="110" cy="110" r="100"/>
+            <circle class="timer-ring-fill" id="mc-timer-ring-fill" cx="110" cy="110" r="100"/>
+          </svg>
+          <div class="timer-number">
+            <div class="timer-seconds" id="mc-timer-seconds">0</div>
+            <div class="timer-label" id="mc-timer-label">seconds</div>
+          </div>
+        </div>
+        <div class="timer-progress" id="mc-timer-progress"></div>
+        <div class="timer-next" id="mc-timer-next"></div>
+        <div class="timer-controls">
+          <button class="btn btn-ghost" id="mc-timer-pause-btn" onclick="mcTogglePause()">Pause</button>
+          <button class="btn btn-danger btn-sm" onclick="mcStopTimer()">End Session</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ NUTRITION ▸ RECIPES ══════════ -->
+    <!-- Rendered wholesale by renderRecipesView() / recDetailHtml(), exactly as
+         it was inside MyList's #list-view. -->
+    <div id="rec-root" class="sol-pane"></div>
+
+  </div>
+</div>
+
+<!-- live caption (fixed top, concise, scrollable) — Recipes voice input -->
+<div id="top-caption"><div class="cap-h"><span class="rdot"></span>Listening</div><div id="top-caption-body"></div></div>
+
+<!-- floating voice + type bar — shown only on the Recipes pane -->
+<div id="float-voice">
+  <button id="float-mic" onclick="SOL.micTap()" aria-label="Voice"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+  <button id="float-dev" title="Choose microphone" onclick="SOL.openDevicePicker()"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><circle cx="18.5" cy="5.5" r="3" fill="currentColor" stroke="none"/></svg></button>
+  <div class="fv-input"><textarea id="float-text" rows="1" placeholder="Type what you need…" oninput="SOL.autoGrow(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();SOL.sendFloatText();}"></textarea></div>
+  <button class="btn solid fgo" onclick="SOL.sendFloatText()">Go</button>
+  <span id="float-rec-hint">Tap mic again to stop &amp; process</span>
+</div>
+
+<!-- microphone picker -->
+<div id="dev-overlay"><div id="dev-box">
+  <h3>Microphone</h3>
+  <div class="dev-sub">Pick which input to record from.</div>
+  <div id="dev-list"></div>
+  <button class="btn ghost" style="width:100%;justify-content:center;margin-top:6px" onclick="SOL.closeDevicePicker()">Close</button>
+</div></div>
+
+<!-- recipe add/edit modal -->
+<div id="rec-modal"><div class="rec-mbox">
+  <h3 id="rec-modal-title">New Recipe</h3>
+  <label class="field" style="margin-bottom:12px"><span class="lbl">Recipe name *</span><input id="rec-name" placeholder="e.g. Chicken Stir Fry"></label>
+  <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <label class="field"><span class="lbl">Category</span><select id="rec-cat"><option>Breakfast</option><option>Lunch</option><option selected>Dinner</option><option>Snack</option><option>Dessert</option><option>Other</option></select></label>
+    <label class="field"><span class="lbl">Cook time</span><input id="rec-time" placeholder="e.g. 30 min"></label>
+  </div>
+  <label class="field" style="margin-bottom:12px"><span class="lbl">Servings</span><input id="rec-servings" placeholder="e.g. 4 servings"></label>
+  <div class="field" style="margin-bottom:12px"><span class="lbl">Ingredients</span><div id="rec-ing-rows"></div><button class="rec-addrow" onclick="SOL.recAddIng()">+ Add ingredient</button></div>
+  <div class="field" style="margin-bottom:12px"><span class="lbl">Tools &amp; equipment</span><div id="rec-tool-rows"></div><button class="rec-addrow" onclick="SOL.recAddTool()">+ Add tool</button></div>
+  <label class="field" style="margin-bottom:16px"><span class="lbl">Step-by-step instructions</span><div class="ta-wrap"><textarea id="rec-instr" rows="4" placeholder="Write out the steps clearly…" style="max-height:300px" oninput="SOL.autoGrow(this)"></textarea><div class="resize-grip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13 6 L6 13 M13 10 L10 13"/></svg></div></div></label>
+  <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+    <button class="btn ghost" onclick="SOL.recCloseModal()">Cancel</button>
+    <button class="btn solid" onclick="SOL.recSave()">Save recipe</button>
+  </div>
+</div></div>
+
+<!-- confirm modal -->
+<div id="confirm-overlay"><div id="confirm-box">
+  <div id="confirm-msg"></div>
+  <div id="confirm-row">
+    <button class="btn ghost" id="confirm-no">Cancel</button>
+    <button class="btn danger solid" id="confirm-yes">Delete</button>
+  </div>
+</div></div>
+
+<!-- ══ App Lock overlay (same SHA-256 + Worker KV system as index.html) ══ -->
+<div id="applock-overlay">
+  <div id="applock-box">
+    <div id="applock-icon"></div>
+    <div id="applock-head">
+      <div id="applock-title">Locked</div>
+      <div id="applock-sub">Enter your password to open Solace.</div>
+    </div>
+    <div id="applock-form">
+      <div id="applock-bio"></div>
+      <input id="applock-pw" type="password" placeholder="Password" autocomplete="off" />
+      <div id="applock-err"></div>
+      <button id="applock-submit">Unlock</button>
+      <div id="applock-links">
+        <button id="applock-forgot">Forgot password?</button>
+        <button id="applock-reset">Reset password via email</button>
+      </div>
+    </div>
+    <div id="applock-foot">
+      <button id="applock-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ── Firebase (same project, same App Check key, same anon auth as every other
+        A1 program) ──────────────────────────────────────────────────────────────
+     THE MIGRATION IS THE DOC PATHS, NOT A COPY. Solace reads and writes the very
+     documents its two features already lived in:
+
+       dashboards/motioncore   Tony's circuits + routines (index.html wrote this)
+       dashboards/mealsuite    Tony's recipes            (mylist.html wrote this)
+       dashboards/applock      the suite-wide lock map   (index/vault/tradehub)
+
+     Nothing is copied, re-keyed, exported or re-imported, so there is no window in
+     which data can be duplicated or dropped, and every circuit / routine / recipe
+     id and cross-reference survives untouched. Veda's recipes live in
+     dashboards/mealsuite-veda and are NEVER referenced anywhere in this file.
+
+     Plumbing matches the originals exactly: 1.5s debounce for MotionCore, 1.2s for
+     Recipes, own-echo suppression on both listeners, and the same event names
+     MotionCore already listened for (fb-mc-*) so its engine ported unchanged. ── -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+  import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
+  import { initializeFirestore, memoryLocalCache, doc, setDoc, onSnapshot, getDoc, getDocFromServer } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
+    authDomain: "task-dashboard-d2b53.firebaseapp.com",
+    projectId: "task-dashboard-d2b53",
+    storageBucket: "task-dashboard-d2b53.firebasestorage.app",
+    messagingSenderId: "982539604706",
+    appId: "1:982539604706:web:e93da1aef499fcee2044bb"
+  };
+  const app = initializeApp(firebaseConfig);
+  // The SAME reCAPTCHA site key every A1 app registers. Never re-register or
+  // rotate it here: all apps share this one key, so a change breaks every program
+  // at once (and only about an hour later, while Auth keeps working).
+  try {
+    initializeAppCheck(app, { provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'), isTokenAutoRefreshEnabled: true });
+  } catch(e){ console.warn('AppCheck init', e); }
+
+  const auth = getAuth(app);
+  // Awaitable auth (mirrors tradehub.html / mylist.html) so the first read waits
+  // for a valid token instead of racing it — avoids a slow first load on iOS cold
+  // launches where the getDoc would otherwise queue behind pending auth.
+  let _authResolve; const _fbAuthReady = new Promise(res => { _authResolve = res; });
+  onAuthStateChanged(auth, (user) => { if (user) { try { _authResolve && _authResolve(); } catch(e){} } });
+  signInAnonymously(auth).catch(e => console.warn("Anon auth failed:", e));
+  const _whenAuthed = () => Promise.race([_fbAuthReady, new Promise(res => setTimeout(res, 3000))]);
+
+  // Listeners wait for REAL auth — no 3s escape hatch. The hatch above exists so a
+  // slow/offline cold start still returns instead of hanging, which is the right
+  // trade for a one-shot read and the wrong one for a listener: every rule here is
+  // `request.auth != null`, so a listen that starts before anon auth lands is
+  // evaluated unauthenticated, denied, and never retried — Solace would then
+  // silently receive no cross-device updates for the whole session. Same reasoning
+  // and same helper as vault.html.
+  const authedSnapshot = (ref, next, onErr) => {
+    let live = true, off = null;
+    _fbAuthReady.then(() => { if (!live) return; off = onSnapshot(ref, next, onErr); });
+    return () => { live = false; if (off) off(); };
+  };
+
+  const db = initializeFirestore(app, { localCache: memoryLocalCache() });
+
+  // Prefer the server, fall back to cache only as a last resort, so a hard refresh
+  // never surfaces a stale doc. (Same intent as index.html's _freshGet.)
+  async function freshGet(ref) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await Promise.race([
+          getDocFromServer(ref),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('fresh-timeout')), 5000))
+        ]);
+      } catch(e) { /* retry */ }
+    }
+    try { return await getDoc(ref); } catch(e) { return null; }
+  }
+
+  // Firestore rejects undefined — strip it (and nulls) before every write.
+  const clean = (v) => {
+    if (Array.isArray(v)) return v.map(clean);
+    if (v && typeof v === 'object') {
+      const o = {}; Object.keys(v).forEach(k => { if (v[k] !== undefined && v[k] !== null) o[k] = clean(v[k]); }); return o;
+    }
+    return v;
+  };
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     FITNESS ▸ MOTIONCORE — dashboards/motioncore
+     Same doc, same {circuits, routines, savedAt} shape, same 1.5s debounce and
+     same fb-mc-* events index.html used.
+
+     ONE ADDITION: a write barrier. index.html had none, and mcSave() sends a
+     WHOLE-DOCUMENT setDoc — so on a device where the read was denied (App Check
+     hiccup, rules, offline) the empty default state was indistinguishable from
+     "no circuits yet" and the next edit would have overwritten the real document
+     with empty arrays. Exactly the failure MyList's _mlLoadOk exists to stop.
+     A real answer from the server — empty or not — is the only thing that
+     authorises a write, and a delivered snapshot lifts the barrier too so a
+     session that booted while access was denied heals itself with no reload.
+     ══════════════════════════════════════════════════════════════════════════ */
+  const mcDocRef = doc(db, "dashboards/motioncore");
+  let _mcSaveTimer = null, _mcLastOwnSaveAt = 0;
+  window._mcLoadOk = false;
+
+  window._fbLoadMotionCore = async () => {
+    try {
+      await _whenAuthed();
+      const snap = await freshGet(mcDocRef);
+      if (!snap) { window._mcLoadOk = false; return null; }
+      window._mcLoadOk = true;              // a real answer from the server
+      return snap.exists() ? snap.data() : null;
+    } catch(e) {
+      console.warn("Firebase MotionCore load failed:", e);
+      window._mcLoadOk = false;
+      return null;
+    }
+  };
+
+  window._fbSaveMotionCore = (payload) => {
+    if (!window._mcLoadOk) {
+      console.warn("MotionCore save BLOCKED — never read the server copy; refusing to overwrite it.");
+      window.dispatchEvent(new CustomEvent("fb-mc-error"));
+      return;
+    }
+    _mcLastOwnSaveAt = Date.now();
+    if (_mcSaveTimer) clearTimeout(_mcSaveTimer);
+    _mcSaveTimer = setTimeout(async () => {
+      try {
+        _mcLastOwnSaveAt = Date.now();
+        await setDoc(mcDocRef, clean(payload));
+        _mcLastOwnSaveAt = Date.now();
+        window.dispatchEvent(new CustomEvent("fb-mc-saved"));
+      } catch(e) {
+        console.warn("Firebase MotionCore save failed:", e);
+        window.dispatchEvent(new CustomEvent("fb-mc-error"));
+      }
+    }, 1500);
+  };
+
+  authedSnapshot(mcDocRef, (snap) => {
+    window._mcLoadOk = true;                // reads work — lift the barrier
+    if (!snap.exists()) return;
+    if (Date.now() - _mcLastOwnSaveAt < 6000) return;   // skip our own echo
+    window.dispatchEvent(new CustomEvent("fb-mc-remote", { detail: snap.data() }));
+    window.dispatchEvent(new CustomEvent("fb-mc-synced"));
+  }, (err) => { console.warn("MotionCore snapshot err", err && err.code); window.dispatchEvent(new CustomEvent("fb-mc-error")); });
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     NUTRITION ▸ RECIPES — dashboards/mealsuite (TONY ONLY)
+     MyList kept a per-profile map {tony: dashboards/mealsuite, veda:
+     dashboards/mealsuite-veda}. Solace is Tony's program, so only his doc is
+     named here — Veda's is unreachable from this file by construction, not by a
+     runtime check that could be got wrong.
+
+     Same {recipes:[…], savedAt} shape, same 1.2s debounce, same write barrier as
+     MyList's recLoadOk: a failed load yields [], which is indistinguishable from
+     "no recipes yet" and would otherwise be saved back over a full recipe book.
+     ══════════════════════════════════════════════════════════════════════════ */
+  const recDocRef = doc(db, "dashboards/mealsuite");
+  let _recSaveTimer = null, _recLastOwnSaveAt = 0;
+  window._recLoadOk = false;
+
+  window._solLoadRecipes = async () => {
+    try {
+      await _whenAuthed();
+      const snap = await freshGet(recDocRef);
+      if (!snap) { window._recLoadOk = false; return []; }
+      window._recLoadOk = true;
+      return (snap.exists() && Array.isArray(snap.data().recipes)) ? snap.data().recipes : [];
+    } catch(e) {
+      console.warn("Recipes load failed:", e);
+      window._recLoadOk = false;
+      return [];
+    }
+  };
+
+  window._solSaveRecipes = (recipes) => {
+    if (!window._recLoadOk) {
+      console.warn("Recipes save BLOCKED — never read the server copy; refusing to overwrite it.");
+      window.dispatchEvent(new CustomEvent("sol-error"));
+      return;
+    }
+    _recLastOwnSaveAt = Date.now();
+    window.dispatchEvent(new CustomEvent("sol-syncing"));
+    if (_recSaveTimer) clearTimeout(_recSaveTimer);
+    _recSaveTimer = setTimeout(async () => {
+      try {
+        _recLastOwnSaveAt = Date.now();
+        await setDoc(recDocRef, { recipes: clean(recipes), savedAt: Date.now() });
+        _recLastOwnSaveAt = Date.now();
+        window.dispatchEvent(new CustomEvent("sol-saved"));
+      } catch(e) {
+        console.warn("Recipes save failed:", e);
+        window.dispatchEvent(new CustomEvent("sol-error"));
+      }
+    }, 1200);
+  };
+
+  authedSnapshot(recDocRef, (snap) => {
+    window._recLoadOk = true;               // reads work — lift the barrier
+    if (Date.now() - _recLastOwnSaveAt < 8000) return;
+    if (snap.exists() && Array.isArray(snap.data().recipes))
+      window.dispatchEvent(new CustomEvent("sol-recipes-update", { detail: { recipes: snap.data().recipes } }));
+  }, (err) => { console.warn("Recipes snapshot err", err && err.code); });
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     APP LOCK — dashboards/applock
+     The SAME doc index.html and vault.html use, so locking Solace here or there
+     stays in step across every device. _alApplyRemoteLocks rebuilds the whole map,
+     which is what preserves every OTHER program's entry when Solace writes.
+     ══════════════════════════════════════════════════════════════════════════ */
+  const alDocRef = doc(db, "dashboards/applock");
+  let _alLastOwnSaveAt = 0, _alSaveTimer = null;
+  window._fbSaveAppLocks = (locksObj) => {
+    clearTimeout(_alSaveTimer);
+    _alSaveTimer = setTimeout(async () => {
+      try {
+        _alLastOwnSaveAt = Date.now();
+        await setDoc(alDocRef, { locks: locksObj || {}, savedAt: Date.now() });
+        _alLastOwnSaveAt = Date.now();
+      } catch(e) { console.warn('[AppLock] save failed:', e); }
+    }, 400);
+  };
+  window._fbLoadAppLocks = async () => {
+    try { await _whenAuthed(); const snap = await getDoc(alDocRef); if (snap.exists()) return snap.data().locks || {}; }
+    catch(e) { console.warn('[AppLock] load failed:', e); }
+    return null;
+  };
+  authedSnapshot(alDocRef, (snap) => {
+    if (!snap.exists()) return;
+    if (Date.now() - _alLastOwnSaveAt < 2000) return;
+    if (window._alApplyRemoteLocks) window._alApplyRemoteLocks(snap.data().locks || {});
+  }, (err) => console.warn('[AppLock] onSnapshot error:', err));
+
+  window._fbReady = true;
+  window.dispatchEvent(new CustomEvent('fb-ready'));
+</script>
+
+<!-- ══ In-UI modal system (replaces native alert/confirm/prompt so dialogs live
+        INSIDE the app and never vanish when the browser window loses focus).
+        Verbatim from mylist.html / vault.html — the lock flows below call
+        uiPrompt / uiForm / uiConfirm, so this has to be defined first. ══ -->
+<script>
+(function(){
+  if (window.uiModal) return;
+  var ACCENT = '#e0b874';
+  var CSS =
+    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
+  + '#uim-overlay.show{display:flex;}'
+  + '#uim-box{width:100%;max-width:370px;background:#2c2c31;border:1px solid #45454c;border-radius:9px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.48);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;}'
+  + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
+  + '#uim-title{font-family:\'Manrope\',system-ui,sans-serif;font-size:20px;font-weight:600;letter-spacing:-.2px;color:#f4f3f0;margin-bottom:8px;line-height:1.25;}'
+  + '#uim-msg{font-size:13.5px;color:#adadb2;line-height:1.55;white-space:pre-wrap;margin-bottom:16px;}'
+  + '.uim-field{display:block;margin-bottom:12px;}'
+  + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
+  + '.uim-input{width:100%;box-sizing:border-box;background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
+  + '.uim-input:focus{border-color:#e0b874;}'
+  + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
+  + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
+  + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
+  + '#uim-cancel{color:#f4f3f0;}'+'#uim-cancel:hover{border-color:#adadb2;}'
+  + '';
+  var queue=[], active=null;
+  function el(id){ return document.getElementById(id); }
+  function inject(){
+    if (el('uim-overlay')) return;
+    var st=document.createElement('style'); st.id='uim-style'; st.textContent=CSS; document.head.appendChild(st);
+    var ov=document.createElement('div'); ov.id='uim-overlay';
+    ov.innerHTML='<form id="uim-box" autocomplete="off">'
+      +'<div id="uim-title"></div><div id="uim-msg"></div><div id="uim-fields"></div>'
+      +'<div id="uim-err"></div>'
+      +'<div id="uim-btns"><button type="button" id="uim-cancel"></button><button type="submit" id="uim-ok"></button></div></form>';
+    document.body.appendChild(ov);
+    el('uim-cancel').addEventListener('click', function(){ close(active&&active.kind==='confirm'?false:null); });
+    el('uim-box').addEventListener('submit', function(e){ e.preventDefault(); submit(); });
+    document.addEventListener('keydown', function(e){ if(active && e.key==='Escape'){ close(active.kind==='confirm'?false:null); } });
+  }
+  function render(cfg){
+    inject(); active=cfg;
+    el('uim-title').textContent=cfg.title||''; el('uim-title').style.display=cfg.title?'':'none';
+    el('uim-msg').textContent=cfg.message||''; el('uim-msg').style.display=cfg.message?'':'none';
+    var fw=el('uim-fields'); fw.innerHTML='';
+    (cfg.fields||[]).forEach(function(f){
+      var lab=document.createElement('label'); lab.className='uim-field';
+      if(f.label){ var sp=document.createElement('span'); sp.className='uim-label'; sp.textContent=f.label; lab.appendChild(sp); }
+      var inp=document.createElement('input'); inp.className='uim-input'; inp.type=f.type||'text';
+      inp.value=(f.value!=null?f.value:''); if(f.placeholder) inp.placeholder=f.placeholder; inp.setAttribute('data-name',f.name);
+      if(f.autocap===false){ inp.autocapitalize='off'; inp.setAttribute('autocorrect','off'); inp.spellcheck=false; }
+      lab.appendChild(inp); fw.appendChild(lab);
+    });
+    el('uim-err').textContent='';
+    var ok=el('uim-ok'), ca=el('uim-cancel');
+    ok.textContent=cfg.okLabel||'OK'; ok.style.background=cfg.danger?'#d9534f':ACCENT;
+    ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
+    el('uim-overlay').classList.add('show');
+    setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
+  }
+  function collect(){ var o={}; var ins=el('uim-fields').querySelectorAll('input'); Array.prototype.forEach.call(ins,function(i){ o[i.getAttribute('data-name')]=i.value; }); return o; }
+  function submit(){
+    if(!active) return; var cfg=active;
+    if(cfg.fields && cfg.fields.length){
+      var vals=collect(), ins=el('uim-fields').querySelectorAll('input');
+      for(var i=0;i<cfg.fields.length;i++){ var f=cfg.fields[i];
+        if(f.required && !String(vals[f.name]||'').trim()){ el('uim-err').textContent=(f.label||'This field')+' is required.'; if(ins[i]) ins[i].focus(); return; } }
+      close(cfg.kind==='prompt' ? String(vals[cfg.fields[0].name]) : vals);
+    } else { close(cfg.kind==='confirm'?true:undefined); }
+  }
+  function close(result){
+    var cfg=active; active=null;
+    var ov=el('uim-overlay'); if(ov) ov.classList.remove('show');
+    if(cfg && cfg.resolve) cfg.resolve(result);
+    if(queue.length){ render(queue.shift()); }
+  }
+  function open(cfg){ return new Promise(function(res){ cfg.resolve=res; if(active) queue.push(cfg); else render(cfg); }); }
+  window.uiModal=open;
+  window.uiAlert=function(m,o){ o=o||{}; return open({kind:'alert',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK'}); };
+  window.uiConfirm=function(m,o){ o=o||{}; return open({kind:'confirm',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',danger:o.danger}); };
+  window.uiPrompt=function(m,o){ o=o||{}; return open({kind:'prompt',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',
+    fields:[{name:'value',type:o.password?'password':'text',value:(o.default!=null?o.default:(o.value!=null?o.value:'')),placeholder:o.placeholder||'',autocap:o.autocap}]}); };
+  window.uiForm=function(cfg){ cfg=cfg||{}; return open({kind:'form',title:cfg.title,message:cfg.message,okLabel:cfg.okLabel||'Save',cancelLabel:cfg.cancelLabel||'Cancel',danger:cfg.danger,fields:cfg.fields||[]}); };
+  // Route native alert() through the in-UI modal (can't be dismissed by clicking
+  // outside the app window). confirm/prompt are converted at their call sites.
+  try { window.alert=function(m){ window.uiAlert(m==null?'':String(m)); }; } catch(e){}
+})();
+</script>
+
+<!-- ══ APP LOCK — the exact system index.html and vault.html use: SHA-256 +
+        Cloudflare Worker KV for the password, the shared dashboards/applock doc for
+        cross-device lock state, WebAuthn biometrics as the primary unlock, and
+        Formspree for the hint / reset-code email. Nothing new, no secrets in the
+        page: the Worker holds the hash, this page only ever POSTs a candidate. ══ -->
+<script>
+(function(){
+'use strict';
+
+var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
+var AL_JOURNAL = 'applock';
+var AL_EMAIL   = 'anthonypn99@gmail.com';
+var AL_FORM    = 'https://formspree.io/f/xeedkebo';
+var APPID      = 'tony_solace_standalone';
+var BIO_NS     = 'solacelock';
+
+function _el(id){ return document.getElementById(id); }
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+var _alLocks = {};
+try { _alLocks = JSON.parse(window.alDur.get('al_locks') || '{}'); } catch(e) {}
+var _alPendingPush = false;
+
+function alIsLocked()   { return !!_alLocks[APPID]; }
+function alLockVersion(){ var e=_alLocks[APPID]; return (e&&e.v)||0; }
+function alIsUnlocked() {
+  if(!alIsLocked()) return true;
+  var v = alLockVersion();
+  var got = parseInt(window.alDur.get('al_unlockedv_' + APPID)||'0',10);
+  if(v===0){ return window.alDur.get('al_unlocked_' + APPID)==='1' || got>0; }
+  // Monotonic: this device stays unlocked as long as it unlocked AT OR AFTER the
+  // current password version. Only a genuine password change (newer version)
+  // makes got<v and re-requires the password. Prevents spurious re-prompts from
+  // stale/duplicate snapshots reporting a merely-different (not newer) version.
+  return got>0 && got>=v;
+}
+function alMarkUnlocked(){
+  try{
+    var v = alLockVersion();
+    var prev = parseInt(window.alDur.get('al_unlockedv_' + APPID)||'0',10);
+    // Record the highest version seen so a slow/stale version read can never
+    // regress an already-valid unlock.
+    var mark = Math.max(v||Date.now(), prev||0);
+    window.alDur.set('al_unlockedv_' + APPID, String(mark));
+    if(v===0) window.alDur.set('al_unlocked_' + APPID, '1');
+  }catch(e){}
+}
+function alMarkLocked()  { try { window.alDur.remove('al_unlockedv_' + APPID); window.alDur.remove('al_unlocked_' + APPID); } catch(e){} }
+function alMustBlock()   { return alIsLocked() && !alIsUnlocked(); }
+
+function alSaveLocks(){
+  try { window.alDur.set('al_locks', JSON.stringify(_alLocks)); } catch(e){}
+  if (window._fbSaveAppLocks) { window._fbSaveAppLocks(_alLocks); _alPendingPush = false; }
+  else { _alPendingPush = true; }
+}
+function alSetLock(version){ _alLocks[APPID] = { locked: true, v: version||Date.now() }; alSaveLocks(); }
+function alRemoveLock(){ delete _alLocks[APPID]; alSaveLocks(); }
+
+// Show / hide Solace's content root. The pre-paint gate in <head> already decided
+// whether it may be shown at all; this is the same decision at runtime.
+function alHideRoot(){ var r=_el('sol-root'); if(r) r.classList.remove('on'); }
+function alShowRoot(){
+  var r=_el('sol-root'); if(r) r.classList.add('on');
+  if (window.SOL && window.SOL.onUnlocked) window.SOL.onUnlocked();
+}
+
+// ── REMOTE LOCK CHANGES (from the Firebase onSnapshot in the module above) ──
+// The shared dashboards/applock doc carries locks for EVERY app; we only care
+// about Solace's entry but must preserve the rest so we never wipe them.
+window._alApplyRemoteLocks = function(remoteLocks){
+  remoteLocks = remoteLocks || {};
+  // Re-locking is governed entirely by version comparison in alIsUnlocked()
+  // (got>=v). If the password was genuinely changed (newer version) OR newly set
+  // on a device that never unlocked, this device's recorded unlock is < newV and
+  // it blocks automatically below via alMustBlock(). We deliberately do NOT wipe
+  // the unlock record on a mere version DIFFERENCE — a stale/duplicate snapshot
+  // reporting an older-or-equal version must never force a spurious re-prompt.
+  _alLocks = {};
+  Object.keys(remoteLocks).forEach(function(id){ var r=remoteLocks[id]; _alLocks[id] = { locked: true, v:(r&&r.v)||0 }; });
+  try { window.alDur.set('al_locks', JSON.stringify(_alLocks)); } catch(e){}
+  // SECURITY: if Solace just got locked remotely and isn't unlocked here, hide + prompt.
+  if (alMustBlock()) { alHideRoot(); alShowOverlay('unlock'); }
+  else if (!alIsLocked()) { alShowRoot(); if(_el('applock-overlay').style.display==='flex' && _alMode==='unlock'){ alHideOverlay(); } }
+  alUpdateLockBtns();
+};
+
+// On Firebase ready: push any local lock set before init, then pull authoritative set.
+function alOnFbReady(){
+  if (!window._fbLoadAppLocks) return;
+  if (_alPendingPush && window._fbSaveAppLocks) { window._fbSaveAppLocks(_alLocks); _alPendingPush=false; }
+  window._fbLoadAppLocks().then(function(remote){ if (remote) window._alApplyRemoteLocks(remote); });
+}
+window.addEventListener('fb-ready', alOnFbReady);
+if (window._fbReady && window._fbLoadAppLocks) alOnFbReady();
+
+// ── OVERLAY ─────────────────────────────────────────────────────────────────
+var _alMode = 'unlock';
+var _alAttempts = 0, _alCooldown = 0;
+var _alRemoveBio = false;   // when true, a successful unlock removes the biometric instead of unlocking
+
+function alShake(){
+  var box=_el('applock-box'); box.classList.remove('shake'); void box.offsetWidth;
+  box.classList.add('shake'); setTimeout(function(){box.classList.remove('shake');},500);
+}
+function _alPwErr(msg){
+  _el('applock-pw').classList.add('error'); _el('applock-pw').value='';
+  _el('applock-err').textContent = _alAttempts>=5 ? 'Too many attempts. Wait 30s.' : msg;
+  alShake(); setTimeout(function(){_el('applock-pw').classList.remove('error');},400);
+}
+
+function alShowOverlay(mode){
+  _alMode = mode;
+  _alRemoveBio = false;   // cleared on any normal open; alBioRemovePrompt re-sets it after
+  _el('applock-err').textContent='';
+  _el('applock-pw').value='';
+  _el('applock-pw').classList.remove('error');
+  _el('applock-title').textContent='Solace';
+  _el('applock-submit').style.display='';
+  var m=_el('al-menu-btns'); if(m) m.remove();
+  if (mode==='setpw'){
+    _el('applock-icon').innerHTML=SLI.shield;
+    _el('applock-sub').textContent='Choose a password to lock Solace. Unlock once per device.';
+    _el('applock-submit').textContent='Set Password';
+    _el('applock-forgot').style.display='none'; _el('applock-cancel').style.display='';
+  } else if (mode==='remove'){
+    _el('applock-icon').innerHTML=SLI.unlock;
+    _el('applock-sub').textContent='Enter password to remove the lock.';
+    _el('applock-submit').textContent='Remove Lock';
+    _el('applock-forgot').style.display=''; _el('applock-cancel').style.display='';
+  } else if (mode==='changepw'){
+    _el('applock-icon').innerHTML=SLI.key;
+    _el('applock-sub').textContent='Enter your current password first.';
+    _el('applock-submit').textContent='Verify & Continue';
+    _el('applock-forgot').style.display=''; _el('applock-cancel').style.display='';
+  } else {
+    _el('applock-icon').innerHTML=SLI.lock;
+    _el('applock-sub').textContent='Enter your password to open Solace.';
+    _el('applock-submit').textContent='Unlock';
+    _el('applock-forgot').style.display='';
+    // No cancel escape when content is gated — you must unlock to view Solace.
+    _el('applock-cancel').style.display = alMustBlock() ? 'none' : '';
+  }
+  // Reset link mirrors the "Forgot password?" link (hidden while setting a new password).
+  if (_el('applock-reset')) _el('applock-reset').style.display = _el('applock-forgot').style.display;
+  _el('applock-pw').style.display = '';   // restore in case a prior biometric prompt hid it
+  _el('applock-overlay').style.display='flex';
+  setTimeout(function(){_el('applock-pw').focus();},80);
+  alBioRender(mode);
+}
+function alHideOverlay(){
+  _el('applock-overlay').style.display='none';
+  var m=_el('al-menu-btns'); if(m) m.remove();
+  var bio=_el('applock-bio'); if(bio){ bio.innerHTML=''; bio.style.display='none'; }
+  _alRemoveBio = false;
+}
+
+// ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
+// Primary unlock; the password below always remains the fallback. The credential
+// is keyed to (BIO_NS, APPID) so it can only ever satisfy Solace's own unlock.
+function alBioShowPw(show){
+  _el('applock-pw').style.display = show ? '' : 'none';
+  _el('applock-submit').style.display = show ? '' : 'none';
+  _el('applock-forgot').style.display = show ? '' : 'none';
+  if (_el('applock-reset')) _el('applock-reset').style.display = show ? '' : 'none';
+  if (show) setTimeout(function(){ _el('applock-pw').focus(); }, 60);
+}
+function alBioRender(mode){
+  var box=_el('applock-bio'); if(!box) return; box.innerHTML=''; box.style.display='none';
+  if(!window.Bio || mode!=='unlock') return;
+  window.Bio.available().then(function(avail){
+    if(_alMode!=='unlock') return;
+    if(!(avail && window.Bio.isRegistered(BIO_NS, APPID))) return;
+    box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
+    var b=document.createElement('button');
+    b.innerHTML=SLI.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
+    b.style.cssText="border:1px solid rgba(224,184,116,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:inherit;width:100%;background:transparent;color:#e0b874;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
+    b.onclick=function(){ alBioUnlock(); };
+    box.appendChild(b);
+    var link=document.createElement('button');
+    link.textContent='Use password instead';
+    link.style.cssText='background:transparent;border:none;color:#8d8d94;font-size:12px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-family:inherit;';
+    link.onclick=function(){ alBioShowPw(true); link.style.display='none'; };
+    box.appendChild(link);
+    alBioShowPw(false);
+  });
+}
+function alBioUnlock(){
+  _el('applock-err').textContent='';
+  if(!window.Bio) return;
+  window.Bio.authenticate(BIO_NS, APPID).then(function(r){
+    if(r.ok){
+      if(_alRemoveBio){ alDoRemoveBio(); return; }
+      alMarkUnlocked(); _alAttempts=0; alShowRoot(); alHideOverlay(); alUpdateLockBtns();
+    }
+    else if(r.error==='notregistered'){ alBioShowPw(true); }
+    else { _el('applock-err').textContent='Biometric check failed — use your password.'; alBioShowPw(true); }
+  });
+}
+// Verify identity (biometric OR password) before removing the biometric.
+function alBioRemovePrompt(){
+  alShowOverlay('unlock');
+  _alRemoveBio = true;
+  _el('applock-icon').innerHTML=SLI.user;
+  _el('applock-sub').textContent='Verify with '+window.Bio.label()+' or your password to remove biometrics from this device.';
+}
+function alDoRemoveBio(){
+  _alRemoveBio = false;
+  window.Bio.unregister(BIO_NS, APPID);
+  alHideOverlay(); alUpdateLockBtns();
+  window.uiAlert('Biometrics removed from this device.');
+}
+function alBioRegister(closeAfter){
+  if(!window.Bio) return;
+  window.Bio.register(BIO_NS, APPID, { rpName:'Solace', userName:'solacelock', displayName:'Solace' }).then(function(r){
+    if(r.ok){ alMarkUnlocked(); if(closeAfter) alHideOverlay(); alUpdateLockBtns(); window.uiAlert('Biometrics registered on this device. You can now unlock Solace with '+window.Bio.label()+'.'); }
+    else if(r.error==='cancelled' || r.error==='NotAllowedError'){ /* user backed out */ }
+    else window.uiAlert('Could not register biometrics on this device.');
+  });
+}
+function alMaybeOfferBio(){
+  if(!window.Bio) return;
+  window.Bio.available().then(function(avail){
+    if(!avail || window.Bio.isRegistered(BIO_NS, APPID)) return;
+    window.uiConfirm('Register '+window.Bio.label()+' to unlock Solace on this device? Your password still works as a fallback.',
+      {title:'Register '+window.Bio.label(), okLabel:'Register'}).then(function(ok){ if(ok) alBioRegister(false); });
+  });
+}
+
+// ── MANAGE MENU (triggered by the header lock button) ───────────────────────
+function alManage(){
+  if (alIsLocked()) alShowManageMenu();
+  else alShowOverlay('setpw');
+}
+window._solManageLock = alManage;
+window._solAppIsLocked = function(){ try{ return alIsLocked(); }catch(e){ return false; } };
+
+function alShowManageMenu(){
+  var isUnlocked = alIsUnlocked();
+  _el('applock-err').textContent='';
+  var _mbio=_el('applock-bio'); if(_mbio){ _mbio.innerHTML=''; _mbio.style.display='none'; }
+  _el('applock-pw').value='';
+  _el('applock-pw').classList.remove('error');
+  _el('applock-icon').innerHTML=SLI.lock;
+  _el('applock-title').textContent='Solace';
+  _el('applock-submit').style.display='none';
+  _el('applock-forgot').style.display='none';
+  if (_el('applock-reset')) _el('applock-reset').style.display='none';
+  _el('applock-cancel').style.display='';
+  _el('applock-sub').textContent = isUnlocked ? 'Solace is locked. Manage:' : 'Solace is locked. Choose:';
+  var existing=_el('al-menu-btns'); if(existing) existing.remove();
+  var menu=document.createElement('div');
+  menu.id='al-menu-btns';
+  menu.style.cssText='display:flex;flex-direction:column;gap:8px;width:100%;';
+  var s='border:1px solid #45454c;border-radius:6px;padding:12px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:inherit;width:100%;background:transparent;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;';
+  if (!isUnlocked){
+    var ub=document.createElement('button');
+    ub.innerHTML=SLI.unlock+'<span>Unlock this device</span>';
+    ub.style.cssText=s+'color:#e0b874;border-color:rgba(224,184,116,.36);';
+    ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
+    menu.appendChild(ub);
+  }
+  var cb=document.createElement('button');
+  cb.innerHTML=SLI.key+'<span>Change password</span>';
+  cb.style.cssText=s+'color:#f4f3f0;';
+  cb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('changepw'); };
+  menu.appendChild(cb);
+  // Register / remove biometrics (inserted above "Change password").
+  if (window.Bio) window.Bio.available().then(function(avail){
+    if(!avail) return;
+    var bb=document.createElement('button');
+    if(window.Bio.isRegistered(BIO_NS, APPID)){
+      bb.innerHTML=SLI.user+'<span>Remove biometrics</span>';
+      bb.style.cssText=s+'color:#adadb2;';
+      bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRemovePrompt(); };
+    } else {
+      bb.innerHTML=SLI.user+'<span>Register '+window.Bio.label()+'</span>';
+      bb.style.cssText=s+'color:#f4f3f0;';
+      bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRegister(true); };
+    }
+    menu.insertBefore(bb, cb);
+  });
+  var rb=document.createElement('button');
+  rb.innerHTML=SLI.trash+'<span>Remove lock</span>';
+  rb.style.cssText=s+'color:#d68a7c;border-color:rgba(214,138,124,.3);';
+  rb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('remove'); };
+  menu.appendChild(rb);
+  // Menu lives in the form column, above the ruled footer that owns Cancel.
+  var form=_el('applock-form')||_el('applock-cancel').parentNode;
+  form.appendChild(menu);
+  _el('applock-overlay').style.display='flex';
+}
+
+// ── SUBMIT ──────────────────────────────────────────────────────────────────
+_el('applock-submit').addEventListener('click', async function(){
+  var pw=_el('applock-pw').value.trim();
+  if (!pw){ _el('applock-pw').classList.add('error'); _el('applock-err').textContent='Password required.'; return; }
+  if (_alAttempts>=5){
+    var wait=Math.ceil((_alCooldown-Date.now())/1000);
+    if (wait>0){ _el('applock-err').textContent='Too many attempts. Wait '+wait+'s.'; return; }
+    _alAttempts=0;
+  }
+  _el('applock-submit').disabled=true; _el('applock-submit').textContent='Checking…';
+  try {
+    if (_alMode==='setpw'){
+      var hint=(await window.uiPrompt('Optional: enter a password hint for the recovery email. Leave blank to skip.',{title:'Password hint'}))||'';
+      var r1=await fetch(AL_WORKER+'/auth/journal/set-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw,hint:hint})});
+      var d1=await r1.json();
+      if (d1.ok){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); alMaybeOfferBio(); }
+      else { _el('applock-err').textContent='Failed to set lock. Try again.'; }
+
+    } else if (_alMode==='remove'){
+      var r2=await fetch(AL_WORKER+'/auth/journal/remove-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+      var d2=await r2.json();
+      if (d2.ok){ alRemoveLock(); alMarkLocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+      else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
+
+    } else if (_alMode==='changepw'){
+      var r3=await fetch(AL_WORKER+'/auth/journal/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+      var d3=await r3.json();
+      if (d3.ok){
+        var chg=await window.uiForm({ title:'Change password', okLabel:'Change password',
+          fields:[ {name:'password',label:'New password',type:'password',required:true}, {name:'hint',label:'New password hint (optional)'} ] });
+        var np=chg?chg.password:'';
+        if (!np||!np.trim()){ _el('applock-err').textContent='New password empty — not changed.'; }
+        else {
+          var nh=(chg.hint)||'';
+          var rem=await fetch(AL_WORKER+'/auth/journal/remove-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+          var remD=await rem.json();
+          if (remD.ok){
+            var set=await fetch(AL_WORKER+'/auth/journal/set-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:np.trim(),hint:nh})});
+            var setD=await set.json();
+            if (setD.ok){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); window.uiAlert('Password changed!'); }
+            else { _el('applock-err').textContent='Failed to set new password.'; }
+          } else { _el('applock-err').textContent='Error removing old lock. Try again.'; }
+        }
+      } else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
+
+    } else { // unlock
+      var r4=await fetch(AL_WORKER+'/auth/journal/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+      var d4=await r4.json();
+      if (d4.ok){
+        _alAttempts=0;
+        if(_alRemoveBio){ alDoRemoveBio(); }
+        else { alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+      }
+      else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
+    }
+  } catch(e){ _el('applock-err').textContent='Network error. Try again.'; }
+  _el('applock-submit').disabled=false;
+  _el('applock-submit').textContent={setpw:'Set Password',remove:'Remove Lock',changepw:'Verify & Continue'}[_alMode]||'Unlock';
+});
+
+_el('applock-pw').addEventListener('keydown', function(e){
+  if (e.key==='Enter') _el('applock-submit').click();
+  if (e.key==='Escape'){ _el('applock-err').textContent=''; _el('applock-pw').classList.remove('error'); }
+});
+
+_el('applock-cancel').addEventListener('click', function(){
+  var m=_el('al-menu-btns'); if(m) m.remove();
+  _el('applock-submit').style.display='';
+  var mode=_alMode;
+  alHideOverlay();
+  // Security: backing out of an UNLOCK while gated keeps content hidden.
+  if (mode==='unlock' && alMustBlock()) alHideRoot();
+});
+
+_el('applock-forgot').addEventListener('click', async function(){
+  _el('applock-forgot').textContent='Sending…'; _el('applock-forgot').disabled=true;
+  try {
+    var hr=await fetch(AL_WORKER+'/auth/journal/hint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID})});
+    var hd=await hr.json();
+    if (hd.noLock){ _el('applock-err').textContent='No lock on server. Try re-locking.'; _el('applock-forgot').disabled=false; _el('applock-forgot').textContent='Forgot password?'; return; }
+    var fp=await fetch(AL_FORM,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:AL_EMAIL,subject:'App Lock - Hint (Solace)',message:'Hint for "Solace":\n\n'+(hd.hint||'(none)')+'\n\n- Solace'})});
+    if (fp.ok){ _el('applock-forgot').textContent='Hint sent!'; setTimeout(function(){_el('applock-forgot').textContent='Forgot password?';_el('applock-forgot').disabled=false;},3000); }
+    else { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
+  } catch(e){ _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
+});
+
+// Shared password-reset flow (emailed 6-char code → verify → set new password).
+// opts: { worker, reqBody:{journal,entryId}|{profile}, email, form, appName, label, onSuccess }
+window._pwReset = window._pwReset || async function(opts){
+  function post(path, obj){ return fetch(opts.worker+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}).then(function(r){return r.json();}); }
+  var rq;
+  try { rq = await post('/auth/reset/request', opts.reqBody); }
+  catch(e){ window.uiAlert('Network error while starting the reset. Check your connection and try again.'); return false; }
+  if (rq && rq.noLock) { window.uiAlert('There is no password set on the server for this item.'); return false; }
+  if (!rq || !rq.ok || !rq.code) { window.uiAlert('Could not start the reset. Please try again.'); return false; }
+  // Email the code through the same Formspree form used for hints (proven, browser-origin).
+  var emailed = false;
+  try {
+    var fp = await fetch(opts.form, { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({ email: opts.email, subject: opts.appName+' — Password Reset Code',
+        message: 'Your password reset code for '+opts.label+' is:\n\n    '+rq.code+'\n\nEnter this code in '+opts.appName+' to set a new password. It expires in 15 minutes. If you did not request this, you can ignore this email.\n\n— '+opts.appName }) });
+    emailed = fp.ok;
+  } catch(e){ emailed = false; }
+  if (!emailed) { window.uiAlert('Could not send the reset email. Please try again in a moment.'); return false; }
+  var vals = await window.uiForm({
+    title:'Reset password',
+    message:'A 6-character code was emailed to '+opts.email+'. Enter it below (check spam if you don\'t see it within a minute), then choose a new password.',
+    okLabel:'Reset password',
+    fields:[
+      { name:'code', label:'Security code from email', placeholder:'6-character code', autocap:false, required:true },
+      { name:'password', label:'New password', type:'password', required:true },
+      { name:'hint', label:'New password hint (optional)' }
+    ]
+  });
+  if (!vals) return false;
+  var code = String(vals.code||'').trim();
+  var np = String(vals.password||'').trim();
+  var nh = vals.hint||'';
+  if (!code) { await window.uiAlert('No code entered.'); return false; }
+  if (!np) { await window.uiAlert('Password cannot be empty.'); return false; }
+  var body = Object.assign({ code:code, password:np, hint:nh }, opts.reqBody);
+  var cf;
+  try { cf = await post('/auth/reset/confirm', body); }
+  catch(e){ window.uiAlert('Network error while confirming the reset. Please try again.'); return false; }
+  if (cf && cf.ok) {
+    if (opts.onSuccess) { try { opts.onSuccess(); } catch(e){} }
+    window.uiAlert('Password reset! It now syncs to all your devices. This device is unlocked; other devices will ask for the new password once.');
+    return true;
+  }
+  if (cf && cf.error==='badcode') window.uiAlert('That code is not correct.'+(cf.remaining!=null?(' '+cf.remaining+' attempt(s) left before it expires.'):''));
+  else if (cf && cf.error==='expired') window.uiAlert('That code has expired or was already used. Start the reset again to get a fresh code.');
+  else if (cf && cf.error==='locked') window.uiAlert('Too many incorrect attempts. Start the reset again to get a fresh code.');
+  else window.uiAlert('Reset failed. Please try again.');
+  return false;
+};
+
+// Solace app-lock: reset password via emailed security code.
+_el('applock-reset') && _el('applock-reset').addEventListener('click', async function(){
+  var prev=_el('applock-reset').textContent; _el('applock-reset').textContent='Sending code…'; _el('applock-reset').disabled=true;
+  await window._pwReset({
+    worker:AL_WORKER,
+    reqBody:{ journal:AL_JOURNAL, entryId:APPID },
+    email:AL_EMAIL,
+    form:AL_FORM,
+    appName:'Solace',
+    label:'Solace',
+    onSuccess:function(){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+  });
+  _el('applock-reset').textContent=prev; _el('applock-reset').disabled=false;
+});
+
+// ── HEADER LOCK BUTTON STATE ────────────────────────────────────────────────
+function alUpdateLockBtns(){
+  try {
+    var b = _el('sol-lock-btn');
+    if (b) {
+      var on = alIsLocked();
+      b.innerHTML = on ? SLI.lock : SLI.unlock;
+      b.style.opacity = on ? '1' : '0.55';
+      b.title = on ? 'Solace is locked — manage the lock' : 'Lock Solace behind a password';
+    }
+  } catch(e){}
+}
+window._solUpdateLockBtns = alUpdateLockBtns;
+
+// ── LOAD-TIME ENFORCEMENT ───────────────────────────────────────────────────
+// If locked & not unlocked on this device, keep the root hidden and prompt.
+function alEnforce(){
+  if (alMustBlock()){ alHideRoot(); if(_el('applock-overlay').style.display!=='flex') alShowOverlay('unlock'); }
+  else { alShowRoot(); }
+  alUpdateLockBtns();
+}
+window._solEnforceLock = alEnforce;
+alEnforce();
+setTimeout(alEnforce, 300);
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     SOLACE SHELL + NUTRITION ▸ RECIPES
+     One IIFE, mirroring how MyList kept its shell and its Recipes engine in one
+     scope: the engine needs the shell's helpers (esc / uid / toast / setSync /
+     confirmAsk / autoGrow / the drag engine) and the shell needs to know when the
+     Recipes pane is on screen (to show the voice bar). MotionCore stays in its own
+     IIFE below, exactly as it was in index.html.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+
+var API = 'https://personal-ai.av1.workers.dev';   // consolidated worker — the same
+                                                   // /recipe/parse endpoint MyList called
+var PROFILE = 'tony';                              // Solace is Tony's program, always
+
+function $(id){ return document.getElementById(id); }
+function uid(){ return Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function jq(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+// Firestore rejects undefined; strip it before every save (MyList's sanitize).
+function sanitize(v){
+  if(Array.isArray(v)) return v.map(sanitize);
+  if(v && typeof v==='object'){ var o={}; for(var k in v){ if(v[k]!==undefined && v[k]!==null) o[k]=sanitize(v[k]); } return o; }
+  return v;
+}
+
+/* ── Toast ── */
+var toastTimer=null;
+function toast(msg, isErr){ var t=$('toast'); if(!t) return; t.textContent=msg; t.className='toast show'+(isErr?' err':''); clearTimeout(toastTimer); toastTimer=setTimeout(function(){ t.className='toast'; }, 2600); }
+
+/* ── Sync pill — ONE indicator for the whole program. MotionCore used to own a
+      little text label in its own header (#mc-sync-status); both features now
+      report through here, so "Syncing…/Synced/Sync failed" means the same thing
+      wherever you are in Solace. ── */
+var syncIdleTimer=null;
+function setSync(kind){
+  var p=$('sync-pill'), t=$('sync-text');
+  if(!p||!t) return;
+  clearTimeout(syncIdleTimer);
+  p.className='sync-pill '+(kind==='busy'?'busy':kind==='ok'?'ok':kind==='err'?'err':'');
+  t.textContent = kind==='busy'?'Syncing…':kind==='ok'?'Synced':kind==='err'?'Sync failed':'Synced';
+  // "Synced" fades out after ~2s; only "Sync failed" stays put.
+  if(kind==='ok'||kind===undefined){ syncIdleTimer=setTimeout(function(){ var pp=$('sync-pill'); if(pp) pp.classList.add('idle'); }, 2000); }
+}
+window.addEventListener('sol-syncing', function(){ setSync('busy'); });
+window.addEventListener('sol-saved',   function(){ setSync('ok');   });
+window.addEventListener('sol-error',   function(){ setSync('err');  });
+// MotionCore's original event names, so its engine ported without edits.
+window.addEventListener('fb-mc-saved',  function(){ setSync('ok');  });
+window.addEventListener('fb-mc-synced', function(){ setSync('ok');  });
+window.addEventListener('fb-mc-error',  function(){ setSync('err'); });
+
+/* ── Confirm modal ── */
+var confirmCb=null;
+function confirmAsk(msg, onYes, yesLabel){
+  $('confirm-msg').textContent=msg; $('confirm-yes').textContent=yesLabel||'Delete'; confirmCb=onYes;
+  $('confirm-overlay').style.display='flex';
+}
+$('confirm-no').onclick=function(){ $('confirm-overlay').style.display='none'; confirmCb=null; };
+$('confirm-yes').onclick=function(){ $('confirm-overlay').style.display='none'; var c=confirmCb; confirmCb=null; if(c)c(); };
+
+/* ── textarea auto-grow + drag resize (MyList's, verbatim) ── */
+function autoGrow(ta){
+  if(!ta) return; if(ta.dataset.manual==='1') return;
+  var maxH=parseInt(getComputedStyle(ta).maxHeight,10); if(!maxH || isNaN(maxH)) maxH=420;
+  ta.style.height='auto';
+  var h=Math.min(Math.max(ta.scrollHeight,44),maxH);
+  ta.style.height=h+'px';
+  ta.style.overflowY = (ta.scrollHeight>maxH) ? 'auto' : 'hidden';
+}
+var dragTA=null, dragStartY=0, dragStartH=0;
+document.addEventListener('pointerdown', function(e){
+  var grip=e.target.closest && e.target.closest('.resize-grip'); if(!grip) return;
+  var ta=grip.parentElement.querySelector('textarea'); if(!ta) return;
+  dragTA=ta; dragStartY=e.clientY; dragStartH=ta.offsetHeight; ta.dataset.manual='1';
+  e.preventDefault();
+});
+document.addEventListener('pointermove', function(e){
+  if(!dragTA) return;
+  var h=Math.min(Math.max(dragStartH+(e.clientY-dragStartY),44),600); dragTA.style.height=h+'px'; e.preventDefault();
+});
+document.addEventListener('pointerup', function(){ dragTA=null; });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NAVIGATION — sections and subtabs, straight off a registry.
+   Adding "Fitness ▸ Steps" or "Nutrition ▸ Macros" later means: append a tab
+   entry here, add a <div class="sol-pane"> with that id, and (if it needs one) an
+   onEnter. Nothing in the CSS, the routing, the hash handling or the lock changes.
+   `solo` sections hide their subtab rail until a second feature exists, so a lone
+   chip that never changes is not on screen pretending to be a control.
+   ══════════════════════════════════════════════════════════════════════════ */
+var SOLACE_SECTIONS = [
+  { id:'fitness',   label:'Fitness',   tabs:[
+      { id:'motioncore', label:'MotionCore', pane:'mc-root' }
+  ]},
+  { id:'nutrition', label:'Nutrition', tabs:[
+      { id:'recipes', label:'Recipes', pane:'rec-root', voice:true, onEnter:function(){ renderRecipes(); } }
+  ]}
+];
+
+var curSection = null, curTab = {};   // curTab[sectionId] = tabId
+
+function findSection(id){ for(var i=0;i<SOLACE_SECTIONS.length;i++) if(SOLACE_SECTIONS[i].id===id) return SOLACE_SECTIONS[i]; return null; }
+function findTab(sec, id){ if(!sec) return null; for(var i=0;i<sec.tabs.length;i++) if(sec.tabs[i].id===id) return sec.tabs[i]; return null; }
+function curTabOf(sec){ return findTab(sec, curTab[sec.id]) || sec.tabs[0]; }
+
+function buildNav(){
+  var secWrap=$('sol-sections'), subWrap=$('sol-subnav');
+  secWrap.innerHTML = SOLACE_SECTIONS.map(function(s){
+    return '<button class="sol-sec-btn" data-sec="'+s.id+'">'+esc(s.label)+'</button>';
+  }).join('');
+  subWrap.innerHTML = SOLACE_SECTIONS.map(function(s){
+    return '<div class="sol-subnav-group'+(s.tabs.length<2?' solo':'')+'" data-sec="'+s.id+'">'
+      + s.tabs.map(function(t){ return '<button class="sol-sub-btn" data-sec="'+s.id+'" data-tab="'+t.id+'">'+esc(t.label)+'</button>'; }).join('')
+      + '</div>';
+  }).join('');
+  secWrap.addEventListener('click', function(e){
+    var b=e.target.closest('.sol-sec-btn'); if(!b) return;
+    go(b.getAttribute('data-sec'), null);
+  });
+  subWrap.addEventListener('click', function(e){
+    var b=e.target.closest('.sol-sub-btn'); if(!b) return;
+    go(b.getAttribute('data-sec'), b.getAttribute('data-tab'));
+  });
+}
+
+function go(sectionId, tabId, opts){
+  opts = opts || {};
+  var sec = findSection(sectionId) || SOLACE_SECTIONS[0];
+  var tab = findTab(sec, tabId) || curTabOf(sec);
+  var leaving = curSection && curTabOf(curSection);
+  if (leaving && leaving !== tab && leaving.onLeave) { try { leaving.onLeave(); } catch(e){} }
+
+  curSection = sec; curTab[sec.id] = tab.id;
+
+  // Panes
+  var panes = document.querySelectorAll('#sol-main .sol-pane');
+  Array.prototype.forEach.call(panes, function(p){ p.classList.toggle('on', p.id===tab.pane); });
+  // Section rail
+  Array.prototype.forEach.call(document.querySelectorAll('.sol-sec-btn'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-sec')===sec.id);
+  });
+  // Subtab rails: one group visible, its own chip lit
+  Array.prototype.forEach.call(document.querySelectorAll('.sol-subnav-group'), function(g){
+    g.classList.toggle('on', g.getAttribute('data-sec')===sec.id);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.sol-sub-btn'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-sec')===sec.id && b.getAttribute('data-tab')===tab.id);
+  });
+  // The voice/type bar belongs to whichever feature declares voice:true (today,
+  // Recipes only) — it never sits over a pane that has nothing to send it.
+  var fv=$('float-voice');
+  if(fv){ if(tab.voice) fv.classList.add('show'); else { fv.classList.remove('show'); stopVoiceIfRunning(); hideCaption(); } }
+
+  if (tab.onEnter) { try { tab.onEnter(); } catch(e){ console.warn('onEnter', tab.id, e); } }
+
+  try { localStorage.setItem('sol_route', sec.id+'/'+tab.id); } catch(e){}
+  // Always normalise the address bar to the resolved route. Comparing first is
+  // what makes this safe to run on a hashchange-driven navigation too: arriving
+  // from '#nutrition/recipes' is already equal and rewrites nothing, while a
+  // partial '#nutrition' or an empty hash on first load gets completed. Deliberately
+  // NOT gated on opts.fromHash — that gate also swallowed the very first write, so
+  // a fresh load left the URL bare and un-shareable.
+  var hash = '#'+sec.id+'/'+tab.id;
+  if (location.hash !== hash) { try { history.replaceState(null,'',hash); } catch(e){ location.hash = hash; } }
+  if (!opts.keepScroll) window.scrollTo(0,0);
+}
+
+// Deep link: #fitness/motioncore, #nutrition/recipes, or just #nutrition.
+function routeFromHash(){
+  var h=(location.hash||'').replace(/^#/,'');
+  if(!h) return null;
+  var parts=h.split('/');
+  var sec=findSection(parts[0]); if(!sec) return null;
+  return { sec:sec.id, tab:(parts[1]||null) };
+}
+function initialRoute(){
+  var r=routeFromHash();
+  if(r) return r;
+  var saved=null; try{ saved=localStorage.getItem('sol_route'); }catch(e){}
+  if(saved){ var p=saved.split('/'); if(findSection(p[0])) return { sec:p[0], tab:p[1]||null }; }
+  return { sec:SOLACE_SECTIONS[0].id, tab:null };
+}
+window.addEventListener('hashchange', function(){
+  var r=routeFromHash(); if(r) go(r.sec, r.tab, {fromHash:true});
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NUTRITION ▸ RECIPES — engine migrated from mylist.html.
+   Single-profile: MyList carried a {tony, veda} map and an activeProfile switch;
+   Solace is Tony's program, so `recipes` is just an array and the Veda doc is
+   never named anywhere in this file. Everything else — the category pills, the
+   search + filter, the ingredient/tool rows, the per-step inline editor with
+   drag reordering, undo/redo, and the voice/typed AI — is the original.
+   ══════════════════════════════════════════════════════════════════════════ */
+var recipes = [];
+var recipesLoaded = false;
+var recDetailId = null;
+var recEditingId = null;
+var recEditingStep = null;   // index of the step being edited (===steps.length ⇒ a new step)
+
+var REC_CATS=['Breakfast','Lunch','Dinner','Snack','Dessert','Other'];
+var EDIT_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+var DEL_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+var GRIP='<div class="resize-grip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13 6 L6 13 M13 10 L10 13"/></svg></div>';
+
+function setRecipes(arr){ recipes = arr; }
+function persistRecipes(){ if(window._solSaveRecipes) window._solSaveRecipes(recipes.map(sanitize)); }
+
+// Only repaint when the Recipes pane is actually on screen — a remote update that
+// lands while you are in Fitness must not yank the DOM out from under MotionCore.
+function recipesVisible(){ var r=$('rec-root'); return !!(r && r.classList.contains('on')); }
+function renderRecipesIfVisible(){ if(recipesVisible()) renderRecipes(); }
+
+function renderRecipes(){
+  var r=$('rec-root'); if(!r) return;
+  r.innerHTML = recDetailId ? recDetailHtml() : renderRecipesView();
+  if(!recDetailId){
+    var rl=$('rec-list-rows');
+    // Drag reorders the STORED order, so it is only offered when the list on
+    // screen IS the stored list (no active search/filter) — otherwise a drop
+    // would move a row to a position the user cannot see.
+    if(rl && recFiltered().length===recipes.length) enableDrag(rl, 'recipe');
+  } else if(recEditingStep===null){
+    var rs=$('rec-steps-container'); if(rs) enableDrag(rs, 'recstep');
+  }
+}
+
+/* ── recipe undo / redo (covers manual AND voice/AI changes) ── */
+var recUndoStack=[], recRedoStack=[];
+function recSnap(){ return JSON.parse(JSON.stringify(recipes||[])); }
+function recPushUndo(){
+  recUndoStack.push(recSnap());
+  if(recUndoStack.length>30) recUndoStack.shift();
+  recRedoStack=[];
+}
+function recUndoAvailable(){ return !!recUndoStack.length; }
+function recRedoAvailable(){ return !!recRedoStack.length; }
+function recUndo(){
+  if(!recUndoStack.length){ toast('Nothing to undo'); return; }
+  recRedoStack.push(recSnap());
+  setRecipes(recUndoStack.pop());
+  if(recDetailId && !recipes.some(function(r){return r.id===recDetailId;})) recDetailId=null;
+  recEditingStep=null; persistRecipes(); renderRecipes(); toast('Undone');
+}
+function recRedo(){
+  if(!recRedoStack.length){ toast('Nothing to redo'); return; }
+  recUndoStack.push(recSnap());
+  setRecipes(recRedoStack.pop());
+  if(recDetailId && !recipes.some(function(r){return r.id===recDetailId;})) recDetailId=null;
+  recEditingStep=null; persistRecipes(); renderRecipes(); toast('Redone');
+}
+
+/* ── recipe voice/text AI ("type-to-action") ── */
+function recForAI(r){
+  return { id:r.id, name:r.name||'', category:r.category||'Other', prepTime:r.prepTime||'', servings:r.servings||'',
+    ingredients:(r.ingredients||[]).map(function(i){ return { name:i.name||'', qty:i.qty||'' }; }),
+    tools:(r.tools||[]).slice(), instructions:r.instructions||'' };
+}
+function normRecipeIn(r){
+  return { id:r.id||uid(), name:String(r.name||''), category:r.category||'Other',
+    prepTime:String(r.prepTime||''), servings:String(r.servings||''),
+    ingredients:Array.isArray(r.ingredients)?r.ingredients.map(function(i){ return { name:String(i.name||''), qty:String(i.qty||'') }; }).filter(function(i){return i.name;}):[],
+    tools:Array.isArray(r.tools)?r.tools.map(String).filter(Boolean):[],
+    instructions:String(r.instructions||'') };
+}
+async function sendRecipeToAI(payloadExtra){
+  try{
+    var openIndex = recDetailId ? (recipes.map(function(r){return r.id;}).indexOf(recDetailId)+1) : 0;
+    var body=Object.assign({ profile:PROFILE, recipes:recipes.map(recForAI), openIndex:openIndex }, payloadExtra);
+    var r=await fetch(API+'/recipe/parse',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    var d=await r.json();
+    if(d.ok && Array.isArray(d.recipes)){
+      if(d.ops>0){
+        recPushUndo();
+        setRecipes(d.recipes.map(normRecipeIn));
+        if(recDetailId && !recipes.some(function(x){return x.id===recDetailId;})) recDetailId=null;
+        recEditingStep=null; persistRecipes(); renderRecipes();
+      }
+      toast(d.note || (d.ops>0?'Recipes updated':'No changes'));
+    }
+    else { toast(d.error||'Could not understand', true); }
+  }catch(e){ toast('Network error', true); }
+}
+
+function recCatStyle(cat){
+  // soft pastel pills — light pastel fill + darker ink text (reads well on the dark UI)
+  var c={
+    Breakfast:{bg:'#FFE3D2',fg:'#6E2E12'},   // peach   —  8.3:1
+    Lunch:    {bg:'#D9EEF7',fg:'#123D4B'},   // sky     —  9.8:1
+    Dinner:   {bg:'#E4DBF7',fg:'#2E1D50'},   // lavender— 11.2:1
+    Snack:    {bg:'#FFF0D4',fg:'#54360A'},   // butter  —  9.8:1
+    Dessert:  {bg:'#FBDDE9',fg:'#5A1436'},   // rose    — 10.5:1
+    Other:    {bg:'#E6EAEF',fg:'#2A3138'}    // stone   — 10.9:1
+  };
+  var v=c[cat]||c.Other;
+  return 'background:'+v.bg+';border:1px solid '+v.bg+';color:'+v.fg+';';
+}
+function recFiltered(){
+  var q=($('rec-search')?$('rec-search').value:'').trim().toLowerCase();
+  var cat=$('rec-filter')?$('rec-filter').value:'all';
+  var list=recipes.slice();
+  if(cat && cat!=='all') list=list.filter(function(r){ return (r.category||'Other')===cat; });
+  if(q) list=list.filter(function(r){ return (r.name+' '+((r.ingredients||[]).map(function(i){return i.name;}).join(' '))).toLowerCase().indexOf(q)>=0; });
+  return list;
+}
+function recRowsHtml(){
+  var list=recFiltered();
+  if(!list.length) return '<div class="card"><div class="empty">'+(recipes.length?'No recipes match.':(recipesLoaded?'No recipes yet — tap “New recipe” to add one.':'Loading your recipes…'))+'</div></div>';
+  return list.map(function(r){
+    var ic=(r.ingredients||[]).length;
+    return '<div class="rec-row" data-id="'+r.id+'" onclick="SOL.recOpenDetail(\''+jq(r.id)+'\')">'
+      +'<div class="rec-info"><div class="rec-name">'+esc(r.name)+'</div>'
+        +'<div class="rec-meta">'+(r.prepTime?'<span>'+esc(r.prepTime)+'</span>':'')+(r.servings?'<span>'+esc(r.servings)+'</span>':'')+(ic?'<span>'+ic+' ingredient'+(ic!==1?'s':'')+'</span>':'')+'</div></div>'
+      +'<span class="rec-tag" style="'+recCatStyle(r.category||'Other')+'">'+esc(r.category||'Other')+'</span>'
+      +'<div class="rec-acts">'
+        +'<button class="ib" onclick="event.stopPropagation();SOL.recOpenEdit(\''+jq(r.id)+'\')" title="Edit">'+EDIT_SVG+'</button>'
+        +'<button class="ib del" onclick="event.stopPropagation();SOL.recDelete(\''+jq(r.id)+'\')" title="Delete">'+DEL_SVG+'</button>'
+      +'</div></div>';
+  }).join('');
+}
+function recRerender(){ var el=$('rec-list-rows'); if(el) el.innerHTML=recRowsHtml(); }
+function renderRecipesView(){
+  var h='<div class="card">';
+  h+='<div class="list-head"><div style="flex:1"><div class="ttl" style="font-size:24px">Recipes</div></div>'
+    +(recUndoAvailable()?'<button class="btn ghost sm" onclick="SOL.recUndo()" title="Undo">'+SLI.undo+'Undo</button>':'')
+    +(recRedoAvailable()?'<button class="btn ghost sm" onclick="SOL.recRedo()" title="Redo">'+SLI.redo+'Redo</button>':'')
+    +'<button class="btn solid sm rec-add" onclick="SOL.recOpenAdd()">+ New recipe</button></div>';
+  h+='<div class="list-meta">'+recipes.length+' recipe'+(recipes.length!==1?'s':'')+'</div>';
+  h+='<div class="rec-toolbar" style="margin-top:12px">'
+    +'<input class="rec-search" id="rec-search" placeholder="Search recipes…" oninput="SOL.recRerender()">'
+    +'<select class="rec-filter" id="rec-filter" onchange="SOL.recRerender()">'
+      +['all'].concat(REC_CATS).map(function(c){ return '<option value="'+c+'">'+(c==='all'?'All categories':c)+'</option>'; }).join('')
+    +'</select></div>';
+  h+='</div>';
+  h+='<div id="rec-list-rows">'+recRowsHtml()+'</div>';
+  return h;
+}
+function recDetailHtml(){
+  var r=recipes.filter(function(x){return x.id===recDetailId;})[0];
+  if(!r){ recDetailId=null; return renderRecipesView(); }
+  var ing=(r.ingredients||[]).length
+    ? r.ingredients.map(function(i){ return '<div class="rec-ing"><span class="nm">'+esc(i.name)+'</span><span class="qt">'+esc(i.qty||'')+'</span></div>'; }).join('')
+    : '<div class="rec-muted">No ingredients listed.</div>';
+  var tools=(r.tools||[]).length
+    ? '<div class="rec-tools">'+r.tools.map(function(t){ return '<span class="rec-tool">'+esc(t)+'</span>'; }).join('')+'</div>'
+    : '<div class="rec-muted">No tools listed.</div>';
+  var instr=recStepsEditorHtml(r);
+  return '<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><button class="btn ghost sm" onclick="SOL.recBack()">'+SLI.arrowLeft+'Back to recipes</button><span style="flex:1"></span>'
+    +(recUndoAvailable()?'<button class="btn ghost sm" onclick="SOL.recUndo()" title="Undo">'+SLI.undo+'Undo</button>':'')
+    +(recRedoAvailable()?'<button class="btn ghost sm" onclick="SOL.recRedo()" title="Redo">'+SLI.redo+'Redo</button>':'')+'</div>'
+    +'<div class="card">'
+    +'<div class="rec-detail-name">'+esc(r.name)+'</div>'
+    +'<div class="rec-detail-tags"><span class="rec-tag" style="'+recCatStyle(r.category||'Other')+'">'+esc(r.category||'Other')+'</span>'
+      +(r.prepTime?'<span class="rec-tag time">'+SLI.clock+esc(r.prepTime)+'</span>':'')
+      +(r.servings?'<span class="rec-tag time">'+SLI.plate+esc(r.servings)+'</span>':'')+'</div>'
+    +'<div class="rec-sec">Ingredients</div>'+ing
+    +'<div class="rec-sec">Tools &amp; equipment</div>'+tools
+    +'<div class="rec-sec">Instructions</div>'+instr
+    +'<div style="display:flex;gap:8px;margin-top:22px;flex-wrap:wrap">'
+      +'<button class="btn ghost sm" onclick="SOL.recOpenEdit(\''+jq(r.id)+'\')">'+SLI.pencil+'Edit recipe</button>'
+      +'<button class="btn danger sm" onclick="SOL.recDelete(\''+jq(r.id)+'\')">Delete</button></div>'
+    +'</div>';
+}
+function recOpenDetail(id){ if(Date.now()-dndLastEnd<350) return; recDetailId=id; recEditingStep=null; renderRecipes(); window.scrollTo(0,0); }
+function recBack(){ recDetailId=null; recEditingStep=null; renderRecipes(); window.scrollTo(0,0); }
+
+/* ── inline instruction-step editing (detail view) ──
+   Each step is individually editable; changes renumber and save immediately to the
+   stored recipe (no full recreate), with undo support. ── */
+function recCurrent(){ return recipes.filter(function(x){return x.id===recDetailId;})[0]||null; }
+function recStepsOf(t){
+  t=String(t||'').trim(); if(!t) return [];
+  return t.split(/\r?\n+/).map(function(l){ return l.replace(/^\s*(?:\d+[.)]|[-*•])\s*/,'').trim(); }).filter(Boolean);
+}
+function recRenumber(steps){
+  steps=steps.map(function(s){ return String(s||'').trim(); }).filter(Boolean);
+  return steps.length ? steps.map(function(l,i){ return (i+1)+'. '+l; }).join('\n') : '';
+}
+function recStepEditorRow(i, text){
+  return '<div class="rec-step editing"><span class="rec-step-n">'+(i+1)+'.</span>'
+    +'<div class="se-body"><div class="ta-wrap"><textarea id="rec-step-input" rows="1" placeholder="Describe this step…" oninput="SOL.autoGrow(this)" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();SOL.recSaveStep('+i+');}">'+esc(text||'')+'</textarea>'+GRIP+'</div>'
+    +'<div class="se-acts"><button class="btn ghost sm" onclick="SOL.recCancelStep()">Cancel</button><button class="btn solid sm" onclick="SOL.recSaveStep('+i+')">Save</button></div></div></div>';
+}
+function recStepsEditorHtml(r){
+  var steps=recStepsOf(r.instructions);
+  var h='';
+  if(!steps.length && recEditingStep===null) h+='<div class="rec-muted">No instructions yet — tap “Add step” or use the voice bar.</div>';
+  h+='<div class="rec-steps" id="rec-steps-container">';
+  for(var i=0;i<steps.length;i++){
+    if(recEditingStep===i){ h+=recStepEditorRow(i, steps[i]); continue; }
+    // data-id = the step's index; hold-to-drag reorders (same mechanic as recipes)
+    h+='<div class="rec-step" data-id="'+i+'"><span class="rec-step-n">'+(i+1)+'.</span>'
+      +'<span class="rec-step-t">'+esc(steps[i])+'</span>'
+      +'<span class="rec-step-acts">'
+        +'<button class="ib" onclick="SOL.recEditStep('+i+')" title="Edit step">'+EDIT_SVG+'</button>'
+        +'<button class="ib del" onclick="SOL.recDeleteStep('+i+')" title="Delete step">'+DEL_SVG+'</button>'
+      +'</span></div>';
+  }
+  if(recEditingStep===steps.length) h+=recStepEditorRow(steps.length, '');   // adding a new step
+  h+='</div>';
+  h+='<button class="rec-addrow" style="margin-top:8px" onclick="SOL.recAddStep()">+ Add step</button>';
+  return h;
+}
+function recFocusStepInput(){ setTimeout(function(){ var el=$('rec-step-input'); if(el){ autoGrow(el); el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 40); }
+function recEditStep(i){ if(!recCurrent()) return; recEditingStep=i; renderRecipes(); recFocusStepInput(); }
+function recAddStep(){ var r=recCurrent(); if(!r) return; recEditingStep=recStepsOf(r.instructions).length; renderRecipes(); recFocusStepInput(); }
+function recCancelStep(){ recEditingStep=null; renderRecipes(); }
+function recSaveStep(i){
+  var r=recCurrent(); if(!r){ recEditingStep=null; renderRecipes(); return; }
+  var el=$('rec-step-input'); var v=el?(el.value||'').trim():'';
+  var steps=recStepsOf(r.instructions);
+  recPushUndo();
+  if(i>=steps.length){ if(v) steps.push(v); }          // new step (blank cancels)
+  else if(v){ steps[i]=v; }                            // edit existing
+  else { steps.splice(i,1); }                          // emptied ⇒ delete
+  r.instructions=recRenumber(steps);
+  recEditingStep=null; persistRecipes(); renderRecipes();
+}
+function recDeleteStep(i){
+  var r=recCurrent(); if(!r) return;
+  var steps=recStepsOf(r.instructions); if(i<0||i>=steps.length) return;
+  recPushUndo(); steps.splice(i,1); r.instructions=recRenumber(steps);
+  recEditingStep=null; persistRecipes(); renderRecipes();
+}
+
+/* ── add / edit modal ── */
+function recAddIng(name,qty){
+  var d=document.createElement('div'); d.className='rec-ing-row';
+  d.innerHTML='<input placeholder="Ingredient" value="'+esc(name||'')+'"><input placeholder="Qty" value="'+esc(qty||'')+'"><button class="rec-rm" onclick="this.parentElement.remove()">×</button>';
+  $('rec-ing-rows').appendChild(d);
+}
+function recAddTool(name){
+  var d=document.createElement('div'); d.className='rec-tool-row';
+  d.innerHTML='<input placeholder="Tool or equipment" value="'+esc(name||'')+'"><button class="rec-rm" onclick="this.parentElement.remove()">×</button>';
+  $('rec-tool-rows').appendChild(d);
+}
+function recCollectIngs(){ var out=[]; $('rec-ing-rows').querySelectorAll('.rec-ing-row').forEach(function(r){ var i=r.querySelectorAll('input'); var n=i[0].value.trim(), q=i[1].value.trim(); if(n) out.push({name:n,qty:q}); }); return out; }
+function recCollectTools(){ var out=[]; $('rec-tool-rows').querySelectorAll('.rec-tool-row').forEach(function(r){ var n=r.querySelector('input').value.trim(); if(n) out.push(n); }); return out; }
+function recOpenAdd(){
+  recEditingId=null; $('rec-modal-title').textContent='New Recipe';
+  $('rec-name').value=''; $('rec-cat').value='Dinner'; $('rec-time').value=''; $('rec-servings').value=''; $('rec-instr').value='';
+  $('rec-ing-rows').innerHTML=''; $('rec-tool-rows').innerHTML=''; recAddIng('','');
+  $('rec-modal').style.display='flex'; setTimeout(function(){ autoGrow($('rec-instr')); $('rec-name').focus(); }, 50);
+}
+function recOpenEdit(id){
+  var r=recipes.filter(function(x){return x.id===id;})[0]; if(!r) return;
+  recEditingId=id; $('rec-modal-title').textContent='Edit Recipe';
+  $('rec-name').value=r.name||''; $('rec-cat').value=r.category||'Dinner'; $('rec-time').value=r.prepTime||''; $('rec-servings').value=r.servings||''; $('rec-instr').value=r.instructions||'';
+  $('rec-ing-rows').innerHTML=''; $('rec-tool-rows').innerHTML='';
+  (r.ingredients||[]).forEach(function(i){ recAddIng(i.name,i.qty); }); if(!(r.ingredients||[]).length) recAddIng('','');
+  (r.tools||[]).forEach(function(t){ recAddTool(t); });
+  $('rec-modal').style.display='flex'; setTimeout(function(){ autoGrow($('rec-instr')); }, 50);
+}
+function recCloseModal(){ $('rec-modal').style.display='none'; recEditingId=null; }
+function recSave(){
+  var name=$('rec-name').value.trim();
+  if(!name){ $('rec-name').style.borderColor='var(--bad)'; setTimeout(function(){ $('rec-name').style.borderColor=''; },1500); return; }
+  var data={ id:recEditingId||uid(), name:name, category:$('rec-cat').value, prepTime:$('rec-time').value.trim(),
+             servings:$('rec-servings').value.trim(),
+             ingredients:recCollectIngs(), tools:recCollectTools(), instructions:$('rec-instr').value.trim() };
+  recPushUndo();
+  if(recEditingId){ setRecipes(recipes.map(function(r){ return r.id===recEditingId?data:r; })); }
+  else { setRecipes(recipes.concat([data])); }
+  persistRecipes(); recCloseModal();
+  if(recDetailId) recDetailId=data.id;
+  renderRecipes();
+}
+function recDelete(id){
+  var r=recipes.filter(function(x){return x.id===id;})[0]; if(!r) return;
+  confirmAsk('Delete recipe "'+r.name+'"?', function(){
+    recPushUndo();
+    setRecipes(recipes.filter(function(x){return x.id!==id;})); persistRecipes();
+    if(recDetailId===id) recDetailId=null; renderRecipes();
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DRAG & DROP (floating ghost + insertion line, no reflow) — MyList's engine,
+   trimmed to the two kinds Recipes uses: 'recipe' (reorder the book) and
+   'recstep' (reorder one recipe's instructions). Hold ~180ms on a row to pick it
+   up, then drag; the source row stays dimmed in place (zero layout shift) and a
+   glowing line shows where it will land. Mouse and touch.
+   ══════════════════════════════════════════════════════════════════════════ */
+var dndLastEnd = 0;
+var dnd = null;
+
+function enableDrag(container, kind){
+  if(!container || container._dndBound) return;
+  container._dndBound = true;
+  container.addEventListener('pointerdown', function(e){
+    if(dnd) return;
+    if(e.button && e.button!==0) return;
+    if(e.target.closest('button, input, select, textarea, a')) return;
+    var row = e.target.closest('[data-id]');
+    if(!row || !container.contains(row)) return;
+    var sx=e.clientX, sy=e.clientY, pid=e.pointerId, hold;
+    function cancel(){ clearTimeout(hold); document.removeEventListener('pointermove',pm,true); document.removeEventListener('pointerup',pu,true); document.removeEventListener('pointercancel',pu,true); }
+    function pm(ev){ if(Math.abs(ev.clientX-sx)>9 || Math.abs(ev.clientY-sy)>9){ cancel(); } }
+    function pu(){ cancel(); }
+    hold=setTimeout(function(){ cancel(); beginDrag(container, kind, row, sx, sy, pid); }, 180);
+    document.addEventListener('pointermove', pm, true);
+    document.addEventListener('pointerup', pu, true);
+    document.addEventListener('pointercancel', pu, true);
+  });
+  // a real drag is followed by a click — swallow it
+  container.addEventListener('click', function(e){ if(Date.now()-dndLastEnd<350){ e.stopPropagation(); e.preventDefault(); } }, true);
+}
+
+function beginDrag(container, kind, row, px, py, pid){
+  var rect=row.getBoundingClientRect();
+  var ghost=row.cloneNode(true);
+  ghost.classList.add('dnd-ghost');
+  ghost.style.width=rect.width+'px';
+  document.body.appendChild(ghost);
+  row.classList.add('dnd-src');
+  var indicator=document.createElement('div'); indicator.className='dnd-indicator'; document.body.appendChild(indicator);
+  // Block the page from scrolling/cancelling the gesture on touch — this is what
+  // made mobile "drop immediately": the browser claimed the touch for scrolling.
+  var blockScroll=function(e){ e.preventDefault(); };
+  var blockCtx=function(e){ e.preventDefault(); };
+  dnd={ container:container, kind:kind, row:row, id:row.dataset.id, ghost:ghost, indicator:indicator, pid:pid,
+        ox:px-rect.left, oy:py-rect.top, px:px, py:py, target:null, raf:0, moved:false,
+        blockScroll:blockScroll, blockCtx:blockCtx };
+  document.body.classList.add('dnd-active');
+  try{ row.setPointerCapture && row.setPointerCapture(pid); }catch(_){}
+  try{ navigator.vibrate && navigator.vibrate(12); }catch(_){}
+  document.addEventListener('touchmove', blockScroll, {passive:false});
+  document.addEventListener('contextmenu', blockCtx);
+  document.addEventListener('pointermove', dndMove, {passive:false});
+  document.addEventListener('pointerup', dndEnd);
+  document.addEventListener('pointercancel', dndEnd);
+  dndLoop();
+}
+function dndMove(e){ if(!dnd) return; e.preventDefault(); dnd.px=e.clientX; dnd.py=e.clientY; dnd.moved=true; }
+function dndLoop(){
+  if(!dnd) return;
+  var a=dnd;
+  a.ghost.style.transform='translate('+(a.px-a.ox)+'px,'+(a.py-a.oy)+'px) rotate(1deg)';
+  // edge auto-scroll
+  var vh=window.innerHeight, edge=80;
+  if(a.py<edge) window.scrollBy(0,-Math.ceil((edge-a.py)/6));
+  else if(a.py>vh-edge) window.scrollBy(0,Math.ceil((a.py-(vh-edge))/6));
+  a.target=computeTarget(a);
+  paintIndicator(a);
+  a.raf=requestAnimationFrame(dndLoop);
+}
+// Determine the drop target: {beforeId, y} against the siblings' midpoints.
+function computeTarget(a){
+  var items=Array.prototype.slice.call(a.container.querySelectorAll('[data-id]')).filter(function(el){return el!==a.row;});
+  var py=a.py, beforeId=null, y, placed=false;
+  for(var n=0;n<items.length;n++){ var rr=items[n].getBoundingClientRect(); if(py<rr.top+rr.height/2){ beforeId=items[n].dataset.id; y=rr.top-4; placed=true; break; } }
+  if(!placed){ if(items.length){ var l2=items[items.length-1].getBoundingClientRect(); y=l2.bottom+4; } else { y=a.container.getBoundingClientRect().top+4; } }
+  return {beforeId:beforeId, y:y};
+}
+function paintIndicator(a){
+  if(!a.target){ a.indicator.style.display='none'; return; }
+  var cr=a.container.getBoundingClientRect();
+  a.indicator.style.display='block';
+  a.indicator.style.left=(cr.left+4)+'px';
+  a.indicator.style.top=(a.target.y-1.5)+'px';
+  a.indicator.style.width=(cr.width-8)+'px';
+  a.indicator.style.height='3px';
+}
+function dndEnd(){
+  if(!dnd) return;
+  var a=dnd;
+  document.removeEventListener('pointermove', dndMove);
+  document.removeEventListener('pointerup', dndEnd);
+  document.removeEventListener('pointercancel', dndEnd);
+  if(a.blockScroll) document.removeEventListener('touchmove', a.blockScroll, {passive:false});
+  if(a.blockCtx) document.removeEventListener('contextmenu', a.blockCtx);
+  try{ a.row && a.row.releasePointerCapture && a.row.releasePointerCapture(a.pid); }catch(_){}
+  if(a.raf) cancelAnimationFrame(a.raf);
+  if(a.ghost) a.ghost.remove();
+  if(a.indicator) a.indicator.remove();
+  if(a.row) a.row.classList.remove('dnd-src');
+  document.body.classList.remove('dnd-active');
+  var t=a.target, kind=a.kind, id=a.id, moved=a.moved;
+  dnd=null;
+  if(moved && t){ dndLastEnd=Date.now(); applyDrop(kind, id, t); }
+}
+function applyDrop(kind, id, t){
+  if(kind==='recipe'){
+    var src=recipes.filter(function(x){return x.id===id;})[0]; if(!src) return;
+    recPushUndo();
+    var rest=recipes.filter(function(x){return x.id!==id;});
+    var idx = t.beforeId ? rest.findIndex(function(x){return x.id===t.beforeId;}) : rest.length;
+    if(idx<0) idx=rest.length;
+    rest.splice(idx,0,src); setRecipes(rest); persistRecipes(); renderRecipes(); return;
+  }
+  if(kind==='recstep'){
+    // reorder instruction steps (data-id = step index); renumber + save immediately
+    var rc=recCurrent(); if(!rc) return;
+    var steps=recStepsOf(rc.instructions);
+    var from=parseInt(id,10); if(isNaN(from)||from<0||from>=steps.length) return;
+    var arr=steps.map(function(tx,ix){ return {ix:ix, t:tx}; });
+    var rest3=arr.filter(function(x){ return x.ix!==from; });
+    var sidx = (t.beforeId!=null && t.beforeId!=='') ? rest3.findIndex(function(x){ return x.ix===parseInt(t.beforeId,10); }) : rest3.length;
+    if(sidx<0) sidx=rest3.length;
+    recPushUndo();
+    rest3.splice(sidx,0,{ix:from, t:steps[from]});
+    rc.instructions=recRenumber(rest3.map(function(x){ return x.t; }));
+    persistRecipes(); renderRecipes(); return;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   VOICE + TYPED AI — MyList's engine, verbatim except that every route now goes
+   to the Recipes parser (in MyList the same bar served Lists too, so it had to
+   branch on the open tab). Records to a 16kHz WAV and posts that; live captions
+   come from the browser's SpeechRecognition when it exists and are used as the
+   fallback transcript when the recording is too short to send.
+   ══════════════════════════════════════════════════════════════════════════ */
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+var voice = { active:false, busy:false,
+              ctx:null, stream:null, proc:null, src:null, buffers:[], sampleRate:44100,
+              recog:null, capSession:'', capCurrent:'', deviceId:'' };
+try{ voice.deviceId = localStorage.getItem('sol_mic_device') || ''; }catch(e){}
+
+function micTap(){ if(voice.busy) return; if(voice.active){ stopVoice(); } else { startVoice(); } }
+function stopVoiceIfRunning(){ if(voice.active){ try{ voice.stream&&voice.stream.getTracks().forEach(function(t){t.stop()}); }catch(e){} try{ voice.recog&&(voice.recog.onend=null,voice.recog.stop()); }catch(e){} try{ voice.ctx&&voice.ctx.close(); }catch(e){} voice.active=false; voice.buffers=[]; setMicUI(false); setBarRecording(false); } }
+
+function setMicUI(on){ var b=$('float-mic'); if(b){ if(on) b.classList.add('recording'); else b.classList.remove('recording'); } }
+function setBarRecording(on){ var fv=$('float-voice'); if(fv){ if(on) fv.classList.add('recording'); else fv.classList.remove('recording'); } }
+function showCaption(html){ var c=$('top-caption'), b=$('top-caption-body'), h=c&&c.querySelector('.cap-h'); if(c&&b){ if(h)h.style.display=''; c.classList.add('show'); b.innerHTML=html; b.scrollTop=b.scrollHeight; } }
+function showProcessing(){ var c=$('top-caption'), b=$('top-caption-body'), h=c&&c.querySelector('.cap-h'); if(c&&b){ if(h)h.style.display='none'; c.classList.add('show'); b.innerHTML='<div style="display:flex;align-items:center;gap:9px;font-weight:700"><span class="spin"></span> Processing…</div>'; } }
+function hideCaption(){ var c=$('top-caption'); if(c){ c.classList.remove('show'); var b=$('top-caption-body'); if(b)b.innerHTML=''; } }
+function joinT(a,b){ a=(a||'').trim(); b=(b||'').trim(); return (a+' '+b).trim(); }
+function captionText(){ return joinT(voice.capSession, voice.capCurrent); }
+
+async function getMic(){
+  var base={ channelCount:1, echoCancellation:true, noiseSuppression:true };
+  if(voice.deviceId){
+    try{ return await navigator.mediaDevices.getUserMedia({ audio: Object.assign({ deviceId:{ exact:voice.deviceId } }, base) }); }
+    catch(e){ voice.deviceId=''; try{ localStorage.removeItem('sol_mic_device'); }catch(_){} }
+  }
+  // default / current system input (fresh each time → picks up device changes like unplugged headphones)
+  return await navigator.mediaDevices.getUserMedia({ audio: base });
+}
+
+async function startVoice(){
+  var stream;
+  try{ stream = await getMic(); }
+  catch(e){ toast('No microphone available — check your input device', true); return; }
+  voice.stream = stream;
+  var AC = window.AudioContext || window.webkitAudioContext; voice.ctx = new AC();
+  if(voice.ctx.state==='suspended'){ try{ await voice.ctx.resume(); }catch(e){} }
+  voice.sampleRate = voice.ctx.sampleRate;
+  voice.src = voice.ctx.createMediaStreamSource(stream);
+  voice.proc = voice.ctx.createScriptProcessor(4096,1,1); voice.buffers=[];
+  voice.proc.onaudioprocess=function(e){ voice.buffers.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+  voice.src.connect(voice.proc); voice.proc.connect(voice.ctx.destination);
+  voice.active=true; setMicUI(true); setBarRecording(true);
+  startCaptions(); // best-effort live text
+  showCaption('<span class="interim">Listening… tap the mic again to stop &amp; process.</span>');
+}
+// live captions only — rebuilds the current session each event (no duplication),
+// accumulates across auto-restarts so pauses never lose text.
+function startCaptions(){
+  if(!SR){ return; }
+  var r; try{ r=new SR(); }catch(e){ return; }
+  r.continuous=true; r.interimResults=true; r.lang='en-US';
+  voice.capSession=''; voice.capCurrent='';
+  r.onresult=function(e){
+    var fin='', interim='';
+    for(var i=0;i<e.results.length;i++){ var res=e.results[i]; if(res.isFinal) fin+=res[0].transcript+' '; else interim+=res[0].transcript; }
+    voice.capCurrent=fin.trim();
+    var full=captionText();
+    showCaption((full?esc(full):'')+(interim?(full?' ':'')+'<span class="interim">'+esc(interim)+'</span>':'') || '<span class="interim">Listening…</span>');
+  };
+  r.onerror=function(){};
+  r.onend=function(){
+    if(!voice.active) return;
+    voice.capSession=joinT(voice.capSession, voice.capCurrent); voice.capCurrent='';
+    try{ r.start(); }catch(e){ setTimeout(function(){ if(voice.active){ try{ r.start(); }catch(_){ } } },250); }
+  };
+  try{ r.start(); }catch(e){}
+  voice.recog=r;
+}
+async function stopVoice(){
+  voice.active=false; setMicUI(false); setBarRecording(false);
+  // stop captions, capture final caption text
+  if(voice.recog){ try{ voice.recog.onend=null; voice.recog.stop(); }catch(e){} }
+  voice.capSession=joinT(voice.capSession, voice.capCurrent); voice.capCurrent='';
+  var capText=captionText(); voice.recog=null;
+  // stop recorder, build WAV
+  try{ voice.proc && voice.proc.disconnect(); voice.src && voice.src.disconnect(); }catch(e){}
+  try{ voice.stream && voice.stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+  var sr=voice.sampleRate, buffers=voice.buffers.slice();
+  try{ voice.ctx && voice.ctx.close(); }catch(e){} voice.ctx=null; voice.buffers=[];
+  // a spoken undo/redo command shouldn't go to the AI
+  if(capText && isUndoCommand(capText)){ hideCaption(); recUndo(); return; }
+  if(capText && isRedoCommand(capText)){ hideCaption(); recRedo(); return; }
+  showProcessing(); voice.busy=true;
+  try{
+    var wav=encodeWav(buffers, sr, 16000);
+    if(wav.byteLength>=1600){ var b64=await blobToB64(new Blob([wav])); await sendRecipeToAI({ audio:b64, mimeType:'audio/wav' }); }
+    else if(capText){ await sendRecipeToAI({ transcript:capText }); }
+    else { toast("Didn't catch that — try again", true); }
+  }catch(err){
+    if(capText){ try{ await sendRecipeToAI({ transcript:capText }); }catch(e){ toast('Voice failed — try again', true); } }
+    else toast('Voice failed — try again', true);
+  }
+  hideCaption(); voice.busy=false;
+}
+
+/* ── microphone device picker ── */
+async function openDevicePicker(){
+  var box=$('dev-list'); box.innerHTML='<div class="dev-sub">Loading…</div>';
+  $('dev-overlay').style.display='flex';
+  // need permission once for labels to appear
+  try{ var s=await navigator.mediaDevices.getUserMedia({audio:true}); s.getTracks().forEach(function(t){t.stop();}); }catch(e){}
+  var devs=[];
+  try{ devs=(await navigator.mediaDevices.enumerateDevices()).filter(function(d){return d.kind==='audioinput';}); }catch(e){}
+  var h='<div class="dev-item'+(!voice.deviceId?' on':'')+'" onclick="SOL.pickDevice(\'\')">System default'+(!voice.deviceId?'<span class="tick">'+SLI.check+'</span>':'')+'</div>';
+  devs.forEach(function(d,i){
+    var label=d.label||('Microphone '+(i+1));
+    h+='<div class="dev-item'+(voice.deviceId===d.deviceId?' on':'')+'" onclick="SOL.pickDevice(\''+jq(d.deviceId)+'\')">'+esc(label)+(voice.deviceId===d.deviceId?'<span class="tick">'+SLI.check+'</span>':'')+'</div>';
+  });
+  if(!devs.length) h+='<div class="dev-sub">No microphones found.</div>';
+  box.innerHTML=h;
+}
+function pickDevice(id){ voice.deviceId=id||''; try{ id?localStorage.setItem('sol_mic_device',id):localStorage.removeItem('sol_mic_device'); }catch(e){} closeDevicePicker(); toast('Microphone set'); }
+function closeDevicePicker(){ $('dev-overlay').style.display='none'; }
+
+function sendFloatText(){ doTypedSend($('float-text')); }
+function doTypedSend(ta){
+  if(!ta) return; var t=(ta.value||'').trim(); if(!t) return;
+  ta.value=''; if(ta.tagName==='TEXTAREA') autoGrow(ta);
+  handleVoiceText(t);
+}
+function handleVoiceText(text){
+  if(isUndoCommand(text)){ hideCaption(); recUndo(); return; }
+  if(isRedoCommand(text)){ hideCaption(); recRedo(); return; }
+  showProcessing(); voice.busy=true;
+  sendRecipeToAI({ transcript:text }).then(function(){ hideCaption(); voice.busy=false; });
+}
+function isUndoCommand(t){ return /^\s*(please\s+)?(undo( that| last| it)?|revert( that)?|go back|put (it|that|them) back|bring (it|that|them) back|never\s?mind|that was a mistake)\s*[.!?]?\s*$/i.test(t); }
+function isRedoCommand(t){ return /^\s*(please\s+)?(redo( that| last| it)?|redo)\s*[.!?]?\s*$/i.test(t); }
+
+function blobToB64(blob){ return new Promise(function(res,rej){ var r=new FileReader(); r.onloadend=function(){ res(String(r.result).split(',')[1]); }; r.onerror=rej; r.readAsDataURL(blob); }); }
+function encodeWav(buffers, inRate, outRate){
+  var len=0; buffers.forEach(function(b){ len+=b.length; });
+  var data=new Float32Array(len); var off=0; buffers.forEach(function(b){ data.set(b,off); off+=b.length; });
+  var ratio=inRate/outRate; var outLen=Math.floor(data.length/ratio); var out=new Float32Array(outLen);
+  for(var i=0;i<outLen;i++){ out[i]=data[Math.floor(i*ratio)]; }
+  var buf=new ArrayBuffer(44+out.length*2); var view=new DataView(buf);
+  function ws(o,s){ for(var i=0;i<s.length;i++) view.setUint8(o+i, s.charCodeAt(i)); }
+  ws(0,'RIFF'); view.setUint32(4,36+out.length*2,true); ws(8,'WAVE'); ws(12,'fmt ');
+  view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
+  view.setUint32(24,outRate,true); view.setUint32(28,outRate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true);
+  ws(36,'data'); view.setUint32(40,out.length*2,true);
+  var p=44; for(var j=0;j<out.length;j++){ var s=Math.max(-1,Math.min(1,out[j])); view.setInt16(p, s<0?s*0x8000:s*0x7FFF, true); p+=2; }
+  return buf;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BOOT
+   ══════════════════════════════════════════════════════════════════════════ */
+var booted=false;
+function boot(){
+  if(booted) return; booted=true;
+  if(!window._solLoadRecipes) return;
+  window._solLoadRecipes().then(function(list){
+    recipes = Array.isArray(list) ? list : [];
+    recipesLoaded = true;
+    // Never report "Synced" for a read that failed. An unconditional 'ok' is what
+    // makes a denied load look like genuine data loss: an empty screen, a green
+    // pill, and no hint that the server copy was simply unreachable.
+    setSync(window._recLoadOk ? 'ok' : 'err');
+    if(!window._recLoadOk) toast('Could not reach your recipes. Editing is paused so your saved recipes are not overwritten.', true);
+    renderRecipesIfVisible();
+  });
+}
+window.addEventListener('fb-ready', boot);
+if (window._fbReady) boot();
+
+window.addEventListener('sol-recipes-update', function(e){
+  var rr=(e.detail&&Array.isArray(e.detail.recipes))?e.detail.recipes:[];
+  recipes=rr; recipesLoaded=true;
+  if(recDetailId && !recipes.some(function(x){return x.id===recDetailId;})) recDetailId=null;
+  renderRecipesIfVisible();
+  setSync('ok');
+});
+
+// Public surface — every inline handler in the markup above routes through this.
+window.SOL = {
+  go: go,
+  setSync: setSync,
+  toast: toast,
+  autoGrow: autoGrow,
+  manageLock: function(){ if(window._solManageLock) window._solManageLock(); },
+  // Called by the lock layer the moment the content root becomes visible (first
+  // load when unlocked, or a successful unlock later) — the nav is only built
+  // once, and the visible pane is repainted so it is never a blank surface.
+  onUnlocked: function(){
+    if(!window.SOL._navBuilt){ window.SOL._navBuilt=true; buildNav(); var r=initialRoute(); go(r.sec, r.tab, {fromHash:true}); }
+    else { renderRecipesIfVisible(); }
+  },
+  micTap: micTap, sendFloatText: sendFloatText,
+  openDevicePicker: openDevicePicker, closeDevicePicker: closeDevicePicker, pickDevice: pickDevice,
+  recRerender: recRerender, recOpenAdd: recOpenAdd, recOpenEdit: recOpenEdit, recOpenDetail: recOpenDetail,
+  recBack: recBack, recAddIng: recAddIng, recAddTool: recAddTool, recSave: recSave, recCloseModal: recCloseModal, recDelete: recDelete,
+  recUndo: recUndo, recRedo: recRedo,
+  recEditStep: recEditStep, recAddStep: recAddStep, recSaveStep: recSaveStep, recCancelStep: recCancelStep, recDeleteStep: recDeleteStep
+};
+
+// The lock layer ran its enforcement before this script parsed, so if the root is
+// already visible (Solace not locked, or this device already unlocked) nothing has
+// called onUnlocked yet. Do it now.
+if ($('sol-root') && $('sol-root').classList.contains('on')) window.SOL.onUnlocked();
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     FITNESS ▸ MOTIONCORE — engine migrated from index.html, unchanged except:
+       • mcSetSync now reports through Solace's single header sync pill
+         (window.SOL.setSync) instead of MotionCore's own #mc-sync-status label,
+         which no longer exists — the program has one sync indicator, not two;
+       • the _mcSwitchTo / _mcApplyTheme hooks are gone. They existed so
+         index.html's Tony nav could show/hide the full-screen #mc-root and repaint
+         its own header; Solace's section router owns both jobs now.
+     Circuits, routines, the module builder, drag-to-reorder, the audio cues, the
+     countdown/interval timer and the Firebase wiring are all the originals, still
+     reading and writing dashboards/motioncore.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+// ══════════════════════════════════════════
+// MOTIONCORE STATE
+// ══════════════════════════════════════════
+var mcCircuits = JSON.parse(localStorage.getItem('mc_circuits')||'[]');
+var mcRoutines = JSON.parse(localStorage.getItem('mc_routines')||'[]');
+var mcEditingCircuitId = null;
+var mcEditingRoutineId = null;
+var mcBuildModules = [];
+var mcEditingModuleId = null;
+
+var mcTimerState = {
+  circuitId:null, modules:[], moduleIndex:0,
+  remaining:0, interval:null, paused:false, initialTime:0,
+  isCountdown:false
+};
+
+// ── Nav (Circuits | Routines, MotionCore's own inner switcher) ──
+function mcSwitchView(v, btn) {
+  document.querySelectorAll('#mc-root .mc-view').forEach(function(el){el.classList.remove('active');});
+  document.querySelectorAll('#mc-root .mc-inner-nav button').forEach(function(el){el.classList.remove('active');});
+  document.getElementById('mc-view-'+v).classList.add('active');
+  if(btn) btn.classList.add('active');
+}
+window.mcSwitchView = mcSwitchView;
+
+// ── Persist ──
+function mcSave() {
+  localStorage.setItem('mc_circuits', JSON.stringify(mcCircuits));
+  localStorage.setItem('mc_routines', JSON.stringify(mcRoutines));
+  mcSetSync('saving');
+  if (window._fbSaveMotionCore) {
+    window._fbSaveMotionCore({ circuits: mcCircuits, routines: mcRoutines, savedAt: Date.now() });
+  }
+}
+
+function mcSetSync(status) {
+  if (!window.SOL || !window.SOL.setSync) return;
+  if (status === 'saving')     window.SOL.setSync('busy');
+  else if (status === 'saved') window.SOL.setSync('ok');
+  else if (status === 'error') window.SOL.setSync('err');
+}
+function mcUid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+// ── Modal ──
+function mcOpenModal(id){ document.getElementById(id).classList.add('open'); }
+function mcCloseModal(id){ document.getElementById(id).classList.remove('open'); }
+window.mcCloseModal = mcCloseModal;
+document.querySelectorAll('#mc-root .modal-overlay').forEach(function(o){
+  o.addEventListener('click', function(e){ if(e.target===o) o.classList.remove('open'); });
+});
+
+// ── Drag Engine ──
+function mcInitDragList(containerId, getArr, setArr, afterDrop) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  // Clone node to strip old listeners
+  var fresh = container.cloneNode(false);
+  while (container.firstChild) fresh.appendChild(container.firstChild);
+  container.parentNode.replaceChild(fresh, container);
+  var c = document.getElementById(containerId);
+
+  c.addEventListener('pointerdown', function(e) {
+    var handle = e.target.closest('.drag-handle');
+    if (!handle) return;
+    var item = handle.closest('[data-id]');
+    if (!item || !c.contains(item)) return;
+    e.preventDefault();
+
+    var rect = item.getBoundingClientRect();
+    var offsetY = e.clientY - rect.top;
+    var offsetX = e.clientX - rect.left;
+
+    // Placeholder — same height, stays in list to mark the drop target
+    var ph = document.createElement('div');
+    ph.className = 'drag-placeholder';
+    ph.style.height = rect.height + 'px';
+    ph.style.marginBottom = getComputedStyle(item).marginBottom;
+    ph.style.flexShrink = '0';
+
+    // Ghost parent: modal if dragging inside one, else mc-root — keeps scoped CSS intact
+    var mcRootEl = document.getElementById('mc-root');
+    var modalParent = c.closest('#mc-root .modal');
+    var ghostParent = modalParent || mcRootEl;
+    var ghost = item.cloneNode(true);
+    ghost.style.position = 'fixed';
+    ghost.style.left = rect.left + 'px';
+    ghost.style.top = rect.top + 'px';
+    ghost.style.width = rect.width + 'px';
+    ghost.style.margin = '0';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.zIndex = modalParent ? '9999' : '500';
+    ghost.style.opacity = '0.97';
+    ghost.style.transform = 'rotate(1.5deg) scale(1.015)';
+    ghost.style.boxShadow = '0 12px 40px rgba(0,0,0,.7), 0 0 0 1.5px #e0b874';
+    ghost.style.transition = 'none';
+    ghost.style.willChange = 'left,top';
+
+    // Replace item with placeholder — list height unchanged, no shift
+    item.replaceWith(ph);
+    ghostParent.appendChild(ghost);
+    c.setPointerCapture && c.setPointerCapture(e.pointerId);
+
+    function onMove(ev) {
+      // Move ghost to follow pointer
+      ghost.style.left = (ev.clientX - offsetX) + 'px';
+      ghost.style.top  = (ev.clientY - offsetY) + 'px';
+
+      // Determine drop target by comparing pointer Y to siblings' midpoints
+      var siblings = Array.from(c.querySelectorAll('[data-id]')).filter(function(el){ return el !== item; });
+      var placed = false;
+      for (var i = 0; i < siblings.length; i++) {
+        var r = siblings[i].getBoundingClientRect();
+        if (ev.clientY < r.top + r.height / 2) {
+          c.insertBefore(ph, siblings[i]);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        var last = siblings[siblings.length - 1];
+        if (last) last.after(ph); else c.appendChild(ph);
+      }
+    }
+
+    function onUp() {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+
+      // Drop: swap placeholder out for the real item
+      ph.replaceWith(item);
+      ghost.remove();
+      item.style.opacity = '';
+      item.style.pointerEvents = '';
+
+      // Persist new order
+      var newOrder = Array.from(c.querySelectorAll('[data-id]')).map(function(el){ return el.dataset.id; });
+      var arr = getArr();
+      var sorted = newOrder.map(function(id){ return arr.find(function(x){ return x.id === id; }); }).filter(Boolean);
+      var missing = arr.filter(function(x){ return !newOrder.includes(x.id); });
+      setArr(sorted.concat(missing));
+      mcSave();
+      if (afterDrop) afterDrop();
+    }
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  });
+}
+
+// ── GRIP SVG ──
+var MC_GRIP = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="4" cy="3" r="1.2" fill="currentColor"/><circle cx="10" cy="3" r="1.2" fill="currentColor"/><circle cx="4" cy="7" r="1.2" fill="currentColor"/><circle cx="10" cy="7" r="1.2" fill="currentColor"/><circle cx="4" cy="11" r="1.2" fill="currentColor"/><circle cx="10" cy="11" r="1.2" fill="currentColor"/></svg>';
+
+// ── Util ──
+function mcEsc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function mcFmtTime(s) {
+  if(s<60) return s+'s';
+  var m=Math.floor(s/60),r=s%60;
+  return r ? m+'m '+r+'s' : m+'m';
+}
+
+// ══════════════════════════════════════════
+// CIRCUITS
+// ══════════════════════════════════════════
+function mcOpenNewCircuitModal() {
+  mcEditingCircuitId=null; mcBuildModules=[];
+  document.getElementById('mc-circuit-modal-title').textContent='NEW CIRCUIT';
+  ['mc-circuit-name','mc-circuit-desc','mc-mod-name','mc-mod-time','mc-mod-desc'].forEach(function(id){document.getElementById(id).value='';});
+  mcRenderBuildModules();
+  mcOpenModal('mc-circuit-modal');
+}
+window.mcOpenNewCircuitModal = mcOpenNewCircuitModal;
+
+function mcOpenEditCircuitModal(id) {
+  var c=mcCircuits.find(function(x){return x.id===id;}); if(!c) return;
+  mcEditingCircuitId=id; mcBuildModules=c.modules.map(function(m){return Object.assign({},m);});
+  document.getElementById('mc-circuit-modal-title').textContent='EDIT CIRCUIT';
+  document.getElementById('mc-circuit-name').value=c.name;
+  document.getElementById('mc-circuit-desc').value=c.desc||'';
+  ['mc-mod-name','mc-mod-time','mc-mod-desc'].forEach(function(id){document.getElementById(id).value='';});
+  mcRenderBuildModules();
+  mcOpenModal('mc-circuit-modal');
+}
+window.mcOpenEditCircuitModal = mcOpenEditCircuitModal;
+
+function mcAddModuleToBuild() {
+  var name=document.getElementById('mc-mod-name').value.trim();
+  var time=parseInt(document.getElementById('mc-mod-time').value);
+  var desc=document.getElementById('mc-mod-desc').value.trim();
+  if(!name||!time||time<1){document.getElementById('mc-mod-name').focus();return;}
+  mcBuildModules.push({id:mcUid(),name:name,time:time,desc:desc});
+  ['mc-mod-name','mc-mod-time','mc-mod-desc'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('mc-mod-name').focus();
+  mcRenderBuildModules();
+}
+window.mcAddModuleToBuild = mcAddModuleToBuild;
+
+function mcRemoveModuleFromBuild(id) {
+  mcBuildModules=mcBuildModules.filter(function(m){return m.id!==id;});
+  mcRenderBuildModules();
+}
+window.mcRemoveModuleFromBuild = mcRemoveModuleFromBuild;
+
+function mcStartEditModule(id) {
+  mcEditingModuleId=id; mcRenderBuildModules();
+  var inp=document.getElementById('mc-medit-name-'+id);
+  if(inp) inp.focus();
+}
+window.mcStartEditModule = mcStartEditModule;
+
+function mcSaveEditModule(id) {
+  var nameEl=document.getElementById('mc-medit-name-'+id);
+  var timeEl=document.getElementById('mc-medit-time-'+id);
+  if(!nameEl||!timeEl) return;
+  var name=nameEl.value.trim(), time=parseInt(timeEl.value);
+  if(!name||!time||time<1) return;
+  var m=mcBuildModules.find(function(x){return x.id===id;});
+  if(m){m.name=name;m.time=time;}
+  mcEditingModuleId=null; mcRenderBuildModules();
+}
+window.mcSaveEditModule = mcSaveEditModule;
+
+function mcCancelEditModule() { mcEditingModuleId=null; mcRenderBuildModules(); }
+window.mcCancelEditModule = mcCancelEditModule;
+
+function mcRenderBuildModules() {
+  var builder=document.getElementById('mc-modules-builder');
+  var list=document.getElementById('mc-modules-build-list');
+  document.getElementById('mc-modules-count').textContent=mcBuildModules.length?'('+mcBuildModules.length+')':'';
+  if(!mcBuildModules.length){builder.style.display='none';return;}
+  builder.style.display='block';
+  list.innerHTML=mcBuildModules.map(function(m,i){
+    if(mcEditingModuleId===m.id){
+      return '<div class="module-builder-item" data-id="'+m.id+'">'+
+        '<div class="drag-handle" title="Drag">'+MC_GRIP+'</div>'+
+        '<span style="font-family:\'Bebas Neue\',\'Manrope\';font-size:15px;color:#8d8d94;min-width:20px;">'+(i+1)+'</span>'+
+        '<div class="mbitem-edit-row">'+
+        '<input type="text" id="mc-medit-name-'+m.id+'" value="'+mcEsc(m.name)+'" placeholder="Name" onkeydown="if(event.key===\'Enter\')mcSaveEditModule(\''+m.id+'\')">'+
+        '<input type="number" id="mc-medit-time-'+m.id+'" value="'+m.time+'" min="1" style="width:64px;flex-shrink:0;" onkeydown="if(event.key===\'Enter\')mcSaveEditModule(\''+m.id+'\')">'+
+        '</div>'+
+        '<button class="btn btn-primary btn-sm" title="Save" onclick="mcSaveEditModule(\''+m.id+'\')">'+TNI.check+'</button>'+
+        '<button class="btn btn-ghost btn-sm" title="Cancel" onclick="mcCancelEditModule()">'+TNI.x+'</button>'+
+        '</div>';
+    }
+    return '<div class="module-builder-item" data-id="'+m.id+'">'+
+      '<div class="drag-handle" title="Drag">'+MC_GRIP+'</div>'+
+      '<span style="font-family:\'Bebas Neue\',\'Manrope\';font-size:15px;color:#8d8d94;min-width:20px;">'+(i+1)+'</span>'+
+      '<div style="flex:1;min-width:0;">'+
+        '<div class="mbitem-name">'+mcEsc(m.name)+'</div>'+
+        (m.desc?'<div class="mbitem-desc">'+mcEsc(m.desc)+'</div>':'')+
+      '</div>'+
+      '<span class="mbitem-time">'+m.time+'s</span>'+
+      '<button class="btn btn-ghost btn-icon btn-sm" onclick="mcStartEditModule(\''+m.id+'\')" title="Edit"><svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M9 1.5l2.5 2.5-8 8H1v-2.5l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'+
+      '<button class="btn btn-danger btn-icon btn-sm" onclick="mcRemoveModuleFromBuild(\''+m.id+'\')" title="Remove"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>'+
+      '</div>';
+  }).join('');
+  mcInitDragList('mc-modules-build-list',
+    function(){return mcBuildModules;},
+    function(arr){mcBuildModules=arr;},
+    function(){mcRenderBuildModules();}
+  );
+}
+
+function mcSaveCircuit() {
+  var name=document.getElementById('mc-circuit-name').value.trim();
+  if(!name){document.getElementById('mc-circuit-name').focus();return;}
+  if(!mcBuildModules.length){window.uiAlert('Add at least one module.');return;}
+  var desc=document.getElementById('mc-circuit-desc').value.trim();
+  if(mcEditingCircuitId){
+    var idx=mcCircuits.findIndex(function(c){return c.id===mcEditingCircuitId;});
+    mcCircuits[idx]=Object.assign({},mcCircuits[idx],{name:name,desc:desc,modules:mcBuildModules});
+  } else {
+    mcCircuits.push({id:mcUid(),name:name,desc:desc,modules:mcBuildModules,_open:false});
+  }
+  mcSave(); mcCloseModal('mc-circuit-modal'); mcRenderCircuits();
+}
+window.mcSaveCircuit = mcSaveCircuit;
+
+async function mcDeleteCircuit(id) {
+  if(!(await window.uiConfirm('Delete this circuit?', {danger:true, okLabel:'Delete'}))) return;
+  mcCircuits=mcCircuits.filter(function(c){return c.id!==id;});
+  mcSave(); mcRenderCircuits();
+}
+window.mcDeleteCircuit = mcDeleteCircuit;
+
+function mcToggleCircuit(id) {
+  var c=mcCircuits.find(function(x){return x.id===id;}); if(!c) return;
+  c._open=!c._open;
+  var body=document.getElementById('mc-cbody-'+id);
+  var chev=document.getElementById('mc-cchev-'+id);
+  if(body) body.style.display=c._open?'block':'none';
+  if(chev) chev.classList.toggle('open',c._open);
+}
+window.mcToggleCircuit = mcToggleCircuit;
+
+function mcRenderCircuits() {
+  var el=document.getElementById('mc-circuits-list');
+  if(!el) return;
+  if(!mcCircuits.length){
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">'+TNI.sparkle+'</div><div class="empty-title">No circuits yet</div><div class="empty-sub">Create a circuit and add exercises with timers</div></div>';
+    return;
+  }
+  el.innerHTML=mcCircuits.map(function(c){
+    return '<div class="circuit-card" data-id="'+c.id+'">'+
+      '<div class="circuit-card-header" onclick="mcHandleCardClick(event,\''+c.id+'\',\'circuit\')">'+
+        '<div class="drag-handle" data-nodrag title="Drag to reorder">'+MC_GRIP+'</div>'+
+        '<div class="circuit-card-info">'+
+          '<div class="circuit-card-title">'+mcEsc(c.name)+'</div>'+
+          (c.desc?'<div class="circuit-card-desc">'+mcEsc(c.desc)+'</div>':'')+
+          '<div class="circuit-card-meta">'+
+            '<span class="badge badge-accent">'+c.modules.length+' exercise'+(c.modules.length!==1?'s':'')+'</span>'+
+            '<span class="badge badge-muted">'+mcFmtTime(c.modules.reduce(function(s,m){return s+m.time;},0))+' total</span>'+
+          '</div>'+
+        '</div>'+
+        '<div class="circuit-card-actions" data-stop>'+
+          '<button class="run-btn" onclick="mcStartTimer(\''+c.id+'\')"><svg width="10" height="11" viewBox="0 0 11 12" fill="none"><path d="M1 1l9 5-9 5V1z" fill="currentColor"/></svg>Run</button>'+
+          '<button class="btn btn-ghost btn-icon btn-sm" onclick="mcOpenEditCircuitModal(\''+c.id+'\')" title="Edit"><svg width="12" height="12" viewBox="0 0 13 13" fill="none"><path d="M9 1.5l2.5 2.5-8 8H1v-2.5l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'+
+          '<button class="btn btn-danger btn-icon btn-sm" onclick="mcDeleteCircuit(\''+c.id+'\')" title="Delete"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>'+
+          '<svg id="mc-cchev-'+c.id+'" class="chevron '+(c._open?'open':'')+'" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#8d8d94" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+        '</div>'+
+      '</div>'+
+      '<div id="mc-cbody-'+c.id+'" class="circuit-body" style="display:'+(c._open?'block':'none')+';">'+
+        '<div class="modules-list">'+
+          c.modules.map(function(m,i){
+            return '<div class="module-item">'+
+              '<span class="module-num">'+(i+1)+'</span>'+
+              '<div class="module-info">'+
+                '<div class="module-name">'+mcEsc(m.name)+'</div>'+
+                (m.desc?'<div class="module-meta">'+mcEsc(m.desc)+'</div>':'')+
+              '</div>'+
+              '<span class="module-time">'+m.time+'s</span>'+
+              '</div>';
+          }).join('')+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  mcInitDragList('mc-circuits-list',function(){return mcCircuits;},function(arr){mcCircuits=arr;});
+}
+
+// ══════════════════════════════════════════
+// ROUTINES
+// ══════════════════════════════════════════
+function mcOpenNewRoutineModal() {
+  mcEditingRoutineId=null;
+  document.getElementById('mc-routine-modal-title').textContent='NEW ROUTINE';
+  document.getElementById('mc-routine-name').value='';
+  document.getElementById('mc-routine-content').value='';
+  mcOpenModal('mc-routine-modal');
+}
+window.mcOpenNewRoutineModal = mcOpenNewRoutineModal;
+
+function mcOpenEditRoutineModal(id) {
+  var r=mcRoutines.find(function(x){return x.id===id;}); if(!r) return;
+  mcEditingRoutineId=id;
+  document.getElementById('mc-routine-modal-title').textContent='EDIT ROUTINE';
+  document.getElementById('mc-routine-name').value=r.name;
+  document.getElementById('mc-routine-content').value=r.content;
+  mcOpenModal('mc-routine-modal');
+}
+window.mcOpenEditRoutineModal = mcOpenEditRoutineModal;
+
+function mcSaveRoutine() {
+  var name=document.getElementById('mc-routine-name').value.trim();
+  var content=document.getElementById('mc-routine-content').value.trim();
+  if(!name){document.getElementById('mc-routine-name').focus();return;}
+  if(mcEditingRoutineId){
+    var idx=mcRoutines.findIndex(function(r){return r.id===mcEditingRoutineId;});
+    mcRoutines[idx]=Object.assign({},mcRoutines[idx],{name:name,content:content});
+  } else {
+    mcRoutines.push({id:mcUid(),name:name,content:content,_open:false,created:Date.now()});
+  }
+  mcSave(); mcCloseModal('mc-routine-modal'); mcRenderRoutines();
+}
+window.mcSaveRoutine = mcSaveRoutine;
+
+async function mcDeleteRoutine(id) {
+  if(!(await window.uiConfirm('Delete this routine?', {danger:true, okLabel:'Delete'}))) return;
+  mcRoutines=mcRoutines.filter(function(r){return r.id!==id;});
+  mcSave(); mcRenderRoutines();
+}
+window.mcDeleteRoutine = mcDeleteRoutine;
+
+function mcToggleRoutine(id) {
+  var r=mcRoutines.find(function(x){return x.id===id;}); if(!r) return;
+  r._open=!r._open;
+  var body=document.getElementById('mc-routine-body-'+id);
+  var chev=document.getElementById('mc-routine-chev-'+id);
+  if(body) body.style.display=r._open?'block':'none';
+  if(chev) chev.classList.toggle('open',r._open);
+}
+window.mcToggleRoutine = mcToggleRoutine;
+
+// Turn a routine's raw text into grouped lines. Blank lines are the author's own
+// section breaks, so they become the group boundaries.
+function mcRoutineBody(text) {
+  var raw = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+  if (!raw.trim()) return '<div class="routine-empty">No content yet — hit edit to add exercises.</div>';
+  return raw.split(/\n\s*\n/).map(function (block) {
+    var lines = block.split('\n').filter(function (l) { return l.trim(); });
+    if (!lines.length) return '';
+    return '<div class="routine-group">' + lines.map(function (line) {
+      // "Exercise - 3 sets" → name + trailing detail, so the quantity can sit
+      // right-aligned and quiet instead of running into the name.
+      var m = line.match(/^(.*?)\s+[-–—]\s+(.+)$/);
+      return '<div class="routine-line">'
+           + '<span class="routine-line-name">' + mcEsc(m ? m[1] : line) + '</span>'
+           + (m ? '<span class="routine-line-detail">' + mcEsc(m[2]) + '</span>' : '')
+           + '</div>';
+    }).join('') + '</div>';
+  }).join('');
+}
+
+function mcRenderRoutines() {
+  var el=document.getElementById('mc-routines-list');
+  if(!el) return;
+  if(!mcRoutines.length){
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">'+TNI.clipboard+'</div><div class="empty-title">No routines yet</div><div class="empty-sub">Add your workout plans, exercise lists, and training notes</div></div>';
+    return;
+  }
+  el.innerHTML=mcRoutines.map(function(r){
+    return '<div class="routine-card" data-id="'+r.id+'">'+
+      '<div class="routine-card-header" onclick="mcHandleCardClick(event,\''+r.id+'\',\'routine\')">'+
+        '<div class="drag-handle" title="Drag to reorder">'+MC_GRIP+'</div>'+
+        '<div class="routine-title">'+mcEsc(r.name)+'</div>'+
+        '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;" data-stop>'+
+          '<button class="btn btn-ghost btn-icon btn-sm" onclick="mcOpenEditRoutineModal(\''+r.id+'\')" title="Edit"><svg width="12" height="12" viewBox="0 0 13 13" fill="none"><path d="M9 1.5l2.5 2.5-8 8H1v-2.5l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'+
+          '<button class="btn btn-danger btn-icon btn-sm" onclick="mcDeleteRoutine(\''+r.id+'\')" title="Delete"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>'+
+          '<svg id="mc-routine-chev-'+r.id+'" class="chevron '+(r._open?'open':'')+'" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#8d8d94" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+        '</div>'+
+      '</div>'+
+      '<div id="mc-routine-body-'+r.id+'" class="routine-body" style="display:'+(r._open?'block':'none')+';">'+
+        '<div class="routine-content">'+mcRoutineBody(r.content)+'</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  mcInitDragList('mc-routines-list',function(){return mcRoutines;},function(arr){mcRoutines=arr;});
+}
+
+// ── Card click toggle ──
+function mcHandleCardClick(e, id, type) {
+  if(e.target.closest('.drag-handle')) return;
+  if(e.target.closest('[data-stop]')) return;
+  if(e.target.closest('button')) return;
+  if(type==='circuit') mcToggleCircuit(id);
+  else mcToggleRoutine(id);
+}
+window.mcHandleCardClick = mcHandleCardClick;
+
+// ══════════════════════════════════════════
+// AUDIO
+// ══════════════════════════════════════════
+function mcMkCtx(){ return new (window.AudioContext||window.webkitAudioContext)(); }
+function mcTone(ctx, freq, startTime, duration, gain) {
+  var o=ctx.createOscillator(), g=ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.type='sine'; o.frequency.setValueAtTime(freq,startTime);
+  g.gain.setValueAtTime(0,startTime);
+  g.gain.linearRampToValueAtTime(gain,startTime+0.01);
+  g.gain.exponentialRampToValueAtTime(0.001,startTime+duration);
+  o.start(startTime); o.stop(startTime+duration);
+}
+function mcPlayBeep(){ try{var ctx=mcMkCtx(),t=ctx.currentTime;mcTone(ctx,660,t,0.12,0.75);}catch(e){} }
+function mcPlayBell(){ try{var ctx=mcMkCtx(),t=ctx.currentTime;mcTone(ctx,880,t,1.2,0.7);mcTone(ctx,1109,t+0.05,1.0,0.5);mcTone(ctx,1318,t+0.1,0.8,0.35);}catch(e){} }
+function mcPlayEndSound(){ try{var ctx=mcMkCtx(),t=ctx.currentTime;mcTone(ctx,880,t,0.5,0.6);mcTone(ctx,1109,t+0.15,0.5,0.6);mcTone(ctx,1318,t+0.3,0.5,0.6);mcTone(ctx,1760,t+0.5,1.0,0.75);}catch(e){} }
+function mcPlayStartSound(){ try{var ctx=mcMkCtx(),t=ctx.currentTime;mcTone(ctx,523,t,0.1,0.5);mcTone(ctx,659,t+0.08,0.1,0.5);mcTone(ctx,784,t+0.16,0.1,0.5);mcTone(ctx,1047,t+0.24,0.45,0.75);}catch(e){} }
+
+// ══════════════════════════════════════════
+// TIMER
+// ══════════════════════════════════════════
+function mcStartTimer(circuitId) {
+  var c=mcCircuits.find(function(x){return x.id===circuitId;});
+  if(!c||!c.modules.length) return;
+  mcTimerState={circuitId:circuitId,modules:c.modules,moduleIndex:0,interval:null,paused:false,isCountdown:false};
+  document.getElementById('mc-timer-circuit-name').textContent=c.name;
+  document.getElementById('mc-timer-overlay').classList.add('open');
+  mcStartCountdown();
+}
+window.mcStartTimer = mcStartTimer;
+
+function mcStartCountdown() {
+  mcTimerState.isCountdown=true; mcTimerState.remaining=5; mcTimerState.initialTime=5; mcTimerState.paused=false;
+  var firstMod=mcTimerState.modules[0];
+  document.getElementById('mc-timer-exercise').textContent='GET READY';
+  document.getElementById('mc-timer-exercise-desc').textContent=firstMod?'First up: '+firstMod.name:'';
+  document.getElementById('mc-timer-progress').textContent='';
+  document.getElementById('mc-timer-next').innerHTML='';
+  document.getElementById('mc-timer-label').textContent='seconds';
+  document.getElementById('mc-timer-pause-btn').textContent='Pause';
+  mcUpdateTimerDisplay();
+  mcTimerState.interval=setInterval(function(){
+    if(mcTimerState.paused) return;
+    mcTimerState.remaining--;
+    if(mcTimerState.remaining<=3&&mcTimerState.remaining>=1) mcPlayBeep();
+    mcUpdateTimerDisplay();
+    if(mcTimerState.remaining<=0){ clearInterval(mcTimerState.interval); mcTimerState.isCountdown=false; mcPlayStartSound(); mcLoadModule(0); }
+  },1000);
+}
+
+function mcLoadModule(idx) {
+  if(mcTimerState.interval) clearInterval(mcTimerState.interval);
+  var modules=mcTimerState.modules;
+  if(idx>=modules.length){ mcPlayEndSound(); document.getElementById('mc-timer-overlay').classList.remove('open'); return; }
+  mcTimerState.moduleIndex=idx; mcTimerState.isCountdown=false;
+  var mod=modules[idx];
+  mcTimerState.remaining=mod.time; mcTimerState.initialTime=mod.time; mcTimerState.paused=false;
+  document.getElementById('mc-timer-pause-btn').textContent='Pause';
+  document.getElementById('mc-timer-exercise').textContent=mod.name;
+  document.getElementById('mc-timer-exercise-desc').textContent=mod.desc||'';
+  document.getElementById('mc-timer-progress').textContent='Exercise '+(idx+1)+' of '+modules.length;
+  document.getElementById('mc-timer-label').textContent='seconds';
+  var next=modules[idx+1];
+  document.getElementById('mc-timer-next').innerHTML=next
+    ?'NEXT: <span>'+mcEsc(next.name)+' — '+next.time+'s</span>'
+    :'<span style="color:#8d8d94;">LAST EXERCISE</span>';
+  mcUpdateTimerDisplay();
+  mcTimerState.interval=setInterval(function(){
+    if(mcTimerState.paused) return;
+    mcTimerState.remaining--;
+    if(mcTimerState.remaining<=3&&mcTimerState.remaining>=1) mcPlayBeep();
+    mcUpdateTimerDisplay();
+    if(mcTimerState.remaining<=0){
+      clearInterval(mcTimerState.interval);
+      mcPlayBell();
+      setTimeout(function(){mcLoadModule(mcTimerState.moduleIndex+1);},1000);
+    }
+  },1000);
+}
+
+function mcUpdateTimerDisplay() {
+  var s=mcTimerState.remaining;
+  var pct=mcTimerState.initialTime>0?s/mcTimerState.initialTime:0;
+  document.getElementById('mc-timer-seconds').textContent=s;
+  document.getElementById('mc-timer-ring-fill').style.strokeDashoffset=628*(1-pct);
+  var fill=document.getElementById('mc-timer-ring-fill');
+  if(mcTimerState.isCountdown) fill.style.stroke='#e0b874';
+  else fill.style.stroke=pct>0.5?'#e0b874':pct>0.25?'#e8b62a':'#dc4650';
+}
+
+function mcTogglePause() {
+  mcTimerState.paused=!mcTimerState.paused;
+  document.getElementById('mc-timer-pause-btn').textContent=mcTimerState.paused?'Resume':'Pause';
+  document.getElementById('mc-timer-seconds').classList.toggle('pulse',mcTimerState.paused);
+}
+window.mcTogglePause = mcTogglePause;
+
+function mcStopTimer() {
+  if(mcTimerState.interval) clearInterval(mcTimerState.interval);
+  document.getElementById('mc-timer-overlay').classList.remove('open');
+}
+window.mcStopTimer = mcStopTimer;
+
+// ══════════════════════════════════════
+// FIREBASE SYNC — dashboards/motioncore, same events as index.html
+// ══════════════════════════════════════
+function mcInitFirebase() {
+  var doLoad = function() {
+    if (!window._fbLoadMotionCore) return;
+    window._fbLoadMotionCore().then(function(remote) {
+      if (!remote) return;
+      var changed = false;
+      if (Array.isArray(remote.circuits) && remote.circuits.length) {
+        mcCircuits = remote.circuits;
+        localStorage.setItem('mc_circuits', JSON.stringify(mcCircuits));
+        changed = true;
+      }
+      if (Array.isArray(remote.routines) && remote.routines.length) {
+        mcRoutines = remote.routines;
+        localStorage.setItem('mc_routines', JSON.stringify(mcRoutines));
+        changed = true;
+      }
+      if (changed) { mcRenderCircuits(); mcRenderRoutines(); }
+    }).catch(function(e){ console.warn('MC load error', e); });
+  };
+
+  if (window._fbReady) doLoad();
+  else window.addEventListener('fb-ready', doLoad, { once: true });
+
+  // Remote update from another device
+  window.addEventListener('fb-mc-remote', function(e) {
+    var remote = e.detail;
+    if (!remote) return;
+    if (Array.isArray(remote.circuits)) { mcCircuits = remote.circuits; localStorage.setItem('mc_circuits', JSON.stringify(mcCircuits)); }
+    if (Array.isArray(remote.routines)) { mcRoutines = remote.routines; localStorage.setItem('mc_routines', JSON.stringify(mcRoutines)); }
+    mcRenderCircuits();
+    mcRenderRoutines();
+    mcSetSync('saved');
+  });
+
+  window.addEventListener('fb-mc-saved', function() { mcSetSync('saved'); });
+  window.addEventListener('fb-mc-synced', function() { mcSetSync('saved'); });
+  window.addEventListener('fb-mc-error', function() { mcSetSync('error'); });
+}
+
+// ── Keyboard shortcuts in modal ──
+document.getElementById('mc-mod-time').addEventListener('keydown', function(e){ if(e.key==='Enter') mcAddModuleToBuild(); });
+document.getElementById('mc-mod-name').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('mc-mod-time').focus(); });
+
+// ── Init ──
+mcRenderCircuits();
+mcRenderRoutines();
+mcInitFirebase();
+
+})(); // end IIFE
+</script>
+
+</body>
+</html>

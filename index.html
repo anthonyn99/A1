@@ -40944,6 +40944,11 @@ var AL_LABELS  = {
   tony_taskhub:   { label: 'TaskHub',    profile: 'tony', color: '#e0b874' },
   tony_tradehub:  { label: 'TradeHub',   profile: 'tony', color: '#e0b874' },
   tony_health:    { label: 'MotionCore', profile: 'tony', color: '#e0b874' },
+  // Solace (Solace.html) — Tony's health program: Fitness ▸ MotionCore and
+  // Nutrition ▸ Recipes. This entry locks its NAV BUTTON; the app itself carries
+  // its own independent lock on 'tony_solace_standalone', the same split Vault and
+  // TradeHub use between their button and their standalone page.
+  tony_solace:    { label: 'Solace',     profile: 'tony', color: '#e0b874' },
   tony_keychain:  { label: 'Vault',      profile: 'tony', color: '#e0b874' },
   tony_myjournal: { label: 'MyJournal',  profile: 'tony', color: '#e0b874' },
   tony_proview:   { label: 'ProView',    profile: 'tony', color: '#a78bfa' },
@@ -41943,6 +41948,32 @@ window._vaultClick = function(){
     }
   }
 };
+// ── Solace ──
+// Tony's health program at /A1/Solace.html: Fitness ▸ MotionCore (which used to
+// be this page's #mc-root view) and Nutrition ▸ Recipes (which used to be a tab
+// in MyList). Opened exactly like TradeHub / Vault / WarRoom: a named tab so a
+// second click focuses the one already open, a popup-blocked fallback, and the
+// App Lock gate on 'tony_solace' in front of it.
+window._solaceClick = function(){
+  var URL_SOLACE = 'https://anthonyn99.github.io/A1/Solace.html';
+  var w = window._tnOpenTab(URL_SOLACE, 'solace');
+  if(!w || w.closed || typeof w.closed === 'undefined'){
+    if(window.confirm('Solace opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
+      var w2 = window._tnOpenTab(URL_SOLACE, 'solace');
+      if(!w2 || w2.closed || typeof w2.closed === 'undefined'){
+        var a=document.createElement('a');
+        a.href=URL_SOLACE; a.target=window._tnTabName('solace');
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      }
+    }
+  }
+};
+window._alGateSolace = function(origFn) { if(window.alGate) window.alGate('tony_solace', origFn); else origFn(); };
+var _origSolaceClick = window._solaceClick;
+window._solaceClick = function() {
+  if (window._alGateSolace) { window._alGateSolace(_origSolaceClick); } else { _origSolaceClick(); }
+};
+
 // Every in-app route to Vault funnels through _kcSwitchTo('keychain') — the nav
 // dropdown, the mobile picker, both app switchers and the extension's deep
 // link. Repointing that ONE function moves all of them at once.
@@ -42045,7 +42076,14 @@ function _sanLink(l){ return { id: String(l.id||''), label: String(l.label||'Lin
 var LEGACY_PROGRAMS = [
   { id:'tradehub', label:'TradeHub', url:'https://anthonyn99.github.io/A1/tradehub.html', lockId:'tony_tradehub', openFn:'_thubClick' },
   { id:'vault',    label:'Vault',    url:'https://anthonyn99.github.io/A1/vault.html',    lockId:'tony_keychain', openFn:'_vaultClick' },
-  { id:'warroom',  label:'WarRoom',  url:'https://anthonyn99.github.io/A1/warroom.html',  lockId:'tony_warroom', openFn:'_wrClick' }
+  { id:'warroom',  label:'WarRoom',  url:'https://anthonyn99.github.io/A1/warroom.html',  lockId:'tony_warroom', openFn:'_wrClick' },
+  // Solace replaced the in-page MotionCore view (and MyList's Recipes tab), so it
+  // joins this list rather than TONY_DEFAULT: it is a separate program in its own
+  // tab, not a view of this page. seedLegacyProgramsOnce() is already spent on
+  // Tony's devices, but _addMissingLegacyPrograms() runs unconditionally from
+  // applyRemote(), so this entry appears as soon as the navorder doc syncs — and,
+  // like the other three, a deliberate delete of the button then sticks.
+  { id:'solace',   label:'Solace',   url:'https://anthonyn99.github.io/A1/Solace.html',   lockId:'tony_solace',  openFn:'_solaceClick' }
 ];
 function _legacyProgram(id){
   for (var i=0;i<LEGACY_PROGRAMS.length;i++){ if(LEGACY_PROGRAMS[i].id===id) return LEGACY_PROGRAMS[i]; }
