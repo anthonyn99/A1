@@ -4837,6 +4837,7 @@ window.THTS={
     <option value="health">MotionCore</option>
     <option value="keychain">Vault</option>
     <option value="brainstormjournal">MyJournal</option>
+    <option value="plans">Plans</option>
     <option value="proview">ProView</option>
     <option value="warroom">WarRoom</option>
   </select>
@@ -4845,6 +4846,7 @@ window.THTS={
   <button class="tn-btn" data-app="health" onclick="window._tonyNav&&window._tonyNav('health')">MotionCore</button>
   <button class="tn-btn" data-app="keychain" onclick="window._tonyNav&&window._tonyNav('keychain')">Vault</button>
   <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
+  <button class="tn-btn" data-app="plans" onclick="window._tonyNav&&window._tonyNav('plans')">Plans<span data-plans-badge style="display:none;align-items:center;justify-content:center;min-width:15px;height:15px;margin-left:5px;padding:0 4px;border-radius:999px;background:#c8a15f;color:#1a1a1d;font-size:9px;font-weight:800;line-height:1;"></span></button>
   <button class="tn-btn pv-btn" data-app="proview" onclick="window._tonyNav&&window._tonyNav('proview')">ProView</button>
   <button class="tn-btn wr-btn" id="wr-nav-btn" data-app="warroom" onclick="window._wrClick&&window._wrClick()">WarRoom</button>
   <button id="tn-settings-btn" onclick="window._openSettings&&window._openSettings('tony')" title="Settings" style="padding:0 7px;justify-content:center;touch-action:manipulation;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -8562,15 +8564,34 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         if (!p || !p.date) return;                      // undated → _planToGoals
         if (!_planIsConfirmed(p)) return;
         if (p.stage === 'dropped' || p.stage === 'declined') return;
+        // A plan is always a TASK, never an event — it is something you agreed to
+        // do, and it belongs in the day's task list.
+        //
+        // TIME ZONES: the two profiles are in different zones, so a plan agreed
+        // for "7:30 PM" is 7:30 PM only where it was SET. p.tz records the zone
+        // the time was entered in; thZonedTs turns (date, time, tz) into a real
+        // instant and the reader's browser formats it locally, so each person
+        // sees the same moment expressed in their own zone. Task rows do not
+        // render a `time` field (only event rows do), so the converted time is
+        // put in the title — otherwise it would be invisible on a task.
         const it = {
           id: 'plan_' + p.id,
           _planId: p.id,
-          type: p.time ? 'event' : 'task',
+          type: 'task',
           title: p.title || 'Plan',
           category: 'personal',
           done: false
         };
-        if (p.time) it.time = p.time;
+        if (p.time) {
+          let shown = p.time;
+          try {
+            if (typeof fmt12h === 'function') shown = fmt12h(p.time, p.date, p.tz || null);
+          } catch (e) {}
+          it.title = shown + ' · ' + it.title;
+          // Kept for reference/round-tripping; task rows ignore these.
+          it.time = p.time;
+          if (p.tz) it.tz = p.tz;
+        }
         (out[p.date] = out[p.date] || []).push(it);
       });
       return out;
@@ -13754,6 +13775,18 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   }
   window._thShowPushFailBanner=showPushFailBanner;
 
+  // ── Plans notifications ───────────────────────────────────────────────────
+  // In-app banner for the target profile. Shown only when THIS device is
+  // currently that person — otherwise the message would land in front of the
+  // wrong reader, and the push below covers them anyway.
+  window._thPlanBanner=function(msg,toProfile){
+    try{
+      const here=window._activeProfile==='veda'?'veda':(window._activeProfile==='tony'?'tony':null);
+      if(!here||here!==toProfile)return;
+      showBanner('\u{1F4C5} '+msg,{key:'plan-'+msg.slice(0,40)});
+    }catch(e){}
+  };
+
   // ── Firebase init (reuse existing app if already initialised) ─────────
   const FB_CONFIG={
     apiKey:"AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
@@ -14353,6 +14386,33 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     }
     return null;
   }
+  // ── Plans: push an event to the OTHER profile ─────────────────────────────
+  // Reuses the existing reminders pipeline rather than adding a second one: the
+  // Worker already sweeps this collection and pushes anything whose notifyAt has
+  // passed, routing on `dashboard`. Writing notifyAt slightly in the PAST means
+  // the very next sweep delivers it — these are "something just happened"
+  // alerts, not scheduled reminders, so there is nothing to wait for.
+  window._fcmSendToProfile=async function(toProfile,title,body,key){
+    try{
+      await _authReady;
+      if(!toProfile||!body)return;
+      // A stable id per plan+event keeps a retry or a double-tap from stacking
+      // duplicate pushes — the same doc is simply overwritten.
+      const id='plannotif_'+(key||Date.now().toString(36));
+      await setDoc(doc(db,'reminders',id),{
+        id:id,
+        title:body,                 // the Worker uses `title` as the body text
+        planTitle:title||'Plans',
+        notifyAt:new Date(Date.now()-1000).toISOString(),
+        dashboard:toProfile,        // 'tony' | 'veda' — the Worker routes on this
+        tag:id,collapseKey:id,
+        notifyRepeat:'none',notifyRepeatDays:[],notifyRepeatId:null,
+        source:'plans',
+        fired:false,createdAt:Date.now()
+      });
+    }catch(e){console.warn('[Plans] push queue failed:',e&&e.code);}
+  };
+
   // opts.notifyAt → delete ONLY the occurrence at that moment (the "delete this
   // date only" choice), not the whole series.
   window._fcmCancelNotif=async function(id,notifyRepeatId,opts){
@@ -15442,8 +15502,20 @@ function humanGap(ms){
   const h=Math.round(m/60);
   return h+(h===1?' hour':' hours');
 }
-function fmtTime(t){
+// The zone this device is in. Stored alongside any time a plan is given, because
+// "7:30 PM" is only 7:30 PM where it was entered — the two profiles are in
+// different zones and a bare wall-clock string would read identically to both,
+// which is wrong.
+function myTz(){
+  try{return Intl.DateTimeFormat().resolvedOptions().timeZone||null;}catch(e){return null;}
+}
+// Render a plan's time in THIS viewer's zone. Falls back to the raw wall clock
+// for older records saved before tz was recorded.
+function fmtTime(t,dateKey,tz){
   if(!t)return '';
+  if(tz&&dateKey&&typeof fmt12h==='function'){
+    try{return fmt12h(t,dateKey,tz);}catch(e){}
+  }
   const m=String(t).split(':');
   if(m.length<2)return t;
   let h=+m[0];const ap=h>=12?'PM':'AM';h=h%12||12;
@@ -15579,11 +15651,48 @@ function coerce(p){
   return out;
 }
 
-function save(p){
+// ── Notifying the other person ──────────────────────────────────────────────
+// The whole point of Plans is that neither person has to remember to go and
+// look. So every action that changes what the OTHER person is on the hook for
+// notifies them: in-app if their TaskHub is open, and by push if it is closed.
+//
+// Notifications are addressed to the OTHER profile — never to yourself, since
+// you already know what you just did. The `dashboard` field is what the Worker
+// routes on ('tony' | 'veda'), so a device registered to that profile is the
+// one that rings.
+function notifyOther(kind,p,extra){
+  const w=me();if(!w||!p)return;
+  const to=other(w);
+  const who=NAMES[w]||w;
+  const title=p.title||'a plan';
+  let msg='';
+  switch(kind){
+    case 'proposed': msg=who+' proposed “'+title+'” — needs your confirmation.'; break;
+    case 'confirmed':msg=who+' confirmed “'+title+'”. It is now a plan.'; break;
+    case 'declined': msg=who+' declined “'+title+'”'+(extra?': '+extra:'.'); break;
+    case 'cancelReq':msg=who+' asked to cancel “'+title+'”'+(extra?': '+extra:'.'); break;
+    case 'cancelled':msg=who+' agreed to cancel “'+title+'”. It is dropped.'; break;
+    case 'withdrawn':msg=who+' withdrew the cancel request on “'+title+'”.'; break;
+    case 'edited':   msg=who+' changed “'+title+'” — your confirmation was reset.'; break;
+    case 'done':     msg=who+' marked “'+title+'” done.'; break;
+    case 'idea':     msg=who+' added an idea: “'+title+'”.'; break;
+    default: return;
+  }
+  // 1. In-app, for whoever is looking at this device right now.
+  try{if(window._thPlanBanner)window._thPlanBanner(msg,to);}catch(e){}
+  // 2. Push, so it lands even with TaskHub closed. Fire-and-forget: a plan must
+  //    never fail to save because a notification could not be queued.
+  try{
+    if(window._fcmSendToProfile)window._fcmSendToProfile(to,'Plans',msg,'plan_'+p.id+'_'+kind);
+  }catch(e){}
+}
+
+function save(p,kind,extra){
   p.updatedAt=Date.now();
   plans[p.id]=p;
   render();
   if(window._fbSavePlan)window._fbSavePlan(p.id,p);
+  if(kind)notifyOther(kind,p,extra);
 }
 function removePlan(id){
   delete plans[id];
@@ -15600,9 +15709,9 @@ function addIdea(title,notes,date,time){
   const w=me();if(!w)return;
   const now=Date.now();
   save({id:uid(),title:title,notes:notes||'',author:w,stage:'idea',
-    date:date||null,time:time||null,proposedBy:null,proposedAt:null,
+    date:date||null,time:time||null,tz:time?myTz():null,proposedBy:null,proposedAt:null,
     confirms:{veda:null,tony:null},cancelReq:null,declined:null,
-    createdAt:now,updatedAt:now});
+    createdAt:now,updatedAt:now},'idea');
 }
 
 // Either person may promote any idea, including one the other wrote. There is no
@@ -15618,7 +15727,7 @@ function promote(id){
     q.confirms={veda:null,tony:null};q.confirms[w]=Date.now();
     q.confirmMeta={};q.confirmMeta[w]=stamp(ok);
     q.declined=null;
-    save(q);
+    save(q,'proposed');
   });
 }
 
@@ -15639,8 +15748,9 @@ function confirmPlan(id){
     q.confirms[w]=Date.now();
     q.confirmMeta=q.confirmMeta||{};
     q.confirmMeta[w]=stamp(ok);
-    if(isConfirmed(q))q.stage='confirmed';
-    save(q);
+    const became=isConfirmed(q);
+    if(became)q.stage='confirmed';
+    save(q,became?'confirmed':null);
   });
 }
 
@@ -15651,7 +15761,7 @@ function declinePlan(id,reason){
   p.declined={by:w,reason:reason||'',at:Date.now()};
   p.confirms={veda:null,tony:null};p.confirmMeta={};
   p.cancelReq=null;
-  save(p);
+  save(p,'declined',reason||'');
 }
 
 function restorePlan(id){
@@ -15670,21 +15780,21 @@ function requestCancel(id,reason){
   const p=plans[id];if(!p)return;
   if(p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==w){agreeCancel(id);return;}
   p.cancelReq={by:w,reason:reason||'',at:Date.now()};
-  save(p);
+  save(p,'cancelReq',reason||'');
 }
 function withdrawCancel(id){
   const w=me();if(!w)return;
   const p=plans[id];if(!p)return;
   if(!p.cancelReq||p.cancelReq.by!==w)return;   // only the requester withdraws
-  p.cancelReq=null;save(p);
+  p.cancelReq=null;save(p,'withdrawn');
 }
 function agreeCancel(id){
   const p=plans[id];if(!p)return;
-  p.stage='dropped';save(p);
+  p.stage='dropped';save(p,'cancelled');
 }
 function markDone(id){
   const p=plans[id];if(!p)return;
-  p.stage='done';save(p);
+  p.stage='done';save(p,'done');
 }
 
 // A plan confirmed for Saturday that silently becomes a plan for Tuesday is the
@@ -15700,19 +15810,19 @@ function applyEdit(id,t,notes,d,tm){
   const material=isMaterialEdit(p,t,d,tm);
   if(!(material&&(p.stage==='confirmed'||isConfirmed(p)))){
     // Not a reset: no consent is being asserted, so nothing to verify.
-    p.title=t;p.notes=notes||'';p.date=d||null;p.time=tm||null;
+    p.title=t;p.notes=notes||'';p.date=d||null;p.time=tm||null;p.tz=tm?myTz():null;
     save(p);return;
   }
   // A material edit re-asserts the editor's own consent, so verify it the same
   // way a confirm is verified rather than stamping it unchecked.
   bioVerify(w).then(ok=>{
     const q=plans[id];if(!q)return;
-    q.title=t;q.notes=notes||'';q.date=d||null;q.time=tm||null;
+    q.title=t;q.notes=notes||'';q.date=d||null;q.time=tm||null;q.tz=tm?myTz():null;
     q.confirms={veda:null,tony:null};q.confirms[w]=Date.now();
     q.confirmMeta={};q.confirmMeta[w]=stamp(ok);
     q.stage='proposed';q.proposedBy=w;q.proposedAt=Date.now();
     q.cancelReq=null;
-    save(q);
+    save(q,'edited');
   });
 }
 
@@ -15773,7 +15883,7 @@ function card(p,ctx){
   // The date is the single most consequential field on a plan, so it leads the
   // card in the accent colour instead of sitting in a muted run-on line.
   const when=p.date
-    ?'<span class="pl-when">'+esc(fmtDate(p.date))+(p.time?'<span class="pl-at">'+esc(fmtTime(p.time))+'</span>':'')+'</span>'
+    ?'<span class="pl-when">'+esc(fmtDate(p.date))+(p.time?'<span class="pl-at">'+esc(fmtTime(p.time,p.date,p.tz))+'</span>':'')+'</span>'
     :'<span class="pl-when pl-nodate">No date</span>';
 
   let acts='';
@@ -15962,7 +16072,10 @@ function modalHtml(){
     const d=m.draft||{};
     const vT=d.t!==undefined?d.t:(p?p.title:'');
     const vD=d.d!==undefined?d.d:(p&&p.date?p.date:'');
-    const vTm=d.tm!==undefined?d.tm:(p&&p.time?p.time:'');
+    // Show the time in THIS viewer's zone, so editing a plan set by the other
+    // person does not silently reinterpret their 7:30 PM as yours.
+    const vTm=d.tm!==undefined?d.tm
+      :(p&&p.time?(typeof thToLocalHHMM==='function'?thToLocalHHMM(p.time,p.tz,p.date):p.time):'');
     const vN=d.notes!==undefined?d.notes:(p?p.notes:'');
     body='<label>Title</label><input class="pl-in" id="pl-f-title" data-focus value="'+esc(vT)+'" maxlength="200" placeholder="What is it?">'
       +'<div class="pl-row2"><div><label>Date</label><input class="pl-in" id="pl-f-date" type="date" value="'+esc(vD)+'"></div>'
@@ -41863,6 +41976,7 @@ var TONY_DEFAULT = [
   {app:'health',           label:'MotionCore'},
   {app:'keychain',         label:'Vault'},
   {app:'brainstormjournal',label:'MyJournal'},
+  {app:'plans',            label:'Plans'},
   {app:'proview',          label:'ProView'},
   {app:'warroom',          label:'WarRoom'},
 ];
