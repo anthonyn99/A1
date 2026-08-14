@@ -1335,9 +1335,17 @@ body:not([data-profile=veda]) .ev-view .btn.ev-add{
     if (snap.exists()) window.dispatchEvent(new CustomEvent("ml-remote-update", { detail: snap.data() }));
   }, (err) => { console.warn("MyList snapshot err", err); window.dispatchEvent(new CustomEvent("ml-error")); });
 
-  // ── Recipes (per profile) — Tony lives in dashboards/mealsuite, Veda in dashboards/mealsuite-veda.
-  //    Separate docs keep each person's recipes unique so they never clash. ──
-  const REC_DOCS = { tony: doc(db, "dashboards/mealsuite"), veda: doc(db, "dashboards/mealsuite-veda") };
+  // ── Recipes — VEDA ONLY, in dashboards/mealsuite-veda. ──────────────────────
+  //    Tony's recipes moved to Solace (solace.html → Nutrition ▸ Recipes), which is
+  //    now the sole owner of dashboards/mealsuite. Dropping his key from REC_DOCS is
+  //    the whole enforcement: both _mlLoadRecipes and _mlSaveRecipes bail on a
+  //    missing ref, so MyList can no longer read OR write that document from any
+  //    path — there is no second writer to race Solace, and no way for this page to
+  //    overwrite his recipe book. Veda's doc and every line of the Recipes engine
+  //    are untouched; she still uses all of it.
+  //    REC_DOCS is also the single source of truth for which profiles this page
+  //    still syncs recipes for — the listener loop below derives from its keys. ──
+  const REC_DOCS = { veda: doc(db, "dashboards/mealsuite-veda") };
   const recSaveTimers = { tony:null, veda:null };
   const recLastOwnSaveAt = { tony:0, veda:0 };
   // Same write barrier as ML_DOC's, per profile: a failed load yields [], which
@@ -1368,7 +1376,9 @@ body:not([data-profile=veda]) .ev-view .btn.ev-add{
       } catch(e){ console.warn("Recipes save failed:", e); window.dispatchEvent(new CustomEvent("ml-error")); }
     }, 1200);
   };
-  ["tony","veda"].forEach((profile) => {
+  // Derived from REC_DOCS, not a hardcoded profile list — so this page never opens
+  // a listener on a recipe document it no longer owns (Tony's went to Solace).
+  Object.keys(REC_DOCS).forEach((profile) => {
     onSnapshot(REC_DOCS[profile], (snap) => {
       recLoadOk[profile] = true;   // reads work — lift the barrier (see _mlLoadOk)
       if (Date.now() - recLastOwnSaveAt[profile] < 8000) return;
@@ -1751,8 +1761,10 @@ if(window._mlReady) boot();
 
 function boot(){
   if(booted) return; booted=true;
+  // Veda only — Tony's recipes are Solace's now (see REC_DOCS). Asking for his doc
+  // here would be a pointless read of a document this page must never write.
   if(window._mlLoadRecipes){
-    ['tony','veda'].forEach(function(p){
+    ['veda'].forEach(function(p){
       window._mlLoadRecipes(p).then(function(r){
         recipesStore[p]=r||[]; recipesLoaded[p]=true;
         if(activeProfile===p){ recipes=recipesStore[p]; if(view==='recipes') render(); }
@@ -2482,7 +2494,13 @@ var REC_CATS=['Breakfast','Lunch','Dinner','Snack','Dessert','Other'];
 var EDIT_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 var DEL_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 function persistRecipes(){ if(window._mlSaveRecipes && activeProfile) window._mlSaveRecipes(activeProfile, recipes.map(sanitize)); }
-function setView(v){ view=v; recDetailId=null; recEditingStep=null; manualOpen=false; if(evEditingId!==null) evCloseModal(); render(); window.scrollTo(0,0); }
+function setView(v){
+  // A view this profile no longer has (Tony's Recipes → Solace) falls back to Lists
+  // rather than rendering an empty screen, so an old deep link or a stale saved
+  // view can't strand him on a tab that is not in his switcher.
+  if(viewHidden(v)) v='lists';
+  view=v; recDetailId=null; recEditingStep=null; manualOpen=false; if(evEditingId!==null) evCloseModal(); render(); window.scrollTo(0,0);
+}
 // NOTE: Price Watch search state (form + results) is deliberately NOT reset here —
 // it persists per profile across tab switches; only a new search or Clear resets it.
 
@@ -2869,6 +2887,21 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('ev-m
 // doc, so reordering one profile's header never disturbs the other's.
 var VIEW_LABELS = { lists:'Lists', recipes:'Recipes', events:'Events', watch:'Price Watch' };
 var VIEW_DEFAULT_ORDER = ['lists','recipes','events','watch'];
+// ── Views a profile may see ─────────────────────────────────────────────────────
+// Tony's Recipes moved to Solace (solace.html → Nutrition ▸ Recipes), which is now
+// the ONLY owner of dashboards/mealsuite. Veda's recipes never moved — they still
+// live here, in dashboards/mealsuite-veda — so this is a per-profile de-scope, not
+// a removal: every .rec-* style, the recipe modal and the whole Recipes engine stay
+// exactly as they were, because she still uses all of it.
+//
+// Enforced in ONE place (viewOrder, which every render path already goes through)
+// plus the setView guard below, so there is no route left that can surface the tab
+// for Tony — including a stale saved order synced from a device that predates this.
+var VIEW_HIDDEN_FOR = { tony: ['recipes'] };
+function viewHidden(v){
+  var h = VIEW_HIDDEN_FOR[activeProfile];
+  return !!(h && h.indexOf(v) >= 0);
+}
 // Self-healing: unknown keys (a view that was renamed or removed) are dropped and
 // any view missing from a saved order is appended, so a stale or partial order
 // synced from another device can never hide a tab.
@@ -2877,7 +2910,7 @@ function viewOrder(){
   var out = Array.isArray(saved) ? saved.filter(function(v){ return VIEW_LABELS[v]; }) : [];
   out = out.filter(function(v,i){ return out.indexOf(v)===i; });
   VIEW_DEFAULT_ORDER.forEach(function(v){ if(out.indexOf(v)<0) out.push(v); });
-  return out;
+  return out.filter(function(v){ return !viewHidden(v); });
 }
 function setViewOrder(arr){ pData().viewOrder = arr; persist(true); }   // instant sync
 function renderViewSwitch(){

@@ -4597,158 +4597,6 @@ window.THTS={
 </script>
 
 <style>
-/* ── MotionCore (Health) scoped styles ── */
-#mc-root{position:fixed;inset:0;display:none;flex-direction:column;background:#1a1a1d;color:#f4f3f0;font-family:'DM Sans',sans-serif;}
-#mc-root *{box-sizing:border-box;margin:0;padding:0;}
-#mc-root .app-hbar-inner{max-width:2000px;margin:0 auto;width:100%;padding:calc(env(safe-area-inset-top,0px) + 10px) clamp(12px,3vw,24px) 10px;}
-#mc-root .mc-noise{position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.4;}
-#mc-root .mc-scroll{flex:1;overflow-y:auto;overflow-x:hidden;position:relative;z-index:1;}
-#mc-root main{max-width:1100px;margin:0 auto;padding:28px 20px;position:relative;z-index:1;}
-#mc-root .mc-view{display:none;}
-#mc-root .mc-view.active{display:block;animation:mcFadeUp .25s ease;}
-@keyframes mcFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-#mc-root .mc-inner-nav{display:flex;gap:4px;background:#232327;padding:4px;border-radius:10px;border:1px solid #45454c;}
-#mc-root .mc-inner-nav button{background:none;border:none;color:#adadb2;padding:7px 18px;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;letter-spacing:.3px;transition:all .18s;white-space:nowrap;touch-action:manipulation;}
-#mc-root .mc-inner-nav button:hover{color:#f4f3f0;background:#2c2c31;}
-#mc-root .mc-inner-nav button.active{background:transparent;color:#e0b874;box-shadow:inset 0 0 0 1px #e0b874,0 0 8px rgba(224,184,116,.28);}
-#mc-root .section-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;gap:12px;}
-#mc-root .section-title{font-family:var(--suite-display);font-size:32px;font-weight:750;letter-spacing:-.6px;line-height:1.1;}
-#mc-root .section-subtitle{font-size:13px;color:#8d8d94;margin-top:4px;font-weight:300;}
-#mc-root .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;transition:all .18s;letter-spacing:.2px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
-/* Rest carries no glow — the lift and the gold halo arrive on hover. */
-#mc-root .btn-primary{background:#e0b874;color:#1a1a1d;box-shadow:none;}
-#mc-root .btn-primary:hover{background:#e0b874;box-shadow:0 4px 20px rgba(224,184,116,.45);transform:translateY(-1px);}
-#mc-root .btn-ghost{background:#2c2c31;color:#adadb2;border:1px solid #45454c;}
-#mc-root .btn-ghost:hover{background:#37373d;color:#f4f3f0;transform:translateY(-1px);box-shadow:0 0 8px rgba(244,243,240,.12),0 0 0 1px rgba(244,243,240,.08);}
-#mc-root .btn-danger{background:rgba(220,70,80,.12);color:#dc4650;border:1px solid rgba(220,70,80,.2);}
-#mc-root .btn-danger:hover{background:rgba(220,70,80,.22);box-shadow:0 0 8px rgba(220,70,80,.34),0 0 0 1px rgba(220,70,80,.15);}
-#mc-root .btn-sm{padding:6px 12px;font-size:12px;border-radius:6px;}
-#mc-root .btn-icon{padding:7px;border-radius:6px;}
-#mc-root .drag-handle{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;cursor:grab;color:#8d8d94;flex-shrink:0;touch-action:none;transition:color .15s,background .15s;-webkit-tap-highlight-color:transparent;user-select:none;}
-#mc-root .drag-handle:hover{color:#adadb2;background:#2c2c31;}
-#mc-root .drag-handle:active{cursor:grabbing;}
-#mc-root .drag-placeholder{border:2px dashed #e0b874;border-radius:12px;background:rgba(224,184,116,.05);flex-shrink:0;transition:height .15s;}
-#mc-root .circuit-card{background:#232327;border:1px solid #34343a;border-radius:14px;margin-bottom:14px;overflow:hidden;transition:border-color .18s;}
-#mc-root .circuit-card:hover{border-color:#45454c;}
-#mc-root .circuit-card-header{display:flex;align-items:center;gap:10px;padding:18px 20px;cursor:pointer;user-select:none;}
-#mc-root .circuit-card-info{flex:1;min-width:0;pointer-events:none;}
-#mc-root .circuit-card-title{font-size:16px;font-weight:500;letter-spacing:-.2px;white-space:normal;word-break:break-word;}
-#mc-root .circuit-card-meta{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;}
-#mc-root .circuit-card-desc{font-size:12px;color:#adadb2;font-weight:300;margin-top:2px;white-space:normal;word-break:break-word;}
-#mc-root .circuit-card-actions{display:flex;gap:6px;align-items:center;flex-shrink:0;}
-#mc-root .circuit-body{border-top:1px solid #34343a;padding:16px 20px 20px;}
-#mc-root .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500;letter-spacing:.3px;}
-#mc-root .badge-accent{background:transparent;color:#e0b874;border:1px solid rgba(224,184,116,.4);}
-#mc-root .badge-muted{background:#2c2c31;color:#adadb2;border:1px solid #45454c;}
-#mc-root .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:16px;opacity:0;visibility:hidden;transition:none;}
-#mc-root .modal-overlay.open{display:flex;opacity:1;visibility:visible;animation:mcFadeIn .18s ease;}
-@keyframes mcFadeIn{from{opacity:0}to{opacity:1}}
-#mc-root .modal{background:#232327;border:1px solid #45454c;border-radius:18px;padding:28px 24px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;animation:mcSlideUp .22s ease;transform:none;}
-#mc-root .modal-overlay.open .modal{transform:none;}
-@keyframes mcSlideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-#mc-root .modal-title{font-family:var(--suite-display);font-size:21px;font-weight:750;letter-spacing:-.3px;margin-bottom:22px;}
-#mc-root .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;padding-top:18px;border-top:1px solid #34343a;}
-#mc-root .form-group{margin-bottom:16px;}
-#mc-root label{display:block;font-size:11px;font-weight:500;color:#adadb2;margin-bottom:7px;letter-spacing:.5px;text-transform:uppercase;}
-#mc-root input[type="text"],#mc-root input[type="number"],#mc-root textarea,#mc-root select{width:100%;background:#1a1a1d;border:1px solid #45454c;border-radius:8px;padding:11px 14px;color:#f4f3f0;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .18s,box-shadow .18s;resize:vertical;-webkit-appearance:none;}
-#mc-root input:focus,#mc-root textarea:focus,#mc-root select:focus{border-color:#e0b874;box-shadow:0 0 0 3px rgba(224,184,116,.1);}
-#mc-root textarea{min-height:80px;}
-#mc-root input[type="number"]{-moz-appearance:textfield;}
-#mc-root input[type="number"]::-webkit-inner-spin-button{display:none;}
-#mc-root .modules-list{display:flex;flex-direction:column;gap:8px;}
-#mc-root .module-item{display:flex;align-items:center;gap:12px;background:#2c2c31;border:1px solid #45454c;border-radius:10px;padding:11px 14px;}
-#mc-root .module-num{font-family:'Bebas Neue',sans-serif;font-size:18px;color:#8d8d94;min-width:22px;text-align:center;}
-#mc-root .module-info{flex:1;min-width:0;}
-#mc-root .module-name{font-size:14px;font-weight:500;}
-#mc-root .module-meta{font-size:12px;color:#8d8d94;margin-top:2px;font-weight:300;}
-#mc-root .module-time{font-family:'Bebas Neue',sans-serif;font-size:17px;color:#e0b874;min-width:44px;text-align:right;flex-shrink:0;}
-#mc-root .timer-overlay{display:none;position:fixed;inset:0;background:rgba(10,10,12,.97);backdrop-filter:blur(8px);z-index:10000;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;}
-#mc-root .timer-overlay.open{display:flex;}
-#mc-root .timer-circuit-name{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:4px;color:#8d8d94;text-transform:uppercase;}
-#mc-root .timer-exercise{font-family:'Bebas Neue',sans-serif;font-size:clamp(32px,8vw,52px);letter-spacing:2px;max-width:90vw;}
-#mc-root .timer-desc{font-size:14px;color:#8d8d94;max-width:380px;font-weight:300;}
-#mc-root .timer-display{position:relative;width:clamp(160px,45vw,210px);height:clamp(160px,45vw,210px);margin:4px 0;}
-#mc-root .timer-ring{position:absolute;inset:0;transform:rotate(-90deg);}
-#mc-root .timer-ring-track{fill:none;stroke:#232327;stroke-width:8;}
-#mc-root .timer-ring-fill{fill:none;stroke:#e0b874;stroke-width:8;stroke-linecap:round;stroke-dasharray:628;stroke-dashoffset:0;transition:stroke-dashoffset 1s linear,stroke .3s;filter:drop-shadow(0 0 8px rgba(224,184,116,0.35));}
-#mc-root .timer-number{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-#mc-root .timer-seconds{font-family:'Bebas Neue',sans-serif;font-size:clamp(56px,14vw,80px);line-height:1;letter-spacing:-2px;}
-#mc-root .timer-label{font-size:10px;letter-spacing:3px;color:#8d8d94;text-transform:uppercase;margin-top:-4px;}
-#mc-root .timer-progress{font-size:13px;color:#8d8d94;letter-spacing:2px;}
-#mc-root .timer-controls{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;justify-content:center;}
-#mc-root .timer-next{font-family:'Bebas Neue',sans-serif;font-size:clamp(18px,4.5vw,28px);color:#8d8d94;letter-spacing:2px;text-transform:uppercase;max-width:90vw;}
-#mc-root .timer-next span{color:#e0b874;}
-#mc-root .routine-card{background:#232327;border:1px solid #34343a;border-radius:14px;margin-bottom:14px;overflow:hidden;transition:border-color .18s;}
-#mc-root .routine-card:hover{border-color:#45454c;}
-#mc-root .routine-card-header{display:flex;align-items:center;gap:10px;padding:18px 20px;cursor:pointer;user-select:none;}
-#mc-root .routine-card-header:hover .routine-title{color:#e0b874;}
-#mc-root .routine-title{font-family:var(--suite-display);font-size:17px;font-weight:750;letter-spacing:-.2px;color:#f4f3f0;transition:color .18s;flex:1;min-width:0;pointer-events:none;}
-#mc-root .routine-body{padding:0 20px 20px;border-top:1px solid #45454c;}
-#mc-root .routine-content{font-size:14px;color:#f4f3f0;line-height:1.55;font-weight:400;padding-top:14px;word-break:break-word;display:flex;flex-direction:column;gap:14px;}
-/* Each blank-line block becomes a card of its own so a long routine scans as
-   sections (chest / shoulders / triceps) rather than one wall of lines. */
-#mc-root .routine-group{background:#2c2c31;border:1px solid #45454c;border-left:2px solid var(--gold-primary,#e0b874);border-radius:8px;overflow:hidden;}
-#mc-root .routine-line{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:9px 14px;}
-#mc-root .routine-line + .routine-line{border-top:1px solid rgba(255,255,255,.06);}
-#mc-root .routine-line-name{color:#f4f3f0;font-weight:500;min-width:0;}
-/* The "3 sets" half is a quantity, not a label — quiet, tabular, right-aligned. */
-#mc-root .routine-line-detail{color:#e0b874;font-size:12.5px;font-weight:600;white-space:nowrap;flex-shrink:0;font-variant-numeric:tabular-nums;}
-#mc-root .routine-empty{color:#8d8d94;font-family:var(--font-accent);}
-@media(max-width:520px){
-  #mc-root .routine-line{flex-direction:column;align-items:flex-start;gap:2px;}
-}
-#mc-root .empty-state{text-align:center;padding:56px 20px;color:#8d8d94;}
-#mc-root .empty-icon{font-size:36px;margin-bottom:12px;opacity:.4;}
-#mc-root .empty-title{font-size:15px;font-weight:500;color:#adadb2;margin-bottom:5px;}
-#mc-root .empty-sub{font-size:13px;font-weight:300;}
-#mc-root hr{border:none;border-top:1px solid #34343a;margin:18px 0;}
-#mc-root .add-module-row{display:flex;gap:10px;align-items:flex-end;}
-#mc-root .add-module-row .form-group{margin-bottom:0;}
-#mc-root .add-module-row .fg-name{flex:2;}
-#mc-root .add-module-row .fg-time{flex:1;min-width:80px;}
-#mc-root .modules-builder{background:#1a1a1d;border:1px solid #45454c;border-radius:10px;padding:14px;margin-top:14px;}
-#mc-root .modules-builder-title{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#8d8d94;margin-bottom:10px;}
-#mc-root .module-builder-item{display:flex;align-items:center;gap:8px;background:#2c2c31;border:1px solid #45454c;border-radius:8px;padding:9px 10px;margin-bottom:7px;touch-action:none;}
-#mc-root .module-builder-item:last-child{margin-bottom:0;}
-#mc-root .mbitem-name{flex:1;font-size:13px;font-weight:500;min-width:0;}
-#mc-root .mbitem-time{font-family:'Bebas Neue',sans-serif;font-size:15px;color:#e0b874;min-width:40px;text-align:right;flex-shrink:0;}
-#mc-root .mbitem-desc{font-size:12px;color:#8d8d94;font-weight:300;}
-#mc-root .mbitem-edit-row{display:flex;gap:6px;align-items:center;flex:1;min-width:0;}
-#mc-root .mbitem-edit-row input[type="text"],#mc-root .mbitem-edit-row input[type="number"]{padding:5px 8px;font-size:13px;}
-#mc-root .mbitem-edit-row input[type="number"]{width:60px;flex-shrink:0;}
-#mc-root .run-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;background:transparent;border:1px solid rgba(224,184,116,.36);border-radius:7px;color:#e0b874;font-size:12px;font-weight:500;cursor:pointer;transition:all .18s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
-#mc-root .run-btn:hover{background:transparent;border-color:#e0b874;transform:translateY(-1px);box-shadow:0 0 8px rgba(224,184,116,.4),0 0 0 1px rgba(224,184,116,.15);}
-#mc-root .chevron{transition:transform .2s;flex-shrink:0;}
-#mc-root .chevron.open{transform:rotate(180deg);}
-#mc-root ::-webkit-scrollbar{display:none;width:0;height:0;}
-#mc-root ::-webkit-scrollbar-track{background:transparent;}
-#mc-root ::-webkit-scrollbar-thumb{background:#2c2c31;border-radius:3px;}
-#mc-root .pulse{animation:mcPulse 1.5s ease-in-out infinite;}
-@keyframes mcPulse{0%,100%{opacity:1}50%{opacity:.5}}
-#mc-root .mc-hbar-logo{font-family:var(--suite-display);font-size:clamp(21px,2.6vw,28px);font-weight:750;letter-spacing:-0.4px;line-height:1.2;white-space:nowrap;display:flex;align-items:center;color:#e0b874;}
-#mc-root .mc-hbar-logo{color:#e0b874;}
-#mc-root .mc-hbar-logo .base,#mc-root .mc-hbar-logo .accent{color:inherit;font-style:normal;font-weight:inherit;}
-#mc-root .mc-hbar-dot{display:none;}
-/* ── MC theme button (same pattern as EL/MS/ER) ── */
-@media(max-width:480px){
-  #mc-root main{padding:20px 14px;}
-  #mc-root .section-title{font-size:30px;}
-  #mc-root .btn{padding:9px 14px;font-size:12px;}
-  #mc-root .circuit-card-header,#mc-root .routine-card-header{padding:14px 14px;}
-  #mc-root .circuit-body{padding:12px 14px 16px;}
-  #mc-root .modal{padding:22px 18px;}
-  #mc-root .add-module-row{flex-direction:column;}
-  #mc-root .add-module-row .fg-time{min-width:unset;}
-  #mc-root .timer-controls .btn{padding:8px 12px;font-size:12px;}
-  #mc-root .mc-inner-nav button{padding:6px 13px;font-size:12px;}
-}
-@media(max-width:360px){
-  #mc-root .circuit-card-actions{gap:4px;}
-  #mc-root .run-btn{padding:5px 10px;font-size:11px;}
-  #mc-root .btn-icon{padding:6px;}
-}
-</style>
-<style>
 /* ── Icon sizing for the journal chrome (emoji -> SVG migration) ── */
 #tj-root .pt-btn .tji{width:15px;height:15px;display:block;}
 #tj-root .pt-btn{display:inline-flex;align-items:center;justify-content:center;}
@@ -4834,14 +4682,12 @@ window.THTS={
   <select id="tn-mobile-select" onchange="if(this.value==='warroom'){window._wrClick&&window._wrClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='tradeboard'){window._thubClick&&window._thubClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='keychain'){window._vaultClick&&window._vaultClick();this.value=window._tnCurApp||'taskhub';}else{window._tonyNav&&window._tonyNav(this.value);}this.blur();">
     <option value="taskhub">Tony's TaskHub</option>
     <option value="tradeboard">TradeHub</option>
-    <option value="health">MotionCore</option>
     <option value="keychain">Vault</option>
     <option value="brainstormjournal">MyJournal</option>
     <option value="proview">ProView</option>
     <option value="warroom">WarRoom</option>
   </select>
   <button class="tn-btn" data-app="taskhub" onclick="window._tonyNav&&window._tonyNav('taskhub')">TaskHub</button>
-  <button class="tn-btn" data-app="health" onclick="window._tonyNav&&window._tonyNav('health')">MotionCore</button>
   <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
   <button class="tn-btn pv-btn" data-app="proview" onclick="window._tonyNav&&window._tonyNav('proview')">ProView</button>
   <!-- TradeHub / Vault / WarRoom used to be hardcoded here — they're now seeded
@@ -7873,7 +7719,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   const BJ_DOC_PATH   = "dashboards/journal";
   const MJ_DOC_PATH   = "dashboards/myjournal";
   const TJ_DOC_PATH   = "dashboards/tony_journal";
-  const MC_DOC_PATH   = "dashboards/motioncore";
   const PV_DOC_PATH      = "dashboards/proview";
   const MC_CAL_PATH      = "dashboards/market_calendar";
   const PLANS_DOC_PATH   = "dashboards/plans";
@@ -7897,7 +7742,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _bjSaveTimer   = null;
   let _tjSaveTimer   = null;
   let _mjSaveTimer   = null;
-  let _mcSaveTimer   = null;
   let _unsubscribe    = null;
   let _mcCalUnsub     = null;
   let _vdUnsubscribe  = null;
@@ -7909,7 +7753,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _sosMirrorUnsub = null;   // StudyOS → TaskHub task mirror (read-only)
   let _plansUnsub     = null;   // Plans → both TaskHubs mirror (read-only)
   let _plansSaveTimer = null;
-  let _mcUnsubscribe  = null;
   let _pvUnsubscribe  = null;
   let _alUnsubscribe  = null;
   let _oiUnsubscribe  = null;
@@ -7924,7 +7767,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _mjLastWrittenSavedAt = 0;   // same pattern for MyJournal
   let _tjLastOwnSaveAt   = 0;
   let _tjLastWrittenSavedAt = 0;   // same pattern for TonyJournal
-  let _mcLastOwnSaveAt   = 0;
 
   // ── Stale-overwrite guard for the two journals (MyJournal=tj, Brainstorm=bj) ──
   // ROOT CAUSE this fixes: on a hard refresh where the server read times out, the
@@ -9627,44 +9469,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
     };
 
-    // ── MotionCore load ───────────────────────────────────────────────────────
-    const mcDocRef = doc(db, MC_DOC_PATH);
-    window._fbLoadMotionCore = async () => {
-      try {
-        const snap = await _freshGet(mcDocRef);
-        if (snap && snap.exists()) return snap.data();
-        return null;
-      } catch(e) {
-        console.warn("Firebase MotionCore load failed:", e);
-        return null;
-      }
-    };
-
-    // ── MotionCore save (1.5s debounce) ───────────────────────────────────────
-    window._fbSaveMotionCore = (payload) => {
-      _mcLastOwnSaveAt = Date.now();
-      if (_mcSaveTimer) clearTimeout(_mcSaveTimer);
-      _mcSaveTimer = setTimeout(async () => {
-        try {
-          _mcLastOwnSaveAt = Date.now();
-          await setDoc(mcDocRef, payload);
-          _mcLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-mc-saved"));
-        } catch(e) {
-          console.warn("Firebase MotionCore save failed:", e);
-          window.dispatchEvent(new CustomEvent("fb-mc-error"));
-        }
-      }, 1500);
-    };
-
-    // ── MotionCore real-time listener ─────────────────────────────────────────
-    if (_mcUnsubscribe) { _mcUnsubscribe(); _mcUnsubscribe = null; }
-    _mcUnsubscribe = onSnapshot(mcDocRef, (snap) => {
-      if (!snap.exists()) return;
-      if (Date.now() - _mcLastOwnSaveAt < 6000) return;
-      window.dispatchEvent(new CustomEvent("fb-mc-remote", { detail: snap.data() }));
-      window.dispatchEvent(new CustomEvent("fb-mc-synced"));
-    });
 
     // ── TradeBoard Firebase moved to standalone tradehub.html ──
 
@@ -9856,7 +9660,6 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
     if (_sosMirrorUnsub) { _sosMirrorUnsub(); _sosMirrorUnsub = null; }
     if (_plansUnsub)     { _plansUnsub();     _plansUnsub     = null; }
-    if (_mcUnsubscribe)  { _mcUnsubscribe();  _mcUnsubscribe  = null; }
     if (_pvUnsubscribe)  { _pvUnsubscribe();  _pvUnsubscribe  = null; }
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
     if (window._tsUnsubscribe) { window._tsUnsubscribe(); window._tsUnsubscribe = null; }
@@ -10216,7 +10019,9 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
 
 
 <script>
-// ── Shared MotionCore-style pointer-event drag-to-reorder ──────────────────────
+// ── Shared pointer-event drag-to-reorder ───────────────────────────────────────
+// (The pattern originated in MotionCore, which now lives in solace.html; this
+//  helper stays because other views on this page still use it.)
 // thDragList(listEl, getArr, setArr, onDrop, accentColor, placeholderClass, ghostParentEl)
 // Works for both mouse and touch via Pointer Events API — no separate touch handlers needed.
 window.thDragList = function(listEl, getArr, setArr, onDrop, accentColor, placeholderClass, ghostParentEl) {
@@ -13209,8 +13014,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
       // Hide Tony's root and other fixed roots so they don't show through
       const root=document.getElementById("root");
       if(root)root.style.display="none";
-      ["mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
-      // Let veda-root flow in body (no fixed) so Chrome pull-to-refresh works
+            // Let veda-root flow in body (no fixed) so Chrome pull-to-refresh works
       vr.style.display="block";
       vr.style.position="";
       vr.style.top="";vr.style.left="";vr.style.right="";vr.style.bottom="";
@@ -13264,7 +13068,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     hideVeda();
     // Also hide Veda sub-programs in case user was in one
-    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","plans-root"].forEach(function(id){
+    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","plans-root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -13272,8 +13076,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     var _tjt=document.getElementById('tj-nav-title');if(_tjt)_tjt.parentNode.removeChild(_tjt);
     const root=document.getElementById("root");
     if(root)root.style.display="";
-    ["mc-root"].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display="none";});
-    const sw=document.getElementById("th-app-switcher");if(sw)sw.value="taskhub";
+        const sw=document.getElementById("th-app-switcher");if(sw)sw.value="taskhub";
     // Restore Tony body bg from saved theme
     document.body.style.background="#1a1a1d";document.documentElement.style.background="#1a1a1d"; // light mode removed — always dark
     // Show Tony nav bar
@@ -13300,7 +13103,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     if(window._hideTonyNav)window._hideTonyNav();
     if(window._vedaCloseGita)window._vedaCloseGita();
-    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","mc-root","plans-root"].forEach(function(id){
+    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","plans-root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -13448,7 +13251,6 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     const bg="#1a1a1d";
     document.body.style.background=bg;
     document.documentElement.style.background=bg;
-    if(window._mcApplyTheme)window._mcApplyTheme();
     var tnav=document.getElementById('tony-app-nav');
     if(tnav&&tnav.style.display!=='none'){tnav.style.setProperty('--tn-ac','#c8a15f');tnav.style.setProperty('--tn-bd','#2e3a35');tnav.style.setProperty('--tn-bg','#1a1a1d');}
     if(window._tjApplyTheme)window._tjApplyTheme();
@@ -16321,7 +16123,7 @@ window.addEventListener('fb-plans-update',e=>ingest(e.detail||{}));
 
 window._plansShow=function(){
   const el=root();if(!el)return;
-  ['root','veda-root','task-view','vd-kc-root','bj-root','tj-root','mc-root','pv-root','wr-root']
+  ['root','veda-root','task-view','vd-kc-root','bj-root','tj-root','pv-root','wr-root']
     .forEach(id=>{const n=document.getElementById(id);if(n)n.style.display='none';});
   el.style.display='block';
   document.body.style.background='#1a1a1d';
@@ -28416,16 +28218,14 @@ window._tonyNav = function(app) {
   if(app==='keychain'){ if(window._vaultClick) window._vaultClick(); return; }
   // Hide ALL tony + other app roots before switching
   if(app!=='proview'&&window._pvHide) window._pvHide();
-  ['root','tj-root','veda-root','bj-root','vd-kc-root','mc-root','tradeboard-root','pv-root','wr-root','plans-root'].forEach(function(id){
+  ['root','tj-root','veda-root','bj-root','vd-kc-root','tradeboard-root','pv-root','wr-root','plans-root'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.style.display='none';
   });
   if(app==='taskhub') {
     var r=document.getElementById('root');
     if(r) r.style.display='';
     var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
-  } else if(app==='health' && window._mcSwitchTo) {
-    window._mcSwitchTo('health');
-    } else if(app==='brainstormjournal' && window.showTonyJournal) {
+  } else if(app==='brainstormjournal' && window.showTonyJournal) {
     window.showTonyJournal();
     return; // showTonyJournal handles its own display; active update below
   } else if(app==='proview') {
@@ -28438,7 +28238,7 @@ window._tonyNav = function(app) {
   window._updateTonyNavActive(app);
 };
 window.showTonyJournal = function() {
-  ['root','veda-root','bj-root','mc-root','tradeboard-root',
+  ['root','veda-root','bj-root','tradeboard-root',
    'vd-kc-root','plans-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
@@ -33973,790 +33773,6 @@ else initAll();
 </script>
 
 
-<!-- ── MotionCore (Health) App ── -->
-<div id="mc-root" style="display:none;flex-direction:column;">
-  <div class="mc-noise"></div>
-
-  <!-- Header (matches Tony's app-hbar pattern) -->
-  <div class="app-hbar" id="mc-hbar" style="background:#1a1a1d;border-bottom:1px solid #34343a;transition:background .4s,border-color .4s;">
-    <div class="app-hbar-inner">
-      <div class="app-hbar-row1">
-        <div style="display:flex;flex-direction:column;gap:2px;">
-          <div class="mc-hbar-logo">
-            <span class="base">Motion</span><span class="accent">Core</span>
-          </div>
-          <span id="mc-sync-status" style="font-size:10px;font-weight:600;white-space:nowrap;visibility:hidden;display:block;min-height:14px;line-height:1.4;"></span>
-        </div>
-      </div>
-      <div class="app-hbar-row2" style="justify-content:flex-end;">
-      </div>
-    </div>
-  </div>
-
-  <!-- Scrollable content area -->
-  <div class="mc-scroll">
-    <main>
-      <!-- Tab nav below header, matching MealSuite/other app pattern -->
-      <div style="margin-bottom:20px;">
-        <div class="mc-inner-nav" style="display:inline-flex;">
-          <button id="mc-nav-circuits" class="active" onclick="mcSwitchView('circuits',this)">Circuits</button>
-          <button id="mc-nav-routines" onclick="mcSwitchView('routines',this)">Routines</button>
-        </div>
-      </div>
-      <div id="mc-view-circuits" class="mc-view active">
-        <div class="section-header">
-          <div>
-            <div class="section-title">Circuits</div>
-            <div class="section-subtitle">Timed exercise sequences with auto-advance</div>
-          </div>
-          <button class="btn btn-primary" onclick="mcOpenNewCircuitModal()">
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            New Circuit
-          </button>
-        </div>
-        <div id="mc-circuits-list"></div>
-      </div>
-
-      <div id="mc-view-routines" class="mc-view">
-        <div class="section-header">
-          <div>
-            <div class="section-title">Routines</div>
-            <div class="section-subtitle">Your workout plans, sessions, and notes</div>
-          </div>
-          <button class="btn btn-primary" onclick="mcOpenNewRoutineModal()">
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            New Routine
-          </button>
-        </div>
-        <div id="mc-routines-list"></div>
-      </div>
-    </main>
-  </div>
-
-  <!-- Circuit Modal -->
-  <div id="mc-circuit-modal" class="modal-overlay">
-    <div class="modal">
-      <div class="modal-title" id="mc-circuit-modal-title">NEW CIRCUIT</div>
-      <div class="form-group">
-        <label>Circuit Name</label>
-        <input type="text" id="mc-circuit-name" placeholder="e.g. Morning HIIT">
-      </div>
-      <div class="form-group">
-        <label>Description <span style="color:#8d8d94;font-weight:300;text-transform:none;letter-spacing:0">(optional)</span></label>
-        <textarea id="mc-circuit-desc" placeholder="What's this circuit about?"></textarea>
-      </div>
-      <hr>
-      <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#8d8d94;margin-bottom:12px;">Add Module</div>
-      <div class="add-module-row">
-        <div class="form-group fg-name"><label>Exercise Name</label><input type="text" id="mc-mod-name" placeholder="e.g. Plank Hold"></div>
-        <div class="form-group fg-time"><label>Seconds</label><input type="number" id="mc-mod-time" placeholder="30" min="1"></div>
-      </div>
-      <div class="form-group" style="margin-top:8px;">
-        <label>Description <span style="color:#8d8d94;font-weight:300;text-transform:none;letter-spacing:0">(optional)</span></label>
-        <input type="text" id="mc-mod-desc" placeholder="Optional notes">
-      </div>
-      <button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="mcAddModuleToBuild()">
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        Add Module
-      </button>
-      <div class="modules-builder" id="mc-modules-builder" style="display:none;">
-        <div class="modules-builder-title">Modules <span id="mc-modules-count" style="color:#e0b874"></span> <span style="font-weight:300;color:#8d8d94;text-transform:none;letter-spacing:0;font-size:10px;">drag to reorder • tap edit</span></div>
-        <div id="mc-modules-build-list"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="mcCloseModal('mc-circuit-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="mcSaveCircuit()">Save Circuit</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Routine Modal -->
-  <div id="mc-routine-modal" class="modal-overlay">
-    <div class="modal">
-      <div class="modal-title" id="mc-routine-modal-title">NEW ROUTINE</div>
-      <div class="form-group"><label>Routine Name</label><input type="text" id="mc-routine-name" placeholder="e.g. Push Day A"></div>
-      <div class="form-group">
-        <label>Workout Content</label>
-        <textarea id="mc-routine-content" style="min-height:180px;" placeholder="Bench Press — 4x8 @ 185lb&#10;Incline DB Press — 3x10 @ 60lb&#10;Cable Fly — 3x12&#10;Tricep Pushdown — 3x15&#10;&#10;Cardio: 20min treadmill @ 3.5mph incline 6"></textarea>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="mcCloseModal('mc-routine-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="mcSaveRoutine()">Save Routine</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Timer -->
-  <div id="mc-timer-overlay" class="timer-overlay">
-    <div class="timer-circuit-name" id="mc-timer-circuit-name"></div>
-    <div class="timer-exercise" id="mc-timer-exercise"></div>
-    <div class="timer-desc" id="mc-timer-exercise-desc"></div>
-    <div class="timer-display">
-      <svg class="timer-ring" viewBox="0 0 220 220">
-        <circle class="timer-ring-track" cx="110" cy="110" r="100"/>
-        <circle class="timer-ring-fill" id="mc-timer-ring-fill" cx="110" cy="110" r="100"/>
-      </svg>
-      <div class="timer-number">
-        <div class="timer-seconds" id="mc-timer-seconds">0</div>
-        <div class="timer-label" id="mc-timer-label">seconds</div>
-      </div>
-    </div>
-    <div class="timer-progress" id="mc-timer-progress"></div>
-    <div class="timer-next" id="mc-timer-next"></div>
-    <div class="timer-controls">
-      <button class="btn btn-ghost" id="mc-timer-pause-btn" onclick="mcTogglePause()">Pause</button>
-      <button class="btn btn-danger btn-sm" onclick="mcStopTimer()">End Session</button>
-    </div>
-  </div>
-</div>
-
-<script>
-(function() {
-// ══════════════════════════════════════════
-// MOTIONCORE STATE
-// ══════════════════════════════════════════
-var mcCircuits = JSON.parse(localStorage.getItem('mc_circuits')||'[]');
-var mcRoutines = JSON.parse(localStorage.getItem('mc_routines')||'[]');
-var mcEditingCircuitId = null;
-var mcEditingRoutineId = null;
-var mcBuildModules = [];
-var mcEditingModuleId = null;
-
-var mcTimerState = {
-  circuitId:null, modules:[], moduleIndex:0,
-  remaining:0, interval:null, paused:false, initialTime:0,
-  isCountdown:false
-};
-
-// ── Nav ──
-function mcSwitchView(v, btn) {
-  document.querySelectorAll('#mc-root .mc-view').forEach(function(el){el.classList.remove('active');});
-  document.querySelectorAll('#mc-root .mc-inner-nav button').forEach(function(el){el.classList.remove('active');});
-  document.getElementById('mc-view-'+v).classList.add('active');
-  if(btn) btn.classList.add('active');
-}
-window.mcSwitchView = mcSwitchView;
-
-// ── Persist ──
-function mcSave() {
-  localStorage.setItem('mc_circuits', JSON.stringify(mcCircuits));
-  localStorage.setItem('mc_routines', JSON.stringify(mcRoutines));
-  mcSetSync('saving');
-  if (window._fbSaveMotionCore) {
-    window._fbSaveMotionCore({ circuits: mcCircuits, routines: mcRoutines, savedAt: Date.now() });
-  }
-}
-
-var _mcSyncTimer = null;
-function mcSetSync(status) {
-  var el = document.getElementById('mc-sync-status');
-  if (!el) return;
-  if (status === 'saving') {
-    el.style.visibility = 'visible';
-    el.style.color = '#adadb2';
-    el.textContent = 'Syncing…';
-    if (_mcSyncTimer) { clearTimeout(_mcSyncTimer); _mcSyncTimer = null; }
-  } else if (status === 'saved') {
-    el.style.visibility = 'visible';
-    el.style.color = '#a4b986';
-    el.textContent = 'Synced';
-    if (_mcSyncTimer) clearTimeout(_mcSyncTimer);
-    _mcSyncTimer = setTimeout(function() { el.style.visibility = 'hidden'; }, 2500);
-  } else if (status === 'error') {
-    el.style.visibility = 'visible';
-    el.style.color = '#d68a7c';
-    el.textContent = 'Sync failed';
-    if (_mcSyncTimer) { clearTimeout(_mcSyncTimer); _mcSyncTimer = null; }
-  } else {
-    el.style.visibility = 'hidden';
-  }
-}
-function mcUid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
-
-// ── Modal ──
-function mcOpenModal(id){ document.getElementById(id).classList.add('open'); }
-function mcCloseModal(id){ document.getElementById(id).classList.remove('open'); }
-window.mcCloseModal = mcCloseModal;
-document.querySelectorAll('#mc-root .modal-overlay').forEach(function(o){
-  o.addEventListener('click', function(e){ if(e.target===o) o.classList.remove('open'); });
-});
-
-// ── Drag Engine ──
-function mcInitDragList(containerId, getArr, setArr, afterDrop) {
-  var container = document.getElementById(containerId);
-  if (!container) return;
-  // Clone node to strip old listeners
-  var fresh = container.cloneNode(false);
-  while (container.firstChild) fresh.appendChild(container.firstChild);
-  container.parentNode.replaceChild(fresh, container);
-  var c = document.getElementById(containerId);
-
-  c.addEventListener('pointerdown', function(e) {
-    var handle = e.target.closest('.drag-handle');
-    if (!handle) return;
-    var item = handle.closest('[data-id]');
-    if (!item || !c.contains(item)) return;
-    e.preventDefault();
-
-    var rect = item.getBoundingClientRect();
-    var offsetY = e.clientY - rect.top;
-    var offsetX = e.clientX - rect.left;
-
-    // Placeholder — same height, stays in list to mark the drop target
-    var ph = document.createElement('div');
-    ph.className = 'drag-placeholder';
-    ph.style.height = rect.height + 'px';
-    ph.style.marginBottom = getComputedStyle(item).marginBottom;
-    ph.style.flexShrink = '0';
-
-    // Ghost parent: modal if dragging inside one, else mc-root — keeps scoped CSS intact
-    var mcRootEl = document.getElementById('mc-root');
-    var modalParent = c.closest('#mc-root .modal');
-    var ghostParent = modalParent || mcRootEl;
-    var ghost = item.cloneNode(true);
-    ghost.style.position = 'fixed';
-    ghost.style.left = rect.left + 'px';
-    ghost.style.top = rect.top + 'px';
-    ghost.style.width = rect.width + 'px';
-    ghost.style.margin = '0';
-    ghost.style.pointerEvents = 'none';
-    ghost.style.zIndex = modalParent ? '9999' : '500';
-    ghost.style.opacity = '0.97';
-    ghost.style.transform = 'rotate(1.5deg) scale(1.015)';
-    ghost.style.boxShadow = '0 12px 40px rgba(0,0,0,.7), 0 0 0 1.5px #e0b874';
-    ghost.style.transition = 'none';
-    ghost.style.willChange = 'left,top';
-
-    // Replace item with placeholder — list height unchanged, no shift
-    item.replaceWith(ph);
-    ghostParent.appendChild(ghost);
-    c.setPointerCapture && c.setPointerCapture(e.pointerId);
-
-    function onMove(ev) {
-      // Move ghost to follow pointer
-      ghost.style.left = (ev.clientX - offsetX) + 'px';
-      ghost.style.top  = (ev.clientY - offsetY) + 'px';
-
-      // Determine drop target by comparing pointer Y to siblings' midpoints
-      var siblings = Array.from(c.querySelectorAll('[data-id]')).filter(function(el){ return el !== item; });
-      var placed = false;
-      for (var i = 0; i < siblings.length; i++) {
-        var r = siblings[i].getBoundingClientRect();
-        if (ev.clientY < r.top + r.height / 2) {
-          c.insertBefore(ph, siblings[i]);
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        var last = siblings[siblings.length - 1];
-        if (last) last.after(ph); else c.appendChild(ph);
-      }
-    }
-
-    function onUp() {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      document.removeEventListener('pointercancel', onUp);
-
-      // Drop: swap placeholder out for the real item
-      ph.replaceWith(item);
-      ghost.remove();
-      item.style.opacity = '';
-      item.style.pointerEvents = '';
-
-      // Persist new order
-      var newOrder = Array.from(c.querySelectorAll('[data-id]')).map(function(el){ return el.dataset.id; });
-      var arr = getArr();
-      var sorted = newOrder.map(function(id){ return arr.find(function(x){ return x.id === id; }); }).filter(Boolean);
-      var missing = arr.filter(function(x){ return !newOrder.includes(x.id); });
-      setArr(sorted.concat(missing));
-      mcSave();
-      if (afterDrop) afterDrop();
-    }
-
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
-    document.addEventListener('pointercancel', onUp);
-  });
-}
-
-// ── GRIP SVG ──
-var MC_GRIP = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="4" cy="3" r="1.2" fill="currentColor"/><circle cx="10" cy="3" r="1.2" fill="currentColor"/><circle cx="4" cy="7" r="1.2" fill="currentColor"/><circle cx="10" cy="7" r="1.2" fill="currentColor"/><circle cx="4" cy="11" r="1.2" fill="currentColor"/><circle cx="10" cy="11" r="1.2" fill="currentColor"/></svg>';
-
-// ── Util ──
-function mcEsc(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function mcFmtTime(s) {
-  if(s<60) return s+'s';
-  var m=Math.floor(s/60),r=s%60;
-  return r ? m+'m '+r+'s' : m+'m';
-}
-
-// ══════════════════════════════════════════
-// CIRCUITS
-// ══════════════════════════════════════════
-function mcOpenNewCircuitModal() {
-  mcEditingCircuitId=null; mcBuildModules=[];
-  document.getElementById('mc-circuit-modal-title').textContent='NEW CIRCUIT';
-  ['mc-circuit-name','mc-circuit-desc','mc-mod-name','mc-mod-time','mc-mod-desc'].forEach(function(id){document.getElementById(id).value='';});
-  mcRenderBuildModules();
-  mcOpenModal('mc-circuit-modal');
-}
-window.mcOpenNewCircuitModal = mcOpenNewCircuitModal;
-
-function mcOpenEditCircuitModal(id) {
-  var c=mcCircuits.find(function(x){return x.id===id;}); if(!c) return;
-  mcEditingCircuitId=id; mcBuildModules=c.modules.map(function(m){return Object.assign({},m);});
-  document.getElementById('mc-circuit-modal-title').textContent='EDIT CIRCUIT';
-  document.getElementById('mc-circuit-name').value=c.name;
-  document.getElementById('mc-circuit-desc').value=c.desc||'';
-  ['mc-mod-name','mc-mod-time','mc-mod-desc'].forEach(function(id){document.getElementById(id).value='';});
-  mcRenderBuildModules();
-  mcOpenModal('mc-circuit-modal');
-}
-window.mcOpenEditCircuitModal = mcOpenEditCircuitModal;
-
-function mcAddModuleToBuild() {
-  var name=document.getElementById('mc-mod-name').value.trim();
-  var time=parseInt(document.getElementById('mc-mod-time').value);
-  var desc=document.getElementById('mc-mod-desc').value.trim();
-  if(!name||!time||time<1){document.getElementById('mc-mod-name').focus();return;}
-  mcBuildModules.push({id:mcUid(),name:name,time:time,desc:desc});
-  ['mc-mod-name','mc-mod-time','mc-mod-desc'].forEach(function(id){document.getElementById(id).value='';});
-  document.getElementById('mc-mod-name').focus();
-  mcRenderBuildModules();
-}
-window.mcAddModuleToBuild = mcAddModuleToBuild;
-
-function mcRemoveModuleFromBuild(id) {
-  mcBuildModules=mcBuildModules.filter(function(m){return m.id!==id;});
-  mcRenderBuildModules();
-}
-window.mcRemoveModuleFromBuild = mcRemoveModuleFromBuild;
-
-function mcStartEditModule(id) {
-  mcEditingModuleId=id; mcRenderBuildModules();
-  var inp=document.getElementById('mc-medit-name-'+id);
-  if(inp) inp.focus();
-}
-window.mcStartEditModule = mcStartEditModule;
-
-function mcSaveEditModule(id) {
-  var nameEl=document.getElementById('mc-medit-name-'+id);
-  var timeEl=document.getElementById('mc-medit-time-'+id);
-  if(!nameEl||!timeEl) return;
-  var name=nameEl.value.trim(), time=parseInt(timeEl.value);
-  if(!name||!time||time<1) return;
-  var m=mcBuildModules.find(function(x){return x.id===id;});
-  if(m){m.name=name;m.time=time;}
-  mcEditingModuleId=null; mcRenderBuildModules();
-}
-window.mcSaveEditModule = mcSaveEditModule;
-
-function mcCancelEditModule() { mcEditingModuleId=null; mcRenderBuildModules(); }
-window.mcCancelEditModule = mcCancelEditModule;
-
-function mcRenderBuildModules() {
-  var builder=document.getElementById('mc-modules-builder');
-  var list=document.getElementById('mc-modules-build-list');
-  document.getElementById('mc-modules-count').textContent=mcBuildModules.length?'('+mcBuildModules.length+')':'';
-  if(!mcBuildModules.length){builder.style.display='none';return;}
-  builder.style.display='block';
-  list.innerHTML=mcBuildModules.map(function(m,i){
-    if(mcEditingModuleId===m.id){
-      return '<div class="module-builder-item" data-id="'+m.id+'">'+
-        '<div class="drag-handle" title="Drag">'+MC_GRIP+'</div>'+
-        '<span style="font-family:\'Bebas Neue\',\'Manrope\';font-size:15px;color:#8d8d94;min-width:20px;">'+(i+1)+'</span>'+
-        '<div class="mbitem-edit-row">'+
-        '<input type="text" id="mc-medit-name-'+m.id+'" value="'+mcEsc(m.name)+'" placeholder="Name" onkeydown="if(event.key===\'Enter\')mcSaveEditModule(\''+m.id+'\')">'+
-        '<input type="number" id="mc-medit-time-'+m.id+'" value="'+m.time+'" min="1" style="width:64px;flex-shrink:0;" onkeydown="if(event.key===\'Enter\')mcSaveEditModule(\''+m.id+'\')">'+
-        '</div>'+
-        '<button class="btn btn-primary btn-sm" title="Save" onclick="mcSaveEditModule(\''+m.id+'\')">'+TNI.check+'</button>'+
-        '<button class="btn btn-ghost btn-sm" title="Cancel" onclick="mcCancelEditModule()">'+TNI.x+'</button>'+
-        '</div>';
-    }
-    return '<div class="module-builder-item" data-id="'+m.id+'">'+
-      '<div class="drag-handle" title="Drag">'+MC_GRIP+'</div>'+
-      '<span style="font-family:\'Bebas Neue\',\'Manrope\';font-size:15px;color:#8d8d94;min-width:20px;">'+(i+1)+'</span>'+
-      '<div style="flex:1;min-width:0;">'+
-        '<div class="mbitem-name">'+mcEsc(m.name)+'</div>'+
-        (m.desc?'<div class="mbitem-desc">'+mcEsc(m.desc)+'</div>':'')+
-      '</div>'+
-      '<span class="mbitem-time">'+m.time+'s</span>'+
-      '<button class="btn btn-ghost btn-icon btn-sm" onclick="mcStartEditModule(\''+m.id+'\')" title="Edit"><svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M9 1.5l2.5 2.5-8 8H1v-2.5l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'+
-      '<button class="btn btn-danger btn-icon btn-sm" onclick="mcRemoveModuleFromBuild(\''+m.id+'\')" title="Remove"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>'+
-      '</div>';
-  }).join('');
-  mcInitDragList('mc-modules-build-list',
-    function(){return mcBuildModules;},
-    function(arr){mcBuildModules=arr;},
-    function(){mcRenderBuildModules();}
-  );
-}
-
-function mcSaveCircuit() {
-  var name=document.getElementById('mc-circuit-name').value.trim();
-  if(!name){document.getElementById('mc-circuit-name').focus();return;}
-  if(!mcBuildModules.length){alert('Add at least one module.');return;}
-  var desc=document.getElementById('mc-circuit-desc').value.trim();
-  if(mcEditingCircuitId){
-    var idx=mcCircuits.findIndex(function(c){return c.id===mcEditingCircuitId;});
-    mcCircuits[idx]=Object.assign({},mcCircuits[idx],{name:name,desc:desc,modules:mcBuildModules});
-  } else {
-    mcCircuits.push({id:mcUid(),name:name,desc:desc,modules:mcBuildModules,_open:false});
-  }
-  mcSave(); mcCloseModal('mc-circuit-modal'); mcRenderCircuits();
-}
-window.mcSaveCircuit = mcSaveCircuit;
-
-async function mcDeleteCircuit(id) {
-  if(!(await window.uiConfirm('Delete this circuit?', {danger:true, okLabel:'Delete'}))) return;
-  mcCircuits=mcCircuits.filter(function(c){return c.id!==id;});
-  mcSave(); mcRenderCircuits();
-}
-window.mcDeleteCircuit = mcDeleteCircuit;
-
-function mcToggleCircuit(id) {
-  var c=mcCircuits.find(function(x){return x.id===id;}); if(!c) return;
-  c._open=!c._open;
-  var body=document.getElementById('mc-cbody-'+id);
-  var chev=document.getElementById('mc-cchev-'+id);
-  if(body) body.style.display=c._open?'block':'none';
-  if(chev) chev.classList.toggle('open',c._open);
-}
-window.mcToggleCircuit = mcToggleCircuit;
-
-function mcRenderCircuits() {
-  var el=document.getElementById('mc-circuits-list');
-  if(!mcCircuits.length){
-    el.innerHTML='<div class="empty-state"><div class="empty-icon">'+TNI.sparkle+'</div><div class="empty-title">No circuits yet</div><div class="empty-sub">Create a circuit and add exercises with timers</div></div>';
-    return;
-  }
-  el.innerHTML=mcCircuits.map(function(c){
-    return '<div class="circuit-card" data-id="'+c.id+'">'+
-      '<div class="circuit-card-header" onclick="mcHandleCardClick(event,\''+c.id+'\',\'circuit\')">'+
-        '<div class="drag-handle" data-nodrag title="Drag to reorder">'+MC_GRIP+'</div>'+
-        '<div class="circuit-card-info">'+
-          '<div class="circuit-card-title">'+mcEsc(c.name)+'</div>'+
-          (c.desc?'<div class="circuit-card-desc">'+mcEsc(c.desc)+'</div>':'')+
-          '<div class="circuit-card-meta">'+
-            '<span class="badge badge-accent">'+c.modules.length+' exercise'+(c.modules.length!==1?'s':'')+'</span>'+
-            '<span class="badge badge-muted">'+mcFmtTime(c.modules.reduce(function(s,m){return s+m.time;},0))+' total</span>'+
-          '</div>'+
-        '</div>'+
-        '<div class="circuit-card-actions" data-stop>'+
-          '<button class="run-btn" onclick="mcStartTimer(\''+c.id+'\')"><svg width="10" height="11" viewBox="0 0 11 12" fill="none"><path d="M1 1l9 5-9 5V1z" fill="currentColor"/></svg>Run</button>'+
-          '<button class="btn btn-ghost btn-icon btn-sm" onclick="mcOpenEditCircuitModal(\''+c.id+'\')" title="Edit"><svg width="12" height="12" viewBox="0 0 13 13" fill="none"><path d="M9 1.5l2.5 2.5-8 8H1v-2.5l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'+
-          '<button class="btn btn-danger btn-icon btn-sm" onclick="mcDeleteCircuit(\''+c.id+'\')" title="Delete"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>'+
-          '<svg id="mc-cchev-'+c.id+'" class="chevron '+(c._open?'open':'')+'" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#8d8d94" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
-        '</div>'+
-      '</div>'+
-      '<div id="mc-cbody-'+c.id+'" class="circuit-body" style="display:'+(c._open?'block':'none')+';">'+
-        '<div class="modules-list">'+
-          c.modules.map(function(m,i){
-            return '<div class="module-item">'+
-              '<span class="module-num">'+(i+1)+'</span>'+
-              '<div class="module-info">'+
-                '<div class="module-name">'+mcEsc(m.name)+'</div>'+
-                (m.desc?'<div class="module-meta">'+mcEsc(m.desc)+'</div>':'')+
-              '</div>'+
-              '<span class="module-time">'+m.time+'s</span>'+
-              '</div>';
-          }).join('')+
-        '</div>'+
-      '</div>'+
-    '</div>';
-  }).join('');
-  mcInitDragList('mc-circuits-list',function(){return mcCircuits;},function(arr){mcCircuits=arr;});
-}
-
-// ══════════════════════════════════════════
-// ROUTINES
-// ══════════════════════════════════════════
-function mcOpenNewRoutineModal() {
-  mcEditingRoutineId=null;
-  document.getElementById('mc-routine-modal-title').textContent='NEW ROUTINE';
-  document.getElementById('mc-routine-name').value='';
-  document.getElementById('mc-routine-content').value='';
-  mcOpenModal('mc-routine-modal');
-}
-window.mcOpenNewRoutineModal = mcOpenNewRoutineModal;
-
-function mcOpenEditRoutineModal(id) {
-  var r=mcRoutines.find(function(x){return x.id===id;}); if(!r) return;
-  mcEditingRoutineId=id;
-  document.getElementById('mc-routine-modal-title').textContent='EDIT ROUTINE';
-  document.getElementById('mc-routine-name').value=r.name;
-  document.getElementById('mc-routine-content').value=r.content;
-  mcOpenModal('mc-routine-modal');
-}
-window.mcOpenEditRoutineModal = mcOpenEditRoutineModal;
-
-function mcSaveRoutine() {
-  var name=document.getElementById('mc-routine-name').value.trim();
-  var content=document.getElementById('mc-routine-content').value.trim();
-  if(!name){document.getElementById('mc-routine-name').focus();return;}
-  if(mcEditingRoutineId){
-    var idx=mcRoutines.findIndex(function(r){return r.id===mcEditingRoutineId;});
-    mcRoutines[idx]=Object.assign({},mcRoutines[idx],{name:name,content:content});
-  } else {
-    mcRoutines.push({id:mcUid(),name:name,content:content,_open:false,created:Date.now()});
-  }
-  mcSave(); mcCloseModal('mc-routine-modal'); mcRenderRoutines();
-}
-window.mcSaveRoutine = mcSaveRoutine;
-
-async function mcDeleteRoutine(id) {
-  if(!(await window.uiConfirm('Delete this routine?', {danger:true, okLabel:'Delete'}))) return;
-  mcRoutines=mcRoutines.filter(function(r){return r.id!==id;});
-  mcSave(); mcRenderRoutines();
-}
-window.mcDeleteRoutine = mcDeleteRoutine;
-
-function mcToggleRoutine(id) {
-  var r=mcRoutines.find(function(x){return x.id===id;}); if(!r) return;
-  r._open=!r._open;
-  var body=document.getElementById('mc-routine-body-'+id);
-  var chev=document.getElementById('mc-routine-chev-'+id);
-  if(body) body.style.display=r._open?'block':'none';
-  if(chev) chev.classList.toggle('open',r._open);
-}
-window.mcToggleRoutine = mcToggleRoutine;
-
-// Turn a routine's raw text into grouped lines. Blank lines are the author's own
-// section breaks, so they become the group boundaries.
-function mcRoutineBody(text) {
-  var raw = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
-  if (!raw.trim()) return '<div class="routine-empty">No content yet — hit edit to add exercises.</div>';
-  return raw.split(/\n\s*\n/).map(function (block) {
-    var lines = block.split('\n').filter(function (l) { return l.trim(); });
-    if (!lines.length) return '';
-    return '<div class="routine-group">' + lines.map(function (line) {
-      // "Exercise - 3 sets" → name + trailing detail, so the quantity can sit
-      // right-aligned and quiet instead of running into the name.
-      var m = line.match(/^(.*?)\s+[-–—]\s+(.+)$/);
-      return '<div class="routine-line">'
-           + '<span class="routine-line-name">' + mcEsc(m ? m[1] : line) + '</span>'
-           + (m ? '<span class="routine-line-detail">' + mcEsc(m[2]) + '</span>' : '')
-           + '</div>';
-    }).join('') + '</div>';
-  }).join('');
-}
-
-function mcRenderRoutines() {
-  var el=document.getElementById('mc-routines-list');
-  if(!mcRoutines.length){
-    el.innerHTML='<div class="empty-state"><div class="empty-icon">'+TNI.clipboard+'</div><div class="empty-title">No routines yet</div><div class="empty-sub">Add your workout plans, exercise lists, and training notes</div></div>';
-    return;
-  }
-  el.innerHTML=mcRoutines.map(function(r){
-    return '<div class="routine-card" data-id="'+r.id+'">'+
-      '<div class="routine-card-header" onclick="mcHandleCardClick(event,\''+r.id+'\',\'routine\')">'+
-        '<div class="drag-handle" title="Drag to reorder">'+MC_GRIP+'</div>'+
-        '<div class="routine-title">'+mcEsc(r.name)+'</div>'+
-        '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;" data-stop>'+
-          '<button class="btn btn-ghost btn-icon btn-sm" onclick="mcOpenEditRoutineModal(\''+r.id+'\')" title="Edit"><svg width="12" height="12" viewBox="0 0 13 13" fill="none"><path d="M9 1.5l2.5 2.5-8 8H1v-2.5l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'+
-          '<button class="btn btn-danger btn-icon btn-sm" onclick="mcDeleteRoutine(\''+r.id+'\')" title="Delete"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>'+
-          '<svg id="mc-routine-chev-'+r.id+'" class="chevron '+(r._open?'open':'')+'" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="#8d8d94" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
-        '</div>'+
-      '</div>'+
-      '<div id="mc-routine-body-'+r.id+'" class="routine-body" style="display:'+(r._open?'block':'none')+';">'+
-        '<div class="routine-content">'+mcRoutineBody(r.content)+'</div>'+
-      '</div>'+
-    '</div>';
-  }).join('');
-  mcInitDragList('mc-routines-list',function(){return mcRoutines;},function(arr){mcRoutines=arr;});
-}
-
-// ── Card click toggle ──
-function mcHandleCardClick(e, id, type) {
-  if(e.target.closest('.drag-handle')) return;
-  if(e.target.closest('[data-stop]')) return;
-  if(e.target.closest('button')) return;
-  if(type==='circuit') mcToggleCircuit(id);
-  else mcToggleRoutine(id);
-}
-window.mcHandleCardClick = mcHandleCardClick;
-
-// ══════════════════════════════════════════
-// AUDIO
-// ══════════════════════════════════════════
-function mcMkCtx(){ return new (window.AudioContext||window.webkitAudioContext)(); }
-function mcTone(ctx, freq, startTime, duration, gain) {
-  var o=ctx.createOscillator(), g=ctx.createGain();
-  o.connect(g); g.connect(ctx.destination);
-  o.type='sine'; o.frequency.setValueAtTime(freq,startTime);
-  g.gain.setValueAtTime(0,startTime);
-  g.gain.linearRampToValueAtTime(gain,startTime+0.01);
-  g.gain.exponentialRampToValueAtTime(0.001,startTime+duration);
-  o.start(startTime); o.stop(startTime+duration);
-}
-function mcPlayBeep(){ try{var ctx=mcMkCtx(),t=ctx.currentTime;mcTone(ctx,660,t,0.12,0.75);}catch(e){} }
-function mcPlayBell(){ try{var ctx=mcMkCtx(),t=ctx.currentTime;mcTone(ctx,880,t,1.2,0.7);mcTone(ctx,1109,t+0.05,1.0,0.5);mcTone(ctx,1318,t+0.1,0.8,0.35);}catch(e){} }
-function mcPlayEndSound(){ try{var ctx=mcMkCtx(),t=ctx.currentTime;mcTone(ctx,880,t,0.5,0.6);mcTone(ctx,1109,t+0.15,0.5,0.6);mcTone(ctx,1318,t+0.3,0.5,0.6);mcTone(ctx,1760,t+0.5,1.0,0.75);}catch(e){} }
-function mcPlayStartSound(){ try{var ctx=mcMkCtx(),t=ctx.currentTime;mcTone(ctx,523,t,0.1,0.5);mcTone(ctx,659,t+0.08,0.1,0.5);mcTone(ctx,784,t+0.16,0.1,0.5);mcTone(ctx,1047,t+0.24,0.45,0.75);}catch(e){} }
-
-// ══════════════════════════════════════════
-// TIMER
-// ══════════════════════════════════════════
-function mcStartTimer(circuitId) {
-  var c=mcCircuits.find(function(x){return x.id===circuitId;});
-  if(!c||!c.modules.length) return;
-  mcTimerState={circuitId:circuitId,modules:c.modules,moduleIndex:0,interval:null,paused:false,isCountdown:false};
-  document.getElementById('mc-timer-circuit-name').textContent=c.name;
-  document.getElementById('mc-timer-overlay').classList.add('open');
-  mcStartCountdown();
-}
-window.mcStartTimer = mcStartTimer;
-
-function mcStartCountdown() {
-  mcTimerState.isCountdown=true; mcTimerState.remaining=5; mcTimerState.initialTime=5; mcTimerState.paused=false;
-  var firstMod=mcTimerState.modules[0];
-  document.getElementById('mc-timer-exercise').textContent='GET READY';
-  document.getElementById('mc-timer-exercise-desc').textContent=firstMod?'First up: '+firstMod.name:'';
-  document.getElementById('mc-timer-progress').textContent='';
-  document.getElementById('mc-timer-next').innerHTML='';
-  document.getElementById('mc-timer-label').textContent='seconds';
-  document.getElementById('mc-timer-pause-btn').textContent='Pause';
-  mcUpdateTimerDisplay();
-  mcTimerState.interval=setInterval(function(){
-    if(mcTimerState.paused) return;
-    mcTimerState.remaining--;
-    if(mcTimerState.remaining<=3&&mcTimerState.remaining>=1) mcPlayBeep();
-    mcUpdateTimerDisplay();
-    if(mcTimerState.remaining<=0){ clearInterval(mcTimerState.interval); mcTimerState.isCountdown=false; mcPlayStartSound(); mcLoadModule(0); }
-  },1000);
-}
-
-function mcLoadModule(idx) {
-  if(mcTimerState.interval) clearInterval(mcTimerState.interval);
-  var modules=mcTimerState.modules;
-  if(idx>=modules.length){ mcPlayEndSound(); document.getElementById('mc-timer-overlay').classList.remove('open'); return; }
-  mcTimerState.moduleIndex=idx; mcTimerState.isCountdown=false;
-  var mod=modules[idx];
-  mcTimerState.remaining=mod.time; mcTimerState.initialTime=mod.time; mcTimerState.paused=false;
-  document.getElementById('mc-timer-pause-btn').textContent='Pause';
-  document.getElementById('mc-timer-exercise').textContent=mod.name;
-  document.getElementById('mc-timer-exercise-desc').textContent=mod.desc||'';
-  document.getElementById('mc-timer-progress').textContent='Exercise '+(idx+1)+' of '+modules.length;
-  document.getElementById('mc-timer-label').textContent='seconds';
-  var next=modules[idx+1];
-  document.getElementById('mc-timer-next').innerHTML=next
-    ?'NEXT: <span>'+mcEsc(next.name)+' — '+next.time+'s</span>'
-    :'<span style="color:#8d8d94;">LAST EXERCISE</span>';
-  mcUpdateTimerDisplay();
-  mcTimerState.interval=setInterval(function(){
-    if(mcTimerState.paused) return;
-    mcTimerState.remaining--;
-    if(mcTimerState.remaining<=3&&mcTimerState.remaining>=1) mcPlayBeep();
-    mcUpdateTimerDisplay();
-    if(mcTimerState.remaining<=0){
-      clearInterval(mcTimerState.interval);
-      mcPlayBell();
-      setTimeout(function(){mcLoadModule(mcTimerState.moduleIndex+1);},1000);
-    }
-  },1000);
-}
-
-function mcUpdateTimerDisplay() {
-  var s=mcTimerState.remaining;
-  var pct=mcTimerState.initialTime>0?s/mcTimerState.initialTime:0;
-  document.getElementById('mc-timer-seconds').textContent=s;
-  document.getElementById('mc-timer-ring-fill').style.strokeDashoffset=628*(1-pct);
-  var fill=document.getElementById('mc-timer-ring-fill');
-  if(mcTimerState.isCountdown) fill.style.stroke='#e0b874';
-  else fill.style.stroke=pct>0.5?'#e0b874':pct>0.25?'#e8b62a':'#dc4650';
-}
-
-function mcTogglePause() {
-  mcTimerState.paused=!mcTimerState.paused;
-  document.getElementById('mc-timer-pause-btn').textContent=mcTimerState.paused?'Resume':'Pause';
-  document.getElementById('mc-timer-seconds').classList.toggle('pulse',mcTimerState.paused);
-}
-window.mcTogglePause = mcTogglePause;
-
-function mcStopTimer() {
-  if(mcTimerState.interval) clearInterval(mcTimerState.interval);
-  document.getElementById('mc-timer-overlay').classList.remove('open');
-}
-window.mcStopTimer = mcStopTimer;
-
-// ══════════════════════════════════════
-// FIREBASE SYNC
-// ══════════════════════════════════════
-function mcInitFirebase() {
-  var doLoad = function() {
-    if (!window._fbLoadMotionCore) return;
-    window._fbLoadMotionCore().then(function(remote) {
-      if (!remote) return;
-      var changed = false;
-      if (Array.isArray(remote.circuits) && remote.circuits.length) {
-        mcCircuits = remote.circuits;
-        localStorage.setItem('mc_circuits', JSON.stringify(mcCircuits));
-        changed = true;
-      }
-      if (Array.isArray(remote.routines) && remote.routines.length) {
-        mcRoutines = remote.routines;
-        localStorage.setItem('mc_routines', JSON.stringify(mcRoutines));
-        changed = true;
-      }
-      if (changed) { mcRenderCircuits(); mcRenderRoutines(); }
-    }).catch(function(e){ console.warn('MC load error', e); });
-  };
-
-  if (window._fbReady) doLoad();
-  else window.addEventListener('fb-ready', doLoad, { once: true });
-
-  // Remote update from another device
-  window.addEventListener('fb-mc-remote', function(e) {
-    var remote = e.detail;
-    if (!remote) return;
-    if (Array.isArray(remote.circuits)) { mcCircuits = remote.circuits; localStorage.setItem('mc_circuits', JSON.stringify(mcCircuits)); }
-    if (Array.isArray(remote.routines)) { mcRoutines = remote.routines; localStorage.setItem('mc_routines', JSON.stringify(mcRoutines)); }
-    mcRenderCircuits();
-    mcRenderRoutines();
-    mcSetSync('saved');
-  });
-
-  window.addEventListener('fb-mc-saved', function() { mcSetSync('saved'); });
-  window.addEventListener('fb-mc-synced', function() { mcSetSync('saved'); });
-  window.addEventListener('fb-mc-error', function() { mcSetSync('error'); });
-}
-
-// ── Keyboard shortcuts in modal ──
-document.getElementById('mc-mod-time').addEventListener('keydown', function(e){ if(e.key==='Enter') mcAddModuleToBuild(); });
-document.getElementById('mc-mod-name').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('mc-mod-time').focus(); });
-
-// ── switchTo (matches pattern of other Tony apps) ──
-function mcDoSwitchTo(app) {
-  var root = document.getElementById('mc-root');
-  if(root){ root.style.display='flex'; }
-  if(window._updateTonyNavActive) window._updateTonyNavActive('health');
-}
-window._mcSwitchTo = mcDoSwitchTo;
-
-// ── Theme ──
-function mcApplyTheme(){
-  var root = document.getElementById('mc-root');
-  var hbar = document.getElementById('mc-hbar');
-  if(!root) return;
-  if(hbar){
-    hbar.style.background = '#1a1a1d';
-    hbar.style.borderBottomColor = '#34343a';
-  }
-}
-window._mcApplyTheme = mcApplyTheme;
-
-// ── Init ──
-mcRenderCircuits();
-mcRenderRoutines();
-mcInitFirebase();
-mcApplyTheme();
-
-})(); // end IIFE
-</script>
 
 <!-- ════════════════════════════════════════════════════════════════════════
      TaskHub Voice Control — shared engine for Tony's & Veda's TaskHubs.
@@ -39630,7 +38646,7 @@ window._THV={
   }
 
   // Which TaskHub is on screen. Returns the refresh fn for that profile, or null
-  // when neither is visible (a journal, links, MotionCore… own the gesture then).
+  // when neither is visible (a journal, links, Plans… own the gesture then).
   function activeProfile() {
     // A modal owns the gesture while open — pulling inside a dialog must scroll
     // the dialog, not refresh the page behind it.
@@ -40943,8 +39959,7 @@ var AL_FORM    = { tony: 'https://formspree.io/f/xeedkebo', veda: 'https://forms
 var AL_LABELS  = {
   tony_taskhub:   { label: 'TaskHub',    profile: 'tony', color: '#e0b874' },
   tony_tradehub:  { label: 'TradeHub',   profile: 'tony', color: '#e0b874' },
-  tony_health:    { label: 'MotionCore', profile: 'tony', color: '#e0b874' },
-  // Solace (Solace.html) — Tony's health program: Fitness ▸ MotionCore and
+  // Solace (solace.html) — Tony's health program: Fitness ▸ MotionCore and
   // Nutrition ▸ Recipes. This entry locks its NAV BUTTON; the app itself carries
   // its own independent lock on 'tony_solace_standalone', the same split Vault and
   // TradeHub use between their button and their standalone page.
@@ -41147,7 +40162,6 @@ var _alRemoveBioFor = null;   // when set to an appId, a successful unlock remov
 // (warroom opens a separate tab; gita is a React overlay handled via window fns.)
 var AL_APP_ROOTS = {
   tony_taskhub:   ['root'],
-  tony_health:    ['mc-root'],
   tony_myjournal: ['tj-root'],
   tony_proview:   ['pv-root'],
   veda_taskhub:   ['veda-root'],
@@ -41345,7 +40359,7 @@ function alNavAppToId(profile, navApp) {
   var map = {
     // Plans is ONE app reachable from both navs, so both profiles map to the same
     // shared_plans id — locking it locks it for both, which is the point.
-    tony: { taskhub:'tony_taskhub', tradeboard:'tony_tradehub', health:'tony_health',
+    tony: { taskhub:'tony_taskhub', tradeboard:'tony_tradehub',
             keychain:'tony_keychain', brainstormjournal:'tony_myjournal',
             proview:'tony_proview', warroom:'tony_warroom', plans:'shared_plans' },
     veda: { taskhub:'veda_taskhub', gita:'veda_gita',
@@ -41716,7 +40730,6 @@ function _alWrapSwitch(fnName, appId) {
     alGate(appId, function() { orig.apply(self, args); });
   };
 }
-_alWrapSwitch('_mcSwitchTo', 'tony_health');
 _alWrapSwitch('_kcSwitchTo', 'tony_keychain');
 _alWrapSwitch('_vdkcShow',   'veda_links');
 
@@ -41949,13 +40962,13 @@ window._vaultClick = function(){
   }
 };
 // ── Solace ──
-// Tony's health program at /A1/Solace.html: Fitness ▸ MotionCore (which used to
+// Tony's health program at /A1/solace.html: Fitness ▸ MotionCore (which used to
 // be this page's #mc-root view) and Nutrition ▸ Recipes (which used to be a tab
 // in MyList). Opened exactly like TradeHub / Vault / WarRoom: a named tab so a
 // second click focuses the one already open, a popup-blocked fallback, and the
 // App Lock gate on 'tony_solace' in front of it.
 window._solaceClick = function(){
-  var URL_SOLACE = 'https://anthonyn99.github.io/A1/Solace.html';
+  var URL_SOLACE = 'https://anthonyn99.github.io/A1/solace.html';
   var w = window._tnOpenTab(URL_SOLACE, 'solace');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('Solace opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -42018,12 +41031,11 @@ window.addEventListener('focus', _initNavTabGear);
 // anymore (that would duplicate them in the dropdown/overflow menu).
 var TONY_DEFAULT = [
   {app:'taskhub',          label:'TaskHub'},
-  {app:'health',           label:'MotionCore'},
   {app:'brainstormjournal',label:'MyJournal'},
   {app:'proview',          label:'ProView'},
 ];
 var TONY_SELECT_LABELS = {
-  taskhub:"Tony's TaskHub", health:'MotionCore',
+  taskhub:"Tony's TaskHub",
   brainstormjournal:'MyJournal', plans:'Plans', proview:'ProView'
 };
 
@@ -42083,7 +41095,7 @@ var LEGACY_PROGRAMS = [
   // Tony's devices, but _addMissingLegacyPrograms() runs unconditionally from
   // applyRemote(), so this entry appears as soon as the navorder doc syncs — and,
   // like the other three, a deliberate delete of the button then sticks.
-  { id:'solace',   label:'Solace',   url:'https://anthonyn99.github.io/A1/Solace.html',   lockId:'tony_solace',  openFn:'_solaceClick' }
+  { id:'solace',   label:'Solace',   url:'https://anthonyn99.github.io/A1/solace.html',   lockId:'tony_solace',  openFn:'_solaceClick' }
 ];
 function _legacyProgram(id){
   for (var i=0;i<LEGACY_PROGRAMS.length;i++){ if(LEGACY_PROGRAMS[i].id===id) return LEGACY_PROGRAMS[i]; }
