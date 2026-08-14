@@ -4684,11 +4684,13 @@ window.THTS={
     <option value="tradeboard">TradeHub</option>
     <option value="keychain">Vault</option>
     <option value="brainstormjournal">MyJournal</option>
+    <option value="plans">Plans</option>
     <option value="proview">ProView</option>
     <option value="warroom">WarRoom</option>
   </select>
   <button class="tn-btn" data-app="taskhub" onclick="window._tonyNav&&window._tonyNav('taskhub')">TaskHub</button>
   <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
+  <button class="tn-btn" data-app="plans" onclick="window._tonyNav&&window._tonyNav('plans')">Plans</button>
   <button class="tn-btn pv-btn" data-app="proview" onclick="window._tonyNav&&window._tonyNav('proview')">ProView</button>
   <!-- TradeHub / Vault / WarRoom used to be hardcoded here — they're now seeded
        External-Links entries (see LEGACY_PROGRAMS below) so they live in Settings
@@ -6914,6 +6916,16 @@ function App(){
   // side padding is a pixel the title can't use, and a 7-column grid makes titles
   // wrap after two or three words. Vertical padding is untouched.
   const wkTaskCard=(done,today)=>({background:"transparent",border:"1px solid "+(today?T.BDL:T.BD),borderRadius:6,padding:isMobile?"4px 10px":"3px 6px"});
+  // ── Mirrored plan card ────────────────────────────────────────────────────
+  // A confirmed shared plan is not an ordinary task and must not look like one:
+  // it is owned by dashboards/plans, cannot be ticked, edited or deleted here,
+  // and both people are holding each other to it. It gets a tinted fill, an
+  // accent spine and a "PLAN" header instead of the category chip a normal task
+  // would carry. Veda's TaskHub has the matching helper in her own palette.
+  const wkPlanCard=(today)=>({background:T.AC+"0f",border:"1px solid "+T.AC+"3d",
+    borderLeft:"2px solid "+T.AC,borderRadius:6,padding:isMobile?"5px 10px":"4px 7px"});
+  const wkPlanTag={fontSize:8,fontWeight:800,letterSpacing:.9,textTransform:"uppercase",
+    color:T.AC,opacity:.9,lineHeight:1,whiteSpace:"nowrap"};
   // Only TODAY is at full strength. Every other day — past or upcoming — recedes
   // as a whole: title, category chip, reminder bell and event time all fade by the
   // same factor so a day reads as one unit instead of a half-dimmed patchwork.
@@ -7289,7 +7301,19 @@ function App(){
                     e._pvTeam2Img&&React.createElement("img",{src:e._pvTeam2Img,style:{width:26,height:26,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
                     React.createElement("span",{style:{fontSize:13,fontWeight:800,color:dayTX,lineHeight:1}},e._pvTeam2||"TBD")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3}},"")),
-                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
+                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>t._planId
+              /* ── Shared plan ──────────────────────────────────────────────
+                 Owned by dashboards/plans, so it is deliberately inert here: no
+                 checkbox, no drag, and no edit/delete buttons even in edit mode
+                 — every one of those would be reverted by the next reconcile.
+                 It gets a "Plan" header instead of a category chip, because it
+                 is a commitment you both made, not a task you filed. */
+              ?React.createElement("div",{key:t.id,style:{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:dimA,cursor:"default"}},
+                React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
+                  React.createElement("span",{style:wkPlanTag},"Plan"),
+                  t.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
+                React.createElement("span",{style:{fontSize:14,fontWeight:700,color:dayTX,lineHeight:1.4,...wkTitleFit}},t.title))
+              :React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 /* Completed box takes the task's category colour so a
                                    finished row still says what kind of work it was;
                                    uncategorised tasks fall back to gold. */
@@ -7374,7 +7398,14 @@ function App(){
                     e._pvTeam2Img&&React.createElement("img",{src:e._pvTeam2Img,style:{width:20,height:20,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
                     React.createElement("span",{style:{fontSize:11,fontWeight:800,color:dayTX,lineHeight:1}},e._pvTeam2||"TBD")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2}},"")),
-                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
+                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>t._planId
+              /* Shared plan — inert here, same rule as the wide grid above. */
+              ?React.createElement("div",{key:t.id,style:{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:dimA,cursor:"default"}},
+                React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5}},
+                  React.createElement("span",{style:wkPlanTag},"Plan"),
+                  t.time&&React.createElement("span",{style:{fontSize:9,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
+                React.createElement("span",{style:{fontSize:13,fontWeight:700,color:dayTX,lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title))
+              :React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:7,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -7479,7 +7510,14 @@ function App(){
              they never interfere with reordering, editing or drag-and-drop of
              the real goals below. */
           goalTab==="short"&&oiCoupons.map(c=>OI_couponRow(c,T,edit)),
-          ((goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?(goalTab==="short"?mgMonthly:mg).filter(g=>!g.done):(goalTab==="short"?mgMonthly:mg)).map(g=>React.createElement("div",{key:g.id,...(goalTab==="short"?goalMRowP:goalRowP)(g.id),...(edit?(goalTab==="short"?goalMTouchH:goalTouchH)(g.id):{}),draggable:edit,
+          ((goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?(goalTab==="short"?mgMonthly:mg).filter(g=>!g.done):(goalTab==="short"?mgMonthly:mg)).map(g=>g._planId
+          /* An undated confirmed plan mirrors here. Owned by dashboards/plans:
+             inert, and labelled "Plan" so it is not mistaken for a goal Tony
+             wrote himself. */
+          ?React.createElement("div",{key:g.id,style:{...wkPlanCard(true),display:"flex",flexDirection:"column",gap:2,marginBottom:5,cursor:"default"}},
+            React.createElement("span",{style:wkPlanTag},"Plan"),
+            React.createElement("span",{style:{fontSize:13,fontWeight:700,color:T.TX,lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
+          :React.createElement("div",{key:g.id,...(goalTab==="short"?goalMRowP:goalRowP)(g.id),...(edit?(goalTab==="short"?goalMTouchH:goalTouchH)(g.id):{}),draggable:edit,
             onDragStart:edit?e=>(goalTab==="short"?onDragStartGoalM:onDragStartGoal)(e,g.id):null,
             onDragOver:edit?e=>{e.preventDefault();if(!isMobile)setDragOverId(g.id);}:null,
             onDragLeave:edit?()=>setDragOverId(null):null,
@@ -7493,10 +7531,8 @@ function App(){
 
 )),
 
-      // Edit-mode-only, intentionally unobtrusive: not part of the normal nav —
-      // reachable here rather than in the header so it stays out of daily sight.
-      edit&&React.createElement("div",{style:{textAlign:"center",padding:"22px 0 2px"}},
-        React.createElement("span",{style:{fontSize:9,color:T.TXD,opacity:0.3,letterSpacing:0.4,cursor:"pointer",userSelect:"none",transition:"opacity .15s"},onClick:()=>window._tonyNav&&window._tonyNav("plans"),onMouseEnter:e=>e.currentTarget.style.opacity=0.55,onMouseLeave:e=>e.currentTarget.style.opacity=0.3},"Plans")),
+      // Plans is reached from the top nav bar (#tony-app-nav) like every other
+      // program, not from a hidden edit-mode link down here.
 
         React.createElement(ItemModal,{open:mo,onClose:()=>{setMo(false);setEi(null);},onSave:savItem,initial:ei,startDateKey:mdt,T,dateLabel:mdt?(()=>{const p=mdt.split("-");return MOS[parseInt(p[1])-1]+" "+parseInt(p[2]);})():""}),
 
@@ -8442,12 +8478,15 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         // converts (date, time, tz) to the READER's local clock. The time is
         // carried as real fields — never spliced into the title, which would
         // wrap onto its own line beside the floated category tag.
+        // No `category`: a mirrored plan is not a "Personal" task, it is a shared
+        // commitment. Both TaskHubs render it from _planId as its own card kind
+        // with a "Plan" header, so a category chip here would be a second, wrong
+        // label competing with that header.
         const it = {
           id: 'plan_' + p.id,
           _planId: p.id,
           type: 'task',
           title: p.title || 'Plan',
-          category: 'personal',
           done: false
         };
         if (p.time) {
@@ -12773,6 +12812,15 @@ function App(){
   // `today` cells have a lighter #303135 background, so tasks there need a
   // brighter outline to stay legible; other days sit on the dark base bg.
   const vdTaskCard=(done,today)=>({background:"transparent",border:"1px solid "+(today?(done?"#45454f":"#565663"):(done?"#2b2b32":"#3d3d47")),borderRadius:6,padding:vrMobile?"4px 8px":"3px 5px"});
+  // ── Mirrored plan card ────────────────────────────────────────────────────
+  // The purple twin of Tony's wkPlanCard. A confirmed shared plan is owned by
+  // dashboards/plans: it cannot be ticked, edited or deleted from here, so it
+  // reads as its own kind of card — tinted fill, accent spine, "PLAN" header —
+  // rather than borrowing the outline a normal task wears.
+  const vdPlanCard=()=>({background:ABG,border:"1px solid "+A+"3d",borderLeft:"2px solid "+A,
+    borderRadius:6,padding:vrMobile?"5px 8px":"4px 6px"});
+  const vdPlanTag={fontSize:8,fontWeight:700,letterSpacing:.9,textTransform:"uppercase",
+    color:A,opacity:.9,lineHeight:1,whiteSpace:"nowrap"};
   // Only TODAY is at full strength — the whole row of a non-today day recedes by
   // one step: title, category chip, reminder bell and event time together.
   const vdDim=(td)=>td?1:0.55;
@@ -12913,7 +12961,17 @@ function App(){
                 ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px",flexShrink:0}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left")),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
-              ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
+              ts.map(t=>t._planId
+              /* ── Shared plan ──────────────────────────────────────────────
+                 Owned by dashboards/plans, so it is inert here: no checkbox, no
+                 drag, and no edit/delete buttons even in edit mode — each would
+                 be reverted by the next reconcile. Manage it in Plans. */
+              ?RC("div",{key:t.id,style:{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:dimA,cursor:"default"}},
+                RC("div",{style:{display:"flex",alignItems:"center",gap:6}},
+                  RC("span",{style:vdPlanTag},"Plan"),
+                  t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
+                RC("span",{style:{fontSize:14,fontWeight:700,color:dayTX,lineHeight:1.4,...vdTitleFit}},t.title))
+              :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -12957,7 +13015,14 @@ function App(){
                 ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px"}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left")),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
-              ts.map(t=>RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
+              ts.map(t=>t._planId
+              /* Shared plan — inert here, same rule as the single-day list. */
+              ?RC("div",{key:t.id,style:{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:dimA,cursor:"default"}},
+                RC("div",{style:{display:"flex",alignItems:"center",gap:5}},
+                  RC("span",{style:vdPlanTag},"Plan"),
+                  t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
+                RC("span",{style:{fontSize:12,fontWeight:700,color:dayTX,lineHeight:1.35,...vdTitleFit}},t.title))
+              :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:8})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -13027,7 +13092,13 @@ function App(){
         edit&&RC("div",{style:{display:"flex",gap:5,marginBottom:8,flexShrink:0}},
           RC("input",{style:{...inp,flex:1},placeholder:goalTab==="short"?"New short-term goal...":"New long-term goal...",value:goalTab==="short"?nmmt:nmt,onChange:e=>(goalTab==="short"?setNmmt:setNmt)(e.target.value),onKeyDown:e=>{if(e.key==="Enter")(goalTab==="short"?addMM:addM)();}}),
           RC("button",{style:sbtn,onClick:goalTab==="short"?addMM:addM},"+")),
-        RC("div",{style:{flex:1,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},((goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?(goalTab==="short"?mgMonthly:mg).filter(g=>!g.done):(goalTab==="short"?mgMonthly:mg)).map(g=>RC("div",{key:g.id,...(goalTab==="short"?goalMRowP:goalRowP)(g.id),...(edit?(goalTab==="short"?goalMTouchH:goalTouchH)(g.id):{}),draggable:edit,onDragStart:edit?e=>(goalTab==="short"?vOnDragStartGoalM:vOnDragStartGoal)(e,g.id):null,onDragOver:edit?e=>{e.preventDefault();if(!vrMobile)setVdDragOverId(g.id);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>(goalTab==="short"?vOnDropGoalM:vOnDropGoal)(e,g.id):null,style:vdndRowStyle(g.id,{display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",opacity:g.done?.5:1,cursor:edit?"grab":"default"})},
+        RC("div",{style:{flex:1,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},((goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?(goalTab==="short"?mgMonthly:mg).filter(g=>!g.done):(goalTab==="short"?mgMonthly:mg)).map(g=>g._planId
+        /* An undated confirmed plan mirrors here. Owned by dashboards/plans:
+           inert, and labelled "Plan" so it is not mistaken for one of her own. */
+        ?RC("div",{key:g.id,style:{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,cursor:"default"}},
+          RC("span",{style:vdPlanTag},"Plan"),
+          RC("span",{style:{fontSize:13,fontWeight:700,color:TX,lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
+        :RC("div",{key:g.id,...(goalTab==="short"?goalMRowP:goalRowP)(g.id),...(edit?(goalTab==="short"?goalMTouchH:goalTouchH)(g.id):{}),draggable:edit,onDragStart:edit?e=>(goalTab==="short"?vOnDragStartGoalM:vOnDragStartGoal)(e,g.id):null,onDragOver:edit?e=>{e.preventDefault();if(!vrMobile)setVdDragOverId(g.id);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>(goalTab==="short"?vOnDropGoalM:vOnDropGoal)(e,g.id):null,style:vdndRowStyle(g.id,{display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",opacity:g.done?.5:1,cursor:edit?"grab":"default"})},
                     RC("div",{onClick:()=>(goalTab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,border:"2px solid "+(g.done?A:TXM),background:g.done?A:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&RC(Chk)),
           RC("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?TXM:TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word",overflowWrap:"break-word",minWidth:0}},g.title),
           edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>(goalTab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title})},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
@@ -15142,167 +15213,313 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
      wears his (gold accent, his sticky top nav bar). Every colour below comes
      from a custom property so a single class swap re-themes the section. -->
 <style>
+/* ── Design tokens ─────────────────────────────────────────────────────────
+   Tony is the default; .pl-veda overrides. Everything downstream reads these,
+   so the two profiles differ ONLY in this block — no per-profile rules below.
+   Tony's chrome is Inter + gold on near-black; Veda's is IBM Plex Mono +
+   Playfair + purple on her slightly warmer ground. */
 #plans-root{
-  /* Tony is the default; .pl-veda overrides. */
-  --pl-bg:#1a1a1d; --pl-s1:#26272A; --pl-s2:#2E2F34; --pl-s3:#212226;
-  --pl-bd:#3D3E43; --pl-bdl:#4A4B52;
-  --pl-tx:#E8E8EA; --pl-txd:#AFB0B5; --pl-txm:#9A9BA1; --pl-txf:#76777C;
-  --pl-ac:#c8a15f; --pl-ac-ink:#1a1a1d;
-  --pl-font:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  --pl-mono:'IBM Plex Mono',monospace;
+  --pl-bg:#151517; --pl-s1:#1D1E21; --pl-s2:#26272B; --pl-s3:#202024;
+  --pl-bd:#2C2D32; --pl-bdl:#3A3B42;
+  --pl-tx:#F2F2F4; --pl-txd:#B6B7BD; --pl-txm:#8B8C93; --pl-txf:#6B6C73;
+  --pl-ac:#C8A15F; --pl-ac-ink:#141416; --pl-ac-soft:rgba(200,161,95,.11);
+  --pl-ac-line:rgba(200,161,95,.34);
+  --pl-ok:#6FBF8B; --pl-ok-bg:rgba(111,191,139,.12); --pl-ok-line:rgba(111,191,139,.3);
+  --pl-warn:#D9A863; --pl-warn-bg:rgba(217,168,99,.11); --pl-warn-line:rgba(217,168,99,.3);
+  --pl-bad:#D98A80; --pl-bad-bg:rgba(217,138,128,.11); --pl-bad-line:rgba(217,138,128,.3);
+  /* Tony's chrome font is Inter — his nav, his TaskHub and his dropdown all
+     use it, so Plans reads as part of the same app rather than a guest. */
+  --pl-font:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --pl-mono:'IBM Plex Mono',ui-monospace,monospace;
+  --pl-display:'Inter',system-ui,-apple-system,sans-serif;
+  --pl-r-sm:8px; --pl-r:12px; --pl-r-lg:16px;
+  --pl-sh:0 1px 2px rgba(0,0,0,.35);
+  --pl-sh-md:0 4px 16px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.3);
+  --pl-sh-lg:0 24px 60px rgba(0,0,0,.55),0 6px 18px rgba(0,0,0,.4);
+  --pl-ease:cubic-bezier(.4,0,.2,1);
   position:fixed;inset:0;display:none;overflow-y:auto;overflow-x:hidden;
   -webkit-overflow-scrolling:touch;background:var(--pl-bg);color:var(--pl-tx);
   font-family:var(--pl-font);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
 }
 #plans-root.pl-veda{
-  --pl-bg:#1B1C1E; --pl-s1:#26272A; --pl-s2:#303135; --pl-s3:#212226;
-  --pl-bd:#3D3E43; --pl-bdl:#4A4B51;
-  --pl-tx:#ECECEE; --pl-txd:#AFB0B5; --pl-txm:#9A9BA1; --pl-txf:#76777C;
-  --pl-ac:#8D769A; --pl-ac-ink:#1B1C1E;
+  --pl-bg:#161719; --pl-s1:#1E1F22; --pl-s2:#27282C; --pl-s3:#212226;
+  --pl-bd:#2D2E33; --pl-bdl:#3B3C43;
+  --pl-tx:#F0EFF2; --pl-txd:#B4B2BA; --pl-txm:#8B8992; --pl-txf:#6B6971;
+  --pl-ac:#9D86AA; --pl-ac-ink:#141416; --pl-ac-soft:rgba(157,134,170,.13);
+  --pl-ac-line:rgba(157,134,170,.36);
+  /* Veda's suite is IBM Plex Mono throughout, with Playfair for section titles. */
+  --pl-font:'IBM Plex Mono',ui-monospace,monospace;
+  --pl-display:'Playfair Display',Georgia,serif;
 }
 #plans-root *{box-sizing:border-box;}
-.pl-wrap{max-width:760px;margin:0 auto;padding:18px 16px calc(64px + env(safe-area-inset-bottom,0px));}
+#plans-root ::selection{background:var(--pl-ac-soft);color:var(--pl-tx);}
+/* One visible focus treatment for every control in the section. */
+#plans-root :focus-visible{outline:2px solid var(--pl-ac);outline-offset:2px;border-radius:var(--pl-r-sm);}
+
+.pl-wrap{max-width:820px;margin:0 auto;padding:26px 22px calc(72px + env(safe-area-inset-bottom,0px));}
 /* Tony's #tony-app-nav is position:fixed and overlays the page, so his view must
-   reserve room for it (28px button + 20px padding) or the first row sits under
-   the nav buttons. Veda's header is in-flow and needs no offset. */
-#plans-root:not(.pl-veda) .pl-wrap{padding-top:calc(env(safe-area-inset-top,0px) + 60px);}
-.pl-hdr{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:6px;}
-/* Veda's header already carries the title, so the chip is alone on this row and
-   sits left rather than drifting under the nav on the right. */
-#plans-root.pl-veda .pl-hdr{justify-content:flex-start;}
-.pl-title{font-size:19px;font-weight:800;letter-spacing:.4px;margin:0;color:var(--pl-tx);}
-/* Veda's sections title themselves in Playfair; Tony's use the plain stack. */
-#plans-root.pl-veda .pl-title{font-family:'Playfair Display',serif;font-size:22px;font-weight:900;
-  color:var(--pl-ac);letter-spacing:1px;text-transform:uppercase;line-height:1;}
-.pl-who{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--pl-txm);border:1px solid var(--pl-bd);border-radius:999px;padding:3px 10px;white-space:nowrap;font-family:var(--pl-mono);}
-/* The standing agreement is a reference line, not an alert — no box, just a
-   quiet accent rule. The bordered card competed with the plan cards below it. */
-.pl-creed{font-size:12px;line-height:1.55;color:var(--pl-txf);border-left:2px solid var(--pl-ac);
-  padding:1px 0 1px 11px;margin:12px 0 16px;}
-.pl-creed b{color:var(--pl-txd);font-weight:800;}
-.pl-creed-lim{display:block;margin-top:5px;font-size:11px;line-height:1.5;
-  color:var(--pl-txf);opacity:.75;}
-.pl-bio-cta{width:100%;background:transparent;border:1px solid var(--pl-ac);border-radius:9px;
-  color:var(--pl-ac);padding:9px 10px;font-size:10.5px;font-weight:800;cursor:pointer;
-  font-family:var(--pl-mono);text-transform:uppercase;letter-spacing:.9px;
-  margin-bottom:16px;transition:all .14s;}
-.pl-bio-cta:hover{background:var(--pl-ac);color:var(--pl-ac-ink);}
+   reserve room for it (28px button + padding) or the title sits under the nav
+   buttons. Veda's header is in-flow and needs no offset. */
+#plans-root:not(.pl-veda) .pl-wrap{padding-top:calc(env(safe-area-inset-top,0px) + 64px);}
+
+/* ── Page head ─────────────────────────────────────────────────────────────
+   Title top-left, profile chip right, hairline underneath. No description —
+   the section explains itself through its own section labels. */
+.pl-hdr{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;
+  justify-content:space-between;padding-bottom:18px;margin-bottom:22px;
+  border-bottom:1px solid var(--pl-bd);}
+.pl-title{margin:0;font-family:var(--pl-display);font-size:26px;font-weight:800;
+  letter-spacing:-.4px;line-height:1.1;color:var(--pl-tx);}
+/* Veda's sections title themselves in Playfair caps — match her house style. */
+#plans-root.pl-veda .pl-title{font-size:24px;font-weight:900;letter-spacing:1.2px;
+  text-transform:uppercase;color:var(--pl-ac);}
+.pl-who{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.9px;color:var(--pl-txm);
+  background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:999px;
+  padding:5px 12px;white-space:nowrap;font-family:var(--pl-mono);}
+.pl-who::before{content:'';width:6px;height:6px;border-radius:50%;
+  background:var(--pl-ac);flex-shrink:0;}
+
+/* ── Primary action ────────────────────────────────────────────────────────
+   The one thing you come here to do gets a solid accent button, not a dashed
+   placeholder — everything else in the section is an outline control. */
+.pl-add{display:flex;width:fit-content;align-items:center;justify-content:center;gap:8px;
+  background:var(--pl-ac);border:1px solid var(--pl-ac);border-radius:var(--pl-r-sm);
+  color:var(--pl-ac-ink);height:38px;padding:0 18px;font-size:11.5px;font-weight:800;
+  cursor:pointer;font-family:var(--pl-mono);text-transform:uppercase;letter-spacing:.9px;
+  margin-bottom:30px;box-shadow:var(--pl-sh);transition:filter .16s var(--pl-ease),
+  transform .16s var(--pl-ease),box-shadow .16s var(--pl-ease);}
+.pl-add:hover{filter:brightness(1.09);box-shadow:var(--pl-sh-md);}
+.pl-add:active{transform:translateY(1px);box-shadow:var(--pl-sh);}
+.pl-add-ico{font-size:16px;line-height:0;font-weight:400;margin-right:1px;}
+
+/* Biometric enrolment offer — a quiet secondary line, not a second CTA. It sits
+   above the primary button, so it must not compete with it: no fill, no full
+   width, just a hairline the eye can skip. */
+.pl-bio-cta{display:flex;align-items:center;gap:8px;width:fit-content;
+  background:transparent;border:1px dashed var(--pl-bd);border-radius:var(--pl-r-sm);
+  color:var(--pl-txm);padding:9px 13px;font-size:10.5px;font-weight:700;cursor:pointer;
+  font-family:var(--pl-mono);letter-spacing:.5px;margin-bottom:14px;text-align:left;
+  transition:all .16s var(--pl-ease);}
+.pl-bio-cta:hover{border-color:var(--pl-ac-line);color:var(--pl-ac);background:var(--pl-ac-soft);}
 /* A verified signature is visually distinct from an unverified one. */
-.pl-vbadge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;
-  padding:1px 5px;border-radius:4px;margin-left:2px;}
-.pl-v-bio{background:#1E3226;color:#7FCB98;}
+.pl-vbadge{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+  padding:2px 6px;border-radius:4px;margin-left:2px;white-space:nowrap;}
+.pl-v-bio{background:var(--pl-ok-bg);color:var(--pl-ok);}
 .pl-v-none{background:var(--pl-s2);color:var(--pl-txf);}
-.pl-secs{display:flex;flex-direction:column;gap:20px;}
-.pl-sec-h{display:flex;align-items:baseline;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--pl-txm);margin-bottom:9px;font-family:var(--pl-mono);}
-.pl-count{background:var(--pl-ac);color:var(--pl-ac-ink);border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center;font-family:var(--pl-mono);}
-.pl-sub{font-size:11px;color:var(--pl-txf);font-weight:600;text-transform:none;letter-spacing:0;font-family:var(--pl-font);}
+
+/* ── Sections ──────────────────────────────────────────────────────────────*/
+.pl-secs{display:flex;flex-direction:column;gap:26px;}
+.pl-sec-h{display:flex;align-items:center;gap:9px;margin-bottom:12px;}
+.pl-sec-t{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1.3px;
+  color:var(--pl-txd);font-family:var(--pl-mono);}
+.pl-count{background:var(--pl-s2);color:var(--pl-txd);border:1px solid var(--pl-bd);
+  border-radius:999px;font-size:10px;font-weight:800;padding:1px 8px;min-width:20px;
+  text-align:center;font-family:var(--pl-mono);line-height:1.6;}
+/* The bucket that needs you gets the accent count; the rest stay neutral. */
+.pl-sec-live .pl-count{background:var(--pl-ac);color:var(--pl-ac-ink);border-color:var(--pl-ac);}
+.pl-sec-live .pl-sec-t{color:var(--pl-tx);}
+.pl-sub{font-size:11px;color:var(--pl-txf);font-weight:500;letter-spacing:0;
+  font-family:var(--pl-font);margin-left:auto;text-align:right;}
 /* An empty bucket is one quiet line, not a header + chip + sentence. */
-.pl-sec-none{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:5px 0;
-  border-top:1px solid var(--pl-s2);}
-.pl-none-t{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.1px;
-  color:var(--pl-txf);font-family:var(--pl-mono);}
-.pl-none-m{font-size:11.5px;color:var(--pl-txf);opacity:.72;}
+.pl-sec-none{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px;
+  border:1px solid var(--pl-bd);border-radius:var(--pl-r-sm);background:var(--pl-s1);opacity:.62;}
+.pl-none-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.1px;
+  color:var(--pl-txm);font-family:var(--pl-mono);}
+.pl-none-m{font-size:11.5px;color:var(--pl-txf);}
 /* True empty state — replaces four empty section blocks. */
-.pl-blank{text-align:center;padding:38px 18px 30px;border:1px dashed var(--pl-bd);
-  border-radius:12px;margin-top:16px;}
-.pl-blank-t{font-size:15px;font-weight:800;color:var(--pl-txd);margin-bottom:6px;}
-.pl-blank-s{font-size:12.5px;color:var(--pl-txf);line-height:1.5;max-width:340px;margin:0 auto;}
-.pl-card{background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:10px;padding:12px 13px;margin-bottom:8px;}
+.pl-blank{text-align:center;padding:52px 24px 46px;border:1px solid var(--pl-bd);
+  border-radius:var(--pl-r-lg);background:var(--pl-s1);}
+.pl-blank-t{font-size:16px;font-weight:700;color:var(--pl-tx);margin-bottom:8px;
+  letter-spacing:-.2px;}
+.pl-blank-s{font-size:13px;color:var(--pl-txm);line-height:1.6;max-width:360px;margin:0 auto;}
+
+/* ── Plan card ─────────────────────────────────────────────────────────────*/
+.pl-card{background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:var(--pl-r);
+  padding:15px 16px;margin-bottom:10px;box-shadow:var(--pl-sh);
+  transition:border-color .16s var(--pl-ease),box-shadow .16s var(--pl-ease),
+  background .16s var(--pl-ease);}
 .pl-card:last-child{margin-bottom:0;}
+.pl-card:hover{border-color:var(--pl-bdl);}
 /* The one card class that must catch the eye: something is waiting on you. */
-.pl-card.pl-wait{border-color:var(--pl-ac);box-shadow:inset 3px 0 0 var(--pl-ac);}
-.pl-card-t{font-size:14px;font-weight:700;line-height:1.35;word-break:break-word;color:var(--pl-tx);}
+.pl-card.pl-wait{border-color:var(--pl-ac-line);background:linear-gradient(
+  180deg,var(--pl-ac-soft),transparent 62%),var(--pl-s1);box-shadow:var(--pl-sh-md);}
+.pl-card-t{font-size:15px;font-weight:700;line-height:1.4;word-break:break-word;
+  color:var(--pl-tx);letter-spacing:-.15px;}
 /* Collapsed confirmed / archived cards: the whole header is the toggle. */
 .pl-fold{padding:0;}
-.pl-head{display:flex;align-items:flex-start;gap:9px;width:100%;background:transparent;
-  border:0;padding:12px 13px;cursor:pointer;text-align:left;font-family:inherit;color:inherit;}
+.pl-head{display:flex;align-items:flex-start;gap:11px;width:100%;background:transparent;
+  border:0;padding:15px 16px;cursor:pointer;text-align:left;font-family:inherit;
+  color:inherit;border-radius:var(--pl-r);transition:background .16s var(--pl-ease);}
+.pl-head:hover{background:rgba(255,255,255,.02);}
 .pl-head:hover .pl-card-t{color:var(--pl-ac);}
 .pl-head-in{flex:1;min-width:0;display:block;}
 .pl-head .pl-card-t{display:block;}
 .pl-head .pl-meta{display:flex;}
-.pl-chev{color:var(--pl-txf);font-size:11px;line-height:1.5;flex-shrink:0;
-  transition:color .14s;}
+.pl-chev{color:var(--pl-txf);font-size:10px;line-height:1.9;flex-shrink:0;
+  transition:color .16s var(--pl-ease),transform .16s var(--pl-ease);}
 .pl-head:hover .pl-chev{color:var(--pl-ac);}
+.pl-open .pl-chev{transform:rotate(0deg);}
 /* The opened body keeps the card's padding without doubling the header's. */
 .pl-fold .pl-notes,.pl-fold .pl-reason,.pl-fold .pl-confirms,.pl-fold .pl-acts{
-  margin-left:13px;margin-right:13px;}
-.pl-fold .pl-acts{padding-bottom:13px;}
+  margin-left:16px;margin-right:16px;}
+.pl-fold .pl-acts{padding-bottom:16px;}
 .pl-fold.pl-open .pl-notes{margin-top:0;}
-.pl-meta{font-size:11px;color:var(--pl-txm);margin-top:6px;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;}
+.pl-meta{font-size:11.5px;color:var(--pl-txm);margin-top:9px;display:flex;flex-wrap:wrap;
+  gap:7px 10px;align-items:center;}
+/* The date is the most consequential field on a plan, so it leads the meta row
+   in the accent colour rather than sitting in a muted run-on line. */
 .pl-when{font-family:var(--pl-mono);font-size:11px;font-weight:700;color:var(--pl-ac);
-  letter-spacing:.3px;display:inline-flex;align-items:baseline;gap:6px;}
-.pl-at{color:var(--pl-txm);font-weight:600;}
-.pl-nodate{color:var(--pl-txf);font-weight:600;}
-/* Author reads as a quiet tag rather than another run of prose. The rule before
-   it separates author from date without spending a bullet character. */
-.pl-from{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;
-  color:var(--pl-txf);font-family:var(--pl-mono);padding-left:9px;
-  border-left:1px solid var(--pl-s2);}
-.pl-from::before{content:'from ';opacity:.66;}
-.pl-notes{font-size:12px;color:var(--pl-txd);margin-top:7px;line-height:1.45;white-space:pre-wrap;word-break:break-word;}
-.pl-badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;border-radius:999px;padding:2px 8px;white-space:nowrap;border:1px solid transparent;}
-.pl-b-wait{background:var(--pl-s2);color:var(--pl-txd);border-color:var(--pl-bdl);}
-.pl-b-ok{background:#1E3226;color:#7FCB98;border-color:#2F5540;}
-.pl-b-warn{background:#33291C;color:#D9A863;border-color:#5A472C;}
-.pl-b-bad{background:#33211F;color:#D98A80;border-color:#5A3330;}
+  letter-spacing:.2px;display:inline-flex;align-items:baseline;gap:7px;
+  background:var(--pl-ac-soft);border-radius:5px;padding:3px 8px;}
+.pl-at{color:var(--pl-txd);font-weight:600;}
+.pl-nodate{color:var(--pl-txf);font-weight:600;background:var(--pl-s2);}
+.pl-from{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;
+  color:var(--pl-txf);font-family:var(--pl-mono);}
+.pl-from::before{content:'from ';opacity:.6;}
+.pl-notes{font-size:12.5px;color:var(--pl-txd);margin-top:11px;line-height:1.6;
+  white-space:pre-wrap;word-break:break-word;}
+.pl-badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;
+  border-radius:999px;padding:3px 9px;white-space:nowrap;border:1px solid transparent;
+  font-family:var(--pl-mono);}
+.pl-b-wait{background:var(--pl-s2);color:var(--pl-txd);border-color:var(--pl-bd);}
+.pl-b-ok{background:var(--pl-ok-bg);color:var(--pl-ok);border-color:var(--pl-ok-line);}
+.pl-b-warn{background:var(--pl-warn-bg);color:var(--pl-warn);border-color:var(--pl-warn-line);}
+.pl-b-bad{background:var(--pl-bad-bg);color:var(--pl-bad);border-color:var(--pl-bad-line);}
 /* Who agreed and when — the artifact this feature exists to produce. Two clear
    signatures rather than one dense run-on line. */
-.pl-confirms{margin-top:9px;padding-top:9px;border-top:1px solid var(--pl-s2);
-  display:flex;flex-wrap:wrap;gap:4px 18px;}
+.pl-confirms{margin-top:13px;padding-top:12px;border-top:1px solid var(--pl-bd);
+  display:flex;flex-wrap:wrap;gap:7px 20px;}
 .pl-sig{font-size:10.5px;font-weight:700;color:var(--pl-txd);display:inline-flex;
-  align-items:baseline;gap:5px;font-family:var(--pl-mono);}
-.pl-sig span{color:var(--pl-txf);font-weight:600;}
-.pl-tick{color:#7FCB98;font-weight:800;}
+  align-items:center;gap:6px;font-family:var(--pl-mono);}
+.pl-sig span{color:var(--pl-txf);font-weight:500;}
+.pl-tick{color:var(--pl-ok);font-weight:800;}
 /* Where each confirmation came from. Quiet, but always present — a record that
    only appears when something looks wrong is a record nobody trusts. */
-.pl-dev{font-size:9.5px;color:var(--pl-txf);opacity:.7;padding-left:6px;
-  border-left:1px solid var(--pl-s2);}
+.pl-dev{font-size:9.5px;color:var(--pl-txf);opacity:.75;padding-left:7px;
+  border-left:1px solid var(--pl-bd);}
 /* Both confirmations from one device: stated plainly, not hidden in a tooltip. */
-.pl-suspect{flex-basis:100%;margin-top:8px;font-size:11px;line-height:1.5;
-  color:#D9A863;background:#2A2118;border:1px solid #5A472C;border-radius:7px;
-  padding:8px 10px;font-family:var(--pl-font);}
-.pl-warn-hard{border-color:#8A4A44;background:#2E1D1B;color:#E8A79F;}
-.pl-warn-hard b{color:#fff;}
-.pl-warn-sub{font-size:11.5px;line-height:1.5;color:var(--pl-txf);margin-top:8px;}
-.pl-reason{font-size:11.5px;color:var(--pl-txd);margin-top:6px;padding:7px 9px;background:var(--pl-s3);border-radius:7px;border:1px solid var(--pl-s2);white-space:pre-wrap;word-break:break-word;}
-.pl-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;}
-.pl-btn{background:transparent;color:var(--pl-txd);border:1px solid var(--pl-bdl);border-radius:7px;padding:0 11px;height:29px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;cursor:pointer;font-family:var(--pl-mono);display:inline-flex;align-items:center;gap:5px;transition:all .14s;}
-.pl-btn:hover{border-color:var(--pl-ac);color:var(--pl-ac);}
+.pl-suspect{flex-basis:100%;margin-top:10px;font-size:11.5px;line-height:1.55;
+  color:var(--pl-warn);background:var(--pl-warn-bg);border:1px solid var(--pl-warn-line);
+  border-radius:var(--pl-r-sm);padding:10px 12px;font-family:var(--pl-font);}
+.pl-warn-hard{border-color:var(--pl-bad-line);background:var(--pl-bad-bg);color:var(--pl-bad);}
+.pl-warn-hard b{color:var(--pl-tx);}
+.pl-warn-sub{font-size:12px;line-height:1.6;color:var(--pl-txm);margin-top:10px;}
+.pl-reason{font-size:12px;color:var(--pl-txd);margin-top:10px;padding:9px 11px;
+  background:var(--pl-s3);border-radius:var(--pl-r-sm);border:1px solid var(--pl-bd);
+  white-space:pre-wrap;word-break:break-word;line-height:1.55;}
+.pl-reason b{color:var(--pl-txm);font-weight:700;}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────*/
+.pl-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+.pl-btn{background:transparent;color:var(--pl-txd);border:1px solid var(--pl-bd);
+  border-radius:var(--pl-r-sm);padding:0 13px;height:33px;font-size:10.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.7px;cursor:pointer;font-family:var(--pl-mono);
+  display:inline-flex;align-items:center;gap:6px;
+  transition:all .16s var(--pl-ease);}
+.pl-btn:hover{border-color:var(--pl-bdl);color:var(--pl-tx);background:var(--pl-s2);}
+.pl-btn:active{transform:translateY(1px);}
 /* The primary action wears the profile accent, so "Confirm" reads as Veda's
    purple for her and Tony's gold for him. */
-.pl-btn-go{background:var(--pl-ac);border-color:var(--pl-ac);color:var(--pl-ac-ink);}
-.pl-btn-go:hover{filter:brightness(1.12);color:var(--pl-ac-ink);border-color:var(--pl-ac);}
-.pl-btn-no:hover{border-color:#8A4A44;color:#E8A79F;}
-.pl-btn-q{padding:0 9px;font-size:16px;line-height:1;color:var(--pl-txf);}
-.pl-add{width:100%;background:transparent;border:1px dashed var(--pl-bd);border-radius:9px;color:var(--pl-txm);padding:10px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--pl-mono);text-transform:uppercase;letter-spacing:1px;transition:all .14s;margin-bottom:20px;}
-.pl-add:hover{border-color:var(--pl-ac);color:var(--pl-ac);}
-.pl-arch{margin-top:20px;}
-.pl-arch-h{width:100%;background:transparent;border:0;border-top:1px solid var(--pl-s2);border-radius:0;color:var(--pl-txf);padding:11px 2px 0;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1px;cursor:pointer;font-family:var(--pl-mono);text-align:left;display:flex;justify-content:space-between;align-items:center;}
-.pl-arch-h:hover{color:var(--pl-txm);}
-.pl-arch-h .pl-count{background:var(--pl-bd);color:var(--pl-txd);}
-.pl-arch-b{margin-top:10px;}
-.pl-ov{position:fixed;inset:0;background:rgba(0,0,0,.66);display:flex;align-items:center;justify-content:center;padding:16px;z-index:600;}
-.pl-modal{background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:calc(100vh - 32px);overflow-y:auto;}
-.pl-modal h3{margin:0 0 12px;font-size:14px;font-weight:800;letter-spacing:.3px;color:var(--pl-tx);}
-.pl-modal label{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--pl-txm);margin:11px 0 5px;font-family:var(--pl-mono);}
-.pl-in{width:100%;background:var(--pl-bg);border:1px solid var(--pl-bd);border-radius:8px;color:var(--pl-tx);padding:9px 10px;font-size:13px;font-family:var(--pl-font);}
-.pl-in:focus{outline:none;border-color:var(--pl-ac);}
-textarea.pl-in{min-height:74px;resize:vertical;line-height:1.45;}
-.pl-row2{display:flex;gap:9px;}
+.pl-btn-go{background:var(--pl-ac);border-color:var(--pl-ac);color:var(--pl-ac-ink);
+  box-shadow:var(--pl-sh);}
+.pl-btn-go:hover{filter:brightness(1.09);color:var(--pl-ac-ink);border-color:var(--pl-ac);
+  background:var(--pl-ac);box-shadow:var(--pl-sh-md);}
+.pl-btn-no:hover{border-color:var(--pl-bad-line);color:var(--pl-bad);background:var(--pl-bad-bg);}
+
+/* ── Archive ───────────────────────────────────────────────────────────────*/
+.pl-arch{margin-top:26px;}
+.pl-arch-h{width:100%;background:transparent;border:0;border-top:1px solid var(--pl-bd);
+  border-radius:0;color:var(--pl-txm);padding:15px 2px 0;font-size:10px;font-weight:800;
+  text-transform:uppercase;letter-spacing:1.2px;cursor:pointer;font-family:var(--pl-mono);
+  text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px;
+  transition:color .16s var(--pl-ease);}
+.pl-arch-h:hover{color:var(--pl-txd);}
+.pl-arch-b{margin-top:14px;}
+
+/* ── Modal ─────────────────────────────────────────────────────────────────*/
+.pl-ov{position:fixed;inset:0;background:rgba(8,8,10,.72);-webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;
+  padding:20px;z-index:600;animation:pl-fade .18s var(--pl-ease);}
+@keyframes pl-fade{from{opacity:0;}to{opacity:1;}}
+@keyframes pl-rise{from{opacity:0;transform:translateY(10px) scale(.99);}
+  to{opacity:1;transform:none;}}
+.pl-modal{background:var(--pl-s1);border:1px solid var(--pl-bdl);border-radius:var(--pl-r-lg);
+  padding:22px;width:100%;max-width:460px;max-height:calc(100vh - 40px);overflow-y:auto;
+  box-shadow:var(--pl-sh-lg);animation:pl-rise .2s var(--pl-ease);}
+.pl-modal h3{margin:0 0 4px;font-size:17px;font-weight:700;letter-spacing:-.2px;
+  color:var(--pl-tx);font-family:var(--pl-display);}
+#plans-root.pl-veda .pl-modal h3{font-weight:900;letter-spacing:.4px;}
+.pl-modal label{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;
+  letter-spacing:1.1px;color:var(--pl-txm);margin:16px 0 7px;font-family:var(--pl-mono);}
+.pl-in{width:100%;background:var(--pl-bg);border:1px solid var(--pl-bd);
+  border-radius:var(--pl-r-sm);color:var(--pl-tx);padding:11px 12px;font-size:13.5px;
+  font-family:var(--pl-font);transition:border-color .16s var(--pl-ease),
+  box-shadow .16s var(--pl-ease);}
+.pl-in::placeholder{color:var(--pl-txf);}
+.pl-in:focus{outline:none;border-color:var(--pl-ac);box-shadow:0 0 0 3px var(--pl-ac-soft);}
+textarea.pl-in{min-height:88px;resize:vertical;line-height:1.55;}
+.pl-row2{display:flex;gap:12px;}
 .pl-row2>div{flex:1;min-width:0;}
-.pl-modal-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
-.pl-warn{font-size:12px;line-height:1.5;color:#D9A863;background:#2A2118;border:1px solid #5A472C;border-radius:8px;padding:10px 11px;margin-bottom:4px;}
-.pl-err{font-size:11.5px;color:#D98A80;margin-top:7px;min-height:14px;}
+.pl-modal-acts{display:flex;gap:9px;justify-content:flex-end;margin-top:22px;}
+.pl-warn{font-size:12.5px;line-height:1.6;color:var(--pl-warn);background:var(--pl-warn-bg);
+  border:1px solid var(--pl-warn-line);border-radius:var(--pl-r-sm);padding:12px 13px;
+  margin-top:14px;}
+.pl-err{font-size:11.5px;color:var(--pl-bad);margin-top:9px;min-height:15px;}
+
 /* ── Header (Veda only) ──────────────────────────────────────────────────
    Tony reaches Plans through his own sticky #tony-app-nav, so his view needs
    no in-page header. Veda's sections each carry their own, which is also the
    ONLY way back to her TaskHub — without it the section is a dead end. */
 #plans-root .pl-vhdr{display:none;}
-#plans-root.pl-veda .pl-vhdr{display:block;}
-#plans-root .pl-vnav-btn{background:transparent;color:var(--pl-ac);border:1px solid var(--pl-bdl);border-radius:5px;padding:0 10px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--pl-mono);text-transform:uppercase;letter-spacing:1px;transition:all .15s;}
+#plans-root.pl-veda .pl-vhdr{display:block;border-bottom:1px solid var(--pl-bd);}
+#plans-root .pl-vnav-btn{background:transparent;color:var(--pl-ac);
+  border:1px solid var(--pl-bdl);border-radius:5px;padding:0 10px;height:28px;
+  box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;
+  font-weight:700;cursor:pointer;font-family:var(--pl-mono);text-transform:uppercase;
+  letter-spacing:1px;transition:all .15s var(--pl-ease);}
 #plans-root .pl-vnav-btn:hover{border-color:var(--pl-ac);}
-#plans-root .pl-vnav-btn.pl-vnav-on{background:var(--pl-ac);color:var(--pl-ac-ink);border-color:var(--pl-ac);cursor:default;}
-@media(max-width:560px){.pl-wrap{padding:14px 12px calc(64px + env(safe-area-inset-bottom,0px));}.pl-row2{flex-direction:column;gap:0;}}
+#plans-root .pl-vnav-btn.pl-vnav-on{background:var(--pl-ac);color:var(--pl-ac-ink);
+  border-color:var(--pl-ac);cursor:default;}
+/* Veda's header already names the section, so her body drops the duplicate
+   title and the head row carries the profile chip alone. */
+#plans-root.pl-veda .pl-hdr{justify-content:flex-start;border-bottom:none;
+  padding-bottom:0;margin-bottom:20px;}
+/* Her sticky header is a full-bleed 2000px row shared by every Veda section, so
+   a centred 820px body reads as detached from the title above it. Align the
+   column to the header's own left edge instead of centring it. */
+/* 14px matches .veda-hdr-inner's own horizontal padding, so her Playfair title
+   and the cards below it share exactly one left edge. */
+#plans-root.pl-veda .pl-wrap{margin:0;max-width:872px;padding-left:14px;padding-right:22px;}
+@media(min-width:721px){
+  #plans-root.pl-veda .pl-wrap{padding-top:22px;}
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────*/
+@media(max-width:720px){
+  .pl-wrap{padding:20px 15px calc(72px + env(safe-area-inset-bottom,0px));}
+  .pl-title{font-size:22px;}
+  #plans-root.pl-veda .pl-title{font-size:21px;}
+  .pl-hdr{padding-bottom:15px;margin-bottom:18px;}
+  .pl-card,.pl-head{padding:13px 14px;}
+  .pl-fold .pl-notes,.pl-fold .pl-reason,.pl-fold .pl-confirms,.pl-fold .pl-acts{
+    margin-left:14px;margin-right:14px;}
+  .pl-fold .pl-acts{padding-bottom:14px;}
+  .pl-add{width:100%;}
+  .pl-bio-cta{width:100%;justify-content:center;text-align:center;}
+  .pl-row2{flex-direction:column;gap:0;}
+  .pl-modal{padding:18px;border-radius:var(--pl-r);}
+  /* Actions stretch to full-width rows so they stay comfortably tappable. */
+  .pl-acts .pl-btn{flex:1 1 auto;justify-content:center;min-width:104px;height:36px;}
+}
+@media(max-width:400px){
+  .pl-sub{margin-left:0;flex-basis:100%;text-align:left;}
+}
+@media(prefers-reduced-motion:reduce){
+  #plans-root *,#plans-root *::before,#plans-root *::after{
+    animation-duration:.01ms!important;transition-duration:.01ms!important;}
+}
 </style>
 <div id="plans-root"></div>
 
@@ -15842,6 +16059,15 @@ function card(p,ctx){
 // attaches the mobile dropdown — exactly as it does for Links and Journal.
 function vedaHeader(w){
   if(w!=='veda')return '';
+  // The row is SEEDED with the full program set and then rebuilt in place by
+  // renderVedaNavIn (from vedaOrder), exactly as Links and Journal do. The seed
+  // has to be complete: isVedaNavRow() only adopts a row it can recognise as a
+  // nav row, which takes at least three known labels — seed fewer and the row
+  // is never adopted, so the custom order and the Plans badge never apply.
+  //
+  // Plans is emitted here WITHOUT the active styling: the rebuild derives the
+  // lit button from VEDA_ROOT_APP ('#plans-root' → 'plans'), and a hand-styled
+  // duplicate beside the generated one is what put two "Plans" in this row.
   const B=(app,label)=>'<button class="pl-vnav-btn" onclick="window._vedaNav&&window._vedaNav(\''+app+'\')">'+label+'</button>';
   return '<div class="pl-vhdr veda-hdr-outer"><div class="veda-hdr-inner">'
     +'<div class="veda-hdr-left">'
@@ -15850,17 +16076,21 @@ function vedaHeader(w){
     +B('taskhub','TaskHub')+B('gita','Gita')+B('journal','Journal')+B('links','Links')
     +'<button class="pl-vnav-btn pl-vnav-on">Plans</button>'
     +'<button class="pl-vnav-btn" onclick="window._profileGoSelect&&window._profileGoSelect()" '
-    +'style="font-size:17px;line-height:1;letter-spacing:0;">✦</button>'
+    +'title="Profile Selection" style="font-size:17px;line-height:1;letter-spacing:0;">✦</button>'
     +'</div></div></div></div>';
 }
 
 // An empty section collapses to one muted line. Rendering a full header, a "0"
 // chip and a sentence for every empty bucket is what made the page read as busy
 // while actually saying nothing — four such blocks filled a whole screen.
-function section(title,list,ctx,emptyMsg,sub){
+// `live` marks the bucket that is genuinely waiting on the active profile, which
+// is the only one that gets the accent count chip — everything else stays
+// neutral so the page has exactly one place the eye lands first.
+function section(title,list,ctx,emptyMsg,sub,live){
   if(!list.length)return '<div class="pl-sec pl-sec-none"><span class="pl-none-t">'+esc(title)+'</span>'
     +'<span class="pl-none-m">'+esc(emptyMsg)+'</span></div>';
-  return '<div class="pl-sec"><div class="pl-sec-h">'+esc(title)
+  return '<div class="pl-sec'+(live?' pl-sec-live':'')+'"><div class="pl-sec-h">'
+    +'<span class="pl-sec-t">'+esc(title)+'</span>'
     +'<span class="pl-count">'+list.length+'</span>'
     +(sub?'<span class="pl-sub">'+esc(sub)+'</span>':'')+'</div>'
     +list.map(p=>card(p,ctx)).join('')
@@ -15881,26 +16111,20 @@ function render(){
   el.classList.toggle('pl-veda',w==='veda');
   let h=vedaHeader(w);
   h+='<div class="pl-wrap">';
-  // Veda's sticky header already names the section, so the body only repeats the
-  // title for Tony, whose chrome is just the app-nav bar.
+  // Title top-left, profile chip right — the same shape every other program in
+  // the suite uses. Veda's sticky header already carries the title, so her body
+  // head keeps only the chip.
   h+='<div class="pl-hdr">'
     +(w==='veda'?'':'<h1 class="pl-title">Plans</h1>')
-    +'<span class="pl-who">'+(w?'acting as '+esc(NAMES[w]):'no profile')+'</span></div>';
-  h+='<div class="pl-creed">If it is not <b>Confirmed</b> here, it is not a plan. '
-    +'Ideas are not commitments — anything in Ideas is still just talk.'
-    // The security posture is stated where it is read. Which sentence applies
-    // depends on whether THIS profile has a biometric on THIS device.
-    +'<span class="pl-creed-lim">'
-    +(w&&bioEnrolled(w)
-      ?'Your confirmations on this device require '+esc(bioLabel())+', so nobody else can make one as you.'
-      :'Switching profiles needs no password, so a confirmation only proves someone using that '
-       +'profile pressed confirm. Each one records the device it came from.')
-    +'</span></div>';
+    +'<span class="pl-who">'+(w?esc(NAMES[w]):'no profile')+'</span></div>';
   // Offer enrolment when this device can do it and this profile has not yet.
+  // This is the one standing note that survives: it is an ACTION, not a
+  // description, and it states the security posture at the point of use.
   if(w&&!bioEnrolled(w)&&bioOK)
     h+='<button class="pl-bio-cta" data-act="bioEnrol">Require '+esc(bioLabel())
       +' for '+esc(NAMES[w])+'’s confirmations</button>';
-  h+='<button class="pl-add" data-act="new">+ New idea</button>';
+  h+='<button class="pl-add" data-act="new">'
+    +'<span class="pl-add-ico">+</span>New idea</button>';
   const total=b.mine.length+b.confirmed.length+b.proposed.length+b.ideas.length;
   if(!total&&!b.archive.length){
     // Nothing exists at all: say so once. Five empty section headers said the
@@ -15909,7 +16133,7 @@ function render(){
       +'<div class="pl-blank-s">Add an idea above. It stays an idea until you both confirm it.</div></div>';
   }else{
     h+='<div class="pl-secs">';
-    h+=section('Needs your response',b.mine,'mine','nothing waiting on you');
+    h+=section('Needs your response',b.mine,'mine','nothing waiting on you','',true);
     h+=section('Confirmed',b.confirmed,'confirmed','nothing confirmed yet');
     h+=section('Proposed',b.proposed,'proposed','nothing proposed',w?'waiting on '+NAMES[other(w)]:'');
     h+=section('Ideas',b.ideas,'ideas','no ideas yet','not commitments');
@@ -41091,6 +41315,7 @@ window.addEventListener('focus', _initNavTabGear);
 var TONY_DEFAULT = [
   {app:'taskhub',          label:'TaskHub'},
   {app:'brainstormjournal',label:'MyJournal'},
+  {app:'plans',            label:'Plans'},
   {app:'proview',          label:'ProView'},
 ];
 var TONY_SELECT_LABELS = {
