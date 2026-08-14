@@ -42039,14 +42039,21 @@ function _sanLink(l){ return { id: String(l.id||''), label: String(l.label||'Lin
 // entries in tonyLinks like any other External Link (editable label, reorderable,
 // deletable, listed in Settings), but opening one still runs through the exact
 // same gated function so nothing about the lock/confirm/tab behavior changes.
+// No `color` on purpose — these render like every other External Link. WarRoom
+// still shows purple in the HEADER, but from its .wr-btn class (see the nav CSS),
+// not from per-link colour, so the Settings list stays uniform.
 var LEGACY_PROGRAMS = [
-  { id:'tradehub', label:'TradeHub', url:'https://anthonyn99.github.io/A1/tradehub.html', color:'#e0b874', lockId:'tony_tradehub', openFn:'_thubClick' },
-  { id:'vault',    label:'Vault',    url:'https://anthonyn99.github.io/A1/vault.html',    color:'#e0b874', lockId:'tony_keychain', openFn:'_vaultClick' },
-  { id:'warroom',  label:'WarRoom',  url:'https://anthonyn99.github.io/A1/warroom.html',  color:'#a78bfa', lockId:'tony_warroom', openFn:'_wrClick' }
+  { id:'tradehub', label:'TradeHub', url:'https://anthonyn99.github.io/A1/tradehub.html', lockId:'tony_tradehub', openFn:'_thubClick' },
+  { id:'vault',    label:'Vault',    url:'https://anthonyn99.github.io/A1/vault.html',    lockId:'tony_keychain', openFn:'_vaultClick' },
+  { id:'warroom',  label:'WarRoom',  url:'https://anthonyn99.github.io/A1/warroom.html',  lockId:'tony_warroom', openFn:'_wrClick' }
 ];
 function _legacyProgram(id){
   for (var i=0;i<LEGACY_PROGRAMS.length;i++){ if(LEGACY_PROGRAMS[i].id===id) return LEGACY_PROGRAMS[i]; }
   return null;
+}
+function _isLegacyLockId(lockId){
+  for (var i=0;i<LEGACY_PROGRAMS.length;i++){ if(LEGACY_PROGRAMS[i].lockId===lockId) return true; }
+  return false;
 }
 // One-time seed, gated by a flag synced in the SAME Firebase doc (not just
 // localStorage) so it runs exactly once across every device — after that, a
@@ -42065,9 +42072,19 @@ function _addMissingLegacyPrograms(){
   var changed=false;
   LEGACY_PROGRAMS.forEach(function(p){
     if (!linkById('tony',p.id)){
-      tonyLinks.push({ id:p.id, label:p.label, url:p.url, color:p.color });
+      tonyLinks.push({ id:p.id, label:p.label, url:p.url });
       changed=true;
     }
+  });
+  return changed;
+}
+// An earlier build seeded these three WITH a colour, and that colour is already
+// persisted in localStorage / Firebase for anyone who ran it. Strip it wherever
+// it turns up — idempotent, so it's a no-op once the cleaned copy has synced.
+function _stripLegacyProgramColors(){
+  var changed=false;
+  tonyLinks.forEach(function(l){
+    if (_legacyProgram(l.id) && l.color){ l.color=''; changed=true; }
   });
   return changed;
 }
@@ -42079,7 +42096,9 @@ function seedLegacyProgramsOnce(){
 }
 // Local-only pass so the header isn't missing TradeHub/Vault/WarRoom for the
 // instant before Firebase responds; applyRemote() below reconciles for real.
-if (seedLegacyProgramsOnce()) persistLinks();
+var _seeded = seedLegacyProgramsOnce();
+var _stripped = _stripLegacyProgramColors();
+if (_seeded || _stripped) persistLinks();
 
 function openLink(p, id){
   var l = linkById(p, id); if (!l || !l.url) return;
@@ -42113,6 +42132,7 @@ function _doOpen(l, p){
 window._navOpenLink = openLink;
 window._navLegacyProgram = _legacyProgram;
 window._navLinkLockId = _linkLockId;
+window._navIsLegacyLockId = _isLegacyLockId;
 
 // Register custom links into the label maps + order arrays (idempotent).
 function registerLinks(){
@@ -42735,6 +42755,9 @@ function applyRemote(data){
   } else if(_addMissingLegacyPrograms()){
     changed=true; needsMigrationPush=true; _markLegacyMigrated();
   }
+  // Clear the colour an earlier build stamped on these three, and push the
+  // cleaned copy so every other device drops it too.
+  if(_stripLegacyProgramColors()){ changed=true; needsMigrationPush=true; }
   if(changed){ persistLinks(); }
   registerLinks();
   if(Array.isArray(data.tony)&&data.tony.length>=2){
@@ -43106,8 +43129,12 @@ function appsForProfile(profile){
       seen[id]=1; out.push({ id:id, label:labels[id].label, color:labels[id].color||ACCENT[profile] });
     }
   });
-  // fallback: any lockable program not represented in the nav order
+  // fallback: any lockable program not represented in the nav order. TradeHub /
+  // Vault / WarRoom are deliberately excluded — they live in External Links now,
+  // and that row's pill manages this exact same lock, so listing them here too
+  // would show one lock in two places.
   Object.keys(labels).forEach(function(id){
+    if(window._navIsLegacyLockId && window._navIsLegacyLockId(id)) return;
     if(labels[id] && labels[id].profile===profile && !seen[id] && id.indexOf('_custom_')===-1){
       seen[id]=1; out.push({ id:id, label:LOCKLIST_LABEL_OVERRIDES[id]||labels[id].label, color:labels[id].color||ACCENT[profile] });
     }
