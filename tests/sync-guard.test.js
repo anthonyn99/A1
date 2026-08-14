@@ -91,6 +91,27 @@ for (const flag of ['_thServerSeen', '_vdServerSeen', '_bjServerSeen', '_tjServe
     + 'or that writer can clobber the doc on resume.');
 }
 
+section('Static: every gated listener opens its gate reliably');
+
+// A gate that only opens on a NON-cache snapshot requires includeMetadataChanges.
+// Without it Firestore re-fires only when the DATA changes, so when the cached
+// copy already equals the server copy the fromCache→server transition is never
+// delivered — the gate never opens and every write is held forever. That does not
+// look like a guard doing its job, it looks like "saving is broken".
+for (const [label, ref] of [
+  ['TaskHub',    'docRef'],
+  ['Veda dash',  'vdDocRef'],
+  ['NavOrder',   '_noDocRef'],
+  ['Veda Links', 'vdkcDocRef'],
+  ['BJ journal', 'bjDocRef'],
+  ['TJ journal', 'tjDocRef'],
+]) {
+  t(label + ' listener requests metadata changes',
+    new RegExp('onSnapshot\\(' + ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      + ',\\s*\\{\\s*includeMetadataChanges:\\s*true').test(HTML),
+    'Otherwise the gate can never open and writes are held indefinitely.');
+}
+
 section('Static: every whole-document writer is gated');
 
 // A whole-doc setDoc replaces the entire document, so an ungated one can erase
@@ -666,6 +687,87 @@ function makeNavOrder(cloud, guarded) {
   t('an offline reorder is held rather than dropped',
     c4.doc.data === 'SAVED-ORDER' && c4.doc.savedAt > 5000,
     'The write still happens; it just publishes the reconciled order.');
+}
+
+section('Behaviour: the REAL plans reconcile preserves a dragged plan\'s slot');
+
+// Plan cards are draggable, and a plan's position lives in the dashboard doc
+// (dashboards/plans owns only its content and date). The reconcile used to strip
+// every mirrored item and re-append it, so a plan dragged into the middle of a
+// day jumped back to the bottom the next time the plans doc changed at all.
+//
+// This does NOT model the reducer — it extracts the shipped setDataBg callback
+// out of index.html and runs it, so the test exercises the real code rather than
+// a paraphrase of it that could drift.
+function extractReconcile(markerIdx) {
+  const openIdx = HTML.indexOf('setDataBg(prev=>{', markerIdx - 400);
+  if (openIdx === -1) return null;
+  let i = HTML.indexOf('{', HTML.indexOf('prev=>', openIdx));
+  const start = i + 1;
+  let depth = 1;
+  while (depth > 0 && i < HTML.length - 1) {
+    i++;
+    const c = HTML[i];
+    if (c === '{') depth++;
+    else if (c === '}') depth--;
+  }
+  const body = HTML.slice(start, i);
+  // `sig` is a helper from the enclosing scope; pass it in explicitly.
+  return new Function('prev', 'items', 'sig', body);
+}
+
+for (const [who, marker] of [['Tony', 6344], ['Veda', 12630]]) {
+  const idx = HTML.indexOf('Reconcile IN PLACE', who === 'Tony' ? 0 : HTML.indexOf('Reconcile IN PLACE') + 10);
+  const fn = extractReconcile(idx);
+  const sig = o => JSON.stringify(Object.keys(o || {}).sort().map(k =>
+    [k, (o[k] || []).filter(t => t && t._planId)
+      .map(t => [t._planId, t.title, t.time || '', t.type || '']).sort()]));
+
+  t(who + ': shipped reconcile extracted from index.html', typeof fn === 'function');
+  if (typeof fn !== 'function') continue;
+
+  // A plan dragged to the TOP of the day, above two ordinary tasks.
+  const prev = {
+    '2026-08-14': [
+      { id: 'pl_p1', _planId: 'p1', title: 'Dinner', time: '18:00' },
+      { id: 'a', title: 'Own task A' },
+      { id: 'b', title: 'Own task B' },
+    ],
+  };
+  // The plans doc changes (the title is edited elsewhere) → reconcile runs.
+  const items = { '2026-08-14': [{ id: 'pl_p1', _planId: 'p1', title: 'Dinner out', time: '18:00' }] };
+  const out = fn(prev, items, sig);
+  const day = out['2026-08-14'];
+  t(who + ': the dragged plan keeps its slot (index 0, not appended)',
+    day && day[0] && day[0]._planId === 'p1',
+    'Got order: ' + JSON.stringify((day || []).map(x => x.id)));
+  t(who + ': its content is still refreshed from the plans doc',
+    day && day[0] && day[0].title === 'Dinner out');
+  t(who + ": the user's own tasks keep their order",
+    day && day[1] && day[1].id === 'a' && day[2] && day[2].id === 'b');
+
+  // A plan that is no longer confirmed must disappear.
+  const gone = fn(prev, {}, sig)['2026-08-14'] || [];
+  t(who + ': a dropped/declined plan is removed',
+    !gone.some(x => x._planId) && gone.length === 2,
+    'Got: ' + JSON.stringify(gone.map(x => x.id)));
+
+  // A brand-new plan is appended rather than displacing anything.
+  const withNew = fn(prev, {
+    '2026-08-14': [
+      { id: 'pl_p1', _planId: 'p1', title: 'Dinner', time: '18:00' },
+      { id: 'pl_p2', _planId: 'p2', title: 'New plan' },
+    ],
+  }, sig)['2026-08-14'];
+  t(who + ': a new plan is appended at the end',
+    withNew && withNew.length === 4 && withNew[3]._planId === 'p2',
+    'Got: ' + JSON.stringify((withNew || []).map(x => x.id)));
+
+  // A plan whose DATE moved lands on the new day and leaves the old one.
+  const moved = fn(prev, { '2026-08-15': [{ id: 'pl_p1', _planId: 'p1', title: 'Dinner' }] }, sig);
+  t(who + ': a plan that moved day leaves the old day and appears on the new one',
+    !(moved['2026-08-14'] || []).some(x => x._planId) &&
+    (moved['2026-08-15'] || []).some(x => x._planId === 'p1'));
 }
 
 // ───────────────────────────────── summary ─────────────────────────────────

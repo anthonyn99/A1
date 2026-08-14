@@ -6341,15 +6341,31 @@ function App(){
       planMirrorSigRef.current=incoming;
       setDataBg(prev=>{
         const next={};
-        // 1. Strip every mirrored item.
-        Object.keys(prev).forEach(dk=>{
-          const kept=(prev[dk]||[]).filter(t=>!(t&&t._planId));
-          if(kept.length)next[dk]=kept;
-        });
-        // 2. Re-add from the mirror. Item ids are derived from the plan id, so
-        //    this is idempotent no matter how many times it runs.
-        Object.keys(items).forEach(dk=>{
-          (next[dk]=next[dk]||[]).push(...items[dk]);
+        // Reconcile IN PLACE. The old version stripped every mirrored item and
+        // re-appended it, which meant a plan you had dragged into the middle of
+        // your day snapped back to the bottom the next time the plans doc changed
+        // at all. Position is not owned by dashboards/plans — it lives in this
+        // document — so a plan already on the board keeps its slot and only its
+        // CONTENT is refreshed. Ids derive from the plan id, so this stays
+        // idempotent however many times it runs.
+        const days={};
+        Object.keys(prev).forEach(dk=>{ days[dk]=1; });
+        Object.keys(items).forEach(dk=>{ days[dk]=1; });
+        Object.keys(days).forEach(dk=>{
+          const incoming=items[dk]||[];
+          const byPlan={}; incoming.forEach(t=>{ byPlan[t._planId]=t; });
+          const out=[]; const placed={};
+          (prev[dk]||[]).forEach(t=>{
+            if(t&&t._planId){
+              const fresh=byPlan[t._planId];
+              // Still confirmed for this day → keep the slot, take the new content.
+              // Otherwise it was dropped/declined/moved and must disappear here.
+              if(fresh&&!placed[t._planId]){ placed[t._planId]=1; out.push(fresh); }
+            } else out.push(t);
+          });
+          // Genuinely new plans (or ones that just moved to this day) go at the end.
+          incoming.forEach(t=>{ if(!placed[t._planId]){ placed[t._planId]=1; out.push(t); } });
+          if(out.length)next[dk]=out;
         });
         return sig(prev)===sig(next)?prev:next;
       });
@@ -6919,10 +6935,12 @@ function App(){
   // ── Mirrored plan card ────────────────────────────────────────────────────
   // A confirmed shared plan is not an ordinary task and must not look like one:
   // it is owned by dashboards/plans, cannot be ticked, edited or deleted here,
-  // and both people are holding each other to it. It gets a tinted fill, an
-  // accent spine and a "PLAN" header instead of the category chip a normal task
-  // would carry. Veda's TaskHub has the matching helper in her own palette.
-  const wkPlanCard=(today)=>({background:T.AC+"0f",border:"1px solid "+T.AC+"3d",
+  // and both people are holding each other to it. It is marked by an accent
+  // spine and a "PLAN" header instead of the category chip a normal task would
+  // carry. Deliberately NO fill: the tint made a row of plans read as a block of
+  // highlighted noise next to the transparent task cards, so identity comes from
+  // the spine alone. Veda's TaskHub has the matching helper in her own palette.
+  const wkPlanCard=(today)=>({background:"transparent",border:"1px solid "+T.AC+"3d",
     borderLeft:"2px solid "+T.AC,borderRadius:6,padding:isMobile?"5px 10px":"4px 7px"});
   const wkPlanTag={fontSize:8,fontWeight:800,letterSpacing:.9,textTransform:"uppercase",
     color:T.AC,opacity:.9,lineHeight:1,whiteSpace:"nowrap"};
@@ -6963,6 +6981,12 @@ function App(){
     if(srcKey===k){
       if(srcId===targetId)return;
       setData(prev=>{const arr=[...(prev[k]||[])];const si=arr.findIndex(t=>t.id===srcId),ti=arr.findIndex(t=>t.id===targetId);if(si<0||ti<0)return prev;const[item]=arr.splice(si,1);arr.splice(ti,0,item);return{...prev,[k]:arr};});
+    }else if(_plGuard(stateRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Plans.')){
+      // Reordering a plan WITHIN a day is yours to keep; moving it to another day
+      // is not, because dashboards/plans owns the date and the next reconcile
+      // would drag it straight back. Refuse it up front instead of letting the
+      // card sit in the wrong day until it silently jumps home.
+      return;
     }else{
       setData(prev=>{const srcArr=[...(prev[srcKey]||[])];const destArr=[...(prev[k]||[])];const si=srcArr.findIndex(t=>t.id===srcId);if(si<0)return prev;const[item]=srcArr.splice(si,1);const ti=destArr.findIndex(t=>t.id===targetId);if(ti<0)destArr.push(item);else destArr.splice(ti,0,item);return{...prev,[srcKey]:srcArr,[k]:destArr};});
     }
@@ -6973,6 +6997,8 @@ function App(){
     if(dragInfo.current&&dragInfo.current.zone!=="week"){crossMoveRef.current&&crossMoveRef.current("week",null,k);dragInfo.current=null;return;}
     if(dragType.current!=="task"||dragDayKey.current===k)return;
     const srcKey=dragDayKey.current,srcId=dragSrc.current;
+    // Same rule as onDropTask: a plan's DATE belongs to dashboards/plans.
+    if(_plGuard(stateRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Plans.'))return;
     setData(prev=>{const srcArr=[...(prev[srcKey]||[])];const destArr=[...(prev[k]||[])];const si=srcArr.findIndex(t=>t.id===srcId);if(si<0)return prev;const[item]=srcArr.splice(si,1);destArr.push(item);return{...prev,[srcKey]:srcArr,[k]:destArr};});
   };
   const onDragStartHabit=(e,id)=>{dragType.current="habit";dragSrc.current=id;dragInfo.current={zone:"habit",id};e.dataTransfer.effectAllowed="move";};
@@ -7303,12 +7329,16 @@ function App(){
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
-                 Owned by dashboards/plans, so it is deliberately inert here: no
-                 checkbox, no drag, and no edit/delete buttons even in edit mode
-                 — every one of those would be reverted by the next reconcile.
-                 It gets a "Plan" header instead of a category chip, because it
-                 is a commitment you both made, not a task you filed. */
-              ?React.createElement("div",{key:t.id,style:{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:dimA,cursor:"default"}},
+                 Owned by dashboards/plans, so its CONTENT is inert here: no
+                 checkbox, no edit/delete buttons even in edit mode — every one of
+                 those would be reverted by the next reconcile. It gets a "Plan"
+                 header instead of a category chip, because it is a commitment you
+                 both made, not a task you filed.
+                 Position is the exception, and it is not content: where a plan
+                 sits in YOUR day lives in your own dashboard doc, so it is yours
+                 to drag and it survives the reconcile (which now preserves the
+                 slot of a plan it already knows about). */
+              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:dimA,cursor:edit?"grab":"default"})},
                 React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   t.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
@@ -7399,8 +7429,9 @@ function App(){
                     React.createElement("span",{style:{fontSize:11,fontWeight:800,color:dayTX,lineHeight:1}},e._pvTeam2||"TBD")),
                   e._pvState==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>t._planId
-              /* Shared plan — inert here, same rule as the wide grid above. */
-              ?React.createElement("div",{key:t.id,style:{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:dimA,cursor:"default"}},
+              /* Shared plan — content inert, position draggable; same rule as the
+                 wide grid above. */
+              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:dimA,cursor:edit?"grab":"default"})},
                 React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5}},
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   t.time&&React.createElement("span",{style:{fontSize:9,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
@@ -8321,7 +8352,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (_vdkcOwnWrites.size > 50) _vdkcOwnWrites.delete(_vdkcOwnWrites.values().next().value);
     };
     if (_vdkcUnsubscribe) { _vdkcUnsubscribe(); _vdkcUnsubscribe = null; }
-    _vdkcUnsubscribe = onSnapshot(vdkcDocRef, (snap) => {
+    // includeMetadataChanges:true for the same reason as NavOrder above — the gate
+    // only opens on a non-cache snapshot, and without this flag that snapshot is
+    // never delivered when cache and server already agree.
+    _vdkcUnsubscribe = onSnapshot(vdkcDocRef, { includeMetadataChanges: true }, (snap) => {
       const fromCache = !!(snap.metadata && snap.metadata.fromCache);
       if (!snap.exists()) { if (!fromCache) _vdkcMarkServerSeen(); return; }
       const d = snap.data();
@@ -9735,7 +9769,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       });
     };
     if (window._noUnsubscribe) { window._noUnsubscribe(); window._noUnsubscribe = null; }
-    window._noUnsubscribe = onSnapshot(_noDocRef, (snap) => {
+    // includeMetadataChanges:true is REQUIRED, not a nicety. Without it Firestore
+    // only re-fires when the DATA changes — so when the cached copy already equals
+    // the server copy (the normal case) the fromCache→server transition is never
+    // delivered, _noMarkServerSeen() never runs, and every reorder sits in the
+    // gate forever. That reads as "the button order refuses to save at all".
+    window._noUnsubscribe = onSnapshot(_noDocRef, { includeMetadataChanges: true }, (snap) => {
       const fromCache = !!(snap.metadata && snap.metadata.fromCache);
       if (!snap.exists()) { if (!fromCache) _noMarkServerSeen(); return; }
       const d = snap.data();
@@ -12588,12 +12627,24 @@ function App(){
       planMirrorSigRef.current=incoming;
       setDataBg(prev=>{
         const next={};
-        Object.keys(prev).forEach(dk=>{
-          const kept=(prev[dk]||[]).filter(t=>!(t&&t._planId));
-          if(kept.length)next[dk]=kept;
-        });
-        Object.keys(items).forEach(dk=>{
-          (next[dk]=next[dk]||[]).push(...items[dk]);
+        // Reconcile IN PLACE — see the matching comment in Tony's mirror. A plan
+        // dragged into the middle of the day keeps its slot; only its content is
+        // refreshed, because position lives in THIS document, not in the plans doc.
+        const days={};
+        Object.keys(prev).forEach(dk=>{ days[dk]=1; });
+        Object.keys(items).forEach(dk=>{ days[dk]=1; });
+        Object.keys(days).forEach(dk=>{
+          const incoming=items[dk]||[];
+          const byPlan={}; incoming.forEach(t=>{ byPlan[t._planId]=t; });
+          const out=[]; const placed={};
+          (prev[dk]||[]).forEach(t=>{
+            if(t&&t._planId){
+              const fresh=byPlan[t._planId];
+              if(fresh&&!placed[t._planId]){ placed[t._planId]=1; out.push(fresh); }
+            } else out.push(t);
+          });
+          incoming.forEach(t=>{ if(!placed[t._planId]){ placed[t._planId]=1; out.push(t); } });
+          if(out.length)next[dk]=out;
         });
         return sig(prev)===sig(next)?prev:next;
       });
@@ -12701,6 +12752,10 @@ function App(){
     if(srcKey===k){
       if(srcId===targetId)return;
       setData(prev=>{const arr=[...(prev[k]||[])];const si=arr.findIndex(t=>t.id===srcId),ti=arr.findIndex(t=>t.id===targetId);if(si<0||ti<0)return prev;const[item]=arr.splice(si,1);arr.splice(ti,0,item);return{...prev,[k]:arr};});
+    }else if(_plGuard(vdRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Plans.')){
+      // Reordering within a day is hers to keep; the DATE belongs to
+      // dashboards/plans, so a cross-day move would just be reconciled back.
+      return;
     }else{
       setData(prev=>{const srcArr=[...(prev[srcKey]||[])];const destArr=[...(prev[k]||[])];const si=srcArr.findIndex(t=>t.id===srcId);if(si<0)return prev;const[item]=srcArr.splice(si,1);const ti=destArr.findIndex(t=>t.id===targetId);if(ti<0)destArr.push(item);else destArr.splice(ti,0,item);return{...prev,[srcKey]:srcArr,[k]:destArr};});
     }
@@ -12711,6 +12766,7 @@ function App(){
     if(vdDragInfo.current&&vdDragInfo.current.zone!=="week"){vCrossMoveRef.current&&vCrossMoveRef.current("week",null,k);vdDragInfo.current=null;return;}
     if(vdDragType.current!=="task"||vdDragDay.current===k)return;
     const srcKey=vdDragDay.current,srcId=vdDragSrc.current;
+    if(_plGuard(vdRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Plans.'))return;
     setData(prev=>{const srcArr=[...(prev[srcKey]||[])];const destArr=[...(prev[k]||[])];const si=srcArr.findIndex(t=>t.id===srcId);if(si<0)return prev;const[item]=srcArr.splice(si,1);destArr.push(item);return{...prev,[srcKey]:srcArr,[k]:destArr};});
   };
   const vOnDragStartHabit=(e,id)=>{vdDragType.current="habit";vdDragSrc.current=id;vdDragInfo.current={zone:"habit",id};e.dataTransfer.effectAllowed="move";};
@@ -12865,9 +12921,9 @@ function App(){
   // ── Mirrored plan card ────────────────────────────────────────────────────
   // The purple twin of Tony's wkPlanCard. A confirmed shared plan is owned by
   // dashboards/plans: it cannot be ticked, edited or deleted from here, so it
-  // reads as its own kind of card — tinted fill, accent spine, "PLAN" header —
-  // rather than borrowing the outline a normal task wears.
-  const vdPlanCard=()=>({background:ABG,border:"1px solid "+A+"3d",borderLeft:"2px solid "+A,
+  // reads as its own kind of card — accent spine, "PLAN" header — rather than
+  // borrowing the outline a normal task wears. No fill, same reasoning as Tony's.
+  const vdPlanCard=()=>({background:"transparent",border:"1px solid "+A+"3d",borderLeft:"2px solid "+A,
     borderRadius:6,padding:vrMobile?"5px 8px":"4px 6px"});
   const vdPlanTag={fontSize:8,fontWeight:700,letterSpacing:.9,textTransform:"uppercase",
     color:A,opacity:.9,lineHeight:1,whiteSpace:"nowrap"};
@@ -13013,10 +13069,13 @@ function App(){
               mcRender(mcByDay[k]||[],dayTX),
               ts.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
-                 Owned by dashboards/plans, so it is inert here: no checkbox, no
-                 drag, and no edit/delete buttons even in edit mode — each would
-                 be reverted by the next reconcile. Manage it in Plans. */
-              ?RC("div",{key:t.id,style:{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:dimA,cursor:"default"}},
+                 Owned by dashboards/plans, so its CONTENT is inert here: no
+                 checkbox, no edit/delete buttons even in edit mode — each would
+                 be reverted by the next reconcile. Manage it in Plans.
+                 Position is yours though: where a plan sits in your day lives in
+                 your own dashboard doc, so it drags like any task and the
+                 reconcile keeps the slot. */
+              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:dimA,cursor:edit?"grab":"default"})},
                 RC("div",{style:{display:"flex",alignItems:"center",gap:6}},
                   RC("span",{style:vdPlanTag},"Plan"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
@@ -13066,8 +13125,9 @@ function App(){
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
               ts.map(t=>t._planId
-              /* Shared plan — inert here, same rule as the single-day list. */
-              ?RC("div",{key:t.id,style:{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:dimA,cursor:"default"}},
+              /* Shared plan — content inert, position draggable; same rule as the
+                 single-day list. */
+              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:dimA,cursor:edit?"grab":"default"})},
                 RC("div",{style:{display:"flex",alignItems:"center",gap:5}},
                   RC("span",{style:vdPlanTag},"Plan"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
