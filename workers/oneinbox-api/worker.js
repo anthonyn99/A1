@@ -366,10 +366,18 @@ async function gmailToken(env, email) {
   });
   const d = await r.json().catch(() => ({}));
   if (!d.access_token) {
-    // invalid_grant = the user revoked access or changed their password. Say so
-    // precisely; the UI turns this into "reconnect this account".
-    const why = d.error === 'invalid_grant' ? 'revoked' : (d.error || 'refresh failed');
-    throw new Error(`gmail token ${email}: ${why}`);
+    // invalid_grant = Google will not honour the refresh token any more: access
+    // was revoked, the password changed, or — the one that bites here — the
+    // OAuth consent screen fell back to "Testing", where refresh tokens expire
+    // after 7 days. Whatever the cause, the only cure is reconnecting the
+    // account, so say that instead of leaving a bare error code for the user
+    // to interpret.
+    if (d.error === 'invalid_grant') {
+      const e = new Error(`Gmail access for ${email} has expired or been revoked — reconnect it in Settings.`);
+      e.reconnect = email;
+      throw e;
+    }
+    throw new Error(`gmail token ${email}: ${d.error || 'refresh failed'}`);
   }
   const rec = { token: d.access_token, exp: nowSec + (d.expires_in || 3600) };
   _memTok.set(email, rec);
@@ -1770,6 +1778,13 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
 
+    // EVERY route below is `return await`, never a bare `return`. In an async
+    // function, `return somePromise` inside a try block hands the promise to
+    // the caller BEFORE it settles, so the catch never sees its rejection —
+    // the error escapes to the runtime, Cloudflare answers with its own error
+    // page, and that page has no CORS headers. The browser then reports a bare
+    // "Failed to fetch" with nothing readable in it. That is exactly how a
+    // revoked Gmail token spent this morning masquerading as a network fault.
     try {
       // ── Public / browser-navigation routes ──────────────────────────────
       if (path === '/') {
@@ -1785,10 +1800,10 @@ export default {
           aiToday: b.n, aiLimit: AI_DAILY_MAX, aiDay: b.d
         }, origin);
       }
-      if (path === '/oauth/callback') return oauthCallback(request, env);
-      if (path === '/oauth/start') return oauthStart(request, env, origin);
-      if (path === '/pubsub/push') return handlePubSub(request, env, origin);
-      if (path.startsWith('/lock/')) return handleLock(path, request, env, origin);
+      if (path === '/oauth/callback') return await oauthCallback(request, env);
+      if (path === '/oauth/start') return await oauthStart(request, env, origin);
+      if (path === '/pubsub/push') return await handlePubSub(request, env, origin);
+      if (path.startsWith('/lock/')) return await handleLock(path, request, env, origin);
       if (path === '/cron') {
         const force = url.searchParams.get('force') === '1';
         // Forced runs are awaited so the caller sees what actually happened;
@@ -1850,14 +1865,16 @@ export default {
         return json({ ok: true, results: res }, origin);
       }
 
-      if (path.startsWith('/gmail/')) return handleGmail(path, body, env, origin);
-      if (path.startsWith('/ai/')) return handleAI(path, body, env, origin);
+      if (path.startsWith('/gmail/')) return await handleGmail(path, body, env, origin);
+      if (path.startsWith('/ai/')) return await handleAI(path, body, env, origin);
 
       return json({ ok: false, error: 'not found' }, origin, 404);
     } catch (e) {
       // Never leak a token or key in an error string.
       const msg = String(e.message || 'server error').replace(/[A-Za-z0-9_\-]{40,}/g, '[redacted]');
-      return json({ ok: false, error: msg }, origin, 500);
+      // `reconnect` lets the UI point at the specific mailbox that needs
+      // re-authorising rather than just printing the sentence.
+      return json({ ok: false, error: msg, reconnect: e.reconnect || undefined }, origin, 500);
     }
   },
 

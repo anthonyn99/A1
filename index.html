@@ -2811,9 +2811,6 @@ window.THWX={Widget:Widget,refresh:function(){return load(true);}};
   color:var(--ts-tx);
   transition:border-color .2s;
 }
-/* Glass sheen on the trigger card, painted under .thts-compact's z-index:2. */
-.thts::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-  background:linear-gradient(135deg,rgba(255,255,255,.055),transparent 58%);}
 /* Above the sticky TaskHub header (200) and Tony's app nav (10001) so the scrim
    can dim the whole page — the same contract the weather panel uses. */
 .thts.thts-open{z-index:10050;}
