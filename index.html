@@ -42657,6 +42657,10 @@ function injectVedaGears(){
 function appsForProfile(profile){
   var labels=window._alLabels||{};
   var out=[], seen={};
+  // The whole-suite lock is NOT an internal program — it gates the entire
+  // profile, so it gets its own section above this list. Seeding `seen` with it
+  // keeps both passes below from listing it a second time.
+  seen[profileLockId(profile)]=1;
   var order=(window._navGetOrder?window._navGetOrder(profile):[]);
   order.forEach(function(key){
     if(typeof key==='string' && key.indexOf('custom:')===0) return; // custom handled separately
@@ -42677,9 +42681,16 @@ function appsForProfile(profile){
   });
   return out;
 }
-// Settings' Program Locks list reads friendlier than the plain profile name (used
+// Settings' lock lists read friendlier than the plain profile name (used
 // elsewhere — applock overlay title, reset-email copy — so those stay untouched).
 var LOCKLIST_LABEL_OVERRIDES = { profile_tony: "Tony's Suite", profile_veda: "Veda's Suite" };
+// The applock id gating a whole profile. Shown on its own above Internal Programs.
+function profileLockId(profile){ return 'profile_'+profile; }
+function suiteApp(profile){
+  var id=profileLockId(profile), labels=window._alLabels||{};
+  return { id:id, label:LOCKLIST_LABEL_OVERRIDES[id]||((labels[id]&&labels[id].label)||'Suite'),
+           color:(labels[id]&&labels[id].color)||ACCENT[profile] };
+}
 
 // ── Modal builders ──
 var _curProfile='tony';
@@ -42691,25 +42702,39 @@ function lockSvg(locked){
     : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
 }
 
+// One label + lock pill row. Shared by Internal Programs and the suite lock
+// above it so the two sections stay visually identical.
+function lockRow(app,lockTitle,rerender){
+  var locked=window.alIsLocked&&window.alIsLocked(app.id);
+  var row=document.createElement('div'); row.className='thset-row';
+  var lab=document.createElement('div'); lab.className='thset-label'; lab.textContent=app.label;
+  var pill=document.createElement('button');
+  pill.className='thset-pill '+(locked?'locked':'unlocked');
+  pill.innerHTML=lockSvg(locked)+'<span>'+(locked?'Locked':'Unlocked')+'</span>';
+  pill.title=locked?'Manage lock':lockTitle;
+  pill.addEventListener('click',function(e){
+    e.stopPropagation();
+    if(window.alManage) window.alManage(app.id);
+    // refresh shortly after the applock flow resolves
+    setTimeout(rerender,400);
+    setTimeout(rerender,1500);
+  });
+  row.appendChild(lab); row.appendChild(pill);
+  return row;
+}
+
+// The profile-wide lock, on its own above the program list.
+function renderSuiteLock(container,profile){
+  container.innerHTML='';
+  container.appendChild(lockRow(suiteApp(profile),'Lock this profile',
+    function(){ renderSuiteLock(container,profile); }));
+}
+
 function renderLockList(container,profile){
   container.innerHTML='';
   appsForProfile(profile).forEach(function(app){
-    var locked=window.alIsLocked&&window.alIsLocked(app.id);
-    var row=document.createElement('div'); row.className='thset-row';
-    var lab=document.createElement('div'); lab.className='thset-label'; lab.textContent=app.label;
-    var pill=document.createElement('button');
-    pill.className='thset-pill '+(locked?'locked':'unlocked');
-    pill.innerHTML=lockSvg(locked)+'<span>'+(locked?'Locked':'Unlocked')+'</span>';
-    pill.title=locked?'Manage lock':'Lock this program';
-    pill.addEventListener('click',function(e){
-      e.stopPropagation();
-      if(window.alManage) window.alManage(app.id);
-      // refresh shortly after the applock flow resolves
-      setTimeout(function(){ renderLockList(container,profile); },400);
-      setTimeout(function(){ renderLockList(container,profile); },1500);
-    });
-    row.appendChild(lab); row.appendChild(pill);
-    container.appendChild(row);
+    container.appendChild(lockRow(app,'Lock this program',
+      function(){ renderLockList(container,profile); }));
   });
 }
 
@@ -42867,6 +42892,8 @@ function normalizeUrl(u){
 
 function refreshLocks(){
   if(_overlay.style.display==='none') return;
+  var s=document.getElementById('thset-suitelock');
+  if(s) renderSuiteLock(s,_curProfile);
   var c=document.getElementById('thset-locklist');
   if(c) renderLockList(c,_curProfile);
 }
@@ -42918,7 +42945,11 @@ function openSettings(profile){
       '<button class="thset-close" title="Close">&times;</button>'+
     '</div>'+
     '<div class="thset-sec">'+
-      '<div class="thset-sec-title">Program Locks</div>'+
+      '<div class="thset-sec-title">Profile Lock</div>'+
+      '<div id="thset-suitelock"></div>'+
+    '</div>'+
+    '<div class="thset-sec">'+
+      '<div class="thset-sec-title">Internal Programs</div>'+
       '<div id="thset-locklist"></div>'+
     '</div>'+
     '<div class="thset-sec">'+
@@ -42934,6 +42965,7 @@ function openSettings(profile){
     '</div>';
 
   _box.querySelector('.thset-close').addEventListener('click',closeSettings);
+  renderSuiteLock(document.getElementById('thset-suitelock'),profile);
   renderLockList(document.getElementById('thset-locklist'),profile);
   renderLinkList(document.getElementById('thset-linklist'),profile);
 
