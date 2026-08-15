@@ -2643,6 +2643,10 @@ function Widget(props){
   var loToday=t0(dly.temperature_2m_min&&dly.temperature_2m_min[di]);
 
   // ── Compact bar — one condensed row, sized to sit level with the quote banner ──
+  // data-noglow: opts out of #root's global gold hover box-shadow. This card
+  // already has its own hover treatment (background lifts to --wx-hov), and the
+  // suite-wide glow made it look like a different, brighter card than Tesla's
+  // whenever only one of the two happened to be hovered.
   var compact=h('button',{key:'c',type:'button',className:'thwx-compact','data-noglow':true,
       'aria-haspopup':'dialog','aria-expanded':open?'true':'false',
       'aria-label':'Weather — open full forecast',
@@ -4026,6 +4030,8 @@ function Widget(props){
     :d?(charging?'Charging':(d.state||'Vehicle'))
     :(st.err?'Unavailable':'Connecting…');
 
+  // data-noglow: opts out of #root's global gold hover box-shadow — see the
+  // matching note on the weather widget's compact bar, its twin in the band.
   var compact=h('button',{key:'c',type:'button',className:'thts-compact','data-noglow':true,
       'aria-haspopup':'dialog','aria-expanded':open?'true':'false',
       'aria-label':'Tesla — open vehicle status',
