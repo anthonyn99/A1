@@ -412,6 +412,39 @@ async function gapi(env, email, path, init = {}) {
   return d;
 }
 
+const GMAIL_UPLOAD = 'https://gmail.googleapis.com/upload/gmail/v1/users/me';
+
+// Anything with an attachment goes out through Gmail's media-upload URI instead
+// of the plain JSON endpoint, because the JSON endpoint wants the whole message
+// base64'd into a `raw` field. Encoding megabytes of MIME inside the Worker
+// blew the CPU budget and killed the isolate — the symptom was "Failed to fetch"
+// in the browser, since a killed isolate's error page has no CORS headers.
+// Here the MIME bytes ARE the request body: no second base64 pass at all, and
+// Gmail's ceiling rises from ~5 MB to 35 MB.
+//
+// uploadType=multipart (rather than the simpler =media) so the metadata part can
+// still carry threadId — without it a reply with an attachment would start its
+// own thread.
+async function gapiUpload(env, email, path, rawMime, meta = {}, method = 'POST') {
+  const token = await gmailToken(env, email);
+  const bd = 'up_' + crypto.randomUUID();
+  const body =
+    `--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n` +
+    `--${bd}\r\nContent-Type: message/rfc822\r\n\r\n${rawMime}\r\n` +
+    `--${bd}--\r\n`;
+  const r = await fetch(`${GMAIL_UPLOAD}${path}?uploadType=multipart`, {
+    method,
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': `multipart/related; boundary=${bd}` },
+    body
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = d?.error?.message || r.status;
+    throw new Error(`gmail upload ${path} ${r.status}: ${String(msg).slice(0, 200)}`);
+  }
+  return d;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // MIME decoding — Gmail payload → { text, html, attachments }
 // ════════════════════════════════════════════════════════════════════════════
@@ -1303,6 +1336,32 @@ function encodeHeader(s) {
   return '=?UTF-8?B?' + b64url(s).replace(/-/g, '+').replace(/_/g, '/') + '?=';
 }
 
+// A filename rides inside two header parameters, so a quote or a newline in one
+// would break — or forge — the headers around it, and a non-ASCII character
+// would arrive as mojibake. Strip the former, RFC 2047 the latter. Truncate
+// BEFORE encoding: slicing an encoded word would cut its base64 in half.
+function safeFilename(n) {
+  return encodeHeader(String(n || 'attachment').replace(/[\r\n"\\]/g, '_').slice(0, 180));
+}
+
+// Gmail's own ceiling is 35 MB per message; base64 has already inflated the
+// attachment bytes by ~33% by the time they reach here. This guard exists mostly
+// so an oversized message fails with a sentence the UI can show, rather than as
+// an opaque Gmail 413 or a Worker that runs out of memory building the string.
+const MAX_MIME_BYTES = 30 * 1024 * 1024;
+
+// RFC 2045 caps a base64 line at 76 characters, and SMTP itself refuses lines
+// over 1000 octets, so unwrapped attachment data is not an option. The obvious
+// `replace(/(.{76})/g, '$1\n')` is the single most expensive thing in this file
+// — ~15 ms on a 2 MB image, against a 10 ms CPU budget. A slice loop is half
+// that, and the browser wraps before sending anyway, so this normally never runs.
+function wrap76(b64) {
+  if (b64.includes('\n')) return b64;          // already wrapped by the client
+  const out = [];
+  for (let i = 0; i < b64.length; i += 76) out.push(b64.slice(i, i + 76));
+  return out.join('\r\n');
+}
+
 function buildMime({ from, fromName, to, cc, bcc, subject, html, text, attachments, inReplyTo, references }) {
   const bd = 'oi_' + Math.random().toString(36).slice(2);
   const alt = 'oa_' + Math.random().toString(36).slice(2);
@@ -1330,20 +1389,31 @@ function buildMime({ from, fromName, to, cc, bcc, subject, html, text, attachmen
   L.push(`Content-Type: multipart/mixed; boundary="${bd}"`, '', `--${bd}`);
   L.push(bodyBlock, '');
   for (const a of attachments) {
+    const name = safeFilename(a.filename);
+    const type = String(a.mimeType || 'application/octet-stream').replace(/[\r\n";]/g, '');
     L.push(`--${bd}`);
-    L.push(`Content-Type: ${a.mimeType || 'application/octet-stream'}; name="${a.filename}"`);
-    L.push(`Content-Disposition: attachment; filename="${a.filename}"`);
+    L.push(`Content-Type: ${type}; name="${name}"`);
+    L.push(`Content-Disposition: attachment; filename="${name}"`);
     L.push('Content-Transfer-Encoding: base64', '');
-    L.push(String(a.data || '').replace(/\s/g, '').replace(/(.{76})/g, '$1\n'), '');
+    L.push(wrap76(String(a.data || '')), '');
   }
   L.push(`--${bd}--`);
-  return L.join('\r\n');
+  const raw = L.join('\r\n');
+  if (raw.length > MAX_MIME_BYTES) {
+    throw new Error(`message is too large (${(raw.length / 1048576).toFixed(1)} MB) — Gmail's limit is 35 MB`);
+  }
+  return raw;
 }
 
 async function sendNow(env, p) {
   const acct = await getAccount(env, p.from);
   if (!acct) throw new Error('unknown sending account');
   const raw = buildMime({ ...p, fromName: acct.name });
+  // Plain text still takes the JSON path — its base64 pass costs microseconds,
+  // and that path is the better-trodden one. Attachments take the upload URI.
+  if (p.attachments && p.attachments.length) {
+    return gapiUpload(env, p.from, '/messages/send', raw, p.threadId ? { threadId: p.threadId } : {});
+  }
   return gapi(env, p.from, '/messages/send', {
     method: 'POST',
     body: JSON.stringify({ raw: b64url(raw), threadId: p.threadId || undefined })
@@ -1466,7 +1536,17 @@ async function handleGmail(path, body, env, origin) {
 
   if (path === '/gmail/draft') {
     const acct = await getAccount(env, email);
-    const raw = b64url(buildMime({ ...body, from: email, fromName: acct.name }));
+    const mime = buildMime({ ...body, from: email, fromName: acct.name });
+    // Same split as sendNow: attachments go through the upload URI so the
+    // Worker never has to base64 megabytes of MIME.
+    if (body.attachments && body.attachments.length) {
+      const meta = body.threadId ? { message: { threadId: body.threadId } } : {};
+      const d = body.draftId
+        ? await gapiUpload(env, email, `/drafts/${body.draftId}`, mime, meta, 'PUT')
+        : await gapiUpload(env, email, '/drafts', mime, meta);
+      return json({ ok: true, draft: d }, origin);
+    }
+    const raw = b64url(mime);
     if (body.draftId) {
       return json({ ok: true, draft: await gapi(env, email, `/drafts/${body.draftId}`, { method: 'PUT', body: JSON.stringify({ message: { raw } }) }) }, origin);
     }

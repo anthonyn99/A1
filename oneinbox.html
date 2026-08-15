@@ -544,6 +544,23 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
 }
 .achip button{background:none;border:none;color:var(--faint);cursor:pointer;font-size:15px;line-height:1;padding:0}
 .achip button:hover{color:var(--danger)}
+.achip .sz{color:var(--faint);font-size:11px}
+
+/* Drop target. The overlay sits above the whole compose box and is
+   pointer-events:none so it cannot itself steal the dragleave/drop that
+   dismisses it — an overlay that intercepts the cursor makes the drag flicker
+   between enter and leave forever. */
+#composeModal .mbox{position:relative}
+.dropveil{
+  position:absolute;inset:0;z-index:5;display:none;pointer-events:none;
+  align-items:center;justify-content:center;flex-direction:column;gap:10px;
+  background:rgba(10,10,12,.86);border-radius:var(--radius);
+  border:2px dashed var(--gold-line);
+  font-size:14px;color:var(--gold-soft);letter-spacing:.3px;
+}
+#composeModal.dragging .dropveil{display:flex}
+.dropveil svg{width:30px;height:30px;opacity:.85}
+.dropveil .sub{font-size:12px;color:var(--faint);letter-spacing:0}
 
 /* ── Settings ────────────────────────────────────────────────────────────── */
 .acctcard{
@@ -958,6 +975,11 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
 <!-- ── Compose ─────────────────────────────────────────────────────────────── -->
 <div class="modal" id="composeModal">
   <div class="mbox wide">
+    <div class="dropveil" id="cDropVeil">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M3 15v3a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3v-3"/></svg>
+      <div>Drop to attach</div>
+      <div class="sub">Files and images are added to this message</div>
+    </div>
     <div class="mhead">
       <div class="t" id="composeTitle">New message</div>
       <button class="iconbtn" id="composeAiBtn" title="Draft with AI" aria-label="Draft with AI">
@@ -1442,10 +1464,18 @@ const FOLDERS = [
    ══════════════════════════════════════════════════════════════════════════ */
 async function api(path, body = {}){
   if (!lockSession) throw new Error('locked');
-  const r = await fetch(API + path, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ ...body, token: lockSession.token })
-  });
+  let r;
+  try {
+    r = await fetch(API + path, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ ...body, token: lockSession.token })
+    });
+  } catch {
+    // fetch rejects with a bare "Failed to fetch" for everything that happens
+    // below HTTP — offline, DNS, a blocked origin, or a Worker that died before
+    // it could answer with CORS headers. None of that is readable as-is.
+    throw new Error('could not reach the mail service (network or CORS) — nothing was sent');
+  }
   const d = await r.json().catch(() => ({ ok:false, error:'bad response' }));
   if (r.status === 401){ lockNow(); throw new Error('locked'); }
   if (!d.ok) throw new Error(d.error || 'request failed');
@@ -2272,29 +2302,96 @@ el('cToolbar').addEventListener('click', e => {
   document.execCommand(cmd, false, null);
   el('composeBody').focus();
 });
+// ── Attachments ──
+// Gmail's own ceiling is 35 MB per message, but the real constraint is the
+// Worker in between: the message is JSON on the way in and MIME on the way out,
+// so a file is resident several times over inside a 128 MB isolate. 10 MB per
+// file / 15 MB per message keeps that comfortable, and refusing here beats
+// failing after the upload has already been waited on.
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
+const attachedBytes = () => S.attachments.reduce((n, a) => n + (a.size || 0), 0);
+
+// The one path every attachment takes — the paperclip, a drop, anything later.
+async function addFiles(files){
+  const list = Array.from(files || []);
+  if (!list.length) return;
+  let total = attachedBytes(), added = 0;
+  for (const f of list){
+    if (f.size > MAX_FILE_BYTES){ toast(`${f.name} is too large (${fmtSize(MAX_FILE_BYTES)} max)`, false); continue; }
+    if (total + f.size > MAX_TOTAL_BYTES){ toast(`${f.name} would push this message past ${fmtSize(MAX_TOTAL_BYTES)}`, false); continue; }
+    let data;
+    try {
+      data = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(String(r.result).split(',')[1]);
+        r.onerror = () => rej(new Error('could not be read'));
+        r.readAsDataURL(f);
+      });
+    } catch { toast(`${f.name} could not be read`, false); continue; }
+    // A folder dropped onto the window arrives as a zero-byte File with no type;
+    // reading it "succeeds" and would attach an empty file.
+    if (!data){ toast(`${f.name} is empty or is a folder`, false); continue; }
+    // Wrap to RFC 2045's 76 columns HERE. The MIME needs it either way, and the
+    // browser has CPU to spare — the Worker on the other end has 10 ms total.
+    const lines = [];
+    for (let i = 0; i < data.length; i += 76) lines.push(data.slice(i, i + 76));
+    S.attachments.push({ filename: f.name, mimeType: f.type || 'application/octet-stream', data: lines.join('\r\n'), size: f.size });
+    total += f.size; added++;
+  }
+  renderAttachChips();
+  if (added) toast(added === 1 ? 'Attached ' + list[0].name : `Attached ${added} files`, true);
+}
+
 el('cAttachBtn').addEventListener('click', () => el('cFileIn').click());
 el('cFileIn').addEventListener('change', async e => {
-  for (const f of e.target.files){
-    // Gmail's own ceiling is 25 MB for the whole message; base64 inflates by
-    // ~33%, so refuse early rather than failing at send time.
-    if (f.size > 18 * 1024 * 1024){ toast(`${f.name} is too large (18 MB max)`, false); continue; }
-    const data = await new Promise(res => {
-      const r = new FileReader();
-      r.onload = () => res(String(r.result).split(',')[1]);
-      r.readAsDataURL(f);
-    });
-    S.attachments.push({ filename: f.name, mimeType: f.type || 'application/octet-stream', data });
-  }
-  e.target.value = '';
-  renderAttachChips();
+  await addFiles(e.target.files);
+  e.target.value = '';   // same file twice in a row must still fire `change`
 });
 function renderAttachChips(){
   el('cAttachList').innerHTML = S.attachments.map((a,i) =>
-    `<span class="achip">${esc(a.filename)}<button data-rm="${i}" aria-label="Remove">×</button></span>`).join('');
+    `<span class="achip">${esc(a.filename)}${a.size ? `<span class="sz">${fmtSize(a.size)}</span>` : ''}<button data-rm="${i}" aria-label="Remove">×</button></span>`).join('');
   el('cAttachList').querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
     S.attachments.splice(+b.dataset.rm, 1); renderAttachChips();
   }));
 }
+
+// ── Drag and drop ──
+// Two problems to dodge. First, dragenter/dragleave fire for every child element
+// the cursor crosses, so a naive show/hide strobes; a depth counter is the usual
+// fix. Second, a file dropped ANYWHERE in the window is a navigation by default
+// — the browser opens the file and the half-written message is gone. So while
+// compose is open we swallow drops outside the box too, and just do nothing.
+let dragDepth = 0;
+const hasFiles = e => Array.from(e.dataTransfer?.types || []).includes('Files');
+const composeOpen = () => el('composeModal').classList.contains('open');
+const endDrag = () => { dragDepth = 0; el('composeModal').classList.remove('dragging'); };
+
+window.addEventListener('dragenter', e => {
+  if (!composeOpen() || !hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  if (el('composeModal').contains(e.target)) el('composeModal').classList.add('dragging');
+});
+window.addEventListener('dragover', e => {
+  if (!composeOpen() || !hasFiles(e)) return;
+  e.preventDefault();
+  // "copy" is what makes the cursor read as an add rather than a move.
+  e.dataTransfer.dropEffect = 'copy';
+});
+window.addEventListener('dragleave', e => {
+  // Only file drags ever incremented the counter — dragging text around inside
+  // the message body must not drive it negative, or the next real file drag
+  // starts below zero and the veil never appears.
+  if (!composeOpen() || dragDepth === 0) return;
+  if (--dragDepth === 0) endDrag();
+});
+window.addEventListener('drop', async e => {
+  if (!composeOpen() || !hasFiles(e)) return;
+  e.preventDefault();               // never let the browser navigate to the file
+  endDrag();
+  await addFiles(e.dataTransfer.files);
+});
 
 // ── Schedule send ──
 el('cScheduleBtn').addEventListener('click', () => {
