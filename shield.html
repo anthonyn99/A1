@@ -1,0 +1,2854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a1d" id="meta-theme">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Shield</title>
+<!-- ── Single-tab handoff ──────────────────────────────────────────────────────
+     Keeps exactly one tab per program. TaskHub can only focus an existing tab
+     inside the browsing context group that opened it, so a PWA relaunch lands
+     here in a new tab beside the old one. Chrome forbids focusing the old tab
+     (WindowClient.focus() throws outside a notification click), so instead the
+     newest tab wins: each tab announces itself and older tabs for the same page
+     close themselves. Full rationale in tradehub.html; keep these copies
+     identical. Opt out of being closed with window.__a1BlockTabHandoff = true. -->
+<script>
+(function(){
+  if (typeof BroadcastChannel !== 'function') return;
+  var PAGE = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  var BORN = Date.now() + Math.random();   // random breaks ties on same-ms opens
+  var bc; try { bc = new BroadcastChannel('a1-single-tab'); } catch(e){ return; }
+  function announce(){ try { bc.postMessage({ type:'claim', page:PAGE, born:BORN }); } catch(e){} }
+  bc.onmessage = function(e){
+    var d = e.data || {};
+    if (!d || d.type !== 'claim' || d.page !== PAGE) return;
+    if (d.born > BORN) {
+      if (window.__a1BlockTabHandoff) return;
+      try { window.close(); } catch(_){}
+    } else {
+      announce();   // older tab was still loading when we announced — retell it
+    }
+  };
+  announce();
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- App icon: a heraldic shield on the suite's 96-grid at the same 5px stroke as
+     Vault's lock and Insight's lens, split down the centre — gold half for T,
+     purple half for V — around a gray keyhole. One mark that says security,
+     protection and two profiles without spelling any of it out. -->
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Shield%22%2C%22short_name%22%3A%22Shield%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fshield.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fshield.html%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D'http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg'%2520viewBox%253D'0%25200%252096%252096'%253E%253Crect%2520width%253D'96'%2520height%253D'96'%2520rx%253D'22'%2520fill%253D'%25231a1a1d'%252F%253E%253Cg%2520fill%253D'none'%2520stroke-width%253D'5'%2520stroke-linecap%253D'round'%2520stroke-linejoin%253D'round'%253E%253Cpath%2520d%253D'M48%252014%252022%252023v24c0%252017%252013%252028%252026%252035'%2520stroke%253D'%2523e0b874'%252F%253E%253Cpath%2520d%253D'M48%252014%252074%252023v24c0%252017-13%252028-26%252035'%2520stroke%253D'%25238D769A'%252F%253E%253Ccircle%2520cx%253D'48'%2520cy%253D'42'%2520r%253D'7'%2520stroke%253D'%2523adadb2'%252F%253E%253Cpath%2520d%253D'M48%252049v11'%2520stroke%253D'%2523adadb2'%252F%253E%253C%252Fg%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke-width%3D'5'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2014%2022%2023v24c0%2017%2013%2028%2026%2035'%20stroke%3D'%23e0b874'%2F%3E%3Cpath%20d%3D'M48%2014%2074%2023v24c0%2017-13%2028-26%2035'%20stroke%3D'%238D769A'%2F%3E%3Ccircle%20cx%3D'48'%20cy%3D'42'%20r%3D'7'%20stroke%3D'%23adadb2'%2F%3E%3Cpath%20d%3D'M48%2049v11'%20stroke%3D'%23adadb2'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke-width%3D'5'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2014%2022%2023v24c0%2017%2013%2028%2026%2035'%20stroke%3D'%23e0b874'%2F%3E%3Cpath%20d%3D'M48%2014%2074%2023v24c0%2017-13%2028-26%2035'%20stroke%3D'%238D769A'%2F%3E%3Ccircle%20cx%3D'48'%20cy%3D'42'%20r%3D'7'%20stroke%3D'%23adadb2'%2F%3E%3Cpath%20d%3D'M48%2049v11'%20stroke%3D'%23adadb2'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600..800&family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   SHIELD — emergency application closer and lockdown system
+   --------------------------------------------------------------------------
+   ONE component set, TWO palettes. Rather than fork the whole stylesheet per
+   profile (which is how the suite's older dual-profile pages drifted apart),
+   every component reads profile-scoped custom properties set on <body> — the
+   same technique mylist.html uses. Switching profile re-themes the entire app
+   by changing one attribute.
+
+   Token names follow vault.html's short form (--bg/--s1/--ac/--tx…) because
+   the App Lock overlay CSS is lifted verbatim from there and already speaks it.
+
+   Suite rules inherited:
+     · Never introduce a new hue. --ac for emphasis, --err/--grn for meaning.
+     · Tony: gold #e0b874 on #1a1a1d, radius 9/6, Manrope + Inter.
+     · Veda: purple #8D769A on #1B1C1E, radius 5 everywhere, Playfair + Plex Mono.
+       (V1/shared/tokens.css says 10/14/20px radii — that doc is stale, ships at 5.)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Suite tokens — mirrored verbatim from index.html:47. */
+:root{
+  --gold-primary:#e0b874;
+  --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
+}
+
+/* ── TONY (also the neutral default, so the profile chooser and any overlay
+      shown before a profile is picked have a complete palette) ────────────── */
+body,body[data-profile="tony"]{
+  --bg:#1a1a1d; --s1:#232327; --s2:#2c2c31; --s3:#37373d;
+  --bd:#34343a; --bdl:#45454c;
+  --tx:#f4f3f0; --txd:#adadb2; --txm:#8d8d94;
+  --ac:#e0b874; --acs:#e0b874; --acl:rgba(224,184,116,.36); --acbg:rgba(224,184,116,.10);
+  --err:#d68a7c; --errl:rgba(214,138,124,.40); --errbg:rgba(214,138,124,.10);
+  --grn:#a4b986; --amber:#d9b38f;
+  --shadow:rgba(0,0,0,.42);
+  --radius:9px; --radius-sm:6px;
+  --display:'Manrope',system-ui,-apple-system,sans-serif;
+  --sans:'Inter',system-ui,-apple-system,sans-serif;
+  --head-tr:none; --head-ls:-.3px; --head-wt:700;
+  --base-size:15px;
+  --transition:.18s cubic-bezier(.4,0,.2,1);
+}
+/* ── VEDA ─────────────────────────────────────────────────────────────────── */
+body[data-profile="veda"]{
+  --bg:#1B1C1E; --s1:#26272A; --s2:#303135; --s3:#3A3B40;
+  --bd:#3D3E43; --bdl:#4A4B52;
+  --tx:#ECECEE; --txd:#AFB0B5; --txm:#76777C;
+  --ac:#8D769A; --acs:#A892B0; --acl:rgba(141,118,154,.45); --acbg:#2E2535;
+  --err:#E74C3C; --errl:rgba(231,76,60,.45); --errbg:rgba(231,76,60,.12);
+  --grn:#5DAF6D; --amber:#D9A33A;
+  --shadow:rgba(0,0,0,.55);
+  --radius:5px; --radius-sm:5px;
+  --display:'Playfair Display',Georgia,serif;
+  --sans:'IBM Plex Mono',ui-monospace,monospace;
+  --head-tr:uppercase; --head-ls:1px; --head-wt:900;
+  --base-size:13px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%;height:100%;overflow-x:clip}
+@supports (-webkit-touch-callout:none){ html{height:-webkit-fill-available} }
+body{
+  background:var(--bg); color:var(--tx);
+  font-family:var(--sans); font-size:var(--base-size); line-height:1.55;
+  min-height:100vh; min-height:100dvh;
+  overflow-x:clip; -webkit-font-smoothing:antialiased;
+  overscroll-behavior-y:contain;
+  transition:background var(--transition),color var(--transition);
+}
+/* Scrollbars are hidden globally across the suite. */
+*{scrollbar-width:none;-ms-overflow-style:none}
+*::-webkit-scrollbar{display:none;width:0;height:0}
+a{color:var(--acs);text-decoration:none}
+button,a,label,select,[role="button"]{touch-action:manipulation}
+button:focus:not(:focus-visible){outline:none}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+input,select,textarea,button{font-family:var(--sans)}
+
+/* ── Boot gate ─────────────────────────────────────────────────────────────
+   Nothing paints until we know which screen is legitimate. Same contract as
+   applock.js's body[data-sos-gate]: no configuration or device list may flash
+   on screen before the profile gate has resolved. */
+#app{display:none}
+body[data-gate="app"] #app{display:block}
+body[data-gate="app"] #profile-overlay{display:none}
+
+/* ══ PROFILE CHOOSER — letterforms only. The brief is explicit: T and V, never
+      the full names, anywhere in the Shield UI. ══════════════════════════════ */
+#profile-overlay{
+  position:fixed;inset:0;z-index:1000;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:34px;padding:24px;
+}
+.pf-mark{display:flex;flex-direction:column;align-items:center;gap:10px}
+.pf-mark svg{width:52px;height:52px}
+.pf-word{font-family:var(--suite-display);font-size:26px;font-weight:750;letter-spacing:-.5px;color:var(--gold-primary)}
+.pf-sub{font-size:10px;font-weight:600;letter-spacing:2.4px;text-transform:uppercase;color:#8d8d94}
+.pf-cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+.pf-card{
+  position:relative;width:132px;height:150px;background:#232327;
+  border:1px solid #34343a;border-radius:12px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  transition:border-color .18s,box-shadow .18s,transform .06s;
+}
+.pf-card:hover{transform:translateY(-2px)}
+.pf-card:active{transform:translateY(0)}
+.pf-card .glyph{font-size:60px;line-height:1;font-weight:800}
+.pf-card.t{border-color:rgba(224,184,116,.28)}
+.pf-card.t .glyph{font-family:'Manrope',sans-serif;color:#e0b874}
+.pf-card.t:hover{border-color:#e0b874;box-shadow:0 0 14px rgba(224,184,116,.22)}
+.pf-card.v{background:#26272A;border-color:rgba(141,118,154,.30)}
+.pf-card.v .glyph{font-family:'Playfair Display',serif;font-weight:900;color:#8D769A}
+.pf-card.v:hover{border-color:#8D769A;box-shadow:0 0 14px rgba(141,118,154,.26)}
+.pf-lock{position:absolute;top:9px;right:9px;line-height:0;color:#8d8d94}
+.pf-lock svg{width:15px;height:15px}
+.pf-card.v .pf-lock{color:#76777C}
+.pf-emg{
+  position:absolute;bottom:9px;left:9px;right:9px;text-align:center;
+  font-size:8.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+  color:#d68a7c;
+}
+
+/* ══ SHELL ══════════════════════════════════════════════════════════════════ */
+.topbar{
+  position:sticky;top:0;z-index:60;background:var(--bg);
+  border-bottom:1px solid var(--bd);
+  padding:calc(var(--safe-t) + 9px) calc(14px + var(--safe-r)) 9px calc(14px + var(--safe-l));
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.brand{
+  font-family:var(--display);font-size:20px;font-weight:var(--head-wt);
+  letter-spacing:var(--head-ls);text-transform:var(--head-tr);
+  color:var(--ac);display:flex;align-items:center;gap:8px;white-space:nowrap;
+}
+.brand svg{width:20px;height:20px;flex-shrink:0;color:var(--ac)}
+.spacer{flex:1;min-width:8px}
+.pf-badge{
+  width:26px;height:26px;border-radius:var(--radius-sm);flex-shrink:0;
+  border:1px solid var(--acl);color:var(--ac);background:transparent;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-size:14px;font-weight:var(--head-wt);line-height:1;
+  transition:border-color var(--transition);
+}
+.pf-badge:hover{border-color:var(--ac)}
+.sync{font-size:9.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--txm);white-space:nowrap}
+.sync.ok{color:var(--grn)} .sync.err{color:var(--err)}
+
+.nav{
+  display:flex;gap:6px;padding:10px calc(14px + var(--safe-l)) 0 calc(14px + var(--safe-r));
+  max-width:900px;margin:0 auto;overflow-x:auto;
+}
+.wrap{max-width:900px;margin:0 auto;padding:14px clamp(12px,3vw,24px) calc(var(--safe-b) + 48px)}
+.view{display:none} .view.active{display:block}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────
+   Rest is quiet; emphasis is a glowing outline, never a filled wash. The one
+   exception is .pill.on, which is Veda's canonical "active = filled accent". */
+.btn{
+  appearance:none;background:transparent;color:var(--tx);
+  border:1px solid var(--bdl);border-radius:var(--radius-sm);
+  font-size:10.5px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;
+  padding:0 14px;height:32px;cursor:pointer;line-height:1;white-space:nowrap;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  transition:border-color var(--transition),color var(--transition),box-shadow var(--transition),transform .05s;
+}
+.btn:hover{border-color:var(--txd)}
+.btn:active{transform:translateY(1px)}
+.btn.ac{border-color:var(--acl);color:var(--ac)}
+.btn.ac:hover{border-color:var(--ac);box-shadow:0 0 8px var(--acbg)}
+.btn.danger{border-color:var(--errl);color:var(--err)}
+.btn.danger:hover{border-color:var(--err);background:var(--errbg)}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.btn[disabled]:hover{border-color:var(--bdl);box-shadow:none}
+.btn svg{width:14px;height:14px;flex-shrink:0}
+.btn.sm{height:26px;padding:0 10px;font-size:9.5px}
+.iconbtn{
+  appearance:none;background:transparent;border:none;color:var(--txm);cursor:pointer;
+  padding:5px;border-radius:var(--radius-sm);line-height:0;
+  display:inline-flex;align-items:center;justify-content:center;transition:color var(--transition);
+}
+.iconbtn:hover{color:var(--tx)}
+.iconbtn.danger:hover{color:var(--err)}
+.iconbtn svg{width:15px;height:15px}
+.pill{
+  appearance:none;background:transparent;color:var(--ac);
+  border:1px solid var(--bdl);border-radius:var(--radius-sm);
+  height:28px;padding:0 11px;font-size:10px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;cursor:pointer;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:5px;flex-shrink:0;
+  transition:all var(--transition);
+}
+.pill:hover{border-color:var(--ac)}
+.pill.on{background:var(--ac);color:var(--bg);border-color:var(--ac)}
+body[data-profile="tony"] .pill.on{background:transparent;color:var(--ac);box-shadow:inset 0 0 0 1px var(--acl),0 0 6px var(--acbg)}
+
+input[type=text],input[type=password],select{
+  width:100%;background:var(--s2);color:var(--tx);
+  border:1px solid var(--bd);border-radius:var(--radius-sm);
+  font-size:13px;padding:9px 11px;outline:none;transition:border-color var(--transition);
+}
+input:focus,select:focus{border-color:var(--acl)}
+input::placeholder{color:var(--txm)}
+label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--txm);margin-bottom:5px}
+
+/* ── Cards / sections ─────────────────────────────────────────────────────── */
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);padding:14px 16px}
+.sec{margin-bottom:22px}
+.sec-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding-bottom:7px;margin-bottom:11px;border-bottom:1px solid var(--bd);
+}
+.sec-title{font-size:9.5px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--txd)}
+.hint{font-size:11.5px;color:var(--txm);line-height:1.5}
+.hint.warn{color:var(--amber)}
+.empty{
+  border:1px dashed var(--bd);border-radius:var(--radius);
+  padding:20px 16px;text-align:center;color:var(--txm);font-size:11.5px;line-height:1.6;
+}
+
+/* ══ QUICK ACTIONS — the screen that matters in an emergency. Both primary
+      buttons sit above the fold on a phone and take one tap. ══════════════════ */
+.qa{display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
+.big{
+  appearance:none;width:100%;background:transparent;cursor:pointer;
+  border:1px solid var(--bdl);border-radius:var(--radius);
+  padding:20px 16px;display:flex;flex-direction:column;align-items:center;gap:5px;
+  transition:border-color var(--transition),box-shadow var(--transition),transform .05s;
+}
+.big:active{transform:translateY(1px)}
+.big .lbl{
+  font-family:var(--display);font-size:19px;font-weight:var(--head-wt);
+  letter-spacing:2px;text-transform:uppercase;color:var(--tx);line-height:1;
+}
+.big .sub{font-size:10.5px;letter-spacing:.6px;color:var(--txm);text-align:center}
+.big.close{border-color:var(--acl)}
+.big.close .lbl{color:var(--ac)}
+.big.close:hover{border-color:var(--ac);box-shadow:0 0 12px var(--acbg)}
+.big.emg{border-color:var(--errl)}
+.big.emg .lbl{color:var(--err)}
+.big.emg:hover{border-color:var(--err);box-shadow:0 0 12px var(--errbg)}
+.big[disabled]{opacity:.42;cursor:not-allowed}
+.big[disabled]:hover{box-shadow:none}
+
+/* Hold-to-fire. The global action has a much larger blast radius than the local
+   one, so it costs a deliberate 800ms press instead of a tap. The fill is the
+   progress indicator — no separate spinner to read under pressure. */
+.hold{
+  position:relative;overflow:hidden;
+  appearance:none;width:100%;background:transparent;cursor:pointer;
+  border:1px dashed var(--errl);border-radius:var(--radius);
+  padding:13px 16px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  transition:border-color var(--transition);
+}
+.hold:hover{border-color:var(--err)}
+.hold .lbl{position:relative;z-index:1;font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--err)}
+.hold .sub{position:relative;z-index:1;font-size:10px;color:var(--txm);text-align:center}
+.hold .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--errbg);z-index:0;pointer-events:none}
+.hold.holding .fill{transition:width .8s linear;width:100%}
+.hold[disabled]{opacity:.42;cursor:not-allowed}
+
+/* ── Device rows ──────────────────────────────────────────────────────────── */
+.dev{
+  display:flex;align-items:center;gap:10px;
+  background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);
+  padding:10px 13px;margin-bottom:8px;
+}
+.dev.me{border-color:var(--acl)}
+.dev-main{flex:1;min-width:0}
+.dev-name{font-size:12.5px;font-weight:600;color:var(--tx);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.dev-meta{font-size:10px;color:var(--txm);letter-spacing:.4px;margin-top:2px}
+.tag{
+  font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  padding:2px 6px;border-radius:3px;border:1px solid var(--bdl);color:var(--txm);white-space:nowrap;
+}
+.tag.me{border-color:var(--acl);color:var(--ac)}
+.tag.on{border-color:var(--grn);color:var(--grn)}
+.tag.locked{border-color:var(--err);color:var(--err)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--txm);flex-shrink:0}
+.dot.on{background:var(--grn)}
+
+/* ── Target rows ──────────────────────────────────────────────────────────── */
+.tgt{
+  display:flex;align-items:center;gap:9px;
+  background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);
+  padding:9px 12px;margin-bottom:7px;
+}
+.tgt-main{flex:1;min-width:0}
+.tgt-label{font-size:12.5px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tgt-match{font-size:10px;color:var(--txm);font-family:ui-monospace,monospace;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toggle{
+  width:34px;height:18px;border-radius:9px;background:var(--bd);position:relative;
+  cursor:pointer;transition:background .25s;border:none;padding:0;flex-shrink:0;
+}
+.toggle.on{background:var(--ac)}
+.toggle i{position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--tx);transition:left .25s;display:block}
+.toggle.on i{left:18px}
+.toggle[disabled]{opacity:.4;cursor:not-allowed}
+.opt{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--bd)}
+.opt:last-child{border-bottom:none}
+.opt-main{flex:1;min-width:0}
+.opt-name{font-size:12px;font-weight:600;color:var(--tx)}
+.opt-sub{font-size:10.5px;color:var(--txm);line-height:1.45;margin-top:1px}
+
+/* ── Read-only banner ─────────────────────────────────────────────────────── */
+.ro-bar{
+  display:none;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--acbg);border:1px solid var(--acl);border-radius:var(--radius);
+  padding:10px 13px;margin-bottom:14px;
+}
+.ro-bar.on{display:flex}
+.ro-txt{flex:1;min-width:160px;font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--ac)}
+.ro fieldset{border:none}
+/* A read-only pane must LOOK inert, not just refuse writes. */
+.ro .tgt,.ro .opt{opacity:.72}
+
+/* ── Capability panel — the honest one. Never claim more than the OS allows. ── */
+.cap{display:flex;align-items:flex-start;gap:9px;padding:7px 0;font-size:11.5px;line-height:1.45}
+.cap .mk{flex-shrink:0;width:14px;text-align:center;font-weight:700;line-height:1.45}
+.cap.yes .mk{color:var(--grn)} .cap.part .mk{color:var(--amber)} .cap.no .mk{color:var(--err)}
+.cap .tx{color:var(--txd)}
+.cap .tx b{color:var(--tx);font-weight:600}
+
+/* ══ EMERGENCY SCREEN — full takeover. Unmistakable at a glance, from across
+      the room, with the two exits as the only interactive things on it. ══════ */
+#emg-screen{
+  display:none;position:fixed;inset:0;z-index:900;
+  background:var(--bg);
+  background-image:radial-gradient(120% 60% at 50% -10%,var(--errbg),transparent 72%);
+  overflow-y:auto;
+}
+#emg-screen.on{display:block}
+.emg-wrap{
+  min-height:100%;max-width:520px;margin:0 auto;
+  padding:calc(var(--safe-t) + 34px) 22px calc(var(--safe-b) + 34px);
+  display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;
+}
+.emg-icon{line-height:0;color:var(--err)}
+.emg-icon svg{width:46px;height:46px}
+.emg-title{
+  font-family:var(--display);font-size:clamp(38px,13vw,60px);font-weight:var(--head-wt);
+  letter-spacing:5px;text-transform:uppercase;color:var(--err);line-height:1;
+}
+.emg-scope{font-size:10.5px;font-weight:700;letter-spacing:2.4px;text-transform:uppercase;color:var(--txd)}
+.emg-meta{
+  width:100%;background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);
+  padding:13px 15px;display:flex;flex-direction:column;gap:7px;text-align:left;
+}
+.emg-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:11.5px}
+.emg-row .k{font-size:9.5px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--txm);white-space:nowrap}
+.emg-row .v{color:var(--tx);text-align:right;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.emg-devs{width:100%;display:flex;flex-direction:column;gap:5px;text-align:left}
+.emg-dev{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:8px 12px;border:1px solid var(--bd);border-radius:var(--radius-sm);font-size:11.5px;
+}
+.emg-dev .n{color:var(--tx);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.emg-actions{width:100%;display:flex;flex-direction:column;gap:9px;margin-top:4px}
+.emg-note{font-size:10.5px;color:var(--txm);line-height:1.55;max-width:400px}
+.emg-report{
+  width:100%;text-align:left;font-size:11px;color:var(--txd);line-height:1.6;
+  background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);padding:11px 13px;
+}
+.emg-report .ln{display:flex;gap:8px}
+.emg-report .ln .m{flex-shrink:0;width:12px;text-align:center;font-weight:700}
+.emg-report .ok{color:var(--grn)} .emg-report .bad{color:var(--err)} .emg-report .skip{color:var(--txm)}
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+#toast{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--safe-b) + 20px);z-index:2147482000;
+  background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius);
+  padding:10px 16px;font-size:12px;color:var(--tx);
+  box-shadow:0 12px 34px var(--shadow);
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
+  max-width:calc(100vw - 32px);text-align:center;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+#toast.bad{border-color:var(--errl);color:var(--err)}
+
+/* ── App Lock overlay ── lifted from vault.html:98-124, retokenised ────────── */
+#applock-overlay{position:fixed;inset:0;z-index:2147483000;background:var(--bg);display:none;align-items:center;justify-content:center;font-family:var(--sans);padding:20px}
+#applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:34px 30px 22px;background:var(--s1);border:1px solid var(--acl);border-radius:18px;width:350px;max-width:calc(100vw - 32px);box-shadow:0 32px 80px rgba(0,0,0,.7);position:relative}
+#applock-head{text-align:center;display:flex;flex-direction:column;gap:5px}
+#applock-form{width:100%;display:flex;flex-direction:column;gap:10px}
+#applock-links{display:flex;flex-direction:column;align-items:center;gap:5px}
+#applock-foot{width:100%;padding-top:14px;border-top:1px solid var(--bd);display:flex;justify-content:center}
+@keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+#applock-box.shake{animation:applock-shake .4s ease}
+#applock-icon{line-height:0;color:var(--ac)}
+#applock-icon svg{width:30px;height:30px;display:block}
+#applock-title{font-family:var(--display);font-size:25px;font-weight:var(--head-wt);letter-spacing:var(--head-ls);text-transform:var(--head-tr);color:var(--tx)}
+#applock-sub{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:var(--txm);text-align:center;line-height:1.6}
+#applock-pw{background:var(--s1);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:15px;font-weight:500;padding:14px 16px;font-family:var(--sans);outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s}
+#applock-pw:focus{border-color:var(--ac)}
+#applock-pw.error{border-color:var(--err)}
+#applock-err{font-size:12.5px;color:var(--err);font-weight:500;text-align:center;min-height:16px}
+#applock-submit{background:transparent;color:var(--acs);border:1px solid var(--acl);border-radius:var(--radius-sm);padding:14px 0;font-size:13.5px;font-weight:500;cursor:pointer;font-family:var(--sans);width:100%;transition:border-color .18s,opacity .18s}
+#applock-submit:hover:not(:disabled){border-color:var(--ac)}
+#applock-submit:disabled{opacity:.4;cursor:default}
+#applock-cancel{background:transparent;border:none;color:var(--txm);font-size:13px;cursor:pointer;font-family:var(--sans);padding:2px 10px;text-decoration:underline;text-underline-offset:3px;transition:color .15s}
+#applock-forgot,#applock-reset{background:transparent;border:none;color:var(--txm);font-size:12px;cursor:pointer;font-family:var(--sans);padding:2px 0 0;text-decoration:underline;text-underline-offset:3px;width:100%;text-align:center;transition:color .15s}
+#applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:var(--txd)}
+#applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0}
+#applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--txd)}
+
+@media(max-width:520px){
+  .pf-card{width:118px;height:136px}
+  .pf-card .glyph{font-size:52px}
+  .nav{padding-left:12px;padding-right:12px}
+}
+</style>
+</head>
+<body data-gate="boot" data-profile="tony">
+
+<!-- ══ App Lock overlay — same Worker-KV / PBKDF2 system as index.html ══════ -->
+<div id="applock-overlay">
+  <div id="applock-box">
+    <div id="applock-icon"></div>
+    <div id="applock-head">
+      <div id="applock-title">Locked</div>
+      <div id="applock-sub">Enter your password.</div>
+    </div>
+    <div id="applock-form">
+      <div id="applock-bio"></div>
+      <input id="applock-pw" type="password" placeholder="Password" autocomplete="off" />
+      <div id="applock-err"></div>
+      <button id="applock-submit">Unlock</button>
+      <div id="applock-links">
+        <button id="applock-forgot">Forgot password?</button>
+        <button id="applock-reset">Reset password via email</button>
+      </div>
+    </div>
+    <div id="applock-foot">
+      <button id="applock-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Profile chooser ══════════════════════════════════════════════════════ -->
+<div id="profile-overlay">
+  <div class="pf-mark">
+    <svg viewBox="0 0 96 96" aria-hidden="true">
+      <g fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M48 14 22 23v24c0 17 13 28 26 35" stroke="#e0b874"/>
+        <path d="M48 14 74 23v24c0 17-13 28-26 35" stroke="#8D769A"/>
+        <circle cx="48" cy="42" r="7" stroke="#adadb2"/>
+        <path d="M48 49v11" stroke="#adadb2"/>
+      </g>
+    </svg>
+    <div class="pf-word">Shield</div>
+    <div class="pf-sub">Select profile</div>
+  </div>
+  <div class="pf-cards">
+    <button class="pf-card t" id="pf-t"><span class="glyph">T</span></button>
+    <button class="pf-card v" id="pf-v"><span class="glyph">V</span></button>
+  </div>
+</div>
+
+<!-- ══ App ════════════════════════════════════════════════════════════════ -->
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><circle cx="12" cy="10.5" r="1.8"/><path d="M12 12.3v3"/>
+      </svg>
+      <span>Shield</span>
+    </div>
+    <div class="spacer"></div>
+    <span class="sync" id="sync">·</span>
+    <button class="iconbtn" id="lock-btn" title="Manage lock"></button>
+    <button class="pf-badge" id="pf-badge" title="Switch profile">T</button>
+  </header>
+
+  <nav class="nav">
+    <button class="pill on" data-view="home">Home</button>
+    <button class="pill" data-view="config">Configure</button>
+    <button class="pill" data-view="devices">Devices</button>
+    <button class="pill" data-view="history">History</button>
+  </nav>
+
+  <main class="wrap">
+    <section class="view active" id="v-home"></section>
+    <section class="view" id="v-config"></section>
+    <section class="view" id="v-devices"></section>
+    <section class="view" id="v-history"></section>
+  </main>
+</div>
+
+<!-- ══ Emergency takeover ═══════════════════════════════════════════════════ -->
+<div id="emg-screen"><div class="emg-wrap" id="emg-wrap"></div></div>
+
+<div id="toast"></div>
+
+<!-- ══ In-UI modal system (replaces native alert/confirm/prompt so dialogs live
+        INSIDE the app and never vanish when the browser window loses focus).
+        Copied from vault.html:2324, re-tokenised so it themes per profile. ══ -->
+<script>
+(function(){
+  if (window.uiModal) return;
+  var CSS =
+    '#uim-overlay{position:fixed;inset:0;z-index:2147483600;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
+  + '#uim-overlay.show{display:flex;}'
+  + '#uim-box{width:100%;max-width:370px;background:var(--s2);border:1px solid var(--bdl);border-radius:var(--radius);padding:24px 22px;box-shadow:0 30px 70px rgba(0,0,0,.5);box-sizing:border-box;font-family:var(--sans);animation:uimIn .16s ease;}'
+  + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
+  + '#uim-title{font-family:var(--display);font-size:19px;font-weight:var(--head-wt);letter-spacing:var(--head-ls);text-transform:var(--head-tr);color:var(--tx);margin-bottom:8px;line-height:1.25;}'
+  + '#uim-msg{font-size:13px;color:var(--txd);line-height:1.55;white-space:pre-wrap;margin-bottom:16px;}'
+  + '.uim-field{display:block;margin-bottom:14px;}'
+  + '.uim-label{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--txm);margin:0 0 7px;}'
+  + '.uim-input{width:100%;box-sizing:border-box;background:var(--s1);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:13.5px;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
+  + '.uim-input:focus{border-color:var(--ac);}'
+  + '#uim-err{font-size:12.5px;color:var(--err);font-weight:500;min-height:15px;margin-bottom:4px;}'
+  + '#uim-btns{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;}'
+  + '#uim-btns button{border:1px solid var(--bdl);background:transparent;border-radius:var(--radius-sm);padding:9px 16px;font-size:10.5px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
+  + '#uim-cancel{color:var(--tx);}'
+  + '#uim-cancel:hover{border-color:var(--txd);}';
+  var queue=[], active=null;
+  function el(id){ return document.getElementById(id); }
+  function inject(){
+    if (el('uim-overlay')) return;
+    var st=document.createElement('style'); st.id='uim-style'; st.textContent=CSS; document.head.appendChild(st);
+    var ov=document.createElement('div'); ov.id='uim-overlay';
+    ov.innerHTML='<form id="uim-box" autocomplete="off">'
+      +'<div id="uim-title"></div><div id="uim-msg"></div><div id="uim-fields"></div>'
+      +'<div id="uim-err"></div>'
+      +'<div id="uim-btns"><button type="button" id="uim-cancel"></button><button type="submit" id="uim-ok"></button></div></form>';
+    document.body.appendChild(ov);
+    el('uim-cancel').addEventListener('click', function(){ close(active&&active.kind==='confirm'?false:null); });
+    el('uim-box').addEventListener('submit', function(e){ e.preventDefault(); submit(); });
+    document.addEventListener('keydown', function(e){ if(active && e.key==='Escape'){ close(active.kind==='confirm'?false:null); } });
+  }
+  function render(cfg){
+    inject(); active=cfg;
+    el('uim-title').textContent=cfg.title||''; el('uim-title').style.display=cfg.title?'':'none';
+    el('uim-msg').textContent=cfg.message||''; el('uim-msg').style.display=cfg.message?'':'none';
+    var fw=el('uim-fields'); fw.innerHTML='';
+    (cfg.fields||[]).forEach(function(f){
+      var lab=document.createElement('label'); lab.className='uim-field';
+      if(f.label){ var sp=document.createElement('span'); sp.className='uim-label'; sp.textContent=f.label; lab.appendChild(sp); }
+      var inp=document.createElement('input'); inp.className='uim-input'; inp.type=f.type||'text';
+      inp.value=(f.value!=null?f.value:''); if(f.placeholder) inp.placeholder=f.placeholder; inp.setAttribute('data-name',f.name);
+      if(f.autocap===false){ inp.autocapitalize='off'; inp.setAttribute('autocorrect','off'); inp.spellcheck=false; }
+      lab.appendChild(inp); fw.appendChild(lab);
+    });
+    el('uim-err').textContent='';
+    var ok=el('uim-ok'), ca=el('uim-cancel');
+    ok.textContent=cfg.okLabel||'OK';
+    ok.style.color=cfg.danger?'var(--err)':'var(--ac)';
+    ok.style.borderColor=cfg.danger?'var(--errl)':'var(--acl)';
+    ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
+    el('uim-overlay').classList.add('show');
+    setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
+  }
+  function collect(){ var o={}; var ins=el('uim-fields').querySelectorAll('input'); Array.prototype.forEach.call(ins,function(i){ o[i.getAttribute('data-name')]=i.value; }); return o; }
+  function submit(){
+    if(!active) return; var cfg=active;
+    if(cfg.fields && cfg.fields.length){
+      var vals=collect(), ins=el('uim-fields').querySelectorAll('input');
+      for(var i=0;i<cfg.fields.length;i++){ var f=cfg.fields[i];
+        if(f.required && !String(vals[f.name]||'').trim()){ el('uim-err').textContent=(f.label||'This field')+' is required.'; if(ins[i]) ins[i].focus(); return; } }
+      close(cfg.kind==='prompt' ? String(vals[cfg.fields[0].name]) : vals);
+    } else { close(cfg.kind==='confirm'?true:undefined); }
+  }
+  function close(result){
+    var cfg=active; active=null;
+    var ov=el('uim-overlay'); if(ov) ov.classList.remove('show');
+    if(cfg && cfg.resolve) cfg.resolve(result);
+    if(queue.length){ render(queue.shift()); }
+  }
+  function open(cfg){ return new Promise(function(res){ cfg.resolve=res; if(active) queue.push(cfg); else render(cfg); }); }
+  window.uiModal=open;
+  window.uiAlert=function(m,o){ o=o||{}; return open({kind:'alert',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK'}); };
+  window.uiConfirm=function(m,o){ o=o||{}; return open({kind:'confirm',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',danger:o.danger}); };
+  window.uiPrompt=function(m,o){ o=o||{}; return open({kind:'prompt',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',
+    fields:[{name:'value',type:o.password?'password':'text',value:(o.default!=null?o.default:''),placeholder:o.placeholder||'',autocap:o.autocap}]}); };
+  window.uiForm=function(cfg){ cfg=cfg||{}; return open({kind:'form',title:cfg.title,message:cfg.message,okLabel:cfg.okLabel||'Save',cancelLabel:cfg.cancelLabel||'Cancel',danger:cfg.danger,fields:cfg.fields||[]}); };
+  try { window.alert=function(m){ window.uiAlert(m==null?'':String(m)); }; } catch(e){}
+})();
+</script>
+
+<!-- ══ Biometrics (WebAuthn platform authenticator) ═════════════════════════
+        Copied from mylist.html:727. The app never sees or stores biometric
+        data — WebAuthn returns only a public-key credential handle, and unlock
+        is scoped to that credential id alone via allowCredentials, so one
+        profile's biometric can never satisfy the other's. ══════════════════ -->
+<script>
+window.Bio = (function(){
+  var NS='bio_cred_';
+  function u8(b){ return new Uint8Array(b); }
+  function b64u(buf){ var b=u8(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+  function unb64u(str){ str=String(str).replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
+  function rand(n){ var a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
+  function keyOf(app,id){ return NS+app+'_'+id; }
+  function supported(){ return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
+  function available(){
+    if(!supported()) return Promise.resolve(false);
+    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
+    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
+  }
+  function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
+  function isRegistered(app,id){ var r=stored(app,id); return !!(r&&r.id); }
+  function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
+  function label(){
+    var ua=navigator.userAgent||'';
+    if(/iPhone|iPad|iPod/.test(ua)) return 'Face ID';
+    if(/Android/.test(ua)) return 'fingerprint';
+    if(/Windows/.test(ua)) return 'Windows Hello';
+    if(/Mac/.test(ua)) return 'Touch ID';
+    return 'biometrics';
+  }
+  function register(app,id,opts){
+    opts=opts||{};
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    return navigator.credentials.create({publicKey:{
+      challenge:rand(32),
+      rp:{name:opts.rpName||'Shield', id:location.hostname||undefined},
+      user:{id:rand(16), name:app+':'+id, displayName:opts.label||id},
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},
+      timeout:60000, attestation:'none'
+    }}).then(function(cred){
+      if(!cred) return {ok:false,error:'cancelled'};
+      localStorage.setItem(keyOf(app,id), JSON.stringify({id:b64u(cred.rawId),created:Date.now(),label:opts.label||id}));
+      return {ok:true};
+    }).catch(function(e){ return {ok:false,error:(e&&e.name)||'error'}; });
+  }
+  function authenticate(app,id){
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    var rec=stored(app,id);
+    if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
+    return navigator.credentials.get({publicKey:{
+      challenge:rand(32),
+      allowCredentials:[{type:'public-key',id:unb64u(rec.id)}],
+      userVerification:'required', timeout:60000, rpId:location.hostname||undefined
+    }}).then(function(a){ return a?{ok:true}:{ok:false,error:'cancelled'}; })
+      .catch(function(e){ return {ok:false,error:(e&&e.name)||'error'}; });
+  }
+  return {supported:supported,available:available,isRegistered:isRegistered,register:register,authenticate:authenticate,unregister:unregister,label:label};
+})();
+</script>
+
+<!-- ══ FIREBASE ═════════════════════════════════════════════════════════════
+     Two documents matter here:
+       dashboards/applock          — the suite-wide lock registry (shared)
+       dashboards/shield_<profile> — Shield's own per-profile doc
+
+     Read/write budget is deliberately tiny. One listener per open surface, and
+     writes only on a real user edit (debounced) or a 15-minute heartbeat, so a
+     device idling in Shield costs about four writes an hour. There is no
+     presence system and no polling — "online" is derived from lastSeen. ══════ -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js';
+import { initializeFirestore, memoryLocalCache, doc, getDoc, getDocFromServer, setDoc, updateDoc, onSnapshot }
+  from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
+  authDomain: "task-dashboard-d2b53.firebaseapp.com",
+  projectId: "task-dashboard-d2b53",
+  storageBucket: "task-dashboard-d2b53.firebasestorage.app",
+  messagingSenderId: "982539604706",
+  appId: "1:982539604706:web:e93da1aef499fcee2044bb"
+};
+const fbApp = initializeApp(firebaseConfig);
+// The SAME reCAPTCHA site key every A1 app uses. Do not register a new one:
+// the key is shared, and re-registering it breaks every app in the suite at
+// once — about an hour later, while Auth carries on working.
+initializeAppCheck(fbApp, { provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'), isTokenAutoRefreshEnabled: true });
+const fbAuth = getAuth(fbApp);
+let _authResolve; const authReady = new Promise(res => { _authResolve = res; });
+onAuthStateChanged(fbAuth, u => { if (u) _authResolve(); });
+signInAnonymously(fbAuth).catch(e => console.warn('[Shield] Anon auth failed:', e));
+
+// memoryLocalCache, deliberately. Every page in the suite shares ONE Firestore
+// IndexedDB cache (same origin, same projectId) and index.html is its single
+// forced owner; a satellite that took a persistent lease could rip it away
+// mid-flight. Shield's documents are tiny and always want the freshest copy
+// anyway. tests/sync-guard.test.js fails the commit if forceOwnership appears.
+const db = initializeFirestore(fbApp, { localCache: memoryLocalCache() });
+
+/* ── Shield documents ─────────────────────────────────────────────────────── */
+const shRef = p => doc(db, 'dashboards/shield_' + p);
+
+// Write barrier. Every write here is field-scoped, so a device can never
+// clobber another device's config — but registration creates the document, and
+// creating one we were merely unable to READ would fork the profile in two.
+// This flag is the only thing that authorises the first write.
+window._shLoadOk = false;
+
+// Turn {'devices.abc.closer': v} into {devices:{abc:{closer:v}}} for the
+// setDoc-merge path, which is the only way to write a doc that does not exist
+// yet (updateDoc throws not-found).
+function expand(flat){
+  const out = {};
+  for (const k in flat){
+    const parts = k.split('.');
+    let cur = out;
+    for (let i = 0; i < parts.length - 1; i++){ cur[parts[i]] = cur[parts[i]] || {}; cur = cur[parts[i]]; }
+    cur[parts[parts.length - 1]] = flat[k];
+  }
+  return out;
+}
+
+window._shUpdate = async (profile, flat) => {
+  if (!window._shLoadOk) { console.warn('[Shield] write BLOCKED — never read the server copy.'); throw new Error('barrier'); }
+  await authReady;
+  const ref = shRef(profile);
+  try {
+    await updateDoc(ref, flat);
+  } catch (e) {
+    if (e && e.code === 'not-found') await setDoc(ref, expand(flat), { merge: true });
+    else throw e;
+  }
+};
+
+window._shWatch = (profile, onData, onErr) => {
+  const ref = shRef(profile);
+  return onSnapshot(ref, snap => {
+    // A delivered snapshot proves reads work, so it lifts the barrier — even an
+    // "does not exist" answer, which is a real answer and means we may create it.
+    window._shLoadOk = true;
+    onData(snap.exists() ? (snap.data() || {}) : null);
+  }, err => { console.warn('[Shield] snapshot error', err); if (onErr) onErr(err); });
+};
+
+/* ── Suite app-lock registry (dashboards/applock) ──────────────────────────
+   Shield holds the WHOLE lock map, exactly as index.html does, and only ever
+   mutates its own two ids. _alLoadOk stops a denied read from writing back a
+   map that is missing every other app's lock. */
+const AL_DOC = doc(db, 'dashboards/applock');
+let _alLastOwnSaveAt = 0, _alTimer = null;
+window._alLoadOk = false;
+
+window._fbLoadAppLocks = async () => {
+  try {
+    await authReady;
+    // Server-forced: a cached copy here would decide the gate from stale state.
+    const snap = await getDocFromServer(AL_DOC);
+    window._alLoadOk = true;
+    return snap.exists() ? ((snap.data() || {}).locks || {}) : {};
+  } catch (e) { console.warn('[Shield] applock load failed:', e); window._alLoadOk = false; return null; }
+};
+
+window._fbSaveAppLocks = (locks) => {
+  if (!window._alLoadOk) { console.warn('[Shield] applock save BLOCKED — never read the suite registry.'); return; }
+  _alLastOwnSaveAt = Date.now();
+  if (_alTimer) clearTimeout(_alTimer);
+  _alTimer = setTimeout(async () => {
+    try {
+      _alLastOwnSaveAt = Date.now();
+      await setDoc(AL_DOC, { locks, savedAt: Date.now() });
+      _alLastOwnSaveAt = Date.now();
+    } catch (e) { console.warn('[Shield] applock save failed:', e); }
+  }, 400);
+};
+
+onSnapshot(AL_DOC, snap => {
+  window._alLoadOk = true;
+  if (Date.now() - _alLastOwnSaveAt < 2000) return;   // our own echo
+  if (snap.exists() && window._alApplyRemoteLocks) window._alApplyRemoteLocks((snap.data() || {}).locks || {});
+}, err => console.warn('[Shield] applock snapshot err', err));
+
+authReady.then(() => {
+  window._fbReady = true;
+  window.dispatchEvent(new CustomEvent('fb-ready'));
+});
+</script>
+
+<!-- ══ APP LOCK ═════════════════════════════════════════════════════════════
+     Ported from V1/js/applock.js — the clean, host-free extraction of the
+     suite's lock — and re-widened to handle more than one lock id, the way
+     index.html:40464 does.
+
+     SECURITY MODEL, unchanged: the password is NEVER stored in the browser and
+     never reaches Firestore. It goes to the taskhub-reminders Worker, which
+     keeps only a PBKDF2-SHA256 hash (100k iterations, random 16-byte salt) in
+     KV. Firestore holds only WHICH lock is on and at what version, so a new
+     device knows to prompt.
+
+     Shield adds ONE thing to the original: a local PBKDF2 verifier, written
+     alongside the Worker record, used only when the Worker is unreachable.
+     Without it an internet outage during Emergency Mode would be a lockout.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script>
+window.AL = (function(){
+'use strict';
+
+var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
+var AL_JOURNAL = 'applock';
+// Per-profile recovery routing, mirroring index.html:40471-40472.
+var AL_EMAIL = { tony:'anthonypn99@gmail.com', veda:'vedaapatel1605@gmail.com' };
+var AL_FORM  = { tony:'https://formspree.io/f/xeedkebo', veda:'https://formspree.io/f/xzdlwaqg' };
+var AL_LABELS = {
+  tony_shield: { label:'Shield', profile:'tony', accent:'#e0b874' },
+  veda_shield: { label:'Shield', profile:'veda', accent:'#8D769A' }
+};
+
+function I(b){ return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+b+'</svg>'; }
+var ICON = {
+  lock:   I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+  unlock: I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'),
+  key:    I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/>'),
+  shield: I('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>'),
+  user:   I('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+  trash:  I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')
+};
+
+/* ── Lock state ───────────────────────────────────────────────────────────
+   _locks holds the WHOLE suite registry (every app's lock), not just Shield's.
+   Shield mutates only its own ids, but it must carry the rest untouched or a
+   save would erase every other app's lock. */
+var _locks = {};
+try { _locks = JSON.parse(localStorage.getItem('al_locks')||'{}'); } catch(e){}
+var _pendingPush = false;
+
+function saveLocks(){
+  try { localStorage.setItem('al_locks', JSON.stringify(_locks)); } catch(e){}
+  if (window._fbSaveAppLocks) { window._fbSaveAppLocks(_locks); _pendingPush = false; }
+  else _pendingPush = true;
+}
+function isLocked(id){ return !!(_locks[id] && _locks[id].locked); }
+function lockVersion(id){ var e=_locks[id]; return (e && e.v) || 0; }
+function setLock(id, v){ _locks[id] = { locked:true, v: v || Date.now() }; saveLocks(); }
+function removeLock(id){ delete _locks[id]; saveLocks(); }
+function allLockIds(){ return Object.keys(_locks); }
+
+/* ── Per-device unlock ────────────────────────────────────────────────────
+   Records the lock VERSION this device unlocked at and compares MONOTONICALLY
+   (unlocked-at >= current), which is index.html's fixed behaviour rather than
+   MyList's exact-match variant. The version replicates through Firestore, so a
+   device can briefly observe a stale, missing or zero version (a cached
+   snapshot before the server one lands, a legacy record with no v, an offline
+   start). Exact matching treated every one of those as "password changed →
+   prompt again". Monotonic treats them as "not newer than what I already
+   unlocked" and stays open; only a real password change, which stamps a
+   strictly greater Date.now(), locks this device out again.
+
+   Keys are the suite-standard al_unlockedat_* so an unlock done in index.html
+   and one done here mean the same thing on the same device. */
+var _unlockedMem = {};
+function readUnlockAt(id){
+  var best = -1;
+  function read(store, key){
+    try {
+      var raw = store.getItem(key);
+      if (raw === null) return;
+      var n = parseInt(String(raw).charAt(0)==='v' ? String(raw).slice(1) : raw, 10);
+      if (!isNaN(n) && n > best) best = n;
+    } catch(e){}
+  }
+  if (_unlockedMem[id] !== undefined) best = _unlockedMem[id];
+  read(localStorage, 'al_unlockedat_'+id);
+  read(localStorage, 'al_unlockedv_'+id);
+  try { if (localStorage.getItem('al_unlocked_'+id)==='1' && best < 0) best = 0; } catch(e){}
+  read(sessionStorage, 'al_unlockedat_'+id);
+  return best;
+}
+function isUnlocked(id){
+  if (!isLocked(id)) return true;
+  var at = readUnlockAt(id);
+  if (at < 0) return false;
+  return at >= lockVersion(id);
+}
+function markUnlocked(id){
+  var v = lockVersion(id);
+  var prev = readUnlockAt(id);
+  if (prev > v) v = prev;
+  _unlockedMem[id] = v;
+  try { localStorage.setItem('al_unlockedat_'+id, String(v)); } catch(e){}
+  try { sessionStorage.setItem('al_unlockedat_'+id, String(v)); } catch(e){}
+  try { localStorage.setItem('al_unlockedv_'+id, 'v'+v); } catch(e){}
+}
+function markLocked(id){
+  delete _unlockedMem[id];
+  try { localStorage.removeItem('al_unlockedat_'+id); localStorage.removeItem('al_unlockedv_'+id); localStorage.removeItem('al_unlocked_'+id); } catch(e){}
+  try { sessionStorage.removeItem('al_unlockedat_'+id); } catch(e){}
+}
+function mustBlock(id){ return isLocked(id) && !isUnlocked(id); }
+
+/* ── Worker API ───────────────────────────────────────────────────────────── */
+function api(id, path, body){
+  return fetch(AL_WORKER + path, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(Object.assign({ journal:AL_JOURNAL, entryId:id }, body||{}))
+  }).then(function(r){ return r.json(); });
+}
+
+/* ── Offline verifier ─────────────────────────────────────────────────────
+   Written alongside every successful Worker set/change, read ONLY when the
+   Worker cannot be reached. Same PBKDF2-SHA256 / 100k / random-16-byte-salt
+   shape as the KV record. This does put a brute-forceable verifier on disk —
+   but anyone with disk access can already stop Shield's agent, so it does not
+   widen the real attack surface, and without it a dead connection during
+   Emergency Mode would be an unbreakable lockout. */
+var PBKDF2_ITER = 100000;
+function b64(buf){ var b=new Uint8Array(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
+function unb64(str){ var bin=atob(str), b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b; }
+async function pbkdf2(pw, salt, iter){
+  var key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
+  var bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt:salt, iterations:iter, hash:'SHA-256' }, key, 256);
+  return b64(bits);
+}
+async function writeOffline(id, pw){
+  try {
+    var salt = crypto.getRandomValues(new Uint8Array(16));
+    var hash = await pbkdf2(pw, salt, PBKDF2_ITER);
+    localStorage.setItem('sh_offline_'+id, JSON.stringify({ hash:hash, salt:b64(salt), iter:PBKDF2_ITER }));
+  } catch(e){ console.warn('[Shield] offline verifier not written', e); }
+}
+function clearOffline(id){ try { localStorage.removeItem('sh_offline_'+id); } catch(e){} }
+async function verifyOffline(id, pw){
+  var rec = null;
+  try { rec = JSON.parse(localStorage.getItem('sh_offline_'+id)||'null'); } catch(e){}
+  if (!rec || !rec.hash) return { ok:false, error:'norecord' };
+  try {
+    var got = await pbkdf2(pw, unb64(rec.salt), rec.iter || PBKDF2_ITER);
+    // Constant-time-ish compare: always walk the whole string.
+    var a = got, b = rec.hash, diff = a.length ^ b.length;
+    for (var i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i)||0) ^ (b.charCodeAt(i)||0);
+    return { ok: diff === 0, offline:true };
+  } catch(e){ return { ok:false, error:'crypto' }; }
+}
+
+/* Live verification used by every security-critical action (disabling
+   Emergency Mode especially). It deliberately IGNORES the per-device unlock
+   marker: "this device already opened Shield once" must never be enough to
+   lift a lockdown. */
+async function verifyNow(id, pw){
+  try {
+    var d = await api(id, '/auth/journal/verify', { password: pw });
+    if (d && d.noLock) return { ok:true, noLock:true };
+    return { ok: !!(d && d.ok) };
+  } catch(e){
+    var off = await verifyOffline(id, pw);
+    if (off.error === 'norecord') return { ok:false, offlineUnavailable:true };
+    return off;
+  }
+}
+
+/* ── Overlay ──────────────────────────────────────────────────────────────── */
+function el(id){ return document.getElementById(id); }
+var _mode='unlock', _id=null, _cb=null, _onCancel=null, _removeBio=false;
+var _attempts={}, _cooldown={};
+
+function meta(id){ return AL_LABELS[id] || { label:'Shield', profile:'tony', accent:'#e0b874' }; }
+
+function showOverlay(id, mode, cb, onCancel){
+  _id=id; _mode=mode; _cb=cb||null; _onCancel=onCancel||null; _removeBio=false;
+  var m = meta(id);
+  el('applock-err').textContent='';
+  el('applock-pw').value='';
+  el('applock-pw').classList.remove('error');
+  el('applock-title').textContent = m.label;
+  el('applock-submit').style.display='';
+  el('applock-pw').style.display='';
+  var old = el('al-menu-btns'); if (old) old.remove();
+
+  if (mode==='setpw'){
+    el('applock-icon').innerHTML = ICON.shield;
+    el('applock-sub').textContent = 'Choose a password. Unlock once per device.';
+    el('applock-submit').textContent = 'Set Password';
+  } else if (mode==='remove'){
+    el('applock-icon').innerHTML = ICON.unlock;
+    el('applock-sub').textContent = 'Enter password to remove the lock.';
+    el('applock-submit').textContent = 'Remove Lock';
+  } else if (mode==='changepw'){
+    el('applock-icon').innerHTML = ICON.key;
+    el('applock-sub').textContent = 'Enter your current password first.';
+    el('applock-submit').textContent = 'Verify & Continue';
+  } else {
+    el('applock-icon').innerHTML = ICON.lock;
+    el('applock-sub').textContent = 'Enter your password to open Shield.';
+    el('applock-submit').textContent = 'Unlock';
+  }
+  var links = (mode!=='setpw');
+  el('applock-forgot').style.display = links ? '' : 'none';
+  el('applock-reset').style.display  = links ? '' : 'none';
+  // Cancel is meaningless on a genuine access gate — hiding it stops anyone
+  // dismissing their way in. It stays for management flows.
+  el('applock-cancel').style.display = (mode==='unlock' && mustBlock(id)) ? 'none' : '';
+
+  el('applock-overlay').style.display='flex';
+  setTimeout(function(){ try{ el('applock-pw').focus(); }catch(e){} }, 80);
+  renderBio();
+}
+function hideOverlay(){
+  el('applock-overlay').style.display='none';
+  var m = el('al-menu-btns'); if (m) m.remove();
+  var bio = el('applock-bio'); if (bio){ bio.innerHTML=''; bio.style.display='none'; }
+  _removeBio=false;
+}
+function pwErr(msg){
+  el('applock-err').textContent = msg;
+  el('applock-pw').classList.add('error');
+  var box = el('applock-box');
+  box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+  setTimeout(function(){ box.classList.remove('shake'); }, 500);
+}
+function bump(id){ _attempts[id]=(_attempts[id]||0)+1; if (_attempts[id]>=5) _cooldown[id]=Date.now()+30000; }
+
+/* ── Biometrics wiring ────────────────────────────────────────────────────── */
+function showPwFields(show){
+  el('applock-pw').style.display = show?'':'none';
+  el('applock-submit').style.display = show?'':'none';
+}
+function renderBio(){
+  var box = el('applock-bio'); if (!box) return;
+  box.innerHTML=''; box.style.display='none';
+  if (_mode!=='unlock') return;
+  var id=_id;
+  window.Bio.available().then(function(avail){
+    if (_mode!=='unlock' || _id!==id) return;
+    if (!(avail && window.Bio.isRegistered('shield', id))) return;
+    box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
+    var b=document.createElement('button');
+    b.innerHTML = ICON.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
+    b.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--acl);background:transparent;color:var(--ac);border-radius:var(--radius-sm);padding:12px 0;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);width:100%;';
+    b.onclick = bioUnlock;
+    box.appendChild(b);
+    // Password stays visible alongside — biometrics run only on this button, so
+    // both routes are available at all times.
+    showPwFields(true);
+  });
+}
+function bioUnlock(){
+  el('applock-err').textContent='';
+  window.Bio.authenticate('shield', _id).then(function(r){
+    if (r.ok){
+      if (_removeBio){ doRemoveBio(); return; }
+      markUnlocked(_id); _attempts[_id]=0;
+      var cb=_cb; hideOverlay(); if (cb) cb();
+      if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
+    } else if (r.error==='notregistered'){ showPwFields(true); }
+    else { el('applock-err').textContent='Biometric check failed — use your password.'; showPwFields(true); }
+  });
+}
+function bioRemovePrompt(id){
+  showOverlay(id, 'unlock');
+  _removeBio = true;   // showOverlay resets it; re-set after
+  el('applock-icon').innerHTML = ICON.user;
+  el('applock-sub').textContent = 'Verify to remove biometrics from this device.';
+}
+function doRemoveBio(){
+  _removeBio=false;
+  window.Bio.unregister('shield', _id);
+  hideOverlay();
+  window.uiAlert('Biometrics removed from this device.');
+  if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
+}
+function bioRegister(id, closeAfter){
+  window.Bio.register('shield', id, { rpName:'Shield', label:'Shield' }).then(function(r){
+    if (r.ok){
+      markUnlocked(id); if (closeAfter) hideOverlay();
+      window.uiAlert('Biometrics registered. You can now unlock Shield with '+window.Bio.label()+' on this device.');
+      if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
+    } else if (r.error==='cancelled' || r.error==='NotAllowedError'){ /* backed out */ }
+    else window.uiAlert('Could not register biometrics on this device.');
+  });
+}
+function maybeOfferBio(id){
+  window.Bio.available().then(function(avail){
+    if (!avail || window.Bio.isRegistered('shield', id)) return;
+    window.uiConfirm('Register '+window.Bio.label()+' to unlock Shield on this device? Your password still works as a fallback.',
+      { title:'Register '+window.Bio.label(), okLabel:'Register' }).then(function(ok){ if (ok) bioRegister(id, false); });
+  });
+}
+
+/* ── Manage menu ──────────────────────────────────────────────────────────── */
+function manage(id){
+  if (isLocked(id)) showManageMenu(id);
+  else showOverlay(id, 'setpw', function(){ if (window.SH && window.SH.onLockChange) window.SH.onLockChange(); });
+}
+function showManageMenu(id){
+  _id = id;
+  var unlocked = isUnlocked(id), m = meta(id);
+  el('applock-err').textContent='';
+  var mb=el('applock-bio'); if (mb){ mb.innerHTML=''; mb.style.display='none'; }
+  el('applock-pw').value=''; el('applock-pw').classList.remove('error');
+  el('applock-pw').style.display='none';
+  el('applock-icon').innerHTML = ICON.lock;
+  el('applock-title').textContent = m.label;
+  el('applock-submit').style.display='none';
+  el('applock-forgot').style.display='none';
+  el('applock-reset').style.display='none';
+  el('applock-cancel').style.display = unlocked?'':'none';
+  el('applock-sub').textContent = unlocked ? 'Shield is locked. Manage:' : 'Shield is locked. Choose:';
+
+  var old=el('al-menu-btns'); if (old) old.remove();
+  var menu=document.createElement('div'); menu.id='al-menu-btns';
+  menu.style.cssText='display:flex;flex-direction:column;gap:8px;width:100%;';
+  var s='display:flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--radius-sm);padding:11px 0;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--sans);width:100%;background:transparent;';
+
+  if (!unlocked){
+    var ub=document.createElement('button');
+    ub.innerHTML=ICON.unlock+'<span>Unlock</span>';
+    ub.style.cssText=s+'border:1px solid var(--acl);color:var(--ac);';
+    ub.onclick=function(){ menu.remove(); showOverlay(id,'unlock', function(){ if (window.SH && window.SH.onLockChange) window.SH.onLockChange(); }); };
+    menu.appendChild(ub);
+  }
+
+  var cb=document.createElement('button');
+  cb.innerHTML=ICON.key+'<span>Change password</span>';
+  cb.style.cssText=s+'border:1px solid var(--bdl);color:var(--tx);';
+  cb.onclick=function(){ menu.remove(); showOverlay(id,'changepw',null); };
+  menu.appendChild(cb);
+
+  window.Bio.available().then(function(avail){
+    if (!avail) return;
+    var bb=document.createElement('button');
+    if (window.Bio.isRegistered('shield', id)){
+      bb.innerHTML=ICON.user+'<span>Remove biometrics</span>';
+      bb.style.cssText=s+'border:1px solid var(--bdl);color:var(--txd);';
+      bb.onclick=function(){ menu.remove(); bioRemovePrompt(id); };
+    } else {
+      bb.innerHTML=ICON.user+'<span>Register '+window.Bio.label()+'</span>';
+      bb.style.cssText=s+'border:1px solid var(--bdl);color:var(--tx);';
+      bb.onclick=function(){ menu.remove(); bioRegister(id, true); };
+    }
+    menu.insertBefore(bb, cb);
+  });
+
+  var lb=document.createElement('button');
+  lb.innerHTML=ICON.lock+'<span>Lock this device</span>';
+  lb.style.cssText=s+'border:1px solid var(--bdl);color:var(--txd);';
+  lb.onclick=function(){ menu.remove(); markLocked(id); hideOverlay(); if (window.SH && window.SH.onDeviceRelock) window.SH.onDeviceRelock(); };
+  menu.appendChild(lb);
+
+  var rb=document.createElement('button');
+  rb.innerHTML=ICON.trash+'<span>Remove lock</span>';
+  rb.style.cssText=s+'border:1px solid var(--errl);color:var(--err);';
+  rb.onclick=function(){ menu.remove(); showOverlay(id,'remove', function(){ if (window.SH && window.SH.onLockChange) window.SH.onLockChange(); }); };
+  menu.appendChild(rb);
+
+  el('applock-form').appendChild(menu);
+  el('applock-overlay').style.display='flex';
+}
+
+/* ── Reset by emailed code ────────────────────────────────────────────────── */
+async function resetFlow(id){
+  var m = meta(id);
+  var form = AL_FORM[m.profile] || AL_FORM.tony;
+  var email = AL_EMAIL[m.profile] || AL_EMAIL.tony;
+  function post(path, obj){
+    return fetch(AL_WORKER+path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(obj) })
+      .then(function(r){ return r.json(); });
+  }
+  var reqBody = { journal:AL_JOURNAL, entryId:id };
+  var rq;
+  try { rq = await post('/auth/reset/request', reqBody); }
+  catch(e){ await window.uiAlert('Network error while starting the reset. Check your connection and try again.'); return; }
+  if (rq && rq.noLock){ await window.uiAlert('There is no password set on the server for Shield.'); return; }
+  if (!rq || !rq.ok || !rq.code){ await window.uiAlert('Could not start the reset. Please try again.'); return; }
+
+  var emailed=false;
+  try {
+    var fp = await fetch(form, {
+      method:'POST', headers:{'Content-Type':'application/json', Accept:'application/json'},
+      body: JSON.stringify({
+        email: email,
+        subject: 'Shield — Password Reset Code',
+        message: 'Your password reset code for Shield is:\n\n    '+rq.code
+          +'\n\nEnter this code in Shield to set a new password. It expires in 15 minutes.'
+          +'\nIf you did not request this, you can ignore this email.\n\n— Shield'
+      })
+    });
+    emailed = fp.ok;
+  } catch(e){ emailed=false; }
+  if (!emailed){ await window.uiAlert('Could not send the reset email. Please try again in a moment.'); return; }
+
+  var vals = await window.uiForm({
+    title:'Reset password',
+    message:'A 6-character code was emailed to '+email+'. Enter it below (check spam if it does not arrive within a minute), then choose a new password.',
+    okLabel:'Reset password',
+    fields:[
+      { name:'code', label:'Security code from email', placeholder:'6-character code', autocap:false, required:true },
+      { name:'password', label:'New password', type:'password', required:true },
+      { name:'hint', label:'New password hint (optional)' }
+    ]
+  });
+  if (!vals) return;
+  var code=String(vals.code||'').trim(), np=String(vals.password||'').trim();
+  if (!code){ await window.uiAlert('No code entered.'); return; }
+  if (!np){ await window.uiAlert('Password cannot be empty.'); return; }
+
+  var cf;
+  try { cf = await post('/auth/reset/confirm', Object.assign({ code:code, password:np, hint:vals.hint||'' }, reqBody)); }
+  catch(e){ await window.uiAlert('Network error while confirming the reset. Please try again.'); return; }
+
+  if (cf && cf.ok){
+    setLock(id); markUnlocked(id); await writeOffline(id, np);
+    hideOverlay();
+    if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
+    await window.uiAlert('Password reset. It now syncs to all your devices — this one is unlocked, others will ask for the new password once.');
+    return;
+  }
+  if (cf && cf.error==='badcode') await window.uiAlert('That code is not correct.'+(cf.remaining!=null?(' '+cf.remaining+' attempt(s) left before it expires.'):''));
+  else if (cf && cf.error==='expired') await window.uiAlert('That code has expired or was already used. Start the reset again for a fresh code.');
+  else if (cf && cf.error==='locked') await window.uiAlert('Too many incorrect attempts. Start the reset again for a fresh code.');
+  else await window.uiAlert('Reset failed. Please try again.');
+}
+
+/* ── Wiring ───────────────────────────────────────────────────────────────── */
+function wire(){
+  el('applock-submit').addEventListener('click', async function(){
+    var id=_id, pw=el('applock-pw').value.trim();
+    if (!pw){ el('applock-pw').classList.add('error'); el('applock-err').textContent='Password required.'; return; }
+    if ((_attempts[id]||0) >= 5){
+      var wait = Math.ceil(((_cooldown[id]||0) - Date.now())/1000);
+      if (wait > 0){ el('applock-err').textContent='Too many attempts. Wait '+wait+'s.'; return; }
+      _attempts[id]=0;
+    }
+    var btn = el('applock-submit');
+    btn.disabled=true; btn.textContent='Checking…';
+    try {
+      if (_mode==='setpw'){
+        var hint = (await window.uiPrompt('Optional: a password hint for the recovery email. Leave blank to skip.', { title:'Password hint' })) || '';
+        var d1 = await api(id, '/auth/journal/set-lock', { password:pw, hint:hint });
+        if (d1.ok){
+          setLock(id); markUnlocked(id); await writeOffline(id, pw);
+          hideOverlay();
+          if (_cb) _cb();
+          maybeOfferBio(id);
+        } else el('applock-err').textContent='Failed to set lock. Try again.';
+
+      } else if (_mode==='remove'){
+        var d2 = await api(id, '/auth/journal/remove-lock', { password:pw });
+        if (d2.ok){ removeLock(id); markLocked(id); clearOffline(id); hideOverlay(); if (_cb) _cb(); }
+        else { bump(id); pwErr('Wrong password.'); }
+
+      } else if (_mode==='changepw'){
+        var d3 = await api(id, '/auth/journal/verify', { password:pw });
+        if (d3.ok){
+          var chg = await window.uiForm({
+            title:'Change password', okLabel:'Change password',
+            fields:[
+              { name:'password', label:'New password', type:'password', required:true },
+              { name:'hint', label:'New password hint (optional)' }
+            ]
+          });
+          var np = chg ? String(chg.password||'').trim() : '';
+          if (!np){ el('applock-err').textContent='New password empty — not changed.'; }
+          else {
+            // Remove-then-set, so a failure at either step leaves a coherent
+            // state rather than two live records.
+            var rem = await api(id, '/auth/journal/remove-lock', { password:pw });
+            if (rem.ok){
+              var set = await api(id, '/auth/journal/set-lock', { password:np, hint:(chg.hint||'') });
+              if (set.ok){
+                setLock(id); markUnlocked(id); await writeOffline(id, np);   // fresh version → other devices re-enter once
+                hideOverlay();
+                if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
+                await window.uiAlert('Password changed. Other devices will ask for the new password once.');
+              } else el('applock-err').textContent='Failed to set the new password.';
+            } else el('applock-err').textContent='Error removing the old lock. Try again.';
+          }
+        } else { bump(id); pwErr('Wrong password.'); }
+
+      } else {
+        var d4 = await verifyNow(id, pw);
+        if (d4.ok){
+          _attempts[id]=0;
+          if (_removeBio) doRemoveBio();
+          else {
+            markUnlocked(id);
+            var cb2=_cb; hideOverlay(); if (cb2) cb2();
+            if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
+          }
+        } else if (d4.offlineUnavailable){
+          el('applock-err').textContent='Offline, and no local verifier on this device.';
+        } else { bump(id); pwErr('Wrong password.'); }
+      }
+    } catch(e){
+      el('applock-err').textContent='Network error. Try again.';
+    }
+    btn.disabled=false;
+    btn.textContent = { setpw:'Set Password', remove:'Remove Lock', changepw:'Verify & Continue' }[_mode] || 'Unlock';
+  });
+
+  el('applock-pw').addEventListener('keydown', function(e){
+    if (e.key==='Enter') el('applock-submit').click();
+    if (e.key==='Escape'){ el('applock-err').textContent=''; el('applock-pw').classList.remove('error'); }
+  });
+
+  el('applock-cancel').addEventListener('click', function(){
+    var m=el('al-menu-btns'); if (m) m.remove();
+    el('applock-submit').style.display='';
+    el('applock-pw').style.display='';
+    if (_mode==='unlock' && mustBlock(_id)) return;   // never dismissible while genuinely gated
+    hideOverlay();
+    if (_onCancel) _onCancel();
+  });
+
+  el('applock-forgot').addEventListener('click', async function(){
+    var btn=el('applock-forgot'), id=_id, m=meta(id);
+    var form = AL_FORM[m.profile] || AL_FORM.tony, email = AL_EMAIL[m.profile] || AL_EMAIL.tony;
+    btn.textContent='Sending…'; btn.disabled=true;
+    try {
+      var hd = await api(id, '/auth/journal/hint', {});
+      if (hd.noLock){
+        el('applock-err').textContent='No lock on the server. Try re-locking.';
+        btn.disabled=false; btn.textContent='Forgot password?'; return;
+      }
+      var fp = await fetch(form, {
+        method:'POST', headers:{'Content-Type':'application/json', Accept:'application/json'},
+        body: JSON.stringify({ email:email, subject:'Shield — Password Hint',
+          message:'Hint for "Shield":\n\n'+(hd.hint||'(none set)')+'\n\n— Shield' })
+      });
+      if (fp.ok){ btn.textContent='Hint sent!'; setTimeout(function(){ btn.textContent='Forgot password?'; btn.disabled=false; }, 3000); }
+      else { btn.textContent='Failed — try again'; btn.disabled=false; }
+    } catch(e){ btn.textContent='Failed — try again'; btn.disabled=false; }
+  });
+
+  el('applock-reset').addEventListener('click', async function(){
+    var btn=el('applock-reset'), prev=btn.textContent;
+    btn.textContent='Sending code…'; btn.disabled=true;
+    await resetFlow(_id);
+    btn.textContent=prev; btn.disabled=false;
+  });
+}
+
+/* Remote lock changes pushed from another device. */
+window._alApplyRemoteLocks = function(remote){
+  remote = remote || {};
+  // Nothing here erases this device's unlock marker. Re-locking is decided by
+  // isUnlocked()'s monotonic comparison against the version below: a genuinely
+  // NEWER version (password changed elsewhere) locks this device out, an
+  // older/equal/absent one leaves it open. Markers are only ever removed by an
+  // explicit user action.
+  _locks = {};
+  Object.keys(remote).forEach(function(id){
+    var e = remote[id];
+    _locks[id] = (e && typeof e === 'object') ? { locked: !!e.locked, v: e.v || 0 } : { locked: !!e, v: 0 };
+  });
+  try { localStorage.setItem('al_locks', JSON.stringify(_locks)); } catch(e){}
+  if (window.SH && window.SH.onRemoteLocks) window.SH.onRemoteLocks();
+};
+
+function flushPending(){
+  if (_pendingPush && window._fbSaveAppLocks){ window._fbSaveAppLocks(_locks); _pendingPush=false; }
+  if (!window._fbLoadAppLocks) return;
+  window._fbLoadAppLocks().then(function(remote){ if (remote) window._alApplyRemoteLocks(remote); }).catch(function(){});
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
+else wire();
+if (window._fbReady) flushPending();
+else window.addEventListener('fb-ready', flushPending, { once:true });
+
+/* Gate helper: run cb if this lock is open on this device, otherwise prompt. */
+function gate(id, cb, onCancel){
+  if (!mustBlock(id)) { cb(); return; }
+  showOverlay(id, 'unlock', cb, onCancel);
+}
+
+return {
+  isLocked:isLocked, isUnlocked:isUnlocked, mustBlock:mustBlock,
+  markLocked:markLocked, markUnlocked:markUnlocked,
+  allLockIds:allLockIds, lockVersion:lockVersion,
+  gate:gate, manage:manage, verifyNow:verifyNow,
+  hasOffline:function(id){ try{ return !!localStorage.getItem('sh_offline_'+id); }catch(e){ return false; } },
+  ICON:ICON
+};
+})();
+</script>
+
+<!-- ══ SHIELD ═══════════════════════════════════════════════════════════════ -->
+<script>
+window.SH = (function(){
+'use strict';
+
+/* ── Constants ────────────────────────────────────────────────────────────── */
+var HEARTBEAT_MS   = 15 * 60 * 1000;   // how often a foreground device stamps lastSeen
+var ONLINE_WINDOW  = 20 * 60 * 1000;   // lastSeen fresher than this reads as "active"
+var SAVE_DEBOUNCE  = 1200;
+var HOLD_MS        = 800;
+var HIST_LOCAL_MAX = 25;               // full entries kept on this device
+var HIST_SYNC_MAX  = 10;               // trimmed entries mirrored to Firestore
+
+// Every A1 lock id, per profile — mirrors AL_LABELS in index.html:40473. Used
+// by the "lock A1 apps" emergency action, which clears THIS device's unlock
+// markers for the profile. That is a purely local operation: no version bump,
+// so no other device is disturbed and nothing needs a password reset after.
+var A1_IDS = {
+  tony: ['profile_tony','tony_taskhub','tony_tradehub','tony_solace','tony_keychain',
+         'tony_myjournal','tony_proview','tony_warroom','tony_shield'],
+  veda: ['profile_veda','veda_taskhub','veda_gita','veda_journal','veda_links','veda_shield']
+};
+
+/* ── State ────────────────────────────────────────────────────────────────── */
+var S = {
+  profile: null,
+  devId: null,
+  doc: null,        // latest snapshot of dashboards/shield_<profile>
+  view: 'home',
+  tab: 'closer',
+  viewDev: null,    // device id being VIEWED (null = this device, editable)
+  unsub: null,
+  saveTimer: null,
+  hbTimer: null,
+  report: null,     // last enforcement result, shown on the emergency screen
+  busy: false
+};
+
+/* ── Small helpers ────────────────────────────────────────────────────────── */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function uid(){ return Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-4); }
+function now(){ return Date.now(); }
+function lsGet(k, d){ try { var v=localStorage.getItem(k); return v===null?d:v; } catch(e){ return d; } }
+function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
+function jGet(k, d){ try { return JSON.parse(localStorage.getItem(k)||'null') || d; } catch(e){ return d; } }
+function jSet(k,v){ lsSet(k, JSON.stringify(v)); }
+
+function toast(msg, bad){
+  var t=$('toast'); t.textContent=msg; t.className = bad?'show bad':'show';
+  clearTimeout(t._t); t._t = setTimeout(function(){ t.className=''; }, bad?4200:2600);
+}
+function ago(ts){
+  if (!ts) return 'never';
+  var d = now()-ts;
+  if (d < 60000) return 'just now';
+  if (d < 3600000) return Math.floor(d/60000)+'m ago';
+  if (d < 86400000) return Math.floor(d/3600000)+'h ago';
+  return Math.floor(d/86400000)+'d ago';
+}
+function clock(ts){
+  if (!ts) return '—';
+  try { return new Date(ts).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' }); }
+  catch(e){ return '—'; }
+}
+
+/* ── Device identity ──────────────────────────────────────────────────────
+   The id is an IDENTIFIER, not a credential — it is client-generated and
+   freely forgeable. What actually authorises a device is the profile passcode
+   it had to clear to get here (and, from Phase 4, the anon uid the Worker adds
+   to shieldOwners). Shape matches getDeviceId() in index.html:14626. */
+function deviceId(){
+  var v = lsGet('sh_device_id', '');
+  if (!v){ v = 'dev_' + Math.random().toString(36).slice(2,8) + Date.now().toString(36); lsSet('sh_device_id', v); }
+  return v;
+}
+function platform(){
+  var ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  if (/Windows/.test(ua)) return 'windows';
+  if (/Mac OS X/.test(ua)) return 'mac';
+  return 'browser';
+}
+function platLabel(p){
+  return { windows:'Windows', ios:'iOS', android:'Android', mac:'macOS', browser:'Browser' }[p] || p || '—';
+}
+function deviceType(){
+  var ua = navigator.userAgent || '';
+  if (/iPad|Tablet/.test(ua)) return 'tablet';
+  if (/iPhone|Android.*Mobile|Mobile/.test(ua)) return 'phone';
+  return 'desktop';
+}
+function defaultName(){
+  var t = deviceType(), p = platform();
+  if (t==='phone') return p==='ios' ? 'iPhone' : 'Phone';
+  if (t==='tablet') return p==='ios' ? 'iPad' : 'Tablet';
+  return p==='windows' ? 'PC' : (p==='mac' ? 'Mac' : 'Desktop');
+}
+
+/* ── Agent bridge ─────────────────────────────────────────────────────────
+   Phase 2 ships the Tauri tray agent; this is the seam it plugs into. Until
+   it exists, every enforcement call fails honestly and the UI says so. A page
+   cannot terminate, hide or block an operating-system application — there is
+   no browser API for it, and pretending otherwise would be fake security. */
+var Agent = (function(){
+  function core(){
+    var T = window.__TAURI__;
+    if (!T) return null;
+    return T.core || T.tauri || null;
+  }
+  function present(){ var c=core(); return !!(c && c.invoke); }
+  function invoke(cmd, args){
+    var c = core();
+    if (!c || !c.invoke) return Promise.reject(new Error('no-agent'));
+    return c.invoke(cmd, args || {});
+  }
+  return { present:present, invoke:invoke };
+})();
+
+/* Capabilities are PROBED, never hardcoded, so an OS update that breaks a
+   mechanism shows up as "unavailable" rather than as a silent failure. */
+function caps(){
+  var agent = Agent.present();
+  return {
+    agent: agent,
+    kill: agent,
+    watchdog: agent,
+    hideIcons: agent,
+    lockWorkstation: agent,
+    tray: agent,
+    a1lock: true,          // always available: it is this device's own state
+    remoteWhileClosed: agent
+  };
+}
+
+/* ── Emergency state, local half ──────────────────────────────────────────
+   Kept in localStorage so a reload — or a phone restart — comes straight back
+   into the locked screen before any network is available. */
+function emgKey(){ return 'sh_emg_' + S.profile; }
+function localEmg(){ return jGet(emgKey(), { active:false, at:0, source:'local', v:0 }); }
+function setLocalEmg(o){ jSet(emgKey(), o); }
+
+function globalState(){ return (S.doc && S.doc.global) || { active:false, v:0 }; }
+function myDev(){ return (S.doc && S.doc.devices && S.doc.devices[S.devId]) || null; }
+
+/* A device may step out of a GLOBAL emergency on its own (passcode required)
+   without lifting it for everyone. It records the global version it opted out
+   of; a newer global command re-arms it. */
+function optedOut(){
+  var d = myDev(), g = globalState();
+  return !!(d && d.optOutV && g.v && d.optOutV >= g.v);
+}
+function globalOn(){ return !!globalState().active; }
+function emgOn(){ return localEmg().active || (globalOn() && !optedOut()); }
+function emgSource(){
+  if (globalOn() && !optedOut()) return 'global';
+  return localEmg().active ? 'local' : null;
+}
+
+/* ── Config accessors ─────────────────────────────────────────────────────── */
+function devRec(id){ return (S.doc && S.doc.devices && S.doc.devices[id]) || null; }
+function activeDevId(){ return S.viewDev || S.devId; }
+function isReadOnly(){ return !!(S.viewDev && S.viewDev !== S.devId); }
+function cfgCloser(id){ var d=devRec(id); return (d && d.closer) || { targets:[] }; }
+function cfgEmg(id){
+  var d=devRec(id);
+  return (d && d.emergency) || { targets:[], lockWorkstation:false, watchdog:true, lockA1Apps:true };
+}
+
+/* ── Persistence ──────────────────────────────────────────────────────────
+   Every write is FIELD-SCOPED (dotted paths), never a whole-document setDoc.
+   Multiple devices share this document, so a whole-doc write would silently
+   drop whatever another device saved in between. This is a deliberate
+   divergence from MyList's whole-doc pattern, and it removes the lost-update
+   problem rather than guarding against it. */
+function syncState(s){
+  var e=$('sync'); if (!e) return;
+  e.className = 'sync' + (s==='ok'?' ok':(s==='err'?' err':''));
+  e.textContent = s==='saving' ? 'Saving…' : (s==='ok' ? 'Synced' : (s==='err' ? 'Sync failed' : '·'));
+}
+/* Pending writes MERGE rather than replace. Restarting the debounce timer and
+   letting the newer call's payload win would silently drop the older one — add
+   a target, immediately toggle an option, and the target is gone — and would
+   leave the first caller's promise pending forever. Everything queued between
+   flushes is coalesced into a single field-scoped update instead, which is also
+   one write instead of two. */
+var _pendFlat = null, _pendWaiters = [];
+function flushWrite(){
+  var flat = _pendFlat, waiters = _pendWaiters;
+  _pendFlat = null; _pendWaiters = [];
+  if (!flat) return;
+  var settle = function(err){
+    syncState(err ? 'err' : 'ok');
+    if (err) console.warn('[Shield] write failed', err);
+    waiters.forEach(function(w){ err ? w.rej(err) : w.res(); });
+  };
+  if (!window._shUpdate){ settle(new Error('no-firebase')); return; }
+  try { window._shUpdate(S.profile, flat).then(function(){ settle(null); }, settle); }
+  catch (e){ settle(e); }
+}
+function write(flat, immediate){
+  flat.savedAt = now();
+  syncState('saving');
+  _pendFlat = Object.assign(_pendFlat || {}, flat);
+  return new Promise(function(res, rej){
+    _pendWaiters.push({ res:res, rej:rej });
+    if (S.saveTimer){ clearTimeout(S.saveTimer); S.saveTimer = null; }
+    if (immediate) flushWrite();
+    else S.saveTimer = setTimeout(function(){ S.saveTimer = null; flushWrite(); }, SAVE_DEBOUNCE);
+  });
+}
+function writeMine(field, value, immediate){
+  var f = {}; f['devices.' + S.devId + '.' + field] = value;
+  return write(f, immediate);
+}
+
+/* ══ HISTORY ══════════════════════════════════════════════════════════════
+   Every Close Apps run and every Emergency activation records exactly what it
+   closed — and, critically, HOW TO START IT AGAIN. The agent captures each
+   process's full image path and command line BEFORE terminating it, because
+   once the process is gone there is nowhere left to read them from.
+
+   Storage is split on purpose:
+     · The full manifest (paths, command lines) stays in localStorage. Restore
+       only ever happens on the machine that did the closing — you cannot
+       relaunch a PC application from a phone — and executable paths are noise
+       on every other device, as well as the bulkiest part of the record.
+     · A trimmed summary (labels, counts, outcomes, timestamps) is mirrored
+       into the device's Firestore record so the Devices view can show what
+       another device did, without paying for the manifest.
+   That keeps the shared document small and the write cost at one write per
+   user action, which is what the whole sync budget here is built around. */
+function histKey(){ return 'sh_hist_' + S.profile + '_' + S.devId; }
+function history(){ var h = jGet(histKey(), []); return Array.isArray(h) ? h : []; }
+function histSet(list){ jSet(histKey(), list.slice(0, HIST_LOCAL_MAX)); }
+function histGet(hid){ var l = history(); for (var i=0;i<l.length;i++) if (l[i].id===hid) return l[i]; return null; }
+
+// What a history entry can still do for you. An entry is restorable only if
+// something was actually captured — "not running" targets leave nothing behind.
+function histRestorable(e){
+  if (!e || e.reverted) return false;
+  return (e.items || []).some(function(i){ return (i.launch || []).length; });
+}
+function histCounts(e){
+  var closed = 0, launch = 0;
+  (e.items || []).forEach(function(i){
+    if (i.status === 'closed') closed += (i.count || 1);
+    launch += (i.launch || []).length;
+  });
+  return { closed: closed, launch: launch };
+}
+
+function histAdd(kind, items, extra){
+  var d = myDev();
+  var e = Object.assign({
+    id: 'h_' + uid(),
+    kind: kind,                       // 'closer' | 'emergency'
+    at: now(),
+    deviceId: S.devId,
+    deviceName: (d && d.name) || defaultName(),
+    items: items || [],
+    hidden: [],                       // shortcuts moved aside, restored on revert
+    reverted: false, revertedAt: 0
+  }, extra || {});
+  var list = history(); list.unshift(e); histSet(list);
+  syncHistory();
+  return e;
+}
+function histMark(hid, patch){
+  var list = history().map(function(e){ return e.id === hid ? Object.assign({}, e, patch) : e; });
+  histSet(list);
+  syncHistory();
+}
+
+// The trimmed mirror. Deliberately drops `launch` (paths + command lines) and
+// `hidden` (filesystem locations) — neither is meaningful off-device.
+function syncHistory(){
+  var slim = history().slice(0, HIST_SYNC_MAX).map(function(e){
+    var c = histCounts(e);
+    return {
+      id: e.id, kind: e.kind, at: e.at, scope: e.scope || 'local',
+      source: e.source || 'local', reverted: !!e.reverted, revertedAt: e.revertedAt || 0,
+      closed: c.closed, restorable: c.launch,
+      items: (e.items || []).slice(0, 20).map(function(i){
+        return { label: i.label, status: i.status, count: i.count || 0 };
+      })
+    };
+  });
+  writeMine('history', slim).catch(function(){});
+}
+
+/* ── Device registration + heartbeat ─────────────────────────────────────── */
+function ensureRegistered(){
+  var d = myDev();
+  var c = caps();
+  if (!d){
+    var rec = {
+      name: defaultName(), platform: platform(), type: deviceType(),
+      ver: '1.0.0', caps: c, lastSeen: now(),
+      local: { active:false, at:0, source:'local' },
+      closer: { targets: [] },
+      emergency: { targets: [], lockWorkstation:false, watchdog:true, lockA1Apps:true },
+      optOutV: 0
+    };
+    var f = {}; f['devices.' + S.devId] = rec;
+    return write(f, true).catch(function(){});
+  }
+  // Refresh the things that legitimately change between sessions.
+  var patch = {};
+  if (JSON.stringify(d.caps||{}) !== JSON.stringify(c)) patch['devices.'+S.devId+'.caps'] = c;
+  if (d.platform !== platform()) patch['devices.'+S.devId+'.platform'] = platform();
+  if (!d.lastSeen || now() - d.lastSeen > 10*60*1000) patch['devices.'+S.devId+'.lastSeen'] = now();
+  if (Object.keys(patch).length) return write(patch, true).catch(function(){});
+  return Promise.resolve();
+}
+function heartbeat(){
+  var d = myDev();
+  if (!d) return;
+  if (d.lastSeen && now() - d.lastSeen < 10*60*1000) return;   // still fresh — don't spend a write
+  writeMine('lastSeen', now(), true).catch(function(){});
+}
+function startHeartbeat(){
+  if (S.hbTimer) clearInterval(S.hbTimer);
+  S.hbTimer = setInterval(function(){ if (!document.hidden) heartbeat(); }, HEARTBEAT_MS);
+}
+
+/* ══ ENFORCEMENT ══════════════════════════════════════════════════════════
+   Ordering matters. The instant, always-available action runs FIRST and never
+   waits on the network; Firestore is written afterwards. In an emergency the
+   thing that must not be slow is the closing, not the bookkeeping. ═════════ */
+
+function lockA1Apps(){
+  // Clears THIS device's unlock markers for every lock the profile owns that
+  // actually has a password on it. Purely local — no version bump, so no other
+  // device is disturbed and nothing needs re-setting afterwards.
+  var ids = A1_IDS[S.profile] || [], n = 0;
+  ids.forEach(function(id){ if (window.AL.isLocked(id)){ window.AL.markLocked(id); n++; } });
+  return n;
+}
+
+function targetsFor(kind, id){
+  return (kind === 'emergency' ? cfgEmg(id).targets : cfgCloser(id).targets) || [];
+}
+
+/* The agent returns one typed result per target, each carrying the launch
+   manifest it captured BEFORE terminating anything — full image path, working
+   directory and command line per process. That capture has to happen first:
+   once the process is gone, there is nothing left to read the path from, and
+   without the path there is no way to open it again. */
+function resultItems(res){
+  return ((res && res.results) || []).map(function(r){
+    return {
+      label:  r.label || r.match || 'target',
+      match:  r.match || '',
+      status: r.status || 'failed',
+      count:  r.count || 0,
+      error:  r.error || '',
+      launch: ((r.launch || []).map(function(l){
+        return { path:l.path||'', cmd:l.cmd||'', dir:l.dir||'', name:l.name||'' };
+      })).filter(function(l){ return l.path; })
+    };
+  });
+}
+
+// Anything the agent could not do is reported as such — "blocked, needs admin"
+// is a different outcome from "closed", and collapsing them would be exactly
+// the fake reassurance this app must not give.
+function reportLines(items){
+  if (!items || !items.length) return [{ kind:'skip', text:'Agent returned no results.' }];
+  return items.map(function(r){
+    if (r.status === 'closed')     return { kind:'ok',   text: r.label + ' — closed' + (r.count>1 ? ' ('+r.count+' processes)' : '') };
+    if (r.status === 'notrunning') return { kind:'skip', text: r.label + ' — not running' };
+    if (r.status === 'denied')     return { kind:'bad',  text: r.label + ' — blocked, needs admin' };
+    if (r.status === 'notfound')   return { kind:'skip', text: r.label + ' — not found on this device' };
+    if (r.status === 'launched')   return { kind:'ok',   text: r.label + ' — reopened' };
+    return { kind:'bad', text: r.label + ' — ' + (r.error || 'failed') };
+  });
+}
+
+/* Runs the local Program Closer, records what it closed, and returns a report
+   the UI can show verbatim — per-target, never a single "done" that hides a
+   failure. */
+function runCloser(){
+  var tg = targetsFor('closer', S.devId);
+  if (!tg.length) return Promise.resolve({ lines:[{ kind:'skip', text:'No Program Closer targets configured.' }] });
+  if (!caps().kill){
+    return Promise.resolve({ lines:[{ kind:'bad',
+      text:'No Shield agent on this device — a web page cannot close applications. ' + tg.length + ' target(s) untouched.' }] });
+  }
+  return Agent.invoke('sh_kill', { targets: tg })
+    .then(function(res){
+      var items = resultItems(res);
+      var entry = histAdd('closer', items, { scope:'local', source:'local' });
+      return { lines: reportLines(items), items: items, entry: entry };
+    })
+    .catch(function(e){ return { lines:[{ kind:'bad', text:'Agent did not respond: ' + (e && e.message || 'error') }] }; });
+}
+
+/* ── Revert ───────────────────────────────────────────────────────────────
+   Reopens everything a history entry closed, from the manifest captured at
+   close time. Only ever available on the device that owns the entry: the paths
+   are that machine's, and no other device can start a process on it.
+
+   Reverting an EMERGENCY entry while that emergency is still live is refused
+   rather than attempted — the watchdog would re-close each app the instant it
+   appeared, which would look like Shield failing at both jobs at once. Turn
+   Emergency Mode off first (which needs the passcode), then revert. */
+async function revert(hid){
+  var e = histGet(hid);
+  if (!e) return;
+  if (e.kind === 'emergency' && emgOn()){
+    await window.uiAlert('Emergency Mode is still active on this device. Disable it first — otherwise Shield would immediately close these applications again.',
+      { title:'Disable Emergency first' });
+    return;
+  }
+  if (!caps().kill){
+    await window.uiAlert('This device has no Shield agent, so it cannot start applications.', { title:'Cannot reopen' });
+    return;
+  }
+  var items = (e.items || []).filter(function(i){ return (i.launch || []).length; });
+  var total = items.reduce(function(n, i){ return n + i.launch.length; }, 0);
+  if (!total){ toast('Nothing recorded to reopen.'); return; }
+
+  var ok = await window.uiConfirm(
+    'Reopen ' + total + ' application' + (total===1?'':'s') + ' closed at ' + clock(e.at) + '?',
+    { title:'Reopen closed apps', okLabel:'Reopen' });
+  if (!ok) return;
+
+  S.busy = true;
+  try {
+    var lines = [];
+    // Emergency entries also stashed shortcuts away; put those back first so
+    // the desktop is whole again before anything relaunches.
+    if (e.kind === 'emergency'){
+      try { await Agent.invoke('sh_restore_icons', { entryId: e.id }); lines.push({ kind:'ok', text:'Desktop and Start-menu shortcuts restored' }); }
+      catch (err){ lines.push({ kind:'bad', text:'Could not restore shortcuts: ' + (err && err.message || 'error') }); }
+    }
+    var res = await Agent.invoke('sh_launch', { items: items });
+    lines = lines.concat(reportLines(resultItems(res)));
+    histMark(hid, { reverted:true, revertedAt: now() });
+    S.report = lines;
+    var bad = lines.filter(function(l){ return l.kind==='bad'; }).length;
+    toast(bad ? 'Reopened with ' + bad + ' problem(s).' : 'Reopened.', !!bad);
+  } catch (err){
+    S.report = [{ kind:'bad', text:'Agent did not respond: ' + (err && err.message || 'error') }];
+    toast('Could not reopen — the agent did not respond.', true);
+  } finally {
+    S.busy = false;
+    render();
+  }
+}
+
+/* Local Emergency Mode. */
+function runEmergency(source, byName){
+  var cfg = cfgEmg(S.devId);
+  var lines = [];
+
+  // 1. Instant, offline, always available.
+  if (cfg.lockA1Apps !== false){
+    var n = lockA1Apps();
+    lines.push({ kind:'ok', text: n ? (n + ' A1 app(s) re-locked on this device') : 'No A1 apps have a password set' });
+  }
+
+  // 2. Local state first, so a reload during the next step still comes back locked.
+  setLocalEmg({ active:true, at:now(), source:source, by:byName||'', v: globalState().v || 0 });
+  renderEmergency();
+
+  // 3. Agent work, if there is an agent.
+  var tg = cfg.targets || [];
+  var p, items = [], hidden = [];
+  if (!caps().kill){
+    if (tg.length) lines.push({ kind:'bad', text:'No Shield agent on this device — ' + tg.length + ' application target(s) could not be closed.' });
+    p = Promise.resolve();
+  } else {
+    p = Agent.invoke('sh_emergency_on', {
+      entryId: 'pending',            // replaced below once the history id exists
+      targets: tg,
+      hideIcons: tg.some(function(t){ return t.hideIcons; }),
+      watchdog: cfg.watchdog !== false,
+      lockWorkstation: !!cfg.lockWorkstation
+    }).then(function(res){
+      items  = resultItems(res);
+      hidden = (res && res.hidden) || [];
+      lines  = lines.concat(reportLines(items));
+      if (hidden.length) lines.push({ kind:'ok', text: hidden.length + ' shortcut(s) hidden' });
+      if (cfg.lockWorkstation) lines.push({ kind:'ok', text:'Workstation locked' });
+    }).catch(function(e){
+      lines.push({ kind:'bad', text:'Agent did not respond: ' + (e && e.message || 'error') });
+    });
+  }
+
+  return p.then(function(){
+    S.report = lines;
+    // Record what was closed and how to start it again, so the lockdown is
+    // fully reversible once the passcode has lifted it.
+    var entry = histAdd('emergency', items, {
+      scope: source === 'remote' ? 'global' : 'local',
+      source: source, by: byName || '', hidden: hidden
+    });
+    if (caps().kill) Agent.invoke('sh_tag_entry', { entryId: entry.id }).catch(function(){});
+    renderEmergency();
+    // 4. Bookkeeping last.
+    writeMine('local', { active:true, at:now(), source:source }, true).catch(function(){});
+  });
+}
+
+function exitEmergency(){
+  setLocalEmg({ active:false, at:now(), source:'local', v:0 });
+  S.report = null;
+  var p = caps().kill
+    ? Agent.invoke('sh_emergency_off', {}).catch(function(){})
+    : Promise.resolve();
+  return p.then(function(){
+    writeMine('local', { active:false, at:now(), source:'local' }, true).catch(function(){});
+    render();
+  });
+}
+
+/* ── Passcode challenge ───────────────────────────────────────────────────
+   Always a LIVE verification, deliberately ignoring the per-device unlock
+   marker. "This device already opened Shield once" must never be enough to
+   lift a lockdown — that is the whole point of the passcode on this path. */
+function lockId(){ return S.profile + '_shield'; }
+async function challenge(title, message){
+  var id = lockId();
+  if (!window.AL.isLocked(id)){
+    var ok = await window.uiConfirm(
+      message + '\n\nNo Shield passcode is set for this profile, so this cannot be passcode-protected. Set one in Configure ▸ Security.',
+      { title:title, okLabel:'Continue anyway', danger:true });
+    return !!ok;
+  }
+  for (var i = 0; i < 3; i++){
+    var pw = await window.uiPrompt(message, { title:title, password:true, okLabel:'Confirm' });
+    if (pw === null || pw === undefined) return false;
+    pw = String(pw).trim();
+    if (!pw) continue;
+    var r = await window.AL.verifyNow(id, pw);
+    if (r.ok){
+      if (r.offline) toast('Verified offline — the Worker was unreachable.');
+      return true;
+    }
+    if (r.offlineUnavailable){ await window.uiAlert('Offline, and this device has no local verifier. Reconnect and try again.'); return false; }
+    await window.uiAlert('Wrong password.' + (i < 2 ? ' Try again.' : ''));
+  }
+  return false;
+}
+
+/* ══ ACTIONS ══════════════════════════════════════════════════════════════ */
+async function actCloseApps(){
+  if (S.busy) return;
+  S.busy = true;
+  try {
+    var r = await runCloser();
+    var bad = r.lines.filter(function(l){ return l.kind==='bad'; }).length;
+    var ok  = r.lines.filter(function(l){ return l.kind==='ok'; }).length;
+    toast(bad ? (ok + ' closed, ' + bad + ' problem(s)') : (ok ? ok + ' closed' : 'Nothing to close'), !!bad);
+    if (bad) S.report = r.lines;
+    // Always repaint: the "Last closed" card and its Reopen button have to be
+    // there the instant the close finishes, not whenever the Firestore echo
+    // happens to come back.
+    renderHome(); renderHistory();
+  } finally { S.busy = false; }
+}
+
+async function actEmergencyLocal(){
+  if (S.busy) return;
+  S.busy = true;
+  try { await runEmergency('local', ''); }
+  finally { S.busy = false; }
+}
+
+async function actEmergencyGlobal(){
+  if (S.busy) return;
+  S.busy = true;
+  try {
+    var d = myDev();
+    var v = now();
+    // Local enforcement first — the device in the user's hand must not wait on
+    // a round trip. The fan-out follows.
+    await runEmergency('local', '');
+    await write({
+      'global.active': true, 'global.v': v, 'global.at': v,
+      'global.byId': S.devId, 'global.byName': (d && d.name) || defaultName(),
+      'global.scope': 'all'
+    }, true).catch(function(e){
+      toast('Locked this device, but the all-device command did not reach Firebase.', true);
+    });
+    setLocalEmg(Object.assign(localEmg(), { v:v }));
+  } finally { S.busy = false; }
+}
+
+async function actDisableLocal(){
+  var ok = await challenge('Disable on this device',
+    globalOn()
+      ? 'Enter the Shield passcode to release THIS device. The all-device emergency stays active everywhere else.'
+      : 'Enter the Shield passcode to disable Emergency Mode on this device.');
+  if (!ok) return;
+  if (globalOn()){
+    // Step out of the current global command without lifting it for anyone
+    // else. A newer global command re-arms this device automatically.
+    await writeMine('optOutV', globalState().v || now(), true).catch(function(){});
+  }
+  await exitEmergency();
+  toast('Emergency Mode disabled on this device.');
+}
+
+async function actDisableGlobal(){
+  var ok = await challenge('Disable on all devices',
+    'Enter the Shield passcode to lift Emergency Mode on EVERY device on this profile. Offline devices will exit when they reconnect.');
+  if (!ok) return;
+  var v = now();
+  await write({
+    'global.active': false, 'global.v': v, 'global.at': v,
+    'global.byId': S.devId, 'global.byName': (myDev() && myDev().name) || defaultName()
+  }, true).catch(function(){ toast('Could not reach Firebase — other devices still locked.', true); });
+  await exitEmergency();
+  toast('Emergency Mode lifted on all devices.');
+}
+
+/* ══ RENDER ═══════════════════════════════════════════════════════════════ */
+function svg(body, cls){
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+       + (cls?(' class="'+cls+'"'):'') + '>' + body + '</svg>';
+}
+var GLYPH = {
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
+  x:      '<path d="M18 6 6 18M6 6l12 12"/>',
+  plus:   '<path d="M12 5v14M5 12h14"/>',
+  eye:    '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+  back:   '<path d="m15 18-6-6 6-6"/>',
+  trash:  '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  lock:   '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  unlock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
+  alert:  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="M12 8v5"/><path d="M12 16.5h.01"/>'
+};
+
+function render(){
+  if (!S.profile) return;
+  if (emgOn()){ renderEmergency(); return; }
+  $('emg-screen').classList.remove('on');
+  renderLockBtn();
+  renderHome(); renderConfig(); renderDevices(); renderHistory();
+}
+function renderLockBtn(){
+  var b = $('lock-btn'); if (!b) return;
+  var locked = window.AL.isLocked(lockId());
+  b.innerHTML = svg(locked ? GLYPH.lock : GLYPH.unlock);
+  b.title = locked ? 'Shield is locked — manage lock' : 'Set a Shield passcode';
+}
+
+/* ── Home ─────────────────────────────────────────────────────────────────── */
+function renderHome(){
+  var c = caps(), me = myDev();
+  var closerN = targetsFor('closer', S.devId).length;
+  var emgN    = targetsFor('emergency', S.devId).length;
+  var devs    = devList();
+
+  var h = '';
+  h += '<div class="qa">';
+  h +=   '<button class="big close" id="a-close"' + (closerN ? '' : ' disabled') + '>'
+      +    '<span class="lbl">Close Apps</span>'
+      +    '<span class="sub">' + (closerN ? closerN + ' target' + (closerN===1?'':'s') + ' on this device' : 'No targets configured yet') + '</span>'
+      +  '</button>';
+  h +=   '<button class="big emg" id="a-emg">'
+      +    '<span class="lbl">Emergency</span>'
+      +    '<span class="sub">Lock down this device' + (emgN ? ' · ' + emgN + ' target' + (emgN===1?'':'s') : '') + '</span>'
+      +  '</button>';
+  h +=   '<button class="hold" id="a-emg-all"><span class="fill"></span>'
+      +    '<span class="lbl">Emergency — All My Devices</span>'
+      +    '<span class="sub">Hold to activate on all ' + devs.length + ' device' + (devs.length===1?'':'s') + '</span>'
+      +  '</button>';
+  h += '</div>';
+
+  // The honest capability line. If this device cannot enforce anything, that is
+  // the single most important thing on the screen — not a footnote.
+  if (!c.agent){
+    h += '<div class="sec"><div class="card" style="border-color:var(--errl)">'
+      +  '<div class="cap no"><span class="mk">✕</span><span class="tx"><b>No Shield agent on this device.</b> '
+      +  'A web page cannot close, hide or block other applications — there is no browser API for it. '
+      +  'Shield can still re-lock your A1 apps here and command your other devices.</span></div>'
+      +  '</div></div>';
+  }
+
+  if (S.report && S.report.length){
+    h += '<div class="sec"><div class="sec-head"><span class="sec-title">Last action</span>'
+      +  '<button class="btn sm" id="a-clear-report">Dismiss</button></div>'
+      +  '<div class="emg-report">' + reportHtml(S.report) + '</div></div>';
+  }
+
+  // The most recent close, with its Reopen button. "I closed the wrong thing"
+  // is the common case and should cost one tap, not a trip through a tab.
+  var last = history()[0];
+  if (last){
+    h += '<div class="sec"><div class="sec-head"><span class="sec-title">Last closed</span>'
+      +  '<button class="btn sm" data-goto="history">All history</button></div>'
+      +  histCardHtml(last, { own:true }) + '</div>';
+  }
+
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Devices</span>'
+    +  '<button class="btn sm" data-goto="devices">Manage</button></div>';
+  h += devs.map(function(d){ return devRowHtml(d, true); }).join('') || '<div class="empty">No devices registered yet.</div>';
+  h += '</div>';
+
+  $('v-home').innerHTML = h;
+
+  var cb = $('a-close'); if (cb) cb.onclick = actCloseApps;
+  var eb = $('a-emg'); if (eb) eb.onclick = actEmergencyLocal;
+  wireHold($('a-emg-all'), actEmergencyGlobal);
+  var cr = $('a-clear-report'); if (cr) cr.onclick = function(){ S.report=null; renderHome(); };
+  wireGoto($('v-home'));
+  wireRevert($('v-home'));
+}
+function wireRevert(root){
+  Array.prototype.forEach.call(root.querySelectorAll('[data-revert]'), function(b){
+    b.onclick = function(){ revert(b.getAttribute('data-revert')); };
+  });
+}
+
+// Hold-to-fire. Pointer events cover mouse, touch and pen with one path, and
+// the CSS fill doubles as the progress indicator so there is nothing extra to
+// read under pressure.
+function wireHold(btn, fn){
+  if (!btn) return;
+  var t = null;
+  function start(e){
+    if (e.button != null && e.button !== 0) return;
+    btn.classList.add('holding');
+    t = setTimeout(function(){ stop(); fn(); }, HOLD_MS);
+  }
+  function stop(){ if (t){ clearTimeout(t); t=null; } btn.classList.remove('holding'); }
+  btn.addEventListener('pointerdown', start);
+  btn.addEventListener('pointerup', stop);
+  btn.addEventListener('pointerleave', stop);
+  btn.addEventListener('pointercancel', stop);
+}
+function wireGoto(root){
+  Array.prototype.forEach.call(root.querySelectorAll('[data-goto]'), function(b){
+    b.onclick = function(){ go(b.getAttribute('data-goto')); };
+  });
+}
+
+function reportHtml(lines){
+  return lines.map(function(l){
+    var m = l.kind==='ok' ? '✓' : (l.kind==='bad' ? '✕' : '·');
+    return '<div class="ln"><span class="m ' + l.kind + '">' + m + '</span><span>' + esc(l.text) + '</span></div>';
+  }).join('');
+}
+
+/* ── Devices ──────────────────────────────────────────────────────────────── */
+function devList(){
+  var d = (S.doc && S.doc.devices) || {};
+  return Object.keys(d).filter(function(k){ return !d[k].revoked; }).map(function(k){
+    return Object.assign({ id:k }, d[k]);
+  }).sort(function(a,b){
+    if (a.id === S.devId) return -1;
+    if (b.id === S.devId) return 1;
+    return (b.lastSeen||0) - (a.lastSeen||0);
+  });
+}
+function devOnline(d){ return !!(d.lastSeen && now() - d.lastSeen < ONLINE_WINDOW); }
+function devLocked(d){
+  var g = globalState();
+  if (g.active && !(d.optOutV && g.v && d.optOutV >= g.v)) return true;
+  return !!(d.local && d.local.active);
+}
+function devRowHtml(d, compact){
+  var me = d.id === S.devId, on = devOnline(d), locked = devLocked(d);
+  var h = '<div class="dev' + (me?' me':'') + '">';
+  h += '<span class="dot' + (on?' on':'') + '"></span>';
+  h += '<div class="dev-main"><div class="dev-name">' + esc(d.name || 'Device');
+  if (me) h += '<span class="tag me">This device</span>';
+  if (locked) h += '<span class="tag locked">Locked</span>';
+  h += '</div><div class="dev-meta">' + platLabel(d.platform) + ' · ' + (on ? 'Active' : 'Last seen ' + ago(d.lastSeen))
+    +  ((d.caps && d.caps.agent) ? ' · Agent' : ' · No agent') + '</div></div>';
+  if (!compact){
+    h += '<button class="btn sm" data-dev-view="' + esc(d.id) + '">' + (me ? 'Edit' : 'View') + '</button>';
+    if (!me) h += '<button class="iconbtn danger" data-dev-remove="' + esc(d.id) + '" title="Remove device">' + svg(GLYPH.trash) + '</button>';
+    if (me)  h += '<button class="iconbtn" data-dev-rename="' + esc(d.id) + '" title="Rename">' + svg(GLYPH.plus) + '</button>';
+  }
+  h += '</div>';
+  return h;
+}
+function renderDevices(){
+  var devs = devList();
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Devices on this profile</span></div>';
+  h += devs.map(function(d){ return devRowHtml(d, false); }).join('');
+  h += '</div>';
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">How devices work</span></div>'
+    +  '<div class="hint">Every device owns and edits its own configuration — a phone cannot describe a PC\'s executables, '
+    +  'and a PC cannot describe a phone\'s apps. You can view another device\'s configuration here, but only the device '
+    +  'you are holding can change it.<br><br>“Active” means the device checked in within the last 20 minutes. '
+    +  'Shield does not keep a live presence connection; that would cost writes all day for information you rarely need.</div></div>';
+  $('v-devices').innerHTML = h;
+
+  Array.prototype.forEach.call($('v-devices').querySelectorAll('[data-dev-view]'), function(b){
+    b.onclick = function(){ S.viewDev = b.getAttribute('data-dev-view'); S.tab='closer'; go('config'); };
+  });
+  Array.prototype.forEach.call($('v-devices').querySelectorAll('[data-dev-rename]'), function(b){
+    b.onclick = async function(){
+      var d = devRec(S.devId);
+      var n = await window.uiPrompt('Name for this device', { title:'Rename device', default:(d&&d.name)||defaultName() });
+      if (n === null || n === undefined) return;
+      n = String(n).trim(); if (!n) return;
+      await writeMine('name', n, true).catch(function(){});
+    };
+  });
+  Array.prototype.forEach.call($('v-devices').querySelectorAll('[data-dev-remove]'), function(b){
+    b.onclick = function(){ removeDevice(b.getAttribute('data-dev-remove')); };
+  });
+}
+
+async function removeDevice(id){
+  var d = devRec(id); if (!d) return;
+  var locked = devLocked(d);
+  var msg = 'Remove “' + (d.name||'Device') + '” from this profile? It will stop syncing and has to re-register with the passcode.';
+  if (locked) msg += '\n\nNote: that device is currently in Emergency Mode. Removing it does NOT unlock it — revoking a device must never be a way around the passcode. It stays locked until someone disables Emergency Mode on the device itself.';
+  var ok = await window.uiConfirm(msg, { title:'Remove device', okLabel:'Remove', danger:true });
+  if (!ok) return;
+  if (!await challenge('Remove device', 'Enter the Shield passcode to remove this device.')) return;
+  var f = {}; f['devices.' + id + '.revoked'] = true;
+  await write(f, true).catch(function(){ toast('Could not remove the device.', true); });
+  if (S.viewDev === id) S.viewDev = null;
+  toast('Device removed.');
+}
+
+/* ── History ──────────────────────────────────────────────────────────────
+   One card per Close Apps run or Emergency activation, newest first, each
+   listing exactly what was closed and offering to put it all back. */
+function histCardHtml(e, opts){
+  opts = opts || {};
+  var own = opts.own !== false;
+  var c = histCounts(e);
+  var kindLabel = e.kind === 'emergency'
+    ? ('Emergency' + (e.scope === 'global' ? ' — all devices' : '') + (e.source === 'remote' ? ' (remote)' : ''))
+    : 'Close Apps';
+
+  var h = '<div class="card" style="margin-bottom:8px">';
+  h += '<div class="sec-head" style="margin-bottom:9px">'
+    +  '<span class="dev-name" style="gap:8px">' + esc(kindLabel);
+  if (e.reverted) h += '<span class="tag on">Reopened</span>';
+  h += '</span><span class="dev-meta" style="margin:0">' + clock(e.at) + ' · ' + ago(e.at) + '</span></div>';
+
+  var items = (e.items || []);
+  if (!items.length){
+    h += '<div class="hint">Nothing was closed.</div>';
+  } else {
+    h += '<div class="emg-report" style="background:transparent;border:none;padding:0">'
+      +  reportHtml(reportLines(items)) + '</div>';
+  }
+
+  if (own){
+    // Note there is no "emergency still active" branch here: while an emergency
+    // is live the takeover screen covers the whole app, so this card cannot be
+    // reached. revert() keeps the guard anyway, since it is the function that
+    // would actually do the damage.
+    var can = histRestorable(e);
+    h += '<div style="display:flex;gap:8px;align-items:center;margin-top:11px;flex-wrap:wrap">';
+    if (e.reverted){
+      h += '<span class="hint">Reopened ' + ago(e.revertedAt) + '.</span>';
+    } else if (!can){
+      h += '<span class="hint">Nothing recorded to reopen'
+        +  (c.closed ? ' — Shield could not read those applications\' paths before closing them.' : '.') + '</span>';
+    } else if (!caps().kill){
+      h += '<button class="btn sm" disabled>Reopen ' + c.launch + '</button>'
+        +  '<span class="hint">Needs the Shield agent on this device.</span>';
+    } else {
+      h += '<button class="btn sm ac" data-revert="' + esc(e.id) + '">Reopen ' + c.launch
+        +  ' app' + (c.launch===1?'':'s') + '</button>';
+    }
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+// Another device's history comes from the trimmed Firestore mirror, which has
+// no launch manifest — so it is shown as a record, never with a Reopen button.
+// You cannot start a process on a machine you are not holding.
+function histCardRemoteHtml(e){
+  var kindLabel = e.kind === 'emergency'
+    ? ('Emergency' + (e.scope === 'global' ? ' — all devices' : ''))
+    : 'Close Apps';
+  var h = '<div class="card" style="margin-bottom:8px">';
+  h += '<div class="sec-head" style="margin-bottom:9px">'
+    +  '<span class="dev-name" style="gap:8px">' + esc(kindLabel);
+  if (e.reverted) h += '<span class="tag on">Reopened</span>';
+  h += '</span><span class="dev-meta" style="margin:0">' + clock(e.at) + ' · ' + ago(e.at) + '</span></div>';
+  var items = e.items || [];
+  h += items.length
+    ? '<div class="emg-report" style="background:transparent;border:none;padding:0">' + reportHtml(reportLines(items)) + '</div>'
+    : '<div class="hint">Nothing was closed.</div>';
+  h += '</div>';
+  return h;
+}
+
+function renderHistory(){
+  var devs = devList().filter(function(d){ return d.id !== S.devId; });
+  var mine = history();
+  var h = '';
+
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">This device</span>'
+    +  (mine.length ? '<button class="btn sm" id="a-hist-clear">Clear</button>' : '') + '</div>';
+  h += mine.length
+    ? mine.map(function(e){ return histCardHtml(e, { own:true }); }).join('')
+    : '<div class="empty">Nothing closed yet. Every Close Apps run and every Emergency activation is recorded here, with a button to put it all back.</div>';
+  h += '</div>';
+
+  var withHist = devs.filter(function(d){ return (d.history || []).length; });
+  if (withHist.length){
+    h += '<div class="sec"><div class="sec-head"><span class="sec-title">Other devices</span></div>';
+    withHist.forEach(function(d){
+      h += '<div class="dev-meta" style="margin:12px 0 6px">' + esc(d.name || 'Device') + ' · ' + platLabel(d.platform) + '</div>';
+      h += (d.history || []).map(histCardRemoteHtml).join('');
+    });
+    h += '</div>';
+  }
+
+  h += '<div class="sec"><div class="hint">Shield records the full path and command line of every process it closes, '
+    +  'captured just before termination — that is the only moment those are still readable. The manifest stays on the device '
+    +  'that did the closing, because only that device can start those applications again; other devices see the summary above. '
+    +  'Reopening starts each application fresh, so unsaved work inside it is not recovered.</div></div>';
+
+  $('v-history').innerHTML = h;
+  wireRevert($('v-history'));
+  var cl = $('a-hist-clear');
+  if (cl) cl.onclick = async function(){
+    var ok = await window.uiConfirm('Clear the close history on this device? Anything not yet reopened can no longer be reopened by Shield.',
+      { title:'Clear history', okLabel:'Clear', danger:true });
+    if (!ok) return;
+    histSet([]); syncHistory(); renderHistory(); renderHome();
+  };
+}
+
+/* ── Configure ────────────────────────────────────────────────────────────── */
+function renderConfig(){
+  var id = activeDevId(), ro = isReadOnly(), d = devRec(id);
+  var h = '';
+
+  h += '<div class="ro-bar' + (ro?' on':'') + '">'
+    +  '<span class="ro-txt">Viewing ' + esc((d&&d.name)||'another device') + ' — read only</span>'
+    +  '<button class="btn sm ac" id="a-return">' + svg(GLYPH.back) + 'Return to this device</button>'
+    +  '</div>';
+
+  h += '<div class="nav" style="padding:0 0 14px;margin:0">'
+    +  '<button class="pill' + (S.tab==='closer'?' on':'') + '" data-tab="closer">Close Apps</button>'
+    +  '<button class="pill' + (S.tab==='emergency'?' on':'') + '" data-tab="emergency">Emergency</button>'
+    +  '<button class="pill' + (S.tab==='security'?' on':'') + '" data-tab="security">Security</button>'
+    +  '</div>';
+
+  h += '<div' + (ro?' class="ro"':'') + '>';
+  if (S.tab === 'closer')         h += tabTargets('closer', id, ro);
+  else if (S.tab === 'emergency') h += tabEmergency(id, ro);
+  else                            h += tabSecurity(id, ro);
+  h += '</div>';
+
+  $('v-config').innerHTML = h;
+
+  var rb = $('a-return'); if (rb) rb.onclick = function(){ S.viewDev = null; renderConfig(); };
+  Array.prototype.forEach.call($('v-config').querySelectorAll('[data-tab]'), function(b){
+    b.onclick = function(){ S.tab = b.getAttribute('data-tab'); renderConfig(); };
+  });
+  wireConfig(id, ro);
+}
+
+function targetRowHtml(t, kind, ro, showHide){
+  var h = '<div class="tgt">';
+  h += '<div class="tgt-main"><div class="tgt-label">' + esc(t.label || t.match && t.match.value || 'Target') + '</div>'
+    +  '<div class="tgt-match">' + esc((t.match && t.match.type) === 'path' ? 'path' : 'exe') + ' · ' + esc((t.match && t.match.value) || '') + '</div></div>';
+  if (showHide){
+    h += '<button class="toggle' + (t.hideIcons?' on':'') + '"' + (ro?' disabled':'')
+      +  ' data-hide="' + esc(t.id) + '" title="Hide this app\'s desktop and Start-menu shortcuts"><i></i></button>';
+  }
+  if (!ro) h += '<button class="iconbtn danger" data-del="' + kind + ':' + esc(t.id) + '" title="Remove">' + svg(GLYPH.x) + '</button>';
+  h += '</div>';
+  return h;
+}
+
+function tabTargets(kind, id, ro){
+  var tg = targetsFor(kind, id);
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Program Closer targets</span>'
+        + (ro ? '' : '<button class="btn sm ac" data-add="closer">' + svg(GLYPH.plus) + 'Add</button>') + '</div>';
+  h += tg.length ? tg.map(function(t){ return targetRowHtml(t, 'closer', ro, false); }).join('')
+                 : '<div class="empty">No targets yet. These are the applications the <b>Close Apps</b> button shuts down on this device.</div>';
+  h += '</div>';
+  h += '<div class="sec"><div class="hint">Targets are matched by executable name by default (<code>discord.exe</code>), which survives '
+    +  'version-folder churn better than a full path. Shield closes gracefully first and forces only if the app does not go quietly.'
+    +  '<br><br>Every run is recorded in <b>History</b> along with how to start each application again, so a Close Apps press is '
+    +  'always reversible.</div></div>';
+  return h;
+}
+
+function tabEmergency(id, ro){
+  var cfg = cfgEmg(id), tg = cfg.targets || [], c = (devRec(id) && devRec(id).caps) || {};
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Emergency targets</span>'
+        + (ro ? '' : '<button class="btn sm ac" data-add="emergency">' + svg(GLYPH.plus) + 'Add</button>') + '</div>';
+  h += tg.length ? tg.map(function(t){ return targetRowHtml(t, 'emergency', ro, true); }).join('')
+                 : '<div class="empty">No emergency targets yet. These are closed — and optionally hidden — the moment Emergency Mode activates.</div>';
+  h += '</div>';
+
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Emergency behaviour</span></div><div class="card">';
+  h += optHtml('lockA1Apps', cfg.lockA1Apps !== false, 'Re-lock A1 apps', 'Clears this device\'s unlock for every A1 app on this profile that has a password. Instant, works offline, and does not disturb your other devices.', ro);
+  h += optHtml('watchdog', cfg.watchdog !== false, 'Keep targets closed', 'Re-closes a target if it starts again while Emergency Mode is active. Checks a few times a second, so an app briefly appears before it dies.', ro || !c.watchdog);
+  h += optHtml('lockWorkstation', !!cfg.lockWorkstation, 'Lock the workstation', 'Locks Windows itself right after closing. The most reliable thing Shield can do — and the fastest way to make a screen safe.', ro || !c.lockWorkstation);
+  h += '</div></div>';
+
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">What this device can enforce</span></div><div class="card">'
+    +  capsHtml(devRec(id)) + '</div></div>';
+  return h;
+}
+
+function optHtml(key, on, name, sub, disabled){
+  return '<div class="opt"><div class="opt-main"><div class="opt-name">' + esc(name) + '</div>'
+       + '<div class="opt-sub">' + sub + '</div></div>'
+       + '<button class="toggle' + (on?' on':'') + '"' + (disabled?' disabled':'') + ' data-opt="' + key + '"><i></i></button></div>';
+}
+
+/* The capability panel. Written from what the device actually reports, and
+   phrased so nothing here can be mistaken for a promise the OS will not keep. */
+function capsHtml(d){
+  var c = (d && d.caps) || {}, p = (d && d.platform) || 'browser';
+  function row(kind, txt){ return '<div class="cap ' + kind + '"><span class="mk">' + (kind==='yes'?'✓':(kind==='part'?'~':'✕')) + '</span><span class="tx">' + txt + '</span></div>'; }
+  var h = '';
+  h += row('yes', '<b>Re-lock A1 apps</b> — always available, works offline.');
+  if (c.agent){
+    h += row('yes',  '<b>Close applications</b> — same-user processes. Elevated or service processes need Shield running as admin.');
+    h += row('part', '<b>Keep them closed</b> — Shield kills on sight, roughly every second. Windows 11 Home has no AppLocker, so a true launch block is not available; a target will flash on screen before it closes.');
+    h += row('part', '<b>Hide launch points</b> — desktop and Start-menu shortcuts are moved aside and restored on exit. Store/UWP apps and pinned Start tiles have no shortcut to move.');
+    h += row('no',   '<b>Unpin from the taskbar</b> — not automatable on Windows 11. The pin lives in an undocumented registry blob and needs Explorer restarted. Do not pin anything you would need Shield to hide.');
+    h += row('yes',  '<b>Lock the workstation</b> — instant and completely reliable.');
+    h += row('part', '<b>Reopen what was closed</b> — Shield records each process\'s path and command line before terminating it, so History can start them all again. Applications open fresh: unsaved work inside them is not recovered, and one that could not be read before closing cannot be reopened.');
+    h += row('part', '<b>Survives a restart</b> — Shield re-arms at logon. Ending the agent in Task Manager stops enforcement until you sign in again; a self-restarting watchdog would behave like malware, so Shield does not do that.');
+  } else {
+    h += row('no', '<b>Close applications</b> — needs the Shield desktop agent. A web page has no way to terminate a process.');
+    h += row('no', '<b>Hide or block applications</b> — needs the Shield desktop agent.');
+  }
+  if (p === 'ios' || p === 'android'){
+    h += row('no', '<b>Block Instagram, Discord, Photos, Wallet, Cash App…</b> — impossible from a web app on ' + platLabel(p)
+       + '. Blocking another app needs a native build with special permissions'
+       + (p==='ios' ? ' (Apple\'s Family Controls entitlement)' : ' (usage access plus a foreground overlay service)')
+       + ', which Shield deliberately does not ship. Use Screen Time or Focus for those, and Shield for everything else.');
+  }
+  h += row('yes', '<b>Command your other devices</b> — Emergency reaches every device on this profile'
+     + (c.remoteWhileClosed ? '.' : ', though a device without the agent only reacts while Shield is open on it.'));
+  return h;
+}
+
+function tabSecurity(id, ro){
+  var lid = lockId(), locked = window.AL.isLocked(lid), unlocked = window.AL.isUnlocked(lid);
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Shield passcode</span></div><div class="card">';
+  h += '<div class="opt"><div class="opt-main"><div class="opt-name">' + (locked ? 'Passcode is set' : 'No passcode set') + '</div>'
+    +  '<div class="opt-sub">' + (locked
+        ? 'Required to open Shield on a new device, and <b>always</b> required to disable Emergency Mode — even on a device that is already unlocked.'
+        : 'Without one, Emergency Mode can be switched off by anyone holding this device. Set a passcode.')
+    +  '</div></div>'
+    +  '<button class="btn sm ' + (locked?'':'ac') + '" id="a-manage-lock">' + (locked ? 'Manage' : 'Set passcode') + '</button></div>';
+  h += '</div></div>';
+
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Recovery</span></div><div class="card">';
+  h += '<div class="hint">Your passcode is never stored in this browser and never reaches Firebase. It is hashed with PBKDF2 '
+    +  '(100,000 iterations, random salt) inside the Cloudflare Worker the whole suite shares.<br><br>'
+    +  (window.AL.hasOffline(lid)
+        ? '<b>Offline unlock is available on this device.</b> If the Worker cannot be reached, Shield checks a local copy of the same hash so an internet outage during Emergency Mode is not a lockout.'
+        : '<b>No offline verifier on this device yet.</b> It is written the next time you set or change the passcode here. Until then, disabling Emergency Mode needs a working connection.')
+    +  '<br><br>If you forget the passcode, use <b>Forgot password?</b> for the hint or <b>Reset password via email</b> on the lock screen — both go to this profile\'s own address. That email is the only recovery path, so keep a hint set.</div>';
+  h += '</div></div>';
+
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">This device</span></div><div class="card">';
+  h += '<div class="opt"><div class="opt-main"><div class="opt-name">Device name</div>'
+    +  '<div class="opt-sub">' + esc((devRec(S.devId) && devRec(S.devId).name) || defaultName()) + '</div></div>'
+    +  '<button class="btn sm" id="a-rename">Rename</button></div>';
+  h += '<div class="opt"><div class="opt-main"><div class="opt-name">Lock this device</div>'
+    +  '<div class="opt-sub">Forget this device\'s unlock so Shield asks for the passcode again next time.</div></div>'
+    +  '<button class="btn sm"' + (locked && unlocked ? '' : ' disabled') + ' id="a-relock">Lock</button></div>';
+  h += '</div></div>';
+
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Honest limits</span></div><div class="card">'
+    +  '<div class="hint">Shield raises the cost of a glance over your shoulder. It does not defeat someone who knows Shield '
+    +  'exists and has your unlocked machine — they can end the agent in Task Manager. Firebase currently lets any signed-in '
+    +  'client read the suite\'s documents, so profile separation here is enforced by the passcode rather than by the server. '
+    +  'Nothing in this app is stronger than the operating system underneath it, and it will not pretend otherwise.</div>'
+    +  '</div></div>';
+  return h;
+}
+
+/* ── Config wiring ────────────────────────────────────────────────────────── */
+function wireConfig(id, ro){
+  var root = $('v-config');
+
+  Array.prototype.forEach.call(root.querySelectorAll('[data-add]'), function(b){
+    b.onclick = function(){ addTarget(b.getAttribute('data-add')); };
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('[data-del]'), function(b){
+    b.onclick = function(){
+      var parts = b.getAttribute('data-del').split(':');
+      delTarget(parts[0], parts.slice(1).join(':'));
+    };
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('[data-hide]'), function(b){
+    if (ro) return;
+    b.onclick = function(){ toggleHide(b.getAttribute('data-hide')); };
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('[data-opt]'), function(b){
+    if (ro || b.disabled) return;
+    b.onclick = function(){ toggleOpt(b.getAttribute('data-opt')); };
+  });
+
+  var ml = $('a-manage-lock'); if (ml) ml.onclick = function(){ window.AL.manage(lockId()); };
+  var rn = $('a-rename'); if (rn) rn.onclick = async function(){
+    var d = devRec(S.devId);
+    var n = await window.uiPrompt('Name for this device', { title:'Rename device', default:(d&&d.name)||defaultName() });
+    if (n === null || n === undefined) return;
+    n = String(n).trim(); if (!n) return;
+    await writeMine('name', n, true).catch(function(){});
+  };
+  var rl = $('a-relock'); if (rl) rl.onclick = function(){
+    window.AL.markLocked(lockId()); toast('Shield will ask for the passcode next time.'); renderConfig();
+  };
+}
+
+async function addTarget(kind){
+  if (isReadOnly()) return;
+  var c = caps();
+  var suggestions = null;
+  // On a device with the agent, offer what is actually running rather than
+  // making the user guess an executable name.
+  if (c.agent){
+    try { suggestions = await Agent.invoke('sh_enumerate', {}); } catch(e){ suggestions = null; }
+  }
+  var msg = c.agent
+    ? 'Executable name, e.g. discord.exe'
+    : 'Executable name, e.g. discord.exe.\n\nThis device has no Shield agent, so nothing here can actually be closed — the targets are saved and will apply if you install the agent.';
+  if (suggestions && suggestions.running && suggestions.running.length){
+    msg += '\n\nRunning now: ' + suggestions.running.slice(0, 12).join(', ');
+  }
+  var vals = await window.uiForm({
+    title: kind === 'emergency' ? 'Add emergency target' : 'Add target',
+    message: msg,
+    okLabel: 'Add',
+    fields: [
+      { name:'value', label:'Executable or path', placeholder:'discord.exe', autocap:false, required:true },
+      { name:'label', label:'Display name (optional)', placeholder:'Discord' }
+    ]
+  });
+  if (!vals) return;
+  var value = String(vals.value||'').trim();
+  if (!value) return;
+  var t = {
+    id: uid(),
+    label: String(vals.label||'').trim() || value,
+    match: { type: /[\\\/]/.test(value) ? 'path' : 'exe', value: value },
+    hideIcons: false
+  };
+  var list = targetsFor(kind, S.devId).slice();
+  if (list.some(function(x){ return x.match && x.match.value.toLowerCase() === value.toLowerCase(); })){
+    toast('That target is already in the list.'); return;
+  }
+  list.push(t);
+  await saveTargets(kind, list);
+}
+async function delTarget(kind, tid){
+  if (isReadOnly()) return;
+  var list = targetsFor(kind, S.devId).filter(function(t){ return t.id !== tid; });
+  await saveTargets(kind, list);
+}
+async function toggleHide(tid){
+  var list = targetsFor('emergency', S.devId).map(function(t){
+    return t.id === tid ? Object.assign({}, t, { hideIcons: !t.hideIcons }) : t;
+  });
+  await saveTargets('emergency', list);
+}
+async function saveTargets(kind, list){
+  var field = kind === 'emergency' ? 'emergency.targets' : 'closer.targets';
+  // Optimistic local update so the list redraws instantly; the snapshot
+  // confirms moments later.
+  var d = S.doc && S.doc.devices && S.doc.devices[S.devId];
+  if (d){
+    if (kind === 'emergency'){ d.emergency = d.emergency || {}; d.emergency.targets = list; }
+    else { d.closer = d.closer || {}; d.closer.targets = list; }
+  }
+  renderConfig(); renderHome();
+  await writeMine(field, list).catch(function(){ toast('Could not save. Check the connection.', true); });
+}
+async function toggleOpt(key){
+  var cfg = cfgEmg(S.devId);
+  var cur = key === 'lockWorkstation' ? !!cfg.lockWorkstation : (cfg[key] !== false);
+  var val = !cur;
+  var d = S.doc && S.doc.devices && S.doc.devices[S.devId];
+  if (d){ d.emergency = d.emergency || {}; d.emergency[key] = val; }
+  renderConfig();
+  await writeMine('emergency.' + key, val).catch(function(){ toast('Could not save.', true); });
+}
+
+/* ── Emergency screen ─────────────────────────────────────────────────────── */
+function renderEmergency(){
+  var g = globalState(), le = localEmg(), src = emgSource();
+  var isGlobal = src === 'global';
+  var devs = devList();
+  var lockedN = devs.filter(devLocked).length;
+
+  var h = '';
+  h += '<div class="emg-icon">' + svg(GLYPH.alert) + '</div>';
+  h += '<div class="emg-title">Locked</div>';
+  h += '<div class="emg-scope">' + (isGlobal ? 'Global emergency — all devices' : 'Emergency — this device') + '</div>';
+
+  h += '<div class="emg-meta">';
+  if (isGlobal){
+    h += metaRow('Activated from', esc(g.byName || 'Unknown device') + (g.byId === S.devId ? ' (this device)' : ''));
+    h += metaRow('Time', clock(g.at));
+    h += metaRow('Devices affected', lockedN + ' / ' + devs.length);
+  } else {
+    h += metaRow('Activated', clock(le.at) + ' on this device');
+    h += metaRow('Scope', 'This device only');
+  }
+  h += '</div>';
+
+  if (devs.length > 1){
+    h += '<div class="emg-devs">';
+    h += devs.map(function(d){
+      var mine = d.id === S.devId;
+      return '<div class="emg-dev"><span class="n">' + esc(d.name || 'Device') + (mine ? ' · this device' : '') + '</span>'
+           + '<span class="tag ' + (devLocked(d) ? 'locked' : '') + '">' + (devLocked(d) ? 'Locked' : (devOnline(d) ? 'Open' : 'Offline')) + '</span></div>';
+    }).join('');
+    h += '</div>';
+  }
+
+  if (S.report && S.report.length){
+    h += '<div class="emg-report">' + reportHtml(S.report) + '</div>';
+  }
+
+  h += '<div class="emg-actions">';
+  h += '<button class="btn danger" id="e-off-local" style="height:44px">Disable on this device</button>';
+  if (isGlobal) h += '<button class="btn danger" id="e-off-global" style="height:44px">Disable on all my devices</button>';
+  h += '</div>';
+
+  h += '<div class="emg-note">The Shield passcode is required either way — being already signed in on this device is not enough.'
+    +  (isGlobal ? ' Releasing this device leaves the rest of your devices locked.' : '')
+    +  ' Everything closed here is recorded, and Shield can reopen all of it once the lockdown is lifted.</div>';
+
+  $('emg-wrap').innerHTML = h;
+  $('emg-screen').classList.add('on');
+
+  var a = $('e-off-local'); if (a) a.onclick = actDisableLocal;
+  var b = $('e-off-global'); if (b) b.onclick = actDisableGlobal;
+}
+function metaRow(k, v){ return '<div class="emg-row"><span class="k">' + esc(k) + '</span><span class="v">' + v + '</span></div>'; }
+
+/* ── Navigation ───────────────────────────────────────────────────────────── */
+function go(view){
+  S.view = view;
+  // Route state stays in localStorage, never in the URL. A hash breaks the
+  // single-tab handoff at the top of this file and leaves an installed PWA
+  // sitting on two tabs forever.
+  lsSet('sh_view', view);
+  Array.prototype.forEach.call(document.querySelectorAll('.nav > .pill[data-view]'), function(b){
+    b.classList.toggle('on', b.getAttribute('data-view') === view);
+  });
+  ['home','config','devices','history'].forEach(function(v){
+    $('v-' + v).classList.toggle('active', v === view);
+  });
+  if (view !== 'config') S.viewDev = null;
+  window.scrollTo(0, 0);
+}
+
+/* ══ SNAPSHOT HANDLING ════════════════════════════════════════════════════ */
+function onSnap(data){
+  var prevGlobalV = globalState().v || 0;
+  var prevOn = emgOn();
+  S.doc = data || { global:{ active:false, v:0 }, devices:{} };
+  syncState('ok');
+
+  ensureRegistered().then(function(){
+    reconcile(prevGlobalV, prevOn);
+    render();
+  });
+}
+
+/* Conflict resolution. global.v is a monotonic Date.now(): the higher version
+   wins, and on a tie ON beats OFF so the system fails toward locked. A local
+   emergency is never cleared by a snapshot older than the local one. */
+function reconcile(prevGlobalV, prevOn){
+  var g = globalState();
+  var le = localEmg();
+  var nowOn = emgOn();
+
+  if (nowOn && !prevOn){
+    // Arrived locked. Either a remote command landed while we were open, or we
+    // just started up into a live emergency. Enforce before anything else
+    // paints — the config and device list must not be reachable first.
+    var byName = (g.byId === S.devId) ? '' : (g.byName || 'another device');
+    runEmergency(g.active ? 'remote' : 'local', byName);
+    return;
+  }
+  if (!nowOn && prevOn){
+    // Global was lifted elsewhere (or our opt-out took effect).
+    exitEmergency();
+    return;
+  }
+  if (nowOn && g.active && g.v > prevGlobalV && le.v && g.v > le.v){
+    // A NEWER global command arrived while already locked — re-run enforcement
+    // so a device that had opted out of the previous one re-arms.
+    runEmergency('remote', g.byName || 'another device');
+  }
+}
+
+/* ══ BOOT ═════════════════════════════════════════════════════════════════ */
+function themeFor(p){
+  document.body.setAttribute('data-profile', p);
+  var m = $('meta-theme');
+  if (m) m.setAttribute('content', p === 'veda' ? '#1B1C1E' : '#1a1a1d');
+  var b = $('pf-badge'); if (b) b.textContent = p === 'veda' ? 'V' : 'T';
+}
+
+function enterProfile(p){
+  S.profile = p;
+  S.devId = deviceId();
+  lsSet('sh_profile', p);
+  themeFor(p);
+  document.body.setAttribute('data-gate', 'app');
+
+  // Come back into the locked screen from local state immediately, before
+  // Firestore answers. A phone that restarted mid-emergency must not show the
+  // configuration for even one frame.
+  if (localEmg().active){ S.report = null; renderEmergency(); }
+
+  if (S.unsub){ try { S.unsub(); } catch(e){} S.unsub = null; }
+  syncState('saving');
+  if (window._shWatch){
+    S.unsub = window._shWatch(p, onSnap, function(){ syncState('err'); });
+  } else {
+    window.addEventListener('fb-ready', function(){
+      if (window._shWatch && !S.unsub) S.unsub = window._shWatch(p, onSnap, function(){ syncState('err'); });
+    }, { once:true });
+  }
+
+  startHeartbeat();
+  go(lsGet('sh_view', 'home'));
+  render();
+}
+
+function goProfileSelect(){
+  if (S.unsub){ try { S.unsub(); } catch(e){} S.unsub = null; }
+  if (S.hbTimer){ clearInterval(S.hbTimer); S.hbTimer = null; }
+  S.profile = null; S.doc = null; S.viewDev = null; S.report = null;
+  $('emg-screen').classList.remove('on');
+  document.body.setAttribute('data-gate', 'boot');
+  document.body.setAttribute('data-profile', 'tony');
+  renderProfileCards();
+}
+
+function renderProfileCards(){
+  [['tony','pf-t'],['veda','pf-v']].forEach(function(pair){
+    var p = pair[0], card = $(pair[1]);
+    if (!card) return;
+    var old = card.querySelector('.pf-lock'); if (old) old.remove();
+    var oldE = card.querySelector('.pf-emg'); if (oldE) oldE.remove();
+    if (window.AL.isLocked(p + '_shield')){
+      var s = document.createElement('span');
+      s.className = 'pf-lock';
+      s.innerHTML = window.AL.isUnlocked(p + '_shield') ? window.AL.ICON.unlock : window.AL.ICON.lock;
+      card.appendChild(s);
+    }
+    // Surface a live emergency on the chooser, so it is visible before you pick.
+    var le = jGet('sh_emg_' + p, null);
+    if (le && le.active){
+      var e = document.createElement('span');
+      e.className = 'pf-emg'; e.textContent = 'Locked down';
+      card.appendChild(e);
+    }
+  });
+}
+
+function chooseProfile(p){
+  themeFor(p);   // theme the lock screen to the profile being entered
+  window.AL.gate(p + '_shield', function(){ enterProfile(p); }, function(){
+    document.body.setAttribute('data-profile', 'tony');
+    renderProfileCards();
+  });
+}
+
+function boot(){
+  $('pf-t').onclick = function(){ chooseProfile('tony'); };
+  $('pf-v').onclick = function(){ chooseProfile('veda'); };
+  $('pf-badge').onclick = goProfileSelect;
+  $('lock-btn').onclick = function(){ window.AL.manage(lockId()); };
+
+  Array.prototype.forEach.call(document.querySelectorAll('.nav > .pill[data-view]'), function(b){
+    b.onclick = function(){ go(b.getAttribute('data-view')); };
+  });
+
+  renderProfileCards();
+
+  // A device that restarted while locked down comes straight back to the
+  // emergency screen for its last profile — no network needed to decide that.
+  var last = lsGet('sh_profile', '');
+  if (last && jGet('sh_emg_' + last, { active:false }).active){
+    chooseProfile(last);
+    return;
+  }
+
+  document.body.setAttribute('data-gate', 'boot');
+
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden && S.profile) heartbeat();
+  });
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+
+/* Public surface — the App Lock module calls back into these. */
+return {
+  onLockChange: function(){ renderProfileCards(); if (S.profile) { renderLockBtn(); renderConfig(); } },
+  onRemoteLocks: function(){
+    renderProfileCards();
+    if (!S.profile) return;
+    renderLockBtn();
+    // Shield's own lock changed elsewhere and this device no longer qualifies:
+    // drop back to the chooser rather than sitting on an open configuration.
+    if (window.AL.mustBlock(lockId())) goProfileSelect();
+    else renderConfig();
+  },
+  onDeviceRelock: function(){ goProfileSelect(); },
+  _state: S,
+  _caps: caps
+};
+})();
+</script>
+</body>
+</html>

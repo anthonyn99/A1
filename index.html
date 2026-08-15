@@ -10907,6 +10907,9 @@ window.KC_APP_ICONS={
   "oneinbox.html":   "data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke%3D'%23e0b874'%20stroke-width%3D'5'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Crect%20x%3D'20'%20y%3D'28'%20width%3D'56'%20height%3D'40'%20rx%3D'6'%2F%3E%3Cpath%20d%3D'M20%2033%2048%2054%2076%2033'%2F%3E%3C%2Fg%3E%3Ccircle%20cx%3D'75'%20cy%3D'27'%20r%3D'9'%20fill%3D'%231a1a1d'%2F%3E%3Ccircle%20cx%3D'75'%20cy%3D'27'%20r%3D'5.5'%20fill%3D'%23e0b874'%2F%3E%3C%2Fsvg%3E", // OneInbox
   "solace.html":     "data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke%3D'%23e0b874'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2070C33.5%2059.5%2025%2051%2025%2041.5%2025%2034%2030.5%2028.5%2037.5%2028.5%2042.5%2028.5%2046%2031.5%2048%2034.5%2050%2031.5%2053.5%2028.5%2058.5%2028.5%2065.5%2028.5%2071%2034%2071%2041.5%2071%2051%2062.5%2059.5%2048%2070Z'%20stroke-width%3D'5'%2F%3E%3Cpath%20d%3D'M34%2045h6l4-8.5%205.5%2016%204-7.5h8.5'%20stroke-width%3D'4'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // Solace
   "wellness.html":   "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231B1C1E%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%238D769A%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M26%2052c0-10%208-18%2018-18s18%208%2018%2018%27%2F%3E%3Cpath%20d%3D%27M22%2062h12l5-10%206%2020%205-10h24%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // Wellness
+  // Shield — the only dual-profile program, so its mark is split down the middle:
+  // gold half for T, purple half for V, around a gray keyhole.
+  "shield.html":     "data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke-width%3D'5'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2014%2022%2023v24c0%2017%2013%2028%2026%2035'%20stroke%3D'%23e0b874'%2F%3E%3Cpath%20d%3D'M48%2014%2074%2023v24c0%2017-13%2028-26%2035'%20stroke%3D'%238D769A'%2F%3E%3Ccircle%20cx%3D'48'%20cy%3D'42'%20r%3D'7'%20stroke%3D'%23adadb2'%2F%3E%3Cpath%20d%3D'M48%2049v11'%20stroke%3D'%23adadb2'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // Shield
 };
 // The A1 app icon for a link, or '' when the URL isn't one of our programs.
 window.kcAppIcon=function(u){
@@ -40486,6 +40489,13 @@ var AL_LABELS  = {
   veda_gita:      { label: 'Gita',       profile: 'veda', color: '#8D769A' },
   veda_journal:   { label: 'Journal',    profile: 'veda', color: '#8D769A' },
   veda_links:     { label: 'Links',      profile: 'veda', color: '#8D769A' },
+  // Shield (shield.html) — the emergency closer / lockdown system, and the only
+  // program in the suite that both profiles run. Two independent locks, because
+  // one profile must never be able to open the other's emergency configuration.
+  // Shield's own page re-verifies this password live before it will disable
+  // Emergency Mode, deliberately ignoring the per-device unlock marker.
+  tony_shield:    { label: 'Shield',     profile: 'tony', color: '#e0b874' },
+  veda_shield:    { label: 'Shield',     profile: 'veda', color: '#8D769A' },
   // NOTE: Plans had its own 'shared_plans' lock while it was a standalone
   // program. It lives inside both TaskHubs now (Weekly → Add → Plan), so it is
   // covered by tony_taskhub / veda_taskhub and needs no lock of its own.
@@ -41498,6 +41508,33 @@ window._solaceClick = function() {
   if (window._alGateSolace) { window._alGateSolace(_origSolaceClick); } else { _origSolaceClick(); }
 };
 
+// ── Shield ──
+// The emergency application closer / lockdown system at /A1/shield.html. Opened
+// exactly like Solace — named tab, popup-blocked fallback, App Lock in front —
+// with one difference: Shield is the first legacy program that belongs to BOTH
+// profiles, so the gate id and the tab depend on who is opening it. Tony and
+// Veda get separate locks (tony_shield / veda_shield) and separate tabs, because
+// one profile's emergency configuration must never open under the other's.
+window._shieldClick = function(profile){
+  profile = (profile === 'veda') ? 'veda' : 'tony';
+  var URL_SHIELD = 'https://anthonyn99.github.io/A1/shield.html';
+  var tab = 'shield_' + profile;
+  var open = function(){
+    var w = window._tnOpenTab(URL_SHIELD, tab);
+    if(!w || w.closed || typeof w.closed === 'undefined'){
+      if(window.confirm('Shield opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
+        var w2 = window._tnOpenTab(URL_SHIELD, tab);
+        if(!w2 || w2.closed || typeof w2.closed === 'undefined'){
+          var a=document.createElement('a');
+          a.href=URL_SHIELD; a.target=window._tnTabName(tab);
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }
+      }
+    }
+  };
+  if (window.alGate) window.alGate(profile + '_shield', open); else open();
+};
+
 // Every in-app route to Vault funnels through _kcSwitchTo('keychain') — the nav
 // dropdown, the mobile picker, both app switchers and the extension's deep
 // link. Repointing that ONE function moves all of them at once.
@@ -41605,14 +41642,32 @@ var LEGACY_PROGRAMS = [
   // Tony's devices, but _addMissingLegacyPrograms() runs unconditionally from
   // applyRemote(), so this entry appears as soon as the navorder doc syncs — and,
   // like the other three, a deliberate delete of the button then sticks.
-  { id:'solace',   label:'Solace',   url:'https://anthonyn99.github.io/A1/solace.html',   lockId:'tony_solace',  openFn:'_solaceClick' }
+  { id:'solace',   label:'Solace',   url:'https://anthonyn99.github.io/A1/solace.html',   lockId:'tony_solace',  openFn:'_solaceClick' },
+  // Shield is the first entry here that belongs to BOTH profiles, so it carries
+  // `profiles` and a per-profile `lockIds` map instead of a single lockId. The
+  // helpers below default a missing `profiles` to ['tony'], which is what every
+  // entry above it means, so nothing about those four changes.
+  { id:'shield',   label:'Shield',   url:'https://anthonyn99.github.io/A1/shield.html',
+    profiles:['tony','veda'], lockIds:{ tony:'tony_shield', veda:'veda_shield' }, openFn:'_shieldClick' }
 ];
+function _lpProfiles(p){ return (p && p.profiles) || ['tony']; }
+function _lpLockId(p, profile){ return (p.lockIds && p.lockIds[profile]) || p.lockId; }
 function _legacyProgram(id){
   for (var i=0;i<LEGACY_PROGRAMS.length;i++){ if(LEGACY_PROGRAMS[i].id===id) return LEGACY_PROGRAMS[i]; }
   return null;
 }
+// Same lookup, but only if the program actually belongs to that profile — the
+// call sites used to hardcode `profile==='tony'` for this.
+function _legacyProgramFor(profile, id){
+  var p = _legacyProgram(id);
+  return (p && _lpProfiles(p).indexOf(profile) >= 0) ? p : null;
+}
 function _isLegacyLockId(lockId){
-  for (var i=0;i<LEGACY_PROGRAMS.length;i++){ if(LEGACY_PROGRAMS[i].lockId===lockId) return true; }
+  for (var i=0;i<LEGACY_PROGRAMS.length;i++){
+    var p = LEGACY_PROGRAMS[i];
+    if (p.lockId === lockId) return true;
+    if (p.lockIds){ for (var k in p.lockIds){ if (p.lockIds[k] === lockId) return true; } }
+  }
   return false;
 }
 // One-time seed, gated by a flag synced in the SAME Firebase doc (not just
@@ -41631,10 +41686,12 @@ function _markLegacyMigrated(){
 function _addMissingLegacyPrograms(){
   var changed=false;
   LEGACY_PROGRAMS.forEach(function(p){
-    if (!linkById('tony',p.id)){
-      tonyLinks.push({ id:p.id, label:p.label, url:p.url });
-      changed=true;
-    }
+    _lpProfiles(p).forEach(function(profile){
+      if (!linkById(profile,p.id)){
+        (profile==='veda' ? vedaLinks : tonyLinks).push({ id:p.id, label:p.label, url:p.url });
+        changed=true;
+      }
+    });
   });
   return changed;
 }
@@ -41665,8 +41722,8 @@ function openLink(p, id){
   // Legacy programs: delegate straight to their own gated opener — it already
   // handles the App Lock check, the popup-blocked confirm dialog and the named
   // tab, so don't run the generic (differently-locked) path below for these.
-  var lp = (p==='tony') ? _legacyProgram(id) : null;
-  if (lp){ if (window[lp.openFn]) window[lp.openFn](); return; }
+  var lp = _legacyProgramFor(p, id);
+  if (lp){ if (window[lp.openFn]) window[lp.openFn](p); return; }
   // If this custom button is locked, require the password BEFORE opening. Cancel
   // (X) just closes the prompt and leaves the user on the current program.
   if (window.alIsLocked && window._alCustomLockId){
@@ -41710,16 +41767,16 @@ function registerLinks(){
   // (tony_tradehub/tony_keychain/tony_warroom), registering a second generic
   // one for them would just be an unused duplicate.
   if(window._alRegisterCustom){
-    tonyLinks.forEach(function(l){ if(!_legacyProgram(l.id)) window._alRegisterCustom('tony', l.id, l.label); });
-    vedaLinks.forEach(function(l){ window._alRegisterCustom('veda', l.id, l.label); });
+    tonyLinks.forEach(function(l){ if(!_legacyProgramFor('tony', l.id)) window._alRegisterCustom('tony', l.id, l.label); });
+    vedaLinks.forEach(function(l){ if(!_legacyProgramFor('veda', l.id)) window._alRegisterCustom('veda', l.id, l.label); });
   }
 }
 // Lock id for a custom-link row: legacy programs use their real, pre-existing
 // lock (same one Program Locks manages) so there's a single source of truth;
 // everything else uses the generic per-custom-button lock.
 function _linkLockId(profile, id){
-  var lp = profile==='tony' ? _legacyProgram(id) : null;
-  if (lp) return lp.lockId;
+  var lp = _legacyProgramFor(profile, id);
+  if (lp) return _lpLockId(lp, profile);
   return window._alCustomLockId ? window._alCustomLockId(profile, id) : (profile + '_custom_' + id);
 }
 
