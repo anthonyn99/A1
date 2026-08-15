@@ -91,6 +91,26 @@ for (const flag of ['_thServerSeen', '_vdServerSeen', '_bjServerSeen', '_tjServe
     + 'or that writer can clobber the doc on resume.');
 }
 
+section('Static: exactly ONE page may force-own the shared Firestore cache');
+
+// Every page in the suite is the same origin + projectId, so they share a single
+// Firestore IndexedDB cache. forceOwnership:true means "take the lease from
+// whoever holds it". With it set on more than one page, TaskHub and whichever
+// satellite you opened from its header stole the lease back and forth, and a
+// persistent cache changing owners mid-flight is how TaskHub served an OLDER save.
+{
+  const dir = path.join(__dirname, '..');
+  const pages = fs.readdirSync(dir).filter(f => f.endsWith('.html'));
+  const forcing = pages.filter(f => {
+    try { return /forceOwnership:\s*true/.test(fs.readFileSync(path.join(dir, f), 'utf8')); }
+    catch (e) { return false; }
+  });
+  t('only index.html forces ownership of the shared cache',
+    forcing.length === 1 && forcing[0] === 'index.html',
+    'Pages forcing ownership: ' + (forcing.join(', ') || '(none)')
+    + '\n      Exactly one owner is required; satellites must acquire only when free.');
+}
+
 section('Static: every gated listener opens its gate reliably');
 
 // A gate that only opens on a NON-cache snapshot requires includeMetadataChanges.

@@ -1378,8 +1378,17 @@ signInAnonymously(fbAuth).catch(e => console.warn('Anon auth failed:', e));
 
 // Single-tab persistent cache, matching index.html: the multi-tab manager
 // coordinates through localStorage and dies fatally when that fills up.
+// NO forceOwnership here, deliberately. Every page in the suite shares ONE
+// Firestore IndexedDB cache (same origin, same projectId), so forceOwnership
+// means "rip the lease out of whichever tab currently holds it". With TaskHub
+// pinned open in one tab and this one opened from its header, the two steal the
+// lease back and forth — and a cache changing owners mid-flight is how TaskHub
+// ended up painting an OLDER save of dashboards/main.
+// index.html keeps forceOwnership and is the single owner; satellites like this
+// one take the lease only when it is free, and otherwise run without a
+// persistent cache (reads go to the server, which is fresher anyway).
 const db = initializeFirestore(fbApp, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({ forceOwnership: true }) })
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
 });
 
 const META_DOC = doc(db, 'dashboards/oneinbox');

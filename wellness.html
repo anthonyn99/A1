@@ -501,8 +501,12 @@ setTimeout(() => _authResolve(false), 8000);
 // through localStorage and dies fatally when that ~5MB budget is full, which
 // permanently wedges sync on the device. Single-tab keeps its cache in
 // IndexedDB and takes ownership immediately (no stale-lease wait on iOS PWAs).
+// NO forceOwnership — see the note in oneinbox.html. One shared Firestore
+// IndexedDB cache across the suite means forcing ownership here steals the lease
+// from the TaskHub tab, and that tug-of-war is how TaskHub served an older save.
+// index.html is the single forced owner; this page takes the lease only if free.
 const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({ forceOwnership: true }) })
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
 });
 
 const DOC_PATH     = 'dashboards/wellness';

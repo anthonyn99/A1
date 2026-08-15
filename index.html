@@ -7658,6 +7658,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // does NOT share with app data), removing that failure mode entirely. iOS already
   // ran single-tab; desktop/Android now match it (multiple tabs still each work —
   // the active tab owns the persistent cache, others read through to the server).
+  // SINGLE FORCED OWNER — this file and no other. Every page in the suite
+  // (oneinbox, vault, wellness, …) is the same origin and the same projectId, so
+  // they all share ONE Firestore IndexedDB cache. forceOwnership means "take the
+  // lease from whoever holds it", so when more than one page set it they stole it
+  // back and forth: TaskHub is pinned open, you click a header button, that page
+  // grabs the lease, TaskHub's 1-second hide-teardown re-inits and grabs it back.
+  // A persistent cache changing hands mid-flight is how TaskHub painted an OLDER
+  // save of dashboards/main. TaskHub keeps forceOwnership (it holds the primary
+  // data, and it needs immunity from a stale lease left by a killed iOS PWA);
+  // every satellite page now acquires only when the lease is free. Do not add
+  // forceOwnership to another page in this suite — tests/sync-guard.test.js fails
+  // if you do.
   const _makeCache = () => persistentLocalCache({
     tabManager: persistentSingleTabManager({ forceOwnership: true })
   });

@@ -1219,8 +1219,13 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
   // IndexedDB persistence, matching index.html rather than the memory cache the
   // other standalone programs use — Vault must keep working offline, and an
   // encrypted item list should be on screen the instant the page opens.
+  // NO forceOwnership — see the note in oneinbox.html. The whole suite shares one
+  // Firestore IndexedDB cache, so forcing ownership here steals the lease from a
+  // TaskHub tab that is almost always open, and the resulting tug-of-war is what
+  // made TaskHub paint an older save. index.html is the single forced owner; this
+  // page takes the lease only when it is free and otherwise reads from the server.
   const db = initializeFirestore(app, {
-    localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({ forceOwnership: true }) })
+    localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
   });
 
   // Prefer the server, fall back to cache only as a last resort, so a hard
