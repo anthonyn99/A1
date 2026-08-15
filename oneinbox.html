@@ -1138,7 +1138,12 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
     <div class="mscroll">
       <div class="ghead" style="font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);margin-bottom:10px">Connected accounts</div>
       <div id="settingsAccounts"></div>
-      <button class="btn gold" id="settingsAddAcct" style="width:100%;justify-content:center;margin-bottom:22px">Connect another Gmail account</button>
+      <button class="btn gold" id="settingsAddAcct" style="width:100%;justify-content:center;margin-bottom:9px">Connect another Gmail account</button>
+      <button class="btn" id="settingsRescan" style="width:100%;justify-content:center;margin-bottom:6px">Re-scan recent mail for cards</button>
+      <div style="font-size:11.5px;color:var(--faint);margin-bottom:22px;line-height:1.5">
+        Re-reads the last week of mail and rebuilds the package, coupon and bill
+        cards on TaskHub. Use it when something that should have appeared didn't.
+      </div>
 
       <div class="ghead" style="font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);margin-bottom:10px">Templates</div>
       <div id="tmplList"></div>
@@ -2338,6 +2343,26 @@ el('sidebar').addEventListener('click', e => {
 });
 el('addAcctBtn').addEventListener('click', connectAccount);
 el('settingsAddAcct').addEventListener('click', connectAccount);
+
+// Rescan runs one account at a time: each is its own Worker invocation, and a
+// single invocation cannot afford a Gmail fetch plus an AI call for every
+// account's mail at once.
+el('settingsRescan').addEventListener('click', async () => {
+  const btn = el('settingsRescan');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const was = btn.textContent;
+  let cards = 0, failed = [];
+  for (const a of S.accounts){
+    btn.textContent = `Re-scanning ${a.email}…`;
+    try { cards += (await api('/gmail/rescan', { account: a.email, limit: 10 })).cards || 0; }
+    catch (e) { failed.push(a.email.split('@')[0] + ': ' + e.message); }
+  }
+  btn.textContent = was;
+  btn.disabled = false;
+  if (failed.length) toast(`Re-scan finished with problems — ${failed[0]}`, false);
+  else toast(cards ? `Re-scan done — ${cards} card${cards === 1 ? '' : 's'} rebuilt` : 'Re-scan done — nothing new to add', true);
+});
 
 /* ── Reordering the account list ──────────────────────────────────────────
    Pointer events, so mouse and touch run the same code rather than a

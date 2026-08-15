@@ -745,6 +745,45 @@ const CARRIERS = [
   { name: 'SpeedX',   re: /\b(SPX\w{8,})\b/i,                            host: /speedxservice\.com/i }
 ];
 
+// A shipment email states its delivery day in prose far more often than as a
+// date: "Arriving tomorrow" is Amazon's standard phrasing and carries no digits
+// at all. The AI resolves those, but it is not always the thing that ran — the
+// daily quota can be spent, a model can fail, and the regex fallback then takes
+// over. Without this, every such parcel fell back to "the day the email
+// arrived", which for "arriving tomorrow" is reliably one day early: the card
+// showed up on the wrong day, or looked like it never showed up at all.
+//
+// `ref` is the date to resolve against, and it must be the date the EMAIL was
+// sent, never today — "arriving tomorrow" in Friday's mail means Saturday no
+// matter when the ingest tick that reads it happens to run.
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const asIso = d => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+
+function deliveryEta(text, ref) {
+  const t = String(text || '');
+  // UTC throughout: the ISO day is what the card is keyed by, and shifting into
+  // local time can move a midnight-ish email onto the wrong day.
+  const base = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate()));
+  const plus = n => { const d = new Date(base); d.setUTCDate(d.getUTCDate() + n); return asIso(d); };
+
+  // An explicit date always wins over prose.
+  const exact = /(?:arriv\w*|estimated delivery|expected|delivery date|scheduled for|now expected)\b[^\n]{0,40}?(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|[A-Z][a-z]{2,8}\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s*\d{4})?)/i.exec(t);
+  if (exact) { const d = isoDate(exact[1], base); if (d) return d; }
+
+  if (/\barriv\w*\s+tomorrow\b|\bexpected\s+tomorrow\b|\btomorrow\b[^\n]{0,20}\bdeliver/i.test(t)) return plus(1);
+  // "Out for delivery" and a delivery confirmation are both about today.
+  if (/\barriv\w*\s+today\b|\bout for delivery\b|\bwas delivered\b|\bdelivered today\b|\byour package (?:has been|was) delivered\b/i.test(t)) return plus(0);
+
+  // "Arriving Monday" / "Arriving Mon" — the next such weekday at or after the
+  // email's own date. Same-day names mean today, not a week out.
+  const wd = /\barriv\w*\s+(?:on\s+)?(sun|mon|tues?|wed(?:nes)?|thur?s?|fri|sat(?:ur)?)(?:day)?\b/i.exec(t);
+  if (wd) {
+    const want = WEEKDAYS.findIndex(d => d.startsWith(wd[1].toLowerCase().slice(0, 3)));
+    if (want >= 0) return plus((want - base.getUTCDay() + 7) % 7);
+  }
+  return '';
+}
+
 // Public tracking pages, used for the card's "Track" button. Kept here (not in
 // the front end) so carrier coverage is one edit in one place.
 const TRACK_URL = {
@@ -784,9 +823,13 @@ function isoDate(str, today) {
   return '';
 }
 
-function localParse(text, fromEmail) {
+// `sentAt` is the date the email was SENT. Relative wording has to resolve
+// against that, not against the moment the ingest tick happens to run — a
+// message saying "arriving tomorrow" is about the day after it was sent, and
+// ingestion can lag it by hours or (after an outage) days.
+function localParse(text, fromEmail, sentAt) {
   const t = text || '';
-  const today = new Date();
+  const today = sentAt instanceof Date && !isNaN(sentAt) ? sentAt : new Date();
   const host = (fromEmail || '').split('@')[1] || '';
   const out = { category: 'general', confidence: 0.3, summary: '', engine: 'local' };
 
@@ -797,11 +840,28 @@ function localParse(text, fromEmail) {
     if (m && (byHost || /track|shipment|shipped|delivery|package/i.test(t))) {
       out.category = 'package'; out.confidence = byHost ? 0.75 : 0.5;
       out.carrier = c.name; out.tracking = m[1];
-      const d = /(?:estimated|scheduled|expected|arriv\w*|delivery)[^\n]{0,40}?([A-Z][a-z]{2,8}\.?\s+\d{1,2}(?:,\s*\d{4})?|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{2}-\d{2})/i.exec(t);
-      if (d) out.date = isoDate(d[1], today);
       break;
     }
   }
+
+  // A shipment notice does not need to quote a tracking number to be one, and
+  // Amazon's routinely does not — it says "Your package was shipped!", shows a
+  // Track package button, and keeps the number behind it. Requiring a tracking
+  // regex meant those were filed as "general" and never became a card at all.
+  // The sender host plus explicit shipment language is a safe pair: marketing
+  // from the same host does not say "your package was shipped".
+  if (out.category === 'general') {
+    const shipperHost = /(amazon|shipment-tracking|ups|fedex|usps|dhl|ontrac|lasership|shopify|shipstation|narvar|aftership)\./i.test(host);
+    const shipTalk = /\byour (?:package|order|shipment|parcel)\b[^\n]{0,40}\b(?:was|has been|is)\s+(?:shipped|sent|dispatched|delivered|on its way|out for delivery)\b|\bshipped:|\bout for delivery\b|\barriv\w+\s+(?:today|tomorrow|(?:on\s+)?(?:sun|mon|tues?|wed|thur?s?|fri|sat))/i.test(t);
+    if (shipperHost && shipTalk) {
+      out.category = 'package'; out.confidence = 0.65;
+      if (/amazon/i.test(host)) out.carrier = 'Amazon';
+      const ord = /\border\s*#\s*([\d-]{10,})/i.exec(t);
+      if (ord) out.orderNumber = ord[1];
+    }
+  }
+
+  if (out.category === 'package' && !out.date) out.date = deliveryEta(t, today);
 
   // Coupon — require an explicit code token, otherwise it's just marketing.
   if (out.category === 'general') {
@@ -872,7 +932,12 @@ async function aiBudgetFlush(env) {
 // One email in, one normalized record out. Cloud chain first, local parser last.
 // `budget` (optional) lets a caller spend a shared per-run allowance.
 async function classify(env, msg, budget) {
-  const today = new Date().toISOString().slice(0, 10);
+  // The email's OWN date anchors every relative phrase in it. Using the wall
+  // clock instead put "arriving tomorrow" a day late whenever ingestion lagged
+  // the message — which it routinely does, since the poll runs every 15 min and
+  // an account that has been unreachable catches up in one burst.
+  const sentAt = new Date(msg.internalDate || Date.now());
+  const today = sentAt.toISOString().slice(0, 10);
   const text = textForAI(msg);
 
   const overBudget = budget && budget.n >= AI_DAILY_MAX;
@@ -885,7 +950,7 @@ async function classify(env, msg, budget) {
 
   const base = result && result.category
     ? { ...result, engine: model }
-    : { ...localParse(text, parseAddr(msg.from).email), engineError: error || null };
+    : { ...localParse(text, parseAddr(msg.from).email, sentAt), engineError: error || null };
 
   // The model is told to emit YYYY-MM-DD but occasionally returns prose; and a
   // date already in the past is worse than no date (it would create an expired
@@ -1100,15 +1165,23 @@ function cardFor(msg, ai) {
     const id = 'pkg_' + slug(ai.tracking || (ai.orderNumber + '_' + ai.merchant));
     // A package card with no eta renders NOWHERE — the weekly view is keyed by
     // day, so a dateless card silently vanishes instead of failing loudly.
-    // Fall back to the day the mail arrived, which for "out for delivery" or a
-    // delivery confirmation is exactly the right day anyway. Better a card on
-    // roughly the right day than a card the user never sees.
-    const eta = ai.date || new Date(msg.internalDate || Date.now()).toISOString().slice(0, 10);
+    //
+    // Three sources, best first:
+    //   1. the AI's resolved date
+    //   2. the email's own words ("Arriving tomorrow"), read against the date
+    //      the email was SENT — this is what rescues a parcel whenever the AI
+    //      did not run or missed it
+    //   3. the day the mail arrived, which is right for "out for delivery" and
+    //      delivery confirmations, and one day early for everything else. Last
+    //      resort: better a card on roughly the right day than none at all.
+    const sentAt = new Date(msg.internalDate || Date.now());
+    const read = ai.date || deliveryEta(`${msg.subject}\n${msg.text || msg.snippet || ''}`, sentAt);
+    const eta = read || sentAt.toISOString().slice(0, 10);
     return {
       id, kind: 'package', ...base,
       carrier: ai.carrier || '', tracking: ai.tracking || '',
       orderNumber: ai.orderNumber || '', eta,
-      etaExact: !!ai.date,          // false = inferred from the email's own date
+      etaExact: !!read,             // false = inferred from the email's own date
       trackUrl: trackingUrl(ai.carrier, ai.tracking),
       delivered: /delivered/i.test(msg.subject + ' ' + (ai.summary || ''))
     };
@@ -1151,7 +1224,7 @@ const emailDocId = (account, id) => `${slug(account.split('@')[0])}_${id}`;
 // looked at first, so everything is covered across successive ticks.
 const MSGS_PER_RUN = 8;
 
-async function ingestMessages(env, email, ids, budget) {
+async function ingestMessages(env, email, ids, budget, opts = {}) {
   if (!ids.length || !fsConfigured(env)) return { ingested: 0, cards: 0 };
   const room = budget ? Math.max(0, budget.msgs) : 25;
   if (!room) return { ingested: 0, cards: 0, deferred: ids.length };
@@ -1165,9 +1238,20 @@ async function ingestMessages(env, email, ids, budget) {
   // mail it already had, and genuinely new messages never got a turn.
   // batchGet is a single subrequest for the whole list, so checking all of them
   // is effectively free.
-  const known = await fsExisting(env, token, 'dashboards/oneinbox/emails',
-    ids.map(id => emailDocId(email, id)));
-  const fresh = ids.filter(id => !known.has(emailDocId(email, id)));
+  // A rescan deliberately ignores that dedupe. Classification is not a
+  // once-and-forever fact: it changes when the parser improves, and an email
+  // that was read while the AI was out of quota — or while its account could
+  // not be reached at all — is filed on whatever the regex fallback managed at
+  // the time and never looked at again. Re-reading is the only way to recover
+  // a card that was missed or dated wrong.
+  let fresh;
+  if (opts.rescan) {
+    fresh = ids;
+  } else {
+    const known = await fsExisting(env, token, 'dashboards/oneinbox/emails',
+      ids.map(id => emailDocId(email, id)));
+    fresh = ids.filter(id => !known.has(emailDocId(email, id)));
+  }
 
   const batch = fresh.slice(0, Math.min(25, room));
   if (budget) budget.msgs -= batch.length;
@@ -1573,6 +1657,23 @@ async function handleGmail(path, body, env, origin) {
       return json({ ok: true, draft: await gapi(env, email, `/drafts/${body.draftId}`, { method: 'PUT', body: JSON.stringify({ message: { raw } }) }) }, origin);
     }
     return json({ ok: true, draft: await gapi(env, email, '/drafts', { method: 'POST', body: JSON.stringify({ message: { raw } }) }) }, origin);
+  }
+
+  // Re-read the newest mail and rebuild its cards, ignoring the "already seen"
+  // check. This is the recovery path for anything the parser missed the first
+  // time — a package whose "Arriving tomorrow" was never resolved into a day,
+  // or a whole account that was unreachable while its mail arrived.
+  //
+  // Bounded hard: every message costs a Gmail fetch AND an AI call, against a
+  // 50-subrequest ceiling per invocation. 10 at a time keeps a rescan inside
+  // that with room to spare; the caller can simply run it again.
+  if (path === '/gmail/rescan') {
+    const n = Math.min(Math.max(Number(body.limit) || 10, 1), 15);
+    const list = await gapi(env, email, `/messages?${new URLSearchParams({ maxResults: String(n), q: body.q || 'newer_than:7d' })}`);
+    const ids = (list.messages || []).map(m => m.id);
+    const r = await ingestMessages(env, email, ids, { msgs: n }, { rescan: true });
+    await aiBudgetFlush(env);
+    return json({ ok: true, account: email, looked: ids.length, ...r }, origin);
   }
 
   if (path === '/gmail/labels') {
