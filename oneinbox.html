@@ -571,6 +571,7 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
 .acctcard .top .em .a{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .acctcard .top .em .b{font-size:11.5px;color:var(--faint)}
 .acctcard textarea{min-height:64px;resize:vertical;font-size:13px}
+.acctcard .needsauth{color:var(--danger);font-weight:600}
 .tmplrow{display:flex;gap:8px;align-items:flex-start;margin-bottom:9px}
 .tmplrow input:first-child{max-width:150px}
 
@@ -1478,8 +1479,23 @@ async function api(path, body = {}){
   }
   const d = await r.json().catch(() => ({ ok:false, error:'bad response' }));
   if (r.status === 401){ lockNow(); throw new Error('locked'); }
-  if (!d.ok) throw new Error(d.error || 'request failed');
+  if (!d.ok){
+    // A mailbox whose Google authorisation has lapsed is not a transient
+    // failure — nothing works for that account until it is reconnected — so
+    // flag it on the account list rather than only in the toast that vanishes.
+    if (d.reconnect) markNeedsReconnect(d.reconnect);
+    throw new Error(d.error || 'request failed');
+  }
   return d;
+}
+
+// Accounts Google has stopped honouring. Kept in memory only: the worker is the
+// source of truth and says so again on the next call that touches the account.
+const needsReconnect = new Set();
+function markNeedsReconnect(email){
+  if (needsReconnect.has(email)) return;
+  needsReconnect.add(email);
+  renderAccounts?.();
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -2071,7 +2087,9 @@ function renderSettings(){
       <div class="top">
         <span class="acctdot" style="background:${acctColor(a.email)};width:10px;height:10px"></span>
         <div class="em"><div class="a">${esc(a.email)}</div>
-          <div class="b">${a.watchExpiry > Date.now() ? 'Real-time push active' : 'Polling every 15 min'}</div></div>
+          <div class="b">${needsReconnect.has(a.email)
+            ? '<span class="needsauth">Authorisation expired — reconnect this account</span>'
+            : (a.watchExpiry > Date.now() ? 'Real-time push active' : 'Polling every 15 min')}</div></div>
         <button class="btn danger" data-disconnect="${esc(a.email)}">Remove</button>
       </div>
       <label class="fld">Display name</label>
