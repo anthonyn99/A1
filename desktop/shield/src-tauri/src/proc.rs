@@ -429,6 +429,111 @@ mod tests {
         assert!(!e.matches("", ""));
     }
 
+    /// End-to-end against a REAL process: capture its manifest, kill it, then
+    /// start it again from what was captured.
+    ///
+    /// This is the test that actually proves Reopen works. It copies a stock
+    /// system binary to a uniquely-named file first, so the exact-name match can
+    /// never collide with anything else running on the machine — matching on
+    /// `ping.exe` directly would risk killing something the user started.
+    #[test]
+    fn captures_kills_and_reopens_a_real_process() {
+        use std::process::Command;
+
+        let uniq = format!("shield_selftest_{}_{}.exe", std::process::id(), now_ish());
+        let dir = std::env::temp_dir();
+        let exe = dir.join(&uniq);
+        if std::fs::copy(r"C:\Windows\System32\PING.EXE", &exe).is_err() {
+            eprintln!("skipping: could not stage a test binary");
+            return;
+        }
+
+        let spawn = || {
+            Command::new(&exe).args(["-n", "600", "127.0.0.1"]).spawn().expect("spawn test process")
+        };
+        let mut child = spawn();
+        std::thread::sleep(Duration::from_millis(600)); // let it show up in the process table
+
+        let target = t("exe", &uniq);
+
+        // 1. capture + kill. No window, so WM_CLOSE cannot land and this
+        //    exercises the force path after the grace period.
+        let r = capture_and_kill(&[target.clone()], 300);
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].status, "closed", "error was {:?}", r[0].error);
+        assert_eq!(r[0].count, 1);
+
+        // 2. the manifest has to carry a usable path, or Reopen is dead
+        assert_eq!(r[0].launch.len(), 1);
+        let captured = &r[0].launch[0];
+        assert!(
+            captured.path.eq_ignore_ascii_case(&exe.to_string_lossy()),
+            "captured {:?}, expected {:?}",
+            captured.path,
+            exe
+        );
+        assert!(captured.cmd.contains("127.0.0.1"), "command line not captured: {:?}", captured.cmd);
+
+        // 3. it is really gone
+        std::thread::sleep(Duration::from_millis(400));
+        assert!(find(&target, &sys()).is_empty(), "process survived the kill");
+        let _ = child.wait();
+
+        // 4. reopen from the captured manifest.
+        //
+        //    Only the SPAWN is asserted, not that the process is still alive a
+        //    moment later — Shield starts the bare image and does not replay the
+        //    captured command line, so a target that needs arguments (this stand-in
+        //    is a copy of ping.exe, which prints usage and exits without them)
+        //    legitimately goes away again. That is the documented behaviour and
+        //    it is right for the real targets: for a multi-process app like a
+        //    browser, the manifest holds the main process AND its renderers, all
+        //    sharing one image path, and replaying a renderer's command line
+        //    would start something nonsensical.
+        let lr = launch(&[("selftest".into(), r[0].launch.clone())]);
+        assert_eq!(lr[0].status, "launched", "error was {:?}", lr[0].error);
+
+        // 5. and it is genuinely the CAPTURED path being started, not the name
+        //    or a guess: the same manifest with a path that does not exist has
+        //    to come back notfound.
+        //
+        //    Deleting the staged file to prove this does not work — Windows
+        //    keeps the image locked for a moment after step 4 spawned it, so the
+        //    removal quietly fails and the assertion passes for the wrong
+        //    reason. A synthetic path is deterministic.
+        let mut bogus = r[0].launch[0].clone();
+        bogus.path = dir.join("shield_selftest_does_not_exist.exe").to_string_lossy().into();
+        let gone = launch(&[("selftest".into(), vec![bogus])]);
+        assert_eq!(gone[0].status, "notfound", "error was {:?}", gone[0].error);
+
+        // clean up anything the reopen in step 4 may have left behind
+        capture_and_kill(&[target], 200);
+        std::thread::sleep(Duration::from_millis(300));
+        // Best effort: the image can stay locked briefly after the last exit.
+        for _ in 0..10 {
+            if std::fs::remove_file(&exe).is_ok() || !exe.exists() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(150));
+        }
+    }
+
+    /// A target whose processes were all unreadable leaves an empty manifest,
+    /// and Reopen has to say so rather than claim success on nothing.
+    #[test]
+    fn reopening_an_empty_manifest_is_reported_as_notfound() {
+        let r = launch(&[("Nothing".into(), vec![])]);
+        assert_eq!(r[0].status, "notfound");
+        assert!(r[0].error.contains("nothing was captured"));
+    }
+
+    fn now_ish() -> u128 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    }
+
     #[test]
     fn a_denied_target_is_reported_not_silently_skipped() {
         // "notrunning" would read as "there was nothing to do". Refusing to

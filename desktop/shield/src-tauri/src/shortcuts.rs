@@ -213,6 +213,7 @@ pub fn restore(entry_id: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::proc::Match;
 
     #[test]
     fn entry_ids_cannot_escape_the_stash_directory() {

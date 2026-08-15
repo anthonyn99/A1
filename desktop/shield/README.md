@@ -3,10 +3,11 @@
 The part of Shield that can actually close things. `shield.html` is the UI; this
 is the Windows process that gives it teeth.
 
-> **Status: written, not yet compiled.** There is no Rust toolchain on the
-> machine this was authored on, so nothing here has been through `cargo`. Treat
-> the first build as part of the work, not as a formality — see
-> [First build](#first-build).
+> **Status: compiles clean** against Tauri 2.11.5, sysinfo 0.32.1 and
+> windows 0.58 — no errors, no warnings — with unit tests for the matching and
+> path-safety logic. What has **not** happened is a run on a real desktop:
+> nobody has yet watched the tray icon appear, pressed the hotkey, or confirmed
+> a shortcut comes back where it started. See [Still to verify](#still-to-verify).
 
 ---
 
@@ -78,19 +79,49 @@ Prerequisites it will ask for:
 Then `.\build.ps1 -Dev` to run it, or `.\build.ps1 -Install` for the NSIS
 installer, or `.\build.ps1 -Autostart` to register it at logon.
 
-### Verify these first — they are the parts most likely to need adjusting
+## Tests
+
+```powershell
+cargo test --lib          # 14 tests, ~2s
+```
+
+Most are pure logic, but `captures_kills_and_reopens_a_real_process` is the one
+that matters: it stages a copy of a stock system binary under a unique name (so
+the exact-name match can never collide with something you started), runs it,
+captures the manifest, kills it, confirms it is gone, and reopens it from what
+was captured — then proves the *captured path* is what gets started by feeding
+the same manifest a path that does not exist and requiring `notfound`.
+
+Note what it does **not** assert: that the reopened process is still alive a
+moment later. Shield starts the bare image and does not replay the captured
+command line, so a target needing arguments legitimately exits again. That is
+deliberate — see [What it does](#what-it-does).
+
+## Still to verify
+
+Everything compiles clean and the process logic is tested, but these need a
+human at a real desktop:
 
 1. **The remote capability.** `capabilities/default.json` grants `invoke` to
    `https://anthonyn99.github.io/*`. This is the one piece of the design not
-   already proven elsewhere in this repo. If commands come back as
-   *"not allowed"*, that file is where to look. Fallback if it cannot be made to
-   work: proxy the four auth-Worker calls through Rust (`reqwest` has no CORS)
-   and bundle the UI locally — costs the single-copy benefit, nothing else.
-2. **`sysinfo` 0.32 API.** `Process::name()` / `cmd()` return `&OsStr` in this
-   version; older examples return `&str`. If the build complains about
-   `to_string_lossy`, the crate version moved.
-3. **`windows` 0.58 signatures.** `PostMessageW` takes `Option<HWND>` here and
-   `HWND` in some versions; `EnumWindows` returns `Result<()>`.
+   already proven elsewhere in this repo, and it is enforced at *runtime* — a
+   clean compile says nothing about it. If commands come back *"not allowed"*,
+   that file is where to look. Fallback: proxy the auth-Worker calls through
+   Rust (`reqwest` has no CORS) and bundle the UI locally, which costs the
+   single-copy benefit and nothing else.
+2. **Graceful close.** `WM_CLOSE` to every visible top-level window, then
+   `TerminateProcess` on whatever is still standing after 1.5 s. Worth watching
+   once with an editor holding unsaved work, to confirm it gets its prompt.
+3. **Shortcut round-trip** — hide, restore, and check the `.lnk` came back to
+   the same folder. Note this machine's Desktop is OneDrive-redirected, which is
+   why `shortcut_dirs()` covers both locations.
+4. **Tray and hotkeys with no window open**, and the boot re-arm after a restart
+   during an active lockdown.
+
+Version notes, since two of these already bit once: `sysinfo` 0.32 returns
+`&OsStr` from `Process::name()`/`cmd()` (older versions returned `&str`), and
+`windows` 0.58 takes a bare `HWND` in `PostMessageW` (later releases take
+`Option<HWND>`).
 
 ---
 
