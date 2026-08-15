@@ -6500,7 +6500,13 @@ function Pomodoro({onClose,T,isMobile}){
 // coupon: deliberately NOT an accent. Coupons live in Short-Term Goals next to
 // real goals, so they read as neutral grey chrome and let the gold checkboxes
 // stay the only accent in that panel. See OI_couponRow.
-const OI_COLOR={coupon:"#8d8d94",package:"#8fa9c4",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
+// package: a cool neutral grey. It was TradeHub's AFTER HOURS slate (#8fa9c4),
+// which still read as blue next to the golds and greys around it. Parcels are
+// the most frequent card by far, so this is the one that most needs to sit
+// quietly in the week rather than tint whole rows. DELIBERATELY out of step
+// with oneinbox.html's --c-package, which tints filter chips in a list where
+// it has to stay distinguishable from the other categories.
+const OI_COLOR={coupon:"#8d8d94",package:"#9aa0a8",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
 
 function OI_useCards(){
   const[cards,setCards]=useState(()=>window._oiCards||[]);
@@ -6605,27 +6611,36 @@ function OI_weekCard(c,T,dayTX,edit){
   const col=OI_COLOR[c.kind]||OI_COLOR.package;
   const isPkg=c.kind==="package";
   const head=isPkg?((c.carrier||"Package")+(c.delivered?" · DELIVERED":"")):c.kind.toUpperCase();
-  const line2=isPkg?(c.merchant||""):(c.merchant||"");
+  // For most parcels the carrier IS the merchant — an Amazon shipment gives
+  // carrier "Amazon" and merchant "Amazon", which drew the name twice, once
+  // as the uppercase header and again as the title under it. Only show the
+  // second line when it actually says something the header did not (UPS
+  // carrying a Nike order, say).
+  const same=(a,b)=>String(a||"").trim().toLowerCase()===String(b||"").trim().toLowerCase();
+  const line2=isPkg?(same(c.merchant,c.carrier)?"":(c.merchant||"")):(c.merchant||"");
   // The amount already sits in the header row for money cards, so the detail
   // line carries the account/reference instead of repeating it.
   const detail=isPkg?(c.tracking||c.orderNumber||"")
     :c.kind==="travel"||c.kind==="appointment"?(c.location||c.confirmation||"")
     :(c.orderNumber||"");
   const btn=(label,fn)=>React.createElement("button",{type:"button",onClick:fn,style:{
-    background:"transparent",color:col,border:"1px solid "+col+"66",borderRadius:4,
-    fontSize:9.5,fontWeight:700,letterSpacing:0.4,padding:"3px 7px",cursor:"pointer",
+    background:"transparent",color:col,border:"1px solid "+col+"55",borderRadius:4,
+    fontSize:9,fontWeight:700,letterSpacing:0.4,padding:"2px 6px",cursor:"pointer",
     fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap"}},label);
+  // A parcel with no second line is only a label, a reference and its buttons —
+  // tighten it further so a day with three deliveries still fits its cell.
+  const tight=isPkg&&!line2;
   return React.createElement("div",{key:c.id,style:{
-      border:"1px solid "+col+"40",borderLeft:"3px solid "+col,borderRadius:6,
-      background:col+"12",padding:"6px 9px",marginBottom:5,opacity:c.delivered?0.62:1,
+      border:"1px solid "+col+"33",borderLeft:"2px solid "+col,borderRadius:5,
+      background:col+"0e",padding:tight?"4px 7px":"5px 8px",marginBottom:4,opacity:c.delivered?0.62:1,
       display:"flex",alignItems:"flex-start",gap:4}},
     React.createElement("div",{style:{flex:1,minWidth:0}},
-      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:3}},
-        React.createElement("span",{style:{fontSize:9.5,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:col,lineHeight:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},head),
-        c.amount&&!isPkg&&React.createElement("span",{style:{marginLeft:"auto",fontSize:11.5,fontWeight:800,color:col,whiteSpace:"nowrap"}},c.amount)),
-      line2&&React.createElement("div",{style:{fontSize:12.5,fontWeight:700,color:dayTX,lineHeight:1.3,wordBreak:"break-word"}},line2),
-      detail&&React.createElement("div",{style:{fontSize:10,color:T.TXM,marginTop:2,fontFamily:isPkg?"ui-monospace,SFMono-Regular,Menlo,monospace":"inherit",wordBreak:"break-all"}},detail),
-      React.createElement("div",{style:{display:"flex",gap:4,flexWrap:"wrap",marginTop:6}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:tight?1:2}},
+        React.createElement("span",{style:{fontSize:9,fontWeight:800,letterSpacing:0.9,textTransform:"uppercase",color:col,lineHeight:1.1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},head),
+        c.amount&&!isPkg&&React.createElement("span",{style:{marginLeft:"auto",fontSize:11,fontWeight:800,color:col,whiteSpace:"nowrap"}},c.amount)),
+      line2&&React.createElement("div",{style:{fontSize:12,fontWeight:700,color:dayTX,lineHeight:1.25,wordBreak:"break-word"}},line2),
+      detail&&React.createElement("div",{style:{fontSize:9.5,color:T.TXM,marginTop:1,lineHeight:1.3,fontFamily:isPkg?"ui-monospace,SFMono-Regular,Menlo,monospace":"inherit",wordBreak:"break-all"}},detail),
+      React.createElement("div",{style:{display:"flex",gap:4,flexWrap:"wrap",marginTop:tight?4:5}},
         isPkg&&c.trackUrl&&btn("Track",()=>{try{window.open(c.trackUrl,"_blank","noopener");}catch(e){}}),
         isPkg&&c.tracking&&btn("Copy #",e=>OI_copy(e,c.tracking)),
         btn("Email",()=>OI_openEmail(c)))),
