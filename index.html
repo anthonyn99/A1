@@ -5428,6 +5428,43 @@ function TimePicker({value,onChange,T}){
     React.createElement("select",{style:{...ss,minWidth:58},value:ap,onChange:e=>{setAp(e.target.value);emit(h,m,e.target.value);}},["AM","PM"].map(a=>React.createElement("option",{key:a,value:a},a))));
 }
 
+// ── Scroll lock ─────────────────────────────────────────────────────────────
+// A dialog floating over the week must not let the week scroll underneath it.
+// Without this a wheel or a swipe anywhere outside the dialog's own scroll box
+// moves the board behind — so you close the dialog and find yourself at a
+// different part of the month than you left.
+//
+// COUNTED, not boolean: dialogs in this app stack (the Plan panel opens its own
+// sub-dialogs over the Add dialog), and an inner one unmounting must not hand
+// scrolling back while an outer one is still up. The saved value is restored
+// rather than cleared, because the profile switcher and the quote overlay set
+// body overflow too and may own it when a dialog opens.
+//
+// Declared here rather than inside a component so both TaskHubs share ONE
+// counter — this file's two babel blocks are one scope.
+let _thScrollLocks=0,_thScrollPrev=null;
+function useScrollLock(active){
+  useEffect(()=>{
+    if(!active)return;
+    if(_thScrollLocks===0){
+      _thScrollPrev={html:document.documentElement.style.overflow,
+                     body:document.body.style.overflow};
+      document.documentElement.style.overflow="hidden";
+      document.body.style.overflow="hidden";
+    }
+    _thScrollLocks++;
+    return()=>{
+      _thScrollLocks--;
+      if(_thScrollLocks>0)return;
+      _thScrollLocks=0;
+      if(!_thScrollPrev)return;
+      document.documentElement.style.overflow=_thScrollPrev.html;
+      document.body.style.overflow=_thScrollPrev.body;
+      _thScrollPrev=null;
+    };
+  },[active]);
+}
+
 function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   const CC=CC_DARK;
   const[type,setType]=useState("task");const[title,setTitle]=useState("");const[cat,setCat]=useState("");
@@ -5464,6 +5501,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
       setEndDate({month:clamped.getMonth(),day:clamped.getDate(),year:clamped.getFullYear()});
     } else {setEndDate({month:now2.getMonth(),day:now2.getDate(),year:now2.getFullYear()});}
   },[open,initial,startDateKey]);
+  useScrollLock(open);
   if(!open)return null;
   const save=()=>{
     if(!title.trim()&&repeat!=="altSeq")return;
@@ -5527,7 +5565,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   const canPlan=!initial?.id;
   const isPlan=canPlan&&type==="plan";
   return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},
-    React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:28,width:isPlan?860:460,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 30px 80px "+T.SHADOW,transition:"width .18s"},onClick:e=>e.stopPropagation()},
+    React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:28,width:isPlan?860:460,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",overscrollBehavior:"contain",boxShadow:"0 30px 80px "+T.SHADOW,transition:"width .18s"},onClick:e=>e.stopPropagation()},
       React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:20}},
         React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:16,fontWeight:700,color:T.AC}},isPlan?"Plans":((initial?.id?"Edit":"New")+" — "+dateLabel)),
         isPlan&&React.createElement("button",{type:"button",title:"Close",onClick:onClose,style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,color:T.TXM,cursor:"pointer",padding:"4px 10px",fontSize:11,fontWeight:700,fontFamily:"inherit"}},"Close")),
@@ -6143,7 +6181,7 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm}){
       alignItems:"center",justifyContent:"center",padding:20,zIndex:4200}},
     React.createElement("div",{onClick:e=>e.stopPropagation(),
       style:{background:P.S1,border:"1px solid "+P.BDL,borderRadius:16,padding:22,
-        width:"100%",maxWidth:460,maxHeight:"calc(100vh - 40px)",overflowY:"auto",
+        width:"100%",maxWidth:460,maxHeight:"calc(100vh - 40px)",overflowY:"auto",overscrollBehavior:"contain",
         boxShadow:"0 24px 60px rgba(0,0,0,.55)",fontFamily:P.FONT,color:P.TX}},
       React.createElement("h3",{style:{margin:"0 0 4px",fontSize:17,fontWeight:700,
         letterSpacing:-.2,color:P.TX}},title),
@@ -12451,6 +12489,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
     if(startDateKey){const p=startDateKey.split("-");const sd=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));sd.setDate(sd.getDate()+14);setEndDate(initial?.repeatEndDate||initial?.altSeqEndDate||{month:sd.getMonth(),day:sd.getDate(),year:sd.getFullYear()});}
     if(initial?.notifyAt){const nd=new Date(initial.notifyAt);const pad=n=>String(n).padStart(2,"0");setNotifyDate(nd.getFullYear()+"-"+pad(nd.getMonth()+1)+"-"+pad(nd.getDate()));setNotifyTime(pad(nd.getHours())+":"+pad(nd.getMinutes()));}else{setNotifyDate("");setNotifyTime("");}
     setNotifyRepeat(initial?.notifyRepeat||"none");setNotifyRepeatDays(initial?.notifyRepeatDays||[]);}},[open,initial,startDateKey]);
+  useScrollLock(open);
   if(!open)return null;
   const mi={background:BG,border:"1px solid "+BDL,borderRadius:5,color:TX,fontSize:14,padding:"9px 11px",fontFamily:"inherit",fontWeight:600,outline:"none",width:"100%",boxSizing:"border-box"};
   const tb=(active,danger)=>({fontSize:11,fontWeight:700,padding:"5px 14px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:active?(danger?"#f85149":A):BG,color:active?BG:TXD,border:active?"1px solid "+(danger?"#f85149":A):"1px solid "+BDL,transition:"all .15s"});
@@ -12504,7 +12543,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const isPlan=canPlan&&type==="plan";
   const typeOpts=canPlan?["task","event","plan"]:["task","event"];
   return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000},onClick:onClose},
-    RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:10,padding:24,width:isPlan?860:430,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",transition:"width .18s"},onClick:e=>e.stopPropagation()},
+    RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:10,padding:24,width:isPlan?860:430,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",transition:"width .18s"},onClick:e=>e.stopPropagation()},
       RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16}},
         RC("div",{style:{fontSize:16,fontWeight:700,color:A,textTransform:"uppercase",letterSpacing:1}},isPlan?"Plans":((initial?.id?"Edit":"New")+" \u2014 "+dateLabel)),
         isPlan&&RC("button",{type:"button",title:"Close",onClick:onClose,style:{background:"transparent",border:"1px solid "+BD,borderRadius:5,color:TXM,cursor:"pointer",padding:"4px 10px",fontSize:11,fontWeight:700,fontFamily:"inherit"}},"Close")),
