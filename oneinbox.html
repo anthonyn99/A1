@@ -346,6 +346,75 @@ aside.sidebar{
 .navitem.active .cnt{color:var(--gold)}
 .acctdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 
+/* ── Reorderable accounts ────────────────────────────────────────────────
+   The grip is the touch drag handle. It has to exist: on a phone a drag that
+   starts anywhere on the row is indistinguishable from a scroll of the
+   sidebar, and whichever one you guess wrong breaks the other. With a handle,
+   a finger on the grip reorders and a finger anywhere else still scrolls.
+   A mouse has no such ambiguity, so on desktop the whole row is draggable. */
+.navitem .grip{
+  width:16px;flex-shrink:0;color:var(--faint);opacity:0;cursor:grab;
+  touch-action:none;                 /* the browser must not pan from the grip */
+  margin-right:-2px;transition:opacity .13s;
+}
+.navitem:hover .grip{opacity:.75}
+.navitem .grip:hover{opacity:1;color:var(--gold)}
+.navitem.dragging .grip{cursor:grabbing}
+#navAccounts.reordering .navitem{transition:none}
+#navAccounts.reordering{cursor:grabbing}
+.navitem.dragging{
+  background:var(--surface-3);color:var(--text);
+  box-shadow:0 10px 26px rgba(0,0,0,.45),inset 0 0 0 1px var(--gold-line);
+  opacity:.97;position:relative;z-index:3;
+}
+/* Touch has no hover, so the grip must be permanently visible there. */
+@media (hover:none){ .navitem .grip{opacity:.55} }
+
+/* ── Select ──────────────────────────────────────────────────────────────
+   A native <select> renders its option list as OS chrome: on this dark theme
+   that came out as a white sheet with near-invisible grey text, and no amount
+   of CSS reaches inside it. So the native element stays in the DOM as the
+   value holder (every existing .value read and change listener keeps working)
+   and is hidden, while this takes over the visible half.
+   The panel is position:fixed — anything absolute would be clipped by the
+   modal's own overflow, which is what makes hand-rolled dropdowns in dialogs
+   go wrong. */
+select.selui-native{display:none}
+.selui{position:relative;display:flex;min-width:0;flex:1}
+.selui-btn{
+  display:flex;align-items:center;gap:8px;width:100%;min-width:0;
+  background:transparent;border:none;color:var(--text);
+  font:inherit;font-size:14px;text-align:left;padding:3px 0;cursor:pointer;
+}
+.selui-btn .v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.selui-btn .v.placeholder{color:var(--faint)}
+.selui-btn svg{width:15px;height:15px;flex-shrink:0;color:var(--faint);transition:transform .16s}
+.selui.open .selui-btn svg{transform:rotate(180deg);color:var(--gold)}
+.selui-panel{
+  position:fixed;z-index:400;display:none;flex-direction:column;overflow-y:auto;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:5px;
+  box-shadow:0 16px 40px rgba(0,0,0,.55);
+}
+.selui-panel.open{display:flex}
+.selui-opt{
+  display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--radius-sm);
+  font-size:13.5px;color:var(--muted);cursor:pointer;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.selui-opt:hover,.selui-opt.here{background:var(--surface-3);color:var(--text)}
+.selui-opt[aria-selected="true"]{color:var(--gold);font-weight:600}
+.selui-opt .tick{width:14px;flex-shrink:0;opacity:0}
+.selui-opt[aria-selected="true"] .tick{opacity:1}
+
+/* The compose toolbar's template picker is a compact chip, not a field row. */
+.ctoolbar .selui{flex:0 0 auto;min-width:0}
+.ctoolbar .selui-btn{
+  border:1px solid var(--border-soft);border-radius:var(--radius-sm);
+  padding:5px 8px;font-size:12px;max-width:150px;color:var(--muted);
+}
+.ctoolbar .selui-btn:hover{border-color:var(--gold-line);color:var(--text)}
+
 /* ── Message list ────────────────────────────────────────────────────────── */
 section.listpane{
   width:380px;flex-shrink:0;border-right:1px solid var(--border-soft);
@@ -651,7 +720,11 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
   .tmplrow input,
   #cTemplate,
   #schedAt,
+  .crow .selui-btn,
   #composeBody{font-size:16px}
+  /* Comfortable thumb targets in the dropdown panel. */
+  .selui-opt{padding:12px 11px;font-size:15px}
+  .ctoolbar .selui-btn{min-height:38px}
 }
 @media (min-width:1024px){.scrim{display:none !important}}
 
@@ -1604,6 +1677,7 @@ function renderSidebar(){
       `<div class="navitem${S.activeAccount===a.email?' active':''}" data-acct="${esc(a.email)}">
          <span class="acctdot" style="background:${acctColor(a.email)}"></span>
          <span class="lbl" title="${esc(a.email)}">${esc(a.email)}</span>
+         <svg class="grip" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>
        </div>`
     ).join('');
 
@@ -2184,10 +2258,32 @@ window.addEventListener('message', ev => {
   if (ev.data.ok){ toast('Account connected', true); loadAccounts().then(() => { renderSidebar(); renderSettings(); loadMessages(); }); }
 });
 
+/* ── Account order ────────────────────────────────────────────────────────
+   Sidebar order is a per-device display preference, so it lives in
+   localStorage rather than on the account record — reordering here does not
+   reach into the mailbox or the worker. An account missing from the saved
+   order (newly connected, or connected on another device) sorts to the end
+   in whatever order the server returned, instead of vanishing or jumping. */
+const ACCT_ORDER_LS = 'oneinbox_acct_order';
+const loadAcctOrder = () => { try { return JSON.parse(localStorage.getItem(ACCT_ORDER_LS) || '[]'); } catch { return []; } };
+const saveAcctOrder = list => { try { localStorage.setItem(ACCT_ORDER_LS, JSON.stringify(list)); } catch {} };
+
+function applyAcctOrder(){
+  const order = loadAcctOrder();
+  if (!order.length) return;
+  const at = new Map(order.map((e, i) => [e, i]));
+  const rank = a => at.has(a.email) ? at.get(a.email) : Number.MAX_SAFE_INTEGER;
+  // Stable sort keeps the server's order among the accounts we've never seen.
+  S.accounts = S.accounts.map((a, i) => [a, i])
+    .sort((x, y) => (rank(x[0]) - rank(y[0])) || (x[1] - y[1]))
+    .map(p => p[0]);
+}
+
 async function loadAccounts(){
   try {
     const d = await api('/accounts');
     S.accounts = d.accounts || [];
+    applyAcctOrder();
     if (S.activeAccount !== 'all' && !S.accounts.some(a => a.email === S.activeAccount)) S.activeAccount = 'all';
     // Label lists are per-account and only needed for the active mailbox.
     if (S.activeAccount !== 'all' && !S.labels[S.activeAccount]){
@@ -2217,6 +2313,9 @@ el('msgList').addEventListener('click', e => {
 });
 
 el('sidebar').addEventListener('click', e => {
+  // A drag that ended on this row still fires a click; selecting the account
+  // the user was only moving would be wrong.
+  if (acctDragJustEnded){ acctDragJustEnded = false; e.stopPropagation(); return; }
   const f = e.target.closest('[data-folder]');
   if (f){
     S.folder = f.dataset.folder;
@@ -2239,6 +2338,72 @@ el('sidebar').addEventListener('click', e => {
 });
 el('addAcctBtn').addEventListener('click', connectAccount);
 el('settingsAddAcct').addEventListener('click', connectAccount);
+
+/* ── Reordering the account list ──────────────────────────────────────────
+   Pointer events, so mouse and touch run the same code rather than a
+   mousedown path plus a parallel touch path that drifts out of step.
+   The dragged row is moved in the DOM as you pass each neighbour's midpoint,
+   which keeps the list showing its own result — no placeholder to keep in
+   sync with the thing it stands for. */
+let acctDrag = null;
+let acctDragJustEnded = false;
+
+const acctRows = () =>
+  [...el('navAccounts').querySelectorAll('.navitem[data-acct]')].filter(r => r.dataset.acct !== 'all');
+
+el('navAccounts').addEventListener('pointerdown', e => {
+  if (e.button > 0) return;                                  // primary button only
+  const row = e.target.closest('.navitem[data-acct]');
+  if (!row || row.dataset.acct === 'all') return;
+  if (acctRows().length < 2) return;                          // nothing to reorder
+  // Touch may only start from the grip — see the .grip comment in the CSS.
+  if (e.pointerType !== 'mouse' && !e.target.closest('.grip')) return;
+  acctDrag = { row, startY: e.clientY, id: e.pointerId, moved: false };
+});
+
+window.addEventListener('pointermove', e => {
+  if (!acctDrag || e.pointerId !== acctDrag.id) return;
+
+  if (!acctDrag.moved){
+    // A few pixels of slop, so a slightly imprecise tap is still a tap.
+    if (Math.abs(e.clientY - acctDrag.startY) < 5) return;
+    acctDrag.moved = true;
+    acctDrag.row.classList.add('dragging');
+    el('navAccounts').classList.add('reordering');
+    try { acctDrag.row.setPointerCapture(acctDrag.id); } catch {}
+  }
+  e.preventDefault();
+
+  const rows = acctRows();
+  for (const other of rows){
+    if (other === acctDrag.row) continue;
+    const r = other.getBoundingClientRect();
+    const mid = r.top + r.height / 2;
+    const rowIsAfter = other.compareDocumentPosition(acctDrag.row) & Node.DOCUMENT_POSITION_FOLLOWING;
+    if (e.clientY < mid && rowIsAfter){ other.before(acctDrag.row); break; }
+    if (e.clientY > mid && !rowIsAfter){ other.after(acctDrag.row); break; }
+  }
+}, { passive: false });
+
+function endAcctDrag(commit){
+  if (!acctDrag) return;
+  const { row, moved } = acctDrag;
+  acctDrag = null;
+  row.classList.remove('dragging');
+  el('navAccounts').classList.remove('reordering');
+  if (!moved) return;                       // it was a click after all
+  acctDragJustEnded = true;
+  if (!commit){ renderSidebar(); return; }  // cancelled: snap back to state
+
+  const order = acctRows().map(r => r.dataset.acct);
+  saveAcctOrder(order);
+  const at = new Map(order.map((x, i) => [x, i]));
+  S.accounts.sort((a, b) => at.get(a.email) - at.get(b.email));
+  renderSidebar();
+}
+
+window.addEventListener('pointerup', e => { if (acctDrag && e.pointerId === acctDrag.id) endAcctDrag(true); });
+window.addEventListener('pointercancel', e => { if (acctDrag && e.pointerId === acctDrag.id) endAcctDrag(false); });
 
 el('filterRow').addEventListener('click', e => {
   const c = e.target.closest('[data-filter]');
@@ -2410,6 +2575,155 @@ window.addEventListener('drop', async e => {
   endDrag();
   await addFiles(e.dataTransfer.files);
 });
+
+/* ── Themed select ────────────────────────────────────────────────────────
+   enhanceSelect() hides a native <select> and drives it from a themed panel.
+   The <select> stays the single source of truth, so `el('cFrom').value`, the
+   `change` listeners and the `innerHTML = '<option>…'` rebuilds elsewhere all
+   keep working untouched — a MutationObserver notices those rebuilds and
+   re-reads the options. */
+const openSelui = () => document.querySelector('.selui.open');
+
+function enhanceSelect(sel){
+  if (sel.dataset.selui) return;
+  sel.dataset.selui = '1';
+  sel.classList.add('selui-native');
+
+  const wrap = document.createElement('div');
+  wrap.className = 'selui';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'selui-btn';
+  btn.setAttribute('aria-haspopup', 'listbox');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.innerHTML = `<span class="v"></span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
+  const panel = document.createElement('div');
+  panel.className = 'selui-panel';
+  panel.setAttribute('role', 'listbox');
+
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+  wrap.appendChild(btn);
+  document.body.appendChild(panel);          // body-level: never clipped by a modal
+
+  const opts = () => [...sel.options];
+  const syncLabel = () => {
+    const o = sel.selectedOptions[0];
+    const v = btn.querySelector('.v');
+    v.textContent = o ? o.textContent : '';
+    // An empty value is a prompt ("Template…"), not a choice.
+    v.classList.toggle('placeholder', !o || o.value === '');
+    btn.title = o ? o.textContent : '';
+  };
+  const paint = () => {
+    panel.innerHTML = opts().map(o => `
+      <div class="selui-opt" role="option" data-v="${esc(o.value)}" aria-selected="${o.value === sel.value}">
+        <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 6"/></svg>
+        <span>${esc(o.textContent)}</span>
+      </div>`).join('');
+    syncLabel();
+  };
+
+  // Fixed positioning has to be recomputed on every open, and flipped upward
+  // when the panel would run off the bottom of a short window.
+  const place = () => {
+    const r = btn.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom - 10;
+    const above = r.top - 10;
+    const up = below < 180 && above > below;
+    const max = Math.max(120, Math.min(320, up ? above : below));
+    panel.style.left = r.left + 'px';
+    panel.style.minWidth = r.width + 'px';
+    panel.style.maxWidth = Math.max(r.width, Math.min(420, window.innerWidth - r.left - 12)) + 'px';
+    panel.style.maxHeight = max + 'px';
+    if (up){ panel.style.top = 'auto'; panel.style.bottom = (window.innerHeight - r.top + 6) + 'px'; }
+    else   { panel.style.bottom = 'auto'; panel.style.top = (r.bottom + 6) + 'px'; }
+  };
+
+  const close = () => {
+    wrap.classList.remove('open');
+    panel.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
+  };
+  const open = () => {
+    if (sel.disabled || !opts().length) return;
+    closeAllSelui();
+    paint(); place();
+    wrap.classList.add('open');
+    panel.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
+    const cur = panel.querySelector('[aria-selected="true"]') || panel.firstElementChild;
+    cur?.classList.add('here');
+    cur?.scrollIntoView({ block: 'nearest' });
+  };
+
+  const pick = v => {
+    if (sel.value !== v){
+      sel.value = v;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    syncLabel(); close(); btn.focus();
+  };
+
+  btn.addEventListener('click', () => wrap.classList.contains('open') ? close() : open());
+  panel.addEventListener('click', e => {
+    const o = e.target.closest('.selui-opt');
+    if (o) pick(o.dataset.v);
+  });
+
+  // Keyboard: the same keys the native control answered to.
+  btn.addEventListener('keydown', e => {
+    if (['ArrowDown','ArrowUp','Enter',' '].includes(e.key) && !wrap.classList.contains('open')){
+      e.preventDefault(); open(); return;
+    }
+    if (!wrap.classList.contains('open')) return;
+    const items = [...panel.children];
+    const at = items.findIndex(x => x.classList.contains('here'));
+    if (e.key === 'Escape'){ e.preventDefault(); close(); }
+    else if (e.key === 'Enter'){ e.preventDefault(); if (items[at]) pick(items[at].dataset.v); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End'){
+      e.preventDefault();
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1
+                 : Math.min(items.length - 1, Math.max(0, at + (e.key === 'ArrowDown' ? 1 : -1)));
+      items[at]?.classList.remove('here');
+      items[next]?.classList.add('here');
+      items[next]?.scrollIntoView({ block: 'nearest' });
+    }
+  });
+
+  // Options are rebuilt elsewhere with innerHTML; keep the visible half in step.
+  new MutationObserver(() => { paint(); if (wrap.classList.contains('open')) place(); })
+    .observe(sel, { childList: true, subtree: true });
+  sel.addEventListener('change', syncLabel);
+
+  paint();
+  wrap._seluiClose = close;
+  wrap._seluiPlace = place;
+  panel._seluiWrap = wrap;
+}
+
+function closeAllSelui(){
+  document.querySelectorAll('.selui.open').forEach(w => w._seluiClose?.());
+}
+
+// Anywhere else is a dismissal — but a click inside the panel is not "outside",
+// and the panel lives on <body>, so it needs testing separately from the wrap.
+document.addEventListener('pointerdown', e => {
+  const w = openSelui();
+  if (!w) return;
+  // e.target is not always an Element — a press on bare document or on a text
+  // node has no .closest, and throwing here would kill the capture listener.
+  const t = e.target instanceof Element ? e.target : null;
+  if (t && (w.contains(t) || t.closest('.selui-panel'))) return;
+  closeAllSelui();
+}, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && openSelui()) closeAllSelui(); });
+// A scroll under an open panel would leave it floating in the wrong place.
+window.addEventListener('scroll', () => openSelui() && closeAllSelui(), true);
+window.addEventListener('resize', () => openSelui()?._seluiPlace?.());
+
+document.querySelectorAll('select').forEach(enhanceSelect);
 
 // ── Schedule send ──
 el('cScheduleBtn').addEventListener('click', () => {
