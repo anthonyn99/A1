@@ -5638,10 +5638,26 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
 // `P` is the palette the host TaskHub passes in (see PLAN_PAL_TONY /
 // PLAN_PAL_VEDA). Every colour below comes from it, so the two profiles differ
 // in that one object and nowhere else.
+// The "done" green, per profile. Tony's is his TaskHub's own GRN, so a finished
+// plan matches a ticked task on his board exactly. Veda's TaskHub green
+// (#5DAF6D) is a punchy grass that fights her muted mauve, so hers is a sage at
+// the same low saturation as the rest of her palette — it reads as finished
+// without shouting next to the purple.
+const PLAN_GRN_TONY="#a4b986";
+const PLAN_GRN_VEDA="#8FBCA0";
+// One check glyph for both panels and both week grids: a bare stroke in the
+// profile's green, no box and no fill — "a clean check mark", nothing else.
+function PlanCheck({size=13,color="#a4b986",strokeWidth=2.4}){
+  return React.createElement("svg",{width:size,height:size,viewBox:"0 0 12 12",fill:"none",
+    style:{display:"block",flexShrink:0},"aria-hidden":"true"},
+    React.createElement("path",{d:"M1.8 6.4L4.6 9.2L10.2 2.9",stroke:color,
+      strokeWidth:strokeWidth,strokeLinecap:"round",strokeLinejoin:"round"}));
+}
+
 const PLAN_PAL_TONY={
   BG:"#1a1a1d",S1:"#232327",S2:"#2c2c31",S3:"#26262b",BD:"#34343a",BDL:"#45454c",
   TX:"#f4f3f0",TXD:"#adadb2",TXM:"#8d8d94",TXF:"#71717a",
-  AC:"#e0b874",ACINK:"#1a1a1d",OK:"#a4b986",WARN:"#d9a863",BAD:"#d68a7c",
+  AC:"#e0b874",ACINK:"#1a1a1d",OK:PLAN_GRN_TONY,WARN:"#d9a863",BAD:"#d68a7c",
   FONT:"'Inter',system-ui,-apple-system,sans-serif",
   MONO:"'IBM Plex Mono',ui-monospace,monospace"};
 // Passed as an Add-dialog's `initial` to open it straight on the Plan tab (the
@@ -5652,7 +5668,7 @@ const PLAN_SEED={type:"plan"};
 const PLAN_PAL_VEDA={
   BG:"#1B1C1E",S1:"#26272A",S2:"#303135",S3:"#2a2b2f",BD:"#3D3E43",BDL:"#4A4B51",
   TX:"#ECECEE",TXD:"#AFB0B5",TXM:"#76777C",TXF:"#63646a",
-  AC:"#8D769A",ACINK:"#1B1C1E",OK:"#5DAF6D",WARN:"#d9a863",BAD:"#f85149",
+  AC:"#8D769A",ACINK:"#1B1C1E",OK:PLAN_GRN_VEDA,WARN:"#d9a863",BAD:"#f85149",
   FONT:"'IBM Plex Mono',ui-monospace,monospace",
   MONO:"'IBM Plex Mono',ui-monospace,monospace"};
 
@@ -5765,14 +5781,24 @@ function PlanPanel({P,startDateKey,onExit}){
 
   const card=(p,ctx)=>{
     const c=p.confirms||{veda:null,tony:null};
+    const dn=p.dones||{veda:null,tony:null};
+    const finished=p.stage==='done';
+    // Exactly one side has marked it done: the plan is still live, and whoever
+    // has not marked it is the one being waited on.
+    const halfDone=!finished&&!!(dn.veda||dn.tony)&&!(dn.veda&&dn.tony);
     const badges=[];
     if(ctx==='confirmed'&&p.cancelReq)
       badges.push(badge('cancel requested by '+(NAMES[p.cancelReq.by]||p.cancelReq.by),WARN));
+    if(halfDone&&!p.cancelReq){
+      const by=dn.veda?'veda':'tony';
+      badges.push(badge(by===w?'you marked it done — waiting on '+NAMES[PC.other(w)]
+        :(NAMES[by]||by)+' marked it done',OK));
+    }
     if(ctx==='proposed'&&w)badges.push(badge('waiting on '+NAMES[PC.other(w)],null));
     if(p.stage==='declined'&&p.declined)
       badges.push(badge('declined by '+(NAMES[p.declined.by]||p.declined.by),BAD));
     if(p.stage==='dropped')badges.push(badge('dropped',BAD));
-    if(p.stage==='done')badges.push(badge('done',OK));
+    if(finished)badges.push(badge('done',OK));
 
     // The date is the single most consequential field on a plan, so it leads
     // the card in the accent colour instead of sitting in a muted run-on line.
@@ -5790,15 +5816,24 @@ function PlanPanel({P,startDateKey,onExit}){
         letterSpacing:.7,color:P.TXF,fontFamily:P.MONO}},"from "+(NAMES[p.author]||p.author||'?')),
       badges);
 
+    // Marking done is two-sided, so the button says which half of it you are on:
+    // the first press is a mark you can take back, the second finishes the plan.
+    const doneBtn=dn[w]
+      ?B("","Undo done",()=>PC.unmarkDone(p.id),"ud")
+      :B(dn[PC.other(w)]?"go":"","Mark done",()=>PC.markDone(p.id),"m");
+
     let acts=[];
     if(ctx==='mine'){
       if(p.stage==='proposed')acts=[B("go","Confirm",()=>startConfirm(p),"c"),
         B("no","Decline",()=>setDlg({mode:'decline',id:p.id}),"d"),
         B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e")];
-      else acts=[B("no","Agree — drop it",()=>PC.agreeCancel(p.id),"a"),
+      else if(p.cancelReq)acts=[B("no","Agree — drop it",()=>PC.agreeCancel(p.id),"a"),
         B("","Keep the plan",()=>PC.withdrawOther(p.id),"k")];
+      // The other person marked it done and it is now my call.
+      else acts=[B("go","Yes — it’s done",()=>PC.markDone(p.id),"yd"),
+        B("","Not yet",()=>PC.rejectDone(p.id),"nd")];
     }else if(ctx==='confirmed'){
-      acts=[B("","Mark done",()=>PC.markDone(p.id),"m"),
+      acts=[doneBtn,
         (p.cancelReq&&p.cancelReq.by===w)
           ?B("","Withdraw cancel",()=>PC.withdrawCancel(p.id),"wd")
           :B("no","Request cancel",()=>setDlg({mode:'cancel',id:p.id}),"rc"),
@@ -5867,8 +5902,15 @@ function PlanPanel({P,startDateKey,onExit}){
     const collapsible=(ctx==='confirmed'||ctx==='archive');
     const open=!collapsible||!!expanded[p.id];
     const wait=ctx==='mine';
-    const title=React.createElement("div",{style:{fontSize:15,fontWeight:700,lineHeight:1.4,
-      wordBreak:"break-word",color:P.TX,letterSpacing:-.15}},p.title||'Untitled');
+    // A finished plan reads exactly like a ticked task — struck through and
+    // faded, with a green check leading the title so the state is legible
+    // before you read a word of it.
+    const title=React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:7}},
+      finished?React.createElement("span",{style:{flexShrink:0,marginTop:4,display:"inline-flex"}},
+        React.createElement(PlanCheck,{size:13,color:P.OK})):null,
+      React.createElement("span",{style:{fontSize:15,fontWeight:finished?500:700,lineHeight:1.4,
+        wordBreak:"break-word",color:finished?P.TXM:P.TX,letterSpacing:-.15,
+        textDecoration:finished?"line-through":"none"}},p.title||'Untitled'));
 
     const body=open?React.createElement(React.Fragment,null,
       p.notes?React.createElement("div",{style:{fontSize:12.5,color:P.TXD,marginTop:11,
@@ -5879,7 +5921,7 @@ function PlanPanel({P,startDateKey,onExit}){
     return React.createElement("div",{key:p.id,style:{background:wait
         ?"linear-gradient(180deg,"+AC_SOFT+",transparent 62%), "+P.S1:P.S1,
       border:"1px solid "+(wait?AC_LINE:P.BD),borderRadius:12,
-      padding:collapsible?0:"15px 16px",marginBottom:10,
+      padding:collapsible?0:"15px 16px",marginBottom:10,opacity:finished?.62:1,
       boxShadow:wait?"0 4px 16px rgba(0,0,0,.32)":"0 1px 2px rgba(0,0,0,.3)"}},
       collapsible
         ?React.createElement("button",{type:"button",onClick:()=>toggleFold(p.id),
@@ -6931,8 +6973,11 @@ function App(){
   const planMirrorSigRef=useRef(null);
   useEffect(()=>{
     // Signature of just the mirrored items, so an unrelated edit to Tony's own
-    // tasks never looks like a mirror change (and vice versa).
-    const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._planId).map(t=>[t._planId,t.title,t.time||"",t.type||""]).sort()]));
+    // tasks never looks like a mirror change (and vice versa). `done` is part of
+    // it: both people marking a plan finished changes nothing else about the
+    // item, so without it the pre-check below would short-circuit and a done
+    // plan would never strike through or reach the day's progress bar.
+    const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._planId).map(t=>[t._planId,t.title,t.time||"",t.type||"",!!t.done]).sort()]));
     // Signature of just the mirrored GOALS, for the same reason.
     const gsig=a=>JSON.stringify((a||[]).filter(g=>g&&g._planId).map(g=>[g._planId,g.title,!!g.done]).sort());
     const apply=(plans)=>{
@@ -7959,11 +8004,12 @@ function App(){
                  sits in YOUR day lives in your own dashboard doc, so it is yours
                  to drag and it survives the reconcile (which now preserves the
                  slot of a plan it already knows about). */
-              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:dimA,cursor:edit?"grab":"default"})},
+              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.72:dimA,cursor:edit?"grab":"default"})},
                 React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
+                  t.done&&React.createElement(PlanCheck,{size:11,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   t.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
-                React.createElement("span",{style:{fontSize:14,fontWeight:700,color:dayTX,lineHeight:1.4,...wkTitleFit}},t.title))
+                React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:dayTX,opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...wkTitleFit}},t.title))
               :React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 /* Completed box takes the task's category colour so a
                                    finished row still says what kind of work it was;
@@ -8052,11 +8098,12 @@ function App(){
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  wide grid above. */
-              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:dimA,cursor:edit?"grab":"default"})},
+              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:t.done?dimA*0.72:dimA,cursor:edit?"grab":"default"})},
                 React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5}},
+                  t.done&&React.createElement(PlanCheck,{size:10,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   t.time&&React.createElement("span",{style:{fontSize:9,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
-                React.createElement("span",{style:{fontSize:13,fontWeight:700,color:dayTX,lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title))
+                React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:dayTX,opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title))
               :React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:7,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
@@ -8166,9 +8213,11 @@ function App(){
           /* An undated confirmed plan mirrors here. Owned by dashboards/plans:
              inert, and labelled "Plan" so it is not mistaken for a goal Tony
              wrote himself. */
-          ?React.createElement("div",{key:g.id,style:{...wkPlanCard(true),display:"flex",flexDirection:"column",gap:2,marginBottom:5,cursor:"default"}},
-            React.createElement("span",{style:wkPlanTag},"Plan"),
-            React.createElement("span",{style:{fontSize:13,fontWeight:700,color:T.TX,lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
+          ?React.createElement("div",{key:g.id,style:{...wkPlanCard(true),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:g.done?0.62:1,cursor:"default"}},
+            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5}},
+              g.done&&React.createElement(PlanCheck,{size:11,color:T.GRN}),
+              React.createElement("span",{style:wkPlanTag},"Plan")),
+            React.createElement("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?T.TXDONE:T.TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
           :React.createElement("div",{key:g.id,...(goalTab==="short"?goalMRowP:goalRowP)(g.id),...(edit?(goalTab==="short"?goalMTouchH:goalTouchH)(g.id):{}),draggable:edit,
             onDragStart:edit?e=>(goalTab==="short"?onDragStartGoalM:onDragStartGoal)(e,g.id):null,
             onDragOver:edit?e=>{e.preventDefault();if(!isMobile)setDragOverId(g.id);}:null,
@@ -9193,7 +9242,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           _planId: p.id,
           type: 'task',
           title: p.title || 'Plan',
-          done: false
+          // Marking a plan done is two-sided, so `stage` is already the answer to
+          // "did both of them finish it". Carrying it through is what makes a
+          // finished plan strike through on the grid AND count toward the day's
+          // progress bar, which reads every type:'task' row including this one.
+          done: p.stage === 'done'
         };
         if (p.time) {
           it.time = p.time;
@@ -13257,7 +13310,7 @@ function App(){
   // grids agree without either app writing into the other's.
   const planMirrorSigRef=useRef(null);
   useEffect(()=>{
-    const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._planId).map(t=>[t._planId,t.title,t.time||"",t.type||""]).sort()]));
+    const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._planId).map(t=>[t._planId,t.title,t.time||"",t.type||"",!!t.done]).sort()]));
     const gsig=a=>JSON.stringify((a||[]).filter(g=>g&&g._planId).map(g=>[g._planId,g.title,!!g.done]).sort());
     const apply=(plans)=>{
       if(!fbLoadedRef.current)return;          // see the StudyOS barrier above
@@ -13721,11 +13774,12 @@ function App(){
                  Position is yours though: where a plan sits in your day lives in
                  your own dashboard doc, so it drags like any task and the
                  reconcile keeps the slot. */
-              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:dimA,cursor:edit?"grab":"default"})},
+              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:t.done?dimA*0.7:dimA,cursor:edit?"grab":"default"})},
                 RC("div",{style:{display:"flex",alignItems:"center",gap:6}},
+                  t.done&&RC(PlanCheck,{size:11,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
-                RC("span",{style:{fontSize:14,fontWeight:700,color:dayTX,lineHeight:1.4,...vdTitleFit}},t.title))
+                RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title))
               :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
@@ -13773,11 +13827,12 @@ function App(){
               ts.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  single-day list. */
-              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:dimA,cursor:edit?"grab":"default"})},
+              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.7:dimA,cursor:edit?"grab":"default"})},
                 RC("div",{style:{display:"flex",alignItems:"center",gap:5}},
+                  t.done&&RC(PlanCheck,{size:10,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
-                RC("span",{style:{fontSize:12,fontWeight:700,color:dayTX,lineHeight:1.35,...vdTitleFit}},t.title))
+                RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title))
               :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:8})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
@@ -13851,9 +13906,11 @@ function App(){
         RC("div",{style:{flex:1,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},((goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?(goalTab==="short"?mgMonthly:mg).filter(g=>!g.done):(goalTab==="short"?mgMonthly:mg)).map(g=>g._planId
         /* An undated confirmed plan mirrors here. Owned by dashboards/plans:
            inert, and labelled "Plan" so it is not mistaken for one of her own. */
-        ?RC("div",{key:g.id,style:{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,cursor:"default"}},
-          RC("span",{style:vdPlanTag},"Plan"),
-          RC("span",{style:{fontSize:13,fontWeight:700,color:TX,lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
+        ?RC("div",{key:g.id,style:{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:g.done?0.62:1,cursor:"default"}},
+          RC("div",{style:{display:"flex",alignItems:"center",gap:5}},
+            g.done&&RC(PlanCheck,{size:11,color:PLAN_GRN_VEDA}),
+            RC("span",{style:vdPlanTag},"Plan")),
+          RC("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?TXM:TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
         :RC("div",{key:g.id,...(goalTab==="short"?goalMRowP:goalRowP)(g.id),...(edit?(goalTab==="short"?goalMTouchH:goalTouchH)(g.id):{}),draggable:edit,onDragStart:edit?e=>(goalTab==="short"?vOnDragStartGoalM:vOnDragStartGoal)(e,g.id):null,onDragOver:edit?e=>{e.preventDefault();if(!vrMobile)setVdDragOverId(g.id);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>(goalTab==="short"?vOnDropGoalM:vOnDropGoal)(e,g.id):null,style:vdndRowStyle(g.id,{display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",opacity:g.done?.5:1,cursor:edit?"grab":"default"})},
                     RC("div",{onClick:()=>(goalTab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,border:"2px solid "+(g.done?A:TXM),background:g.done?A:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&RC(Chk)),
           RC("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?TXM:TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word",overflowWrap:"break-word",minWidth:0}},g.title),
@@ -16189,10 +16246,20 @@ function confirmFlags(p){
 // of throwing. Mirrors _planCoerce in the Firebase layer.
 function coerce(p){
   const c=(p&&p.confirms&&typeof p.confirms==='object')?p.confirms:{};
-  const out=Object.assign({},p,{confirms:{veda:c.veda||null,tony:c.tony||null}});
+  const d=(p&&p.dones&&typeof p.dones==='object')?p.dones:{};
+  const out=Object.assign({},p,{confirms:{veda:c.veda||null,tony:c.tony||null},
+                                dones:{veda:d.veda||null,tony:d.tony||null}});
   if(out.stage==='confirmed'&&!isConfirmed(out)){
     console.warn('[Plans] corrupt record '+out.id+': confirmed without two confirms — showing as proposed');
     out.stage='proposed';
+  }
+  // Records finished under the EARLIER one-sided rule carry stage==='done' with
+  // no marks at all. They were legitimately done at the time, so migrate them
+  // into the new shape rather than resurrecting them as unfinished: stamp both
+  // marks with when the record was last written.
+  if(out.stage==='done'&&!isDone(out)){
+    const t=out.updatedAt||out.createdAt||Date.now();
+    out.dones={veda:out.dones.veda||t,tony:out.dones.tony||t};
   }
   return out;
 }
@@ -16220,7 +16287,10 @@ function notifyOther(kind,p,extra){
     case 'cancelled':msg=who+' agreed to cancel “'+title+'”. It is dropped.'; break;
     case 'withdrawn':msg=who+' withdrew the cancel request on “'+title+'”.'; break;
     case 'edited':   msg=who+' changed “'+title+'” — your confirmation was reset.'; break;
-    case 'done':     msg=who+' marked “'+title+'” done.'; break;
+    case 'doneReq':  msg=who+' marked “'+title+'” done — mark it too to finish it.'; break;
+    case 'done':     msg=who+' marked “'+title+'” done. You have both finished it.'; break;
+    case 'undone':   msg=who+' took back their done mark on “'+title+'”.'; break;
+    case 'notDone':  msg=who+' says “'+title+'” is not finished yet.'; break;
     case 'idea':     msg=who+' added an idea: “'+title+'”.'; break;
     case 'restored': msg=who+' restored “'+title+'” back to ideas.'; break;
     case 'tweaked':  msg=who+' updated “'+title+'”.'; break;
@@ -16280,7 +16350,7 @@ function promote(id){
     q.stage='proposed';q.proposedBy=w;q.proposedAt=Date.now();
     q.confirms={veda:null,tony:null};q.confirms[w]=Date.now();
     q.confirmMeta={};q.confirmMeta[w]=stamp(ok);
-    q.declined=null;
+    q.declined=null;clearProgress(q);
     save(q,'proposed');
     return 'ok';
   });
@@ -16318,7 +16388,7 @@ function declinePlan(id,reason){
   p.stage='declined';
   p.declined={by:w,reason:reason||'',at:Date.now()};
   p.confirms={veda:null,tony:null};p.confirmMeta={};
-  p.cancelReq=null;
+  p.cancelReq=null;clearProgress(p);
   save(p,'declined',reason||'');
 }
 
@@ -16326,7 +16396,7 @@ function restorePlan(id){
   const p=plans[id];if(!p)return;
   p.stage='idea';p.declined=null;p.cancelReq=null;
   p.confirms={veda:null,tony:null};p.confirmMeta={};
-  p.proposedBy=null;p.proposedAt=null;
+  p.proposedBy=null;p.proposedAt=null;clearProgress(p);
   save(p,'restored');
 }
 
@@ -16353,10 +16423,49 @@ function agreeCancel(id){
 // "Keep the plan" on a cancel request I did not file: clear it. Either party may
 // clear a request they are the counterparty to by declining to agree.
 function withdrawOther(id){const p=plans[id];if(!p)return;p.cancelReq=null;save(p,'kept');}
+
+// ── Finishing ───────────────────────────────────────────────────────────────
+// Done is two-sided for the same reason confirming is: a plan is something you
+// BOTH agreed to, so one person cannot declare it settled on the other's behalf.
+// Each side records its own mark and the stage only becomes 'done' when both
+// are in — the identical structural rule as isConfirmed(), so a one-sided "done"
+// is impossible to manufacture rather than merely discouraged.
+//
+// Until then the plan stays Confirmed and its TaskHub items stay on the grid.
+function isDone(p){return !!(p&&p.dones&&p.dones.veda&&p.dones.tony);}
 function markDone(id){
+  const w=me();if(!w)return;
   const p=plans[id];if(!p)return;
-  p.stage='done';save(p,'done');
+  p.dones=p.dones||{veda:null,tony:null};
+  if(p.dones[w])return;                          // already marked by me
+  p.dones[w]=Date.now();
+  const both=isDone(p);
+  if(both)p.stage='done';
+  save(p,both?'done':'doneReq');
 }
+// Take back MY OWN mark while the other side has not matched it yet.
+function unmarkDone(id){
+  const w=me();if(!w)return;
+  const p=plans[id];if(!p)return;
+  if(!p.dones||!p.dones[w])return;
+  p.dones[w]=null;
+  save(p,'undone');
+}
+// "Not yet" against a mark I am the counterparty to — the same shape as clearing
+// a cancel request you did not file. Disagreeing is how the two-sidedness earns
+// its keep, so it has to be one press.
+function rejectDone(id){
+  const w=me();if(!w)return;
+  const p=plans[id];if(!p)return;
+  const o=other(w);
+  if(!p.dones||!p.dones[o])return;
+  p.dones[o]=null;
+  save(p,'notDone');
+}
+// Every reset that clears confirms must clear the done marks too. A stale mark
+// surviving a decline / restore / material edit would silently re-complete the
+// plan the moment it was confirmed again.
+function clearProgress(p){p.dones={veda:null,tony:null};}
 
 // A plan confirmed for Saturday that silently becomes a plan for Tuesday is the
 // original problem wearing a disguise. So editing title/date/time on a CONFIRMED
@@ -16382,7 +16491,7 @@ function applyEdit(id,t,notes,d,tm){
     q.confirms={veda:null,tony:null};q.confirms[w]=Date.now();
     q.confirmMeta={};q.confirmMeta[w]=stamp(ok);
     q.stage='proposed';q.proposedBy=w;q.proposedAt=Date.now();
-    q.cancelReq=null;
+    q.cancelReq=null;clearProgress(q);
     save(q,'edited');
     return 'ok';
   });
@@ -16409,9 +16518,11 @@ function bucket(){
   const conf=all.filter(p=>p.stage==='confirmed'&&isConfirmed(p));
   return {
     // Awaiting MY confirm, plus confirmed plans where the OTHER person asked to
-    // cancel and it is now my call.
+    // cancel or marked it done and it is now my call.
     mine:all.filter(p=>w&&p.stage==='proposed'&&p.confirms&&!p.confirms[w])
         .concat(conf.filter(p=>w&&p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==w))
+        .concat(conf.filter(p=>w&&!(p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==w)
+          &&p.dones&&p.dones[other(w)]&&!p.dones[w]))
         .sort(byDate),
     confirmed:conf.sort(byDate),
     proposed:all.filter(p=>w&&p.stage==='proposed'&&p.confirms&&p.confirms[w]).sort(byDate),
@@ -16482,7 +16593,8 @@ window.PlansCore={
   me:me, other:other,
   get:function(id){return plans[id]||null;},
   bucket:bucket, waitingCount:waitingCount,
-  isConfirmed:isConfirmed, isMaterialEdit:isMaterialEdit, confirmFlags:confirmFlags,
+  isConfirmed:isConfirmed, isDone:isDone,
+  isMaterialEdit:isMaterialEdit, confirmFlags:confirmFlags,
   needsTwoSidedDelete:needsTwoSidedDelete,
   fmtDate:fmtDate, fmtTime:fmtTime, fmtWhen:fmtWhen, humanGap:humanGap,
   toLocalHHMM:toLocalHHMM,
@@ -16491,7 +16603,8 @@ window.PlansCore={
   bioReady:function(){return bioOK;}, refreshBio:refreshBioOK,
   addIdea:addIdea, promote:promote, confirmPlan:confirmPlan, declinePlan:declinePlan,
   restorePlan:restorePlan, requestCancel:requestCancel, withdrawCancel:withdrawCancel,
-  agreeCancel:agreeCancel, withdrawOther:withdrawOther, markDone:markDone,
+  agreeCancel:agreeCancel, withdrawOther:withdrawOther,
+  markDone:markDone, unmarkDone:unmarkDone, rejectDone:rejectDone,
   applyEdit:applyEdit, removePlan:removePlan
 };
 })();
