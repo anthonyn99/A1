@@ -97,10 +97,20 @@ function json(body, origin, status = 200) {
   });
 }
 
+// CPU NOTE: this used to append one character at a time. That is fine for a JWT
+// header but ruinous for anything large — a 1 MB payload costs ~100 ms of CPU,
+// and the Workers free plan allows 10 ms per invocation, so the isolate is
+// killed mid-request. A killed isolate answers with Cloudflare's own error page,
+// which carries no CORS headers, so the browser surfaces it as a bare
+// "Failed to fetch" with nothing to read. Chunked fromCharCode is ~10x cheaper;
+// bulk payloads (attachments) avoid this path entirely — see gapiUpload.
 const b64url = (input) => {
   const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : new Uint8Array(input);
   let s = '';
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  const CHUNK = 0x8000;                    // apply() args are stack-allocated
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 };
 

@@ -193,8 +193,41 @@ function pastelize(hex) {
   return best;
 }
 
-// Official site icon (like a browser bookmark), via Google's favicon service.
+// ── A1 suite app icons ──────────────────────────────────────────
+// Every A1 program is served off the one host (anthonyn99.github.io/A1), so the
+// favicon service below hands back the same generic globe for all of them. Map
+// our own pages to the app's own <link rel="icon"> mark instead, keyed by
+// filename. Twins of this map live in index.html, vault.html and the other
+// launcher's popup.js — edit them together.
+const APP_ICONS = {
+  "index.html":      "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23e0b874%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M26%2034l7%207%2012-13%27%2F%3E%3Cpath%20d%3D%27M56%2036h16%27%2F%3E%3Cpath%20d%3D%27M26%2058h46%27%2F%3E%3Cpath%20d%3D%27M26%2072h46%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // TaskHub
+  "tradehub.html":   "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23e0b874%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M24%2022v50a2%202%200%200%200%202%202h48%27%2F%3E%3Cpath%20d%3D%27M34%2062l12-14%2010%209%2016-21%27%2F%3E%3Cpath%20d%3D%27M60%2036h12v12%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // TradeHub
+  "mylist.html":     "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23e0b874%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M42%2032h30%27%2F%3E%3Cpath%20d%3D%27M42%2048h30%27%2F%3E%3Cpath%20d%3D%27M42%2064h30%27%2F%3E%3Ccircle%20cx%3D%2728%27%20cy%3D%2732%27%20r%3D%273.5%27%20fill%3D%27%23e0b874%27%20stroke%3D%27none%27%2F%3E%3Ccircle%20cx%3D%2728%27%20cy%3D%2748%27%20r%3D%273.5%27%20fill%3D%27%23e0b874%27%20stroke%3D%27none%27%2F%3E%3Ccircle%20cx%3D%2728%27%20cy%3D%2764%27%20r%3D%273.5%27%20fill%3D%27%23e0b874%27%20stroke%3D%27none%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // MyList
+  "insight.html":    "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23e0b874%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M48%2024a24%2024%200%201%200%2024%2024H48Z%27%2F%3E%3Cpath%20d%3D%27M60%2020a20%2020%200%200%201%2016%2016H60Z%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // Insight
+  "vault.html":      "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23e0b874%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Crect%20x%3D%2722%27%20y%3D%2742%27%20width%3D%2752%27%20height%3D%2734%27%20rx%3D%277%27%2F%3E%3Cpath%20d%3D%27M33%2042v-9a15%2015%200%200%201%2030%200v9%27%2F%3E%3Cpath%20d%3D%27M48%2055v8%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // Vault
+  "oneinbox.html":   "data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke%3D'%23e0b874'%20stroke-width%3D'5'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Crect%20x%3D'20'%20y%3D'28'%20width%3D'56'%20height%3D'40'%20rx%3D'6'%2F%3E%3Cpath%20d%3D'M20%2033%2048%2054%2076%2033'%2F%3E%3C%2Fg%3E%3Ccircle%20cx%3D'75'%20cy%3D'27'%20r%3D'9'%20fill%3D'%231a1a1d'%2F%3E%3Ccircle%20cx%3D'75'%20cy%3D'27'%20r%3D'5.5'%20fill%3D'%23e0b874'%2F%3E%3C%2Fsvg%3E", // OneInbox
+  "solace.html":     "data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke%3D'%23e0b874'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2070C33.5%2059.5%2025%2051%2025%2041.5%2025%2034%2030.5%2028.5%2037.5%2028.5%2042.5%2028.5%2046%2031.5%2048%2034.5%2050%2031.5%2053.5%2028.5%2058.5%2028.5%2065.5%2028.5%2071%2034%2071%2041.5%2071%2051%2062.5%2059.5%2048%2070Z'%20stroke-width%3D'5'%2F%3E%3Cpath%20d%3D'M34%2045h6l4-8.5%205.5%2016%204-7.5h8.5'%20stroke-width%3D'4'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // Solace
+  "wellness.html":   "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231B1C1E%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%238D769A%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M26%2052c0-10%208-18%2018-18s18%208%2018%2018%27%2F%3E%3Cpath%20d%3D%27M22%2062h12l5-10%206%2020%205-10h24%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", // Wellness
+};
+
+// The A1 app icon for a link, or "" when the URL isn't one of our programs.
+function appIconUrl(url) {
+  try {
+    const u = new URL(/^[a-z]+:\/\//i.test(url) ? url : "https://" + url);
+    const path = u.pathname.toLowerCase();
+    // Accept the published /A1/ path and any local dev server serving it.
+    if (!/(^|\/)a1\//.test(path) && !/^(localhost|127\.0\.0\.1)$/i.test(u.hostname)) return "";
+    // A bare directory ("/A1/") is served as index.html, i.e. TaskHub.
+    const file = /\.html?$/.test(path) ? path.split("/").pop() : "index.html";
+    return APP_ICONS[file] || "";
+  } catch { return ""; }
+}
+
+// Official site icon (like a browser bookmark): our own app mark for A1
+// programs, otherwise Google's favicon service.
 function faviconUrl(url) {
+  const app = appIconUrl(url);
+  if (app) return app;
   try {
     const host = new URL(/^https?:\/\//i.test(url) ? url : "https://" + url).hostname;
     return "https://www.google.com/s2/favicons?sz=32&domain=" + encodeURIComponent(host);
