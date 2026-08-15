@@ -128,13 +128,13 @@ html,body{height:100%;}
   transition:all .15s;white-space:nowrap;
 }
 #tony-app-nav .tn-btn:hover{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.4),0 0 0 1px rgba(200,161,95,0.15);}
-#tony-app-nav .pv-btn,#tony-app-nav .wr-btn{color:#a78bfa;border-color:rgba(167,139,250,0.35);}
+#tony-app-nav .pv-btn,#tony-app-nav .wr-btn{color:#c0aeea;border-color:rgba(192,174,234,0.35);}
 /* !important because _showTonyNav writes the resting purple border-color inline on
    every pv/wr button, and an inline value outranks any stylesheet hover rule —
    that is what left these two with a dim outline on hover while gold ones lit up.
    The active button keeps its purple fill, so it opts out. */
-#tony-app-nav .pv-btn:not(.tn-active):hover,#tony-app-nav .wr-btn:not(.tn-active):hover{color:#c4b5fd!important;border-color:#a78bfa!important;box-shadow:0 0 8px rgba(167,139,250,0.4),0 0 0 1px rgba(167,139,250,0.15);}
-#tn-mobile-select option[value="proview"],#tn-mobile-select option[value="warroom"]{color:#a78bfa!important;}
+#tony-app-nav .pv-btn:not(.tn-active):hover,#tony-app-nav .wr-btn:not(.tn-active):hover{color:#dbd0f5!important;border-color:#c0aeea!important;box-shadow:0 0 8px rgba(192,174,234,0.4),0 0 0 1px rgba(192,174,234,0.15);}
+#tn-mobile-select option[value="proview"],#tn-mobile-select option[value="warroom"]{color:#c0aeea!important;}
 #tony-app-nav .tn-btn.tn-active{
   background:transparent;color:var(--tn-ac,#c8a15f);
   border-color:var(--tn-ac,#c8a15f);cursor:default;
@@ -150,8 +150,8 @@ html,body{height:100%;}
 /* Mobile: hide buttons, show select */
 #tn-mobile-select{display:none;background:transparent;border:1px solid var(--tn-bd,#2e3a35);border-radius:4px;color:var(--tn-ac,#c8a15f);font-size:11px;font-weight:700;padding:0 8px;height:28px;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;cursor:pointer;transition:all .15s;}
 #tn-mobile-select:hover{color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.4),0 0 0 1px rgba(200,161,95,0.15);}
-#tn-mobile-select.tn-pv-active{color:#a78bfa!important;border-color:rgba(167,139,250,0.45)!important;}
-#tn-mobile-select.tn-pv-active:hover{border-color:#c4b5fd!important;box-shadow:0 0 8px rgba(167,139,250,0.4)!important;}
+#tn-mobile-select.tn-pv-active{color:#c0aeea!important;border-color:rgba(192,174,234,0.45)!important;}
+#tn-mobile-select.tn-pv-active:hover{border-color:#dbd0f5!important;box-shadow:0 0 8px rgba(192,174,234,0.4)!important;}
 #tn-mobile-select option{background:#1a1a1d;color:#c8a15f;}
 @media(max-width:900px){
   #tony-app-nav .tn-btn{display:none;}
@@ -4674,23 +4674,21 @@ window.THTS={
   <div id="tony-app-nav-inner">
   <style>.pv-active>*{pointer-events:auto;}
   .pv-hglow{transition:border-color .15s,box-shadow .15s;}
-  .pv-hglow:hover{border-color:#a78bfa!important;box-shadow:0 0 8px rgba(167,139,250,0.4),0 0 0 1px rgba(167,139,250,0.15)!important;}</style>
+  .pv-hglow:hover{border-color:#c0aeea!important;box-shadow:0 0 8px rgba(192,174,234,0.4),0 0 0 1px rgba(192,174,234,0.15)!important;}</style>
 <div id="pv-nav-title" style="visibility:hidden;position:absolute;left:clamp(12px,3vw,24px);top:50%;transform:translateY(-52%);font-family:'Inter',system-ui,-apple-system,sans-serif;pointer-events:none;line-height:1;display:flex;flex-direction:column;gap:3px;">
-  <div style="font-size:20px;font-weight:900;letter-spacing:-0.5px;white-space:nowrap;"><span style="color:#f0ecff;">Pro</span><span style="color:#a78bfa;">View</span></div>
-  <span id="pv-sync-indicator" style="font-size:9px;font-weight:700;letter-spacing:0.5px;transition:opacity .3s;opacity:0;display:inline;color:#a78bfa;"></span>
+  <div style="font-size:20px;font-weight:900;letter-spacing:-0.5px;white-space:nowrap;"><span style="color:#f0ecff;">Pro</span><span style="color:#c0aeea;">View</span></div>
+  <span id="pv-sync-indicator" style="font-size:9px;font-weight:700;letter-spacing:0.5px;transition:opacity .3s;opacity:0;display:inline;color:#c0aeea;"></span>
 </div>
   <select id="tn-mobile-select" onchange="if(this.value==='warroom'){window._wrClick&&window._wrClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='tradeboard'){window._thubClick&&window._thubClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='keychain'){window._vaultClick&&window._vaultClick();this.value=window._tnCurApp||'taskhub';}else{window._tonyNav&&window._tonyNav(this.value);}this.blur();">
     <option value="taskhub">Tony's TaskHub</option>
     <option value="tradeboard">TradeHub</option>
     <option value="keychain">Vault</option>
     <option value="brainstormjournal">MyJournal</option>
-    <option value="plans">Plans</option>
     <option value="proview">ProView</option>
     <option value="warroom">WarRoom</option>
   </select>
   <button class="tn-btn" data-app="taskhub" onclick="window._tonyNav&&window._tonyNav('taskhub')">TaskHub</button>
   <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
-  <button class="tn-btn" data-app="plans" onclick="window._tonyNav&&window._tonyNav('plans')">Plans</button>
   <button class="tn-btn pv-btn" data-app="proview" onclick="window._tonyNav&&window._tonyNav('proview')">ProView</button>
   <!-- TradeHub / Vault / WarRoom used to be hardcoded here — they're now seeded
        External-Links entries (see LEGACY_PROGRAMS below) so they live in Settings
@@ -5522,10 +5520,19 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   const mi={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:13,padding:"9px 12px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
   const lbl={fontSize:10,color:T.TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6};
   const tb=(active,danger)=>({fontWeight:600,padding:"7px 18px",borderRadius:6,cursor:"pointer",fontSize:12,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?(danger?T.ERR:T.ACL):T.TXD,border:active?"1px solid "+(danger?T.ERR:T.AC):"1px solid "+T.BDL});
+  // Plan is a third kind of thing you can add to a day, so it is a third Type —
+  // but only when ADDING. Editing an existing task or event can never turn it
+  // into a shared commitment, and a confirmed plan is edited in the panel
+  // itself, so the tab is hidden once `initial` carries an id.
+  const canPlan=!initial?.id;
+  const isPlan=canPlan&&type==="plan";
   return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},
-    React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:28,width:460,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 30px 80px "+T.SHADOW},onClick:e=>e.stopPropagation()},
-      React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:16,fontWeight:700,color:T.AC,marginBottom:20}},(initial?.id?"Edit":"New")+" — "+dateLabel),
-      React.createElement("div",{style:{marginBottom:14}},React.createElement("div",{style:lbl},"Type"),React.createElement("div",{style:{display:"flex",gap:8}},React.createElement("button",{type:"button",style:tb(type==="task",false),onClick:()=>setType("task")},"Task"),React.createElement("button",{type:"button",style:tb(type==="event",false),onClick:()=>setType("event")},"Event"))),
+    React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:28,width:isPlan?860:460,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 30px 80px "+T.SHADOW,transition:"width .18s"},onClick:e=>e.stopPropagation()},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:20}},
+        React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:16,fontWeight:700,color:T.AC}},isPlan?"Plans":((initial?.id?"Edit":"New")+" — "+dateLabel)),
+        isPlan&&React.createElement("button",{type:"button",title:"Close",onClick:onClose,style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,color:T.TXM,cursor:"pointer",padding:"4px 10px",fontSize:11,fontWeight:700,fontFamily:"inherit"}},"Close")),
+      React.createElement("div",{style:{marginBottom:isPlan?18:14}},React.createElement("div",{style:lbl},"Type"),React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},React.createElement("button",{type:"button",style:tb(type==="task",false),onClick:()=>setType("task")},"Task"),React.createElement("button",{type:"button",style:tb(type==="event",false),onClick:()=>setType("event")},"Event"),canPlan&&React.createElement("button",{type:"button",style:tb(isPlan,false),onClick:()=>setType("plan")},"Plan"))),
+      isPlan?React.createElement(PlanPanel,{P:PLAN_PAL_TONY,startDateKey}):React.createElement(React.Fragment,null,
       React.createElement("div",{style:{marginBottom:14}},React.createElement("div",{style:lbl},"Title"),
         repeat==="altSeq"&&!initial?.altSeqId
           ?React.createElement("div",{style:{fontSize:11,color:T.TXD,padding:"8px 10px",background:T.S2,borderRadius:4,border:"1px solid "+T.BDL}},"Title set by sequence steps below.")
@@ -5577,7 +5584,574 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
 
       React.createElement("div",{style:{display:"flex",gap:10,marginTop:18}},
         React.createElement("button",{type:"button",style:{background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:4,padding:"10px 28px",fontSize:13,fontWeight:700,cursor:"pointer"},onClick:save},"Save"),
-        React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"10px 20px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer"},onClick:onClose},"Cancel"))));
+        React.createElement("button",{type:"button",style:{background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,padding:"10px 20px",fontSize:13,fontWeight:600,color:T.TXD,cursor:"pointer"},onClick:onClose},"Cancel")))));
+}
+
+// ── PLAN PANEL ──────────────────────────────────────────────────────────────
+// The whole Plans experience, living inside the Weekly → Add dialog of BOTH
+// TaskHubs. Declared once here and used from Veda's block too: the file's two
+// text/babel blocks share one global scope, so a second copy would collide.
+//
+// It owns no data. Every record, every state transition, the two-sided confirm,
+// the biometric checks, the provenance stamps and the Firestore writes all live
+// in window.PlansCore — this is the pixels and nothing else, which is exactly
+// what lets one component wear Tony's gold and Veda's purple.
+//
+// `P` is the palette the host TaskHub passes in (see PLAN_PAL_TONY /
+// PLAN_PAL_VEDA). Every colour below comes from it, so the two profiles differ
+// in that one object and nowhere else.
+const PLAN_PAL_TONY={
+  BG:"#1a1a1d",S1:"#232327",S2:"#2c2c31",S3:"#26262b",BD:"#34343a",BDL:"#45454c",
+  TX:"#f4f3f0",TXD:"#adadb2",TXM:"#8d8d94",TXF:"#71717a",
+  AC:"#e0b874",ACINK:"#1a1a1d",OK:"#a4b986",WARN:"#d9a863",BAD:"#d68a7c",
+  FONT:"'Inter',system-ui,-apple-system,sans-serif",
+  MONO:"'IBM Plex Mono',ui-monospace,monospace"};
+// Passed as an Add-dialog's `initial` to open it straight on the Plan tab (the
+// Weekly header chip does this). It must be ONE stable object: the dialogs key
+// their reset effect on `initial`, so a fresh literal per render would re-seed
+// the form on every repaint.
+const PLAN_SEED={type:"plan"};
+const PLAN_PAL_VEDA={
+  BG:"#1B1C1E",S1:"#26272A",S2:"#303135",S3:"#2a2b2f",BD:"#3D3E43",BDL:"#4A4B51",
+  TX:"#ECECEE",TXD:"#AFB0B5",TXM:"#76777C",TXF:"#63646a",
+  AC:"#8D769A",ACINK:"#1B1C1E",OK:"#5DAF6D",WARN:"#d9a863",BAD:"#f85149",
+  FONT:"'IBM Plex Mono',ui-monospace,monospace",
+  MONO:"'IBM Plex Mono',ui-monospace,monospace"};
+
+// Every panel and its host TaskHub repaint from the same store, so one shared
+// subscribe hook keeps them in step without either knowing about the other.
+function usePlansTick(){
+  const[,bump]=useState(0);
+  useEffect(()=>{
+    if(!window.PlansCore)return;
+    window.PlansCore.ensureLoaded();
+    return window.PlansCore.subscribe(()=>bump(n=>n+1));
+  },[]);
+}
+
+// The count of plans waiting on the ACTIVE profile, live. Both Weekly headers
+// render a chip from this — it replaces the badge the old standalone nav button
+// carried, and stays invisible at zero so nothing is added to a quiet week.
+function usePlansWaiting(){
+  const[n,setN]=useState(()=>window.PlansCore?window.PlansCore.waitingCount():0);
+  useEffect(()=>{
+    if(!window.PlansCore)return;
+    window.PlansCore.ensureLoaded();
+    const read=()=>setN(window.PlansCore.waitingCount());
+    read();
+    return window.PlansCore.subscribe(read);
+  },[]);
+  return n;
+}
+
+function PlanPanel({P,startDateKey,onExit}){
+  const PC=window.PlansCore;
+  usePlansTick();
+  // Confirmed and archived plans are settled business, so they collapse to
+  // title + date and open on click. Expanded ids live for this open only — a
+  // reopened panel starts tidy.
+  const[expanded,setExpanded]=useState({});
+  const[archOpen,setArchOpen]=useState(false);
+  const[dlg,setDlg]=useState(null);     // {mode,id,...} while a sub-dialog is up
+  const[busy,setBusy]=useState(false);  // a biometric prompt is on screen
+
+  if(!PC)return null;
+  const NAMES=PC.NAMES,w=PC.me(),b=PC.bucket();
+  const bioOn=PC.bioReady(),bioName=PC.bioLabel();
+
+  // ── Derived palette ───────────────────────────────────────────────────────
+  // Only base colours are passed in; the soft fills and hairlines every card
+  // needs are derived here so the two profiles stay one line of difference.
+  const AC_SOFT=P.AC+"1f",AC_LINE=P.AC+"55";
+  const tone=c=>({fg:c,bg:c+"1c",line:c+"4d"});
+  const OK=tone(P.OK),WARN=tone(P.WARN),BAD=tone(P.BAD);
+
+  const btn=(kind)=>({background:kind==="go"?P.AC:"transparent",
+    color:kind==="go"?P.ACINK:(kind==="no"?P.TXD:P.TXD),
+    border:"1px solid "+(kind==="go"?P.AC:P.BD),borderRadius:8,padding:"0 13px",
+    height:33,fontSize:10.5,fontWeight:700,textTransform:"uppercase",letterSpacing:.7,
+    cursor:"pointer",fontFamily:P.MONO,display:"inline-flex",alignItems:"center",
+    gap:6,whiteSpace:"nowrap",transition:"all .16s"});
+  const hoverBtn=(kind)=>({
+    onMouseEnter:e=>{const s=e.currentTarget.style;
+      if(kind==="go"){s.filter="brightness(1.09)";}
+      else if(kind==="no"){s.borderColor=BAD.line;s.color=P.BAD;s.background=BAD.bg;}
+      else{s.borderColor=P.BDL;s.color=P.TX;s.background=P.S2;}},
+    onMouseLeave:e=>{const s=e.currentTarget.style;
+      s.filter="";s.borderColor=kind==="go"?P.AC:P.BD;
+      s.color=kind==="go"?P.ACINK:P.TXD;s.background=kind==="go"?P.AC:"transparent";}});
+
+  const B=(kind,label,onClick,key)=>React.createElement("button",{key:key||label,type:"button",
+    style:btn(kind),...hoverBtn(kind),disabled:busy,onClick},label);
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  // Anything that may raise an OS biometric prompt disables the panel while it
+  // is up, so a second press cannot queue a second prompt behind the first.
+  const guard=(promise)=>{setBusy(true);return Promise.resolve(promise)
+    .then(r=>{setBusy(false);return r;},()=>{setBusy(false);});};
+
+  const doConfirm=(id)=>guard(PC.confirmPlan(id)).then(r=>{
+    // Enrolled but not verified: nothing was recorded. Say so rather than
+    // failing quietly — this refusal is the entire point of the feature.
+    if(r==='bioFailed')setDlg({mode:'bioFailed',id});
+  });
+
+  // Confirming FOR the other person is the one thing this feature exists to
+  // prevent, and profiles cannot stop it. So challenge it at the moment it
+  // would happen: their consent came from this very device, which means either
+  // you share a device or you are about to confirm on their behalf. If this
+  // profile is enrolled here, the biometric IS the check and the nag adds
+  // nothing the OS has not already proven.
+  const startConfirm=(p)=>{
+    const o=w?PC.other(w):null;
+    const om=o&&p.confirmMeta&&p.confirmMeta[o];
+    if(om&&om.dev===PC.deviceId()&&!PC.bioEnrolled(w)){setDlg({mode:'sameDevice',id:p.id});return;}
+    if(!p.date){setDlg({mode:'confirmNoDate',id:p.id});return;}
+    doConfirm(p.id);
+  };
+
+  const startDelete=(id)=>{
+    // A confirmed plan cannot be erased by one person — same two-sided flow as
+    // cancelling it. Everything else either of you may delete outright.
+    if(PC.needsTwoSidedDelete(id))setDlg({mode:'cancel',id,del:true});
+    else setDlg({mode:'confirmDelete',id});
+  };
+
+  const toggleFold=(id)=>setExpanded(e=>{const n={...e};if(n[id])delete n[id];else n[id]=true;return n;});
+
+  // ── Card ──────────────────────────────────────────────────────────────────
+  const badge=(text,t)=>React.createElement("span",{key:text,style:{fontSize:9,fontWeight:800,
+    textTransform:"uppercase",letterSpacing:.7,borderRadius:999,padding:"3px 9px",
+    whiteSpace:"nowrap",fontFamily:P.MONO,background:t?t.bg:P.S2,color:t?t.fg:P.TXD,
+    border:"1px solid "+(t?t.line:P.BD)}},text);
+
+  const card=(p,ctx)=>{
+    const c=p.confirms||{veda:null,tony:null};
+    const badges=[];
+    if(ctx==='confirmed'&&p.cancelReq)
+      badges.push(badge('cancel requested by '+(NAMES[p.cancelReq.by]||p.cancelReq.by),WARN));
+    if(ctx==='proposed'&&w)badges.push(badge('waiting on '+NAMES[PC.other(w)],null));
+    if(p.stage==='declined'&&p.declined)
+      badges.push(badge('declined by '+(NAMES[p.declined.by]||p.declined.by),BAD));
+    if(p.stage==='dropped')badges.push(badge('dropped',BAD));
+    if(p.stage==='done')badges.push(badge('done',OK));
+
+    // The date is the single most consequential field on a plan, so it leads
+    // the card in the accent colour instead of sitting in a muted run-on line.
+    const when=React.createElement("span",{style:{fontFamily:P.MONO,fontSize:11,fontWeight:700,
+      color:p.date?P.AC:P.TXF,letterSpacing:.2,display:"inline-flex",alignItems:"baseline",
+      gap:7,background:p.date?AC_SOFT:P.S2,borderRadius:5,padding:"3px 8px"}},
+      p.date?PC.fmtDate(p.date):"No date",
+      p.date&&p.time?React.createElement("span",{style:{color:P.TXD,fontWeight:600}},
+        PC.fmtTime(p.time,p.date,p.tz)):null);
+
+    const meta=React.createElement("div",{style:{fontSize:11.5,color:P.TXM,marginTop:9,
+      display:"flex",flexWrap:"wrap",gap:"7px 10px",alignItems:"center"}},
+      when,
+      React.createElement("span",{style:{fontSize:9.5,fontWeight:700,textTransform:"uppercase",
+        letterSpacing:.7,color:P.TXF,fontFamily:P.MONO}},"from "+(NAMES[p.author]||p.author||'?')),
+      badges);
+
+    let acts=[];
+    if(ctx==='mine'){
+      if(p.stage==='proposed')acts=[B("go","Confirm",()=>startConfirm(p),"c"),
+        B("no","Decline",()=>setDlg({mode:'decline',id:p.id}),"d"),
+        B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e")];
+      else acts=[B("no","Agree — drop it",()=>PC.agreeCancel(p.id),"a"),
+        B("","Keep the plan",()=>PC.withdrawOther(p.id),"k")];
+    }else if(ctx==='confirmed'){
+      acts=[B("","Mark done",()=>PC.markDone(p.id),"m"),
+        (p.cancelReq&&p.cancelReq.by===w)
+          ?B("","Withdraw cancel",()=>PC.withdrawCancel(p.id),"wd")
+          :B("no","Request cancel",()=>setDlg({mode:'cancel',id:p.id}),"rc"),
+        B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e")];
+    }else if(ctx==='proposed'){
+      acts=[B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e"),
+        B("no","Withdraw",()=>setDlg({mode:'decline',id:p.id}),"w")];
+    }else if(ctx==='ideas'){
+      acts=[B("go","Propose",()=>guard(PC.promote(p.id)),"p"),
+        B("","Edit",()=>setDlg({mode:'edit',id:p.id}),"e"),
+        B("no","Delete",()=>startDelete(p.id),"x")];
+    }else{
+      acts=[B("","Restore to ideas",()=>PC.restorePlan(p.id),"r"),
+        B("no","Delete",()=>startDelete(p.id),"x")];
+    }
+
+    // The visible record of who agreed and when is the artifact this whole
+    // feature exists to produce, so confirmed cards always show both signatures.
+    let footer=null;
+    if(PC.isConfirmed(p)){
+      const m=p.confirmMeta||{};
+      const sig=(who,at)=>{
+        const mm=m[who]||{};
+        const verified=mm.v==='bio';
+        return React.createElement("span",{key:who,style:{fontSize:10.5,fontWeight:700,
+          color:P.TXD,display:"inline-flex",alignItems:"center",gap:6,fontFamily:P.MONO,
+          flexWrap:"wrap"}},
+          React.createElement("span",{style:{color:P.OK,fontWeight:800}},"✓"),
+          NAMES[who],
+          React.createElement("span",{style:{color:P.TXF,fontWeight:500}},PC.fmtWhen(at)),
+          mm.devName?React.createElement("span",{style:{fontSize:9.5,color:P.TXF,opacity:.75,
+            paddingLeft:7,borderLeft:"1px solid "+P.BD}},mm.devName):null,
+          // Say plainly whether the OS actually proved who this was.
+          React.createElement("span",{title:verified?("Verified by "+bioName)
+              :"No biometric check — profile chooser only",
+            style:{fontSize:8.5,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,
+              padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap",
+              background:verified?OK.bg:P.S2,color:verified?P.OK:P.TXF}},
+            verified?"verified":"unverified"));
+      };
+      const f=PC.confirmFlags(p);
+      footer=React.createElement("div",{style:{marginTop:13,paddingTop:12,
+        borderTop:"1px solid "+P.BD,display:"flex",flexWrap:"wrap",gap:"7px 20px"}},
+        sig('veda',c.veda),sig('tony',c.tony),
+        // Both confirmations from one device cannot evidence two independent
+        // people. Surface it rather than let it pass as a normal agreement.
+        f?React.createElement("div",{style:{flexBasis:"100%",marginTop:10,fontSize:11.5,
+          lineHeight:1.55,color:P.WARN,background:WARN.bg,border:"1px solid "+WARN.line,
+          borderRadius:8,padding:"10px 12px",fontFamily:P.FONT}},
+          "Both confirmations came from "+f.devName+(f.rapid?", "+PC.humanGap(f.gap)+" apart":"")
+          +". This cannot show that you each agreed separately."):null);
+    }
+
+    let reason=null,reasonTxt='';
+    if(p.stage==='declined'&&p.declined&&p.declined.reason)reasonTxt='Reason: '+p.declined.reason;
+    else if(p.cancelReq&&p.cancelReq.reason&&(ctx==='mine'||ctx==='confirmed'))
+      reasonTxt='Cancel reason: '+p.cancelReq.reason;
+    else if(p.stage==='dropped'&&p.cancelReq&&p.cancelReq.reason)
+      reasonTxt='Cancel reason: '+p.cancelReq.reason;
+    if(reasonTxt)reason=React.createElement("div",{style:{fontSize:12,color:P.TXD,marginTop:10,
+      padding:"9px 11px",background:P.S3,borderRadius:8,border:"1px solid "+P.BD,
+      whiteSpace:"pre-wrap",wordBreak:"break-word",lineHeight:1.55}},reasonTxt);
+
+    // Anything still needing a decision stays open, because that is the whole
+    // point of it. Settled things fold.
+    const collapsible=(ctx==='confirmed'||ctx==='archive');
+    const open=!collapsible||!!expanded[p.id];
+    const wait=ctx==='mine';
+    const title=React.createElement("div",{style:{fontSize:15,fontWeight:700,lineHeight:1.4,
+      wordBreak:"break-word",color:P.TX,letterSpacing:-.15}},p.title||'Untitled');
+
+    const body=open?React.createElement(React.Fragment,null,
+      p.notes?React.createElement("div",{style:{fontSize:12.5,color:P.TXD,marginTop:11,
+        lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}},p.notes):null,
+      reason,footer,
+      React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8,marginTop:14}},acts)):null;
+
+    return React.createElement("div",{key:p.id,style:{background:wait
+        ?"linear-gradient(180deg,"+AC_SOFT+",transparent 62%), "+P.S1:P.S1,
+      border:"1px solid "+(wait?AC_LINE:P.BD),borderRadius:12,
+      padding:collapsible?0:"15px 16px",marginBottom:10,
+      boxShadow:wait?"0 4px 16px rgba(0,0,0,.32)":"0 1px 2px rgba(0,0,0,.3)"}},
+      collapsible
+        ?React.createElement("button",{type:"button",onClick:()=>toggleFold(p.id),
+          style:{display:"flex",alignItems:"flex-start",gap:11,width:"100%",
+            background:"transparent",border:0,padding:"15px 16px",cursor:"pointer",
+            textAlign:"left",fontFamily:"inherit",color:"inherit",borderRadius:12}},
+          React.createElement("span",{style:{color:P.TXF,fontSize:10,lineHeight:1.9,
+            flexShrink:0}},open?"▾":"▸"),
+          React.createElement("span",{style:{flex:1,minWidth:0}},title,meta))
+        :React.createElement(React.Fragment,null,title,meta),
+      collapsible&&open
+        ?React.createElement("div",{style:{padding:"0 16px 16px"}},body)
+        :body);
+  };
+
+  // ── Section ───────────────────────────────────────────────────────────────
+  // An empty bucket collapses to one muted line. A full header, a "0" chip and
+  // a sentence for every empty bucket is what made this read as busy while
+  // saying nothing. `live` marks the bucket genuinely waiting on the active
+  // profile — the only one that gets the accent count, so the page has exactly
+  // one place the eye lands first.
+  const section=(title,list,ctx,emptyMsg,sub,live)=>{
+    if(!list.length)return React.createElement("div",{key:title,style:{display:"flex",
+      alignItems:"center",gap:10,flexWrap:"wrap",padding:"11px 14px",
+      border:"1px solid "+P.BD,borderRadius:8,background:P.S1,opacity:.62}},
+      React.createElement("span",{style:{fontSize:10,fontWeight:800,textTransform:"uppercase",
+        letterSpacing:1.1,color:P.TXM,fontFamily:P.MONO}},title),
+      React.createElement("span",{style:{fontSize:11.5,color:P.TXF}},emptyMsg));
+    return React.createElement("div",{key:title},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:9,marginBottom:12}},
+        React.createElement("span",{style:{fontSize:10.5,fontWeight:800,textTransform:"uppercase",
+          letterSpacing:1.3,color:live?P.TX:P.TXD,fontFamily:P.MONO}},title),
+        React.createElement("span",{style:{background:live?P.AC:P.S2,color:live?P.ACINK:P.TXD,
+          border:"1px solid "+(live?P.AC:P.BD),borderRadius:999,fontSize:10,fontWeight:800,
+          padding:"1px 8px",minWidth:20,textAlign:"center",fontFamily:P.MONO,lineHeight:1.6}},
+          list.length),
+        sub?React.createElement("span",{style:{fontSize:11,color:P.TXF,fontWeight:500,
+          fontFamily:P.FONT,marginLeft:"auto",textAlign:"right"}},sub):null),
+      list.map(p=>card(p,ctx)));
+  };
+
+  const total=b.mine.length+b.confirmed.length+b.proposed.length+b.ideas.length;
+
+  return React.createElement("div",{style:{fontFamily:P.FONT,color:P.TX}},
+    // ── Head: who is acting, and the one action you came here to take ───────
+    React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:"10px 14px",
+      alignItems:"center",justifyContent:"space-between",paddingBottom:14,marginBottom:16,
+      borderBottom:"1px solid "+P.BD}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}},
+        React.createElement("button",{type:"button",disabled:busy,
+          onClick:()=>setDlg({mode:'edit',id:null}),
+          style:{display:"inline-flex",alignItems:"center",gap:8,background:P.AC,
+            border:"1px solid "+P.AC,borderRadius:8,color:P.ACINK,height:36,padding:"0 16px",
+            fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:P.MONO,
+            textTransform:"uppercase",letterSpacing:.9,transition:"filter .16s"},
+          onMouseEnter:e=>{e.currentTarget.style.filter="brightness(1.09)";},
+          onMouseLeave:e=>{e.currentTarget.style.filter="";}},
+          React.createElement("span",{style:{fontSize:16,lineHeight:0,fontWeight:400}},"+"),
+          "New idea"),
+        // Offer enrolment when this device can do it and this profile has not
+        // yet. It is an ACTION, not a description, and it states the security
+        // posture at the point of use.
+        (w&&!PC.bioEnrolled(w)&&bioOn)?React.createElement("button",{type:"button",
+          onClick:()=>setDlg({mode:'bioEnrol'}),
+          style:{display:"inline-flex",alignItems:"center",gap:8,background:"transparent",
+            border:"1px dashed "+P.BD,borderRadius:8,color:P.TXM,padding:"0 13px",height:36,
+            fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:P.MONO,letterSpacing:.5,
+            transition:"all .16s"},
+          onMouseEnter:e=>{e.currentTarget.style.borderColor=AC_LINE;e.currentTarget.style.color=P.AC;},
+          onMouseLeave:e=>{e.currentTarget.style.borderColor=P.BD;e.currentTarget.style.color=P.TXM;}},
+          "Require "+bioName+" for "+(NAMES[w]||w)+"’s confirmations"):null),
+      React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:7,
+        fontSize:10.5,fontWeight:700,textTransform:"uppercase",letterSpacing:.9,color:P.TXM,
+        background:P.S1,border:"1px solid "+P.BD,borderRadius:999,padding:"5px 12px",
+        whiteSpace:"nowrap",fontFamily:P.MONO}},
+        React.createElement("span",{style:{width:6,height:6,borderRadius:"50%",
+          background:P.AC,flexShrink:0}}),
+        w?NAMES[w]:'no profile')),
+
+    (!total&&!b.archive.length)
+      // Nothing exists at all: say so once. Five empty section headers said the
+      // same thing five times and buried the one control that matters.
+      ?React.createElement("div",{style:{textAlign:"center",padding:"46px 24px 42px",
+        border:"1px solid "+P.BD,borderRadius:16,background:P.S1}},
+        React.createElement("div",{style:{fontSize:16,fontWeight:700,color:P.TX,marginBottom:8,
+          letterSpacing:-.2}},"No plans yet"),
+        React.createElement("div",{style:{fontSize:13,color:P.TXM,lineHeight:1.6,maxWidth:360,
+          margin:"0 auto"}},"Add an idea above. It stays an idea until you both confirm it."))
+      :React.createElement(React.Fragment,null,
+        React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:24}},
+          section('Needs your response',b.mine,'mine','nothing waiting on you','',true),
+          section('Confirmed',b.confirmed,'confirmed','nothing confirmed yet'),
+          section('Proposed',b.proposed,'proposed','nothing proposed',w?'waiting on '+NAMES[PC.other(w)]:''),
+          section('Ideas',b.ideas,'ideas','no ideas yet','not commitments')),
+        // The Archive only earns a row once something is actually in it.
+        b.archive.length?React.createElement("div",{style:{marginTop:24}},
+          React.createElement("button",{type:"button",onClick:()=>setArchOpen(v=>!v),
+            style:{width:"100%",background:"transparent",border:0,borderTop:"1px solid "+P.BD,
+              borderRadius:0,color:P.TXM,padding:"15px 2px 0",fontSize:10,fontWeight:800,
+              textTransform:"uppercase",letterSpacing:1.2,cursor:"pointer",fontFamily:P.MONO,
+              textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",
+              gap:10}},
+            React.createElement("span",null,(archOpen?"▾":"▸")+" Archive"),
+            React.createElement("span",{style:{background:P.S2,color:P.TXD,
+              border:"1px solid "+P.BD,borderRadius:999,fontSize:10,fontWeight:800,
+              padding:"1px 8px",minWidth:20,textAlign:"center",fontFamily:P.MONO,
+              lineHeight:1.6}},b.archive.length)),
+          archOpen?React.createElement("div",{style:{marginTop:14}},
+            b.archive.map(p=>card(p,'archive'))):null):null),
+
+    dlg?React.createElement(PlanDialog,{P,dlg,setDlg,startDateKey,busy,guard,doConfirm}):null);
+}
+
+// ── Sub-dialogs ─────────────────────────────────────────────────────────────
+// Every confirmation, warning and form the section needs, as one overlay above
+// the host TaskHub's own modal. Split out of PlanPanel so the edit form can
+// hold its own draft state without re-mounting the list behind it.
+function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm}){
+  const PC=window.PlansCore;
+  const p=dlg.id?PC.get(dlg.id):null;
+  const w=PC.me(),NAMES=PC.NAMES,bioName=PC.bioLabel();
+  const oName=w?NAMES[PC.other(w)]:'the other person';
+
+  // Seeded once per open. A remote snapshot arriving mid-edit repaints the list
+  // behind this dialog but must never touch what is being typed.
+  const[t,setT]=useState(()=>p?(p.title||''):'');
+  const[d,setD]=useState(()=>p?(p.date||''):(dlg.mode==='edit'?(startDateKey||''):''));
+  const[tm,setTm]=useState(()=>p&&p.time?PC.toLocalHHMM(p.time,p.tz,p.date):'');
+  const[notes,setNotes]=useState(()=>p?(p.notes||''):'');
+  const[reason,setReason]=useState('');
+  const[err,setErr]=useState('');
+  const[warned,setWarned]=useState(false);
+
+  const close=()=>setDlg(null);
+  // Escape closes the plan dialog and stops there — the host TaskHub modal
+  // behind it must not close on the same press.
+  useEffect(()=>{
+    const onKey=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();setDlg(null);}};
+    document.addEventListener('keydown',onKey,true);
+    return()=>document.removeEventListener('keydown',onKey,true);
+  },[setDlg]);
+  const tone=c=>({fg:c,bg:c+"1c",line:c+"4d"});
+  const WARN=tone(P.WARN),BAD=tone(P.BAD);
+
+  const lbl={display:"block",fontSize:9.5,fontWeight:800,textTransform:"uppercase",
+    letterSpacing:1.1,color:P.TXM,margin:"16px 0 7px",fontFamily:P.MONO};
+  const inp={width:"100%",background:P.BG,border:"1px solid "+P.BD,borderRadius:8,color:P.TX,
+    padding:"11px 12px",fontSize:13.5,fontFamily:P.FONT,outline:"none",boxSizing:"border-box"};
+  const note=(hard,children)=>React.createElement("div",{style:{fontSize:12.5,lineHeight:1.6,
+    color:hard?P.BAD:P.WARN,background:hard?BAD.bg:WARN.bg,
+    border:"1px solid "+(hard?BAD.line:WARN.line),borderRadius:8,padding:"12px 13px",
+    marginTop:14}},children);
+  const sub=(children)=>React.createElement("div",{style:{fontSize:12,lineHeight:1.6,
+    color:P.TXM,marginTop:10}},children);
+
+  let title='',body=null,ok='Save',run=close;
+
+  if(dlg.mode==='edit'){
+    title=dlg.id?'Edit plan':'New idea';
+    body=React.createElement(React.Fragment,null,
+      React.createElement("label",{style:lbl},"Title"),
+      React.createElement("input",{style:inp,value:t,autoFocus:true,maxLength:200,
+        placeholder:"What is it?",onChange:e=>setT(e.target.value)}),
+      React.createElement("div",{style:{display:"flex",gap:12,flexWrap:"wrap"}},
+        React.createElement("div",{style:{flex:"1 1 150px",minWidth:0}},
+          React.createElement("label",{style:lbl},"Date"),
+          React.createElement("input",{style:{...inp,cursor:"pointer"},type:"date",value:d,
+            onChange:e=>setD(e.target.value)})),
+        React.createElement("div",{style:{flex:"1 1 130px",minWidth:0}},
+          React.createElement("label",{style:lbl},"Time"),
+          React.createElement("input",{style:{...inp,cursor:"pointer"},type:"time",value:tm,
+            onChange:e=>setTm(e.target.value)}))),
+      React.createElement("label",{style:lbl},"Notes"),
+      React.createElement("textarea",{style:{...inp,minHeight:88,resize:"vertical",
+        lineHeight:1.55},maxLength:2000,placeholder:"Optional",value:notes,
+        onChange:e=>setNotes(e.target.value)}),
+      React.createElement("div",{style:{fontSize:11.5,color:P.BAD,marginTop:9,
+        minHeight:15}},err));
+    ok=dlg.id?'Save':'Add idea';
+    run=()=>{
+      const vt=t.trim();
+      // A plan with no title cannot be reasoned about later, so it is rejected.
+      if(!vt){setErr('A plan needs a title.');return;}
+      setErr('');
+      if(!dlg.id){PC.addIdea(vt,notes.trim(),d,tm);close();return;}
+      // Changing the title, date or time of something you have both confirmed
+      // resets both confirmations — warn before it happens, not after.
+      if(p&&(p.stage==='confirmed'||PC.isConfirmed(p))&&PC.isMaterialEdit(p,vt,d,tm)&&!warned){
+        setWarned(true);setDlg({...dlg,mode:'resetWarn',pending:{t:vt,notes:notes.trim(),d,tm}});
+        return;
+      }
+      guard(PC.applyEdit(dlg.id,vt,notes.trim(),d,tm));close();
+    };
+  } else if(dlg.mode==='resetWarn'){
+    title='This will reset confirmation';
+    body=note(false,"You are changing the title, date or time of a plan you have both confirmed."
+      +" That clears both confirmations and sends it back to Proposed — "+oName
+      +" will have to confirm the new version.");
+    ok='Change it anyway';
+    run=()=>{const v=dlg.pending;guard(PC.applyEdit(dlg.id,v.t,v.notes,v.d,v.tm));close();};
+  } else if(dlg.mode==='bioFailed'){
+    title=bioName+' check failed';
+    body=React.createElement(React.Fragment,null,
+      note(true,"Nothing was recorded. A confirmation from "+(NAMES[w]||'this profile')
+        +" requires "+bioName+" on this device."),
+      sub("If you are "+(NAMES[w]||'them')+", try again. If you are not, that is exactly what this check is for."));
+    ok='Try again';
+    run=()=>{const id=dlg.id;close();doConfirm(id);};
+  } else if(dlg.mode==='bioEnrol'){
+    title='Protect '+(NAMES[w]||'your')+' confirmations';
+    body=React.createElement(React.Fragment,null,
+      note(false,"Right now anyone using this device can switch to "+(NAMES[w]||'your')
+        +"’s profile and confirm a plan as you. Registering "+bioName
+        +" makes that impossible on this device."),
+      sub("Your "+bioName+" never leaves the device — the app only stores a key handle, "
+        +"never your fingerprint or face. Register on each device you use."));
+    ok='Register '+bioName;
+    run=()=>{
+      close();
+      if(!w)return;
+      guard(PC.bioEnrol(w)).then(r=>{
+        if(r&&r.ok)setDlg({mode:'bioDone'});
+        else if(r&&r.error!=='NotAllowedError'&&r.error!=='cancelled')
+          setDlg({mode:'bioErr',err:(r&&r.error)||''});
+      });
+    };
+  } else if(dlg.mode==='bioDone'){
+    title=bioName+' registered';
+    body=note(false,"Confirmations from "+(NAMES[w]||'this profile')+" now require "+bioName
+      +" on this device. Register on your other devices too.");
+    ok='Done';
+  } else if(dlg.mode==='bioErr'){
+    title='Could not register';
+    body=note(true,bioName+" registration did not complete"+(dlg.err?" ("+dlg.err+")":"")
+      +". Confirmations stay unverified on this device.");
+    ok='Close';
+  } else if(dlg.mode==='sameDevice'){
+    title='Is this really '+(NAMES[w]||'you')+'?';
+    body=React.createElement(React.Fragment,null,
+      note(true,React.createElement(React.Fragment,null,
+        oName+" confirmed this on ",
+        React.createElement("b",{style:{color:P.TX}},"this same device"),
+        ". If you are "+oName+" pressing confirm for "+(NAMES[w]||'the other profile')
+        +", stop — a plan only means something if you each agreed to it yourself.")),
+      sub("Confirming anyway is recorded, and the plan will be marked as having both "
+        +"confirmations from one device."));
+    ok='I am '+(NAMES[w]||'me')+' — confirm';
+    run=()=>{
+      const q=PC.get(dlg.id);
+      if(q&&!q.date){setDlg({...dlg,mode:'confirmNoDate'});return;}
+      const id=dlg.id;close();doConfirm(id);
+    };
+  } else if(dlg.mode==='confirmNoDate'){
+    title='No date set';
+    body=note(false,"This plan has no date. Confirming it still records that you both agreed — "
+      +"it just will not appear in either TaskHub until a date is set.");
+    ok='Confirm anyway';
+    run=()=>{const id=dlg.id;close();doConfirm(id);};
+  } else if(dlg.mode==='decline'){
+    title='Decline this plan';
+    body=React.createElement(React.Fragment,null,
+      React.createElement("label",{style:lbl},"Reason (optional)"),
+      React.createElement("textarea",{style:{...inp,minHeight:88,resize:"vertical",
+        lineHeight:1.55},autoFocus:true,maxLength:500,placeholder:"Why not?",value:reason,
+        onChange:e=>setReason(e.target.value)}));
+    ok='Decline';
+    run=()=>{PC.declinePlan(dlg.id,reason.trim());close();};
+  } else if(dlg.mode==='cancel'){
+    // A second cancel request from the OTHER party IS the agreement to drop it.
+    const two=!!(p&&p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==w);
+    title=dlg.del?'Delete a confirmed plan':'Request to cancel';
+    body=React.createElement(React.Fragment,null,
+      note(false,two
+        ?"The other person already asked to cancel this. Agreeing drops the plan and removes it from both TaskHubs."
+        :"This plan stays Confirmed — and stays in both TaskHubs — until "+oName+" agrees."),
+      React.createElement("label",{style:lbl},"Reason (optional)"),
+      React.createElement("textarea",{style:{...inp,minHeight:88,resize:"vertical",
+        lineHeight:1.55},autoFocus:true,maxLength:500,value:reason,
+        onChange:e=>setReason(e.target.value)}));
+    ok=two?'Agree — drop it':'Send request';
+    run=()=>{PC.requestCancel(dlg.id,reason.trim());close();};
+  } else if(dlg.mode==='confirmDelete'){
+    title='Delete this plan?';
+    body=note(true,"This removes it for both of you. It cannot be undone.");
+    ok='Delete';
+    run=()=>{PC.removePlan(dlg.id);close();};
+  }
+
+  const foot=(kind,label,onClick)=>React.createElement("button",{type:"button",disabled:busy,
+    onClick,style:{background:kind==="go"?P.AC:"transparent",
+      color:kind==="go"?P.ACINK:P.TXD,border:"1px solid "+(kind==="go"?P.AC:P.BD),
+      borderRadius:8,padding:"0 15px",height:34,fontSize:10.5,fontWeight:700,
+      textTransform:"uppercase",letterSpacing:.7,cursor:"pointer",fontFamily:P.MONO,
+      opacity:busy?.6:1}},label);
+
+  return React.createElement("div",{onClick:close,
+    style:{position:"fixed",inset:0,background:"rgba(8,8,10,.72)",
+      backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",
+      alignItems:"center",justifyContent:"center",padding:20,zIndex:4200}},
+    React.createElement("div",{onClick:e=>e.stopPropagation(),
+      style:{background:P.S1,border:"1px solid "+P.BDL,borderRadius:16,padding:22,
+        width:"100%",maxWidth:460,maxHeight:"calc(100vh - 40px)",overflowY:"auto",
+        boxShadow:"0 24px 60px rgba(0,0,0,.55)",fontFamily:P.FONT,color:P.TX}},
+      React.createElement("h3",{style:{margin:"0 0 4px",fontSize:17,fontWeight:700,
+        letterSpacing:-.2,color:P.TX}},title),
+      body,
+      React.createElement("div",{style:{display:"flex",gap:9,justifyContent:"flex-end",
+        marginTop:22}},
+        foot("","Cancel",close),
+        foot("go",ok,run))));
 }
 
 function SimpleTextEditModal({open,onClose,onSave,initialText,heading,T}){
@@ -6693,6 +7267,10 @@ function App(){
   const[tgShowAll,setTgShowAll]=useState(false);
 
   const[mo,setMo]=useState(false);const[mdt,setMdt]=useState(null);const[ei,setEi]=useState(null);
+  // How many shared plans are waiting on this profile right now. Surfaced on the
+  // Weekly header and nowhere else: at zero it renders nothing, so a quiet week
+  // gains no chrome at all.
+  const planWaiting=usePlansWaiting();
   const[nht,setNht]=useState("");const[nmt,setNmt]=useState("");const[nmmt,setNmmt]=useState("");
   const[editingGoalM,setEditingGoalM]=useState(null);
   const[delConfirm,setDelConfirm]=useState(null);
@@ -6717,9 +7295,9 @@ function App(){
 
   // Mirrored plan items are owned by dashboards/plans — ticking one here would be
   // reverted by the next reconcile, so refuse it and say why.
-  const tog=useCallback((k,id)=>{const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Plans.');return;}setData(prev=>{const arr=[...(prev[k]||[])];const i=arr.findIndex(t=>t.id===id);if(i>=0)arr[i]={...arr[i],done:!arr[i].done};return {...prev,[k]:arr};});},[setData]);
+  const tog=useCallback((k,id)=>{const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Add → Plan.');return;}setData(prev=>{const arr=[...(prev[k]||[])];const i=arr.findIndex(t=>t.id===id);if(i>=0)arr[i]={...arr[i],done:!arr[i].done};return {...prev,[k]:arr};});},[setData]);
 
-  const del=useCallback((k,id)=>{const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Plans to remove it.');return;}setData(prev=>{const item=(prev[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return prev;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const arr=(prev[k]||[]).filter(t=>t.id!==id);const next={...prev};if(!arr.length)delete next[k];else next[k]=arr;return next;});},[setData]);
+  const del=useCallback((k,id)=>{const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Add → Plan to remove it.');return;}setData(prev=>{const item=(prev[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return prev;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const arr=(prev[k]||[]).filter(t=>t.id!==id);const next={...prev};if(!arr.length)delete next[k];else next[k]=arr;return next;});},[setData]);
 
   const delThisOnly=useCallback(()=>{
     if(!delConfirm)return;const{dateKey,itemId,item}=delConfirm;
@@ -6981,7 +7559,7 @@ function App(){
     if(srcKey===k){
       if(srcId===targetId)return;
       setData(prev=>{const arr=[...(prev[k]||[])];const si=arr.findIndex(t=>t.id===srcId),ti=arr.findIndex(t=>t.id===targetId);if(si<0||ti<0)return prev;const[item]=arr.splice(si,1);arr.splice(ti,0,item);return{...prev,[k]:arr};});
-    }else if(_plGuard(stateRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Plans.')){
+    }else if(_plGuard(stateRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Add → Plan.')){
       // Reordering a plan WITHIN a day is yours to keep; moving it to another day
       // is not, because dashboards/plans owns the date and the next reconcile
       // would drag it straight back. Refuse it up front instead of letting the
@@ -6998,7 +7576,7 @@ function App(){
     if(dragType.current!=="task"||dragDayKey.current===k)return;
     const srcKey=dragDayKey.current,srcId=dragSrc.current;
     // Same rule as onDropTask: a plan's DATE belongs to dashboards/plans.
-    if(_plGuard(stateRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Plans.'))return;
+    if(_plGuard(stateRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Add → Plan.'))return;
     setData(prev=>{const srcArr=[...(prev[srcKey]||[])];const destArr=[...(prev[k]||[])];const si=srcArr.findIndex(t=>t.id===srcId);if(si<0)return prev;const[item]=srcArr.splice(si,1);destArr.push(item);return{...prev,[srcKey]:srcArr,[k]:destArr};});
   };
   const onDragStartHabit=(e,id)=>{dragType.current="habit";dragSrc.current=id;dragInfo.current={zone:"habit",id};e.dataTransfer.effectAllowed="move";};
@@ -7106,8 +7684,8 @@ function App(){
   const addM=useCallback(()=>{if(!nmt.trim())return;setMg(prev=>[...prev,{id:uid(),title:nmt.trim(),done:false}]);setNmt("");},[nmt,setMg]);
   const renameM=useCallback((id,title)=>setMg(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMg]);
 
-  const togMM=useCallback(id=>{if(_plGuard(stateRef.current.monthlyGoals,id,"This is a shared plan — manage it in Plans."))return;setMgMonthly(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...prev];cp[i]=ng;return cp;});},[setMgMonthly]);
-  const delMM=useCallback(id=>{if(_plGuard(stateRef.current.monthlyGoals,id,"This is a shared plan — cancel it in Plans to remove it."))return;setMgMonthly(prev=>prev.filter(g=>g.id!==id));},[setMgMonthly]);
+  const togMM=useCallback(id=>{if(_plGuard(stateRef.current.monthlyGoals,id,"This is a shared plan — manage it in Add → Plan."))return;setMgMonthly(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...prev];cp[i]=ng;return cp;});},[setMgMonthly]);
+  const delMM=useCallback(id=>{if(_plGuard(stateRef.current.monthlyGoals,id,"This is a shared plan — cancel it in Add → Plan to remove it."))return;setMgMonthly(prev=>prev.filter(g=>g.id!==id));},[setMgMonthly]);
   const addMM=useCallback(()=>{if(!nmmt.trim())return;setMgMonthly(prev=>[...prev,{id:uid(),title:nmmt.trim(),done:false}]);setNmmt("");},[nmmt,setMgMonthly]);
   const renameMM=useCallback((id,title)=>setMgMonthly(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMgMonthly]);
 
@@ -7273,9 +7851,14 @@ function App(){
     React.createElement("div",{style:{...sec,flexShrink:0}},
       React.createElement("div",{style:{...stt,display:"flex",justifyContent:"space-between",alignItems:"center"}},
         React.createElement("span",null,"Weekly — "+MO[wd[0].month]+" "+wd[0].day+"–"+wd[6].day),
+        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
+        // A shared plan waiting on you is the one thing in Plans you cannot
+        // afford to miss, so it gets a way in from the week itself rather than
+        // living only behind Add → Plan. Absent entirely at zero.
+        planWaiting>0&&React.createElement("button",{type:"button",title:planWaiting+" plan"+(planWaiting===1?"":"s")+" waiting on you",onClick:()=>{setEi(PLAN_SEED);setMdt(tk);setMo(true);},style:{background:T.AC,border:"1px solid "+T.AC,borderRadius:4,color:T.BG,cursor:"pointer",padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:800,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:.3,textTransform:"none",transition:"filter .15s"},onMouseEnter:e=>{e.currentTarget.style.filter="brightness(1.09)";},onMouseLeave:e=>{e.currentTarget.style.filter="";}},"Plans",React.createElement("span",{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:14,height:14,padding:"0 4px",borderRadius:999,background:T.BG,color:T.AC,fontSize:9,fontWeight:800,lineHeight:1}},planWaiting)),
         React.createElement("button",{type:"button",title:weekCollapsed?"Expand week":"Collapse week",onClick:toggleWeekCollapsed,style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:4,color:T.TXM,cursor:"pointer",padding:"3px 8px",display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",letterSpacing:0.3,transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},
           React.createElement("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0,transform:weekCollapsed?"rotate(180deg)":"none",transition:"transform .2s"},dangerouslySetInnerHTML:{__html:TNI.arrowUp}}),
-          weekCollapsed?"Expand":"Collapse")),
+          weekCollapsed?"Expand":"Collapse"))),
       // Same box geometry in both states — only maxHeight changes. Staying a scroll
       // container with a stable gutter is what stops the week jumping sideways by the
       // scrollbar's width each time it's collapsed or expanded.
@@ -8599,7 +9182,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
             el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:2147483600;background:#26272A;color:#E8E8EA;border:1px solid #3D3E43;border-radius:10px;padding:10px 14px;font:600 12px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.45);pointer-events:none;opacity:0;transition:opacity .15s;max-width:min(420px,calc(100vw - 32px));text-align:center;';
             document.body.appendChild(el);
           }
-          el.textContent = msg || 'This is a shared plan — manage it in Plans.';
+          el.textContent = msg || 'This is a shared plan — manage it in Add → Plan.';
           el.style.opacity = '1';
           clearTimeout(t);
           t = setTimeout(() => { if (el) el.style.opacity = '0'; }, 2600);
@@ -10647,7 +11230,7 @@ window.thDragList = function(listEl, getArr, setArr, onDrop, accentColor, placeh
 'use strict';
 // ── Universal Veda navigation ────────────────────────────────────────────────
 window._vedaNav=function(target){
-  ['task-view','vd-kc-root','bj-root','tj-root','root','plans-root'].forEach(function(id){
+  ['task-view','vd-kc-root','bj-root','tj-root','root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   if(window._vedaCloseGita)window._vedaCloseGita();
@@ -10662,12 +11245,10 @@ window._vedaNav=function(target){
     if(vdkc){vdkc.style.display='block';if(typeof vdkc_applyTheme==='function')vdkc_applyTheme();}
     return;
   }
-  // Like 'links': Plans is its own fixed root, so it returns BEFORE the
-  // veda-root background/theme reset below ever runs.
-  if(target==='plans'){
-    if(window._plansShow)window._plansShow();
-    return;
-  }
+  // 'plans' is no longer a destination — Plans lives inside her TaskHub now
+  // (Weekly → Add → Plan). Anything still asking for it (a stale saved nav
+  // order, an old deep link) lands on TaskHub, which is where Plans is.
+  if(target==='plans')target='taskhub';
   var vedaRoot=document.getElementById('veda-root');
   if(vedaRoot){
     vedaRoot.style.display='block';vedaRoot.style.position='';vedaRoot.style.top='';
@@ -11917,10 +12498,18 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
     else if(window.thCancelNotif){try{window.thCancelNotif(item.id,item.notifyRepeatId);}catch(e){}}
     onClose();
   };
+  // Plan is a third kind of thing you can add to a day, so it is a third Type \u2014
+  // but only when ADDING (see the same note in Tony's ItemModal).
+  const canPlan=!initial?.id;
+  const isPlan=canPlan&&type==="plan";
+  const typeOpts=canPlan?["task","event","plan"]:["task","event"];
   return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000},onClick:onClose},
-    RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:10,padding:24,width:430,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto"},onClick:e=>e.stopPropagation()},
-      RC("div",{style:{fontSize:16,fontWeight:700,color:A,marginBottom:16,textTransform:"uppercase",letterSpacing:1}},(initial?.id?"Edit":"New")+" \u2014 "+dateLabel),
-      RC("div",{style:{marginBottom:12}},RC("div",{style:lbl},"Type"),RC("div",{style:{display:"flex",gap:8}},["task","event"].map(t=>RC("button",{key:t,onClick:()=>setType(t),style:{background:type===t?A:BG,color:type===t?BG:TX,fontWeight:700,padding:"7px 20px",border:type===t?"1px solid "+A:"1px solid "+BDL,borderRadius:5,cursor:"pointer",fontSize:13,fontFamily:"inherit"}},t.charAt(0).toUpperCase()+t.slice(1))))),
+    RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:10,padding:24,width:isPlan?860:430,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",transition:"width .18s"},onClick:e=>e.stopPropagation()},
+      RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16}},
+        RC("div",{style:{fontSize:16,fontWeight:700,color:A,textTransform:"uppercase",letterSpacing:1}},isPlan?"Plans":((initial?.id?"Edit":"New")+" \u2014 "+dateLabel)),
+        isPlan&&RC("button",{type:"button",title:"Close",onClick:onClose,style:{background:"transparent",border:"1px solid "+BD,borderRadius:5,color:TXM,cursor:"pointer",padding:"4px 10px",fontSize:11,fontWeight:700,fontFamily:"inherit"}},"Close")),
+      RC("div",{style:{marginBottom:isPlan?18:12}},RC("div",{style:lbl},"Type"),RC("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},typeOpts.map(t=>RC("button",{key:t,onClick:()=>setType(t),style:{background:type===t?A:BG,color:type===t?BG:TX,fontWeight:700,padding:"7px 20px",border:type===t?"1px solid "+A:"1px solid "+BDL,borderRadius:5,cursor:"pointer",fontSize:13,fontFamily:"inherit"}},t.charAt(0).toUpperCase()+t.slice(1))))),
+      isPlan?RC(PlanPanel,{P:PLAN_PAL_VEDA,startDateKey}):RC(React.Fragment,null,
       RC("div",{style:{marginBottom:12}},RC("div",{style:lbl},"Title"),
         repeat==="altSeq"&&!initial?.altSeqId
           ?RC("div",{style:{fontSize:11,color:TXD,padding:"8px 10px",background:BG,borderRadius:4,border:"1px solid "+BDL}},"Title set by sequence steps below.")
@@ -11962,7 +12551,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
           notifyRepeat==="weekly"&&RC("div",{style:{marginTop:8}},RC("div",{style:{fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}},"Notify on"),RC(VedaDayPicker,{selected:notifyRepeatDays,onChange:setNotifyRepeatDays})))),
       RC("div",{style:{display:"flex",marginTop:16,gap:10}},
         RC("button",{style:{background:A,color:BG,border:"none",borderRadius:5,padding:"9px 26px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1},onClick:save},"Save"),
-        RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"9px 20px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
+        RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"9px 20px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel")))));}
 
 function playAlarm(){const ctx=new(window.AudioContext||window.webkitAudioContext)();if(ctx.state==="suspended")ctx.resume();const notes=[523.25,659.25,783.99,659.25,783.99,1046.5,783.99,1046.5,783.99,659.25];const dur=0.45,gap=0.05;notes.forEach((freq,i)=>{const osc=ctx.createOscillator();const gain=ctx.createGain();const t=ctx.currentTime+i*(dur+gap);osc.type="sine";osc.frequency.setValueAtTime(freq,t);const osc2=ctx.createOscillator();osc2.type="triangle";osc2.frequency.setValueAtTime(freq*2,t);const g2=ctx.createGain();g2.gain.setValueAtTime(0.08,t);osc2.connect(g2);g2.connect(ctx.destination);osc2.start(t);osc2.stop(t+dur);gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(0.18,t+0.05);gain.gain.setValueAtTime(0.18,t+dur*0.6);gain.gain.linearRampToValueAtTime(0,t+dur);osc.connect(gain);gain.connect(ctx.destination);osc.start(t);osc.stop(t+dur);});setTimeout(()=>ctx.close(),6000);}
 const workerBlob=new Blob([`let iv=null,end=0;onmessage=function(e){if(e.data.cmd==="start"){clearInterval(iv);end=Date.now()+e.data.secs*1000;iv=setInterval(function(){const rem=Math.round((end-Date.now())/1000);if(rem<=0){clearInterval(iv);iv=null;postMessage({type:"done"});}else postMessage({type:"tick",left:rem});},250);}else if(e.data.cmd==="stop"){clearInterval(iv);iv=null;}};`],{type:"application/javascript"});
@@ -12257,6 +12846,8 @@ function App(){
   const[mo,setMo]=useState(false);
   const[mdt,setMdt]=useState(null);
   const[ei,setEi]=useState(null);
+  // Shared plans waiting on this profile — drives the Weekly header chip.
+  const planWaiting=usePlansWaiting();
   const[nht,setNht]=useState("");
   const[nmt,setNmt]=useState("");
   const[nmmt,setNmmt]=useState("");
@@ -12701,8 +13292,8 @@ function App(){
   // Toggling a mirrored (_sosId) item also pushes the done-state back to StudyOS.
   // Plan items are owned by dashboards/plans; a tick here would be reverted by the
   // next reconcile. (StudyOS items ARE tickable — they have an ack channel back.)
-  const tog=useCallback((k,id)=>{const cur=(vdRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Plans.');return;}setData(p=>{const it=[...(p[k]||[])];const i=it.findIndex(t=>t.id===id);let mirrored=false;if(i>=0){it[i]={...it[i],done:!it[i].done};mirrored=!!it[i]._sosId;}const next={...p,[k]:it};if(mirrored)sosAck(next);return next;});},[setData,sosAck]);
-  const del=useCallback((k,id)=>{const cur=(vdRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Plans to remove it.');return;}setData(p=>{const item=(p[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return p;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const it=(p[k]||[]).filter(t=>t.id!==id);const n={...p};if(!it.length)delete n[k];else n[k]=it;return n;});},[]);
+  const tog=useCallback((k,id)=>{const cur=(vdRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Add → Plan.');return;}setData(p=>{const it=[...(p[k]||[])];const i=it.findIndex(t=>t.id===id);let mirrored=false;if(i>=0){it[i]={...it[i],done:!it[i].done};mirrored=!!it[i]._sosId;}const next={...p,[k]:it};if(mirrored)sosAck(next);return next;});},[setData,sosAck]);
+  const del=useCallback((k,id)=>{const cur=(vdRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Add → Plan to remove it.');return;}setData(p=>{const item=(p[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return p;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const it=(p[k]||[]).filter(t=>t.id!==id);const n={...p};if(!it.length)delete n[k];else n[k]=it;return n;});},[]);
   const delThisOnly=useCallback(()=>{if(!delConfirm)return;const{dateKey,itemId,item}=delConfirm;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(itemId,null,{notifyAt:item.notifyAt});setData(p=>{const it=(p[dateKey]||[]).filter(t=>t.id!==itemId);const n={...p};if(!it.length)delete n[dateKey];else n[dateKey]=it;return n;});setDelConfirm(null);},[delConfirm]);
   const delAllFuture=useCallback(()=>{if(!delConfirm)return;const{dateKey,item}=delConfirm;const rid=item.repeatId||item.altSeqId;if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(item.id,item.notifyRepeatId);setData(p=>{const next={...p};const cutoff=new Date(dateKey);Object.keys(next).forEach(k=>{const kd=new Date(k);if(kd>=cutoff){next[k]=(next[k]||[]).filter(t=>t.repeatId!==rid&&t.altSeqId!==rid);if(!next[k].length)delete next[k];}});return next;});setDelConfirm(null);},[delConfirm]);
   const savItem=useCallback((dk2,item,ri)=>{
@@ -12764,7 +13355,7 @@ function App(){
     if(srcKey===k){
       if(srcId===targetId)return;
       setData(prev=>{const arr=[...(prev[k]||[])];const si=arr.findIndex(t=>t.id===srcId),ti=arr.findIndex(t=>t.id===targetId);if(si<0||ti<0)return prev;const[item]=arr.splice(si,1);arr.splice(ti,0,item);return{...prev,[k]:arr};});
-    }else if(_plGuard(vdRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Plans.')){
+    }else if(_plGuard(vdRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Add → Plan.')){
       // Reordering within a day is hers to keep; the DATE belongs to
       // dashboards/plans, so a cross-day move would just be reconciled back.
       return;
@@ -12778,7 +13369,7 @@ function App(){
     if(vdDragInfo.current&&vdDragInfo.current.zone!=="week"){vCrossMoveRef.current&&vCrossMoveRef.current("week",null,k);vdDragInfo.current=null;return;}
     if(vdDragType.current!=="task"||vdDragDay.current===k)return;
     const srcKey=vdDragDay.current,srcId=vdDragSrc.current;
-    if(_plGuard(vdRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Plans.'))return;
+    if(_plGuard(vdRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Add → Plan.'))return;
     setData(prev=>{const srcArr=[...(prev[srcKey]||[])];const destArr=[...(prev[k]||[])];const si=srcArr.findIndex(t=>t.id===srcId);if(si<0)return prev;const[item]=srcArr.splice(si,1);destArr.push(item);return{...prev,[srcKey]:srcArr,[k]:destArr};});
   };
   const vOnDragStartHabit=(e,id)=>{vdDragType.current="habit";vdDragSrc.current=id;vdDragInfo.current={zone:"habit",id};e.dataTransfer.effectAllowed="move";};
@@ -12875,8 +13466,8 @@ function App(){
   const delM=useCallback(id=>{setMg(p=>p.filter(g=>g.id!==id));},[]);
   const addM=useCallback(()=>{if(!nmt.trim())return;setMg(p=>[...p,{id:uid(),title:nmt.trim(),done:false}]);setNmt("");},[nmt]);
   const renameMM=useCallback((id,title)=>setMgMonthly(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMgMonthly]);
-  const togMM=useCallback(id=>{if(_plGuard(vdRef.current.monthlyGoals,id,"This is a shared plan — manage it in Plans."))return;setMgMonthly(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...p];cp[i]=ng;return cp;});},[setMgMonthly]);
-  const delMM=useCallback(id=>{if(_plGuard(vdRef.current.monthlyGoals,id,"This is a shared plan — cancel it in Plans to remove it."))return;setMgMonthly(p=>p.filter(g=>g.id!==id));},[setMgMonthly]);
+  const togMM=useCallback(id=>{if(_plGuard(vdRef.current.monthlyGoals,id,"This is a shared plan — manage it in Add → Plan."))return;setMgMonthly(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...p];cp[i]=ng;return cp;});},[setMgMonthly]);
+  const delMM=useCallback(id=>{if(_plGuard(vdRef.current.monthlyGoals,id,"This is a shared plan — cancel it in Add → Plan to remove it."))return;setMgMonthly(p=>p.filter(g=>g.id!==id));},[setMgMonthly]);
   const addMM=useCallback(()=>{if(!nmmt.trim())return;setMgMonthly(p=>[...p,{id:uid(),title:nmmt.trim(),done:false}]);setNmmt("");},[nmmt,setMgMonthly]);
   const calcCells=useMemo(()=>{const d=dimM(vy,vm),f=fdow(vy,vm),c=[];for(let i=0;i<f;i++)c.push(null);for(let i=1;i<=d;i++)c.push(i);return c;},[vy,vm]);
   const pm=()=>{if(vm===0){setVm(11);setVy(y=>y-1);}else setVm(m=>m-1);};
@@ -13052,9 +13643,13 @@ function App(){
     RC("div",{style:{...sec,flexShrink:0}},
       RC("div",{style:{...stt,display:"flex",justifyContent:"space-between",alignItems:"center"}},
         RC("span",null,"WEEKLY — "+MO[wd[0].month]+" "+wd[0].day+"–"+wd[6].day+", "+wd[0].year),
+        RC("div",{style:{display:"flex",alignItems:"center",gap:6}},
+        // Same rule as Tony's: a plan waiting on her is reachable from the week
+        // itself, and nothing at all is drawn when none are.
+        planWaiting>0&&RC("button",{type:"button",title:planWaiting+" plan"+(planWaiting===1?"":"s")+" waiting on you",onClick:()=>{setEi(PLAN_SEED);setMdt(tk);setMo(true);},style:{background:A,border:"1px solid "+A,borderRadius:4,color:BG,cursor:"pointer",padding:"3px 9px",display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:800,fontFamily:"inherit",letterSpacing:.3,textTransform:"none",transition:"filter .15s"},onMouseEnter:e=>{e.currentTarget.style.filter="brightness(1.12)";},onMouseLeave:e=>{e.currentTarget.style.filter="";}},"Plans",RC("span",{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:14,height:14,padding:"0 4px",borderRadius:999,background:BG,color:A,fontSize:9,fontWeight:800,lineHeight:1}},planWaiting)),
         RC("button",{type:"button",title:weekCollapsed?"Expand week":"Collapse week",onClick:toggleWeekCollapsed,style:{background:"transparent",border:"1px solid "+BD,borderRadius:4,color:TXM,cursor:"pointer",padding:"3px 8px",display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,fontFamily:"inherit",letterSpacing:0.3,transition:"all .15s",textTransform:"none"},onMouseEnter:e=>{e.currentTarget.style.borderColor=A;e.currentTarget.style.color=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BD;e.currentTarget.style.color=TXM;}},
           RC("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0,transform:weekCollapsed?"rotate(180deg)":"none",transition:"transform .2s"},dangerouslySetInnerHTML:{__html:TNI.arrowUp}}),
-          weekCollapsed?"Expand":"Collapse")),
+          weekCollapsed?"Expand":"Collapse"))),
       // Same box geometry in both states (see Tony's TaskHub for the reasoning).
       RC("div",{style:{maxHeight:weekCollapsed?"clamp(240px,42vh,460px)":"none",overflowY:"auto",overflowX:"hidden",paddingRight:4,scrollbarGutter:"stable"}},
       (vrMobile||(vrNarrow&&vrNarrowSingleDay))?
@@ -13320,7 +13915,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     hideVeda();
     // Also hide Veda sub-programs in case user was in one
-    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","plans-root"].forEach(function(id){
+    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -13355,7 +13950,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     document.documentElement.style.overflow="";
     if(window._hideTonyNav)window._hideTonyNav();
     if(window._vedaCloseGita)window._vedaCloseGita();
-    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root","plans-root"].forEach(function(id){
+    ["vd-kc-root","bj-root","tj-root","tradeboard-root","pv-root","wr-root","root"].forEach(function(id){
       var el=document.getElementById(id);
       if(el){el.style.display="none";}
     });
@@ -15328,323 +15923,17 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
 
 </div><!-- end vd-kc-root -->
 
-<!-- ── PLANS ─────────────────────────────────────────────────────────────────
-     Shared commitments with a two-sided confirm. The DATA is shared, but the
-     CHROME follows whoever is looking: acting as Veda it wears her palette and
-     header (Playfair title, IBM Plex Mono nav, purple accent); acting as Tony it
-     wears his (gold accent, his sticky top nav bar). Every colour below comes
-     from a custom property so a single class swap re-themes the section. -->
-<style>
-/* ── Design tokens ─────────────────────────────────────────────────────────
-   Tony is the default; .pl-veda overrides. Everything downstream reads these,
-   so the two profiles differ ONLY in this block — no per-profile rules below.
-   Tony's chrome is Inter + gold on near-black; Veda's is IBM Plex Mono +
-   Playfair + purple on her slightly warmer ground. */
-#plans-root{
-  --pl-bg:#151517; --pl-s1:#1D1E21; --pl-s2:#26272B; --pl-s3:#202024;
-  --pl-bd:#2C2D32; --pl-bdl:#3A3B42;
-  --pl-tx:#F2F2F4; --pl-txd:#B6B7BD; --pl-txm:#8B8C93; --pl-txf:#6B6C73;
-  --pl-ac:#C8A15F; --pl-ac-ink:#141416; --pl-ac-soft:rgba(200,161,95,.11);
-  --pl-ac-line:rgba(200,161,95,.34);
-  --pl-ok:#6FBF8B; --pl-ok-bg:rgba(111,191,139,.12); --pl-ok-line:rgba(111,191,139,.3);
-  --pl-warn:#D9A863; --pl-warn-bg:rgba(217,168,99,.11); --pl-warn-line:rgba(217,168,99,.3);
-  --pl-bad:#D98A80; --pl-bad-bg:rgba(217,138,128,.11); --pl-bad-line:rgba(217,138,128,.3);
-  /* Tony's chrome font is Inter — his nav, his TaskHub and his dropdown all
-     use it, so Plans reads as part of the same app rather than a guest. */
-  --pl-font:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --pl-mono:'IBM Plex Mono',ui-monospace,monospace;
-  --pl-display:'Inter',system-ui,-apple-system,sans-serif;
-  --pl-r-sm:8px; --pl-r:12px; --pl-r-lg:16px;
-  --pl-sh:0 1px 2px rgba(0,0,0,.35);
-  --pl-sh-md:0 4px 16px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.3);
-  --pl-sh-lg:0 24px 60px rgba(0,0,0,.55),0 6px 18px rgba(0,0,0,.4);
-  --pl-ease:cubic-bezier(.4,0,.2,1);
-  position:fixed;inset:0;display:none;overflow-y:auto;overflow-x:hidden;
-  -webkit-overflow-scrolling:touch;background:var(--pl-bg);color:var(--pl-tx);
-  font-family:var(--pl-font);
-  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
-}
-#plans-root.pl-veda{
-  --pl-bg:#161719; --pl-s1:#1E1F22; --pl-s2:#27282C; --pl-s3:#212226;
-  --pl-bd:#2D2E33; --pl-bdl:#3B3C43;
-  --pl-tx:#F0EFF2; --pl-txd:#B4B2BA; --pl-txm:#8B8992; --pl-txf:#6B6971;
-  --pl-ac:#9D86AA; --pl-ac-ink:#141416; --pl-ac-soft:rgba(157,134,170,.13);
-  --pl-ac-line:rgba(157,134,170,.36);
-  /* Veda's suite is IBM Plex Mono throughout, with Playfair for section titles. */
-  --pl-font:'IBM Plex Mono',ui-monospace,monospace;
-  --pl-display:'Playfair Display',Georgia,serif;
-}
-#plans-root *{box-sizing:border-box;}
-#plans-root ::selection{background:var(--pl-ac-soft);color:var(--pl-tx);}
-/* One visible focus treatment for every control in the section. */
-#plans-root :focus-visible{outline:2px solid var(--pl-ac);outline-offset:2px;border-radius:var(--pl-r-sm);}
+<!-- ── PLANS ENGINE ──────────────────────────────────────────────────────────
+     Shared commitments with a two-sided confirm. Plans has no page of its own:
+     it is a native part of BOTH TaskHubs (Weekly → Add → Plan), so what lives
+     here is only the headless half — records, lifecycle, provenance, biometric
+     consent, Firestore sync and the notifications that reach the other person.
+     The React panel inside each TaskHub drives all of it through
+     window.PlansCore and owns every pixel.
 
-.pl-wrap{max-width:820px;margin:0 auto;padding:26px 22px calc(72px + env(safe-area-inset-bottom,0px));}
-/* Tony's #tony-app-nav is position:fixed and overlays the page, so his view must
-   reserve room for it (28px button + padding) or the title sits under the nav
-   buttons. Veda's header is in-flow and needs no offset. */
-#plans-root:not(.pl-veda) .pl-wrap{padding-top:calc(env(safe-area-inset-top,0px) + 64px);}
-
-/* ── Page head ─────────────────────────────────────────────────────────────
-   Title top-left, profile chip right, hairline underneath. No description —
-   the section explains itself through its own section labels. */
-.pl-hdr{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;
-  justify-content:space-between;padding-bottom:18px;margin-bottom:22px;
-  border-bottom:1px solid var(--pl-bd);}
-.pl-title{margin:0;font-family:var(--pl-display);font-size:26px;font-weight:800;
-  letter-spacing:-.4px;line-height:1.1;color:var(--pl-tx);}
-/* Veda's sections title themselves in Playfair caps — match her house style. */
-#plans-root.pl-veda .pl-title{font-size:24px;font-weight:900;letter-spacing:1.2px;
-  text-transform:uppercase;color:var(--pl-ac);}
-.pl-who{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;
-  text-transform:uppercase;letter-spacing:.9px;color:var(--pl-txm);
-  background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:999px;
-  padding:5px 12px;white-space:nowrap;font-family:var(--pl-mono);}
-.pl-who::before{content:'';width:6px;height:6px;border-radius:50%;
-  background:var(--pl-ac);flex-shrink:0;}
-
-/* ── Primary action ────────────────────────────────────────────────────────
-   The one thing you come here to do gets a solid accent button, not a dashed
-   placeholder — everything else in the section is an outline control. */
-.pl-add{display:flex;width:fit-content;align-items:center;justify-content:center;gap:8px;
-  background:var(--pl-ac);border:1px solid var(--pl-ac);border-radius:var(--pl-r-sm);
-  color:var(--pl-ac-ink);height:38px;padding:0 18px;font-size:11.5px;font-weight:800;
-  cursor:pointer;font-family:var(--pl-mono);text-transform:uppercase;letter-spacing:.9px;
-  margin-bottom:30px;box-shadow:var(--pl-sh);transition:filter .16s var(--pl-ease),
-  transform .16s var(--pl-ease),box-shadow .16s var(--pl-ease);}
-.pl-add:hover{filter:brightness(1.09);box-shadow:var(--pl-sh-md);}
-.pl-add:active{transform:translateY(1px);box-shadow:var(--pl-sh);}
-.pl-add-ico{font-size:16px;line-height:0;font-weight:400;margin-right:1px;}
-
-/* Biometric enrolment offer — a quiet secondary line, not a second CTA. It sits
-   above the primary button, so it must not compete with it: no fill, no full
-   width, just a hairline the eye can skip. */
-.pl-bio-cta{display:flex;align-items:center;gap:8px;width:fit-content;
-  background:transparent;border:1px dashed var(--pl-bd);border-radius:var(--pl-r-sm);
-  color:var(--pl-txm);padding:9px 13px;font-size:10.5px;font-weight:700;cursor:pointer;
-  font-family:var(--pl-mono);letter-spacing:.5px;margin-bottom:14px;text-align:left;
-  transition:all .16s var(--pl-ease);}
-.pl-bio-cta:hover{border-color:var(--pl-ac-line);color:var(--pl-ac);background:var(--pl-ac-soft);}
-/* A verified signature is visually distinct from an unverified one. */
-.pl-vbadge{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
-  padding:2px 6px;border-radius:4px;margin-left:2px;white-space:nowrap;}
-.pl-v-bio{background:var(--pl-ok-bg);color:var(--pl-ok);}
-.pl-v-none{background:var(--pl-s2);color:var(--pl-txf);}
-
-/* ── Sections ──────────────────────────────────────────────────────────────*/
-.pl-secs{display:flex;flex-direction:column;gap:26px;}
-.pl-sec-h{display:flex;align-items:center;gap:9px;margin-bottom:12px;}
-.pl-sec-t{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:1.3px;
-  color:var(--pl-txd);font-family:var(--pl-mono);}
-.pl-count{background:var(--pl-s2);color:var(--pl-txd);border:1px solid var(--pl-bd);
-  border-radius:999px;font-size:10px;font-weight:800;padding:1px 8px;min-width:20px;
-  text-align:center;font-family:var(--pl-mono);line-height:1.6;}
-/* The bucket that needs you gets the accent count; the rest stay neutral. */
-.pl-sec-live .pl-count{background:var(--pl-ac);color:var(--pl-ac-ink);border-color:var(--pl-ac);}
-.pl-sec-live .pl-sec-t{color:var(--pl-tx);}
-.pl-sub{font-size:11px;color:var(--pl-txf);font-weight:500;letter-spacing:0;
-  font-family:var(--pl-font);margin-left:auto;text-align:right;}
-/* An empty bucket is one quiet line, not a header + chip + sentence. */
-.pl-sec-none{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px;
-  border:1px solid var(--pl-bd);border-radius:var(--pl-r-sm);background:var(--pl-s1);opacity:.62;}
-.pl-none-t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.1px;
-  color:var(--pl-txm);font-family:var(--pl-mono);}
-.pl-none-m{font-size:11.5px;color:var(--pl-txf);}
-/* True empty state — replaces four empty section blocks. */
-.pl-blank{text-align:center;padding:52px 24px 46px;border:1px solid var(--pl-bd);
-  border-radius:var(--pl-r-lg);background:var(--pl-s1);}
-.pl-blank-t{font-size:16px;font-weight:700;color:var(--pl-tx);margin-bottom:8px;
-  letter-spacing:-.2px;}
-.pl-blank-s{font-size:13px;color:var(--pl-txm);line-height:1.6;max-width:360px;margin:0 auto;}
-
-/* ── Plan card ─────────────────────────────────────────────────────────────*/
-.pl-card{background:var(--pl-s1);border:1px solid var(--pl-bd);border-radius:var(--pl-r);
-  padding:15px 16px;margin-bottom:10px;box-shadow:var(--pl-sh);
-  transition:border-color .16s var(--pl-ease),box-shadow .16s var(--pl-ease),
-  background .16s var(--pl-ease);}
-.pl-card:last-child{margin-bottom:0;}
-.pl-card:hover{border-color:var(--pl-bdl);}
-/* The one card class that must catch the eye: something is waiting on you. */
-.pl-card.pl-wait{border-color:var(--pl-ac-line);background:linear-gradient(
-  180deg,var(--pl-ac-soft),transparent 62%),var(--pl-s1);box-shadow:var(--pl-sh-md);}
-.pl-card-t{font-size:15px;font-weight:700;line-height:1.4;word-break:break-word;
-  color:var(--pl-tx);letter-spacing:-.15px;}
-/* Collapsed confirmed / archived cards: the whole header is the toggle. */
-.pl-fold{padding:0;}
-.pl-head{display:flex;align-items:flex-start;gap:11px;width:100%;background:transparent;
-  border:0;padding:15px 16px;cursor:pointer;text-align:left;font-family:inherit;
-  color:inherit;border-radius:var(--pl-r);transition:background .16s var(--pl-ease);}
-.pl-head:hover{background:rgba(255,255,255,.02);}
-.pl-head:hover .pl-card-t{color:var(--pl-ac);}
-.pl-head-in{flex:1;min-width:0;display:block;}
-.pl-head .pl-card-t{display:block;}
-.pl-head .pl-meta{display:flex;}
-.pl-chev{color:var(--pl-txf);font-size:10px;line-height:1.9;flex-shrink:0;
-  transition:color .16s var(--pl-ease),transform .16s var(--pl-ease);}
-.pl-head:hover .pl-chev{color:var(--pl-ac);}
-.pl-open .pl-chev{transform:rotate(0deg);}
-/* The opened body keeps the card's padding without doubling the header's. */
-.pl-fold .pl-notes,.pl-fold .pl-reason,.pl-fold .pl-confirms,.pl-fold .pl-acts{
-  margin-left:16px;margin-right:16px;}
-.pl-fold .pl-acts{padding-bottom:16px;}
-.pl-fold.pl-open .pl-notes{margin-top:0;}
-.pl-meta{font-size:11.5px;color:var(--pl-txm);margin-top:9px;display:flex;flex-wrap:wrap;
-  gap:7px 10px;align-items:center;}
-/* The date is the most consequential field on a plan, so it leads the meta row
-   in the accent colour rather than sitting in a muted run-on line. */
-.pl-when{font-family:var(--pl-mono);font-size:11px;font-weight:700;color:var(--pl-ac);
-  letter-spacing:.2px;display:inline-flex;align-items:baseline;gap:7px;
-  background:var(--pl-ac-soft);border-radius:5px;padding:3px 8px;}
-.pl-at{color:var(--pl-txd);font-weight:600;}
-.pl-nodate{color:var(--pl-txf);font-weight:600;background:var(--pl-s2);}
-.pl-from{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;
-  color:var(--pl-txf);font-family:var(--pl-mono);}
-.pl-from::before{content:'from ';opacity:.6;}
-.pl-notes{font-size:12.5px;color:var(--pl-txd);margin-top:11px;line-height:1.6;
-  white-space:pre-wrap;word-break:break-word;}
-.pl-badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;
-  border-radius:999px;padding:3px 9px;white-space:nowrap;border:1px solid transparent;
-  font-family:var(--pl-mono);}
-.pl-b-wait{background:var(--pl-s2);color:var(--pl-txd);border-color:var(--pl-bd);}
-.pl-b-ok{background:var(--pl-ok-bg);color:var(--pl-ok);border-color:var(--pl-ok-line);}
-.pl-b-warn{background:var(--pl-warn-bg);color:var(--pl-warn);border-color:var(--pl-warn-line);}
-.pl-b-bad{background:var(--pl-bad-bg);color:var(--pl-bad);border-color:var(--pl-bad-line);}
-/* Who agreed and when — the artifact this feature exists to produce. Two clear
-   signatures rather than one dense run-on line. */
-.pl-confirms{margin-top:13px;padding-top:12px;border-top:1px solid var(--pl-bd);
-  display:flex;flex-wrap:wrap;gap:7px 20px;}
-.pl-sig{font-size:10.5px;font-weight:700;color:var(--pl-txd);display:inline-flex;
-  align-items:center;gap:6px;font-family:var(--pl-mono);}
-.pl-sig span{color:var(--pl-txf);font-weight:500;}
-.pl-tick{color:var(--pl-ok);font-weight:800;}
-/* Where each confirmation came from. Quiet, but always present — a record that
-   only appears when something looks wrong is a record nobody trusts. */
-.pl-dev{font-size:9.5px;color:var(--pl-txf);opacity:.75;padding-left:7px;
-  border-left:1px solid var(--pl-bd);}
-/* Both confirmations from one device: stated plainly, not hidden in a tooltip. */
-.pl-suspect{flex-basis:100%;margin-top:10px;font-size:11.5px;line-height:1.55;
-  color:var(--pl-warn);background:var(--pl-warn-bg);border:1px solid var(--pl-warn-line);
-  border-radius:var(--pl-r-sm);padding:10px 12px;font-family:var(--pl-font);}
-.pl-warn-hard{border-color:var(--pl-bad-line);background:var(--pl-bad-bg);color:var(--pl-bad);}
-.pl-warn-hard b{color:var(--pl-tx);}
-.pl-warn-sub{font-size:12px;line-height:1.6;color:var(--pl-txm);margin-top:10px;}
-.pl-reason{font-size:12px;color:var(--pl-txd);margin-top:10px;padding:9px 11px;
-  background:var(--pl-s3);border-radius:var(--pl-r-sm);border:1px solid var(--pl-bd);
-  white-space:pre-wrap;word-break:break-word;line-height:1.55;}
-.pl-reason b{color:var(--pl-txm);font-weight:700;}
-
-/* ── Buttons ───────────────────────────────────────────────────────────────*/
-.pl-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
-.pl-btn{background:transparent;color:var(--pl-txd);border:1px solid var(--pl-bd);
-  border-radius:var(--pl-r-sm);padding:0 13px;height:33px;font-size:10.5px;font-weight:700;
-  text-transform:uppercase;letter-spacing:.7px;cursor:pointer;font-family:var(--pl-mono);
-  display:inline-flex;align-items:center;gap:6px;
-  transition:all .16s var(--pl-ease);}
-.pl-btn:hover{border-color:var(--pl-bdl);color:var(--pl-tx);background:var(--pl-s2);}
-.pl-btn:active{transform:translateY(1px);}
-/* The primary action wears the profile accent, so "Confirm" reads as Veda's
-   purple for her and Tony's gold for him. */
-.pl-btn-go{background:var(--pl-ac);border-color:var(--pl-ac);color:var(--pl-ac-ink);
-  box-shadow:var(--pl-sh);}
-.pl-btn-go:hover{filter:brightness(1.09);color:var(--pl-ac-ink);border-color:var(--pl-ac);
-  background:var(--pl-ac);box-shadow:var(--pl-sh-md);}
-.pl-btn-no:hover{border-color:var(--pl-bad-line);color:var(--pl-bad);background:var(--pl-bad-bg);}
-
-/* ── Archive ───────────────────────────────────────────────────────────────*/
-.pl-arch{margin-top:26px;}
-.pl-arch-h{width:100%;background:transparent;border:0;border-top:1px solid var(--pl-bd);
-  border-radius:0;color:var(--pl-txm);padding:15px 2px 0;font-size:10px;font-weight:800;
-  text-transform:uppercase;letter-spacing:1.2px;cursor:pointer;font-family:var(--pl-mono);
-  text-align:left;display:flex;justify-content:space-between;align-items:center;gap:10px;
-  transition:color .16s var(--pl-ease);}
-.pl-arch-h:hover{color:var(--pl-txd);}
-.pl-arch-b{margin-top:14px;}
-
-/* ── Modal ─────────────────────────────────────────────────────────────────*/
-.pl-ov{position:fixed;inset:0;background:rgba(8,8,10,.72);-webkit-backdrop-filter:blur(6px);
-  backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;
-  padding:20px;z-index:600;animation:pl-fade .18s var(--pl-ease);}
-@keyframes pl-fade{from{opacity:0;}to{opacity:1;}}
-@keyframes pl-rise{from{opacity:0;transform:translateY(10px) scale(.99);}
-  to{opacity:1;transform:none;}}
-.pl-modal{background:var(--pl-s1);border:1px solid var(--pl-bdl);border-radius:var(--pl-r-lg);
-  padding:22px;width:100%;max-width:460px;max-height:calc(100vh - 40px);overflow-y:auto;
-  box-shadow:var(--pl-sh-lg);animation:pl-rise .2s var(--pl-ease);}
-.pl-modal h3{margin:0 0 4px;font-size:17px;font-weight:700;letter-spacing:-.2px;
-  color:var(--pl-tx);font-family:var(--pl-display);}
-#plans-root.pl-veda .pl-modal h3{font-weight:900;letter-spacing:.4px;}
-.pl-modal label{display:block;font-size:9.5px;font-weight:800;text-transform:uppercase;
-  letter-spacing:1.1px;color:var(--pl-txm);margin:16px 0 7px;font-family:var(--pl-mono);}
-.pl-in{width:100%;background:var(--pl-bg);border:1px solid var(--pl-bd);
-  border-radius:var(--pl-r-sm);color:var(--pl-tx);padding:11px 12px;font-size:13.5px;
-  font-family:var(--pl-font);transition:border-color .16s var(--pl-ease),
-  box-shadow .16s var(--pl-ease);}
-.pl-in::placeholder{color:var(--pl-txf);}
-.pl-in:focus{outline:none;border-color:var(--pl-ac);box-shadow:0 0 0 3px var(--pl-ac-soft);}
-textarea.pl-in{min-height:88px;resize:vertical;line-height:1.55;}
-.pl-row2{display:flex;gap:12px;}
-.pl-row2>div{flex:1;min-width:0;}
-.pl-modal-acts{display:flex;gap:9px;justify-content:flex-end;margin-top:22px;}
-.pl-warn{font-size:12.5px;line-height:1.6;color:var(--pl-warn);background:var(--pl-warn-bg);
-  border:1px solid var(--pl-warn-line);border-radius:var(--pl-r-sm);padding:12px 13px;
-  margin-top:14px;}
-.pl-err{font-size:11.5px;color:var(--pl-bad);margin-top:9px;min-height:15px;}
-
-/* ── Header (Veda only) ──────────────────────────────────────────────────
-   Tony reaches Plans through his own sticky #tony-app-nav, so his view needs
-   no in-page header. Veda's sections each carry their own, which is also the
-   ONLY way back to her TaskHub — without it the section is a dead end. */
-#plans-root .pl-vhdr{display:none;}
-#plans-root.pl-veda .pl-vhdr{display:block;border-bottom:1px solid var(--pl-bd);}
-#plans-root .pl-vnav-btn{background:transparent;color:var(--pl-ac);
-  border:1px solid var(--pl-bdl);border-radius:5px;padding:0 10px;height:28px;
-  box-sizing:border-box;display:inline-flex;align-items:center;font-size:10px;
-  font-weight:700;cursor:pointer;font-family:var(--pl-mono);text-transform:uppercase;
-  letter-spacing:1px;transition:all .15s var(--pl-ease);}
-#plans-root .pl-vnav-btn:hover{border-color:var(--pl-ac);}
-#plans-root .pl-vnav-btn.pl-vnav-on{background:var(--pl-ac);color:var(--pl-ac-ink);
-  border-color:var(--pl-ac);cursor:default;}
-/* Veda's header already names the section, so her body drops the duplicate
-   title and the head row carries the profile chip alone. */
-#plans-root.pl-veda .pl-hdr{justify-content:flex-start;border-bottom:none;
-  padding-bottom:0;margin-bottom:20px;}
-/* Her sticky header is a full-bleed 2000px row shared by every Veda section, so
-   a centred 820px body reads as detached from the title above it. Align the
-   column to the header's own left edge instead of centring it. */
-/* 14px matches .veda-hdr-inner's own horizontal padding, so her Playfair title
-   and the cards below it share exactly one left edge. */
-#plans-root.pl-veda .pl-wrap{margin:0;max-width:872px;padding-left:14px;padding-right:22px;}
-@media(min-width:721px){
-  #plans-root.pl-veda .pl-wrap{padding-top:22px;}
-}
-
-/* ── Responsive ────────────────────────────────────────────────────────────*/
-@media(max-width:720px){
-  .pl-wrap{padding:20px 15px calc(72px + env(safe-area-inset-bottom,0px));}
-  .pl-title{font-size:22px;}
-  #plans-root.pl-veda .pl-title{font-size:21px;}
-  .pl-hdr{padding-bottom:15px;margin-bottom:18px;}
-  .pl-card,.pl-head{padding:13px 14px;}
-  .pl-fold .pl-notes,.pl-fold .pl-reason,.pl-fold .pl-confirms,.pl-fold .pl-acts{
-    margin-left:14px;margin-right:14px;}
-  .pl-fold .pl-acts{padding-bottom:14px;}
-  .pl-add{width:100%;}
-  .pl-bio-cta{width:100%;justify-content:center;text-align:center;}
-  .pl-row2{flex-direction:column;gap:0;}
-  .pl-modal{padding:18px;border-radius:var(--pl-r);}
-  /* Actions stretch to full-width rows so they stay comfortably tappable. */
-  .pl-acts .pl-btn{flex:1 1 auto;justify-content:center;min-width:104px;height:36px;}
-}
-@media(max-width:400px){
-  .pl-sub{margin-left:0;flex-basis:100%;text-align:left;}
-}
-@media(prefers-reduced-motion:reduce){
-  #plans-root *,#plans-root *::before,#plans-root *::after{
-    animation-duration:.01ms!important;transition-duration:.01ms!important;}
-}
-</style>
-<div id="plans-root"></div>
-
+     Splitting it this way is what lets ONE engine serve two profiles whose
+     chrome could not be less alike: Tony's gold-on-near-black Inter and Veda's
+     purple IBM Plex Mono. Nothing below knows a colour. -->
 <script>
 (function(){
 'use strict';
@@ -15666,15 +15955,20 @@ let acked={};
 // Ids we deleted locally, so a snapshot still carrying them cannot resurrect it.
 // Cleared once the snapshot agrees the plan is gone.
 let deleted={};
-let archOpen=false;
-// Confirmed plans are settled business, so they collapse to title + date and
-// open on click. Ids expanded in THIS session only — a reload starts tidy.
-let expanded={};
-let modal=null;        // {mode,...} while a dialog is open
 let booted=false;
 
-const root=()=>document.getElementById('plans-root');
-const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// The engine has no DOM. Anything showing plans subscribes and repaints itself
+// — which is how one record set feeds Tony's panel, Veda's panel and the
+// waiting-count badge in both TaskHubs without any of them knowing about the
+// others.
+const subs=[];
+function emit(){for(let i=subs.length-1;i>=0;i--){try{subs[i]();}catch(e){}}}
+function subscribe(fn){
+  if(typeof fn!=='function')return function(){};
+  subs.push(fn);
+  return function(){const i=subs.indexOf(fn);if(i>=0)subs.splice(i,1);};
+}
+
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
 // The acting profile. null on the chooser screen — every mutating action checks
@@ -15723,6 +16017,16 @@ function fmtTime(t,dateKey,tz){
   if(m.length<2)return t;
   let h=+m[0];const ap=h>=12?'PM':'AM';h=h%12||12;
   return h+':'+m[1]+' '+ap;
+}
+// The wall clock to put in an edit form: the plan's time as it falls in THIS
+// viewer's zone, so editing a plan the other person set does not silently
+// reinterpret their 7:30 PM as yours.
+function toLocalHHMM(t,tz,dateKey){
+  if(!t)return '';
+  if(typeof thToLocalHHMM==='function'){
+    try{return thToLocalHHMM(t,tz,dateKey)||'';}catch(e){}
+  }
+  return t;
 }
 
 // ── Provenance ──────────────────────────────────────────────────────────────
@@ -15785,17 +16089,17 @@ function stamp(verified){
 const BIO_APP='plans';
 function bioEnrolled(who){return !!(window.Bio&&who&&window.Bio.isRegistered(BIO_APP,who));}
 function bioLabel(){return (window.Bio&&window.Bio.label())||'biometrics';}
-// render() is synchronous but availability is a promise, so it is resolved once
-// at boot and cached. Defaults to false: never advertise a capability we have
-// not actually confirmed the device has.
+// The panel renders synchronously but availability is a promise, so it is
+// resolved once at boot and cached. Defaults to false: never advertise a
+// capability we have not actually confirmed the device has.
 let bioOK=false;
 function bioAvailable(){
   if(!window.Bio)return Promise.resolve(false);
   return window.Bio.available().catch(()=>false);
 }
 // window.Bio is defined much further down the file, so it does not exist when
-// this script parses and may still be missing when the section is first opened.
-// Poll briefly until it appears, then cache the answer and re-render once.
+// this script parses and may still be missing when a panel is first opened.
+// Poll briefly until it appears, then cache the answer and repaint once.
 let bioChecked=false;
 function refreshBioOK(){
   if(bioChecked)return Promise.resolve(bioOK);
@@ -15805,7 +16109,7 @@ function refreshBioOK(){
     return Promise.resolve(false);
   }
   bioChecked=true;
-  return bioAvailable().then(v=>{bioOK=v;window._plBioOK=v;render();return v;});
+  return bioAvailable().then(v=>{bioOK=v;window._plBioOK=v;emit();return v;});
 }
 refreshBioOK();
 window.addEventListener('load',refreshBioOK);
@@ -15897,7 +16201,7 @@ function notifyOther(kind,p,extra){
 function save(p,kind,extra){
   p.updatedAt=Date.now();
   plans[p.id]=p;
-  render();
+  emit();
   if(window._fbSavePlan)window._fbSavePlan(p.id,p);
   if(kind)notifyOther(kind,p,extra);
 }
@@ -15911,7 +16215,7 @@ function removePlan(id){
   // and without this the merge in ingest() would bring it straight back.
   deleted[id]=Date.now();
   delete acked[id];
-  render();
+  emit();
   if(window._fbDeletePlan)window._fbDeletePlan(id);
 }
 
@@ -15930,31 +16234,34 @@ function addIdea(title,notes,date,time){
 // consent, so it sets your confirm and only yours.
 // Promoting records YOUR consent, so it is verified exactly like a confirm.
 function promote(id){
-  const w=me();if(!w)return;
-  const p=plans[id];if(!p)return;
-  bioVerify(w).then(ok=>{
-    const q=plans[id];if(!q)return;
+  const w=me();if(!w)return Promise.resolve('noop');
+  const p=plans[id];if(!p)return Promise.resolve('noop');
+  return bioVerify(w).then(ok=>{
+    const q=plans[id];if(!q)return 'noop';
     q.stage='proposed';q.proposedBy=w;q.proposedAt=Date.now();
     q.confirms={veda:null,tony:null};q.confirms[w]=Date.now();
     q.confirmMeta={};q.confirmMeta[w]=stamp(ok);
     q.declined=null;
     save(q,'proposed');
+    return 'ok';
   });
 }
 
 // The other person agrees. stage becomes 'confirmed' ONLY when both keys are set
 // — never from a single action. That structural two-sidedness is what makes a
 // one-sided "confirmed" plan impossible to manufacture.
+//
+// Resolves 'bioFailed' when this profile is enrolled here and the OS check did
+// NOT pass: that is the case this whole feature exists for — someone on the
+// wrong profile who cannot produce the other person's face or fingerprint — so
+// nothing is recorded and the caller shows the refusal.
 function confirmPlan(id){
-  const w=me();if(!w)return;
-  const p=plans[id];if(!p)return;
+  const w=me();if(!w)return Promise.resolve('noop');
+  const p=plans[id];if(!p)return Promise.resolve('noop');
   const enrolled=bioEnrolled(w);
-  bioVerify(w).then(ok=>{
-    // Enrolled but NOT verified means the prompt was cancelled or failed. That is
-    // the case this whole feature exists for: someone on the wrong profile who
-    // cannot produce the other person's face or fingerprint. Record nothing.
-    if(enrolled&&!ok){openModal({mode:'bioFailed',id:id});return;}
-    const q=plans[id];if(!q)return;
+  return bioVerify(w).then(ok=>{
+    if(enrolled&&!ok)return 'bioFailed';
+    const q=plans[id];if(!q)return 'noop';
     q.confirms=q.confirms||{veda:null,tony:null};
     q.confirms[w]=Date.now();
     q.confirmMeta=q.confirmMeta||{};
@@ -15962,6 +16269,7 @@ function confirmPlan(id){
     const became=isConfirmed(q);
     if(became)q.stage='confirmed';
     save(q,became?'confirmed':null);
+    return 'ok';
   });
 }
 
@@ -16003,6 +16311,9 @@ function agreeCancel(id){
   const p=plans[id];if(!p)return;
   p.stage='dropped';save(p,'cancelled');
 }
+// "Keep the plan" on a cancel request I did not file: clear it. Either party may
+// clear a request they are the counterparty to by declining to agree.
+function withdrawOther(id){const p=plans[id];if(!p)return;p.cancelReq=null;save(p,'kept');}
 function markDone(id){
   const p=plans[id];if(!p)return;
   p.stage='done';save(p,'done');
@@ -16016,37 +16327,34 @@ function isMaterialEdit(p,t,d,tm){
   return p.title!==t||(p.date||null)!==(d||null)||(p.time||null)!==(tm||null);
 }
 function applyEdit(id,t,notes,d,tm){
-  const w=me();if(!w)return;
-  const p=plans[id];if(!p)return;
+  const w=me();if(!w)return Promise.resolve('noop');
+  const p=plans[id];if(!p)return Promise.resolve('noop');
   const material=isMaterialEdit(p,t,d,tm);
   if(!(material&&(p.stage==='confirmed'||isConfirmed(p)))){
     // Not a reset: no consent is being asserted, so nothing to verify.
     p.title=t;p.notes=notes||'';p.date=d||null;p.time=tm||null;p.tz=tm?myTz():null;
-    save(p,'tweaked');return;
+    save(p,'tweaked');return Promise.resolve('ok');
   }
   // A material edit re-asserts the editor's own consent, so verify it the same
   // way a confirm is verified rather than stamping it unchecked.
-  bioVerify(w).then(ok=>{
-    const q=plans[id];if(!q)return;
+  return bioVerify(w).then(ok=>{
+    const q=plans[id];if(!q)return 'noop';
     q.title=t;q.notes=notes||'';q.date=d||null;q.time=tm||null;q.tz=tm?myTz():null;
     q.confirms={veda:null,tony:null};q.confirms[w]=Date.now();
     q.confirmMeta={};q.confirmMeta[w]=stamp(ok);
     q.stage='proposed';q.proposedBy=w;q.proposedAt=Date.now();
     q.cancelReq=null;
     save(q,'edited');
+    return 'ok';
   });
 }
 
 // Deleting a CONFIRMED plan needs the same two-sided flow as cancelling — one
 // person cannot unilaterally erase something both agreed to. Everything else
 // (ideas, proposed, archived) either person may delete outright.
-function deleteReq(id){
-  const p=plans[id];if(!p)return;
-  if(p.stage==='confirmed'&&isConfirmed(p)){
-    openModal({mode:'cancel',id:id,del:true});
-    return;
-  }
-  openModal({mode:'confirmDelete',id:id});
+function needsTwoSidedDelete(id){
+  const p=plans[id];
+  return !!(p&&p.stage==='confirmed'&&isConfirmed(p));
 }
 
 // ── Buckets ─────────────────────────────────────────────────────────────────
@@ -16073,427 +16381,15 @@ function bucket(){
   };
 }
 
-// Nav badge count — how many things are genuinely waiting on the active profile.
+// How many things are genuinely waiting on the active profile. Both TaskHubs
+// show this on the Weekly header so a plan needing you is visible without
+// opening anything.
 function waitingCount(){try{return bucket().mine.length;}catch(e){return 0;}}
 window._plansWaitingCount=waitingCount;
-
-// ── Render ──────────────────────────────────────────────────────────────────
-function card(p,ctx){
-  const w=me();
-  const c=p.confirms||{veda:null,tony:null};
-  let badges='';
-  if(ctx==='confirmed'&&p.cancelReq)
-    badges+='<span class="pl-badge pl-b-warn">cancel requested by '+esc(NAMES[p.cancelReq.by]||p.cancelReq.by)+'</span>';
-  if(ctx==='proposed'&&w)
-    badges+='<span class="pl-badge pl-b-wait">waiting on '+esc(NAMES[other(w)])+'</span>';
-  if(p.stage==='declined'&&p.declined)
-    badges+='<span class="pl-badge pl-b-bad">declined by '+esc(NAMES[p.declined.by]||p.declined.by)+'</span>';
-  if(p.stage==='dropped')badges+='<span class="pl-badge pl-b-bad">dropped</span>';
-  if(p.stage==='done')badges+='<span class="pl-badge pl-b-ok">done</span>';
-
-  // The date is the single most consequential field on a plan, so it leads the
-  // card in the accent colour instead of sitting in a muted run-on line.
-  const when=p.date
-    ?'<span class="pl-when">'+esc(fmtDate(p.date))+(p.time?'<span class="pl-at">'+esc(fmtTime(p.time,p.date,p.tz))+'</span>':'')+'</span>'
-    :'<span class="pl-when pl-nodate">No date</span>';
-
-  let acts='';
-  const B=(fn,label,cls)=>'<button class="pl-btn'+(cls?' '+cls:'')+'" data-act="'+fn+'" data-id="'+esc(p.id)+'">'+label+'</button>';
-  if(ctx==='mine'){
-    if(p.stage==='proposed'){acts=B('confirm','Confirm','pl-btn-go')+B('decline','Decline','pl-btn-no')+B('edit','Edit');}
-    else{acts=B('agreeCancel','Agree — drop it','pl-btn-no')+B('keep','Keep the plan');}
-  } else if(ctx==='confirmed'){
-    acts=B('done','Mark done')+(p.cancelReq&&p.cancelReq.by===w?B('withdraw','Withdraw cancel'):B('cancel','Request cancel','pl-btn-no'))+B('edit','Edit');
-  } else if(ctx==='proposed'){
-    acts=B('edit','Edit')+B('decline','Withdraw','pl-btn-no');
-  } else if(ctx==='ideas'){
-    acts=B('promote','Propose','pl-btn-go')+B('edit','Edit')+B('del','Delete','pl-btn-no');
-  } else {
-    acts=B('restore','Restore to ideas')+B('del','Delete','pl-btn-no');
-  }
-
-  let footer='';
-  // The visible record of who agreed and when is the artifact this whole feature
-  // exists to produce, so confirmed cards always show both timestamps.
-  if(isConfirmed(p)){
-    const m=p.confirmMeta||{};
-    const sig=(who,at)=>{
-      const mm=m[who]||{};
-      const d=mm.devName?'<span class="pl-dev">'+esc(mm.devName)+'</span>':'';
-      // Say plainly whether the OS actually proved who this was.
-      const v=mm.v==='bio'
-        ?'<span class="pl-vbadge pl-v-bio" title="Verified by '+esc(bioLabel())+'">verified</span>'
-        :'<span class="pl-vbadge pl-v-none" title="No biometric check — profile chooser only">unverified</span>';
-      return '<span class="pl-sig"><span class="pl-tick">✓</span>'
-        +esc(NAMES[who])+'<span>'+esc(fmtWhen(at))+'</span>'+d+v+'</span>';
-    };
-    footer='<div class="pl-confirms">'+sig('veda',c.veda)+sig('tony',c.tony);
-    // Both confirmations from one device cannot evidence two independent people.
-    // Surface it rather than let it pass as a normal agreement.
-    const f=confirmFlags(p);
-    if(f){
-      footer+='<div class="pl-suspect">Both confirmations came from '+esc(f.devName)
-        +(f.rapid?', '+humanGap(f.gap)+' apart':'')
-        +'. This cannot show that you each agreed separately.</div>';
-    }
-    footer+='</div>';
-  }
-  let reason='';
-  if(p.stage==='declined'&&p.declined&&p.declined.reason)
-    reason='<div class="pl-reason"><b>Reason:</b> '+esc(p.declined.reason)+'</div>';
-  else if(p.cancelReq&&p.cancelReq.reason&&(ctx==='mine'||ctx==='confirmed'))
-    reason='<div class="pl-reason"><b>Cancel reason:</b> '+esc(p.cancelReq.reason)+'</div>';
-  else if(p.stage==='dropped'&&p.cancelReq&&p.cancelReq.reason)
-    reason='<div class="pl-reason"><b>Cancel reason:</b> '+esc(p.cancelReq.reason)+'</div>';
-
-  // Confirmed plans are settled — the agreement is already made, so the card
-  // shows only what identifies it and opens on click for the rest. Anything
-  // still needing a decision stays open, because that is the whole point of it.
-  const collapsible=(ctx==='confirmed'||ctx==='archive');
-  const open=!collapsible||!!expanded[p.id];
-  const body=open
-    ?(p.notes?'<div class="pl-notes">'+esc(p.notes)+'</div>':'')
-      +reason+footer+'<div class="pl-acts">'+acts+'</div>'
-    :'';
-  return '<div class="pl-card'+(ctx==='mine'?' pl-wait':'')
-      +(collapsible?' pl-fold'+(open?' pl-open':''):'')+'">'
-    +(collapsible
-      ?'<button class="pl-head" data-act="fold" data-id="'+esc(p.id)+'">'
-        +'<span class="pl-chev">'+(open?'▾':'▸')+'</span><span class="pl-head-in">'
-        +'<span class="pl-card-t">'+esc(p.title||'Untitled')+'</span>'
-        +'<span class="pl-meta">'+when
-        +'<span class="pl-from">'+esc(NAMES[p.author]||p.author||'?')+'</span>'
-        +badges+'</span></span></button>'
-      :'<div class="pl-card-t">'+esc(p.title||'Untitled')+'</div>'
-        +'<div class="pl-meta">'+when
-        +'<span class="pl-from">'+esc(NAMES[p.author]||p.author||'?')+'</span>'
-        +badges+'</div>')
-    +body+'</div>';
-}
-
-// Veda's sections each carry their own header — it is her only route back to
-// TaskHub, and without one this section is a dead end. Tony reaches Plans from
-// his persistent #tony-app-nav bar, so his view renders no header at all.
-//
-// The nav row is emitted as a .veda-hbtns row so the shared nav module
-// (renderVedaNavIn) adopts it: it rebuilds the buttons from vedaOrder/vedaMap,
-// applies the saved custom order, marks Plans active via VEDA_ROOT_APP, and
-// attaches the mobile dropdown — exactly as it does for Links and Journal.
-function vedaHeader(w){
-  if(w!=='veda')return '';
-  // The row is SEEDED with the full program set and then rebuilt in place by
-  // renderVedaNavIn (from vedaOrder), exactly as Links and Journal do. The seed
-  // has to be complete: isVedaNavRow() only adopts a row it can recognise as a
-  // nav row, which takes at least three known labels — seed fewer and the row
-  // is never adopted, so the custom order and the Plans badge never apply.
-  //
-  // Plans is emitted here WITHOUT the active styling: the rebuild derives the
-  // lit button from VEDA_ROOT_APP ('#plans-root' → 'plans'), and a hand-styled
-  // duplicate beside the generated one is what put two "Plans" in this row.
-  const B=(app,label)=>'<button class="pl-vnav-btn" onclick="window._vedaNav&&window._vedaNav(\''+app+'\')">'+label+'</button>';
-  return '<div class="pl-vhdr veda-hdr-outer"><div class="veda-hdr-inner">'
-    +'<div class="veda-hdr-left">'
-    +'<div style="font-family:\'Playfair Display\',serif;font-size:22px;font-weight:900;color:var(--pl-ac);letter-spacing:1px;text-transform:uppercase;line-height:1;">Plans</div>'
-    +'</div><div class="veda-hdr-right"><div class="veda-hbtns">'
-    +B('taskhub','TaskHub')+B('gita','Gita')+B('journal','Journal')+B('links','Links')
-    +'<button class="pl-vnav-btn pl-vnav-on">Plans</button>'
-    +'<button class="pl-vnav-btn" onclick="window._profileGoSelect&&window._profileGoSelect()" '
-    +'title="Profile Selection" style="font-size:17px;line-height:1;letter-spacing:0;">✦</button>'
-    +'</div></div></div></div>';
-}
-
-// An empty section collapses to one muted line. Rendering a full header, a "0"
-// chip and a sentence for every empty bucket is what made the page read as busy
-// while actually saying nothing — four such blocks filled a whole screen.
-// `live` marks the bucket that is genuinely waiting on the active profile, which
-// is the only one that gets the accent count chip — everything else stays
-// neutral so the page has exactly one place the eye lands first.
-function section(title,list,ctx,emptyMsg,sub,live){
-  if(!list.length)return '<div class="pl-sec pl-sec-none"><span class="pl-none-t">'+esc(title)+'</span>'
-    +'<span class="pl-none-m">'+esc(emptyMsg)+'</span></div>';
-  return '<div class="pl-sec'+(live?' pl-sec-live':'')+'"><div class="pl-sec-h">'
-    +'<span class="pl-sec-t">'+esc(title)+'</span>'
-    +'<span class="pl-count">'+list.length+'</span>'
-    +(sub?'<span class="pl-sub">'+esc(sub)+'</span>':'')+'</div>'
-    +list.map(p=>card(p,ctx)).join('')
-    +'</div>';
-}
-
-function render(){
-  const el=root();
-  if(!el||el.style.display==='none')return;
-  // Capture whatever is typed before the DOM is thrown away. render() is called
-  // by remote snapshots too, so without this an incoming update from the other
-  // person would silently wipe the form the user is filling in.
-  if(modal&&modal.mode==='edit'&&el.querySelector('#pl-f-title'))modal.draft=readEdit();
-  const w=me();
-  const b=bucket();
-  // The section wears whichever profile is looking at it. Data is shared; chrome
-  // is not — Veda sees her palette and header, Tony sees his.
-  el.classList.toggle('pl-veda',w==='veda');
-  let h=vedaHeader(w);
-  h+='<div class="pl-wrap">';
-  // Title top-left, profile chip right — the same shape every other program in
-  // the suite uses. Veda's sticky header already carries the title, so her body
-  // head keeps only the chip.
-  h+='<div class="pl-hdr">'
-    +(w==='veda'?'':'<h1 class="pl-title">Plans</h1>')
-    +'<span class="pl-who">'+(w?esc(NAMES[w]):'no profile')+'</span></div>';
-  // Offer enrolment when this device can do it and this profile has not yet.
-  // This is the one standing note that survives: it is an ACTION, not a
-  // description, and it states the security posture at the point of use.
-  if(w&&!bioEnrolled(w)&&bioOK)
-    h+='<button class="pl-bio-cta" data-act="bioEnrol">Require '+esc(bioLabel())
-      +' for '+esc(NAMES[w])+'’s confirmations</button>';
-  h+='<button class="pl-add" data-act="new">'
-    +'<span class="pl-add-ico">+</span>New idea</button>';
-  const total=b.mine.length+b.confirmed.length+b.proposed.length+b.ideas.length;
-  if(!total&&!b.archive.length){
-    // Nothing exists at all: say so once. Five empty section headers said the
-    // same thing five times and buried the one control that matters.
-    h+='<div class="pl-blank"><div class="pl-blank-t">No plans yet</div>'
-      +'<div class="pl-blank-s">Add an idea above. It stays an idea until you both confirm it.</div></div>';
-  }else{
-    h+='<div class="pl-secs">';
-    h+=section('Needs your response',b.mine,'mine','nothing waiting on you','',true);
-    h+=section('Confirmed',b.confirmed,'confirmed','nothing confirmed yet');
-    h+=section('Proposed',b.proposed,'proposed','nothing proposed',w?'waiting on '+NAMES[other(w)]:'');
-    h+=section('Ideas',b.ideas,'ideas','no ideas yet','not commitments');
-    h+='</div>';
-    // The Archive only earns a row once something is actually in it.
-    if(b.archive.length){
-      h+='<div class="pl-sec pl-arch"><button class="pl-arch-h" data-act="arch">'
-        +'<span>'+(archOpen?'▾':'▸')+' Archive</span>'
-        +'<span class="pl-count">'+b.archive.length+'</span></button>';
-      if(archOpen)h+='<div class="pl-arch-b">'+b.archive.map(p=>card(p,'archive')).join('')+'</div>';
-      h+='</div>';
-    }
-  }
-  h+='</div>';
-  if(modal)h+=modalHtml();
-  el.innerHTML=h;
-  if(modal){const f=el.querySelector('[data-focus]');if(f)setTimeout(()=>{try{f.focus();}catch(e){}},0);}
-  updateBadges();
-}
-
-// ── Modals ──────────────────────────────────────────────────────────────────
-function openModal(m){modal=Object.assign({err:'',draft:null},m);render();}
-function closeModal(){modal=null;render();}
-
-function modalHtml(){
-  const m=modal;const p=m.id?plans[m.id]:null;
-  let body='',title='',ok='Save';
-  if(m.mode==='edit'){
-    title=m.id?'Edit plan':'New idea';
-    // Prefer anything already typed (m.draft) over the stored record, so a
-    // re-render triggered by a remote update mid-edit does not discard input.
-    const d=m.draft||{};
-    const vT=d.t!==undefined?d.t:(p?p.title:'');
-    const vD=d.d!==undefined?d.d:(p&&p.date?p.date:'');
-    // Show the time in THIS viewer's zone, so editing a plan set by the other
-    // person does not silently reinterpret their 7:30 PM as yours.
-    const vTm=d.tm!==undefined?d.tm
-      :(p&&p.time?(typeof thToLocalHHMM==='function'?thToLocalHHMM(p.time,p.tz,p.date):p.time):'');
-    const vN=d.notes!==undefined?d.notes:(p?p.notes:'');
-    body='<label>Title</label><input class="pl-in" id="pl-f-title" data-focus value="'+esc(vT)+'" maxlength="200" placeholder="What is it?">'
-      +'<div class="pl-row2"><div><label>Date</label><input class="pl-in" id="pl-f-date" type="date" value="'+esc(vD)+'"></div>'
-      +'<div><label>Time</label><input class="pl-in" id="pl-f-time" type="time" value="'+esc(vTm)+'"></div></div>'
-      +'<label>Notes</label><textarea class="pl-in" id="pl-f-notes" maxlength="2000" placeholder="Optional">'+esc(vN)+'</textarea>'
-      +'<div class="pl-err" id="pl-err">'+esc(m.err||'')+'</div>';
-    ok=m.id?'Save':'Add idea';
-  } else if(m.mode==='bioFailed'){
-    const w2=me();
-    title=bioLabel()+' check failed';
-    body='<div class="pl-warn pl-warn-hard">Nothing was recorded. A confirmation from '
-      +esc(NAMES[w2]||'this profile')+' requires '+esc(bioLabel())+' on this device.</div>'
-      +'<div class="pl-warn-sub">If you are '+esc(NAMES[w2]||'them')+', try again. '
-      +'If you are not, that is exactly what this check is for.</div>';
-    ok='Try again';
-  } else if(m.mode==='bioEnrol'){
-    const w2=me();
-    title='Protect '+esc(NAMES[w2]||'your')+' confirmations';
-    body='<div class="pl-warn">Right now anyone using this device can switch to '
-      +esc(NAMES[w2]||'your')+'’s profile and confirm a plan as you. '
-      +'Registering '+esc(bioLabel())+' makes that impossible on this device.</div>'
-      +'<div class="pl-warn-sub">Your '+esc(bioLabel())+' never leaves the device — the app '
-      +'only stores a key handle, never your fingerprint or face. Register on each device you use.</div>';
-    ok='Register '+bioLabel();
-  } else if(m.mode==='bioDone'){
-    const w2=me();
-    title=bioLabel()+' registered';
-    body='<div class="pl-warn">Confirmations from '+esc(NAMES[w2]||'this profile')
-      +' now require '+esc(bioLabel())+' on this device. Register on your other devices too.</div>';
-    ok='Done';
-  } else if(m.mode==='bioErr'){
-    title='Could not register';
-    body='<div class="pl-warn pl-warn-hard">'+esc(bioLabel())+' registration did not complete'
-      +(m.err?' ('+esc(m.err)+')':'')+'. Confirmations stay unverified on this device.</div>';
-    ok='Close';
-  } else if(m.mode==='sameDevice'){
-    const w2=me(),o=w2?other(w2):'the other person';
-    title='Is this really '+esc(NAMES[w2]||'you')+'?';
-    body='<div class="pl-warn pl-warn-hard">'+esc(NAMES[o]||'They')+' confirmed this on <b>this same device</b>. '
-      +'If you are '+esc(NAMES[o]||'them')+' pressing confirm for '+esc(NAMES[w2]||'the other profile')+', stop — '
-      +'a plan only means something if you each agreed to it yourself.</div>'
-      +'<div class="pl-warn-sub">Confirming anyway is recorded, and the plan will be marked '
-      +'as having both confirmations from one device.</div>';
-    ok='I am '+(NAMES[w2]||'me')+' — confirm';
-  } else if(m.mode==='confirmNoDate'){
-    title='No date set';
-    body='<div class="pl-warn">This plan has no date. Confirming it still records that you both agreed — it just will not appear in either TaskHub until a date is set.</div>';
-    ok='Confirm anyway';
-  } else if(m.mode==='resetWarn'){
-    title='This will reset confirmation';
-    body='<div class="pl-warn">You are changing the title, date or time of a plan you have both confirmed. That clears both confirmations and sends it back to Proposed — '+esc(NAMES[other(me())||'tony'])+' will have to confirm the new version.</div>';
-    ok='Change it anyway';
-  } else if(m.mode==='decline'){
-    title='Decline this plan';
-    body='<label>Reason (optional)</label><textarea class="pl-in" id="pl-f-reason" data-focus maxlength="500" placeholder="Why not?"></textarea>';
-    ok='Decline';
-  } else if(m.mode==='cancel'){
-    const two=p&&p.cancelReq&&p.cancelReq.by&&p.cancelReq.by!==me();
-    title=m.del?'Delete a confirmed plan':'Request to cancel';
-    body='<div class="pl-warn">'+(two
-      ?'The other person already asked to cancel this. Agreeing drops the plan and removes it from both TaskHubs.'
-      :'This plan stays Confirmed — and stays in both TaskHubs — until '+esc(NAMES[other(me())||'tony'])+' agrees.')+'</div>'
-      +'<label>Reason (optional)</label><textarea class="pl-in" id="pl-f-reason" data-focus maxlength="500"></textarea>';
-    ok=two?'Agree — drop it':'Send request';
-  } else if(m.mode==='confirmDelete'){
-    title='Delete this plan?';
-    body='<div class="pl-warn">This removes it for both of you. It cannot be undone.</div>';
-    ok='Delete';
-  }
-  return '<div class="pl-ov" data-act="ovclose"><div class="pl-modal" data-stop>'
-    +'<h3>'+esc(title)+'</h3>'+body
-    +'<div class="pl-modal-acts"><button class="pl-btn" data-act="mclose">Cancel</button>'
-    +'<button class="pl-btn pl-btn-go" data-act="mok">'+esc(ok)+'</button></div></div></div>';
-}
-
-function readEdit(){
-  const el=root();
-  const g=id=>{const n=el.querySelector('#'+id);return n?n.value.trim():'';};
-  return {t:g('pl-f-title'),d:g('pl-f-date'),tm:g('pl-f-time'),notes:g('pl-f-notes')};
-}
-
-function modalOk(){
-  const m=modal;if(!m)return;
-  const el=root();
-  if(m.mode==='edit'){
-    const v=readEdit();
-    // A plan with no title cannot be reasoned about later, so it is rejected.
-    // The message is stored on the modal, not just written to the DOM: a remote
-    // snapshot arriving mid-edit re-renders the section and would otherwise wipe
-    // it, leaving the dialog refusing to save with no explanation.
-    if(!v.t){modal.err='A plan needs a title.';modal.draft=v;render();return;}
-    modal.err='';
-    if(!m.id){addIdea(v.t,v.notes,v.d,v.tm);closeModal();return;}
-    const p=plans[m.id];
-    if(p&&(p.stage==='confirmed'||isConfirmed(p))&&isMaterialEdit(p,v.t,v.d,v.tm)&&!m.warned){
-      modal=Object.assign({},m,{mode:'resetWarn',pending:v,warned:true,back:m});render();return;
-    }
-    applyEdit(m.id,v.t,v.notes,v.d,v.tm);closeModal();return;
-  }
-  if(m.mode==='resetWarn'){const v=m.pending;applyEdit(m.id,v.t,v.notes,v.d,v.tm);closeModal();return;}
-  if(m.mode==='bioFailed'){closeModal();confirmPlan(m.id);return;}
-  if(m.mode==='bioEnrol'){
-    const w2=me();closeModal();
-    if(!w2)return;
-    bioEnrol(w2).then(r=>{
-      if(r&&r.ok){render();openModal({mode:'bioDone'});}
-      else if(r&&r.error!=='NotAllowedError'&&r.error!=='cancelled')
-        openModal({mode:'bioErr',err:r&&(r.error||'')});
-    });
-    return;
-  }
-  if(m.mode==='bioDone'||m.mode==='bioErr'){closeModal();return;}
-  if(m.mode==='sameDevice'){
-    const p2=plans[m.id];
-    if(p2&&!p2.date){modal=Object.assign({},m,{mode:'confirmNoDate'});render();return;}
-    confirmPlan(m.id);closeModal();return;
-  }
-  if(m.mode==='confirmNoDate'){confirmPlan(m.id);closeModal();return;}
-  if(m.mode==='decline'){
-    const n=el.querySelector('#pl-f-reason');
-    declinePlan(m.id,n?n.value.trim():'');closeModal();return;
-  }
-  if(m.mode==='cancel'){
-    const n=el.querySelector('#pl-f-reason');
-    requestCancel(m.id,n?n.value.trim():'');closeModal();return;
-  }
-  if(m.mode==='confirmDelete'){removePlan(m.id);closeModal();return;}
-}
-
-// ── Events ──────────────────────────────────────────────────────────────────
-function onClick(e){
-  const el=root();
-  // Scoped to our own subtree: this listener is on document, and the nav buttons
-  // of every other app in the suite also carry data- attributes.
-  if(!el||el.style.display==='none')return;
-  if(!e.target||!e.target.closest||!el.contains(e.target))return;
-  const t=e.target.closest('[data-act]');
-  if(!t||!el.contains(t))return;
-  const act=t.getAttribute('data-act'),id=t.getAttribute('data-id');
-  if(act==='ovclose'){if(e.target.closest('[data-stop]'))return;closeModal();return;}
-  if(act==='mclose'){closeModal();return;}
-  if(act==='mok'){modalOk();return;}
-  if(act==='new'){openModal({mode:'edit'});return;}
-  if(act==='bioEnrol'){openModal({mode:'bioEnrol'});return;}
-  if(act==='fold'){
-    if(!id)return;
-    if(expanded[id])delete expanded[id];else expanded[id]=true;
-    render();return;
-  }
-  if(act==='arch'){archOpen=!archOpen;render();return;}
-  if(!id)return;
-  const p=plans[id];if(!p)return;
-  switch(act){
-    case 'promote':promote(id);break;
-    // Warn, do not block, when there is no date.
-    case 'confirm':{
-      // Confirming FOR the other person is the one thing this feature exists to
-      // prevent, and profiles cannot stop it. So challenge it at the moment it
-      // would happen: their consent came from this very device, which means
-      // either you share a device or you are about to confirm on their behalf.
-      const w2=me(),o=w2?other(w2):null;
-      const om=o&&p.confirmMeta&&p.confirmMeta[o];
-      // If this profile is enrolled here, the biometric IS the check — a nagging
-      // "are you really you?" dialog adds nothing the OS has not already proven.
-      if(om&&om.dev===deviceId()&&!bioEnrolled(w2)){openModal({mode:'sameDevice',id:id});break;}
-      if(!p.date)openModal({mode:'confirmNoDate',id:id});else confirmPlan(id);
-      break;
-    }
-    case 'decline':openModal({mode:'decline',id:id});break;
-    case 'edit':openModal({mode:'edit',id:id});break;
-    case 'cancel':openModal({mode:'cancel',id:id});break;
-    case 'withdraw':withdrawCancel(id);break;
-    case 'agreeCancel':agreeCancel(id);break;
-    case 'keep':withdrawOther(id);break;
-    case 'done':markDone(id);break;
-    case 'restore':restorePlan(id);break;
-    case 'del':deleteReq(id);break;
-  }
-}
-// "Keep the plan" on a cancel request I did not file: clear it. Either party may
-// clear a request they are the counterparty to by declining to agree.
-function withdrawOther(id){const p=plans[id];if(!p)return;p.cancelReq=null;save(p,'kept');}
-
-function onKey(e){
-  const el=root();
-  if(!el||el.style.display==='none')return;
-  if(e.key==='Escape'&&modal){e.preventDefault();closeModal();}
-}
-
-// ── Nav badge ───────────────────────────────────────────────────────────────
-function updateBadges(){
-  const n=waitingCount();
-  document.querySelectorAll('[data-plans-badge]').forEach(el=>{
-    el.textContent=n>0?String(n):'';
-    el.style.display=n>0?'inline-flex':'none';
-  });
-}
-// Veda's nav is destroyed and rebuilt on every render, taking the badge spans
-// with it, so the nav module calls this afterwards to refill them.
-window._plansRefreshBadges=updateBadges;
+// "Needs your response" is per-PROFILE, and a profile switch changes no record
+// at all — so nothing would otherwise tell the two TaskHubs to re-derive their
+// counts. The profile switcher calls this.
+window._plansRefreshBadges=emit;
 
 // ── Boot ────────────────────────────────────────────────────────────────────
 // Merge, never replace. A snapshot can legitimately arrive with a plan missing:
@@ -16522,36 +16418,43 @@ function ingest(map){
   });
   Object.keys(next).forEach(id=>{if(map&&map[id])acked[id]=true;});
   plans=next;
-  render();
+  emit();
 }
 window.addEventListener('fb-plans-update',e=>ingest(e.detail||{}));
 
-window._plansShow=function(){
-  const el=root();if(!el)return;
-  ['root','veda-root','task-view','vd-kc-root','bj-root','tj-root','pv-root','wr-root']
-    .forEach(id=>{const n=document.getElementById(id);if(n)n.style.display='none';});
-  el.style.display='block';
-  document.body.style.background='#1a1a1d';
-  document.documentElement.style.background='#1a1a1d';
-  if(!booted){
-    booted=true;
-    if(window._plansLatest)ingest(window._plansLatest);
-    else if(window._fbLoadPlans)window._fbLoadPlans().then(m=>ingest(m||{}));
-  }
-  // The availability check may have resolved while this section was hidden, when
-  // render() is a no-op — so always repaint once it settles, not only on change.
-  refreshBioOK().then(render);
-  render();
-};
-window._plansHide=function(){const el=root();if(el)el.style.display='none';};
-
-document.addEventListener('click',onClick);
-document.addEventListener('keydown',onKey);
-// Keep the badge live even while the section is closed.
-window.addEventListener('fb-plans-update',updateBadges);
+// Pull the doc once, whether or not anyone has opened a Plan panel yet — the
+// waiting-count badge on both Weekly headers depends on it.
+function ensureLoaded(){
+  if(booted)return;
+  booted=true;
+  if(window._plansLatest)ingest(window._plansLatest);
+  else if(window._fbLoadPlans)window._fbLoadPlans().then(m=>ingest(m||{}));
+}
 window.addEventListener('fb-ready',function(){
-  if(window._fbLoadPlans&&!booted)window._fbLoadPlans().then(m=>{if(!booted)ingest(m||{});updateBadges();});
+  if(window._fbLoadPlans&&!booted){booted=true;window._fbLoadPlans().then(m=>ingest(m||{}));}
 });
+
+// ── Public API ──────────────────────────────────────────────────────────────
+// Everything a panel needs and nothing about how it looks.
+window.PlansCore={
+  PEOPLE:PEOPLE, NAMES:NAMES,
+  subscribe:subscribe,
+  ensureLoaded:ensureLoaded,
+  me:me, other:other,
+  get:function(id){return plans[id]||null;},
+  bucket:bucket, waitingCount:waitingCount,
+  isConfirmed:isConfirmed, isMaterialEdit:isMaterialEdit, confirmFlags:confirmFlags,
+  needsTwoSidedDelete:needsTwoSidedDelete,
+  fmtDate:fmtDate, fmtTime:fmtTime, fmtWhen:fmtWhen, humanGap:humanGap,
+  toLocalHHMM:toLocalHHMM,
+  deviceId:deviceId,
+  bioEnrolled:bioEnrolled, bioLabel:bioLabel, bioEnrol:bioEnrol,
+  bioReady:function(){return bioOK;}, refreshBio:refreshBioOK,
+  addIdea:addIdea, promote:promote, confirmPlan:confirmPlan, declinePlan:declinePlan,
+  restorePlan:restorePlan, requestCancel:requestCancel, withdrawCancel:withdrawCancel,
+  agreeCancel:agreeCancel, withdrawOther:withdrawOther, markDone:markDone,
+  applyEdit:applyEdit, removePlan:removePlan
+};
 })();
 </script>
 
@@ -17246,7 +17149,7 @@ window.addEventListener('resize',()=>{
 
 // ── Show / Hide ──
 window._vdkcShow=function(){
-  ['veda-root','bj-root','tj-root','root','plans-root'].forEach(function(id){
+  ['veda-root','bj-root','tj-root','root'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display='none';
   });
   const vdkc=document.getElementById('vd-kc-root');
@@ -22528,8 +22431,7 @@ function _bjPdfSection(label, text) {
 
 window.showBrainstormJournal = function(caller) {
   window._bjCalledFrom = caller || (document.getElementById('veda-root') && document.getElementById('veda-root').style.display !== 'none' ? 'veda' : 'tony');
-  ['root','veda-root','tj-root',
-   'vd-kc-root','plans-root'].forEach(function(id){
+  ['root','veda-root','tj-root','vd-kc-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
   var bj = document.getElementById('bj-root');
@@ -28568,7 +28470,7 @@ window._updateTonyNavActive = function(app) {
   // Mobile select: purple text+border on pv/wr, pink otherwise
   var sel = document.getElementById('tn-mobile-select');
   if(sel) {
-    if(isPvWr) { sel.style.color='#a78bfa'; sel.style.borderColor='rgba(167,139,250,0.5)'; }
+    if(isPvWr) { sel.style.color='#c0aeea'; sel.style.borderColor='rgba(192,174,234,0.5)'; }
     else { sel.style.removeProperty('color'); sel.style.removeProperty('border-color'); }
     sel.value = app;
   }
@@ -28586,8 +28488,8 @@ window._updateTonyNavActive = function(app) {
       btn.classList.add('tn-active');
       if(isPvWrBtn) {
         // Active pv/wr: purple fill
-        btn.style.background='#a78bfa';
-        btn.style.borderColor='#a78bfa';
+        btn.style.background='#c0aeea';
+        btn.style.borderColor='#c0aeea';
         btn.style.color='#0d0b14';
       }
       // Show ProView title
@@ -28597,8 +28499,8 @@ window._updateTonyNavActive = function(app) {
       if(isPvWrBtn) {
         // Inactive pv/wr: purple text, transparent bg
         btn.style.background='transparent';
-        btn.style.borderColor='rgba(167,139,250,0.35)';
-        btn.style.color='#a78bfa';
+        btn.style.borderColor='rgba(192,174,234,0.35)';
+        btn.style.color='#c0aeea';
       } else {
         // All other buttons: reset to pink via CSS vars
         btn.style.removeProperty('background');
@@ -28623,9 +28525,12 @@ window._tonyNav = function(app) {
   if(app==='keychain'){ if(window._vaultClick) window._vaultClick(); return; }
   // Hide ALL tony + other app roots before switching
   if(app!=='proview'&&window._pvHide) window._pvHide();
-  ['root','tj-root','veda-root','bj-root','vd-kc-root','tradeboard-root','pv-root','wr-root','plans-root'].forEach(function(id){
+  ['root','tj-root','veda-root','bj-root','vd-kc-root','tradeboard-root','pv-root','wr-root'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.style.display='none';
   });
+  // Plans is part of TaskHub now (Weekly → Add → Plan), so a stale 'plans'
+  // target — saved nav order, old deep link — resolves there.
+  if(app==='plans') app='taskhub';
   if(app==='taskhub') {
     var r=document.getElementById('root');
     if(r) r.style.display='';
@@ -28637,14 +28542,11 @@ window._tonyNav = function(app) {
     var pvr=document.getElementById('pv-root');
     if(pvr){pvr.style.display='flex';pvr.style.flexDirection='column';}
     if(window._pvMount)window._pvMount();
-  } else if(app==='plans') {
-    if(window._plansShow)window._plansShow();
   }
   window._updateTonyNavActive(app);
 };
 window.showTonyJournal = function() {
-  ['root','veda-root','bj-root','tradeboard-root',
-   'vd-kc-root','plans-root'].forEach(function(id){
+  ['root','veda-root','bj-root','tradeboard-root','vd-kc-root'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.style.display = 'none';
   });
   var tj = document.getElementById('tj-root');
@@ -39295,8 +39197,12 @@ function th(){
     bg:'#1a1a1d',s1:'#232327',s2:'#2c2c31',s3:'#37373d',
     bd:'#34343a',bdl:'#45454c',
     tx:'#f4f3f0',txd:'#adadb2',txm:'#8d8d94',
-    ac:'#a78bfa',acl:'#c4b5fd',acd:'#7c3aed',
-    acg:'rgba(167,139,250,0.12)',grn:'#a4b986',err:'#d68a7c',
+    ac:'#c0aeea',acl:'#dbd0f5',acd:'#9b83d4',
+    // Ink for text sitting ON the accent. The accent is a light lavender, so
+    // white on it is barely legible (~1.6:1) — a deep plum reads cleanly and
+    // keeps the fill looking like a considered chip rather than a washed one.
+    aci:'#1f1930',
+    acg:'rgba(192,174,234,0.12)',grn:'#a4b986',err:'#d68a7c',
   };
 }
 
@@ -39610,9 +39516,9 @@ function render(){
     if(_activeLg){
       const _lgFaved=isFavLeague(_activeLeague);
       const _lgStar=B({
-        background:_lgFaved?'rgba(167,139,250,0.18)':'transparent',
+        background:_lgFaved?'rgba(192,174,234,0.18)':'transparent',
         color:_lgFaved?T.acl:T.txd,
-        border:'1px solid '+(_lgFaved?'rgba(167,139,250,0.6)':'rgba(167,139,250,0.25)'),
+        border:'1px solid '+(_lgFaved?'rgba(192,174,234,0.6)':'rgba(192,174,234,0.25)'),
         borderRadius:20,padding:'0 12px',height:'28px',fontSize:11,fontWeight:700,
         cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1,whiteSpace:'nowrap',flexShrink:0,
         fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px',
@@ -39628,7 +39534,7 @@ function render(){
   const _gE=()=>{const ld=_cfg.leagueData[_activeLeague];if(!ld||!ld.schedule)return[];return(ld.schedule.data&&ld.schedule.data.schedule&&ld.schedule.data.schedule.events)||[];};
   const _pIds=()=>_gE().filter(e=>e.state==='completed').map(e=>e.match&&e.match.id||e.id).filter(Boolean);
   const _aS=_pIds().length>0&&_pIds().every(id=>_revealedScores.has(id));
-  const _sabStyle={background:'transparent',color:T.acl,border:'1px solid rgba(167,139,250,0.45)',borderRadius:20,padding:'0 14px',height:'28px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px'};
+  const _sabStyle={background:'transparent',color:T.acl,border:'1px solid rgba(192,174,234,0.45)',borderRadius:20,padding:'0 14px',height:'28px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px'};
   const _sab=B(_sabStyle,_aS?'Hide All Scores':'Show All Scores',()=>{
     const ids=_pIds();
     const anyH=ids.some(id=>!_revealedScores.has(id));
@@ -39646,7 +39552,7 @@ function render(){
   });
   _sab.className='pv-hglow';
   hrow1.appendChild(_sab);
-  const _lgB=B({background:'transparent',color:T.acl,border:'1px solid rgba(167,139,250,0.45)',borderRadius:20,padding:'0 14px',height:'28px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px'},'+ Leagues',()=>showLeagueMgr());
+  const _lgB=B({background:'transparent',color:T.acl,border:'1px solid rgba(192,174,234,0.45)',borderRadius:20,padding:'0 14px',height:'28px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px'},'+ Leagues',()=>showLeagueMgr());
   _lgB.className='pv-hglow';
   hrow1.appendChild(_lgB);
   hdr.appendChild(hrow1);
@@ -39676,8 +39582,8 @@ function render(){
     _cfg.leagues.forEach((lg,idx)=>{
       const a=_activeLeague===lg.id;
       const pill=B({
-        background:a?T.ac:'rgba(167,139,250,0.08)',color:a?'#fff':T.txd,
-        border:'1px solid '+(a?T.ac:'rgba(167,139,250,0.25)'),
+        background:a?T.ac:'rgba(192,174,234,0.08)',color:a?T.aci:T.txd,
+        border:'1px solid '+(a?T.ac:'rgba(192,174,234,0.25)'),
         borderRadius:20,padding:'0 14px',height:'34px',fontSize:11,
         fontWeight:700,cursor:'grab',whiteSpace:'nowrap',flexShrink:0,
         userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',
@@ -39720,7 +39626,7 @@ function render(){
           _pdClone=document.createElement('div');
           _pdClone.textContent=lg.name;
           _pdClone._ox=sx-r.left;_pdClone._oy=sy-r.top;
-          _pdClone.style.cssText='position:fixed;z-index:99999;pointer-events:none;border-radius:20px;padding:0 14px;height:34px;display:inline-flex;align-items:center;font-size:11px;font-weight:700;background:'+T.ac+';color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.5);white-space:nowrap;transform:scale(1.08);left:'+(sx-_pdClone._ox)+'px;top:'+(sy-_pdClone._oy)+'px;';
+          _pdClone.style.cssText='position:fixed;z-index:99999;pointer-events:none;border-radius:20px;padding:0 14px;height:34px;display:inline-flex;align-items:center;font-size:11px;font-weight:700;background:'+T.ac+';color:'+T.aci+';box-shadow:0 6px 20px rgba(0,0,0,.5);white-space:nowrap;transform:scale(1.08);left:'+(sx-_pdClone._ox)+'px;top:'+(sy-_pdClone._oy)+'px;';
           document.body.appendChild(_pdClone);
           try{navigator.vibrate(18);}catch(_){}
         };
@@ -39738,7 +39644,7 @@ function render(){
           const tgt=nearestPill(e2.clientX,e2.clientY);
           const oi=tgt?parseInt(tgt.dataset.idx,10):null;
           if(oi!==null&&oi!==_pdSrcIdx){
-            if(oi!==_pdOverIdx){_pdOverIdx=oi;clearHL();tgt.style.boxShadow='0 0 0 2px rgba(167,139,250,0.9)';tgt.classList.add('pv-pill-over');}
+            if(oi!==_pdOverIdx){_pdOverIdx=oi;clearHL();tgt.style.boxShadow='0 0 0 2px rgba(192,174,234,0.9)';tgt.classList.add('pv-pill-over');}
           } else if(_pdOverIdx!==null){_pdOverIdx=null;clearHL();}
         };
 
@@ -39787,7 +39693,7 @@ function render(){
     emp.appendChild(S({fontSize:13,color:T.txd,textAlign:'center',maxWidth:320,lineHeight:1.5},
       'Track LCK, LPL, LEC, LCS schedules. Favorite teams auto-sync matches into your TaskHub.'));
     emp.appendChild(B(
-      {background:T.ac,color:'#fff',border:'none',borderRadius:6,
+      {background:T.ac,color:T.aci,border:'none',borderRadius:6,
        padding:'10px 28px',fontSize:13,fontWeight:700,cursor:'pointer',marginTop:4},
       '+ Add Leagues',()=>showLeagueMgr()
     ));
@@ -39865,8 +39771,8 @@ function buildSchedule(T,league,ld){
     // language as the rest of the suite's chrome.
     const b=B({background:'transparent',
       color:on?T.acl:T.txd,
-      border:'1px solid '+(on?'#a78bfa':T.bd),
-      boxShadow:on?'0 0 8px rgba(167,139,250,0.4),0 0 0 1px rgba(167,139,250,0.15)':'none',
+      border:'1px solid '+(on?'#c0aeea':T.bd),
+      boxShadow:on?'0 0 8px rgba(192,174,234,0.4),0 0 0 1px rgba(192,174,234,0.15)':'none',
       borderRadius:20,padding:'0 14px',height:'30px',fontSize:11,fontWeight:700,
       letterSpacing:'0.3px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
       fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",transition:'all .15s'},
@@ -39905,7 +39811,7 @@ function matchCard(T,ev,league){
   const t1f=isFav(t1),t2f=isFav(t2),faved=t1f||t2f;
 
   const card=D({display:'flex',flexDirection:'column',gap:0,
-    background:isLive?'rgba(167,139,250,0.06)':T.s1,
+    background:isLive?'rgba(192,174,234,0.06)':T.s1,
     border:'1px solid '+(isLive?T.ac:T.bd),
     borderRadius:14,padding:'12px 14px',marginBottom:8,
     boxShadow:'none',boxSizing:'border-box'});
@@ -39985,7 +39891,7 @@ function matchCard(T,ev,league){
   const mkFB=(team,fav)=>{
     const nm=team.code||team.name||'';
     if(!nm||nm==='TBD') return null;
-    return B({background:fav?T.ac:'transparent',color:fav?'#fff':T.txd,
+    return B({background:fav?T.ac:'transparent',color:fav?T.aci:T.txd,
       border:'1px solid '+(fav?T.ac:T.bd),borderRadius:4,
       padding:'2px 9px',fontSize:9,fontWeight:700,cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1},
       (_favSyncBusy?'⏳ ':(fav?'★ ':'☆ '))+nm,
@@ -40033,9 +39939,9 @@ function showLeagueMgr(){
     const btns=D({display:'flex',alignItems:'center',gap:6,flexShrink:0});
     // Fav star
     const _star=B(
-      {background:lgFaved?'rgba(167,139,250,0.18)':'transparent',
+      {background:lgFaved?'rgba(192,174,234,0.18)':'transparent',
        color:lgFaved?T.acl:T.txd,
-       border:'1px solid '+(lgFaved?'rgba(167,139,250,0.5)':T.bd),
+       border:'1px solid '+(lgFaved?'rgba(192,174,234,0.5)':T.bd),
        borderRadius:4,padding:'4px 8px',fontSize:12,fontWeight:700,cursor:'pointer'},
       lgFaved?'★':'☆',
       (e)=>{
@@ -40050,7 +39956,7 @@ function showLeagueMgr(){
     _star.title=lgFaved?'Remove all league matches from TaskHub':'Add all matches to TaskHub';
     btns.appendChild(_star);
     btns.appendChild(B(
-      {background:added?T.ac:'transparent',color:added?'#fff':T.txd,
+      {background:added?T.ac:'transparent',color:added?T.aci:T.txd,
        border:'1px solid '+(added?T.ac:T.bd),borderRadius:4,
        padding:'4px 14px',fontSize:10,fontWeight:700,cursor:'pointer'},
       added?'✓ Added':'+ Add',
@@ -40074,7 +39980,7 @@ function showLeagueMgr(){
   });
 
   modal.appendChild(B(
-    {background:T.ac,color:'#fff',border:'none',borderRadius:6,
+    {background:T.ac,color:T.aci,border:'none',borderRadius:6,
      padding:'10px 0',width:'100%',fontSize:12,fontWeight:700,
      cursor:'pointer',marginTop:16,display:'block'},
     'Done',
@@ -40371,15 +40277,15 @@ var AL_LABELS  = {
   tony_solace:    { label: 'Solace',     profile: 'tony', color: '#e0b874' },
   tony_keychain:  { label: 'Vault',      profile: 'tony', color: '#e0b874' },
   tony_myjournal: { label: 'MyJournal',  profile: 'tony', color: '#e0b874' },
-  tony_proview:   { label: 'ProView',    profile: 'tony', color: '#a78bfa' },
-  tony_warroom:   { label: 'WarRoom',    profile: 'tony', color: '#a78bfa' },
+  tony_proview:   { label: 'ProView',    profile: 'tony', color: '#c0aeea' },
+  tony_warroom:   { label: 'WarRoom',    profile: 'tony', color: '#c0aeea' },
   veda_taskhub:   { label: 'TaskHub',    profile: 'veda', color: '#8D769A' },
   veda_gita:      { label: 'Gita',       profile: 'veda', color: '#8D769A' },
   veda_journal:   { label: 'Journal',    profile: 'veda', color: '#8D769A' },
   veda_links:     { label: 'Links',      profile: 'veda', color: '#8D769A' },
-  // Plans belongs to BOTH profiles — one lock, reachable from either nav, so the
-  // neutral grey rather than either profile's accent.
-  shared_plans:   { label: 'Plans',      profile: 'tony', color: '#9A9BA1' },
+  // NOTE: Plans had its own 'shared_plans' lock while it was a standalone
+  // program. It lives inside both TaskHubs now (Weekly → Add → Plan), so it is
+  // covered by tony_taskhub / veda_taskhub and needs no lock of its own.
   // ── Profile-entry locks (gate the whole Tony / Veda profile, not just one app).
   //    Use the SAME app-lock machinery: worker KV hash, Firebase sync, version bump
   //    → every device must re-enter on set/change. isProfile tweaks overlay copy &
@@ -40571,8 +40477,7 @@ var AL_APP_ROOTS = {
   tony_proview:   ['pv-root'],
   veda_taskhub:   ['veda-root'],
   veda_journal:   ['bj-root'],
-  veda_links:     ['vd-kc-root'],
-  shared_plans:   ['plans-root']
+  veda_links:     ['vd-kc-root']
 };
 
 // Hide an app's content roots immediately (security: never flash locked content).
@@ -40762,13 +40667,11 @@ function alGate(appId, cb, onCancel) {
 // ── NAV MAP ───────────────────────────────────────────────────────────────────
 function alNavAppToId(profile, navApp) {
   var map = {
-    // Plans is ONE app reachable from both navs, so both profiles map to the same
-    // shared_plans id — locking it locks it for both, which is the point.
     tony: { taskhub:'tony_taskhub', tradeboard:'tony_tradehub',
             keychain:'tony_keychain', brainstormjournal:'tony_myjournal',
-            proview:'tony_proview', warroom:'tony_warroom', plans:'shared_plans' },
+            proview:'tony_proview', warroom:'tony_warroom' },
     veda: { taskhub:'veda_taskhub', gita:'veda_gita',
-            journal:'veda_journal', links:'veda_links', plans:'shared_plans' }
+            journal:'veda_journal', links:'veda_links' }
   };
   return (map[profile] || {})[navApp] || null;
 }
@@ -41437,12 +41340,11 @@ window.addEventListener('focus', _initNavTabGear);
 var TONY_DEFAULT = [
   {app:'taskhub',          label:'TaskHub'},
   {app:'brainstormjournal',label:'MyJournal'},
-  {app:'plans',            label:'Plans'},
   {app:'proview',          label:'ProView'},
 ];
 var TONY_SELECT_LABELS = {
   taskhub:"Tony's TaskHub",
-  brainstormjournal:'MyJournal', plans:'Plans', proview:'ProView'
+  brainstormjournal:'MyJournal', proview:'ProView'
 };
 
 var VEDA_DEFAULT = [
@@ -41450,7 +41352,6 @@ var VEDA_DEFAULT = [
   {app:'gita',     label:'Gita'},
   {app:'journal',  label:'Journal'},
   {app:'links',    label:'Links'},
-  {app:'plans',    label:'Plans'},
 ];
 
 var tonyOrder = TONY_DEFAULT.map(function(x){ return x.app; });
@@ -41758,7 +41659,7 @@ function injectTonyDropdownCSS(){
     '#tn-dd-panel .dd-grip{flex:0 0 auto;cursor:grab;color:currentColor;opacity:.4;font-size:13px;line-height:1;letter-spacing:-3px;padding:2px 4px;margin:-2px 0;touch-action:none;}'+
     '#tn-dd-panel .dd-grip:active{cursor:grabbing;}'+
     '#tn-dd-panel .tn-dd-item:hover{background:transparent;color:#e0b874;}'+
-    '#tn-dd-panel .tn-dd-item[data-dd-app="proview"]:not(.tn-dd-active):hover,#tn-dd-panel .tn-dd-item[data-dd-app="custom:warroom"]:not(.tn-dd-active):hover{background:rgba(167,139,250,0.12);}'+
+    '#tn-dd-panel .tn-dd-item[data-dd-app="proview"]:not(.tn-dd-active):hover,#tn-dd-panel .tn-dd-item[data-dd-app="custom:warroom"]:not(.tn-dd-active):hover{background:rgba(192,174,234,0.12);}'+
     '#tn-dd-panel .tn-dd-item.tn-dd-active{background:transparent;color:var(--tn-ac,#c8a15f);border-color:var(--tn-ac,#c8a15f);box-shadow:0 0 8px rgba(200,161,95,0.28) inset;}';
   document.head.appendChild(st);
 }
@@ -41775,8 +41676,8 @@ function renderTonyDropdownPanel(){
     var _lbl=document.createElement('span'); _lbl.className='dd-text'; _lbl.textContent=TONY_SELECT_LABELS[app]||tonyMap[app];
     item.appendChild(_grip); item.appendChild(_lbl);
     var isPvWr=(app==='proview'||app==='custom:warroom');
-    if(isPvWr&&app!==cur) item.style.color='#a78bfa';
-    if(isPvWr&&app===cur){ item.style.background='#a78bfa'; item.style.color='#0d0b14'; }
+    if(isPvWr&&app!==cur) item.style.color='#c0aeea';
+    if(isPvWr&&app===cur){ item.style.background='#c0aeea'; item.style.color='#0d0b14'; }
     item.addEventListener('click',function(e){
       e.stopPropagation();
       if(item._ddDragged){ item._ddDragged=false; return; }
@@ -41854,7 +41755,6 @@ function isVedaNavRow(row){
 var VEDA_ROOT_APP=[
   ['#bj-root',   'journal'],
   ['#vd-kc-root','links'],
-  ['#plans-root','plans'],
 ];
 function vedaAppForRow(row){
   if(!row||!row.closest) return null;
@@ -41864,14 +41764,14 @@ function vedaAppForRow(row){
   return null;
 }
 
-// A nav button's LABEL, ignoring any badge span inside it. Buttons here are
-// recognised by their text, so a badge showing "3" would otherwise turn "Plans"
-// into "Plans3", orphan the button, and get a duplicate appended next to it.
+// A nav button's LABEL, ignoring any decorative span inside it. Buttons here
+// are recognised by their text, so a count chip would otherwise become part of
+// it, orphan the button, and get a duplicate appended next to it.
 function vedaBtnLabel(el){
   var t='';
   Array.prototype.slice.call(el.childNodes).forEach(function(n){
     if(n.nodeType===3) t+=n.nodeValue;
-    else if(n.nodeType===1&&!n.hasAttribute('data-plans-badge')) t+=(n.textContent||'');
+    else if(n.nodeType===1&&!n.hasAttribute('data-nav-chip')) t+=(n.textContent||'');
   });
   return t.trim().toUpperCase();
 }
@@ -41916,15 +41816,6 @@ function renderVedaNavIn(row){
       if(app.indexOf('custom:')===0){ openLink('veda',app.slice(7)); return; }
       if(window._vedaNav) window._vedaNav(app);
     });
-    // Plans carries a count of what is waiting on the active profile. Appended
-    // AFTER textContent is set, because the nav matcher above identifies buttons
-    // by their text — the badge must never become part of it.
-    if(app==='plans'){
-      var bdg=document.createElement('span');
-      bdg.setAttribute('data-plans-badge','');
-      bdg.style.cssText='display:none;align-items:center;justify-content:center;min-width:15px;height:15px;margin-left:5px;padding:0 4px;border-radius:999px;background:#8D769A;color:#1B1C1E;font-size:9px;font-weight:800;line-height:1;';
-      btn.appendChild(bdg);
-    }
     attachVedaDrag(btn,app,row);
     row.appendChild(btn);
   });
@@ -41953,8 +41844,6 @@ function renderAllVedaNavs(){
   injectVedaDropdownCSS();
   updateVedaDropdownLabel();
   recheckOverflow();
-  // The badge spans were just recreated empty — refill them.
-  if(window._plansRefreshBadges) window._plansRefreshBadges();
 }
 
 function updateVedaDropdownLabel(){
