@@ -6500,13 +6500,14 @@ function Pomodoro({onClose,T,isMobile}){
 // coupon: deliberately NOT an accent. Coupons live in Short-Term Goals next to
 // real goals, so they read as neutral grey chrome and let the gold checkboxes
 // stay the only accent in that panel. See OI_couponRow.
-// package: a cool neutral grey. It was TradeHub's AFTER HOURS slate (#8fa9c4),
-// which still read as blue next to the golds and greys around it. Parcels are
-// the most frequent card by far, so this is the one that most needs to sit
-// quietly in the week rather than tint whole rows. DELIBERATELY out of step
+// package: a low-key slate blue, sitting between TradeHub's AFTER HOURS slate
+// (#8fa9c4, which read loud next to the gold) and plain grey. Parcels are the
+// most frequent card by far, so this is the one that most needs to stay quiet
+// in the week — blue enough to be its own thing, desaturated enough that a
+// column of them never competes with a gold task. DELIBERATELY out of step
 // with oneinbox.html's --c-package, which tints filter chips in a list where
 // it has to stay distinguishable from the other categories.
-const OI_COLOR={coupon:"#8d8d94",package:"#9aa0a8",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
+const OI_COLOR={coupon:"#8d8d94",package:"#8b9db4",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
 
 function OI_useCards(){
   const[cards,setCards]=useState(()=>window._oiCards||[]);

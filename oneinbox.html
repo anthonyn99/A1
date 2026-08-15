@@ -2264,14 +2264,57 @@ window.addEventListener('message', ev => {
 });
 
 /* ── Account order ────────────────────────────────────────────────────────
-   Sidebar order is a per-device display preference, so it lives in
-   localStorage rather than on the account record — reordering here does not
-   reach into the mailbox or the worker. An account missing from the saved
-   order (newly connected, or connected on another device) sorts to the end
-   in whatever order the server returned, instead of vanishing or jumping. */
+   The order lives in Firestore on the meta doc, so dragging on the laptop
+   moves the phone's sidebar too. localStorage is kept alongside it purely as
+   a cache: it paints the right order on the next load before Firestore has
+   answered, and it holds the last known order when offline.
+
+   The write is a merged single field. The meta doc also carries settings the
+   UI owns and a heartbeat the worker writes, so a whole-doc setDoc here would
+   clobber one or the other — see [[mylist-write-barrier]] for the version of
+   this that went wrong elsewhere. Because the write cannot erase anything but
+   acctOrder itself, it needs no load barrier.
+
+   An account missing from the saved order (newly connected, or connected on
+   another device) sorts to the end in whatever order the server returned,
+   instead of vanishing or jumping. */
 const ACCT_ORDER_LS = 'oneinbox_acct_order';
 const loadAcctOrder = () => { try { return JSON.parse(localStorage.getItem(ACCT_ORDER_LS) || '[]'); } catch { return []; } };
 const saveAcctOrder = list => { try { localStorage.setItem(ACCT_ORDER_LS, JSON.stringify(list)); } catch {} };
+
+// Push a new order to every device. Local cache first so the sidebar never
+// waits on the network, then the shared copy.
+async function syncAcctOrder(order){
+  saveAcctOrder(order);
+  sync('syncing', 'saving order');
+  try {
+    // authReady never rejects — it simply never resolves if sign-in cannot
+    // complete (a blocked origin, App Check refusing the device). Without a
+    // deadline the indicator would sit on "saving order" forever, which reads
+    // as "still working" when nothing is working at all.
+    await Promise.race([
+      authReady,
+      new Promise((_, rej) => setTimeout(() => rej(new Error('not signed in')), 12000))
+    ]);
+    await setDoc(META_DOC, { acctOrder: order, acctOrderAt: Date.now() }, { merge: true });
+    sync('synced', 'order synced');
+  } catch (e) {
+    sync('failed', 'order not synced');
+    toast('Order saved on this device only — ' + e.message, false);
+  }
+}
+
+// A change arriving from another device. Firestore echoes our OWN writes back
+// through the same listener, so this has to be a no-op when nothing actually
+// moved, or every drag would trigger a second, pointless re-render.
+function applyRemoteAcctOrder(order){
+  if (!Array.isArray(order) || !order.length) return;
+  if (acctDrag) return;                    // never yank the list out from under a live drag
+  const before = S.accounts.map(a => a.email).join('|');
+  saveAcctOrder(order);
+  applyAcctOrder();
+  if (S.accounts.map(a => a.email).join('|') !== before) renderSidebar();
+}
 
 function applyAcctOrder(){
   const order = loadAcctOrder();
@@ -2421,10 +2464,10 @@ function endAcctDrag(commit){
   if (!commit){ renderSidebar(); return; }  // cancelled: snap back to state
 
   const order = acctRows().map(r => r.dataset.acct);
-  saveAcctOrder(order);
   const at = new Map(order.map((x, i) => [x, i]));
   S.accounts.sort((a, b) => at.get(a.email) - at.get(b.email));
   renderSidebar();
+  syncAcctOrder(order);          // not awaited: the sidebar must not wait on the network
 }
 
 window.addEventListener('pointerup', e => { if (acctDrag && e.pointerId === acctDrag.id) endAcctDrag(true); });
@@ -3044,6 +3087,8 @@ async function boot(){
     if (!snap.exists()) return;
     const d = snap.data();
     if (d.settings) S.settings = { ...S.settings, ...d.settings };
+    // Live: a drag on another device lands here within a second.
+    applyRemoteAcctOrder(d.acctOrder);
   }));
 
   // AI classifications for the newest mail. Bounded to 150 docs: enough to
