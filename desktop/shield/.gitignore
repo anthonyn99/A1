@@ -1,0 +1,8 @@
+# Rust / Tauri build output. Two things are deliberately NOT ignored:
+#   · src-tauri/icons — generated once by tools/make-icon.js, and the build
+#     needs them, so a fresh clone must not have to run Node first.
+#   · Cargo.lock — this is an application, not a library. Pinning the exact
+#     dependency graph is what makes a rebuild months from now produce the same
+#     agent, which matters more here than usual: this one terminates processes.
+src-tauri/target/
+src-tauri/gen/

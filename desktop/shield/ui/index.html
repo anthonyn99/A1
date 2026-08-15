@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shield — Offline</title>
+<style>
+/* Deliberately tiny and self-contained: this is the page that has to render
+   when there is no network at all, so it inlines everything and loads nothing. */
+:root{
+  --bg:#1a1a1d;--s1:#232327;--bd:#34343a;--tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
+  --ac:#e0b874;--err:#d68a7c;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--bg);color:var(--tx);
+  font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.6;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px;
+}
+.box{max-width:400px;text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center}
+svg{width:44px;height:44px}
+h1{font-family:'Manrope',system-ui,sans-serif;font-size:22px;font-weight:750;letter-spacing:-.4px;color:var(--ac)}
+.state{
+  width:100%;background:var(--s1);border:1px solid var(--bd);border-radius:9px;
+  padding:12px 14px;display:flex;justify-content:space-between;gap:12px;font-size:12.5px;
+}
+.state .k{font-size:9.5px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--txm)}
+.state .v{font-weight:600}
+.state .v.on{color:var(--err)}
+p{font-size:12.5px;color:var(--txd)}
+.note{font-size:11.5px;color:var(--txm)}
+</style>
+</head>
+<body>
+<div class="box">
+  <svg viewBox="0 0 96 96" aria-hidden="true">
+    <g fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M48 14 22 23v24c0 17 13 28 26 35" stroke="#e0b874"/>
+      <path d="M48 14 74 23v24c0 17-13 28-26 35" stroke="#8D769A"/>
+      <circle cx="48" cy="42" r="7" stroke="#adadb2"/>
+      <path d="M48 49v11" stroke="#adadb2"/>
+    </g>
+  </svg>
+  <h1>Shield</h1>
+  <div class="state">
+    <span class="k">Emergency</span>
+    <span class="v" id="emg">checking…</span>
+  </div>
+  <div class="state">
+    <span class="k">Agent</span>
+    <span class="v" id="ver">—</span>
+  </div>
+  <p>The full Shield interface is served from the web and needs a connection. The agent itself is running: the tray menu and <b>Ctrl+Shift+X</b> / <b>Ctrl+Shift+L</b> work offline.</p>
+  <p class="note">Disabling Emergency Mode requires the Shield passcode, which is verified by the full interface — reconnect to lift a lockdown.</p>
+</div>
+<script>
+// Best-effort: if the agent bridge is present, show real state.
+(function(){
+  var T = window.__TAURI__ && (window.__TAURI__.core || window.__TAURI__.tauri);
+  if (!T || !T.invoke) return;
+  T.invoke('sh_status', {}).then(function(s){
+    var e = document.getElementById('emg');
+    var on = s && s.emergency && s.emergency.active;
+    e.textContent = on ? 'ACTIVE' : 'Off';
+    if (on) e.className = 'v on';
+    document.getElementById('ver').textContent = 'v' + ((s && s.version) || '?');
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>

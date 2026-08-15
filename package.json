@@ -1,9 +1,9 @@
 {
   "name": "a1-taskhub",
   "private": true,
-  "description": "Test tooling for index.html. The app itself has no build step and ships as-is.",
+  "description": "Test tooling for the single-file apps. They have no build step and ship as-is. The Shield desktop agent under desktop/shield is the one exception and builds with cargo.",
   "scripts": {
-    "test": "node tests/syntax-check.js && node tests/sync-guard.test.js"
+    "test": "node tests/syntax-check.js && node tests/sync-guard.test.js && node tests/agent-contract.test.js"
   },
   "devDependencies": {
     "@babel/parser": "^7.25.0"

@@ -1542,6 +1542,51 @@ var Agent = (function(){
   return { present:present, invoke:invoke };
 })();
 
+/* Events the agent pushes up. The tray menu and the global hotkeys run entirely
+   in Rust and can fire while this window is open, so this is the only way the
+   UI ever learns about them. */
+var _agentWired = false;
+function wireAgentEvents(){
+  if (_agentWired) return;
+  var T = window.__TAURI__;
+  if (!T || !T.event || !T.event.listen) return;
+  _agentWired = true;
+  try {
+    T.event.listen('shield://state', function(ev){
+      var e = ((ev && ev.payload) || {}).emergency || {};
+      var le = localEmg();
+      if (e.active && !le.active){
+        setLocalEmg({ active:true, at: e.at || now(), source: e.source || 'local', v: globalState().v || 0 });
+        pullAgentHistory().then(function(){ S.report = null; render(); });
+      } else if (!e.active && le.active){
+        setLocalEmg({ active:false, at: now(), source:'local', v:0 });
+        render();
+      }
+    });
+    T.event.listen('shield://closed', function(){
+      pullAgentHistory().then(function(n){ if (n){ renderHome(); renderHistory(); } });
+    });
+  } catch(e){}
+}
+
+/* Reconcile with the agent on open.
+   The agent is authoritative for THIS device's lockdown: it is the thing
+   actually enforcing it, and it re-arms from disk at logon long before this
+   page exists. If the page thinks it is locked down and the agent does not,
+   nothing is enforcing anything — showing the takeover screen over a wide-open
+   machine would be exactly the fake security this app refuses to provide. */
+function syncAgentState(){
+  if (!caps().agent) return Promise.resolve();
+  return Agent.invoke('sh_status', {}).then(function(s){
+    var e = (s && s.emergency) || {}, le = localEmg();
+    if (e.active && !le.active){
+      setLocalEmg({ active:true, at: e.at || now(), source: e.source || 'local', v: globalState().v || 0 });
+    } else if (!e.active && le.active){
+      setLocalEmg({ active:false, at: now(), source:'local', v:0 });
+    }
+  }).catch(function(){});
+}
+
 /* Capabilities are PROBED, never hardcoded, so an OS update that breaks a
    mechanism shows up as "unavailable" rather than as a silent failure. */
 function caps(){
@@ -1678,7 +1723,6 @@ function histCounts(e){
 function histAdd(kind, items, extra){
   var d = myDev();
   var e = Object.assign({
-    id: 'h_' + uid(),
     kind: kind,                       // 'closer' | 'emergency'
     at: now(),
     deviceId: S.devId,
@@ -1687,9 +1731,55 @@ function histAdd(kind, items, extra){
     hidden: [],                       // shortcuts moved aside, restored on revert
     reverted: false, revertedAt: 0
   }, extra || {});
-  var list = history(); list.unshift(e); histSet(list);
+  // The AGENT mints the id when there is one, because the tray menu and the
+  // global hotkeys close applications with no window open — those entries are
+  // created agent-side and pulled in later. Sharing the id is what stops the
+  // same action appearing twice once the page catches up.
+  if (!e.id) e.id = 'h_' + uid();
+  var list = history().filter(function(x){ return x.id !== e.id; });
+  list.unshift(e); histSet(list);
   syncHistory();
   return e;
+}
+
+/* Merge anything the agent recorded while this page was closed. */
+function pullAgentHistory(){
+  if (!caps().kill) return Promise.resolve(0);
+  var newest = history().reduce(function(m, e){ return Math.max(m, e.at || 0); }, 0);
+  return Agent.invoke('sh_pull_history', { args: { since: newest } })
+    .then(function(res){
+      var got = (res && res.entries) || [];
+      if (!got.length) return 0;
+      var d = myDev(), mine = history();
+      var known = {}; mine.forEach(function(e){ known[e.id] = true; });
+      var add = got.filter(function(e){ return !known[e.id]; }).map(function(e){
+        return Object.assign({ deviceId: S.devId, deviceName: (d && d.name) || defaultName() }, e);
+      });
+      if (!add.length) return 0;
+      var merged = add.concat(mine).sort(function(a, b){ return (b.at||0) - (a.at||0); });
+      histSet(merged);
+      syncHistory();
+      return add.length;
+    })
+    .catch(function(){ return 0; });
+}
+
+/* Push this device's configuration into the agent.
+   Without it the tray menu and the hotkeys would have nothing to act on — and
+   those are the paths that must keep working with no window and no internet,
+   which is the entire reason the agent exists. */
+function pushConfig(){
+  if (!caps().agent) return Promise.resolve();
+  var e = cfgEmg(S.devId);
+  return Agent.invoke('sh_set_config', { cfg: {
+    profile: S.profile,
+    closer: cfgCloser(S.devId).targets || [],
+    emergency: {
+      targets: e.targets || [],
+      lockWorkstation: !!e.lockWorkstation,
+      watchdog: e.watchdog !== false
+    }
+  }}).catch(function(){});
 }
 function histMark(hid, patch){
   var list = history().map(function(e){ return e.id === hid ? Object.assign({}, e, patch) : e; });
@@ -1812,10 +1902,10 @@ function runCloser(){
     return Promise.resolve({ lines:[{ kind:'bad',
       text:'No Shield agent on this device — a web page cannot close applications. ' + tg.length + ' target(s) untouched.' }] });
   }
-  return Agent.invoke('sh_kill', { targets: tg })
+  return Agent.invoke('sh_kill', { args: { targets: tg } })
     .then(function(res){
       var items = resultItems(res);
-      var entry = histAdd('closer', items, { scope:'local', source:'local' });
+      var entry = histAdd('closer', items, { id: res && res.entryId, scope:'local', source:'local' });
       return { lines: reportLines(items), items: items, entry: entry };
     })
     .catch(function(e){ return { lines:[{ kind:'bad', text:'Agent did not respond: ' + (e && e.message || 'error') }] }; });
@@ -1857,10 +1947,10 @@ async function revert(hid){
     // Emergency entries also stashed shortcuts away; put those back first so
     // the desktop is whole again before anything relaunches.
     if (e.kind === 'emergency'){
-      try { await Agent.invoke('sh_restore_icons', { entryId: e.id }); lines.push({ kind:'ok', text:'Desktop and Start-menu shortcuts restored' }); }
+      try { await Agent.invoke('sh_restore_icons', { args: { entryId: e.id } }); lines.push({ kind:'ok', text:'Desktop and Start-menu shortcuts restored' }); }
       catch (err){ lines.push({ kind:'bad', text:'Could not restore shortcuts: ' + (err && err.message || 'error') }); }
     }
-    var res = await Agent.invoke('sh_launch', { items: items });
+    var res = await Agent.invoke('sh_launch', { args: { entryId: e.id, items: items } });
     lines = lines.concat(reportLines(resultItems(res)));
     histMark(hid, { reverted:true, revertedAt: now() });
     S.report = lines;
@@ -1892,21 +1982,21 @@ function runEmergency(source, byName){
 
   // 3. Agent work, if there is an agent.
   var tg = cfg.targets || [];
-  var p, items = [], hidden = [];
+  var p, items = [], hidden = [], agentId = '';
   if (!caps().kill){
     if (tg.length) lines.push({ kind:'bad', text:'No Shield agent on this device — ' + tg.length + ' application target(s) could not be closed.' });
     p = Promise.resolve();
   } else {
-    p = Agent.invoke('sh_emergency_on', {
-      entryId: 'pending',            // replaced below once the history id exists
+    p = Agent.invoke('sh_emergency_on', { args: {
       targets: tg,
-      hideIcons: tg.some(function(t){ return t.hideIcons; }),
       watchdog: cfg.watchdog !== false,
-      lockWorkstation: !!cfg.lockWorkstation
-    }).then(function(res){
-      items  = resultItems(res);
-      hidden = (res && res.hidden) || [];
-      lines  = lines.concat(reportLines(items));
+      lockWorkstation: !!cfg.lockWorkstation,
+      source: source
+    }}).then(function(res){
+      agentId = (res && res.entryId) || '';
+      items   = resultItems(res);
+      hidden  = (res && res.hidden) || [];
+      lines   = lines.concat(reportLines(items));
       if (hidden.length) lines.push({ kind:'ok', text: hidden.length + ' shortcut(s) hidden' });
       if (cfg.lockWorkstation) lines.push({ kind:'ok', text:'Workstation locked' });
     }).catch(function(e){
@@ -1917,12 +2007,13 @@ function runEmergency(source, byName){
   return p.then(function(){
     S.report = lines;
     // Record what was closed and how to start it again, so the lockdown is
-    // fully reversible once the passcode has lifted it.
-    var entry = histAdd('emergency', items, {
+    // fully reversible once the passcode has lifted it. The id comes from the
+    // agent when there is one, so this entry and the agent's are the same entry.
+    histAdd('emergency', items, {
+      id: agentId,
       scope: source === 'remote' ? 'global' : 'local',
       source: source, by: byName || '', hidden: hidden
     });
-    if (caps().kill) Agent.invoke('sh_tag_entry', { entryId: entry.id }).catch(function(){});
     renderEmergency();
     // 4. Bookkeeping last.
     writeMine('local', { active:true, at:now(), source:source }, true).catch(function(){});
@@ -2449,7 +2540,7 @@ function capsHtml(d){
   if (c.agent){
     h += row('yes',  '<b>Close applications</b> — same-user processes. Elevated or service processes need Shield running as admin.');
     h += row('part', '<b>Keep them closed</b> — Shield kills on sight, roughly every second. Windows 11 Home has no AppLocker, so a true launch block is not available; a target will flash on screen before it closes.');
-    h += row('part', '<b>Hide launch points</b> — desktop and Start-menu shortcuts are moved aside and restored on exit. Store/UWP apps and pinned Start tiles have no shortcut to move.');
+    h += row('part', '<b>Hide launch points</b> — desktop and Start-menu shortcuts are moved aside and restored on exit. Shortcuts are matched by name, so <code>Discord.lnk</code> is found but one named nothing like its program is not. Store/UWP apps and pinned Start tiles have no shortcut to move at all.');
     h += row('no',   '<b>Unpin from the taskbar</b> — not automatable on Windows 11. The pin lives in an undocumented registry blob and needs Explorer restarted. Do not pin anything you would need Shield to hide.');
     h += row('yes',  '<b>Lock the workstation</b> — instant and completely reliable.');
     h += row('part', '<b>Reopen what was closed</b> — Shield records each process\'s path and command line before terminating it, so History can start them all again. Applications open fresh: unsaved work inside them is not recovered, and one that could not be read before closing cannot be reopened.');
@@ -2603,6 +2694,7 @@ async function saveTargets(kind, list){
     else { d.closer = d.closer || {}; d.closer.targets = list; }
   }
   renderConfig(); renderHome();
+  pushConfig();
   await writeMine(field, list).catch(function(){ toast('Could not save. Check the connection.', true); });
 }
 async function toggleOpt(key){
@@ -2612,6 +2704,7 @@ async function toggleOpt(key){
   var d = S.doc && S.doc.devices && S.doc.devices[S.devId];
   if (d){ d.emergency = d.emergency || {}; d.emergency[key] = val; }
   renderConfig();
+  pushConfig();
   await writeMine('emergency.' + key, val).catch(function(){ toast('Could not save.', true); });
 }
 
@@ -2694,6 +2787,9 @@ function onSnap(data){
   syncState('ok');
 
   ensureRegistered().then(function(){
+    // Keep the agent's copy of the config current, so the tray and the hotkeys
+    // act on what the user last configured even after the window is closed.
+    pushConfig();
     reconcile(prevGlobalV, prevOn);
     render();
   });
@@ -2758,6 +2854,13 @@ function enterProfile(p){
   }
 
   startHeartbeat();
+  wireAgentEvents();
+  // Adopt whatever the agent is actually enforcing, then pick up anything it
+  // closed from the tray while this page was shut.
+  syncAgentState()
+    .then(pullAgentHistory)
+    .then(function(){ render(); });
+
   go(lsGet('sh_view', 'home'));
   render();
 }
