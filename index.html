@@ -2643,7 +2643,7 @@ function Widget(props){
   var loToday=t0(dly.temperature_2m_min&&dly.temperature_2m_min[di]);
 
   // ── Compact bar — one condensed row, sized to sit level with the quote banner ──
-  var compact=h('button',{key:'c',type:'button',className:'thwx-compact',
+  var compact=h('button',{key:'c',type:'button',className:'thwx-compact','data-noglow':true,
       'aria-haspopup':'dialog','aria-expanded':open?'true':'false',
       'aria-label':'Weather — open full forecast',
       onClick:function(){setOpen(!open);}},
@@ -4026,7 +4026,7 @@ function Widget(props){
     :d?(charging?'Charging':(d.state||'Vehicle'))
     :(st.err?'Unavailable':'Connecting…');
 
-  var compact=h('button',{key:'c',type:'button',className:'thts-compact',
+  var compact=h('button',{key:'c',type:'button',className:'thts-compact','data-noglow':true,
       'aria-haspopup':'dialog','aria-expanded':open?'true':'false',
       'aria-label':'Tesla — open vehicle status',
       onClick:function(){setOpen(!open);}},

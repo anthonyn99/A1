@@ -432,10 +432,15 @@ async function gapiUpload(env, email, path, rawMime, meta = {}, method = 'POST')
     `--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n` +
     `--${bd}\r\nContent-Type: message/rfc822\r\n\r\n${rawMime}\r\n` +
     `--${bd}--\r\n`;
+  // Blob, not the bare string: a Blob has a known byte length, so the request
+  // goes out with Content-Length instead of chunked transfer-encoding. Google's
+  // upload endpoints are strict about that, and a chunked upload can sit there
+  // until the edge times out — which reaches the browser as a bare network
+  // error, not as something the UI can report.
   const r = await fetch(`${GMAIL_UPLOAD}${path}?uploadType=multipart`, {
     method,
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': `multipart/related; boundary=${bd}` },
-    body
+    body: new Blob([body])
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) {
@@ -1405,13 +1410,23 @@ function buildMime({ from, fromName, to, cc, bcc, subject, html, text, attachmen
   return raw;
 }
 
+// Which of the two send paths a message takes is decided by SIZE, not by
+// whether it has an attachment. The JSON path is the well-trodden one and is
+// what every plain message has always used; the only reason to leave it is that
+// base64-ing the MIME costs real CPU, and the budget is 10 ms per invocation:
+//
+//     35 KB MIME → 0.3 ms      500 KB → 3.6 ms
+//    250 KB MIME → 1.7 ms      2 MB   → 12 ms   ← over budget
+//
+// So anything that comfortably fits stays on the proven path — a 25 KB photo
+// included — and only genuinely big messages take the upload URI.
+const JSON_SEND_MAX = 800 * 1024;
+
 async function sendNow(env, p) {
   const acct = await getAccount(env, p.from);
   if (!acct) throw new Error('unknown sending account');
   const raw = buildMime({ ...p, fromName: acct.name });
-  // Plain text still takes the JSON path — its base64 pass costs microseconds,
-  // and that path is the better-trodden one. Attachments take the upload URI.
-  if (p.attachments && p.attachments.length) {
+  if (raw.length > JSON_SEND_MAX) {
     return gapiUpload(env, p.from, '/messages/send', raw, p.threadId ? { threadId: p.threadId } : {});
   }
   return gapi(env, p.from, '/messages/send', {
@@ -1537,9 +1552,8 @@ async function handleGmail(path, body, env, origin) {
   if (path === '/gmail/draft') {
     const acct = await getAccount(env, email);
     const mime = buildMime({ ...body, from: email, fromName: acct.name });
-    // Same split as sendNow: attachments go through the upload URI so the
-    // Worker never has to base64 megabytes of MIME.
-    if (body.attachments && body.attachments.length) {
+    // Same size split as sendNow.
+    if (mime.length > JSON_SEND_MAX) {
       const meta = body.threadId ? { message: { threadId: body.threadId } } : {};
       const d = body.draftId
         ? await gapiUpload(env, email, `/drafts/${body.draftId}`, mime, meta, 'PUT')
