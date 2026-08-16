@@ -3083,8 +3083,24 @@ async function editTarget(kind, tid){
 
 async function delTarget(kind, tid){
   if (isReadOnly()) return;
-  var list = targetsFor(kind, S.devId).filter(function(t){ return t.id !== tid; });
-  await saveTargets(kind, list);
+  var all = targetsFor(kind, S.devId);
+  var t = null;
+  for (var i = 0; i < all.length; i++) if (all[i].id === tid) t = all[i];
+  if (!t) return;
+
+  // Deletion is one click next to an edit pencil, and there is no undo — a
+  // trigger removed by a misclick is silently gone and only noticed when it
+  // stops firing. Cheap to confirm, expensive not to.
+  var where = kind === 'emergency' ? 'Emergency targets'
+            : (kind === 'trigger' ? 'the auto-close triggers' : 'Program Closer targets');
+  var ok = await window.uiConfirm(
+    'Remove "' + (t.label || (t.match && t.match.value) || 'this target') + '" from ' + where + '?\n\n'
+    + ((t.match && t.match.value) || ''),
+    { title:'Remove target', okLabel:'Remove', danger:true });
+  if (!ok) return;
+
+  await saveTargets(kind, all.filter(function(x){ return x.id !== tid; }));
+  toast('Removed.');
 }
 async function toggleHide(tid){
   var list = targetsFor('emergency', S.devId).map(function(t){
