@@ -145,7 +145,12 @@ body[data-gate="app"] #profile-overlay{display:none}
 #profile-overlay{
   position:fixed;inset:0;z-index:1000;background:var(--bg);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:34px;padding:24px;
+  gap:34px;
+  /* Full-screen overlays have to respect the cutout too. This one is centred,
+     so it usually clears the Dynamic Island by luck — but on a short screen in
+     landscape it did not. */
+  padding:calc(var(--safe-t) + 24px) calc(var(--safe-r) + 24px)
+          calc(var(--safe-b) + 24px) calc(var(--safe-l) + 24px);
 }
 .pf-mark{display:flex;flex-direction:column;align-items:center;gap:10px}
 .pf-mark svg{width:52px;height:52px}
@@ -196,7 +201,12 @@ body[data-gate="app"] #profile-overlay{display:none}
 .topbar{
   position:sticky;top:0;z-index:60;background:var(--bg);
   border-bottom:1px solid var(--bd);
-  padding:calc(var(--safe-t) + 9px) calc(14px + var(--safe-r)) 9px calc(14px + var(--safe-l));
+  /* The status-bar style is black-translucent, so the page renders UNDER the
+     Dynamic Island and `safe-area-inset-top` is what clears it (~59px on an
+     island iPhone, 0 in a desktop window). Only a small gap is added on top of
+     that — the inset already includes the island's own clearance, so anything
+     larger leaves a dead band under it rather than sitting right below. */
+  padding:calc(var(--safe-t) + 6px) calc(14px + var(--safe-r)) 9px calc(14px + var(--safe-l));
   display:flex;align-items:center;gap:10px;flex-wrap:wrap;
 }
 .brand{
@@ -217,11 +227,17 @@ body[data-gate="app"] #profile-overlay{display:none}
 .sync{font-size:9.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--txm);white-space:nowrap}
 .sync.ok{color:var(--grn)} .sync.err{color:var(--err)}
 
+/* NOTE: left/right were swapped here — safe-l was padding the right edge. On a
+   notched phone in landscape the nav slid under the cutout on one side only. */
 .nav{
-  display:flex;gap:6px;padding:10px calc(14px + var(--safe-l)) 0 calc(14px + var(--safe-r));
+  display:flex;gap:6px;padding:10px calc(14px + var(--safe-r)) 0 calc(14px + var(--safe-l));
   max-width:900px;margin:0 auto;overflow-x:auto;
 }
-.wrap{max-width:900px;margin:0 auto;padding:14px clamp(12px,3vw,24px) calc(var(--safe-b) + 48px)}
+.wrap{
+  max-width:900px;margin:0 auto;
+  padding:14px calc(clamp(12px,3vw,24px) + var(--safe-r))
+          calc(var(--safe-b) + 48px) calc(clamp(12px,3vw,24px) + var(--safe-l));
+}
 .view{display:none} .view.active{display:block}
 
 /* ── Buttons ───────────────────────────────────────────────────────────────
@@ -445,7 +461,8 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 #emg-screen.on{display:block}
 .emg-wrap{
   min-height:100%;max-width:520px;margin:0 auto;
-  padding:calc(var(--safe-t) + 34px) 22px calc(var(--safe-b) + 34px);
+  padding:calc(var(--safe-t) + 22px) calc(var(--safe-r) + 22px)
+          calc(var(--safe-b) + 34px) calc(var(--safe-l) + 22px);
   display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;
 }
 .emg-icon{line-height:0;color:var(--err)}
@@ -493,7 +510,7 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 #toast.bad{border-color:var(--errl);color:var(--err)}
 
 /* ── App Lock overlay ── lifted from vault.html:98-124, retokenised ────────── */
-#applock-overlay{position:fixed;inset:0;z-index:2147483000;background:var(--bg);display:none;align-items:center;justify-content:center;font-family:var(--sans);padding:20px}
+#applock-overlay{position:fixed;inset:0;z-index:2147483000;background:var(--bg);display:none;align-items:center;justify-content:center;font-family:var(--sans);padding:calc(var(--safe-t) + 20px) calc(var(--safe-r) + 20px) calc(var(--safe-b) + 20px) calc(var(--safe-l) + 20px);overflow-y:auto}
 #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:34px 30px 22px;background:var(--s1);border:1px solid var(--acl);border-radius:18px;width:350px;max-width:calc(100vw - 32px);box-shadow:0 32px 80px rgba(0,0,0,.7);position:relative}
 #applock-head{text-align:center;display:flex;flex-direction:column;gap:5px}
 #applock-form{width:100%;display:flex;flex-direction:column;gap:10px}
@@ -522,6 +539,83 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
   .pf-card{width:118px;height:136px}
   .pf-card .glyph{font-size:52px}
   .nav{padding-left:12px;padding-right:12px}
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TOUCH — phones and tablets
+   --------------------------------------------------------------------------
+   Keyed on `pointer: coarse` rather than a width, because a finger needs the
+   same room on a 6" phone and an 11" tablet, and a narrow desktop window needs
+   none of it. Two things here are correctness, not polish:
+
+     · 44px minimum on anything tappable. The icon buttons were ~25px and the
+       toggles 34x18 — fine for a cursor, a coin-toss for a thumb, and this is
+       an app people reach for in a hurry.
+     · 16px on every input. Below that iOS ZOOMS the page when a field takes
+       focus and leaves it zoomed — so tapping the passcode box during an
+       emergency threw the layout out and needed a pinch to recover.
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (pointer: coarse){
+  .btn{min-height:44px;padding:0 18px;font-size:11px}
+  /* "Small" is about visual weight, not hit area — a secondary button still
+     gets a thumb-sized target. */
+  .btn.sm{min-height:44px;padding:0 15px;font-size:10.5px}
+  .btn svg{width:16px;height:16px}
+  .iconbtn{min-width:44px;min-height:44px;padding:10px}
+  .iconbtn svg{width:19px;height:19px}
+  .pill{height:40px;padding:0 15px;font-size:11px}
+  .nav{gap:8px;padding-bottom:2px}
+
+  /* A bigger switch, and a bigger area around it to actually hit. */
+  .toggle{width:46px;height:26px;border-radius:13px}
+  .toggle i{width:20px;height:20px;top:3px;left:3px}
+  .toggle.on i{left:23px}
+  .tgt-opt{gap:10px}
+
+  input[type=text],input[type=password],select{font-size:16px;padding:12px 13px}
+  #applock-pw{font-size:17px;padding:16px}
+  #applock-submit{padding:16px 0;font-size:15px}
+  .uim-input{font-size:16px !important;padding:12px 13px !important}
+  #uim-btns button{min-height:44px;padding:0 18px !important}
+
+  /* Rows get more vertical room so neighbouring controls are not adjacent. */
+  .tgt,.dev{padding:12px 13px}
+  .opt{padding:13px 0}
+  .locklinks span,#applock-forgot,#applock-reset,#applock-cancel{padding:10px 0;display:inline-block}
+
+  /* Hover states are meaningless on touch and leave controls looking stuck
+     "lit" after a tap. */
+  .btn:hover{box-shadow:none}
+  .big:hover{box-shadow:none}
+  .kbd{display:none}   /* no keyboard, no point */
+}
+
+/* Long-press on chrome should not select text or raise the iOS callout. */
+.topbar,.nav,.big,.hold,.pill,.btn,.iconbtn,.toggle,.tgt-opt,.emg-actions{
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+}
+
+/* ── Tablet / wide: use the width instead of stretching one column ───────── */
+@media (min-width:760px){
+  .wrap{max-width:1000px}
+  /* Actions stay left and prominent; context moves alongside rather than
+     below, so nothing important needs scrolling to on a tablet. */
+  #v-home.two-col{
+    display:grid;grid-template-columns:minmax(320px,1.05fr) minmax(300px,1fr);
+    gap:0 26px;align-items:start;
+  }
+  #v-home.two-col > .qa{grid-column:1;margin-bottom:0}
+  #v-home.two-col > .sec{grid-column:2}
+  #v-home.two-col > .sec:first-of-type{margin-top:0}
+}
+
+/* ── Landscape phone: the takeover must not need scrolling ───────────────── */
+@media (max-height:520px){
+  .emg-wrap{padding-top:calc(var(--safe-t) + 14px);gap:10px}
+  .emg-title{font-size:clamp(28px,9vh,44px);letter-spacing:3px}
+  .emg-icon svg{width:32px;height:32px}
+  .big{padding:14px 16px}
+  .big .lbl{font-size:17px}
 }
 </style>
 </head>
@@ -2541,6 +2635,9 @@ function renderHome(){
   h += devs.map(function(d){ return devRowHtml(d, true); }).join('') || '<div class="empty">No devices registered yet.</div>';
   h += '</div>';
 
+  // Two-column only when there is something to put in the second column.
+  // A lone actions block beside empty space reads worse than one centred one.
+  $('v-home').className = 'view active' + ((last || devs.length > 1) ? ' two-col' : '');
   $('v-home').innerHTML = h;
 
   var cb = $('a-close'); if (cb) cb.onclick = actCloseApps;
@@ -2891,8 +2988,57 @@ function tabEmergency(id, ro){
   h += optHtml('lockWorkstation', !!cfg.lockWorkstation, 'Lock the workstation', 'Locks Windows itself right after closing. The most reliable thing Shield can do — and the fastest way to make a screen safe.', ro || !c.lockWorkstation);
   h += '</div></div>';
 
+  h += tabPhoneHandoff(id);
+
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">What this device can enforce</span></div><div class="card">'
     +  capsHtml(devRec(id)) + '</div></div>';
+  return h;
+}
+
+/* ── Phones and tablets: the closest thing that is actually possible ───────
+   A web app cannot hide, close or block another app on iOS or Android. There
+   is no API, and it is not a permission that can be requested — so Shield does
+   not pretend. What it CAN do is hand off in one tap to the OS features that
+   really do restrict apps, and be specific about the setup rather than waving
+   at "use Screen Time". */
+function tabPhoneHandoff(id){
+  var p = (devRec(id) && devRec(id).platform) || platform();
+  if (p !== 'ios' && p !== 'android') return '';
+  var mine = id === S.devId;
+
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">On this ' + (deviceType()==='tablet'?'tablet':'phone') + '</span></div><div class="card">';
+
+  if (p === 'ios'){
+    h += '<div class="opt"><div class="opt-main"><div class="opt-name">One-tap Focus / Downtime</div>'
+      +  '<div class="opt-sub">Shield cannot restrict other apps itself, but a Shortcut can. Make one called '
+      +  '<b>Shield Emergency</b> that turns on a Focus mode (or Screen Time Downtime), and this button runs it.</div></div>'
+      +  (mine ? '<a class="btn sm ac" href="shortcuts://run-shortcut?name=Shield%20Emergency">Run</a>' : '') + '</div>';
+    h += '<div class="hint" style="padding-top:10px">'
+      +  '<b>Setting it up, once:</b><br>'
+      +  '1. Shortcuts app → <b>+</b> → name it exactly <code>Shield Emergency</code><br>'
+      +  '2. Add action → <b>Set Focus</b> → choose a Focus that allows nothing you want hidden<br>'
+      +  '3. Optionally add <b>Set Screen Time</b> → Downtime on<br><br>'
+      +  'iOS asks for confirmation the first time a website runs a Shortcut. After that it is one tap. '
+      +  'Apps stay installed and visible — Focus greys them out and blocks notifications, which is as far as iOS lets '
+      +  'anything but Apple go.</div>';
+  } else {
+    h += '<div class="opt"><div class="opt-main"><div class="opt-name">Focus mode</div>'
+      +  '<div class="opt-sub">Android\'s own app blocker. Add its Quick Settings tile and it is one swipe from anywhere '
+      +  '— faster than opening Shield.</div></div></div>';
+    h += '<div class="hint" style="padding-top:10px">'
+      +  '<b>Setting it up, once:</b><br>'
+      +  '1. Settings → <b>Digital Wellbeing &amp; parental controls</b> → <b>Focus mode</b><br>'
+      +  '2. Tick the apps to block — Instagram, Discord, whatever matters<br>'
+      +  '3. Swipe down twice → pencil → drag <b>Focus mode</b> into your Quick Settings<br><br>'
+      +  'A blocked app is greyed out and its notifications are held. Android gives no way for another app to turn this '
+      +  'on for you, so it is a swipe rather than a button here.</div>';
+  }
+
+  h += '<div class="hint" style="padding-top:10px;border-top:1px solid var(--bd);margin-top:4px">'
+    +  '<b>What Shield does do here:</b> the EMERGENCY button re-locks every A1 app on this device instantly and offline, '
+    +  'and <b>Emergency — All My Devices</b> reaches your PC even with its browser closed. The limit is other people\'s '
+    +  'apps, not yours.</div>';
+  h += '</div></div>';
   return h;
 }
 
