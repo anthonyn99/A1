@@ -211,6 +211,10 @@ fn sh_enumerate() -> serde_json::Value {
 pub struct KillArgs {
     #[serde(default)]
     targets: Vec<Target>,
+    /// Report what would be closed without closing it. Nothing is recorded in
+    /// history either — a preview is not an action.
+    #[serde(default, rename = "dryRun")]
+    dry_run: bool,
 }
 
 /// Close the Program Closer targets.
@@ -219,6 +223,10 @@ pub struct KillArgs {
 /// is used, which is what the tray path relies on.
 #[tauri::command]
 fn sh_kill(app: AppHandle, args: KillArgs) -> serde_json::Value {
+    if args.dry_run {
+        let list = if args.targets.is_empty() { state::get().closer } else { args.targets };
+        return json!({ "dryRun": true, "results": proc::capture_and_kill_opt(&list, 0, true) });
+    }
     if !args.targets.is_empty() {
         state::update(|st| {
             st.closer = args.targets.iter().filter(|t| !proc::is_denied(&t.r#match.value)).cloned().collect();

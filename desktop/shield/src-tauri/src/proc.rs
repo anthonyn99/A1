@@ -41,6 +41,31 @@ pub fn is_denied(name: &str) -> bool {
     DENY.iter().any(|d| *d == n)
 }
 
+/// Folder targets that would sweep far more than any application.
+///
+/// The per-process deny-list above still applies to every match, so Windows
+/// itself is never at risk — but a folder target of `C:\Program Files` would
+/// still take out every ordinary application at once, which nobody means to
+/// configure. Refuse the roots outright and make the refusal visible.
+fn is_denied_folder(v: &str) -> bool {
+    let p = v
+        .trim()
+        .trim_end_matches(['\\', '/'])
+        .to_ascii_lowercase();
+    if p.is_empty() || p.len() <= 3 {
+        return true; // "", "c:", "c:\"
+    }
+    const ROOTS: &[&str] = &[
+        "c:\\windows",
+        "c:\\windows\\system32",
+        "c:\\program files",
+        "c:\\program files (x86)",
+        "c:\\programdata",
+        "c:\\users",
+    ];
+    ROOTS.iter().any(|r| p == *r)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Match {
     #[serde(rename = "type", default = "default_match_type")]
@@ -81,6 +106,25 @@ impl Target {
         let v = self.r#match.value.trim();
         if v.is_empty() {
             return false;
+        }
+        // A modern application is rarely one process. Riot is a launcher, six
+        // Electron windows and a crash handler across two directories; a browser
+        // is a parent and a renderer per tab. Naming a single executable closes
+        // one of them and leaves the window the user was actually looking at,
+        // which reads as "Shield did nothing". A folder target covers the whole
+        // install in one entry.
+        if self.r#match.kind == "folder" {
+            let base = v.trim_end_matches(['\\', '/']).to_ascii_lowercase();
+            if base.is_empty() {
+                return false;
+            }
+            let p = exe_path.to_ascii_lowercase();
+            if !p.starts_with(&base) {
+                return false;
+            }
+            // Require a separator so C:\Riot does not also match C:\RiotOther.
+            let rest = &p[base.len()..];
+            return rest.starts_with('\\') || rest.starts_with('/');
         }
         if self.r#match.kind == "path" {
             return exe_path.eq_ignore_ascii_case(v);
@@ -264,7 +308,11 @@ fn still_alive(pids: &[u32]) -> Vec<u32> {
 }
 
 /// The main path: capture the manifest, ask nicely, then force what is left.
-pub fn capture_and_kill(targets: &[Target], graceful_ms: u64) -> Vec<TargetResult> {
+///
+/// `dry_run` reports exactly what WOULD be closed, including the launch
+/// manifest, without sending a single message. That is how a folder target can
+/// be checked before it is trusted with an emergency.
+pub fn capture_and_kill_opt(targets: &[Target], graceful_ms: u64, dry_run: bool) -> Vec<TargetResult> {
     let s = sys();
     let mut results = Vec::new();
     let mut pending: HashMap<usize, Vec<u32>> = HashMap::new();
@@ -278,10 +326,16 @@ pub fn capture_and_kill(targets: &[Target], graceful_ms: u64) -> Vec<TargetResul
             });
             continue;
         }
-        if is_denied(&t.r#match.value) {
+        if is_denied(&t.r#match.value)
+            || (t.r#match.kind == "folder" && is_denied_folder(&t.r#match.value))
+        {
             results.push(TargetResult {
                 label, r#match: t.r#match.value.clone(), status: "denied".into(), count: 0,
-                error: "protected system process — Shield will not target this".into(),
+                error: if t.r#match.kind == "folder" {
+                    "too broad — pick the application's own folder, not a system root".into()
+                } else {
+                    "protected system process — Shield will not target this".into()
+                },
                 launch: vec![],
             });
             continue;
@@ -297,6 +351,13 @@ pub fn capture_and_kill(targets: &[Target], graceful_ms: u64) -> Vec<TargetResul
         let launch: Vec<LaunchItem> =
             found.iter().filter(|f| !f.launch.path.is_empty()).map(|f| f.launch.clone()).collect();
         let pids: Vec<u32> = found.iter().map(|f| f.pid.as_u32()).collect();
+        if dry_run {
+            results.push(TargetResult {
+                label, r#match: t.r#match.value.clone(), status: "wouldclose".into(),
+                count: pids.len() as u32, error: String::new(), launch,
+            });
+            continue;
+        }
         for pid in &pids {
             request_close(*pid);
         }
@@ -347,6 +408,10 @@ pub fn capture_and_kill(targets: &[Target], graceful_ms: u64) -> Vec<TargetResul
         }
     }
     results
+}
+
+pub fn capture_and_kill(targets: &[Target], graceful_ms: u64) -> Vec<TargetResult> {
+    capture_and_kill_opt(targets, graceful_ms, false)
 }
 
 /// Watchdog path: no manifest, no grace period, no reporting. Kill on sight.
@@ -413,6 +478,83 @@ mod tests {
         // file name rather than silently never firing.
         let p = t("exe", r"C:\Users\a\AppData\Discord.exe");
         assert!(p.matches("discord.exe", r"D:\somewhere\else\discord.exe"));
+    }
+
+    #[test]
+    fn folder_matching_covers_a_whole_install() {
+        // The case that prompted this: Riot is a launcher plus six Electron
+        // windows plus a crash handler, across two directories. One folder
+        // target has to reach all of them.
+        let f = t("folder", r"C:\Riot Games");
+        assert!(f.matches("RiotClientServices.exe", r"C:\Riot Games\Riot Client\RiotClientServices.exe"));
+        assert!(f.matches("Riot Client.exe", r"C:\Riot Games\Riot Client\RiotClientElectron\Riot Client.exe"));
+        assert!(f.matches("LeagueClient.exe", r"c:\riot games\League of Legends\LeagueClient.exe"));
+        // Outside the folder
+        assert!(!f.matches("vgtray.exe", r"C:\Program Files\Riot Vanguard\vgtray.exe"));
+    }
+
+    #[test]
+    fn a_folder_target_requires_a_separator_boundary() {
+        // C:\Riot must not also sweep C:\RiotOther.
+        let f = t("folder", r"C:\Riot");
+        assert!(f.matches("a.exe", r"C:\Riot\a.exe"));
+        assert!(!f.matches("b.exe", r"C:\RiotOther\b.exe"));
+    }
+
+    #[test]
+    fn a_trailing_separator_on_a_folder_is_harmless() {
+        let f = t("folder", r"C:\Riot Games\");
+        assert!(f.matches("a.exe", r"C:\Riot Games\Riot Client\a.exe"));
+    }
+
+    #[test]
+    fn system_roots_are_refused_as_folder_targets() {
+        // The per-process deny-list already protects Windows itself, but a
+        // folder target of C:\Program Files would still take out every ordinary
+        // application at once. Nobody configures that on purpose.
+        for root in [r"C:\Windows", r"c:\program files", r"C:\Program Files (x86)\", r"C:\Users", "C:\\", "c:"] {
+            assert!(is_denied_folder(root), "{root} should be refused");
+        }
+        assert!(!is_denied_folder(r"C:\Riot Games"));
+        assert!(!is_denied_folder(r"C:\Program Files\Riot Vanguard"));
+    }
+
+    #[test]
+    fn a_refused_folder_target_is_reported_not_silently_ignored() {
+        let r = capture_and_kill(&[t("folder", r"C:\Windows")], 0);
+        assert_eq!(r[0].status, "denied");
+        assert!(r[0].error.contains("too broad"));
+    }
+
+    #[test]
+    fn a_dry_run_reports_without_closing_anything() {
+        use std::process::Command;
+        let uniq = format!("shield_dryrun_{}_{}.exe", std::process::id(), now_ish());
+        let exe = std::env::temp_dir().join(&uniq);
+        if std::fs::copy(r"C:\Windows\System32\PING.EXE", &exe).is_err() {
+            return;
+        }
+        let mut child = Command::new(&exe).args(["-n", "600", "127.0.0.1"]).spawn().expect("spawn");
+        std::thread::sleep(Duration::from_millis(600));
+
+        let target = t("exe", &uniq);
+        let r = capture_and_kill_opt(&[target.clone()], 0, true);
+        assert_eq!(r[0].status, "wouldclose");
+        assert_eq!(r[0].count, 1);
+        assert_eq!(r[0].launch.len(), 1, "a preview still has to show what could be reopened");
+
+        // The whole point: it is still running.
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!find(&target, &sys()).is_empty(), "dry run killed the process");
+
+        let _ = child.kill();
+        let _ = child.wait();
+        capture_and_kill(&[target], 200);
+        std::thread::sleep(Duration::from_millis(300));
+        for _ in 0..10 {
+            if std::fs::remove_file(&exe).is_ok() || !exe.exists() { break; }
+            std::thread::sleep(Duration::from_millis(150));
+        }
     }
 
     #[test]
