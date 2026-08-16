@@ -99,7 +99,7 @@ pub fn record(
     results: &[TargetResult],
     hidden: &[HiddenItem],
 ) -> HistEntry {
-    let _g = LOCK.lock().unwrap();
+    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let e = HistEntry {
         id: id.to_string(),
         kind: kind.to_string(),
@@ -129,7 +129,7 @@ pub fn record(
 }
 
 pub fn mark_reverted(id: &str) {
-    let _g = LOCK.lock().unwrap();
+    let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut list = all();
     for e in list.iter_mut() {
         if e.id == id {

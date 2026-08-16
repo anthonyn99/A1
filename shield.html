@@ -175,6 +175,22 @@ body[data-gate="app"] #profile-overlay{display:none}
   font-size:8.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
   color:#d68a7c;
 }
+.pf-claim{
+  position:absolute;bottom:9px;left:9px;right:9px;text-align:center;
+  font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:#8d8d94;
+}
+/* A profile that does not own this device stays visible and clickable — it
+   leads to the release flow — but reads as unavailable rather than normal. */
+.pf-card.foreign{opacity:.42}
+.pf-card.foreign:hover{transform:none;box-shadow:none}
+.pf-star{
+  position:absolute;top:7px;left:9px;font-size:15px;line-height:1;
+  color:#5a5a61;cursor:pointer;transition:color .15s,transform .06s;
+}
+.pf-star:hover{transform:scale(1.15)}
+.pf-card.t .pf-star.on{color:#e0b874}
+.pf-card.v .pf-star.on{color:#8D769A}
 
 /* ══ SHELL ══════════════════════════════════════════════════════════════════ */
 .topbar{
@@ -248,6 +264,17 @@ body[data-gate="app"] #profile-overlay{display:none}
 .pill:hover{border-color:var(--ac)}
 .pill.on{background:var(--ac);color:var(--bg);border-color:var(--ac)}
 body[data-profile="tony"] .pill.on{background:transparent;color:var(--ac);box-shadow:inset 0 0 0 1px var(--acl),0 0 6px var(--acbg)}
+/* Configure's sub-tabs are a second level of navigation sitting directly under
+   the accent-coloured main nav. Painting both in the accent made the screen
+   read as two competing rows; neutral grey here keeps the hierarchy legible and
+   leaves the accent to mean "primary". */
+.pill.sub{color:var(--txd);border-color:var(--bd)}
+.pill.sub:hover{color:var(--tx);border-color:var(--bdl)}
+.pill.sub.on,
+body[data-profile="tony"] .pill.sub.on,
+body[data-profile="veda"] .pill.sub.on{
+  background:transparent;color:var(--tx);border-color:var(--txd);box-shadow:none;
+}
 
 input[type=text],input[type=password],select{
   width:100%;background:var(--s2);color:var(--tx);
@@ -256,6 +283,17 @@ input[type=text],input[type=password],select{
 }
 input:focus,select:focus{border-color:var(--acl)}
 input::placeholder{color:var(--txm)}
+/* Edge/WebView2 draws its own "reveal password" eye inside password fields, as
+   a solid BLACK glyph — invisible against every surface in this app. It cannot
+   be recoloured directly, so invert it to a light tone that matches the muted
+   text around it. Hiding it outright would cost a genuinely useful control. */
+input[type=password]::-ms-reveal,
+input[type=password]::-ms-clear{
+  filter:invert(1) brightness(1.6);
+  opacity:.5;cursor:pointer;transition:opacity .15s;
+}
+input[type=password]::-ms-reveal:hover,
+input[type=password]::-ms-clear:hover{opacity:.95}
 label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--txm);margin-bottom:5px}
 
 /* ── Cards / sections ─────────────────────────────────────────────────────── */
@@ -817,6 +855,32 @@ onSnapshot(AL_DOC, snap => {
   if (Date.now() - _alLastOwnSaveAt < 2000) return;   // our own echo
   if (snap.exists() && window._alApplyRemoteLocks) window._alApplyRemoteLocks((snap.data() || {}).locks || {});
 }, err => console.warn('[Shield] applock snapshot err', err));
+
+/* ── Local-launch links (dashboards/navorder) ────────────────────────────────
+   TaskHub's per-profile External Links list (tonyLinks/vedaLinks) can hold a
+   local file path instead of a URL — TaskHub runs in a plain browser tab with
+   no way to launch a program on this PC, so a button like that hands off to
+   this agent via the shieldopen:<id> protocol instead of opening a tab (see
+   index.html's _isLocalPath / _doOpen). This is what teaches the agent which
+   id maps to which path. Read-only and best-effort: no write barrier needed
+   (Shield never writes this doc), and a mapping that hasn't synced yet just
+   means that one button does nothing until it does. Regex MUST match
+   index.html's _isLocalPath exactly, or a button that TaskHub itself treats as
+   a local path silently does nothing here. */
+function isLocalPath(u){
+  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
+}
+onSnapshot(doc(db, 'dashboards/navorder'), snap => {
+  if (!snap.exists()) return;
+  var d = snap.data() || {};
+  var links = {};
+  (d.tonyLinks || []).concat(d.vedaLinks || []).forEach(l => {
+    if (l && l.id && isLocalPath(l.url)) links[l.id] = l.url;
+  });
+  if (window.SH && window.SH.Agent) {
+    window.SH.Agent.invoke('sh_set_links', { args: { links: links } }).catch(() => {});
+  }
+}, err => console.warn('[Shield] navorder snapshot err', err));
 
 authReady.then(() => {
   window._fbReady = true;
@@ -1848,9 +1912,65 @@ function syncHistory(){
 }
 
 /* ── Device registration + heartbeat ─────────────────────────────────────── */
+/* ── Device claim ─────────────────────────────────────────────────────────
+   A device belongs to exactly ONE profile. Without this, switching profiles on
+   a machine registered it under both, so T's device list and V's both showed
+   the same PC — and an "Emergency — all my devices" from either would reach it.
+
+   Two rules, and the second is structural rather than a check:
+     1. Once claimed, the other profile cannot register this device. Releasing
+        it requires the OWNER's passcode, so a device cannot be taken over by
+        someone who only knows the other profile's.
+     2. A device can only ever be claimed from the device itself. Every write
+        this app makes to a device record is scoped to `devices.<S.devId>` —
+        this page's own id — so there is no code path that creates a record for
+        a machine you are not sitting at. Revoking someone else's device is the
+        single exception, and that is deliberate. */
+function claimedBy(){ return lsGet('sh_claim', ''); }
+function setClaim(p){ lsSet('sh_claim', p); }
+function clearClaim(){ lsDel('sh_claim'); }
+
+async function releaseDevice(owner){
+  var ok = await window.uiConfirm(
+    'This device is claimed by profile ' + (owner === 'veda' ? 'V' : 'T') + '.\n\n'
+    + 'Releasing it removes it from that profile and lets the other one claim it. '
+    + 'Its configuration and close history on this device are cleared.',
+    { title:'Release this device', okLabel:'Release', danger:true });
+  if (!ok) return false;
+
+  // The OWNER's passcode, not the profile you are trying to switch to.
+  var id = owner + '_shield';
+  if (window.AL.isLocked(id)){
+    for (var i = 0; i < 3; i++){
+      var pw = await window.uiPrompt('Enter the passcode for profile ' + (owner==='veda'?'V':'T') + ' to release this device.',
+        { title:'Release this device', password:true, okLabel:'Release' });
+      if (pw === null || pw === undefined) return false;
+      var r = await window.AL.verifyNow(id, String(pw).trim());
+      if (r.ok) break;
+      if (i === 2) return false;
+      await window.uiAlert('Wrong password.');
+    }
+  }
+
+  // Retire the record in the owning profile's document, then drop local traces.
+  try {
+    if (window._shUpdate && window._shLoadOk){
+      var f = {}; f['devices.' + S.devId + '.revoked'] = true; f.savedAt = now();
+      await window._shUpdate(owner, f);
+    }
+  } catch(e){}
+  lsDel('sh_hist_' + owner + '_' + S.devId);
+  lsDel('sh_emg_' + owner);
+  clearClaim();
+  toast('Device released.');
+  return true;
+}
+
 function ensureRegistered(){
   var d = myDev();
   var c = caps();
+  // Never create a record under a profile that does not own this device.
+  if (!d && claimedBy() && claimedBy() !== S.profile) return Promise.resolve();
   if (!d){
     var rec = {
       name: defaultName(), platform: platform(), type: deviceType(),
@@ -1861,8 +1981,11 @@ function ensureRegistered(){
       optOutV: 0
     };
     var f = {}; f['devices.' + S.devId] = rec;
-    return write(f, true).catch(function(){});
+    return write(f, true).then(function(){ setClaim(S.profile); }).catch(function(){});
   }
+  // Already registered here — make the claim explicit for devices that
+  // registered before claiming existed.
+  if (!claimedBy()) setClaim(S.profile);
   // Refresh the things that legitimately change between sessions.
   var patch = {};
   if (!sameCaps(d.caps, c)) patch['devices.'+S.devId+'.caps'] = c;
@@ -2549,9 +2672,9 @@ function renderConfig(){
     +  '</div>';
 
   h += '<div class="nav" style="padding:0 0 14px;margin:0">'
-    +  '<button class="pill' + (S.tab==='closer'?' on':'') + '" data-tab="closer">Close Apps</button>'
-    +  '<button class="pill' + (S.tab==='emergency'?' on':'') + '" data-tab="emergency">Emergency</button>'
-    +  '<button class="pill' + (S.tab==='security'?' on':'') + '" data-tab="security">Security</button>'
+    +  '<button class="pill sub' + (S.tab==='closer'?' on':'') + '" data-tab="closer">Close Apps</button>'
+    +  '<button class="pill sub' + (S.tab==='emergency'?' on':'') + '" data-tab="emergency">Emergency</button>'
+    +  '<button class="pill sub' + (S.tab==='security'?' on':'') + '" data-tab="security">Security</button>'
     +  '</div>';
 
   h += '<div' + (ro?' class="ro"':'') + '>';
@@ -3083,6 +3206,7 @@ function goProfileSelect(){
   if (S.hbTimer){ clearInterval(S.hbTimer); S.hbTimer = null; }
   S.profile = null; S.doc = null; S.viewDev = null; S.report = null;
   S.lastSig = null; S.registered = false;
+  S._skipFav = true;   // deliberately leaving a profile: do not auto-re-enter it
   $('emg-screen').classList.remove('on');
   document.body.setAttribute('data-gate', 'boot');
   document.body.setAttribute('data-profile', 'tony');
@@ -3090,33 +3214,72 @@ function goProfileSelect(){
 }
 
 function renderProfileCards(){
+  var owner = claimedBy(), fav = favProfile();
   [['tony','pf-t'],['veda','pf-v']].forEach(function(pair){
     var p = pair[0], card = $(pair[1]);
     if (!card) return;
-    var old = card.querySelector('.pf-lock'); if (old) old.remove();
-    var oldE = card.querySelector('.pf-emg'); if (oldE) oldE.remove();
+    ['.pf-lock','.pf-emg','.pf-star','.pf-claim'].forEach(function(sel){
+      var el = card.querySelector(sel); if (el) el.remove();
+    });
+    card.classList.toggle('foreign', !!(owner && owner !== p));
+
     if (window.AL.isLocked(p + '_shield')){
       var s = document.createElement('span');
       s.className = 'pf-lock';
       s.innerHTML = window.AL.isUnlocked(p + '_shield') ? window.AL.ICON.unlock : window.AL.ICON.lock;
       card.appendChild(s);
     }
-    // Surface a live emergency on the chooser, so it is visible before you pick.
-    var le = jGet('sh_emg_' + p, null);
-    if (le && le.active){
-      var e = document.createElement('span');
-      e.className = 'pf-emg'; e.textContent = 'Locked down';
-      card.appendChild(e);
+
+    // Favourite star — click it without entering the profile.
+    var star = document.createElement('span');
+    star.className = 'pf-star' + (fav === p ? ' on' : '');
+    star.textContent = fav === p ? '★' : '☆';
+    star.title = fav === p ? 'Opens straight to this profile — click to unset' : 'Open Shield straight to this profile';
+    star.onclick = function(ev){ ev.stopPropagation(); toggleFav(p); };
+    card.appendChild(star);
+
+    if (owner && owner !== p){
+      var c = document.createElement('span');
+      c.className = 'pf-claim'; c.textContent = 'Claimed by ' + (owner==='veda'?'V':'T');
+      card.appendChild(c);
+    } else {
+      // Surface a live emergency on the chooser, visible before you pick.
+      var le = jGet('sh_emg_' + p, null);
+      if (le && le.active){
+        var e = document.createElement('span');
+        e.className = 'pf-emg'; e.textContent = 'Locked down';
+        card.appendChild(e);
+      }
     }
   });
 }
 
-function chooseProfile(p){
+async function chooseProfile(p){
+  var owner = claimedBy();
+  if (owner && owner !== p){
+    // Claimed by the other profile. Offer the release path rather than a flat
+    // refusal — but releasing costs the OWNER's passcode.
+    var released = await releaseDevice(owner);
+    renderProfileCards();
+    if (!released) return;
+  }
   themeFor(p);   // theme the lock screen to the profile being entered
   window.AL.gate(p + '_shield', function(){ enterProfile(p); }, function(){
     document.body.setAttribute('data-profile', 'tony');
     renderProfileCards();
   });
+}
+
+/* ── Favourite profile ────────────────────────────────────────────────────
+   Same idea as MyList's ml_fav_profile: mark one profile on this device and
+   Shield opens straight into it, which for an emergency tool is the difference
+   between one tap and two. Per device, never synced — the favourite is a
+   property of the machine, not the account. */
+function favProfile(){ return lsGet('sh_fav_profile', ''); }
+function toggleFav(p){
+  if (favProfile() === p) lsDel('sh_fav_profile');
+  else lsSet('sh_fav_profile', p);
+  renderProfileCards();
 }
 
 function boot(){
@@ -3141,6 +3304,15 @@ function boot(){
 
   document.body.setAttribute('data-gate', 'boot');
 
+  // Favourite profile: skip the chooser entirely. `_skipFav` is set by the
+  // profile-switch button, so switching profiles does not immediately bounce
+  // you back into the favourite.
+  var fav = favProfile();
+  if (fav && !S._skipFav && (!claimedBy() || claimedBy() === fav)){
+    chooseProfile(fav);
+    return;
+  }
+
   document.addEventListener('visibilitychange', function(){
     if (!document.hidden && S.profile) heartbeat();
   });
@@ -3163,7 +3335,11 @@ return {
   },
   onDeviceRelock: function(){ goProfileSelect(); },
   _state: S,
-  _caps: caps
+  _caps: caps,
+  // Exposed so the navorder listener (Firebase module script, loaded earlier
+  // in the page) can push local-link paths into the agent without duplicating
+  // the __TAURI__ presence check Agent already does.
+  Agent: Agent
 };
 })();
 </script>

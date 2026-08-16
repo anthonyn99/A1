@@ -24,6 +24,7 @@ const COMMANDS: &[&str] = &[
     "sh_emergency_on",
     "sh_emergency_off",
     "sh_launch",
+    "sh_set_links",
     "sh_restore_icons",
     "sh_pull_history",
     "sh_lock_workstation",

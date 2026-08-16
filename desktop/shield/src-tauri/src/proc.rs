@@ -818,6 +818,30 @@ mod tests {
     }
 }
 
+/// Open a local file path the way double-clicking it in Explorer would.
+///
+/// Used for TaskHub's local-link buttons (`shieldopen:<id>`, see `main::
+/// open_from_link`), which just as often point at a desktop shortcut (.lnk) or
+/// a document as at an .exe. `Command::new(path).spawn()` only covers the last
+/// of those — CreateProcess cannot run a shortcut or a document directly. `cmd
+/// /C start` invokes the shell's own "open" verb, which resolves all three.
+pub fn open_path(path: &str) -> Result<(), String> {
+    use std::process::Command;
+    if path.trim().is_empty() {
+        return Err("empty path".into());
+    }
+    if !std::path::Path::new(path).exists() {
+        return Err("notfound".into());
+    }
+    // The empty "" argument is `start`'s window-title slot — required whenever
+    // the target path itself is quoted, or `start` treats the path as the title
+    // instead and opens nothing.
+    match Command::new("cmd").args(["/C", "start", "", path]).spawn() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(classify(&e.to_string())),
+    }
+}
+
 /// Reopen from a captured manifest.
 pub fn launch(items: &[(String, Vec<LaunchItem>)]) -> Vec<LaunchResult> {
     use std::process::Command;

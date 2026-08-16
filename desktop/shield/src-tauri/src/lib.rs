@@ -310,6 +310,22 @@ fn sh_launch(args: LaunchArgs) -> serde_json::Value {
     json!({ "results": results })
 }
 
+#[derive(Deserialize)]
+pub struct SetLinksArgs {
+    #[serde(default)]
+    links: std::collections::HashMap<String, String>,
+}
+
+/// shield.html pushes this down whenever TaskHub's navorder doc changes,
+/// filtered to just the External Link buttons whose "url" is actually a local
+/// path (see shield.html's navorder listener). Replaces the whole map — it is
+/// a derived mirror of Firestore, not something built up incrementally here.
+#[tauri::command]
+fn sh_set_links(args: SetLinksArgs) -> serde_json::Value {
+    state::update(|st| st.local_links = args.links);
+    json!({ "ok": true })
+}
+
 #[tauri::command]
 fn sh_restore_icons(args: serde_json::Value) -> serde_json::Value {
     let id = args.get("entryId").and_then(|v| v.as_str()).unwrap_or("");
@@ -327,6 +343,24 @@ fn sh_pull_history(args: serde_json::Value) -> serde_json::Value {
 fn sh_lock_workstation() -> serde_json::Value {
     lock_workstation();
     json!({ "ok": true })
+}
+
+/// Resolve one `shieldopen:<id>` deep link against the synced local-links map
+/// and open it.
+///
+/// The id is opaque by design (see `state::AgentState::local_links`): an id
+/// this agent has never been told about — Shield never installed, navorder
+/// hasn't synced yet, or the link came from somewhere other than TaskHub —
+/// resolves to nothing and silently does nothing, the same failure mode as any
+/// other unrecognised custom-protocol link.
+fn open_from_link(url: &url::Url) {
+    let id = url.path();
+    if id.is_empty() {
+        return;
+    }
+    if let Some(path) = state::get().local_links.get(id) {
+        let _ = proc::open_path(path);
+    }
 }
 
 // ── tray + hotkeys ──────────────────────────────────────────────────────────
@@ -419,6 +453,23 @@ pub fn run() {
     let hk_emg = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyL);
     let (hk_close_h, hk_emg_h) = (hk_close.clone(), hk_emg.clone());
 
+    // A release build has no console (windows_subsystem = "windows"), so a panic
+    // message goes nowhere and the only symptom is the tray icon disappearing.
+    // Append them to a file instead — "Shield randomly closed" is unfixable
+    // without evidence, and this is the evidence.
+    std::panic::set_hook(Box::new(|info| {
+        use std::io::Write;
+        let dir = shortcuts::shield_dir();
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.join("panic.log"))
+        {
+            let _ = writeln!(f, "[{}] {}", state::now_ms(), info);
+        }
+    }));
+
     tauri::Builder::default()
         // MUST be registered first. Shield starts at logon and can also be
         // launched by hand, and two agents is not a cosmetic problem: two tray
@@ -428,6 +479,12 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_window(app);
         }))
+        // shieldopen:<id> links from TaskHub. On Windows a second instance is
+        // what actually receives the link (see the single-instance plugin's
+        // "deep-link" feature above) — this plugin is what turns that back into
+        // an on_open_url event in the ALREADY-RUNNING agent instead of a second
+        // tray icon.
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -450,13 +507,41 @@ pub fn run() {
         .manage(Ctx { wd: Watchdog::new() })
         .invoke_handler(tauri::generate_handler![
             sh_status, sh_set_config, sh_enumerate, sh_kill,
-            sh_emergency_on, sh_emergency_off, sh_launch,
+            sh_emergency_on, sh_emergency_off, sh_launch, sh_set_links,
             sh_restore_icons, sh_pull_history, sh_lock_workstation
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
             let s = state::load();
             build_tray(&handle)?;
+
+            {
+                // Registration writes to HKCU (per-user, no admin needed — matches
+                // the NSIS installer's "currentUser" install mode) and is cheap to
+                // repeat, so just do it on every launch rather than tracking
+                // whether it already ran. Failing here (e.g. sandboxed install)
+                // only means local-link buttons don't work; nothing else depends
+                // on it.
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(e) = handle.deep_link().register("shieldopen") {
+                    eprintln!("[shield] shieldopen: registration failed: {e}");
+                }
+                // Subsequent links: TaskHub is already open somewhere, this agent
+                // is already running, and the OS hands the new link straight back
+                // in via the single-instance forwarding wired up above.
+                handle.deep_link().on_open_url(|event| {
+                    for url in event.urls() {
+                        open_from_link(&url);
+                    }
+                });
+                // Cold start via the link itself — Shield was not running yet and
+                // the OS launched it to handle a shieldopen: click directly.
+                if let Ok(Some(urls)) = handle.deep_link().get_current() {
+                    for url in urls {
+                        open_from_link(&url);
+                    }
+                }
+            }
 
             {
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;

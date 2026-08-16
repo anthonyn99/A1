@@ -100,6 +100,24 @@ check(
   registered.every((r) => capPerms.includes(kebab(r))),
   registered.filter((r) => !capPerms.includes(kebab(r))).map(kebab).join(', ')
 );
+// ...and the reverse. A permission naming a command that was never written is
+// a HARD BUILD FAILURE from tauri-build ("Permission allow-x not found"), and
+// the error arrives buried under a 3000-character list of every valid
+// permission in the framework. Catching it here names the culprit in one line.
+const appPerms = capPerms.filter((p) => p.startsWith('allow-sh-'));
+check(
+  'the capability grants no allow-* for a command that does not exist',
+  appPerms.every((p) => registered.some((r) => kebab(r) === p)),
+  appPerms.filter((p) => !registered.some((r) => kebab(r) === p)).join(', ')
+);
+
+// Plugins declared in Cargo.toml but never initialised in lib.rs are dead
+// weight at best; a declared URL scheme that nothing handles is a feature that
+// silently does nothing.
+const cargo = fs.readFileSync(path.join(AG, 'src-tauri', 'Cargo.toml'), 'utf8');
+const plugins = [...cargo.matchAll(/^tauri-plugin-([a-z-]+)\s*=/gm)].map((m) => m[1]);
+const uninit = plugins.filter((p) => !lib.includes('tauri_plugin_' + p.replace(/-/g, '_') + '::'));
+check('every tauri plugin in Cargo.toml is initialised in lib.rs', uninit.length === 0, uninit.join(', '));
 // A single /* does not match a nested path like /A1/shield.html. Without /**
 // the IPC is never injected and window.__TAURI__ is simply absent.
 check(

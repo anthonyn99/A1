@@ -117,6 +117,15 @@ human at a real desktop:
    why `shortcut_dirs()` covers both locations.
 4. **Tray and hotkeys with no window open**, and the boot re-arm after a restart
    during an active lockdown.
+5. **`shieldopen:` local-link buttons.** TaskHub's Settings → External Links
+   accepts a local file path (e.g. `C:\Apps\Foo.exe` or a `.lnk`) instead of a
+   URL; clicking it there navigates to `shieldopen:<id>`, and this agent is
+   meant to resolve that id (via the map `sh_set_links` synced down from
+   `dashboards/navorder`) and open the path with the shell's own "open" verb.
+   `tauri-plugin-deep-link`'s Windows registration (`register("shieldopen")`,
+   called every launch, writes to `HKCU\Software\Classes`) has not yet been
+   watched actually firing end-to-end on a real desktop — register → click a
+   local-path button in a browser → agent launches the target.
 
 Version notes, since two of these already bit once: `sysinfo` 0.32 returns
 `&OsStr` from `Process::name()`/`cmd()` (older versions returned `&str`), and
@@ -136,6 +145,7 @@ Version notes, since two of these already bit once: `sysinfo` 0.32 returns
 | `sh_emergency_on` | the above, plus hide shortcuts, start watchdog, optional lock |
 | `sh_emergency_off` | stop watchdog, restore shortcuts |
 | `sh_launch` | reopen from a captured manifest |
+| `sh_set_links` | mirrors TaskHub's local-path External Link buttons (id → path), pushed down by shield.html's own `dashboards/navorder` listener — resolved when a `shieldopen:<id>` link arrives |
 | `sh_restore_icons` | put one entry's shortcuts back |
 | `sh_pull_history` | entries the agent recorded while the page was closed |
 | `sh_lock_workstation` | `LockWorkStation` |

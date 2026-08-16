@@ -27,6 +27,13 @@
       "capabilities": ["default"]
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["shieldopen"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],

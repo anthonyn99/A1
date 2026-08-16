@@ -45,7 +45,7 @@ impl Watchdog {
     }
 
     pub fn start(&self, targets: Vec<Target>) {
-        *self.targets.lock().unwrap() = targets;
+        *self.targets.lock().unwrap_or_else(|e| e.into_inner()) = targets;
         // Already running: swapping the target list above is enough, and
         // starting a second thread would double the kill rate for no gain.
         if self.running.swap(true, Ordering::SeqCst) {
@@ -55,7 +55,7 @@ impl Watchdog {
         let list = self.targets.clone();
         thread::spawn(move || {
             while running.load(Ordering::SeqCst) {
-                let snapshot = list.lock().unwrap().clone();
+                let snapshot = list.lock().unwrap_or_else(|e| e.into_inner()).clone();
                 if !snapshot.is_empty() {
                     proc::kill_on_sight(&snapshot);
                 }
@@ -66,6 +66,6 @@ impl Watchdog {
 
     pub fn stop(&self) {
         self.running.store(false, Ordering::SeqCst);
-        self.targets.lock().unwrap().clear();
+        self.targets.lock().unwrap_or_else(|e| e.into_inner()).clear();
     }
 }

@@ -41618,6 +41618,14 @@ try {
 } catch(e) {}
 function _ck(id){ return 'custom:' + id; }
 function _isCustom(app){ return typeof app === 'string' && app.indexOf('custom:') === 0; }
+// A local Windows path (C:\..., C:/... or a \\server\share UNC path) rather
+// than a URL. TaskHub runs in a plain browser tab, which cannot launch a
+// program on this PC — so a button whose url is one of these hands off to the
+// Shield desktop agent instead of opening a tab (see _doOpen below). Must stay
+// in sync with shield.html's own copy of this same check.
+function _isLocalPath(u){
+  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
+}
 function _linksFor(p){ return p === 'tony' ? tonyLinks : vedaLinks; }
 function linkById(p, id){ var a = _linksFor(p); for (var i=0;i<a.length;i++){ if(a[i].id===id) return a[i]; } return null; }
 function persistLinks(){ try { localStorage.setItem('td6_navlinks', JSON.stringify({ tony: tonyLinks, veda: vedaLinks })); } catch(e){} }
@@ -41738,6 +41746,18 @@ function openLink(p, id){
 // and Veda's links never share one). Clicking a link whose tab is already open
 // focuses that tab instead of opening a duplicate — see _tnOpenTab above.
 function _doOpen(l, p){
+  if (_isLocalPath(l.url)){
+    // Hand off to the Shield desktop agent's shieldopen: protocol rather than
+    // trying to open (or download) the path as a browser tab. The real path
+    // never travels in the link — only this button's opaque id — because
+    // Shield resolves it against the mapping it already synced from this same
+    // External Links list (see shield.html's navorder listener), not from
+    // whatever the link claims. Fire-and-forget: if Shield isn't installed or
+    // running here, or its sync hasn't caught up yet, nothing visibly happens,
+    // the same as clicking any other unrecognised custom-protocol link.
+    try { location.href = 'shieldopen:' + encodeURIComponent(l.id); } catch(e){}
+    return;
+  }
   var w = null;
   try { w = window._tnOpenTab(l.url, 'link_' + (p || 'tony') + '_' + l.id); } catch(e){}
   if (!w) {
@@ -42961,7 +42981,13 @@ function startEdit(row,profile,l){
 
 function normalizeUrl(u){
   if(!u) return '';
-  if(/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u)) return u;     // already has a scheme
+  if(/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u)) return u;     // already has a scheme (this also
+                                                          // covers a C:\ local path — "C" reads
+                                                          // as the scheme, which is exactly the
+                                                          // form _isLocalPath expects)
+  if(/^\\\\/.test(u)) return u;                          // \\server\share UNC path — leave as-is,
+                                                          // prepending https:// would hide it from
+                                                          // _isLocalPath and send it to a browser tab
   if(u.indexOf('/')===0) return u;                       // site-relative path
   return 'https://'+u;                                   // bare domain
 }

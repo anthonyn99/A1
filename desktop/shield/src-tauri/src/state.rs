@@ -9,6 +9,7 @@
 //! what makes the tray menu and the global hotkeys work with no window open and
 //! no internet — the case Shield actually exists for.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -64,9 +65,31 @@ pub struct AgentState {
     /// History entry this lockdown belongs to, so its stash can be restored.
     #[serde(default)]
     pub entry_id: String,
+
+    /// Custom External Link button id → local file path, mirrored down from
+    /// TaskHub's `dashboards/navorder` by shield.html (see its navorder
+    /// listener). TaskHub runs in a plain browser tab with no way to launch a
+    /// program on this PC itself, so a button whose "url" is actually a local
+    /// path hands off to this agent via the `shieldopen:<id>` protocol instead
+    /// of opening a tab — see `main::open_from_link`. The id is opaque on
+    /// purpose: the real path never travels in the link, so a page that merely
+    /// knows the scheme name cannot make Shield launch an arbitrary path, only
+    /// one the user already put in their own Settings.
+    #[serde(default)]
+    pub local_links: HashMap<String, String>,
 }
 
 pub static STATE: Mutex<Option<AgentState>> = Mutex::new(None);
+
+/// Lock the state, tolerating poisoning.
+///
+/// A poisoned mutex only means some other thread panicked while holding it —
+/// the data behind it is still structurally valid. `.unwrap()` would turn one
+/// transient panic into an agent that panics on every subsequent access, which
+/// is how a single fault becomes "Shield keeps closing".
+fn lock() -> std::sync::MutexGuard<'static, Option<AgentState>> {
+    STATE.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 pub fn load() -> AgentState {
     let s = fs::read_to_string(state_path())
@@ -78,16 +101,16 @@ pub fn load() -> AgentState {
         // for. The cost is that a lockdown could be forgotten across a crash,
         // and that is the right way round for this trade.
         .unwrap_or_default();
-    *STATE.lock().unwrap() = Some(s.clone());
+    *lock() = Some(s.clone());
     s
 }
 
 pub fn get() -> AgentState {
-    STATE.lock().unwrap().clone().unwrap_or_default()
+    lock().clone().unwrap_or_default()
 }
 
 pub fn update<F: FnOnce(&mut AgentState)>(f: F) -> AgentState {
-    let mut guard = STATE.lock().unwrap();
+    let mut guard = lock();
     let mut s = guard.clone().unwrap_or_default();
     f(&mut s);
     *guard = Some(s.clone());

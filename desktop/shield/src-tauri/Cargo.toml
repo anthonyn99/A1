@@ -19,7 +19,15 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon", "image-ico"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-autostart = "2"
-tauri-plugin-single-instance = "2"
+# "deep-link" feature: a second `shieldopen:` launch (from TaskHub, in a
+# browser tab) must hand its URL to the ALREADY-RUNNING agent, not spawn a
+# competing one. Without this feature the single-instance plugin still
+# forwards argv, but the deep-link plugin's on_open_url never fires for it.
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-deep-link = "2"
+# Only for the Url type the deep-link plugin hands back (it takes the crate as
+# a dependency but does not re-export it) — not used for any HTTP of our own.
+url = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sysinfo = "0.32"
@@ -40,4 +48,11 @@ opt-level = "s"
 lto = true
 codegen-units = 1
 strip = true
-panic = "abort"
+# NOT panic = "abort", deliberately.
+#
+# With abort, a panic anywhere — including in the watchdog's background thread,
+# or in a command handler — terminates the entire process instantly and without
+# a message. On a tray app that is indistinguishable from "Shield randomly
+# closed", and if it happened during a lockdown it would silently stop
+# enforcing. Unwinding lets a thread die on its own without taking the agent
+# with it. The binary is a few hundred KB larger; that is a fine trade.

@@ -25,6 +25,7 @@
     "allow-sh-emergency-on",
     "allow-sh-emergency-off",
     "allow-sh-launch",
+    "allow-sh-set-links",
     "allow-sh-restore-icons",
     "allow-sh-pull-history",
     "allow-sh-lock-workstation"
