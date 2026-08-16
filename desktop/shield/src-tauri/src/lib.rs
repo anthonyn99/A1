@@ -37,6 +37,21 @@ const GRACEFUL_MS: u64 = 1500;
 /// remote.urls. tests/agent-contract.test.js checks all three agree.
 const PAGE_URL: &str = "https://anthonyn99.github.io/A1/shield.html";
 
+/// Human labels for the global hotkeys, defined next to the keys they describe
+/// so the two cannot drift apart. The UI shows these rather than hardcoding its
+/// own copy.
+const HK_CLOSE_LABEL: &str = "Ctrl+Shift+X";
+const HK_EMG_LABEL: &str = "Ctrl+Shift+L";
+
+/// Whether each hotkey actually registered.
+///
+/// Windows refuses a combination another application already owns, and Shield
+/// carries on without it — so a label must only ever be shown for a key that
+/// really works. Advertising a shortcut that does nothing is worse than
+/// advertising none.
+static HK_CLOSE_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static HK_EMG_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 pub struct Ctx {
     pub wd: Watchdog,
     pub triggers: Triggers,
@@ -232,7 +247,13 @@ fn sh_status(ctx: State<'_, Ctx>) -> serde_json::Value {
         "emergency": { "active": s.emergency_active, "at": s.emergency_at,
                        "source": s.emergency_source, "entryId": s.entry_id },
         "watchdog": ctx.wd.is_running(),
-        "targets": { "closer": s.closer.len(), "emergency": s.emergency.targets.len() },
+        // null for a key Windows refused, so the UI can stay quiet about it.
+        "hotkeys": {
+            "close": if HK_CLOSE_OK.load(std::sync::atomic::Ordering::SeqCst) { Some(HK_CLOSE_LABEL) } else { None },
+            "emergency": if HK_EMG_OK.load(std::sync::atomic::Ordering::SeqCst) { Some(HK_EMG_LABEL) } else { None },
+        },
+        "targets": { "closer": s.closer.len(), "emergency": s.emergency.targets.len(),
+                     "triggers": s.triggers.len() },
         "caps": {
             "kill": true, "watchdog": true, "hideIcons": true,
             "lockWorkstation": true, "tray": true, "launch": true
@@ -603,11 +624,20 @@ pub fn run() {
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;
                 // A hotkey another app already owns is a warning, not a reason to
                 // refuse to start — the tray still works.
-                if let Err(e) = handle.global_shortcut().register(hk_close) {
-                    eprintln!("[shield] Ctrl+Shift+X unavailable: {e}");
+                use std::sync::atomic::Ordering;
+                match handle.global_shortcut().register(hk_close) {
+                    Ok(()) => HK_CLOSE_OK.store(true, Ordering::SeqCst),
+                    Err(e) => {
+                        eprintln!("[shield] {HK_CLOSE_LABEL} unavailable: {e}");
+                        log_event("hotkey-unavailable", HK_CLOSE_LABEL);
+                    }
                 }
-                if let Err(e) = handle.global_shortcut().register(hk_emg) {
-                    eprintln!("[shield] Ctrl+Shift+L unavailable: {e}");
+                match handle.global_shortcut().register(hk_emg) {
+                    Ok(()) => HK_EMG_OK.store(true, Ordering::SeqCst),
+                    Err(e) => {
+                        eprintln!("[shield] {HK_EMG_LABEL} unavailable: {e}");
+                        log_event("hotkey-unavailable", HK_EMG_LABEL);
+                    }
                 }
             }
 

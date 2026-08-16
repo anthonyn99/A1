@@ -24,7 +24,73 @@ use crate::proc::Target;
 pub struct HiddenItem {
     pub label: String,
     pub from: String,
+    /// Where it was moved to. Empty when the shortcut never moved.
+    #[serde(default)]
     pub to: String,
+    /// "attr" — hidden in place by file attribute, position preserved.
+    /// "move" — relocated to the stash.
+    /// Absent in manifests written before this existed; those were all moves.
+    #[serde(default = "default_method")]
+    pub method: String,
+}
+fn default_method() -> String {
+    "move".into()
+}
+
+/// Would hiding a file by attribute actually hide it from this user?
+///
+/// Only if Explorer is not set to show hidden files. Shield sets Hidden AND
+/// System, so it takes BOTH "Show hidden files" and "Hide protected operating
+/// system files" being switched off to see through it — but if someone has done
+/// exactly that, the attribute is decoration and Shield must move the file
+/// instead. Guessing wrong here means an icon that visibly stays put during an
+/// emergency.
+fn attribute_hiding_works() -> bool {
+    const ADV: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";
+    let shows_hidden = reg_dword(ADV, "Hidden") == Some(1);
+    let shows_system = reg_dword(ADV, "ShowSuperHidden") == Some(1);
+    !(shows_hidden && shows_system)
+}
+
+fn reg_dword(subkey: &str, name: &str) -> Option<u32> {
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
+    let sub: Vec<u16> = subkey.encode_utf16().chain(std::iter::once(0)).collect();
+    let nam: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+    let mut data: u32 = 0;
+    let mut size: u32 = 4;
+    unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            PCWSTR(sub.as_ptr()),
+            PCWSTR(nam.as_ptr()),
+            RRF_RT_REG_DWORD,
+            None,
+            Some(&mut data as *mut u32 as *mut _),
+            Some(&mut size),
+        )
+        .is_ok()
+        .then_some(data)
+    }
+}
+
+fn set_hidden(path: &Path, hidden: bool) -> bool {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::{
+        GetFileAttributesW, SetFileAttributesW, FILE_ATTRIBUTE_HIDDEN, FILE_ATTRIBUTE_SYSTEM,
+        FILE_FLAGS_AND_ATTRIBUTES, INVALID_FILE_ATTRIBUTES,
+    };
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    unsafe {
+        let cur = GetFileAttributesW(PCWSTR(wide.as_ptr()));
+        if cur == INVALID_FILE_ATTRIBUTES {
+            return false;
+        }
+        let mask = FILE_ATTRIBUTE_HIDDEN.0 | FILE_ATTRIBUTE_SYSTEM.0;
+        let next = if hidden { cur | mask } else { cur & !mask };
+        SetFileAttributesW(PCWSTR(wide.as_ptr()), FILE_FLAGS_AND_ATTRIBUTES(next)).is_ok()
+    }
 }
 
 pub fn shield_dir() -> PathBuf {
@@ -206,6 +272,7 @@ pub fn hide(entry_id: &str, targets: &[Target]) -> Vec<HiddenItem> {
 
     let mut hidden: Vec<HiddenItem> = Vec::new();
     let mut touched: Vec<PathBuf> = Vec::new();
+    let use_attr = attribute_hiding_works();
 
     for lnk in all_shortcuts() {
         let stem = lnk.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
@@ -233,18 +300,46 @@ pub fn hide(entry_id: &str, targets: &[Target]) -> Vec<HiddenItem> {
         });
 
         let Some(t) = matched else { continue };
-        let name = lnk.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-        let dst = unique_dest(&dir, &name);
-        if fs::rename(&lnk, &dst).is_ok() {
+        let note_dir = |touched: &mut Vec<PathBuf>| {
             if let Some(parent) = lnk.parent() {
                 if !touched.iter().any(|p| p == parent) {
                     touched.push(parent.to_path_buf());
                 }
             }
+        };
+
+        // Hide IN PLACE where possible.
+        //
+        // Moving the file away and back loses the icon's position: Explorer
+        // stores desktop layout per file, and a file that disappears and
+        // returns is laid out again in the first free slot. Setting the hidden
+        // attribute leaves the file exactly where it is, so the icon returns to
+        // the same square it left. It is also atomic, which removes the risk of
+        // a crash mid-move stranding a shortcut in the stash.
+        if use_attr && set_hidden(&lnk, true) {
+            note_dir(&mut touched);
+            hidden.push(HiddenItem {
+                label: t.display(),
+                from: lnk.to_string_lossy().to_string(),
+                to: String::new(),
+                method: "attr".into(),
+            });
+            continue;
+        }
+
+        // Fallback: this user has Explorer showing hidden AND system files, so
+        // the attribute would hide nothing. Move it instead and accept that the
+        // icon comes back in a different spot — visible-but-tidy is not what
+        // Emergency Mode is for.
+        let name = lnk.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let dst = unique_dest(&dir, &name);
+        if fs::rename(&lnk, &dst).is_ok() {
+            note_dir(&mut touched);
             hidden.push(HiddenItem {
                 label: t.display(),
                 from: lnk.to_string_lossy().to_string(),
                 to: dst.to_string_lossy().to_string(),
+                method: "move".into(),
             });
         }
     }
@@ -269,16 +364,29 @@ pub fn restore(entry_id: &str) -> usize {
     let mut n = 0;
     let mut touched: Vec<PathBuf> = Vec::new();
     for it in &items {
+        let orig = Path::new(&it.from);
+        if let Some(parent) = orig.parent() {
+            if !touched.iter().any(|p| p == parent) {
+                touched.push(parent.to_path_buf());
+            }
+        }
+
+        // Hidden in place: just clear the attribute. The file never moved, so
+        // the icon reappears in exactly the square it occupied.
+        if it.method == "attr" {
+            if orig.exists() && set_hidden(orig, false) {
+                n += 1;
+            }
+            continue;
+        }
+
         let from = Path::new(&it.to);
-        let to = Path::new(&it.from);
+        let to = orig;
         if !from.exists() {
             continue;
         }
         if let Some(parent) = to.parent() {
             let _ = fs::create_dir_all(parent);
-            if !touched.iter().any(|p| p == parent) {
-                touched.push(parent.to_path_buf());
-            }
         }
         // If something has since re-created the shortcut, drop ours rather than
         // leaving a duplicate on the desktop.
@@ -365,6 +473,69 @@ mod tests {
         assert!(t.matches("CapCut.exe", r"C:\Users\a\AppData\Local\CapCut\CapCut.exe"));
         // A shortcut to something else in the same folder is left alone.
         assert!(!t.matches("CapCutUpdater.exe", r"C:\Users\a\AppData\Local\CapCut\CapCutUpdater.exe"));
+    }
+
+    /// Hiding must not move the file.
+    ///
+    /// This is the whole reason for the attribute approach: Explorer lays out
+    /// the desktop per file, so a shortcut that disappears and comes back is
+    /// placed in the first free slot rather than its own. A file that never
+    /// moves keeps its square. The test asserts the file is still at its
+    /// original path while hidden, and that the attributes round-trip.
+    #[test]
+    fn hiding_in_place_never_moves_the_file() {
+        use std::os::windows::ffi::OsStrExt;
+        use windows::core::PCWSTR;
+        use windows::Win32::Storage::FileSystem::{
+            GetFileAttributesW, FILE_ATTRIBUTE_HIDDEN, INVALID_FILE_ATTRIBUTES,
+        };
+
+        let p = std::env::temp_dir().join(format!("shield_attr_{}.lnk", std::process::id()));
+        if std::fs::write(&p, b"x").is_err() {
+            return;
+        }
+        let attrs = |path: &Path| -> u32 {
+            let w: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+            unsafe { GetFileAttributesW(PCWSTR(w.as_ptr())) }
+        };
+
+        assert_ne!(attrs(&p), INVALID_FILE_ATTRIBUTES, "test file missing");
+        assert_eq!(attrs(&p) & FILE_ATTRIBUTE_HIDDEN.0, 0, "should start visible");
+
+        assert!(set_hidden(&p, true), "could not set attributes");
+        assert!(p.exists(), "the file MOVED - position would be lost");
+        assert_ne!(attrs(&p) & FILE_ATTRIBUTE_HIDDEN.0, 0, "not actually hidden");
+
+        assert!(set_hidden(&p, false), "could not clear attributes");
+        assert!(p.exists());
+        assert_eq!(attrs(&p) & FILE_ATTRIBUTE_HIDDEN.0, 0, "still hidden after restore");
+
+        let _ = std::fs::remove_file(&p);
+    }
+
+    /// Manifests written before in-place hiding existed have no `method`, and
+    /// every one of them was a move. Defaulting wrong would strand shortcuts in
+    /// the stash forever.
+    #[test]
+    fn an_old_manifest_without_a_method_is_treated_as_a_move() {
+        let json = r#"[{"label":"A","from":"C:\\Desktop\\A.lnk","to":"C:\\stash\\A.lnk"}]"#;
+        let items: Vec<HiddenItem> = serde_json::from_str(json).expect("parse");
+        assert_eq!(items[0].method, "move");
+        assert_eq!(items[0].to, r"C:\stash\A.lnk");
+    }
+
+    #[test]
+    fn a_new_manifest_round_trips_the_method() {
+        let items = vec![HiddenItem {
+            label: "A".into(),
+            from: r"C:\Desktop\A.lnk".into(),
+            to: String::new(),
+            method: "attr".into(),
+        }];
+        let s = serde_json::to_string(&items).unwrap();
+        let back: Vec<HiddenItem> = serde_json::from_str(&s).unwrap();
+        assert_eq!(back[0].method, "attr");
+        assert!(back[0].to.is_empty(), "an in-place hide has nowhere it moved to");
     }
 
     #[test]

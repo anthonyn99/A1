@@ -315,11 +315,26 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
       buttons sit above the fold on a phone and take one tap. ══════════════════ */
 .qa{display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
 .big{
+  position:relative;
   appearance:none;width:100%;background:transparent;cursor:pointer;
   border:1px solid var(--bdl);border-radius:var(--radius);
   padding:20px 16px;display:flex;flex-direction:column;align-items:center;gap:5px;
   transition:border-color var(--transition),box-shadow var(--transition),transform .05s;
 }
+/* Keyboard hint. Deliberately quiet — it should be findable when looked for and
+   invisible when not, so it never competes with the action itself. */
+.kbd{
+  position:absolute;top:8px;right:10px;
+  font-family:ui-monospace,'Cascadia Mono',Consolas,monospace;
+  font-size:9px;letter-spacing:.3px;line-height:1;
+  color:var(--txm);opacity:.55;
+  border:1px solid var(--bd);border-radius:4px;padding:3px 5px;
+  pointer-events:none;white-space:nowrap;
+  transition:opacity var(--transition),color var(--transition);
+}
+.big:hover .kbd{opacity:.95;color:var(--txd)}
+.big[disabled] .kbd{opacity:.3}
+@media(max-width:400px){ .kbd{display:none} }
 .big:active{transform:translateY(1px)}
 .big .lbl{
   font-family:var(--display);font-size:19px;font-weight:var(--head-wt);
@@ -1527,7 +1542,8 @@ var S = {
   report: null,     // last enforcement result, shown on the emergency screen
   busy: false,
   lastSig: null,    // signature of the last snapshot applied, to skip echoes
-  registered: false
+  registered: false,
+  hotkeys: {}       // labels reported by the agent, only for keys that registered
 };
 
 /* ── Small helpers ────────────────────────────────────────────────────────── */
@@ -1673,6 +1689,9 @@ function adoptAgentDeviceId(){
 function syncAgentState(){
   if (!caps().agent) return Promise.resolve();
   return Agent.invoke('sh_status', {}).then(function(s){
+    // Only keys the agent actually registered. Windows can refuse one another
+    // app already owns, and a label for a dead shortcut is worse than none.
+    S.hotkeys = (s && s.hotkeys) || {};
     var e = (s && s.emergency) || {}, le = localEmg();
     if (e.active && !le.active){
       setLocalEmg({ active:true, at: e.at || now(), source: e.source || 'local', v: globalState().v || 0 });
@@ -2425,12 +2444,23 @@ function renderHome(){
   var devs    = devList();
 
   var h = '';
+  // The global hotkeys, shown quietly in the corner of the button they fire.
+  // They work from anywhere in Windows, so the button is the one place someone
+  // is guaranteed to look for them — but they only exist with the agent, and
+  // only when Windows let Shield have the key.
+  function kbd(which){
+    var k = S.hotkeys && S.hotkeys[which];
+    return k ? '<span class="kbd">' + esc(k) + '</span>' : '';
+  }
+
   h += '<div class="qa">';
   h +=   '<button class="big close" id="a-close"' + (closerN ? '' : ' disabled') + '>'
+      +    kbd('close')
       +    '<span class="lbl">Close Apps</span>'
       +    '<span class="sub">' + (closerN ? closerN + ' target' + (closerN===1?'':'s') + ' on this device' : 'No targets configured yet') + '</span>'
       +  '</button>';
   h +=   '<button class="big emg" id="a-emg">'
+      +    kbd('emergency')
       +    '<span class="lbl">Emergency</span>'
       +    '<span class="sub">Lock down this device' + (emgN ? ' · ' + emgN + ' target' + (emgN===1?'':'s') : '') + '</span>'
       +  '</button>';
@@ -2739,7 +2769,7 @@ function targetRowHtml(t, kind, ro, showHide){
   if (showHide){
     // Labelled, not a bare switch. An unlabelled toggle sitting next to a
     // delete button is unguessable — it read as "no hide-icons option exists".
-    h += '<span class="tgt-opt" title="Move this app\'s desktop and Start-menu shortcuts out of sight while Emergency Mode is active. Restored when it ends.">'
+    h += '<span class="tgt-opt" title="Hide this app\'s desktop and Start-menu shortcuts while Emergency Mode is active. They are hidden in place, so each icon returns to exactly the same spot when it ends.">'
       +  '<span class="tgt-opt-l">Hide<br>icons</span>'
       +  '<button class="toggle' + (t.hideIcons?' on':'') + '"' + (ro?' disabled':'')
       +  ' data-hide="' + esc(t.id) + '"><i></i></button></span>';
@@ -2838,7 +2868,7 @@ function capsHtml(d){
   if (c.agent){
     h += row('yes',  '<b>Close applications</b> — same-user processes. Elevated or service processes need Shield running as admin.');
     h += row('part', '<b>Keep them closed</b> — Shield kills on sight, roughly every second. Windows 11 Home has no AppLocker, so a true launch block is not available; a target will flash on screen before it closes.');
-    h += row('part', '<b>Hide launch points</b> — desktop and Start-menu shortcuts are moved aside and restored on exit. Shortcuts are matched by name, so <code>Discord.lnk</code> is found but one named nothing like its program is not. Store/UWP apps and pinned Start tiles have no shortcut to move at all.');
+    h += row('part', '<b>Hide launch points</b> — desktop and Start-menu shortcuts are hidden <b>in place</b>, so every icon comes back to the exact square it left. Shortcuts are matched by what they actually point at, not by their name, so a folder target covers all of an app\'s shortcuts however they are named. Two limits: if you have Explorer set to show <i>both</i> hidden and protected system files, Shield moves them instead and the positions are not preserved; and Store/UWP apps and pinned Start tiles have no shortcut to hide at all.');
     h += row('no',   '<b>Unpin from the taskbar</b> — not automatable on Windows 11. The pin lives in an undocumented registry blob and needs Explorer restarted. Do not pin anything you would need Shield to hide.');
     h += row('yes',  '<b>Lock the workstation</b> — instant and completely reliable.');
     h += row('part', '<b>Reopen what was closed</b> — Shield records each process\'s path and command line before terminating it, so History can start them all again. Applications open fresh: unsaved work inside them is not recovered, and one that could not be read before closing cannot be reopened.');

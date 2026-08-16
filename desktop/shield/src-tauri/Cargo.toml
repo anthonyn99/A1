@@ -45,6 +45,9 @@ features = [
   "Win32_UI_Shell",
   "Win32_UI_Shell_Common",
   "Win32_Storage_FileSystem",
+  # Reading Explorer's "show hidden files" preference, which decides whether
+  # hiding a shortcut by attribute would actually hide anything.
+  "Win32_System_Registry",
 ]
 
 [profile.release]
