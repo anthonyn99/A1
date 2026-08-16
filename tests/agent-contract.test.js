@@ -40,6 +40,8 @@ function check(name, ok, detail) {
   console.log('  ' + (ok ? '✓' : '✗') + ' ' + name + (!ok && detail ? '  — ' + detail : ''));
 }
 
+const conf = JSON.parse(fs.readFileSync(path.join(AG, 'src-tauri', 'tauri.conf.json'), 'utf8'));
+const cap = JSON.parse(fs.readFileSync(path.join(AG, 'src-tauri', 'capabilities', 'default.json'), 'utf8'));
 const lib = fs.readFileSync(path.join(SRC, 'lib.rs'), 'utf8');
 const rust = fs
   .readdirSync(SRC)
@@ -66,6 +68,44 @@ check(
   'generate_handler! lists no command that does not exist',
   registered.every((r) => declared.some((d) => d.name === r)),
   registered.filter((r) => !declared.some((d) => d.name === r)).join(', ')
+);
+
+console.log('\nShield agent: the ACL (three files must agree)');
+
+// Tauri v2 subjects remote origins to ACL resolution, and Shield's UI is loaded
+// from GitHub Pages — so EVERY command is a remote call. A command missing from
+// build.rs or from the capability is not a compile error and not a runtime
+// crash: the button just silently does nothing and the page reports
+// "Command sh_kill not allowed by ACL". That is how this shipped broken once.
+const buildRs = fs.readFileSync(path.join(AG, 'src-tauri', 'build.rs'), 'utf8');
+const declaredInBuild = [...(buildRs.match(/const COMMANDS[\s\S]*?\];/) || [''])[0].matchAll(/"([a-z_]+)"/g)].map(
+  (m) => m[1]
+);
+const capPerms = cap.permissions || [];
+const kebab = (s) => 'allow-' + s.replace(/_/g, '-');
+
+check('build.rs declares an app manifest of commands', declaredInBuild.length > 0, declaredInBuild.length + ' listed');
+check(
+  'every registered command is declared in build.rs',
+  registered.every((r) => declaredInBuild.includes(r)),
+  registered.filter((r) => !declaredInBuild.includes(r)).join(', ')
+);
+check(
+  'build.rs declares no command that is not registered',
+  declaredInBuild.every((c) => registered.includes(c)),
+  declaredInBuild.filter((c) => !registered.includes(c)).join(', ')
+);
+check(
+  'the capability grants allow-* for every command',
+  registered.every((r) => capPerms.includes(kebab(r))),
+  registered.filter((r) => !capPerms.includes(kebab(r))).map(kebab).join(', ')
+);
+// A single /* does not match a nested path like /A1/shield.html. Without /**
+// the IPC is never injected and window.__TAURI__ is simply absent.
+check(
+  'the remote URL pattern uses /** so a nested path matches',
+  ((cap.remote || {}).urls || []).some((u) => u.endsWith('/**')),
+  ((cap.remote || {}).urls || []).join(', ')
 );
 
 console.log('\nShield agent: the JS bridge');
@@ -138,8 +178,6 @@ check(
 
 console.log('\nShield agent: config + icons');
 
-const conf = JSON.parse(fs.readFileSync(path.join(AG, 'src-tauri', 'tauri.conf.json'), 'utf8'));
-const cap = JSON.parse(fs.readFileSync(path.join(AG, 'src-tauri', 'capabilities', 'default.json'), 'utf8'));
 const PAGES = 'https://anthonyn99.github.io';
 
 check(

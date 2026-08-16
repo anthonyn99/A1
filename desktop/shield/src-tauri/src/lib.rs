@@ -189,6 +189,7 @@ fn sh_status(ctx: State<'_, Ctx>) -> serde_json::Value {
     json!({
         "version": VERSION,
         "platform": "windows",
+        "deviceId": state::device_id(),
         "emergency": { "active": s.emergency_active, "at": s.emergency_at,
                        "source": s.emergency_source, "entryId": s.entry_id },
         "watchdog": ctx.wd.is_running(),
@@ -386,6 +387,14 @@ pub fn run() {
     let (hk_close_h, hk_emg_h) = (hk_close.clone(), hk_emg.clone());
 
     tauri::Builder::default()
+        // MUST be registered first. Shield starts at logon and can also be
+        // launched by hand, and two agents is not a cosmetic problem: two tray
+        // icons, a failed hotkey registration for whichever loses the race, and
+        // two watchdogs fighting over the same process list. The second
+        // instance now just surfaces the first one's window and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            show_window(app);
+        }))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,

@@ -37,6 +37,15 @@ fn yes() -> bool {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AgentState {
+    /// This machine's Shield device id.
+    ///
+    /// The agent owns it rather than the page, because the Tauri WebView has
+    /// its own localStorage partition — separate from Edge or Chrome on the
+    /// same PC, even though the origin is identical. Left to the page, opening
+    /// Shield in the agent and opening it in a browser registered the same
+    /// machine twice. Now the agent hands its id down and both agree.
+    #[serde(default)]
+    pub device_id: String,
     /// Which profile last used this device — only ever "tony" or "veda".
     #[serde(default)]
     pub profile: String,
@@ -100,6 +109,22 @@ fn save(s: &AgentState) {
             let _ = fs::rename(&tmp, state_path());
         }
     }
+}
+
+/// This machine's device id, minted once and then stable forever.
+///
+/// Same `dev_<rand36><time36>` shape the page uses, so the two are
+/// indistinguishable downstream.
+pub fn device_id() -> String {
+    let existing = get().device_id;
+    if !existing.is_empty() {
+        return existing;
+    }
+    let t = now_ms();
+    let seed = std::process::id() as u64 ^ t.rotate_left(17);
+    let id = format!("dev_{:x}{:x}", seed & 0xffff_ffff, t & 0xffff_ffff);
+    update(|st| st.device_id = id.clone());
+    id
 }
 
 pub fn now_ms() -> u64 {

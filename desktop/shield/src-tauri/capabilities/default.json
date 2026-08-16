@@ -1,10 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Lets the Shield UI, served from GitHub Pages, drive the local agent.",
+  "description": "Lets the Shield UI, served from GitHub Pages, drive the local agent. Tauri v2 subjects remote origins to ACL resolution, so without a matching entry in remote.urls the page gets no IPC at all and every command is refused. The path pattern MUST be /** - a single /* does not match a nested path like /A1/shield.html, which is exactly how this failed the first time. Both forms plus the bare origin are listed so a pattern-matcher change in a future Tauri release cannot silently take the agent offline.",
   "windows": ["main"],
   "remote": {
-    "urls": ["https://anthonyn99.github.io/*"]
+    "urls": [
+      "https://anthonyn99.github.io/**",
+      "https://anthonyn99.github.io/*",
+      "https://anthonyn99.github.io"
+    ]
   },
   "permissions": [
     "core:default",
@@ -13,6 +17,16 @@
     "core:window:allow-hide",
     "core:window:allow-set-focus",
     "global-shortcut:default",
-    "autostart:default"
+    "autostart:default",
+    "allow-sh-status",
+    "allow-sh-set-config",
+    "allow-sh-enumerate",
+    "allow-sh-kill",
+    "allow-sh-emergency-on",
+    "allow-sh-emergency-off",
+    "allow-sh-launch",
+    "allow-sh-restore-icons",
+    "allow-sh-pull-history",
+    "allow-sh-lock-workstation"
   ]
 }
