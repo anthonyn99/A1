@@ -42981,13 +42981,13 @@ function startEdit(row,profile,l){
 
 function normalizeUrl(u){
   if(!u) return '';
-  if(/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u)) return u;     // already has a scheme (this also
-                                                          // covers a C:\ local path — "C" reads
-                                                          // as the scheme, which is exactly the
-                                                          // form _isLocalPath expects)
-  if(/^\\\\/.test(u)) return u;                          // \\server\share UNC path — leave as-is,
-                                                          // prepending https:// would hide it from
-                                                          // _isLocalPath and send it to a browser tab
+  // Checked FIRST and explicitly, not left to fall out of the scheme regex
+  // below: a bare drive letter ("C:\...") happens to parse as "a scheme" to
+  // that regex, but relying on that coincidence is exactly how this silently
+  // breaks the moment someone reorders these checks. A local path is never a
+  // candidate for the https:// fallback, full stop.
+  if(_isLocalPath(u)) return u;
+  if(/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u)) return u;      // already has a scheme (http:, mailto:, …)
   if(u.indexOf('/')===0) return u;                       // site-relative path
   return 'https://'+u;                                   // bare domain
 }

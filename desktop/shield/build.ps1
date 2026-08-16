@@ -87,22 +87,37 @@ if ($Dev) {
   exit $LASTEXITCODE
 }
 
-# Stop first, not after the build: a running agent holds an open handle on
-# target\release\shield-agent.exe, and cargo cannot replace a locked file — the
-# build fails with "failed to remove file" before it compiles anything.
-$wasRunning = $false
-if ($Update) {
-  $wasRunning = [bool](Get-Process -Name 'shield-agent' -ErrorAction SilentlyContinue)
-  if ($wasRunning) {
-    Write-Host "Stopping the running agent so its exe can be replaced..." -ForegroundColor DarkGray
-    Get-Process -Name 'shield-agent' -ErrorAction SilentlyContinue | Stop-Process -Force
-    Start-Sleep -Milliseconds 1000
-  }
+# Another build already in flight? cargo blocks on the target-directory lock
+# with a bare "Blocking waiting for file lock", which looks like a hang. Say so.
+$otherBuild = @(Get-CimInstance Win32_Process -Filter "Name='cargo.exe' OR Name='cargo-tauri.exe'" -ErrorAction SilentlyContinue |
+                Where-Object { $_.ProcessId -ne $PID })
+if ($otherBuild.Count) {
+  Write-Host "Another Shield build is already running - this one will wait for it." -ForegroundColor Yellow
+  Write-Host "(cargo serialises on the target directory; nothing is wrong.)" -ForegroundColor DarkGray
 }
 
+# Build BEFORE touching the running agent.
+#
+# Stopping it first meant Shield was down for the whole compile - minutes with
+# no tray icon and no hotkeys, on a tool whose entire purpose is being there the
+# moment you need it. The agent runs from %LOCALAPPDATA%, not from
+# target\release, so the build does not need it stopped at all. Downtime is now
+# the second or two it takes to swap the file.
 Write-Host "Building release bundle (first build takes several minutes)..." -ForegroundColor Green
 cargo tauri build
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($LASTEXITCODE -ne 0) {
+  # The one case that does need it stopped: someone is running the agent
+  # straight out of target\release, so cargo cannot replace its own output.
+  $fromBuildDir = @(Get-Process -Name 'shield-agent' -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Path -like "*\target\release\*" })
+  if ($fromBuildDir.Count) {
+    Write-Host "An agent is running from the build directory - stopping it and retrying." -ForegroundColor Yellow
+    $fromBuildDir | Stop-Process -Force
+    Start-Sleep -Milliseconds 1000
+    cargo tauri build
+  }
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
 $exe = Get-ChildItem "$root\src-tauri\target\release\shield-agent.exe" -ErrorAction SilentlyContinue
 $nsis = Get-ChildItem "$root\src-tauri\target\release\bundle\nsis\*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
