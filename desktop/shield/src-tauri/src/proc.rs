@@ -102,7 +102,7 @@ impl Target {
     /// `codecs.exe` and Shield kills something the user never named. An exact
     /// match is predictable, and the picker in the UI offers real running names
     /// so there is nothing to guess at.
-    fn matches(&self, name: &str, exe_path: &str) -> bool {
+    pub(crate) fn matches(&self, name: &str, exe_path: &str) -> bool {
         let v = self.r#match.value.trim();
         if v.is_empty() {
             return false;
@@ -480,6 +480,19 @@ pub fn capture_and_kill_opt(targets: &[Target], graceful_ms: u64, dry_run: bool)
 
 pub fn capture_and_kill(targets: &[Target], graceful_ms: u64) -> Vec<TargetResult> {
     capture_and_kill_opt(targets, graceful_ms, false)
+}
+
+/// Which of these targets currently have at least one process running.
+///
+/// Returns target ids, not process ids: the trigger watcher cares about "is
+/// League up", not which of its six processes it is.
+pub fn running_ids(targets: &[Target]) -> Vec<String> {
+    let s = sys();
+    targets
+        .iter()
+        .filter(|t| !t.r#match.value.trim().is_empty() && !find(t, &s).is_empty())
+        .map(|t| t.id.clone())
+        .collect()
 }
 
 /// Watchdog path: no manifest, no grace period, no reporting. Kill on sight.

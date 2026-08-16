@@ -29,7 +29,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use proc::{LaunchItem, Target};
 use state::EmergencyCfg;
-use watchdog::Watchdog;
+use watchdog::{Triggers, Watchdog};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const GRACEFUL_MS: u64 = 1500;
@@ -39,6 +39,7 @@ const PAGE_URL: &str = "https://anthonyn99.github.io/A1/shield.html";
 
 pub struct Ctx {
     pub wd: Watchdog,
+    pub triggers: Triggers,
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -140,12 +141,43 @@ fn disengage_emergency(app: &AppHandle, ctx: &Ctx) -> serde_json::Value {
 }
 
 fn run_closer(app: &AppHandle) -> serde_json::Value {
+    run_closer_excluding(app, "local", &[])
+}
+
+/// The Program Closer, optionally sparing some targets.
+///
+/// `spare` exists for the auto-trigger: opening League must not close League,
+/// even when the closer list happens to include it. Matching is by target id,
+/// so a spared entry is exactly the one that fired.
+fn run_closer_excluding(app: &AppHandle, source: &str, spare: &[Target]) -> serde_json::Value {
     let s = state::get();
+    let list: Vec<Target> = s
+        .closer
+        .iter()
+        .filter(|t| !spare.iter().any(|x| x.id == t.id))
+        .cloned()
+        .collect();
     let entry_id = history::new_id();
-    let results = proc::capture_and_kill(&s.closer, GRACEFUL_MS);
-    let entry = history::record(&entry_id, "closer", "local", "local", &results, &[]);
-    let _ = app.emit("shield://closed", json!({ "entryId": entry_id }));
+    let results = proc::capture_and_kill(&list, GRACEFUL_MS);
+    let entry = history::record(&entry_id, "closer", "local", source, &results, &[]);
+    let _ = app.emit(
+        "shield://closed",
+        json!({ "entryId": entry_id, "source": source,
+                "by": spare.first().map(|t| t.display()).unwrap_or_default() }),
+    );
     json!({ "entryId": entry_id, "at": entry.at, "results": results })
+}
+
+/// Point the trigger watcher at the current configuration.
+fn arm_triggers(app: &AppHandle) {
+    let handle = app.clone();
+    let list = state::get().triggers;
+    let ctx = app.state::<Ctx>();
+    ctx.triggers.set(list, move |fired| {
+        let names: Vec<String> = fired.iter().map(|t| t.display()).collect();
+        log_event("auto-close", &names.join(", "));
+        run_closer_excluding(&handle, "trigger", &fired);
+    });
 }
 
 // ── commands ────────────────────────────────────────────────────────────────
@@ -157,6 +189,8 @@ pub struct SetConfig {
     #[serde(default)]
     closer: Vec<Target>,
     #[serde(default)]
+    triggers: Vec<Target>,
+    #[serde(default)]
     emergency: EmergencyCfg,
 }
 
@@ -165,7 +199,7 @@ pub struct SetConfig {
 /// Without this the tray and the hotkeys would have nothing to act on, which
 /// would make the agent useless in exactly the situation it exists for.
 #[tauri::command]
-fn sh_set_config(cfg: SetConfig) -> serde_json::Value {
+fn sh_set_config(app: AppHandle, cfg: SetConfig) -> serde_json::Value {
     // Filter protected processes here as well as in the kill path. Config
     // arrives from Firestore and may have been written by an older build or a
     // different device, so input validation cannot live only at the UI.
@@ -177,12 +211,14 @@ fn sh_set_config(cfg: SetConfig) -> serde_json::Value {
             st.profile = cfg.profile.clone();
         }
         st.closer = clean(cfg.closer.clone());
+        st.triggers = clean(cfg.triggers.clone());
         st.emergency = EmergencyCfg {
             targets: clean(cfg.emergency.targets.clone()),
             lock_workstation: cfg.emergency.lock_workstation,
             watchdog: cfg.emergency.watchdog,
         };
     });
+    arm_triggers(&app);
     json!({ "ok": true })
 }
 
@@ -523,7 +559,7 @@ pub fn run() {
                 })
                 .build(),
         )
-        .manage(Ctx { wd: Watchdog::new() })
+        .manage(Ctx { wd: Watchdog::new(), triggers: Triggers::new() })
         .invoke_handler(tauri::generate_handler![
             sh_status, sh_set_config, sh_enumerate, sh_kill,
             sh_emergency_on, sh_emergency_off, sh_launch, sh_set_links,
@@ -591,6 +627,11 @@ pub fn run() {
                 shortcuts::restore_all();
                 publish(&handle, false);
             }
+
+            // Arm auto-close from the config on disk, so a trigger works after
+            // a reboot without anyone opening the window first — the same
+            // reason the tray and hotkeys read from state.json.
+            arm_triggers(&handle);
 
             // Always start on the deployed UI, not a cached copy of it.
             navigate_fresh(&handle);

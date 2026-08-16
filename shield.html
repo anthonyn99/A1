@@ -1917,6 +1917,7 @@ function pushConfig(){
   return Agent.invoke('sh_set_config', { cfg: {
     profile: S.profile,
     closer: cfgCloser(S.devId).targets || [],
+    triggers: cfgCloser(S.devId).triggers || [],
     emergency: {
       targets: e.targets || [],
       lockWorkstation: !!e.lockWorkstation,
@@ -2073,7 +2074,9 @@ function lockA1Apps(){
 }
 
 function targetsFor(kind, id){
-  return (kind === 'emergency' ? cfgEmg(id).targets : cfgCloser(id).targets) || [];
+  if (kind === 'emergency') return cfgEmg(id).targets || [];
+  if (kind === 'trigger') return cfgCloser(id).triggers || [];
+  return cfgCloser(id).targets || [];
 }
 
 /* Tauri rejects an invoke with a plain STRING, not an Error, so reading
@@ -2770,6 +2773,23 @@ function tabTargets(kind, id, ro){
   h += tg.length ? tg.map(function(t){ return targetRowHtml(t, 'closer', ro, false); }).join('')
                  : '<div class="empty">No targets yet. These are the applications the <b>Close Apps</b> button shuts down on this device.</div>';
   h += '</div>';
+  // ── Auto-close triggers ─────────────────────────────────────────────────
+  var trg = targetsFor('trigger', id);
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Close automatically when these open</span>'
+    +  (ro ? '' : '<button class="btn sm ac" data-add="trigger">' + svg(GLYPH.plus) + 'Add</button>') + '</div>';
+  h += trg.length
+     ? trg.map(function(t){ return targetRowHtml(t, 'trigger', ro, false); }).join('')
+     : '<div class="empty">Nothing yet. Add an app here and the moment it starts, Shield runs <b>Close Apps</b> for you — '
+       + 'open a game and everything above tidies itself away.</div>';
+  h += '</div>';
+  if (trg.length){
+    h += '<div class="sec"><div class="hint">Fires once when the app <b>starts</b>, not repeatedly while it runs, and the '
+      +  'trigger itself is never closed — opening League cannot close League. Works with the Shield window shut, and '
+      +  'survives a restart. Every automatic run is recorded in <b>History</b> with a Reopen button, exactly like a manual one.'
+      +  (caps().agent ? '' : '<br><br><b>This device has no agent, so nothing will fire here.</b>')
+      +  '</div></div>';
+  }
+
   h += '<div class="sec"><div class="hint">Three ways to name a target:<br>'
     +  '<b>Executable</b> — <code>discord.exe</code>. Matched exactly, so it survives version-folder churn.<br>'
     +  '<b>Full path</b> — <code>C:\\Riot Games\\Riot Client\\RiotClientServices.exe</code>. One exact process.<br>'
@@ -2962,7 +2982,8 @@ async function addTarget(kind){
     msg += '\n\nRunning now: ' + suggestions.running.slice(0, 12).join(', ');
   }
   var vals = await window.uiForm({
-    title: kind === 'emergency' ? 'Add emergency target' : 'Add target',
+    title: kind === 'emergency' ? 'Add emergency target'
+         : (kind === 'trigger' ? 'Close apps when this opens' : 'Add target'),
     message: msg,
     okLabel: 'Add',
     fields: [
@@ -3039,12 +3060,14 @@ async function toggleHide(tid){
   await saveTargets('emergency', list);
 }
 async function saveTargets(kind, list){
-  var field = kind === 'emergency' ? 'emergency.targets' : 'closer.targets';
+  var field = kind === 'emergency' ? 'emergency.targets'
+            : (kind === 'trigger' ? 'closer.triggers' : 'closer.targets');
   // Optimistic local update so the list redraws instantly; the snapshot
   // confirms moments later.
   var d = S.doc && S.doc.devices && S.doc.devices[S.devId];
   if (d){
     if (kind === 'emergency'){ d.emergency = d.emergency || {}; d.emergency.targets = list; }
+    else if (kind === 'trigger'){ d.closer = d.closer || {}; d.closer.triggers = list; }
     else { d.closer = d.closer || {}; d.closer.targets = list; }
   }
   renderConfig(); renderHome();

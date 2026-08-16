@@ -98,15 +98,72 @@ pub fn list_shortcut_names() -> Vec<String> {
         .collect()
 }
 
-/// Loose comparison for shortcut names: case- and punctuation-insensitive.
+/// What a .lnk actually points at.
 ///
-/// Shield matches a shortcut to a target by NAME, not by reading the .lnk's
-/// target path. Parsing .lnk properly means COM (IShellLink) or a shell-format
-/// parser, and both are a lot of surface area for a gain that only shows up in
-/// the uncommon case where a shortcut is named nothing like the program it
-/// starts. The trade-off is real and is stated in the UI: a shortcut called
-/// something unrelated to the executable will not be found and will stay on the
-/// desktop. Killing the process still removes its taskbar button either way.
+/// Name matching alone was not good enough, and the failure was silent: a
+/// folder target of `C:\Riot Games` produces the keys "riot" and "riotgames",
+/// while the shortcut on the desktop is `Riot Client.lnk` → "riotclient".
+/// Nothing matched, so the icon simply stayed there with no explanation.
+///
+/// Reading the link's real target removes the guessing entirely: a shortcut is
+/// hidden when the thing it launches would itself be matched by the very same
+/// rule that selects processes. A folder target therefore covers every shortcut
+/// pointing anywhere inside it, however the shortcut happens to be named.
+fn resolve_lnk(path: &Path) -> Option<String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW;
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, IPersistFile, CLSCTX_INPROC_SERVER,
+        COINIT_APARTMENTTHREADED, STGM_READ,
+    };
+    use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
+
+    unsafe {
+        // Already-initialised returns S_FALSE / RPC_E_CHANGED_MODE; both are
+        // fine, so the result is deliberately ignored rather than treated as
+        // fatal — this runs on whichever thread the emergency happens to be on.
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER).ok()?;
+        let file: IPersistFile = windows::core::Interface::cast(&link).ok()?;
+        let wide: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+        file.Load(PCWSTR(wide.as_ptr()), STGM_READ).ok()?;
+
+        let mut buf = [0u16; 1024];
+        let mut fd = WIN32_FIND_DATAW::default();
+        link.GetPath(&mut buf, &mut fd, 0).ok()?;
+        let end = buf.iter().position(|c| *c == 0).unwrap_or(buf.len());
+        if end == 0 {
+            return None;
+        }
+        Some(String::from_utf16_lossy(&buf[..end]))
+    }
+}
+
+/// Tell Explorer the desktop changed.
+///
+/// Moving a .lnk out of the Desktop folder does not repaint the desktop —
+/// Explorer keeps showing the icon until something else makes it refresh. That
+/// is why hiding "took a few clicks": the file was gone immediately, the icon
+/// was not. On an emergency tool a delay between pressing the button and the
+/// screen being safe is the whole failure.
+fn refresh_shell(dirs: &[PathBuf]) {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::UI::Shell::{SHChangeNotify, SHCNE_UPDATEDIR, SHCNF_FLUSH, SHCNF_PATHW};
+    for d in dirs {
+        let wide: Vec<u16> = d.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+        unsafe {
+            SHChangeNotify(
+                SHCNE_UPDATEDIR,
+                SHCNF_PATHW | SHCNF_FLUSH,
+                Some(wide.as_ptr() as *const _),
+                None,
+            );
+        }
+    }
+}
+
+/// Fallback name comparison, used only when a .lnk cannot be resolved.
 fn loose(s: &str) -> String {
     s.chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>().to_ascii_lowercase()
 }
@@ -137,12 +194,7 @@ fn unique_dest(dir: &Path, name: &str) -> PathBuf {
 
 /// Move every shortcut matching a `hideIcons` target into this entry's stash.
 pub fn hide(entry_id: &str, targets: &[Target]) -> Vec<HiddenItem> {
-    let wanted: Vec<(String, Vec<String>)> = targets
-        .iter()
-        .filter(|t| t.hide_icons)
-        .map(|t| (t.display(), target_keys(t)))
-        .filter(|(_, k)| !k.is_empty())
-        .collect();
+    let wanted: Vec<&Target> = targets.iter().filter(|t| t.hide_icons).collect();
     if wanted.is_empty() {
         return vec![];
     }
@@ -153,19 +205,46 @@ pub fn hide(entry_id: &str, targets: &[Target]) -> Vec<HiddenItem> {
     }
 
     let mut hidden: Vec<HiddenItem> = Vec::new();
+    let mut touched: Vec<PathBuf> = Vec::new();
+
     for lnk in all_shortcuts() {
-        let Some(stem) = lnk.file_stem().map(|s| loose(&s.to_string_lossy())) else { continue };
-        let Some((label, _)) = wanted.iter().find(|(_, keys)| keys.iter().any(|k| &stem == k))
-        else {
-            continue;
-        };
+        let stem = lnk.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        // What does this shortcut actually launch?
+        let dest_path = resolve_lnk(&lnk);
+
+        let matched = wanted.iter().find(|t| {
+            if let Some(p) = &dest_path {
+                // The real test: would the SAME rule that picks processes pick
+                // this shortcut's target? A folder target then covers every
+                // shortcut pointing inside it, whatever it is called.
+                let file = Path::new(p)
+                    .file_name()
+                    .map(|f| f.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                if t.matches(&file, p) {
+                    return true;
+                }
+            }
+            // Unresolvable .lnk (a Store app, a URL shortcut, a broken link):
+            // fall back to the old name comparison rather than give up.
+            let keys = target_keys(t);
+            let ls = loose(&stem);
+            keys.iter().any(|k| *k == ls)
+        });
+
+        let Some(t) = matched else { continue };
         let name = lnk.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-        let dest = unique_dest(&dir, &name);
-        if fs::rename(&lnk, &dest).is_ok() {
+        let dst = unique_dest(&dir, &name);
+        if fs::rename(&lnk, &dst).is_ok() {
+            if let Some(parent) = lnk.parent() {
+                if !touched.iter().any(|p| p == parent) {
+                    touched.push(parent.to_path_buf());
+                }
+            }
             hidden.push(HiddenItem {
-                label: label.clone(),
+                label: t.display(),
                 from: lnk.to_string_lossy().to_string(),
-                to: dest.to_string_lossy().to_string(),
+                to: dst.to_string_lossy().to_string(),
             });
         }
     }
@@ -177,6 +256,8 @@ pub fn hide(entry_id: &str, targets: &[Target]) -> Vec<HiddenItem> {
         dir.join("manifest.json"),
         serde_json::to_string_pretty(&hidden).unwrap_or_default(),
     );
+    // Repaint now, not whenever Explorer happens to notice.
+    refresh_shell(&touched);
     hidden
 }
 
@@ -186,6 +267,7 @@ pub fn restore(entry_id: &str) -> usize {
     let Ok(raw) = fs::read_to_string(dir.join("manifest.json")) else { return 0 };
     let items: Vec<HiddenItem> = serde_json::from_str(&raw).unwrap_or_default();
     let mut n = 0;
+    let mut touched: Vec<PathBuf> = Vec::new();
     for it in &items {
         let from = Path::new(&it.to);
         let to = Path::new(&it.from);
@@ -194,6 +276,9 @@ pub fn restore(entry_id: &str) -> usize {
         }
         if let Some(parent) = to.parent() {
             let _ = fs::create_dir_all(parent);
+            if !touched.iter().any(|p| p == parent) {
+                touched.push(parent.to_path_buf());
+            }
         }
         // If something has since re-created the shortcut, drop ours rather than
         // leaving a duplicate on the desktop.
@@ -207,6 +292,9 @@ pub fn restore(entry_id: &str) -> usize {
         }
     }
     let _ = fs::remove_dir_all(&dir);
+    // Same reason as hiding: the icon must come back immediately, not when
+    // Explorer next feels like refreshing.
+    refresh_shell(&touched);
     n
 }
 
@@ -240,6 +328,43 @@ mod tests {
     fn normal_ids_survive_intact() {
         assert_eq!(sanitise("h_a1b2c3"), "h_a1b2c3");
         assert_eq!(sanitise("h-tray-1"), "h-tray-1");
+    }
+
+    /// The exact failure the user hit: a folder target whose desktop shortcut
+    /// is named nothing like it.
+    ///
+    /// `C:\Riot Games` yields the name keys "riot" and "riotgames", but the
+    /// shortcut is `Riot Client.lnk` → "riotclient". Name matching cannot see
+    /// it. Matching on what the shortcut POINTS AT does, because the resolved
+    /// path lives inside the folder.
+    #[test]
+    fn a_folder_target_matches_a_shortcut_by_where_it_points_not_its_name() {
+        let t = Target {
+            id: "x".into(),
+            label: "Riot".into(),
+            r#match: Match { kind: "folder".into(), value: r"C:\Riot Games".into() },
+            hide_icons: true,
+        };
+        let resolved = r"C:\Riot Games\Riot Client\RiotClientServices.exe";
+
+        // Name matching alone: misses it. This is the bug.
+        assert!(!target_keys(&t).iter().any(|k| *k == loose("Riot Client")));
+
+        // Matching on the resolved target: finds it.
+        assert!(t.matches("RiotClientServices.exe", resolved));
+    }
+
+    #[test]
+    fn an_exe_target_matches_a_shortcut_pointing_at_that_exe() {
+        let t = Target {
+            id: "x".into(),
+            label: "CapCut".into(),
+            r#match: Match { kind: "exe".into(), value: "capcut.exe".into() },
+            hide_icons: true,
+        };
+        assert!(t.matches("CapCut.exe", r"C:\Users\a\AppData\Local\CapCut\CapCut.exe"));
+        // A shortcut to something else in the same folder is left alone.
+        assert!(!t.matches("CapCutUpdater.exe", r"C:\Users\a\AppData\Local\CapCut\CapCutUpdater.exe"));
     }
 
     #[test]

@@ -52,6 +52,12 @@ pub struct AgentState {
     pub profile: String,
     #[serde(default)]
     pub closer: Vec<Target>,
+    /// Applications whose launch automatically runs the Program Closer.
+    ///
+    /// Open a game, everything else tidies itself away. Stored with the rest of
+    /// the config so it survives a restart and works with no window open.
+    #[serde(default)]
+    pub triggers: Vec<Target>,
     #[serde(default)]
     pub emergency: EmergencyCfg,
 

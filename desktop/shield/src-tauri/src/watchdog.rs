@@ -26,6 +26,100 @@ pub struct Watchdog {
     targets: Arc<Mutex<Vec<Target>>>,
 }
 
+/// Watches for "trigger" applications and runs the Program Closer when one
+/// appears.
+///
+/// The point is that starting a game should tidy everything else away without
+/// anyone reaching for a button. Two rules make it behave rather than thrash:
+///
+///   · EDGE-triggered. It fires on the transition from not-running to running,
+///     not while the app is up. Otherwise launching League would re-close the
+///     same set every second for the whole session.
+///   · The trigger itself is never a casualty. The thing you just opened is
+///     excluded from the kill, even if it also appears in the closer list —
+///     "open League, close everything" must not mean "open League, close
+///     League".
+pub struct Triggers {
+    running: Arc<AtomicBool>,
+    list: Arc<Mutex<Vec<Target>>>,
+    /// Ids seen running on the previous tick, for the edge comparison.
+    seen: Arc<Mutex<Vec<String>>>,
+}
+
+impl Default for Triggers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Triggers {
+    pub fn new() -> Self {
+        Self {
+            running: Arc::new(AtomicBool::new(false)),
+            list: Arc::new(Mutex::new(Vec::new())),
+            seen: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    /// Replace the trigger list. Starts or stops the thread to match.
+    pub fn set(&self, targets: Vec<Target>, on_fire: impl Fn(Vec<Target>) + Send + 'static) {
+        let empty = targets.is_empty();
+        *self.list.lock().unwrap_or_else(|e| e.into_inner()) = targets;
+        if empty {
+            self.running.store(false, Ordering::SeqCst);
+            self.seen.lock().unwrap_or_else(|e| e.into_inner()).clear();
+            return;
+        }
+        if self.running.swap(true, Ordering::SeqCst) {
+            return; // thread already up; it will pick up the new list
+        }
+
+        let running = self.running.clone();
+        let list = self.list.clone();
+        let seen = self.seen.clone();
+        thread::spawn(move || {
+            // Seed from the CURRENT state so a trigger already running when
+            // Shield starts does not immediately fire. Only a fresh launch
+            // should count.
+            {
+                let l = list.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                *seen.lock().unwrap_or_else(|e| e.into_inner()) = proc::running_ids(&l);
+            }
+            while running.load(Ordering::SeqCst) {
+                thread::sleep(Duration::from_millis(TRIGGER_TICK_MS));
+                if !running.load(Ordering::SeqCst) {
+                    break;
+                }
+                let l = list.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                if l.is_empty() {
+                    continue;
+                }
+                let now = proc::running_ids(&l);
+                let mut guard = seen.lock().unwrap_or_else(|e| e.into_inner());
+                let fired: Vec<Target> = l
+                    .iter()
+                    .filter(|t| now.contains(&t.id) && !guard.contains(&t.id))
+                    .cloned()
+                    .collect();
+                *guard = now;
+                drop(guard);
+                if !fired.is_empty() {
+                    on_fire(fired);
+                }
+            }
+        });
+    }
+
+    pub fn stop(&self) {
+        self.running.store(false, Ordering::SeqCst);
+        self.seen.lock().unwrap_or_else(|e| e.into_inner()).clear();
+    }
+}
+
+/// Slower than the watchdog: this is "did something just start", not "kill it
+/// before it draws". A second of latency is imperceptible and costs far less.
+const TRIGGER_TICK_MS: u64 = 1000;
+
 impl Default for Watchdog {
     fn default() -> Self {
         Self::new()
