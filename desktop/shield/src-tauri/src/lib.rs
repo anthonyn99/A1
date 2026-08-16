@@ -16,6 +16,7 @@
 //! opened on this boot, and when there is no window at all.
 
 mod history;
+mod iconpos;
 mod proc;
 mod shortcuts;
 mod state;

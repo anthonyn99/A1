@@ -15,7 +15,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::proc::{self, Target};
 
@@ -78,13 +78,15 @@ impl Triggers {
         let list = self.list.clone();
         let seen = self.seen.clone();
         thread::spawn(move || {
-            // Seed from the CURRENT state so a trigger already running when
-            // Shield starts does not immediately fire. Only a fresh launch
-            // should count.
+            // Seed from the CURRENT state so a trigger that is already up when
+            // Shield starts does not fire the instant the agent launches.
             {
                 let l = list.lock().unwrap_or_else(|e| e.into_inner()).clone();
                 *seen.lock().unwrap_or_else(|e| e.into_inner()) = proc::running_ids(&l);
             }
+            let mut last_fg: Option<String> = None;
+            let mut cooled: Vec<(String, Instant)> = Vec::new();
+
             while running.load(Ordering::SeqCst) {
                 thread::sleep(Duration::from_millis(TRIGGER_TICK_MS));
                 if !running.load(Ordering::SeqCst) {
@@ -92,17 +94,45 @@ impl Triggers {
                 }
                 let l = list.lock().unwrap_or_else(|e| e.into_inner()).clone();
                 if l.is_empty() {
+                    last_fg = None;
                     continue;
                 }
+
                 let now = proc::running_ids(&l);
                 let mut guard = seen.lock().unwrap_or_else(|e| e.into_inner());
-                let fired: Vec<Target> = l
-                    .iter()
-                    .filter(|t| now.contains(&t.id) && !guard.contains(&t.id))
-                    .cloned()
-                    .collect();
+
+                // Signal 1 — the process just appeared. Catches apps that start
+                // in the background or without stealing focus.
+                let mut fired: Vec<Target> =
+                    l.iter().filter(|t| now.contains(&t.id) && !guard.contains(&t.id)).cloned().collect();
                 *guard = now;
                 drop(guard);
+
+                // Signal 2 — the app came to the front. This is what "I opened
+                // Brave" actually means: the browser was already running, and
+                // opening it raised an existing window. Without this the
+                // trigger appears simply not to work.
+                let fg = proc::foreground_target_id(&l);
+                if fg != last_fg {
+                    if let Some(id) = &fg {
+                        if !fired.iter().any(|t| &t.id == id) {
+                            if let Some(t) = l.iter().find(|t| &t.id == id) {
+                                fired.push(t.clone());
+                            }
+                        }
+                    }
+                    last_fg = fg;
+                }
+
+                // Alt-tabbing back and forth must not re-close everything each
+                // time, so each target can only fire once per cooldown.
+                let now_i = Instant::now();
+                cooled.retain(|(_, at)| now_i.duration_since(*at) < COOLDOWN);
+                fired.retain(|t| !cooled.iter().any(|(id, _)| id == &t.id));
+                for t in &fired {
+                    cooled.push((t.id.clone(), now_i));
+                }
+
                 if !fired.is_empty() {
                     on_fire(fired);
                 }
@@ -119,6 +149,13 @@ impl Triggers {
 /// Slower than the watchdog: this is "did something just start", not "kill it
 /// before it draws". A second of latency is imperceptible and costs far less.
 const TRIGGER_TICK_MS: u64 = 1000;
+
+/// How long a target waits before it can fire again.
+///
+/// Without this, alt-tabbing between a trigger and something else would re-run
+/// the closer every second. Long enough to be sane, short enough that genuinely
+/// reopening an app later still works.
+const COOLDOWN: Duration = Duration::from_secs(45);
 
 impl Default for Watchdog {
     fn default() -> Self {

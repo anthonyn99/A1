@@ -27,11 +27,20 @@ pub struct HiddenItem {
     /// Where it was moved to. Empty when the shortcut never moved.
     #[serde(default)]
     pub to: String,
-    /// "attr" — hidden in place by file attribute, position preserved.
+    /// "attr" — hidden in place by file attribute.
     /// "move" — relocated to the stash.
     /// Absent in manifests written before this existed; those were all moves.
     #[serde(default = "default_method")]
     pub method: String,
+    /// The desktop grid position this icon occupied, if it had one.
+    ///
+    /// Keeping the file in place is NOT enough on its own: Explorer's desktop
+    /// layout is a table of item → position, and an item it cannot see is
+    /// dropped from that table. So the icon comes back in the first free slot
+    /// unless the original coordinates are captured here and pushed back
+    /// through IFolderView afterwards.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pos: Option<(i32, i32)>,
 }
 fn default_method() -> String {
     "move".into()
@@ -308,6 +317,15 @@ pub fn hide(entry_id: &str, targets: &[Target]) -> Vec<HiddenItem> {
             }
         };
 
+        // Ask Explorer where this icon sits BEFORE it disappears from the view.
+        // Once it is hidden the layout table no longer has an entry for it, and
+        // the original square is gone for good.
+        let pos = if crate::iconpos::is_desktop_item(&lnk) {
+            crate::iconpos::get(&lnk)
+        } else {
+            None
+        };
+
         // Hide IN PLACE where possible.
         //
         // Moving the file away and back loses the icon's position: Explorer
@@ -323,6 +341,7 @@ pub fn hide(entry_id: &str, targets: &[Target]) -> Vec<HiddenItem> {
                 from: lnk.to_string_lossy().to_string(),
                 to: String::new(),
                 method: "attr".into(),
+                pos,
             });
             continue;
         }
@@ -340,6 +359,7 @@ pub fn hide(entry_id: &str, targets: &[Target]) -> Vec<HiddenItem> {
                 from: lnk.to_string_lossy().to_string(),
                 to: dst.to_string_lossy().to_string(),
                 method: "move".into(),
+                pos,
             });
         }
     }
@@ -363,6 +383,7 @@ pub fn restore(entry_id: &str) -> usize {
     let items: Vec<HiddenItem> = serde_json::from_str(&raw).unwrap_or_default();
     let mut n = 0;
     let mut touched: Vec<PathBuf> = Vec::new();
+    let mut restore_pos: Vec<(PathBuf, Option<(i32, i32)>)> = Vec::new();
     for it in &items {
         let orig = Path::new(&it.from);
         if let Some(parent) = orig.parent() {
@@ -371,10 +392,13 @@ pub fn restore(entry_id: &str) -> usize {
             }
         }
 
-        // Hidden in place: just clear the attribute. The file never moved, so
-        // the icon reappears in exactly the square it occupied.
+        // Hidden in place: clear the attribute, then put the icon back where it
+        // was. The second half is not optional — Explorer drops items it cannot
+        // see from its layout, so without this the icon returns to the first
+        // free slot even though the file never moved.
         if it.method == "attr" {
             if orig.exists() && set_hidden(orig, false) {
+                restore_pos.push((orig.to_path_buf(), it.pos));
                 n += 1;
             }
             continue;
@@ -396,13 +420,29 @@ pub fn restore(entry_id: &str) -> usize {
             continue;
         }
         if fs::rename(from, to).is_ok() {
+            restore_pos.push((to.to_path_buf(), it.pos));
             n += 1;
         }
     }
     let _ = fs::remove_dir_all(&dir);
-    // Same reason as hiding: the icon must come back immediately, not when
-    // Explorer next feels like refreshing.
+    // Refresh FIRST, so Explorer has re-created the items, then position them.
+    // Asking it to move an icon it has not drawn yet does nothing.
     refresh_shell(&touched);
+    for (path, pos) in restore_pos {
+        if let Some(p) = pos {
+            if crate::iconpos::is_desktop_item(&path) {
+                // Retry briefly: Explorer repopulates the view asynchronously
+                // after a change notification, so the first attempt can land
+                // before the item exists in the view.
+                for _ in 0..10 {
+                    if crate::iconpos::set(&path, p) {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(120));
+                }
+            }
+        }
+    }
     n
 }
 
@@ -522,6 +562,7 @@ mod tests {
         let items: Vec<HiddenItem> = serde_json::from_str(json).expect("parse");
         assert_eq!(items[0].method, "move");
         assert_eq!(items[0].to, r"C:\stash\A.lnk");
+        assert_eq!(items[0].pos, None, "an old manifest recorded no position");
     }
 
     #[test]
@@ -531,11 +572,15 @@ mod tests {
             from: r"C:\Desktop\A.lnk".into(),
             to: String::new(),
             method: "attr".into(),
+            pos: Some((320, 480)),
         }];
         let s = serde_json::to_string(&items).unwrap();
         let back: Vec<HiddenItem> = serde_json::from_str(&s).unwrap();
         assert_eq!(back[0].method, "attr");
         assert!(back[0].to.is_empty(), "an in-place hide has nowhere it moved to");
+        // The saved square must survive the round trip, or the icon comes back
+        // in the wrong place after a reboot.
+        assert_eq!(back[0].pos, Some((320, 480)));
     }
 
     #[test]

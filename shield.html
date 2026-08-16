@@ -2813,9 +2813,12 @@ function tabTargets(kind, id, ro){
        + 'open a game and everything above tidies itself away.</div>';
   h += '</div>';
   if (trg.length){
-    h += '<div class="sec"><div class="hint">Fires once when the app <b>starts</b>, not repeatedly while it runs, and the '
-      +  'trigger itself is never closed — opening League cannot close League. Works with the Shield window shut, and '
-      +  'survives a restart. Every automatic run is recorded in <b>History</b> with a Reopen button, exactly like a manual one.'
+    h += '<div class="sec"><div class="hint">Fires when the app <b>starts</b> or when you <b>switch to it</b> — a browser is '
+      +  'usually already running, so "I opened Brave" means its window came to the front, not that a process began. '
+      +  'Both count.<br><br>'
+      +  'Each trigger then waits 45 seconds before it can fire again, so alt-tabbing does not re-close everything, and the '
+      +  'trigger itself is never closed — opening League cannot close League. Works with the Shield window shut and survives '
+      +  'a restart. Every automatic run is recorded in <b>History</b> with a Reopen button, exactly like a manual one.'
       +  (caps().agent ? '' : '<br><br><b>This device has no agent, so nothing will fire here.</b>')
       +  '</div></div>';
   }

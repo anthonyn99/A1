@@ -48,6 +48,11 @@ features = [
   # Reading Explorer's "show hidden files" preference, which decides whether
   # hiding a shortcut by attribute would actually hide anything.
   "Win32_System_Registry",
+  # Talking to the live desktop view (IShellWindows -> IFolderView) so an icon
+  # can be put back in the exact square it came from.
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+  "Win32_System_Ole",
 ]
 
 [profile.release]

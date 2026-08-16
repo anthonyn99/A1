@@ -495,6 +495,35 @@ pub fn running_ids(targets: &[Target]) -> Vec<String> {
         .collect()
 }
 
+/// Which target, if any, owns the window currently in front of the user.
+///
+/// "I opened Brave" almost never means a process started — a browser is already
+/// running, and opening it brings an existing process forward. Watching the
+/// foreground window is what actually matches the sentence.
+pub fn foreground_target_id(targets: &[Target]) -> Option<String> {
+    use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+    let hwnd = unsafe { GetForegroundWindow() };
+    if hwnd.is_invalid() {
+        return None;
+    }
+    let mut pid: u32 = 0;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 {
+        return None;
+    }
+    let s = sys();
+    let p = s.process(Pid::from_u32(pid))?;
+    let name = p.name().to_string_lossy().to_string();
+    if is_denied(&name) {
+        return None;
+    }
+    let exe = p.exe().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
+    targets
+        .iter()
+        .find(|t| !t.r#match.value.trim().is_empty() && t.matches(&name, &exe))
+        .map(|t| t.id.clone())
+}
+
 /// Watchdog path: no manifest, no grace period, no reporting. Kill on sight.
 ///
 /// Deliberately does NOT capture launch data — the entry that opened the
