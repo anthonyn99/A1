@@ -860,7 +860,7 @@ window.Bio = (function(){
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js';
-import { initializeFirestore, memoryLocalCache, doc, getDoc, getDocFromServer, setDoc, updateDoc, onSnapshot }
+import { initializeFirestore, memoryLocalCache, doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteField, onSnapshot }
   from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -921,6 +921,34 @@ window._shUpdate = async (profile, flat) => {
     if (e && e.code === 'not-found') await setDoc(ref, expand(flat), { merge: true });
     else throw e;
   }
+};
+
+/* One-shot read of a profile document.
+   Used to check whether this device is lingering in the OTHER profile — a
+   listener would be wrong here, since we neither want to watch it nor keep a
+   second subscription open on a document that is not ours. */
+window._shGetOnce = async (profile) => {
+  try {
+    await authReady;
+    const snap = await getDoc(shRef(profile));
+    return snap.exists() ? (snap.data() || {}) : null;
+  } catch (e) { return null; }
+};
+
+/* Remove a device record outright.
+   `deleteField()` rather than a `revoked` flag: a device that belongs to the
+   other profile was never this profile's to list, and a flag still leaves it
+   sitting in the document to be counted or rendered by any future code path
+   that forgets to filter. Gone is gone. */
+window._shDeleteDevice = async (profile, devId) => {
+  try {
+    await authReady;
+    const f = {};
+    f['devices.' + devId] = deleteField();
+    f.savedAt = Date.now();
+    await updateDoc(shRef(profile), f);
+    return true;
+  } catch (e) { return false; }
 };
 
 window._shWatch = (profile, onData, onErr) => {
@@ -1771,11 +1799,10 @@ function adoptAgentDeviceId(){
     var stale = S.devId;
     S.devId = id;
     lsSet('sh_device_id', id);
-    // Fold the old record away rather than leaving a ghost "PC" in the list.
-    // Only ever the id THIS webview minted, never another machine's.
-    if (stale && S.doc && S.doc.devices && S.doc.devices[stale]){
-      var f = {}; f['devices.' + stale + '.revoked'] = true;
-      write(f, true).catch(function(){});
+    // Erase the old record rather than leaving a ghost "PC" in the list. Only
+    // ever the id THIS webview minted, never another machine's.
+    if (stale && S.doc && S.doc.devices && S.doc.devices[stale] && window._shDeleteDevice){
+      window._shDeleteDevice(S.profile, stale).catch(function(){});
     }
   }).catch(function(){});
 }
@@ -2079,6 +2106,32 @@ function syncHistory(){
 function claimedBy(){ return lsGet('sh_claim', ''); }
 function setClaim(p){ lsSet('sh_claim', p); }
 function clearClaim(){ lsDel('sh_claim'); }
+function otherProfile(){ return S.profile === 'veda' ? 'tony' : 'veda'; }
+
+/* Erase this device from the profile that does NOT own it.
+   Claiming stops a device being registered twice from now on, but it cannot
+   undo what already happened: this machine was registered under a profile
+   before claiming existed, so its record still sits in that document and shows
+   up in that profile's device list, its "all my devices" count, and its
+   emergency screen. Owning one profile has to mean being absent from the other
+   everywhere, not merely inactive.
+
+   Runs once per session and only ever touches THIS device's own id — never
+   another machine's. */
+var _purged = false;
+function purgeFromOtherProfile(){
+  if (_purged || !S.profile || !S.devId) return Promise.resolve();
+  if (!window._shGetOnce || !window._shDeleteDevice) return Promise.resolve();
+  _purged = true;
+  var other = otherProfile();
+  return window._shGetOnce(other).then(function(d){
+    if (!d || !d.devices || !d.devices[S.devId]) return;
+    return window._shDeleteDevice(other, S.devId).then(function(ok){
+      if (ok) console.info('[Shield] removed this device from the "' + other
+        + '" profile — a device belongs to one profile only.');
+    });
+  }).catch(function(){});
+}
 
 async function releaseDevice(owner){
   var ok = await window.uiConfirm(
@@ -2102,13 +2155,12 @@ async function releaseDevice(owner){
     }
   }
 
-  // Retire the record in the owning profile's document, then drop local traces.
+  // Erase the record from the owning profile, not just flag it — a released
+  // device must not linger in that profile's list, counts or emergency screen.
   try {
-    if (window._shUpdate && window._shLoadOk){
-      var f = {}; f['devices.' + S.devId + '.revoked'] = true; f.savedAt = now();
-      await window._shUpdate(owner, f);
-    }
+    if (window._shDeleteDevice) await window._shDeleteDevice(owner, S.devId);
   } catch(e){}
+  _purged = false;   // it may now legitimately need purging from the new side
   lsDel('sh_hist_' + owner + '_' + S.devId);
   lsDel('sh_emg_' + owner);
   clearClaim();
@@ -3413,6 +3465,9 @@ function onSnap(data){
 
   ensureRegistered().then(function(){
     S.registered = true;
+    // This device now belongs to this profile — make sure it is gone from the
+    // other one rather than merely inactive there.
+    purgeFromOtherProfile();
     // Keep the agent's copy of the config current, so the tray and the hotkeys
     // act on what the user last configured even after the window is closed.
     pushConfig();
