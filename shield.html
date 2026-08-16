@@ -1744,6 +1744,36 @@ function syncState(s){
    leave the first caller's promise pending forever. Everything queued between
    flushes is coalesced into a single field-scoped update instead, which is also
    one write instead of two. */
+/* ── Write circuit breaker ────────────────────────────────────────────────
+   A feedback loop between a write and its own snapshot once burned 18,000
+   writes and 43,000 reads in a single hour — most of a day's free quota, from
+   one wrong comparison. The bug is fixed, but the CLASS of bug is easy to
+   reintroduce: any future code that writes in response to a snapshot can do it
+   again, and Firestore will happily bill for it until the quota is gone.
+
+   So this caps writes at a rate no legitimate use can reach. Real usage is a
+   registration, a few config edits, and one heartbeat every fifteen minutes; a
+   runaway does ten a second. Once tripped it stays tripped for the session and
+   says so loudly — losing edits is far cheaper than losing the database. */
+var WRITE_LIMIT = 40, WRITE_WINDOW = 60000;
+var _wrTimes = [], _wrTripped = false;
+function writeAllowed(){
+  if (_wrTripped) return false;
+  var t = now();
+  _wrTimes = _wrTimes.filter(function(x){ return x > t - WRITE_WINDOW; });
+  if (_wrTimes.length >= WRITE_LIMIT){
+    _wrTripped = true;
+    console.error('[Shield] Write rate limit tripped: ' + _wrTimes.length + ' writes in '
+      + (WRITE_WINDOW/1000) + 's. Refusing further writes this session — this is a runaway loop, '
+      + 'not normal use. Reload to reset once the cause is fixed.');
+    syncState('err');
+    toast('Sync stopped — too many writes. Reload Shield.', true);
+    return false;
+  }
+  _wrTimes.push(t);
+  return true;
+}
+
 var _pendFlat = null, _pendWaiters = [];
 function flushWrite(){
   var flat = _pendFlat, waiters = _pendWaiters;
@@ -1755,6 +1785,7 @@ function flushWrite(){
     waiters.forEach(function(w){ err ? w.rej(err) : w.res(); });
   };
   if (!window._shUpdate){ settle(new Error('no-firebase')); return; }
+  if (!writeAllowed()){ settle(new Error('rate-limited')); return; }
   try { window._shUpdate(S.profile, flat).then(function(){ settle(null); }, settle); }
   catch (e){ settle(e); }
 }
@@ -3336,6 +3367,9 @@ return {
   onDeviceRelock: function(){ goProfileSelect(); },
   _state: S,
   _caps: caps,
+  // Debug/test seam. `_write` exists so the write circuit breaker can be
+  // exercised against a real runaway rather than a mock of one.
+  _write: write,
   // Exposed so the navorder listener (Firebase module script, loaded earlier
   // in the page) can push local-link paths into the agent without duplicating
   // the __TAURI__ presence check Agent already does.
