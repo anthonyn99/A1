@@ -206,6 +206,84 @@ check(
   /fn sh_set_config[\s\S]*?is_denied/.test(lib)
 );
 
+/* ── The guard token ────────────────────────────────────────────────────────
+   This one secret crosses three files in three languages: the page mints it and
+   pushes it down, `sh_set_config` stores it under a serde rename, and the poller
+   puts it on the query string. Every hop is a silent failure if it drifts — the
+   agent keeps polling, keeps getting answers, and simply stops learning who
+   raised an emergency. Nothing throws, so only this catches it.
+
+   It also pins the asymmetry the design turns on: the WRITE is token-gated, the
+   READ deliberately is not. Gating the read would make an agent whose page has
+   not been opened since the token was minted go quietly deaf to remote
+   emergencies, which is the exact case the agent exists for. */
+console.log('\nShield: guard token');
+
+const workerPath = path.join(ROOT, 'workers', 'taskhub-reminders', 'worker.js');
+const worker = fs.existsSync(workerPath) ? fs.readFileSync(workerPath, 'utf8') : '';
+
+const setCfgStruct = (lib.match(/pub struct SetConfig \{[\s\S]*?\n\}/) || [''])[0];
+const pushCfg = (html.match(/function pushConfig\(\)\{[\s\S]*?\n\}/) || [''])[0];
+
+check(
+  'the page pushes guardKey in sh_set_config',
+  /guardKey:\s*guardKey\(\)/.test(pushCfg)
+);
+check(
+  'SetConfig accepts that exact key (serde rename, not the snake_case default)',
+  /rename\s*=\s*"guardKey"/.test(setCfgStruct) && /guard_key:\s*String/.test(setCfgStruct)
+);
+check(
+  'sh_set_config never clears a working token with an empty push',
+  /fn sh_set_config[\s\S]*?if !cfg\.guard_key\.is_empty\(\)[\s\S]*?st\.guard_key = /.test(lib)
+);
+check(
+  'the poller sends the token it was given',
+  /fn fetch\(profile: &str, key: &str\)/.test(rust) && /fetch\(&s\.profile, &s\.guard_key\)/.test(rust)
+);
+check(
+  'a token-less agent still polls rather than sending an empty k=',
+  /if key\.is_empty\(\)[\s\S]*?\?profile=\{profile\}"\)/.test(rust)
+);
+
+if (worker) {
+  const shield = (worker.match(/async function handleShield\([\s\S]*?\n\}/) || [''])[0];
+  const get = (shield.match(/'\/shield\/emergency' && request\.method === 'GET'[\s\S]*?\n  \}/) || [''])[0];
+  const post = (shield.match(/'\/shield\/emergency' && request\.method === 'POST'[\s\S]*?\n  \}\n\n/) || [''])[0];
+  check(
+    'minting the token requires the profile passcode',
+    /'\/shield\/key'[\s\S]*?verifyHash\(password, lock\)[\s\S]*?badpassword/.test(shield)
+  );
+  check(
+    'the WRITE is token-gated',
+    /shieldTokenOk\(env, profile, body\.k\)/.test(shield) && /badkey/.test(post || shield)
+  );
+  check(
+    'the READ answers a token-less poll rather than 403-ing it',
+    /if \(!given\) \{[\s\S]*?active: !!rec\.active, v: rec\.v \|\| 0 \}/.test(get) && !/if \(!given\)[\s\S]{0,400}?403/.test(get),
+    'the desktop agent depends on this'
+  );
+  check(
+    'the guard URL needs no profile name (the token resolves its own)',
+    /shieldTokProfKey\(given\)/.test(shield) && /function guardUrl\(\)\{[\s\S]*?\?k=/.test(html),
+    'Shield must never print a profile name'
+  );
+  check(
+    'rotating a token revokes the old one',
+    /TOKEN_CACHE\.delete\(shieldTokProfKey\(old\)\)/.test(shield)
+  );
+  check(
+    'active is a plain top-level boolean in both shapes (one Shortcuts action)',
+    /active: !!rec\.active/.test(get) && /return json\(\{ ok: true, \.\.\.rec \}/.test(get)
+  );
+}
+
+check(
+  'the token reaches the profile\'s other devices, and heals a failed share',
+  /function syncGuardKey\(\)[\s\S]*?setGuardKey\(theirs\)[\s\S]*?write\(\{ guard: mine \}/.test(html) &&
+    /syncGuardKey\(\);/.test(html)
+);
+
 console.log('\nShield agent: config + icons');
 
 const PAGES = 'https://anthonyn99.github.io';

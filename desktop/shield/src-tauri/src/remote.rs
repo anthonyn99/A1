@@ -39,8 +39,15 @@ pub struct RemoteState {
     pub by_name: String,
 }
 
-pub fn fetch(profile: &str) -> Option<RemoteState> {
-    let url = format!("{ENDPOINT}?profile={profile}");
+pub fn fetch(profile: &str, key: &str) -> Option<RemoteState> {
+    // The endpoint is token-gated: without `k` it answers 403 for any profile
+    // that has minted one. An older agent that has not yet been handed a token
+    // still works, because the Worker leaves un-minted profiles open.
+    let url = if key.is_empty() {
+        format!("{ENDPOINT}?profile={profile}")
+    } else {
+        format!("{ENDPOINT}?profile={profile}&k={key}")
+    };
     let resp = ureq::get(&url)
         .timeout(Duration::from_secs(10))
         .call()
@@ -83,7 +90,7 @@ impl Poller {
                     // profile to ask about.
                     continue;
                 }
-                match fetch(&s.profile) {
+                match fetch(&s.profile, &s.guard_key) {
                     Some(r) => {
                         backoff = POLL_SECS;
                         // Monotonic: only ever move forward. A replayed or

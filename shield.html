@@ -450,6 +450,59 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 .cap .tx{color:var(--txd)}
 .cap .tx b{color:var(--tx);font-weight:600}
 
+/* ── iOS guard wizard. A numbered checklist, read on a phone by someone who is
+      about to build six Shortcuts actions by hand. Ticks persist, so it can be
+      put down halfway through and picked up later. ─────────────────────────── */
+.wiz{
+  display:flex;gap:11px;align-items:flex-start;
+  border:1px solid var(--bd);border-radius:var(--radius);
+  padding:12px 13px;margin-bottom:8px;background:var(--s1);
+}
+.wiz.done{border-color:var(--acl);background:var(--acbg)}
+.wiz-tick{
+  flex-shrink:0;width:24px;height:24px;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--bd);border-radius:var(--radius);
+  background:transparent;color:transparent;cursor:pointer;transition:.14s;
+}
+.wiz-tick:hover{border-color:var(--txd);color:var(--txm)}
+.wiz-tick svg{width:14px;height:14px}
+.wiz.done .wiz-tick{border-color:var(--ac);color:var(--ac)}
+.wiz-body{flex:1;min-width:0}
+.wiz-title{
+  display:flex;align-items:baseline;gap:8px;
+  font-size:12px;font-weight:600;color:var(--tx);margin-bottom:5px;
+}
+.wiz.done .wiz-title{color:var(--txd)}
+.wiz-n{
+  flex-shrink:0;font-size:10px;font-weight:700;color:var(--ac);
+  font-variant-numeric:tabular-nums;
+}
+.wiz-text{font-size:11.5px;line-height:1.6;color:var(--txd)}
+.wiz-text b{color:var(--tx);font-weight:600}
+.wiz-text code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;
+  background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:1px 5px;color:var(--tx);
+}
+.wiz-ol{margin:7px 0;padding-left:18px}
+.wiz-ol li{margin-bottom:4px}
+.wiz-note{
+  margin-top:8px;padding-left:9px;border-left:2px solid var(--bd);
+  font-size:11px;line-height:1.55;color:var(--txm);
+}
+.wiz-btns{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+/* The guard link is a long opaque token that has to be read and copied
+   accurately. It wraps rather than truncating — a link cut off at the edge of a
+   phone screen is a link that gets pasted wrong. */
+.guard-url{
+  margin-top:9px;padding:9px 10px;background:var(--bg);
+  border:1px solid var(--bd);border-radius:var(--radius);
+}
+.guard-url code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;line-height:1.5;
+  color:var(--ac);word-break:break-all;user-select:all;-webkit-user-select:all;
+}
+
 /* ══ EMERGENCY SCREEN — full takeover. Unmistakable at a glance, from across
       the room, with the two exits as the only interactive things on it. ══════ */
 #emg-screen{
@@ -563,13 +616,25 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
   .btn svg{width:16px;height:16px}
   .iconbtn{min-width:44px;min-height:44px;padding:10px}
   .iconbtn svg{width:19px;height:19px}
+  /* The wizard tick is the control most used on a phone, since the wizard only
+     appears on one. It stays visually small but grows its hit area sideways. */
+  .wiz-tick{width:34px;height:34px;position:relative}
+  .wiz-tick svg{width:17px;height:17px}
+  /* Same trick as .toggle: a 44px box next to a two-line heading looks wrong,
+     so the visible tick stays 34 and an invisible overlay takes the taps. */
+  .wiz-tick::after{content:'';position:absolute;left:-5px;right:-5px;top:-5px;bottom:-5px}
   .pill{height:40px;padding:0 15px;font-size:11px}
   .nav{gap:8px;padding-bottom:2px}
 
-  /* A bigger switch, and a bigger area around it to actually hit. */
+  /* A bigger switch, and a bigger area around it to actually hit.
+     A pill switch cannot simply be made 44px tall without looking absurd, so
+     the visible switch stays 26px and an invisible overlay carries the hit
+     area out to 44. Padding would not work here: the knob is positioned
+     against the padding box, so it would drift off the switch. */
   .toggle{width:46px;height:26px;border-radius:13px}
   .toggle i{width:20px;height:20px;top:3px;left:3px}
   .toggle.on i{left:23px}
+  .toggle::after{content:'';position:absolute;left:-6px;right:-6px;top:-9px;bottom:-9px}
   .tgt-opt{gap:10px}
 
   input[type=text],input[type=password],select{font-size:16px;padding:12px 13px}
@@ -2056,6 +2121,10 @@ function pushConfig(){
   var e = cfgEmg(S.devId);
   return Agent.invoke('sh_set_config', { cfg: {
     profile: S.profile,
+    // The agent polls the same guarded endpoint, so it needs the token too.
+    // Pushed with the rest of the config rather than fetched separately — the
+    // agent has no passcode to prove and should never need one.
+    guardKey: guardKey(),
     closer: cfgCloser(S.devId).targets || [],
     triggers: cfgCloser(S.devId).triggers || [],
     emergency: {
@@ -2478,6 +2547,64 @@ async function challenge(title, message){
    that are not looking at Firestore will not react, and the user has to know
    that rather than assume everything locked. */
 var SHIELD_WORKER = 'https://taskhub-reminders.av1.workers.dev';
+
+/* ── Guard token ──────────────────────────────────────────────────────────
+   An opaque per-profile secret that gates the emergency endpoint. It exists
+   because the iOS guard puts that URL into an Apple Shortcut and prints it in
+   the setup wizard — at which point an unauthenticated endpoint means anyone
+   holding the URL could close every application on every device of the
+   profile. Minted by the Worker only on proof of the Shield passcode.
+
+   Cached per device. It is not a password and never unlocks anything; it only
+   makes the endpoint addressable by its owner. */
+function guardKey(){ return lsGet('sh_guardkey_' + S.profile, ''); }
+function setGuardKey(k){ lsSet('sh_guardkey_' + S.profile, k); }
+
+/* Fetch (minting if needed) the profile's guard token.
+   `password` is required whenever the profile has a Shield passcode set. */
+function fetchGuardKey(password, rotate){
+  return fetch(SHIELD_WORKER + '/shield/key', {
+    method:'POST', headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ profile: S.profile, password: password || '', rotate: !!rotate })
+  }).then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j || !j.ok || !j.k) return null;
+      setGuardKey(j.k);
+      pushConfig();
+      // Share it with the profile's other devices. Minting happens on whichever
+      // device ran the wizard — most likely the phone — but the DESKTOP agent
+      // polls the same guarded endpoint, and a token it never receives means it
+      // silently starts getting 403s and stops hearing about remote
+      // emergencies. That is the failure this write exists to prevent.
+      //
+      // The document is a reasonable place for it: anyone who can read this doc
+      // can already read AND set the emergency state directly, so the token
+      // grants them nothing new. Its job is to stop people who have merely seen
+      // the URL — in the wizard, in a Shortcut, over someone's shoulder — and
+      // against that it is unaffected by living here.
+      if (guardOf(S.doc) !== j.k) write({ guard: j.k }, true).catch(function(){});
+      return j.k;
+    })
+    .catch(function(){ return null; });
+}
+
+function guardOf(d){ return (d && typeof d.guard === 'string') ? d.guard : ''; }
+
+/* Keep this device's token and the profile's token in step.
+   Runs on every snapshot, and is what makes minting on the phone reach the PC
+   in about a second instead of at its next unlock.
+
+   The document is the authority when the two disagree, because that is where a
+   rotation lands and there has to be exactly one winner. The other direction —
+   we hold a token the document does not — covers a mint whose write failed, and
+   retries it. Both branches are no-ops in the normal case, so this costs nothing
+   per snapshot. */
+function syncGuardKey(){
+  var theirs = guardOf(S.doc), mine = guardKey();
+  if (theirs && theirs !== mine){ setGuardKey(theirs); pushConfig(); return; }
+  if (mine && !theirs) write({ guard: mine }, true).catch(function(){});
+}
+
 function publishGlobal(active, v, password){
   var d = myDev();
   return fetch(SHIELD_WORKER + '/shield/emergency', {
@@ -2485,7 +2612,7 @@ function publishGlobal(active, v, password){
     body: JSON.stringify({
       profile: S.profile, active: !!active, v: v,
       byId: S.devId, byName: (d && d.name) || defaultName(),
-      password: password || ''
+      password: password || '', k: guardKey()
     })
   }).then(function(r){ return r.json(); })
     .then(function(j){ return !!(j && j.ok); })
@@ -2594,7 +2721,8 @@ var GLYPH = {
   trash:  '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   lock:   '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   unlock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
-  alert:  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="M12 8v5"/><path d="M12 16.5h.01"/>'
+  alert:  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="M12 8v5"/><path d="M12 16.5h.01"/>',
+  check:  '<path d="m20 6-11 11-5-5"/>'
 };
 
 /* Render ONLY the view the user is looking at.
@@ -3047,33 +3175,59 @@ function tabEmergency(id, ro){
   return h;
 }
 
+/* ── iOS guard: local state ───────────────────────────────────────────────
+   The list of guarded apps and the setup progress are per-device and never
+   leave it. They describe what the person built in the Shortcuts app on THIS
+   phone; syncing them would say nothing true about any other device, and the
+   app names themselves are the sort of thing worth keeping off a server. */
+function iosApps(){
+  try { var a = JSON.parse(lsGet('sh_ios_apps_' + S.profile, '[]')); return Array.isArray(a) ? a : []; }
+  catch(e){ return []; }
+}
+function setIosApps(a){ lsSet('sh_ios_apps_' + S.profile, JSON.stringify(a.slice(0, 40))); }
+function iosStep(n){ return lsGet('sh_ios_step_' + S.profile + '_' + n, '') === '1'; }
+function setIosStep(n, on){ lsSet('sh_ios_step_' + S.profile + '_' + n, on ? '1' : '0'); }
+
+/* The URL the Shortcut fetches. Token only — no profile name. The Worker looks
+   the profile up from the token, precisely so this string can be shown on
+   screen and pasted into Shortcuts without naming anybody. */
+function guardUrl(){
+  var k = guardKey();
+  return k ? SHIELD_WORKER + '/shield/emergency?k=' + k : '';
+}
+
+function stepHtml(n, title, body, extra){
+  return '<div class="wiz' + (iosStep(n) ? ' done' : '') + '">'
+       + '<button class="wiz-tick" data-step="' + n + '" aria-label="Mark step done">' + svg(GLYPH.check) + '</button>'
+       + '<div class="wiz-body"><div class="wiz-title"><span class="wiz-n">' + n + '</span>' + title + '</div>'
+       + '<div class="wiz-text">' + body + '</div>' + (extra || '') + '</div></div>';
+}
+
 /* ── Phones and tablets: the closest thing that is actually possible ───────
    A web app cannot hide, close or block another app on iOS or Android. There
    is no API, and it is not a permission that can be requested — so Shield does
-   not pretend. What it CAN do is hand off in one tap to the OS features that
-   really do restrict apps, and be specific about the setup rather than waving
-   at "use Screen Time". */
+   not pretend.
+
+   On iOS there is exactly one free mechanism that does real work, and it runs
+   backwards from what you would expect. Shield cannot PUSH a lockdown to the
+   phone; iOS gives a web app no background execution, and even a native app's
+   silent pushes are throttled and dropped after a force-quit. But an iOS 17+
+   personal automation can run with no confirmation prompt when a chosen app is
+   opened — so the phone can ASK Shield, at the only moment that matters. Open
+   Instagram, the automation fires, it reads the emergency state from the same
+   Worker the desktop agent polls, and locks the screen if one is live. Pull,
+   not push, because pull is what Apple permits.
+
+   Android gets no equivalent here by choice — see below. */
 function tabPhoneHandoff(id){
   var p = (devRec(id) && devRec(id).platform) || platform();
   if (p !== 'ios' && p !== 'android') return '';
   var mine = id === S.devId;
 
-  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">On this ' + (deviceType()==='tablet'?'tablet':'phone') + '</span></div><div class="card">';
+  if (p === 'ios') return iosGuardHtml(mine);
 
-  if (p === 'ios'){
-    h += '<div class="opt"><div class="opt-main"><div class="opt-name">One-tap Focus / Downtime</div>'
-      +  '<div class="opt-sub">Shield cannot restrict other apps itself, but a Shortcut can. Make one called '
-      +  '<b>Shield Emergency</b> that turns on a Focus mode (or Screen Time Downtime), and this button runs it.</div></div>'
-      +  (mine ? '<a class="btn sm ac" href="shortcuts://run-shortcut?name=Shield%20Emergency">Run</a>' : '') + '</div>';
-    h += '<div class="hint" style="padding-top:10px">'
-      +  '<b>Setting it up, once:</b><br>'
-      +  '1. Shortcuts app → <b>+</b> → name it exactly <code>Shield Emergency</code><br>'
-      +  '2. Add action → <b>Set Focus</b> → choose a Focus that allows nothing you want hidden<br>'
-      +  '3. Optionally add <b>Set Screen Time</b> → Downtime on<br><br>'
-      +  'iOS asks for confirmation the first time a website runs a Shortcut. After that it is one tap. '
-      +  'Apps stay installed and visible — Focus greys them out and blocks notifications, which is as far as iOS lets '
-      +  'anything but Apple go.</div>';
-  } else {
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">On this ' + (deviceType()==='tablet'?'tablet':'phone') + '</span></div><div class="card">';
+  {
     h += '<div class="opt"><div class="opt-main"><div class="opt-name">Focus mode</div>'
       +  '<div class="opt-sub">Android\'s own app blocker. Add its Quick Settings tile and it is one swipe from anywhere '
       +  '— faster than opening Shield.</div></div></div>';
@@ -3091,6 +3245,125 @@ function tabPhoneHandoff(id){
     +  'and <b>Emergency — All My Devices</b> reaches your PC even with its browser closed. The limit is other people\'s '
     +  'apps, not yours.</div>';
   h += '</div></div>';
+  return h;
+}
+
+/* The iOS guard setup surface. Read on a phone, by someone who is not going to
+   enjoy it — so it is a numbered checklist with its progress remembered, not a
+   wall of prose. Almost all the work in this feature is here rather than in the
+   mechanism, because the mechanism is six actions and the setup is where a
+   non-technical person either succeeds or gives up. */
+function iosGuardHtml(mine){
+  var apps = iosApps(), url = guardUrl(), tablet = deviceType() === 'tablet';
+
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Block apps on this ' + (tablet?'iPad':'iPhone') + '</span></div>';
+
+  h += '<div class="card"><div class="hint" style="padding-bottom:0">'
+    +  'iOS will not let Shield reach into this ' + (tablet?'iPad':'iPhone') + ' — but it will let this '
+    +  (tablet?'iPad':'iPhone') + ' reach out to Shield. Set an app up below and opening it asks whether an emergency is '
+    +  'live; if one is, the screen locks about a second later. Raise the emergency anywhere — this device, your PC, '
+    +  '<b>Emergency — All My Devices</b> — and these apps stop opening until you lift it.'
+    +  '<br><br>Everything here is built out of Apple\'s own Shortcuts app. Nothing is installed, nothing costs anything, '
+    +  'and you can take it apart the same way you put it together.</div></div></div>';
+
+  /* Guarded apps. Kept above the steps because step 3 is per-app and reads far
+     better once the list is already on screen. */
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Guarded apps</span>'
+    +  (mine ? '<button class="btn sm ac" id="a-ios-add">' + svg(GLYPH.plus) + 'Add</button>' : '') + '</div>';
+  h += apps.length
+    ? '<div class="card">' + apps.map(function(a){
+        return '<div class="opt"><div class="opt-main"><div class="opt-name">' + esc(a) + '</div>'
+             + '<div class="opt-sub">Needs one automation — step 3.</div></div>'
+             + (mine ? '<button class="iconbtn danger" data-iosdel="' + esc(a) + '" title="Remove">' + svg(GLYPH.x) + '</button>' : '')
+             + '</div>';
+      }).join('') + '</div>'
+    : '<div class="empty">No guarded apps yet. Add the ones that should refuse to open during an emergency.</div>';
+  h += '</div>';
+
+  // Another device's phone: the list is all that is meaningful here. The steps
+  // are actions taken in the Shortcuts app on the device itself.
+  if (!mine) return h;
+
+  /* ── The five steps ─────────────────────────────────────────────────── */
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Setup</span></div>';
+
+  h += stepHtml(1, 'Get your guard link',
+    'A private link that answers one question: is an emergency running? It is tied to this profile and nothing else — it '
+    + 'cannot read your data, change anything, or start an emergency. Shield asks for your passcode once to create it.',
+    url
+      ? '<div class="guard-url"><code id="guard-url-txt">' + esc(url) + '</code></div>'
+        + '<div class="wiz-btns"><button class="btn sm ac" id="a-guard-copy">Copy link</button>'
+        + '<button class="btn sm" id="a-guard-rotate">Replace link</button></div>'
+        + '<div class="wiz-note">Treat it like a password. If it gets somewhere it should not, <b>Replace link</b> makes '
+        + 'the old one dead immediately — you then paste the new one into the shortcut in step 2.</div>'
+      : '<div class="wiz-btns"><button class="btn sm ac" id="a-guard-get">Create guard link</button></div>');
+
+  h += stepHtml(2, 'Build the <b>Shield Guard</b> shortcut',
+    'Shortcuts app → <b>+</b> → rename it exactly <code>Shield Guard</code>, then add these four actions in order:'
+    + '<ol class="wiz-ol">'
+    + '<li><b>Get Contents of URL</b> — paste the link from step 1.</li>'
+    + '<li><b>Get Dictionary Value</b> — key <code>active</code>.</li>'
+    + '<li><b>If</b> — <i>Dictionary Value</i> <b>is</b> <code>true</code>.</li>'
+    + '<li>Inside the If: <b>Lock Screen</b>. Leave <i>Otherwise</i> empty.</li>'
+    + '</ol>'
+    + 'Run it once from the Shortcuts app to check it. With no emergency running it should do nothing at all.');
+
+  h += stepHtml(3, 'One automation per guarded app',
+    'Shortcuts → <b>Automation</b> tab → <b>+</b> → <b>App</b> → choose the app → tick <b>Is Opened</b> → <b>Next</b> → '
+    + 'pick <b>Shield Guard</b> → set it to <b>Run Immediately</b>.'
+    + '<div class="wiz-note"><b>Run Immediately matters.</b> The other setting asks permission every time, which makes '
+    + 'the whole thing useless. It needs iOS 17 or newer.</div>'
+    + (apps.length
+        ? '<div class="wiz-note">One each for: <b>' + apps.map(esc).join('</b>, <b>') + '</b>.</div>'
+        : '<div class="wiz-note">Add your apps above first, so you know how many to make.</div>'));
+
+  h += stepHtml(4, 'Two automations for reconnecting',
+    'The check runs when an app is <i>opened</i>. If an app is already open when the internet comes back, nothing '
+    + 're-checks it — unless one of these fires. Made once, shared by every guarded app:'
+    + '<ol class="wiz-ol">'
+    + '<li><b>Airplane Mode</b> → <b>Is Turned Off</b> → Shield Guard → Run Immediately.</li>'
+    + '<li><b>Wi-Fi</b> → <b>Any Network</b> → Shield Guard → Run Immediately.</li>'
+    + '</ol>'
+    + 'Turning aeroplane mode off is the one-tap way to dodge the guard, so it is worth having both.');
+
+  h += stepHtml(5, 'Hide the icons too',
+    'Blocking stops an app opening; it does not take it off the Home Screen. Make a second shortcut named exactly '
+    + '<code>Shield Emergency</code> with <b>Set Focus</b> → a Focus whose Home Screen pages leave the sensitive apps out, '
+    + 'then <b>Lock Screen</b>. Shield\'s button below runs it in one tap.'
+    + '<div class="wiz-note">For anything that should never be casually opened — Wallet, Photos, banking — iOS 18 does '
+    + 'this better than Shield can: long-press the icon → <b>Require Face ID</b> → <b>Hide and Require Face ID</b>. '
+    + 'It is free, built in, and stronger than a Focus. Use it where it fits.</div>',
+    '<div class="wiz-btns"><a class="btn sm ac" href="shortcuts://run-shortcut?name=Shield%20Emergency">Run Shield Emergency</a></div>');
+
+  h += '</div>';
+
+  /* ── The limits. Not a footnote — this is the part that keeps the feature
+     honest, and it says the same things the Windows capability panel does. */
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">What this does not do</span></div><div class="card">'
+    +  '<div class="cap part"><span class="mk">~</span><span class="tx"><b>The app flashes before it closes.</b> It opens, '
+    +  'the automation asks Shield, then the screen locks — about a second. The same honest limit as the desktop\'s '
+    +  '"flashes then dies".</span></div>'
+    +  '<div class="cap part"><span class="mk">~</span><span class="tx"><b>With no internet, apps open normally.</b> '
+    +  'Shortcuts has no error handling — a failed fetch stops the shortcut dead, so there is nothing that can run afterwards '
+    +  'to fall back on. Step 4 closes most of this: the guard re-runs the moment Wi-Fi or aeroplane mode changes. What '
+    +  'stays open is coming back on <b>cellular only</b> — out of a tunnel, or Cellular Data switched back on — with a '
+    +  'guarded app left open the whole time. Apple exposes no cellular trigger, so nothing re-checks until you reopen '
+    +  'the app.</span></div>'
+    +  '<div class="cap no"><span class="mk">✕</span><span class="tx"><b>Nothing is pushed to this device.</b> The phone '
+    +  'reacts when you act on it. A phone sitting on a table does not lock itself.</span></div>'
+    +  '<div class="cap no"><span class="mk">✕</span><span class="tx"><b>Hidden is not blocked.</b> A Focus hides Home '
+    +  'Screen pages; the app is still there in Spotlight and the App Library. Only an app with its own automation is '
+    +  'actually stopped.</span></div>'
+    +  '<div class="cap no"><span class="mk">✕</span><span class="tx"><b>You can switch the automations off.</b> It is '
+    +  'your phone, and Shortcuts is two taps away. Exactly like ending the agent in Task Manager on Windows — Shield '
+    +  'raises the cost of a casual moment, it does not defeat you.</span></div>'
+    +  '</div></div>';
+
+  h += '<div class="sec"><div class="hint">Real blocking that survives all of that needs Apple\'s Family Controls '
+    +  'entitlement — a paid developer account plus a case-by-case approval — or a supervised device, which needs a Mac '
+    +  'and erases the phone. Both were ruled out, so this is the strongest free version, described exactly as it '
+    +  'behaves.</div></div>';
+
   return h;
 }
 
@@ -3119,11 +3392,26 @@ function capsHtml(d){
     h += row('no', '<b>Close applications</b> — needs the Shield desktop agent. A web page has no way to terminate a process.');
     h += row('no', '<b>Hide or block applications</b> — needs the Shield desktop agent.');
   }
-  if (p === 'ios' || p === 'android'){
-    h += row('no', '<b>Block Instagram, Discord, Photos, Wallet, Cash App…</b> — impossible from a web app on ' + platLabel(p)
-       + '. Blocking another app needs a native build with special permissions'
-       + (p==='ios' ? ' (Apple\'s Family Controls entitlement)' : ' (usage access plus a foreground overlay service)')
-       + ', which Shield deliberately does not ship. Use Screen Time or Focus for those, and Shield for everything else.');
+  if (p === 'ios'){
+    // Deliberately specific about which of the three layers is doing the work,
+    // because they fail in completely different ways and "iOS blocking works"
+    // would be the wrong thing to remember during an emergency.
+    var n = iosApps().length;
+    h += row(n ? 'part' : 'no', '<b>Block other apps</b> — ' + (n
+      ? n + ' app' + (n===1?'' : 's') + ' set up. Opening one during an emergency locks the screen about a second later, '
+        + 'from a Shortcuts automation you built. It works because the phone asks Shield, not the other way round — so it '
+        + 'fires when the app is opened, and with no internet the app opens normally.'
+      : 'nothing set up yet. Shield cannot block an app itself, but iOS can be made to ask Shield whether an emergency is '
+        + 'running each time a chosen app opens. See <b>Block apps on this iPhone</b> above.'));
+    h += row('part', '<b>Hide app icons</b> — a Focus can leave sensitive apps off your Home Screen pages, and Shield runs '
+       + 'it in one tap. They stay reachable from Spotlight and the App Library; hidden is not blocked. For the ones that '
+       + 'matter most, iOS 18\'s own <b>Hide and Require Face ID</b> is stronger than anything Shield can offer.');
+    h += row('no', '<b>Anything pushed to this device</b> — iOS gives a web app no background execution at all, so nothing '
+       + 'here happens while the phone sits untouched. Every check runs because you opened something.');
+  } else if (p === 'android'){
+    h += row('no', '<b>Block Instagram, Discord, Photos, Wallet, Cash App…</b> — impossible from a web app on Android. '
+       + 'Blocking another app needs a native build with usage access plus a foreground overlay service, which Shield '
+       + 'deliberately does not ship. Use Digital Wellbeing\'s Focus mode for those, and Shield for everything else.');
   }
   h += row('yes', '<b>Command your other devices</b> — Emergency reaches every device on this profile'
      + (c.remoteWhileClosed ? '.' : ', though a device without the agent only reacts while Shield is open on it.'));
@@ -3199,6 +3487,8 @@ function wireConfig(id, ro){
     b.onclick = function(){ toggleOpt(b.getAttribute('data-opt')); };
   });
 
+  wireIosGuard(root, ro);
+
   var ml = $('a-manage-lock'); if (ml) ml.onclick = function(){ window.AL.manage(lockId()); };
   var rn = $('a-rename'); if (rn) rn.onclick = async function(){
     var d = devRec(S.devId);
@@ -3210,6 +3500,78 @@ function wireConfig(id, ro){
   var rl = $('a-relock'); if (rl) rl.onclick = function(){
     window.AL.markLocked(lockId()); toast('Shield will ask for the passcode next time.'); renderConfig();
   };
+}
+
+/* The iOS guard's own controls. Split out of wireConfig because it is the one
+   part of the config screen that only exists on one platform. */
+function wireIosGuard(root, ro){
+  Array.prototype.forEach.call(root.querySelectorAll('[data-step]'), function(b){
+    b.onclick = function(){
+      var n = b.getAttribute('data-step');
+      setIosStep(n, !iosStep(n));
+      renderConfig();
+    };
+  });
+
+  var add = $('a-ios-add');
+  if (add && !ro) add.onclick = async function(){
+    var n = await window.uiPrompt(
+      'The app\'s name as it appears on the Home Screen — this is just a reminder of what you set up in Shortcuts, so '
+      + 'spell it however you like.',
+      { title:'Guard an app', placeholder:'Instagram', okLabel:'Add' });
+    if (n === null || n === undefined) return;
+    n = String(n).trim(); if (!n) return;
+    var apps = iosApps();
+    if (apps.some(function(a){ return a.toLowerCase() === n.toLowerCase(); })){ toast('Already on the list.'); return; }
+    apps.push(n); setIosApps(apps); renderConfig();
+  };
+
+  Array.prototype.forEach.call(root.querySelectorAll('[data-iosdel]'), function(b){
+    if (ro) return;
+    b.onclick = async function(){
+      var name = b.getAttribute('data-iosdel');
+      var ok = await window.uiConfirm(
+        'Remove ' + name + ' from the list?\n\nThis only edits the list here. The automation on your phone keeps running '
+        + 'until you delete it in the Shortcuts app too.',
+        { title:'Remove app', okLabel:'Remove', danger:true });
+      if (!ok) return;
+      setIosApps(iosApps().filter(function(a){ return a !== name; }));
+      renderConfig();
+    };
+  });
+
+  var get = $('a-guard-get');
+  if (get) get.onclick = function(){ mintGuardKey(false); };
+
+  var rot = $('a-guard-rotate');
+  if (rot) rot.onclick = async function(){
+    var ok = await window.uiConfirm(
+      'Create a new link and kill the old one?\n\nEvery shortcut using the old link stops working the moment you do '
+      + 'this — you will have to paste the new one into Shield Guard before it checks anything again.',
+      { title:'Replace guard link', okLabel:'Replace', danger:true });
+    if (ok) mintGuardKey(true);
+  };
+
+  var cp = $('a-guard-copy');
+  if (cp) cp.onclick = async function(){
+    var u = guardUrl(); if (!u) return;
+    // A phone is exactly where clipboard permission is most likely to be
+    // refused, and a silent failure here means pasting a blank URL into a
+    // shortcut that then fails in a way nobody could diagnose.
+    try { await navigator.clipboard.writeText(u); toast('Guard link copied.'); }
+    catch(e){ await window.uiAlert(u, { title:'Copy this link' }); }
+  };
+}
+
+async function mintGuardKey(rotate){
+  var c = await challenge('Guard link', rotate
+    ? 'Enter your Shield passcode to create a replacement guard link.'
+    : 'Enter your Shield passcode. The link is created once and stays on this device.');
+  if (!c.ok) return;
+  var k = await fetchGuardKey(c.password, rotate);
+  if (!k){ await window.uiAlert('Could not reach the Shield service. Check your connection and try again.', { title:'Guard link' }); return; }
+  toast(rotate ? 'New guard link created. The old one no longer works.' : 'Guard link created.');
+  renderConfig();
 }
 
 /* Show what a target set would close, without closing it.
@@ -3461,6 +3823,9 @@ function onSnap(data){
 
   S.doc = data || { global:{ active:false, v:0 }, devices:{} };
   syncState('ok');
+  // Before the early return: a token minted on another device must land here
+  // even when nothing else about the doc changed for us.
+  syncGuardKey();
   if (unchanged && S.registered) return;
 
   ensureRegistered().then(function(){
@@ -3693,6 +4058,11 @@ return {
   // Debug/test seam. `_write` exists so the write circuit breaker can be
   // exercised against a real runaway rather than a mock of one.
   _write: write,
+  // The iOS guard's internals. The wizard only appears when the page believes
+  // it is on iOS, so it cannot be reached from a desktop browser at all — these
+  // are what let the headless harness drive it without faking the whole DOM.
+  _ios: { platform: platform, apps: iosApps, setApps: setIosApps,
+          step: iosStep, url: guardUrl, setKey: setGuardKey, render: renderConfig },
   // Exposed so the navorder listener (Firebase module script, loaded earlier
   // in the page) can push local-link paths into the agent without duplicating
   // the __TAURI__ presence check Agent already does.

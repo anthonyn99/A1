@@ -71,6 +71,13 @@ pub struct AgentState {
     /// History entry this lockdown belongs to, so its stash can be restored.
     #[serde(default)]
     pub entry_id: String,
+    /// Opaque token gating the emergency endpoint.
+    ///
+    /// Pushed down by the page with the rest of the config. The agent has no
+    /// passcode to prove and should never be asked for one, so it never mints
+    /// the token itself — it just carries the one its page was given.
+    #[serde(default)]
+    pub guard_key: String,
     /// Highest profile-wide emergency version this device has already applied.
     ///
     /// Persisted so a restart neither re-fires a lockdown that was already

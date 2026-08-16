@@ -228,6 +228,9 @@ fn arm_triggers(app: &AppHandle) {
 pub struct SetConfig {
     #[serde(default)]
     profile: String,
+    /// Token for the emergency endpoint. See `state::AgentState::guard_key`.
+    #[serde(default, rename = "guardKey")]
+    guard_key: String,
     #[serde(default)]
     closer: Vec<Target>,
     #[serde(default)]
@@ -251,6 +254,13 @@ fn sh_set_config(app: AppHandle, cfg: SetConfig) -> serde_json::Value {
     state::update(|st| {
         if !cfg.profile.is_empty() {
             st.profile = cfg.profile.clone();
+        }
+        // Only ever overwritten with a real token. A page that has not fetched
+        // one yet pushes an empty string, and clearing a working token on that
+        // basis would take the agent off the remote channel until the next
+        // successful mint.
+        if !cfg.guard_key.is_empty() {
+            st.guard_key = cfg.guard_key.clone();
         }
         st.closer = clean(cfg.closer.clone());
         st.triggers = clean(cfg.triggers.clone());

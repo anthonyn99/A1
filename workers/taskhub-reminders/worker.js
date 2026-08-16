@@ -489,16 +489,144 @@ function collectIdsFromDashboardDoc(doc, idSet, repeatIdSet) {
 // the UI reads. That keeps this endpoint tiny and impossible to get out of step
 // in a way that matters.
 
+// ── Access token ──────────────────────────────────────────────────────────
+//
+// This endpoint began life unauthenticated. That was defensible while the URL
+// only existed inside compiled code, but the iOS guard pastes it into an
+// Apple Shortcut and a setup wizard prints it on screen — so it is now written
+// down, and two problems become pressing:
+//
+//   · READ.  A GET revealed whether a lockdown was live and which device raised
+//            it, to anyone holding the URL.
+//   · WRITE. A POST with active:true needed NO credential, so anyone holding
+//            the URL could close every application on every device of that
+//            profile, at will. Turning it OFF was always passcode-checked, so
+//            this was disruption rather than a bypass — but a stranger reaching
+//            into the machine all the same.
+//
+// The write is closed outright by an opaque per-profile token; the read is
+// reduced to a bare boolean without one, for the reason spelled out at the GET
+// handler below. The token is minted on demand by /shield/key, which proves the
+// caller knows the profile's Shield passcode using the same PBKDF2 record the
+// app locks already use — no second auth system, and no secret that has to be
+// deployed with the Worker.
+//
+// Raising an emergency still needs no PASSWORD, only the token: a button that
+// asks for a password first is not an emergency button. The token is what stops
+// it being the whole internet's button.
+
 const shieldKey = (profile) => `shield:emergency:${profile}`;
+const shieldTokKey = (profile) => `shield:token:${profile}`;
+// Reverse index: token → profile. Exists so the guard URL can be JUST the
+// token. Shield's UI is required never to show a profile's real name, and that
+// URL gets printed in the setup wizard and pasted into an Apple Shortcut, so
+// `?profile=tony` would have leaked the one thing the whole app hides.
+const shieldTokProfKey = (tok) => `shield:tokprof:${tok}`;
 const SHIELD_PROFILES = ['tony', 'veda'];
+
+function randomToken() {
+  const b = new Uint8Array(24);
+  crypto.getRandomValues(b);
+  return [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+/** Constant-time-ish compare, so a wrong token cannot be found a byte at a time. */
+function tokensMatch(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function shieldTokenOk(env, profile, given) {
+  const tok = await getJSON(env, shieldTokKey(profile));
+  // No token minted yet → this profile has never run the key flow, so the
+  // endpoint stays open for it. Minting one is what turns protection on, and
+  // doing it this way means an existing install keeps working until its wizard
+  // is run rather than locking the user out of their own emergency.
+  if (!tok || !tok.k) return true;
+  return tokensMatch(tok.k, String(given || ''));
+}
 
 async function handleShield(path, request, env, origin, url) {
   if (!env.TOKEN_CACHE) return json({ ok: false, error: 'KV not bound' }, origin, 500);
 
-  if (path === '/shield/emergency' && request.method === 'GET') {
-    const profile = (url.searchParams.get('profile') || '').toLowerCase();
+  // Mint (or return) the profile's token. Passcode-gated.
+  if (path === '/shield/key' && request.method === 'POST') {
+    let body = {};
+    try { body = await request.json(); } catch { return json({ ok: false, error: 'bad json' }, origin, 400); }
+    const profile = String(body.profile || '').toLowerCase();
     if (!SHIELD_PROFILES.includes(profile)) return json({ ok: false, error: 'bad profile' }, origin, 400);
+
+    const lock = await getJSON(env, jKey('applock', `${profile}_shield`));
+    if (lock) {
+      const password = String(body.password || '');
+      if (!password || !(await verifyHash(password, lock))) {
+        return json({ ok: false, error: 'badpassword' }, origin, 403);
+      }
+    }
+    // No passcode set: nothing to verify against. Same reasoning as the OFF
+    // path — refusing would leave the user unable to set this up at all.
+
+    let tok = await getJSON(env, shieldTokKey(profile));
+    if (!tok || !tok.k || body.rotate === true) {
+      const old = tok && tok.k;
+      tok = { k: randomToken(), at: Date.now() };
+      await env.TOKEN_CACHE.put(shieldTokKey(profile), JSON.stringify(tok));
+      await env.TOKEN_CACHE.put(shieldTokProfKey(tok.k), JSON.stringify({ profile }));
+      // A rotation has to actually revoke the old token, or "rotate" means
+      // nothing — the wizard offers it precisely for the case where the old URL
+      // got somewhere it should not have.
+      if (old) await env.TOKEN_CACHE.delete(shieldTokProfKey(old));
+    } else if (!(await getJSON(env, shieldTokProfKey(tok.k)))) {
+      // Token minted before the reverse index existed. Backfill it so the
+      // token-only URL works without forcing a rotation.
+      await env.TOKEN_CACHE.put(shieldTokProfKey(tok.k), JSON.stringify({ profile }));
+    }
+    return json({ ok: true, k: tok.k }, origin);
+  }
+
+  // Reading and writing are gated differently, on purpose.
+  //
+  // The dangerous direction is the WRITE — a POST could close every application
+  // on every device of a profile with no credential at all — so that is token-
+  // gated outright. The READ is not, and cannot be: the desktop agent polls this
+  // endpoint, its token is handed down by the Shield page, and if the page is
+  // never opened on that PC after a token is minted on the phone, gating the
+  // read would make the agent go quietly deaf to remote emergencies. A feature
+  // whose whole point is reaching a PC with its browser shut must not break
+  // because a token was minted somewhere else.
+  //
+  // So an un-keyed read gets the minimal record — the boolean and its version,
+  // nothing about which device raised it or when. What leaks is that a profile
+  // is currently locked down, to someone who already guessed the profile name.
+  // A keyed read gets everything.
+  if (path === '/shield/emergency' && request.method === 'GET') {
+    const given = url.searchParams.get('k') || '';
+    let profile = (url.searchParams.get('profile') || '').toLowerCase();
+    // Token-only form, used by the iOS guard shortcut: the token names its own
+    // profile, so the URL never has to.
+    if (!profile && given) {
+      const rev = await getJSON(env, shieldTokProfKey(given));
+      if (rev && rev.profile) profile = String(rev.profile).toLowerCase();
+    }
+    if (!SHIELD_PROFILES.includes(profile)) return json({ ok: false, error: 'bad profile' }, origin, 400);
+
     const rec = (await getJSON(env, shieldKey(profile))) || { active: false, v: 0 };
+    const tok = await getJSON(env, shieldTokKey(profile));
+    // `active` is deliberately a plain top-level boolean in both shapes: the
+    // Shortcut reads it with one Get Dictionary Value, and every extra level of
+    // nesting is another action a person has to add by hand on a phone.
+    if (!given) {
+      // Nothing minted yet means nothing to protect, so an existing install
+      // keeps the answer it has always had — including the device name its
+      // takeover screen shows. Trimming starts only once a token exists.
+      if (!tok || !tok.k) return json({ ok: true, ...rec }, origin);
+      return json({ ok: true, active: !!rec.active, v: rec.v || 0 }, origin);
+    }
+    if (!tok || !tok.k || !tokensMatch(tok.k, given)) {
+      return json({ ok: false, error: 'badkey' }, origin, 403);
+    }
     return json({ ok: true, ...rec }, origin);
   }
 
@@ -508,6 +636,9 @@ async function handleShield(path, request, env, origin, url) {
 
     const profile = String(body.profile || '').toLowerCase();
     if (!SHIELD_PROFILES.includes(profile)) return json({ ok: false, error: 'bad profile' }, origin, 400);
+    if (!(await shieldTokenOk(env, profile, body.k))) {
+      return json({ ok: false, error: 'badkey' }, origin, 403);
+    }
     const active = !!body.active;
 
     // Lifting a lockdown requires the profile's Shield passcode, checked here
