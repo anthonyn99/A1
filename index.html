@@ -6509,6 +6509,66 @@ function Pomodoro({onClose,T,isMobile}){
 // it has to stay distinguishable from the other categories.
 const OI_COLOR={coupon:"#8d8d94",package:"#8b9db4",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
 
+// ── One parcel, one card ────────────────────────────────────────────────────
+// The worker owns this: a parcel's card id is derived from its tracking number
+// (see pkgKeys in workers/oneinbox-api), so ship → out-for-delivery → delivered
+// all land on one document, and dedupePackageCards deletes any duplicate that
+// slips through. This is the render-side net underneath that, and it exists for
+// the gap the worker cannot close from its side: a parcel whose first mail knew
+// only the order number and whose second introduced a tracking number IS two
+// documents until the next ingest tick tidies it. Collapsing here means the
+// week never shows the duplicate in the meantime.
+//
+// Read-only, deliberately. Deleting the loser from here would throw away
+// whatever fields only IT carried (the tracking number, usually), because the
+// browser has no business writing the merged card back — that is the worker's
+// job and it does it within the tick.
+const OI_idKey=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"").slice(0,48);
+// Ranked, and the strong keys veto as well as match: two cards that both quote
+// a tracking number are one parcel only if it is the SAME number, however much
+// else they share. That keeps two parcels of one order (same order number, same
+// thread, different tracking) as the two cards they really are.
+function OI_samePkg(a,b){
+  const t1=OI_idKey(a.tracking),t2=OI_idKey(b.tracking);
+  if(t1&&t2)return t1===t2;
+  const o1=OI_idKey(a.orderNumber),o2=OI_idKey(b.orderNumber);
+  if(o1&&o2)return o1===o2;
+  const h1=OI_idKey(a.threadId),h2=OI_idKey(b.threadId);
+  return !!h1&&h1===h2;
+}
+// Newest wins, except on the two things a parcel decides for itself: it never
+// un-delivers, and once it HAS been delivered the day it actually arrived beats
+// every ETA that came before. That second rule is the one that matters here —
+// an "arriving Sunday" card and a "delivered Saturday" card are the same parcel,
+// and it belongs on Saturday.
+function OI_mergePkg(a,b){
+  const n=(a.updatedAt||0)>=(b.updatedAt||0)?a:b, o=n===a?b:a;
+  const day=(!!a.delivered===!!b.delivered)?n:(a.delivered?a:b);
+  return{...o,...n,
+    merchant:n.merchant||o.merchant||"",carrier:n.carrier||o.carrier||"",
+    tracking:n.tracking||o.tracking||"",orderNumber:n.orderNumber||o.orderNumber||"",
+    trackUrl:n.trackUrl||o.trackUrl||"",
+    delivered:!!(a.delivered||b.delivered),
+    eta:day.eta||n.eta||o.eta||"",
+    // Every document this card now stands for, so the "×" can take them all.
+    _ids:[...new Set([...(a._ids||[a.id]),...(b._ids||[b.id])].filter(Boolean))]};
+}
+function OI_foldPkgs(cards){
+  const out=[],pkg=[];
+  (cards||[]).forEach(c=>{if(c)(c.kind==="package"?pkg:out).push(c);});
+  if(pkg.length<2)return out.concat(pkg);
+  // Newest first, so a group's representative carries the fullest identity as
+  // early as possible and the vetoes in OI_samePkg have something to bite on.
+  pkg.sort((x,y)=>(y.updatedAt||0)-(x.updatedAt||0));
+  const groups=[];
+  pkg.forEach(c=>{
+    const i=groups.findIndex(g=>OI_samePkg(g,c));
+    if(i>=0)groups[i]=OI_mergePkg(groups[i],c);
+    else groups.push(c);
+  });
+  return out.concat(groups);
+}
+
 function OI_useCards(){
   const[cards,setCards]=useState(()=>window._oiCards||[]);
   useEffect(()=>{
@@ -6518,7 +6578,9 @@ function OI_useCards(){
     if(window._oiCards)setCards(window._oiCards);
     return()=>window.removeEventListener("oi-cards-update",h);
   },[]);
-  return cards;
+  // One choke point: every consumer (coupon list, weekly grid) reads the folded
+  // list, so no caller can forget to do it.
+  return useMemo(()=>OI_foldPkgs(cards),[cards]);
 }
 
 // Deep-link back to the message that produced a card.
@@ -6552,15 +6614,23 @@ function OI_copy(ev,text){
 // so there is no TaskHub state to mutate — we drop it from the local cache
 // first (the cards listener is torn down after 5 min idle, so the snapshot may
 // not come back to do it for us) and then delete the doc it came from.
-function OI_dismiss(id){
-  window._oiCards=(window._oiCards||[]).filter(c=>c&&c.id!==id);
+//
+// Takes the CARD, not an id: a folded parcel stands for every document that fed
+// it (OI_foldPkgs records them in _ids), and dismissing it has to take all of
+// them. Deleting only the survivor's document would let the ones it absorbed
+// re-appear on the next snapshot as cards in their own right.
+function OI_dismiss(card){
+  const ids=(card&&card._ids&&card._ids.length?card._ids:[card&&card.id])
+    .filter(Boolean).map(String);
+  const gone=new Set(ids);
+  window._oiCards=(window._oiCards||[]).filter(c=>c&&!gone.has(String(c.id)));
   window.dispatchEvent(new CustomEvent("oi-cards-update",{detail:window._oiCards}));
-  try{window._fbDeleteOICard&&window._fbDeleteOICard(id);}catch(e){}
+  ids.forEach(id=>{try{window._fbDeleteOICard&&window._fbDeleteOICard(id);}catch(e){}});
 }
 // Matches `dbtn` inside the TaskHub components, which is out of scope here.
 function OI_delBtn(c,T,pad){
   return React.createElement("button",{type:"button",title:"Remove this card",
-    onClick:e=>{e.stopPropagation();OI_dismiss(c.id);},
+    onClick:e=>{e.stopPropagation();OI_dismiss(c);},
     style:{background:"transparent",border:"none",color:T.ERR,cursor:"pointer",
       fontSize:15,padding:pad||"0 4px",lineHeight:1,fontFamily:"inherit",fontWeight:700,flexShrink:0}},"×");
 }

@@ -1095,6 +1095,33 @@ async function fsExisting(env, token, collection, ids) {
   return found;
 }
 
+// The same batchGet, but returning the documents themselves, keyed by id. Used
+// to read the cards a run is about to overwrite: a card is a rolling summary of
+// a parcel, not a snapshot of one email, so the write has to merge into what is
+// already there (delivered must not un-stick — see mergePackage).
+async function fsGetMany(env, token, collection, ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const root = fsRoot(env);
+  const url = `https://firestore.googleapis.com/v1/${root.replace('/documents', '')}/documents:batchGet`;
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documents: chunk.map(id => `${root}/${collection}/${id}`) })
+    });
+    if (!r.ok) continue;                    // on failure, treat as "not there" and write fresh
+    for (const row of await r.json()) {
+      if (!row.found) continue;
+      const o = { _id: (row.found.name || '').split('/').pop() };
+      for (const [k, v] of Object.entries(row.found.fields || {})) o[k] = fsDecode(v);
+      out.set(o._id, o);
+    }
+  }
+  return out;
+}
+
 // Oldest-first page of a SUBcollection, for bounded pruning. `parent` is the
 // document that owns it — runQuery resolves collectionId relative to the parent
 // in the URL, so querying a subcollection from the database root would silently
@@ -1138,6 +1165,114 @@ async function fsOldest(env, token, parent, collection, field, n) {
 
 const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24);
 
+// Same normalization, but long enough to keep a REFERENCE NUMBER unique. slug's
+// 24-char window is fine for a store name plus a coupon code; it is not fine for
+// an identifier: "114-1596855-4856243_Amazon" and "114-1596855-4856243_Amazon.com"
+// both survive it, but as two DIFFERENT strings, which is exactly how one parcel
+// ended up with two cards. Tracking numbers top out around 34 characters, order
+// numbers around 20, so 48 never truncates a real one.
+const idSlug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 48);
+
+// ── Parcel identity ─────────────────────────────────────────────────────────
+// A parcel is identified by what the CARRIER knows about it, never by how the
+// email happened to spell the merchant. The old id was
+// slug(tracking || orderNumber + '_' + merchant), and the merchant half was the
+// bug: the same Amazon order says "Amazon" in one mail and "Amazon.com" in the
+// next, so the shipped notice and the delivered notice minted two ids, two
+// cards, and (once the ETA card caught up to the delivery day) two cards
+// sitting on the same day of the week.
+//
+// Keys are ranked: tracking number, then order number, then the Gmail thread.
+// The id uses the strongest one the email supplied, and the others are matched
+// after the fact by dedupePackages(), so a mail that quotes only the order
+// number still folds onto the card a tracking number already created.
+function pkgKeys(c) {
+  const k = [];
+  if (c.tracking)    k.push('trk_' + idSlug(c.tracking));
+  if (c.orderNumber) k.push('ord_' + idSlug(c.orderNumber));
+  if (c.threadId)    k.push('thr_' + idSlug(c.threadId));
+  return k.filter(x => x.length > 4);       // "trk_" + nothing is not a key
+}
+const pkgId = (c) => { const k = pkgKeys(c); return k.length ? 'pkg_' + k[0] : ''; };
+
+// Do two package cards describe the same parcel?
+//
+// Ranked, and the strong keys VETO as well as match: two cards that both quote
+// a tracking number are the same parcel only if it is the same number, however
+// much else they share. That is what keeps two parcels of one order — same
+// order number, same mail thread, different tracking — as two cards.
+function samePackage(a, b) {
+  const t1 = idSlug(a.tracking), t2 = idSlug(b.tracking);
+  if (t1 && t2) return t1 === t2;
+  const o1 = idSlug(a.orderNumber), o2 = idSlug(b.orderNumber);
+  if (o1 && o2) return o1 === o2;
+  const h1 = idSlug(a.threadId), h2 = idSlug(b.threadId);
+  return !!h1 && h1 === h2;
+}
+
+// Fold two cards for one parcel into one. Newest wins on the descriptive
+// fields, with two exceptions that encode how a parcel actually behaves:
+//
+//   • delivered is STICKY. A parcel never un-delivers, so a "shipped" mail that
+//     is ingested late (or re-read by a rescan) must not walk a delivered card
+//     back to in-transit.
+//   • a delivered card owns the DAY. The delivery mail says where the parcel
+//     really landed; every earlier date was an estimate that has since been
+//     overtaken. This is the case Tony hit: an ETA card sat on Sunday while the
+//     parcel had arrived on Saturday.
+function mergePackage(a, b) {
+  const [n, o] = (a.updatedAt || 0) >= (b.updatedAt || 0) ? [a, b] : [b, a];
+  const pick = (f) => n[f] || o[f] || '';
+  // Whichever card saw the delivery decides the day; if both did (or neither
+  // did), the newer one does. Compared as booleans: a legacy card can carry
+  // `undefined` here, and `undefined === false` would otherwise send an
+  // in-transit pair down the delivered branch.
+  const day = !!a.delivered === !!b.delivered ? n : (a.delivered ? a : b);
+  return {
+    ...o, ...n,
+    id: n.id,
+    merchant: pick('merchant'), carrier: pick('carrier'),
+    tracking: pick('tracking'), orderNumber: pick('orderNumber'),
+    trackUrl: pick('trackUrl'), summary: pick('summary'),
+    delivered: !!(a.delivered || b.delivered),
+    eta: day.eta || pick('eta'),
+    etaExact: !!(day.eta ? day.etaExact : (n.etaExact || o.etaExact)),
+    updatedAt: Math.max(a.updatedAt || 0, b.updatedAt || 0)
+  };
+}
+
+// Collapse package cards down to ONE card per parcel: [{ card, ids }], where
+// `ids` is every card id that fed the merge.
+//
+// The survivor is re-keyed onto the strongest identity the merge turned up,
+// which is what stops the same pair from being re-created next week: once a
+// parcel's card is keyed by its tracking number, every later mail about it —
+// order number, thread id, or tracking — resolves to that same id.
+function foldPackages(cards) {
+  const groups = [];
+  // Newest first, so a group's representative carries the fullest identity as
+  // early as possible and the vetoes in samePackage() have something to bite on.
+  for (const c of [...cards].sort((x, y) => (y.updatedAt || 0) - (x.updatedAt || 0))) {
+    const g = groups.find(g => samePackage(g.card, c));
+    if (g) { g.card = mergePackage(g.card, c); g.ids.push(c.id); }
+    else groups.push({ card: c, ids: [c.id] });
+  }
+  return groups.map(g => ({ card: { ...g.card, id: pkgId(g.card) || g.card.id }, ids: g.ids }));
+}
+
+// What a duplicate sweep should WRITE and DELETE. Only reports parcels it
+// actually changes: a lone card already sitting on its canonical id is left
+// completely alone, so a quiet collection costs nothing to sweep.
+function dedupePackages(cards) {
+  const keep = [], drop = [];
+  for (const g of foldPackages(cards)) {
+    if (g.ids.length === 1 && g.ids[0] === g.card.id) continue;
+    keep.push(g.card);
+    for (const old of g.ids) if (old && old !== g.card.id) drop.push(old);
+  }
+  return { keep, drop };
+}
+
 function cardFor(msg, ai) {
   const from = parseAddr(msg.from);
   const base = {
@@ -1160,9 +1295,11 @@ function cardFor(msg, ai) {
   }
 
   if (ai.category === 'package') {
-    // Identity = the tracking number. Ship → out-for-delivery → delivered all
-    // update ONE card, and a changed ETA moves that same card's day.
-    const id = 'pkg_' + slug(ai.tracking || (ai.orderNumber + '_' + ai.merchant));
+    // Identity = tracking number, else order number, else the mail thread (see
+    // pkgKeys). Ship → out-for-delivery → delivered all update ONE card, and a
+    // changed ETA moves that same card's day rather than minting a second one.
+    // The merchant name is deliberately NOT part of it: it is the one field
+    // that varies between two mails about the same parcel.
     // A package card with no eta renders NOWHERE — the weekly view is keyed by
     // day, so a dateless card silently vanishes instead of failing loudly.
     //
@@ -1177,14 +1314,20 @@ function cardFor(msg, ai) {
     const sentAt = new Date(msg.internalDate || Date.now());
     const read = ai.date || deliveryEta(`${msg.subject}\n${msg.text || msg.snippet || ''}`, sentAt);
     const eta = read || sentAt.toISOString().slice(0, 10);
-    return {
-      id, kind: 'package', ...base,
+    const card = {
+      id: '', kind: 'package', ...base,
       carrier: ai.carrier || '', tracking: ai.tracking || '',
       orderNumber: ai.orderNumber || '', eta,
       etaExact: !!read,             // false = inferred from the email's own date
       trackUrl: trackingUrl(ai.carrier, ai.tracking),
       delivered: /delivered/i.test(msg.subject + ' ' + (ai.summary || ''))
     };
+    // No tracking number, no order number and no thread id leaves nothing that
+    // identifies THIS parcel — the old code fell back to slug("undefined_" +
+    // merchant), which quietly filed every unidentifiable Amazon parcel onto
+    // one shared card. The message id at least keeps them apart.
+    card.id = pkgId(card) || 'pkg_msg_' + idSlug(msg.id);
+    return card;
   }
 
   // These four are placed on the weekly view BY DATE, so without one there is
@@ -1208,6 +1351,43 @@ function cardFor(msg, ai) {
 
   return null;   // general / important produce no TaskHub card
 }
+
+// Sweep the whole cards collection for parcels that ended up with more than one
+// card, merge each set into a single card on its canonical id, and DELETE the
+// rest. Prevention (a stable id) stops new duplicates; this clears the ones
+// already written, and covers the residue prevention cannot reach — a parcel
+// whose first mail knew only the order number and whose second introduced a
+// tracking number was, by construction, two ids before the second mail arrived.
+//
+// Runs after any ingest that produced a package card, so a duplicate is gone
+// within a tick of appearing rather than waiting for the daily sweep. `cards`
+// is optional: the sweep already holds a listing and passes it in rather than
+// paying for a second read.
+async function dedupePackageCards(env, token, cards) {
+  if (!fsConfigured(env)) return { merged: 0, deleted: 0 };
+  const root = fsRoot(env);
+  const all = cards || await fsList(env, token, 'dashboards/oneinbox/cards', 300);
+  const pkgs = all.filter(c => c.kind === 'package').map(c => ({ ...c, id: c.id || c._id }));
+  const { keep, drop } = dedupePackages(pkgs);
+  if (!keep.length && !drop.length) return { merged: 0, deleted: 0 };
+
+  // Deletes go LAST. A survivor that keeps one of the dropped ids would
+  // otherwise be written and then immediately deleted by its own batch —
+  // batchWrite applies writes in order, and re-keying means exactly that id
+  // handover happens. Firestore also rejects a batch that touches one document
+  // twice, so anything being written is filtered out of the delete list.
+  const written = new Set(keep.map(c => c.id));
+  const deletes = [...new Set(drop)].filter(id => !written.has(id));
+  await fsBatchWrite(env, token, [
+    ...keep.map(c => ({ update: { name: `${root}/dashboards/oneinbox/cards/${c.id}`, fields: fsFields(stripMeta(c)) } })),
+    ...deletes.map(id => ({ delete: `${root}/dashboards/oneinbox/cards/${id}` }))
+  ]);
+  return { merged: keep.length, deleted: deletes.length };
+}
+
+// fsList/fsGetMany tag each document with the id it was read from; that tag is
+// bookkeeping, not card data, and must not be written back into the document.
+const stripMeta = (c) => { const { _id, ...rest } = c; return rest; };
 
 // ════════════════════════════════════════════════════════════════════════════
 // INGESTION — fetch → classify → Firestore (+ card)
@@ -1264,6 +1444,7 @@ async function ingestMessages(env, email, ids, budget, opts = {}) {
   const startedAt = aiRec.n;
 
   const writes = [];
+  const pkgCards = [];
   let cards = 0;
   for (const id of batch) {
     const docId = emailDocId(email, id);
@@ -1303,7 +1484,28 @@ async function ingestMessages(env, email, ids, budget, opts = {}) {
     const card = cardFor(msg, ai);
     if (card) {
       cards++;
-      writes.push({ update: { name: `${root}/dashboards/oneinbox/cards/${card.id}`, fields: fsFields(card) } });
+      // Parcels are held back and merged below; everything else is a snapshot
+      // of one offer/bill and can go straight out as last-write-wins.
+      if (card.kind === 'package') pkgCards.push(card);
+      else writes.push({ update: { name: `${root}/dashboards/oneinbox/cards/${card.id}`, fields: fsFields(card) } });
+    }
+  }
+
+  // PARCELS — merge before writing, against each other and against Firestore.
+  //
+  // Two mails about one parcel in a single batch is routine ("arriving soon"
+  // then "out for delivery", minutes apart), and the two are not interchangeable:
+  // taking the last one blindly would drop a tracking number the first quoted,
+  // or walk a delivered card back to in-transit when a rescan re-reads an older
+  // mail after a newer one. One batchGet covers the whole batch.
+  if (pkgCards.length) {
+    const folded = foldPackages(pkgCards);
+    const prior = await fsGetMany(env, token, 'dashboards/oneinbox/cards', folded.map(g => g.card.id))
+      .catch(() => new Map());
+    for (const { card } of folded) {
+      const was = prior.get(card.id);
+      const out = was && was.kind === 'package' ? mergePackage(stripMeta(was), card) : card;
+      writes.push({ update: { name: `${root}/dashboards/oneinbox/cards/${card.id}`, fields: fsFields({ ...out, id: card.id }) } });
     }
   }
 
@@ -1316,7 +1518,9 @@ async function ingestMessages(env, email, ids, budget, opts = {}) {
     // soon" + "out for delivery" minutes apart, both with no tracking number,
     // both collapsing to the same id) poisoned the whole batch. Every email in
     // it was then lost, silently, for that account. Last write wins, which is
-    // the newest state of the parcel.
+    // the newest state of the offer. Parcels no longer reach here as duplicates
+    // — foldPackages merged them above — but this stays as the backstop that
+    // keeps ANY id collision from costing a whole account's mail.
     const byName = new Map();
     for (const w of writes) byName.set(w.update.name, w);
     const deduped = [...byName.values()];
@@ -1329,7 +1533,19 @@ async function ingestMessages(env, email, ids, budget, opts = {}) {
     });
     await fsBatchWrite(env, token, deduped);
   }
-  return { ingested: writes.length, cards, deferred, aiUsed: aiRec.n - startedAt, aiToday: aiRec.n };
+
+  // A parcel that arrived under a second identity (the mail before it quoted
+  // only an order number, this one adds a tracking number) is a duplicate the
+  // write above could not see coming. Sweep it off the board now rather than
+  // leaving it on the week until the daily cron — that lag is precisely how two
+  // "delivered" cards ended up side by side. Never allowed to fail the ingest:
+  // the mail is already safely written by this point.
+  let dedupe;
+  if (pkgCards.length) {
+    try { dedupe = await dedupePackageCards(env, token); }
+    catch (e) { console.warn('package dedupe failed', e.message); }
+  }
+  return { ingested: writes.length, cards, deferred, dedupe, aiUsed: aiRec.n - startedAt, aiToday: aiRec.n };
 }
 
 // ── Gmail push (watch) ──────────────────────────────────────────────────────
@@ -1673,7 +1889,13 @@ async function handleGmail(path, body, env, origin) {
     const ids = (list.messages || []).map(m => m.id);
     const r = await ingestMessages(env, email, ids, { msgs: n }, { rescan: true });
     await aiBudgetFlush(env);
-    return json({ ok: true, account: email, looked: ids.length, ...r }, origin);
+    // Unconditionally, not only when this rescan produced a parcel: "re-scan
+    // recent mail for cards" is the button Tony reaches for when the week looks
+    // wrong, and a parcel showing twice is exactly that. Waiting for the daily
+    // sweep to tidy it would make the button look like it did nothing.
+    const dedupe = r.dedupe || await dedupePackageCards(env, await getGoogleAccessToken(env))
+      .catch(e => ({ error: e.message }));
+    return json({ ok: true, account: email, looked: ids.length, ...r, dedupe }, origin);
   }
 
   if (path === '/gmail/labels') {
@@ -1868,7 +2090,16 @@ async function sweepCards(env) {
     ...dead.map(c => ({ delete: `${root}/dashboards/oneinbox/cards/${c._id}` })),
     ...oldEmails.map(e => ({ delete: `${root}/dashboards/oneinbox/emails/${e._id}` }))
   ]);
-  return dead.length + oldEmails.length;
+
+  // Duplicate parcels, on the same listing this sweep already paid to read.
+  // Ingest handles the common case as it happens; this is the net underneath it,
+  // and the one thing that reaches a duplicate created before the fix existed or
+  // by a run that died between its write and its dedupe. `dead` is excluded so
+  // the pass cannot resurrect a card the deletes above just retired.
+  const gone = new Set(dead.map(c => c._id));
+  const dupe = await dedupePackageCards(env, token, cards.filter(c => !gone.has(c._id)))
+    .catch(e => { console.warn('sweep dedupe failed', e.message); return { merged: 0, deleted: 0 }; });
+  return dead.length + oldEmails.length + dupe.deleted;
 }
 
 export default {
