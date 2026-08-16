@@ -33,6 +33,9 @@ use watchdog::Watchdog;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const GRACEFUL_MS: u64 = 1500;
+/// Kept in step with tauri.conf.json's window url and the capability's
+/// remote.urls. tests/agent-contract.test.js checks all three agree.
+const PAGE_URL: &str = "https://anthonyn99.github.io/A1/shield.html";
 
 pub struct Ctx {
     pub wd: Watchdog,
@@ -460,6 +463,23 @@ pub fn run() {
                 // shortcuts in the stash. Put anything stranded back.
                 shortcuts::restore_all();
                 publish(&handle, false);
+            }
+
+            // Force a fresh copy of the UI on every launch.
+            //
+            // GitHub Pages serves the page with a cache lifetime, and WebView2
+            // honours it — so after an update the agent kept showing the old
+            // build, including bugs that were already fixed. The page's own
+            // no-cache <meta> tags do not help: those are advisory and are
+            // ignored for the document itself. A per-launch query string is the
+            // only reliable way to guarantee the window is running the code
+            // that is actually deployed. Same origin, so localStorage, the
+            // capability match and App Check are all unaffected.
+            if let Some(w) = handle.get_webview_window("main") {
+                let url = format!("{}?v={}-{}", PAGE_URL, VERSION, state::now_ms());
+                if let Ok(parsed) = url.parse() {
+                    let _ = w.navigate(parsed);
+                }
             }
 
             // Closing the window hides it; the agent lives in the tray. Quitting

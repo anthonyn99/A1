@@ -185,6 +185,19 @@ check(
   conf.app.windows[0].url === PAGES + '/A1/shield.html',
   conf.app.windows[0].url
 );
+// The agent re-navigates on launch with a cache-busting query string, because
+// WebView2 honours the Pages cache lifetime and was serving an old build after
+// an update. The URL in the config and the one in the code must not drift.
+const pageConst = (lib.match(/const PAGE_URL: &str = "([^"]+)"/) || [])[1];
+check(
+  'the URL constant in lib.rs matches the configured window URL',
+  pageConst === conf.app.windows[0].url,
+  pageConst + ' vs ' + conf.app.windows[0].url
+);
+check(
+  'the agent re-navigates with a cache-buster so an update is never masked by cache',
+  /\?v=\{\}-\{\}/.test(lib) && /w\.navigate\(/.test(lib)
+);
 check(
   'the capability grants invoke to that same origin',
   ((cap.remote || {}).urls || []).some((u) => u.startsWith(PAGES)),
