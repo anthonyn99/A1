@@ -381,6 +381,21 @@ fn show_window(app: &AppHandle) {
 /// and ignored for the document itself. A changing query string is the only
 /// reliable answer. Same origin, so localStorage, the capability match and App
 /// Check are all unaffected.
+/// Append a line to %APPDATA%\Shield\launch.log.
+///
+/// The window can only appear from a tray action or from a second launch
+/// handing off to this one. When someone says "it opened by itself", the useful
+/// question is which of those happened — and without a record the answer is
+/// guesswork. Every start and every hand-off is logged with its reason.
+fn log_event(kind: &str, detail: &str) {
+    use std::io::Write;
+    let dir = shortcuts::shield_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("launch.log")) {
+        let _ = writeln!(f, "{} pid={} {} {}", state::now_ms(), std::process::id(), kind, detail);
+    }
+}
+
 fn navigate_fresh(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let url = format!("{}?v={}-{}", PAGE_URL, VERSION, state::now_ms());
@@ -435,6 +450,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_tray_icon_event(|tray, ev| {
             if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = ev {
+                log_event("tray-click", "");
                 show_window(tray.app_handle());
             }
         })
@@ -476,7 +492,10 @@ pub fn run() {
         // icons, a failed hotkey registration for whichever loses the race, and
         // two watchdogs fighting over the same process list. The second
         // instance now just surfaces the first one's window and exits.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // Someone launched Shield while it was already running. That is the
+            // ONLY way the window appears without a tray click, so record who.
+            log_event("second-launch", &format!("argv={argv:?}"));
             show_window(app);
         }))
         // shieldopen:<id> links from TaskHub. On Windows a second instance is
@@ -513,6 +532,7 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
             let s = state::load();
+            log_event("start", "window hidden; tray only");
             build_tray(&handle)?;
 
             {
