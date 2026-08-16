@@ -389,6 +389,11 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 .toggle i{position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--tx);transition:left .25s;display:block}
 .toggle.on i{left:18px}
 .toggle[disabled]{opacity:.4;cursor:not-allowed}
+.tgt-opt{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.tgt-opt-l{
+  font-size:8.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--txm);line-height:1.15;text-align:right;white-space:nowrap;
+}
 .opt{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--bd)}
 .opt:last-child{border-bottom:none}
 .opt-main{flex:1;min-width:0}
@@ -2729,8 +2734,12 @@ function targetRowHtml(t, kind, ro, showHide){
   h += '<div class="tgt-main"><div class="tgt-label">' + esc(t.label || t.match && t.match.value || 'Target') + '</div>'
     +  '<div class="tgt-match">' + esc(mk === 'folder' ? 'folder — all apps inside' : mk) + ' · ' + esc((t.match && t.match.value) || '') + '</div></div>';
   if (showHide){
-    h += '<button class="toggle' + (t.hideIcons?' on':'') + '"' + (ro?' disabled':'')
-      +  ' data-hide="' + esc(t.id) + '" title="Hide this app\'s desktop and Start-menu shortcuts"><i></i></button>';
+    // Labelled, not a bare switch. An unlabelled toggle sitting next to a
+    // delete button is unguessable — it read as "no hide-icons option exists".
+    h += '<span class="tgt-opt" title="Move this app\'s desktop and Start-menu shortcuts out of sight while Emergency Mode is active. Restored when it ends.">'
+      +  '<span class="tgt-opt-l">Hide<br>icons</span>'
+      +  '<button class="toggle' + (t.hideIcons?' on':'') + '"' + (ro?' disabled':'')
+      +  ' data-hide="' + esc(t.id) + '"><i></i></button></span>';
   }
   if (!ro) h += '<button class="iconbtn" data-edit="' + kind + ':' + esc(t.id) + '" title="Edit name and path">' + svg(GLYPH.pencil) + '</button>';
   if (!ro) h += '<button class="iconbtn danger" data-del="' + kind + ':' + esc(t.id) + '" title="Remove">' + svg(GLYPH.x) + '</button>';
