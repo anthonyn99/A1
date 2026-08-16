@@ -8,19 +8,34 @@
     · Node 18+                — only to regenerate the icons
 
   Usage:
-      .\build.ps1              # check prerequisites, build a release bundle
+      .\build.ps1 -Update      # ← the everyday one: rebuild, replace the
+                               #   installed copy, restart. Your desktop
+                               #   shortcut then runs the new build.
+      .\build.ps1              # build a release bundle only
       .\build.ps1 -Dev         # run against the live page with a console
       .\build.ps1 -Install     # build, then run the NSIS installer
-      .\build.ps1 -Autostart   # register the built exe to start at logon
+      .\build.ps1 -Autostart   # start the INSTALLED copy at logon
+
+  Note there is only ONE place the agent should ever run from:
+  %LOCALAPPDATA%\Shield\shield-agent.exe. That is what the desktop and Start
+  shortcuts point at. Running it out of target\release as well means the
+  shortcut silently launches a stale binary while you keep rebuilding — which
+  is exactly what happened once. -Update and -Autostart both keep that single
+  location authoritative.
 #>
 [CmdletBinding()]
 param(
   [switch]$Dev,
   [switch]$Install,
-  [switch]$Autostart
+  [switch]$Autostart,
+  [switch]$Update
 )
 
-$ErrorActionPreference = 'Stop'
+# NOT 'Stop'. Windows PowerShell wraps every line a native exe writes to stderr
+# in an ErrorRecord, and cargo reports ordinary build progress there — so 'Stop'
+# aborts a perfectly healthy build on its first "Compiling" line. Native failures
+# are detected by checking $LASTEXITCODE explicitly instead.
+$ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
@@ -72,6 +87,19 @@ if ($Dev) {
   exit $LASTEXITCODE
 }
 
+# Stop first, not after the build: a running agent holds an open handle on
+# target\release\shield-agent.exe, and cargo cannot replace a locked file — the
+# build fails with "failed to remove file" before it compiles anything.
+$wasRunning = $false
+if ($Update) {
+  $wasRunning = [bool](Get-Process -Name 'shield-agent' -ErrorAction SilentlyContinue)
+  if ($wasRunning) {
+    Write-Host "Stopping the running agent so its exe can be replaced..." -ForegroundColor DarkGray
+    Get-Process -Name 'shield-agent' -ErrorAction SilentlyContinue | Stop-Process -Force
+    Start-Sleep -Milliseconds 1000
+  }
+}
+
 Write-Host "Building release bundle (first build takes several minutes)..." -ForegroundColor Green
 cargo tauri build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -79,9 +107,36 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $exe = Get-ChildItem "$root\src-tauri\target\release\shield-agent.exe" -ErrorAction SilentlyContinue
 $nsis = Get-ChildItem "$root\src-tauri\target\release\bundle\nsis\*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
 
+# The single location the agent is supposed to run from — what the desktop and
+# Start-menu shortcuts point at.
+$installed = "$env:LOCALAPPDATA\Shield\shield-agent.exe"
+
 Write-Host ""
 if ($exe)  { Write-Host "  exe:       $($exe.FullName)" }
 if ($nsis) { Write-Host "  installer: $($nsis.FullName)" }
+
+if ($Update -and $exe) {
+  Write-Host "`nUpdating the installed copy..." -ForegroundColor Green
+  # Already stopped above, before the build. Catch a copy that started since.
+  Get-Process -Name 'shield-agent' -ErrorAction SilentlyContinue | Stop-Process -Force
+  Start-Sleep -Milliseconds 800
+  New-Item -ItemType Directory -Force (Split-Path $installed) | Out-Null
+  Copy-Item $exe.FullName $installed -Force
+  Write-Host "  replaced: $installed"
+
+  # Keep autostart pointed at the installed copy, never at target\release —
+  # otherwise the shortcut and the logon entry run two different binaries.
+  $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+  $cur = (Get-ItemProperty $key -Name 'Shield' -ErrorAction SilentlyContinue).Shield
+  if ($cur -and $cur -notlike "*$installed*") {
+    New-ItemProperty -Path $key -Name 'Shield' -Value "`"$installed`"" -PropertyType String -Force | Out-Null
+    Write-Host "  autostart repointed at the installed copy" -ForegroundColor Yellow
+  }
+
+  Start-Process $installed
+  Write-Host "  restarted" -ForegroundColor Green
+  Write-Host "`nYour desktop shortcut now runs this build." -ForegroundColor Green
+}
 
 if ($Install -and $nsis) {
   Write-Host "`nLaunching the installer. SmartScreen will warn: the build is unsigned." -ForegroundColor Yellow
@@ -92,8 +147,12 @@ if ($Autostart -and $exe) {
   # HKCU only. Shield never writes to HKLM, never installs a service, and never
   # asks for admin — a process-killing tray app that did all three would be
   # indistinguishable from something you would not want on your machine.
+  #
+  # Points at the INSTALLED copy, so the logon entry and the shortcuts can never
+  # diverge into two different builds.
+  $target = if (Test-Path $installed) { $installed } else { $exe.FullName }
   $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-  New-ItemProperty -Path $key -Name 'Shield' -Value "`"$($exe.FullName)`"" -PropertyType String -Force | Out-Null
-  Write-Host "`nRegistered to start at logon (HKCU\...\Run\Shield)." -ForegroundColor Green
+  New-ItemProperty -Path $key -Name 'Shield' -Value "`"$target`"" -PropertyType String -Force | Out-Null
+  Write-Host "`nRegistered to start at logon: $target" -ForegroundColor Green
   Write-Host "Remove with: Remove-ItemProperty -Path '$key' -Name 'Shield'"
 }

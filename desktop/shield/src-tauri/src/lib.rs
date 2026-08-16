@@ -339,13 +339,34 @@ fn show_window(app: &AppHandle) {
     }
 }
 
+/// Load the UI, defeating the HTTP cache.
+///
+/// GitHub Pages serves the page with a cache lifetime and WebView2 honours it,
+/// so after an update the agent kept showing the old build — including bugs
+/// that were already fixed. The page's own no-cache <meta> tags are advisory
+/// and ignored for the document itself. A changing query string is the only
+/// reliable answer. Same origin, so localStorage, the capability match and App
+/// Check are all unaffected.
+fn navigate_fresh(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let url = format!("{}?v={}-{}", PAGE_URL, VERSION, state::now_ms());
+        if let Ok(parsed) = url.parse() {
+            let _ = w.navigate(parsed);
+        }
+    }
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let close = MenuItem::with_id(app, "close", "Close Apps", true, None::<&str>)?;
     let emg = MenuItem::with_id(app, "emergency", "EMERGENCY", true, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "Open Shield", true, None::<&str>)?;
+    // The UI is served from the web and updates independently of this binary,
+    // so there has to be a way to pick up a new page without restarting the
+    // agent — which would mean tearing down an active lockdown to get a bug fix.
+    let reload = MenuItem::with_id(app, "reload", "Reload UI", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Shield", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&close, &emg, &sep, &open, &quit])?;
+    let menu = Menu::with_items(app, &[&close, &emg, &sep, &open, &reload, &quit])?;
 
     TrayIconBuilder::with_id("shield")
         .icon(tauri::image::Image::from_bytes(tray_icon_bytes(false))?)
@@ -366,6 +387,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                     engage_emergency(app, &ctx, "local");
                 }
                 "open" => show_window(app),
+                "reload" => { navigate_fresh(app); show_window(app); }
                 "quit" => {
                     // Leaving the desktop permanently missing its icons would be
                     // a far worse bug than an emergency ending early, so put the
@@ -465,22 +487,8 @@ pub fn run() {
                 publish(&handle, false);
             }
 
-            // Force a fresh copy of the UI on every launch.
-            //
-            // GitHub Pages serves the page with a cache lifetime, and WebView2
-            // honours it — so after an update the agent kept showing the old
-            // build, including bugs that were already fixed. The page's own
-            // no-cache <meta> tags do not help: those are advisory and are
-            // ignored for the document itself. A per-launch query string is the
-            // only reliable way to guarantee the window is running the code
-            // that is actually deployed. Same origin, so localStorage, the
-            // capability match and App Check are all unaffected.
-            if let Some(w) = handle.get_webview_window("main") {
-                let url = format!("{}?v={}-{}", PAGE_URL, VERSION, state::now_ms());
-                if let Ok(parsed) = url.parse() {
-                    let _ = w.navigate(parsed);
-                }
-            }
+            // Always start on the deployed UI, not a cached copy of it.
+            navigate_fresh(&handle);
 
             // Closing the window hides it; the agent lives in the tray. Quitting
             // is an explicit choice from the menu, so that closing the window
