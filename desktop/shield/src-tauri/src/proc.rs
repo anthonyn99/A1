@@ -147,6 +147,14 @@ pub struct LaunchItem {
     pub dir: String,
     #[serde(default)]
     pub name: String,
+    /// Did this process own a visible top-level window?
+    ///
+    /// A folder target sweeps up an application's whole install — the launcher,
+    /// its renderers, its crash handler, its updater. Reopening all of those is
+    /// not "reopen the app"; it is a mess. The ones that had a window are the
+    /// ones the user was actually looking at, and those are what Reopen starts.
+    #[serde(default, rename = "hadWindow")]
+    pub had_window: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -207,6 +215,7 @@ struct Found {
 }
 
 fn find(target: &Target, s: &System) -> Vec<Found> {
+    let windowed = pids_with_windows();
     let mut out = Vec::new();
     for (pid, p) in s.processes() {
         let name = p.name().to_string_lossy().to_string();
@@ -228,6 +237,7 @@ fn find(target: &Target, s: &System) -> Vec<Found> {
                 cmd: cmd_parts.join(" "),
                 dir: p.cwd().map(|c| c.to_string_lossy().to_string()).unwrap_or_default(),
                 name,
+                had_window: windowed.contains(&pid.as_u32()),
             },
         });
     }
@@ -260,6 +270,34 @@ fn top_level_windows(pid: u32) -> Vec<HWND> {
         let _ = EnumWindows(Some(enum_cb), LPARAM(&mut ctx as *mut _ as isize));
     }
     ctx.hwnds
+}
+
+struct PidCtx {
+    pids: std::collections::HashSet<u32>,
+}
+unsafe extern "system" fn enum_pid_cb(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let ctx = &mut *(lparam.0 as *mut PidCtx);
+    if IsWindowVisible(hwnd).as_bool() {
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        if pid != 0 {
+            ctx.pids.insert(pid);
+        }
+    }
+    BOOL(1)
+}
+
+/// Every PID that owns a visible top-level window, in ONE enumeration pass.
+///
+/// Calling `top_level_windows` per process would walk the entire window list
+/// once per candidate — for a folder target matching a dozen processes that is
+/// a dozen full sweeps for information one pass already has.
+fn pids_with_windows() -> std::collections::HashSet<u32> {
+    let mut ctx = PidCtx { pids: std::collections::HashSet::new() };
+    unsafe {
+        let _ = EnumWindows(Some(enum_pid_cb), LPARAM(&mut ctx as *mut _ as isize));
+    }
+    ctx.pids
 }
 
 fn request_close(pid: u32) -> bool {
@@ -381,6 +419,7 @@ pub fn capture_and_kill_opt(targets: &[Target], graceful_ms: u64, dry_run: bool)
         alive = still_alive(&alive);
     }
 
+    let mut outcomes: Vec<(usize, Vec<u32>, u32, Option<String>)> = Vec::new();
     for (i, pids) in pending {
         let mut denied = 0;
         let mut failed: Option<String> = None;
@@ -394,18 +433,47 @@ pub fn capture_and_kill_opt(targets: &[Target], graceful_ms: u64, dry_run: bool)
                 Err(e) => failed = Some(e),
             }
         }
-        let leftover = still_alive(&pids);
-        if !leftover.is_empty() {
-            let r = &mut results[i];
-            if denied > 0 {
-                r.status = "denied".into();
-                r.error = "needs admin".into();
-            } else {
-                r.status = "failed".into();
-                r.error = failed.unwrap_or_else(|| "process would not close".into());
-            }
-            r.count = (pids.len() - leftover.len()) as u32;
+        outcomes.push((i, pids, denied, failed));
+    }
+
+    // TerminateProcess is ASYNCHRONOUS. It asks the kernel to tear the process
+    // down and returns immediately, so the process object is still enumerable
+    // for a short while afterwards. Checking right away reported every
+    // successful kill as "process would not close" — the app visibly closed and
+    // Shield still called it a failure, which is worse than saying nothing.
+    // Wait for them to actually leave the table before judging.
+    let mut remaining: Vec<u32> = outcomes.iter().flat_map(|(_, p, _, _)| p.clone()).collect();
+    let settle = Instant::now() + Duration::from_millis(3000);
+    while !remaining.is_empty() && Instant::now() < settle {
+        std::thread::sleep(Duration::from_millis(100));
+        remaining = still_alive(&remaining);
+    }
+
+    for (i, pids, denied, failed) in outcomes {
+        let leftover: Vec<u32> = pids.iter().copied().filter(|p| remaining.contains(p)).collect();
+        if leftover.is_empty() {
+            continue; // closed, as reported optimistically above
         }
+        let r = &mut results[i];
+        let closed = (pids.len() - leftover.len()) as u32;
+        if denied > 0 {
+            r.status = "denied".into();
+            r.error = format!(
+                "{} of {} need admin{}",
+                leftover.len(),
+                pids.len(),
+                if closed > 0 { format!(" ({closed} closed)") } else { String::new() }
+            );
+        } else if closed > 0 {
+            // Partial success is its own outcome. Collapsing it into "failed"
+            // hides that most of the application did in fact go away.
+            r.status = "partial".into();
+            r.error = format!("{closed} closed, {} still running", leftover.len());
+        } else {
+            r.status = "failed".into();
+            r.error = failed.unwrap_or_else(|| "process would not close".into());
+        }
+        r.count = closed;
     }
     results
 }
@@ -662,6 +730,69 @@ mod tests {
 
     /// A target whose processes were all unreadable leaves an empty manifest,
     /// and Reopen has to say so rather than claim success on nothing.
+    /// A kill that succeeds must not be reported as a failure.
+    ///
+    /// TerminateProcess is asynchronous, so an immediate re-check still sees the
+    /// process and used to report "process would not close" for apps that had
+    /// visibly closed. This spawns several real processes, closes them, and
+    /// requires a clean `closed`.
+    #[test]
+    fn a_successful_kill_is_never_reported_as_a_failure() {
+        use std::process::Command;
+        let uniq = format!("shield_async_{}_{}.exe", std::process::id(), now_ish());
+        let exe = std::env::temp_dir().join(&uniq);
+        if std::fs::copy(r"C:\Windows\System32\PING.EXE", &exe).is_err() {
+            return;
+        }
+        // Several at once: the async gap widens with the number of processes,
+        // which is exactly the folder-target case that surfaced this.
+        let mut kids: Vec<_> = (0..4)
+            .map(|_| Command::new(&exe).args(["-n", "600", "127.0.0.1"]).spawn().expect("spawn"))
+            .collect();
+        std::thread::sleep(Duration::from_millis(700));
+
+        let target = t("exe", &uniq);
+        assert_eq!(find(&target, &sys()).len(), 4, "test setup did not start 4");
+
+        let r = capture_and_kill(&[target.clone()], 300);
+        assert_eq!(r[0].status, "closed", "reported {:?}: {}", r[0].status, r[0].error);
+        assert_eq!(r[0].count, 4);
+        assert!(find(&target, &sys()).is_empty(), "processes survived");
+
+        for k in kids.iter_mut() { let _ = k.kill(); let _ = k.wait(); }
+        for _ in 0..10 {
+            if std::fs::remove_file(&exe).is_ok() || !exe.exists() { break; }
+            std::thread::sleep(Duration::from_millis(150));
+        }
+    }
+
+    #[test]
+    fn reopen_prefers_the_processes_that_had_a_window() {
+        // A folder target captures the launcher, its renderers and its crash
+        // handler. Only the windowed one is the application the user saw.
+        let items = vec![
+            LaunchItem { path: r"C:\App\helper.exe".into(), had_window: false, ..Default::default() },
+            LaunchItem { path: r"C:\App\crash.exe".into(), had_window: false, ..Default::default() },
+            LaunchItem { path: r"C:\App\does-not-exist.exe".into(), had_window: true, ..Default::default() },
+        ];
+        // The windowed entry is chosen — proven by it being the one whose
+        // missing file is reported, rather than a helper being launched.
+        let r = launch(&[("App".into(), items)]);
+        assert_eq!(r[0].status, "notfound");
+        assert!(r[0].error.contains("no longer exists"));
+    }
+
+    #[test]
+    fn reopen_falls_back_to_everything_when_nothing_had_a_window() {
+        let items = vec![
+            LaunchItem { path: r"C:\Svc\background-only.exe".into(), had_window: false, ..Default::default() },
+        ];
+        let r = launch(&[("Svc".into(), items)]);
+        // Reached the path check rather than being filtered out entirely.
+        assert_eq!(r[0].status, "notfound");
+        assert!(r[0].error.contains("no longer exists"));
+    }
+
     #[test]
     fn reopening_an_empty_manifest_is_reported_as_notfound() {
         let r = launch(&[("Nothing".into(), vec![])]);
@@ -701,11 +832,18 @@ pub fn launch(items: &[(String, Vec<LaunchItem>)]) -> Vec<LaunchResult> {
         }
         let mut ok = 0;
         let mut last_err = String::new();
-        // One process per distinct image path. A multi-process app (a browser,
-        // Discord) forks its own helpers on startup, so replaying every captured
-        // PID would open the app several times over.
+        // Prefer the processes that actually had a window. A folder target
+        // captures the launcher, the renderers, the crash handler and the
+        // updater; starting all of them is not "reopen the app". Fall back to
+        // everything when nothing had a window (a background-only target).
+        let windowed: Vec<&LaunchItem> = launches.iter().filter(|l| l.had_window).collect();
+        let chosen: Vec<&LaunchItem> =
+            if windowed.is_empty() { launches.iter().collect() } else { windowed };
+        // One process per distinct image path. A multi-process app forks its own
+        // helpers from the same executable, so replaying every captured PID
+        // would open the app several times over.
         let mut seen: Vec<String> = Vec::new();
-        for l in launches {
+        for l in chosen {
             if l.path.is_empty() || seen.iter().any(|s| s.eq_ignore_ascii_case(&l.path)) {
                 continue;
             }

@@ -419,6 +419,7 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 .emg-report .ln{display:flex;gap:8px}
 .emg-report .ln .m{flex-shrink:0;width:12px;text-align:center;font-weight:700}
 .emg-report .ok{color:var(--grn)} .emg-report .bad{color:var(--err)} .emg-report .skip{color:var(--txm)}
+.emg-report .warn{color:var(--amber)}
 
 /* ── Toast ────────────────────────────────────────────────────────────────── */
 #toast{
@@ -1736,13 +1737,30 @@ function histRestorable(e){
   if (!e || e.reverted) return false;
   return (e.items || []).some(function(i){ return (i.launch || []).length; });
 }
-function histCounts(e){
-  var closed = 0, launch = 0;
-  (e.items || []).forEach(function(i){
-    if (i.status === 'closed') closed += (i.count || 1);
-    launch += (i.launch || []).length;
+/* What Reopen would actually start.
+   This has to mirror the agent's launch() exactly, or the button lies: it
+   prefers the processes that owned a visible window, then dedupes by image
+   path. Counting raw manifest entries instead said "Reopen 19 apps" for two
+   applications, because a folder target captures every renderer, helper and
+   crash handler an app spawns. */
+function launchPaths(items){
+  var withWin = {}, all = {}, nWin = 0, nAll = 0;
+  (items || []).forEach(function(i){
+    (i.launch || []).forEach(function(l){
+      if (!l || !l.path) return;
+      var k = String(l.path).toLowerCase();
+      if (!all[k]) { all[k] = 1; nAll++; }
+      if (l.hadWindow && !withWin[k]) { withWin[k] = 1; nWin++; }
+    });
   });
-  return { closed: closed, launch: launch };
+  return nWin ? Object.keys(withWin) : Object.keys(all);
+}
+function histCounts(e){
+  var closed = 0;
+  (e.items || []).forEach(function(i){
+    if (i.status === 'closed' || i.status === 'partial') closed += (i.count || 0);
+  });
+  return { closed: closed, launch: launchPaths(e.items).length };
 }
 
 function histAdd(kind, items, extra){
@@ -1923,8 +1941,10 @@ function resultItems(res){
       status: r.status || 'failed',
       count:  r.count || 0,
       error:  r.error || '',
+      // hadWindow must survive this mapping: it is what tells Reopen which of
+      // an app's many processes was the one the user could actually see.
       launch: ((r.launch || []).map(function(l){
-        return { path:l.path||'', cmd:l.cmd||'', dir:l.dir||'', name:l.name||'' };
+        return { path:l.path||'', cmd:l.cmd||'', dir:l.dir||'', name:l.name||'', hadWindow: !!l.hadWindow };
       })).filter(function(l){ return l.path; })
     };
   });
@@ -1937,9 +1957,10 @@ function reportLines(items){
   if (!items || !items.length) return [{ kind:'skip', text:'Agent returned no results.' }];
   return items.map(function(r){
     if (r.status === 'closed')     return { kind:'ok',   text: r.label + ' — closed' + (r.count>1 ? ' ('+r.count+' processes)' : '') };
+    if (r.status === 'partial')    return { kind:'warn', text: r.label + ' — ' + (r.error || 'partly closed') };
     if (r.status === 'wouldclose') return { kind:'ok',   text: r.label + ' — would close ' + r.count + ' process' + (r.count===1?'':'es') };
     if (r.status === 'notrunning') return { kind:'skip', text: r.label + ' — not running' };
-    if (r.status === 'denied')     return { kind:'bad',  text: r.label + ' — blocked, needs admin' };
+    if (r.status === 'denied')     return { kind:'bad',  text: r.label + ' — ' + (r.error || 'blocked, needs admin') };
     if (r.status === 'notfound')   return { kind:'skip', text: r.label + ' — not found on this device' };
     if (r.status === 'launched')   return { kind:'ok',   text: r.label + ' — reopened' };
     return { kind:'bad', text: r.label + ' — ' + (r.error || 'failed') };
@@ -1987,7 +2008,7 @@ async function revert(hid){
     return;
   }
   var items = (e.items || []).filter(function(i){ return (i.launch || []).length; });
-  var total = items.reduce(function(n, i){ return n + i.launch.length; }, 0);
+  var total = launchPaths(e.items).length;   // what the agent will actually start
   if (!total){ toast('Nothing recorded to reopen.'); return; }
 
   var ok = await window.uiConfirm(
@@ -2121,10 +2142,13 @@ async function actCloseApps(){
   S.busy = true;
   try {
     var r = await runCloser();
-    var bad = r.lines.filter(function(l){ return l.kind==='bad'; }).length;
-    var ok  = r.lines.filter(function(l){ return l.kind==='ok'; }).length;
-    toast(bad ? (ok + ' closed, ' + bad + ' problem(s)') : (ok ? ok + ' closed' : 'Nothing to close'), !!bad);
-    if (bad) S.report = r.lines;
+    var bad  = r.lines.filter(function(l){ return l.kind==='bad'; }).length;
+    var warn = r.lines.filter(function(l){ return l.kind==='warn'; }).length;
+    var ok   = r.lines.filter(function(l){ return l.kind==='ok'; }).length;
+    var problems = bad + warn;
+    toast(problems ? (ok + ' closed, ' + problems + ' problem(s)')
+                   : (ok ? ok + ' closed' : 'Nothing to close'), !!bad);
+    if (problems) S.report = r.lines;
     // Always repaint: the "Last closed" card and its Reopen button have to be
     // there the instant the close finishes, not whenever the Firestore echo
     // happens to come back.
@@ -2324,7 +2348,7 @@ function wireGoto(root){
 
 function reportHtml(lines){
   return lines.map(function(l){
-    var m = l.kind==='ok' ? '✓' : (l.kind==='bad' ? '✕' : '·');
+    var m = l.kind==='ok' ? '✓' : (l.kind==='bad' ? '✕' : (l.kind==='warn' ? '!' : '·'));
     return '<div class="ln"><span class="m ' + l.kind + '">' + m + '</span><span>' + esc(l.text) + '</span></div>';
   }).join('');
 }
