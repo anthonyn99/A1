@@ -105,6 +105,14 @@ export default {
       }
     }
 
+    if (path.startsWith('/shield/')) {
+      try {
+        return await handleShield(path, request, env, origin, url);
+      } catch (e) {
+        return json({ ok: false, error: e.message || 'server error' }, origin, 500);
+      }
+    }
+
     return new Response('TaskHub worker OK', { status: 200, headers: corsHeaders(origin) });
   },
 
@@ -451,6 +459,88 @@ function collectIdsFromDashboardDoc(doc, idSet, repeatIdSet) {
 // ══════════════════════════════════════════════════════════════════════════
 //  AUTH / JOURNAL / PROFILE
 // ══════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════
+//  SHIELD — profile-wide emergency state
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Shield's desktop agent has to learn that "Emergency — all my devices" was
+// pressed even when no browser is open on that machine, so it cannot use the
+// Firestore listener the web page uses. It polls here instead.
+//
+// Why this endpoint rather than the agent reading Firestore directly:
+//
+//   · COST. A poll straight to Firestore is a billed read per device per poll —
+//     roughly 2,900/device/day at 30s. This project has already come within a
+//     few hundred reads of the daily free quota once. KV reads are a separate,
+//     far larger allowance, so polling here costs no Firestore reads at all.
+//   · SECURITY. Turning an emergency OFF is the dangerous direction, and until
+//     now only the UI enforced the passcode — anything speaking to Firestore
+//     could clear it. Here the passcode is checked SERVER-SIDE against the same
+//     PBKDF2 record the app locks use, so an unauthenticated caller can raise a
+//     lockdown but can never lift one.
+//
+// Turning it ON deliberately needs no passcode: it is the fail-safe direction,
+// it is reversible, and an emergency button that first asks for a password is
+// not an emergency button.
+//
+// KV holds only the SIGNAL — active, a monotonic version, and who raised it.
+// Each device already has its own targets on disk; Firestore stays the record
+// the UI reads. That keeps this endpoint tiny and impossible to get out of step
+// in a way that matters.
+
+const shieldKey = (profile) => `shield:emergency:${profile}`;
+const SHIELD_PROFILES = ['tony', 'veda'];
+
+async function handleShield(path, request, env, origin, url) {
+  if (!env.TOKEN_CACHE) return json({ ok: false, error: 'KV not bound' }, origin, 500);
+
+  if (path === '/shield/emergency' && request.method === 'GET') {
+    const profile = (url.searchParams.get('profile') || '').toLowerCase();
+    if (!SHIELD_PROFILES.includes(profile)) return json({ ok: false, error: 'bad profile' }, origin, 400);
+    const rec = (await getJSON(env, shieldKey(profile))) || { active: false, v: 0 };
+    return json({ ok: true, ...rec }, origin);
+  }
+
+  if (path === '/shield/emergency' && request.method === 'POST') {
+    let body = {};
+    try { body = await request.json(); } catch { return json({ ok: false, error: 'bad json' }, origin, 400); }
+
+    const profile = String(body.profile || '').toLowerCase();
+    if (!SHIELD_PROFILES.includes(profile)) return json({ ok: false, error: 'bad profile' }, origin, 400);
+    const active = !!body.active;
+
+    // Lifting a lockdown requires the profile's Shield passcode, checked here
+    // rather than trusted from the client. Raising one does not.
+    if (!active) {
+      const rec = await getJSON(env, jKey('applock', `${profile}_shield`));
+      if (rec) {
+        const password = String(body.password || '');
+        if (!password || !(await verifyHash(password, rec))) {
+          return json({ ok: false, error: 'badpassword' }, origin, 403);
+        }
+      }
+      // No passcode set for that profile: nothing to verify against, and
+      // refusing would strand every device in a lockdown nobody can lift.
+    }
+
+    // Monotonic version. Never let a stale or replayed write win, and never let
+    // a client's clock move the state backwards.
+    const prev = (await getJSON(env, shieldKey(profile))) || { v: 0 };
+    const v = Math.max(Number(body.v) || 0, (prev.v || 0) + 1);
+    const rec = {
+      active,
+      v,
+      at: Date.now(),
+      byId: String(body.byId || '').slice(0, 64),
+      byName: String(body.byName || '').slice(0, 64),
+    };
+    await env.TOKEN_CACHE.put(shieldKey(profile), JSON.stringify(rec));
+    return json({ ok: true, ...rec }, origin);
+  }
+
+  return json({ ok: false, error: 'not found' }, origin, 404);
+}
 
 async function handleAuth(path, request, env, origin) {
   if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, origin, 405);

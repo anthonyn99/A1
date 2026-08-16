@@ -2293,28 +2293,57 @@ function exitEmergency(){
    marker. "This device already opened Shield once" must never be enough to
    lift a lockdown — that is the whole point of the passcode on this path. */
 function lockId(){ return S.profile + '_shield'; }
+/* Returns { ok, password }.
+   The password comes back because lifting a GLOBAL emergency is now verified
+   server-side by the Worker — it will not accept an OFF without it — so the
+   caller has to be able to forward what the user typed. */
 async function challenge(title, message){
   var id = lockId();
   if (!window.AL.isLocked(id)){
     var ok = await window.uiConfirm(
       message + '\n\nNo Shield passcode is set for this profile, so this cannot be passcode-protected. Set one in Configure ▸ Security.',
       { title:title, okLabel:'Continue anyway', danger:true });
-    return !!ok;
+    return { ok: !!ok, password: '' };
   }
   for (var i = 0; i < 3; i++){
     var pw = await window.uiPrompt(message, { title:title, password:true, okLabel:'Confirm' });
-    if (pw === null || pw === undefined) return false;
+    if (pw === null || pw === undefined) return { ok:false, password:'' };
     pw = String(pw).trim();
     if (!pw) continue;
     var r = await window.AL.verifyNow(id, pw);
     if (r.ok){
       if (r.offline) toast('Verified offline — the Worker was unreachable.');
-      return true;
+      return { ok:true, password: pw };
     }
-    if (r.offlineUnavailable){ await window.uiAlert('Offline, and this device has no local verifier. Reconnect and try again.'); return false; }
+    if (r.offlineUnavailable){ await window.uiAlert('Offline, and this device has no local verifier. Reconnect and try again.'); return { ok:false, password:'' }; }
     await window.uiAlert('Wrong password.' + (i < 2 ? ' Try again.' : ''));
   }
-  return false;
+  return { ok:false, password:'' };
+}
+
+/* Publish the profile-wide emergency signal.
+
+   This is what actually reaches a device whose browser is shut. Firestore still
+   holds the state the UI reads; this is the channel the desktop agent polls,
+   because a Firestore poll would be a billed read per device per poll and this
+   project has already nearly exhausted that quota once.
+
+   Failure is reported, never swallowed: if the signal does not land, devices
+   that are not looking at Firestore will not react, and the user has to know
+   that rather than assume everything locked. */
+var SHIELD_WORKER = 'https://taskhub-reminders.av1.workers.dev';
+function publishGlobal(active, v, password){
+  var d = myDev();
+  return fetch(SHIELD_WORKER + '/shield/emergency', {
+    method:'POST', headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      profile: S.profile, active: !!active, v: v,
+      byId: S.devId, byName: (d && d.name) || defaultName(),
+      password: password || ''
+    })
+  }).then(function(r){ return r.json(); })
+    .then(function(j){ return !!(j && j.ok); })
+    .catch(function(){ return false; });
 }
 
 /* ══ ACTIONS ══════════════════════════════════════════════════════════════ */
@@ -2353,6 +2382,10 @@ async function actEmergencyGlobal(){
     // Local enforcement first — the device in the user's hand must not wait on
     // a round trip. The fan-out follows.
     await runEmergency('local', '');
+    // Two channels, deliberately. Firestore is what the UI reads on devices
+    // with Shield open; the Worker signal is what a device with its browser
+    // CLOSED polls for. Neither alone reaches everything.
+    var sent = await publishGlobal(true, v, '');
     await write({
       'global.active': true, 'global.v': v, 'global.at': v,
       'global.byId': S.devId, 'global.byName': (d && d.name) || defaultName(),
@@ -2360,16 +2393,19 @@ async function actEmergencyGlobal(){
     }, true).catch(function(e){
       toast('Locked this device, but the all-device command did not reach Firebase.', true);
     });
+    if (!sent){
+      toast('Locked, but devices with Shield closed may not have been reached.', true);
+    }
     setLocalEmg(Object.assign(localEmg(), { v:v }));
   } finally { S.busy = false; }
 }
 
 async function actDisableLocal(){
-  var ok = await challenge('Disable on this device',
+  var c = await challenge('Disable on this device',
     globalOn()
       ? 'Enter the Shield passcode to release THIS device. The all-device emergency stays active everywhere else.'
       : 'Enter the Shield passcode to disable Emergency Mode on this device.');
-  if (!ok) return;
+  if (!c.ok) return;
   if (globalOn()){
     // Step out of the current global command without lifting it for anyone
     // else. A newer global command re-arms this device automatically.
@@ -2380,16 +2416,21 @@ async function actDisableLocal(){
 }
 
 async function actDisableGlobal(){
-  var ok = await challenge('Disable on all devices',
+  var c = await challenge('Disable on all devices',
     'Enter the Shield passcode to lift Emergency Mode on EVERY device on this profile. Offline devices will exit when they reconnect.');
-  if (!ok) return;
+  if (!c.ok) return;
   var v = now();
+  // The Worker re-verifies the passcode server-side before it will accept an
+  // OFF — the UI check alone used to be the only thing standing between a
+  // client and clearing everyone's lockdown.
+  var sent = await publishGlobal(false, v, c.password);
   await write({
     'global.active': false, 'global.v': v, 'global.at': v,
     'global.byId': S.devId, 'global.byName': (myDev() && myDev().name) || defaultName()
   }, true).catch(function(){ toast('Could not reach Firebase — other devices still locked.', true); });
   await exitEmergency();
-  toast('Emergency Mode lifted on all devices.');
+  toast(sent ? 'Emergency Mode lifted on all devices.'
+             : 'Lifted here, but the all-device signal did not send — other devices may stay locked.', !sent);
 }
 
 /* ══ RENDER ═══════════════════════════════════════════════════════════════ */
@@ -2615,7 +2656,7 @@ async function removeDevice(id){
   if (locked) msg += '\n\nNote: that device is currently in Emergency Mode. Removing it does NOT unlock it — revoking a device must never be a way around the passcode. It stays locked until someone disables Emergency Mode on the device itself.';
   var ok = await window.uiConfirm(msg, { title:'Remove device', okLabel:'Remove', danger:true });
   if (!ok) return;
-  if (!await challenge('Remove device', 'Enter the Shield passcode to remove this device.')) return;
+  if (!(await challenge('Remove device', 'Enter the Shield passcode to remove this device.')).ok) return;
   var f = {}; f['devices.' + id + '.revoked'] = true;
   await write(f, true).catch(function(){ toast('Could not remove the device.', true); });
   if (S.viewDev === id) S.viewDev = null;

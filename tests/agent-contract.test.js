@@ -163,6 +163,18 @@ for (const c of calls) {
 }
 check('every invoke passes the key its Rust parameter is named', mismatches.length === 0, mismatches.join(', '));
 
+console.log('\nShield: challenge() callers');
+
+// challenge() returns { ok, password } so the Worker can re-verify a global
+// OFF server-side. It used to return a bare boolean — and an object is ALWAYS
+// truthy, so any caller left on the old shape silently skips the passcode
+// entirely. That is a security hole, not a type error, and nothing else catches it.
+const challengeCalls = [...html.matchAll(/(\w+\s*=\s*)?await challenge\(/g)];
+const badTruthy = [...html.matchAll(/if\s*\(\s*!\s*await challenge\(/g)];
+check('no caller treats challenge() as a bare boolean', badTruthy.length === 0, badTruthy.length + ' found');
+check('challenge() returns an object with ok + password', /return \{ ok:\s*true, password:/.test(html));
+check('every challenge() result is checked via .ok', challengeCalls.length > 0 && /\.ok\b/.test(html));
+
 console.log('\nShield agent: capture-before-kill');
 
 const procRs = fs.readFileSync(path.join(SRC, 'proc.rs'), 'utf8');

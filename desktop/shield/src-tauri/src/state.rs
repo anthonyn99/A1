@@ -71,6 +71,12 @@ pub struct AgentState {
     /// History entry this lockdown belongs to, so its stash can be restored.
     #[serde(default)]
     pub entry_id: String,
+    /// Highest profile-wide emergency version this device has already applied.
+    ///
+    /// Persisted so a restart neither re-fires a lockdown that was already
+    /// handled nor re-lifts one that is still meant to be raised.
+    #[serde(default)]
+    pub remote_v: u64,
 
     /// Custom External Link button id → local file path, mirrored down from
     /// TaskHub's `dashboards/navorder` by shield.html (see its navorder

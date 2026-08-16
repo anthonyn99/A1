@@ -18,6 +18,7 @@
 mod history;
 mod iconpos;
 mod proc;
+mod remote;
 mod shortcuts;
 mod state;
 mod watchdog;
@@ -56,6 +57,7 @@ static HK_EMG_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool:
 pub struct Ctx {
     pub wd: Watchdog,
     pub triggers: Triggers,
+    pub poller: remote::Poller,
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -182,6 +184,30 @@ fn run_closer_excluding(app: &AppHandle, source: &str, spare: &[Target]) -> serd
                 "by": spare.first().map(|t| t.display()).unwrap_or_default() }),
     );
     json!({ "entryId": entry_id, "at": entry.at, "results": results })
+}
+
+/// Watch for a profile-wide emergency raised from another device.
+///
+/// This is the piece that makes "Emergency - all my devices" reach a machine
+/// whose browser is closed. The page cannot do it: its Firestore listener only
+/// exists while the window is open.
+fn arm_remote(app: &AppHandle) {
+    let handle = app.clone();
+    let ctx = app.state::<Ctx>();
+    ctx.poller.start(move |r| {
+        let s = state::get();
+        let ctx = handle.state::<Ctx>();
+        if r.active && !s.emergency_active {
+            log_event("remote-emergency", &format!("on by {}", r.by_name));
+            engage_emergency(&handle, &ctx, "remote");
+        } else if !r.active && s.emergency_active {
+            // The Worker already verified the passcode before it would accept
+            // an OFF, so this device does not ask again - the check happened
+            // server-side, which is stronger than the UI-only check it replaces.
+            log_event("remote-emergency", "off");
+            disengage_emergency(&handle, &ctx);
+        }
+    });
 }
 
 /// Point the trigger watcher at the current configuration.
@@ -581,7 +607,7 @@ pub fn run() {
                 })
                 .build(),
         )
-        .manage(Ctx { wd: Watchdog::new(), triggers: Triggers::new() })
+        .manage(Ctx { wd: Watchdog::new(), triggers: Triggers::new(), poller: remote::Poller::new() })
         .invoke_handler(tauri::generate_handler![
             sh_status, sh_set_config, sh_enumerate, sh_kill,
             sh_emergency_on, sh_emergency_off, sh_launch, sh_set_links,
@@ -663,6 +689,7 @@ pub fn run() {
             // a reboot without anyone opening the window first — the same
             // reason the tray and hotkeys read from state.json.
             arm_triggers(&handle);
+            arm_remote(&handle);
 
             // Always start on the deployed UI, not a cached copy of it.
             navigate_fresh(&handle);
