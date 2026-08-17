@@ -711,6 +711,38 @@ pub fn run() {
             }
 
             {
+                // Start at logon, registered by the agent itself on first run.
+                //
+                // Previously this was only ever set by `build.ps1 -Autostart`,
+                // which needs the repo, Rust and PowerShell — so anyone who
+                // installed from the .exe got an agent that silently stopped
+                // enforcing after a reboot, and Emergency Mode surviving a
+                // restart is a promise this app makes explicitly.
+                //
+                // HKCU only, never HKLM, never a service, never admin.
+                use tauri_plugin_autostart::ManagerExt;
+                // Never from a dev build: `target\release\shield-agent.exe` and
+                // the installed copy are different files, and pointing the logon
+                // entry at the one in the build directory is how a stale binary
+                // ends up running every morning.
+                let installed = std::env::current_exe()
+                    .map(|p| !p.to_string_lossy().to_lowercase().contains(r"\target\"))
+                    .unwrap_or(false);
+                if installed {
+                    let al = handle.autolaunch();
+                    // Only if nothing is registered yet, so an entry the user
+                    // (or build.ps1) already pointed somewhere deliberate is
+                    // left exactly as they set it.
+                    if !al.is_enabled().unwrap_or(false) {
+                        match al.enable() {
+                            Ok(()) => log_event("autostart", "registered for logon"),
+                            Err(e) => log_event("autostart", &format!("failed: {e}")),
+                        }
+                    }
+                }
+            }
+
+            {
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;
                 // A hotkey another app already owns is a warning, not a reason to
                 // refuse to start — the tray still works.
