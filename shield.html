@@ -225,8 +225,13 @@ body[data-gate="app"] #profile-overlay{display:none}
   transition:border-color var(--transition);
 }
 .pf-badge:hover{border-color:var(--ac)}
-.sync{font-size:9.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--txm);white-space:nowrap}
+.sync{
+  font-size:9.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
+  color:var(--txm);white-space:nowrap;opacity:1;transition:opacity .5s ease;
+}
 .sync.ok{color:var(--grn)} .sync.err{color:var(--err)}
+/* Only ever applied to "Synced" — see syncState(). A failure has to stay put. */
+.sync.fade{opacity:0}
 
 /* NOTE: left/right were swapped here — safe-l was padding the right edge. On a
    notched phone in landscape the nav slid under the cutout on one side only. */
@@ -625,7 +630,28 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 #applock-forgot,#applock-reset{background:transparent;border:none;color:var(--txm);font-size:12px;cursor:pointer;font-family:var(--sans);padding:2px 0 0;text-decoration:underline;text-underline-offset:3px;width:100%;text-align:center;transition:color .15s}
 #applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:var(--txd)}
 #applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0}
-#applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--txd)}
+
+/* ── Lock-screen hover ──────────────────────────────────────────────────────
+   These buttons are built in JS with an inline `border` shorthand, which no
+   stylesheet rule can override without !important — so the old hover here was
+   dead on arrival and the menu gave no feedback at all. The glow is what makes
+   the target obvious; the colours are profile tokens, so T reads gold and V
+   reads purple with nothing profile-specific written here.
+
+   --acl / --errl rather than --acbg for the shadow: both are translucent in
+   BOTH profiles, whereas V's --acbg is an opaque swatch that would paint a
+   solid block instead of a halo. */
+#applock-bio button,#al-menu-btns button{
+  transition:border-color .18s,box-shadow .18s,color .18s;
+}
+#applock-bio button:hover,#al-menu-btns button:hover{
+  border-color:var(--acl) !important;box-shadow:0 0 11px var(--acl);
+}
+#al-menu-btns button.al-ac:hover{border-color:var(--ac) !important;box-shadow:0 0 12px var(--acl)}
+#al-menu-btns button.al-dg:hover{border-color:var(--err) !important;box-shadow:0 0 12px var(--errl)}
+#applock-submit:hover:not(:disabled){box-shadow:0 0 12px var(--acl)}
+#applock-pw:focus{box-shadow:0 0 11px var(--acl)}
+#applock-submit,#applock-pw{transition:border-color .18s,box-shadow .18s,opacity .18s}
 
 @media(max-width:520px){
   .pf-card{width:118px;height:136px}
@@ -821,12 +847,18 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
   + '.uim-field{display:block;margin-bottom:14px;}'
   + '.uim-label{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--txm);margin:0 0 7px;}'
   + '.uim-input{width:100%;box-sizing:border-box;background:var(--s1);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:13.5px;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
-  + '.uim-input:focus{border-color:var(--ac);}'
+  + '.uim-input{transition:border-color .18s,box-shadow .18s;}'
+  // The passcode prompt runs through this modal, so it is a lock screen too and
+  // gets the same hover treatment as the App Lock menu. Everything is a profile
+  // token, so T glows gold and V purple with nothing per-profile written here.
+  + '.uim-input:focus{border-color:var(--ac);box-shadow:0 0 11px var(--acl);}'
   + '#uim-err{font-size:12.5px;color:var(--err);font-weight:500;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;}'
-  + '#uim-btns button{border:1px solid var(--bdl);background:transparent;border-radius:var(--radius-sm);padding:9px 16px;font-size:10.5px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
+  + '#uim-btns button{border:1px solid var(--bdl);background:transparent;border-radius:var(--radius-sm);padding:9px 16px;font-size:10.5px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s,box-shadow .18s;}'
+  + '#uim-btns button:hover{border-color:var(--acl);box-shadow:0 0 11px var(--acl);}'
+  + '#uim-ok:hover{border-color:var(--ac);box-shadow:0 0 12px var(--acl);}'
   + '#uim-cancel{color:var(--tx);}'
-  + '#uim-cancel:hover{border-color:var(--txd);}';
+  + '#uim-cancel:hover{border-color:var(--txd);box-shadow:0 0 10px var(--acl);}';
   var queue=[], active=null;
   function el(id){ return document.getElementById(id); }
   function inject(){
@@ -1462,6 +1494,7 @@ function showManageMenu(id){
   if (!unlocked){
     var ub=document.createElement('button');
     ub.innerHTML=ICON.unlock+'<span>Unlock</span>';
+    ub.className='al-ac';
     ub.style.cssText=s+'border:1px solid var(--acl);color:var(--ac);';
     ub.onclick=function(){ menu.remove(); showOverlay(id,'unlock', function(){ if (window.SH && window.SH.onLockChange) window.SH.onLockChange(); }); };
     menu.appendChild(ub);
@@ -1496,6 +1529,7 @@ function showManageMenu(id){
 
   var rb=document.createElement('button');
   rb.innerHTML=ICON.trash+'<span>Remove lock</span>';
+  rb.className='al-dg';
   rb.style.cssText=s+'border:1px solid var(--errl);color:var(--err);';
   rb.onclick=function(){ menu.remove(); showOverlay(id,'remove', function(){ if (window.SH && window.SH.onLockChange) window.SH.onLockChange(); }); };
   menu.appendChild(rb);
@@ -2076,10 +2110,24 @@ function cfgEmg(id){
    drop whatever another device saved in between. This is a deliberate
    divergence from MyList's whole-doc pattern, and it removes the lost-update
    problem rather than guarding against it. */
+/* The sync indicator.
+   "Synced" is confirmation, not status — it says something that has already
+   finished, so it shows briefly and goes. "Sync failed" is status: it stays
+   until a later write actually succeeds, because a failure that fades looks
+   exactly like a success from two seconds later. */
+var _syncFade = 0;
 function syncState(s){
   var e=$('sync'); if (!e) return;
+  clearTimeout(_syncFade);
   e.className = 'sync' + (s==='ok'?' ok':(s==='err'?' err':''));
   e.textContent = s==='saving' ? 'Saving…' : (s==='ok' ? 'Synced' : (s==='err' ? 'Sync failed' : '·'));
+  if (s === 'ok'){
+    _syncFade = setTimeout(function(){
+      // Guard against a newer state having landed while the timer ran — only
+      // fade the "Synced" this call put there.
+      if (e.textContent === 'Synced') e.classList.add('fade');
+    }, 1600);
+  }
 }
 /* Pending writes MERGE rather than replace. Restarting the debounce timer and
    letting the newer call's payload win would silently drop the older one — add

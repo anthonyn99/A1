@@ -109,6 +109,13 @@ fn publish(app: &AppHandle, active: bool) {
 /// synchronous local work: no network call sits between pressing the button and
 /// the applications going away.
 fn engage_emergency(app: &AppHandle, ctx: &Ctx, source: &str) -> serde_json::Value {
+    // A remote command is by definition profile-wide; a local one is this
+    // device only, unless the caller says otherwise (see engage_emergency_all).
+    let scope = if source == "remote" { "global" } else { "local" };
+    engage_emergency_scoped(app, ctx, source, scope)
+}
+
+fn engage_emergency_scoped(app: &AppHandle, ctx: &Ctx, source: &str, scope: &str) -> serde_json::Value {
     let s = state::get();
     let cfg = s.emergency.clone();
     let entry_id = history::new_id();
@@ -120,14 +127,7 @@ fn engage_emergency(app: &AppHandle, ctx: &Ctx, source: &str) -> serde_json::Val
         ctx.wd.start(cfg.targets.clone());
     }
 
-    let entry = history::record(
-        &entry_id,
-        "emergency",
-        if source == "remote" { "global" } else { "local" },
-        source,
-        &results,
-        &hidden,
-    );
+    let entry = history::record(&entry_id, "emergency", scope, source, &results, &hidden);
 
     state::update(|st| {
         st.emergency_active = true;
@@ -157,10 +157,18 @@ fn engage_emergency(app: &AppHandle, ctx: &Ctx, source: &str) -> serde_json::Val
 /// The page has an 800 ms hold on this action because a click is easy to make by
 /// accident. A three-key chord is its own guard, so there is no equivalent here.
 fn engage_emergency_all(app: &AppHandle, ctx: &Ctx) -> serde_json::Value {
-    let mut out = engage_emergency(app, ctx, "local");
+    // Scope "global" so History and the takeover screen say "all devices" —
+    // this device did the raising, so the SOURCE is still local.
+    let mut out = engage_emergency_scoped(app, ctx, "local", "global");
     let s = state::get();
     let name = if s.device_name.is_empty() { "This PC".to_string() } else { s.device_name.clone() };
-    let ok = remote::publish(&s.profile, &s.guard_key, true, &s.device_id, &name);
+    let v = remote::publish(&s.profile, &s.guard_key, true, &s.device_id, &name);
+    // Remember the version we just published, so the poller does not read our
+    // own signal back twenty seconds later and treat it as news.
+    if let Some(v) = v {
+        state::update(|st| { if v > st.remote_v { st.remote_v = v; } });
+    }
+    let ok = v.is_some();
     // Whether the other devices heard is the entire point of this action, and it
     // is invisible from the tray. The window learns via the event below; with no
     // window open, launch.log is the record.
@@ -172,12 +180,14 @@ fn engage_emergency_all(app: &AppHandle, ctx: &Ctx) -> serde_json::Value {
 
 fn disengage_emergency(app: &AppHandle, ctx: &Ctx) -> serde_json::Value {
     ctx.wd.stop();
-    let s = state::get();
-    let restored = if s.entry_id.is_empty() {
-        shortcuts::restore_all()
-    } else {
-        shortcuts::restore(&s.entry_id)
-    };
+    // Restore EVERY stash, not just this entry's.
+    //
+    // A second emergency raised before the first was lifted mints a new entry
+    // id and overwrites `state.entry_id`, orphaning the earlier stash — so
+    // restoring only the current one left icons hidden with nothing pointing at
+    // them. Emergency Mode ending means nothing Shield hid stays hidden, and
+    // that is the only contract worth having here.
+    let restored = shortcuts::restore_all();
     state::update(|st| {
         st.emergency_active = false;
         st.emergency_source = String::new();

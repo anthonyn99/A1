@@ -62,12 +62,13 @@ pub fn fetch(profile: &str, key: &str) -> Option<RemoteState> {
 /// password — a lockdown that has to be typed into is not a lockdown — but it
 /// does carry the guard token, without which the Worker refuses the write.
 ///
-/// Returns false on anything that went wrong, and the caller says so. A global
-/// action that silently only worked locally is the worst outcome here: the user
-/// walks away believing their other machines are locked.
-pub fn publish(profile: &str, key: &str, active: bool, by_id: &str, by_name: &str) -> bool {
+/// Returns the accepted version on success, `None` on anything that went wrong,
+/// and the caller says so. A global action that silently only worked locally is
+/// the worst outcome here: the user walks away believing their other machines
+/// are locked.
+pub fn publish(profile: &str, key: &str, active: bool, by_id: &str, by_name: &str) -> Option<u64> {
     if profile.is_empty() {
-        return false;
+        return None;
     }
     let body = serde_json::json!({
         "profile": profile,
@@ -78,16 +79,28 @@ pub fn publish(profile: &str, key: &str, active: bool, by_id: &str, by_name: &st
         "byId": by_id,
         "byName": by_name,
         "k": key,
+        // Asks the Worker to mirror this into Firestore as well.
+        //
+        // The page writes Firestore itself when IT raises an emergency; the
+        // agent cannot — it holds no Firebase credentials, by design. Without
+        // the mirror a lockdown raised from the tray or a hotkey reached every
+        // agent but left every SCREEN, including the phone's, still saying
+        // "this device only". Only sent on this path, so the page's own writes
+        // are never duplicated.
+        "via": "agent",
     });
     match ureq::post(ENDPOINT)
         .timeout(Duration::from_secs(10))
         .send_json(body)
     {
-        Ok(r) => r
-            .into_json::<serde_json::Value>()
-            .map(|j| j.get("ok").and_then(|v| v.as_bool()).unwrap_or(false))
-            .unwrap_or(false),
-        Err(_) => false,
+        Ok(r) => r.into_json::<serde_json::Value>().ok().and_then(|j| {
+            if j.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
+                Some(j.get("v").and_then(|v| v.as_u64()).unwrap_or(0))
+            } else {
+                None
+            }
+        }),
+        Err(_) => None,
     }
 }
 

@@ -538,6 +538,47 @@ function tokensMatch(a, b) {
   return diff === 0;
 }
 
+/* Mirror a profile-wide emergency into Firestore.
+ *
+ * There are two stores by design: KV is what the desktop agents poll (a
+ * Firestore poll would be a billed read per device per poll), and Firestore is
+ * what the OPEN PAGES render from. When the page raises an emergency it writes
+ * both itself, so this is not needed. When the AGENT raises one — the tray item
+ * or Ctrl+Shift+G, with no window anywhere — nothing was writing Firestore, and
+ * the result was a profile-wide lockdown that every screen still described as
+ * "this device only", including the phone's.
+ *
+ * The agent has no Firebase credentials and should not have any; this Worker
+ * already holds a service account for the reminders cron, so the mirror belongs
+ * here. One write, only on the agent path, so the page path is unchanged.
+ */
+async function mirrorGlobalToFirestore(env, profile, rec) {
+  try {
+    const token = await getGoogleAccessToken(env);
+    const path = `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/dashboards/shield_${profile}`;
+    // `global` is a self-contained map, so masking the whole field is correct
+    // and cannot clobber `devices` beside it.
+    const body = { fields: { global: { mapValue: { fields: {
+      active: { booleanValue: !!rec.active },
+      v:      { integerValue: String(rec.v || 0) },
+      at:     { integerValue: String(rec.at || 0) },
+      byId:   { stringValue: String(rec.byId || '') },
+      byName: { stringValue: String(rec.byName || '') },
+      scope:  { stringValue: 'all' }
+    } } } } };
+    const r = await fetch(`https://firestore.googleapis.com/v1/${path}?updateMask.fieldPaths=global`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) console.warn('[shield] mirror failed:', r.status, (await r.text()).slice(0, 200));
+    return r.ok;
+  } catch (e) {
+    console.warn('[shield] mirror failed:', e.message);
+    return false;
+  }
+}
+
 async function shieldTokenOk(env, profile, given) {
   const tok = await getJSON(env, shieldTokKey(profile));
   // No token minted yet → this profile has never run the key flow, so the
@@ -667,6 +708,11 @@ async function handleShield(path, request, env, origin, url) {
       byName: String(body.byName || '').slice(0, 64),
     };
     await env.TOKEN_CACHE.put(shieldKey(profile), JSON.stringify(rec));
+    // Raised by the agent (tray or global hotkey), where no page exists to
+    // write Firestore. See mirrorGlobalToFirestore.
+    if (body.via === 'agent') {
+      await mirrorGlobalToFirestore(env, profile, rec);
+    }
     return json({ ok: true, ...rec }, origin);
   }
 

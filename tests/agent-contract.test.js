@@ -49,6 +49,8 @@ const rust = fs
   .map((f) => fs.readFileSync(path.join(SRC, f), 'utf8'))
   .join('\n');
 const html = fs.readFileSync(path.join(ROOT, 'shield.html'), 'utf8');
+const workerPath = path.join(ROOT, 'workers', 'taskhub-reminders', 'worker.js');
+const worker = fs.existsSync(workerPath) ? fs.readFileSync(workerPath, 'utf8') : '';
 
 console.log('\nShield agent: command surface');
 
@@ -234,11 +236,62 @@ check(
 // HTTP timeout must never sit between the key press and the apps closing.
 check(
   'the global hotkey locks down locally BEFORE it touches the network',
-  /fn engage_emergency_all[\s\S]*?engage_emergency\(app, ctx, "local"\)[\s\S]*?remote::publish\(/.test(lib)
+  /fn engage_emergency_all[\s\S]*?engage_emergency_scoped\([\s\S]*?remote::publish\(/.test(lib)
 );
 check(
   'and reports whether the other devices actually heard',
   /shield:\/\/global/.test(lib) && /shield:\/\/global/.test(html)
+);
+// Both halves of the "Ctrl+Shift+G locked one device" bug.
+//
+// The takeover screen renders from FIRESTORE, not from the Worker's KV. The
+// page writes Firestore itself; the agent holds no Firebase credentials and
+// cannot, so a hotkey lockdown reached every agent while every screen still
+// read "this device only". The Worker mirrors it instead, and only for the
+// agent's own posts, so the page path is never double-written.
+check(
+  'the agent asks the Worker to mirror into Firestore',
+  /"via": "agent"/.test(rust)
+);
+check(
+  'the scope recorded is global, while the source stays local',
+  /fn engage_emergency_all[\s\S]*?engage_emergency_scoped\(app, ctx, "local", "global"\)/.test(lib)
+);
+check(
+  'publishing does not make the poller read its own signal back as news',
+  /fn engage_emergency_all[\s\S]*?st\.remote_v = v/.test(lib)
+);
+if (worker) {
+  check(
+    'the Worker mirrors only the agent path',
+    /body\.via === 'agent'[\s\S]{0,120}mirrorGlobalToFirestore/.test(worker) &&
+      /updateMask\.fieldPaths=global/.test(worker),
+    'double-writing the page path would cost a write per emergency'
+  );
+}
+
+/* ── Icon positions ─────────────────────────────────────────────────────────
+   Two emergencies without a lift in between is the case that broke this. The
+   second pass re-hid already-hidden shortcuts, whose desktop position Explorer
+   had already dropped, and wrote `pos: None` over a manifest that had the real
+   coordinates. It also orphaned the first stash, which restore never looked at. */
+console.log('\nShield agent: icon positions');
+
+const shortRs = fs.readFileSync(path.join(SRC, 'shortcuts.rs'), 'utf8');
+check(
+  'hiding skips a shortcut that is already hidden',
+  /fn hide\([\s\S]*?if use_attr && is_hidden\(&lnk\) \{\s*continue;/.test(shortRs),
+  'otherwise a second emergency overwrites the saved position with none'
+);
+check(
+  'the position is read BEFORE the icon is hidden',
+  /iconpos::get\(&lnk\)[\s\S]*?set_hidden\(&lnk, true\)/.test(shortRs)
+);
+check(
+  'lifting restores every stash, not just the newest entry',
+  /fn disengage_emergency[\s\S]*?shortcuts::restore_all\(\)/.test(lib) &&
+    !/fn disengage_emergency[\s\S]*?shortcuts::restore\(&s\.entry_id\)/.test(lib),
+  'a second emergency orphans the first stash'
 );
 
 /* ── The guard token ────────────────────────────────────────────────────────
@@ -253,9 +306,6 @@ check(
    not been opened since the token was minted go quietly deaf to remote
    emergencies, which is the exact case the agent exists for. */
 console.log('\nShield: guard token');
-
-const workerPath = path.join(ROOT, 'workers', 'taskhub-reminders', 'worker.js');
-const worker = fs.existsSync(workerPath) ? fs.readFileSync(workerPath, 'utf8') : '';
 
 const setCfgStruct = (lib.match(/pub struct SetConfig \{[\s\S]*?\n\}/) || [''])[0];
 const pushCfg = (html.match(/function pushConfig\(\)\{[\s\S]*?\n\}/) || [''])[0];

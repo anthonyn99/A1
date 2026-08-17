@@ -83,6 +83,28 @@ fn reg_dword(subkey: &str, name: &str) -> Option<u32> {
     }
 }
 
+/// Is this file already hidden?
+///
+/// Load-bearing for icon positions. Emergency Mode can be raised twice without
+/// being lifted in between — a local one, then Ctrl+Shift+G — and the second
+/// pass walks shortcuts the first pass already hid. Explorer drops an item it
+/// cannot see from its desktop layout table, so asking where that icon sits
+/// returns nothing, and the second manifest would record `pos: None` over a
+/// first manifest that had the real coordinates. Restore then reads the newer,
+/// emptier one and every icon lands in the first free slot.
+fn is_hidden(path: &Path) -> bool {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::{
+        GetFileAttributesW, FILE_ATTRIBUTE_HIDDEN, INVALID_FILE_ATTRIBUTES,
+    };
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    unsafe {
+        let cur = GetFileAttributesW(PCWSTR(wide.as_ptr()));
+        cur != INVALID_FILE_ATTRIBUTES && (cur & FILE_ATTRIBUTE_HIDDEN.0) != 0
+    }
+}
+
 fn set_hidden(path: &Path, hidden: bool) -> bool {
     use std::os::windows::ffi::OsStrExt;
     use windows::core::PCWSTR;
@@ -309,6 +331,19 @@ pub fn hide(entry_id: &str, targets: &[Target]) -> Vec<HiddenItem> {
         });
 
         let Some(t) = matched else { continue };
+
+        // Already invisible — leave it entirely alone.
+        //
+        // Either an earlier emergency hid it (and holds the manifest with its
+        // real desktop position, which this pass can no longer read), or the
+        // user hid it themselves and it is not Shield's to restore. Claiming it
+        // here would overwrite good coordinates with none. Only checked in
+        // attribute mode: with Explorer showing hidden files the attribute hides
+        // nothing, so such a file is still on screen and must still be moved.
+        if use_attr && is_hidden(&lnk) {
+            continue;
+        }
+
         let note_dir = |touched: &mut Vec<PathBuf>| {
             if let Some(parent) = lnk.parent() {
                 if !touched.iter().any(|p| p == parent) {
@@ -550,6 +585,28 @@ mod tests {
         assert!(p.exists());
         assert_eq!(attrs(&p) & FILE_ATTRIBUTE_HIDDEN.0, 0, "still hidden after restore");
 
+        let _ = std::fs::remove_file(&p);
+    }
+
+    /// The re-hide bug, at the level it can actually be tested.
+    ///
+    /// Two emergencies without a lift in between: the second pass walks
+    /// shortcuts the first already hid. Explorer has dropped those from its
+    /// layout table by then, so their position reads as None — and writing that
+    /// over the first manifest's real coordinates is what put three icons in the
+    /// top-left corner. `hide()` now skips anything already hidden, and this
+    /// pins the predicate that decision rests on.
+    #[test]
+    fn an_already_hidden_shortcut_is_recognised_as_such() {
+        let p = std::env::temp_dir().join(format!("shield_rehide_{}.lnk", std::process::id()));
+        if std::fs::write(&p, b"x").is_err() {
+            return;
+        }
+        assert!(!is_hidden(&p), "a fresh file is not hidden");
+        assert!(set_hidden(&p, true));
+        assert!(is_hidden(&p), "hide() would re-hide this and lose its position");
+        assert!(set_hidden(&p, false));
+        assert!(!is_hidden(&p), "restore must make it claimable again");
         let _ = std::fs::remove_file(&p);
     }
 
