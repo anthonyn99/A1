@@ -55,6 +55,42 @@ pub fn fetch(profile: &str, key: &str) -> Option<RemoteState> {
     resp.into_json::<RemoteState>().ok()
 }
 
+/// Raise a profile-wide emergency from the agent.
+///
+/// The counterpart to `fetch`: this is what makes the global hotkey reach the
+/// user's other devices with no window open. Raising deliberately carries no
+/// password — a lockdown that has to be typed into is not a lockdown — but it
+/// does carry the guard token, without which the Worker refuses the write.
+///
+/// Returns false on anything that went wrong, and the caller says so. A global
+/// action that silently only worked locally is the worst outcome here: the user
+/// walks away believing their other machines are locked.
+pub fn publish(profile: &str, key: &str, active: bool, by_id: &str, by_name: &str) -> bool {
+    if profile.is_empty() {
+        return false;
+    }
+    let body = serde_json::json!({
+        "profile": profile,
+        "active": active,
+        // Date.now() in the page; the Worker only ever moves this forward, so a
+        // slow clock here cannot roll a newer state back.
+        "v": crate::state::now_ms(),
+        "byId": by_id,
+        "byName": by_name,
+        "k": key,
+    });
+    match ureq::post(ENDPOINT)
+        .timeout(Duration::from_secs(10))
+        .send_json(body)
+    {
+        Ok(r) => r
+            .into_json::<serde_json::Value>()
+            .map(|j| j.get("ok").and_then(|v| v.as_bool()).unwrap_or(false))
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
 pub struct Poller {
     running: Arc<AtomicBool>,
 }

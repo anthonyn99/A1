@@ -123,7 +123,8 @@ body{
   overscroll-behavior-y:contain;
   transition:background var(--transition),color var(--transition);
 }
-/* Scrollbars are hidden globally across the suite. */
+/* Scrollbars are hidden globally across the suite. Shield draws its own
+   instead — see #scroller. */
 *{scrollbar-width:none;-ms-overflow-style:none}
 *::-webkit-scrollbar{display:none;width:0;height:0}
 a{color:var(--acs);text-decoration:none}
@@ -349,6 +350,11 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
   transition:opacity var(--transition),color var(--transition);
 }
 .big:hover .kbd{opacity:.95;color:var(--txd)}
+/* On the hold button the label sits above the sliding fill, and its border
+   picks up the danger colour so the chord reads as the same weight as the
+   action it fires. */
+.hold .kbd{z-index:1;border-color:var(--errl)}
+.hold:hover .kbd{opacity:.95;color:var(--err)}
 .big[disabled] .kbd{opacity:.3}
 @media(max-width:400px){ .kbd{display:none} }
 .big:active{transform:translateY(1px)}
@@ -442,6 +448,39 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 .ro fieldset{border:none}
 /* A read-only pane must LOOK inert, not just refuse writes. */
 .ro .tgt,.ro .opt{opacity:.72}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────────
+   Drawn rather than native, for two reasons. The suite hides native scrollbars
+   everywhere, and on a phone the native one is a passive indicator that cannot
+   be dragged at all — it only tells you where you are. History and the iOS
+   wizard both run several screens long, where "how much is left" and "get me to
+   the bottom" are real questions, so this one is grabbable with a cursor and a
+   thumb identically. It appears only when there is something to scroll. */
+#scroller{
+  position:fixed;z-index:120;
+  right:max(3px,var(--safe-r));width:15px;
+  /* Clear of the sticky topbar, so the thumb is never hidden behind it. */
+  top:calc(var(--safe-t) + 54px);bottom:calc(var(--safe-b) + 10px);
+  display:none;touch-action:none;
+  -webkit-user-select:none;user-select:none;
+}
+#scroller.on{display:block}
+#scroller .track{position:absolute;left:6px;top:0;bottom:0;width:3px;border-radius:2px;background:var(--bd)}
+#scroller .thumb{
+  position:absolute;left:4px;width:7px;min-height:34px;border-radius:4px;
+  background:var(--txm);opacity:.45;cursor:grab;
+  transition:opacity .15s,background .15s,width .12s,left .12s;
+}
+#scroller:hover .thumb{opacity:.9}
+#scroller.drag .thumb{opacity:1;background:var(--ac);cursor:grabbing;width:11px;left:2px}
+/* A 15px-wide target is a cursor target. A finger needs the whole strip, so the
+   hit area widens while the drawn parts stay the same size. */
+@media (pointer: coarse){
+  #scroller{width:30px}
+  #scroller .track{left:20px}
+  #scroller .thumb{left:18px;min-height:44px}
+  #scroller.drag .thumb{left:16px}
+}
 
 /* ── Capability panel — the honest one. Never claim more than the OS allows. ── */
 .cap{display:flex;align-items:flex-start;gap:9px;padding:7px 0;font-size:11.5px;line-height:1.45}
@@ -732,6 +771,7 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 
 <!-- ══ App ════════════════════════════════════════════════════════════════ -->
 <div id="app">
+  <div id="scroller" aria-hidden="true"><div class="track"></div><div class="thumb"></div></div>
   <header class="topbar">
     <div class="brand">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1817,6 +1857,91 @@ var Agent = (function(){
   return { present:present, invoke:invoke };
 })();
 
+/* ══ SCROLLBAR ════════════════════════════════════════════════════════════
+   A drawn scrollbar for the page, because the native one is hidden across the
+   suite and, on a phone, is not draggable even when visible.
+
+   Pointer events rather than mouse/touch pairs: one code path covers a mouse, a
+   finger and a pen, and setPointerCapture keeps the drag alive when the finger
+   leaves the 30px strip — which it will, because nobody drags in a straight
+   line. */
+var Scroll = (function(){
+  var el, thumb, dragging = false, grabOff = 0, raf = 0;
+
+  function doc(){ return document.scrollingElement || document.documentElement; }
+  function metrics(){
+    var d = doc();
+    return { max: d.scrollHeight - d.clientHeight, pos: d.scrollTop, view: el.clientHeight };
+  }
+
+  function paint(){
+    raf = 0;
+    var m = metrics();
+    // Nothing to scroll: the control would be a lie, so it is not drawn at all.
+    if (m.max <= 4){ el.classList.remove('on'); return; }
+    el.classList.add('on');
+    var d = doc();
+    var h = Math.max(34, m.view * (d.clientHeight / d.scrollHeight));
+    var t = (m.view - h) * (m.pos / m.max);
+    thumb.style.height = h + 'px';
+    thumb.style.top = t + 'px';
+  }
+  // Scroll fires far more often than the screen refreshes; coalescing to a frame
+  // keeps a flick from queueing dozens of identical layout reads.
+  function sync(){ if (!raf) raf = requestAnimationFrame(paint); }
+
+  function scrollToThumbTop(top){
+    var m = metrics(), h = thumb.offsetHeight;
+    var span = m.view - h;
+    if (span <= 0) return;
+    doc().scrollTop = Math.max(0, Math.min(1, top / span)) * m.max;
+  }
+
+  function onDown(e){
+    var r = thumb.getBoundingClientRect(), inThumb = e.clientY >= r.top && e.clientY <= r.bottom;
+    var elTop = el.getBoundingClientRect().top;
+    // Pressing the track jumps to that spot and then keeps dragging, so a tap
+    // near the bottom is one gesture rather than a tap followed by a drag.
+    grabOff = inThumb ? e.clientY - r.top : thumb.offsetHeight / 2;
+    if (!inThumb) scrollToThumbTop(e.clientY - elTop - grabOff);
+    dragging = true;
+    el.classList.add('drag');
+    try { el.setPointerCapture(e.pointerId); } catch(err){}
+    e.preventDefault();
+  }
+  function onMove(e){
+    if (!dragging) return;
+    scrollToThumbTop(e.clientY - el.getBoundingClientRect().top - grabOff);
+    e.preventDefault();
+  }
+  function onUp(e){
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('drag');
+    try { el.releasePointerCapture(e.pointerId); } catch(err){}
+  }
+
+  return {
+    init: function(){
+      el = $('scroller'); if (!el) return;
+      thumb = el.querySelector('.thumb');
+      el.addEventListener('pointerdown', onDown);
+      el.addEventListener('pointermove', onMove);
+      el.addEventListener('pointerup', onUp);
+      el.addEventListener('pointercancel', onUp);
+      window.addEventListener('scroll', sync, { passive:true });
+      window.addEventListener('resize', sync);
+      // Every render changes the page height — a filtered History, a switched
+      // tab — and a thumb sized for the old content is worse than none.
+      if (window.ResizeObserver){
+        try { new ResizeObserver(sync).observe(document.body); } catch(err){}
+      }
+      sync();
+    },
+    sync: sync
+  };
+})();
+
 /* Events the agent pushes up. The tray menu and the global hotkeys run entirely
    in Rust and can fire while this window is open, so this is the only way the
    UI ever learns about them. */
@@ -1840,6 +1965,14 @@ function wireAgentEvents(){
     });
     T.event.listen('shield://closed', function(){
       pullAgentHistory().then(function(n){ if (n){ renderHome(); renderHistory(); } });
+    });
+    // Ctrl+Shift+G or the tray's all-devices item. This device is already
+    // locked down by the time we hear about it; what the user cannot see is
+    // whether the other devices got the message, so that is what we say.
+    T.event.listen('shield://global', function(ev){
+      var ok = !!((ev && ev.payload) || {}).ok;
+      toast(ok ? 'Emergency sent to all your devices.'
+               : 'This device is locked down, but the signal did not reach your other devices.', !ok);
     });
   } catch(e){}
 }
@@ -2125,6 +2258,9 @@ function pushConfig(){
     // Pushed with the rest of the config rather than fetched separately — the
     // agent has no passcode to prove and should never need one.
     guardKey: guardKey(),
+    // So a global emergency raised from the tray or a hotkey names this machine
+    // on the other devices' takeover screens.
+    deviceName: (devRec(S.devId) && devRec(S.devId).name) || defaultName(),
     closer: cfgCloser(S.devId).targets || [],
     triggers: cfgCloser(S.devId).triggers || [],
     emergency: {
@@ -2780,6 +2916,7 @@ function renderHome(){
       +    '<span class="sub">Lock down this device' + (emgN ? ' · ' + emgN + ' target' + (emgN===1?'':'s') : '') + '</span>'
       +  '</button>';
   h +=   '<button class="hold" id="a-emg-all"><span class="fill"></span>'
+      +    kbd('all')
       +    '<span class="lbl">Emergency — All My Devices</span>'
       +    '<span class="sub">Hold to activate on all ' + devs.length + ' device' + (devs.length===1?'':'s') + '</span>'
       +  '</button>';
@@ -2903,10 +3040,10 @@ function renderDevices(){
   h += devs.map(function(d){ return devRowHtml(d, false); }).join('');
   h += '</div>';
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">How devices work</span></div>'
-    +  '<div class="hint">Every device owns and edits its own configuration — a phone cannot describe a PC\'s executables, '
-    +  'and a PC cannot describe a phone\'s apps. You can view another device\'s configuration here, but only the device '
-    +  'you are holding can change it.<br><br>“Active” means the device checked in within the last 20 minutes. '
-    +  'Shield does not keep a live presence connection; that would cost writes all day for information you rarely need.</div></div>';
+    +  '<div class="hint">Each device owns its own configuration — a phone cannot describe a PC\'s executables. You can view '
+    +  'another device\'s here, but only the one you are holding can change it.'
+    +  '<br><br>“Active” means it checked in within the last 20 minutes. There is no live presence connection; that would '
+    +  'cost writes all day for something you rarely need.</div></div>';
   $('v-devices').innerHTML = h;
 
   Array.prototype.forEach.call($('v-devices').querySelectorAll('[data-dev-view]'), function(b){
@@ -3019,7 +3156,7 @@ function renderHistory(){
     +  (mine.length ? '<button class="btn sm" id="a-hist-clear">Clear</button>' : '') + '</div>';
   h += mine.length
     ? mine.map(function(e){ return histCardHtml(e, { own:true }); }).join('')
-    : '<div class="empty">Nothing closed yet. Every Close Apps run and every Emergency activation is recorded here, with a button to put it all back.</div>';
+    : '<div class="empty">Nothing closed yet. Every run is recorded here with a button to put it all back.</div>';
   h += '</div>';
 
   var withHist = devs.filter(function(d){ return (d.history || []).length; });
@@ -3032,10 +3169,9 @@ function renderHistory(){
     h += '</div>';
   }
 
-  h += '<div class="sec"><div class="hint">Shield records the full path and command line of every process it closes, '
-    +  'captured just before termination — that is the only moment those are still readable. The manifest stays on the device '
-    +  'that did the closing, because only that device can start those applications again; other devices see the summary above. '
-    +  'Reopening starts each application fresh, so unsaved work inside it is not recovered.</div></div>';
+  h += '<div class="sec"><div class="hint">Each process\'s path and command line are captured just before it closes — the last '
+    +  'moment they are readable — and stay on the device that closed it, since only that device can start them again. '
+    +  'Reopening starts each application fresh; unsaved work is not recovered.</div></div>';
 
   $('v-history').innerHTML = h;
   wireRevert($('v-history'));
@@ -3127,16 +3263,14 @@ function tabTargets(kind, id, ro){
     +  (ro ? '' : '<button class="btn sm ac" data-add="trigger">' + svg(GLYPH.plus) + 'Add</button>') + '</div>';
   h += trg.length
      ? trg.map(function(t){ return targetRowHtml(t, 'trigger', ro, false); }).join('')
-     : '<div class="empty">Nothing yet. Add an app here and the moment it starts, Shield runs <b>Close Apps</b> for you — '
-       + 'open a game and everything above tidies itself away.</div>';
+     : '<div class="empty">Nothing yet. Add an app here and Shield runs <b>Close Apps</b> the moment it opens — start a game, '
+       + 'everything above tidies itself away.</div>';
   h += '</div>';
   if (trg.length){
     h += '<div class="sec"><div class="hint">Fires when the app <b>starts</b> or when you <b>switch to it</b> — a browser is '
-      +  'usually already running, so "I opened Brave" means its window came to the front, not that a process began. '
-      +  'Both count.<br><br>'
-      +  'Each trigger then waits 45 seconds before it can fire again, so alt-tabbing does not re-close everything, and the '
-      +  'trigger itself is never closed — opening League cannot close League. Works with the Shield window shut and survives '
-      +  'a restart. Every automatic run is recorded in <b>History</b> with a Reopen button, exactly like a manual one.'
+      +  'usually already running, so "I opened Brave" means its window came forward. Both count.'
+      +  '<br><br>Each trigger then waits 45 seconds before it can fire again, and never closes itself — opening League cannot '
+      +  'close League. Works with the window shut, survives a restart, and lands in <b>History</b> with a Reopen button.'
       +  (caps().agent ? '' : '<br><br><b>This device has no agent, so nothing will fire here.</b>')
       +  '</div></div>';
   }
@@ -3145,12 +3279,11 @@ function tabTargets(kind, id, ro){
     +  '<b>Executable</b> — <code>discord.exe</code>. Matched exactly, so it survives version-folder churn.<br>'
     +  '<b>Full path</b> — <code>C:\\Riot Games\\Riot Client\\RiotClientServices.exe</code>. One exact process.<br>'
     +  '<b>Folder</b> — <code>C:\\Riot Games</code>. Closes <b>everything running from inside it</b>.'
-    +  '<br><br>Prefer a folder for anything modern. Riot is a launcher, six Electron windows and a crash handler spread across '
-    +  'two directories; a browser is a parent plus a process per tab. Naming one executable closes one of them and leaves the '
-    +  'window you were actually looking at still on screen.'
-    +  '<br><br><b>Preview</b> shows exactly what your targets would close, without closing anything. Shield asks apps to close '
-    +  'gracefully first and forces only what does not go quietly, and every run is recorded in <b>History</b> with how to start '
-    +  'each application again — so a Close Apps press is always reversible.</div></div>';
+    +  '<br><br>Prefer a folder for anything modern: Riot is a launcher, six Electron windows and a crash handler across two '
+    +  'directories, and a browser is a parent plus a process per tab. Naming one executable leaves the window you were '
+    +  'actually looking at on screen.'
+    +  '<br><br><b>Preview</b> shows what would close without closing it. Shield asks nicely first and forces only what does '
+    +  'not go quietly, and every run is reversible from <b>History</b>.</div></div>';
   return h;
 }
 
@@ -3163,9 +3296,9 @@ function tabEmergency(id, ro){
   h += '</div>';
 
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Emergency behaviour</span></div><div class="card">';
-  h += optHtml('lockA1Apps', cfg.lockA1Apps !== false, 'Re-lock A1 apps', 'Clears this device\'s unlock for every A1 app on this profile that has a password. Instant, works offline, and does not disturb your other devices.', ro);
-  h += optHtml('watchdog', cfg.watchdog !== false, 'Keep targets closed', 'Re-closes a target if it starts again while Emergency Mode is active. Checks a few times a second, so an app briefly appears before it dies.', ro || !c.watchdog);
-  h += optHtml('lockWorkstation', !!cfg.lockWorkstation, 'Lock the workstation', 'Locks Windows itself right after closing. The most reliable thing Shield can do — and the fastest way to make a screen safe.', ro || !c.lockWorkstation);
+  h += optHtml('lockA1Apps', cfg.lockA1Apps !== false, 'Re-lock A1 apps', 'Re-locks every password-protected A1 app on this device. Instant, offline, and leaves your other devices alone.', ro);
+  h += optHtml('watchdog', cfg.watchdog !== false, 'Keep targets closed', 'Re-closes a target that starts again while Emergency Mode is on. Checks a few times a second, so an app flashes before it dies.', ro || !c.watchdog);
+  h += optHtml('lockWorkstation', !!cfg.lockWorkstation, 'Lock the workstation', 'Locks Windows right after closing. The most reliable thing Shield can do, and the fastest way to make a screen safe.', ro || !c.lockWorkstation);
   h += '</div></div>';
 
   h += tabPhoneHandoff(id);
@@ -3236,14 +3369,13 @@ function tabPhoneHandoff(id){
       +  '1. Settings → <b>Digital Wellbeing &amp; parental controls</b> → <b>Focus mode</b><br>'
       +  '2. Tick the apps to block — Instagram, Discord, whatever matters<br>'
       +  '3. Swipe down twice → pencil → drag <b>Focus mode</b> into your Quick Settings<br><br>'
-      +  'A blocked app is greyed out and its notifications are held. Android gives no way for another app to turn this '
-      +  'on for you, so it is a swipe rather than a button here.</div>';
+      +  'A blocked app is greyed out and its notifications held. Android gives no way for another app to turn this on for '
+      +  'you, so it is a swipe rather than a button here.</div>';
   }
 
   h += '<div class="hint" style="padding-top:10px;border-top:1px solid var(--bd);margin-top:4px">'
-    +  '<b>What Shield does do here:</b> the EMERGENCY button re-locks every A1 app on this device instantly and offline, '
-    +  'and <b>Emergency — All My Devices</b> reaches your PC even with its browser closed. The limit is other people\'s '
-    +  'apps, not yours.</div>';
+    +  '<b>What Shield does do here:</b> EMERGENCY re-locks every A1 app instantly and offline, and <b>All My Devices</b> '
+    +  'reaches your PC with its browser closed. The limit is other people\'s apps, not yours.</div>';
   h += '</div></div>';
   return h;
 }
@@ -3259,12 +3391,12 @@ function iosGuardHtml(mine){
   var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Block apps on this ' + (tablet?'iPad':'iPhone') + '</span></div>';
 
   h += '<div class="card"><div class="hint" style="padding-bottom:0">'
-    +  'iOS will not let Shield reach into this ' + (tablet?'iPad':'iPhone') + ' — but it will let this '
-    +  (tablet?'iPad':'iPhone') + ' reach out to Shield. Set an app up below and opening it asks whether an emergency is '
-    +  'live; if one is, the screen locks about a second later. Raise the emergency anywhere — this device, your PC, '
-    +  '<b>Emergency — All My Devices</b> — and these apps stop opening until you lift it.'
-    +  '<br><br>Everything here is built out of Apple\'s own Shortcuts app. Nothing is installed, nothing costs anything, '
-    +  'and you can take it apart the same way you put it together.</div></div></div>';
+    +  'iOS will not let Shield reach into this ' + (tablet?'iPad':'iPhone') + ', but it will let this '
+    +  (tablet?'iPad':'iPhone') + ' reach out. Set an app up below and opening it asks whether an emergency is live; if one '
+    +  'is, the screen locks about a second later. Raise it anywhere — here, your PC, <b>All My Devices</b> — and these apps '
+    +  'stop opening until you lift it.'
+    +  '<br><br>All of it is Apple\'s own Shortcuts app. Nothing installed, nothing to pay, and you can take it apart the '
+    +  'same way you put it together.</div></div></div>';
 
   /* Guarded apps. Kept above the steps because step 3 is per-app and reads far
      better once the list is already on screen. */
@@ -3288,14 +3420,14 @@ function iosGuardHtml(mine){
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Setup</span></div>';
 
   h += stepHtml(1, 'Get your guard link',
-    'A private link that answers one question: is an emergency running? It is tied to this profile and nothing else — it '
-    + 'cannot read your data, change anything, or start an emergency. Shield asks for your passcode once to create it.',
+    'A private link that answers one question: is an emergency running? It cannot read your data, change anything, or start '
+    + 'one. Shield asks for your passcode once to create it.',
     url
       ? '<div class="guard-url"><code id="guard-url-txt">' + esc(url) + '</code></div>'
         + '<div class="wiz-btns"><button class="btn sm ac" id="a-guard-copy">Copy link</button>'
         + '<button class="btn sm" id="a-guard-rotate">Replace link</button></div>'
-        + '<div class="wiz-note">Treat it like a password. If it gets somewhere it should not, <b>Replace link</b> makes '
-        + 'the old one dead immediately — you then paste the new one into the shortcut in step 2.</div>'
+        + '<div class="wiz-note">Treat it like a password. <b>Replace link</b> kills the old one immediately — then paste '
+        + 'the new one into the shortcut in step 2.</div>'
       : '<div class="wiz-btns"><button class="btn sm ac" id="a-guard-get">Create guard link</button></div>');
 
   h += stepHtml(2, 'Build the <b>Shield Guard</b> shortcut',
@@ -3306,33 +3438,33 @@ function iosGuardHtml(mine){
     + '<li><b>If</b> — <i>Dictionary Value</i> <b>is</b> <code>true</code>.</li>'
     + '<li>Inside the If: <b>Lock Screen</b>. Leave <i>Otherwise</i> empty.</li>'
     + '</ol>'
-    + 'Run it once from the Shortcuts app to check it. With no emergency running it should do nothing at all.');
+    + 'Run it once from the Shortcuts app. With no emergency running it should do nothing at all.');
 
   h += stepHtml(3, 'One automation per guarded app',
-    'Shortcuts → <b>Automation</b> tab → <b>+</b> → <b>App</b> → choose the app → tick <b>Is Opened</b> → <b>Next</b> → '
-    + 'pick <b>Shield Guard</b> → set it to <b>Run Immediately</b>.'
-    + '<div class="wiz-note"><b>Run Immediately matters.</b> The other setting asks permission every time, which makes '
-    + 'the whole thing useless. It needs iOS 17 or newer.</div>'
+    'Shortcuts → <b>Automation</b> → <b>+</b> → <b>App</b> → choose it → tick <b>Is Opened</b> → <b>Next</b> → '
+    + '<b>Shield Guard</b> → <b>Run Immediately</b>.'
+    + '<div class="wiz-note"><b>Run Immediately matters.</b> The other setting asks permission every time, which makes the '
+    + 'whole thing useless. Needs iOS 17 or newer.</div>'
     + (apps.length
         ? '<div class="wiz-note">One each for: <b>' + apps.map(esc).join('</b>, <b>') + '</b>.</div>'
         : '<div class="wiz-note">Add your apps above first, so you know how many to make.</div>'));
 
   h += stepHtml(4, 'Two automations for reconnecting',
-    'The check runs when an app is <i>opened</i>. If an app is already open when the internet comes back, nothing '
-    + 're-checks it — unless one of these fires. Made once, shared by every guarded app:'
+    'The check only runs when an app is <i>opened</i>, so an app already open when the internet returns is never '
+    + 're-checked. These two cover that. Made once, shared by every guarded app:'
     + '<ol class="wiz-ol">'
     + '<li><b>Airplane Mode</b> → <b>Is Turned Off</b> → Shield Guard → Run Immediately.</li>'
     + '<li><b>Wi-Fi</b> → <b>Any Network</b> → Shield Guard → Run Immediately.</li>'
     + '</ol>'
-    + 'Turning aeroplane mode off is the one-tap way to dodge the guard, so it is worth having both.');
+    + 'Aeroplane mode is the one-tap way to dodge the guard, so both are worth having.');
 
   h += stepHtml(5, 'Hide the icons too',
     'Blocking stops an app opening; it does not take it off the Home Screen. Make a second shortcut named exactly '
-    + '<code>Shield Emergency</code> with <b>Set Focus</b> → a Focus whose Home Screen pages leave the sensitive apps out, '
-    + 'then <b>Lock Screen</b>. Shield\'s button below runs it in one tap.'
-    + '<div class="wiz-note">For anything that should never be casually opened — Wallet, Photos, banking — iOS 18 does '
-    + 'this better than Shield can: long-press the icon → <b>Require Face ID</b> → <b>Hide and Require Face ID</b>. '
-    + 'It is free, built in, and stronger than a Focus. Use it where it fits.</div>',
+    + '<code>Shield Emergency</code>: <b>Set Focus</b> → a Focus whose Home Screen leaves those apps out → <b>Lock '
+    + 'Screen</b>. The button below runs it.'
+    + '<div class="wiz-note">For anything that should never be casually opened — Wallet, Photos, banking — iOS 18 beats '
+    + 'this: long-press → <b>Require Face ID</b> → <b>Hide and Require Face ID</b>. Free, built in, stronger than a '
+    + 'Focus.</div>',
     '<div class="wiz-btns"><a class="btn sm ac" href="shortcuts://run-shortcut?name=Shield%20Emergency">Run Shield Emergency</a></div>');
 
   h += '</div>';
@@ -3341,28 +3473,23 @@ function iosGuardHtml(mine){
      honest, and it says the same things the Windows capability panel does. */
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">What this does not do</span></div><div class="card">'
     +  '<div class="cap part"><span class="mk">~</span><span class="tx"><b>The app flashes before it closes.</b> It opens, '
-    +  'the automation asks Shield, then the screen locks — about a second. The same honest limit as the desktop\'s '
-    +  '"flashes then dies".</span></div>'
+    +  'asks Shield, then the screen locks — about a second. The same limit as the desktop\'s "flashes then dies".</span></div>'
     +  '<div class="cap part"><span class="mk">~</span><span class="tx"><b>With no internet, apps open normally.</b> '
-    +  'Shortcuts has no error handling — a failed fetch stops the shortcut dead, so there is nothing that can run afterwards '
-    +  'to fall back on. Step 4 closes most of this: the guard re-runs the moment Wi-Fi or aeroplane mode changes. What '
-    +  'stays open is coming back on <b>cellular only</b> — out of a tunnel, or Cellular Data switched back on — with a '
-    +  'guarded app left open the whole time. Apple exposes no cellular trigger, so nothing re-checks until you reopen '
-    +  'the app.</span></div>'
-    +  '<div class="cap no"><span class="mk">✕</span><span class="tx"><b>Nothing is pushed to this device.</b> The phone '
-    +  'reacts when you act on it. A phone sitting on a table does not lock itself.</span></div>'
+    +  'Shortcuts has no error handling — a failed fetch stops it dead, so nothing can run afterwards to fall back on. '
+    +  'Step 4 covers most of this. What it cannot cover is coming back on <b>cellular only</b>, with a guarded app left '
+    +  'open throughout: Apple exposes no cellular trigger, so nothing re-checks until you reopen the app.</span></div>'
+    +  '<div class="cap no"><span class="mk">✕</span><span class="tx"><b>Nothing is pushed here.</b> The phone reacts when '
+    +  'you act on it. A phone on a table does not lock itself.</span></div>'
     +  '<div class="cap no"><span class="mk">✕</span><span class="tx"><b>Hidden is not blocked.</b> A Focus hides Home '
-    +  'Screen pages; the app is still there in Spotlight and the App Library. Only an app with its own automation is '
-    +  'actually stopped.</span></div>'
-    +  '<div class="cap no"><span class="mk">✕</span><span class="tx"><b>You can switch the automations off.</b> It is '
-    +  'your phone, and Shortcuts is two taps away. Exactly like ending the agent in Task Manager on Windows — Shield '
-    +  'raises the cost of a casual moment, it does not defeat you.</span></div>'
+    +  'Screen pages; the app is still in Spotlight and the App Library. Only an app with its own automation is stopped.</span></div>'
+    +  '<div class="cap no"><span class="mk">✕</span><span class="tx"><b>You can switch the automations off.</b> Your phone, '
+    +  'two taps away — exactly like ending the agent in Task Manager. Shield raises the cost of a careless moment; it does '
+    +  'not defeat you.</span></div>'
     +  '</div></div>';
 
-  h += '<div class="sec"><div class="hint">Real blocking that survives all of that needs Apple\'s Family Controls '
-    +  'entitlement — a paid developer account plus a case-by-case approval — or a supervised device, which needs a Mac '
-    +  'and erases the phone. Both were ruled out, so this is the strongest free version, described exactly as it '
-    +  'behaves.</div></div>';
+  h += '<div class="sec"><div class="hint">Blocking that survives all of that needs Apple\'s Family Controls entitlement '
+    +  '(paid account, case-by-case approval) or a supervised device (needs a Mac, erases the phone). Both were ruled out, '
+    +  'so this is the strongest free version — described exactly as it behaves.</div></div>';
 
   return h;
 }
@@ -3381,15 +3508,15 @@ function capsHtml(d){
   var h = '';
   h += row('yes', '<b>Re-lock A1 apps</b> — always available, works offline.');
   if (c.agent){
-    h += row('yes',  '<b>Close applications</b> — same-user processes. Elevated or service processes need Shield running as admin.');
-    h += row('part', '<b>Keep them closed</b> — Shield kills on sight, roughly every second. Windows 11 Home has no AppLocker, so a true launch block is not available; a target will flash on screen before it closes.');
-    h += row('part', '<b>Hide launch points</b> — desktop and Start-menu shortcuts are hidden <b>in place</b>, so every icon comes back to the exact square it left. Shortcuts are matched by what they actually point at, not by their name, so a folder target covers all of an app\'s shortcuts however they are named. Two limits: if you have Explorer set to show <i>both</i> hidden and protected system files, Shield moves them instead and the positions are not preserved; and Store/UWP apps and pinned Start tiles have no shortcut to hide at all.');
-    h += row('no',   '<b>Unpin from the taskbar</b> — not automatable on Windows 11. The pin lives in an undocumented registry blob and needs Explorer restarted. Do not pin anything you would need Shield to hide.');
+    h += row('yes',  '<b>Close applications</b> — same-user processes. Elevated and service processes need Shield running as admin.');
+    h += row('part', '<b>Keep them closed</b> — killed on sight, about once a second. Windows 11 Home has no AppLocker, so there is no true launch block: a target flashes on screen before it closes.');
+    h += row('part', '<b>Hide launch points</b> — desktop and Start-menu shortcuts hide <b>in place</b>, so every icon returns to the square it left, and they are matched by what they point at rather than their name. Two limits: with Explorer set to show hidden <i>and</i> protected system files, Shield moves them instead and positions are lost; Store apps and pinned tiles have no shortcut to hide.');
+    h += row('no',   '<b>Unpin from the taskbar</b> — not automatable on Windows 11; the pin is an undocumented registry blob that needs Explorer restarted. Do not pin anything you would need Shield to hide.');
     h += row('yes',  '<b>Lock the workstation</b> — instant and completely reliable.');
-    h += row('part', '<b>Reopen what was closed</b> — Shield records each process\'s path and command line before terminating it, so History can start them all again. Applications open fresh: unsaved work inside them is not recovered, and one that could not be read before closing cannot be reopened.');
-    h += row('part', '<b>Survives a restart</b> — Shield re-arms at logon. Ending the agent in Task Manager stops enforcement until you sign in again; a self-restarting watchdog would behave like malware, so Shield does not do that.');
+    h += row('part', '<b>Reopen what was closed</b> — paths and command lines are recorded before termination, so History can start them again. Apps open fresh; unsaved work is not recovered, and anything unreadable before closing cannot be reopened.');
+    h += row('part', '<b>Survives a restart</b> — Shield re-arms at logon. Ending the agent in Task Manager stops enforcement until you sign in again; a self-restarting watchdog would behave like malware.');
   } else {
-    h += row('no', '<b>Close applications</b> — needs the Shield desktop agent. A web page has no way to terminate a process.');
+    h += row('no', '<b>Close applications</b> — needs the Shield desktop agent. A web page cannot terminate a process.');
     h += row('no', '<b>Hide or block applications</b> — needs the Shield desktop agent.');
   }
   if (p === 'ios'){
@@ -3398,20 +3525,20 @@ function capsHtml(d){
     // would be the wrong thing to remember during an emergency.
     var n = iosApps().length;
     h += row(n ? 'part' : 'no', '<b>Block other apps</b> — ' + (n
-      ? n + ' app' + (n===1?'' : 's') + ' set up. Opening one during an emergency locks the screen about a second later, '
-        + 'from a Shortcuts automation you built. It works because the phone asks Shield, not the other way round — so it '
-        + 'fires when the app is opened, and with no internet the app opens normally.'
-      : 'nothing set up yet. Shield cannot block an app itself, but iOS can be made to ask Shield whether an emergency is '
-        + 'running each time a chosen app opens. See <b>Block apps on this iPhone</b> above.'));
-    h += row('part', '<b>Hide app icons</b> — a Focus can leave sensitive apps off your Home Screen pages, and Shield runs '
-       + 'it in one tap. They stay reachable from Spotlight and the App Library; hidden is not blocked. For the ones that '
-       + 'matter most, iOS 18\'s own <b>Hide and Require Face ID</b> is stronger than anything Shield can offer.');
-    h += row('no', '<b>Anything pushed to this device</b> — iOS gives a web app no background execution at all, so nothing '
-       + 'here happens while the phone sits untouched. Every check runs because you opened something.');
+      ? n + ' app' + (n===1?'' : 's') + ' set up. Opening one during an emergency locks the screen about a second later. '
+        + 'The phone asks Shield rather than the other way round, so it only fires on open — and with no internet the app '
+        + 'opens normally.'
+      : 'nothing set up yet. iOS can be made to ask Shield whether an emergency is running each time a chosen app opens. '
+        + 'See <b>Block apps on this iPhone</b> above.'));
+    h += row('part', '<b>Hide app icons</b> — a Focus keeps sensitive apps off your Home Screen, one tap from here. They stay '
+       + 'reachable from Spotlight and the App Library; hidden is not blocked. For the ones that matter most, iOS 18\'s own '
+       + '<b>Hide and Require Face ID</b> is stronger than anything Shield can offer.');
+    h += row('no', '<b>Anything pushed to this device</b> — iOS gives a web app no background execution, so nothing happens '
+       + 'while the phone sits untouched. Every check runs because you opened something.');
   } else if (p === 'android'){
-    h += row('no', '<b>Block Instagram, Discord, Photos, Wallet, Cash App…</b> — impossible from a web app on Android. '
-       + 'Blocking another app needs a native build with usage access plus a foreground overlay service, which Shield '
-       + 'deliberately does not ship. Use Digital Wellbeing\'s Focus mode for those, and Shield for everything else.');
+    h += row('no', '<b>Block Instagram, Discord, Photos, Wallet…</b> — impossible from a web app on Android. It needs a '
+       + 'native build with usage access and an overlay service, which Shield does not ship. Use Digital Wellbeing\'s Focus '
+       + 'mode for those.');
   }
   h += row('yes', '<b>Command your other devices</b> — Emergency reaches every device on this profile'
      + (c.remoteWhileClosed ? '.' : ', though a device without the agent only reacts while Shield is open on it.'));
@@ -3430,12 +3557,13 @@ function tabSecurity(id, ro){
   h += '</div></div>';
 
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Recovery</span></div><div class="card">';
-  h += '<div class="hint">Your passcode is never stored in this browser and never reaches Firebase. It is hashed with PBKDF2 '
-    +  '(100,000 iterations, random salt) inside the Cloudflare Worker the whole suite shares.<br><br>'
+  h += '<div class="hint">Your passcode never touches this browser or Firebase — it is hashed with PBKDF2 (100,000 '
+    +  'iterations, random salt) inside the Cloudflare Worker the suite shares.<br><br>'
     +  (window.AL.hasOffline(lid)
-        ? '<b>Offline unlock is available on this device.</b> If the Worker cannot be reached, Shield checks a local copy of the same hash so an internet outage during Emergency Mode is not a lockout.'
-        : '<b>No offline verifier on this device yet.</b> It is written the next time you set or change the passcode here. Until then, disabling Emergency Mode needs a working connection.')
-    +  '<br><br>If you forget the passcode, use <b>Forgot password?</b> for the hint or <b>Reset password via email</b> on the lock screen — both go to this profile\'s own address. That email is the only recovery path, so keep a hint set.</div>';
+        ? '<b>Offline unlock works on this device.</b> If the Worker is unreachable, Shield checks a local copy of the same hash — so an outage during Emergency Mode is not a lockout.'
+        : '<b>No offline verifier here yet.</b> It is written next time you set or change the passcode on this device. Until then, disabling Emergency Mode needs a connection.')
+    +  '<br><br>Forgotten it? <b>Forgot password?</b> gives the hint, <b>Reset password via email</b> sends to this profile\'s '
+    +  'address. That email is the only recovery path, so keep a hint set.</div>';
   h += '</div></div>';
 
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">This device</span></div><div class="card">';
@@ -3448,10 +3576,10 @@ function tabSecurity(id, ro){
   h += '</div></div>';
 
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Honest limits</span></div><div class="card">'
-    +  '<div class="hint">Shield raises the cost of a glance over your shoulder. It does not defeat someone who knows Shield '
-    +  'exists and has your unlocked machine — they can end the agent in Task Manager. Firebase currently lets any signed-in '
-    +  'client read the suite\'s documents, so profile separation here is enforced by the passcode rather than by the server. '
-    +  'Nothing in this app is stronger than the operating system underneath it, and it will not pretend otherwise.</div>'
+    +  '<div class="hint">Shield raises the cost of a glance over your shoulder. It does not defeat someone who knows it '
+    +  'exists and has your unlocked machine — they can end the agent in Task Manager. Firebase still lets any signed-in '
+    +  'client read the suite\'s documents, so profile separation here rests on the passcode, not the server. Nothing in this '
+    +  'app is stronger than the OS underneath it, and it will not pretend otherwise.</div>'
     +  '</div></div>';
   return h;
 }
@@ -4006,6 +4134,7 @@ function boot(){
   $('pf-v').onclick = function(){ chooseProfile('veda'); };
   $('pf-badge').onclick = goProfileSelect;
   $('lock-btn').onclick = function(){ window.AL.manage(lockId()); };
+  Scroll.init();
 
   Array.prototype.forEach.call(document.querySelectorAll('.nav > .pill[data-view]'), function(b){
     b.onclick = function(){ go(b.getAttribute('data-view')); };

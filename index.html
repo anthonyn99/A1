@@ -201,8 +201,17 @@ input[type=time]{color-scheme:dark;}
     .veda-hdr-inner{flex-direction:column;gap:6px;align-items:stretch;}
     .veda-hdr-left{flex-shrink:0;min-width:0;}
     .veda-hdr-right{min-height:unset;align-items:flex-end;width:100%;}
-    .veda-hbtns{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-end;scrollbar-width:none;-ms-overflow-style:none;}
-    .veda-hbtns::-webkit-scrollbar{display:none;}
+    /* Horizontally scrollable on phones. justify-content:flex-end would push the
+       overflow past the START edge, where it can't be scrolled to — so align to
+       the start and let an auto margin on the first child do the right-alignment
+       only while there IS free space (auto margins resolve to 0 when overflowing). */
+    /* The row must be viewport-wide to scroll at all: its parent aligns children
+       to flex-end, which otherwise sizes the row to its content and spills the
+       overflow off the left edge where nothing can reach it. */
+    .veda-hbtns{width:100%;align-self:stretch;min-width:0;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;}
+    .veda-hbtns>*{flex-shrink:0;}
+    .veda-hbtns>*:first-child{margin-left:auto;}
+    .veda-hbtns::-webkit-scrollbar{display:none;width:0;height:0;}
   }
 
 <style>
@@ -4757,7 +4766,10 @@ window.THTS={
     clock:     I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
     trophy:    I('<path d="M7 4h10v6a5 5 0 0 1-10 0Z"/><path d="M7 6H4a3 3 0 0 0 3 3"/><path d="M17 6h3a3 3 0 0 1-3 3"/><path d="M10 15h4l1 5H9Z"/>'),
     dot:       I('<circle cx="12" cy="12" r="5" fill="currentColor"/>'),
-    star:      I('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9Z"/>')
+    star:      I('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9Z"/>'),
+    // Fullscreen pair — four corners pushing out / pulling back in.
+    expand:    I('<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>'),
+    shrink:    I('<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>')
   };
   window.TNI.starOn = window.TNI.star.replace('fill="none"','fill="currentColor"');
 })();
@@ -13805,10 +13817,13 @@ function App(){
     canRedo:()=>vxHist.current.future.length>0};
 
   return RC("div",{style:{background:BG,minHeight:"100%"}},
-    RC("div",{style:{maxWidth:2000,margin:"0 auto",color:TX,fontFamily:"'IBM Plex Mono',monospace",fontSize:14,padding:"calc(env(safe-area-inset-top,0px) + 4px) 14px calc(env(safe-area-inset-bottom,0px) + 20px)",boxSizing:"border-box",lineHeight:1.5,display:"flex",flexDirection:"column",gap:8}},
+    RC("div",{style:{maxWidth:2000,margin:"0 auto",color:TX,fontFamily:"'IBM Plex Mono',monospace",fontSize:14,padding:"0 14px calc(env(safe-area-inset-bottom,0px) + 20px)",boxSizing:"border-box",lineHeight:1.5,display:"flex",flexDirection:"column",gap:8}},
 
     // ── Header (sticky) ──
-    RC("div",{style:{position:"sticky",top:0,zIndex:50,background:BG,marginLeft:-14,marginRight:-14,paddingLeft:14,paddingRight:14,paddingBottom:4}},
+    // The safe-area inset lives on THIS element, not the page wrapper: the header
+    // then owns the notch/Dynamic-Island strip and paints it as it pins, so
+    // scrolled content never slides up behind the pill.
+    RC("div",{style:{position:"sticky",top:0,zIndex:50,background:BG,marginLeft:-14,marginRight:-14,paddingLeft:14,paddingRight:14,paddingTop:"calc(env(safe-area-inset-top,0px) + 4px)",paddingBottom:4}},
     RC("div",{style:{display:"flex",flexDirection:vrMobile?"column":"row",alignItems:vrMobile?"stretch":"flex-start",justifyContent:"space-between",gap:vrMobile?6:12,flexShrink:0}},
       RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,flexShrink:0,paddingTop:2,position:"relative"}},
         RC("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:8}},
@@ -13833,9 +13848,13 @@ function App(){
         RC("button",{onClick:()=>setRulesOpen("manage"),title:"Trading rules checklist",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Rules"),
         RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
         RC("div",{style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
-          RC("span",{style:{fontSize:10,color:A,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}},edit?"Edit":"View"),
+          /* Mode reads as a glyph, not a word — pencil for edit, eye for view (same
+             vocabulary as Tony's TaskHub). */
+          RC("span",{style:{color:A,width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0},title:edit?"Edit mode":"View mode","aria-label":edit?"Edit mode":"View mode"},
+            edit?RC("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})
+                :RC("svg",{width:14,height:14,viewBox:"0 0 14 14",fill:"none"},RC("ellipse",{cx:7,cy:7,rx:5.5,ry:3.5,stroke:"currentColor",strokeWidth:1.3}),RC("circle",{cx:7,cy:7,r:1.8,fill:"currentColor"}))),
           RC("div",{style:{width:34,height:18,borderRadius:9,background:edit?A:BD,border:"1px solid "+BDL,position:"relative",transition:"background .25s"}},RC("div",{style:{width:13,height:13,borderRadius:"50%",background:edit?BG:TXD,position:"absolute",top:"50%",transform:"translateY(-50%)",left:edit?18:2,transition:"left .25s, background .25s"}}))),
-        RC("button",{onClick:toggleFullscreen,title:isFullscreen?"Exit Fullscreen":"Fullscreen",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=isFullscreen?A:BDL;},style:{background:isFullscreen?A:"transparent",color:isFullscreen?BG:A,border:"1px solid "+(isFullscreen?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},isFullscreen?"Exit":RC("span",{style:{width:17,height:17,fontSize:17,lineHeight:0,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.eye}})))))),
+        RC("button",{onClick:toggleFullscreen,title:isFullscreen?"Exit Fullscreen":"Fullscreen",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=isFullscreen?A:BDL;},style:{background:isFullscreen?A:"transparent",color:isFullscreen?BG:A,border:"1px solid "+(isFullscreen?A:BDL),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",textTransform:"uppercase",letterSpacing:1}},RC("span",{style:{width:15,height:15,fontSize:15,lineHeight:0,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0},dangerouslySetInnerHTML:{__html:isFullscreen?TNI.shrink:TNI.expand}})))))),
 
     // ── WEATHER + GITA BANNER (one band) ──
     // The weather bar sits level with the quote banner so the compact view costs

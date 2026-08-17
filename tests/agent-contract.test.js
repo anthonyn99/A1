@@ -206,6 +206,41 @@ check(
   /fn sh_set_config[\s\S]*?is_denied/.test(lib)
 );
 
+/* ── Hotkeys ────────────────────────────────────────────────────────────────
+   Three chords, and the page prints the labels the agent reports rather than
+   its own copy — so a key that Windows refused is never advertised. The link
+   between them is a bare string key on both sides, which nothing else checks. */
+console.log('\nShield agent: hotkeys');
+
+const hkKeys = [...lib.matchAll(/"(close|emergency|all)": if HK_(\w+)_OK/g)].map((m) => m[1]);
+check(
+  'all three hotkeys are reported to the page',
+  ['close', 'emergency', 'all'].every((k) => hkKeys.includes(k)),
+  hkKeys.join(', ')
+);
+check(
+  'and the page asks for exactly those keys',
+  ['close', 'emergency', 'all'].every((k) => html.includes("kbd('" + k + "')"))
+);
+const codes = [...lib.matchAll(/Modifiers::CONTROL \| Modifiers::SHIFT\), Code::Key(\w)\)/g)].map((m) => m[1]);
+check('each chord uses a distinct key', new Set(codes).size === codes.length && codes.length === 3, codes.join('+'));
+check(
+  'every registered chord has a label and an OK flag',
+  ['HK_CLOSE_LABEL', 'HK_EMG_LABEL', 'HK_ALL_LABEL'].every((n) => lib.includes(`const ${n}: &str`)) &&
+    ['HK_CLOSE_OK', 'HK_EMG_OK', 'HK_ALL_OK'].every((n) => new RegExp(`${n}\\.store\\(true`).test(lib))
+);
+// The all-devices action is the only one that leaves the machine, and the order
+// is the whole point: lock down here first, then tell the network. A ten-second
+// HTTP timeout must never sit between the key press and the apps closing.
+check(
+  'the global hotkey locks down locally BEFORE it touches the network',
+  /fn engage_emergency_all[\s\S]*?engage_emergency\(app, ctx, "local"\)[\s\S]*?remote::publish\(/.test(lib)
+);
+check(
+  'and reports whether the other devices actually heard',
+  /shield:\/\/global/.test(lib) && /shield:\/\/global/.test(html)
+);
+
 /* ── The guard token ────────────────────────────────────────────────────────
    This one secret crosses three files in three languages: the page mints it and
    pushes it down, `sh_set_config` stores it under a serde rename, and the poller

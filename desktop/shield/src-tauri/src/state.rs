@@ -50,6 +50,14 @@ pub struct AgentState {
     /// Which profile last used this device — only ever "tony" or "veda".
     #[serde(default)]
     pub profile: String,
+    /// What this device is called, as the user named it.
+    ///
+    /// Only needed so a global emergency raised from the tray or a hotkey can
+    /// say which machine raised it — that string is what the other devices show
+    /// on their takeover screen, and "another device" is a poor answer when you
+    /// are trying to work out what just happened.
+    #[serde(default)]
+    pub device_name: String,
     #[serde(default)]
     pub closer: Vec<Target>,
     /// Applications whose launch automatically runs the Program Closer.

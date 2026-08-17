@@ -44,6 +44,10 @@ const PAGE_URL: &str = "https://anthonyn99.github.io/A1/shield.html";
 /// own copy.
 const HK_CLOSE_LABEL: &str = "Ctrl+Shift+X";
 const HK_EMG_LABEL: &str = "Ctrl+Shift+L";
+/// G for global. Deliberately not adjacent to L on the keyboard: this one
+/// reaches every device on the profile, and a slipped finger should not be able
+/// to turn a local lockdown into one.
+const HK_ALL_LABEL: &str = "Ctrl+Shift+G";
 
 /// Whether each hotkey actually registered.
 ///
@@ -53,6 +57,7 @@ const HK_EMG_LABEL: &str = "Ctrl+Shift+L";
 /// advertising none.
 static HK_CLOSE_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static HK_EMG_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static HK_ALL_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 pub struct Ctx {
     pub wd: Watchdog,
@@ -139,6 +144,30 @@ fn engage_emergency(app: &AppHandle, ctx: &Ctx, source: &str) -> serde_json::Val
 
     publish(app, true);
     json!({ "entryId": entry_id, "at": entry.at, "results": results, "hidden": hidden })
+}
+
+/// Emergency Mode here, then on every other device of the profile.
+///
+/// Order is not negotiable: the machine in front of the user locks down first,
+/// synchronously, and only then does anything touch the network. A ten-second
+/// HTTP timeout must never sit between the key press and the applications going
+/// away — and if there is no internet at all, the local lockdown still has to
+/// happen in full.
+///
+/// The page has an 800 ms hold on this action because a click is easy to make by
+/// accident. A three-key chord is its own guard, so there is no equivalent here.
+fn engage_emergency_all(app: &AppHandle, ctx: &Ctx) -> serde_json::Value {
+    let mut out = engage_emergency(app, ctx, "local");
+    let s = state::get();
+    let name = if s.device_name.is_empty() { "This PC".to_string() } else { s.device_name.clone() };
+    let ok = remote::publish(&s.profile, &s.guard_key, true, &s.device_id, &name);
+    // Whether the other devices heard is the entire point of this action, and it
+    // is invisible from the tray. The window learns via the event below; with no
+    // window open, launch.log is the record.
+    log_event("emergency-all", if ok { "published" } else { "publish FAILED — this device only" });
+    let _ = app.emit("shield://global", json!({ "ok": ok, "active": true }));
+    out["global"] = json!(ok);
+    out
 }
 
 fn disengage_emergency(app: &AppHandle, ctx: &Ctx) -> serde_json::Value {
@@ -231,6 +260,8 @@ pub struct SetConfig {
     /// Token for the emergency endpoint. See `state::AgentState::guard_key`.
     #[serde(default, rename = "guardKey")]
     guard_key: String,
+    #[serde(default, rename = "deviceName")]
+    device_name: String,
     #[serde(default)]
     closer: Vec<Target>,
     #[serde(default)]
@@ -262,6 +293,9 @@ fn sh_set_config(app: AppHandle, cfg: SetConfig) -> serde_json::Value {
         if !cfg.guard_key.is_empty() {
             st.guard_key = cfg.guard_key.clone();
         }
+        if !cfg.device_name.is_empty() {
+            st.device_name = cfg.device_name.clone();
+        }
         st.closer = clean(cfg.closer.clone());
         st.triggers = clean(cfg.triggers.clone());
         st.emergency = EmergencyCfg {
@@ -288,6 +322,7 @@ fn sh_status(ctx: State<'_, Ctx>) -> serde_json::Value {
         "hotkeys": {
             "close": if HK_CLOSE_OK.load(std::sync::atomic::Ordering::SeqCst) { Some(HK_CLOSE_LABEL) } else { None },
             "emergency": if HK_EMG_OK.load(std::sync::atomic::Ordering::SeqCst) { Some(HK_EMG_LABEL) } else { None },
+            "all": if HK_ALL_OK.load(std::sync::atomic::Ordering::SeqCst) { Some(HK_ALL_LABEL) } else { None },
         },
         "targets": { "closer": s.closer.len(), "emergency": s.emergency.targets.len(),
                      "triggers": s.triggers.len() },
@@ -502,6 +537,7 @@ fn navigate_fresh(app: &AppHandle) {
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let close = MenuItem::with_id(app, "close", "Close Apps", true, None::<&str>)?;
     let emg = MenuItem::with_id(app, "emergency", "EMERGENCY", true, None::<&str>)?;
+    let emg_all = MenuItem::with_id(app, "emergency-all", "EMERGENCY — All My Devices", true, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "Open Shield", true, None::<&str>)?;
     // The UI is served from the web and updates independently of this binary,
     // so there has to be a way to pick up a new page without restarting the
@@ -509,7 +545,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let reload = MenuItem::with_id(app, "reload", "Reload UI", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Shield", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&close, &emg, &sep, &open, &reload, &quit])?;
+    let menu = Menu::with_items(app, &[&close, &emg, &emg_all, &sep, &open, &reload, &quit])?;
 
     TrayIconBuilder::with_id("shield")
         .icon(tauri::image::Image::from_bytes(tray_icon_bytes(false))?)
@@ -528,6 +564,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                     // From the tray this is a single click by design. The whole
                     // point is speed; the passcode guards getting OUT, not in.
                     engage_emergency(app, &ctx, "local");
+                }
+                "emergency-all" => {
+                    engage_emergency_all(app, &ctx);
                 }
                 "open" => show_window(app),
                 "reload" => { navigate_fresh(app); show_window(app); }
@@ -556,12 +595,14 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 pub fn run() {
     use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
 
-    // Ctrl+Shift+X → close apps, Ctrl+Shift+L → emergency.
-    // Two copies of each: the handler closure takes ownership of one pair, and
-    // setup() still needs the other pair to register them.
+    // Ctrl+Shift+X → close apps, Ctrl+Shift+L → emergency here,
+    // Ctrl+Shift+G → emergency on every device of this profile.
+    // Two copies of each: the handler closure takes ownership of one set, and
+    // setup() still needs the other set to register them.
     let hk_close = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyX);
     let hk_emg = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyL);
-    let (hk_close_h, hk_emg_h) = (hk_close.clone(), hk_emg.clone());
+    let hk_all = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyG);
+    let (hk_close_h, hk_emg_h, hk_all_h) = (hk_close.clone(), hk_emg.clone(), hk_all.clone());
 
     // A release build has no console (windows_subsystem = "windows"), so a panic
     // message goes nowhere and the only symptom is the tray icon disappearing.
@@ -613,6 +654,8 @@ pub fn run() {
                         run_closer(app);
                     } else if shortcut == &hk_emg_h {
                         engage_emergency(app, &ctx, "local");
+                    } else if shortcut == &hk_all_h {
+                        engage_emergency_all(app, &ctx);
                     }
                 })
                 .build(),
@@ -674,6 +717,13 @@ pub fn run() {
                     Err(e) => {
                         eprintln!("[shield] {HK_EMG_LABEL} unavailable: {e}");
                         log_event("hotkey-unavailable", HK_EMG_LABEL);
+                    }
+                }
+                match handle.global_shortcut().register(hk_all) {
+                    Ok(()) => HK_ALL_OK.store(true, Ordering::SeqCst),
+                    Err(e) => {
+                        eprintln!("[shield] {HK_ALL_LABEL} unavailable: {e}");
+                        log_event("hotkey-unavailable", HK_ALL_LABEL);
                     }
                 }
             }
