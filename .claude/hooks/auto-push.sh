@@ -6,8 +6,40 @@ set -uo pipefail
 
 cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
 
-# Nothing changed (tracked or untracked) -> do nothing, silently.
+push_head() {
+  if git push origin HEAD >/dev/null 2>&1; then
+    return 0
+  fi
+  # Push rejected -- most likely a collaborator pushed while this turn was
+  # running. Rebase on top of theirs and try once more.
+  if git pull --rebase --quiet >/dev/null 2>&1 && git push origin HEAD >/dev/null 2>&1; then
+    return 2
+  fi
+  git rebase --abort >/dev/null 2>&1
+  return 1
+}
+
+# A CLEAN TREE DOES NOT MEAN THERE IS NOTHING TO PUSH.
+#
+# This used to exit here, which was wrong whenever Claude committed its own work
+# during the turn: the tree is clean precisely BECAUSE the commit already
+# happened, and the hook then skipped the push entirely. Those commits sat local
+# indefinitely while GitHub Pages kept serving the previous build — so fixes
+# looked like they had shipped, were tested against the old page, and got
+# reported as still broken. Two commits had accumulated that way before anyone
+# noticed. Commit-or-not and push-or-not are separate questions; answer them
+# separately.
 if [ -z "$(git status --porcelain 2>/dev/null)" ]; then
+  if [ -z "$(git log '@{u}..HEAD' --oneline 2>/dev/null)" ]; then
+    exit 0   # clean tree, nothing ahead of upstream: genuinely nothing to do.
+  fi
+  n=$(git log '@{u}..HEAD' --oneline 2>/dev/null | wc -l | tr -d ' ')
+  push_head
+  case $? in
+    0) printf '{"systemMessage":"Pushed %s already-committed commit(s) to GitHub."}\n' "$n" ;;
+    2) printf '{"systemMessage":"Rebased onto new upstream commits and pushed %s commit(s)."}\n' "$n" ;;
+    *) printf '{"systemMessage":"%s commit(s) are NOT pushed (conflict, network or auth) — run: git pull --rebase \\u0026\\u0026 git push"}\n' "$n" ;;
+  esac
   exit 0
 fi
 
@@ -51,18 +83,10 @@ if ! git commit -m "auto: claude code" >/dev/null 2>&1; then
   exit 0
 fi
 
-if git push origin HEAD >/dev/null 2>&1; then
-  echo '{"systemMessage":"Auto-committed and pushed to GitHub."}'
-  exit 0
-fi
-
-# Push rejected -- most likely a collaborator pushed while this turn was running.
-# Rebase our commit on top of theirs and try once more.
-if git pull --rebase --quiet >/dev/null 2>&1 && git push origin HEAD >/dev/null 2>&1; then
-  echo '{"systemMessage":"Auto-committed, rebased onto new upstream commits, and pushed to GitHub."}'
-  exit 0
-fi
-
-git rebase --abort >/dev/null 2>&1
-echo '{"systemMessage":"Auto-committed locally, but push failed (conflict with upstream, or network/auth) — run: git pull --rebase && git push"}'
+push_head
+case $? in
+  0) echo '{"systemMessage":"Auto-committed and pushed to GitHub."}' ;;
+  2) echo '{"systemMessage":"Auto-committed, rebased onto new upstream commits, and pushed to GitHub."}' ;;
+  *) echo '{"systemMessage":"Auto-committed locally, but push failed (conflict with upstream, or network/auth) — run: git pull --rebase && git push"}' ;;
+esac
 exit 0
