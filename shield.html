@@ -2047,10 +2047,25 @@ function syncAgentState(){
     S.hotkeys = (s && s.hotkeys) || {};
     var e = (s && s.emergency) || {}, le = localEmg();
     if (e.active && !le.active){
-      setLocalEmg({ active:true, at: e.at || now(), source: e.source || 'local', v: globalState().v || 0 });
+      setLocalEmg({ active:true, at: e.at || now(), source: e.source || 'local',
+                    scope: e.source === 'remote' ? 'global' : 'local', v: globalState().v || 0 });
     } else if (!e.active && le.active){
-      setLocalEmg({ active:false, at: now(), source:'local', v:0 });
+      setLocalEmg({ active:false, at: now(), source:'local', scope:'local', v:0 });
+    } else {
+      return;
     }
+    // Push the correction to Firestore as well.
+    //
+    // The agent is authoritative for THIS device, and it can start and end a
+    // lockdown with no window open — the tray, a hotkey, the remote poller. In
+    // all of those the page was not there to write `devices.<id>.local`, so the
+    // Devices tab kept showing this PC as LOCKED long after its applications
+    // were open again. Correcting only localStorage fixed what this device
+    // renders and left every OTHER device lied to.
+    //
+    // Guarded by the branches above, so an agreeing agent costs no write.
+    writeMine('local', { active: !!e.active, at: e.at || now(), source: e.source || 'local' }, true)
+      .catch(function(){});
   }).catch(function(){});
 }
 
@@ -2088,10 +2103,33 @@ function optedOut(){
   return !!(d && d.optOutV && g.v && d.optOutV >= g.v);
 }
 function globalOn(){ return !!globalState().active; }
-function emgOn(){ return localEmg().active || (globalOn() && !optedOut()); }
+
+/* Does this device's own lockdown belong to the profile-wide one?
+   Recorded when it starts. Older records predate the field, and there `remote`
+   is decisive: a lockdown this device did not start can only have come from a
+   global command. */
+function localIsGlobal(le){
+  if (le.scope) return le.scope === 'global';
+  return le.source === 'remote';
+}
+
+/* Is this device locked down?
+   A lockdown entered as part of an ALL-DEVICES command belongs to that command
+   and ends with it — on the device that raised it just as much as on the ones
+   that received it. Without that, `localEmg().active` stayed true after the
+   global was lifted anywhere else and the device sat on the takeover screen
+   forever, which is exactly what happened in both directions between the PC and
+   the phone. Only a genuinely device-local lockdown outlives the global one. */
+function emgOn(){
+  var le = localEmg();
+  var g  = globalOn() && !optedOut();
+  if (le.active && localIsGlobal(le)) return g;
+  return le.active || g;
+}
 function emgSource(){
   if (globalOn() && !optedOut()) return 'global';
-  return localEmg().active ? 'local' : null;
+  var le = localEmg();
+  return (le.active && !localIsGlobal(le)) ? 'local' : null;
 }
 
 /* ── Config accessors ─────────────────────────────────────────────────────── */
@@ -2621,7 +2659,12 @@ async function revert(hid){
 }
 
 /* Local Emergency Mode. */
-function runEmergency(source, byName){
+/* `scope` is what this lockdown belongs to, not where it came from.
+   "global" means it is part of an all-devices command and ends when that
+   command does — true both for a device that received one and for the device
+   that raised it. Defaults from the source for callers that do not care. */
+function runEmergency(source, byName, scope){
+  scope = scope || (source === 'remote' ? 'global' : 'local');
   var cfg = cfgEmg(S.devId);
   var lines = [];
 
@@ -2632,7 +2675,7 @@ function runEmergency(source, byName){
   }
 
   // 2. Local state first, so a reload during the next step still comes back locked.
-  setLocalEmg({ active:true, at:now(), source:source, by:byName||'', v: globalState().v || 0 });
+  setLocalEmg({ active:true, at:now(), source:source, scope:scope, by:byName||'', v: globalState().v || 0 });
   renderEmergency();
 
   // 3. Agent work, if there is an agent.
@@ -2665,8 +2708,7 @@ function runEmergency(source, byName){
     // fully reversible once the passcode has lifted it. The id comes from the
     // agent when there is one, so this entry and the agent's are the same entry.
     histAdd('emergency', items, {
-      id: agentId,
-      scope: source === 'remote' ? 'global' : 'local',
+      id: agentId, scope: scope,
       source: source, by: byName || '', hidden: hidden
     });
     renderEmergency();
@@ -2676,7 +2718,7 @@ function runEmergency(source, byName){
 }
 
 function exitEmergency(){
-  setLocalEmg({ active:false, at:now(), source:'local', v:0 });
+  setLocalEmg({ active:false, at:now(), source:'local', scope:'local', v:0 });
   S.report = null;
   var p = caps().kill
     ? Agent.invoke('sh_emergency_off', {}).catch(function(){})
@@ -2838,7 +2880,11 @@ async function actEmergencyGlobal(){
     var v = now();
     // Local enforcement first — the device in the user's hand must not wait on
     // a round trip. The fan-out follows.
-    await runEmergency('local', '');
+    //
+    // Scope "global" even though this device raised it: the lockdown is part of
+    // the all-devices command, so lifting that command from the phone has to
+    // release this machine too.
+    await runEmergency('local', '', 'global');
     // Two channels, deliberately. Firestore is what the UI reads on devices
     // with Shield open; the Worker signal is what a device with its browser
     // CLOSED polls for. Neither alone reaches everything.
@@ -4030,7 +4076,7 @@ function reconcile(prevGlobalV, prevOn){
     // just started up into a live emergency. Enforce before anything else
     // paints — the config and device list must not be reachable first.
     var byName = (g.byId === S.devId) ? '' : (g.byName || 'another device');
-    runEmergency(g.active ? 'remote' : 'local', byName);
+    runEmergency(g.active ? 'remote' : 'local', byName, g.active ? 'global' : 'local');
     return;
   }
   if (!nowOn && prevOn){
