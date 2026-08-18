@@ -3198,19 +3198,28 @@ function TBPromptPage({prompts,onSave,onToast}){
   const [copied,setCopied]=useState(false);
   const [fbSaving,setFbSaving]=useState(false);
 
+  /* `selected` is an index into an array this component doesn't own, so it can
+     briefly point past the end — the parent's prompts prop lands a render after
+     the click that grew it. Falling back to prompts[0] there is what put the
+     PREVIOUS prompt's text in the editor of a brand-new one. */
   const cur=prompts[selected]||prompts[0];
-  /* Load the selected prompt into the editor fields, keyed on the prompt's ID
-     rather than the array's identity: every save (and every Firebase echo) hands
-     us fresh objects for the same prompt, and re-syncing on those would wipe
-     what is being typed. addPrompt steers this itself when it needs to. */
+  /* Load the selected prompt into the editor fields. Two guards, both about not
+     clobbering text the user can see:
+       · keyed on the prompt's ID, not the array's identity — every save (and
+         every Firebase echo) hands us fresh objects for the same prompt, and
+         re-syncing on those would wipe whatever is being typed;
+       · never while the editor is open — the two ways in (Edit, and addPrompt)
+         both set the fields themselves, so any sync during an edit could only
+         be a transient array state overwriting real input. */
   const syncedId=useRef(null);
   useEffect(()=>{
     if(!cur)return;
     const id=cur.id||('#'+selected);
     if(syncedId.current===id)return;
     syncedId.current=id;
+    if(editing)return;
     setEditText(cur.text||'');setEditName(cur.name||'');
-  },[cur,selected]);
+  },[cur,selected,editing]);
 
   const copy=()=>{navigator.clipboard.writeText(cur.text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1500);});};
 
@@ -3397,7 +3406,35 @@ const TD_WORKER_URL = "https://trade-dashboard.av1.workers.dev";
    Prompts are owned solely by the Prompts tab. Analysis just PICKS which one
    to use. This chip row renders the Prompts-tab list and reports
    the chosen prompt id back up. No CRUD here — edit prompts in the Prompts tab. */
-function TBPromptSelect({prompts,value,onChange,onGoToPrompts}){
+function TBPromptSelect({prompts,value,onChange,onGoToPrompts,onQuickLaunch}){
+  /* Two gestures on one chip:
+       one tap  → make this the ★ favourite (the prompt Launch Analysis sends)
+       two taps → send THIS prompt on its own, right now.
+     The favourite commit is held for TB_DBL_MS so a double tap doesn't also
+     re-point the star, but the launch itself runs inside the second tap's own
+     handler — window.open is only allowed inside the user gesture, never from a
+     timer. Plain click events on purpose: a finger double-tap and a mouse
+     double-click then take the identical path (touchAction:'manipulation' below
+     kills the double-tap-to-zoom that would otherwise eat the second tap). */
+  const TB_DBL_MS=380;
+  const tap=React.useRef({id:null,at:0,timer:null});
+  const [pending,setPending]=React.useState(null);
+  React.useEffect(()=>()=>{if(tap.current.timer)clearTimeout(tap.current.timer);},[]);
+  const clearTap=()=>{if(tap.current.timer){clearTimeout(tap.current.timer);tap.current.timer=null;}tap.current.id=null;setPending(null);};
+  const onChipTap=(p)=>{
+    const now=Date.now();
+    if(tap.current.id===p.id&&(now-tap.current.at)<TB_DBL_MS){
+      clearTap();
+      if(onQuickLaunch)onQuickLaunch(p);
+      return;
+    }
+    if(tap.current.timer)clearTimeout(tap.current.timer);
+    tap.current.id=p.id;tap.current.at=now;
+    setPending(p.id);   // light the outline immediately, commit the star late
+    tap.current.timer=setTimeout(()=>{tap.current.timer=null;tap.current.id=null;setPending(null);onChange(p.id);},TB_DBL_MS);
+  };
+  const setFav=(p)=>{clearTap();onChange(p.id);};
+
   if(!prompts||prompts.length===0){
     return <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,border:"1px dashed var(--bd)",background:"var(--bgc)",color:"var(--txm)",fontSize:13}}>
       <span>No prompts yet.</span>
@@ -3406,9 +3443,35 @@ function TBPromptSelect({prompts,value,onChange,onGoToPrompts}){
   }
   const effective=prompts.some(p=>p.id===value)?value:prompts[0]?.id;
   return <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-    {prompts.map(p=>{const on=p.id===effective;return(
-      <button key={p.id} onClick={()=>onChange(p.id)} title={p.name}
-        style={{padding:"6px 16px",borderRadius:100,border:`1.5px solid ${on?"var(--ac)":"var(--bd)"}`,background:"transparent",color:on?"var(--acs)":"var(--txd)",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all .15s",maxWidth:220,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",boxShadow:on?"0 0 8px rgba(224,184,116,0.34),0 0 0 1px rgba(224,184,116,0.14)":"none"}}>{p.name}</button>);})}
+    {prompts.map(p=>{
+      const on=p.id===effective;
+      /* While a tap is pending the outline previews that chip; the ★ stays put
+         until the tap commits, so a double-tap leaves the favourite untouched. */
+      const lit=pending?p.id===pending:on;
+      return(
+      <span key={p.id} role="button" tabIndex={0}
+        title={(onQuickLaunch?"Double-click to send this prompt now · ":"")+p.name}
+        onClick={()=>onChipTap(p)}
+        onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setFav(p);}}}
+        style={{display:"inline-flex",alignItems:"center",borderRadius:100,
+          border:`1.5px solid ${lit?"var(--ac)":"var(--bd)"}`,background:"transparent",
+          boxShadow:lit?"0 0 8px rgba(224,184,116,0.34),0 0 0 1px rgba(224,184,116,0.14)":"none",
+          cursor:"pointer",transition:"border-color .15s,box-shadow .15s,color .15s",maxWidth:250,
+          touchAction:"manipulation",userSelect:"none",WebkitTapHighlightColor:"transparent",outline:"none"}}>
+        {/* ★ = the prompt Launch Analysis (and the morning deploy) sends. Its own
+            hit target, big enough for a fingertip, and it commits immediately. */}
+        <span className={on?"tb-star-on":""} role="button" tabIndex={0}
+          aria-label={"Use "+p.name+" for Launch Analysis"} title={"Use "+p.name+" for Launch Analysis"}
+          onClick={e=>{e.stopPropagation();setFav(p);}}
+          onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.stopPropagation();e.preventDefault();setFav(p);}}}
+          style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:28,height:28,flexShrink:0,
+            marginLeft:3,borderRadius:100,color:on?"var(--ac)":"var(--txm)",cursor:"pointer",
+            touchAction:"manipulation",transition:"color .15s"}}>
+          <TBIcon n="star" size={13}/>
+        </span>
+        <span style={{padding:"6px 15px 6px 3px",color:lit?"var(--acs)":"var(--txd)",fontSize:13,fontWeight:700,
+          whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</span>
+      </span>);})}
     {onGoToPrompts&&<button onClick={onGoToPrompts} title="Manage prompts" style={{padding:"6px 12px",borderRadius:100,border:"1px solid var(--bd)",background:"transparent",color:"var(--txm)",fontSize:12,fontWeight:700,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><TBIcon n="pencil" size={12}/>Edit in Prompts</button>}
   </div>;
 }
@@ -3965,6 +4028,23 @@ function tbAiLaunch({aiUrl,text,searches}){
   });
 }
 
+/* Copy inside the click that asked for it. execCommand is deliberate: it needs
+   no permission prompt and completes synchronously, so the surrounding user
+   gesture — the one window.open depends on — is still live afterwards. The async
+   API is fired too, as the modern fallback. Returns whether the sync copy took. */
+function tbCopySync(text){
+  let ok=false;
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=text;ta.setAttribute('readonly','');
+    ta.style.cssText='position:absolute;left:-9999px;top:0;opacity:0;';
+    document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,99999);
+    ok=document.execCommand('copy');document.body.removeChild(ta);
+  }catch(e){}
+  if(navigator.clipboard) navigator.clipboard.writeText(text).catch(()=>{});
+  return ok;
+}
+
 function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
   const [editing,setEditing]=React.useState(false);
   const [results,setResults]=React.useState([]);/* [{icon,label,ok}] */
@@ -4024,15 +4104,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
        extension's composer detection, the prompt is still one Ctrl+V away. */
     let copied=false;
     if(selPromptText){
-      let ok=false;
-      try{
-        const ta=document.createElement('textarea');
-        ta.value=selPromptText;ta.setAttribute('readonly','');
-        ta.style.cssText='position:absolute;left:-9999px;top:0;opacity:0;';
-        document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,99999);
-        ok=document.execCommand('copy');document.body.removeChild(ta);
-      }catch(e){}
-      if(navigator.clipboard) navigator.clipboard.writeText(selPromptText).catch(()=>{});
+      const ok=tbCopySync(selPromptText);
       res.push(ok?{ok:true,icon:'command',label:`Prompt copied — ${selPrompt.name}`}:{ok:false,icon:'command',label:'Copy failed \u2014 try the Prompts copy button'});
       copied=ok;
     }
@@ -4082,6 +4154,38 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     setResults(res);
   };
 
+  /* ── Quick launch ── double-click / double-tap a prompt chip to send just that
+     prompt. Same destination and the same extension hand-off as Launch Analysis,
+     minus the searches — the point is to deploy one prompt without opening the
+     rest of the morning's tabs. Runs inside the tap that triggered it, so the
+     clipboard write and window.open both keep their user gesture. */
+  const handleQuickLaunch=(p)=>{
+    const text=(p&&p.text)||'';
+    const name=(p&&p.name)||'Prompt';
+    if(!text){setResults([{ok:false,icon:'command',label:`${name} is empty — add text to it in Prompts`}]);return;}
+    const copied=tbCopySync(text);
+    if(!aiUrl){
+      setResults([{ok:copied,icon:'command',label:copied?`Prompt copied — ${name}`:'Copy failed — try the Prompts copy button'},
+                  {ok:false,icon:'sparkle',label:'No AI destination set — pick one above to send it there'}]);
+      return;
+    }
+    if(autoSubmit){
+      tbAiLaunch({aiUrl,text,searches:[]}).then(acked=>{
+        if(acked)return;
+        /* Extension vanished between the probe and the tap — open the tab
+           ourselves; the prompt is already on the clipboard. */
+        window.open(aiUrl,'_blank','noopener');
+        setResults(r=>[...r,{ok:false,icon:'sparkle',label:`${aiSite.label} opened — auto-submit unavailable, paste with Ctrl+V`}]);
+      });
+      setResults([{ok:true,icon:'bolt',label:`${name} → ${aiSite.label} — submitted for you`}]);
+      return;
+    }
+    window.open(aiUrl,'_blank','noopener');
+    setResults([{ok:copied,icon:'bolt',label:copied
+      ?`${name} → ${aiSite.label} opened — paste with Ctrl+V, then Enter`
+      :`${aiSite.label} opened — copy ${name} from Prompts, then paste`}]);
+  };
+
   // Deploy the ENTIRE Trading Auto Launch (reminder gate → WeBull → TaskHub →
   // windows → AI site + searches). Because TradeHub is already open here, the native
   // launcher reuses THIS window; we just trigger it via its URL protocol and the
@@ -4112,7 +4216,11 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     {/* Prompt picker */}
     <div style={{marginBottom:20}}>
       <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8,display:'flex',alignItems:'center',gap:7}}><TBIcon n="command" size={12}/>Clipboard prompts</div>
-      <TBPromptSelect prompts={prompts} value={cfg.analysisPromptId} onChange={id=>saveCfg({...cfg,analysisPromptId:id})} onGoToPrompts={onGoToPrompts}/>
+      <TBPromptSelect prompts={prompts} value={cfg.analysisPromptId} onChange={id=>saveCfg({...cfg,analysisPromptId:id})} onGoToPrompts={onGoToPrompts} onQuickLaunch={handleQuickLaunch}/>
+      <div style={{fontSize:11,color:'var(--txd)',marginTop:8,lineHeight:1.6}}>
+        <b>Double-click</b> (double-tap) a prompt to send that one on its own{aiSite.id==='none'?'':` to ${aiSite.label}`} — no search tabs.
+        Tap the <b>★</b> to pick the prompt Launch Analysis and the morning deploy send.
+      </div>
     </div>
 
     {/* AI destination — where Launch Analysis sends the prompt */}
