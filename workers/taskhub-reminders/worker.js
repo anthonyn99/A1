@@ -75,6 +75,19 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
 
+    // ── Diagnostics: key-gated ────────────────────────────────────────────
+    // These read real user data — /remindersdebug returns reminder TITLES and
+    // /notifdebug returns device push tokens plus the same reminder contents —
+    // and /notifdebug?send=1 pushes a notification to every registered device.
+    // All three were reachable by anyone who knew the URL, on a public
+    // workers.dev hostname. Nothing in the apps calls them; they are operator
+    // tools, so they take the operator's key, exactly like /fixdashboards.
+    if (path === '/remindersdebug' || path === '/notifdebug') {
+      if (!env.AUTH_SETUP_KEY || url.searchParams.get('key') !== env.AUTH_SETUP_KEY) {
+        return json({ ok: false, error: 'unauthorized' }, origin, 401);
+      }
+    }
+
     if (path === '/remindersdebug') {
       try {
         let aT; try { aT = await getGoogleAccessToken(env); } catch(e) { return json({ok:false,error:'auth:'+e.message},origin,500); }
