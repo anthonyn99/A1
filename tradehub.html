@@ -3959,13 +3959,16 @@ const TB_CHATGPT_URL='https://chatgpt.com/';
    block below); without it, the tab still opens with the prompt on your
    clipboard, exactly as before. `hosts` is what we match search entries against
    so the AI never opens twice. */
+/* `qUrl` is the site's own prefill link — see tbPrefillUrl below for what it can
+   and can't do. `sends` marks the one destination whose link actually runs the
+   prompt instead of just typing it in. */
 const TB_AI_SITES=[
-  {id:'chatgpt',   label:'ChatGPT',    url:TB_CHATGPT_URL,                     hosts:['chatgpt.com','chat.openai.com']},
-  {id:'claude',    label:'Claude',     url:'https://claude.ai/new',            hosts:['claude.ai']},
-  {id:'gemini',    label:'Gemini',     url:'https://gemini.google.com/app',    hosts:['gemini.google.com']},
-  {id:'perplexity',label:'Perplexity', url:'https://www.perplexity.ai/',       hosts:['perplexity.ai']},
-  {id:'grok',      label:'Grok',       url:'https://grok.com/',                hosts:['grok.com']},
-  {id:'copilot',   label:'Copilot',    url:'https://copilot.microsoft.com/',   hosts:['copilot.microsoft.com']},
+  {id:'chatgpt',   label:'ChatGPT',    url:TB_CHATGPT_URL,                     hosts:['chatgpt.com','chat.openai.com'], qUrl:'https://chatgpt.com/?q='},
+  {id:'claude',    label:'Claude',     url:'https://claude.ai/new',            hosts:['claude.ai'],                     qUrl:'https://claude.ai/new?q='},
+  {id:'gemini',    label:'Gemini',     url:'https://gemini.google.com/app',    hosts:['gemini.google.com'],             qUrl:'https://gemini.google.com/app?q='},
+  {id:'perplexity',label:'Perplexity', url:'https://www.perplexity.ai/',       hosts:['perplexity.ai'],                 qUrl:'https://www.perplexity.ai/search?q=', sends:true},
+  {id:'grok',      label:'Grok',       url:'https://grok.com/',                hosts:['grok.com'],                      qUrl:'https://grok.com/?q='},
+  {id:'copilot',   label:'Copilot',    url:'https://copilot.microsoft.com/',   hosts:['copilot.microsoft.com'],         qUrl:'https://copilot.microsoft.com/?q='},
   {id:'deepseek',  label:'DeepSeek',   url:'https://chat.deepseek.com/',       hosts:['deepseek.com']},
   {id:'custom',    label:'Custom URL', url:'',                                 hosts:[]},
   {id:'none',      label:'None',       url:'',                                 hosts:[]},
@@ -3978,6 +3981,37 @@ function tbAiUrl(cfg){
   if(s.id==='custom'){const c=((cfg&&cfg.aiCustomUrl)||'').trim();return c?tbResolveUrl(c):'';}
   return s.url;
 }
+/* ── Prefill link ── the only automatic handoff left when the Vault extension
+   isn't there, which on mobile is always: Brave and Chrome on Android support no
+   extensions at all, and iOS can't run ours either. A page still cannot type into
+   another site, so we hand the AI its own ?q= link and let it do the typing.
+
+   Two limits, both the AI's and not ours:
+     · it PREFILLS, it does not send. OpenAI gated ChatGPT's auto-submit on the
+       sec-fetch-site header in July 2025 and a link from here is cross-site by
+       definition, so the prompt lands in the composer and you press send.
+       Perplexity is the exception (`sends`) — its ?q= is a search URL, so it runs.
+     · the prompt rides in the URL, and a long one plus the site's auth cookies
+       overflows the server's request-line limit. That's the HTTP 431 that made us
+       drop ?q= originally, and why anything over TB_PREFILL_MAX falls back to the
+       clipboard instead of opening a link that 431s.
+   Returns '' when prefill isn't possible, which every caller reads as "fall back". */
+const TB_PREFILL_MAX=1800;
+function tbPrefillUrl(cfg,text){
+  const t=(text||'').trim(); if(!t)return '';
+  const enc=encodeURIComponent(t);
+  if(enc.length>TB_PREFILL_MAX)return '';
+  const site=tbAiSite(cfg);
+  /* A custom destination opts in by putting {prompt} where its own query goes. */
+  if(site.id==='custom'){
+    const c=((cfg&&cfg.aiCustomUrl)||'').trim();
+    return /\{prompt\}/i.test(c)?tbResolveUrl(c).replace(/\{prompt\}/ig,enc):'';
+  }
+  return site.qUrl?site.qUrl+enc:'';
+}
+/* Does the destination type the prompt in for us on this device? */
+function tbCanPrefill(cfg){const s=tbAiSite(cfg);return s.id==='custom'?/\{prompt\}/i.test(((cfg&&cfg.aiCustomUrl)||'')):!!s.qUrl;}
+
 function tbHostOf(u){try{return new URL(u).hostname.replace(/^www\./,'').toLowerCase();}catch{return '';}}
 /* True if a search entry resolves to the AI destination itself — those are
    skipped so the AI tab isn't opened a second time (unsubmitted). */
@@ -4099,6 +4133,16 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
 
   const activeSearches=searches.map(s=>(s||'').trim()).filter(Boolean);
 
+  /* Web Share is the long-prompt escape hatch on a phone: no length limit and no
+     manual paste — the sheet hands the text straight to the ChatGPT/Claude app.
+     Offered as a button on the result pill rather than run automatically, because
+     it needs its own tap to count as a user gesture and it only helps if the app
+     is actually installed. */
+  const canShare=typeof navigator!=='undefined'&&!!navigator.share;
+  const sharePill=(text)=>({ok:true,icon:'upload',
+    label:`Too long for a prefill link — it's on your clipboard`,
+    btn:{label:'Send to app',onClick:()=>{try{navigator.share({text}).catch(()=>{});}catch(e){}}}});
+
   const handleLaunch=()=>{
     const res=[];
     /* ── Clipboard first, synchronously via execCommand (no permission prompt) ──
@@ -4146,8 +4190,15 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
        the prompt is too long for a ?q= URL (HTTP 431), so the clipboard is the
        handoff. Installing the Vault extension removes this step. */
     if(aiUrl&&selPromptText){
-      window.open(aiUrl,'_blank','noopener');
-      res.push({ok:copied,icon:'sparkle',label:copied?`${aiSite.label} opened — paste with Ctrl+V, then Enter`:`${aiSite.label} opened — copy the prompt from Prompts, then paste`});
+      const pre=tbPrefillUrl(cfg,selPromptText);
+      window.open(pre||aiUrl,'_blank','noopener');
+      if(pre) res.push({ok:true,icon:'sparkle',label:aiSite.sends
+        ?`${aiSite.label} opened — prompt sent`
+        :`${aiSite.label} opened — prompt typed in, just hit send`});
+      else{
+        res.push({ok:copied,icon:'sparkle',label:copied?`${aiSite.label} opened — paste with Ctrl+V, then Enter`:`${aiSite.label} opened — copy the prompt from Prompts, then paste`});
+        if(canShare&&copied&&tbCanPrefill(cfg)) res.push(sharePill(selPromptText));
+      }
     }
     searchUrls.forEach(({u,i})=>{
       window.open(u,'_blank','noopener');
@@ -4182,10 +4233,21 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       setResults([{ok:true,icon:'bolt',label:`${name} → ${aiSite.label} — submitted for you`}]);
       return;
     }
-    window.open(aiUrl,'_blank','noopener');
-    setResults([{ok:copied,icon:'bolt',label:copied
+    /* No extension (every phone, and any desktop without Vault): hand the AI its
+       own prefill link so the prompt is already typed in on arrival. */
+    const pre=tbPrefillUrl(cfg,text);
+    window.open(pre||aiUrl,'_blank','noopener');
+    if(pre){
+      setResults([{ok:true,icon:'bolt',label:aiSite.sends
+        ?`${name} → ${aiSite.label} — sent`
+        :`${name} → ${aiSite.label} — typed in, just hit send`}]);
+      return;
+    }
+    const out=[{ok:copied,icon:'bolt',label:copied
       ?`${name} → ${aiSite.label} opened — paste with Ctrl+V, then Enter`
-      :`${aiSite.label} opened — copy ${name} from Prompts, then paste`}]);
+      :`${aiSite.label} opened — copy ${name} from Prompts, then paste`}];
+    if(canShare&&copied&&tbCanPrefill(cfg)) out.push(sharePill(text));
+    setResults(out);
   };
 
   // Deploy the ENTIRE Trading Auto Launch (reminder gate → WeBull → TaskHub →
@@ -4242,7 +4304,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         {aiSite.id==='custom'&&(
           <input value={aiCustomDraft} onChange={e=>setAiCustomDraft(e.target.value)}
             onBlur={commitAiCustom} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();commitAiCustom();e.currentTarget.blur();}}}
-            placeholder="e.g.  https://chat.mistral.ai/chat"
+            placeholder="e.g.  https://chat.mistral.ai/chat?q={prompt}"
             style={{width:'100%',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',fontSize:13,padding:'10px',boxSizing:'border-box',fontFamily:'inherit'}}/>
         )}
         <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
@@ -4251,7 +4313,9 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             ? 'No AI tab is opened — Launch Analysis just copies the prompt and opens your searches.'
             : autoSubmit
               ? <>Vault extension detected — Launch Analysis opens {aiSite.label}, <b>types the prompt in and sends it</b>, then leaves you on that tab. It stays on your clipboard too, as a fallback.</>
-              : <>Launch Analysis opens {aiSite.label} with the prompt on your clipboard — paste with Ctrl+V, then Enter. Install the <b>Vault extension</b> to have it typed and sent automatically.</>}
+              : tbCanPrefill(cfg)
+                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. This is the mobile path too: phones can't run the Vault extension, so a prefill link is as far as any browser allows. Prompts over ~{TB_PREFILL_MAX.toLocaleString()} characters don't fit in a link and arrive on your clipboard instead.</>
+                : <>Launch Analysis opens {aiSite.label} with the prompt on your clipboard — paste with Ctrl+V, then Enter. {aiSite.id==='custom'?<>Put <code style={{fontFamily:'monospace'}}>{'{prompt}'}</code> in the URL above to have it typed in for you.</>:<>This destination has no prefill link, so pasting is the only way in.</>} Install the <b>Vault extension</b> (desktop) to have it typed and sent automatically.</>}
           </span>
         </div>
         {aiSite.id!=='chatgpt'&&aiSite.id!=='none'&&(
@@ -4349,6 +4413,11 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             background:r.ok?'rgba(164,185,134,0.07)':'rgba(214,138,124,0.07)'}}>
             <span style={{display:'inline-flex',alignItems:'center',gap:6,color:r.ok?'var(--tbb)':'var(--tbr)',flexShrink:0}}><TBIcon n={r.ok?'check':'alert'}/><TBIcon n={r.icon}/></span>
             <span style={{fontSize:13,color:r.ok?'var(--tbb)':'var(--tbr)',fontWeight:600}}>{r.label}</span>
+            {r.btn&&<button onClick={r.btn.onClick}
+              style={{marginLeft:'auto',flexShrink:0,padding:'6px 14px',borderRadius:100,border:'1.5px solid var(--ac)',
+                background:'transparent',color:'var(--ac)',fontSize:12,fontWeight:700,cursor:'pointer',touchAction:'manipulation'}}
+              onMouseEnter={e=>e.currentTarget.style.boxShadow='var(--gold-glow)'}
+              onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>{r.btn.label}</button>}
           </div>
         ))}
       </div>
