@@ -4007,11 +4007,23 @@ const TB_AI_SITES=[
   {id:'none',      label:'None',       url:'',                                 hosts:[]},
 ];
 function tbAiSite(cfg){const id=(cfg&&cfg.aiSite)||'chatgpt';return TB_AI_SITES.find(s=>s.id===id)||TB_AI_SITES[0];}
+/* A custom destination may carry a {prompt} placeholder (see tbPrefillUrl). When
+   we open that site WITHOUT prefilling it — prompt too long, or none picked — the
+   template must not leak into the address bar, so drop whichever query parameter
+   holds it and open the bare page. */
+function tbStripPromptToken(u){
+  if(!/\{prompt\}/i.test(u))return u;
+  try{
+    const url=new URL(u);
+    [...url.searchParams.keys()].forEach(k=>{if(/\{prompt\}/i.test(url.searchParams.get(k)||''))url.searchParams.delete(k);});
+    return url.toString().replace(/\{prompt\}/ig,'').replace(/[?&]+$/,'');
+  }catch(e){return u.split(/[?#]/)[0];}
+}
 /* Resolved destination URL ('' = don't open an AI tab at all). */
 function tbAiUrl(cfg){
   const s=tbAiSite(cfg);
   if(s.id==='none')return '';
-  if(s.id==='custom'){const c=((cfg&&cfg.aiCustomUrl)||'').trim();return c?tbResolveUrl(c):'';}
+  if(s.id==='custom'){const c=((cfg&&cfg.aiCustomUrl)||'').trim();return c?tbStripPromptToken(tbResolveUrl(c)):'';}
   return s.url;
 }
 /* ── Prefill link ── the only automatic handoff left when the Vault extension

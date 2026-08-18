@@ -1915,10 +1915,25 @@ var Scroll = (function(){
     if (m.max <= 4){ el.classList.remove('on'); return; }
     el.classList.add('on');
     var d = doc();
-    var h = Math.max(34, m.view * (d.clientHeight / d.scrollHeight));
-    var t = (m.view - h) * (m.pos / m.max);
-    thumb.style.height = h + 'px';
-    thumb.style.top = t + 'px';
+
+    // Set the proportional height, then MEASURE what actually rendered before
+    // working out where the thumb goes.
+    //
+    // This is the bug that made it drift on phones: the height has a CSS floor
+    // (34px for a cursor, 44px for a thumb), and computing the travel from the
+    // number we ASKED for rather than the one we GOT meant that whenever the
+    // proportional height fell between the two, the thumb was told to travel
+    // further than the track allows. It ran past the end and misreported the
+    // position, worse the longer the page — so History and the iOS wizard, the
+    // two places long enough to need it, were the two places it lied.
+    thumb.style.height = Math.round(m.view * (d.clientHeight / d.scrollHeight)) + 'px';
+    var h = thumb.offsetHeight;
+    var span = Math.max(0, m.view - h);
+    // Clamped because iOS rubber-band overscroll reports scrollTop below zero
+    // and above max, which would otherwise push the thumb outside the track at
+    // both ends of every flick.
+    var frac = Math.min(1, Math.max(0, m.pos / m.max));
+    thumb.style.top = Math.round(span * frac) + 'px';
   }
   // Scroll fires far more often than the screen refreshes; coalescing to a frame
   // keeps a flick from queueing dozens of identical layout reads.
@@ -1965,6 +1980,13 @@ var Scroll = (function(){
       el.addEventListener('pointercancel', onUp);
       window.addEventListener('scroll', sync, { passive:true });
       window.addEventListener('resize', sync);
+      // A phone's viewport changes height as the URL bar collapses, and that
+      // resizes the track without any scroll event firing. Without this the
+      // thumb keeps its old scale until you happen to scroll again.
+      if (window.visualViewport){
+        window.visualViewport.addEventListener('resize', sync);
+        window.visualViewport.addEventListener('scroll', sync);
+      }
       // Every render changes the page height — a filtered History, a switched
       // tab — and a thumb sized for the old content is worse than none.
       if (window.ResizeObserver){
