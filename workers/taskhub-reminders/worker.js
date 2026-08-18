@@ -22,6 +22,31 @@
 
 const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
 
+// ── Idle-tick lookahead ─────────────────────────────────────────────────────
+// The cron fires every minute, and a query that matches NOTHING is still billed
+// as one read — so simply proving "nothing is due" cost ~1,440 reads/day around
+// the clock. The overnight read graph was a dead-flat 60/hr line for exactly
+// this reason.
+//
+// Fix: after a tick that finds nothing to do, record when the next reminder is
+// actually due (in KV, which is free at this volume). Subsequent ticks read that
+// instead of Firestore and return immediately while the due time is still far
+// off. Precision near a due time is untouched — inside the grace window every
+// tick runs the real query exactly as before.
+//
+// Three things keep this from ever swallowing a reminder:
+//   1. The top-of-the-hour tick NEVER skips, so the -2h stale sweep and the
+//      fired-doc cleanup keep running on schedule regardless of the cache.
+//   2. The cache is only trusted for MAX_AGE; after that a tick re-verifies
+//      against Firestore even if the cached due time is still distant.
+//   3. A reminder created AFTER the lookahead was taken is invisible to it, so
+//      the client pokes /reminders/wake when it writes a near-term reminder,
+//      which drops the key and forces the next tick to query for real.
+// Any KV miss, KV error, or malformed cache falls through to a real query.
+const NEXT_DUE_KEY        = 'rem:next';
+const LOOKAHEAD_GRACE_MS  = 15 * 60 * 1000; // never skip within 15min of a due time
+const LOOKAHEAD_MAX_AGE_MS = 15 * 60 * 1000; // re-verify against Firestore at least this often
+
 function corsHeaders(origin) {
   const allow = origin === ALLOWED_ORIGIN ? origin : ALLOWED_ORIGIN;
   return {
@@ -94,6 +119,28 @@ export default {
         return await handleNotifDebug(request, env, origin);
       } catch (e) {
         return json({ ok: false, error: e.message || 'server error', stack: (e.stack||'').slice(0,400) }, origin, 500);
+      }
+    }
+
+    // ── /reminders/wake ──────────────────────────────────────────────────────
+    // Clears the cron's "next due" lookahead cache so the very next tick does a
+    // real Firestore query instead of skipping. The client calls this after it
+    // writes a reminder that fires soon (see _fcmScheduleNotif in index.html) —
+    // that is what makes the skip in runReminders() safe: the worker can only
+    // skip on the strength of a lookahead, and a brand-new near-term reminder is
+    // exactly the case a lookahead taken minutes ago cannot know about.
+    //
+    // Deliberately unauthenticated and side-effect-free: the worst a caller can
+    // do is force the cron to run the query it used to run every minute anyway.
+    // No Firestore access, no token mint — just one KV delete.
+    if (path === '/reminders/wake') {
+      try {
+        if (env.TOKEN_CACHE) await env.TOKEN_CACHE.delete(NEXT_DUE_KEY);
+        return json({ ok: true, cleared: true }, origin);
+      } catch (e) {
+        // A failure here only means the next tick may skip; never surface a 500
+        // to the client for it, and never let it block the reminder write.
+        return json({ ok: false, error: e.message || 'kv error' }, origin, 200);
       }
     }
 
@@ -897,11 +944,73 @@ function genResetCode() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  REMINDERS CRON  (unchanged logic)
+//  REMINDERS CRON
+//  Due/stale classification and push delivery are unchanged. What is new is the
+//  KV lookahead above it, which lets a tick that has nothing to do return
+//  without paying for a Firestore query — see the NEXT_DUE_KEY block up top.
 // ══════════════════════════════════════════════════════════════════════════
+
+// True when a previous tick already proved nothing is due for a while. Costs one
+// KV read (free at this volume) and saves the billed Firestore query. Fails
+// OPEN in every uncertain case — the only outcome of returning false is that we
+// run the query we used to run every minute anyway.
+async function shouldSkipTick(env, now) {
+  if (!env.TOKEN_CACHE) return false;                   // no KV → never skip
+  if (new Date(now).getMinutes() === 0) return false;   // top of hour: stale sweep + cleanup must run
+  try {
+    const c = await env.TOKEN_CACHE.get(NEXT_DUE_KEY, 'json');
+    if (!c || typeof c.checkedAt !== 'number') return false;
+    const age = now - c.checkedAt;
+    if (age < 0 || age > LOOKAHEAD_MAX_AGE_MS) return false;  // stale/clock skew → re-verify
+    if (c.nextDueAt === null) return true;              // verified: nothing upcoming at all
+    if (typeof c.nextDueAt !== 'number') return false;
+    return now < c.nextDueAt - LOOKAHEAD_GRACE_MS;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Record when the next reminder is due, so idle ticks can skip the query.
+// `nextInWindow` is the earliest not-yet-due doc the tick already read — when it
+// is set the answer is free, because we paid for that result set already. Only
+// when the window held nothing pending do we spend ONE read to look past it.
+async function refreshLookahead(env, baseUrl, authHdr, now, nextInWindow, windowEnd) {
+  if (!env.TOKEN_CACHE) return;
+  let nextDueAt = nextInWindow;
+  if (nextDueAt === null) {
+    try {
+      const res = await fetch(`${baseUrl}:runQuery`, {
+        method: 'POST', headers: authHdr,
+        body: JSON.stringify({ structuredQuery: {
+          from: [{ collectionId: 'reminders' }],
+          // Single-field range + matching orderBy — no composite index needed,
+          // same shape as the main query.
+          where: { fieldFilter: { field: { fieldPath: 'notifyAt' }, op: 'GREATER_THAN', value: { stringValue: new Date(windowEnd).toISOString() } } },
+          orderBy: [{ field: { fieldPath: 'notifyAt' }, direction: 'ASCENDING' }],
+          limit: 1
+        } })
+      });
+      if (!res.ok) return;                    // leave the key absent → next tick queries
+      const rows = await res.json();
+      const hit  = Array.isArray(rows) ? rows.find(r => r.document) : null;
+      const at   = hit ? new Date(hit.document.fields?.notifyAt?.stringValue).getTime() : NaN;
+      nextDueAt  = isNaN(at) ? null : at;
+    } catch (e) { return; }
+  }
+  try {
+    // TTL is a third safety net: even a wedged cache self-heals within the hour.
+    await env.TOKEN_CACHE.put(
+      NEXT_DUE_KEY,
+      JSON.stringify({ nextDueAt, checkedAt: now }),
+      { expirationTtl: 3600 }
+    );
+  } catch (e) { /* non-fatal — the next tick just queries */ }
+}
 
 async function runReminders(env) {
   const now = Date.now();
+
+  if (await shouldSkipTick(env, now)) return;
 
   let accessToken;
   try { accessToken = await getGoogleAccessToken(env); }
@@ -961,6 +1070,11 @@ async function runReminders(env) {
   console.log(`[reminders] tick read ${_docCount} doc(s) | window ${doStaleSweep ? '(stale sweep -2h)' : '-90s..+10m'}`);
 
   const due = [], stale = [];
+  // Earliest UNFIRED doc in this window that is not due YET. It is the next
+  // moment the cron has to be awake for, and it comes free out of the result
+  // set we have already been billed for — so a tick that sees one never has to
+  // spend a second read to build its lookahead.
+  let nextInWindow = null;
   for (const r of results) {
     if (!r.document) continue;
     if (r.document.fields?.fired?.booleanValue === true) continue;
@@ -969,12 +1083,17 @@ async function runReminders(env) {
     if (at > tenMinFromNow) continue;
     if (at <= now + 5000 && at > now - 90000) due.push(r);
     else if (at <= now - 90000) stale.push(r);
+    // Everything left is inside the window but still ahead of us. Capturing it
+    // is what stops the lookahead from ever jumping PAST a pending reminder:
+    // "nothing due this tick" is not the same as "nothing due for 10 minutes".
+    else if (nextInWindow === null || at < nextInWindow) nextInWindow = at;
   }
 
   if (!due.length && !stale.length) {
     if (new Date(now).getMinutes() === 0) {
       await cleanupFiredReminders(baseUrl, authHdr);
     }
+    await refreshLookahead(env, baseUrl, authHdr, now, nextInWindow, tenMinFromNow);
     return;
   }
 

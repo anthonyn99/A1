@@ -10605,7 +10605,20 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // Solution: tear down after 5 min of no user interaction, regardless of visibility.
   let _hideTimer    = null;
   let _idleTimer    = null;
-  const HIDE_DELAY  = 1000;          // 1s after tab hidden → teardown (was 5s)
+  // 45s after tab hidden → teardown (was 1s). A teardown is NOT free: it
+  // terminates the client, and the reattach that follows re-registers ~18
+  // onSnapshot listeners and re-runs the three non-{once:true} "fb-ready"
+  // loaders, each of which is a getDocFromServer (a FORCED server read that
+  // never touches the cache). So a 3-second flick to another desktop tab used
+  // to cost ~20 billed reads. 45s absorbs tab-switching and alt-tabbing while
+  // still tearing down long before the connection is genuinely idle.
+  // Nothing about the stale-overwrite guards changes: while the listeners are
+  // still attached the connection is live and delivering, so _thServerSeen and
+  // friends remain legitimately true. They are re-armed on the teardown that
+  // does eventually run, and IDLE_DELAY below is untouched. Mobile is also
+  // unaffected — pagehide/freeze still tear down IMMEDIATELY (see below), which
+  // is the path that actually protects a frozen phone from stale-overwriting.
+  const HIDE_DELAY  = 45 * 1000;     // 45s after tab hidden → teardown
   const IDLE_DELAY  = 5 * 60 * 1000; // 5min no interaction → teardown
 
   async function _teardown() {
@@ -15009,6 +15022,20 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         wrote++;
       }catch(e){writeErr=(e&&e.code?e.code+' ':'')+(e&&e.message||e);console.warn('Reminder write failed:',e);}
     }
+    // Wake the cron if any occurrence we just wrote fires soon. The worker skips
+    // its (billed) Firestore query while its cached lookahead says nothing is
+    // due — and a reminder created seconds ago is precisely what that lookahead
+    // cannot know about. This drops the cache so the next tick queries for real.
+    // Fire-and-forget: it must never delay or fail the reminder write, and if it
+    // doesn't land the worker still re-verifies within 15 minutes on its own.
+    try{
+      var _soonest=Infinity;
+      for(var _o=0;_o<occurrences.length;_o++){
+        var _t=new Date(occurrences[_o].notifyAt).getTime();
+        if(!isNaN(_t)&&_t<_soonest)_soonest=_t;
+      }
+      if(_soonest<Date.now()+30*60*1000)_fcmWakeCron();
+    }catch(e){}
     // On-screen status so phone failures are visible (no console needed).
     // Background sweeps stay silent — they schedule one series after another and
     // would otherwise stack an identical warning for each.
@@ -15029,6 +15056,46 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     }
   };
 
+  // ── Wake the reminders cron ───────────────────────────────────────────────
+  // The worker skips its billed Firestore query while its KV lookahead says the
+  // next reminder is far off. Anything we write that fires SOONER than that
+  // lookahead knew about has to invalidate it, or the push would wait for the
+  // worker's own 15-minute re-verify. One tiny unauthenticated POST, no body.
+  //
+  // Deliberately best-effort and never awaited by callers: a failed poke costs
+  // at most some delay on that single reminder, whereas letting it throw would
+  // break the reminder write itself.
+  //
+  // Rate-limited to one POST per 20s so a bulk re-arm writing dozens of series
+  // doesn't fire dozens of them — but a poke inside that window is TRAILED, not
+  // dropped. Dropping leaves a real hole: a cron tick can repopulate the
+  // lookahead in the gap between our last POST and this write, and would then
+  // skip straight over the reminder we just created. Trailing guarantees a POST
+  // always lands after the last write, at the cost of one extra request.
+  // `now:true` bypasses the limiter for single user-triggered sends where the
+  // whole point is immediate delivery.
+  var _fcmWakeAt=0,_fcmWakeTimer=null;
+  function _fcmWakePost(){
+    _fcmWakeAt=Date.now();
+    try{
+      fetch('https://taskhub-reminders.av1.workers.dev/reminders/wake',{
+        method:'POST',keepalive:true
+      }).catch(function(){});
+    }catch(e){}
+  }
+  function _fcmWakeCron(opts){
+    var since=Date.now()-_fcmWakeAt;
+    if((opts&&opts.now)||since>=20000){
+      if(_fcmWakeTimer){clearTimeout(_fcmWakeTimer);_fcmWakeTimer=null;}
+      _fcmWakePost();
+      return;
+    }
+    if(_fcmWakeTimer)return;               // one already trailing — it covers this write too
+    _fcmWakeTimer=setTimeout(function(){
+      _fcmWakeTimer=null;_fcmWakePost();
+    },20000-since);
+  }
+
   // ── Drain items queued before this module finished loading ────────────
   (function drainFCMQueue(){
     var q=window._fcmQueue||[];
@@ -15039,7 +15106,16 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // ── Legacy repeat-doc sweep + series re-arm ────────────────────────────
   window._fcmRearmSeries=async function(force){
     try{
-      var THROTTLE=12*60*60*1000;
+      // 24h (was 12h). Each re-arm re-expands EVERY repeating series: one
+      // getDocs per series (billed per occurrence doc returned, ~21 for a daily
+      // task on the 21-day horizon), then a delete + a setDoc for each of those
+      // same occurrences. Running it twice a day on every device was the bulk of
+      // the write and delete volume, and it rewrote byte-identical docs — the
+      // occurrence ids are deterministic ('<series>_<ms>'), so a re-arm that
+      // finds nothing changed does a full delete/rewrite cycle for no effect.
+      // The horizon it maintains is 21 DAYS, so re-arming daily still leaves
+      // three weeks of margin; this only halves how often the churn happens.
+      var THROTTLE=24*60*60*1000;
       var last=parseInt(localStorage.getItem('fcm_rearm_at')||'0',10)||0;
       if(!force&&Date.now()-last<THROTTLE)return;
       localStorage.setItem('fcm_rearm_at',String(Date.now()));
@@ -15185,7 +15261,16 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // 800 docs and throttled to 6h, so the read cost stays trivial.
   window._fcmDedupSweep=async function(force){
     try{
-      var THROTTLE=6*60*60*1000;
+      // 24h (was 6h). This query is bounded to 800 docs but is billed PER DOC
+      // RETURNED, and it deliberately matches every upcoming reminder — with
+      // repeating series pre-expanded 21 days out that is typically hundreds of
+      // reads, four times a day, on every device that opens the dashboard. It
+      // is a janitor for duplicate series created by a bug that is now fixed at
+      // the source (_fcmCancelNotif resolves the series id via localSeriesIdFor
+      // instead of deleting nothing), so it is cleaning up an inflow that has
+      // largely stopped. Daily still collapses any duplicate well before the
+      // weekly/monthly occurrence it would double-fire on.
+      var THROTTLE=24*60*60*1000;
       var last=parseInt(localStorage.getItem('fcm_dedup_sweep_at')||'0',10)||0;
       if(!force&&Date.now()-last<THROTTLE)return 0;
       localStorage.setItem('fcm_dedup_sweep_at',String(Date.now()));
@@ -15300,6 +15385,11 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         source:'plans',
         fired:false,createdAt:Date.now()
       });
+      // This doc is deliberately dated in the PAST so the very next sweep sends
+      // it — which means it depends on that sweep actually querying. Poking is
+      // mandatory here, not an optimisation: without it a "plan confirmed" alert
+      // would sit until the worker's next re-verify instead of arriving now.
+      _fcmWakeCron({now:true});
     }catch(e){console.warn('[Plans] push queue failed:',e&&e.code);}
   };
 
@@ -15471,6 +15561,9 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       await _authReady;
       // Scope to "all" on purpose: isolates delivery from dashboard scoping.
       await setDoc(doc(db,'reminders',tid),{id:tid,title:'TEST notification ✓ ('+new Date().toLocaleTimeString()+')',notifyAt:when,dashboard:'all',notifyRepeat:'none',notifyRepeatDays:[],notifyRepeatId:null,fired:false,createdAt:Date.now()});
+      // The banner below promises ~60s, which is only true if the next tick
+      // actually queries — poke the cron so the lookahead can't defer it.
+      _fcmWakeCron({now:true});
       showBanner('TEST written (scope=all). LOCK the device now — alert should arrive in ~60s on every registered device.');
     }catch(e){showBanner('TEST FAILED — cloud write blocked: '+((e&&e.code?e.code+' ':'')+(e&&e.message||e)));}
   };
