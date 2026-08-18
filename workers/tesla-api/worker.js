@@ -61,6 +61,122 @@
 //   TESLA_STATE          — protects /callback from junk hits
 // ============================================================================
 
+
+// ─── BEGIN GENERATED: appcheck (workers/_shared/appcheck.js) ───
+// Do not edit here — edit the canonical copy and run tools/sync-appcheck.js
+/* Firebase App Check verification for Cloudflare Workers.
+ *
+ * WHY THIS EXISTS
+ * These Workers are called from pages hosted on GitHub Pages out of a PUBLIC
+ * repo, so there is no such thing as a secret the client can hold — any key in
+ * the page, or in the browser extension, is world-readable the moment it is
+ * committed. That is why several of them ended up with no auth at all rather
+ * than weak auth.
+ *
+ * An App Check token is the one credential that works here: it is minted at
+ * runtime by reCAPTCHA against the registered origin, never stored anywhere,
+ * and cannot be obtained by someone who is not actually running the app. It is
+ * already enforced on Firebase for this project, so this extends the same
+ * barrier to the Workers instead of inventing a second scheme.
+ *
+ * WHAT IT IS NOT
+ * App Check attests "this request came from your app", not "this is Tony". It
+ * stops strangers, not a person sitting at an unlocked machine. Anything
+ * needing per-profile separation still needs the passcode.
+ *
+ * Canonical copy: workers/_shared/appcheck.js
+ * Injected into each worker by tools/sync-appcheck.js — edit HERE, never in a
+ * worker, then re-run the sync.
+ */
+
+// Firebase project number (messagingSenderId), not the project id.
+const APPCHECK_PROJECT_NUM = '982539604706';
+const APPCHECK_JWKS_URL = 'https://firebaseappcheck.googleapis.com/v1/jwks';
+const APPCHECK_JWKS_TTL = 60 * 60 * 1000;
+
+let _acJwks = null;
+let _acJwksAt = 0;
+
+function _acB64urlToBytes(s) {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (s.length % 4)) % 4);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function _acB64urlToJson(s) {
+  return JSON.parse(new TextDecoder().decode(_acB64urlToBytes(s)));
+}
+
+async function _acKeys() {
+  // Cached in module scope: an isolate handles many requests, and refetching
+  // the key set per request would add a round trip to every call.
+  if (_acJwks && Date.now() - _acJwksAt < APPCHECK_JWKS_TTL) return _acJwks;
+  const r = await fetch(APPCHECK_JWKS_URL);
+  if (!r.ok) throw new Error('jwks ' + r.status);
+  const j = await r.json();
+  _acJwks = j.keys || [];
+  _acJwksAt = Date.now();
+  return _acJwks;
+}
+
+/** Verify an App Check JWT. Returns true only if every check passes. */
+async function verifyAppCheckToken(token) {
+  try {
+    if (typeof token !== 'string') return false;
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const [h64, p64, s64] = parts;
+
+    const header = _acB64urlToJson(h64);
+    // Pin the algorithm. Accepting whatever the token names is how "alg: none"
+    // and HMAC-with-the-public-key forgeries get in.
+    if (header.alg !== 'RS256' || header.typ !== 'JWT' || !header.kid) return false;
+
+    const keys = await _acKeys();
+    const jwk = keys.find((k) => k.kid === header.kid);
+    if (!jwk) return false;
+
+    const key = await crypto.subtle.importKey(
+      'jwk',
+      { kty: jwk.kty, n: jwk.n, e: jwk.e, alg: 'RS256', ext: true },
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+    const ok = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      key,
+      _acB64urlToBytes(s64),
+      new TextEncoder().encode(h64 + '.' + p64)
+    );
+    if (!ok) return false;
+
+    const p = _acB64urlToJson(p64);
+    const now = Math.floor(Date.now() / 1000);
+    // A valid signature over someone ELSE's project is still not our token, so
+    // audience and issuer are as load-bearing as the signature itself.
+    const aud = Array.isArray(p.aud) ? p.aud : [p.aud];
+    if (!aud.includes('projects/' + APPCHECK_PROJECT_NUM)) return false;
+    if (p.iss !== 'https://firebaseappcheck.googleapis.com/' + APPCHECK_PROJECT_NUM) return false;
+    if (!p.exp || p.exp <= now) return false;
+    if (p.iat && p.iat > now + 300) return false;   // clock skew, not the future
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Guard for a request. Returns null when allowed, or a 401 Response. */
+async function requireAppCheck(request, cors) {
+  const tok = request.headers.get('X-Firebase-AppCheck');
+  if (await verifyAppCheckToken(tok)) return null;
+  return new Response(
+    JSON.stringify({ ok: false, error: 'unauthorized', hint: 'App Check token required' }),
+    { status: 401, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store', ...(cors || {}) } }
+  );
+}
+// ─── END GENERATED: appcheck ───
 const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
 MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYZU8a+1U2Ja6zfRGrvgoBAKN5uKB
 +gGz777nyxBS+ikCRf6HIvTCQ34G8qXv9QzKgdvZARgELT3T+g/2J7aeAw==
@@ -205,6 +321,48 @@ async function handleStatus(url, env, cors) {
 // correct for polling, but means the cache can be many hours old, and a
 // software update that finished overnight still shows as "installing 60%".
 // An explicit refresh is the user asking for current truth, so it may wake.
+// ── What the browser is allowed to see ────────────────────────────────────
+// This Worker proxies Tesla's vehicle_data, and that payload carries the VIN,
+// the Tesla account user_id, vehicle ids, auth `tokens`, and drive_state with
+// LIVE GPS COORDINATES. The endpoint is reachable by anyone who knows the URL,
+// so spreading the raw response published the car's real-time position and its
+// identifiers to the internet. (The comment further down claiming the browser
+// never sees raw lat/lon described placeLabel's intent, not what was shipped —
+// the spread defeated it.)
+//
+// So the response is now an explicit ALLOW-LIST of exactly the fields the
+// TaskHub widget reads. Anything new Tesla adds is dropped by default, which is
+// the right direction for a field list nobody re-reviews.
+const VEHICLE_PUBLIC = {
+  charge_state:  ['battery_level', 'est_battery_range', 'battery_range', 'charging_state',
+                  'minutes_to_full_charge', 'charge_limit_soc', 'charge_rate', 'time_to_full_charge'],
+  climate_state: ['inside_temp', 'outside_temp', 'is_climate_on', 'is_preconditioning'],
+  vehicle_state: ['locked', 'odometer', 'df', 'dr', 'pf', 'pr', 'ft', 'rt', 'sentry_mode', 'car_version'],
+  gui_settings:  ['gui_distance_units', 'gui_temperature_units', 'gui_charge_rate_units', 'gui_24_hour_time'],
+  // Deliberately no latitude/longitude/native_* — `place` is the geocoded city
+  // label and is the only location the browser gets.
+  drive_state:   ['shift_state', 'speed', 'power', 'timestamp'],
+};
+
+function slimVehicle(body) {
+  if (!body || typeof body !== 'object') return body;
+  const r = body.response;
+  if (!r || typeof r !== 'object') return body;
+  const out = {};
+  // Scalars the widget shows. `state` and `place` are computed here, not by Tesla.
+  for (const k of ['state', 'place', 'display_name']) if (r[k] !== undefined) out[k] = r[k];
+  for (const [group, keys] of Object.entries(VEHICLE_PUBLIC)) {
+    const src = r[group];
+    if (!src || typeof src !== 'object') continue;
+    const sub = {};
+    for (const k of keys) if (src[k] !== undefined) sub[k] = src[k];
+    if (Object.keys(sub).length) out[group] = sub;
+  }
+  const slim = { ...body, response: out };
+  // _fetchedAt is the cache stamp the UI uses for "as of"; keep it, drop nothing else.
+  return slim;
+}
+
 async function handleVehicle(env, cors, wake) {
   const raw = await env.TESLA_KV.get(KV_TOKENS);
   if (!raw) return j({ error: 'Not linked yet — complete the OAuth flow first' }, 400, cors);
@@ -216,7 +374,7 @@ async function handleVehicle(env, cors, wake) {
       // Refresh failed — surface the cached reading (if any) rather than a
       // hard error, since a lapsed token shouldn't blank a working widget.
       const cached = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
-      if (cached) return j(cached, 200, cors);
+      if (cached) return j(slimVehicle(cached), 200, cors);
       return j({ error: 'Token refresh failed: ' + (refreshed.body && refreshed.body.error) }, 502, cors);
     }
     t = refreshed.t;
@@ -244,7 +402,7 @@ async function handleVehicle(env, cors, wake) {
     // Tell the UI the wake was attempted and the car still didn't answer, so
     // it can say so instead of silently repeating stale numbers.
     if (wakeTried) body.wake_failed = true;
-    return j(body, 200, cors);
+    return j(slimVehicle(body), 200, cors);
   }
 
   // An explicit wake-refresh must not be answered from the 60s cache — the
@@ -252,7 +410,7 @@ async function handleVehicle(env, cors, wake) {
   if (!wakeTried) {
     const fresh = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
     if (fresh && fresh._fetchedAt && Date.now() - fresh._fetchedAt < CACHE_FRESH_MS) {
-      return j(fresh, 200, cors);
+      return j(slimVehicle(fresh), 200, cors);
     }
   }
 
@@ -262,7 +420,7 @@ async function handleVehicle(env, cors, wake) {
   );
   if (!vd.ok) {
     const cached = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
-    if (cached) return j(cached, 200, cors);
+    if (cached) return j(slimVehicle(cached), 200, cors);
     return j({ error: 'Fleet API ' + vd.status }, 502, cors);
   }
 
@@ -279,7 +437,9 @@ async function handleVehicle(env, cors, wake) {
     _fetchedAt: Date.now(),
   };
   await env.TESLA_KV.put(KV_VEHICLE_CACHE, JSON.stringify(body));
-  return j(body, 200, cors);
+  // Cache keeps the full body (placeLabel may need coords again); only what
+  // LEAVES the Worker is slimmed.
+  return j(slimVehicle(body), 200, cors);
 }
 
 // Reverse geocode → "Longmont, Colorado". Same free BigDataCloud endpoint and

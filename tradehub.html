@@ -329,7 +329,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
-  import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
+  import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
   import { initializeFirestore, memoryLocalCache, terminate, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteDoc, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -343,10 +343,43 @@
 
   const app = initializeApp(firebaseConfig);
   // App Check — same reCAPTCHA v3 site key as the main suite
-  initializeAppCheck(app, {
+  const _appCheck = initializeAppCheck(app, {
     provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'),
     isTokenAutoRefreshEnabled: true
   });
+
+  /* ── App Check on the Workers ──────────────────────────────────────────
+     tradeboard-api (a live brokerage account and the trade journal) and
+     trade-dashboard (the watchlist) were readable by anyone who knew the URL.
+     This repo is PUBLIC, so no key committed anywhere can be a credential —
+     an App Check token is the one thing a public browser app can hold, because
+     it is minted at runtime against the registered origin and never stored.
+
+     Done as ONE fetch interceptor rather than by editing each call site: there
+     are a dozen of them across this file, a missed one is a broken feature
+     rather than a loud error, and any call added later is covered for free. */
+  const _AC_GATED = /^https:\/\/(tradeboard-api|trade-dashboard|newshub-api)\.av1\.workers\.dev/;
+  window._acToken = async () => {
+    try { const t = await getToken(_appCheck, false); return (t && t.token) || ''; }
+    catch { return ''; }
+  };
+  (function () {
+    const orig = window.fetch.bind(window);
+    window.fetch = async function (input, init) {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (!_AC_GATED.test(url)) return orig(input, init);
+      const tok = await window._acToken();
+      // No token (offline, reCAPTCHA hiccup): send anyway and let the Worker
+      // answer 401. Failing here would turn a recoverable network blip into a
+      // request that never left the browser.
+      if (!tok) return orig(input, init);
+      const opts = Object.assign({}, init);
+      const h = new Headers(opts.headers || (typeof input !== 'string' && input.headers) || {});
+      h.set('X-Firebase-AppCheck', tok);
+      opts.headers = h;
+      return orig(input, opts);
+    };
+  })();
   // Anon auth — gates Firestore rules without a login screen.
   // Expose an awaitable promise so writes can wait for auth instead of racing it.
   const auth = getAuth(app);
@@ -4064,6 +4097,43 @@ function tbAiLaunch({aiUrl,text,searches}){
   });
 }
 
+/* ── Open a URL in a new BROWSER TAB, and make it stay there ──────────────────
+   On Android, an https:// navigation to a host whose app has verified App Links —
+   chatgpt.com, claude.ai, perplexity.ai, google.com, youtube.com, x.com and plenty
+   of the sites people put in their searches — is handed to that app instead of the
+   browser. You see the app flash open, the ?q= prefill is dropped (the ChatGPT app
+   ignores it), and the browser is left holding the tab it already made.
+
+   Chromium only performs that hand-off for a navigation that carries a USER
+   GESTURE, so we split the open in two halves and keep the gesture out of the half
+   that matters: claim a blank tab inside the tap (that half needs the gesture or
+   the popup blocker eats it), then let the blank tab navigate ITSELF. A fresh
+   about:blank has no user activation of its own, so the real navigation is
+   gesture-free and Android leaves it alone. A meta refresh does the hop rather
+   than a script, so nothing here depends on inline JS being allowed.
+
+   Desktop is unaffected — it's an ordinary new tab either way. */
+function tbOpenTab(url){
+  const u=String(url||'');
+  if(!u)return false;
+  let w=null;
+  try{w=window.open('','_blank');}catch(e){}
+  /* Popup blocked, or a browser that won't hand back the handle: fall back to the
+     plain open. Worst case that one gets grabbed by an app, same as before. */
+  if(!w){try{window.open(u,'_blank','noopener');return true;}catch(e){return false;}}
+  try{w.opener=null;}catch(e){}
+  try{
+    const esc=u.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    w.document.write('<!doctype html><html><head><meta charset="utf-8">'
+      +'<meta http-equiv="refresh" content="0;url='+esc+'">'
+      +'<title>Opening\u2026</title></head><body style="background:#1a1a1d"></body></html>');
+    w.document.close();
+  }catch(e){
+    try{w.location.replace(u);}catch(_){}
+  }
+  return true;
+}
+
 /* Copy inside the click that asked for it. execCommand is deliberate: it needs
    no permission prompt and completes synchronously, so the surrounding user
    gesture — the one window.open depends on — is still live afterwards. The async
@@ -4175,8 +4245,8 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
            ourselves — the prompt is already on the clipboard. (We're outside the
            click gesture here, so the browser may block these popups; the next
            launch re-probes and takes the manual path cleanly.) */
-        searchUrls.forEach(({u})=>window.open(u,'_blank','noopener'));
-        window.open(aiUrl,'_blank','noopener');
+        searchUrls.forEach(({u})=>tbOpenTab(u));
+        tbOpenTab(aiUrl);
         setResults(r=>[...r,{ok:false,icon:'sparkle',label:`${aiSite.label} opened — auto-submit unavailable, paste with Ctrl+V`}]);
       });
       res.push({ok:true,icon:'sparkle',label:`${aiSite.label} opening — prompt submitted for you`});
@@ -4191,7 +4261,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
        handoff. Installing the Vault extension removes this step. */
     if(aiUrl&&selPromptText){
       const pre=tbPrefillUrl(cfg,selPromptText);
-      window.open(pre||aiUrl,'_blank','noopener');
+      tbOpenTab(pre||aiUrl);
       if(pre) res.push({ok:true,icon:'sparkle',label:aiSite.sends
         ?`${aiSite.label} opened — prompt sent`
         :`${aiSite.label} opened — prompt typed in, just hit send`});
@@ -4201,7 +4271,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       }
     }
     searchUrls.forEach(({u,i})=>{
-      window.open(u,'_blank','noopener');
+      tbOpenTab(u);
       res.push({ok:true,icon:numIcon(i),label:`Search ${i+1} opened`});
     });
     setResults(res);
@@ -4211,7 +4281,8 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
      prompt. Same destination and the same extension hand-off as Launch Analysis,
      minus the searches — the point is to deploy one prompt without opening the
      rest of the morning's tabs. Runs inside the tap that triggered it, so the
-     clipboard write and window.open both keep their user gesture. */
+     clipboard write and the tab claim both keep their user gesture (tbOpenTab
+     deliberately drops it again before the real navigation). */
   const handleQuickLaunch=(p)=>{
     const text=(p&&p.text)||'';
     const name=(p&&p.name)||'Prompt';
@@ -4227,7 +4298,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         if(acked)return;
         /* Extension vanished between the probe and the tap — open the tab
            ourselves; the prompt is already on the clipboard. */
-        window.open(aiUrl,'_blank','noopener');
+        tbOpenTab(aiUrl);
         setResults(r=>[...r,{ok:false,icon:'sparkle',label:`${aiSite.label} opened — auto-submit unavailable, paste with Ctrl+V`}]);
       });
       setResults([{ok:true,icon:'bolt',label:`${name} → ${aiSite.label} — submitted for you`}]);
@@ -4236,7 +4307,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     /* No extension (every phone, and any desktop without Vault): hand the AI its
        own prefill link so the prompt is already typed in on arrival. */
     const pre=tbPrefillUrl(cfg,text);
-    window.open(pre||aiUrl,'_blank','noopener');
+    tbOpenTab(pre||aiUrl);
     if(pre){
       setResults([{ok:true,icon:'bolt',label:aiSite.sends
         ?`${name} → ${aiSite.label} — sent`
@@ -4314,7 +4385,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             : autoSubmit
               ? <>Vault extension detected — Launch Analysis opens {aiSite.label}, <b>types the prompt in and sends it</b>, then leaves you on that tab. It stays on your clipboard too, as a fallback.</>
               : tbCanPrefill(cfg)
-                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. This is the mobile path too: phones can't run the Vault extension, so a prefill link is as far as any browser allows. Prompts over ~{TB_PREFILL_MAX.toLocaleString()} characters don't fit in a link and arrive on your clipboard instead.</>
+                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. This is the mobile path too: phones can't run the Vault extension, so a prefill link is as far as any browser allows. Everything opens as a <b>browser tab</b>, never the {aiSite.label} app — the app would drop the prefill. Prompts over ~{TB_PREFILL_MAX.toLocaleString()} characters don't fit in a link and arrive on your clipboard instead.</>
                 : <>Launch Analysis opens {aiSite.label} with the prompt on your clipboard — paste with Ctrl+V, then Enter. {aiSite.id==='custom'?<>Put <code style={{fontFamily:'monospace'}}>{'{prompt}'}</code> in the URL above to have it typed in for you.</>:<>This destination has no prefill link, so pasting is the only way in.</>} Install the <b>Vault extension</b> (desktop) to have it typed and sent automatically.</>}
           </span>
         </div>
