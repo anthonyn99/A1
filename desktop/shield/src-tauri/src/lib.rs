@@ -103,6 +103,35 @@ fn publish(app: &AppHandle, active: bool) {
     );
 }
 
+/// Collapse a repeated trigger of the same action into one run.
+///
+/// Holding a global hotkey makes Windows repeat the key, and the plugin
+/// delivers every repeat as a fresh `Pressed`. Each one was running a full
+/// cycle: Ctrl+Shift+G once produced three lockdowns, three history entries and
+/// three Worker writes inside a second. A double-click on a tray item does the
+/// same thing for the same reason.
+///
+/// One second is comfortably longer than a key-repeat interval (~30ms after the
+/// initial delay) and far shorter than any real second press — nobody raises an
+/// emergency, changes their mind, and raises it again inside a second.
+const REFIRE_MS: u64 = 1000;
+static LAST_CLOSE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static LAST_EMG: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static LAST_ALL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn fire_once(slot: &std::sync::atomic::AtomicU64) -> bool {
+    use std::sync::atomic::Ordering;
+    let now = state::now_ms();
+    let prev = slot.load(Ordering::SeqCst);
+    // Per action, so Ctrl+Shift+X immediately followed by Ctrl+Shift+L still
+    // does both - only a repeat of the SAME action is swallowed.
+    if now.saturating_sub(prev) < REFIRE_MS {
+        return false;
+    }
+    slot.store(now, Ordering::SeqCst);
+    true
+}
+
 /// The whole of Emergency Mode, in the order that matters.
 ///
 /// Capture and close first, bookkeeping after. Everything before the return is
@@ -568,15 +597,21 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             let ctx = app.state::<Ctx>();
             match ev.id().as_ref() {
                 "close" => {
-                    run_closer(app);
+                    if fire_once(&LAST_CLOSE) {
+                        run_closer(app);
+                    }
                 }
                 "emergency" => {
                     // From the tray this is a single click by design. The whole
                     // point is speed; the passcode guards getting OUT, not in.
-                    engage_emergency(app, &ctx, "local");
+                    if fire_once(&LAST_EMG) {
+                        engage_emergency(app, &ctx, "local");
+                    }
                 }
                 "emergency-all" => {
-                    engage_emergency_all(app, &ctx);
+                    if fire_once(&LAST_ALL) {
+                        engage_emergency_all(app, &ctx);
+                    }
                 }
                 "open" => show_window(app),
                 "reload" => { navigate_fresh(app); show_window(app); }
@@ -661,11 +696,17 @@ pub fn run() {
                     }
                     let ctx = app.state::<Ctx>();
                     if shortcut == &hk_close_h {
-                        run_closer(app);
+                        if fire_once(&LAST_CLOSE) {
+                            run_closer(app);
+                        }
                     } else if shortcut == &hk_emg_h {
-                        engage_emergency(app, &ctx, "local");
+                        if fire_once(&LAST_EMG) {
+                            engage_emergency(app, &ctx, "local");
+                        }
                     } else if shortcut == &hk_all_h {
-                        engage_emergency_all(app, &ctx);
+                        if fire_once(&LAST_ALL) {
+                            engage_emergency_all(app, &ctx);
+                        }
                     }
                 })
                 .build(),

@@ -270,6 +270,31 @@ if (worker) {
   );
 }
 
+/* ── Repeat suppression ─────────────────────────────────────────────────────
+   Holding a global hotkey makes Windows repeat the key, and every repeat
+   arrives as a fresh Pressed event. One press of Ctrl+Shift+G produced three
+   lockdowns, three history entries and three Worker writes inside a second —
+   visible in launch.log. Every entry point a human can hold down or
+   double-click has to go through the guard. */
+console.log("\nShield agent: repeat suppression");
+
+const hotkeyHandler = (lib.match(/\.with_handler\([\s\S]*?\n\s+\}\)/) || [""])[0];
+const trayHandler = (lib.match(/\.on_menu_event\([\s\S]*?\n\s+\}\)/) || [""])[0];
+const hkGuards = (hotkeyHandler.match(/fire_once\(/g) || []).length;
+const trayGuards = (trayHandler.match(/fire_once\(/g) || []).length;
+check("every hotkey goes through the re-fire guard", hkGuards === 3, hkGuards + " of 3");
+check("the tray items do too (a double-click repeats just as well)", trayGuards === 3, trayGuards + " of 3");
+check(
+  "the guard is per-action, so X then L still does both",
+  /LAST_CLOSE/.test(lib) && /LAST_EMG/.test(lib) && /LAST_ALL/.test(lib)
+);
+const refire = Number((lib.match(/const REFIRE_MS: u64 = (\d+);/) || [])[1]);
+check(
+  "the window beats a key-repeat but not a real second press",
+  refire >= 500 && refire <= 2000,
+  refire + "ms"
+);
+
 /* ── Icon positions ─────────────────────────────────────────────────────────
    Two emergencies without a lift in between is the case that broke this. The
    second pass re-hid already-hidden shortcuts, whose desktop position Explorer
