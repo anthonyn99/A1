@@ -2983,6 +2983,12 @@ function TBPortfolioPage(){
   const totalMktVal=positions.reduce((s,p)=>s+(p.marketValue||0),0);
   const tabs=[{id:'positions',label:'Positions',count:positions.length},{id:'orders',label:'Open Orders',count:orders.length},{id:'history',label:'History',count:history.length},{id:'activity',label:'Activity',count:activities.length}];
 
+  /* Per-section empty state. fetchSequential() reports a failed section in
+     data.errors rather than failing the whole pull, so a Webull hiccup used to
+     render as a confident "No open orders." — indistinguishable from a genuinely
+     empty table. Show the reason when there is one. */
+  const TableEmpty=({msg,err})=>(<div style={{padding:'40px',textAlign:'center',color:err?'var(--tbe)':'var(--txm)',fontStyle:"normal",fontFamily:"var(--font-accent)",fontSize:13}}>{err?`Webull fetch failed — ${err}`:msg}</div>);
+
   const StatCard=({label,value,sub,color})=>(<div className="tb-card" style={{padding:'14px 18px'}}>
     <div style={{fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,marginBottom:6}}>{label}</div>
     <div style={{fontFamily:'IBM Plex Mono,monospace',fontSize:20,fontWeight:800,color:color||'var(--tx)'}}>{value}</div>
@@ -3003,6 +3009,10 @@ function TBPortfolioPage(){
       /* Field names confirmed from live Webull API response */
       const dayPnL=p(acct.dayPnL??acct.dayPnl??acct.todayPnL);
       const realPnLWorker=p(acct.realizedPnL??acct.realizedPnl??acct.realized_pnl);
+      /* Webull's own total_unrealized_profit_loss is the number shown in the app;
+         summing the position rows is only the fallback when it omits the field. */
+      const unrealAcct=p(acct.unrealizedPnL??acct.unrealized_pnl??acct.unrealizedPnl);
+      const unreal=unrealAcct!==0?unrealAcct:totalUnreal;
       const realCalc=tbRealizedFromHistory(history);
       const realPnL=realPnLWorker!==0?realPnLWorker:(realCalc!=null?realCalc:0);
       const totalVal=p(acct.totalValue??acct.netLiquidation??acct.total_value);
@@ -3016,7 +3026,7 @@ function TBPortfolioPage(){
         <StatCard label="Cash Balance" value={tbFmt$(cash)}/>
         <StatCard label="Buying Power" value={tbFmt$(bp)}/>
         <StatCard label="Day P&L" value={dayPnL!==0?tbFmt$(dayPnL):'—'} color={dayPnL!==0?tbPnlCol(dayPnL):'var(--txm)'} sub={dayPnL>0?'▲ Today':dayPnL<0?'▼ Today':'Today'}/>
-        <StatCard label="Unrealized P&L" value={tbFmt$(totalUnreal)} color={tbPnlCol(totalUnreal)} sub={`${positions.length} positions`}/>
+        <StatCard label="Unrealized P&L" value={tbFmt$(unreal)} color={tbPnlCol(unreal)} sub={`${positions.length} position${positions.length===1?'':'s'}`}/>
         <StatCard label="Realized P&L" value={realPnL!==0?tbFmt$(realPnL):'—'} color={realPnL!==0?tbPnlCol(realPnL):'var(--txm)'} sub={realPnL!==0&&realPnLWorker===0?'FIFO from history':undefined}/>
       </div>);
     })()}
@@ -3049,46 +3059,74 @@ function TBPortfolioPage(){
       {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'6px 16px',borderRadius:8,border:'none',background:tab===t.id?'var(--s3)':'transparent',color:tab===t.id?'var(--tx)':'var(--txm)',fontSize:12,fontWeight:tab===t.id?700:500,cursor:'pointer',transition:'all .15s'}}>{t.label}{t.count>0?` (${t.count})`:''}</button>))}
     </div>
     {tab==='positions'&&<div className="tb-card" style={{padding:0,overflow:'hidden'}}>
-      {!positions.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:"normal",fontFamily:"var(--font-accent)",fontSize:13}}>No open positions.</div>:
+      {!positions.length?<TableEmpty msg="No open positions." err={errs.positions}/>:
       <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-        <thead><tr>{['Symbol','Market Val','Unreal P&L','% P&L','Day %','Qty'].map(h=><th key={h} style={{padding:'9px 14px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:'right',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
+        {/* Avg Cost and Last mirror the two figures Webull shows on its own position
+            row — the worker already fetches both (cost_price / last_price). */}
+        <thead><tr>{['Symbol','Qty','Avg Cost','Last','Market Val','Unreal P&L','% P&L','Day %'].map(h=><th key={h} style={{padding:'9px 14px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:h==='Symbol'?'left':'right',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
         <tbody>{positions.map((p,i)=>(<tr key={i} style={{borderBottom:'1px solid var(--bd)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
-          <td style={{padding:'11px 14px',fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:15,color:'var(--tx)'}}>{p.symbol||p.ticker}</td>
+          <td style={{padding:'11px 14px',fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:15,color:'var(--tx)'}}>{p.ticker||p.symbol||'—'}</td>
+          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{tbFmtNum(p.shares)}</td>
+          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txm)'}}>{p.avgCost?tbFmt$(p.avgCost):'—'}</td>
+          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{p.currentPrice?tbFmt$(p.currentPrice):'—'}</td>
           <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{tbFmt$(p.marketValue)}</td>
           <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:tbPnlCol(p.unrealizedPnL),fontWeight:700}}>{tbFmt$(p.unrealizedPnL)}</td>
           <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:tbPnlCol(p.unrealizedPct)}}>{tbFmtPct(p.unrealizedPct)}</td>
           <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:tbPnlCol(p.lastChangePct)}}>{tbFmtPct(p.lastChangePct)}</td>
-          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{tbFmtNum(p.shares)}</td>
         </tr>))}</tbody>
       </table></div>}
     </div>}
     {tab==='orders'&&<div className="tb-card" style={{padding:0,overflow:'hidden'}}>
-      {!orders.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:"normal",fontFamily:"var(--font-accent)",fontSize:13}}>No open orders.</div>:
+      {!orders.length?<TableEmpty msg="No open orders." err={errs.orders}/>:
       <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-        <thead><tr>{['Symbol','Action','Qty','Filled','Price','Type','Status','Date'].map(h=><th key={h} style={{padding:'9px 12px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:'left',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
-        <tbody>{orders.map((o,i)=>(<tr key={i} style={{borderBottom:'1px solid var(--bd)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
-          <td style={{padding:'9px 12px',fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:15,color:'var(--tx)'}}>{o.symbol}</td>
-          <td style={{padding:'9px 12px',fontSize:12,fontWeight:700,color:o.action==='BUY'?'var(--tbb)':'var(--tbr)'}}>{o.action}</td>
-          <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{tbFmtNum(o.qty)}</td>
-          <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{tbFmtNum(o.filled)||'—'}</td>
-          <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{o.limitPrice?tbFmt$(o.limitPrice):'MKT'}</td>
-          <td style={{padding:'9px 12px',fontSize:13,color:'var(--txd)'}}>{o.orderType}</td>
-          <td style={{padding:'9px 12px',fontSize:13,color:'var(--tbw)'}}>{o.status}</td>
-          <td style={{padding:'9px 12px',fontSize:13,color:'var(--txm)',whiteSpace:'nowrap'}}>{tbFmtDate(o.filledAt||o.createdAt)}</td>
-        </tr>))}</tbody>
+        <thead><tr>{['Symbol','Action','Qty','Filled','Price','Type','TIF','Status','Placed'].map(h=><th key={h} style={{padding:'9px 12px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:'left',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
+        <tbody>{orders.map((o,i)=>{
+          /* The worker (workers/tradeboard-api) passes Webull's own order shape
+             through as ticker / side / price — NOT symbol / action / limitPrice.
+             Reading the wrong three names left Symbol, Action and Price blank
+             (Price fell through to "MKT" on every limit order). Webull names
+             first, old aliases kept as fallbacks. */
+          const sym   = o.ticker||o.symbol||'—';
+          const side  = (o.side||o.action||'').toUpperCase();
+          const qty   = o.qty??o.totalQty??o.quantity;
+          const filled= o.filled??o.filledQty??0;
+          /* Webull only sends limit_price on LIMIT / STOP-LIMIT orders; a stop
+             order carries its trigger in stop_price, a market order has neither. */
+          const limit = parseFloat(o.price??o.limitPrice)||0;
+          const stop  = parseFloat(o.stopPrice??o.stop_price)||0;
+          const priceCell = limit>0?tbFmt$(limit):stop>0?`${tbFmt$(stop)} stp`:'MKT';
+          return(<tr key={o.orderId||o.clientOrderId||i} style={{borderBottom:'1px solid var(--bd)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
+            <td style={{padding:'9px 12px',fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:15,color:'var(--tx)'}}>{sym}</td>
+            <td style={{padding:'9px 12px',fontSize:12,fontWeight:700,color:side==='SELL'?'var(--tbr)':'var(--tbb)'}}>{side||'—'}</td>
+            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{tbFmtNum(qty)}</td>
+            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{tbFmtNum(filled)}</td>
+            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{priceCell}</td>
+            <td style={{padding:'9px 12px',fontSize:13,color:'var(--txd)'}}>{(o.orderType||o.order_type||'—').toUpperCase()}</td>
+            <td style={{padding:'9px 12px',fontSize:12,color:'var(--txm)'}}>{o.tif||'—'}</td>
+            {/* Webull sends raw enums (PARTIAL_FILLED) — drop the underscore. */}
+            <td style={{padding:'9px 12px',fontSize:13,color:'var(--tbw)'}}>{(o.status||'—').replace(/_/g,' ')}</td>
+            {/* An open order is defined by NOT being filled — show when it was placed. */}
+            <td style={{padding:'9px 12px',fontSize:13,color:'var(--txm)',whiteSpace:'nowrap'}}>{tbFmtDate(o.createdAt||o.filledAt)}</td>
+          </tr>);
+        })}</tbody>
       </table></div>}
     </div>}
     {tab==='history'&&<div className="tb-card" style={{padding:0,overflow:'hidden'}}>
-      {!history.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:"normal",fontFamily:"var(--font-accent)",fontSize:13}}>No trade history available. Sync Webull to populate.</div>:
+      {!history.length?<TableEmpty msg="No trade history available. Sync Webull to populate." err={errs.history}/>:
       <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
         <thead><tr>{['Date','Symbol','Action','Qty','Avg Price','Total','Fees','Status'].map(h=><th key={h} style={{padding:'9px 12px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:h==='Symbol'||h==='Action'||h==='Status'?'left':'right',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
         <tbody>{history.map((h,i)=>{
           const isBuy=(h.action||h.side||'').toUpperCase()==='BUY';
           const qty=h.filledQty??h.filled??h.qty??0;
           const price=h.avgFilledPrice??h.avgFill??h.avgPrice??h.price??0;
-          const total=(parseFloat(qty)||0)*(parseFloat(price)||0);
+          /* Webull's own filled_amount when it sends one (it already accounts for
+             multi-fill orders whose average price rounds); qty x price otherwise. */
+          const total=(parseFloat(h.total??h.filledAmount)||0)||((parseFloat(qty)||0)*(parseFloat(price)||0));
           const fee=h.totalCommission??h.commission??h.fee??0;
-          const dt=h.filledAt||h.filledTime||h.tradeTime||h.orderTime||h.datetime||h.date;
+          /* createdAt (Webull place_time_at) last so a cancelled/expired order —
+             which never gets a fill time — still shows the day it was placed. */
+          const dt=h.filledAt||h.filledTime||h.tradeTime||h.orderTime||h.datetime||h.date||h.createdAt;
+          const st=(h.status||'').toUpperCase();
           return(<tr key={i} style={{borderBottom:'1px solid var(--bd)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
             <td style={{padding:'9px 12px',fontSize:12,color:'var(--txm)',whiteSpace:'nowrap'}}>{dt?tbFmtDate(dt):'—'}</td>
             <td style={{padding:'9px 12px',fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:14,color:'var(--tx)'}}>{h.symbol||h.ticker||'—'}</td>
@@ -3097,13 +3135,17 @@ function TBPortfolioPage(){
             <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{price?tbFmt$(price):'—'}</td>
             <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:13,fontWeight:600}}>{total?tbFmt$(total):'—'}</td>
             <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txm)',fontSize:12}}>{fee!=null&&fee!==''?tbFmt$(fee):'—'}</td>
-            <td style={{padding:'9px 12px',fontSize:12,color:'var(--txw)'}}>{h.status||'—'}</td>
+            {/* --txw was never defined, so this cell rendered with an invalid colour. */}
+            <td style={{padding:'9px 12px',fontSize:12,color:st.includes('FILL')?'var(--tbb)':st?'var(--txm)':'var(--txd)'}}>{(h.status||'—').replace(/_/g,' ')}</td>
           </tr>);
         })}</tbody>
       </table></div>}
     </div>}
     {tab==='activity'&&<div className="tb-card" style={{padding:0,overflow:'hidden'}}>
-      {!activities.length?<div style={{padding:'40px',textAlign:'center',color:'var(--txm)',fontStyle:"normal",fontFamily:"var(--font-accent)",fontSize:13}}>No activity available.</div>:
+      {/* The worker returns activities:[] unconditionally — Webull's OpenAPI has no
+          account-activity endpoint, so this is a permanent gap, not an empty week.
+          Say so rather than implying the account had no activity. */}
+      {!activities.length?<TableEmpty msg="Webull's API doesn't expose account activity (deposits, dividends, fees) — trades are under History." err={errs.activities}/>:
       <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
         <thead><tr>{['Date','Type','Symbol','Amount','Description'].map(h=><th key={h} style={{padding:'9px 12px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:'left',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
         <tbody>{activities.map((a,i)=>{

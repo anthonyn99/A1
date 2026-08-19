@@ -562,11 +562,14 @@ async function fetchOrders(accountId, type = 'open', env) {
     return flat.map(r => ({
       orderId:   r.order_id         || r.client_order_id,
       clientOrderId: r.client_order_id,
-      ticker:    r.symbol           || r.ticker?.symbol,
-      side:      r.side,
-      qty:       p(r.total_quantity    || r.quantity || 0),
-      filled:    p(r.filled_quantity   || 0),
+      ticker:    r.symbol           || r.ticker?.symbol || r.instrument?.symbol || '',
+      side:      r.side             || r.action || r.order_side || '',
+      qty:       p(r.total_quantity    || r.quantity || r.qty || 0),
+      filled:    p(r.filled_quantity   || r.filled_qty || 0),
       price:     p(r.limit_price       || r.filled_price || 0),
+      /* Stop/trigger price — an open STOP order has no limit_price at all, so
+         without this the UI can only report it as a market order. */
+      stopPrice: p(r.stop_price        || r.aux_price || 0),
       avgFill:   p(r.filled_price      || r.avg_filled_price || 0),
       total:     p(r.filled_amount     || 0),
       fee:       extractFee(r),
