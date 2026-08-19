@@ -4109,39 +4109,58 @@ function tbAiLaunch({aiUrl,text,searches}){
   });
 }
 
-/* ── Open a URL in a new BROWSER TAB, and make it stay there ──────────────────
+/* ── Open a URL in a new BROWSER TAB, and make it STAY in the browser ─────────
    On Android, an https:// navigation to a host whose app has verified App Links —
-   chatgpt.com, claude.ai, perplexity.ai, google.com, youtube.com, x.com and plenty
-   of the sites people put in their searches — is handed to that app instead of the
-   browser. You see the app flash open, the ?q= prefill is dropped (the ChatGPT app
-   ignores it), and the browser is left holding the tab it already made.
+   chatgpt.com, claude.ai, perplexity.ai, google.com, x.com and half the sites
+   people put in their searches — is handed to that app instead. ChatGPT flashes
+   open and drops the ?q= prefill; the Claude app just swallows the navigation and
+   no tab appears at all.
 
-   Chromium only performs that hand-off for a navigation that carries a USER
-   GESTURE, so we split the open in two halves and keep the gesture out of the half
-   that matters: claim a blank tab inside the tap (that half needs the gesture or
-   the popup blocker eats it), then let the blank tab navigate ITSELF. A fresh
-   about:blank has no user activation of its own, so the real navigation is
-   gesture-free and Android leaves it alone. A meta refresh does the hop rather
-   than a script, so nothing here depends on inline JS being allowed.
+   Dropping the user gesture is not enough on its own — a client redirect still
+   counts as part of the gesture's navigation chain, which is why the earlier
+   two-step didn't hold. What Android does respect is an intent it cannot resolve:
+   we wrap the real URL in an intent: URI whose scheme AND package are deliberately
+   made up, and hang the real URL off it as S.browser_fallback_url. Chrome/Brave
+   look for an app, find none, and do the only thing left — navigate to the
+   fallback in the browser itself. That fallback hop is browser-initiated, which
+   is also the case where Chromium refuses to hand a URL to an app, so the site
+   can't be stolen on the way in either.
 
-   Desktop is unaffected — it's an ordinary new tab either way. */
+   Belt and braces, since this only has to hold on a device I can't test from:
+     · the intent hop runs INSIDE the new tab, so it carries no user gesture — the
+       documented case where Chrome refuses to launch an app at all;
+     · a meta refresh to the plain URL fires 3s later, so a browser that ignores
+       the intent still lands somewhere instead of sitting on a blank page;
+     · non-Android (desktop, iOS) skips the wrapper entirely and just navigates.
+   iOS Universal Links can't be suppressed from a page at all — there the escape
+   hatch is the app's own "Open in browser" or long-press → Open in Safari. */
+const TB_IS_ANDROID=/Android/i.test((typeof navigator!=='undefined'&&navigator.userAgent)||'');
+function tbBrowserOnlyUrl(url){
+  if(!TB_IS_ANDROID||!/^https?:/i.test(url))return url;
+  return 'intent://open#Intent;scheme=tradehub-browser-only;package=app.tradehub.no.such.package;'
+       + 'S.browser_fallback_url='+encodeURIComponent(url)+';end';
+}
 function tbOpenTab(url){
   const u=String(url||'');
   if(!u)return false;
+  const nav=tbBrowserOnlyUrl(u);
   let w=null;
   try{w=window.open('','_blank');}catch(e){}
-  /* Popup blocked, or a browser that won't hand back the handle: fall back to the
-     plain open. Worst case that one gets grabbed by an app, same as before. */
-  if(!w){try{window.open(u,'_blank','noopener');return true;}catch(e){return false;}}
+  /* Popup blocked, or a browser that won't hand back the handle. Still send the
+     app-proof URL — on Android that's the whole point, and off it they're equal. */
+  if(!w){try{window.open(nav,'_blank','noopener');return true;}catch(e){return false;}}
   try{w.opener=null;}catch(e){}
   try{
     const esc=u.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
     w.document.write('<!doctype html><html><head><meta charset="utf-8">'
-      +'<meta http-equiv="refresh" content="0;url='+esc+'">'
-      +'<title>Opening\u2026</title></head><body style="background:#1a1a1d"></body></html>');
+      +'<title>Opening\u2026</title>'
+      +'<meta http-equiv="refresh" content="3;url='+esc+'">'
+      +'</head><body style="background:#1a1a1d">'
+      +'<script>location.replace('+JSON.stringify(nav)+');<\/script>'
+      +'</body></html>');
     w.document.close();
   }catch(e){
-    try{w.location.replace(u);}catch(_){}
+    try{w.location.replace(nav);}catch(_){}
   }
   return true;
 }
@@ -4397,7 +4416,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             : autoSubmit
               ? <>Vault extension detected — Launch Analysis opens {aiSite.label}, <b>types the prompt in and sends it</b>, then leaves you on that tab. It stays on your clipboard too, as a fallback.</>
               : tbCanPrefill(cfg)
-                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. This is the mobile path too: phones can't run the Vault extension, so a prefill link is as far as any browser allows. Everything opens as a <b>browser tab</b>, never the {aiSite.label} app — the app would drop the prefill. Prompts over ~{TB_PREFILL_MAX.toLocaleString()} characters don't fit in a link and arrive on your clipboard instead.</>
+                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. This is the mobile path too: phones can't run the Vault extension, so a prefill link is as far as any browser allows. Everything opens as a <b>browser tab</b>, never the {aiSite.label} app — the app would drop the prefill. If Android still hands one to an app, turn off <i>Open supported links</i> for it in Settings → Apps → that app → Open by default. Prompts over ~{TB_PREFILL_MAX.toLocaleString()} characters don't fit in a link and arrive on your clipboard instead.</>
                 : <>Launch Analysis opens {aiSite.label} with the prompt on your clipboard — paste with Ctrl+V, then Enter. {aiSite.id==='custom'?<>Put <code style={{fontFamily:'monospace'}}>{'{prompt}'}</code> in the URL above to have it typed in for you.</>:<>This destination has no prefill link, so pasting is the only way in.</>} Install the <b>Vault extension</b> (desktop) to have it typed and sent automatically.</>}
           </span>
         </div>

@@ -480,11 +480,13 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 #scroller.drag .thumb{opacity:1;background:var(--ac);cursor:grabbing;width:11px;left:2px}
 /* A 15px-wide target is a cursor target. A finger needs the whole strip, so the
    hit area widens while the drawn parts stay the same size. */
+/* Not drawn on touch at all.
+   A finger already scrolls the page directly and iOS draws its own indicator,
+   so a custom bar competes with both: it fights momentum scrolling, and the
+   viewport it measures keeps moving under it as the URL bar collapses. It was
+   never adding anything a thumb could not already do. Cursor-only from here. */
 @media (pointer: coarse){
-  #scroller{width:30px}
-  #scroller .track{left:20px}
-  #scroller .thumb{left:18px;min-height:44px}
-  #scroller.drag .thumb{left:16px}
+  #scroller{display:none !important}
 }
 
 /* ── Capability panel — the honest one. Never claim more than the OS allows. ── */
@@ -1973,6 +1975,9 @@ var Scroll = (function(){
   return {
     init: function(){
       el = $('scroller'); if (!el) return;
+      // Touch devices scroll fine on their own — see the CSS note. Bailing here
+      // means no scroll/resize listeners run on a phone at all.
+      try { if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return; } catch(e){}
       thumb = el.querySelector('.thumb');
       el.addEventListener('pointerdown', onDown);
       el.addEventListener('pointermove', onMove);
@@ -2974,7 +2979,8 @@ var GLYPH = {
   lock:   '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   unlock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
   alert:  '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="M12 8v5"/><path d="M12 16.5h.01"/>',
-  check:  '<path d="m20 6-11 11-5-5"/>'
+  check:  '<path d="m20 6-11 11-5-5"/>',
+  down:   '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>'
 };
 
 /* Render ONLY the view the user is looking at.
@@ -3155,6 +3161,19 @@ function renderDevices(){
   var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Devices on this profile</span></div>';
   h += devs.map(function(d){ return devRowHtml(d, false); }).join('');
   h += '</div>';
+  // Install on another PC. Sits in Devices because that is where you go when
+  // you are thinking about a machine that is not this one.
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Add a Windows PC</span></div>'
+    +  '<div class="card">'
+    +  '<div class="opt"><div class="opt-main"><div class="opt-name">Shield agent for Windows</div>'
+    +  '<div class="opt-sub" id="dl-sub">Without it a browser cannot close, hide or block anything. '
+    +  'Install it on any PC, then choose a profile on that PC.</div></div>'
+    +  '<button class="btn sm ac" id="a-download">' + svg(GLYPH.down) + 'Download</button></div>'
+    +  '<div class="hint" style="padding-top:10px">Always the newest build: it is compiled from the '
+    +  'repository every time Shield changes, and this button fetches whatever came out of that. '
+    +  'Unsigned, so Windows will say <b>\"Windows protected your PC\"</b> — <b>More info</b> → '
+    +  '<b>Run anyway</b>. Installs for your user only and never asks for admin.</div>'
+    +  '</div></div>';
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">How devices work</span></div>'
     +  '<div class="hint">Each device owns its own configuration — a phone cannot describe a PC\'s executables. You can view '
     +  'another device\'s here, but only the one you are holding can change it.'
@@ -3174,9 +3193,77 @@ function renderDevices(){
       await writeMine('name', n, true).catch(function(){});
     };
   });
+  var dl = $('a-download'); if (dl) dl.onclick = downloadAgent;
   Array.prototype.forEach.call($('v-devices').querySelectorAll('[data-dev-remove]'), function(b){
     b.onclick = function(){ removeDevice(b.getAttribute('data-dev-remove')); };
   });
+}
+
+/* ── Download the Windows agent ────────────────────────────────────────────
+   The agent is a Rust binary, so unlike Vault's extension this page cannot
+   package it: nothing in a browser can compile one. A GitHub Actions workflow
+   builds it on every change to desktop/shield and publishes it to a single
+   ROLLING release tag, and this asks for that tag — so there is exactly one URL
+   and no way to be served an older build because a version was not bumped.
+
+   The release body carries the commit and build time; both are shown, because
+   "is this actually the latest?" is the only question worth answering here. */
+var SHIELD_REPO = 'anthonyn99/A1';
+var SHIELD_RELEASE_TAG = 'shield-latest';
+
+function relTime(iso){
+  var t = Date.parse(iso); if (!t) return '';
+  var mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 60) return mins + ' min ago';
+  var hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + ' hour' + (hrs===1?'':'s') + ' ago';
+  var d = Math.round(hrs / 24);
+  return d + ' day' + (d===1?'':'s') + ' ago';
+}
+
+async function downloadAgent(){
+  var btn = $('a-download'), sub = $('dl-sub');
+  if (!btn || btn.disabled) return;
+  var label = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Finding build…';
+  try {
+    var r = await fetch('https://api.github.com/repos/' + SHIELD_REPO + '/releases/tags/' + SHIELD_RELEASE_TAG,
+                        { headers: { Accept: 'application/vnd.github+json' } });
+    if (r.status === 404){
+      // The workflow has never completed. Say exactly that rather than
+      // "download failed", which would send someone hunting the wrong problem.
+      await window.uiAlert(
+        'No installer has been published yet.\n\nThe build runs automatically when Shield changes; the first one takes a few '
+        + 'minutes. Check the Actions tab of the repository, then try again.',
+        { title:'Not built yet' });
+      return;
+    }
+    if (!r.ok) throw new Error('GitHub returned ' + r.status);
+    var rel = await r.json();
+    var asset = (rel.assets || []).filter(function(a){ return /\.exe$/i.test(a.name); })[0];
+    if (!asset) throw new Error('that build published no .exe');
+
+    // No `download` attribute: the asset is on a different origin, where the
+    // browser ignores it. GitHub sends Content-Disposition: attachment, so a
+    // plain navigation saves the file instead of trying to render it.
+    var a = document.createElement('a');
+    a.href = asset.browser_download_url;
+    a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+
+    var mb = (asset.size / 1048576).toFixed(1);
+    var when = relTime(asset.updated_at || rel.published_at);
+    toast('Downloading Shield-Setup.exe (' + mb + ' MB)');
+    if (sub){
+      sub.innerHTML = 'Latest build, published ' + esc(when) + ' · ' + mb + ' MB. '
+        + 'Run it on the PC you want to add, then choose a profile there.';
+    }
+  } catch(e){
+    await window.uiAlert('Could not reach the build service: ' + errText(e)
+      + '\n\nCheck your connection and try again.', { title:'Download failed' });
+  } finally {
+    btn.disabled = false; btn.innerHTML = label;
+  }
 }
 
 async function removeDevice(id){

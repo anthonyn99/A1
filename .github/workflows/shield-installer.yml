@@ -1,0 +1,96 @@
+name: Shield installer
+
+# Builds the Shield desktop agent and publishes the Windows installer, so the
+# Download button in shield.html always hands out the current build.
+#
+# This has to run here rather than in the browser: the agent is a Rust binary,
+# and no amount of client-side zipping can compile one. Vault's extension is
+# plain files so its page can package them itself; Shield genuinely needs a
+# build machine, and this is it.
+#
+# The release tag is ROLLING (`shield-latest`) rather than one tag per version.
+# The page asks for that single tag, so there is exactly one URL to know and no
+# chance of it serving yesterday's build because a version number was not
+# bumped. The commit SHA and build time go in the release body, which is what
+# the page shows so nobody has to guess how old their copy is.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/shield/**'
+      - '.github/workflows/shield-installer.yml'
+  workflow_dispatch:
+
+# Needed to create/update the release. Nothing here writes to the repo tree.
+permissions:
+  contents: write
+
+concurrency:
+  # A burst of commits should produce one installer, not a queue of them racing
+  # to overwrite the same release asset.
+  group: shield-installer
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # The bulk of the build is dependencies that change far less often than
+      # Shield does; without this every run recompiles the whole tree.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/shield/src-tauri
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # The npm CLI ships a prebuilt binary. `cargo install tauri-cli` compiles
+      # it from source and adds several minutes to every run.
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli@^2
+
+      - name: Build installer
+        working-directory: desktop/shield
+        run: tauri build
+
+      # Fail loudly here rather than publish an empty release that the page
+      # would then offer as a download.
+      - name: Locate the installer
+        id: find
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem 'desktop/shield/src-tauri/target/release/bundle/nsis/*.exe' | Select-Object -First 1
+          if (-not $exe) { Write-Error 'No NSIS installer was produced'; exit 1 }
+          $mb = [math]::Round($exe.Length / 1MB, 1)
+          Write-Host "built: $($exe.Name)  ${mb} MB"
+          # A stable asset name keeps the download URL predictable.
+          Copy-Item $exe.FullName 'Shield-Setup.exe'
+          "size_mb=$mb" >> $env:GITHUB_OUTPUT
+          $v = (Get-Content 'desktop/shield/src-tauri/tauri.conf.json' | ConvertFrom-Json).version
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Publish to the rolling release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BODY="Shield agent ${{ steps.find.outputs.version }} for Windows (${{ steps.find.outputs.size_mb }} MB)
+          Built from \`${GITHUB_SHA:0:7}\` on $(date -u '+%Y-%m-%d %H:%M UTC').
+
+          Unsigned, so Windows shows \"Windows protected your PC\" -> More info -> Run anyway.
+          Installs per-user; no admin prompt. Downloaded from the Shield page."
+          # Create the rolling release on first run, then just move it forward.
+          if gh release view shield-latest >/dev/null 2>&1; then
+            gh release edit shield-latest --notes "$BODY" --title "Shield agent (latest)"
+            gh release upload shield-latest Shield-Setup.exe --clobber
+          else
+            gh release create shield-latest Shield-Setup.exe \
+              --title "Shield agent (latest)" --notes "$BODY"
+          fi
