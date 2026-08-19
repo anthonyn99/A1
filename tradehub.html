@@ -3997,7 +3997,12 @@ const TB_CHATGPT_URL='https://chatgpt.com/';
    prompt instead of just typing it in. */
 const TB_AI_SITES=[
   {id:'chatgpt',   label:'ChatGPT',    url:TB_CHATGPT_URL,                     hosts:['chatgpt.com','chat.openai.com'], qUrl:'https://chatgpt.com/?q='},
-  {id:'claude',    label:'Claude',     url:'https://claude.ai/new',            hosts:['claude.ai'],                     qUrl:'https://claude.ai/new?q='},
+  /* `app` = open the native app when it's installed, instead of the site. Opt-in
+     per destination and deliberately rare: it's here for Claude because claude.ai
+     makes you sign in on the web, while the app is already signed in. Every other
+     destination works fine logged-out (or is already logged in) in the browser,
+     so they stay there — see tbOpenAi. */
+  {id:'claude',    label:'Claude',     url:'https://claude.ai/new',            hosts:['claude.ai'],                     qUrl:'https://claude.ai/new?q=', app:'com.anthropic.claude'},
   {id:'gemini',    label:'Gemini',     url:'https://gemini.google.com/app',    hosts:['gemini.google.com'],             qUrl:'https://gemini.google.com/app?q='},
   {id:'perplexity',label:'Perplexity', url:'https://www.perplexity.ai/',       hosts:['perplexity.ai'],                 qUrl:'https://www.perplexity.ai/search?q=', sends:true},
   {id:'grok',      label:'Grok',       url:'https://grok.com/',                hosts:['grok.com'],                      qUrl:'https://grok.com/?q='},
@@ -4112,9 +4117,11 @@ function tbAiLaunch({aiUrl,text,searches}){
 /* ── Opening things from Analysis ─────────────────────────────────────────────
    Two openers, deliberately pulling in opposite directions:
 
-     tbOpenAi   — the AI destination. Use the native app when it's installed
-                  (that's where you're already signed in), the website when it
-                  isn't. ONE of the two, never both.
+     tbOpenAi   — the AI destination. Almost always the browser; the native app
+                  only for a destination that opts in with an `app` package,
+                  which today is Claude alone, because claude.ai demands a login
+                  on the web and the app is already signed in. ONE of the two,
+                  never both.
      tbOpenTab  — your search tabs. Always the browser; a search hijacked into
                   the Google or X app wrecks the tab layout.
 
@@ -4138,25 +4145,15 @@ const TB_IS_ANDROID=/Android/i.test((typeof navigator!=='undefined'&&navigator.u
 /* Long enough that a real device finishing its intent lookup wins the race,
    short enough that a browser which ignored the intent is not left blank. */
 const TB_TAB_FALLBACK_MS=2000;
-/* Confirmed Play Store package ids. A wrong one wouldn't misroute — Android just
-   fails to resolve and Chrome falls back to the website — but it would silently
-   cost you the app, so only verified ids go in. Anything not listed (Grok,
-   Copilot, DeepSeek, a custom URL) omits the package and lets Android resolve the
-   https intent by its own filters, which finds the app if one claims that host. */
-const TB_AI_PKG={
-  chatgpt:   'com.openai.chatgpt',
-  claude:    'com.anthropic.claude',
-  perplexity:'ai.perplexity.app.android',
-  gemini:    'com.google.android.apps.bard',
-};
-/* https://host/path?query  →  intent://host/path?query#Intent;…;end */
+/* https://host/path?query  →  intent://host/path?query#Intent;…;end, aimed at the
+   destination's own package. Empty unless this destination opted into its app
+   (TB_AI_SITES.app) — a custom URL never does, since we can't know its package. */
 function tbAppIntentUrl(cfg,url){
-  if(!TB_IS_ANDROID||!/^https:/i.test(url))return '';
+  const pkg=tbAiSite(cfg).app;
+  if(!pkg||!TB_IS_ANDROID||!/^https:/i.test(url))return '';
   let tail='';
   try{const p=new URL(url);tail=p.host+p.pathname+p.search;}catch(e){return '';}
-  const pkg=TB_AI_PKG[tbAiSite(cfg).id];
-  return 'intent://'+tail+'#Intent;scheme=https;'
-       + (pkg?'package='+pkg+';':'')
+  return 'intent://'+tail+'#Intent;scheme=https;package='+pkg+';'
        + 'S.browser_fallback_url='+encodeURIComponent(url)+';end';
 }
 /* Open the AI: its app if you have it, its website if you don't.
@@ -4168,14 +4165,15 @@ function tbOpenAi(cfg,url){
   const u=String(url||'');
   if(!u)return false;
   const intent=tbAppIntentUrl(cfg,u);
+  /* Not an app destination (ChatGPT, Gemini, Grok, a custom URL …), or not
+     Android at all: hand it to the browser-only opener. Doing a plain navigation
+     here instead would let ChatGPT's app grab it back — the app blinks open, hands
+     the tab back, and you're where you started. */
+  if(!intent)return tbOpenTab(u);
   let w=null;
   try{w=window.open('','_blank');}catch(e){}
-  if(!w){try{window.open(intent||u,'_blank','noopener');return true;}catch(e){return false;}}
+  if(!w){try{window.open(intent,'_blank','noopener');return true;}catch(e){return false;}}
   try{w.opener=null;}catch(e){}
-  if(!intent){                       // desktop and iOS: just go
-    try{w.location.replace(u);}catch(e){}
-    return true;
-  }
   try{
     w.document.write('<!doctype html><html><head><meta charset="utf-8">'
       +'<title>Opening\u2026</title></head><body style="background:#1a1a1d">'
@@ -4357,7 +4355,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     if(aiUrl&&selPromptText){
       const pre=tbPrefillUrl(cfg,selPromptText);
       tbOpenAi(cfg,pre||aiUrl);
-      if(pre) res.push({ok:true,icon:'sparkle',label:TB_IS_ANDROID
+      if(pre) res.push({ok:true,icon:'sparkle',label:(TB_IS_ANDROID&&aiSite.app)
         ?`${aiSite.label} opening — app if you have it, prompt copied for it`
         :aiSite.sends
           ?`${aiSite.label} opened — prompt sent`
@@ -4406,7 +4404,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     const pre=tbPrefillUrl(cfg,text);
     tbOpenAi(cfg,pre||aiUrl);
     if(pre){
-      setResults([{ok:true,icon:'bolt',label:TB_IS_ANDROID
+      setResults([{ok:true,icon:'bolt',label:(TB_IS_ANDROID&&aiSite.app)
         ?`${name} → ${aiSite.label} — app if you have it, prompt copied for it`
         :aiSite.sends
           ?`${name} → ${aiSite.label} — sent`
@@ -4491,7 +4489,9 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         {aiSite.id!=='none'&&(
           <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
             <span style={{color:'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n="link" size={12}/></span>
-            <span>On your phone this opens the <b>{aiSite.label} app</b> when you have it installed — already signed in — and the website when you don't. One or the other, never both. The app can't take a prefilled link, so the prompt goes to your clipboard for it; searches always stay in the browser.</span>
+            <span>{aiSite.app
+              ? <>On your phone this opens the <b>{aiSite.label} app</b> when you have it installed — already signed in, which the website isn't — and the website when you don't. One or the other, never both. The app can't take a prefilled link, so the prompt goes to your clipboard for it.</>
+              : <>On your phone this stays in the <b>browser</b> — {aiSite.id==='custom'?'no app gets a look in':<>the {aiSite.label} app is kept out of the way</>}, so the prefilled link survives. Searches stay in the browser too.</>}</span>
           </div>
         )}
         {aiSite.id!=='chatgpt'&&aiSite.id!=='none'&&(
