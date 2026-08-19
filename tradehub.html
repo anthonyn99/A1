@@ -4109,38 +4109,94 @@ function tbAiLaunch({aiUrl,text,searches}){
   });
 }
 
-/* ── Open a URL in a new BROWSER TAB, and make it STAY in the browser ─────────
-   On Android, an https:// navigation to a host whose app has verified App Links —
-   chatgpt.com, claude.ai, perplexity.ai, google.com, x.com and half the sites
-   people put in their searches — is handed to that app instead. ChatGPT flashes
-   open and drops the ?q= prefill; the Claude app just swallows the navigation and
-   no tab appears at all.
+/* ── Opening things from Analysis ─────────────────────────────────────────────
+   Two openers, deliberately pulling in opposite directions:
 
-   Dropping the user gesture is not enough on its own — a client redirect still
-   counts as part of the gesture's navigation chain, which is why the earlier
-   two-step didn't hold. What Android does respect is an intent it cannot resolve:
-   we wrap the real URL in an intent: URI whose scheme AND package are deliberately
-   made up, and hang the real URL off it as S.browser_fallback_url. Chrome/Brave
-   look for an app, find none, and do the only thing left — navigate to the
-   fallback in the browser itself. That fallback hop is browser-initiated, which
-   is also the case where Chromium refuses to hand a URL to an app, so the site
-   can't be stolen on the way in either.
+     tbOpenAi   — the AI destination. Use the native app when it's installed
+                  (that's where you're already signed in), the website when it
+                  isn't. ONE of the two, never both.
+     tbOpenTab  — your search tabs. Always the browser; a search hijacked into
+                  the Google or X app wrecks the tab layout.
 
-   Belt and braces, since this only has to hold on a device I can't test from:
-     · the intent hop runs INSIDE the new tab, so it carries no user gesture — the
-       documented case where Chrome refuses to launch an app at all;
-     · a timer in that tab navigates to the plain URL if the intent hop hasn't
-       taken us anywhere within TB_TAB_FALLBACK_MS, so a browser that ignores the
-       intent lands on the site rather than stranding you on a blank tab. It has
-       to be a timer: a meta refresh does NOT survive a failed scheme navigation
-       (measured — the tab just sits on about:blank);
-     · non-Android (desktop, iOS) skips the wrapper entirely and just navigates.
-   iOS Universal Links can't be suppressed from a page at all — there the escape
-   hatch is the app's own "Open in browser" or long-press → Open in Safari. */
+   Both hang off the same Android primitive. A page cannot ask "is this app
+   installed?" — there's no such API, by design. But an intent: URI carrying
+   S.browser_fallback_url makes ANDROID answer the question: it launches the app
+   if one matches, and Chrome navigates to the fallback URL in the browser if none
+   does. Point that at the AI's own package for app-first, or at a package that
+   cannot exist for browser-only.
+
+   The window is claimed inside the tap (the popup blocker needs the gesture), then
+   the hop runs INSIDE that new tab, and both openers keep a timer there so no path
+   can strand you on a blank tab. It has to be a timer, not a meta refresh — a meta
+   refresh does not survive a failed scheme navigation (measured; the tab just sits
+   on about:blank).
+
+   iOS isn't scriptable this way: Universal Links already open an installed app on
+   a plain navigation and fall back to Safari when it's missing, which is the
+   behaviour we want anyway, so there we just navigate. */
 const TB_IS_ANDROID=/Android/i.test((typeof navigator!=='undefined'&&navigator.userAgent)||'');
 /* Long enough that a real device finishing its intent lookup wins the race,
    short enough that a browser which ignored the intent is not left blank. */
 const TB_TAB_FALLBACK_MS=2000;
+/* Confirmed Play Store package ids. A wrong one wouldn't misroute — Android just
+   fails to resolve and Chrome falls back to the website — but it would silently
+   cost you the app, so only verified ids go in. Anything not listed (Grok,
+   Copilot, DeepSeek, a custom URL) omits the package and lets Android resolve the
+   https intent by its own filters, which finds the app if one claims that host. */
+const TB_AI_PKG={
+  chatgpt:   'com.openai.chatgpt',
+  claude:    'com.anthropic.claude',
+  perplexity:'ai.perplexity.app.android',
+  gemini:    'com.google.android.apps.bard',
+};
+/* https://host/path?query  →  intent://host/path?query#Intent;…;end */
+function tbAppIntentUrl(cfg,url){
+  if(!TB_IS_ANDROID||!/^https:/i.test(url))return '';
+  let tail='';
+  try{const p=new URL(url);tail=p.host+p.pathname+p.search;}catch(e){return '';}
+  const pkg=TB_AI_PKG[tbAiSite(cfg).id];
+  return 'intent://'+tail+'#Intent;scheme=https;'
+       + (pkg?'package='+pkg+';':'')
+       + 'S.browser_fallback_url='+encodeURIComponent(url)+';end';
+}
+/* Open the AI: its app if you have it, its website if you don't.
+   When the app takes over, the tab we opened would otherwise be left sitting on
+   about:blank behind it — so the page watches for the tab going hidden, which is
+   what happens the moment Android switches to the app, and closes itself. If
+   nothing happens at all, the same timer falls through to the website. */
+function tbOpenAi(cfg,url){
+  const u=String(url||'');
+  if(!u)return false;
+  const intent=tbAppIntentUrl(cfg,u);
+  let w=null;
+  try{w=window.open('','_blank');}catch(e){}
+  if(!w){try{window.open(intent||u,'_blank','noopener');return true;}catch(e){return false;}}
+  try{w.opener=null;}catch(e){}
+  if(!intent){                       // desktop and iOS: just go
+    try{w.location.replace(u);}catch(e){}
+    return true;
+  }
+  try{
+    w.document.write('<!doctype html><html><head><meta charset="utf-8">'
+      +'<title>Opening\u2026</title></head><body style="background:#1a1a1d">'
+      +'<script>(function(){var u='+JSON.stringify(u)+',i='+JSON.stringify(intent)+',left=false;'
+      /* A hidden TRANSITION is the tell that Android switched to the app. Testing
+         document.hidden directly would misfire on a tab that merely opened in the
+         background, and closing that tab would lose the launch entirely. */
+      +'document.addEventListener("visibilitychange",function(){if(document.hidden)left=true;});'
+      +'setTimeout(function(){'
+      +'if(left){try{window.close();}catch(e){}}'   /* app has it — don't leave a tab */
+      +'else{location.replace(u);}'                                  /* nothing took it — use the site */
+      +'},'+TB_TAB_FALLBACK_MS+');'
+      +'location.replace(i);})();<\/script>'
+      +'</body></html>');
+    w.document.close();
+  }catch(e){
+    try{w.location.replace(intent);}catch(_){}
+  }
+  return true;
+}
+
 function tbBrowserOnlyUrl(url){
   if(!TB_IS_ANDROID||!/^https?:/i.test(url))return url;
   return 'intent://open#Intent;scheme=tradehub-browser-only;package=app.tradehub.no.such.package;'
@@ -4285,7 +4341,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
            click gesture here, so the browser may block these popups; the next
            launch re-probes and takes the manual path cleanly.) */
         searchUrls.forEach(({u})=>tbOpenTab(u));
-        tbOpenTab(aiUrl);
+        tbOpenAi(cfg,aiUrl);
         setResults(r=>[...r,{ok:false,icon:'sparkle',label:`${aiSite.label} opened — auto-submit unavailable, paste with Ctrl+V`}]);
       });
       res.push({ok:true,icon:'sparkle',label:`${aiSite.label} opening — prompt submitted for you`});
@@ -4300,10 +4356,12 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
        handoff. Installing the Vault extension removes this step. */
     if(aiUrl&&selPromptText){
       const pre=tbPrefillUrl(cfg,selPromptText);
-      tbOpenTab(pre||aiUrl);
-      if(pre) res.push({ok:true,icon:'sparkle',label:aiSite.sends
-        ?`${aiSite.label} opened — prompt sent`
-        :`${aiSite.label} opened — prompt typed in, just hit send`});
+      tbOpenAi(cfg,pre||aiUrl);
+      if(pre) res.push({ok:true,icon:'sparkle',label:TB_IS_ANDROID
+        ?`${aiSite.label} opening — app if you have it, prompt copied for it`
+        :aiSite.sends
+          ?`${aiSite.label} opened — prompt sent`
+          :`${aiSite.label} opened — prompt typed in, just hit send`});
       else{
         res.push({ok:copied,icon:'sparkle',label:copied?`${aiSite.label} opened — paste with Ctrl+V, then Enter`:`${aiSite.label} opened — copy the prompt from Prompts, then paste`});
         if(canShare&&copied&&tbCanPrefill(cfg)) res.push(sharePill(selPromptText));
@@ -4335,9 +4393,9 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     if(autoSubmit){
       tbAiLaunch({aiUrl,text,searches:[]}).then(acked=>{
         if(acked)return;
-        /* Extension vanished between the probe and the tap — open the tab
+        /* Extension vanished between the probe and the tap — open it
            ourselves; the prompt is already on the clipboard. */
-        tbOpenTab(aiUrl);
+        tbOpenAi(cfg,aiUrl);
         setResults(r=>[...r,{ok:false,icon:'sparkle',label:`${aiSite.label} opened — auto-submit unavailable, paste with Ctrl+V`}]);
       });
       setResults([{ok:true,icon:'bolt',label:`${name} → ${aiSite.label} — submitted for you`}]);
@@ -4346,11 +4404,13 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     /* No extension (every phone, and any desktop without Vault): hand the AI its
        own prefill link so the prompt is already typed in on arrival. */
     const pre=tbPrefillUrl(cfg,text);
-    tbOpenTab(pre||aiUrl);
+    tbOpenAi(cfg,pre||aiUrl);
     if(pre){
-      setResults([{ok:true,icon:'bolt',label:aiSite.sends
-        ?`${name} → ${aiSite.label} — sent`
-        :`${name} → ${aiSite.label} — typed in, just hit send`}]);
+      setResults([{ok:true,icon:'bolt',label:TB_IS_ANDROID
+        ?`${name} → ${aiSite.label} — app if you have it, prompt copied for it`
+        :aiSite.sends
+          ?`${name} → ${aiSite.label} — sent`
+          :`${name} → ${aiSite.label} — typed in, just hit send`}]);
       return;
     }
     const out=[{ok:copied,icon:'bolt',label:copied
@@ -4424,10 +4484,16 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             : autoSubmit
               ? <>Vault extension detected — Launch Analysis opens {aiSite.label}, <b>types the prompt in and sends it</b>, then leaves you on that tab. It stays on your clipboard too, as a fallback.</>
               : tbCanPrefill(cfg)
-                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. This is the mobile path too: phones can't run the Vault extension, so a prefill link is as far as any browser allows. Everything opens as a <b>browser tab</b>, never the {aiSite.label} app — the app would drop the prefill. If Android still hands one to an app, turn off <i>Open supported links</i> for it in Settings → Apps → that app → Open by default. Prompts over ~{TB_PREFILL_MAX.toLocaleString()} characters don't fit in a link and arrive on your clipboard instead.</>
+                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. This is the mobile path too: phones can't run the Vault extension, so a prefill link is as far as any browser allows. Prompts over ~{TB_PREFILL_MAX.toLocaleString()} characters don't fit in a link and arrive on your clipboard instead.</>
                 : <>Launch Analysis opens {aiSite.label} with the prompt on your clipboard — paste with Ctrl+V, then Enter. {aiSite.id==='custom'?<>Put <code style={{fontFamily:'monospace'}}>{'{prompt}'}</code> in the URL above to have it typed in for you.</>:<>This destination has no prefill link, so pasting is the only way in.</>} Install the <b>Vault extension</b> (desktop) to have it typed and sent automatically.</>}
           </span>
         </div>
+        {aiSite.id!=='none'&&(
+          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
+            <span style={{color:'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n="link" size={12}/></span>
+            <span>On your phone this opens the <b>{aiSite.label} app</b> when you have it installed — already signed in — and the website when you don't. One or the other, never both. The app can't take a prefilled link, so the prompt goes to your clipboard for it; searches always stay in the browser.</span>
+          </div>
+        )}
         {aiSite.id!=='chatgpt'&&aiSite.id!=='none'&&(
           <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>The morning Trading Auto Launch (Deploy, below) follows this setting too — it opens {aiSite.label} and submits the prompt there.</div>
         )}
