@@ -434,6 +434,16 @@
     const tbPlaybookDocRef = doc(db, TB_PLAYBOOK_PATH);
     const tbAppLockDocRef = doc(db, "dashboards/applock");
 
+    // Journal: remember the last Webull sync stamp written by ANY device, so
+    // every device can show "last synced" even when it never ran the sync itself.
+    const _tbNoteSyncMeta = (data) => {
+      const ts = data && data._syncMeta && data._syncMeta.lastWebullSync;
+      if (ts && ts > (window._tbLastSyncTs || 0)) {
+        window._tbLastSyncTs = ts;
+        window.dispatchEvent(new CustomEvent('tb-journal-sync-ts', { detail: ts }));
+      }
+    };
+
     // Journal: load all trades
     window._fbLoadTBJournal = async () => {
       try {
@@ -443,6 +453,7 @@
         catch(netErr) { snap = await getDoc(tbJournalDocRef); }
         if (!snap.exists()) return null;
         const data = snap.data();
+        _tbNoteSyncMeta(data);
         const trades = [];
         Object.entries(data).forEach(([k, v]) => {
           if (k.startsWith('t_') && v && typeof v === 'object' && v.id) trades.push(v);
@@ -691,6 +702,7 @@
       if (Date.now() - _tbJournalLastOwnSaveAt < 8000) return;
       const data = snap.data();
       const remoteSavedAt = data.savedAt || 0;
+      _tbNoteSyncMeta(data);
       const trades = [];
       Object.entries(data).forEach(([k, v]) => {
         if (k.startsWith('t_') && v && typeof v === 'object' && v.id) trades.push(v);
@@ -1386,6 +1398,16 @@ function useTBJournal(){
   const [trades,setTrades]=useState([]);
   const [loading,setLoading]=useState(true);
   const [syncing,setSyncing]=useState(false);
+  /* Last Webull sync stamp — this device's own (localStorage) or whatever any
+     other device last wrote to the journal doc's _syncMeta. */
+  const [lastSync,setLastSync]=useState(()=>parseInt(localStorage.getItem(TB_SYNC_TS_KEY)||'0',10)||null);
+  useEffect(()=>{
+    const bump=ts=>{if(ts)setLastSync(prev=>(!prev||ts>prev)?ts:prev);};
+    bump(window._tbLastSyncTs);
+    const h=e=>bump(e.detail);
+    window.addEventListener('tb-journal-sync-ts',h);
+    return()=>window.removeEventListener('tb-journal-sync-ts',h);
+  },[]);
 
   /* Load all trades from Firebase on mount */
   const load=useCallback(async()=>{
@@ -1573,6 +1595,7 @@ function useTBJournal(){
     /* Record sync timestamp in localStorage + Firebase so all devices know */
     const nowTs=Date.now();
     localStorage.setItem(TB_SYNC_TS_KEY,String(nowTs));
+    window._tbLastSyncTs=nowTs; setLastSync(nowTs);
     if(window._fbSaveTBSyncMeta)window._fbSaveTBSyncMeta({lastWebullSync:nowTs});
     window._tbBuildUntil=0;
     window._tbSyncInFlight=false;
@@ -1729,7 +1752,7 @@ function useTBJournal(){
     return{ok:true,added:newEntries.length,skipped:0};
   },[]);
 
-  return{trades,loading,syncing,load,sync,add,patch,del,delBulk,importCSV,rebuild};
+  return{trades,loading,syncing,lastSync,load,sync,add,patch,del,delBulk,importCSV,rebuild};
 }
 
 function tbUuid(){return([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16));}
@@ -2640,7 +2663,7 @@ function TBJournalPage(){
       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
         <div style={{flex:1,minWidth:140}}>
           <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Journal</div>
-          <div style={{fontSize:13,color:'var(--txm)'}}>{jHook.trades.length} trades</div>
+          <div style={{fontSize:13,color:'var(--txm)'}}>{jHook.trades.length} trades{jHook.lastSync?` · Synced ${new Date(jHook.lastSync).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}`:''}</div>
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
         {!selectMode&&localStorage.getItem('td6_mainDash')==='tony'&&<button className="tb-btn-ghost" onClick={doSync} disabled={jHook.syncing||syncing} style={{fontSize:13}}><><TBIcon n="refresh"/> {jHook.syncing||syncing?'Syncing…':'Webull Sync'}</></button>}
@@ -2997,7 +3020,7 @@ function TBPortfolioPage(){
 
   return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:18,padding:'16px clamp(10px,4vw,28px) 40px'}}>
     <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Portfolio</div>{lastFetch&&<div style={{fontSize:13,color:'var(--txm)'}}>Updated {lastFetch.toLocaleTimeString()}</div>}</div>
+      <div style={{flex:1}}><div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Portfolio</div>{lastFetch&&<div style={{fontSize:13,color:'var(--txm)'}}>Updated {lastFetch.toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</div>}</div>
       {loading&&<span style={{fontSize:14,color:'var(--txm)',display:'flex',alignItems:'center',gap:5}}><span style={{display:'inline-block',animation:'tb-spin 1s linear infinite'}}>⟳</span>Refreshing…</span>}
       {error&&<div style={{fontSize:13,color:'var(--tbe)',background:'rgba(212,122,106,0.08)',border:'1px solid rgba(212,122,106,0.2)',borderRadius:8,padding:'4px 12px'}}>{error}</div>}
       <button className="tb-btn-ghost" onClick={refresh} disabled={loading} style={{fontSize:11}}><TBIcon n="refresh"/> Refresh</button>
@@ -5268,7 +5291,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   const toggleTicker=(t)=>setSelTickers(p=>p.includes(t)?p.filter(x=>x!==t):[...p,t]);
   const toggleSector=(s)=>setSelSectors(p=>p.includes(s)?p.filter(x=>x!==s):[...p,s]);
   const clearAll=()=>{setSelTickers([]);setSelSectors([]);setSentFilter('all');setImpFilter('all');};
-  const hasFilter=sentFilter!=='all'||impFilter!=='all'||selTickers.length||selSectors.length;
+  const hasFilter=sentFilter!=='all'||impFilter!=='all'||selTickers.length>0||selSectors.length>0;
 
   /* Sectors auto-derived from the shared watchlist — used to prune stale filters. */
   const [secTick,setSecTick]=useState(0);
