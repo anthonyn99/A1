@@ -4129,12 +4129,18 @@ function tbAiLaunch({aiUrl,text,searches}){
    Belt and braces, since this only has to hold on a device I can't test from:
      · the intent hop runs INSIDE the new tab, so it carries no user gesture — the
        documented case where Chrome refuses to launch an app at all;
-     · a meta refresh to the plain URL fires 3s later, so a browser that ignores
-       the intent still lands somewhere instead of sitting on a blank page;
+     · a timer in that tab navigates to the plain URL if the intent hop hasn't
+       taken us anywhere within TB_TAB_FALLBACK_MS, so a browser that ignores the
+       intent lands on the site rather than stranding you on a blank tab. It has
+       to be a timer: a meta refresh does NOT survive a failed scheme navigation
+       (measured — the tab just sits on about:blank);
      · non-Android (desktop, iOS) skips the wrapper entirely and just navigates.
    iOS Universal Links can't be suppressed from a page at all — there the escape
    hatch is the app's own "Open in browser" or long-press → Open in Safari. */
 const TB_IS_ANDROID=/Android/i.test((typeof navigator!=='undefined'&&navigator.userAgent)||'');
+/* Long enough that a real device finishing its intent lookup wins the race,
+   short enough that a browser which ignored the intent is not left blank. */
+const TB_TAB_FALLBACK_MS=2000;
 function tbBrowserOnlyUrl(url){
   if(!TB_IS_ANDROID||!/^https?:/i.test(url))return url;
   return 'intent://open#Intent;scheme=tradehub-browser-only;package=app.tradehub.no.such.package;'
@@ -4151,16 +4157,18 @@ function tbOpenTab(url){
   if(!w){try{window.open(nav,'_blank','noopener');return true;}catch(e){return false;}}
   try{w.opener=null;}catch(e){}
   try{
-    const esc=u.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
     w.document.write('<!doctype html><html><head><meta charset="utf-8">'
-      +'<title>Opening\u2026</title>'
-      +'<meta http-equiv="refresh" content="3;url='+esc+'">'
-      +'</head><body style="background:#1a1a1d">'
-      +'<script>location.replace('+JSON.stringify(nav)+');<\/script>'
+      +'<title>Opening\u2026</title></head><body style="background:#1a1a1d">'
+      +'<script>(function(){var u='+JSON.stringify(u)+',i='+JSON.stringify(nav)+';'
+      +'setTimeout(function(){location.replace(u);},'+TB_TAB_FALLBACK_MS+');'
+      +'location.replace(i);})();<\/script>'
       +'</body></html>');
     w.document.close();
   }catch(e){
+    /* No document access (shouldn't happen for a same-origin about:blank, but a
+       stranded blank tab is the one outcome worth ruling out): go direct. */
     try{w.location.replace(nav);}catch(_){}
+    try{setTimeout(()=>{try{if(w&&!w.closed&&w.location.href==='about:blank')w.location.replace(u);}catch(_){}},TB_TAB_FALLBACK_MS);}catch(_){}
   }
   return true;
 }
