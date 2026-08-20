@@ -7879,12 +7879,12 @@ function App(){
 
   // Toggling done: when a goal is FIRST checked off, auto-move it to the bottom of the list.
   // Unchecking leaves it in place (manual position preserved). Manual drags always win afterward.
-  const togM=useCallback(id=>{setMg(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...prev];cp[i]=ng;return cp;});},[setMg]);
+  const togM=useCallback(id=>{setMg(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const rest=prev.filter(x=>x.id!==id);let ins=rest.findIndex(x=>x.done);if(ins<0)ins=rest.length;return[...rest.slice(0,ins),ng,...rest.slice(ins)];});},[setMg]);
   const delM=useCallback(id=>setMg(prev=>prev.filter(g=>g.id!==id)),[setMg]);
   const addM=useCallback(()=>{if(!nmt.trim())return;setMg(prev=>[...prev,{id:uid(),title:nmt.trim(),done:false}]);setNmt("");},[nmt,setMg]);
   const renameM=useCallback((id,title)=>setMg(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMg]);
 
-  const togMM=useCallback(id=>{if(_plGuard(stateRef.current.monthlyGoals,id,"This is a shared plan — manage it in Add → Plan."))return;setMgMonthly(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...prev];cp[i]=ng;return cp;});},[setMgMonthly]);
+  const togMM=useCallback(id=>{if(_plGuard(stateRef.current.monthlyGoals,id,"This is a shared plan — manage it in Add → Plan."))return;setMgMonthly(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const rest=prev.filter(x=>x.id!==id);let ins=rest.findIndex(x=>x.done);if(ins<0)ins=rest.length;return[...rest.slice(0,ins),ng,...rest.slice(ins)];});},[setMgMonthly]);
   const delMM=useCallback(id=>{if(_plGuard(stateRef.current.monthlyGoals,id,"This is a shared plan — cancel it in Add → Plan to remove it."))return;setMgMonthly(prev=>prev.filter(g=>g.id!==id));},[setMgMonthly]);
   const addMM=useCallback(()=>{if(!nmmt.trim())return;setMgMonthly(prev=>[...prev,{id:uid(),title:nmmt.trim(),done:false}]);setNmmt("");},[nmmt,setMgMonthly]);
   const renameMM=useCallback((id,title)=>setMgMonthly(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMgMonthly]);
@@ -8326,7 +8326,7 @@ function App(){
              they never interfere with reordering, editing or drag-and-drop of
              the real goals below. */
           goalTab==="short"&&oiCoupons.map(c=>OI_couponRow(c,T,edit)),
-          ((goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?(goalTab==="short"?mgMonthly:mg).filter(g=>!g.done):(goalTab==="short"?mgMonthly:mg)).map(g=>g._planId
+          (()=>{const _gl=goalTab==="short"?mgMonthly:mg,_act=_gl.filter(g=>!g.done);return (goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?_act:[..._act,..._gl.filter(g=>g.done)];})().map(g=>g._planId
           /* An undated confirmed plan mirrors here. Owned by dashboards/plans:
              inert, and labelled "Plan" so it is not mistaken for a goal Tony
              wrote himself. */
@@ -13730,11 +13730,11 @@ function App(){
   const renameM=useCallback((id,title)=>setMg(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMg]);
 
   // When a goal is FIRST checked off, auto-move it to the bottom; unchecking leaves it in place.
-  const togM=useCallback(id=>{setMg(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...p];cp[i]=ng;return cp;});},[]);
+  const togM=useCallback(id=>{setMg(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const rest=p.filter(x=>x.id!==id);let ins=rest.findIndex(x=>x.done);if(ins<0)ins=rest.length;return[...rest.slice(0,ins),ng,...rest.slice(ins)];});},[]);
   const delM=useCallback(id=>{setMg(p=>p.filter(g=>g.id!==id));},[]);
   const addM=useCallback(()=>{if(!nmt.trim())return;setMg(p=>[...p,{id:uid(),title:nmt.trim(),done:false}]);setNmt("");},[nmt]);
   const renameMM=useCallback((id,title)=>setMgMonthly(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMgMonthly]);
-  const togMM=useCallback(id=>{if(_plGuard(vdRef.current.monthlyGoals,id,"This is a shared plan — manage it in Add → Plan."))return;setMgMonthly(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const cp=[...p];cp[i]=ng;return cp;});},[setMgMonthly]);
+  const togMM=useCallback(id=>{if(_plGuard(vdRef.current.monthlyGoals,id,"This is a shared plan — manage it in Add → Plan."))return;setMgMonthly(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);return[...rest,ng];}ng={...g,done:false};delete ng.completedAt;const rest=p.filter(x=>x.id!==id);let ins=rest.findIndex(x=>x.done);if(ins<0)ins=rest.length;return[...rest.slice(0,ins),ng,...rest.slice(ins)];});},[setMgMonthly]);
   const delMM=useCallback(id=>{if(_plGuard(vdRef.current.monthlyGoals,id,"This is a shared plan — cancel it in Add → Plan to remove it."))return;setMgMonthly(p=>p.filter(g=>g.id!==id));},[setMgMonthly]);
   const addMM=useCallback(()=>{if(!nmmt.trim())return;setMgMonthly(p=>[...p,{id:uid(),title:nmmt.trim(),done:false}]);setNmmt("");},[nmmt,setMgMonthly]);
   const calcCells=useMemo(()=>{const d=dimM(vy,vm),f=fdow(vy,vm),c=[];for(let i=0;i<f;i++)c.push(null);for(let i=1;i<=d;i++)c.push(i);return c;},[vy,vm]);
@@ -14086,7 +14086,7 @@ function App(){
         edit&&RC("div",{style:{display:"flex",gap:5,marginBottom:8,flexShrink:0}},
           RC("input",{style:{...inp,flex:1},placeholder:goalTab==="short"?"New short-term goal...":"New long-term goal...",value:goalTab==="short"?nmmt:nmt,onChange:e=>(goalTab==="short"?setNmmt:setNmt)(e.target.value),onKeyDown:e=>{if(e.key==="Enter")(goalTab==="short"?addMM:addM)();}}),
           RC("button",{style:sbtn,onClick:goalTab==="short"?addMM:addM},"+")),
-        RC("div",{style:{flex:1,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},((goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?(goalTab==="short"?mgMonthly:mg).filter(g=>!g.done):(goalTab==="short"?mgMonthly:mg)).map(g=>g._planId
+        RC("div",{style:{flex:1,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},(()=>{const _gl=goalTab==="short"?mgMonthly:mg,_act=_gl.filter(g=>!g.done);return (goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?_act:[..._act,..._gl.filter(g=>g.done)];})().map(g=>g._planId
         /* An undated confirmed plan mirrors here. Owned by dashboards/plans:
            inert, and labelled "Plan" so it is not mistaken for one of her own. */
         ?RC("div",{key:g.id,style:{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:g.done?0.62:1,cursor:"default"}},
