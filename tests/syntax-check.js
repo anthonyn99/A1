@@ -3,12 +3,12 @@
  * Parses every inline script in the single-file apps that ship straight to
  * GitHub Pages with no build step.
  *
- * index.html is ~43k lines and shield.html is the emergency lockdown program —
- * for both, a stray syntax error is caught by nothing else, it just makes the
- * whole app fail to start on every device. Shield especially: it is the app you
- * reach for when you need something closed RIGHT NOW, so "it did not boot" is
- * the worst possible failure mode. This is the cheap check that stops either of
- * them reaching a phone broken.
+ * Nothing else catches a stray syntax error in these files: there is no build,
+ * no bundler and no type checker between an edit and the phone that loads it —
+ * one bad token just means the whole app fails to start, everywhere. Shield
+ * especially: it is the app you reach for when you need something closed RIGHT
+ * NOW, so "it did not boot" is the worst possible failure mode. This is the
+ * cheap check that stops any of them reaching a phone broken.
  *
  * Run: node tests/syntax-check.js
  */
@@ -17,7 +17,12 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const FILES = ['index.html', 'shield.html'];
+// Every page served straight from the repo root. A new single-file app belongs
+// in this list the day it ships.
+const FILES = [
+  'index.html', 'shield.html', 'tradehub.html', 'vault.html', 'insight.html',
+  'mylist.html', 'oneinbox.html', 'solace.html', 'warroom.html', 'wellness.html',
+];
 
 let babelParse = null;
 try { babelParse = require('@babel/parser').parse; } catch (e) { /* optional */ }

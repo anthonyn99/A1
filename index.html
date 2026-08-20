@@ -12579,7 +12579,7 @@ const SK={data:"td_data",habits:"td_habits",hc:"td_hc",goals:"td_mg",mgoals:"td_
 const GOAL_PREFS_DEF={hideShort:false,hideLong:false};
 
 /* ── RULES — the daily checklist gate (Veda-owned) ──────────────────────────
-   Ported from rules.html. Two halves:
+   Ported from the standalone rules.html page, since removed. Two halves:
    1. The list: [{id,text,created}]; ARRAY ORDER IS DISPLAY ORDER, so reordering
       is a splice, never a sort key.
    2. The checklist modal: a hard gate on the first open of each day. Boxes
@@ -12591,7 +12591,7 @@ const GOAL_PREFS_DEF={hideShort:false,hideLong:false};
    over at 8pm ET, which would mis-date an evening session as tomorrow and skip
    the next day's prompt.
 
-   NOTE: unlike tradeboard.html / rules.html, this gate runs EVERY day. There is
+   NOTE: unlike the old standalone tradeboard/rules pages, this gate runs EVERY day. There is
    deliberately no isWeekdayET() check — weekends are not skipped. */
 const RULES_DAILY_DEF={lastCompleted:null,enabled:true};
 const RULES_DELAY=3;   // seconds a rule must be on screen before it can be ticked
@@ -12879,7 +12879,7 @@ function GitaLessonsBrowser({onClose, onSelectLesson}){
 
 // `multiline` (opt-in) swaps the input for a textarea — rule text is long-form.
 // Plain Enter then inserts a newline and Ctrl/Cmd+Enter saves, matching the
-// rules authoring flow in rules.html. Existing callers omit it and are unchanged.
+// rules authoring flow on the old rules page. Existing callers omit it and are unchanged.
 // `zIndex` (opt-in) lets it stack above the rules checklist, which sits at 3000.
 function VdSimpleEditModal({open,onClose,onSave,initialText,heading,multiline,zIndex,placeholder}){
   const[val,setVal]=React.useState("");
@@ -12901,7 +12901,7 @@ function VdSimpleEditModal({open,onClose,onSave,initialText,heading,multiline,zI
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   RULES CHECKLIST — the daily pre-market gate. Ported from rules.html.
+   RULES CHECKLIST — the daily pre-market gate. Ported from the old rules.html.
 
    mode "gate"   : auto-opened once a day. A HARD gate — no close button, no
                    backdrop dismiss, Escape swallowed. The only way out is to
@@ -13274,7 +13274,7 @@ function App(){
      arriving a moment later has nothing left to trigger, and the prompt would
      silently never appear. A pre-cloud attempt is a no-op that a later call retries.
 
-     No weekday check — unlike tradeboard.html/rules.html, this gate runs EVERY day. */
+     No weekday check — unlike the old tradeboard/rules pages, this runs EVERY day. */
   const rulesShownRef=useRef(false);
   const rulesAskRef=useRef(null);
   const maybeShowDaily=useCallback(()=>{

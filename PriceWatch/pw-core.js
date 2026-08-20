@@ -12,7 +12,7 @@
   "use strict";
 
   // Only these two banners have a real Kroger Products API path (see
-  // STORE_NOTES.md). They are never scraped — the worker prices them.
+  // docs/STORE_NOTES.md). They are never scraped — the worker prices them.
   var KROGER_BANNERS = { kroger: 1, kingsoopers: 1 };
 
   function cleanDomain(d) {

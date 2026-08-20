@@ -17,7 +17,7 @@
 // which is exactly why it sees the same prices a human would.
 //
 // Kroger / King Soopers are never scraped: they have an official Products API
-// and are routed to the existing worker path (see STORE_NOTES.md). A store
+// and are routed to the existing worker path (see docs/STORE_NOTES.md). A store
 // whose domain has no parser module comes back source:"unsupported" — one
 // unknown retailer never sinks the rest of the request.
 // ─────────────────────────────────────────────────────────────────────────────

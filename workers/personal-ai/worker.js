@@ -1811,7 +1811,7 @@ function b64url(data) {
 //
 // Same API for both chains; the chain is chosen by filter.locationId. The OAuth2
 // client-credentials token is short-lived, so it is cached (memory + KV) and
-// reused across a whole cron run. See STORE_NOTES.md → "Kroger / King Soopers".
+// reused across a whole cron run. See docs/STORE_NOTES.md → "Kroger / King Soopers".
 // ────────────────────────────────────────────────────────────────────────────
 let _krogerTok = null;
 async function krogerToken(env) {
@@ -1907,7 +1907,7 @@ async function krogerVariants(env, storeKey, profile, item) {
 // A variant is kept ONLY if it has a numeric price AND a product-page URL ON THE
 // STORE'S OWN DOMAIN (that URL is the citation — much higher recall than requiring
 // groundingMetadata chunks, which were often empty even for real products).
-// See STORE_NOTES.md for per-store notes.
+// See docs/STORE_NOTES.md for per-store notes.
 // ────────────────────────────────────────────────────────────────────────────
 // Default retailer set. Users can add/remove AI-type retailers at runtime (the
 // list syncs via the pricewatch doc's `stores` field); the search auto-adapts to

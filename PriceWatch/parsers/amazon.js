@@ -5,7 +5,7 @@
 // .a-price > .a-offscreen is the canonical machine-readable price (the visible
 // price is split across whole/fraction spans).
 //
-// Price note (STORE_NOTES.md): Amazon prices vary by seller. This reads the
+// Price note (docs/STORE_NOTES.md): Amazon prices vary by seller. This reads the
 // buy-box price on the search tile, which is the same number a shopper sees.
 (function (g) {
   "use strict";

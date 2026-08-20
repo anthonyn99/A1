@@ -4,7 +4,7 @@
 // React grid, so the settle-poll in background.js matters more here than at
 // Walmart/Amazon — an immediate parse usually sees an empty shell.
 //
-// Price caveat (STORE_NOTES.md): CVS online and in-store prices differ and the
+// Price caveat (docs/STORE_NOTES.md): CVS online and in-store prices differ and the
 // site often wants a ZIP before showing a store price. This reads the ONLINE
 // price, which is what renders without a store selected.
 (function (g) {
