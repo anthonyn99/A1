@@ -2674,17 +2674,25 @@ async function loadProfile() {
     allMastery = mastery;
     displayedMatches = 10;
     _matchHistoryExhausted = matchIds.length < 20;
-    // Fetch league history async (may 404 on some accounts)
+    // League history is optional, and a development key is not entitled to it —
+    // Riot answers 403 every single time. Ask once, then stop spending a request
+    // on it for the rest of the session.
     let leagueHistory = [];
-    try {
-      leagueHistory = await riotFetch(`/lol/league/v4/leagues-of-summoner-history/by-puuid/${summoner.puuid}`, summoner.platform);
-    } catch(e) {}
+    if (!_leagueHistoryUnavailable) {
+      try {
+        leagueHistory = await riotFetch('/lol/league/v4/leagues-of-summoner-history/by-puuid/' + summoner.puuid, summoner.platform, 1);
+      } catch(e) {
+        if (e && (e.message === '403' || e.message === '404')) _leagueHistoryUnavailable = true;
+      }
+    }
     renderProfile(null, ranked, mastery, matches.slice(0, 10), leagueHistory);
   } catch(e) {
     el.innerHTML = _riotErrorHtml(e);
   }
 }
 
+// Set once Riot refuses the league-history endpoint for this API key.
+let _leagueHistoryUnavailable = false;
 let _lastRefresh = 0;
 async function refreshProfile() {
   const now = Date.now();
