@@ -6505,21 +6505,20 @@ function Pomodoro({onClose,T,isMobile}){
 
 // Same category accents OneInbox uses, so a coupon looks like a coupon in both apps.
 //
-// package: TradeHub's AFTER HOURS tone (#8fa9c4). The old #8fb3d9 was a
-// saturated cornflower that fought the gold; this is the same hue pulled toward
-// slate, so a parcel card sits beside T.AC gold and the #34343a greys instead of
-// competing with them.
 // coupon: deliberately NOT an accent. Coupons live in Short-Term Goals next to
 // real goals, so they read as neutral grey chrome and let the gold checkboxes
 // stay the only accent in that panel. See OI_couponRow.
-// package: a low-key slate blue, sitting between TradeHub's AFTER HOURS slate
-// (#8fa9c4, which read loud next to the gold) and plain grey. Parcels are the
-// most frequent card by far, so this is the one that most needs to stay quiet
-// in the week — blue enough to be its own thing, desaturated enough that a
-// column of them never competes with a gold task. DELIBERATELY out of step
-// with oneinbox.html's --c-package, which tints filter chips in a list where
-// it has to stay distinguishable from the other categories.
-const OI_COLOR={coupon:"#8d8d94",package:"#8b9db4",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
+// package: a muted terracotta copper. Warm, like the T.AC gold (#e0b874) it sits
+// beside, but ~17° of hue toward red and a step darker, so a parcel reads as its
+// own category instead of a second gold — and still sits easy against the
+// #34343a greys. Parcels are the most frequent card by far, so this is the one
+// that most needs to stay quiet in the week: chroma enough to name the category
+// at 9px, not enough to pull the eye off a gold task. Redder and deeper than the
+// #d9b38f appointment sand, and browner than the #d68a7c bill salmon, so the
+// three warm categories stay apart. DELIBERATELY out of step with
+// oneinbox.html's --c-package, which tints filter chips in a list where it has
+// to stay distinguishable from the other categories.
+const OI_COLOR={coupon:"#8d8d94",package:"#c8845e",bill:"#d68a7c",subscription:"#b8a6d0",travel:"#7fc4b8",appointment:"#d9b38f"};
 
 // ── One parcel, one card ────────────────────────────────────────────────────
 // The worker owns this: a parcel's card id is derived from its tracking number
