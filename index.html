@@ -7033,8 +7033,18 @@ function App(){
     if(remote._fromCache&&rs&&ls&&rs===ls)return;
     thLastAppliedRef.current=rs||ls;
     const now2=new Date(),cw=getMondayKey(now2);
+    // ── Habit checks: reset on a new week, but NEVER off a stale read ─────────
+    // The reset is destructive — the blanked map is written to localStorage here
+    // and goes back to Firestore on the next edit — so it may only run on state
+    // we actually trust. _freshGet falls back to the IndexedDB copy when the
+    // server is slow, and that copy can predate the week rollover; blanking on
+    // one is how a mid-week set of ticks vanished for every device at once. A
+    // genuine server doc from an earlier week still resets, as designed.
     let hcD=remote.hc||{};
-    if((remote.weekKey||"")!==cw)hcD={};
+    if((remote.weekKey||"")!==cw){
+      const localFresh=localStorage.getItem(T_SK.weekKey)===cw&&Object.keys(stateRef.current.hc||{}).length>0;
+      hcD=(remote._fromCache&&localFresh)?stateRef.current.hc:{};
+    }
     const restoreItem=item=>{
       if(!item)return item;
       const out={...item};
@@ -7050,7 +7060,14 @@ function App(){
       Object.entries(d).forEach(([dk,arr])=>{out[dk]=Array.isArray(arr)?arr.map(restoreItem):arr;});
       return out;
     };
-    const d=restoreData(remote.data)||{},h=remote.habits||T_HAB_DEF,g=pruneDoneGoals(remote.goals||MG_DEF),gm=pruneDoneGoals(remote.monthlyGoals||[]);
+    // An ABSENT field is "no news", never "the user deleted everything". A doc
+    // saved by an older build (or a partial write from anywhere) must not be able
+    // to blank a whole section locally and then push that blank back up. Real
+    // deletions still travel: they arrive as a present field with fewer entries.
+    const d=remote.data?restoreData(remote.data):{...stateRef.current.data};
+    const h=Array.isArray(remote.habits)?remote.habits:(stateRef.current.habits||T_HAB_DEF);
+    const g=pruneDoneGoals(Array.isArray(remote.goals)?remote.goals:(stateRef.current.goals||MG_DEF));
+    const gm=pruneDoneGoals(Array.isArray(remote.monthlyGoals)?remote.monthlyGoals:(stateRef.current.monthlyGoals||[]));
     const gp=remote.goalPrefs?{...GOAL_PREFS_DEF,...remote.goalPrefs}:{...stateRef.current.goalPrefs};
     setDataState(d);setHabitsState(h);setHcState(hcD);setMgState(g);setMgMonthlyState(gm);setGoalPrefsState(gp);
     stateRef.current={data:d,habits:h,hc:hcD,goals:g,monthlyGoals:gm,goalPrefs:gp};
@@ -13117,7 +13134,7 @@ function App(){
   const gitaNext=()=>{const ni=(gitaModalIdx+1)%GITA_LESSONS.length;setGitaModalIdx(ni);setGitaModal(GITA_LESSONS[ni]);};
   const gitaPrev=()=>{const ni=(gitaModalIdx-1+GITA_LESSONS.length)%GITA_LESSONS.length;setGitaModalIdx(ni);setGitaModal(GITA_LESSONS[ni]);};
 
-  useEffect(()=>{const check=()=>{const n=new Date();if(n.getDate()!==now.getDate()||n.getMonth()!==now.getMonth()||n.getFullYear()!==now.getFullYear()){setNow(n);const cw=getMondayKey(n),sw=localStorage.getItem(SK.weekKey);if(sw!==cw){setHcState({});saveJ(SK.hc,{});localStorage.setItem(SK.weekKey,cw);}}};const t=setInterval(check,15000);return()=>clearInterval(t);},[now]);
+  useEffect(()=>{const check=()=>{const n=new Date();if(n.getDate()!==now.getDate()||n.getMonth()!==now.getMonth()||n.getFullYear()!==now.getFullYear()){setNow(n);const cw=getMondayKey(n),sw=localStorage.getItem(SK.weekKey);if(sw!==cw){setHc({});localStorage.setItem(SK.weekKey,cw);}}};const t=setInterval(check,15000);return()=>clearInterval(t);},[now]);
 
   // ── stateRef: always current, updated synchronously inside wrapped setters ──
   const vdRef=useRef({data:init.data,habits:init.habits,hc:init.hc,goals:init.goals,monthlyGoals:init.monthlyGoals||[],goalPrefs:{...GOAL_PREFS_DEF,...(init.goalPrefs||{})},rules:init.rules||[],rulesDaily:{...RULES_DAILY_DEF,...(init.rulesDaily||{})}});
@@ -13210,10 +13227,22 @@ function App(){
     if(remote._fromCache&&rs&&ls&&rs===ls)return;
     vdLastAppliedRef.current=rs||ls;
     const now2=new Date(),cw=getMondayKey(now2);
-    let hcD=remote.hc||{};if((remote.weekKey||"")!==cw)hcD={};
+    // Same rule as Tony's TaskHub: the weekly reset is destructive (it is saved
+    // locally and re-uploaded on the next edit), so it may only run on trusted
+    // state. A cache-fallback read can predate the rollover — blanking on one is
+    // how a week of habit ticks disappeared. A real server doc still resets.
+    let hcD=remote.hc||{};
+    if((remote.weekKey||"")!==cw){
+      const localFresh=localStorage.getItem(SK.weekKey)===cw&&Object.keys(vdRef.current.hc||{}).length>0;
+      hcD=(remote._fromCache&&localFresh)?vdRef.current.hc:{};
+    }
     const restoreItem=item=>{if(!item)return item;const out={...item};if(out.repeat&&out.repeat!=="none"&&!Array.isArray(out.repeatDays))out.repeatDays=[];return out;};
     const restoreData=d=>{if(!d)return{};const out={};Object.entries(d).forEach(([dk,arr])=>{out[dk]=Array.isArray(arr)?arr.map(restoreItem):arr;});return out;};
-    const d=restoreData(remote.data)||{},h=remote.habits||[],g=pruneDoneGoals(remote.goals||[]),gm=pruneDoneGoals(remote.monthlyGoals||[]);
+    // Absent field = no news, never "deleted" — see Tony's applyRemote.
+    const d=remote.data?restoreData(remote.data):{...vdRef.current.data};
+    const h=Array.isArray(remote.habits)?remote.habits:(vdRef.current.habits||[]);
+    const g=pruneDoneGoals(Array.isArray(remote.goals)?remote.goals:(vdRef.current.goals||[]));
+    const gm=pruneDoneGoals(Array.isArray(remote.monthlyGoals)?remote.monthlyGoals:(vdRef.current.monthlyGoals||[]));
     const gp=remote.goalPrefs?{...GOAL_PREFS_DEF,...remote.goalPrefs}:{...vdRef.current.goalPrefs};
     // A doc written before rules shipped has no `rules` field — keep the local
     // list rather than letting "absent" read as "the user deleted everything".
@@ -40469,6 +40498,113 @@ setInterval(()=>{
   }
 },30*60*1000);
 
+// ── Scroll bar ─────────────────────────────────────────────────────────────
+// ProView scrolls inside #pv-root with the native bar hidden, so there was no
+// read-out of how far down the schedule you are and nothing to grab on a phone.
+// This is a thin overlay bar living on <body> (render() wipes pv-root's children
+// on every pass, so it cannot live inside it): it fades in while you scroll or
+// hold it, fades out ~1.1s after you stop, and drags with mouse or finger.
+(function(){
+  var bar=null,thumb=null,root=null,idle=null,drag=null,hover=false;
+
+  function styles(){
+    if(document.getElementById('pv-sbar-css')) return;
+    var st=document.createElement('style'); st.id='pv-sbar-css';
+    st.textContent=
+      '#pv-root{scrollbar-width:none;}'+
+      '#pv-root::-webkit-scrollbar{width:0;height:0;}'+
+      '#pv-sbar{position:fixed;right:3px;bottom:6px;width:14px;z-index:10000;'+
+        'top:calc(env(safe-area-inset-top,0px) + 48px);'+   /* clears the fixed nav */
+        'opacity:0;transition:opacity .28s ease;pointer-events:none;}'+
+      '#pv-sbar.on{opacity:1;pointer-events:auto;}'+
+      '#pv-sbar .pv-thumb{position:absolute;top:0;left:4px;width:6px;border-radius:99px;'+
+        'background:rgba(192,174,234,.42);cursor:grab;touch-action:none;'+
+        'transition:background .18s ease,width .18s ease,left .18s ease;}'+
+      '#pv-sbar.hot .pv-thumb{background:rgba(192,174,234,.75);width:8px;left:3px;}'+
+      '#pv-sbar.dragging .pv-thumb{cursor:grabbing;}';
+    document.head.appendChild(st);
+  }
+
+  // Visible, scrollable, and the thumb sized/placed for where we are. Returns
+  // false when there is nothing to scroll — the bar stays hidden then.
+  function layout(){
+    if(!bar||!root) return false;
+    if(root.style.display==='none'||!root.clientHeight){ bar.classList.remove('on'); return false; }
+    var ch=root.clientHeight, sh=root.scrollHeight, max=sh-ch;
+    if(max<=4){ bar.classList.remove('on'); return false; }
+    var trackH=bar.clientHeight;
+    var h=Math.max(34,Math.round(trackH*ch/sh));
+    thumb.style.height=h+'px';
+    thumb.style.transform='translateY('+Math.round((root.scrollTop/max)*(trackH-h))+'px)';
+    return true;
+  }
+  function show(){ if(!layout()) return; clearTimeout(idle); bar.classList.add('on'); }
+  function fade(){ clearTimeout(idle); if(drag||hover) return;
+    idle=setTimeout(function(){ bar.classList.remove('on'); },1100); }
+  function onScroll(){ show(); fade(); }
+
+  function grabStart(e){
+    if(!layout()) return;
+    e.preventDefault();
+    var r=thumb.getBoundingClientRect();
+    drag={id:e.pointerId,off:e.clientY-r.top,h:r.height};
+    bar.classList.add('dragging','hot'); show();
+    try{ thumb.setPointerCapture(e.pointerId); }catch(err){}
+  }
+  function grabMove(e){
+    if(!drag||e.pointerId!==drag.id) return;
+    var br=bar.getBoundingClientRect(), span=br.height-drag.h;
+    var f=span>0?Math.min(1,Math.max(0,(e.clientY-br.top-drag.off)/span)):0;
+    root.scrollTop=f*(root.scrollHeight-root.clientHeight);
+    layout();
+  }
+  function grabEnd(e){
+    if(!drag||(e&&e.pointerId!==drag.id)) return;
+    drag=null; bar.classList.remove('dragging');
+    if(!hover) bar.classList.remove('hot');
+    fade();
+  }
+  // Tapping the track jumps there, same as a native bar.
+  function trackJump(e){
+    if(e.target===thumb||!layout()) return;
+    var br=bar.getBoundingClientRect(), h=thumb.getBoundingClientRect().height;
+    var f=Math.min(1,Math.max(0,(e.clientY-br.top-h/2)/(br.height-h)));
+    root.scrollTo({top:f*(root.scrollHeight-root.clientHeight),behavior:'smooth'});
+    show(); fade();
+  }
+
+  function init(){
+    root=document.getElementById('pv-root');
+    if(!root||bar) return;
+    styles();
+    bar=document.createElement('div'); bar.id='pv-sbar';
+    thumb=document.createElement('div'); thumb.className='pv-thumb';
+    bar.appendChild(thumb); document.body.appendChild(bar);
+
+    root.addEventListener('scroll',onScroll,{passive:true});
+    bar.addEventListener('pointerenter',function(){ hover=true; bar.classList.add('hot'); show(); });
+    bar.addEventListener('pointerleave',function(){ hover=false; if(!drag) bar.classList.remove('hot'); fade(); });
+    bar.addEventListener('pointerdown',trackJump);
+    thumb.addEventListener('pointerdown',grabStart);
+    window.addEventListener('pointermove',grabMove);
+    window.addEventListener('pointerup',grabEnd);
+    window.addEventListener('pointercancel',grabEnd);
+    window.addEventListener('resize',function(){ layout(); });
+
+    // render() replaces pv-root's children and rewrites its style, so re-measure
+    // on both — and flash the bar when ProView itself comes back on screen.
+    var wasOn=root.style.display!=='none';
+    new MutationObserver(function(){
+      var on=root.style.display!=='none';
+      if(on&&!wasOn){ show(); fade(); } else layout();
+      wasOn=on;
+    }).observe(root,{childList:true,attributes:true,attributeFilter:['style']});
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+  else init();
+})();
+
 })();
 </script>
 
@@ -42599,6 +42735,10 @@ function applyLinks(){
 }
 window._navApplyLinks=applyLinks;
 window._navGetLinks=function(p){ return _linksFor(p).map(_sanLink); };
+// The Settings module lives in its own IIFE and cannot see _isLocalPath directly;
+// without this export its normalizeUrl() threw a ReferenceError and "Add header
+// button" silently did nothing.
+window._navIsLocalPath=_isLocalPath;
 window._navAddLink=function(p,link){
   if(!link||!link.label||!link.url) return null;
   var id='L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -43168,7 +43308,9 @@ function normalizeUrl(u){
   // that regex, but relying on that coincidence is exactly how this silently
   // breaks the moment someone reorders these checks. A local path is never a
   // candidate for the https:// fallback, full stop.
-  if(_isLocalPath(u)) return u;
+  // The one owner of this test is the nav module, which exports it — this IIFE
+  // has no direct access to it.
+  if(window._navIsLocalPath && window._navIsLocalPath(u)) return u;
   if(/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u)) return u;      // already has a scheme (http:, mailto:, …)
   if(u.indexOf('/')===0) return u;                       // site-relative path
   return 'https://'+u;                                   // bare domain

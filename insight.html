@@ -1649,12 +1649,10 @@
     await synced(setDoc(elRef, { recurring, recurringState, recurringOrder, cash: cashBal, savedAt: Date.now() }, { merge: true }));
   }
 
-  // "Updated at 3:42 PM on July 21, 2026" — device locale + timezone.
+  // "Updated 7/21/26, 3:42 PM" — device locale + timezone. Same short shape
+  // TradeHub uses for its Portfolio and Journal stamps.
   function fmtUpdatedAt(ms) {
-    const d = new Date(ms);
-    const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const date = d.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
-    return `Updated at ${time} on ${date}`;
+    return 'Updated ' + new Date(ms).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
   }
 
   function relTime(ms) {
@@ -1779,7 +1777,7 @@
       else if (d.lastX > r.right - EDGE) step = SPEED;
       if (step) {
         const was = nav.scrollLeft;
-        nav.scrollLeft += step;
+        nav.scrollLeft = Math.max(0, Math.min(d.maxScroll, was + step));
         if (nav.scrollLeft !== was) { follow(d.lastX); checkSwap(d.lastX); }
       }
       autoRaf = requestAnimationFrame(autoScroll);
@@ -1789,6 +1787,12 @@
       d.dragging = true;
       d.grabX = e.clientX;
       d.grabScroll = nav.scrollLeft;
+      // Measured now, while the lifted tab is still untransformed. A translated
+      // child extends the strip's scrollable area, so once the drag starts
+      // scrollWidth grows with every pixel we scroll — reading it inside
+      // autoScroll() made the right edge run away forever. Reordering never
+      // changes the total width, so this figure stays valid for the whole drag.
+      d.maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
       d.lastX = e.clientX;
       d.tab.style.transition = '';        // never lag behind the finger
       d.tab.classList.add('navdrag');

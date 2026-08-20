@@ -337,6 +337,11 @@
       '.vcl-prev img,.vcl-prev video{max-width:100%;max-height:64vh;display:block;}',
       '.vcl-prev iframe{width:100%;height:64vh;border:0;background:#fff;}',
       '.vcl-prev pre{margin:0;padding:15px;font:400 12px/1.65 var(--mono,"IBM Plex Mono",monospace);color:var(--tx);white-space:pre-wrap;word-break:break-word;width:100%;}',
+      '.vcl-sheet{width:100%;align-self:stretch;overflow:auto;}',
+      '.vcl-sheet table{border-collapse:collapse;font:400 12px/1.5 var(--sans);color:var(--tx);}',
+      '.vcl-sheet th,.vcl-sheet td{border:1px solid var(--bd);padding:6px 10px;text-align:left;vertical-align:top;white-space:pre-wrap;max-width:340px;}',
+      '.vcl-sheet thead th{position:sticky;top:0;z-index:1;background:var(--s3);font-weight:600;color:var(--txd);}',
+      '.vcl-sheet .note{padding:9px 10px 3px;font:400 11px/1.5 var(--sans);color:var(--txm);}',
 
       /* properties + activity rows */
       '.vcl-prop{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--bd);font:400 12.5px/1.4 var(--sans);}',
@@ -1345,6 +1350,49 @@
   }
 
   /* ── Preview ──────────────────────────────────────────────────────────────*/
+  // Sheets export as CSV (first tab only) — rendered as a real table so a
+  // spreadsheet still reads like one. Quoted fields can hold commas, newlines
+  // and doubled quotes, so this walks the text instead of splitting it.
+  function parseCsv(text) {
+    var rows = [], row = [], v = '', quoted = false;
+    text = text.replace(/\r\n?/g, '\n');
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i];
+      if (quoted) {
+        if (c !== '"') { v += c; continue; }
+        if (text[i + 1] === '"') { v += '"'; i++; } else quoted = false;
+      } else if (c === '"') quoted = true;
+      else if (c === ',') { row.push(v); v = ''; }
+      else if (c === '\n') { row.push(v); rows.push(row); row = []; v = ''; }
+      else v += c;
+    }
+    if (v !== '' || row.length) { row.push(v); rows.push(row); }
+    return rows;
+  }
+
+  var SHEET_ROWS = 400, SHEET_COLS = 40;
+  function sheetRow(tag, cells) {
+    var tr = el('tr');
+    cells.slice(0, SHEET_COLS).forEach(function (c) { tr.appendChild(el(tag, { text: c })); });
+    return tr;
+  }
+  function sheetTable(csv) {
+    var rows = parseCsv(csv).filter(function (r) { return r.some(function (c) { return c !== ''; }); });
+    var wrap = el('div', { class: 'vcl-sheet' });
+    if (!rows.length) {
+      wrap.appendChild(el('div', { class: 'note', text: 'This sheet is empty.' }));
+      return wrap;
+    }
+    var shown = rows.slice(0, SHEET_ROWS);
+    var head = el('thead', null, [sheetRow('th', shown[0])]);
+    var body = el('tbody', null, shown.slice(1).map(function (r) { return sheetRow('td', r); }));
+    wrap.appendChild(el('table', null, [head, body]));
+    var note = 'first sheet only · open in cloud for the full file';
+    if (rows.length > SHEET_ROWS) note = (rows.length - SHEET_ROWS) + ' more rows · ' + note;
+    wrap.appendChild(el('div', { class: 'note', text: note }));
+    return wrap;
+  }
+
   async function openPreview(e) {
     var k = vc().kindOf(e);
     var host = el('div', { class: 'vcl-prev', style: 'min-height:180px' }, [
@@ -1363,8 +1411,49 @@
     var prov = vc().get(e.provider);
     var inlineKinds = ['image', 'video', 'audio', 'pdf', 'text'];
 
-    // Google-native docs have no byte stream at all — always the cloud viewer.
+    // Google-native docs have no byte stream at all. Drive's own viewer renders
+    // them, but that iframe authenticates with Google's third-party cookies —
+    // which mobile Brave blocks, so it put up a "Sign in to your Google Account"
+    // wall even while Vault itself was signed in. Export through the API on our
+    // OAuth token instead, and keep the viewer only as the fallback.
     if (/application\/vnd\.google-apps\./.test(e.mime || '')) {
+      var native = (e.mime || '').split('.').pop();
+      if (prov && prov.exportBlob) {
+        try {
+          if (native === 'spreadsheet') {
+            var csv = await (await prov.exportBlob(e, 'text/csv')).text();
+            host.innerHTML = '';
+            host.appendChild(sheetTable(csv));
+            return;
+          }
+          if (native === 'document') {
+            var docHtml = await (await prov.exportBlob(e, 'text/html')).text();
+            host.innerHTML = '';
+            host.appendChild(el('iframe', { sandbox: '', srcdoc: docHtml, title: e.name }));
+            return;
+          }
+          if (native === 'drawing') {
+            host.innerHTML = '';
+            host.appendChild(el('img', { src: URL.createObjectURL(await prov.exportBlob(e, 'image/png')), alt: e.name }));
+            return;
+          }
+          // Slides only export as PDF, which a phone browser won't render in a
+          // frame — there the honest answer is Drive itself, one tap away below.
+          if (native === 'presentation') {
+            if (!matchMedia('(pointer: coarse)').matches) {
+              host.innerHTML = '';
+              host.appendChild(el('iframe', { src: URL.createObjectURL(await prov.exportBlob(e, 'application/pdf')), title: e.name }));
+              return;
+            }
+            host.innerHTML = '';
+            host.appendChild(el('div', { class: 'vcl-empty' }, [
+              el('div', { class: 'big', text: 'Open it in Google Drive' }),
+              el('div', { text: 'Slides don’t preview inside a phone browser — use "Open in cloud" below.' })
+            ]));
+            return;
+          }
+        } catch (err) { /* fall through to Drive's viewer */ }
+      }
       host.innerHTML = '';
       host.appendChild(el('iframe', { src: 'https://drive.google.com/file/d/' + e.id + '/preview', allow: 'autoplay', title: e.name }));
       return;

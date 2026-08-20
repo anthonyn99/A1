@@ -652,6 +652,20 @@
       return entry.folder ? null : 'https://drive.google.com/file/d/' + entry.id + '/preview';
     },
 
+    // Google-native docs rendered through drive.google.com/preview need Google's
+    // own cookies, which mobile Brave (and any browser blocking third-party
+    // cookies) withholds — the frame then shows "Sign in to your Google Account"
+    // even though Vault itself is signed in. Exporting through the API instead
+    // rides our OAuth token, so the preview works wherever Vault does.
+    exportBlob: async function (entry, mime) {
+      var t = await this.ready();
+      var r = await fetch('https://www.googleapis.com/drive/v3/files/' + entry.id +
+        '/export?mimeType=' + encodeURIComponent(mime),
+        { headers: { Authorization: 'Bearer ' + t.access } });
+      if (!r.ok) throw new Error('Export failed (' + r.status + ')');
+      return r.blob();
+    },
+
     downloadUrl: async function (entry) {
       var t = await this.ready();
       // Google-native docs (Docs/Sheets/Slides) have no byte stream — export.
