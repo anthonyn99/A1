@@ -5,13 +5,13 @@ On every market weekday (Mon–Fri, skipping NYSE holidays), the FIRST time you
 wake / unlock / boot your laptop at or after 6 AM Mountain Time, it first makes you
 confirm your Daily Reminder, and only then opens:
   - WeBull Desktop   →  left   panel
-  - TradeHub         →  middle panel  (a BRAND-NEW Brave window, never mixed in
-                        with your existing browser windows — even on a cold start,
-                        where Brave's session restore is kept in its OWN windows)
+  - TradeHub         →  middle panel  (a tab in the Brave window you already have
+                        open, moved to the middle panel; only if Brave has no
+                        window at all does this open one)
   - TaskHub          →  right  panel  (Brave app shortcut)
   - Your AI site     →  your selected TradeHub "Analysis" prompt, AUTO-SUBMITTED,
                         plus your configured Analysis search tabs — all as tabs in
-                        that same new TradeHub window.
+                        that same TradeHub window.
 
 You can also deploy this whole flow ON DEMAND from TradeHub → Analysis → "Deploy
 Trading Auto Launch". Because TradeHub is already open there, it reuses that
@@ -975,32 +975,49 @@ def webull_post_launch(hwnd, initial_delay=None):
     log("WeBull: Trackers tab selected.")
 
 
+def _primary_brave_hwnd():
+    """The Brave window to treat as "the one you already have open": whichever is in
+    front if that's Brave, otherwise the largest — the main browser frame rather than
+    a small popup or a torn-off tab. None if there is no such window.
+
+    TaskHub is skipped: it runs as a Brave APP window, which has no tab strip, so a
+    URL handed to it bounces into some other window anyway. It belongs to the same
+    brave.exe process as real browser windows, so nothing but its title tells them
+    apart."""
+    braves = {h for h in _all_brave_hwnds() if "taskhub" not in _hwnd_title(h).lower()}
+    if not braves:
+        return None
+    fg = _u32.GetForegroundWindow()
+    if fg in braves:
+        return fg
+    def area(h):
+        r = _get_window_rect(h)
+        return (r.right - r.left) * (r.bottom - r.top) if r else 0
+    return max(braves, key=area)
+
+
 def _open_browser_window(browser: str, url: str, pos: list):
-    """Open url in a BRAND-NEW Brave window at pos and return its HWND (or None).
+    """Open url in the Brave window you already have open and return its HWND.
 
-    The trading workspace gets a window of its OWN — it must never be bolted on as
-    tabs to whatever Brave window happens to be open (email, personal browsing).
-    Everything else the launcher opens in the browser (ChatGPT + the searches) is
-    then added to the window returned here, so the whole session lives in one
-    dedicated window.
+    The workspace is built around the window that is already there: a bare
+    `brave <url>` is handed to the running instance over IPC and lands as a TAB in
+    the last-focused window, so we focus the chosen window first to make that
+    choice deterministic, then confirm the tab arrived by finding the Brave window
+    whose title now names the page. Everything else the launcher opens in the
+    browser (the AI site + the searches) is added to the window returned here, so
+    the whole session stays together. That window is then moved to its panel — the
+    three-panel layout is the point of the launcher.
 
-    Brave is asked for a new window with --new-window, but that isn't something we
-    can just assume worked: when an instance is already running, the request is
-    handed to it over IPC and can be answered by reusing an existing window — which
-    is exactly how the workspace used to end up mixed in with other tabs. So we
-    VERIFY a genuinely new Brave window appeared and ask once more if it didn't.
-
-    COLD START: if Brave is fully closed, launching `--new-window url` boots Brave,
-    which then ALSO runs its own session restore — and the restored window can
-    swallow our url, landing the whole workspace in yesterday's browsing session.
-    To prevent that we first start Brave plainly, let its session restore finish in
-    its OWN window(s), and only THEN ask for a dedicated new window (with Brave now
-    running, --new-window reliably makes a fresh, separate window)."""
+    COLD START: if Brave is fully closed we start it plainly first and let its
+    session restore finish, then use a restored window like any other. Only when
+    Brave ends up with no window at all does this open one itself (positioned), and
+    then it VERIFIES a genuinely new window appeared and asks once more if it
+    didn't — with an instance already running, --new-window can be answered over
+    IPC by reusing a window instead."""
     x, y, w, h = pos
 
     if not _all_brave_hwnds():
-        log("Brave is closed — starting it first so its session restore lands in its "
-            "OWN window(s), kept separate from the trading workspace...")
+        log("Brave is closed — starting it first and letting its session restore finish...")
         subprocess.Popen([browser])          # plain start → restores previous session if configured
         if _wait_for_any_brave_window(timeout=40):
             _settle_brave_restore()          # wait until restored windows stop appearing
@@ -1009,6 +1026,31 @@ def _open_browser_window(browser: str, url: str, pos: list):
 
     before = _all_brave_hwnds()
 
+    # ── Reuse: add the page as a tab to the window that's already open ──────────
+    target = _primary_brave_hwnd()
+    if target:
+        _focus_window(target)                # so Brave's "last-focused window" is this one
+        log("Brave is already open — adding the page as a tab to that window.")
+        subprocess.Popen([browser, url])
+        # Confirm where it landed by title rather than trusting the focus: if Brave
+        # put the tab in a different window, that window is the workspace now.
+        page = url.rstrip("/").rsplit("/", 1)[-1].split(".")[0] or ""
+        hwnd = _find_brave_window_by_title(page, timeout=20) if page else None
+        if not hwnd:
+            # The title never matched (a redirect, a slow load). The tab still went
+            # to the focused window, so use it — but only if it's still a real
+            # Brave window.
+            hwnd = target if target in _all_brave_hwnds() else None
+            if hwnd:
+                log(f"Couldn't confirm the tab by title for {url} — using the focused "
+                    f"Brave window.")
+        if hwnd:
+            _place(hwnd, x, y, w, h)
+            return hwnd
+        log(f"WARNING: lost track of the Brave window for {url} — opening a dedicated "
+            f"one instead.")
+
+    # ── Nothing to reuse: open a window of our own, positioned ─────────────────
     for attempt in (1, 2):
         # Before asking again, check whether attempt 1's window simply arrived late
         # (a very slow cold start can outrun the wait below). Without this the retry
@@ -1041,14 +1083,15 @@ def _open_browser_window(browser: str, url: str, pos: list):
 
 
 def open_tradehub():
-    """Open TradeHub in a brand-new Brave window and return that window's HWND, so
-    the AI + search tabs can be opened INTO the same window."""
+    """Open TradeHub in the Brave window you already have open (a new one only if
+    Brave has none) and return that window's HWND, so the AI + search tabs are
+    opened INTO the same window."""
     brave = _find_brave()
     if not brave:
         log("ERROR: Brave not found. Set BRAVE_EXE_OVERRIDE at the top of this file.")
         return None
 
-    log("Opening TradeHub in a new Brave window...")
+    log("Opening TradeHub...")
     return _open_browser_window(brave, TRADEHUB_URL, TRADEHUB_POS)
 
 
@@ -1329,7 +1372,8 @@ def open_chatgpt_analysis(target_hwnd=None):
             + (f" + {ai_label} to the TradeHub window..." if ai_url else " to the TradeHub window..."))
         subprocess.Popen([brave] + tabs)
     else:
-        # Standalone: one dedicated new window (searches + the AI site as tabs).
+        # No TradeHub window to add to (nothing was open to reuse, or it went away):
+        # fall back to one dedicated new window (searches + the AI site as tabs).
         x, y, w, h = CHATGPT_POS
         snapshot = _all_brave_hwnds()
         log(f"AI analysis: opening 1 window with {n_searches} search tab(s)"

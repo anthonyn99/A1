@@ -4483,6 +4483,21 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     setResults(out);
   };
 
+  /* ── Quick prompt ── a one-off you type here instead of saving it to Prompts.
+     It goes out through handleQuickLaunch, so the destination, the extension
+     hand-off, the mobile prefill link and the clipboard fallback are all the
+     same code the saved prompts use — nothing about sending is duplicated here.
+     Kept in localStorage so a half-written prompt survives switching tabs; it is
+     deliberately NOT synced, being scratch text rather than a saved prompt. */
+  const QUICK_KEY='tb_quick_prompt';
+  const [quickText,setQuickText]=React.useState(()=>{try{return localStorage.getItem(QUICK_KEY)||'';}catch(e){return '';}});
+  const setQuick=(v)=>{setQuickText(v);try{localStorage.setItem(QUICK_KEY,v);}catch(e){}};
+  const quickReady=!!quickText.trim();
+  /* onClick, not onMouseDown: the tab-opening below only survives inside a real
+     user gesture, and click is the one event a finger and a mouse both raise —
+     the prompt chips send on click for exactly this reason. */
+  const sendQuick=()=>{const t=quickText.trim();if(!t)return;handleQuickLaunch({text:t,name:'Quick prompt'});};
+
   // Deploy the ENTIRE Trading Auto Launch (reminder gate → WeBull → TaskHub →
   // windows → AI site + searches). Because TradeHub is already open here, the native
   // launcher reuses THIS window; we just trigger it via its URL protocol and the
@@ -4515,8 +4530,35 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8,display:'flex',alignItems:'center',gap:7}}><TBIcon n="command" size={12}/>Clipboard prompts</div>
       <TBPromptSelect prompts={prompts} value={cfg.analysisPromptId} onChange={id=>saveCfg({...cfg,analysisPromptId:id})} onGoToPrompts={onGoToPrompts} onQuickLaunch={handleQuickLaunch}/>
       <div style={{fontSize:11,color:'var(--txd)',marginTop:8,lineHeight:1.6}}>
-        <b>Double-click</b> (double-tap) a prompt to send that one on its own{aiSite.id==='none'?'':` to ${aiSite.label}`} — no search tabs.
-        Tap the <b>★</b> to pick the prompt Launch Analysis and the morning deploy send.
+        <b>Double-tap</b> a prompt to send just that one{aiSite.id==='none'?'':` to ${aiSite.label}`}, without the searches. The <b>★</b> picks what Launch Analysis and the morning deploy send.
+      </div>
+    </div>
+
+    {/* Quick prompt — type one now; sent exactly like a saved prompt */}
+    <div style={{marginBottom:20}}>
+      <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8,display:'flex',alignItems:'center',gap:7}}><TBIcon n="pencil" size={12}/>Quick prompt</div>
+      <div style={{display:'flex',flexDirection:'column',gap:10,padding:'14px 16px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--bgc)'}}>
+        <textarea value={quickText} onChange={e=>setQuick(e.target.value)}
+          onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();sendQuick();}}}
+          placeholder="Type a one-off prompt…" rows={3} spellCheck={true}
+          style={{width:'100%',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',
+            fontSize:13,lineHeight:1.55,padding:'10px',boxSizing:'border-box',fontFamily:'inherit',resize:'vertical',minHeight:70,outline:'none'}}
+          onFocus={e=>e.target.style.borderColor='var(--ac)'} onBlur={e=>e.target.style.borderColor='var(--bd)'}/>
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <button onClick={sendQuick} disabled={!quickReady}
+            style={{display:'inline-flex',alignItems:'center',gap:7,borderRadius:8,padding:'9px 18px',fontSize:13,fontWeight:800,
+              border:quickReady?'none':'1.5px solid var(--bd)',background:quickReady?'var(--ac)':'transparent',
+              color:quickReady?'#000':'var(--txd)',cursor:quickReady?'pointer':'not-allowed',opacity:quickReady?1:.5,
+              transition:'all .15s',touchAction:'manipulation'}}>
+            <TBIcon n="bolt" size={14}/> {aiSite.id==='none'?'Copy prompt':`Send to ${aiSite.label}`}
+          </button>
+          <span style={{fontSize:11,color:'var(--txd)'}}>
+            {quickReady?`${quickText.trim().length.toLocaleString()} chars · ⌘/Ctrl+Enter sends`:'Sent the same way as a saved prompt — no searches.'}
+          </span>
+          {quickReady&&<button onClick={()=>setQuick('')} title="Clear"
+            style={{marginLeft:'auto',border:'none',background:'transparent',color:'var(--txm)',fontSize:12,fontWeight:700,cursor:'pointer',padding:'4px 2px'}}
+            onMouseEnter={e=>e.currentTarget.style.color='var(--tbr)'} onMouseLeave={e=>e.currentTarget.style.color='var(--txm)'}>Clear</button>}
+        </div>
       </div>
     </div>
 
@@ -4543,24 +4585,24 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
           <span style={{color:autoSubmit?'var(--ac)':'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n={autoSubmit?'bolt':'command'} size={12}/></span>
           <span>{aiSite.id==='none'
-            ? 'No AI tab is opened — Launch Analysis just copies the prompt and opens your searches.'
+            ? 'No AI tab — the prompt is copied and your searches open.'
             : autoSubmit
-              ? <>Vault extension detected — Launch Analysis opens {aiSite.label}, <b>types the prompt in and sends it</b>, then leaves you on that tab. It stays on your clipboard too, as a fallback.</>
+              ? <>Vault extension detected — opens {aiSite.label}, <b>types the prompt in and sends it</b>. Your clipboard keeps a copy.</>
               : tbCanPrefill(cfg)
-                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. This is the mobile path too: phones can't run the Vault extension, so a prefill link is as far as any browser allows. Prompts over ~{TB_PREFILL_MAX.toLocaleString()} characters don't fit in a link and arrive on your clipboard instead.</>
-                : <>Launch Analysis opens {aiSite.label} with the prompt on your clipboard — paste with Ctrl+V, then Enter. {aiSite.id==='custom'?<>Put <code style={{fontFamily:'monospace'}}>{'{prompt}'}</code> in the URL above to have it typed in for you.</>:<>This destination has no prefill link, so pasting is the only way in.</>} Install the <b>Vault extension</b> (desktop) to have it typed and sent automatically.</>}
+                ? <>Opens {aiSite.label} with the prompt <b>already typed in</b>{aiSite.sends?<> and <b>sent</b></>:<> — you just hit send</>}. Same on a phone. Over ~{TB_PREFILL_MAX.toLocaleString()} characters it arrives on your clipboard instead.</>
+                : <>Opens {aiSite.label} with the prompt on your clipboard — paste, then Enter. {aiSite.id==='custom'?<>Add <code style={{fontFamily:'monospace'}}>{'{prompt}'}</code> to the URL above to have it typed in.</>:<>This one has no prefill link.</>} The <b>Vault extension</b> (desktop) types and sends it for you.</>}
           </span>
         </div>
         {aiSite.id!=='none'&&(
           <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5,display:'flex',alignItems:'flex-start',gap:7}}>
             <span style={{color:'var(--txd)',flexShrink:0,marginTop:1}}><TBIcon n="link" size={12}/></span>
             <span>{aiSite.app
-              ? <>On your phone this opens the <b>{aiSite.label} app</b> when you have it installed — already signed in, which the website isn't — and the website when you don't. One or the other, never both. The app can't take a prefilled link, so the prompt goes to your clipboard for it.</>
-              : <>On your phone this stays in the <b>browser</b> — {aiSite.id==='custom'?'no app gets a look in':<>the {aiSite.label} app is kept out of the way</>}, so the prefilled link survives. Searches stay in the browser too.</>}</span>
+              ? <>On a phone: the <b>{aiSite.label} app</b> if it's installed (already signed in), otherwise the website — never both. The app can't take a prefilled link, so the prompt goes to your clipboard.</>
+              : <>On a phone this stays in the <b>browser</b>{aiSite.id==='custom'?'':<>, not the {aiSite.label} app</>}, so the prefilled link survives.</>}</span>
           </div>
         )}
         {aiSite.id!=='chatgpt'&&aiSite.id!=='none'&&(
-          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>The morning Trading Auto Launch (Deploy, below) follows this setting too — it opens {aiSite.label} and submits the prompt there.</div>
+          <div style={{fontSize:11,color:'var(--txd)',lineHeight:1.5}}>The morning deploy (below) sends to {aiSite.label} too.</div>
         )}
       </div>
     </div>
@@ -4610,7 +4652,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
               style={{width:'100%',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',fontSize:13,padding:'10px',boxSizing:'border-box',fontFamily:'inherit'}}/>
           </div>
         ))}
-        <div style={{fontSize:11,color:'var(--txd)'}}>Plain text → Google search. Full URL → opens directly. Each opens in its own tab, in this order left→right (ChatGPT always opens last).</div>
+        <div style={{fontSize:11,color:'var(--txd)'}}>Plain text → Google. Full URL → opens directly. One tab each, in this order; the AI opens last.</div>
         <button onClick={addSearch} style={{alignSelf:'flex-start',padding:'7px 14px',borderRadius:8,border:'1px dashed var(--bd)',background:'transparent',color:'var(--txd)',fontSize:12,fontWeight:700,cursor:'pointer'}}
           onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--ac)';e.currentTarget.style.color='var(--ac)';}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--bd)';e.currentTarget.style.color='var(--txd)';}}>+ Add search</button>
@@ -4641,7 +4683,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         <TBIcon n="rocket" size={15}/> Deploy Trading Auto Launch
       </button>
       <div style={{fontSize:11,color:'var(--txd)',marginTop:8,lineHeight:1.5,maxWidth:560}}>
-        Runs the whole flow — Daily Reminder → WeBull → TaskHub → window layout — then opens {aiSite.id==='none'?'your searches':<>{aiSite.label} + your searches</>} <b>next to this TradeHub window</b>. Requires the desktop app installed once (<code style={{fontFamily:'monospace'}}>launch.py --setup</code>); Brave asks permission the first time.
+        Runs the whole flow — Daily Reminder → WeBull → TaskHub → window layout — then opens {aiSite.id==='none'?'your searches':<>{aiSite.label} + your searches</>} <b>in this Brave window</b>. Needs <code style={{fontFamily:'monospace'}}>launch.py --setup</code> once; Brave asks permission the first time.
       </div>
     </div>
 
