@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WarRoom</title>
+<meta name="theme-color" content="#1a1a1d">
+<!-- ── App icon ────────────────────────────────────────────────────────────────
+     Hextech hexagon with a sword standing in it: black plate, gray hex, light
+     purple blade — WarRoom's own palette. Inline data URI in the same 96x96 /
+     rx=22 line-art style as every other A1 app, so no asset file to lose. -->
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22WarRoom%22%2C%22short_name%22%3A%22WarRoom%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fwarroom.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fwarroom.html%22%2C%22background_color%22%3A%22%230f0f12%22%2C%22theme_color%22%3A%22%230f0f12%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D'http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg'%2520viewBox%253D'0%25200%252096%252096'%253E%253Crect%2520width%253D'96'%2520height%253D'96'%2520rx%253D'22'%2520fill%253D'%252316161c'%252F%253E%253Cpath%2520d%253D'M48%252019%252073%252033.5v29L48%252077%252023%252062.5v-29Z'%2520fill%253D'none'%2520stroke%253D'%25235a5a68'%2520stroke-width%253D'4'%2520stroke-linejoin%253D'round'%252F%253E%253Cpath%2520d%253D'M48%252026l5%252012v18H43V38Z'%2520fill%253D'%2523c0aeea'%252F%253E%253Crect%2520x%253D'33'%2520y%253D'56'%2520width%253D'30'%2520height%253D'6'%2520rx%253D'3'%2520fill%253D'%2523dbd0f5'%252F%253E%253Crect%2520x%253D'45'%2520y%253D'62'%2520width%253D'6'%2520height%253D'11'%2520rx%253D'3'%2520fill%253D'%252383838f'%252F%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%2316161c'%2F%3E%3Cpath%20d%3D'M48%2019%2073%2033.5v29L48%2077%2023%2062.5v-29Z'%20fill%3D'none'%20stroke%3D'%235a5a68'%20stroke-width%3D'4'%20stroke-linejoin%3D'round'%2F%3E%3Cpath%20d%3D'M48%2026l5%2012v18H43V38Z'%20fill%3D'%23c0aeea'%2F%3E%3Crect%20x%3D'33'%20y%3D'56'%20width%3D'30'%20height%3D'6'%20rx%3D'3'%20fill%3D'%23dbd0f5'%2F%3E%3Crect%20x%3D'45'%20y%3D'62'%20width%3D'6'%20height%3D'11'%20rx%3D'3'%20fill%3D'%2383838f'%2F%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%2316161c'%2F%3E%3Cpath%20d%3D'M48%2019%2073%2033.5v29L48%2077%2023%2062.5v-29Z'%20fill%3D'none'%20stroke%3D'%235a5a68'%20stroke-width%3D'4'%20stroke-linejoin%3D'round'%2F%3E%3Cpath%20d%3D'M48%2026l5%2012v18H43V38Z'%20fill%3D'%23c0aeea'%2F%3E%3Crect%20x%3D'33'%20y%3D'56'%20width%3D'30'%20height%3D'6'%20rx%3D'3'%20fill%3D'%23dbd0f5'%2F%3E%3Crect%20x%3D'45'%20y%3D'62'%20width%3D'6'%20height%3D'11'%20rx%3D'3'%20fill%3D'%2383838f'%2F%3E%3C%2Fsvg%3E">
 <!-- ── Single-tab handoff ──────────────────────────────────────────────────────
      Keeps exactly one tab per program. TaskHub can only focus an existing tab
      inside the browsing context group that opened it, so a PWA relaunch lands
@@ -32,6 +40,161 @@
   announce();
 })();
 </script>
+
+<!-- ══ APP LOCK — the same system index.html, Vault, TradeHub and Solace use:
+        SHA-256 + Cloudflare Worker KV for the password, the shared
+        dashboards/applock Firestore doc for cross-device lock state, WebAuthn
+        biometrics as the primary unlock, Formspree for hint / reset email.
+
+        APPID is 'tony_warroom_standalone', distinct from index.html's
+        'tony_warroom' (which locks the WarRoom nav BUTTON on the TaskHub), so
+        the two are independent — exactly the split Vault and TradeHub use. ══ -->
+<script>
+  /* DURABLE LOCK STORE — localStorage mirrored into a long-lived cookie.
+     Why: the "unlocked once per device" record lived ONLY in localStorage, which
+     Brave (Tony's desktop) and mobile PWABs evict aggressively — so a plain
+     refresh/reopen silently dropped the unlock and re-prompted for the password.
+     The cookie survives many of those evictions; on read we prefer localStorage
+     and rehydrate it from the cookie when missing, so a device stays unlocked
+     until the password genuinely changes or the app is manually re-locked.
+     Identical to vault.html's copy; defined here BEFORE the gate so every lock
+     reader in this file shares it. */
+  (function(){
+    if (window.alDur) return;
+    var YEAR400 = 34560000; // seconds — browsers cap cookie lifetime near 400 days
+    function ck(k){
+      var m = document.cookie.match(new RegExp('(?:^|; )' + k.replace(/[.$?*|{}()\[\]\\\/+^-]/g,'\\$&') + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+    function writeCookie(k,v){
+      try { document.cookie = k + '=' + encodeURIComponent(v) + '; path=/; max-age=' + YEAR400 + '; SameSite=Lax'; } catch(e){}
+    }
+    window.alDur = {
+      get: function(k){
+        var v = null; try { v = localStorage.getItem(k); } catch(e){}
+        if (v != null) {
+          // Write-through: back-fill the cookie so a device already unlocked BEFORE
+          // this durable layer existed becomes eviction-proof on its very first load.
+          if (ck(k) == null) writeCookie(k, v);
+          return v;
+        }
+        var c = ck(k);
+        if (c != null) { try { localStorage.setItem(k, c); } catch(e){} }  // rehydrate
+        return c;
+      },
+      set: function(k,v){
+        try { localStorage.setItem(k, v); } catch(e){}
+        writeCookie(k, v);
+      },
+      remove: function(k){
+        try { localStorage.removeItem(k); } catch(e){}
+        try { document.cookie = k + '=; path=/; max-age=0; SameSite=Lax'; } catch(e){}
+      }
+    };
+  })();
+</script>
+
+<script>
+  /* SECURITY GATE — runs BEFORE first paint. If WarRoom is locked and this device
+     has not unlocked it, keep both roots hidden so no summoner name, match or
+     build ever flashes on screen ahead of the password. */
+  (function(){
+    var APPID = 'tony_warroom_standalone';
+    var locks = {};
+    try { locks = JSON.parse(window.alDur.get('al_locks') || '{}'); } catch(e) {}
+    var entry = locks[APPID];
+    var isLocked = !!entry;
+    var v = (entry && entry.v) || 0;
+    var gotV = parseInt(window.alDur.get('al_unlockedv_' + APPID) || '0', 10);
+    var isUnlocked = v === 0
+      ? (window.alDur.get('al_unlocked_' + APPID) === '1' || gotV > 0)
+      : (gotV > 0 && gotV >= v);
+    window.__wrGateBlocked = !!(isLocked && !isUnlocked);
+    if (window.__wrGateBlocked) {
+      document.documentElement.className += ' wr-prelock';
+    }
+  })();
+</script>
+
+<script>
+(function(){
+  if (window.Bio) return;
+  var NS = 'bio_cred_';
+  function u8(buf){ return new Uint8Array(buf); }
+  function b64u(buf){ var b=u8(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+  function unb64u(str){ str=String(str).replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
+  function rand(n){ var a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
+  function keyOf(app,id){ return NS+app+'_'+id; }
+  function supported(){ return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
+  function available(){
+    if(!supported()) return Promise.resolve(false);
+    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
+    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
+  }
+  function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
+  function isRegistered(app,id){ var r=stored(app,id); return !!(r&&r.id); }
+  function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
+  function label(){
+    var ua=navigator.userAgent||'';
+    if(/iPhone|iPad|iPod/.test(ua)) return 'Face ID';
+    if(/Android/.test(ua)) return 'fingerprint';
+    if(/Windows/.test(ua)) return 'Windows Hello';
+    if(/Mac/.test(ua)) return 'Touch ID';
+    return 'biometrics';
+  }
+  function register(app,id,opts){
+    opts=opts||{};
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    return navigator.credentials.create({publicKey:{
+      challenge: rand(32),
+      rp:{ name: opts.rpName||document.title||'App', id: location.hostname||undefined },
+      user:{ id: rand(16), name: opts.userName||(app+':'+id), displayName: opts.displayName||opts.userName||id },
+      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+      authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred' },
+      timeout: 60000, attestation:'none'
+    }}).then(function(cred){
+      if(!cred) return {ok:false,error:'cancelled'};
+      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), label:opts.displayName||opts.userName||id }));
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
+  }
+  function authenticate(app,id){
+    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    var rec=stored(app,id);
+    if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
+    return navigator.credentials.get({publicKey:{
+      challenge: rand(32),
+      allowCredentials:[{ type:'public-key', id: unb64u(rec.id) }],
+      userVerification:'required', timeout:60000, rpId: location.hostname||undefined
+    }}).then(function(asr){
+      if(!asr) return {ok:false,error:'cancelled'};
+      return {ok:true};
+    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
+  }
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label };
+})();
+</script>
+
+<!-- ══ Icon set — the Lucide-style line icons index.html, Vault, TradeHub and
+        Solace draw from, so a "lock" glyph is identical across the suite. ══ -->
+<script>
+(function(){
+  if (window.SLI) return;
+  function I(body){
+    return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" '
+         + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+  }
+  window.SLI = {
+    lock:   I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+    unlock: I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'),
+    key:    I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/>'),
+    shield: I('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>'),
+    user:   I('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+    trash:  I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')
+  };
+})();
+</script>
+
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 
 <!-- Firebase - loaded dynamically to handle CORS/blocking -->
@@ -61,6 +224,33 @@
 
   signInAnonymously(_fbAuth).catch(e => console.warn('Anon auth failed:', e));
 
+  /* ── APP LOCK — dashboards/applock ──────────────────────────────────────────
+     The SAME doc index.html, Vault, TradeHub and Solace use, so locking WarRoom
+     here or there stays in step across devices. _alApplyRemoteLocks rebuilds the
+     whole map, which is what preserves every OTHER program's entry on write. */
+  const _alDocRef = doc(_fbDb, 'dashboards', 'applock');
+  let _alLastOwnSaveAt = 0, _alSaveTimer = null;
+  window._fbSaveAppLocks = (locksObj) => {
+    clearTimeout(_alSaveTimer);
+    _alSaveTimer = setTimeout(async () => {
+      try {
+        _alLastOwnSaveAt = Date.now();
+        await setDoc(_alDocRef, { locks: locksObj || {}, savedAt: Date.now() });
+        _alLastOwnSaveAt = Date.now();
+      } catch(e) { console.warn('[AppLock] save failed:', e); }
+    }, 400);
+  };
+  window._fbLoadAppLocks = async () => {
+    try { const snap = await getDoc(_alDocRef); if (snap.exists()) return snap.data().locks || {}; }
+    catch(e) { console.warn('[AppLock] load failed:', e); }
+    return null;
+  };
+  onSnapshot(_alDocRef, (snap) => {
+    if (!snap.exists()) return;
+    if (Date.now() - _alLastOwnSaveAt < 2000) return;
+    if (window._alApplyRemoteLocks) window._alApplyRemoteLocks(snap.data().locks || {});
+  }, (err) => console.warn('[AppLock] onSnapshot error:', err));
+
   window._fbReady   = true;
   window._fbDb      = _fbDb;
   window._fbAuth    = _fbAuth;
@@ -72,24 +262,32 @@
 </script>
 
 <style>
+/* ══ PALETTE ═══════════════════════════════════════════════════════════════
+   The A1 suite design system — warm charcoal surfaces, warm neutral text, and
+   muted semantics (sage good, terracotta bad) shared with Insight, Solace,
+   Vault and TradeHub — carrying WarRoom's own identity accent, ProView's light
+   purple. --gold/--gold2 keep their names for continuity; they hold the purple.
+   League rank tiers and rune-tree hues are kept recognisable but desaturated
+   onto the same lightness so nothing shouts against this ground. */
 :root {
-  --bg:     #0f0f12;
-  --bg2:    #141418;
-  --bg3:    #1a1a20;
-  --bg4:    #202028;
-  --bg5:    #252530;
+  --bg:     #1a1a1d;   /* suite ground        */
+  --bg2:    #202024;   /* topbar / header     */
+  --bg3:    #232327;   /* cards               */
+  --bg4:    #2c2c31;   /* raised              */
+  --bg5:    #34343a;   /* highest             */
   --bd:     rgba(255,255,255,0.06);
-  --bd2:    #323240;
-  --tx:     #ececf0;
-  --tx2:    #b8b8cc;
-  --tx3:    #8888a0;
-  --gold:   #a78bfa;
-  --gold2:  #c4b5fd;
-  --blue:   #818cf8;
-  --red:    #d47a6a;
-  --green:  #50C878;
-  --purple: #c4b5fd;
-  --accent: #a78bfa;
+  --bd2:    #45454c;
+  --tx:     #f4f3f0;
+  --tx2:    #adadb2;
+  --tx3:    #8d8d94;
+  --gold:   #c0aeea;   /* identity accent (ProView purple) */
+  --gold2:  #dbd0f5;
+  --blue:   #8fa6d8;   /* blue side / Diamond */
+  --red:    #d68a7c;   /* suite "bad"         */
+  --green:  #a4b986;   /* suite "good"        */
+  --tan:    #e0b874;   /* suite gold — LoL Gold tier, Precision tree */
+  --purple: #dbd0f5;
+  --accent: #c0aeea;
   --head: 'Outfit', sans-serif;
   --body: 'Plus Jakarta Sans', sans-serif;
   --mono: 'JetBrains Mono', monospace;
@@ -133,7 +331,7 @@ body { cursor: default; }
   letter-spacing: 0.5px;
   color: var(--gold);
   margin-right: 32px;
-  text-shadow: 0 0 20px rgba(167,139,250,0.35);
+  text-shadow: 0 0 20px rgba(192,174,234,0.35);
   flex-shrink: 0;
 }
 .tab-btn {
@@ -178,11 +376,67 @@ body { cursor: default; }
 }
 .hdr-btn:hover { border-color: var(--gold); color: var(--gold); }
 
+/* Header lock toggle — dim when WarRoom is unlocked, lit when locked. */
+#wr-lock-btn {
+  height: 30px; width: 30px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--bd2); border-radius: 6px;
+  color: var(--tx2); cursor: pointer; opacity: 0.55; transition: all 0.15s;
+}
+#wr-lock-btn:hover { border-color: var(--gold); color: var(--gold); opacity: 1; }
+#wr-lock-btn svg { width: 15px; height: 15px; display: block; }
+
 /* ── MAIN CONTENT ── */
 #content { flex: 1; overflow: hidden; position: relative; }
 .tab-panel { display: none; width: 100%; height: 100%; overflow-y: auto; padding: 24px; }
 .tab-panel.active { display: block; }
 #builds-panel.active { display: flex !important; flex-direction: column; overflow: hidden; height: 100%; }
+
+/* ══ APP LOCK ══════════════════════════════════════════════════════════════
+   Overlay mirrors index.html / Vault / Solace, retinted to WarRoom's palette. */
+/* Pre-paint: html.wr-prelock is stamped by the gate in <head>, before any of
+   WarRoom's own markup is parsed, so nothing can flash before the password. */
+html.wr-prelock body > #setup-modal,
+html.wr-prelock body > #app,
+body.wr-locked #setup-modal,
+body.wr-locked #app { display: none !important; }
+
+#applock-overlay{position:fixed;inset:0;z-index:2147483000;background:var(--bg);
+  background-image:radial-gradient(120% 50% at 50% -10%,rgba(192,174,234,.09),transparent 70%);
+  display:none;align-items:center;justify-content:center;font-family:var(--body);}
+/* The manage menu injects up to four more buttons, which overflows a short
+   screen (a phone in landscape). Scroll inside the card, never the backdrop. */
+#applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:34px 30px 22px;background:var(--bg3);
+  border:1px solid rgba(192,174,234,.24);border-radius:16px;width:350px;max-width:calc(100vw - 32px);box-shadow:0 32px 80px rgba(0,0,0,.7);position:relative;
+  max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;}
+#applock-head{text-align:center;display:flex;flex-direction:column;gap:5px;}
+#applock-form{width:100%;display:flex;flex-direction:column;gap:10px;}
+#applock-links{display:flex;flex-direction:column;align-items:center;gap:5px;}
+#applock-foot{width:100%;padding-top:14px;border-top:1px solid var(--bd);display:flex;justify-content:center;}
+@keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+#applock-box.shake{animation:applock-shake 0.4s ease;}
+#applock-icon{line-height:0;color:var(--gold);}
+#applock-icon svg{width:30px;height:30px;display:block;}
+#applock-title{font-family:var(--head);font-size:25px;font-weight:800;letter-spacing:-.4px;color:var(--tx);}
+#applock-sub{font-family:var(--mono);font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:var(--tx3);text-align:center;line-height:1.6;}
+#applock-pw{background:var(--bg2);border:1px solid var(--bd2);border-radius:7px;color:var(--tx);font-size:16px;font-weight:500;
+  padding:14px 16px;font-family:var(--body);outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s;}
+#applock-pw:focus{border-color:var(--gold);}
+#applock-pw.error{border-color:var(--red);}
+#applock-err{font-family:var(--mono);font-size:12px;color:var(--red);font-weight:500;text-align:center;min-height:16px;}
+#applock-submit{background:transparent;color:var(--gold2);border:1px solid rgba(192,174,234,.42);border-radius:7px;padding:14px 0;
+  font-size:13.5px;font-weight:600;letter-spacing:.2px;cursor:pointer;font-family:var(--body);width:100%;transition:border-color .18s,opacity .18s;}
+#applock-submit:hover:not(:disabled){border-color:var(--gold);}
+#applock-submit:disabled{opacity:0.4;cursor:default;}
+#applock-cancel{background:transparent;border:none;color:var(--tx3);font-size:13px;cursor:pointer;font-family:var(--body);
+  padding:2px 10px;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
+#applock-forgot{background:transparent;border:none;color:var(--tx3);font-size:12px;cursor:pointer;font-family:var(--body);
+  padding:0;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
+#applock-reset{background:transparent;border:none;color:var(--tx3);font-size:12px;cursor:pointer;font-family:var(--body);
+  padding:2px 0 0;text-decoration:underline;text-underline-offset:3px;width:100%;text-align:center;transition:color .15s;}
+#applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:var(--tx2);}
+#applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0;}
+#applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--tx3);}
 
 /* ── SETUP MODAL ── */
 #setup-modal {
@@ -198,7 +452,7 @@ body { cursor: default; }
   border-radius: 12px;
   padding: 44px 48px;
   width: 500px;
-  box-shadow: 0 60px 120px rgba(0,0,0,0.7), 0 0 0 1px rgba(167,139,250,0.12);
+  box-shadow: 0 60px 120px rgba(0,0,0,0.7), 0 0 0 1px rgba(192,174,234,0.12);
 }
 .setup-logo {
   text-align: center;
@@ -211,7 +465,7 @@ body { cursor: default; }
   font-size: 48px;
   font-weight: 900;
   letter-spacing: -1px;
-  background: linear-gradient(135deg, #a78bfa, #c4b5fd);
+  background: linear-gradient(135deg, #c0aeea, #dbd0f5);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -260,7 +514,7 @@ body { cursor: default; }
   margin-top: 6px;
 }
 /* Hover lights the button in its own accent; nothing glows at rest. */
-.btn-primary:hover { background: var(--gold2); box-shadow: 0 0 8px rgba(167,139,250,0.4), 0 0 0 1px rgba(167,139,250,0.15); }
+.btn-primary:hover { background: var(--gold2); box-shadow: 0 0 8px rgba(192,174,234,0.4), 0 0 0 1px rgba(192,174,234,0.15); }
 .setup-error { color: var(--red); font-family: var(--mono); font-size: 12px; margin-top: 10px; display: none; }
 
 /* ── LOADING SPINNER ── */
@@ -317,11 +571,11 @@ body { cursor: default; }
   position: absolute; top: 0; left: 0; right: 0; height: 2px;
 }
 .ranked-card.gold::before { background: var(--gold); }
-.ranked-card.silver::before { background: #a8b8c8; }
-.ranked-card.platinum::before { background: #4bc8aa; }
-.ranked-card.emerald::before { background: #4bc87a; }
-.ranked-card.diamond::before { background: #6080e0; }
-.ranked-card.master::before { background: #a050d0; }
+.ranked-card.silver::before { background: #b3bcc6; }
+.ranked-card.platinum::before { background: #7cc0b6; }
+.ranked-card.emerald::before { background: #a4b986; }
+.ranked-card.diamond::before { background: #8fa6d8; }
+.ranked-card.master::before { background: #b39bd4; }
 .ranked-card.none::before { background: var(--bd2); }
 .ranked-card .queue-name {
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.3px;
@@ -334,11 +588,11 @@ body { cursor: default; }
   font-family: var(--head); font-size: 32px; font-weight: 800; letter-spacing: -0.5px;
 }
 .ranked-card.gold .tier { color: var(--gold); }
-.ranked-card.silver .tier { color: #a8b8c8; }
-.ranked-card.platinum .tier { color: #4bc8aa; }
-.ranked-card.emerald .tier { color: #4bc87a; }
-.ranked-card.diamond .tier { color: #6080e0; }
-.ranked-card.master .tier { color: #a050d0; }
+.ranked-card.silver .tier { color: #b3bcc6; }
+.ranked-card.platinum .tier { color: #7cc0b6; }
+.ranked-card.emerald .tier { color: #a4b986; }
+.ranked-card.diamond .tier { color: #8fa6d8; }
+.ranked-card.master .tier { color: #b39bd4; }
 .ranked-card.none .tier { color: var(--tx3); }
 .ranked-card .division { font-family: var(--mono); font-size: 13px; color: var(--tx2); }
 .ranked-card .lp { font-family: var(--mono); font-size: 12px; color: var(--tx3); margin-top: 4px; }
@@ -571,7 +825,7 @@ body { cursor: default; }
   transition: background 0.1s;
 }
 .dp-row:hover { background: rgba(255,255,255,0.02); }
-.dp-row.is-me { background: rgba(167,139,250,0.06); }
+.dp-row.is-me { background: rgba(192,174,234,0.06); }
 .dp-row.dp-hdr-row { background: var(--bg2); border-bottom: 1px solid var(--bd); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.2px; padding: 7px 12px; }
 .dp-champ { display: flex; align-items: center; gap: 7px; overflow: hidden; }
 .dp-champ img { width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0; }
@@ -654,7 +908,7 @@ body { cursor: default; }
 .builds-champ-hdr .add-build-btn {
   margin-left: auto; height: 34px; padding: 0 16px;
   background: var(--gold); border: none; border-radius: 4px;
-  color: #0a0a0f; font-family: var(--mono); font-size: 12px; font-weight: 700;
+  color: #141416; font-family: var(--mono); font-size: 12px; font-weight: 700;
   letter-spacing: 0.3px;
   cursor: pointer; transition: background 0.15s;
 }
@@ -753,11 +1007,11 @@ body { cursor: default; }
 .btn-save {
   flex: 2; height: 38px; background: var(--gold);
   border: none; border-radius: 4px;
-  color: #0a0a0f; font-family: var(--mono); font-size: 12px;
+  color: #141416; font-family: var(--mono); font-size: 12px;
   font-weight: 700; letter-spacing: 0.3px;
   cursor: pointer; transition: background 0.15s;
 }
-.btn-save:hover { background: var(--gold2); box-shadow: 0 0 8px rgba(167,139,250,0.4), 0 0 0 1px rgba(167,139,250,0.15); }
+.btn-save:hover { background: var(--gold2); box-shadow: 0 0 8px rgba(192,174,234,0.4), 0 0 0 1px rgba(192,174,234,0.15); }
 
 /* Item search in modal */
 .item-search-wrap { position: relative; }
@@ -809,7 +1063,7 @@ body { cursor: default; }
 .live-start-btn {
   height: 34px; padding: 0 20px;
   background: var(--green); border: none; border-radius: 4px;
-  color: #0a0a0f; font-family: var(--mono); font-size: 12px; font-weight: 700;
+  color: #141416; font-family: var(--mono); font-size: 12px; font-weight: 700;
   letter-spacing: 0.3px; cursor: pointer;
   transition: all 0.15s;
 }
@@ -925,7 +1179,7 @@ body { cursor: default; }
   color: var(--tx2); font-family: var(--mono); font-size: 12px;
   cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }
-.filter-chip:hover, .filter-chip.active { border-color: var(--gold); color: var(--gold); background: rgba(167,139,250,0.1); }
+.filter-chip:hover, .filter-chip.active { border-color: var(--gold); color: var(--gold); background: rgba(192,174,234,0.1); }
 .items-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
@@ -1093,16 +1347,16 @@ body { cursor: default; }
 
 /* ── LIVE GAME ── */
 .live-game-banner {
-  background: linear-gradient(135deg, rgba(61,214,140,0.08), rgba(91,156,246,0.05));
-  border: 1px solid rgba(61,214,140,0.25);
+  background: linear-gradient(135deg, rgba(164,185,134,0.08), rgba(143,166,216,0.05));
+  border: 1px solid rgba(164,185,134,0.25);
   border-radius: 10px; padding: 14px 20px;
   display: flex; align-items: center; gap: 14px;
   margin-bottom: 24px;
   transition: border-color 0.15s, background 0.15s;
 }
 .live-game-banner:hover {
-  border-color: rgba(61,214,140,0.5);
-  background: linear-gradient(135deg, rgba(61,214,140,0.12), rgba(91,156,246,0.07));
+  border-color: rgba(164,185,134,0.5);
+  background: linear-gradient(135deg, rgba(164,185,134,0.12), rgba(143,166,216,0.07));
 }
 .live-pulse {
   width: 10px; height: 10px; border-radius: 50%;
@@ -1133,7 +1387,7 @@ body { cursor: default; }
   transition: background 0.1s;
 }
 .live-player-row:hover { background: rgba(255,255,255,0.02); }
-.live-player-row.is-me { background: rgba(167,139,250,0.06); }
+.live-player-row.is-me { background: rgba(192,174,234,0.06); }
 .live-champ { display: flex; align-items: center; gap: 8px; }
 .live-champ img { width: 30px; height: 30px; border-radius: 4px; flex-shrink: 0; }
 .live-spells { display: flex; flex-direction: column; gap: 2px; }
@@ -1150,7 +1404,7 @@ body { cursor: default; }
   border-radius: 8px; cursor: pointer; transition: all 0.15s; text-align: center;
 }
 .spell-tile:hover { border-color: var(--gold); transform: translateY(-2px); }
-.spell-variant { border-color: rgba(167,139,250,0.3); background: rgba(167,139,250,0.05); }
+.spell-variant { border-color: rgba(192,174,234,0.3); background: rgba(192,174,234,0.05); }
 .spell-variant:hover { border-color: var(--gold); }
 .spell-tile img { width: 64px; height: 64px; border-radius: 10px; }
 .spell-tile .st-name { font-family: var(--body); font-size: 12px; font-weight: 600; color: var(--tx); }
@@ -1235,7 +1489,7 @@ input:-webkit-autofill:active {
 .profile-action-btn:hover {
   border-color: var(--gold);
   color: var(--gold);
-  box-shadow: 0 0 10px rgba(167,139,250,0.25), 0 0 0 1px rgba(167,139,250,0.15);
+  box-shadow: 0 0 10px rgba(192,174,234,0.25), 0 0 0 1px rgba(192,174,234,0.15);
 }
 
 /* Items + Champions panels: no padding so sticky bar touches header */
@@ -1246,7 +1500,7 @@ input:-webkit-autofill:active {
 /* ── MISC ── */
 .error-msg { font-family: var(--mono); font-size: 12px; color: var(--red); padding: 20px; }
 .btn-ghost { transition: border-color 0.15s, color 0.15s, box-shadow 0.15s; box-shadow: none; }
-.btn-ghost:hover { border-color: var(--gold) !important; color: var(--gold) !important; box-shadow: 0 0 8px rgba(167,139,250,0.4), 0 0 0 1px rgba(167,139,250,0.15); }
+.btn-ghost:hover { border-color: var(--gold) !important; color: var(--gold) !important; box-shadow: 0 0 8px rgba(192,174,234,0.4), 0 0 0 1px rgba(192,174,234,0.15); }
 
 .tab-btn, #topbar-logo { font-feature-settings: "liga" 0, "calt" 0; }
 
@@ -1256,29 +1510,118 @@ input:-webkit-autofill:active {
 .stats-numbers .sn-item  { min-width: 80px !important; }
 .stats-numbers .sn-label { font-weight: 700 !important; color: var(--tx2) !important; }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   MISSING LAYOUT — .profile-layout / .profile-sidebar / .profile-main were
+   emitted by renderProfile() but never styled, so ranked cards, mastery and
+   "Recently Played With" stacked in one column above match history and a wide
+   screen went unused. Two columns from 1200px up; one column below, which is
+   what a tablet and a phone want anyway.
+══════════════════════════════════════════════════════════════════════════ */
+.profile-layout  { display: flex; flex-direction: column; gap: 20px; }
+.profile-sidebar { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.profile-main    { min-width: 0; }
+@media (min-width: 1200px) {
+  .profile-layout {
+    display: grid;
+    grid-template-columns: 330px minmax(0, 1fr);
+    gap: 24px; align-items: start;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TOPBAR — desktop shape. #topbar-tabs owns the tab strip so it can scroll on
+   its own and drop to a second row on narrow screens.
+══════════════════════════════════════════════════════════════════════════ */
+#topbar-tabs {
+  display: flex; align-items: stretch; min-width: 0;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+#topbar-tabs::-webkit-scrollbar { display: none; }
+/* Fade the right edge so it reads as "more tabs this way" instead of a hard cut. */
+#topbar-tabs {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+          mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+}
+/* No fade once every tab fits. */
+@media (min-width: 1120px) {
+  #topbar-tabs { -webkit-mask-image: none; mask-image: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TOUCH ERGONOMICS — anything tappable gets a real target on a coarse pointer.
+   Several controls were rendering 12–21px tall, which is well under the ~44px
+   guidance and impossible to hit reliably with a thumb.
+══════════════════════════════════════════════════════════════════════════ */
+.match-filter-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 6px 14px; border-radius: 20px; cursor: pointer;
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+  border: 1px solid var(--bd2); white-space: nowrap;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.match-filter-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* The x that clears a search field: a bare glyph with no box, so it measured
+   12-21px tall. Give it a real target without moving it. */
+.input-clear-btn {
+  display: flex !important; align-items: center; justify-content: center;
+  width: 28px; height: 28px; margin-right: -8px;
+}
+
+@media (pointer: coarse) {
+  .input-clear-btn { width: 40px; height: 40px; margin-right: -12px; }
+  .match-filter-chip,
+  .filter-chip,
+  .lb-pill,
+  .profile-action-btn,
+  .hdr-btn,
+  .setup-shortcut-btn { min-height: 36px; }
+  .load-more-btn { min-height: 44px; }
+  .tab-btn { padding-left: 14px; padding-right: 14px; }
+  .recent-player-row { padding: 11px 14px; }
+  .match-row { padding: 13px 14px; }
+  /* Momentum scrolling inside every pane that has its own scroller. */
+  .tab-panel, #topbar-tabs, .champ-list, .builds-main, .items-grid,
+  #lb-content, .match-detail { -webkit-overflow-scrolling: touch; }
+}
+
 /* ══════════════════════════════════════
    RESPONSIVE — TABLET (≤ 900px)
 ══════════════════════════════════════ */
 @media (max-width: 900px) {
   html, body { overflow: auto; }
-  #app { height: auto; min-height: 100vh; overflow: auto; }
+  #app { height: auto; min-height: 100dvh; overflow: auto; }
   #content { overflow: visible; }
   .tab-panel { overflow: visible; height: auto; }
   .tab-panel.active { display: block; }
 
-  /* Topbar: scrollable tab row */
+  /* Topbar becomes two rows: identity + controls, then the tab strip.
+     #topbar itself no longer scrolls horizontally, so nothing hides off-edge. */
   #topbar {
-    padding: 0 6px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    height: 48px;
-    flex-wrap: nowrap;
+    height: auto; padding: 0;
+    flex-wrap: wrap; overflow: visible;
+    position: sticky; top: 0; z-index: 60;
   }
-  #topbar::-webkit-scrollbar { display: none; }
-  #topbar-logo { font-size: 18px; margin-right: 16px; }
-  .tab-btn { padding: 0 9px; font-size: 11px; gap: 5px; height: 48px; white-space: nowrap; }
-  .tab-btn svg { width: 13px; height: 13px; }
+  #topbar-logo {
+    order: 0; font-size: 18px; margin: 0;
+    height: 46px; display: flex; align-items: center; padding-left: 12px;
+  }
+  #topbar-right {
+    order: 1; height: 46px; margin-left: auto;
+    padding: 0 10px 0 8px; gap: 8px;
+    min-width: 0; flex-shrink: 1;
+  }
+  #topbar-tabs {
+    order: 2; width: 100%;
+    border-top: 1px solid var(--bd);
+    padding: 0 4px;
+  }
+  .tab-btn { padding: 0 12px; font-size: 12px; gap: 6px; height: 46px; white-space: nowrap; }
+  .tab-btn svg { width: 14px; height: 14px; }
+  /* The status pill is the first thing to give up room. */
+  #server-status-badge { min-width: 0; overflow: hidden; }
+  #server-status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* Builds: stack sidebar on top */
   #builds-panel.active { grid-template-columns: 1fr !important; grid-template-rows: auto 1fr; }
@@ -1289,7 +1632,19 @@ input:-webkit-autofill:active {
   /* Match detail rows: shrink grid */
   .dp-row { grid-template-columns: 160px 110px 80px 44px 60px 1fr; padding: 5px 8px; }
 
-  /* Live game team grid: stack vertically */
+  /* The per-match team tables are genuinely wide (8 columns). Let the panel
+     scroll them instead of stretching the page — but only the table, so the
+     objectives strip above it still lays out to the available width. */
+  .match-detail { overflow-x: auto; }
+  .dp-team-table { min-width: 660px; }
+
+  /* Live / spectate team tables: same treatment. */
+  .live-game-wrap { overflow-x: auto; }
+  .live-team-hdr, .live-player-row { min-width: 460px; }
+
+  /* Leaderboard table scrolls rather than squashing. */
+  #lb-content { overflow-x: auto; }
+
   #live-panel { padding: 12px !important; }
   #live-panel.active { display: block !important; }
 
@@ -1303,7 +1658,7 @@ input:-webkit-autofill:active {
 ══════════════════════════════════════ */
 @media (max-width: 600px) {
   html, body { font-size: 13px; overflow: auto; }
-  #app { height: auto; min-height: 100vh; overflow: auto; padding-bottom: 0; }
+  #app { height: auto; min-height: 100dvh; overflow: auto; padding-bottom: 0; }
   #content { overflow: visible; }
   .tab-panel { overflow: visible; height: auto; padding: 14px !important; }
   .tab-panel.active { display: block; }
@@ -1311,12 +1666,24 @@ input:-webkit-autofill:active {
   #items-grid-area, #champs-grid-area { padding: 12px !important; }
 
   /* Topbar */
-  #topbar { height: 44px; padding: 0 4px; }
-  #topbar-logo { font-size: 16px; margin-right: 10px; }
-  .tab-btn { padding: 0 7px; font-size: 10px; gap: 4px; height: 44px; }
+  #topbar-logo { font-size: 16px; height: 42px; padding-left: 10px; }
+  #topbar-right { height: 42px; padding: 0 8px 0 6px; gap: 6px; }
+  .tab-btn { padding: 0 11px; font-size: 11px; gap: 5px; height: 44px; }
   .tab-btn svg { display: none; }
   #patch-badge { display: none; }
-  .profile-action-btn { font-size: 10px !important; padding: 0 8px !important; height: 26px !important; }
+  /* Everything on row 1 stays reachable — the region name truncates instead of
+     any control being dropped, so no functionality is hidden on a phone. */
+  .profile-action-btn { font-size: 11px !important; padding: 0 10px !important; }
+  #server-status-badge { padding: 0 9px; height: 26px; }
+  #server-status-text { max-width: 84px; }
+  #wr-lock-btn { height: 28px; width: 28px; }
+
+  /* iOS zooms the whole page when a focused input is under 16px. Every text
+     field in the app was 13–15px, so tapping search or the setup form used to
+     yank the layout. */
+  input[type="text"], input[type="password"], input:not([type]), textarea, select {
+    font-size: 16px !important;
+  }
 
   /* Summoner header */
   .summoner-header { flex-direction: column; align-items: flex-start; gap: 12px; padding: 14px 16px; }
@@ -1324,32 +1691,66 @@ input:-webkit-autofill:active {
   .summoner-header .sh-tag { font-size: 14px; }
   .summoner-header .sh-icon img { width: 56px; height: 56px; }
 
-  /* Ranked grid: 1 col on smallest, 2 col with min */
-  .ranked-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+  /* Ranked + mastery grids */
+  .ranked-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
   .ranked-card .tier { font-size: 24px; }
-
-  /* Mastery grid */
-  .mastery-grid { grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
+  .mastery-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
   .mastery-card img { width: 64px; height: 64px; }
 
   /* Stats row */
   .stats-row { flex-direction: column; align-items: flex-start; gap: 14px; }
-  .stats-numbers .sn-row { gap: 16px; }
+  .stats-numbers .sn-row { gap: 16px; flex-wrap: wrap; }
   .stats-numbers .sn-val { font-size: 20px !important; }
 
-  /* Match history rows — collapse to essential cols */
+  /* ── Match rows: the desktop grid is 52+72+110+1fr+120+80 plus gaps, i.e.
+     ~450px of fixed columns on a 375px screen, so the champion name, queue tag
+     and the CS/duration/date column all ran off the right edge. Rebuild it as a
+     three-row card that fits any phone. ── */
+  .match-row {
+    grid-template-columns: 46px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "icon name  badge"
+      "icon kda   ratio"
+      "meta meta  meta";
+    gap: 4px 10px;
+    padding: 10px 12px;
+    align-items: center;
+  }
+  .match-row img.champ-icon { grid-area: icon; width: 42px; height: 42px; align-self: start; }
+  .match-row .champ-name    { grid-area: name; min-width: 0; overflow: hidden; }
+  .match-row .champ-name .queue-tag { margin-left: 0; display: block; }
+  .match-row .result-badge  { grid-area: badge; text-align: right; }
+  .match-row .kda-val       { grid-area: kda; }
+  .match-row .kda-ratio     { grid-area: ratio; }
+  .match-row .stats {
+    grid-area: meta; flex-direction: row; flex-wrap: wrap;
+    gap: 4px 12px; text-align: left; align-items: baseline;
+    padding-top: 4px; border-top: 1px solid var(--bd); margin-top: 2px;
+  }
+
+  /* Match detail on a phone: drop the three narrowest columns (summoner spells,
+     runes, vision) so champion / KDA / damage / items fit without a scroll on
+     most of the row, and let table-layout go auto now that the fixed colgroup
+     no longer matches the visible columns. */
+  .dp-team-table { table-layout: auto !important; min-width: 520px; font-size: 12px; }
+  .dp-team-table th, .dp-team-table td { padding-left: 6px !important; padding-right: 6px !important; }
+  .dp-team-table th:nth-child(2), .dp-team-table td:nth-child(2),
+  .dp-team-table th:nth-child(3), .dp-team-table td:nth-child(3),
+  .dp-team-table th:nth-child(6), .dp-team-table td:nth-child(6) { display: none; }
+
   .dp-row {
-    grid-template-columns: 1fr 70px 60px !important;
+    grid-template-columns: 150px 110px 74px 44px 1fr !important;
     padding: 5px 8px;
   }
-  /* Hide cs col and items col on phones — too cramped */
-  .dp-cell.cs-col { display: none; }
-  .dp-cell.items-col { display: none; }
-  .dp-row.dp-hdr-row .dp-cell.cs-col { display: none; }
-  .dp-row.dp-hdr-row .dp-cell.items-col { display: none; }
+  .dp-cell.cs-col, .dp-row.dp-hdr-row .dp-cell.cs-col { display: none; }
 
   /* Section headers */
   .section-hdr h2 { font-size: 18px; }
+  .section-hdr { flex-wrap: wrap; gap: 6px; }
+
+  /* Recently played rows */
+  .recent-player-row { gap: 9px; padding: 9px 11px; }
+  .rp-name { font-size: 14px; }
 
   /* Builds: full-width single column */
   #builds-panel.active { grid-template-columns: 1fr !important; grid-template-rows: auto 1fr; }
@@ -1357,68 +1758,76 @@ input:-webkit-autofill:active {
   .champ-list { max-height: 120px; }
   .builds-main { padding: 12px; }
   .build-card { padding: 14px; }
-  .modal-box { width: calc(100vw - 24px) !important; padding: 20px 16px; max-height: 92vh; }
+  .modal-box { width: calc(100vw - 24px) !important; padding: 20px 16px; max-height: 88dvh; overflow-y: auto; }
+  .modal-actions { position: sticky; bottom: 0; background: var(--bg3); padding-top: 10px; }
 
   /* Live game */
   #live-panel { padding: 10px !important; }
   #live-panel.active { display: block !important; }
+  .live-team-hdr, .live-player-row { min-width: 420px; grid-template-columns: 1fr 44px 44px 56px; }
+  .live-game-banner { flex-wrap: wrap; gap: 8px; }
 
   /* Spectate inputs: stack */
-  #spectate-panel > div > div:first-of-type {
-    flex-direction: column !important;
-  }
+  #spectate-panel > div > div:first-of-type { flex-direction: column !important; }
   #spectate-name, #spectate-tag, #spectate-region { width: 100% !important; }
 
   /* Items filter bar */
   .items-filter-bar { flex-wrap: wrap; gap: 7px; padding: 10px 12px 12px; }
-  .items-filter-bar input { min-width: 120px; height: 36px; font-size: 13px; }
-  .filter-chip { font-size: 11px; padding: 5px 10px; }
-  .items-grid { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)) !important; gap: 6px; }
+  .items-filter-bar input { min-width: 120px; height: 40px; }
+  .filter-chip { font-size: 11px; padding: 6px 11px; }
+  .items-grid { grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)) !important; gap: 6px; }
 
   /* Champions grid */
-  .champ-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)) !important; gap: 8px; }
+  .champ-grid { grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)) !important; gap: 8px; }
   .champ-card img { width: 56px; height: 56px; }
+  .champs-search-bar { padding: 10px 12px 12px; }
+  .champs-search-input { height: 40px; }
 
-  /* Rune cards: allow narrower */
-  .rune-card { min-width: 140px; }
+  /* Runes */
+  .rune-card { min-width: 130px; }
   .rune-card img { width: 28px; height: 28px; }
   .rune-card.keystone img { width: 36px; height: 36px; }
 
   /* Spells grid */
-  .spells-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+  .spells-grid { grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); }
   .spell-tile img { width: 52px; height: 52px; }
 
   /* Setup modal */
-  .setup-box { width: calc(100vw - 20px); padding: 28px 16px; border-radius: 10px; }
+  .setup-box { width: calc(100vw - 20px); padding: 26px 16px; border-radius: 10px; max-height: 92dvh; overflow-y: auto; }
   .setup-logo-war, .setup-logo-room { font-size: 30px; }
   .setup-row { flex-direction: column; }
   .setup-row > div { max-width: 100% !important; }
 
-  /* Overlays */
+  /* Overlays: full-bleed sheets with room for the notch / home indicator. */
   #rune-overlay-inner, #spell-overlay-inner, #item-overlay-inner, #champ-overlay-inner {
-    margin: 16px auto !important;
+    margin: 12px auto calc(12px + env(safe-area-inset-bottom)) !important;
     padding: 16px !important;
+    max-width: 100% !important;
   }
 
   /* Live panel inner layout */
   .live-kda-display { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
   .live-kda-display .kda-block .kda-num { font-size: 32px; }
   .live-kda-ratio .ratio-val { font-size: 28px; }
-  .live-stats-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+  .live-stats-grid { grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); gap: 8px; }
 
   /* Agg grid */
-  .agg-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
-
-  /* Champions search bar */
-  .champs-search-bar { padding: 10px 12px 12px; }
-  .champs-search-input { height: 36px; font-size: 13px; }
-  .champ-grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)) !important; gap: 8px; }
+  .agg-grid { grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); }
 
   /* Stat blocks in champ overlay */
   .stats-block { grid-template-columns: 1fr; }
 
+  /* Lock card sits above the keyboard on a short screen. */
+  #applock-box { max-height: calc(100dvh - 24px); }
+
   /* Scrollbar bigger on touch */
   ::-webkit-scrollbar { width: 3px; height: 3px; }
+}
+
+/* Landscape phones are short, not narrow — stop the chrome eating the viewport. */
+@media (max-height: 480px) and (orientation: landscape) {
+  #topbar { position: static; }
+  .setup-box, .modal-box, #applock-box { max-height: 96dvh; overflow-y: auto; }
 }
 
 /* ══════════════════════════════════════
@@ -1436,16 +1845,16 @@ input:-webkit-autofill:active {
   cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
 }
 .lb-pill:hover {
-  border-color: rgba(167,139,250,0.6);
+  border-color: rgba(192,174,234,0.6);
   color: var(--gold2);
-  background: rgba(167,139,250,0.07);
-  box-shadow: 0 0 0 1px rgba(167,139,250,0.15), 0 0 10px rgba(167,139,250,0.08);
+  background: rgba(192,174,234,0.07);
+  box-shadow: 0 0 0 1px rgba(192,174,234,0.15), 0 0 10px rgba(192,174,234,0.08);
 }
 .lb-pill.active {
-  background: rgba(167,139,250,0.15);
-  border-color: rgba(167,139,250,0.55);
+  background: rgba(192,174,234,0.15);
+  border-color: rgba(192,174,234,0.55);
   color: var(--gold2);
-  box-shadow: 0 0 0 1px rgba(167,139,250,0.12);
+  box-shadow: 0 0 0 1px rgba(192,174,234,0.12);
 }
 
 
@@ -1467,16 +1876,16 @@ input:-webkit-autofill:active {
   transition: background 0.1s;
 }
 .lb-table tbody tr:hover { background: rgba(255,255,255,0.025); }
-.lb-table tbody tr.lb-me { background: rgba(167,139,250,0.07); }
-.lb-table tbody tr.lb-me:hover { background: rgba(167,139,250,0.1); }
+.lb-table tbody tr.lb-me { background: rgba(192,174,234,0.07); }
+.lb-table tbody tr.lb-me:hover { background: rgba(192,174,234,0.1); }
 .lb-table td { padding: 9px 12px; vertical-align: middle; }
 .lb-rank-num {
   font-family: var(--mono); font-size: 13px; font-weight: 700;
   color: var(--tx3); min-width: 32px;
 }
-.lb-rank-num.top1  { color: #F0C968; }
-.lb-rank-num.top2  { color: #C0C8D8; }
-.lb-rank-num.top3  { color: #CD7F32; }
+.lb-rank-num.top1  { color: #e0b874; }
+.lb-rank-num.top2  { color: #B3BCC6; }
+.lb-rank-num.top3  { color: #b98457; }
 .lb-rank-num.top10 { color: var(--purple); }
 .lb-player-cell { display: flex; align-items: center; gap: 10px; }
 .lb-player-cell img { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--bd2); background: var(--bg5); flex-shrink: 0; }
@@ -1589,7 +1998,12 @@ input:-webkit-autofill:active {
 <!-- ── MAIN APP ── -->
 <div id="app" style="display:none">
   <div id="topbar">
-    <div id="topbar-logo"><span style="background:linear-gradient(135deg,#a78bfa,#c4b5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:800;letter-spacing:-0.5px;font-size:20px;">War</span><span style="color:var(--tx);font-weight:800;letter-spacing:-0.5px;font-size:20px;">Room</span></div>
+    <div id="topbar-logo"><span style="background:linear-gradient(135deg,#c0aeea,#dbd0f5);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:800;letter-spacing:-0.5px;font-size:20px;">War</span><span style="color:var(--tx);font-weight:800;letter-spacing:-0.5px;font-size:20px;">Room</span></div>
+    <!-- Tab strip lives in its own scroller. On phones and tablets it drops to a
+         second row so the status pill and the lock button on row 1 stay reachable;
+         they used to sit past the right edge of a single horizontally-scrolling
+         bar, which made them effectively invisible on a narrow screen. -->
+    <div id="topbar-tabs">
     <button class="tab-btn active" data-tab="profile" onclick="switchTab('profile')">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6a5 5 0 0110 0H3z"/></svg>
       Profile
@@ -1626,10 +2040,9 @@ input:-webkit-autofill:active {
       <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 1.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11z" opacity=".4"/></svg>
       Live
     </button>
+    </div><!-- /#topbar-tabs -->
 
-
-
-  <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding-left:16px;">
+  <div id="topbar-right">
     <!-- Server status + patch pill -->
     <div id="server-status-badge" title="All systems operational"
          style="display:flex;align-items:center;gap:7px;padding:0 10px;height:28px;background:var(--bg3);border:1px solid var(--bd2);border-radius:20px;cursor:default;transition:border-color 0.2s;">
@@ -1642,6 +2055,8 @@ input:-webkit-autofill:active {
        class="profile-action-btn" style="font-size:11px;">
       Patch Notes
     </a>
+    <button id="wr-lock-btn" title="Lock WarRoom behind a password"
+            onclick="window._wrManageLock && window._wrManageLock()"></button>
   </div>
   </div>
 
@@ -1705,7 +2120,7 @@ input:-webkit-autofill:active {
         <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
           <div style="position:relative;flex:1;min-width:160px;">
             <input id="spectate-name" placeholder="Summoner name" autocomplete="off" onkeydown="if(event.key==='Enter')lookupSpectate()" style="width:100%;height:44px;padding:0 40px 0 18px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:15px;outline:none;box-sizing:border-box;">
-            <button onclick="clearInput('spectate-name',null)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:0;line-height:1;">&#x2715;</button>
+            <button onclick="clearInput('spectate-name',null)" class="input-clear-btn" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:0;line-height:1;">&#x2715;</button>
           </div>
           <input id="spectate-tag" placeholder="#TAG" autocomplete="off" onkeydown="if(event.key==='Enter')lookupSpectate()" style="width:90px;height:44px;padding:0 12px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:15px;outline:none;">
           <select id="spectate-region" style="height:44px;padding:0 12px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--mono);font-size:12px;outline:none;cursor:pointer;">
@@ -1744,7 +2159,7 @@ input:-webkit-autofill:active {
         </div>
         <button id="live-toggle-btn" onclick="toggleLiveWatch()" style="height:34px;padding:0 18px;background:var(--green);border:none;border-radius:7px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.2px;flex-shrink:0;">▶ Start</button>
       </div>
-      <div id="live-cert-warning" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.2);border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--tx2);line-height:1.7;">
+      <div id="live-cert-warning" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(192,174,234,0.08);border:1px solid rgba(192,174,234,0.2);border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--tx2);line-height:1.7;">
         ⚠️ No live data. One-time setup: double-click <code style="color:var(--gold2);">setup-live-link.bat</code> once (needs <a href="https://nodejs.org" target="_blank" style="color:var(--gold);">Node.js</a>). Live Link then runs hidden at every login — no window, never again.<br>
         In a game? Press START. If Chrome asks about "local network", click Allow.
       </div>
@@ -1759,7 +2174,7 @@ input:-webkit-autofill:active {
         <div class="section-hdr" style="margin-bottom:0;"><h2>Ladder</h2></div>
         <button onclick="lbRefresh()" id="lb-refresh-btn" title="Refresh ladder"
           style="width:28px;height:28px;padding:0;background:transparent;border:1px solid var(--bd2);border-radius:7px;color:var(--tx3);font-size:14px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;"
-          onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)';this.style.background='rgba(167,139,250,0.07)'"
+          onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)';this.style.background='rgba(192,174,234,0.07)'"
           onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--tx3)';this.style.background='transparent'">⟳</button>
       </div>
       <!-- Row 2: All filter controls -->
@@ -1781,7 +2196,7 @@ input:-webkit-autofill:active {
         <!-- Region selector -->
         <select id="lb-region-select" onchange="_tryRestoreOrLoad()"
           style="height:32px;padding:0 28px 0 12px;background:var(--bg3);border:1px solid var(--bd2);border-radius:20px;color:var(--tx2);font-family:var(--body);font-size:12px;font-weight:600;letter-spacing:0.3px;outline:none;cursor:pointer;transition:all 0.2s ease;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22><path d=%22M0 0l5 6 5-6z%22 fill=%22%238888a0%22/></svg>');background-repeat:no-repeat;background-position:right 10px center;"
-          onmouseover="this.style.borderColor='rgba(167,139,250,0.6)';this.style.color='var(--gold2)';this.style.boxShadow='0 0 0 1px rgba(167,139,250,0.12)'"
+          onmouseover="this.style.borderColor='rgba(192,174,234,0.6)';this.style.color='var(--gold2)';this.style.boxShadow='0 0 0 1px rgba(192,174,234,0.12)'"
           onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--tx2)';this.style.boxShadow='none'">
           <option value="na1">NA</option>
           <option value="euw1">EUW</option>
@@ -1799,9 +2214,9 @@ input:-webkit-autofill:active {
         <div style="position:relative;">
           <input id="lb-search" placeholder="Search player..." autocomplete="off" oninput="filterLeaderboard(this.value)"
             style="height:32px;padding:0 32px 0 14px;background:var(--bg3);border:1px solid var(--bd2);border-radius:20px;color:var(--tx);font-family:var(--body);font-size:12px;font-weight:500;outline:none;width:170px;transition:all 0.2s ease;letter-spacing:0.2px;"
-            onfocus="this.style.borderColor='rgba(167,139,250,0.6)';this.style.boxShadow='0 0 0 1px rgba(167,139,250,0.12)'"
+            onfocus="this.style.borderColor='rgba(192,174,234,0.6)';this.style.boxShadow='0 0 0 1px rgba(192,174,234,0.12)'"
             onblur="this.style.borderColor='var(--bd2)';this.style.boxShadow='none'">
-          <button onclick="document.getElementById('lb-search').value='';filterLeaderboard('')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:12px;cursor:pointer;line-height:1;padding:0;transition:color 0.15s;" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
+          <button onclick="document.getElementById('lb-search').value='';filterLeaderboard('')" class="input-clear-btn" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:12px;cursor:pointer;line-height:1;padding:0;transition:color 0.15s;" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)'">✕</button>
         </div>
       </div>
       <!-- Table -->
@@ -1810,6 +2225,14 @@ input:-webkit-autofill:active {
       </div>
     </div>
 
+</div><!-- /#content -->
+</div><!-- /#app -->
+
+<!-- Everything below is position:fixed chrome and belongs to the document, not to
+     the app shell. #content and #app were never closed, so the browser nested all
+     of it inside #content — which meant the app-lock overlay inherited #app's
+     display:none while WarRoom was locked and rendered at 0x0: a locked device got
+     a blank page with no password prompt. -->
 
 <!-- Player Context Menu -->
 <div id="player-menu" style="display:none;position:fixed;z-index:1100;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);overflow:hidden;min-width:160px;">
@@ -1931,7 +2354,7 @@ async function fetchServerStatus() {
   var badge  = document.getElementById('server-status-badge');
   if (!dot || !txt) return;
   try {
-    var data = await riotFetch('/lol/status/v4/platform-data', summoner.platform);
+    var data = await riotFetch('/lol/status/v4/platform-data', summoner.platform, 1);
     var incidents    = (data.incidents    || []).filter(function(i){ return i.active_until === null || new Date(i.active_until) > new Date(); });
     var maintenances = (data.maintenances || []).filter(function(m){ return m.maintenance_status !== 'complete'; });
     // Full region name from API (e.g. "North America"), fallback to platform id
@@ -1941,20 +2364,20 @@ async function fetchServerStatus() {
       dot.style.background  = 'var(--red)';
       dot.style.boxShadow   = '0 0 7px var(--red)';
       txt.style.color       = 'var(--red)';
-      if (badge) badge.style.borderColor = 'rgba(212,122,106,0.4)';
+      if (badge) badge.style.borderColor = 'rgba(214,138,124,0.4)';
       var title = incidents[0].titles && incidents[0].titles[0] ? incidents[0].titles[0].content : 'Incident reported';
       if (badge) badge.title = '⚠️ ' + title;
     } else if (maintenances.length > 0) {
       dot.style.background  = 'var(--gold)';
       dot.style.boxShadow   = '0 0 7px var(--gold)';
       txt.style.color       = 'var(--gold)';
-      if (badge) badge.style.borderColor = 'rgba(167,139,250,0.3)';
+      if (badge) badge.style.borderColor = 'rgba(192,174,234,0.3)';
       if (badge) badge.title = '🔧 Scheduled maintenance in progress';
     } else {
       dot.style.background  = 'var(--green)';
-      dot.style.boxShadow   = '0 0 7px rgba(80,200,120,0.7)';
+      dot.style.boxShadow   = '0 0 7px rgba(164,185,134,0.7)';
       txt.style.color       = 'var(--tx2)';
-      if (badge) badge.style.borderColor = 'rgba(80,200,120,0.25)';
+      if (badge) badge.style.borderColor = 'rgba(164,185,134,0.25)';
       if (badge) badge.title = '✓ All systems operational';
     }
   } catch(e) {
@@ -1997,6 +2420,7 @@ async function setupSubmit() {
 }
 
 function changeSummoner() {
+  stopProfileLivePoll();
   localStorage.removeItem('warroom_summoner');
   location.reload();
 }
@@ -2004,20 +2428,151 @@ function changeSummoner() {
 // ══════════════════════════════════════
 // RIOT API
 // ══════════════════════════════════════
-async function riotFetch(endpoint, region) {
-  const r = region || summoner.routing || 'americas';
-  const url = `${WORKER_URL}/api/riot?endpoint=${encodeURIComponent(endpoint)}&region=${r}`;
+// ══════════════════════════════════════
+// RIOT REQUEST SCHEDULER
+// ══════════════════════════════════════
+// Riot's development key budget (~20 req/s, ~100 req/2min) belongs to the KEY,
+// not to a visitor — every tab on every device shares it. The old riotFetch fired
+// straight at the worker with nothing in between, and the app is request-hungry:
+// a profile load is ~26 calls and one page of the Ladder tab was ~101. Two
+// interactions inside two minutes was enough to 429 everything, which is why the
+// very first open of the day could land on "Rate limited".
+//
+// Everything now goes through this queue, which:
+//   - keeps a sliding window well under Riot's ceiling,
+//   - de-duplicates identical in-flight requests,
+//   - memoises responses that cannot change (a finished match),
+//   - lets background work (ladder name/level enrichment) yield to anything the
+//     user is actually waiting on, and stop entirely when the budget runs low,
+//   - backs off on a real 429 instead of hammering through it.
+const RL = {
+  windowMs: 120000, windowMax: 80,   // Riot: 100 / 2 min. Headroom for other tabs.
+  burstMs:   1000,  burstMax: 12,    // Riot: 20 / s.
+  maxConcurrent: 6,
+  lowWaterFrac: 0.55,                // background work stops above this much use
+  hist: [],
+  queue: [],
+  active: 0,
+  cooldownUntil: 0,
+  timer: null
+};
+
+// Responses that are immutable for the life of the page.
+const _riotMemo = new Map();
+const _riotInflight = new Map();
+const RIOT_MEMO_MAX = 600;
+
+function _riotMemoable(endpoint) {
+  // A finished match never changes; an account's puuid<->riot id mapping is
+  // stable enough for one session.
+  return /^\/lol\/match\/v5\/matches\/[A-Z0-9]+_\d+$/i.test(endpoint) ||
+         endpoint.indexOf('/riot/account/v1/accounts/') === 0;
+}
+
+function _rlPrune(now) {
+  while (RL.hist.length && now - RL.hist[0] >= RL.windowMs) RL.hist.shift();
+}
+
+function riotBudgetUsed() {
+  _rlPrune(Date.now());
+  return RL.hist.length / RL.windowMax;
+}
+
+function _rlWake(ms) {
+  if (RL.timer) return;
+  RL.timer = setTimeout(function() { RL.timer = null; _rlPump(); }, Math.max(ms, 40));
+}
+
+function _rlPump() {
+  while (RL.queue.length) {
+    const now = Date.now();
+
+    if (now < RL.cooldownUntil) { _rlWake(RL.cooldownUntil - now); return; }
+    if (RL.active >= RL.maxConcurrent) return;   // a completion will re-pump
+
+    _rlPrune(now);
+    if (RL.hist.length >= RL.windowMax) { _rlWake(RL.windowMs - (now - RL.hist[0])); return; }
+
+    let burst = 0;
+    for (let i = RL.hist.length - 1; i >= 0 && now - RL.hist[i] < RL.burstMs; i--) burst++;
+    if (burst >= RL.burstMax) { _rlWake(RL.burstMs - (now - RL.hist[RL.hist.length - burst])); return; }
+
+    // Highest priority (lowest number) first; FIFO within a priority.
+    let pick = 0;
+    for (let i = 1; i < RL.queue.length; i++) {
+      if (RL.queue[i].priority < RL.queue[pick].priority) pick = i;
+    }
+    // Hold background work back once the window is over half spent, so a click
+    // never waits behind 100 queued ladder lookups.
+    if (RL.queue[pick].priority > 0 && RL.hist.length / RL.windowMax > RL.lowWaterFrac) {
+      _rlWake(2000);
+      return;
+    }
+
+    const job = RL.queue.splice(pick, 1)[0];
+    RL.hist.push(now);
+    RL.active++;
+    const p = job.run();
+    p.then(job.resolve, job.reject);
+    p.catch(function() {}).then(function() { RL.active--; _rlPump(); });
+  }
+}
+
+async function _riotSend(endpoint, region) {
+  const url = WORKER_URL + '/api/riot?endpoint=' + encodeURIComponent(endpoint) + '&region=' + region;
   const resp = await fetch(url);
+
+  // The worker forwards Riot's own counters and serves a lot of this from its
+  // edge cache. A cache hit cost no Riot budget, so give the slot back.
+  if (resp.headers.get('X-WR-Cache') === 'HIT' && RL.hist.length) RL.hist.pop();
+
   if (!resp.ok) {
     const status = resp.status;
-    if (status === 429) throw new Error('429');
+    if (status === 429) {
+      // Honour Riot's own Retry-After when the worker forwards it; otherwise back
+      // off a fixed beat. The cooldown alone gates the queue — deliberately NOT
+      // filling the sliding window as well, which would freeze the app for the
+      // full two minutes over a single rejected request.
+      const ra = parseInt(resp.headers.get('Retry-After') || '', 10);
+      RL.cooldownUntil = Date.now() + ((ra > 0 ? Math.min(ra, 120) : 12) * 1000);
+      throw new Error('429');
+    }
     if (status === 404) throw new Error('404');
     if (status === 403) throw new Error('403');
     throw new Error(String(status));
   }
   const text = await resp.text();
   if (!text || !text.trim()) throw new Error('Empty response');
-  try { return JSON.parse(text); } catch(e) { throw new Error('Bad JSON: ' + text.substring(0,50)); }
+  try { return JSON.parse(text); } catch(e) { throw new Error('Bad JSON: ' + text.substring(0, 50)); }
+}
+
+// priority 0 = the user is waiting on it; 1 = background enrichment.
+function riotFetch(endpoint, region, priority) {
+  const r = region || summoner.routing || 'americas';
+  const key = r + '|' + endpoint;
+
+  if (_riotMemo.has(key)) return Promise.resolve(_riotMemo.get(key));
+  if (_riotInflight.has(key)) return _riotInflight.get(key);
+
+  const p = new Promise(function(resolve, reject) {
+    RL.queue.push({
+      priority: priority || 0,
+      run: function() { return _riotSend(endpoint, r); },
+      resolve: resolve,
+      reject: reject
+    });
+    _rlPump();
+  });
+
+  _riotInflight.set(key, p);
+  p.then(function(v) {
+    if (_riotMemoable(endpoint)) {
+      if (_riotMemo.size >= RIOT_MEMO_MAX) _riotMemo.delete(_riotMemo.keys().next().value);
+      _riotMemo.set(key, v);
+    }
+  }, function() {}).then(function() { _riotInflight.delete(key); });
+
+  return p;
 }
 
 function _riotErrorHtml(e) {
@@ -2075,6 +2630,9 @@ function itemIconUrl(itemId) {
 // TAB SWITCHING
 // ══════════════════════════════════════
 function switchTab(tab) {
+  // Leaving Profile: stop the live-game poll so it does not burn requests
+  // against a tab nobody is looking at.
+  if (tab !== 'profile') stopProfileLivePoll();
   // Leaving Live tab: kill timer AND bump gen to abort any in-flight fetch
   if (tab !== 'live' && liveWatching) {
     _liveGen++;
@@ -2110,12 +2668,12 @@ async function loadProfile() {
         batch.map(id => riotFetch(`/lol/match/v5/matches/${id}`, summoner.routing))
       );
       matches.push(...results.filter(Boolean));
-      if (i + 5 < matchIds.length) await new Promise(r => setTimeout(r, 500));
     }
 
     allMatches = matches;
     allMastery = mastery;
     displayedMatches = 10;
+    _matchHistoryExhausted = matchIds.length < 20;
     // Fetch league history async (may 404 on some accounts)
     let leagueHistory = [];
     try {
@@ -2130,6 +2688,11 @@ async function loadProfile() {
 let _lastRefresh = 0;
 async function refreshProfile() {
   const now = Date.now();
+  // A profile load is ~26 Riot calls. Mashing Refresh was a reliable way to
+  // spend the whole 2-minute budget in a few seconds.
+  if (now - _lastRefresh < 8000) return;
+  _lastRefresh = now;
+  _matchHistoryExhausted = false;
   await loadProfile();
 }
 
@@ -2221,11 +2784,11 @@ function renderMasterySection(mastery, page) {
     const pts = m.championPoints.toLocaleString();
     const lvl = m.championLevel;
     // Tiered badge colors: Mythic(10+), Diamond(7-9), Platinum(5-6), Gold(3-4), Bronze(1-2)
-    const badgeColor = lvl >= 10 ? '#c084fc'   // mythic purple
-                     : lvl >= 7  ? '#f4b942'   // gold
-                     : lvl >= 5  ? '#7dd3fc'   // platinum blue
-                     : lvl >= 3  ? '#86efac'   // green
-                     :             '#a1a1aa';   // gray
+    const badgeColor = lvl >= 10 ? '#c0aeea'   // mythic purple
+                     : lvl >= 7  ? '#e0b874'   // gold
+                     : lvl >= 5  ? '#9fc4dd'   // platinum blue
+                     : lvl >= 3  ? '#a4b986'   // green
+                     :             '#adadb2';   // gray
     h += `<div class="mastery-card" style="cursor:pointer;" onclick="openChampOverlay('${cId}')">
       <img src="${champIconUrl(cId)}" alt="${cName}" onerror="this.style.opacity=0.3">
       <div class="champ-name">${cName}</div>
@@ -2245,47 +2808,129 @@ function renderMasterySection(mastery, page) {
   return h;
 }
 
+// ══════════════════════════════════════
+// QUEUE METADATA — single source of truth
+// ══════════════════════════════════════
+// name = label shown on the match row / live banner.
+// cat  = match-history filter bucket. Only set where the MAP cannot decide it
+//        (i.e. Summoner's Rift queues). Anything on Howling Abyss, Butcher's
+//        Bridge or Rings of Wrath is bucketed from mapId instead, so a queue id
+//        Riot adds later (a new ARAM rotation, a new Arena id) still lands in
+//        the right chip without this table being touched.
+const QUEUES = {
+  0:    { name: 'Custom',                  cat: 'Custom' },
+  400:  { name: 'Normal Draft',            cat: 'Normal' },
+  420:  { name: 'Ranked Solo/Duo',         cat: 'Solo/Duo' },
+  430:  { name: 'Normal Blind',            cat: 'Normal' },
+  440:  { name: 'Ranked Flex',             cat: 'Flex' },
+  450:  { name: 'ARAM' },
+  460:  { name: 'Twisted Treeline',        cat: 'Other' },
+  470:  { name: 'Ranked Twisted Treeline', cat: 'Other' },
+  480:  { name: 'Swiftplay',               cat: 'Normal' },
+  490:  { name: 'Quickplay',               cat: 'Normal' },
+  600:  { name: 'Blood Hunt',              cat: 'Other' },
+  700:  { name: 'Clash',                   cat: 'Clash' },
+  720:  { name: 'ARAM Clash',              cat: 'Clash' },
+  730:  { name: 'ARAM Clash',              cat: 'Clash' },
+  740:  { name: 'Swiftplay Clash',         cat: 'Clash' },
+  820:  { name: 'Co-op vs AI',             cat: 'Co-op vs AI' },
+  830:  { name: 'Co-op vs AI',             cat: 'Co-op vs AI' },
+  840:  { name: 'Co-op vs AI',             cat: 'Co-op vs AI' },
+  850:  { name: 'Co-op vs AI',             cat: 'Co-op vs AI' },
+  870:  { name: 'Co-op vs AI',             cat: 'Co-op vs AI' },
+  880:  { name: 'Co-op vs AI',             cat: 'Co-op vs AI' },
+  890:  { name: 'Co-op vs AI',             cat: 'Co-op vs AI' },
+  900:  { name: 'ARURF' },
+  910:  { name: 'Ascension',               cat: 'Other' },
+  920:  { name: 'Legend of the Poro King' },
+  940:  { name: 'Nexus Siege',             cat: 'Other' },
+  950:  { name: 'Doom Bots',               cat: 'Other' },
+  960:  { name: 'Doom Bots',               cat: 'Other' },
+  980:  { name: 'Star Guardian',           cat: 'Other' },
+  990:  { name: 'Star Guardian',           cat: 'Other' },
+  1000: { name: 'PROJECT: Hunters',        cat: 'Other' },
+  1010: { name: 'Snow ARURF' },
+  1020: { name: 'One for All',             cat: 'Other' },
+  1030: { name: 'Odyssey',                 cat: 'Other' },
+  1040: { name: 'Odyssey',                 cat: 'Other' },
+  1050: { name: 'Odyssey',                 cat: 'Other' },
+  1060: { name: 'Odyssey',                 cat: 'Other' },
+  1070: { name: 'Odyssey',                 cat: 'Other' },
+  1090: { name: 'Teamfight Tactics',       cat: 'Other' },
+  1100: { name: 'Ranked TFT',              cat: 'Other' },
+  1110: { name: 'TFT Tutorial',            cat: 'Other' },
+  1111: { name: 'TFT Test',                cat: 'Other' },
+  1130: { name: 'TFT Hyper Roll',          cat: 'Other' },
+  1150: { name: 'TFT Double Up',           cat: 'Other' },
+  1160: { name: 'TFT Double Up',           cat: 'Other' },
+  1200: { name: 'Nexus Blitz',             cat: 'Nexus Blitz' },
+  1300: { name: 'Nexus Blitz',             cat: 'Nexus Blitz' },
+  1400: { name: 'Ultimate Spellbook',      cat: 'Other' },
+  1700: { name: 'Arena' },
+  1710: { name: 'Arena' },
+  1810: { name: 'Swarm',                   cat: 'Other' },
+  1820: { name: 'Swarm',                   cat: 'Other' },
+  1830: { name: 'Swarm',                   cat: 'Other' },
+  1840: { name: 'Swarm',                   cat: 'Other' },
+  1900: { name: 'URF',                     cat: 'Other' },
+  2000: { name: 'Tutorial',                cat: 'Other' },
+  2010: { name: 'Tutorial',                cat: 'Other' },
+  2020: { name: 'Tutorial',                cat: 'Other' },
+  // Current-season ids. These were previously only known to the Spectate tab,
+  // so match history rendered them as a bare 'Game' and no chip ever matched.
+  2300: { name: 'ARAM' },
+  2400: { name: 'Normal Draft',            cat: 'Normal' },
+  2410: { name: 'ARAM' },
+  2420: { name: 'Swiftplay',               cat: 'Normal' },
+  2430: { name: 'Swiftplay',               cat: 'Normal' },
+  2440: { name: 'Ranked Flex',             cat: 'Flex' },
+  2450: { name: 'ARAM' },
+  2900: { name: 'Ranked Solo/Duo',         cat: 'Solo/Duo' },
+  3000: { name: 'Rotating Game Mode',      cat: 'Other' }
+};
+
+// mapId -> filter bucket. This is what makes ARAM reliable: every Howling Abyss
+// game is ARAM no matter which rotating queue id Riot ran it under.
+const MAP_CAT   = { 11: 'Other', 12: 'ARAM', 14: 'ARAM', 21: 'Nexus Blitz', 30: 'Arena' };
+const MAP_NAMES = { 11: "Summoner's Rift", 12: 'Howling Abyss', 14: "Butcher's Bridge", 21: 'Nexus Blitz', 30: 'Rings of Wrath' };
+
+function queueLabel(queueId, mapId) {
+  const q = QUEUES[queueId];
+  if (q && q.name) return q.name;
+  return MAP_CAT[mapId] || 'Game';
+}
+
+// The one classifier every filter path goes through.
+function matchCategory(m) {
+  const info = (m && m.info) || {};
+  const q = QUEUES[info.queueId];
+  if (q && q.cat) return q.cat;           // explicit bucket wins
+  return MAP_CAT[info.mapId] || 'Other';  // otherwise the map decides
+}
+
+// Chip order; only buckets actually present in the loaded matches get a chip.
+const CAT_ORDER = ['Solo/Duo', 'Flex', 'Normal', 'ARAM', 'Arena', 'Nexus Blitz', 'Clash', 'Co-op vs AI', 'Custom', 'Other'];
+
+// Filters across EVERY loaded match, not just the visible slice. The old code
+// filtered allMatches.slice(0, displayedMatches), so an ARAM sitting at index 14
+// did not exist as far as the ARAM chip was concerned.
+function matchesForFilter(filter) {
+  filter = filter || _matchFilter || 'All';
+  if (filter === 'All') return (allMatches || []).slice();
+  return (allMatches || []).filter(function(m) { return matchCategory(m) === filter; });
+}
+
+function visibleMatches() {
+  return matchesForFilter(_matchFilter).slice(0, displayedMatches);
+}
+
 function applyMatchFilter(f) {
   _matchFilter = f;
   const mhSection = document.getElementById('match-history-section');
   if (!mhSection) return;
-
-  const FILTERS = {
-    'All':       function(){ return true; },
-    'Solo/Duo':  function(m){ return m.info.queueId === 420; },
-    'Flex':      function(m){ return m.info.queueId === 440; },
-    'ARAM':      function(m){ return m.info.queueId === 450; },
-    'Normal':    function(m){ return m.info.queueId === 400 || m.info.queueId === 490; },
-  };
-  const fn = FILTERS[f] || FILTERS['All'];
-  const toRender = allMatches.slice(0, displayedMatches);
-  const filtered = toRender.filter(fn);
-
-  // Update match-list rows only (no full section replace = no scroll jump)
-  const matchList = mhSection.querySelector('.match-list');
-  if (matchList) {
-    let rows = '';
-    filtered.forEach(function(m, mIdx) {
-      try { rows += renderMatchRow(m, mIdx) || ''; } catch(e) {}
-    });
-    matchList.innerHTML = rows;
-  }
-
-  // Update count label
-  const sub = mhSection.querySelector('.section-hdr .sub');
-  if (sub) sub.textContent = filtered.length + ' games';
-
-  // Update chip active states using data-filter attribute
-  mhSection.querySelectorAll('[data-filter]').forEach(function(chip) {
-    const isActive = chip.dataset.filter === f;
-    chip.style.background = isActive ? 'var(--gold)' : 'var(--bg3)';
-    chip.style.color      = isActive ? '#fff'        : 'var(--tx2)';
-    chip.style.border     = '1px solid ' + (isActive ? 'var(--gold)' : 'var(--bd2)');
-  });
-
-  // Update stats
+  mhSection.innerHTML = renderMatchHistory();
   const statsEl = document.getElementById('stats-section');
-  if (statsEl) statsEl.innerHTML = renderStatsSection(filtered);
+  if (statsEl) statsEl.innerHTML = renderStatsSection(visibleMatches());
 }
 function collapseMastery() {
   masteryPage = 0;
@@ -2297,78 +2942,68 @@ function loadMoreMastery() {
   document.getElementById('mastery-section').innerHTML = renderMasterySection(allMastery, masteryPage);
 }
 
+// True once Riot has no more match ids for this player — drives whether the
+// Load more button is offered at all.
+let _matchHistoryExhausted = false;
+
 async function loadMoreMatches() {
   const mhSection = document.getElementById('match-history-section');
   const loadBtn = mhSection && mhSection.querySelector('.load-more-btn');
   if (loadBtn) { loadBtn.textContent = 'Loading...'; loadBtn.disabled = true; }
   const panel = document.getElementById('profile-panel');
+  const anchorPre = mhSection ? mhSection.getBoundingClientRect().top : 0;
+  const scrollPre = panel ? panel.scrollTop : 0;
 
   try {
-    if (displayedMatches >= allMatches.length) {
+    // How many matches the active filter can still reveal without a fetch.
+    let available = matchesForFilter(_matchFilter).length;
+
+    // Under a narrow filter (ARAM, Arena…) one page of 10 may contain nothing
+    // for the active bucket, so pull further pages until the bucket grows or
+    // Riot runs out. Capped so a filter with no matches left cannot spin.
+    let pages = 0;
+    while (available <= displayedMatches && !_matchHistoryExhausted && pages < 3) {
+      pages++;
       const newIds = await riotFetch(
         '/lol/match/v5/matches/by-puuid/' + summoner.puuid + '/ids?start=' + allMatches.length + '&count=10',
         summoner.routing
       );
-      if (!newIds || !newIds.length) {
-        if (loadBtn) { loadBtn.textContent = 'No more matches'; loadBtn.disabled = true; }
-        return;
-      }
+      if (!newIds || !newIds.length) { _matchHistoryExhausted = true; break; }
+      if (newIds.length < 10) _matchHistoryExhausted = true;
+
       const newMatches = [];
       for (let i = 0; i < newIds.length; i += 5) {
         const batch = newIds.slice(i, i + 5);
         const res = await Promise.all(batch.map(function(id) {
-          return riotFetch('/lol/match/v5/matches/' + id, summoner.routing);
+          return riotFetch('/lol/match/v5/matches/' + id, summoner.routing).catch(function(){ return null; });
         }));
         newMatches.push(...res.filter(Boolean));
-        if (i + 5 < newIds.length) await new Promise(function(r){ setTimeout(r, 400); });
       }
+      if (!newMatches.length) { _matchHistoryExhausted = true; break; }
       allMatches.push(...newMatches);
+      available = matchesForFilter(_matchFilter).length;
     }
 
-    displayedMatches = Math.min(displayedMatches + 10, allMatches.length);
-    const toRender = allMatches.slice(0, displayedMatches);
+    displayedMatches = Math.min(displayedMatches + 10, Math.max(available, displayedMatches));
 
-    // Update stats FIRST (above match history) so its height settles before we lock scroll
+    if (mhSection) mhSection.innerHTML = renderMatchHistory();
+    const shown = visibleMatches();
     const statsEl = document.getElementById('stats-section');
-    if (statsEl) statsEl.innerHTML = renderStatsSection(toRender);
-    buildRecentPlayers(toRender);
+    if (statsEl) statsEl.innerHTML = renderStatsSection(shown);
+    buildRecentPlayers(shown);
 
-    // Now append new match rows to existing list
-    const matchList = mhSection && mhSection.querySelector('.match-list');
-    const anchorTop = matchList ? matchList.getBoundingClientRect().top : 0;
-    const scrollPre = panel ? panel.scrollTop : 0;
-    if (matchList) {
-      const fn = ({
-        'All': function(){ return true; },
-        'Solo/Duo': function(m){ return m.info.queueId === 420; },
-        'Flex': function(m){ return m.info.queueId === 440; },
-        'ARAM': function(m){ return m.info.queueId === 450; },
-        'Normal': function(m){ return m.info.queueId === 400 || m.info.queueId === 490; },
-      })[_matchFilter] || function(){ return true; };
-      const filtered = toRender.filter(fn);
-      let rows = '';
-      filtered.forEach(function(m, mIdx) {
-        try { rows += renderMatchRow(m, mIdx) || ''; } catch(e) {}
-      });
-      matchList.innerHTML = rows;
-      const sub = mhSection.querySelector('.section-hdr .sub');
-      if (sub) sub.textContent = filtered.length + ' games';
-      // Lock scroll so the list top stays where it was on screen
-      if (panel) {
-        const anchorPost = matchList.getBoundingClientRect().top;
-        panel.scrollTop = scrollPre + (anchorPost - anchorTop);
-      }
+    // Lock scroll so the list stays where it was on screen
+    if (panel && mhSection) {
+      const anchorPost = mhSection.getBoundingClientRect().top;
+      panel.scrollTop = scrollPre + (anchorPost - anchorPre);
     }
-
-    const newBtn = mhSection && mhSection.querySelector('.load-more-btn');
-    if (newBtn) {
-      newBtn.textContent = (displayedMatches >= allMatches.length && allMatches.length % 10 !== 0) ? 'Load 10 more matches' : 'Load 10 more matches';
-      newBtn.disabled = false;
-    }
-
   } catch(e) {
     console.error('loadMoreMatches error:', e);
-    if (loadBtn) { loadBtn.textContent = 'Load 10 more matches'; loadBtn.disabled = false; }
+    const btn = mhSection && mhSection.querySelector('.load-more-btn');
+    if (btn) {
+      btn.textContent = e && e.message === '429' ? 'Rate limited — try again shortly' : 'Load 10 more matches';
+      btn.disabled = false;
+    }
   }
 }
 
@@ -2407,7 +3042,7 @@ function renderProfile(_sumData, ranked, mastery, matches, leagueHistory=[]) {
   if (rankedQueues.length > 0) {
     html += `<div>`;
     html += `<div class="section-hdr" style="margin-bottom:8px;"><h2>Ranked</h2></div>`;
-    const TIER_COLORS = {IRON:'#8B7355',BRONZE:'#A0522D',SILVER:'#9AA4B0',GOLD:'#C89B3C',PLATINUM:'#4FC4A4',EMERALD:'#3DD68C',DIAMOND:'#576BCE',MASTER:'#9D48E0',GRANDMASTER:'#CF3E3E',CHALLENGER:'#F0C968'};
+    const TIER_COLORS = {IRON:'#8f7f6b',BRONZE:'#b98457',SILVER:'#b3bcc6',GOLD:'#e0b874',PLATINUM:'#7cc0b6',EMERALD:'#a4b986',DIAMOND:'#8fa6d8',MASTER:'#b39bd4',GRANDMASTER:'#d68a7c',CHALLENGER:'#e0b874'};
     const TIER_EMBLEMS = {IRON:'Emblem_Iron.png',BRONZE:'Emblem_Bronze.png',SILVER:'Emblem_Silver.png',GOLD:'Emblem_Gold.png',PLATINUM:'Emblem_Platinum.png',EMERALD:'Emblem_Emerald.png',DIAMOND:'Emblem_Diamond.png',MASTER:'Emblem_Master.png',GRANDMASTER:'Emblem_Grandmaster.png',CHALLENGER:'Emblem_Challenger.png'};
     rankedQueues.forEach(r => {
       const qName = r.queueType === 'RANKED_SOLO_5x5' ? 'Ranked Solo / Duo' : 'Ranked Flex';
@@ -2448,10 +3083,10 @@ function renderProfile(_sumData, ranked, mastery, matches, leagueHistory=[]) {
   html += `<div class="profile-main">`;
 
   // Stats
-  html += `<div id="stats-section">${renderStatsSection(matches)}</div>`;
+  html += `<div id="stats-section">${renderStatsSection(visibleMatches())}</div>`;
 
   // Match history
-  html += `<div id="match-history-section">${renderMatchHistory(matches)}</div>`;
+  html += `<div id="match-history-section">${renderMatchHistory()}</div>`;
 
   html += `</div>`; // end main
   html += `</div>`; // end layout
@@ -2475,25 +3110,96 @@ function renderProfile(_sumData, ranked, mastery, matches, leagueHistory=[]) {
   buildRecentPlayers(allMatches.slice(0, displayedMatches));
 }
 
-async function fetchLiveGame() {
+// Poll handle for the profile's live-game card. Riot's spectator endpoint is the
+// only way to know, and it is queue-agnostic — ARAM, Swiftplay, Arena, Clash and
+// customs all come back through it, so nothing here filters on gameQueueConfigId.
+let _profileLiveTimer = null;
+let _profileLiveGen   = 0;
+const LIVE_POLL_MS    = 60000;
+
+function stopProfileLivePoll() {
+  _profileLiveGen++;
+  if (_profileLiveTimer) { clearTimeout(_profileLiveTimer); _profileLiveTimer = null; }
+}
+
+async function fetchLiveGame(puuidArg, platformArg) {
+  const puuid    = puuidArg    || summoner.puuid;
+  const platform = platformArg || summoner.platform;
+  if (!puuid) return;
+
+  stopProfileLivePoll();
+  const gen = _profileLiveGen;
+
+  let game = null, err = null;
+  try {
+    game = await riotFetch('/lol/spectator/v5/active-games/by-summoner/' + puuid, platform);
+  } catch(e) { err = e; }
+
+  if (gen !== _profileLiveGen) return;               // navigated away mid-flight
+
+  // Re-read the container AFTER the await. loadPlayerProfile() rewrites
+  // profile-content's innerHTML immediately after renderProfile() to prepend the
+  // back buttons, which detaches the node this function used to capture up front —
+  // the live game was then rendered into an element no longer in the document,
+  // which is why another player's live game never appeared.
   const el = document.getElementById('live-game-section');
   if (!el) return;
+
+  const repoll = function(ms) {
+    if (gen !== _profileLiveGen) return;
+    _profileLiveTimer = setTimeout(function() {
+      if (gen !== _profileLiveGen) return;
+      fetchLiveGame(puuid, platform);
+    }, ms || LIVE_POLL_MS);
+  };
+
+  if (err) {
+    const code = err.message || '';
+    if (code === '404' || code === 'Empty response') {
+      el.innerHTML = '';                             // genuinely not in a game
+      repoll(LIVE_POLL_MS);
+    } else {
+      // 429 and friends mean we failed to FIND OUT. The old code hid the card
+      // either way, so a rate-limited lookup looked identical to 'not in game'.
+      el.innerHTML = _liveUnavailableHtml(code, puuid, platform);
+      repoll(code === '429' ? 30000 : LIVE_POLL_MS);
+    }
+    return;
+  }
+
+  if (!game || !game.participants || !game.participants.length) {
+    el.innerHTML = '';
+    repoll(LIVE_POLL_MS);
+    return;
+  }
+
+  // Render inside its own try: a throw in here used to land in the same catch as
+  // the fetch and blank the card, hiding a game that was actually live.
   try {
-    const game = await riotFetch(
-      `/lol/spectator/v5/active-games/by-summoner/${summoner.puuid}`,
-      summoner.platform
-    );
-    if (!game || !game.participants) { el.innerHTML = ''; return; }
     renderLiveGame(game, el);
   } catch(e) {
-    // 404 = not in game, silently hide
-    el.innerHTML = '';
+    console.error('renderLiveGame failed:', e);
+    el.innerHTML = _liveUnavailableHtml('render', puuid, platform);
   }
+  repoll(LIVE_POLL_MS);
+}
+
+function _liveUnavailableHtml(code, puuid, platform) {
+  const msg = code === '429' ? 'Rate limited — live game check will retry shortly'
+            : code === 'render' ? 'Live game found but could not be drawn (see console)'
+            : 'Live game check failed (' + code + ')';
+  return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:12px;' +
+    'background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;font-family:var(--mono);' +
+    'font-size:12px;color:var(--tx3);">' +
+    '<span>' + msg + '</span>' +
+    '<button onclick="fetchLiveGame()" style="margin-left:auto;height:26px;padding:0 12px;background:transparent;' +
+    'border:1px solid var(--bd2);border-radius:5px;color:var(--tx2);font-family:var(--mono);font-size:11px;' +
+    'cursor:pointer;">Retry</button></div>';
 }
 
 function renderLiveGame(game, el) {
-  const QUEUE = {0:'Custom',420:'Ranked Solo/Duo',440:'Ranked Flex',450:'ARAM',400:'Normal Draft',490:'Normal Blind',430:'Normal Blind',900:'URF',1900:'URF',1020:'One for All',700:'Clash',720:'ARAM Clash',1300:'Swiftplay',1400:'Ultimate Spellbook',1700:'Arena',830:'Co-op vs AI',840:'Co-op vs AI',850:'Co-op vs AI',1010:'Snow ARAM'};
-  const qName = QUEUE[game.gameQueueConfigId] || 'Custom';
+  // Shared queue table — one place to keep mode names right for every queue.
+  const qName = queueLabel(game.gameQueueConfigId, game.mapId);
   const mins = Math.floor((game.gameLength||0) / 60);
   const secs = String((game.gameLength||0) % 60).padStart(2,'0');
   const timeStr = game.gameLength ? mins + ':' + secs : 'Lobby';
@@ -2515,7 +3221,7 @@ function renderLiveGame(game, el) {
   function renderTeam(team, side) {
     const isBlue = side === 'blue';
     const sideColor = isBlue ? 'var(--blue)' : 'var(--red)';
-    let h = '<div class="live-team-hdr" style="background:' + (isBlue?'rgba(91,156,246,0.05)':'rgba(240,96,112,0.05)') + ';color:' + sideColor + ';">' +
+    let h = '<div class="live-team-hdr" style="background:' + (isBlue?'rgba(143,166,216,0.05)':'rgba(214,138,124,0.05)') + ';color:' + sideColor + ';">' +
       '<span>' + (isBlue?'🔵 Blue':'🔴 Red') + '</span><span>Spells</span><span>Runes</span><span>Rank</span></div>';
     team.forEach(function(p) {
       const isMe = p.puuid === summoner.puuid;
@@ -2530,7 +3236,7 @@ function renderLiveGame(game, el) {
       const sp = findPathIcon(secStyleId);
       const pName = (p.riotId||p.summonerName||'Player').split('#')[0];
       const pTag  = (p.riotId||'').split('#')[1]||'';
-      const rowBg = isMe ? 'rgba(167,139,250,0.07)' : 'transparent';
+      const rowBg = isMe ? 'rgba(192,174,234,0.07)' : 'transparent';
       h += '<div class="live-player-row" style="background:'+rowBg+';cursor:pointer;" ' +
            'data-pname="'+pName.replace(/"/g,'&quot;')+'" data-ptag="'+pTag+'" data-cid="'+cName+'" ' +
            'onclick="showPlayerMenu(event,this.dataset.pname,this.dataset.ptag,this.dataset.cid)">' +
@@ -2568,7 +3274,7 @@ function renderLiveGame(game, el) {
       '<div style="font-family:var(--body);font-size:12px;color:var(--tx3);margin-top:2px;font-weight:500;">' + qName + ' · ' + timeStr + '</div>' +
     '</div>' +
     '<div style="display:flex;align-items:center;gap:8px;margin-left:auto;">' +
-      '<div style="height:30px;padding:0 14px;background:rgba(80,200,120,0.15);border:1px solid rgba(80,200,120,0.4);border-radius:6px;display:flex;align-items:center;font-family:var(--body);font-size:12px;font-weight:700;color:var(--green);gap:6px;">' +
+      '<div style="height:30px;padding:0 14px;background:rgba(164,185,134,0.15);border:1px solid rgba(164,185,134,0.4);border-radius:6px;display:flex;align-items:center;font-family:var(--body);font-size:12px;font-weight:700;color:var(--green);gap:6px;">' +
         '<div style="width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.4s ease-in-out infinite;"></div>' +
         'Spectate' +
       '</div>' +
@@ -2579,20 +3285,34 @@ function renderLiveGame(game, el) {
 
 async function buildRecentPlayers(matches) {
   const players = {};
+  // Key on puuid, not on name#tag. A match stores the Riot ID as it was AT THE
+  // TIME the game was played, so a player who renames appears under both their
+  // old and new ID and used to be listed twice. puuid is stable across renames.
+  //
+  // Matches arrive newest-first, so the first Riot ID seen for a puuid is the
+  // most recent one — that is the name to show, and later (older) rows must not
+  // overwrite it.
   matches.forEach(m => {
     m.info.participants.forEach(pp => {
       if (pp.puuid === summoner.puuid) return;
-      const key = pp.riotIdGameName + '#' + pp.riotIdTagline;
-      if (!players[key]) players[key] = {
-        puuid: pp.puuid,
-        name: pp.riotIdGameName||pp.summonerName,
-        tag: pp.riotIdTagline||'',
-        champName: pp.championName,
-        games: 0, wins: 0,
-        iconId: null
-      };
-      players[key].games++;
-      if (pp.win) players[key].wins++;
+      const key = pp.puuid || ((pp.riotIdGameName || pp.summonerName || '?') + '#' + (pp.riotIdTagline || ''));
+      let rec = players[key];
+      if (!rec) {
+        rec = players[key] = {
+          puuid: pp.puuid,
+          name: pp.riotIdGameName || pp.summonerName || 'Unknown',
+          tag: pp.riotIdTagline || '',
+          champName: pp.championName,
+          games: 0, wins: 0,
+          iconId: null
+        };
+      } else if (rec.name === 'Unknown' && (pp.riotIdGameName || pp.summonerName)) {
+        // Only fill in a name we never had; never replace a newer one with an older one.
+        rec.name = pp.riotIdGameName || pp.summonerName;
+        rec.tag  = pp.riotIdTagline || rec.tag;
+      }
+      rec.games++;
+      if (pp.win) rec.wins++;
     });
   });
 
@@ -2628,12 +3348,11 @@ async function buildRecentPlayers(matches) {
     const batch = sorted.slice(i, i + 3);
     await Promise.all(batch.map(async p => {
       try {
-        const s = await riotFetch(`/lol/summoner/v4/summoners/by-puuid/${p.puuid}`, summoner.platform);
+        const s = await riotFetch('/lol/summoner/v4/summoners/by-puuid/' + p.puuid, summoner.platform, 1);
         p.iconId = s.profileIconId;
       } catch(e) {}
     }));
     renderList(sorted);
-    if (i + 3 < sorted.length) await new Promise(r => setTimeout(r, 300));
   }
 }
 
@@ -2646,14 +3365,12 @@ function renderMatchRow(m, mIdx) {
     const win = p.win;
     const dur = Math.floor(m.info.gameDuration/60) + ':' + String(m.info.gameDuration%60).padStart(2,'0');
     const matchDate = m.info.gameStartTimestamp ? new Date(m.info.gameStartTimestamp) : null;
-    const dateStr = matchDate ? matchDate.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' + matchDate.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}) : '';
+    const dateStr = matchDate ? matchDate.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}) + ' · ' + matchDate.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}) : '';
     const kda = p.deaths === 0
       ? (p.kills+p.assists).toFixed(1)
       : ((p.kills+p.assists)/p.deaths).toFixed(2);
     const cspm = (p.totalMinionsKilled / (m.info.gameDuration/60)).toFixed(1);
-    const queueMap = {420:'Ranked Solo/Duo',440:'Ranked Flex',450:'ARAM',400:'Normal Draft',490:'Normal',900:'URF',1020:'One for All',1300:'Swiftplay',1900:'Swiftplay',700:'Clash',1700:'Arena'};
-    const qName = queueMap[m.info.queueId] || 'Game';
-    const MAP_NAMES = {11:'Summoner\'s Rift',12:'Howling Abyss',21:'Nexus Blitz',30:'Arena'};
+    const qName   = queueLabel(m.info.queueId, m.info.mapId);
     const mapName = MAP_NAMES[m.info.mapId] || '';
 
     // Build detail panel
@@ -2672,12 +3389,12 @@ function renderMatchRow(m, mIdx) {
     function renderTeamTable(team, side) {
       const isBlue = side === 'blue';
       const win = team[0]?.win;
-      const sideColor = isBlue ? '#5b9cf6' : '#f06070';
+      const sideColor = isBlue ? '#8fa6d8' : '#d68a7c';
       const winStr = win ? '✓ Victory' : '✗ Defeat';
       const mins = m.info.gameDuration / 60;
-      const TIER_COLOR = {IRON:'#8B7355',BRONZE:'#CD7F32',SILVER:'#C0C0C0',GOLD:'#e8c96a',PLATINUM:'#4bc8aa',EMERALD:'#3dd68c',DIAMOND:'#6080e0',MASTER:'#b57bee',GRANDMASTER:'#E05050',CHALLENGER:'#F0C060'};
+      const TIER_COLOR = {IRON:'#8f7f6b',BRONZE:'#b98457',SILVER:'#b3bcc6',GOLD:'#e0b874',PLATINUM:'#7cc0b6',EMERALD:'#a4b986',DIAMOND:'#8fa6d8',MASTER:'#b39bd4',GRANDMASTER:'#d68a7c',CHALLENGER:'#ebd39a'};
 
-      let t = `<table style="width:100%;border-collapse:collapse;table-layout:fixed;">`;
+      let t = `<table class="dp-team-table" style="width:100%;border-collapse:collapse;table-layout:fixed;">`;
       t += `<colgroup>
         <col style="width:200px">
         <col style="width:44px">
@@ -2688,7 +3405,7 @@ function renderMatchRow(m, mIdx) {
         <col style="width:68px">
         <col>
       </colgroup>`;
-      t += `<thead><tr style="border-bottom:1px solid var(--bd);background:${isBlue?'rgba(91,156,246,0.05)':'rgba(240,96,112,0.05)'};">
+      t += `<thead><tr style="border-bottom:1px solid var(--bd);background:${isBlue?'rgba(143,166,216,0.05)':'rgba(214,138,124,0.05)'};">
         <th style="text-align:left;padding:10px 14px;font-family:var(--body);font-size:15px;font-weight:700;color:${sideColor};">${isBlue?'🔵 Blue':'🔴 Red'} · ${winStr}</th>
         <th style="text-align:center;padding:8px 4px;font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:700;letter-spacing:1px;font-weight:400;">SPELLS</th>
         <th style="text-align:center;padding:8px 2px;font-family:var(--mono);font-size:12px;color:var(--tx2);font-weight:700;letter-spacing:1px;font-weight:400;">RUNES</th>
@@ -2708,7 +3425,7 @@ function renderMatchRow(m, mIdx) {
         const dmgPct = Math.round((pp.totalDamageDealtToChampions / maxDmg) * 100);
         const dmgK   = (pp.totalDamageDealtToChampions/1000).toFixed(1);
         const dmgBarColor = isBlue ? 'var(--blue)' : 'var(--red)';
-        const rowBg = isMe ? 'rgba(167,139,250,0.07)' : 'transparent';
+        const rowBg = isMe ? 'rgba(192,174,234,0.07)' : 'transparent';
 
         // Summoner spells
         const sp1 = allSummonerSpells ? allSummonerSpells.find(s => parseInt(s.key)===pp.summoner1Id) : null;
@@ -2834,9 +3551,14 @@ function renderMatchRow(m, mIdx) {
       return tiers[Math.round(avg)] || '';
     })() : '';
 
+  // Key rows by matchId, not by position: the position changes every time a
+  // filter chip or Load more re-renders the list, which used to leave the open
+  // detail panel attached to whichever match happened to slide into that index.
+  const rowKey = String((m.metadata && m.metadata.matchId) || ('idx' + mIdx)).replace(/[^A-Za-z0-9_-]/g, '');
+
   html += `
-    <div class="match-wrap" id="mwrap-${mIdx}" style="border-radius:8px;overflow:hidden;margin-bottom:6px;border:1px solid ${win?'rgba(61,214,140,0.22)':'rgba(240,96,112,0.18)'};border-left:3px solid ${win?'rgba(61,214,140,0.7)':'rgba(240,96,112,0.6)'};box-shadow:${win?'inset 4px 0 12px rgba(61,214,140,0.04)':'inset 4px 0 12px rgba(240,96,112,0.04)'}">
-      <div class="match-row" onclick="toggleMatch(${mIdx})">
+    <div class="match-wrap" id="mwrap-${rowKey}" style="border-radius:8px;overflow:hidden;margin-bottom:6px;border:1px solid ${win?'rgba(164,185,134,0.22)':'rgba(214,138,124,0.18)'};border-left:3px solid ${win?'rgba(164,185,134,0.7)':'rgba(214,138,124,0.6)'};box-shadow:${win?'inset 4px 0 12px rgba(164,185,134,0.04)':'inset 4px 0 12px rgba(214,138,124,0.04)'}">
+      <div class="match-row" onclick="toggleMatch('${rowKey}')">
         <div class="result-bar ${win?'win':'loss'}"></div>
         <img class="champ-icon" src="${champIconUrl(p.championName)}" alt="${p.championName}" onerror="this.src='data:image/svg+xml,<svg/>'">
         <div class="result-badge ${win?'win':'loss'}">${win?'Win':'Loss'}</div>
@@ -2851,38 +3573,61 @@ function renderMatchRow(m, mIdx) {
         </div>
         <div class="kda-ratio">${kda} KDA</div>
       </div>
-      <div class="match-detail" id="mdetail-${mIdx}">${detailHtml}</div>
+      <div class="match-detail" id="mdetail-${rowKey}">${detailHtml}</div>
     </div>`;
   return html;
 }
 
 let _matchFilter = 'All';
-function renderMatchHistory(matches, filter) {
-  filter = filter || _matchFilter || 'All';
-  _matchFilter = filter;
-  const FILTERS = {
-    'All': function(){ return true; },
-    'Solo/Duo': function(m){ return m.info.queueId === 420; },
-    'Flex': function(m){ return m.info.queueId === 440; },
-    'ARAM': function(m){ return m.info.queueId === 450; },
-    'Normal': function(m){ return m.info.queueId === 400 || m.info.queueId === 490; },
-  };
-  const fn = FILTERS[filter] || FILTERS['All'];
-  const filtered = (matches||[]).filter(fn);
-  const FKEYS = ['All','Solo/Duo','Flex','ARAM','Normal'];
-  let chips = '';
-  FKEYS.forEach(function(f) {
-    const a = f === filter;
-    chips += '<span data-filter="' + f + '" onclick="applyMatchFilter(\'' + f + '\')" style="padding:5px 14px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;background:' + (a?'var(--gold)':'var(--bg3)') + ';color:' + (a?'#fff':'var(--tx2)') + ';border:1px solid ' + (a?'var(--gold)':'var(--bd2)') + ';">' + f + '</span>';
+
+// Called with no arguments — it always reads allMatches / _matchFilter /
+// displayedMatches so every render path (first paint, chip click, load-more)
+// agrees on what is on screen.
+function renderMatchHistory() {
+  const pool  = allMatches || [];
+  // Bucket counts across the whole loaded pool, so a chip is only offered when
+  // it would actually show something.
+  const counts = {};
+  pool.forEach(function(m) {
+    const c = matchCategory(m);
+    counts[c] = (counts[c] || 0) + 1;
   });
-  let html = '<div class="section-hdr"><h2>Match History</h2><span class="sub">' + filtered.length + ' games</span></div>';
-  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">' + chips + '</div>';
+  const keys = ['All'].concat(CAT_ORDER.filter(function(c) { return counts[c]; }));
+  // A filter can go stale after a profile switch (e.g. ARAM selected, new player
+  // has none) — fall back to All rather than showing an empty list.
+  if (keys.indexOf(_matchFilter) < 0) _matchFilter = 'All';
+
+  const matched = matchesForFilter(_matchFilter);
+  const shown   = matched.slice(0, displayedMatches);
+
+  let chips = '';
+  keys.forEach(function(f) {
+    const a = f === _matchFilter;
+    const n = f === 'All' ? pool.length : counts[f];
+    chips += '<span class="match-filter-chip" data-filter="' + f + '" onclick="applyMatchFilter(\'' + f.replace(/'/g, "\\'") + '\')" ' +
+      'style="background:' + (a ? 'var(--gold)' : 'var(--bg3)') + ';color:' + (a ? '#1a1a1d' : 'var(--tx2)') +
+      ';border-color:' + (a ? 'var(--gold)' : 'var(--bd2)') + ';">' + f +
+      '<span style="opacity:0.6;margin-left:5px;">' + n + '</span></span>';
+  });
+
+  let html = '<div class="section-hdr"><h2>Match History</h2><span class="sub">' +
+    shown.length + ' of ' + matched.length + ' games</span></div>';
+  html += '<div class="match-filter-bar">' + chips + '</div>';
   html += '<div class="match-list">';
-  filtered.forEach(function(m, mIdx) {
+  if (!shown.length) {
+    html += '<div style="padding:26px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--tx3);">No ' +
+      (_matchFilter === 'All' ? '' : _matchFilter + ' ') + 'games in the loaded history.</div>';
+  }
+  shown.forEach(function(m, mIdx) {
     try { html += renderMatchRow(m, mIdx) || ''; } catch(e) { console.error('renderMatchRow error', mIdx, e); }
   });
   html += '</div>';
-  html += '<button class="load-more-btn" id="load-more-btn" onclick="loadMoreMatches()">Load 10 more matches</button>';
+  // Only offer Load more when there is more to get: either more already-loaded
+  // matches in this bucket, or more pages available from Riot.
+  const moreLoaded = matched.length > shown.length;
+  if (moreLoaded || !_matchHistoryExhausted) {
+    html += '<button class="load-more-btn" id="load-more-btn" onclick="loadMoreMatches()">Load 10 more matches</button>';
+  }
   return html;
 }
 
@@ -2918,14 +3663,14 @@ function showSyncStatus(state) {
     el.textContent = '⟳ Syncing...'; el.style.color = 'var(--tx3)'; el.style.borderColor = 'var(--bd2)';
     if (inline) { inline.textContent = '⟳ Syncing...'; inline.style.color = 'var(--tx3)'; }
   } else if (state === 'synced') {
-    el.textContent = '✓ Synced'; el.style.color = 'var(--green)'; el.style.borderColor = 'rgba(80,200,120,0.3)';
+    el.textContent = '✓ Synced'; el.style.color = 'var(--green)'; el.style.borderColor = 'rgba(164,185,134,0.3)';
     if (inline) { inline.textContent = '✓ Synced'; inline.style.color = 'var(--green)'; }
     _syncHideTimer = setTimeout(function(){
       el.style.opacity = '0';
       if (inline && inline.textContent === '✓ Synced') inline.textContent = '';
     }, 3000);
   } else if (state === 'error') {
-    el.textContent = '✕ Sync failed'; el.style.color = 'var(--red)'; el.style.borderColor = 'rgba(212,122,106,0.3)';
+    el.textContent = '✕ Sync failed'; el.style.color = 'var(--red)'; el.style.borderColor = 'rgba(214,138,124,0.3)';
     if (inline) { inline.textContent = '✕ Sync failed'; inline.style.color = 'var(--red)'; }
   }
 }
@@ -3297,7 +4042,7 @@ function renderBuildCard(cid, b, idx) {
   const items = b.items || [];
   const spells = b.spells || [];
   const BASE = 'https://ddragon.leagueoflegends.com/cdn/img/';
-  const COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+  const COLORS = {'Precision':'#e0b874','Domination':'#c9706b','Sorcery':'#a8b0e0','Resolve':'#a4b986','Inspiration':'#7cc0b6'};
 
   const itemIcons = items.map(function(id) {
     var name = (allItems[id]||{}).name||id;
@@ -3330,7 +4075,7 @@ function renderBuildCard(cid, b, idx) {
         var sz = si===0 ? '32' : '26';
         var border = si===0 ? '2px solid ' + mainCol : '1px solid ' + mainCol + '66';
         runeHtml += '<div data-rid="' + rune.id + '" data-pid="' + b.runeMain + '" onclick="openRuneOverlay(this.dataset.rid,this.dataset.pid)" title="' + rune.name + '" style="cursor:pointer;">' +
-          '<img src="' + BASE + rune.icon + '" style="width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:#0a0a0f;border:' + border + ';">' +
+          '<img src="' + BASE + rune.icon + '" style="width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:#141416;border:' + border + ';">' +
         '</div>';
       });
     }
@@ -3348,7 +4093,7 @@ function renderBuildCard(cid, b, idx) {
         for (var sl of subPath.slots) { var rf2 = sl.runes.find(function(x){return x.id===rid;}); if(rf2){rune=rf2;break;} }
         if (!rune) return;
         runeHtml += '<div data-rid="' + rune.id + '" data-pid="' + subPath.id + '" onclick="openRuneOverlay(this.dataset.rid,this.dataset.pid)" title="' + rune.name + '" style="cursor:pointer;">' +
-          '<img src="' + BASE + rune.icon + '" style="width:26px;height:26px;border-radius:50%;background:#0a0a0f;border:1px solid ' + subCol + '66;">' +
+          '<img src="' + BASE + rune.icon + '" style="width:26px;height:26px;border-radius:50%;background:#141416;border:1px solid ' + subCol + '66;">' +
         '</div>';
       });
     }
@@ -3440,7 +4185,7 @@ function openBuildEditor() {
   title.style.cssText = 'font-family:var(--head);font-size:19px;font-weight:800;color:var(--tx);';
   title.innerHTML = (champ?champ.name:cid) + '<span style="font-size:12px;font-weight:400;color:var(--tx3);font-family:var(--mono);margin-left:10px;letter-spacing:1px;">' + (buildEditorIdx>=0?'Edit Build':'New Build') + '</span>';
   var saveBtn = document.createElement('button');
-  saveBtn.style.cssText = 'margin-left:auto;height:34px;padding:0 22px;background:var(--gold);border:none;border-radius:8px;color:#fff;font-family:var(--head);font-size:13px;font-weight:700;letter-spacing:0.2px;cursor:pointer;box-shadow:0 2px 12px rgba(167,139,250,0.4);';
+  saveBtn.style.cssText = 'margin-left:auto;height:34px;padding:0 22px;background:var(--gold);border:none;border-radius:8px;color:#fff;font-family:var(--head);font-size:13px;font-weight:700;letter-spacing:0.2px;cursor:pointer;box-shadow:0 2px 12px rgba(192,174,234,0.4);';
   saveBtn.textContent = 'Save';
   saveBtn.onclick = saveBuildEditor;
   hdr.appendChild(backBtn); hdr.appendChild(champImg); hdr.appendChild(title); hdr.appendChild(saveBtn);
@@ -3597,7 +4342,7 @@ function openBuildEditor() {
         '</div>' +
         '<div style="padding:10px 14px;border-bottom:1px solid var(--bd);position:relative;flex-shrink:0;">' +
           '<input id="matchup-search" placeholder="Search champions..." style="width:100%;height:38px;padding:0 34px 0 12px;background:var(--bg4);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:14px;outline:none;">' +
-          '<button id="mq-search-clear" style="position:absolute;right:22px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;">✕</button>' +
+          '<button id="mq-search-clear" class="input-clear-btn" style="position:absolute;right:22px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;">✕</button>' +
         '</div>' +
         '<div style="padding:8px 14px;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
           '<div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:4px;">CLASS</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-class-chips"></div></div>' +
@@ -3683,7 +4428,7 @@ function filterMatchupGrid(q) {
   }).sort(function(a,b){ return a.name.localeCompare(b.name); });
   grid.innerHTML = list.map(function(c) {
     var sel = _matchupSelected.includes(c.id);
-    return '<div data-cid="' + c.id + '" onclick="toggleMatchupChamp(this.dataset.cid)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;background:' + (sel?'rgba(167,139,250,0.15)':'var(--bg4)') + ';border:2px solid ' + (sel?'var(--gold)':'transparent') + ';border-radius:8px;cursor:pointer;transition:all 0.1s;"">' +
+    return '<div data-cid="' + c.id + '" onclick="toggleMatchupChamp(this.dataset.cid)" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;background:' + (sel?'rgba(192,174,234,0.15)':'var(--bg4)') + ';border:2px solid ' + (sel?'var(--gold)':'transparent') + ';border-radius:8px;cursor:pointer;transition:all 0.1s;"">' +
       '<img src="' + DDRAGON + '/img/champion/' + c.id + '.png" style="width:50px;height:50px;border-radius:8px;" onerror="this.style.opacity=0.3">' +
       '<span style="font-family:var(--body);font-size:12px;font-weight:600;color:' + (sel?'var(--gold)':'var(--tx)') + ';text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">' + c.name + '</span>' +
     '</div>';
@@ -3738,7 +4483,7 @@ function renderMatchupDisplay() {
 function renderRuneBuilderZone(b) {
   if (!allRuneData || !allRuneData.length) return '<div style="font-family:var(--mono);font-size:12px;color:var(--tx3);padding:8px;">Rune data loading...</div>';
   const BASE = 'https://ddragon.leagueoflegends.com/cdn/img/';
-  const COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+  const COLORS = {'Precision':'#e0b874','Domination':'#c9706b','Sorcery':'#a8b0e0','Resolve':'#a4b986','Inspiration':'#7cc0b6'};
   let html = '';
 
   // Primary path pills
@@ -3770,7 +4515,7 @@ function renderRuneBuilderZone(b) {
           const sel = (b.runeMainSlots||[])[si] === r.id;
           const sz = isKS ? '28' : '22';
           html += '<div onclick="selectRuneSlot(\'main\',' + si + ',' + r.id + ')" title="' + r.name + '" style="display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;cursor:pointer;background:' + (sel?col+'22':'transparent') + ';border:1px solid ' + (sel?col:'var(--bd)') + ';transition:all 0.1s;"">' +
-            '<img src="' + BASE + r.icon + '" style="width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:#0a0a0f;flex-shrink:0;" onerror="this.style.opacity=0.4">' +
+            '<img src="' + BASE + r.icon + '" style="width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:#141416;flex-shrink:0;" onerror="this.style.opacity=0.4">' +
             '<span style="font-family:var(--body);font-size:12px;font-weight:' + (sel?'700':'400') + ';color:' + (sel?'var(--tx)':'var(--tx3)') + ';white-space:nowrap;">' + r.name + '</span>' +
           '</div>';
         });
@@ -3807,7 +4552,7 @@ function renderRuneBuilderZone(b) {
           slot.runes.forEach(function(r) {
             const sel = (b.runeSubSlots||[]).includes(r.id);
             html += '<div onclick="selectRuneSubSlot(' + r.id + ')" title="' + r.name + '" style="display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:6px;cursor:pointer;background:' + (sel?col+'22':'transparent') + ';border:1px solid ' + (sel?col:'var(--bd)') + ';transition:all 0.1s;"">' +
-              '<img src="' + BASE + r.icon + '" style="width:20px;height:20px;border-radius:50%;background:#0a0a0f;" onerror="this.style.opacity=0.4">' +
+              '<img src="' + BASE + r.icon + '" style="width:20px;height:20px;border-radius:50%;background:#141416;" onerror="this.style.opacity=0.4">' +
               '<span style="font-family:var(--body);font-size:12px;font-weight:' + (sel?'700':'400') + ';color:' + (sel?'var(--tx)':'var(--tx3)') + ';white-space:nowrap;">' + r.name + '</span>' +
             '</div>';
           });
@@ -4351,7 +5096,7 @@ function renderLiveClientData(data, el) {
   var statRunes = fullRunes.statRunes || [];
   if (keystoneR) {
     var BASE_RUNE = 'https://ddragon.leagueoflegends.com/cdn/img/';
-    var RUNE_COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+    var RUNE_COLORS = {'Precision':'#e0b874','Domination':'#c9706b','Sorcery':'#a8b0e0','Resolve':'#a4b986','Inspiration':'#7cc0b6'};
     function findRuneByIdLive(id) {
       if (!id || !allRuneData.length) return null;
       for (var rp of allRuneData) {
@@ -4430,7 +5175,7 @@ function renderLiveClientData(data, el) {
       var ci = champImg(p);
       var isDead = p.isDead || false;
       var respawn = p.respawnTimer || 0;
-      html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--bd);background:'+(isMe?'rgba(167,139,250,0.1)':isDead?'rgba(240,96,112,0.04)':'transparent')+';opacity:'+(isDead&&!isMe?'0.7':'1')+'">';
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--bd);background:'+(isMe?'rgba(192,174,234,0.1)':isDead?'rgba(214,138,124,0.04)':'transparent')+';opacity:'+(isDead&&!isMe?'0.7':'1')+'">';
       if (ci) html += '<img src="'+ci+'" style="width:28px;height:28px;border-radius:5px;'+(isDead?'filter:grayscale(0.7);':'')+';" onerror="this.style.opacity=0.3">';
       html += '<div style="flex:1;min-width:0;">';
       html += '<div style="font-family:var(--head);font-size:12px;font-weight:700;color:'+(isMe?'var(--gold)':isDead?'var(--red)':'var(--tx)')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p.riotId||p.summonerName||'')+'</div>';
@@ -4537,7 +5282,7 @@ function renderLiveClientData(data, el) {
       var bItems = b.items || [];
       var bSpells = b.spells || [];
       var mainPath = b.runeMain && allRuneData.length ? allRuneData.find(function(p){return p.id===b.runeMain;}) : null;
-      var COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+      var COLORS = {'Precision':'#e0b874','Domination':'#c9706b','Sorcery':'#a8b0e0','Resolve':'#a4b986','Inspiration':'#7cc0b6'};
       var pathCol = mainPath ? (COLORS[mainPath.name]||'var(--gold)') : 'var(--gold)';
 
       html += '<div style="background:var(--bg3);border:1px solid ' + (matchedBuilds.length?'var(--gold)':'var(--bd)') + ';border-radius:10px;padding:14px 16px;margin-bottom:10px;">';
@@ -4549,7 +5294,7 @@ function renderLiveClientData(data, el) {
         html += '<span style="font-family:var(--mono);font-size:12px;color:var(--tx3);">vs</span>';
         b.matchupChamps.forEach(function(mcid) {
           var inEnemy = enemyChampIds.indexOf(mcid) >= 0;
-          html += '<div style="display:flex;align-items:center;gap:3px;' + (inEnemy?'background:rgba(167,139,250,0.15);border-radius:4px;padding:2px 5px;':'') + '">' +
+          html += '<div style="display:flex;align-items:center;gap:3px;' + (inEnemy?'background:rgba(192,174,234,0.15);border-radius:4px;padding:2px 5px;':'') + '">' +
             '<img src="' + DDRAGON + '/img/champion/' + mcid + '.png" style="width:18px;height:18px;border-radius:3px;' + (inEnemy?'border:1px solid var(--gold);':'') + '">' +
             '<span style="font-family:var(--body);font-size:12px;color:' + (inEnemy?'var(--gold)':'var(--tx3)') + ';">' + ((allChamps[mcid]||{}).name||mcid) + '</span>' +
           '</div>';
@@ -4579,7 +5324,7 @@ function renderLiveClientData(data, el) {
         if (ksId) {
           var ksRune = null;
           mainPath.slots.forEach(function(sl){ var r=sl.runes.find(function(x){return x.id===ksId;}); if(r) ksRune=r; });
-          if (ksRune) html += '<img src="' + BASE + ksRune.icon + '" title="' + ksRune.name + '" style="width:26px;height:26px;border-radius:50%;background:#0a0a0f;border:1px solid ' + pathCol + ';">';
+          if (ksRune) html += '<img src="' + BASE + ksRune.icon + '" title="' + ksRune.name + '" style="width:26px;height:26px;border-radius:50%;background:#141416;border:1px solid ' + pathCol + ';">';
         }
       }
       if (b.notes) html += '<span style="font-family:var(--body);font-size:12px;color:var(--tx3);margin-left:4px;">' + b.notes.substring(0,60) + (b.notes.length>60?'…':'') + '</span>';
@@ -4608,6 +5353,7 @@ function mkStat(label, val, col) {
 function toggleMatch(idx) {
   const wrap   = document.getElementById('mwrap-' + idx);
   const detail = document.getElementById('mdetail-' + idx);
+  if (!wrap || !detail) return;
   const isOpen = detail.classList.contains('open');
   // Close all others
   document.querySelectorAll('.match-detail.open').forEach(d => {
@@ -4645,24 +5391,31 @@ async function loadPlayerProfile(name, tag) {
     for (let i = 0; i < matchIds.length; i += 5) {
       const batch = matchIds.slice(i, i+5);
       const results = await Promise.all(batch.map(id => riotFetch('/lol/match/v5/matches/' + id, prev.routing)));
-      matches.push(...results);
-      if (i+5 < matchIds.length) await new Promise(r => setTimeout(r, 400));
+      matches.push(...results.filter(Boolean));
     }
 
     allMatches = matches;
     allMastery = mastery;
     displayedMatches = 20;
+    _matchHistoryExhausted = matchIds.length < 20;
+    _matchFilter = 'All';
 
-    // Add back button to profile content
     renderProfile(null, ranked, mastery, matches.slice(0, 20));
-    // Prepend back buttons
-    var backBtns = '<div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">';
-    backBtns += '<button onclick="restoreSummoner()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">← Back to ' + prev.gameName + '</button>';
+
+    // Insert the back buttons as a real node. The old code did
+    //   profileContent.innerHTML = backBtns + profileContent.innerHTML
+    // which re-parses the entire profile, detaching every node renderProfile had
+    // just created — including #live-game-section, which the in-flight
+    // fetchLiveGame() was holding a reference to.
+    var backBar = document.createElement('div');
+    backBar.style.cssText = 'margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;';
+    var backBtns = '<button onclick="restoreSummoner()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">← Back to ' + prev.gameName + '</button>';
     if (_lbFromRank > 0) {
       backBtns += '<button onclick="backToLeaderboard()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">↩ Back to Leaderboard</button>';
     }
-    backBtns += '</div>';
-    document.getElementById('profile-content').innerHTML = backBtns + document.getElementById('profile-content').innerHTML;
+    backBar.innerHTML = backBtns;
+    var pc = document.getElementById('profile-content');
+    if (pc) pc.insertBefore(backBar, pc.firstChild);
 
     // Update topbar name display
     const dn2=document.getElementById('disp-name'); if(dn2) dn2.textContent = name;
@@ -4727,7 +5480,7 @@ function renderChampionsGrid(list) {
       '<div style="display:flex;align-items:center;gap:8px;">' +
         '<div style="position:relative;flex:1;">' +
           '<input class="champs-search-input" placeholder="Search champions..." id="champs-search" style="width:100%;padding-right:40px;">' +
-          '<button onclick="clearChampSearch()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;line-height:1;padding:0;">&#x2715;</button>' +
+          '<button onclick="clearChampSearch()" class="input-clear-btn" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;line-height:1;padding:0;">&#x2715;</button>' +
         '</div>' +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px;">' +
@@ -4951,7 +5704,7 @@ function renderItemsGrid(activeTag, query) {
     var fb = '<div class="items-filter-bar" id="items-filter-bar" style="position:sticky;top:0;z-index:10;background:var(--bg2);padding:12px 24px 14px;border-bottom:1px solid var(--bd);box-shadow:0 4px 16px rgba(0,0,0,0.4);">' +
       '<div style="position:relative;flex:1;min-width:200px;">' +
         '<input id="item-search" placeholder="Search items..." style="width:100%;height:44px;padding:0 40px 0 18px;background:var(--bg3);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:15px;outline:none;box-sizing:border-box;">' +
-        '<button onclick="clearItemSearch()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:0;">&#x2715;</button>' +
+        '<button onclick="clearItemSearch()" class="input-clear-btn" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:16px;cursor:pointer;padding:0;">&#x2715;</button>' +
       '</div><div id="item-cat-chips" style="display:flex;gap:6px;flex-wrap:wrap;"></div></div>' +
       '<div id="items-grid-area"></div>';
     el.innerHTML = fb;
@@ -5160,8 +5913,15 @@ async function lookupSpectate(useLast) {
     // Check live game
     let game;
     try {
-      game = await riotFetch('/lol/spectator/v5/active-games/by-summoner/' + acct.puuid, summoner.platform);
+      // platform is derived from the region the user selected — the old code sent
+      // summoner.platform, so looking up a EUW/KR player from an NA account asked
+      // the wrong shard and always came back 'not in a game'.
+      game = await riotFetch('/lol/spectator/v5/active-games/by-summoner/' + acct.puuid, platform);
     } catch(e) {
+      if (e && e.message === '429') {
+        el.innerHTML = '<div style="font-family:var(--body);font-size:14px;color:var(--tx2);padding:20px 24px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;line-height:1.6;">⏳ Rate limited — wait a moment and search again.</div>';
+        return;
+      }
       // 404 = not in game
       el.innerHTML = renderNotInGame(dispName, dispTag);
       return;
@@ -5204,21 +5964,7 @@ function renderNotInGame(name, tag) {
 }
 
 function renderSpectateGame(game, targetPuuid, name, tag) {
-  const QUEUE = {
-    0:'Custom',
-    400:'Normal Draft',420:'Ranked Solo/Duo',430:'Normal Blind',440:'Ranked Flex',450:'ARAM',
-    490:'Normal',700:'Clash',720:'ARAM Clash',
-    830:'Co-op vs AI',840:'Co-op vs AI',850:'Co-op vs AI',
-    900:'URF',1010:'Snow ARAM',1020:'One for All',
-    1090:'Teamfight Tactics',1100:'Ranked TFT',1111:'TFT Tutorial',
-    1300:'Swiftplay',1400:'Ultimate Spellbook',
-    1700:'Arena',1900:'URF',
-    2000:'Tutorial',2010:'Tutorial',2020:'Tutorial',
-    2300:'ARAM',2400:'Normal',2410:'ARAM',2420:'Swiftplay',2430:'Swiftplay',
-    2440:'Ranked Flex',2450:'ARAM',2900:'Ranked Solo/Duo',
-    3000:'Rotating Game Mode',
-  };
-  const qName = QUEUE[game.gameQueueConfigId] || ('Mode ' + game.gameQueueConfigId);
+  const qName = queueLabel(game.gameQueueConfigId, game.mapId);
   const mins = Math.floor((game.gameLength||0) / 60);
   const secs = String((game.gameLength||0) % 60).padStart(2,'0');
   const timeStr = game.gameLength > 0 ? mins + ':' + secs : 'In Lobby';
@@ -5245,7 +5991,7 @@ function renderSpectateGame(game, targetPuuid, name, tag) {
   function renderTeam(team, side) {
     const isBlue = side === 'blue';
     const sideColor = isBlue ? 'var(--blue)' : 'var(--red)';
-    let h = '<div style="background:' + (isBlue?'rgba(91,156,246,0.05)':'rgba(240,96,112,0.05)') + ';border-bottom:1px solid var(--bd);">' +
+    let h = '<div style="background:' + (isBlue?'rgba(143,166,216,0.05)':'rgba(214,138,124,0.05)') + ';border-bottom:1px solid var(--bd);">' +
       '<div class="live-team-hdr" style="color:' + sideColor + ';">' +
       '<span>' + (isBlue?'🔵 Blue Team':'🔴 Red Team') + '</span>' +
       '<span>Spells</span><span>Runes</span><span></span>' +
@@ -5262,7 +6008,7 @@ function renderSpectateGame(game, targetPuuid, name, tag) {
       const secStyleId = p.perks && (p.perks.perkSubStyle || p.perks.perkStyle);
       const keystoneData = findRuneIcon(runeId);
       const secPathData  = findPathIcon(secStyleId);
-      const rowBg = isTarget ? 'background:rgba(167,139,250,0.1);' : '';
+      const rowBg = isTarget ? 'background:rgba(192,174,234,0.1);' : '';
       const pName = (p.riotId||p.summonerName||'Player').split('#')[0];
       const pTag  = (p.riotId||'').split('#')[1]||'';
 
@@ -5295,7 +6041,7 @@ function renderSpectateGame(game, targetPuuid, name, tag) {
   return '<div class="live-game-banner" style="margin-bottom:16px;">' +
       '<div class="live-pulse"></div>' +
       '<div><div style="font-family:var(--head);font-size:18px;font-weight:700;color:var(--green);">' + name + ' <span style="color:var(--tx3);font-weight:400;font-size:14px;">#' + tag + '</span> is live</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;">' + '<span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--gold);background:rgba(167,139,250,0.15);padding:2px 10px;border-radius:20px;">' + qName + '</span>' + '<span style="font-family:var(--mono);font-size:12px;color:var(--tx2);">' + timeStr + '</span>' + '</div></div>' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;">' + '<span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--gold);background:rgba(192,174,234,0.15);padding:2px 10px;border-radius:20px;">' + qName + '</span>' + '<span style="font-family:var(--mono);font-size:12px;color:var(--tx2);">' + timeStr + '</span>' + '</div></div>' +
       '<button onclick="lookupSpectate(true)" style="margin-left:auto;height:32px;padding:0 16px;background:transparent;border:1px solid var(--green);border-radius:6px;color:var(--green);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;letter-spacing:0.2px;">↻ Refresh</button>' +
     '</div>' +
     '<div class="live-game-wrap">' + renderTeam(blue,'blue') + renderTeam(red,'red') + '</div>';
@@ -5542,11 +6288,11 @@ async function loadRunesTab() {
 
 // Path accent colors
 const RUNE_PATH_COLORS = {
-  'Precision': '#C89B3C',
-  'Domination': '#BE1E37',
-  'Sorcery': '#9FAAFC',
-  'Resolve': '#A0C85C',
-  'Inspiration': '#48C4B7',
+  'Precision': '#e0b874',
+  'Domination': '#c9706b',
+  'Sorcery': '#a8b0e0',
+  'Resolve': '#a4b986',
+  'Inspiration': '#7cc0b6',
 };
 
 function renderRunesTab() {
@@ -5554,7 +6300,7 @@ function renderRunesTab() {
   if (!el || !allRuneData.length) return;
 
   const BASE = 'https://ddragon.leagueoflegends.com/cdn/img/';
-  const COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+  const COLORS = {'Precision':'#e0b874','Domination':'#c9706b','Sorcery':'#a8b0e0','Resolve':'#a4b986','Inspiration':'#7cc0b6'};
 
   // Build tab header + content areas
   const firstPath = allRuneData[0];
@@ -5610,7 +6356,7 @@ function renderRunesTab() {
 }
 
 function switchRuneTab(pathId) {
-  const COLORS = {'Precision':'#C89B3C','Domination':'#BE1E37','Sorcery':'#9FAAFC','Resolve':'#A0C85C','Inspiration':'#48C4B7'};
+  const COLORS = {'Precision':'#e0b874','Domination':'#c9706b','Sorcery':'#a8b0e0','Resolve':'#a4b986','Inspiration':'#7cc0b6'};
   allRuneData.forEach(function(path) {
     const tab = document.getElementById('rtab-' + path.id);
     const panel = document.getElementById('rcontent-' + path.id);
@@ -5807,9 +6553,12 @@ async function enrichLeaderboardRows(entries, region) {
     if (!entry.puuid || _lbEnriched[entry.puuid]) continue;
 
     try {
+      // priority 1: yields to anything the user is waiting on, and pauses when
+      // the rate-limit window is more than half spent. Enriching a 50-row page
+      // is 100 calls — that alone used to exhaust the whole 2-minute budget.
       var results = await Promise.allSettled([
-        riotFetch('/riot/account/v1/accounts/by-puuid/' + entry.puuid, routing),
-        riotFetch('/lol/summoner/v4/summoners/by-puuid/' + entry.puuid, region)
+        riotFetch('/riot/account/v1/accounts/by-puuid/' + entry.puuid, routing, 1),
+        riotFetch('/lol/summoner/v4/summoners/by-puuid/' + entry.puuid, region, 1)
       ]);
       if (myAbort !== _lbEnrichAbort) return;
 
@@ -5847,8 +6596,7 @@ async function enrichLeaderboardRows(entries, region) {
       if (_lbCache[ck]) { _lbCache[ck].enriched = _lbEnriched; }
     } catch(e) { /* skip silently */ }
 
-    // Small pause every 5 to stay under rate limit
-    if ((i + 1) % 5 === 0) await new Promise(function(r){ setTimeout(r, 350); });
+    // Pacing is the scheduler's job now.
   }
 }
 
@@ -5926,8 +6674,8 @@ function renderLeaderboard(entries, filterQ) {
 
     var rankClass   = rank===1?'top1':rank===2?'top2':rank===3?'top3':rank<=10?'top10':'';
     var rankDisplay = rank<=3 ? ['🥇','🥈','🥉'][rank-1] : rank;
-    var rowBg = isMe ? 'rgba(167,139,250,0.07)' : 'transparent';
-    var rowHover = isMe ? 'rgba(167,139,250,0.11)' : 'rgba(255,255,255,0.03)';
+    var rowBg = isMe ? 'rgba(192,174,234,0.07)' : 'transparent';
+    var rowHover = isMe ? 'rgba(192,174,234,0.11)' : 'rgba(255,255,255,0.03)';
 
     var safeN = displayName.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     var safeT = (displayTag||'NA1').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -5945,7 +6693,7 @@ function renderLeaderboard(entries, filterQ) {
       '<div style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;padding:3px 8px 3px 2px;border-radius:8px;transition:background 0.15s;max-width:100%;" ' +
         'onclick="event.stopPropagation();lbShowMenu(event,' + rank + ',\'' + safeN + '\',\'' + safeT + '\')" ' +
         'title="View profile" ' +
-        'onmouseover="this.style.background=\'rgba(167,139,250,0.07)\'" ' +
+        'onmouseover="this.style.background=\'rgba(192,174,234,0.07)\'" ' +
         'onmouseout="this.style.background=\'transparent\'">' +
         '<img id="lb-icon-' + rank + '" src="' + iconSrc + '" ' +
           'style="width:34px;height:34px;border-radius:50%;border:1px solid var(--bd2);background:var(--bg5);flex-shrink:0;' + (iconSrc ? '' : 'display:none') + '" ' +
@@ -5971,8 +6719,8 @@ function renderLeaderboard(entries, filterQ) {
     // Win Rate
     html += '<div>' +
       '<div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;">' +
-        '<span style="font-family:var(--body);font-size:12px;font-weight:700;color:var(--blue);background:rgba(129,140,248,0.12);padding:1px 7px;border-radius:4px;">' + wins + 'W</span>' +
-        '<span style="font-family:var(--body);font-size:12px;font-weight:700;color:var(--red);background:rgba(212,122,106,0.12);padding:1px 7px;border-radius:4px;">' + losses + 'L</span>' +
+        '<span style="font-family:var(--body);font-size:12px;font-weight:700;color:var(--blue);background:rgba(143,166,216,0.12);padding:1px 7px;border-radius:4px;">' + wins + 'W</span>' +
+        '<span style="font-family:var(--body);font-size:12px;font-weight:700;color:var(--red);background:rgba(214,138,124,0.12);padding:1px 7px;border-radius:4px;">' + losses + 'L</span>' +
         '<span style="font-family:var(--body);font-size:12px;font-weight:700;color:' + wrColor + ';margin-left:2px;">' + wr + '%</span>' +
       '</div>' +
       '<div style="height:4px;border-radius:2px;overflow:hidden;display:flex;max-width:180px;">' +
@@ -6075,7 +6823,16 @@ function backToLeaderboard() {
 }
 
 // ── START ──
-init();
+// Boot is owned by the app lock: warRoomBoot() runs on the first unlock, or
+// immediately when WarRoom is not locked on this device. It is idempotent
+// because alShowRoot() calls it on every unlock, not only the first.
+let _wrBooted = false;
+window.warRoomBoot = function() {
+  if (_wrBooted) return;
+  _wrBooted = true;
+  init();
+};
+if (!window.__wrGateBlocked) window.warRoomBoot();
 
 // ── SCROLL DELEGATION ──
 // When cursor is outside the 2000px #app, re-dispatch the wheel event on the active
@@ -6112,5 +6869,591 @@ init();
 
 
 </script>
+
+<!-- ══ App Lock overlay ══ -->
+<div id="applock-overlay">
+  <div id="applock-box">
+    <div id="applock-icon"></div>
+    <div id="applock-head">
+      <div id="applock-title">Locked</div>
+      <div id="applock-sub">Enter your password to open WarRoom.</div>
+    </div>
+    <div id="applock-form">
+      <div id="applock-bio"></div>
+      <input id="applock-pw" type="password" placeholder="Password" autocomplete="off" />
+      <div id="applock-err"></div>
+      <button id="applock-submit">Unlock</button>
+      <div id="applock-links">
+        <button id="applock-forgot">Forgot password?</button>
+        <button id="applock-reset">Reset password via email</button>
+      </div>
+    </div>
+    <div id="applock-foot">
+      <button id="applock-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ In-UI modal system — dialogs live INSIDE the app so they never vanish
+        when the browser window loses focus. The lock flows call uiPrompt /
+        uiForm / uiConfirm, so this has to be defined first. ══ -->
+<script>
+(function(){
+  if (window.uiModal) return;
+  var ACCENT = '#c0aeea';
+  var CSS =
+    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
+  + '#uim-overlay.show{display:flex;}'
+  + '#uim-box{width:100%;max-width:370px;background:#232327;border:1px solid #45454c;border-radius:9px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.48);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;}'
+  + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
+  + '#uim-title{font-family:\'Manrope\',system-ui,sans-serif;font-size:20px;font-weight:600;letter-spacing:-.2px;color:#f4f3f0;margin-bottom:8px;line-height:1.25;}'
+  + '#uim-msg{font-size:13.5px;color:#adadb2;line-height:1.55;white-space:pre-wrap;margin-bottom:16px;}'
+  + '.uim-field{display:block;margin-bottom:12px;}'
+  + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
+  + '.uim-input{width:100%;box-sizing:border-box;background:#202024;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
+  + '.uim-input:focus{border-color:#c0aeea;}'
+  + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
+  + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
+  + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
+  + '#uim-cancel{color:#f4f3f0;}'+'#uim-cancel:hover{border-color:#adadb2;}'
+  + '';
+  var queue=[], active=null;
+  function el(id){ return document.getElementById(id); }
+  function inject(){
+    if (el('uim-overlay')) return;
+    var st=document.createElement('style'); st.id='uim-style'; st.textContent=CSS; document.head.appendChild(st);
+    var ov=document.createElement('div'); ov.id='uim-overlay';
+    ov.innerHTML='<form id="uim-box" autocomplete="off">'
+      +'<div id="uim-title"></div><div id="uim-msg"></div><div id="uim-fields"></div>'
+      +'<div id="uim-err"></div>'
+      +'<div id="uim-btns"><button type="button" id="uim-cancel"></button><button type="submit" id="uim-ok"></button></div></form>';
+    document.body.appendChild(ov);
+    el('uim-cancel').addEventListener('click', function(){ close(active&&active.kind==='confirm'?false:null); });
+    el('uim-box').addEventListener('submit', function(e){ e.preventDefault(); submit(); });
+    document.addEventListener('keydown', function(e){ if(active && e.key==='Escape'){ close(active.kind==='confirm'?false:null); } });
+  }
+  function render(cfg){
+    inject(); active=cfg;
+    el('uim-title').textContent=cfg.title||''; el('uim-title').style.display=cfg.title?'':'none';
+    el('uim-msg').textContent=cfg.message||''; el('uim-msg').style.display=cfg.message?'':'none';
+    var fw=el('uim-fields'); fw.innerHTML='';
+    (cfg.fields||[]).forEach(function(f){
+      var lab=document.createElement('label'); lab.className='uim-field';
+      if(f.label){ var sp=document.createElement('span'); sp.className='uim-label'; sp.textContent=f.label; lab.appendChild(sp); }
+      var inp=document.createElement('input'); inp.className='uim-input'; inp.type=f.type||'text';
+      inp.value=(f.value!=null?f.value:''); if(f.placeholder) inp.placeholder=f.placeholder; inp.setAttribute('data-name',f.name);
+      if(f.autocap===false){ inp.autocapitalize='off'; inp.setAttribute('autocorrect','off'); inp.spellcheck=false; }
+      lab.appendChild(inp); fw.appendChild(lab);
+    });
+    el('uim-err').textContent='';
+    var ok=el('uim-ok'), ca=el('uim-cancel');
+    ok.textContent=cfg.okLabel||'OK'; ok.style.background=cfg.danger?'#c96f60':ACCENT;
+    ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
+    el('uim-overlay').classList.add('show');
+    setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
+  }
+  function collect(){ var o={}; var ins=el('uim-fields').querySelectorAll('input'); Array.prototype.forEach.call(ins,function(i){ o[i.getAttribute('data-name')]=i.value; }); return o; }
+  function submit(){
+    if(!active) return; var cfg=active;
+    if(cfg.fields && cfg.fields.length){
+      var vals=collect(), ins=el('uim-fields').querySelectorAll('input');
+      for(var i=0;i<cfg.fields.length;i++){ var f=cfg.fields[i];
+        if(f.required && !String(vals[f.name]||'').trim()){ el('uim-err').textContent=(f.label||'This field')+' is required.'; if(ins[i]) ins[i].focus(); return; } }
+      close(cfg.kind==='prompt' ? String(vals[cfg.fields[0].name]) : vals);
+    } else { close(cfg.kind==='confirm'?true:undefined); }
+  }
+  function close(result){
+    var cfg=active; active=null;
+    var ov=el('uim-overlay'); if(ov) ov.classList.remove('show');
+    if(cfg && cfg.resolve) cfg.resolve(result);
+    if(queue.length){ render(queue.shift()); }
+  }
+  function open(cfg){ return new Promise(function(res){ cfg.resolve=res; if(active) queue.push(cfg); else render(cfg); }); }
+  window.uiModal=open;
+  window.uiAlert=function(m,o){ o=o||{}; return open({kind:'alert',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK'}); };
+  window.uiConfirm=function(m,o){ o=o||{}; return open({kind:'confirm',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',danger:o.danger}); };
+  window.uiPrompt=function(m,o){ o=o||{}; return open({kind:'prompt',message:String(m==null?'':m),title:o.title,okLabel:o.okLabel||'OK',cancelLabel:o.cancelLabel||'Cancel',
+    fields:[{name:'value',type:o.password?'password':'text',value:(o.default!=null?o.default:(o.value!=null?o.value:'')),placeholder:o.placeholder||'',autocap:o.autocap}]}); };
+  window.uiForm=function(cfg){ cfg=cfg||{}; return open({kind:'form',title:cfg.title,message:cfg.message,okLabel:cfg.okLabel||'Save',cancelLabel:cfg.cancelLabel||'Cancel',danger:cfg.danger,fields:cfg.fields||[]}); };
+  // Route native alert() through the in-UI modal (can't be dismissed by clicking
+  // outside the app window). confirm/prompt are converted at their call sites.
+  try { window.alert=function(m){ window.uiAlert(m==null?'':String(m)); }; } catch(e){}
+})();
+</script>
+
+<script>
+(function(){
+'use strict';
+
+var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
+var AL_JOURNAL = 'applock';
+var AL_EMAIL   = 'anthonypn99@gmail.com';
+var AL_FORM    = 'https://formspree.io/f/xeedkebo';
+var APPID      = 'tony_warroom_standalone';
+var BIO_NS     = 'warroomlock';
+
+function _el(id){ return document.getElementById(id); }
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+var _alLocks = {};
+try { _alLocks = JSON.parse(window.alDur.get('al_locks') || '{}'); } catch(e) {}
+var _alPendingPush = false;
+
+function alIsLocked()   { return !!_alLocks[APPID]; }
+function alLockVersion(){ var e=_alLocks[APPID]; return (e&&e.v)||0; }
+function alIsUnlocked() {
+  if(!alIsLocked()) return true;
+  var v = alLockVersion();
+  var got = parseInt(window.alDur.get('al_unlockedv_' + APPID)||'0',10);
+  if(v===0){ return window.alDur.get('al_unlocked_' + APPID)==='1' || got>0; }
+  // Monotonic: this device stays unlocked as long as it unlocked AT OR AFTER the
+  // current password version. Only a genuine password change (newer version)
+  // makes got<v and re-requires the password. Prevents spurious re-prompts from
+  // stale/duplicate snapshots reporting a merely-different (not newer) version.
+  return got>0 && got>=v;
+}
+function alMarkUnlocked(){
+  try{
+    var v = alLockVersion();
+    var prev = parseInt(window.alDur.get('al_unlockedv_' + APPID)||'0',10);
+    // Record the highest version seen so a slow/stale version read can never
+    // regress an already-valid unlock.
+    var mark = Math.max(v||Date.now(), prev||0);
+    window.alDur.set('al_unlockedv_' + APPID, String(mark));
+    if(v===0) window.alDur.set('al_unlocked_' + APPID, '1');
+  }catch(e){}
+}
+function alMarkLocked()  { try { window.alDur.remove('al_unlockedv_' + APPID); window.alDur.remove('al_unlocked_' + APPID); } catch(e){} }
+function alMustBlock()   { return alIsLocked() && !alIsUnlocked(); }
+
+function alSaveLocks(){
+  try { window.alDur.set('al_locks', JSON.stringify(_alLocks)); } catch(e){}
+  if (window._fbSaveAppLocks) { window._fbSaveAppLocks(_alLocks); _alPendingPush = false; }
+  else { _alPendingPush = true; }
+}
+function alSetLock(version){ _alLocks[APPID] = { locked: true, v: version||Date.now() }; alSaveLocks(); }
+function alRemoveLock(){ delete _alLocks[APPID]; alSaveLocks(); }
+
+// Show / hide WarRoom's content. Unlike Solace's single #sol-root there are two
+// roots here — the setup modal (shown when no summoner is saved yet) and the app
+// shell — so the gate hides the pair via a class and lets showApp() pick which one
+// comes back. Booting is deferred until unlock, so a locked page never spends any
+// of the Riot rate-limit budget.
+function alHideRoot(){
+  document.documentElement.classList.add('wr-prelock');
+  document.body.classList.add('wr-locked');
+}
+function alShowRoot(){
+  // wr-prelock is stamped on <html> by the pre-paint gate; clearing only the body
+  // class would leave the content hidden by the head rule.
+  document.documentElement.classList.remove('wr-prelock');
+  document.body.classList.remove('wr-locked');
+  if (window.warRoomBoot) window.warRoomBoot();
+}
+
+// ── REMOTE LOCK CHANGES (from the Firebase onSnapshot in the module above) ──
+// The shared dashboards/applock doc carries locks for EVERY app; we only care
+// about WarRoom's entry but must preserve the rest so we never wipe them.
+window._alApplyRemoteLocks = function(remoteLocks){
+  remoteLocks = remoteLocks || {};
+  // Re-locking is governed entirely by version comparison in alIsUnlocked()
+  // (got>=v). If the password was genuinely changed (newer version) OR newly set
+  // on a device that never unlocked, this device's recorded unlock is < newV and
+  // it blocks automatically below via alMustBlock(). We deliberately do NOT wipe
+  // the unlock record on a mere version DIFFERENCE — a stale/duplicate snapshot
+  // reporting an older-or-equal version must never force a spurious re-prompt.
+  _alLocks = {};
+  Object.keys(remoteLocks).forEach(function(id){ var r=remoteLocks[id]; _alLocks[id] = { locked: true, v:(r&&r.v)||0 }; });
+  try { window.alDur.set('al_locks', JSON.stringify(_alLocks)); } catch(e){}
+  // SECURITY: if WarRoom just got locked remotely and isn't unlocked here, hide + prompt.
+  if (alMustBlock()) { alHideRoot(); alShowOverlay('unlock'); }
+  else if (!alIsLocked()) { alShowRoot(); if(_el('applock-overlay').style.display==='flex' && _alMode==='unlock'){ alHideOverlay(); } }
+  alUpdateLockBtns();
+};
+
+// On Firebase ready: push any local lock set before init, then pull authoritative set.
+function alOnFbReady(){
+  if (!window._fbLoadAppLocks) return;
+  if (_alPendingPush && window._fbSaveAppLocks) { window._fbSaveAppLocks(_alLocks); _alPendingPush=false; }
+  window._fbLoadAppLocks().then(function(remote){ if (remote) window._alApplyRemoteLocks(remote); });
+}
+window.addEventListener('fb-ready', alOnFbReady);
+if (window._fbReady && window._fbLoadAppLocks) alOnFbReady();
+
+// ── OVERLAY ─────────────────────────────────────────────────────────────────
+var _alMode = 'unlock';
+var _alAttempts = 0, _alCooldown = 0;
+var _alRemoveBio = false;   // when true, a successful unlock removes the biometric instead of unlocking
+
+function alShake(){
+  var box=_el('applock-box'); box.classList.remove('shake'); void box.offsetWidth;
+  box.classList.add('shake'); setTimeout(function(){box.classList.remove('shake');},500);
+}
+function _alPwErr(msg){
+  _el('applock-pw').classList.add('error'); _el('applock-pw').value='';
+  _el('applock-err').textContent = _alAttempts>=5 ? 'Too many attempts. Wait 30s.' : msg;
+  alShake(); setTimeout(function(){_el('applock-pw').classList.remove('error');},400);
+}
+
+function alShowOverlay(mode){
+  _alMode = mode;
+  _alRemoveBio = false;   // cleared on any normal open; alBioRemovePrompt re-sets it after
+  _el('applock-err').textContent='';
+  _el('applock-pw').value='';
+  _el('applock-pw').classList.remove('error');
+  _el('applock-title').textContent='WarRoom';
+  _el('applock-submit').style.display='';
+  var m=_el('al-menu-btns'); if(m) m.remove();
+  if (mode==='setpw'){
+    _el('applock-icon').innerHTML=SLI.shield;
+    _el('applock-sub').textContent='Choose a password to lock WarRoom. Unlock once per device.';
+    _el('applock-submit').textContent='Set Password';
+    _el('applock-forgot').style.display='none'; _el('applock-cancel').style.display='';
+  } else if (mode==='remove'){
+    _el('applock-icon').innerHTML=SLI.unlock;
+    _el('applock-sub').textContent='Enter password to remove the lock.';
+    _el('applock-submit').textContent='Remove Lock';
+    _el('applock-forgot').style.display=''; _el('applock-cancel').style.display='';
+  } else if (mode==='changepw'){
+    _el('applock-icon').innerHTML=SLI.key;
+    _el('applock-sub').textContent='Enter your current password first.';
+    _el('applock-submit').textContent='Verify & Continue';
+    _el('applock-forgot').style.display=''; _el('applock-cancel').style.display='';
+  } else {
+    _el('applock-icon').innerHTML=SLI.lock;
+    _el('applock-sub').textContent='Enter your password to open WarRoom.';
+    _el('applock-submit').textContent='Unlock';
+    _el('applock-forgot').style.display='';
+    // No cancel escape when content is gated — you must unlock to view WarRoom.
+    _el('applock-cancel').style.display = alMustBlock() ? 'none' : '';
+  }
+  // Reset link mirrors the "Forgot password?" link (hidden while setting a new password).
+  if (_el('applock-reset')) _el('applock-reset').style.display = _el('applock-forgot').style.display;
+  _el('applock-pw').style.display = '';   // restore in case a prior biometric prompt hid it
+  _el('applock-overlay').style.display='flex';
+  setTimeout(function(){_el('applock-pw').focus();},80);
+  alBioRender(mode);
+}
+function alHideOverlay(){
+  _el('applock-overlay').style.display='none';
+  var m=_el('al-menu-btns'); if(m) m.remove();
+  var bio=_el('applock-bio'); if(bio){ bio.innerHTML=''; bio.style.display='none'; }
+  _alRemoveBio = false;
+}
+
+// ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
+// Primary unlock; the password below always remains the fallback. The credential
+// is keyed to (BIO_NS, APPID) so it can only ever satisfy WarRoom's own unlock.
+function alBioShowPw(show){
+  _el('applock-pw').style.display = show ? '' : 'none';
+  _el('applock-submit').style.display = show ? '' : 'none';
+  _el('applock-forgot').style.display = show ? '' : 'none';
+  if (_el('applock-reset')) _el('applock-reset').style.display = show ? '' : 'none';
+  if (show) setTimeout(function(){ _el('applock-pw').focus(); }, 60);
+}
+function alBioRender(mode){
+  var box=_el('applock-bio'); if(!box) return; box.innerHTML=''; box.style.display='none';
+  if(!window.Bio || mode!=='unlock') return;
+  window.Bio.available().then(function(avail){
+    if(_alMode!=='unlock') return;
+    if(!(avail && window.Bio.isRegistered(BIO_NS, APPID))) return;
+    box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
+    var b=document.createElement('button');
+    b.innerHTML=SLI.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
+    b.style.cssText="border:1px solid rgba(192,174,234,.42);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:inherit;width:100%;background:transparent;color:#c0aeea;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
+    b.onclick=function(){ alBioUnlock(); };
+    box.appendChild(b);
+    var link=document.createElement('button');
+    link.textContent='Use password instead';
+    link.style.cssText='background:transparent;border:none;color:#8d8d94;font-size:12px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-family:inherit;';
+    link.onclick=function(){ alBioShowPw(true); link.style.display='none'; };
+    box.appendChild(link);
+    alBioShowPw(false);
+  });
+}
+function alBioUnlock(){
+  _el('applock-err').textContent='';
+  if(!window.Bio) return;
+  window.Bio.authenticate(BIO_NS, APPID).then(function(r){
+    if(r.ok){
+      if(_alRemoveBio){ alDoRemoveBio(); return; }
+      alMarkUnlocked(); _alAttempts=0; alShowRoot(); alHideOverlay(); alUpdateLockBtns();
+    }
+    else if(r.error==='notregistered'){ alBioShowPw(true); }
+    else { _el('applock-err').textContent='Biometric check failed — use your password.'; alBioShowPw(true); }
+  });
+}
+// Verify identity (biometric OR password) before removing the biometric.
+function alBioRemovePrompt(){
+  alShowOverlay('unlock');
+  _alRemoveBio = true;
+  _el('applock-icon').innerHTML=SLI.user;
+  _el('applock-sub').textContent='Verify with '+window.Bio.label()+' or your password to remove biometrics from this device.';
+}
+function alDoRemoveBio(){
+  _alRemoveBio = false;
+  window.Bio.unregister(BIO_NS, APPID);
+  alHideOverlay(); alUpdateLockBtns();
+  window.uiAlert('Biometrics removed from this device.');
+}
+function alBioRegister(closeAfter){
+  if(!window.Bio) return;
+  window.Bio.register(BIO_NS, APPID, { rpName:'WarRoom', userName:'warroomlock', displayName:'WarRoom' }).then(function(r){
+    if(r.ok){ alMarkUnlocked(); if(closeAfter) alHideOverlay(); alUpdateLockBtns(); window.uiAlert('Biometrics registered on this device. You can now unlock WarRoom with '+window.Bio.label()+'.'); }
+    else if(r.error==='cancelled' || r.error==='NotAllowedError'){ /* user backed out */ }
+    else window.uiAlert('Could not register biometrics on this device.');
+  });
+}
+function alMaybeOfferBio(){
+  if(!window.Bio) return;
+  window.Bio.available().then(function(avail){
+    if(!avail || window.Bio.isRegistered(BIO_NS, APPID)) return;
+    window.uiConfirm('Register '+window.Bio.label()+' to unlock WarRoom on this device? Your password still works as a fallback.',
+      {title:'Register '+window.Bio.label(), okLabel:'Register'}).then(function(ok){ if(ok) alBioRegister(false); });
+  });
+}
+
+// ── MANAGE MENU (triggered by the header lock button) ───────────────────────
+function alManage(){
+  if (alIsLocked()) alShowManageMenu();
+  else alShowOverlay('setpw');
+}
+window._wrManageLock = alManage;
+window._wrAppIsLocked = function(){ try{ return alIsLocked(); }catch(e){ return false; } };
+
+function alShowManageMenu(){
+  var isUnlocked = alIsUnlocked();
+  _el('applock-err').textContent='';
+  var _mbio=_el('applock-bio'); if(_mbio){ _mbio.innerHTML=''; _mbio.style.display='none'; }
+  _el('applock-pw').value='';
+  _el('applock-pw').classList.remove('error');
+  _el('applock-icon').innerHTML=SLI.lock;
+  _el('applock-title').textContent='WarRoom';
+  _el('applock-submit').style.display='none';
+  _el('applock-forgot').style.display='none';
+  if (_el('applock-reset')) _el('applock-reset').style.display='none';
+  _el('applock-cancel').style.display='';
+  _el('applock-sub').textContent = isUnlocked ? 'WarRoom is locked. Manage:' : 'WarRoom is locked. Choose:';
+  var existing=_el('al-menu-btns'); if(existing) existing.remove();
+  var menu=document.createElement('div');
+  menu.id='al-menu-btns';
+  menu.style.cssText='display:flex;flex-direction:column;gap:8px;width:100%;';
+  var s='border:1px solid #45454c;border-radius:6px;padding:12px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:inherit;width:100%;background:transparent;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;';
+  if (!isUnlocked){
+    var ub=document.createElement('button');
+    ub.innerHTML=SLI.unlock+'<span>Unlock this device</span>';
+    ub.style.cssText=s+'color:#c0aeea;border-color:rgba(192,174,234,.42);';
+    ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
+    menu.appendChild(ub);
+  }
+  var cb=document.createElement('button');
+  cb.innerHTML=SLI.key+'<span>Change password</span>';
+  cb.style.cssText=s+'color:#f4f3f0;';
+  cb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('changepw'); };
+  menu.appendChild(cb);
+  // Register / remove biometrics (inserted above "Change password").
+  if (window.Bio) window.Bio.available().then(function(avail){
+    if(!avail) return;
+    var bb=document.createElement('button');
+    if(window.Bio.isRegistered(BIO_NS, APPID)){
+      bb.innerHTML=SLI.user+'<span>Remove biometrics</span>';
+      bb.style.cssText=s+'color:#adadb2;';
+      bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRemovePrompt(); };
+    } else {
+      bb.innerHTML=SLI.user+'<span>Register '+window.Bio.label()+'</span>';
+      bb.style.cssText=s+'color:#f4f3f0;';
+      bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRegister(true); };
+    }
+    menu.insertBefore(bb, cb);
+  });
+  var rb=document.createElement('button');
+  rb.innerHTML=SLI.trash+'<span>Remove lock</span>';
+  rb.style.cssText=s+'color:#d68a7c;border-color:rgba(214,138,124,.35);';
+  rb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('remove'); };
+  menu.appendChild(rb);
+  // Menu lives in the form column, above the ruled footer that owns Cancel.
+  var form=_el('applock-form')||_el('applock-cancel').parentNode;
+  form.appendChild(menu);
+  _el('applock-overlay').style.display='flex';
+}
+
+// ── SUBMIT ──────────────────────────────────────────────────────────────────
+_el('applock-submit').addEventListener('click', async function(){
+  var pw=_el('applock-pw').value.trim();
+  if (!pw){ _el('applock-pw').classList.add('error'); _el('applock-err').textContent='Password required.'; return; }
+  if (_alAttempts>=5){
+    var wait=Math.ceil((_alCooldown-Date.now())/1000);
+    if (wait>0){ _el('applock-err').textContent='Too many attempts. Wait '+wait+'s.'; return; }
+    _alAttempts=0;
+  }
+  _el('applock-submit').disabled=true; _el('applock-submit').textContent='Checking…';
+  try {
+    if (_alMode==='setpw'){
+      var hint=(await window.uiPrompt('Optional: enter a password hint for the recovery email. Leave blank to skip.',{title:'Password hint'}))||'';
+      var r1=await fetch(AL_WORKER+'/auth/journal/set-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw,hint:hint})});
+      var d1=await r1.json();
+      if (d1.ok){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); alMaybeOfferBio(); }
+      else { _el('applock-err').textContent='Failed to set lock. Try again.'; }
+
+    } else if (_alMode==='remove'){
+      var r2=await fetch(AL_WORKER+'/auth/journal/remove-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+      var d2=await r2.json();
+      if (d2.ok){ alRemoveLock(); alMarkLocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+      else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
+
+    } else if (_alMode==='changepw'){
+      var r3=await fetch(AL_WORKER+'/auth/journal/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+      var d3=await r3.json();
+      if (d3.ok){
+        var chg=await window.uiForm({ title:'Change password', okLabel:'Change password',
+          fields:[ {name:'password',label:'New password',type:'password',required:true}, {name:'hint',label:'New password hint (optional)'} ] });
+        var np=chg?chg.password:'';
+        if (!np||!np.trim()){ _el('applock-err').textContent='New password empty — not changed.'; }
+        else {
+          var nh=(chg.hint)||'';
+          var rem=await fetch(AL_WORKER+'/auth/journal/remove-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+          var remD=await rem.json();
+          if (remD.ok){
+            var set=await fetch(AL_WORKER+'/auth/journal/set-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:np.trim(),hint:nh})});
+            var setD=await set.json();
+            if (setD.ok){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); window.uiAlert('Password changed!'); }
+            else { _el('applock-err').textContent='Failed to set new password.'; }
+          } else { _el('applock-err').textContent='Error removing old lock. Try again.'; }
+        }
+      } else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
+
+    } else { // unlock
+      var r4=await fetch(AL_WORKER+'/auth/journal/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:pw})});
+      var d4=await r4.json();
+      if (d4.ok){
+        _alAttempts=0;
+        if(_alRemoveBio){ alDoRemoveBio(); }
+        else { alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+      }
+      else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
+    }
+  } catch(e){ _el('applock-err').textContent='Network error. Try again.'; }
+  _el('applock-submit').disabled=false;
+  _el('applock-submit').textContent={setpw:'Set Password',remove:'Remove Lock',changepw:'Verify & Continue'}[_alMode]||'Unlock';
+});
+
+_el('applock-pw').addEventListener('keydown', function(e){
+  if (e.key==='Enter') _el('applock-submit').click();
+  if (e.key==='Escape'){ _el('applock-err').textContent=''; _el('applock-pw').classList.remove('error'); }
+});
+
+_el('applock-cancel').addEventListener('click', function(){
+  var m=_el('al-menu-btns'); if(m) m.remove();
+  _el('applock-submit').style.display='';
+  var mode=_alMode;
+  alHideOverlay();
+  // Security: backing out of an UNLOCK while gated keeps content hidden.
+  if (mode==='unlock' && alMustBlock()) alHideRoot();
+});
+
+_el('applock-forgot').addEventListener('click', async function(){
+  _el('applock-forgot').textContent='Sending…'; _el('applock-forgot').disabled=true;
+  try {
+    var hr=await fetch(AL_WORKER+'/auth/journal/hint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID})});
+    var hd=await hr.json();
+    if (hd.noLock){ _el('applock-err').textContent='No lock on server. Try re-locking.'; _el('applock-forgot').disabled=false; _el('applock-forgot').textContent='Forgot password?'; return; }
+    var fp=await fetch(AL_FORM,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:AL_EMAIL,subject:'App Lock - Hint (WarRoom)',message:'Hint for "WarRoom":\n\n'+(hd.hint||'(none)')+'\n\n- WarRoom'})});
+    if (fp.ok){ _el('applock-forgot').textContent='Hint sent!'; setTimeout(function(){_el('applock-forgot').textContent='Forgot password?';_el('applock-forgot').disabled=false;},3000); }
+    else { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
+  } catch(e){ _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
+});
+
+// Shared password-reset flow (emailed 6-char code → verify → set new password).
+// opts: { worker, reqBody:{journal,entryId}|{profile}, email, form, appName, label, onSuccess }
+window._pwReset = window._pwReset || async function(opts){
+  function post(path, obj){ return fetch(opts.worker+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}).then(function(r){return r.json();}); }
+  var rq;
+  try { rq = await post('/auth/reset/request', opts.reqBody); }
+  catch(e){ window.uiAlert('Network error while starting the reset. Check your connection and try again.'); return false; }
+  if (rq && rq.noLock) { window.uiAlert('There is no password set on the server for this item.'); return false; }
+  if (!rq || !rq.ok || !rq.code) { window.uiAlert('Could not start the reset. Please try again.'); return false; }
+  // Email the code through the same Formspree form used for hints (proven, browser-origin).
+  var emailed = false;
+  try {
+    var fp = await fetch(opts.form, { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({ email: opts.email, subject: opts.appName+' — Password Reset Code',
+        message: 'Your password reset code for '+opts.label+' is:\n\n    '+rq.code+'\n\nEnter this code in '+opts.appName+' to set a new password. It expires in 15 minutes. If you did not request this, you can ignore this email.\n\n— '+opts.appName }) });
+    emailed = fp.ok;
+  } catch(e){ emailed = false; }
+  if (!emailed) { window.uiAlert('Could not send the reset email. Please try again in a moment.'); return false; }
+  var vals = await window.uiForm({
+    title:'Reset password',
+    message:'A 6-character code was emailed to '+opts.email+'. Enter it below (check spam if you don\'t see it within a minute), then choose a new password.',
+    okLabel:'Reset password',
+    fields:[
+      { name:'code', label:'Security code from email', placeholder:'6-character code', autocap:false, required:true },
+      { name:'password', label:'New password', type:'password', required:true },
+      { name:'hint', label:'New password hint (optional)' }
+    ]
+  });
+  if (!vals) return false;
+  var code = String(vals.code||'').trim();
+  var np = String(vals.password||'').trim();
+  var nh = vals.hint||'';
+  if (!code) { await window.uiAlert('No code entered.'); return false; }
+  if (!np) { await window.uiAlert('Password cannot be empty.'); return false; }
+  var body = Object.assign({ code:code, password:np, hint:nh }, opts.reqBody);
+  var cf;
+  try { cf = await post('/auth/reset/confirm', body); }
+  catch(e){ window.uiAlert('Network error while confirming the reset. Please try again.'); return false; }
+  if (cf && cf.ok) {
+    if (opts.onSuccess) { try { opts.onSuccess(); } catch(e){} }
+    window.uiAlert('Password reset! It now syncs to all your devices. This device is unlocked; other devices will ask for the new password once.');
+    return true;
+  }
+  if (cf && cf.error==='badcode') window.uiAlert('That code is not correct.'+(cf.remaining!=null?(' '+cf.remaining+' attempt(s) left before it expires.'):''));
+  else if (cf && cf.error==='expired') window.uiAlert('That code has expired or was already used. Start the reset again to get a fresh code.');
+  else if (cf && cf.error==='locked') window.uiAlert('Too many incorrect attempts. Start the reset again to get a fresh code.');
+  else window.uiAlert('Reset failed. Please try again.');
+  return false;
+};
+
+// WarRoom app-lock: reset password via emailed security code.
+_el('applock-reset') && _el('applock-reset').addEventListener('click', async function(){
+  var prev=_el('applock-reset').textContent; _el('applock-reset').textContent='Sending code…'; _el('applock-reset').disabled=true;
+  await window._pwReset({
+    worker:AL_WORKER,
+    reqBody:{ journal:AL_JOURNAL, entryId:APPID },
+    email:AL_EMAIL,
+    form:AL_FORM,
+    appName:'WarRoom',
+    label:'WarRoom',
+    onSuccess:function(){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+  });
+  _el('applock-reset').textContent=prev; _el('applock-reset').disabled=false;
+});
+
+// ── HEADER LOCK BUTTON STATE ────────────────────────────────────────────────
+function alUpdateLockBtns(){
+  try {
+    var b = _el('wr-lock-btn');
+    if (b) {
+      var on = alIsLocked();
+      b.innerHTML = on ? SLI.lock : SLI.unlock;
+      b.style.opacity = on ? '1' : '0.55';
+      b.title = on ? 'WarRoom is locked — manage the lock' : 'Lock WarRoom behind a password';
+    }
+  } catch(e){}
+}
+window._wrUpdateLockBtns = alUpdateLockBtns;
+
+// ── LOAD-TIME ENFORCEMENT ───────────────────────────────────────────────────
+// If locked & not unlocked on this device, keep the root hidden and prompt.
+function alEnforce(){
+  if (alMustBlock()){ alHideRoot(); if(_el('applock-overlay').style.display!=='flex') alShowOverlay('unlock'); }
+  else { alShowRoot(); }
+  alUpdateLockBtns();
+}
+window._wrEnforceLock = alEnforce;
+alEnforce();
+setTimeout(alEnforce, 300);
+})();
+</script>
+
 </body>
 </html>
