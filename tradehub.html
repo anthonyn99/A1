@@ -4310,6 +4310,7 @@ function tbCopySync(text){
 }
 
 function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
+  const isMobile=useIsMobile();
   const [editing,setEditing]=React.useState(false);
   const [results,setResults]=React.useState([]);/* [{icon,label,ok}] */
 
@@ -4498,6 +4499,38 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
      the prompt chips send on click for exactly this reason. */
   const sendQuick=()=>{const t=quickText.trim();if(!t)return;handleQuickLaunch({text:t,name:'Quick prompt'});};
 
+  /* The box is resized by our own grip rather than the browser's native corner:
+     a UA resizer is ~15px square and effectively ungrabbable with a fingertip,
+     and its size can't be changed from CSS. This one is a real touch target on a
+     phone and behaves identically with a mouse. Height is remembered next to the
+     draft text. */
+  const QUICK_H_KEY='tb_quick_prompt_h', QUICK_H_MIN=70, QUICK_H_MAX=560;
+  const [quickH,setQuickH]=React.useState(()=>{
+    const n=parseInt((()=>{try{return localStorage.getItem(QUICK_H_KEY);}catch(e){return '';}})()||'',10);
+    return (n>=QUICK_H_MIN&&n<=QUICK_H_MAX)?n:96;
+  });
+  const quickDrag=React.useRef(null);
+  /* The height as of the last move, not as of the last render: a pointerup that
+     lands in the same batch as its final pointermove would otherwise save the
+     height from one move ago. */
+  const quickHNow=React.useRef(quickH);
+  const gripDown=(e)=>{
+    e.preventDefault();
+    quickDrag.current={y:e.clientY,h:quickH};
+    try{e.currentTarget.setPointerCapture(e.pointerId);}catch(err){}
+  };
+  const gripMove=(e)=>{
+    const d=quickDrag.current;if(!d)return;
+    const next=Math.max(QUICK_H_MIN,Math.min(QUICK_H_MAX,Math.round(d.h+(e.clientY-d.y))));
+    quickHNow.current=next;
+    setQuickH(next);
+  };
+  const gripUp=()=>{
+    if(!quickDrag.current)return;
+    quickDrag.current=null;
+    try{localStorage.setItem(QUICK_H_KEY,String(quickHNow.current));}catch(e){}
+  };
+
   // Deploy the ENTIRE Trading Auto Launch (reminder gate → WeBull → TaskHub →
   // windows → AI site + searches). Because TradeHub is already open here, the native
   // launcher reuses THIS window; we just trigger it via its URL protocol and the
@@ -4538,12 +4571,26 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     <div style={{marginBottom:20}}>
       <div style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:8,display:'flex',alignItems:'center',gap:7}}><TBIcon n="pencil" size={12}/>Quick prompt</div>
       <div style={{display:'flex',flexDirection:'column',gap:10,padding:'14px 16px',borderRadius:8,border:'1px solid var(--bd)',background:'var(--bgc)'}}>
-        <textarea value={quickText} onChange={e=>setQuick(e.target.value)}
-          onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();sendQuick();}}}
-          placeholder="Type a one-off prompt…" rows={3} spellCheck={true}
-          style={{width:'100%',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',
-            fontSize:13,lineHeight:1.55,padding:'10px',boxSizing:'border-box',fontFamily:'inherit',resize:'vertical',minHeight:70,outline:'none'}}
-          onFocus={e=>e.target.style.borderColor='var(--ac)'} onBlur={e=>e.target.style.borderColor='var(--bd)'}/>
+        <div style={{position:'relative'}}>
+          <textarea value={quickText} onChange={e=>setQuick(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();sendQuick();}}}
+            placeholder="Type a one-off prompt…" spellCheck={true}
+            style={{width:'100%',height:quickH,display:'block',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',
+              fontSize:13,lineHeight:1.55,padding:'10px',paddingBottom:isMobile?24:14,boxSizing:'border-box',fontFamily:'inherit',resize:'none',outline:'none'}}
+            onFocus={e=>e.target.style.borderColor='var(--ac)'} onBlur={e=>e.target.style.borderColor='var(--bd)'}/>
+          {/* Drag grip — padding IS the hit target, so the diagonal stays small
+              while the grabbable area is finger-sized on a phone. */}
+          <span role="separator" aria-label="Drag to resize" title="Drag to resize"
+            onPointerDown={gripDown} onPointerMove={gripMove} onPointerUp={gripUp} onPointerCancel={gripUp}
+            style={{position:'absolute',right:1,bottom:1,display:'flex',alignItems:'flex-end',justifyContent:'flex-end',
+              padding:isMobile?'14px 12px 8px 18px':'8px 6px 5px 10px',cursor:'ns-resize',touchAction:'none',
+              color:'var(--txm)',opacity:.75,userSelect:'none',WebkitTapHighlightColor:'transparent'}}>
+            <svg width={isMobile?16:12} height={isMobile?16:12} viewBox="0 0 12 12" fill="none"
+              stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M11 5 5 11M11 9l-2 2"/>
+            </svg>
+          </span>
+        </div>
         <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
           <button onClick={sendQuick} disabled={!quickReady}
             style={{display:'inline-flex',alignItems:'center',gap:7,borderRadius:8,padding:'9px 18px',fontSize:13,fontWeight:800,
@@ -4552,9 +4599,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
               transition:'all .15s',touchAction:'manipulation'}}>
             <TBIcon n="bolt" size={14}/> {aiSite.id==='none'?'Copy prompt':`Send to ${aiSite.label}`}
           </button>
-          <span style={{fontSize:11,color:'var(--txd)'}}>
-            {quickReady?`${quickText.trim().length.toLocaleString()} chars · ⌘/Ctrl+Enter sends`:'Sent the same way as a saved prompt — no searches.'}
-          </span>
+          {quickReady&&<span style={{fontSize:11,color:'var(--txd)'}}>{quickText.trim().length.toLocaleString()} chars</span>}
           {quickReady&&<button onClick={()=>setQuick('')} title="Clear"
             style={{marginLeft:'auto',border:'none',background:'transparent',color:'var(--txm)',fontSize:12,fontWeight:700,cursor:'pointer',padding:'4px 2px'}}
             onMouseEnter={e=>e.currentTarget.style.color='var(--tbr)'} onMouseLeave={e=>e.currentTarget.style.color='var(--txm)'}>Clear</button>}
