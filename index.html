@@ -5334,7 +5334,9 @@ function tInitData(){
     let hcD=loadJ(T_SK.hc,{});
     const sw=localStorage.getItem(T_SK.weekKey);
     if(sw!==cw){hcD={};saveJ(T_SK.hc,hcD);localStorage.setItem(T_SK.weekKey,cw);}
-    return{data:loadJ(T_SK.data,{}),habits:loadJ(T_SK.habits,T_HAB_DEF),hc:hcD,goals:loadJ(T_SK.goals,MG_DEF),monthlyGoals:loadJ(T_SK.mgoals,[]),goalPrefs:{...GOAL_PREFS_DEF,...loadJ(T_SK.goalPrefs,{})}};
+    // Same strip as the cloud path: a device whose localStorage still holds
+    // pre-move match cards must not render them as duplicate event rows.
+    return{data:EC_stripLeftovers(loadJ(T_SK.data,{})).data,habits:loadJ(T_SK.habits,T_HAB_DEF),hc:hcD,goals:loadJ(T_SK.goals,MG_DEF),monthlyGoals:loadJ(T_SK.mgoals,[]),goalPrefs:{...GOAL_PREFS_DEF,...loadJ(T_SK.goalPrefs,{})}};
   } else {
     const d=tBuildSeed();
     saveJ(T_SK.data,d);saveJ(T_SK.habits,T_HAB_DEF);saveJ(T_SK.hc,{});saveJ(T_SK.goals,MG_DEF);saveJ(T_SK.mgoals,[]);
@@ -6746,6 +6748,28 @@ function EC_useCards(){
   return cards;
 }
 
+// Match cards used to be written INTO this TaskHub document. Those rows are
+// still there in older data, and with the card-specific render path gone they
+// now draw as ordinary events — a duplicate of the real card, greyed out and
+// carrying a reminder bell. Recognise them so they can be dropped on sight and
+// swept out of the document once.
+function EC_isLeftover(i){
+  return !!(i && (i._pvMatch || i._pvMatchId ||
+    (typeof i.id === 'string' && i.id.indexOf('pv_') === 0)));
+}
+
+function EC_stripLeftovers(data){
+  if(!data) return { data: data, removed: 0 };
+  const out = {}; let removed = 0;
+  Object.keys(data).forEach(dk=>{
+    const arr = data[dk];
+    if(!Array.isArray(arr)){ out[dk] = arr; return; }
+    const keep = arr.filter(i=>{ const drop = EC_isLeftover(i); if(drop) removed++; return !drop; });
+    if(keep.length) out[dk] = keep;
+  });
+  return { data: removed ? out : data, removed: removed };
+}
+
 function EC_byDay(cards){
   const out={};
   (cards||[]).forEach(c=>{
@@ -6937,6 +6961,9 @@ function App(){
   // reconcile (further down) needs it as a load barrier and would otherwise hit
   // the temporal dead zone. useRef has no ordering constraint.
   const fbLoadedRef=useRef(false);
+  // Set when a load had to strip pre-move match cards, so the sweep below knows
+  // the DOCUMENT still holds them even though state is already clean.
+  const ecSweepRef=useRef(false);
 
   // bg=true marks an automated (non-user) write — the Plans mirror reconcile.
   // Those are refused until cloud data has loaded; see window._fbSave.
@@ -7034,7 +7061,11 @@ function App(){
       if(!d)return {};
       const out={};
       Object.entries(d).forEach(([dk,arr])=>{out[dk]=Array.isArray(arr)?arr.map(restoreItem):arr;});
-      return out;
+      // Drop pre-move match cards before they reach state, so they never render
+      // as duplicate rows, and remember that the DOCUMENT still holds them.
+      const _st=EC_stripLeftovers(out);
+      if(_st.removed) ecSweepRef.current=true;
+      return _st.data;
     };
     // An ABSENT field is "no news", never "the user deleted everything". A doc
     // saved by an older build (or a partial write from anywhere) must not be able
@@ -7053,6 +7084,21 @@ function App(){
     fbLoadedRef.current=true; // real cloud data is in hand — archiving may now run
     window._thCloudLoaded=true; // ...and background (Plans mirror) writes are allowed
   },[]);
+
+  // ── One-time sweep: pre-move match cards ──────────────────────────────────
+  // Match cards used to be written INTO this document. They are dead weight now
+  // that cards live in their own doc, and they are exactly the payload that once
+  // pushed this document past Firestore's 1 MiB limit.
+  //
+  // restoreData already keeps them out of state, so this fires at most once per
+  // load that actually saw one — and never again after the resulting write.
+  useEffect(()=>{
+    if(!fbLoadedRef.current||!ecSweepRef.current)return;
+    ecSweepRef.current=false;
+    // State is already clean — restoreData stripped them on the way in. This
+    // just forces one whole-document write so the cards leave the DOCUMENT too.
+    setDataBg(prev=>({...prev}));
+  },[setDataBg,syncStatus]);
 
   // ── Plans mirror — receive ────────────────────────────────────────────────
   // Confirmed, dated plans from dashboards/plans appear here as ordinary items
