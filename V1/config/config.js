@@ -150,6 +150,25 @@ window.STUDYOS_CONFIG = {
       /* KV namespace prefix for lock records. Anything stable works. */
       lockNamespace: 'studyos_applock',
     },
+
+    /* studyos-d2l — Brightspace calendar import.
+     *
+     * SCOPE, AND WHY IT IS THIS SMALL: the only Brightspace data a student can
+     * reach without an admin-registered OAuth client is the CALENDAR ICS FEED.
+     * Grades, announcements and course files all require the D2L Valence API,
+     * which an institution must approve. Those are a later phase gated on that
+     * approval — see ARCHITECTURE.md section 8. Do NOT add them by scraping
+     * HTML with a session cookie: that breaks on every Brightspace release and
+     * violates most institutional acceptable-use policies.
+     *
+     * The feed URL is deliberately NOT in this file. It is a bearer capability
+     * — anyone holding it can read the whole calendar — and this file is served
+     * publicly at /studyos/config/config.js. It lives only in the worker's KV,
+     * set at runtime through POST /feed/set. */
+    d2l: {
+      enabled: true,
+      baseUrl: 'https://studyos-d2l.vedapatel05.workers.dev',
+    },
   },
 
   /* ── 3. FORMSPREE ────────────────────────────────────────────────────────

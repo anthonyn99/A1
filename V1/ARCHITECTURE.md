@@ -323,3 +323,110 @@ untouched Tony equivalent, including non-mutation and `_sos*` field preservation
 Not covered by automation, needs a real device or live Firestore: FCM delivery
 with the app closed, WebAuthn biometrics, genuine two-device sync, and the mirror
 running over a real Firestore connection rather than injected snapshots.
+
+---
+
+## 8. Brightspace import (`js/d2l-sync.js`, `workers/studyos-d2l/`)
+
+Added after the extraction. Pulls the student's D2L calendar into `classes` /
+`events` / `tasks` so assignment due dates do not have to be retyped.
+
+### Scope, and why it is this small
+
+**The calendar ICS feed is the only D2L data a student can reach.** Everything
+else in Brightspace — grades, announcements, course files, content modules —
+is behind the Valence API, which requires an OAuth client that a Brightspace
+**administrator** registers. There is no student-side workaround.
+
+So this integration imports courses, assignments and calendar events, and
+nothing else. Grades and announcements would additionally need data models that
+do not exist here at all: `event.weight` is an input to the priority score
+(`_sosPriorityScore`, js/studyos.js), not an earned score, and there is no
+announcements concept anywhere.
+
+> **Do not implement the missing pieces by scraping Brightspace HTML with the
+> user's session cookie.** It breaks on every Brightspace release, and it
+> violates most institutions' acceptable-use policies. If credentials ever
+> arrive, add Valence endpoints to the existing worker behind the same config
+> gate.
+
+### Why `js/studyos.js` was edited, given §3
+
+§3 says the app body is verbatim, edits only at the boundaries. This feature
+needed one boundary edit, because there was no way in.
+
+`_sosBridge` exposed only readers plus `setTaskDone`. Its getters return live
+array references, so a consumer *can* mutate them — but that path is a dead
+end: nothing calls `persistEvents()` / `persistTasks_()`, so the change reaches
+neither localStorage nor Firestore; every render function is lexically scoped
+and unreachable; and the next `fb-sos-remote` assigns `events = remote.events`
+and discards it.
+
+The edit is therefore a **second sanctioned bridge extension**, mirroring
+`setTaskDone` exactly:
+
+- `_sosBridge.applyD2L(payload)` — a dumb, total setter. The caller hands over
+  finished arrays; this assigns, persists and repaints. It knows nothing about
+  D2L. All reconciliation lives in `js/d2l-sync.js`.
+- `_sosBridge.getD2LMap()` — reads the course→class mapping.
+- `d2lMap` state, `d2l` added to the save payload, and `remote.d2l` restored in
+  **both** merge sites (the initial load and the live listener — missing the
+  second means the mapping never propagates between devices).
+
+No render function and no §5 behaviour was touched.
+
+### Behaviours that must not be "simplified" (extends §5)
+
+**8. `done` is learned from a LOCAL save, never from a remote replace.**
+`js/d2l-sync.js` keeps a module-scope Map of `d2lKey → done` because
+`tasks = remote.tasks` would otherwise discard every tick on an imported item —
+the same hazard `_sosCloudUrls` solves for file URLs. The subtlety, and a bug
+that was actually hit during development: a first cut re-read `done` from the
+array on every reconcile, so the replace overwrote the very value the Map was
+holding. Hence two learners —
+`learnDone()` on `fb-sos-saved` (a local write; the array is freshest) and
+`learnNewKeysOnly()` on `fb-sos-remote` (another device's flags may be older
+than a tick made here). Collapsing them back into one re-introduces the bug.
+`scripts/test-d2l-client.mjs` pins this.
+
+**9. An empty feed must never delete anything.** An expired Brightspace link
+returns an **HTML login page**, not an HTTP error. It parses to zero events,
+which reconciles to "D2L deleted the whole semester". Two guards: the worker
+refuses a `/feed/set` that yields zero events, and `reconcile`/`guard` refuse to
+apply when incoming is empty but imported items exist. A removal of more than
+half the imported items additionally asks for confirmation.
+
+**10. Imported items keep their `id` across syncs.** `js/taskmirror.js` mirrors
+tasks into TaskHub keyed on `id`. Minting a fresh one each sync would spawn a
+duplicate TaskHub row every time and orphan the previous one. `reconcile` reuses
+`prior.id` whenever `_d2l.k` matches.
+
+**11. D2L wins only over its own fields.** Title and date come from Brightspace;
+`done`, `weight`, `priority`, `notif` and `notes` are StudyOS's and must survive
+every sync. Brightspace cannot supply them, so overwriting them is pure loss.
+
+**12. UTC conversion happens in the browser, not the worker.** Workers run in
+UTC and cannot know where the student is. `ics.js` returns the raw parts plus
+`isUtc`/`tzid`; `localizeTime()` in the client finishes the job. A floating
+`TZID` time is already the course's local wall clock and is left alone.
+
+### Capacity
+
+D2L items land in `dashboards/studyos`, which has a 900 KB soft ceiling
+(`config/config.js`) whose breach wedges the sync queue for the whole app. Three
+mitigations: the worker hashes each ICS UID to 16 chars (a raw UID is ~70), only
+`{k, at}` is persisted per item, and the import window defaults to −30/+210 days.
+The preview panel shows the projected size before applying, and refuses over
+600 KB. A semester of five courses lands around 150 KB.
+
+### Testing
+
+```
+npm run test:d2l           # parser (28) + client reconcile (22)
+```
+
+Both suites are pure node — `ics.js` and `classify.js` deliberately use no
+Workers APIs, and the client tests run `d2l-sync.js` in a `vm` sandbox with a
+fake DOM. The tenant-specific course-name format in `classify.js` is the part
+most likely to need re-tuning against a real feed; `/feed/set` reports the
+detected courses so that can be checked before any data is imported.

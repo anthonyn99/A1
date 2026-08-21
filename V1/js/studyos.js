@@ -103,6 +103,10 @@ classes.forEach(c => { if (c && c.color && window.sosPastel) c.color = window.so
 let events = JSON.parse(localStorage.getItem('studyos_events') || '[]');
 let tasks = JSON.parse(localStorage.getItem('studyos_tasks') || '[]');
 let notesList = JSON.parse(localStorage.getItem('studyos_notes_v2') || '[]');
+// Brightspace import state: the course -> class mapping owned by js/d2l-sync.js.
+// Kept here rather than in that module so it rides along in the same Firestore
+// document as everything else and therefore syncs across devices for free.
+let d2lMap = JSON.parse(localStorage.getItem('studyos_d2l') || 'null');
 let currentNoteId = null;
 let selectedColor = COLORS[0];
 let currentClassId = null;
@@ -3404,7 +3408,8 @@ function _sosFirebaseSave() {
     events:    events,
     tasks:     tasks,
     notes:     notesList,
-    ksu:       ksuData
+    ksu:       ksuData,
+    d2l:       d2lMap
   });
 }
 
@@ -3563,6 +3568,10 @@ function sosInitFirebase() {
         localStorage.setItem('studyos_ksu', JSON.stringify(ksuData));
         changed = true;
       }
+      if (remote.d2l && typeof remote.d2l === 'object') {
+        d2lMap = remote.d2l;
+        localStorage.setItem('studyos_d2l', JSON.stringify(d2lMap));
+      }
       if (changed) {
         renderClasses();
         renderSidebarClasses();
@@ -3591,6 +3600,7 @@ function sosInitFirebase() {
     if (Array.isArray(remote.tasks))    { tasks     = remote.tasks;     localStorage.setItem('studyos_tasks',     JSON.stringify(tasks));     }
     if (Array.isArray(remote.notes))    { notesList = remote.notes;     localStorage.setItem('studyos_notes_v2',  JSON.stringify(notesList));  }
     if (remote.ksu && Array.isArray(remote.ksu.modules)) { ksuData = remote.ksu; localStorage.setItem('studyos_ksu', JSON.stringify(ksuData)); }
+    if (remote.d2l && typeof remote.d2l === 'object') { d2lMap = remote.d2l; localStorage.setItem('studyos_d2l', JSON.stringify(d2lMap)); }
     renderClasses();
     renderSidebarClasses();
     renderCalendar();
@@ -3654,6 +3664,50 @@ window._sosBridge = {
     if (cur) { try { renderClassEvents(cur); } catch (e) {} }
     return true;
   },
+};
+
+/* ── Brightspace import bridge (js/d2l-sync.js) ────────────────────────────
+ * Same contract as setTaskDone above, and it exists for the same reason:
+ * `events`, `tasks`, the persist* functions and every render function are
+ * lexically scoped to this file, so d2l-sync.js cannot reach them by property
+ * access. Mutating the arrays through the getters would persist nothing and
+ * repaint nothing, and the next fb-sos-remote would discard the change.
+ *
+ * This is a DUMB, TOTAL setter. All of the reconciliation — which items to add,
+ * update, keep or drop, and the carry-over of local state like a ticked `done`
+ * — lives in d2l-sync.js. Nothing here knows what D2L is.
+ *
+ * The 900 KB size guard in firebase-sync.js still applies to whatever this
+ * writes, so an oversized payload is refused there and can never wedge the
+ * queue; d2l-sync.js pre-checks the size anyway so the user gets a message
+ * that names the problem. */
+window._sosBridge.getD2LMap = () => (d2lMap ? JSON.parse(JSON.stringify(d2lMap)) : null);
+
+window._sosBridge.applyD2L = (payload) => {
+  if (!payload) return false;
+  if (Array.isArray(payload.events)) events = payload.events;
+  if (Array.isArray(payload.tasks))  tasks  = payload.tasks;
+  if (payload.map) {
+    d2lMap = payload.map;
+    try { localStorage.setItem('studyos_d2l', JSON.stringify(d2lMap)); } catch (e) {}
+  }
+  // Both of these call _sosFirebaseSave(); the 400 ms debounce in
+  // firebase-sync.js coalesces them into a single document write.
+  persistEvents();
+  persistTasks_();
+  try { renderCalendar(); }        catch (e) {}
+  try { renderUpcoming(); }        catch (e) {}
+  try { updateStats(); }           catch (e) {}
+  try { renderExamCountdown(); }   catch (e) {}
+  try { renderPriorityQueue(); }   catch (e) {}
+  const curD2L = classes.find(c => c.id === currentClassId);
+  if (curD2L) { try { renderClassEvents(curD2L); } catch (e) {} }
+  try { scheduleNotifications(); } catch (e) {}
+  // Tell taskmirror.js something moved, so imports reach TaskHub now rather
+  // than waiting for an unrelated edit. The arguments are ignored — these are
+  // "rebuild soon" triggers (js/taskmirror.js:50).
+  try { window._vedaUpdateTask && window._vedaUpdateTask(); } catch (e) {}
+  return true;
 };
 
 (function () {

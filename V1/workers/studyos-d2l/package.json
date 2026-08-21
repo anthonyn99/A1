@@ -1,0 +1,15 @@
+{
+  "name": "studyos-d2l-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker for StudyOS — fetches and parses the Brightspace calendar ICS feed, and holds the feed URL so it never reaches the browser.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -1,0 +1,56 @@
+# ============================================================================
+# studyos-d2l — Brightspace calendar import
+# ============================================================================
+# Deploy:
+#   cd workers/studyos-d2l
+#   npx wrangler kv namespace create D2L        # paste the id below
+#   npx wrangler deploy
+#
+# There are NO secrets to set. The Brightspace feed URL is configured at
+# runtime through POST /feed/set, which is strictly better than
+# `wrangler secret put`: rotating the link needs no redeploy, and it never
+# lands in shell history or a CI log.
+#
+# Verify:  curl https://studyos-d2l.<your-subdomain>.workers.dev/health
+#          -> { "ok": true, "kv": true, "auth": true, "feedConfigured": false }
+# ============================================================================
+
+name = "studyos-d2l"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+[observability]
+enabled = true
+
+[vars]
+# Comma-separated origins allowed to call this worker. "*" would let ANY page
+# attempt App-Lock password guesses here.
+ALLOWED_ORIGINS = "https://tradeboard.vedapatel05.workers.dev,http://localhost:8080,http://127.0.0.1:8080"
+
+# ── App Lock verification ───────────────────────────────────────────────────
+# StudyOS's App Lock lives in studyos-api. NOT tradeboard-auth — that is
+# Finance's lock, and binding to it means every password is silently rejected.
+#
+# This MUST be a service binding rather than a fetch to the public
+# workers.dev hostname: Cloudflare blocks same-account Worker-to-Worker
+# subrequests over the public URL and returns "error code: 1042" as a
+# non-JSON 404 body, which surfaces as an unexplained login failure.
+[[services]]
+binding = "AUTH"
+service = "studyos-api"
+
+# ── KV namespace: feed URL, sessions, last-good snapshot ────────────────────
+# Create it ONCE, then paste the id (deploy fails until this is real):
+#   npx wrangler kv namespace create D2L
+[[kv_namespaces]]
+binding = "D2L"
+id = "‹REPLACE — npx wrangler kv namespace create D2L›"
+
+# ── No cron, deliberately ───────────────────────────────────────────────────
+# A scheduled sync is tempting (finance-api has one) but cannot work here as
+# written: reconciliation carries local state — above all which imported tasks
+# the user has ticked — and that state lives only in the browser. A Worker
+# reconciling on its own would clobber every tick.
+#
+# If a cron is ever added, it may ONLY refresh the KV `snapshot` so the next
+# in-app sync is instant. The reconcile stays client-side. See js/d2l-sync.js.

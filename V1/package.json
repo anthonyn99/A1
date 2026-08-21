@@ -8,6 +8,8 @@
     "build": "node scripts/build.mjs",
     "build:desktop": "node TradeBoard/scripts/build-desktop.mjs",
     "test:apps": "node TradeBoard/scripts/test-apps.mjs",
+    "test:d2l": "node scripts/test-d2l-ics.mjs && node scripts/test-d2l-client.mjs",
+    "test:d2l:client": "node scripts/test-d2l-client.mjs",
     "desktop:dev": "cd TradeBoard/desktop/src-tauri && cargo run",
     "desktop:build": "cd TradeBoard/desktop/src-tauri && cargo build --release",
     "desktop:test": "cd TradeBoard/desktop/src-tauri && cargo test"
