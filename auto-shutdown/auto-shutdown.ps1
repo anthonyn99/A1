@@ -39,9 +39,27 @@
     is old, so both leading signals agree. Works with the lid closed - the task
     needs no display.
 
+    MODERN STANDBY, AND WHY THE WINDOW IS ASYMMETRIC
+    This is an S0 Low Power Idle (Modern Standby) laptop with connected standby
+    disabled, and it does not reliably honour an RTC wake once it has been in
+    DRIPS for hours. Measured on 2026-08-21: the PC entered Modern Standby at
+    22:47 and stayed there; the 23:59:31 wake timer never fired; Task Scheduler
+    deferred the 00:00 trigger and only retried at 03:08:15, the moment the
+    machine next surfaced - and that launch was refused (0x800710E0) because the
+    system was entering sleep 0.1s later. A 5-minute standby test the next day
+    fired both an InteractiveToken and a SYSTEM task on time, so the plumbing
+    works; it is prolonged DRIPS that suppresses the wake.
+
+    So the design does not depend on waking at exactly $Time:
+      - WakeToRun still asks for the wake, and takes it when it is granted.
+      - The run is valid from $Time until $Time + $WindowHours, so a trigger
+        deferred to 03:00 still shuts the PC down that night.
+      - StartWhenAvailable and RestartOnFailure retry a deferred or refused
+        launch instead of giving up until tomorrow.
+
     SAFETY RAILS
-      - StartWhenAvailable is off, and Run re-checks the wall clock, so a missed
-        midnight can never shut the PC down the next morning.
+      - Run never acts before $Time or more than $WindowHours after it, so a
+        catch-up run in the morning can never shut the PC down mid-use.
       - Run refuses to act from session 0, where user idle cannot be measured
         and therefore every PC looks idle.
 
@@ -64,9 +82,13 @@ param(
     [ValidateRange(0,720)]
     [int]$IdleMinutes = 3,
 
-    # Act only if the clock is within this many minutes of $Time.
-    [ValidateRange(1,720)]
-    [int]$WindowMinutes = 30,
+    # How long after $Time a run may still shut down. Deliberately asymmetric:
+    # Modern Standby defers a deferred trigger to whenever the machine next
+    # surfaces, which can be hours. A run is allowed from $Time until
+    # $Time + $WindowHours, and never before $Time or after it - so a deferred
+    # 03:00 run still shuts the PC down, but a catch-up run at 09:00 cannot.
+    [ValidateRange(1,12)]
+    [int]$WindowHours = 6,
 
     # A display wake lock only protects the PC while the user has been present
     # this recently. Apps such as the League client hold one forever, so an
@@ -85,10 +107,20 @@ param(
     [switch]$Force,
 
     # Internal: set on the elevated relaunch to stop a UAC loop.
-    [switch]$NoElevate
+    [switch]$NoElevate,
+
+    # Deprecated, ignored. A task registered before the night-window change
+    # still passes -WindowMinutes; without this the run would die on a
+    # parameter-binding error instead of shutting the PC down. Reinstall to
+    # drop it. See -WindowHours for the replacement.
+    [int]$WindowMinutes = 0
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Capture at script scope: inside a function $PSBoundParameters is the
+# function's own, so the legacy-parameter check has to be hoisted here.
+$UsedLegacyWindow = $PSBoundParameters.ContainsKey('WindowMinutes')
 
 $TaskName   = 'A1 Auto Shutdown'
 $TaskPath   = '\A1\'
@@ -140,7 +172,7 @@ function Assert-Admin {
     if ($NoElevate) { throw 'Administrator rights are required and elevation was declined.' }
     Write-Log "not elevated: relaunching '$Mode' via UAC"
     $a  = '-NoProfile -ExecutionPolicy Bypass -File "{0}" -Mode {1} -Time {2}' -f $ScriptPath, $Mode, $Time
-    $a += ' -IdleMinutes {0} -WindowMinutes {1} -MediaGraceMinutes {2} -GraceSeconds {3} -NoElevate' -f $IdleMinutes, $WindowMinutes, $MediaGraceMinutes, $GraceSeconds
+    $a += ' -IdleMinutes {0} -WindowHours {1} -MediaGraceMinutes {2} -GraceSeconds {3} -NoElevate' -f $IdleMinutes, $WindowHours, $MediaGraceMinutes, $GraceSeconds
     if ($DryRun) { $a += ' -DryRun' }
     if ($Force)  { $a += ' -Force' }
     $p = Start-Process -FilePath 'powershell.exe' -ArgumentList $a -Verb RunAs -WindowStyle Hidden -PassThru -Wait
@@ -243,6 +275,25 @@ function Enable-WakeTimers {
 # Task definition
 # --------------------------------------------------------------------------
 
+# Without this log there is no record of why a run did or did not happen -
+# Windows ships it disabled, which made the first failure undiagnosable.
+function Enable-TaskSchedulerLog {
+    $n = 'Microsoft-Windows-TaskScheduler/Operational'
+    try {
+        $cfg = New-Object System.Diagnostics.Eventing.Reader.EventLogConfiguration $n
+        if ($cfg.IsEnabled) { return $true }
+        $cfg.IsEnabled = $true
+        $cfg.SaveChanges()
+        Write-Log 'enabled the TaskScheduler/Operational event log (was off)'
+        $true
+    } catch { Write-Log "could not enable $n : $_" 'WARN'; $false }
+}
+
+function Test-TaskSchedulerLog {
+    try { (New-Object System.Diagnostics.Eventing.Reader.EventLogConfiguration 'Microsoft-Windows-TaskScheduler/Operational').IsEnabled }
+    catch { $false }
+}
+
 function ConvertTo-XmlText { param([string]$s) [Security.SecurityElement]::Escape($s) }
 
 function New-TaskXml {
@@ -271,8 +322,12 @@ $TriggerXml
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <AllowHardTerminate>true</AllowHardTerminate>
-    <StartWhenAvailable>false</StartWhenAvailable>
+    <StartWhenAvailable>true</StartWhenAvailable>
     <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <RestartOnFailure>
+      <Interval>PT5M</Interval>
+      <Count>6</Count>
+    </RestartOnFailure>
     <IdleSettings>
       <StopOnIdleEnd>false</StopOnIdleEnd>
       <RestartOnIdle>false</RestartOnIdle>
@@ -300,8 +355,8 @@ $TriggerXml
 function New-RunArguments {
     param([string]$Extra = '')
     ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" ' +
-     '-Mode Run -Time {1} -IdleMinutes {2} -WindowMinutes {3} -MediaGraceMinutes {4} -GraceSeconds {5}{6}') -f
-        $ScriptPath, $Time, $IdleMinutes, $WindowMinutes, $MediaGraceMinutes, $GraceSeconds, $Extra
+     '-Mode Run -Time {1} -IdleMinutes {2} -WindowHours {3} -MediaGraceMinutes {4} -GraceSeconds {5}{6}') -f
+        $ScriptPath, $Time, $IdleMinutes, $WindowHours, $MediaGraceMinutes, $GraceSeconds, $Extra
 }
 
 function Get-Task {
@@ -322,9 +377,10 @@ function Get-TaskXml {
 
 function Invoke-Install {
     Assert-Admin
-    Write-Log "installing '$TaskName' for $Time (idle threshold ${IdleMinutes}m)"
+    Write-Log "installing '$TaskName' for $Time (idle threshold ${IdleMinutes}m, night window ${WindowHours}h)"
 
     Enable-WakeTimers
+    Enable-TaskSchedulerLog | Out-Null
 
     # Naive StartBoundary == local time, re-evaluated nightly => DST-correct.
     $trigger = @"
@@ -395,15 +451,22 @@ function Invoke-Run {
         return 3
     }
 
-    # A run far from the scheduled time is a manual or catch-up run, never a shutdown.
+    if ($UsedLegacyWindow) {
+        Write-Log ('this task still passes the removed -WindowMinutes; ignoring it and using -WindowHours {0}. Re-run install to update the task.' -f $WindowHours) 'WARN'
+    }
+
+    # Only ever act in the stretch that starts at $Time. A run before it, or
+    # more than $WindowHours after it, is a manual or morning catch-up run.
     $t      = [datetime]::ParseExact($Time, 'HH:mm', $null)
     $target = $now.Date.AddHours($t.Hour).AddMinutes($t.Minute)
-    $off    = ($target, $target.AddDays(1), $target.AddDays(-1) |
-                ForEach-Object { [Math]::Abs(($now - $_).TotalMinutes) } |
-                Measure-Object -Minimum).Minimum
-    if (-not $Force -and $off -gt $WindowMinutes) {
-        Write-Log ('skip: {0:N0}m away from the {1} trigger, outside the {2}m window' -f $off, $Time, $WindowMinutes)
+    if ($now -lt $target) { $target = $target.AddDays(-1) }
+    $sinceH = ($now - $target).TotalHours
+    if (-not $Force -and $sinceH -ge $WindowHours) {
+        Write-Log ('skip: {0:N1}h past the {1} trigger, outside the {2}h night window' -f $sinceH, $Time, $WindowHours)
         return 0
+    }
+    if ($sinceH -gt 0.25) {
+        Write-Log ('note: running {0:N1}h late - the trigger was deferred, most likely by Modern Standby' -f $sinceH) 'WARN'
     }
 
     # Self-heal: a power-plan change or reset can turn wake timers back off.
@@ -467,9 +530,10 @@ function Invoke-Status {
         WakeToRun                  = 'true'   # may wake the PC from sleep to run
         DisallowStartIfOnBatteries = 'false'  # must still run on battery
         StopIfGoingOnBatteries     = 'false'
-        StartWhenAvailable         = 'false'  # never "catch up" a missed midnight
+        StartWhenAvailable         = 'true'   # retry a deferred/missed trigger...
         RunOnlyIfIdle              = 'false'
     }
+    # ...which is safe only because Run enforces the night window itself.
     foreach ($k in $wanted.Keys) {
         $node = (Select-Xml -Xml $xml -Namespace $ns -XPath "//t:Settings/t:$k").Node
         $v    = if ($node) { $node.InnerText } else { 'false (default)' }
@@ -485,6 +549,10 @@ function Invoke-Status {
     } else {
         Write-Host '  armed wake timer: (run as admin to list)'
     }
+    Write-Host ('night window   : {0} to {1:HH\:mm} ({2}h) - a deferred run still shuts down, a morning one cannot' -f `
+        $Time, ([datetime]::ParseExact($Time,'HH:mm',$null)).AddHours($WindowHours), $WindowHours)
+    Write-Host ('task event log : {0}' -f $(if (Test-TaskSchedulerLog) { 'enabled' } else { 'DISABLED - re-run install' })) `
+        -ForegroundColor $(if (Test-TaskSchedulerLog) { 'Gray' } else { 'Red' })
     $r = Get-Decision
     Write-Host ('if it ran now  : {0} - {1}' -f $r.Decision, $r.Reason) -ForegroundColor Yellow
     Write-Host ('log            : {0}' -f $LogPath)
