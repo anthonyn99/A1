@@ -511,38 +511,116 @@ body.wr-locked #wr-progbar { display: none !important; }
 #applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0;}
 #applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--tx3);}
 
-/* ══ PROGRAM PICKER ════════════════════════════════════════════════════════ */
+/* ══ PROGRAM PICKER ════════════════════════════════════════════════════════
+   RiftIQ's front door. The app is named here; the two cards are the programs. */
 #program-picker {
   position: fixed; inset: 0; z-index: 1200;
   display: none; align-items: center; justify-content: center;
   background: var(--bg);
-  background-image: radial-gradient(120% 55% at 50% -10%, rgba(192,174,234,.10), transparent 70%);
-  padding: 24px;
+  padding: 24px; overflow: hidden;
 }
 #program-picker.on { display: flex; }
-.pp-inner { width: 100%; max-width: 760px; }
-.pp-head { text-align: center; margin-bottom: 26px; }
-.pp-title { font-family: var(--head); font-size: 30px; font-weight: 800; letter-spacing: -0.5px; color: var(--tx); }
-.pp-sub { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--tx3); margin-top: 6px; }
-.pp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+
+/* Soft rift of light behind the wordmark — the only ornament on the screen. */
+.pp-glow {
+  position: absolute; top: -34%; left: 50%; transform: translateX(-50%);
+  width: min(1100px, 150vw); height: 620px; pointer-events: none;
+  background:
+    radial-gradient(closest-side, rgba(192,174,234,.15), transparent 72%),
+    radial-gradient(closest-side, rgba(143,166,216,.08), transparent 70%);
+  filter: blur(6px);
+}
+
+.pp-inner { position: relative; width: 100%; max-width: 720px; }
+
+.pp-head { text-align: center; margin-bottom: 34px; }
+.pp-wordmark {
+  font-family: var(--head); font-size: clamp(38px, 8vw, 56px);
+  font-weight: 900; letter-spacing: -1.6px; line-height: 1;
+}
+.pp-w1 { color: var(--tx); }
+.pp-w2 {
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.pp-rule {
+  width: 46px; height: 2px; margin: 16px auto 12px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: .75;
+}
+.pp-sub {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 2.4px;
+  text-transform: uppercase; color: var(--tx3);
+}
+
+.pp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+
 .pp-card {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
-  padding: 26px 24px 24px; text-align: left; cursor: pointer;
-  background: var(--bg3); border: 1px solid var(--bd2); border-radius: 14px;
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
+  padding: 24px 22px 20px; text-align: left; cursor: pointer;
+  background: var(--bg3); border: 1px solid var(--bd2); border-radius: 16px;
   color: var(--tx); font-family: var(--body);
-  transition: border-color .18s, background .18s, transform .18s, box-shadow .18s;
+  transition: border-color .2s, background .2s, transform .2s, box-shadow .2s;
 }
-.pp-card:hover {
-  border-color: var(--gold); background: var(--bg4); transform: translateY(-2px);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.15), 0 14px 40px rgba(0,0,0,.45);
+/* A thin accent bar that wipes across the top edge on hover. */
+.pp-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--gold), var(--gold2));
+  transform: scaleX(0); transform-origin: left; transition: transform .28s ease;
 }
-.pp-mark { color: var(--gold); line-height: 0; }
-.pp-name { font-family: var(--head); font-size: 21px; font-weight: 800; letter-spacing: -0.3px; }
-.pp-desc { font-family: var(--body); font-size: 13px; line-height: 1.5; color: var(--tx3); }
+.pp-card:hover, .pp-card:focus-visible {
+  border-color: rgba(192,174,234,.55); background: var(--bg4);
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.13), 0 18px 44px rgba(0,0,0,.5);
+  outline: none;
+}
+.pp-card:hover::before, .pp-card:focus-visible::before { transform: scaleX(1); }
+
+.pp-well {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 54px; height: 54px; margin-bottom: 6px; border-radius: 13px;
+  background: rgba(192,174,234,.09); border: 1px solid rgba(192,174,234,.2);
+  color: var(--gold); transition: background .2s, border-color .2s;
+}
+.pp-card:hover .pp-well { background: rgba(192,174,234,.15); border-color: rgba(192,174,234,.4); }
+
+.pp-kicker {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 1.6px; text-transform: uppercase; color: var(--tx3);
+}
+.pp-name {
+  font-family: var(--head); font-size: 23px; font-weight: 800; letter-spacing: -0.4px;
+}
+.pp-desc {
+  font-family: var(--body); font-size: 13px; line-height: 1.55; color: var(--tx3);
+}
+.pp-go {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--gold);
+  opacity: .65; transition: opacity .2s;
+}
+.pp-go svg { transition: transform .2s; }
+.pp-card:hover .pp-go { opacity: 1; }
+.pp-card:hover .pp-go svg { transform: translateX(3px); }
+
 @media (max-width: 640px) {
-  .pp-grid { grid-template-columns: 1fr; }
-  .pp-title { font-size: 24px; }
-  .pp-card { padding: 20px 18px; }
+  #program-picker { padding: 20px 16px; align-items: flex-start; padding-top: 12vh; overflow-y: auto; }
+  .pp-grid { grid-template-columns: 1fr; gap: 12px; }
+  .pp-head { margin-bottom: 26px; }
+  .pp-card { padding: 18px 16px 16px; gap: 5px; }
+  .pp-well { width: 46px; height: 46px; border-radius: 11px; }
+  .pp-well svg { width: 28px; height: 28px; }
+  .pp-name { font-size: 20px; }
+  .pp-desc { font-size: 12.5px; }
+  .pp-glow { height: 420px; top: -22%; }
+}
+/* Motion is decoration here; honour a system preference against it. */
+@media (prefers-reduced-motion: reduce) {
+  .pp-card, .pp-card::before, .pp-go svg, .pp-well { transition: none; }
+  .pp-card:hover { transform: none; }
 }
 
 /* ══ PROGRAM BAR (ProView only) ════════════════════════════════════════════
@@ -2071,34 +2149,40 @@ input:-webkit-autofill:active {
      header of whichever you land in carries a button to swap to the other.
      Both sit behind the single RiftIQ app lock. ═══════════════════════════ -->
 <div id="program-picker">
+  <div class="pp-glow" aria-hidden="true"></div>
   <div class="pp-inner">
     <div class="pp-head">
-      <div class="pp-title">Choose a program</div>
-      <div class="pp-sub">Two programs, one login</div>
+      <div class="pp-wordmark"><span class="pp-w1">Rift</span><span class="pp-w2">IQ</span></div>
+      <div class="pp-rule" aria-hidden="true"></div>
+      <div class="pp-sub">Two programs · one login</div>
     </div>
     <div class="pp-grid">
       <button class="pp-card" onclick="openProgram('warroom')">
-        <span class="pp-mark">
-          <svg viewBox="0 0 96 96" width="46" height="46" aria-hidden="true">
-            <path d="M48 19 73 33.5v29L48 77 23 62.5v-29Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" opacity=".5"/>
+        <span class="pp-well">
+          <svg viewBox="0 0 96 96" width="34" height="34" aria-hidden="true">
+            <path d="M48 19 73 33.5v29L48 77 23 62.5v-29Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" opacity=".45"/>
             <path d="M48 26l5 12v18H43V38Z" fill="currentColor"/>
             <rect x="33" y="56" width="30" height="6" rx="3" fill="currentColor"/>
-            <rect x="45" y="62" width="6" height="11" rx="3" fill="currentColor" opacity=".6"/>
+            <rect x="45" y="62" width="6" height="11" rx="3" fill="currentColor" opacity=".55"/>
           </svg>
         </span>
+        <span class="pp-kicker">League of Legends</span>
         <span class="pp-name">WarRoom</span>
-        <span class="pp-desc">Profiles, match history, builds, ladder, live spectate</span>
+        <span class="pp-desc">Profiles, match history, builds, runes, ladder and live spectate.</span>
+        <span class="pp-go">Enter<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"/><path d="m12 5 7 7-7 7"/></svg></span>
       </button>
       <button class="pp-card" onclick="openProgram('proview')">
-        <span class="pp-mark">
-          <svg viewBox="0 0 96 96" width="46" height="46" aria-hidden="true">
-            <rect x="18" y="24" width="60" height="42" rx="6" fill="none" stroke="currentColor" stroke-width="4" opacity=".5"/>
+        <span class="pp-well">
+          <svg viewBox="0 0 96 96" width="34" height="34" aria-hidden="true">
+            <rect x="18" y="24" width="60" height="42" rx="6" fill="none" stroke="currentColor" stroke-width="4" opacity=".45"/>
             <path d="M42 38l16 9-16 9Z" fill="currentColor"/>
-            <rect x="34" y="72" width="28" height="5" rx="2.5" fill="currentColor" opacity=".6"/>
+            <rect x="34" y="72" width="28" height="5" rx="2.5" fill="currentColor" opacity=".55"/>
           </svg>
         </span>
+        <span class="pp-kicker">Esports</span>
         <span class="pp-name">ProView</span>
-        <span class="pp-desc">LoL esports schedules, standings, favourites → TaskHub</span>
+        <span class="pp-desc">Pro schedules, standings and results. Favourites land on your TaskHub.</span>
+        <span class="pp-go">Enter<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"/><path d="m12 5 7 7-7 7"/></svg></span>
       </button>
     </div>
   </div>

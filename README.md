@@ -17,7 +17,7 @@ the Cloudflare Workers each have their own folder.
 | `mylist.html` | **MyList** — shopping list with Price Watch |
 | `oneinbox.html` | **OneInbox** — unified mail inbox |
 | `solace.html` | **Solace** — fitness (MotionCore) and nutrition (recipes) |
-| `warroom.html` | **WarRoom** — League prep (`dashboards/lol_warroom`) |
+| `riftiq.html` | **RiftIQ** — WarRoom (League) + ProView (esports) (`dashboards/lol_warroom`, `dashboards/proview`) |
 | `wellness.html` | **Wellness** — Veda's tracker |
 | `shield.html` | **Shield** — front end for the desktop agent |
 

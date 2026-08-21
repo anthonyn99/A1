@@ -1,7 +1,7 @@
 /**
  * WarRoom API — Riot Games API proxy.
  *
- * Holds the only copy of RIOT_API_KEY (secret). warroom.html talks to nothing
+ * Holds the only copy of RIOT_API_KEY (secret). riftiq.html talks to nothing
  * but this worker.
  *
  * Why it caches

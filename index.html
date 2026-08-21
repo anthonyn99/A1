@@ -4689,7 +4689,7 @@ window.THTS={
     <option value="tradeboard">TradeHub</option>
     <option value="keychain">Vault</option>
     <option value="brainstormjournal">MyJournal</option>
-    <option value="warroom">WarRoom</option>
+    <option value="warroom">RiftIQ</option>
   </select>
   <button class="tn-btn" data-app="taskhub" onclick="window._tonyNav&&window._tonyNav('taskhub')">TaskHub</button>
   <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
@@ -10404,7 +10404,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // ── TradeBoard Firebase moved to standalone tradehub.html ──
 
     // ── External cards (read-only) ────────────────────────────────────────
-    // Written by warroom.html, which is this document's ONLY writer. TaskHub
+    // Written by riftiq.html, which is this document's ONLY writer. TaskHub
     // just listens and renders; see EC_useCards / EC_byDay.
     if (_ecUnsubscribe) { _ecUnsubscribe(); _ecUnsubscribe = null; }
     _ecUnsubscribe = onSnapshot(doc(db, EC_DOC_PATH), (snap) => {
@@ -39831,7 +39831,7 @@ var AL_LABELS  = {
   tony_solace:    { label: 'Solace',     profile: 'tony', color: '#e0b874' },
   tony_keychain:  { label: 'Vault',      profile: 'tony', color: '#e0b874' },
   tony_myjournal: { label: 'MyJournal',  profile: 'tony', color: '#e0b874' },
-  tony_warroom:   { label: 'WarRoom',    profile: 'tony', color: '#c0aeea' },
+  tony_warroom:   { label: 'RiftIQ',     profile: 'tony', color: '#c0aeea' },
   veda_taskhub:   { label: 'TaskHub',    profile: 'veda', color: '#8D769A' },
   veda_gita:      { label: 'Gita',       profile: 'veda', color: '#8D769A' },
   veda_journal:   { label: 'Journal',    profile: 'veda', color: '#8D769A' },
@@ -40760,16 +40760,16 @@ window._tnOpenTab = function(url, key){
 })();
 </script>
 
-<!-- ── WarRoom — opens warroom.html in its own named tab ── -->
+<!-- ── RiftIQ — opens riftiq.html in its own named tab ── -->
 <script>
 (function(){
 'use strict';
 
 window._wrClick = function(){
-  var URL_WR = 'https://anthonyn99.github.io/A1/warroom.html';
+  var URL_WR = 'https://anthonyn99.github.io/A1/riftiq.html';
   var w = window._tnOpenTab(URL_WR, 'warroom');
   if(!w || w.closed || typeof w.closed === 'undefined'){
-    if(window.confirm('WarRoom opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
+    if(window.confirm('RiftIQ opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
       var w2 = window._tnOpenTab(URL_WR, 'warroom');
       if(!w2 || w2.closed || typeof w2.closed === 'undefined'){
         // Last resort: an anchor with the SAME target name, so even this path
@@ -40897,7 +40897,7 @@ window._navTabGearRefresh = function(){
     var gear = document.getElementById(pair[0]);
     if (!gear) return;
     var locked = window.alIsLocked && window.alIsLocked(pair[1]);
-    gear.title = locked ? ('🔒 ' + (pair[1]==='tony_tradehub'?'TradeHub':'WarRoom') + ' locked — click to manage') : 'Manage lock';
+    gear.title = locked ? ('🔒 ' + (pair[1]==='tony_tradehub'?'TradeHub':'RiftIQ') + ' locked — click to manage') : 'Manage lock';
     gear.style.opacity = locked ? '0.9' : '0.45';
   });
 };
@@ -40988,7 +40988,7 @@ function _sanLink(l){ return { id: String(l.id||''), label: String(l.label||'Lin
 var LEGACY_PROGRAMS = [
   { id:'tradehub', label:'TradeHub', url:'https://anthonyn99.github.io/A1/tradehub.html', lockId:'tony_tradehub', openFn:'_thubClick' },
   { id:'vault',    label:'Vault',    url:'https://anthonyn99.github.io/A1/vault.html',    lockId:'tony_keychain', openFn:'_vaultClick' },
-  { id:'warroom',  label:'WarRoom',  url:'https://anthonyn99.github.io/A1/warroom.html',  lockId:'tony_warroom', openFn:'_wrClick' },
+  { id:'warroom',  label:'RiftIQ',   url:'https://anthonyn99.github.io/A1/riftiq.html',   lockId:'tony_warroom', openFn:'_wrClick' },
   // Solace replaced the in-page MotionCore view (and MyList's Recipes tab), so it
   // joins this list rather than TONY_DEFAULT: it is a separate program in its own
   // tab, not a view of this page. seedLegacyProgramsOnce() is already spent on
