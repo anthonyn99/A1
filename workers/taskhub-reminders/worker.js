@@ -1236,6 +1236,18 @@ async function refreshLookahead(env, baseUrl, authHdr, now, nextInWindow, window
       nextDueAt  = isNaN(at) ? null : at;
     } catch (e) { return; }
   }
+  // Only write when a LATER tick could actually use the result to skip.
+  //
+  // shouldSkipTick() skips on `now < nextDueAt - LOOKAHEAD_GRACE_MS`, so once we
+  // are inside that window no future tick will skip whatever we store here — it
+  // is going to run the query either way until this reminder passes. Writing
+  // anyway cost one KV write per tick for the whole 15 minutes before EVERY
+  // reminder, which on the free plan (1,000 writes/day against 100,000 reads)
+  // was the single largest avoidable line on the bill. `nextDueAt === null`
+  // stays worth writing: that is the "nothing upcoming at all" answer every
+  // idle tick skips on.
+  if (nextDueAt !== null && now >= nextDueAt - LOOKAHEAD_GRACE_MS) return;
+
   try {
     // TTL is a third safety net: even a wedged cache self-heals within the hour.
     await env.TOKEN_CACHE.put(
