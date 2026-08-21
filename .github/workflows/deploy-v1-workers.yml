@@ -44,6 +44,7 @@ on:
       # StudyOS is a multi-file app: its HTML plus the sibling directories that
       # build.mjs copies beside it, and the root service worker.
       - "V1/studyos.html"
+      - "V1/studyos-sw.js"
       - "V1/manifest.webmanifest"
       - "V1/css/**"
       - "V1/js/**"

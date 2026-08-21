@@ -2166,9 +2166,124 @@ function _sosOnPaste(e) {
 
 function _sosInstallIngest() {
   _sosInstallDropTarget();
+  _sosInstallLaunchQueue();   // before anything async: launchQueue buffers only until a consumer exists
+  _sosRegisterSw();
+  _sosDrainShare();
   document.addEventListener('paste', _sosOnPaste);
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && (_sosPendingIngest || _sosClassPickAbort)) _sosCancelPick();
+  });
+}
+
+// ── Stage B: files arriving from OUTSIDE the page ─────────────────────────
+// Two OS-level entry points, both landing in sosIngestFiles() like every
+// other path:
+//   * file_handlers  — Explorer "Open with > StudyOS". Handled in-page by
+//                      launchQueue; needs no service worker.
+//   * share_target   — the Android / Edge-Windows share sheet. The OS POSTs
+//                      multipart form data to /studyos/share, which only a
+//                      service worker can intercept, so studyos-sw.js stashes
+//                      the files and redirects here to drain them.
+
+const SOS_STAGE_DB = 'sos_share_stage';
+const SOS_STAGE_VER = 1;
+const SOS_STAGE_ST = 'pending';
+const SOS_STAGE_TTL = 24 * 60 * 60 * 1000;   // abandoned shares expire after a day
+
+function _sosOpenStage() {
+  return new Promise((resolve, reject) => {
+    let r;
+    try { r = indexedDB.open(SOS_STAGE_DB, SOS_STAGE_VER); }
+    catch (e) { reject(e); return; }
+    r.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(SOS_STAGE_ST)) db.createObjectStore(SOS_STAGE_ST, { keyPath: 'id' });
+    };
+    r.onsuccess = e => resolve(e.target.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+
+// Read every staged record and delete them in the SAME pass. Draining before
+// ingesting is deliberate: if the picker is cancelled, or ingest throws, the
+// share must not resurface on every future app open. Losing a share the user
+// explicitly cancelled is correct; re-prompting forever is not.
+async function _sosDrainStage() {
+  let db;
+  try { db = await _sosOpenStage(); } catch (_) { return []; }
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(SOS_STAGE_ST, 'readwrite');
+      const st = tx.objectStore(SOS_STAGE_ST);
+      const q = st.getAll();
+      let rows = [];
+      q.onsuccess = () => {
+        rows = q.result || [];
+        st.clear();
+      };
+      tx.oncomplete = () => resolve(rows);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } catch (_) {
+    return [];
+  } finally {
+    try { db.close(); } catch (_) {}
+  }
+}
+
+// Turn staged records back into Files and hand them to the normal picker.
+// Called unconditionally at startup, not only when ?share=1 is present: a
+// share that landed while the app was closed, or whose redirect was lost,
+// would otherwise sit stranded in IndexedDB forever.
+async function _sosDrainShare() {
+  let rows;
+  try { rows = await _sosDrainStage(); } catch (_) { return; }
+  if (!rows || !rows.length) return;
+
+  const now = Date.now();
+  const fresh = rows.filter(r => r && r.blob && (!r.ts || now - r.ts < SOS_STAGE_TTL));
+
+  // Strip ?share=1 so a refresh doesn't look like a brand-new share.
+  try {
+    if (/[?&]share=1/.test(location.search)) {
+      history.replaceState({}, '', location.pathname + location.hash);
+    }
+  } catch (_) {}
+
+  if (!fresh.length) return;
+  const files = fresh.map(r => {
+    try { return new File([r.blob], r.name || 'shared', { type: r.type || 'application/octet-stream' }); }
+    catch (_) { return null; }
+  }).filter(Boolean);
+  if (files.length) _sosWhenUnlocked(() => sosIngestFiles(files));
+}
+
+// Scope is /studyos/ — see the header of studyos-sw.js for why this must not
+// be hoisted to the site root alongside firebase-messaging-sw.js.
+function _sosRegisterSw() {
+  if (!('serviceWorker' in navigator)) return;
+  // Mirrors the guard push.js uses: a SW needs HTTPS or localhost, and file://
+  // throws outright.
+  if (!window.isSecureContext) return;
+  navigator.serviceWorker.register('./studyos-sw.js')
+    .catch(e => console.info('[StudyOS] share-target SW not registered:', e && e.message));
+}
+
+// file_handlers: Explorer "Open with > StudyOS". No service worker involved.
+// Registered as early as possible — launchQueue buffers a launch only until a
+// consumer is set, so a late registration drops the very launch that opened
+// the window.
+function _sosInstallLaunchQueue() {
+  if (!('launchQueue' in window) || !window.launchQueue.setConsumer) return;
+  window.launchQueue.setConsumer(async (params) => {
+    if (!params || !params.files || !params.files.length) return;
+    const files = [];
+    for (const h of params.files) {
+      // These are FileSystemFileHandles, not Files.
+      try { files.push(await h.getFile()); } catch (_) {}
+    }
+    if (files.length) _sosWhenUnlocked(() => sosIngestFiles(files));
   });
 }
 

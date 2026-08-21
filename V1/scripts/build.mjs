@@ -35,6 +35,11 @@ const dist = resolve(root, "dist");
 // app is served from. A service worker can only control pages at or below its
 // own path, and the FCM SDK looks for firebase-messaging-sw.js at the root, so
 // it cannot live in the app's subdirectory.
+//
+// studyos-sw.js is the mirror image: it is an ASSET, not a rootFile, because
+// its scope must be /studyos/ (covering the app) WITHOUT claiming the root
+// scope that firebase-messaging-sw.js requires. Moving it into rootFiles
+// would break push notifications.
 const APPS = [
   { name: "TradeBoard", src: "TradeBoard/tradeboard.html", out: "" },
   { name: "Finance", src: "Finance/finance.html", out: "finance" },
@@ -42,7 +47,7 @@ const APPS = [
     name: "StudyOS",
     src: "studyos.html",
     out: "studyos",
-    assets: ["css", "js", "config", "assets", "manifest.webmanifest"],
+    assets: ["css", "js", "config", "assets", "manifest.webmanifest", "studyos-sw.js"],
     rootFiles: [["firebase/firebase-messaging-sw.js", "firebase-messaging-sw.js"]],
   },
 ];
