@@ -12590,9 +12590,16 @@ const GOAL_PREFS_DEF={hideShort:false,hideLong:false};
    over at 8pm ET, which would mis-date an evening session as tomorrow and skip
    the next day's prompt.
 
-   NOTE: unlike the old standalone tradeboard/rules pages, this gate runs EVERY day. There is
-   deliberately no isWeekdayET() check — weekends are not skipped. */
-const RULES_DAILY_DEF={lastCompleted:null,enabled:true};
+   NOTE: unlike the old standalone tradeboard/rules pages, this gate runs EVERY
+   day. There is deliberately no isWeekdayET() check — weekends are not skipped.
+
+   ONCE PER DAY PER PERSON, NOT PER DEVICE: `lastShown` is the day the gate was
+   put on screen anywhere, claimed by the first device to open TaskHub that day
+   and carried to the others inside the synced vedasdash doc. `lastCompleted` is
+   still the day it was finished — that is what "reviewed today" reports, and it
+   is deliberately NOT the thing that suppresses the prompt, because a device
+   that shows the gate and is then closed mid-checklist has still shown it. */
+const RULES_DAILY_DEF={lastCompleted:null,lastShown:null,enabled:true};
 const RULES_DELAY=3;   // seconds a rule must be on screen before it can be ticked
 function vdEtParts(d){
   const p=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",
@@ -13276,6 +13283,10 @@ function App(){
      No weekday check — unlike the old tradeboard/rules pages, this runs EVERY day. */
   const rulesShownRef=useRef(false);
   const rulesAskRef=useRef(null);
+  // When this device started waiting for the cloud doc, and how long it waits
+  // before deciding without one. See the offline note in maybeShowDaily.
+  const rulesWaitRef=useRef(Date.now());
+  const RULES_CLOUD_WAIT=8000;
   const maybeShowDaily=useCallback(()=>{
     if(rulesShownRef.current)return;
     // Veda's App stays MOUNTED while Tony's profile is on screen (#veda-root is
@@ -13284,13 +13295,29 @@ function App(){
     // so switching to Veda afterwards would silently skip the prompt.
     const vr=document.getElementById("veda-root");
     if(!vr||vr.style.display==="none"||!vr.offsetParent)return;
+    // "Did anyone already see this today?" is a fact only the cloud doc knows.
+    // Answering it from this device's cache is what made the gate fire once on
+    // EVERY device: each one boots holding its own yesterday, opens on that, and
+    // the authoritative doc lands a second too late to matter. So wait for the
+    // real doc. If it never arrives (offline, dead auth), fall back to the local
+    // record after RULES_CLOUD_WAIT rather than skipping the day — a mandatory
+    // checklist fails closed. applyRemote re-calls this the moment it loads, and
+    // the 1s poll below covers the timeout, so neither exit is a dead end.
+    if(!window._vdCloudLoaded&&Date.now()-rulesWaitRef.current<RULES_CLOUD_WAIT)return;
     const rl=vdRef.current.rules||[],rd=vdRef.current.rulesDaily||RULES_DAILY_DEF;
     if(!rd.enabled)return;
     if(!rl.length)return;
-    if(rd.lastCompleted===vdTodayET())return;   // already done today
+    const today=vdTodayET();
+    if(rd.lastShown===today)return;             // already shown today, on some device
+    if(rd.lastCompleted===today)return;         // already done today
     rulesShownRef.current=true;                 // latch only on a real open
+    // Claim the day BEFORE the modal goes up: setRulesDaily writes localStorage
+    // and pushes to Firestore, so a phone opened a minute later reads
+    // lastShown===today and stays quiet. Two devices opening in the same second
+    // can still both show it — the claim travels at network speed, not faster.
+    setRulesDaily(prev=>({...prev,lastShown:today}));
     setRulesOpen("gate");
-  },[]);
+  },[setRulesDaily]);
   rulesAskRef.current=maybeShowDaily;
   // Poll for Veda becoming visible: the profile switch is plain DOM style
   // mutation in shared chrome, with no event to subscribe to. Stops as soon as
