@@ -549,6 +549,11 @@ function Invoke-Status {
     } else {
         Write-Host '  armed wake timer: (run as admin to list)'
     }
+    # The retry settings are what cover a launch refused during a sleep
+    # transition (0x800710E0), so a silent regression here must be visible.
+    $rof = (Select-Xml -Xml $xml -Namespace $ns -XPath '//t:Settings/t:RestartOnFailure').Node
+    Write-Host ('  {0,-27}: {1}' -f 'RestartOnFailure', $(if ($rof) { 'every {0}, up to {1} times' -f $rof.Interval, $rof.Count } else { 'NOT SET   <-- re-run install' })) `
+        -ForegroundColor $(if ($rof) { 'Gray' } else { 'Red' })
     Write-Host ('night window   : {0} to {1:HH\:mm} ({2}h) - a deferred run still shuts down, a morning one cannot' -f `
         $Time, ([datetime]::ParseExact($Time,'HH:mm',$null)).AddHours($WindowHours), $WindowHours)
     Write-Host ('task event log : {0}' -f $(if (Test-TaskSchedulerLog) { 'enabled' } else { 'DISABLED - re-run install' })) `
