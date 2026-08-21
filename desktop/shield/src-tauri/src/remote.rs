@@ -22,7 +22,19 @@ use std::thread;
 use std::time::Duration;
 
 const ENDPOINT: &str = "https://taskhub-reminders.av1.workers.dev/shield/emergency";
-const POLL_SECS: u64 = 20;
+/// How often the agent asks the Worker about a profile-wide emergency.
+///
+/// Every poll is a KV read, around the clock, on every machine with an agent —
+/// so this number is a standing bill, not a one-off. At 20s two agents spent
+/// 17,000 KV reads a day between them, 17% of the whole account's daily free
+/// tier, purely to discover that nothing had changed. 45s costs a third of that
+/// and moves the worst case from 20 seconds to 45.
+///
+/// That is the right trade because this path only covers the narrow case where
+/// Shield's window is CLOSED on the target machine. With the page open its
+/// Firestore listener already delivers in under a second, and a lockdown raised
+/// from a phone is not a race won or lost in twenty-five seconds.
+const POLL_SECS: u64 = 45;
 /// Back off after repeated failures so an outage does not mean a request every
 /// twenty seconds forever.
 const MAX_BACKOFF_SECS: u64 = 300;

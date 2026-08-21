@@ -1151,7 +1151,14 @@ onSnapshot(AL_DOC, snap => {
 function isLocalPath(u){
   return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
 }
-onSnapshot(doc(db, 'dashboards/navorder'), snap => {
+// Only with an agent. This listener exists for exactly one purpose: handing
+// local-link paths down to the desktop agent (see sh_set_links below). On a
+// phone or a plain browser tab there is no agent to hand them to, so it was a
+// live Firestore subscription that did nothing but cost a read on every change
+// and hold a slot in the account's concurrent-listener count. Shield opens
+// three listeners per surface; this removes one from every device that cannot
+// use it, which is most of them.
+function _navorderListen(){ return onSnapshot(doc(db, 'dashboards/navorder'), snap => {
   if (!snap.exists()) return;
   var d = snap.data() || {};
   var links = {};
@@ -1161,7 +1168,27 @@ onSnapshot(doc(db, 'dashboards/navorder'), snap => {
   if (window.SH && window.SH.Agent) {
     window.SH.Agent.invoke('sh_set_links', { args: { links: links } }).catch(() => {});
   }
-}, err => console.warn('[Shield] navorder snapshot err', err));
+}, err => console.warn('[Shield] navorder snapshot err', err)); }
+
+// Attach only where there is an agent to hand the paths to.
+//
+// Deferred rather than decided inline: this is a module script, and whether
+// Tauri has injected window.__TAURI__ by the time it runs is not something to
+// bet local links on. Checking now AND once more after load costs nothing and
+// removes the ordering question entirely.
+(function attachNavorder(){
+  var done = false;
+  function go(){
+    if (done || !window.__TAURI__) return;
+    done = true;
+    _navorderListen();
+  }
+  go();
+  if (!done) {
+    if (document.readyState === 'complete') setTimeout(go, 0);
+    else window.addEventListener('load', function(){ setTimeout(go, 0); }, { once: true });
+  }
+})();
 
 authReady.then(() => {
   window._fbReady = true;
@@ -1774,8 +1801,15 @@ window.SH = (function(){
 'use strict';
 
 /* ── Constants ────────────────────────────────────────────────────────────── */
-var HEARTBEAT_MS   = 15 * 60 * 1000;   // how often a foreground device stamps lastSeen
-var ONLINE_WINDOW  = 20 * 60 * 1000;   // lastSeen fresher than this reads as "active"
+// Heartbeat cadence, and the window that reads as "Active".
+//
+// These two are a pair: the window MUST be comfortably longer than the cadence
+// or a device goes dark in the gap between check-ins and reads as offline while
+// it is sitting right there. Every heartbeat is a write, and every write echoes
+// a snapshot to each other open surface, so it costs a read on those too -
+// stretching it from 15 to 25 minutes takes about 40% off both.
+var HEARTBEAT_MS   = 25 * 60 * 1000;   // how often a foreground device stamps lastSeen
+var ONLINE_WINDOW  = 35 * 60 * 1000;   // lastSeen fresher than this reads as "active"
 var SAVE_DEBOUNCE  = 1200;
 var HOLD_MS        = 800;
 var HIST_LOCAL_MAX = 25;               // full entries kept on this device
@@ -3177,7 +3211,7 @@ function renderDevices(){
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">How devices work</span></div>'
     +  '<div class="hint">Each device owns its own configuration — a phone cannot describe a PC\'s executables. You can view '
     +  'another device\'s here, but only the one you are holding can change it.'
-    +  '<br><br>“Active” means it checked in within the last 20 minutes. There is no live presence connection; that would '
+    +  '<br><br>“Active” means it checked in within the last 35 minutes. There is no live presence connection; that would '
     +  'cost writes all day for something you rarely need.</div></div>';
   $('v-devices').innerHTML = h;
 

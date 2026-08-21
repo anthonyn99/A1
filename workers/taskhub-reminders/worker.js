@@ -639,8 +639,33 @@ async function mirrorGlobalToFirestore(env, profile, rec) {
   }
 }
 
+/* The guard token, cached in the isolate.
+ *
+ * The desktop agents poll /shield/emergency around the clock, and every poll was
+ * TWO KV reads: the emergency record, and the token to authorise the read. The
+ * emergency record genuinely has to be fresh every time - it is the whole point
+ * - but the token changes only when somebody rotates it, which is close to
+ * never. Reading it per poll doubled Shield's KV bill for no information.
+ *
+ * A rotation therefore takes up to TTL to be enforced everywhere. That is the
+ * cost, and it is the right way round: a stale token briefly keeps working,
+ * which is a delay, rather than a fresh one briefly failing, which would take
+ * the agents off the remote channel.
+ */
+const SHIELD_TOK_TTL_MS = 5 * 60 * 1000;
+const _shTok = new Map();   // profile -> { k, at }
+
+async function shieldToken(env, profile) {
+  const hit = _shTok.get(profile);
+  if (hit && Date.now() - hit.at < SHIELD_TOK_TTL_MS) return hit.rec;
+  const rec = await getJSON(env, shieldTokKey(profile));
+  _shTok.set(profile, { rec, at: Date.now() });
+  return rec;
+}
+function shieldTokenForget(profile) { _shTok.delete(profile); }
+
 async function shieldTokenOk(env, profile, given) {
-  const tok = await getJSON(env, shieldTokKey(profile));
+  const tok = await shieldToken(env, profile);
   // No token minted yet → this profile has never run the key flow, so the
   // endpoint stays open for it. Minting one is what turns protection on, and
   // doing it this way means an existing install keeps working until its wizard
@@ -674,6 +699,7 @@ async function handleShield(path, request, env, origin, url) {
       const old = tok && tok.k;
       tok = { k: randomToken(), at: Date.now() };
       await env.TOKEN_CACHE.put(shieldTokKey(profile), JSON.stringify(tok));
+      shieldTokenForget(profile);
       await env.TOKEN_CACHE.put(shieldTokProfKey(tok.k), JSON.stringify({ profile }));
       // A rotation has to actually revoke the old token, or "rotate" means
       // nothing — the wizard offers it precisely for the case where the old URL
@@ -714,7 +740,7 @@ async function handleShield(path, request, env, origin, url) {
     if (!SHIELD_PROFILES.includes(profile)) return json({ ok: false, error: 'bad profile' }, origin, 400);
 
     const rec = (await getJSON(env, shieldKey(profile))) || { active: false, v: 0 };
-    const tok = await getJSON(env, shieldTokKey(profile));
+    const tok = await shieldToken(env, profile);
     // `active` is deliberately a plain top-level boolean in both shapes: the
     // Shortcut reads it with one Get Dictionary Value, and every extra level of
     // nesting is another action a person has to add by hand on a phone.
