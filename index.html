@@ -40760,13 +40760,28 @@ window._tnOpenTab = function(url, key){
 })();
 </script>
 
+<!-- ── Where a built-in program opens ─────────────────────────────────────────
+     Settings ▸ External links lets these URLs be edited now, so each opener asks
+     here first and only falls back to the address it shipped with. Defined ahead
+     of the openers below because each of them is its own IIFE.
+     The nav module owns the stored links; if it has not initialised yet, the
+     built-in default is the right answer anyway. ── -->
+<script>
+window._legacyOpenUrl = function(profile, id, fallback){
+  try {
+    if (window._navLegacyUrl) return window._navLegacyUrl(profile, id, fallback) || fallback;
+  } catch(e){}
+  return fallback;
+};
+</script>
+
 <!-- ── RiftIQ — opens riftiq.html in its own named tab ── -->
 <script>
 (function(){
 'use strict';
 
 window._wrClick = function(){
-  var URL_WR = 'https://anthonyn99.github.io/A1/riftiq.html';
+  var URL_WR = _legacyOpenUrl('tony','warroom','https://anthonyn99.github.io/A1/riftiq.html');
   var w = window._tnOpenTab(URL_WR, 'warroom');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('RiftIQ opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -40789,7 +40804,7 @@ window._wrClick = function() {
 
 // ── TradeHub ──
 window._thubClick = function(){
-  var URL_THUB = 'https://anthonyn99.github.io/A1/tradehub.html';
+  var URL_THUB = _legacyOpenUrl('tony','tradehub','https://anthonyn99.github.io/A1/tradehub.html');
   var w = window._tnOpenTab(URL_THUB, 'tradehub');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('TradeHub opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -40815,7 +40830,7 @@ window._thubClick = function() {
 // Keychain view (#kc-root); that markup is still here but is no longer the way
 // in — every route now opens the standalone app, exactly like TradeHub/WarRoom.
 window._vaultClick = function(){
-  var URL_VAULT = 'https://anthonyn99.github.io/A1/vault.html';
+  var URL_VAULT = _legacyOpenUrl('tony','vault','https://anthonyn99.github.io/A1/vault.html');
   var w = window._tnOpenTab(URL_VAULT, 'vault');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('Vault opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -40835,7 +40850,7 @@ window._vaultClick = function(){
 // second click focuses the one already open, a popup-blocked fallback, and the
 // App Lock gate on 'tony_solace' in front of it.
 window._solaceClick = function(){
-  var URL_SOLACE = 'https://anthonyn99.github.io/A1/solace.html';
+  var URL_SOLACE = _legacyOpenUrl('tony','solace','https://anthonyn99.github.io/A1/solace.html');
   var w = window._tnOpenTab(URL_SOLACE, 'solace');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('Solace opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -40863,7 +40878,7 @@ window._solaceClick = function() {
 // one profile's emergency configuration must never open under the other's.
 window._shieldClick = function(profile){
   profile = (profile === 'veda') ? 'veda' : 'tony';
-  var URL_SHIELD = 'https://anthonyn99.github.io/A1/shield.html';
+  var URL_SHIELD = _legacyOpenUrl(profile,'shield','https://anthonyn99.github.io/A1/shield.html');
   var tab = 'shield_' + profile;
   var open = function(){
     var w = window._tnOpenTab(URL_SHIELD, tab);
@@ -40988,7 +41003,11 @@ function _sanLink(l){ return { id: String(l.id||''), label: String(l.label||'Lin
 var LEGACY_PROGRAMS = [
   { id:'tradehub', label:'TradeHub', url:'https://anthonyn99.github.io/A1/tradehub.html', lockId:'tony_tradehub', openFn:'_thubClick' },
   { id:'vault',    label:'Vault',    url:'https://anthonyn99.github.io/A1/vault.html',    lockId:'tony_keychain', openFn:'_vaultClick' },
-  { id:'warroom',  label:'RiftIQ',   url:'https://anthonyn99.github.io/A1/riftiq.html',   lockId:'tony_warroom', openFn:'_wrClick' },
+  // prevUrls / prevLabels: what this entry shipped as before it was renamed.
+  // A stored button still sitting on one of them is a stale copy of OUR default,
+  // not a choice the user made, so migrateLegacyDefaults() below moves it on.
+  { id:'warroom',  label:'RiftIQ',   url:'https://anthonyn99.github.io/A1/riftiq.html',   lockId:'tony_warroom', openFn:'_wrClick',
+    prevUrls:['https://anthonyn99.github.io/A1/warroom.html'], prevLabels:['WarRoom'] },
   // Solace replaced the in-page MotionCore view (and MyList's Recipes tab), so it
   // joins this list rather than TONY_DEFAULT: it is a separate program in its own
   // tab, not a view of this page. seedLegacyProgramsOnce() is already spent on
@@ -41015,6 +41034,31 @@ function _legacyProgramFor(profile, id){
   var p = _legacyProgram(id);
   return (p && _lpProfiles(p).indexOf(profile) >= 0) ? p : null;
 }
+// The URL a legacy program's button should actually open. Settings now lets that
+// field be edited, so the stored value wins; the registry default is the
+// fallback for a button that has never been touched.
+function _legacyUrl(profile, id, fallback){
+  var l = linkById(profile, id);
+  return (l && l.url) ? l.url : fallback;
+}
+
+// A stored button still pointing at a previous default is a leftover of OUR
+// rename, not the user's choice — move it forward once. A URL the user actually
+// edited matches neither the current nor a previous default, so it is left alone.
+function migrateLegacyDefaults(){
+  var changed = false;
+  LEGACY_PROGRAMS.forEach(function(p){
+    if (!p.prevUrls && !p.prevLabels) return;
+    _lpProfiles(p).forEach(function(profile){
+      var l = linkById(profile, p.id);
+      if (!l) return;
+      if (p.prevUrls && p.prevUrls.indexOf(l.url) >= 0 && l.url !== p.url){ l.url = p.url; changed = true; }
+      if (p.prevLabels && p.prevLabels.indexOf(l.label) >= 0 && l.label !== p.label){ l.label = p.label; changed = true; }
+    });
+  });
+  return changed;
+}
+
 function _isLegacyLockId(lockId){
   for (var i=0;i<LEGACY_PROGRAMS.length;i++){
     var p = LEGACY_PROGRAMS[i];
@@ -41067,6 +41111,7 @@ function seedLegacyProgramsOnce(){
 // Local-only pass so the header isn't missing TradeHub/Vault/WarRoom for the
 // instant before Firebase responds; applyRemote() below reconciles for real.
 var _seeded = seedLegacyProgramsOnce();
+if (migrateLegacyDefaults()) _seeded = true;
 var _stripped = _stripLegacyProgramColors();
 if (_seeded || _stripped) persistLinks();
 
@@ -41113,6 +41158,8 @@ function _doOpen(l, p){
 }
 window._navOpenLink = openLink;
 window._navLegacyProgram = _legacyProgram;
+// Used by each legacy opener to honour whatever Settings has stored for it.
+window._navLegacyUrl = _legacyUrl;
 window._navLinkLockId = _linkLockId;
 window._navIsLegacyLockId = _isLegacyLockId;
 
@@ -41734,6 +41781,10 @@ function applyRemote(data){
   }
   // Clear the colour an earlier build stamped on these three, and push the
   // cleaned copy so every other device drops it too.
+  // Unconditional and idempotent, like the colour strip below it: a renamed
+  // built-in program has to reach devices whose one-time seed flag is long since
+  // set, which is every device that has ever run this.
+  if(migrateLegacyDefaults()){ changed=true; needsMigrationPush=true; }
   if(_stripLegacyProgramColors()){ changed=true; needsMigrationPush=true; }
   if(changed){ persistLinks(); }
   registerLinks();
@@ -42298,14 +42349,14 @@ function attachSettingsDrag(grip,row,container,profile){
 function startEdit(row,profile,l){
   row.innerHTML='';
   row.style.flexDirection='column'; row.style.alignItems='stretch'; row.style.gap='8px';
-  var isLegacy=!!(profile==='tony'&&window._navLegacyProgram&&window._navLegacyProgram(l.id));
+  var isLegacy=!!(window._navLegacyProgram&&window._navLegacyProgram(l.id));
   var li=document.createElement('input'); li.className='thset-input'; li.value=l.label; li.placeholder='Button name';
   var ui=document.createElement('input'); ui.className='thset-input'; ui.value=l.url; ui.placeholder='https://… or file link';
   if(isLegacy){
-    // The destination is wired to this program's own gated opener, not this
-    // URL field — editing it wouldn't change where the button goes, so keep
-    // it visible for reference but not editable.
-    ui.disabled=true; ui.title="This button opens "+l.label+" itself — its destination isn't editable here.";
+    // Editable, unlike before: these openers read this value now. They still run
+    // their own App Lock gate and named-tab reuse, which is all the legacy path
+    // ever really owned.
+    ui.title='Where this button opens. It still opens in its own reusable tab, behind its lock.';
   }
   var btns=document.createElement('div'); btns.style.cssText='display:flex;gap:8px;justify-content:flex-end;';
   var save=document.createElement('button'); save.className='thset-btn'; save.textContent='Save';
@@ -42314,10 +42365,6 @@ function startEdit(row,profile,l){
   save.addEventListener('click',function(){
     var lbl=li.value.trim();
     if(!lbl){ li.focus(); return; }
-    if(isLegacy){
-      if(window._navUpdateLink) window._navUpdateLink(profile,l.id,{label:lbl});
-      return;
-    }
     var url=normalizeUrl(ui.value.trim());
     if(!url){ ui.focus(); return; }
     if(window._navUpdateLink) window._navUpdateLink(profile,l.id,{label:lbl,url:url});

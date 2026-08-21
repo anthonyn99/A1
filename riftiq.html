@@ -533,7 +533,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 
 .pp-inner { position: relative; width: 100%; max-width: 720px; }
 
-.pp-head { text-align: center; margin-bottom: 34px; }
+.pp-head { text-align: center; margin-bottom: 30px; }
 .pp-wordmark {
   font-family: var(--head); font-size: clamp(38px, 8vw, 56px);
   font-weight: 900; letter-spacing: -1.6px; line-height: 1;
@@ -545,13 +545,9 @@ body.wr-locked #wr-progbar { display: none !important; }
   -webkit-text-fill-color: transparent;
 }
 .pp-rule {
-  width: 46px; height: 2px; margin: 16px auto 12px; border-radius: 2px;
+  width: 54px; height: 2px; margin: 18px auto 0; border-radius: 2px;
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
   opacity: .75;
-}
-.pp-sub {
-  font-family: var(--mono); font-size: 11px; letter-spacing: 2.4px;
-  text-transform: uppercase; color: var(--tx3);
 }
 
 .pp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
@@ -559,7 +555,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 .pp-card {
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
-  padding: 24px 22px 20px; text-align: left; cursor: pointer;
+  padding: 24px 22px 26px; text-align: left; cursor: pointer;
   background: var(--bg3); border: 1px solid var(--bd2); border-radius: 16px;
   color: var(--tx); font-family: var(--body);
   transition: border-color .2s, background .2s, transform .2s, box-shadow .2s;
@@ -596,21 +592,12 @@ body.wr-locked #wr-progbar { display: none !important; }
 .pp-desc {
   font-family: var(--body); font-size: 13px; line-height: 1.55; color: var(--tx3);
 }
-.pp-go {
-  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
-  font-family: var(--mono); font-size: 11px; font-weight: 700;
-  letter-spacing: 1px; text-transform: uppercase; color: var(--gold);
-  opacity: .65; transition: opacity .2s;
-}
-.pp-go svg { transition: transform .2s; }
-.pp-card:hover .pp-go { opacity: 1; }
-.pp-card:hover .pp-go svg { transform: translateX(3px); }
 
 @media (max-width: 640px) {
   #program-picker { padding: 20px 16px; align-items: flex-start; padding-top: 12vh; overflow-y: auto; }
   .pp-grid { grid-template-columns: 1fr; gap: 12px; }
   .pp-head { margin-bottom: 26px; }
-  .pp-card { padding: 18px 16px 16px; gap: 5px; }
+  .pp-card { padding: 18px 16px 20px; gap: 5px; }
   .pp-well { width: 46px; height: 46px; border-radius: 11px; }
   .pp-well svg { width: 28px; height: 28px; }
   .pp-name { font-size: 20px; }
@@ -619,7 +606,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 }
 /* Motion is decoration here; honour a system preference against it. */
 @media (prefers-reduced-motion: reduce) {
-  .pp-card, .pp-card::before, .pp-go svg, .pp-well { transition: none; }
+  .pp-card, .pp-card::before, .pp-well { transition: none; }
   .pp-card:hover { transform: none; }
 }
 
@@ -2154,7 +2141,6 @@ input:-webkit-autofill:active {
     <div class="pp-head">
       <div class="pp-wordmark"><span class="pp-w1">Rift</span><span class="pp-w2">IQ</span></div>
       <div class="pp-rule" aria-hidden="true"></div>
-      <div class="pp-sub">Two programs · one login</div>
     </div>
     <div class="pp-grid">
       <button class="pp-card" onclick="openProgram('warroom')">
@@ -2169,7 +2155,6 @@ input:-webkit-autofill:active {
         <span class="pp-kicker">League of Legends</span>
         <span class="pp-name">WarRoom</span>
         <span class="pp-desc">Profiles, match history, builds, runes, ladder and live spectate.</span>
-        <span class="pp-go">Enter<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"/><path d="m12 5 7 7-7 7"/></svg></span>
       </button>
       <button class="pp-card" onclick="openProgram('proview')">
         <span class="pp-well">
@@ -2181,8 +2166,7 @@ input:-webkit-autofill:active {
         </span>
         <span class="pp-kicker">Esports</span>
         <span class="pp-name">ProView</span>
-        <span class="pp-desc">Pro schedules, standings and results. Favourites land on your TaskHub.</span>
-        <span class="pp-go">Enter<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"/><path d="m12 5 7 7-7 7"/></svg></span>
+        <span class="pp-desc">Pro schedules, standings and results. Favorites land on your TaskHub.</span>
       </button>
     </div>
   </div>
