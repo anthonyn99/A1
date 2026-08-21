@@ -5126,7 +5126,12 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       }
       else if(evt.type==='timeout'){
         setBuilding(false);setLoading(false);
-        setNotice('Build is taking too long — quota may be exhausted, or sources are slow. Try Force fresh again in a bit.');
+        // Don't blame quota here — this branch only knows the build didn't land in
+        // ~4 min, and the usual cause is the pipeline being cut short, not an
+        // exhausted API. Saying "quota may be exhausted" sent a real diagnosis down
+        // the wrong path on 2026-08-21, when every model was healthy. Point at the
+        // one place that actually knows.
+        setNotice('Build did not finish in time. Nothing was lost — the feed below is the last good build. Check /_stage-debug on the worker for the reason (aiStats.omissionSkipped / lastError).');
         fetchRateStatus();
       }
       else if(evt.type==='error'){
@@ -5181,7 +5186,15 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
       // (the X-Building read is a cross-origin header and can't be relied on
       // alone if the deployed worker predates Access-Control-Expose-Headers).
       const bldHdr=(()=>{try{return r.headers.get('X-Building')==='1';}catch(e){return false;}})();
-      if(r.status===202||j.status==='building'||bldHdr||forceFresh){
+      // ...unless the worker already WAITED for the build and handed back the
+      // finished feed. Force fresh is now synchronous up to FRESH_WAIT_MS (the
+      // fire-and-forget version kept getting reaped mid-build), so a force fresh
+      // that answers with events NEWER than what we started from is done — there
+      // is nothing left to watch. Without this the poller would sit on a baseGen
+      // it can never beat and print "Build is taking too long" 4 minutes later,
+      // over a feed that had already refreshed correctly.
+      const freshDone=forceFresh&&r.status===200&&!bldHdr&&Array.isArray(j.events)&&j.events.length>0&&(j.generatedAt||0)>baseGen;
+      if(!freshDone&&(r.status===202||j.status==='building'||bldHdr||forceFresh)){
         setLoading(false);
         // If we got stale events, show them while building
         if(Array.isArray(j.events)&&j.events.length>0){

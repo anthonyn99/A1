@@ -507,7 +507,18 @@ const PER_TICKER_CAP = 6;    // max events per ticker in the top-N, so one noisy
 // subrequest each, so it dominates the 50/invocation budget. Cap it; the always-on
 // multi-symbol sources (Marketaux/StockData/AlphaVantage/TickerTick) cover any
 // overflow tickers on larger custom watchlists. The default WL (29) is under this.
-const FINNHUB_PER_TICKER_CAP = 34;
+// 27, not 34: fetch and AI share ONE invocation (staging is off), so this cap is
+// really "how much of Cloudflare's 50 may the fetch phase take". 27 per-ticker +
+// FETCH_WIRE_SUBREQUESTS leaves the AI phase its floor (see aiSubBudgetFor) with
+// margin to spare. At 34 a full-length watchlist put fetch+AI at 57 and the build
+// was hard-killed before writing anything — the exact failure the staged
+// orchestrator was built for, still latent after staging was disabled.
+const FINNHUB_PER_TICKER_CAP = 27;
+// The non-per-ticker wires in a rich build, 1 subrequest each: Marketaux,
+// StockData, AlphaVantage, Finnhub general, TickerTick bulk, SEC EDGAR, entity
+// news. Tiingo is disabled. Counted so the AI budget can be derived rather than
+// guessed.
+const FETCH_WIRE_SUBREQUESTS = 7;
 const AI_CALL_TIMEOUT = 12000; // ms — MUST be < AI_PHASE_BUDGET_MS. A single call
                                // hanging near a 35s timeout blew the 20s phase
                                // budget (deadline only stops NEW calls, not
@@ -519,6 +530,10 @@ const AI_CONCURRENCY = 12;   // fire all ~10 small batches in one parallel wave
                              // now bounded by AI_PHASE_BUDGET_MS, so 4-wide parallel
                              // helps the whole build finish inside the Worker budget.
 const CACHE_TTL = 21600;     // 6 hours — pre-warm cache survives between cron runs, so regular Refresh = free cache hit (no quota / rate-token burn)
+// How long a Force fresh request will hold its response open waiting for its own
+// build (see the /news dispatch). A rich build measures ~47s end to end, so this
+// covers the normal case with margin; past it the client falls back to polling.
+const FRESH_WAIT_MS = 60000;
 // Hard wall-clock budget for the AI phase of a build. Cloudflare Workers have a
 // limited CPU/duration budget; under a Gemini 503 storm, per-batch retries can
 // pile up and run the whole build past the limit → the build is killed and only
@@ -544,21 +559,48 @@ function aiBudgetLeft(){ return _aiDeadline === 0 || Date.now() < _aiDeadline; }
 // launching new ones past this ceiling; any unanalyzed batches fall back to raw
 // individually. Ceiling < 50 leaves headroom for KV + the next-stage kick.
 let _aiSubrequests = 0;
-const AI_SUBREQUEST_BUDGET = 12; // RICH builds add limited-API globals, so the fetch
-                                 // phase runs ~28-30 subreq on a ~23-ticker list. The
-                                 // OLD value (24) put fetch+AI at ~52 — JUST over the
-                                 // 50/invocation cap, so a cold "new day" rich build
-                                 // (no cache to mask it) got HARD-KILLED before writing
-                                 // a result → 6am cron produced nothing AND force-fresh
-                                 // re-kick-looped forever. 16 lands the total at ~44-46,
-                                 // safely under 50. First-pass AI is only ~5 calls, so
-                                 // quality is unaffected; only deep salvage retries trim.
-// AI gets the subrequest budget left after the fetch phase. Fetch now uses ~35 on
-// the default 29-ticker force-fresh build (29 per-ticker Finnhub + general +
-// Marketaux + StockData + AlphaVantage + 1 bulk TickerTick + 1 EDGAR), so 12 for
-// AI lands the total at ~47, safely under 50. The strong-primary-first pass needs
-// only ~7 calls for 7 batches, leaving headroom for salvage.
-function aiCallBudgetLeft(){ return _aiSubrequests < AI_SUBREQUEST_BUDGET; }
+// Total AI HTTP calls one build may make. Sized against the fetch phase, which
+// shares this invocation (staging is off — see fitsOneInvocation) and spends
+// roughly watchlist-length + 7 of Cloudflare's 50: ~31 on the default 23-ticker
+// rich build, leaving ~19. 16 puts the whole build near 47, safely under the cap.
+//
+// This was 12, and that is what filled the 2026-08-21 06:00 build with RAW cards.
+// The first pass is 7 batches = 7 calls, but free-tier RPM 429s made callGemini
+// retry, and the pass spent all 12 — so the OMISSION-RETRY pass below, which is
+// gated on aiCallBudgetLeft() and is the ONLY thing that re-asks events a model
+// silently skipped, never fired at all. 16 of 52 events ended with no verdict and
+// fell through to raw, on a morning when every model was healthy and 7/7 batches
+// "succeeded" (stage:aistats: batches 7, failed 0, subrequestsUsed 12,
+// enrichedAI 36, rawFallback 16). Nothing was quota-exhausted.
+const AI_SUBREQUEST_CEILING = 16;
+// ...of which this many are RESERVED for the omission-retry pass. Raising the
+// ceiling alone does NOT fix the above: a retry storm expands to fill whatever it
+// is given, and the pass that actually rescues dropped events runs last. So the
+// first pass and its salvage rounds may only spend budget - RESERVE; the reserve
+// is unlocked for the omission pass, which is where raw cards are won back.
+const AI_OMISSION_RESERVE = 5;
+// The least the AI phase can work with: one call per batch for a full-size first
+// pass, plus the reserve. Below this the phase is structurally broken, not merely
+// tight — some batch never gets asked at all.
+const AI_SUBREQUEST_FLOOR = Math.ceil(MAX_EVENTS / BATCH_SIZE) + AI_OMISSION_RESERVE;
+// Cloudflare's hard limit is 50 per invocation; build to 46 and keep 4 for the
+// odd extra KV/self call so we are never deciding this at the edge.
+const BUILD_SUBREQUEST_CAP = 46;
+// Derived per build rather than hardcoded. A hardcoded budget is only ever right
+// for one watchlist length — at 34 tickers the old constants summed to 57 and the
+// invocation was killed outright — so take what the fetch phase will actually
+// need and give the AI the rest, clamped to a workable range.
+function aiSubBudgetFor(wl){
+  const fetchEst = Math.min((wl||[]).length, FINNHUB_PER_TICKER_CAP) + FETCH_WIRE_SUBREQUESTS;
+  return Math.max(AI_SUBREQUEST_FLOOR, Math.min(AI_SUBREQUEST_CEILING, BUILD_SUBREQUEST_CAP - fetchEst));
+}
+let _aiSubBudget = AI_SUBREQUEST_CEILING;
+// Flipped on for the duration of the omission-retry pass so it — and only it —
+// may dip into the reserve. Same module-level-flag pattern as _aiDeadline.
+let _aiUseReserve = false;
+function aiCallBudgetLeft(){
+  return _aiSubrequests < (_aiSubBudget - (_aiUseReserve ? 0 : AI_OMISSION_RESERVE));
+}
 function countAICall(){ _aiSubrequests++; }
 
 // ─── Per-API daily budgets ────────────────────────────────────────────────
@@ -620,6 +662,80 @@ function isRelevant(ticker, text){
   if (re.test(text)) return true;
   for (const a of aliasesFor(ticker)) if (lo.includes(a)) return true;
   return false;
+}
+
+// ─── Cross-ticker attribution: which WATCHLIST names does this TEXT mention? ──
+// candidateTickers used to come ONLY from feed attribution — the ticker whose API
+// wire an article arrived on. So "Marvell's deal with Google indicates custom
+// silicon is 'advantageous,' Wedbush says", pulled in on GOOGL's company-news
+// feed, carried candidateTickers ['GOOGL'] and nothing ever read the word
+// "Marvell". The AI is then told point-blank that primaryTicker must come from
+// that list, so MRVL — a watchlist name the story is half about — could not be
+// tagged. This scans the actual article text for EVERY watchlist ticker.
+//
+// Precision matters more than recall here: this runs against every article, not
+// just the one whose feed it came from, and a wrong ticker on a card is worse than
+// a missing one. So the matcher is deliberately STRICTER than isRelevant():
+//   • a symbol must look like a symbol — $MRVL, (NASDAQ:MRVL), (MRVL), or a
+//     standalone UPPERCASE word — never a lowercase English-word collision;
+//   • symbols that are also ordinary words or industry terms (BE, MU, NET, DRAM…)
+//     need the $ or exchange-prefixed form — "DRAM prices surge" is about the
+//     commodity, and an all-caps headline would match the rest;
+//   • aliases match on word boundaries, not substrings, so "Apple Intelligence"
+//     no longer reads as Intel;
+//   • generic industry terms are excluded — they describe a sector, not a
+//     company, and would stamp DRAM on every memory story.
+const XATTR_WEAK_ALIASES = new Set([
+  'dram','foundry','fuel cell','aggregates','crushed stone','oil sands',
+  'crack spread','wealth management','semiconductor etf','sox index',
+  'philadelphia semiconductor','active electrical cable','search ads','android',
+]);
+const XATTR_WORD_SYMBOLS = new Set([
+  'BE','MU','MS','NET','ALL','ON','IT','SO','AT','GO','KEY','CAR','LOW','NOW',
+  'RUN','SEE','BIG','EAT','PLAY','REAL','WORK','LIFE','HOPE','FAST','WELL','TAP',
+  // Industry terms that are also symbols — the word in a headline almost always
+  // means the technology/index, not the security.
+  'DRAM','SMH','SOXX','AI','EV','GDP','CPI','FED','SEC','ETF','IPO','CEO','CFO',
+]);
+// Most candidates any one event may carry. A "top 10 AI stocks" roundup names the
+// whole watchlist; without a ceiling it would balloon the AI prompt and match
+// every ticker filter at once.
+const XATTR_MAX_CANDIDATES = 8;
+const _xattrSymRe = new Map(), _xattrAliasRe = new Map();
+function xattrSymRe(sym){
+  let re = _xattrSymRe.get(sym);
+  if (!re){
+    const s = sym.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+    re = new RegExp('\\$'+s+'\\b|\\b(?:NASDAQ|NYSE|NYSEARCA|AMEX|OTC|CBOE)\\s*:\\s*'+s+'\\b|\\(\\s*'+s+'\\s*\\)', 'i');
+    _xattrSymRe.set(sym, re);
+  }
+  return re;
+}
+function xattrAliasRe(a){
+  let re = _xattrAliasRe.get(a);
+  if (!re){
+    re = new RegExp('\\b'+a.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?:\u2019s|\'s|s)?\\b', 'i');
+    _xattrAliasRe.set(a, re);
+  }
+  return re;
+}
+function mentionedTickers(text, wl){
+  if (!text) return [];
+  const out = [];
+  for (const raw of (wl||[])){
+    const sym = (raw||'').toUpperCase();
+    if (!sym) continue;
+    if (xattrSymRe(sym).test(text)){ out.push(sym); continue; }
+    // Bare uppercase symbol — case-SENSITIVE on purpose, and only for symbols
+    // that aren't ordinary English words.
+    if (sym.length >= 3 && !XATTR_WORD_SYMBOLS.has(sym) &&
+        new RegExp('\\b'+sym.replace(/[.\-]/g,'\\$&')+'\\b').test(text)){ out.push(sym); continue; }
+    for (const a of aliasesFor(sym)){
+      if (a.length < 4 || XATTR_WEAK_ALIASES.has(a)) continue;
+      if (xattrAliasRe(a).test(text)){ out.push(sym); break; }
+    }
+  }
+  return out;
 }
 
 // ─── source fetchers ──────────────────────────────────────────────────────
@@ -1289,7 +1405,8 @@ function mergeSimilarEvents(events){
   return merged.map((e,i)=>({ ...e, id:'evt_'+i })); // re-id so the AI batch mapping stays 1:1
 }
 
-function clusterArticles(articles){
+function clusterArticles(articles, wl){
+  wl = wl || WATCHLIST;
   articles.sort((a,b) => b.ts - a.ts);
 
   // ── Step 0a: per-ticker dedupe by headline ─────────────────────────────
@@ -1414,6 +1531,18 @@ function clusterArticles(articles){
       if (uk && urlTix.has(uk)){ urlTix.get(uk).forEach(t=>tix.add(t)); if(themedKeys.has('u:'+uk)) themed=true; }
       if (sg && sigTix.has(sg)){ sigTix.get(sg).forEach(t=>tix.add(t)); if(themedKeys.has('s:'+sg)) themed=true; }
     }
+    // Cross-attribution: union in every watchlist name the article TEXT mentions,
+    // not just the wire it arrived on — see mentionedTickers(). Added AFTER the
+    // feed-attributed ones so candidateTickers[0] (the per-ticker cap key in
+    // selectTopEvents, and the raw-fallback primary) still reflects the source.
+    if (tix.size < XATTR_MAX_CANDIDATES){
+      const scanText = ev.articles.slice(0, 4)
+        .map(a => (a.headline||'') + '. ' + (a.summary||'')).join('\n');
+      for (const t of mentionedTickers(scanText, wl)){
+        if (tix.size >= XATTR_MAX_CANDIDATES) break;
+        tix.add(t);
+      }
+    }
     return {
       id: 'evt_' + idx,
       candidateTickers: [...tix],
@@ -1449,7 +1578,8 @@ TASK: For each news event below, assign the watchlist ticker it is MOST about, w
 
 RULES:
 1. If the headline/summary is directly about a watchlist company → assign that ticker.
-2. If multiple watchlist tickers are mentioned, pick the one most central to the story.
+2. If multiple watchlist tickers are mentioned, pick the one most central to the story as primaryTicker — and put EVERY OTHER watchlist ticker the story materially affects in additionalTickers. A story is rarely about one name only: a partnership, supply deal, lawsuit, or analyst note names both sides, and BOTH trade on it. Example: "Marvell's deal with Google validates custom silicon" → primaryTicker GOOGL or MRVL, additionalTickers MUST contain the other. Never leave additionalTickers empty when a second watchlist company is named or is a direct party to the event.
+2b. candidateTickers is a HINT from our scanner, not a limit on additionalTickers — if the text names a watchlist company that candidateTickers missed, still list it in additionalTickers.
 3. INDUSTRY / SUPPLY-CHAIN / COMPETITOR / COMMODITY / MACRO news counts as RELEVANT even when it names NONE of the watchlist companies. A rival's capex cut, a supply glut or shortage, a commodity price swing, an export control, or a sector-wide pricing move directly drives our names — assign it to the affected watchlist ticker(s) in candidateTickers, do NOT mark it NONE. Example: "SK Hynix slows memory expansion" / "Korea memory output cut" → assign MU/SNDK/WDC, it is the REASON those stocks moved.
 4. When candidateTickers is non-empty, primaryTicker MUST be one of them unless the story has truly zero connection to any. Only use "NONE" for genuine off-watchlist noise.
 5. Analyst upgrades/downgrades, price target changes, earnings previews, product news — ALL keep their ticker even if minor.
@@ -1494,7 +1624,7 @@ Analyze each news event below. INDUSTRY / SUPPLY-CHAIN / COMPETITOR / COMMODITY 
 - impactScore: integer 0-100 (90+=critical, 75+=major, 60+=important, 40+=notable, 10+=minor)
 - eventType: one of earnings/guidance/upgrade/downgrade/merger/regulatory/product/personnel/macro/valuation/other
 - primaryTicker: the single most relevant watchlist ticker, or "NONE"
-- additionalTickers: array of other affected watchlist tickers
+- additionalTickers: EVERY OTHER watchlist ticker the story materially affects — a partnership, supply deal, lawsuit or analyst note names both sides and BOTH trade on it, so list them. Do not leave this empty when a second watchlist company is named or is a direct party. candidateTickers (TICKERS) is a hint, not a limit — include a watchlist name it missed.
 - sectors: array of affected sectors
 - relevanceConfidence: number 0.0-1.0
 
@@ -2549,7 +2679,7 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
   // prefetchedArticles: when the staged orchestrator already gathered articles in
   // separate invocations, skip fetching here (we'd blow the subrequest cap again).
   const articles = prefetchedArticles || await fetchAllSources(env, useLimitedAPIs, wl);
-  let events = clusterArticles(articles);
+  let events = clusterArticles(articles, wl);
 
   // Rank by importance with per-ticker coverage; cap to control AI cost + time.
   events = selectTopEvents(events, MAX_EVENTS, PER_TICKER_CAP);
@@ -2584,6 +2714,8 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
     // Start the AI-phase clock — retries/salvage stop launching past this.
     _aiDeadline = Date.now() + AI_PHASE_BUDGET_MS;
     _aiSubrequests = 0; // reset the hard subrequest counter for this build's AI phase
+    _aiUseReserve = false;  // the omission pass opens the reserve; start closed
+    _aiSubBudget = aiSubBudgetFor(wl);
     // ── First pass: send EVERY batch to the STRONGEST available model. ──
     // The old design round-robined batches across the WHOLE chain
     // (avail[i % avail.length]), so 4 of every 5 batches landed on weak fallback
@@ -2621,28 +2753,45 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
     // Models routinely return a verdict for only SOME events in a batch and
     // silently omit the rest, leaving real news stuck as RAW even though the batch
     // "succeeded". Collect every event that has no verdict yet, re-batch them, and
-    // re-run on a fresh model. ONE round, and we skip events already resolved
-    // (enriched OR returned as NONE) so we don't burn the budget re-asking noise.
-    if (aiBudgetLeft() && aiCallBudgetLeft()){
+    // re-run on a DIFFERENT model. We skip events already resolved (enriched OR
+    // returned as NONE) so we don't burn the budget re-asking noise.
+    //
+    // This is the single highest-value pass in the phase — omission, not failure,
+    // is what actually produces RAW cards on a healthy day — so it gets its own
+    // reserved slice of the subrequest budget (see AI_OMISSION_RESERVE). Before
+    // that reserve existed the first pass's RPM retries could spend the whole
+    // ceiling and this block was skipped outright.
+    _aiUseReserve = true;
+    let omitMissing = 0, omitRecovered = 0, omitRounds = 0, omitSkip = null;
+    for (let round = 0; round < 2; round++){
+      if (!aiBudgetLeft()){ omitSkip = omitSkip || 'deadline'; break; }
+      if (!aiCallBudgetLeft()){ omitSkip = omitSkip || 'subrequests'; break; }
       const haveVerdict = new Set();
       for (const bi of Object.keys(outputs)){
         const out = outputs[bi]; if (!out) continue;
         for (const o of out) haveVerdict.add(o.id); // NONE verdicts count → not re-asked
       }
       const missing = events.filter(ev => !haveVerdict.has(ev.id));
-      if (missing.length){
-        const retryBatches = [];
-        for (let i=0;i<missing.length;i+=BATCH_SIZE) retryBatches.push(missing.slice(i,i+BATCH_SIZE));
-        const model = avail[2 % avail.length];
-        const retried = await mapLimit(retryBatches, AI_CONCURRENCY,
-          b => callModel(model, b, env, ctx, wl, sectors).catch(()=>null));
-        retryBatches.forEach((b, k) => {
-          const idx = batches.length;
-          batches.push(b);
-          if (retried[k] && retried[k].length) outputs[idx] = retried[k];
-        });
-      }
+      if (round === 0) omitMissing = missing.length;
+      if (!missing.length) break;
+      omitRounds++;
+      const retryBatches = [];
+      for (let i=0;i<missing.length;i+=BATCH_SIZE) retryBatches.push(missing.slice(i,i+BATCH_SIZE));
+      // A different model each round: the one that just dropped these events is
+      // the least likely to return them on a re-ask.
+      const model = avail[(2 + round) % avail.length];
+      const retried = await mapLimit(retryBatches, AI_CONCURRENCY,
+        b => callModel(model, b, env, ctx, wl, sectors).catch(()=>null));
+      let gained = 0;
+      retryBatches.forEach((b, k) => {
+        const idx = batches.length;
+        batches.push(b);
+        if (retried[k] && retried[k].length){ outputs[idx] = retried[k]; gained += retried[k].length; }
+      });
+      omitRecovered += gained;
+      if (!gained) break; // model isn't returning these — a third ask won't either
     }
+    _aiUseReserve = false;
 
     _aiDeadline = 0; // reset
     const aiSubUsed = _aiSubrequests;
@@ -2664,7 +2813,16 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
     await env.NEWSHUB_CACHE.put('stage:aistats', JSON.stringify({
       availModels: avail.map(a=>a.model||a.provider), batches: batches.length,
       succeeded, failed: batches.length - succeeded, subrequestsUsed: aiSubUsed,
+      subrequestBudget: _aiSubBudget, omissionReserve: AI_OMISSION_RESERVE,
       budgetMs: AI_PHASE_BUDGET_MS, concurrency: AI_CONCURRENCY, at: Date.now(),
+      // Why events ended up RAW. A healthy build shows failed:0 AND
+      // omittedAfterFirstPass ≈ omissionRecovered. omissionSkipped tells you the
+      // pass never ran — 'subrequests' means the first pass ate the whole budget
+      // (the 2026-08-21 failure), 'deadline' means the phase ran out of wall clock.
+      // None of these are API quota exhaustion; that shows up as failed > 0 plus a
+      // 'cooling-down' entry in /health modelStatus.
+      omittedAfterFirstPass: omitMissing, omissionRecovered: omitRecovered,
+      omissionRounds: omitRounds, omissionSkipped: omitSkip,
       dbgSample, dbgExpectedIds, dbgReturnedIds,
     }), { expirationTtl: DIAG_TTL }).catch(()=>{});
   }
@@ -2696,7 +2854,7 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
         enriched.push({
           id: ev.id,
           primaryTicker: themedCand,
-          additionalTickers: (ev.candidateTickers||[]).filter(t=>wlSet.has(t) && t!==themedCand),
+          additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, themedCand, wlSet),
           sectors: (ai.sectors||[]).filter(Boolean),
           eventType: ai.eventType || 'macro',
           summary: ai.summary || (ev.sources?.[0]?.headline || ''),
@@ -2726,7 +2884,7 @@ async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArti
       enriched.push({
         id: ev.id,
         primaryTicker: primaryTicker,
-        additionalTickers: (ai.additionalTickers||[]).filter(t=>wlSet.has(t) && t!==primaryTicker),
+        additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, primaryTicker, wlSet),
         sectors: (ai.sectors||[]).filter(Boolean),
         eventType: ai.eventType || 'other',
         summary: ai.summary || '',
@@ -2820,7 +2978,7 @@ async function aiAnalyzeWindow(env, ctx, eventsSubset, wl, sectors){
 
   if (batches.length && avail.length){
     _aiDeadline = Date.now() + AI_PHASE_BUDGET_MS;
-    _aiSubrequests = 0;
+    _aiSubrequests = 0; _aiUseReserve = false; _aiSubBudget = aiSubBudgetFor(wl);
     // First pass on the STRONGEST model (see runPipeline note): round-robin onto
     // weak fallbacks left most events RAW; the strong primary returns full batches.
     const primary = avail[0];
@@ -2851,7 +3009,7 @@ async function aiAnalyzeWindow(env, ctx, eventsSubset, wl, sectors){
         enriched.push({
           id: ev.id,
           primaryTicker: ai.primaryTicker,
-          additionalTickers: (ai.additionalTickers||[]).filter(t=>wlSet.has(t) && t!==ai.primaryTicker),
+          additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, ai.primaryTicker, wlSet),
           sectors: (ai.sectors||[]).filter(Boolean),
           eventType: ai.eventType || 'other',
           summary: ai.summary || '',
@@ -2899,12 +3057,28 @@ function finalizeEvents(events, enrichedList, wl){
   return { events: enriched, degraded };
 }
 
+// The AI's additionalTickers alone is not enough. It routinely names a second
+// watchlist company in the summary and still returns additionalTickers: [] — which
+// is how "Marvell's deal with Google" shipped tagged GOOGL-only while the summary
+// discussed MRVL. candidateTickers is scanner-derived (mentionedTickers() reads the
+// real article text), so union the two and let the scanner backstop the model.
+function mergeAddlTickers(aiAddl, ev, primary, wlSet){
+  const out = [];
+  const seen = new Set([primary]);
+  for (const t of [...(aiAddl||[]), ...((ev && ev.candidateTickers)||[])]){
+    const u = (t||'').toUpperCase();
+    if (!u || seen.has(u) || !wlSet.has(u)) continue;
+    seen.add(u); out.push(u);
+  }
+  return out;
+}
+
 // Build raw (unanalyzed) events directly from staged articles — used as a last
 // resort if the AI stage throws, so the feed still shows headlines instead of
 // polling forever. Mirrors the per-event raw shape produced inside runPipeline.
 function rawFallbackEvents(articles, wl){
   const wlSet = new Set(wl);
-  let events = clusterArticles(articles);
+  let events = clusterArticles(articles, wl);
   events = selectTopEvents(events, MAX_EVENTS, PER_TICKER_CAP);
   const out = [];
   for (const ev of events){
@@ -3187,7 +3361,7 @@ async function handleStage(env, ctx, req, buildId, stage, sliceIdx){
     let articles = [];
     try { articles = JSON.parse(await env.NEWSHUB_CACHE.get(k.articles) || '[]'); } catch(e){ articles = []; }
     try {
-      let events = clusterArticles(articles);
+      let events = clusterArticles(articles, wl);
       events = selectTopEvents(events, MAX_EVENTS, PER_TICKER_CAP);
       await Promise.all([
         env.NEWSHUB_CACHE.put(k.events, JSON.stringify(events), { expirationTtl: STAGE_TTL }),
@@ -3687,7 +3861,7 @@ export default {
     if (url.pathname === '/build-trace'){
       try {
         const articles = await fetchAllSources(env, true, WATCHLIST);
-        let events = clusterArticles(articles);
+        let events = clusterArticles(articles, WATCHLIST);
         events = selectTopEvents(events, MAX_EVENTS, PER_TICKER_CAP);
         const batches = [];
         for (let i=0;i<events.length;i+=BATCH_SIZE) batches.push(events.slice(i,i+BATCH_SIZE));
@@ -3821,7 +3995,7 @@ export default {
         const reqTickers = parseTickers(url.searchParams.get('tickers'));
         const wl = reqTickers || WATCHLIST;
         const articles = await fetchAllSources(env, true, wl);
-        const events = clusterArticles(articles);
+        const events = clusterArticles(articles, wl);
         const byTicker = {};
         const byFeed = {};
         articles.forEach(a => {
@@ -4134,12 +4308,46 @@ export default {
       );
     } else {
       // Inline single-invocation build (small list, or staging unavailable).
-      ctx.waitUntil(
-        buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey).catch(async(e) => {
+      const buildP = buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey)
+        .catch(async(e) => {
           console.error('Build failed:', e.message);
           await env.NEWSHUB_CACHE.delete(lockKey);
-        })
-      );
+          return null;
+        });
+      // Keep it alive if we answer before it lands.
+      ctx.waitUntil(buildP);
+
+      // ── Force fresh WAITS for its build ──────────────────────────────────
+      // It used to be pure fire-and-forget: respond 202 immediately, build in
+      // waitUntil. But waitUntil work is reaped not long after the response, and a
+      // rich build takes ~47s (measured: cron 12:00:03 → 12:00:50). So a Force
+      // fresh was routinely KILLED mid-pipeline — it wrote no events doc, no
+      // stage:aistats, and no stage:lasterror, leaving nothing behind at all. The
+      // client then polled for 4 minutes and blamed "quota may be exhausted",
+      // which was never the problem (2026-08-21: every model 'available', 0
+      // batches failed). The request handler gets real wall clock — that is why
+      // /_stage-debug?trigger=1 completes the identical build reliably — so await
+      // it here and hand back the finished feed.
+      //
+      // Bounded, so a genuinely stuck pipeline can't hang the tab: past the bound
+      // we fall through to the stale/202 + client-poll path exactly as before,
+      // with the build continuing in waitUntil having already done most of its
+      // work inside the request. Only force-fresh waits; a plain cache-miss
+      // refresh stays fire-and-forget.
+      if (fresh){
+        const done = await Promise.race([
+          buildP,
+          new Promise(res => setTimeout(() => res(undefined), FRESH_WAIT_MS)),
+        ]);
+        if (done){
+          try {
+            const j = JSON.parse(done);
+            if (Array.isArray(j.events) && j.events.length){
+              return new Response(done, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'FRESH' } });
+            }
+          } catch(e){}
+        }
+      }
     }
 
     // Real stale news → show it while the fresh build runs in the background.
