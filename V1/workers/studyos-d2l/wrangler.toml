@@ -44,7 +44,7 @@ service = "studyos-api"
 #   npx wrangler kv namespace create D2L
 [[kv_namespaces]]
 binding = "D2L"
-id = "‹REPLACE — npx wrangler kv namespace create D2L›"
+id = "a6d2f3814f8842048e7fcdd8096aaec4"
 
 # ── No cron, deliberately ───────────────────────────────────────────────────
 # A scheduled sync is tempting (finance-api has one) but cannot work here as

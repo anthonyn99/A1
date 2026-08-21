@@ -319,6 +319,14 @@ async function handle(request, env, url) {
     return json({ ok: true }, origin, env);
   }
 
+  // Match the route BEFORE the session gate, so an unknown path reports itself
+  // as unknown rather than as an auth failure — otherwise a typo in a URL looks
+  // exactly like an expired token.
+  const PRIVILEGED = ['/feed/set', '/feed/status', '/feed/clear', '/sync'];
+  if (PRIVILEGED.indexOf(path) === -1) {
+    return json({ ok: false, error: 'unknown route' }, origin, env, 404);
+  }
+
   const gate = await requireSession(env, body);
   if (!gate.ok) return json({ ok: false, error: 'no session' }, origin, env, 401);
 
