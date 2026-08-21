@@ -224,6 +224,65 @@
 
   signInAnonymously(_fbAuth).catch(e => console.warn('Anon auth failed:', e));
 
+  /* ── PROVIEW — dashboards/proview ───────────────────────────────────────────
+     ProView's own config (leagues + favorites). Same doc it used when it lived
+     in index.html, so nothing had to be migrated when it moved here. */
+  const _pvDocRef = doc(_fbDb, 'dashboards', 'proview');
+  let _pvLastOwnSaveAt = 0, _pvSaveTimer = null;
+  window._fbSaveProView = (cfg) => new Promise((resolve) => {
+    clearTimeout(_pvSaveTimer);
+    _pvSaveTimer = setTimeout(async () => {
+      try {
+        _pvLastOwnSaveAt = Date.now();
+        await setDoc(_pvDocRef, { cfg: JSON.stringify(cfg), savedAt: Date.now() });
+        _pvLastOwnSaveAt = Date.now();
+        window.dispatchEvent(new CustomEvent('fb-pv-synced'));
+        resolve(true);
+      } catch(e) {
+        console.warn('[ProView] save failed:', e);
+        window.dispatchEvent(new CustomEvent('fb-pv-error'));
+        resolve(false);
+      }
+    }, 400);
+  });
+  window._fbLoadProView = async () => {
+    try {
+      const snap = await getDoc(_pvDocRef);
+      if (snap.exists()) return JSON.parse(snap.data().cfg || '{}');
+    } catch(e) { console.warn('[ProView] load failed:', e); }
+    return null;
+  };
+  onSnapshot(_pvDocRef, (snap) => {
+    if (!snap.exists()) return;
+    if (Date.now() - _pvLastOwnSaveAt < 2000) return;
+    try {
+      if (window._pvApplyRemote) window._pvApplyRemote(JSON.parse(snap.data().cfg || '{}'));
+    } catch(e) { console.warn('[ProView] snapshot parse failed:', e); }
+  }, (err) => console.warn('[ProView] onSnapshot error:', err));
+
+  /* ── TASKHUB CARDS — dashboards/pv_cards ────────────────────────────────────
+     Favourited matches used to be injected straight into Tony's TaskHub document
+     through an in-page window._thAddItem bridge. Two incidents came out of that:
+     the cards filled localStorage and killed Firestore sync on a device, and a
+     card-bloated TaskHub doc crossed Firestore's 1 MiB limit and permanently
+     wedged that device's write queue.
+
+     They now live in their own small document. WarRoom is its ONLY writer and
+     rewrites it wholesale from the current favourites; index.html only reads it
+     and renders the entries as display-only cards. One writer per document, and
+     the TaskHub doc stops growing with data that was never really TaskHub's. */
+  const _pvCardsRef = doc(_fbDb, 'dashboards', 'pv_cards');
+  window._fbSavePvCards = async (cards) => {
+    try {
+      await setDoc(_pvCardsRef, { cards: cards || [], savedAt: Date.now() });
+      return true;
+    } catch(e) {
+      console.warn('[ProView] cards save failed:', e);
+      window.dispatchEvent(new CustomEvent('fb-pv-error'));
+      return false;
+    }
+  };
+
   /* ── APP LOCK — dashboards/applock ──────────────────────────────────────────
      The SAME doc index.html, Vault, TradeHub and Solace use, so locking WarRoom
      here or there stays in step across devices. _alApplyRemoteLocks rebuilds the
@@ -398,8 +457,14 @@ body { cursor: default; }
    WarRoom's own markup is parsed, so nothing can flash before the password. */
 html.wr-prelock body > #setup-modal,
 html.wr-prelock body > #app,
+html.wr-prelock body > #program-picker,
+html.wr-prelock body > #pv-root,
+html.wr-prelock body > #wr-progbar,
 body.wr-locked #setup-modal,
-body.wr-locked #app { display: none !important; }
+body.wr-locked #app,
+body.wr-locked #program-picker,
+body.wr-locked #pv-root,
+body.wr-locked #wr-progbar { display: none !important; }
 
 #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:var(--bg);
   background-image:radial-gradient(120% 50% at 50% -10%,rgba(192,174,234,.09),transparent 70%);
@@ -437,6 +502,88 @@ body.wr-locked #app { display: none !important; }
 #applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:var(--tx2);}
 #applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0;}
 #applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--tx3);}
+
+/* ══ PROGRAM PICKER ════════════════════════════════════════════════════════ */
+#program-picker {
+  position: fixed; inset: 0; z-index: 1200;
+  display: none; align-items: center; justify-content: center;
+  background: var(--bg);
+  background-image: radial-gradient(120% 55% at 50% -10%, rgba(192,174,234,.10), transparent 70%);
+  padding: 24px;
+}
+#program-picker.on { display: flex; }
+.pp-inner { width: 100%; max-width: 760px; }
+.pp-head { text-align: center; margin-bottom: 26px; }
+.pp-title { font-family: var(--head); font-size: 30px; font-weight: 800; letter-spacing: -0.5px; color: var(--tx); }
+.pp-sub { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--tx3); margin-top: 6px; }
+.pp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.pp-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  padding: 26px 24px 24px; text-align: left; cursor: pointer;
+  background: var(--bg3); border: 1px solid var(--bd2); border-radius: 14px;
+  color: var(--tx); font-family: var(--body);
+  transition: border-color .18s, background .18s, transform .18s, box-shadow .18s;
+}
+.pp-card:hover {
+  border-color: var(--gold); background: var(--bg4); transform: translateY(-2px);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.15), 0 14px 40px rgba(0,0,0,.45);
+}
+.pp-mark { color: var(--gold); line-height: 0; }
+.pp-name { font-family: var(--head); font-size: 21px; font-weight: 800; letter-spacing: -0.3px; }
+.pp-desc { font-family: var(--body); font-size: 13px; line-height: 1.5; color: var(--tx3); }
+@media (max-width: 640px) {
+  .pp-grid { grid-template-columns: 1fr; }
+  .pp-title { font-size: 24px; }
+  .pp-card { padding: 20px 18px; }
+}
+
+/* ══ PROGRAM BAR (ProView only) ════════════════════════════════════════════
+   ProView's layout reserves 48px + safe-area at the top — the exact height
+   index.html's nav used — so it drops in here without touching its own math. */
+#wr-progbar {
+  display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 10001;
+  height: calc(env(safe-area-inset-top, 0px) + 48px);
+  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--bg2); border-bottom: 1px solid var(--bd);
+}
+#wr-progbar.on { display: block; }
+#wr-progbar-inner {
+  height: 48px; max-width: 1100px; margin: 0 auto;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 clamp(12px, 2vw, 24px);
+}
+#wr-progbar-mark {
+  font-family: var(--head); font-size: 17px; font-weight: 800;
+  letter-spacing: -0.3px; white-space: nowrap;
+}
+/* Written to by the fb-pv-* listeners inside the ProView module. */
+#pv-sync-indicator {
+  font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .5px;
+  color: var(--gold); opacity: 0; transition: opacity .3s; white-space: nowrap;
+}
+#wr-progbar-lock {
+  height: 28px; width: 28px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--bd2); border-radius: 6px;
+  color: var(--tx2); cursor: pointer; opacity: 0.55; transition: all .15s;
+}
+#wr-progbar-lock:hover { border-color: var(--gold); color: var(--gold); opacity: 1; }
+#wr-progbar-lock svg { width: 14px; height: 14px; display: block; }
+
+/* Swap button — same control in both programs' headers. */
+.wr-swap-btn {
+  height: 28px; padding: 0 11px; flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: 1px solid rgba(192,174,234,.35); border-radius: 6px;
+  color: var(--gold); font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: .3px; cursor: pointer; white-space: nowrap;
+  transition: border-color .15s, color .15s, box-shadow .15s;
+}
+.wr-swap-btn:hover {
+  border-color: var(--gold); color: var(--gold2);
+  box-shadow: 0 0 8px rgba(192,174,234,.35), 0 0 0 1px rgba(192,174,234,.14);
+}
+@media (max-width: 600px) { .wr-swap-btn { padding: 0 9px; font-size: 10px; gap: 4px; } }
 
 /* ── SETUP MODAL ── */
 #setup-modal {
@@ -1911,6 +2058,63 @@ input:-webkit-autofill:active {
 </head>
 <body>
 
+<!-- ══ PROGRAM PICKER ═══════════════════════════════════════════════════════
+     WarRoom hosts two programs now. This is the front door: pick one, and the
+     header of whichever you land in carries a button to swap to the other.
+     Both sit behind the single WarRoom app lock. ══════════════════════════ -->
+<div id="program-picker">
+  <div class="pp-inner">
+    <div class="pp-head">
+      <div class="pp-title">Choose a program</div>
+      <div class="pp-sub">Two programs, one login</div>
+    </div>
+    <div class="pp-grid">
+      <button class="pp-card" onclick="openProgram('warroom')">
+        <span class="pp-mark">
+          <svg viewBox="0 0 96 96" width="46" height="46" aria-hidden="true">
+            <path d="M48 19 73 33.5v29L48 77 23 62.5v-29Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" opacity=".5"/>
+            <path d="M48 26l5 12v18H43V38Z" fill="currentColor"/>
+            <rect x="33" y="56" width="30" height="6" rx="3" fill="currentColor"/>
+            <rect x="45" y="62" width="6" height="11" rx="3" fill="currentColor" opacity=".6"/>
+          </svg>
+        </span>
+        <span class="pp-name">WarRoom</span>
+        <span class="pp-desc">Profiles, match history, builds, ladder, live spectate</span>
+      </button>
+      <button class="pp-card" onclick="openProgram('proview')">
+        <span class="pp-mark">
+          <svg viewBox="0 0 96 96" width="46" height="46" aria-hidden="true">
+            <rect x="18" y="24" width="60" height="42" rx="6" fill="none" stroke="currentColor" stroke-width="4" opacity=".5"/>
+            <path d="M42 38l16 9-16 9Z" fill="currentColor"/>
+            <rect x="34" y="72" width="28" height="5" rx="2.5" fill="currentColor" opacity=".6"/>
+          </svg>
+        </span>
+        <span class="pp-name">ProView</span>
+        <span class="pp-desc">LoL esports schedules, standings, favourites → TaskHub</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ProView's own root. It paints a fixed full-viewport surface under the
+     program bar below, exactly as it did under index.html's nav. -->
+<div id="pv-root" style="position:fixed;inset:0;overflow:hidden;display:none;"></div>
+
+<!-- Program bar — shown only while ProView is on screen (WarRoom uses its own
+     #topbar). Fixed 48px, which is the height ProView's layout already reserves. -->
+<div id="wr-progbar">
+  <div id="wr-progbar-inner">
+    <span id="wr-progbar-mark"><span style="color:var(--tx);">Pro</span><span style="color:var(--gold);">View</span></span>
+    <span id="pv-sync-indicator"></span>
+    <span style="flex:1"></span>
+    <button class="wr-swap-btn" onclick="openProgram('warroom')" title="Switch to WarRoom">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+      WarRoom
+    </button>
+    <button id="wr-progbar-lock" title="Lock" onclick="window._wrManageLock && window._wrManageLock()"></button>
+  </div>
+</div>
+
 <!-- ── SETUP MODAL ── -->
 <div id="setup-modal">
   <div class="setup-box">
@@ -2055,6 +2259,10 @@ input:-webkit-autofill:active {
        class="profile-action-btn" style="font-size:11px;">
       Patch Notes
     </a>
+    <button class="wr-swap-btn" onclick="openProgram('proview')" title="Switch to ProView">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
+      ProView
+    </button>
     <button id="wr-lock-btn" title="Lock WarRoom behind a password"
             onclick="window._wrManageLock && window._wrManageLock()"></button>
   </div>
@@ -2327,6 +2535,11 @@ async function init() {
     if (saved) {
       summoner = JSON.parse(saved);
       showApp();
+    } else if (_wrProgram === 'warroom') {
+      // No summoner yet — the picker hid the setup modal on the way in, so bring
+      // it back rather than landing the user on an empty screen.
+      const sm = document.getElementById('setup-modal');
+      if (sm) sm.style.display = 'flex';
     }
   } catch(e) {
     console.warn('Clearing corrupted localStorage:', e);
@@ -2335,6 +2548,9 @@ async function init() {
 }
 
 function showApp() {
+  // Only paint WarRoom's shell if WarRoom is the program on screen. A late
+  // init() resolving after the user swapped to ProView must not yank them back.
+  if (_wrProgram !== 'warroom') return;
   document.getElementById('setup-modal').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   const dn = document.getElementById('disp-name'); if (dn) dn.textContent = summoner.gameName;
@@ -6830,6 +7046,83 @@ function backToLeaderboard() {
   }
 }
 
+// ══════════════════════════════════════
+// PROGRAM ROUTING
+// ══════════════════════════════════════
+// WarRoom hosts two programs. Boot lands on the picker; openProgram() moves
+// between them and the header of each carries a button back to the other.
+//
+// Each program initialises LAZILY, the first time it is opened. That matters
+// most for WarRoom: init() spends ~26 Riot calls, and opening straight into
+// ProView should not touch the rate-limit budget at all.
+let _wrProgram = null;      // 'warroom' | 'proview' | null (picker)
+let _wrInited = false;      // WarRoom's own init() has run
+let _pvInited = false;      // ProView has been mounted
+
+function _el_(id) { return document.getElementById(id); }
+
+function showProgramPicker() {
+  _wrProgram = null;
+  stopProfileLivePoll();
+  var app = _el_('app');       if (app) app.style.display = 'none';
+  var setup = _el_('setup-modal'); if (setup) setup.style.display = 'none';
+  var pv = _el_('pv-root');    if (pv) pv.style.display = 'none';
+  if (window._pvHide) window._pvHide();
+  var bar = _el_('wr-progbar'); if (bar) bar.classList.remove('on');
+  var pick = _el_('program-picker'); if (pick) pick.classList.add('on');
+  document.title = 'WarRoom';
+}
+
+function openProgram(name) {
+  var pick = _el_('program-picker'); if (pick) pick.classList.remove('on');
+
+  if (name === 'proview') {
+    _wrProgram = 'proview';
+    // Leaving WarRoom: stop its live-game poll so a tab nobody is looking at
+    // stops spending Riot requests.
+    stopProfileLivePoll();
+    var app = _el_('app');       if (app) app.style.display = 'none';
+    var setup = _el_('setup-modal'); if (setup) setup.style.display = 'none';
+    var bar = _el_('wr-progbar'); if (bar) bar.classList.add('on');
+    var pv = _el_('pv-root');
+    if (pv) { pv.style.display = 'flex'; pv.style.flexDirection = 'column'; }
+    document.title = 'ProView';
+    if (window._pvMount) { _pvInited = true; window._pvMount(); }
+    _wrSaveProgram('proview');
+    return;
+  }
+
+  // ── WarRoom ──
+  _wrProgram = 'warroom';
+  var pv2 = _el_('pv-root'); if (pv2) pv2.style.display = 'none';
+  if (window._pvHide) window._pvHide();
+  var bar2 = _el_('wr-progbar'); if (bar2) bar2.classList.remove('on');
+  document.title = 'WarRoom';
+
+  if (!_wrInited) {
+    _wrInited = true;
+    init();                    // decides between the setup modal and the app shell
+  } else {
+    // Already initialised — restore whichever surface applies.
+    if (summoner && summoner.puuid) {
+      var app2 = _el_('app'); if (app2) app2.style.display = 'flex';
+      var setup2 = _el_('setup-modal'); if (setup2) setup2.style.display = 'none';
+      // Resume the live-game poll we stopped on the way out.
+      if (typeof fetchLiveGame === 'function' && document.getElementById('live-game-section')) fetchLiveGame();
+    } else {
+      var setup3 = _el_('setup-modal'); if (setup3) setup3.style.display = 'flex';
+    }
+  }
+  _wrSaveProgram('warroom');
+}
+window.openProgram = openProgram;
+
+// Remember the last program for the swap button's own bookkeeping only. The
+// picker still opens on every launch, as asked — this never auto-routes.
+// (Route state stays in localStorage, never the URL: a route hash breaks the
+// suite's single-tab handoff.)
+function _wrSaveProgram(p) { try { localStorage.setItem('wr_last_program', p); } catch(e) {} }
+
 // ── START ──
 // Boot is owned by the app lock: warRoomBoot() runs on the first unlock, or
 // immediately when WarRoom is not locked on this device. It is idempotent
@@ -6838,7 +7131,7 @@ let _wrBooted = false;
 window.warRoomBoot = function() {
   if (_wrBooted) return;
   _wrBooted = true;
-  init();
+  showProgramPicker();
 };
 if (!window.__wrGateBlocked) window.warRoomBoot();
 
@@ -7058,6 +7351,8 @@ function alShowRoot(){
   document.body.classList.remove('wr-locked');
   if (window.warRoomBoot) window.warRoomBoot();
 }
+// One lock, both programs — the sub-prompt says so.
+window._wrLockCoversBoth = true;
 
 // ── REMOTE LOCK CHANGES (from the Firebase onSnapshot in the module above) ──
 // The shared dashboards/applock doc carries locks for EVERY app; we only care
@@ -7439,13 +7734,16 @@ _el('applock-reset') && _el('applock-reset').addEventListener('click', async fun
 // ── HEADER LOCK BUTTON STATE ────────────────────────────────────────────────
 function alUpdateLockBtns(){
   try {
-    var b = _el('wr-lock-btn');
-    if (b) {
-      var on = alIsLocked();
+    var on = alIsLocked();
+    // Both programs show the same lock control — one lock covers WarRoom and
+    // ProView, so the two buttons are two views of one piece of state.
+    ['wr-lock-btn', 'wr-progbar-lock'].forEach(function(id) {
+      var b = _el(id);
+      if (!b) return;
       b.innerHTML = on ? SLI.lock : SLI.unlock;
       b.style.opacity = on ? '1' : '0.55';
-      b.title = on ? 'WarRoom is locked — manage the lock' : 'Lock WarRoom behind a password';
-    }
+      b.title = on ? 'Locked — manage the lock' : 'Lock WarRoom + ProView behind a password';
+    });
   } catch(e){}
 }
 window._wrUpdateLockBtns = alUpdateLockBtns;
@@ -7460,6 +7758,1077 @@ function alEnforce(){
 window._wrEnforceLock = alEnforce;
 alEnforce();
 setTimeout(alEnforce, 300);
+})();
+</script>
+
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ProView — LoL Esports schedules, standings and favourites.
+     Moved here from index.html; WarRoom hosts it as a second program.
+       CF Worker: https://proview-api.av1.workers.dev  (KV-cached API proxy)
+       Firebase:  dashboards/proview   — leagues + favourites config
+                  dashboards/pv_cards  — favourited matches, read by TaskHub
+     Renders into #pv-root under #wr-progbar, which reserves the same 48px this
+     module's layout already expected from index.html's nav bar.
+══════════════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+
+const PV_WORKER='https://proview-api.av1.workers.dev';
+const LS_KEY='pv_cfg_v1';
+
+const WANTED_LEAGUES=[
+  {slug:'ewc_lol',                name:'EWC',         region:'INT'},
+  {slug:'lck',                    name:'LCK',         region:'KR'},
+  {slug:'lck_challengers_league', name:'LCK CL',      region:'KR'},
+  {slug:'kespa_cup',              name:'KeSPA Cup',   region:'KR'},
+  {slug:'lpl',                    name:'LPL',         region:'CN'},
+  {slug:'lcs',                    name:'LCS',         region:'NA'},
+  {slug:'lec',                    name:'LEC',         region:'EU'},
+  {slug:'cblol',                  name:'CBLOL',       region:'BR'},
+  {slug:'lcp',                    name:'LCP',         region:'APAC'},
+  {slug:'worlds',                 name:'Worlds',      region:'INT'},
+  {slug:'msi',                    name:'MSI',         region:'INT'},
+  {slug:'first_stand',            name:'First Stand', region:'INT'},
+];
+let KNOWN_LEAGUES=WANTED_LEAGUES.map(w=>({...w,id:null}));
+let _idsResolved=false;
+
+async function resolveLeagueIds(){
+  if(_idsResolved)return;
+  try{
+    const data=await workerFetch('/leagues?_cv=v5');
+    const all=(data&&data.data&&data.data.leagues)||[];
+    if(!all.length){console.warn('[ProView] resolveLeagueIds: empty response');return;}
+    KNOWN_LEAGUES=WANTED_LEAGUES.map(w=>{
+      const hit=all.find(l=>{
+        const s=(l.slug||'').toLowerCase().replace(/-/g,'_');
+        return s===w.slug||(l.name||'').toLowerCase()===w.name.toLowerCase();
+      });
+      return hit?{id:hit.id,slug:hit.slug||w.slug,name:w.name,region:w.region}:null;
+    }).filter(Boolean);
+    _idsResolved=true;
+    if(_cfg.leagues.length){
+      _cfg.leagues=_cfg.leagues
+        .filter(l=>!['lta_n','lta_s','104366947889790212','105266103462388553'].includes(l.slug||l.id))
+        .map(saved=>{const f=KNOWN_LEAGUES.find(k=>k.slug===saved.slug||k.name===saved.name);return f?{...f}:saved;});
+      saveCfg();
+    }
+  }catch(e){
+    KNOWN_LEAGUES=[
+      {id:'116838530616006090',slug:'ewc_lol',name:'EWC',region:'INT'},
+      {id:'98767991302996019',slug:'lck',   name:'LCK',  region:'KR'},
+      {id:'98767991335774713',slug:'lck_challengers_league',name:'LCK CL',region:'KR'},
+      {id:'116929044967296666',slug:'kespa_cup',name:'KeSPA Cup',region:'KR'},
+      {id:'98767991314006698',slug:'lpl',   name:'LPL',  region:'CN'},
+      {id:'98767991299243165',slug:'lcs',   name:'LCS',  region:'NA'},
+      {id:'98767991310872058',slug:'lec',   name:'LEC',  region:'EU'},
+      {id:'98767991349978712',slug:'cblol', name:'CBLOL',region:'BR'},
+      {id:'99332500638116286',slug:'lcp',   name:'LCP',  region:'APAC'},
+      {id:'98767991332355509',slug:'worlds',name:'Worlds',region:'INT'},
+      {id:'98767991325878492',slug:'msi',   name:'MSI',  region:'INT'},
+      {id:'107407335299756365',slug:'first_stand',name:'First Stand',region:'INT'},
+    ];
+    _idsResolved=true;
+  }
+}
+
+let _cfg={leagues:[],favorites:[],favLeagues:[],leagueData:{},lastFetch:{}};
+let _mounted=false,_el=null,_pvActive=false;
+let _activeTab='schedule',_activeLeague=null;
+// Schedule sub-view: a league feed carries ~40 upcoming and up to 80 finished
+// matches, so the two live under their own tabs instead of one long scroll.
+let _schedView=(function(){try{return localStorage.getItem('pv_sched_view')==='past'?'past':'upcoming';}catch(_){return 'upcoming';}})();
+let _revealedScores=new Set(),_syncing=false;
+let _favSyncBusy=false; // true while a favorite/unfavorite sync is in flight — locks out concurrent taps
+const _pvUnlocked=true; // always unlocked
+
+// ── Theme ──────────────────────────────────────────────────────────────────
+function th(){
+  return {
+    bg:'#1a1a1d',s1:'#232327',s2:'#2c2c31',s3:'#37373d',
+    bd:'#34343a',bdl:'#45454c',
+    tx:'#f4f3f0',txd:'#adadb2',txm:'#8d8d94',
+    ac:'#c0aeea',acl:'#dbd0f5',acd:'#9b83d4',
+    // Ink for text sitting ON the accent. The accent is a light lavender, so
+    // white on it is barely legible (~1.6:1) — a deep plum reads cleanly and
+    // keeps the fill looking like a considered chip rather than a washed one.
+    aci:'#1f1930',
+    acg:'rgba(192,174,234,0.12)',grn:'#a4b986',err:'#d68a7c',
+  };
+}
+
+// ── Config ─────────────────────────────────────────────────────────────────
+function saveCfg(){
+  const snap={leagues:_cfg.leagues,favorites:_cfg.favorites,favLeagues:_cfg.favLeagues||[]};
+  try{localStorage.setItem(LS_KEY,JSON.stringify(snap));}catch(e){}
+  if(window._pvShowSyncing) window._pvShowSyncing();
+  if(window._fbSaveProView) return window._fbSaveProView(snap);
+  return Promise.resolve(true);
+}
+
+// Persist schedule data across page reloads so we don't re-hit the API every open
+const SCHED_CACHE_KEY='pv_sched_v1';
+// Cap the schedule cache: it's only a speed-up (schedules re-fetch from the
+// worker), and letting it grow unbounded is what filled localStorage and wedged
+// Firebase sync. If it would be too large, or the write hits the quota, drop it
+// rather than crowding out everything else that shares the ~5 MB budget.
+const SCHED_CACHE_MAX=800000; // ~800 KB
+function saveSchedCache(){
+  try{
+    const dump={};
+    Object.keys(_cfg.leagueData).forEach(id=>{
+      if(_cfg.leagueData[id]&&_cfg.leagueData[id].schedule){
+        dump[id]={schedule:_cfg.leagueData[id].schedule,fetchTs:_cfg.lastFetch[id]||0};
+      }
+    });
+    const s=JSON.stringify(dump);
+    if(s.length>SCHED_CACHE_MAX){ try{localStorage.removeItem(SCHED_CACHE_KEY);}catch(e){} return; }
+    localStorage.setItem(SCHED_CACHE_KEY,s);
+  }catch(e){
+    // Out of space (or other) — evict this regenerable cache so it can't wedge storage.
+    try{localStorage.removeItem(SCHED_CACHE_KEY);}catch(_){}
+  }
+}
+function loadSchedCache(){
+  try{
+    const raw=localStorage.getItem(SCHED_CACHE_KEY);
+    if(!raw) return;
+    const dump=JSON.parse(raw),TTL=30*60*1000,now=Date.now();
+    Object.keys(dump).forEach(id=>{
+      const en=dump[id];
+      if(en&&en.schedule&&(now-en.fetchTs)<TTL){
+        _cfg.leagueData[id]=_cfg.leagueData[id]||{};
+        _cfg.leagueData[id].schedule=en.schedule;
+        _cfg.lastFetch[id]=en.fetchTs;
+      }
+    });
+  }catch(e){}
+}
+
+async function loadCfg(){
+  loadSchedCache(); // restore cached schedules before any fetch
+  // Everything after this point may publish cards; see publishCards()'s barrier.
+  _cardsLoadedOnce=true;
+  // Firebase first (source of truth), localStorage as offline fallback
+  if(window._fbLoadProView){
+    try{
+      const remote=await window._fbLoadProView();
+      if(remote&&Array.isArray(remote.leagues)){
+        // Strip dead LTA IDs, keep everything else
+        const DEAD=['104366947889790212','105266103462388553'];
+        _cfg.leagues=(remote.leagues||[]).filter(l=>!DEAD.includes(l.id)&&!['lta_n','lta_s'].includes(l.slug));
+        _cfg.favorites=remote.favorites||[];
+        _cfg.favLeagues=remote.favLeagues||[];
+        return;
+      }
+    }catch(e){}
+  }
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(raw){const p=JSON.parse(raw);if(Array.isArray(p.leagues)){const DEAD2=['104366947889790212','105266103462388553'];_cfg.leagues=(p.leagues||[]).filter(l=>!DEAD2.includes(l.id)&&!['lta_n','lta_s'].includes(l.slug));_cfg.favorites=p.favorites||[];_cfg.favLeagues=p.favLeagues||[];}}
+  }catch(e){}
+}
+
+// ── Cloudflare Worker API (all esports data routed here, zero Firebase reads) ─
+async function workerFetch(path){
+  try{
+    const r=await fetch(PV_WORKER+path,{headers:{'Content-Type':'application/json'}});
+    if(!r.ok){console.warn('[ProView] worker HTTP '+r.status+' for '+path);return null;}
+    return r.json();
+  }catch(e){console.warn('[ProView] fetch failed',path,e.message);return null;}
+}
+
+async function fetchLeagueData(leagueId){
+  const last=_cfg.lastFetch[leagueId]||0;
+  const SCHED_TTL=30*60*1000; // 30 min cache
+  if(Date.now()-last<SCHED_TTL&&_cfg.leagueData[leagueId]&&_cfg.leagueData[leagueId].schedule) return;
+  try{
+    const sched=await workerFetch('/schedule?leagueId='+leagueId);
+    _cfg.leagueData[leagueId]=_cfg.leagueData[leagueId]||{};
+    _cfg.leagueData[leagueId].schedule=sched;
+    _cfg.lastFetch[leagueId]=Date.now();
+    saveSchedCache();
+  }catch(e){console.warn('[ProView] fetchLeagueData failed',leagueId,e.message);}
+}
+
+// ── Time helpers (always local device timezone) ────────────────────────────
+function toLT(utcStr){return utcStr?new Date(utcStr):null;}
+function fmtTime(d){return d?d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZoneName:'short'}):''}
+function fmtDate(d){return d?d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}):''}
+function toDK(d){if(!d)return null;return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+// ── TaskHub cards ──────────────────────────────────────────────────────────
+// Favourited matches used to be pushed one at a time into Tony's TaskHub through
+// a window._thAddItem bridge, which only worked because ProView and TaskHub
+// shared a page. They now go to their own Firestore document, rewritten WHOLE
+// from the current favourites on every change; index.html reads that document
+// and renders the entries as display-only cards.
+//
+// Rewriting the whole list is what let all the incremental removal code go: an
+// unfavourite is simply a rebuild that no longer contains those matches.
+const CARD_MAX = 400;                    // hard cap — this doc must stay small
+const CARD_BACKFILL_MS = 3*24*60*60*1000; // keep results from the last 3 days
+
+let _cardsLoadedOnce = false;            // true once loadCfg() has run
+
+function buildCards(){
+  const out=[];
+  const cutoff=Date.now()-CARD_BACKFILL_MS;
+  _cfg.leagues.forEach(league=>{
+    const ld=_cfg.leagueData[league.id];
+    if(!ld||!ld.schedule) return;
+    const events=(ld.schedule.data&&ld.schedule.data.schedule&&ld.schedule.data.schedule.events)||[];
+    const lgFaved=(_cfg.favLeagues||[]).includes(league.id);
+    events.forEach(ev=>{
+      if(!ev.match) return;
+      const t1=(ev.match.teams||[])[0],t2=(ev.match.teams||[])[1];
+      if(!t1||!t2) return;
+      const t1fav=isFav(t1),t2fav=isFav(t2);
+      if(!t1fav&&!t2fav&&!lgFaved) return;
+      const startTime=toLT(ev.startTime);
+      if(!startTime) return;
+      if(startTime.getTime()<cutoff) return;   // old results are noise on a TaskHub
+      const dk=toDK(startTime);
+      if(!dk) return;
+      const matchId=ev.match.id||ev.id||'';
+      if(!matchId) return;
+      let score='';
+      if(ev.state==='completed'&&t1.result&&t2.result)
+        score=(t1.name||t1.code)+' '+(t1.result.gameWins||0)+' – '+(t2.result.gameWins||0)+' '+(t2.name||t2.code);
+      const _strat=ev.match.strategy;
+      const hh=startTime.getHours(),mm=startTime.getMinutes();
+      out.push({
+        // Team favourites and league favourites can name the same match; the id
+        // keeps them distinct and the dedupe below keeps only one card.
+        id:(t1fav||t2fav)?('pv_'+matchId):('pv_lg_'+league.id+'_'+matchId),
+        matchId:matchId,
+        dateKey:dk,
+        time:String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'),
+        startTs:startTime.getTime(),
+        tz:Intl.DateTimeFormat().resolvedOptions().timeZone,
+        league:league.name,leagueId:league.id,
+        team1:t1.name||t1.code||'TBD',team2:t2.name||t2.code||'TBD',
+        team1Img:t1.image||'',team2Img:t2.image||'',
+        state:ev.state||'unstarted',score:score,
+        bo:(_strat&&_strat.count)?('BO'+_strat.count):'',
+        title:(t1.name||t1.code)+' vs '+(t2.name||t2.code)+' · '+league.name,
+      });
+    });
+  });
+  // One card per match — a team favourite wins over a league favourite.
+  const seen={},dedup=[];
+  out.forEach(c=>{ if(seen[c.matchId]) return; seen[c.matchId]=1; dedup.push(c); });
+  dedup.sort((a,b)=>a.startTs-b.startTs);
+  return dedup.slice(0,CARD_MAX);
+}
+
+function publishCards(){
+  if(!window._fbSavePvCards) return Promise.resolve(false);
+  // Write barrier. The doc is rewritten whole, so publishing before the config
+  // and schedules are in hand would erase real cards with an empty list — the
+  // same trap MyList's _mlLoadOk guard exists for.
+  if(!_cardsLoadedOnce) return Promise.resolve(false);
+  const hasFavs=(_cfg.favorites||[]).length||(_cfg.favLeagues||[]).length;
+  const hasData=Object.keys(_cfg.leagueData||{}).some(id=>_cfg.leagueData[id]&&_cfg.leagueData[id].schedule);
+  if(hasFavs&&!hasData) return Promise.resolve(false);   // schedules not loaded yet
+  return window._fbSavePvCards(buildCards());
+}
+function isFav(team){
+  const c=(team.code||'').toLowerCase(),s=(team.slug||'').toLowerCase();
+  return _cfg.favorites.includes(c)||_cfg.favorites.includes(s);
+}
+
+function toggleFav(team){
+  const slug=(team.code||team.slug||'').toLowerCase();
+  if(!slug) return;
+  const wasFav=isFav(team);
+  // No per-match removal walk any more: the cards document is rebuilt whole from
+  // the favourites below, so dropping a team simply stops producing its cards.
+  if(wasFav) _cfg.favorites=_cfg.favorites.filter(f=>f!==slug);
+  else _cfg.favorites.push(slug);
+  const cards=publishCards();const p=saveCfg();render();return Promise.all([cards,p]);
+}
+
+function isFavLeague(leagueId){
+  return (_cfg.favLeagues||[]).includes(leagueId);
+}
+
+async function toggleFavLeague(league){
+  if(!league||!league.id) return Promise.resolve(true);
+  _cfg.favLeagues=_cfg.favLeagues||[];
+  const was=isFavLeague(league.id);
+  if(was){
+    _cfg.favLeagues=_cfg.favLeagues.filter(id=>id!==league.id);
+  } else {
+    _cfg.favLeagues.push(league.id);
+    // Fetch data if not loaded yet — awaited inline so the whole action stays
+    // inside one serialized sync instead of spawning a detached async chain.
+    if(!_cfg.leagueData[league.id]||!_cfg.leagueData[league.id].schedule){
+      await fetchLeagueData(league.id);
+    }
+  }
+  const cards=publishCards();const p=saveCfg();render();return Promise.all([cards,p]);
+}
+
+// ── Serialized favorite/unfavorite sync ─────────────────────────────────────
+// Rapid favoriting previously fired many overlapping fetch→inject→save chains at
+// once, flooding Firebase with concurrent writes and wedging both ProView and
+// TaskHub in a Syncing→Failed loop. We now run at most ONE fav/unfav sync at a
+// time: while one is in flight the star buttons are disabled and a spinner shows;
+// the next tap is accepted only after this one fully settles (success or failure).
+async function runFavSync(mutate){
+  if(_favSyncBusy) return;                 // lock — swallow concurrent fav/unfav taps
+  _favSyncBusy=true;
+  render();                                // reflect disabled buttons + spinner
+  try{
+    // mutate() already returns both writes (config + cards); awaiting it is
+    // enough now that neither document is owned by another page.
+    await mutate();
+  }catch(e){ console.warn('[ProView] fav sync failed',e); }
+  finally{ _favSyncBusy=false; render(); }
+}
+
+// ── DOM micro-helpers ──────────────────────────────────────────────────────
+function mk(tag,attrs,...ch){
+  const e=document.createElement(tag);
+  if(attrs) Object.entries(attrs).forEach(([k,v])=>{
+    if(k==='style'&&typeof v==='object') Object.assign(e.style,v);
+    else if(k==='onClick') e.addEventListener('click',v);
+    else if(k==='className') e.className=v;
+    else e.setAttribute(k,v);
+  });
+  ch.forEach(c=>{
+    if(c==null||c===false||c===undefined) return;
+    if(typeof c==='string'||typeof c==='number') e.appendChild(document.createTextNode(String(c)));
+    else if(c instanceof Node) e.appendChild(c);
+  });
+  return e;
+}
+const D=(s,...c)=>mk('div',{style:s},...c);
+const S=(s,t)=>{const x=mk('span',{style:s});if(t!=null)x.textContent=t;return x;};
+const B=(s,t,fn)=>mk('button',{style:{fontFamily:"'Inter',system-ui,-apple-system,sans-serif",...(typeof s==='object'?s:{})},onClick:fn},t);
+const IMG=(src,s)=>{const i=mk('img',{style:s,alt:''});i.src=src;i.onerror=()=>{i.style.display='none';};return i;};
+
+// ── Render entry ───────────────────────────────────────────────────────────
+function render(){
+  if(!_el||!_pvActive) return;
+  const T=th();
+  // _el: full-viewport scroll container — bg extends edge-to-edge, cursor anywhere scrolls
+  _el.style.cssText='display:block;background:'+T.bg+
+    ';position:fixed;inset:0;overflow-y:auto;overflow-x:hidden;z-index:9998;box-sizing:border-box;-webkit-overflow-scrolling:touch;';
+  _el.className=(_el.className||'').replace(/\bpv-active\b/,'').trim()+' pv-active';
+  _el.innerHTML='';
+
+  // No top mask here any more. Under index.html this covered the nav strip so
+  // scrolling matches could not bleed behind it; #wr-progbar is itself an opaque
+  // element above #pv-root, so a second mask would only hide the bar's own chrome.
+
+  const root=D({width:'100%',maxWidth:'900px',margin:'0 auto',
+    color:T.tx,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",
+    minHeight:'100%',boxSizing:'border-box'});
+
+  // Nav spacer — pushes content below fixed nav (not sticky)
+  const navSpacer=D({height:'calc(env(safe-area-inset-top,0px) + 48px)',flexShrink:0,width:'100%'});
+  root.appendChild(navSpacer);
+
+  // ── Header: sticky just below nav bar ────────────────────────────────────
+  const hdr=D({display:'flex',flexDirection:'column',
+    background:T.bg,position:'sticky',top:'calc(env(safe-area-inset-top,0px) + 48px)',zIndex:100,
+    borderBottom:'1px solid '+T.bd,boxSizing:'border-box',
+    width:'100%',isolation:'isolate',
+    padding:'0 clamp(12px,2vw,24px)',pointerEvents:'auto'});
+
+  // Row 1: Schedule label + spacer + Show Scores + Leagues
+  const hrow1=D({display:'flex',alignItems:'center',gap:8,minHeight:'40px',flexShrink:0,flexWrap:'wrap',padding:'4px 0'});
+
+  const _schedLbl=D({fontSize:11,fontWeight:800,letterSpacing:'1px',
+    textTransform:'uppercase',color:T.txd,marginRight:4,flexShrink:0});
+  _schedLbl.textContent='Schedule';
+  hrow1.appendChild(_schedLbl);
+
+  hrow1.appendChild(D({flex:'1'}));
+
+  // League fav star — toggles entire active league's matches into TaskHub
+  if(_activeLeague){
+    const _activeLg=_cfg.leagues.find(l=>l.id===_activeLeague);
+    if(_activeLg){
+      const _lgFaved=isFavLeague(_activeLeague);
+      const _lgStar=B({
+        background:_lgFaved?'rgba(192,174,234,0.18)':'transparent',
+        color:_lgFaved?T.acl:T.txd,
+        border:'1px solid '+(_lgFaved?'rgba(192,174,234,0.6)':'rgba(192,174,234,0.25)'),
+        borderRadius:20,padding:'0 12px',height:'28px',fontSize:11,fontWeight:700,
+        cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1,whiteSpace:'nowrap',flexShrink:0,
+        fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px',
+        transition:'all .15s',
+      },(_favSyncBusy?'⏳ ':(_lgFaved?'★ ':'☆ '))+(_activeLg.name||'League'),
+      ()=>{ if(!_favSyncBusy) runFavSync(()=>toggleFavLeague(_activeLg)); });
+      _lgStar.title=_favSyncBusy?'Syncing…':(_lgFaved?'Unfavorite league (removes all cards from TaskHub)':'Favorite league (all matches → TaskHub)');
+      hrow1.appendChild(_lgStar);
+    }
+  }
+
+  // Show/Hide All Scores — DOM mutation only, no render()
+  const _gE=()=>{const ld=_cfg.leagueData[_activeLeague];if(!ld||!ld.schedule)return[];return(ld.schedule.data&&ld.schedule.data.schedule&&ld.schedule.data.schedule.events)||[];};
+  const _pIds=()=>_gE().filter(e=>e.state==='completed').map(e=>e.match&&e.match.id||e.id).filter(Boolean);
+  const _aS=_pIds().length>0&&_pIds().every(id=>_revealedScores.has(id));
+  const _sabStyle={background:'transparent',color:T.acl,border:'1px solid rgba(192,174,234,0.45)',borderRadius:20,padding:'0 14px',height:'28px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px'};
+  const _sab=B(_sabStyle,_aS?'Hide All Scores':'Show All Scores',()=>{
+    const ids=_pIds();
+    const anyH=ids.some(id=>!_revealedScores.has(id));
+    if(anyH) ids.forEach(id=>_revealedScores.add(id));
+    else ids.forEach(id=>_revealedScores.delete(id));
+    _sab.textContent=anyH?'Hide All Scores':'Show All Scores';
+    // Update score DOM elements in place — no scroll jump
+    document.querySelectorAll('[data-score-id]').forEach(wrap=>{
+      const sEl=wrap.querySelector('[data-score-el]');
+      const sBtn=wrap.querySelector('[data-score-btn]');
+      if(!sEl||!sBtn) return;
+      if(anyH){sEl.style.display='block';sBtn.textContent='Hide Score';}
+      else{sEl.style.display='none';sBtn.textContent='Show Score';}
+    });
+  });
+  _sab.className='pv-hglow';
+  hrow1.appendChild(_sab);
+  const _lgB=B({background:'transparent',color:T.acl,border:'1px solid rgba(192,174,234,0.45)',borderRadius:20,padding:'0 14px',height:'28px',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px'},'+ Leagues',()=>showLeagueMgr());
+  _lgB.className='pv-hglow';
+  hrow1.appendChild(_lgB);
+  hdr.appendChild(hrow1);
+
+  // Row 2: league pills — scrollable, pointer-event DnD (all touch devices, Z Fold safe)
+  if(_cfg.leagues.length){
+    const hrow2=D({display:'flex',alignItems:'center',gap:6,
+      height:'44px',overflowX:'auto',flexShrink:0});
+    hrow2.style.cssText+='scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;';
+    hrow2.addEventListener('contextmenu',e=>e.preventDefault());
+
+    let _pdActive=false,_pdClone=null,_pdSrcIdx=null,_pdOverIdx=null;
+    const clearHL=()=>{hrow2.querySelectorAll('.pv-pill-over').forEach(p=>{p.classList.remove('pv-pill-over');p.style.boxShadow='';});};
+    const nearestPill=(cx,cy)=>{
+      const rr=hrow2.getBoundingClientRect();
+      if(cy<rr.top-24||cy>rr.bottom+24) return null;
+      let best=null,bestD=Infinity;
+      hrow2.querySelectorAll('[data-idx]').forEach(p=>{
+        const pr=p.getBoundingClientRect();
+        if(cx>=pr.left-4&&cx<=pr.right+4&&cy>=pr.top-8&&cy<=pr.bottom+8){best=p;bestD=-1;return;}
+        const d=Math.abs(cx-(pr.left+pr.right)/2);
+        if(d<bestD){bestD=d;best=p;}
+      });
+      return best;
+    };
+
+    _cfg.leagues.forEach((lg,idx)=>{
+      const a=_activeLeague===lg.id;
+      const pill=B({
+        background:a?T.ac:'rgba(192,174,234,0.08)',color:a?T.aci:T.txd,
+        border:'1px solid '+(a?T.ac:'rgba(192,174,234,0.25)'),
+        borderRadius:20,padding:'0 14px',height:'34px',fontSize:11,
+        fontWeight:700,cursor:'grab',whiteSpace:'nowrap',flexShrink:0,
+        userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',
+        touchAction:'pan-x',
+      },lg.name,()=>{if(_pdActive)return;_activeLeague=lg.id;render();fetchLeagueData(lg.id).then(()=>{publishCards();render();});});
+      pill.draggable=false;
+      pill.dataset.idx=String(idx);
+      pill.addEventListener('contextmenu',e=>e.preventDefault());
+
+      // ── Long-press DnD ──────────────────────────────────────────────────
+      // Mobile-safe: horizontal pills live in a horizontal scroll container, so
+      // a horizontal swipe must scroll, NOT reorder. We disambiguate by intent:
+      // press-and-hold (still ~220ms) starts a drag; an early swipe scrolls.
+      // Once dragging, ANY direction moves the clone & reorders.
+      pill.addEventListener('pointerdown',e=>{
+        if(e.pointerType==='mouse'&&e.button!==0) return;
+        const sx=e.clientX,sy=e.clientY,pid=e.pointerId;
+        const isTouch=e.pointerType!=='mouse';
+        let started=false,cancelled=false,lpTimer=null;
+
+        const cleanup=()=>{
+          if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
+          try{pill.releasePointerCapture(pid);}catch(_){}
+          pill.removeEventListener('pointermove',onMove);
+          pill.removeEventListener('pointerup',onUp);
+          pill.removeEventListener('pointercancel',onUp);
+          if(_pdClone){try{_pdClone.remove();}catch(_){}}_pdClone=null;
+          pill.style.opacity='1';pill.style.boxShadow='';
+          pill.style.touchAction='pan-x';
+          clearHL();
+        };
+
+        const beginDrag=()=>{
+          if(cancelled||started) return;
+          lpTimer=null;started=true;_pdActive=true;_pdSrcIdx=idx;_pdOverIdx=null;
+          try{pill.setPointerCapture(pid);}catch(_){}
+          pill.style.touchAction='none';
+          pill.style.opacity='0.4';
+          const r=pill.getBoundingClientRect();
+          _pdClone=document.createElement('div');
+          _pdClone.textContent=lg.name;
+          _pdClone._ox=sx-r.left;_pdClone._oy=sy-r.top;
+          _pdClone.style.cssText='position:fixed;z-index:99999;pointer-events:none;border-radius:20px;padding:0 14px;height:34px;display:inline-flex;align-items:center;font-size:11px;font-weight:700;background:'+T.ac+';color:'+T.aci+';box-shadow:0 6px 20px rgba(0,0,0,.5);white-space:nowrap;transform:scale(1.08);left:'+(sx-_pdClone._ox)+'px;top:'+(sy-_pdClone._oy)+'px;';
+          document.body.appendChild(_pdClone);
+          try{navigator.vibrate(18);}catch(_){}
+        };
+
+        const onMove=e2=>{
+          if(e2.pointerId!==pid||cancelled) return;
+          const dx=e2.clientX-sx,dy=e2.clientY-sy;
+          if(!started){
+            // Movement before long-press fires = user wants to scroll → abort drag
+            if(Math.abs(dx)>8||Math.abs(dy)>8){cancelled=true;cleanup();return;}
+            return;
+          }
+          if(e2.cancelable) e2.preventDefault();
+          if(_pdClone){_pdClone.style.left=(e2.clientX-_pdClone._ox)+'px';_pdClone.style.top=(e2.clientY-_pdClone._oy)+'px';}
+          const tgt=nearestPill(e2.clientX,e2.clientY);
+          const oi=tgt?parseInt(tgt.dataset.idx,10):null;
+          if(oi!==null&&oi!==_pdSrcIdx){
+            if(oi!==_pdOverIdx){_pdOverIdx=oi;clearHL();tgt.style.boxShadow='0 0 0 2px rgba(192,174,234,0.9)';tgt.classList.add('pv-pill-over');}
+          } else if(_pdOverIdx!==null){_pdOverIdx=null;clearHL();}
+        };
+
+        const onUp=e2=>{
+          if(e2.pointerId!==pid) return;
+          const did=started;
+          if(did&&_pdSrcIdx!==null&&_pdOverIdx!==null&&_pdSrcIdx!==_pdOverIdx){
+            const mv=_cfg.leagues.splice(_pdSrcIdx,1)[0];
+            _cfg.leagues.splice(_pdOverIdx,0,mv);
+            saveCfg();
+          }
+          cleanup();_pdActive=false;_pdSrcIdx=null;_pdOverIdx=null;
+          if(did) render();
+        };
+
+        pill.addEventListener('pointermove',onMove,{passive:false});
+        pill.addEventListener('pointerup',onUp);
+        pill.addEventListener('pointercancel',onUp);
+
+        // Mouse: drag starts on small move (no long-press needed).
+        // Touch: long-press hold initiates so quick swipes still scroll.
+        if(isTouch){
+          lpTimer=setTimeout(beginDrag,220);
+        } else {
+          const mouseArm=e3=>{
+            if(e3.pointerId!==pid||started||cancelled) return;
+            if(Math.abs(e3.clientX-sx)>4||Math.abs(e3.clientY-sy)>4){pill.removeEventListener('pointermove',mouseArm);beginDrag();}
+          };
+          pill.addEventListener('pointermove',mouseArm);
+        }
+      });
+
+      hrow2.appendChild(pill);
+    });
+    hdr.appendChild(hrow2);
+  }
+
+  root.appendChild(hdr);
+
+  // ── Empty state ───────────────────────────────────────────────────────
+  if(!_cfg.leagues.length){
+    const emp=D({flex:1,display:'flex',flexDirection:'column',alignItems:'center',
+      justifyContent:'center',gap:14,padding:'32px'});
+    emp.appendChild(S({fontSize:40,lineHeight:1},'🏆'));
+    emp.appendChild(S({fontSize:18,fontWeight:700,color:T.tx},'Welcome to ProView'));
+    emp.appendChild(S({fontSize:13,color:T.txd,textAlign:'center',maxWidth:320,lineHeight:1.5},
+      'Track LCK, LPL, LEC, LCS schedules. Favorite teams auto-sync matches into your TaskHub.'));
+    emp.appendChild(B(
+      {background:T.ac,color:T.aci,border:'none',borderRadius:6,
+       padding:'10px 28px',fontSize:13,fontWeight:700,cursor:'pointer',marginTop:4},
+      '+ Add Leagues',()=>showLeagueMgr()
+    ));
+    root.appendChild(emp);
+    _el.appendChild(root);
+    return;
+  }
+
+  // Auto-select first league if none active
+  if(!_activeLeague||!_cfg.leagues.find(l=>l.id===_activeLeague)){
+    _activeLeague=_cfg.leagues[0].id;
+    fetchLeagueData(_activeLeague).then(()=>{publishCards();render();});
+  }
+
+  const curLg=_cfg.leagues.find(l=>l.id===_activeLeague);
+  const ld=_cfg.leagueData[_activeLeague];
+
+  root.appendChild(buildSchedule(T,curLg,ld));
+
+  _el.appendChild(root);
+}
+
+// ── Schedule panel ─────────────────────────────────────────────────────────
+function buildSchedule(T,league,ld){
+  const panel=D({flex:1});
+
+  if(!ld||!ld.schedule){
+    panel.appendChild(D({display:'flex',alignItems:'center',justifyContent:'center',
+      padding:'60px',color:T.txd,fontSize:13},
+      _syncing?'Fetching schedule…':'Select a league or wait for data…'));
+    return panel;
+  }
+
+  const events=(ld.schedule.data&&ld.schedule.data.schedule&&ld.schedule.data.schedule.events)||[];
+  const live    =events.filter(e=>e.state==='inProgress');
+  const upcoming=events.filter(e=>e.state==='unstarted').slice(0,40);
+  const past    =events.filter(e=>e.state==='completed').slice(-80).reverse();
+
+  const wrap=D({padding:'clamp(10px,2vw,20px)',maxWidth:900,margin:'0 auto',
+    width:'100%',boxSizing:'border-box'});
+
+  function secHdr(txt){
+    return S({display:'block',fontSize:9,fontWeight:800,letterSpacing:'2px',
+      textTransform:'uppercase',color:T.txd,padding:'14px 0 6px',
+      borderBottom:'1px solid '+T.bd,marginBottom:8},txt);
+  }
+
+  function renderGrouped(list,label){
+    if(!list.length) return;
+    if(label) wrap.appendChild(secHdr(label));
+    let lastYr=null;
+    list.forEach(ev=>{
+      const d=toLT(ev.startTime);
+      if(d){const yr=d.getFullYear();if(yr!==lastYr){
+        wrap.appendChild(S({display:'block',fontSize:9,fontWeight:700,
+          letterSpacing:'1px',textTransform:'uppercase',color:T.txm,padding:'8px 0 3px'},String(yr)));
+        lastYr=yr;}}
+      wrap.appendChild(matchCard(T,ev,league));
+    });
+  }
+  const note=txt=>S({fontSize:13,color:T.txd,display:'block',textAlign:'center',padding:'48px 0'},txt);
+
+  if(!live.length&&!upcoming.length&&!past.length){
+    wrap.appendChild(note('No matches found for this league.'));
+    panel.appendChild(wrap);
+    return panel;
+  }
+
+  // ── Upcoming / Past tabs ──────────────────────────────────────────────
+  // Live matches ride along with Upcoming — they are today's games, not history.
+  const tabRow=D({display:'flex',alignItems:'center',gap:6,padding:'12px 0 2px'});
+  const mkTab=(id,label,n)=>{
+    const on=_schedView===id;
+    // Selected reads as a lit purple outline, never a purple fill — same emphasis
+    // language as the rest of the suite's chrome.
+    const b=B({background:'transparent',
+      color:on?T.acl:T.txd,
+      border:'1px solid '+(on?'#c0aeea':T.bd),
+      boxShadow:on?'0 0 8px rgba(192,174,234,0.4),0 0 0 1px rgba(192,174,234,0.15)':'none',
+      borderRadius:20,padding:'0 14px',height:'30px',fontSize:11,fontWeight:700,
+      letterSpacing:'0.3px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
+      fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",transition:'all .15s'},
+      label+(n?' · '+n:''),
+      ()=>{ if(_schedView===id) return;
+            _schedView=id;
+            try{localStorage.setItem('pv_sched_view',id);}catch(_){}
+            render(); });
+    if(!on) b.className='pv-hglow';
+    return b;
+  };
+  tabRow.appendChild(mkTab('upcoming','Upcoming',live.length+upcoming.length));
+  tabRow.appendChild(mkTab('past','Past matches',past.length));
+  wrap.appendChild(tabRow);
+
+  if(_schedView==='past'){
+    renderGrouped(past,null);
+    if(!past.length) wrap.appendChild(note('No finished matches for this league yet.'));
+  } else {
+    if(live.length){wrap.appendChild(secHdr('🔴 Live Now'));live.forEach(e=>wrap.appendChild(matchCard(T,e,league)));}
+    renderGrouped(upcoming,live.length?'Upcoming':null);
+    if(!live.length&&!upcoming.length) wrap.appendChild(note('No upcoming matches scheduled.'));
+  }
+
+  panel.appendChild(wrap);
+  return panel;
+}
+
+function matchCard(T,ev,league){
+  const t1=(ev.match&&ev.match.teams&&ev.match.teams[0])||{};
+  const t2=(ev.match&&ev.match.teams&&ev.match.teams[1])||{};
+  const st=toLT(ev.startTime);
+  const isLive=ev.state==='inProgress';
+  const isPast=ev.state==='completed';
+  const matchId=(ev.match&&ev.match.id)||ev.id||'';
+  const t1f=isFav(t1),t2f=isFav(t2),faved=t1f||t2f;
+
+  const card=D({display:'flex',flexDirection:'column',gap:0,
+    background:isLive?'rgba(192,174,234,0.06)':T.s1,
+    border:'1px solid '+(isLive?T.ac:T.bd),
+    borderRadius:14,padding:'12px 14px',marginBottom:8,
+    boxShadow:'none',boxSizing:'border-box'});
+
+  // ── Row 1: date / time / block name ─────────────────────────────
+  const _blockName=(ev.blockData&&ev.blockData.name)||'';
+  // Best-of format from match strategy
+  const _strat=ev.match&&ev.match.strategy;
+  const _boCount=_strat&&_strat.count;
+  const _boLabel=_boCount?('BO'+_boCount):null;
+  const r1=D({display:'flex',alignItems:'center',gap:6,marginBottom:8,flexWrap:'wrap'});
+  if(st){
+    const _dtw=D({display:'flex',alignItems:'center',gap:0,flexWrap:'wrap'});
+    _dtw.appendChild(S({fontSize:11,fontWeight:600,color:T.txm},fmtDate(st)));
+    _dtw.appendChild(S({fontSize:11,color:T.txm,padding:'0 6px'},'·'));
+    _dtw.appendChild(S({fontSize:14,fontWeight:800,color:T.tx},fmtTime(st)));
+    r1.appendChild(_dtw);
+  }
+  if(_boLabel) r1.appendChild(S({fontSize:9,fontWeight:700,color:T.txd,
+    background:T.s2,border:'1px solid '+T.bd,
+    padding:'1px 6px',borderRadius:3,letterSpacing:'0.5px',whiteSpace:'nowrap'},_boLabel));
+  if(isLive) r1.appendChild(S({fontSize:9,fontWeight:800,color:'#ef4444',
+    letterSpacing:'1px',textTransform:'uppercase',
+    background:'rgba(239,68,68,.1)',padding:'1px 6px',borderRadius:3},'LIVE'));
+  if(_blockName) r1.appendChild(S({fontSize:11,fontWeight:700,color:T.ac,opacity:.9,marginLeft:'auto',textTransform:'uppercase',letterSpacing:'0.5px',whiteSpace:'nowrap'},_blockName));
+  card.appendChild(r1);
+
+  // ── Row 2: team1 | score/vs | team2 — names wrap on mobile ───────
+  const r2=D({display:'flex',alignItems:'center',gap:16,width:'100%',boxSizing:'border-box'});
+
+  // Team 1
+  const t1w=D({display:'flex',alignItems:'center',gap:12,flex:1,minWidth:0});
+  if(t1.image) t1w.appendChild(IMG(t1.image,{width:'38px',height:'38px',objectFit:'contain',borderRadius:'4px',flexShrink:0}));
+  t1w.appendChild(S({fontSize:15,fontWeight:800,color:t1f?T.acl:T.tx,
+    lineHeight:1.2,wordBreak:'break-word',overflowWrap:'anywhere',minWidth:0},t1.name||t1.code||'TBD'));
+  r2.appendChild(t1w);
+
+  // Center: score or vs
+  const ctr=D({display:'flex',flexDirection:'column',alignItems:'center',
+    flexShrink:0,minWidth:52,gap:2});
+  if(isPast){
+    const revealed=_revealedScores.has(matchId);
+    const _sw1=(t1.result&&t1.result.gameWins)||0,_sw2=(t2.result&&t2.result.gameWins)||0;
+    const _sWrap=document.createElement('div');
+    _sWrap.dataset.scoreId=matchId;
+    _sWrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:2px;';
+    const _sEl=document.createElement('div');
+    _sEl.dataset.scoreEl='1';
+    _sEl.style.cssText='font-size:15px;font-weight:800;color:'+T.tx+';line-height:1;text-align:center;margin-bottom:3px;display:'+(revealed?'block':'none')+';white-space:nowrap;';
+    _sEl.textContent=_sw1+' – '+_sw2;
+    const _sBtn=B({background:T.s2,color:T.txd,border:'1px solid '+T.bd,
+      borderRadius:4,padding:'3px 8px',fontSize:9,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'},
+      revealed?'Hide Score':'Show Score',
+      (e)=>{e.stopPropagation();
+        if(_revealedScores.has(matchId)){_revealedScores.delete(matchId);_sEl.style.display='none';_sBtn.textContent='Show Score';}
+        else{_revealedScores.add(matchId);_sEl.style.display='block';_sBtn.textContent='Hide Score';}
+      });
+    _sBtn.dataset.scoreBtn='1';
+    _sWrap.appendChild(_sEl);_sWrap.appendChild(_sBtn);
+    ctr.appendChild(_sWrap);
+  } else if(isLive){
+    ctr.appendChild(S({fontSize:16,fontWeight:900,color:'#c8c0d8',letterSpacing:'1px'},'VS'));
+  } else {
+    ctr.appendChild(S({fontSize:16,fontWeight:900,color:'#c8c0d8',letterSpacing:'1px'},'VS'));
+  }
+  r2.appendChild(ctr);
+
+  // Team 2
+  const t2w=D({display:'flex',alignItems:'center',gap:12,flex:1,minWidth:0,justifyContent:'flex-end'});
+  t2w.appendChild(S({fontSize:15,fontWeight:800,color:t2f?T.acl:T.tx,
+    lineHeight:1.2,wordBreak:'break-word',overflowWrap:'anywhere',minWidth:0,textAlign:'right'},t2.name||t2.code||'TBD'));
+  if(t2.image) t2w.appendChild(IMG(t2.image,{width:'38px',height:'38px',objectFit:'contain',borderRadius:'4px',flexShrink:0}));
+  r2.appendChild(t2w);
+  card.appendChild(r2);
+
+  // ── Row 3: fav buttons under correct teams ────────────────────────
+  const mkFB=(team,fav)=>{
+    const nm=team.code||team.name||'';
+    if(!nm||nm==='TBD') return null;
+    return B({background:fav?T.ac:'transparent',color:fav?T.aci:T.txd,
+      border:'1px solid '+(fav?T.ac:T.bd),borderRadius:4,
+      padding:'2px 9px',fontSize:9,fontWeight:700,cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1},
+      (_favSyncBusy?'⏳ ':(fav?'★ ':'☆ '))+nm,
+      (e)=>{e.stopPropagation(); if(!_favSyncBusy) runFavSync(()=>toggleFav(team));});
+  };
+  const r3=D({display:'flex',justifyContent:'space-between',marginTop:6});
+  const r3L=D({flex:1});const _fb1=mkFB(t1,t1f);if(_fb1)r3L.appendChild(_fb1);
+  const r3R=D({flex:1,display:'flex',justifyContent:'flex-end'});const _fb2=mkFB(t2,t2f);if(_fb2)r3R.appendChild(_fb2);
+  r3.appendChild(r3L);r3.appendChild(r3R);
+  card.appendChild(r3);
+  return card;
+}
+
+// ── Standings panel ────────────────────────────────────────────────────────
+
+// ── League manager modal ───────────────────────────────────────────────────
+function showLeagueMgr(){
+  if(!_el) return;
+  if(!_idsResolved){resolveLeagueIds().then(()=>showLeagueMgr());return;}
+  const T=th();
+  const overlay=D({position:'fixed',inset:0,background:'rgba(0,0,0,.6)',
+    zIndex:10002,display:'flex',alignItems:'center',justifyContent:'center'});
+
+  // overscrollBehavior:contain stops the page behind scrolling once this list hits
+  // its top or bottom (the touchmove guard below covers the backdrop itself).
+  const modal=D({background:T.s1,border:'1px solid '+T.bd,borderRadius:16,
+    padding:'24px',width:'360px',maxWidth:'90vw',maxHeight:'82vh',
+    overflowY:'auto',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch',
+    boxShadow:'0 20px 60px rgba(0,0,0,.5)'});
+
+  modal.appendChild(S({fontSize:15,fontWeight:800,color:T.tx,
+    display:'block',marginBottom:4},'Select Leagues'));
+  modal.appendChild(S({fontSize:10,color:T.txd,display:'block',marginBottom:16},
+    '★ Favorite a league to push ALL its matches to TaskHub'));
+
+  KNOWN_LEAGUES.forEach(lg=>{
+    const added=!!_cfg.leagues.find(l=>l.id===lg.id);
+    const lgFaved=isFavLeague(lg.id);
+    const row=D({display:'flex',alignItems:'center',justifyContent:'space-between',
+      padding:'14px 0',borderBottom:'1px solid '+T.bd+'44',gap:8});
+    const left=D({display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0});
+    left.appendChild(S({fontSize:13,fontWeight:700,color:T.tx},lg.name));
+    left.appendChild(S({fontSize:10,color:T.txm},lg.region+(lgFaved?' · ★ All matches in TaskHub':'')));
+    row.appendChild(left);
+    const btns=D({display:'flex',alignItems:'center',gap:6,flexShrink:0});
+    // Fav star
+    const _star=B(
+      {background:lgFaved?'rgba(192,174,234,0.18)':'transparent',
+       color:lgFaved?T.acl:T.txd,
+       border:'1px solid '+(lgFaved?'rgba(192,174,234,0.5)':T.bd),
+       borderRadius:4,padding:'4px 8px',fontSize:12,fontWeight:700,cursor:'pointer'},
+      lgFaved?'★':'☆',
+      (e)=>{
+        e.stopPropagation();
+        if(_favSyncBusy) return;
+        const target=added?_cfg.leagues.find(l=>l.id===lg.id)||lg:lg;
+        runFavSync(()=>toggleFavLeague(target));
+        overlay.parentNode&&overlay.parentNode.removeChild(overlay);
+        showLeagueMgr();
+      }
+    );
+    _star.title=lgFaved?'Remove all league matches from TaskHub':'Add all matches to TaskHub';
+    btns.appendChild(_star);
+    btns.appendChild(B(
+      {background:added?T.ac:'transparent',color:added?T.aci:T.txd,
+       border:'1px solid '+(added?T.ac:T.bd),borderRadius:4,
+       padding:'4px 14px',fontSize:10,fontWeight:700,cursor:'pointer'},
+      added?'✓ Added':'+ Add',
+      ()=>{
+        if(added){
+          _cfg.leagues=_cfg.leagues.filter(l=>l.id!==lg.id);
+          if(_activeLeague===lg.id)_activeLeague=null;
+        } else {
+          if(!_cfg.leagues.find(l=>l.id===lg.id))
+            _cfg.leagues.push({id:lg.id,slug:lg.slug,name:lg.name,region:lg.region});
+          fetchLeagueData(lg.id).then(()=>{publishCards();render();});
+        }
+        saveCfg();
+        overlay.parentNode&&overlay.parentNode.removeChild(overlay);
+        render();
+        showLeagueMgr();
+      }
+    ));
+    row.appendChild(btns);
+    modal.appendChild(row);
+  });
+
+  modal.appendChild(B(
+    {background:T.ac,color:T.aci,border:'none',borderRadius:6,
+     padding:'10px 0',width:'100%',fontSize:12,fontWeight:700,
+     cursor:'pointer',marginTop:16,display:'block'},
+    'Done',
+    ()=>overlay.parentNode&&overlay.parentNode.removeChild(overlay)
+  ));
+
+  overlay.appendChild(modal);
+  overlay.onclick=e=>{if(e.target===overlay)overlay.parentNode&&overlay.parentNode.removeChild(overlay);};
+  // Dragging the dimmed backdrop must not scroll the schedule underneath.
+  overlay.addEventListener('touchmove',e=>{ if(!modal.contains(e.target)&&e.cancelable) e.preventDefault(); },{passive:false});
+  document.body.appendChild(overlay);
+}
+
+// ── Mount ──────────────────────────────────────────────────────────────────
+async function mount(){
+  try{
+    _el=document.getElementById('pv-root');
+    if(!_el) return;
+    _pvActive=true;
+    _mounted=true;
+    render();
+    await resolveLeagueIds();
+    if(!window._fbReady){
+      await new Promise(res=>{
+        const h=()=>{window.removeEventListener('fb-ready',h);res();};
+        window.addEventListener('fb-ready',h);
+        setTimeout(res,4000);
+      });
+    }
+    await loadCfg();
+    render();
+    if(_cfg.leagues.length){
+      // Only fetch active league on mount — others load on demand
+      const firstId=(_cfg.leagues.find(l=>l.id===_activeLeague)||_cfg.leagues[0]).id;
+      _activeLeague=firstId;
+      _syncing=true;render();
+      await fetchLeagueData(firstId);
+      _syncing=false;publishCards();
+    }
+    render();
+  }catch(e){console.warn('[ProView] mount error',e);}
+}
+
+// ── Globals ────────────────────────────────────────────────────────────────
+window._pvMount=mount;
+window._pvHide=function(){ _pvActive=false; if(_el) _el.style.display='none'; };
+
+// ── Remote config apply (called from Firebase module onSnapshot) ──────────
+window._pvApplyRemote=(remote)=>{
+  if(!remote) return;
+  const DEAD=['104366947889790212','105266103462388553'];
+  if(Array.isArray(remote.leagues)){
+    _cfg.leagues=(remote.leagues||[]).filter(l=>!DEAD.includes(l.id)&&!['lta_n','lta_s'].includes(l.slug));
+  }
+  if(Array.isArray(remote.favorites)){
+    _cfg.favorites=remote.favorites;
+  }
+  if(Array.isArray(remote.favLeagues)){
+    _cfg.favLeagues=remote.favLeagues;
+  }
+  try{localStorage.setItem(LS_KEY,JSON.stringify({leagues:_cfg.leagues,favorites:_cfg.favorites,favLeagues:_cfg.favLeagues}));}catch(e){}
+  publishCards();
+  if(_mounted&&_el&&_el.style.display!=='none') render();
+};
+
+// ── ProView sync indicator ────────────────────────────────────────────────
+(function(){
+  let _pvHideTimer=null;
+  function pvShowSync(state,text){
+    // Try DOM element first; fallback is a no-op (render() will create new one)
+    const el=document.getElementById('pv-sync-indicator');
+    if(!el) return;
+    clearTimeout(_pvHideTimer);
+    el.textContent=text;
+    if(state==='syncing') el.style.color='#ffffff';
+    else if(state==='synced') el.style.color='#a4b986';
+    else el.style.color='#d68a7c';
+    el.style.opacity='1';
+    if(state!=='syncing'){
+      _pvHideTimer=setTimeout(()=>{
+        el.style.opacity='0';
+      },2500);
+    }
+  }
+  window.addEventListener('fb-pv-syncing',()=>pvShowSync('syncing','Syncing…'));
+  window.addEventListener('fb-pv-synced', ()=>pvShowSync('synced','✓ Synced'));
+  window.addEventListener('fb-pv-error',  ()=>pvShowSync('error','⚠ Sync failed'));
+  // Hook saveCfg to fire syncing immediately
+  window._pvShowSyncing=()=>pvShowSync('syncing','Syncing…');
+})();
+
+// Background refresh — active league only, every 30 min
+setInterval(()=>{
+  if(!_el||_el.style.display==='none') return;
+  if(_activeLeague){
+    _cfg.lastFetch[_activeLeague]=0; // expire only active
+    fetchLeagueData(_activeLeague).then(()=>{publishCards();if(_el&&_el.style.display!=='none')render();});
+  }
+},30*60*1000);
+
+// ── Scroll bar ─────────────────────────────────────────────────────────────
+// ProView scrolls inside #pv-root with the native bar hidden, so there was no
+// read-out of how far down the schedule you are and nothing to grab on a phone.
+// This is a thin overlay bar living on <body> (render() wipes pv-root's children
+// on every pass, so it cannot live inside it): it fades in while you scroll or
+// hold it, fades out ~1.1s after you stop, and drags with mouse or finger.
+(function(){
+  var bar=null,thumb=null,root=null,idle=null,drag=null,hover=false;
+
+  function styles(){
+    if(document.getElementById('pv-sbar-css')) return;
+    var st=document.createElement('style'); st.id='pv-sbar-css';
+    st.textContent=
+      '#pv-root{scrollbar-width:none;}'+
+      '#pv-root::-webkit-scrollbar{width:0;height:0;}'+
+      '#pv-sbar{position:fixed;right:3px;bottom:6px;width:14px;z-index:10000;'+
+        'top:calc(env(safe-area-inset-top,0px) + 48px);'+   /* clears the fixed nav */
+        'opacity:0;transition:opacity .28s ease;pointer-events:none;}'+
+      '#pv-sbar.on{opacity:1;pointer-events:auto;}'+
+      '#pv-sbar .pv-thumb{position:absolute;top:0;left:4px;width:6px;border-radius:99px;'+
+        'background:rgba(192,174,234,.42);cursor:grab;touch-action:none;'+
+        'transition:background .18s ease,width .18s ease,left .18s ease;}'+
+      '#pv-sbar.hot .pv-thumb{background:rgba(192,174,234,.75);width:8px;left:3px;}'+
+      '#pv-sbar.dragging .pv-thumb{cursor:grabbing;}';
+    document.head.appendChild(st);
+  }
+
+  // Visible, scrollable, and the thumb sized/placed for where we are. Returns
+  // false when there is nothing to scroll — the bar stays hidden then.
+  function layout(){
+    if(!bar||!root) return false;
+    if(root.style.display==='none'||!root.clientHeight){ bar.classList.remove('on'); return false; }
+    var ch=root.clientHeight, sh=root.scrollHeight, max=sh-ch;
+    if(max<=4){ bar.classList.remove('on'); return false; }
+    var trackH=bar.clientHeight;
+    var h=Math.max(34,Math.round(trackH*ch/sh));
+    thumb.style.height=h+'px';
+    thumb.style.transform='translateY('+Math.round((root.scrollTop/max)*(trackH-h))+'px)';
+    return true;
+  }
+  function show(){ if(!layout()) return; clearTimeout(idle); bar.classList.add('on'); }
+  function fade(){ clearTimeout(idle); if(drag||hover) return;
+    idle=setTimeout(function(){ bar.classList.remove('on'); },1100); }
+  function onScroll(){ show(); fade(); }
+
+  function grabStart(e){
+    if(!layout()) return;
+    e.preventDefault();
+    var r=thumb.getBoundingClientRect();
+    drag={id:e.pointerId,off:e.clientY-r.top,h:r.height};
+    bar.classList.add('dragging','hot'); show();
+    try{ thumb.setPointerCapture(e.pointerId); }catch(err){}
+  }
+  function grabMove(e){
+    if(!drag||e.pointerId!==drag.id) return;
+    var br=bar.getBoundingClientRect(), span=br.height-drag.h;
+    var f=span>0?Math.min(1,Math.max(0,(e.clientY-br.top-drag.off)/span)):0;
+    root.scrollTop=f*(root.scrollHeight-root.clientHeight);
+    layout();
+  }
+  function grabEnd(e){
+    if(!drag||(e&&e.pointerId!==drag.id)) return;
+    drag=null; bar.classList.remove('dragging');
+    if(!hover) bar.classList.remove('hot');
+    fade();
+  }
+  // Tapping the track jumps there, same as a native bar.
+  function trackJump(e){
+    if(e.target===thumb||!layout()) return;
+    var br=bar.getBoundingClientRect(), h=thumb.getBoundingClientRect().height;
+    var f=Math.min(1,Math.max(0,(e.clientY-br.top-h/2)/(br.height-h)));
+    root.scrollTo({top:f*(root.scrollHeight-root.clientHeight),behavior:'smooth'});
+    show(); fade();
+  }
+
+  function init(){
+    root=document.getElementById('pv-root');
+    if(!root||bar) return;
+    styles();
+    bar=document.createElement('div'); bar.id='pv-sbar';
+    thumb=document.createElement('div'); thumb.className='pv-thumb';
+    bar.appendChild(thumb); document.body.appendChild(bar);
+
+    root.addEventListener('scroll',onScroll,{passive:true});
+    bar.addEventListener('pointerenter',function(){ hover=true; bar.classList.add('hot'); show(); });
+    bar.addEventListener('pointerleave',function(){ hover=false; if(!drag) bar.classList.remove('hot'); fade(); });
+    bar.addEventListener('pointerdown',trackJump);
+    thumb.addEventListener('pointerdown',grabStart);
+    window.addEventListener('pointermove',grabMove);
+    window.addEventListener('pointerup',grabEnd);
+    window.addEventListener('pointercancel',grabEnd);
+    window.addEventListener('resize',function(){ layout(); });
+
+    // render() replaces pv-root's children and rewrites its style, so re-measure
+    // on both — and flash the bar when ProView itself comes back on screen.
+    var wasOn=root.style.display!=='none';
+    new MutationObserver(function(){
+      var on=root.style.display!=='none';
+      if(on&&!wasOn){ show(); fade(); } else layout();
+      wasOn=on;
+    }).observe(root,{childList:true,attributes:true,attributeFilter:['style']});
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+  else init();
+})();
+
 })();
 </script>
 
