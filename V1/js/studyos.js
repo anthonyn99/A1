@@ -365,6 +365,7 @@ function init() {
     .then(() => _sosAfterSync())
     .catch(e => console.warn('SOS file migration error:', e));
   _sosRefreshStorage();
+  _sosInstallIngest();
 }
 
 // ── Cloud-URL memory (survives Firestore array-replacement) ───────────────
@@ -1228,7 +1229,12 @@ function renderDocumentsModule(body, cls, mod) {
     zone.ondragover = e => { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; };
     zone.ondragleave = () => { zone.style.borderColor = ''; };
     zone.ondrop = e => {
-      e.preventDefault(); zone.style.borderColor = '';
+      e.preventDefault();
+      // Keep the global window drop handler out: this zone already knows the
+      // destination, so it files directly. Without this the same files would
+      // ALSO be ingested via the picker and land twice.
+      e.stopPropagation();
+      zone.style.borderColor = '';
       handleFilesAdded(Array.from(e.dataTransfer.files), cls.id, mod.id);
     };
     body.appendChild(zone);
@@ -1806,6 +1812,366 @@ function handleFilesAdded(files, classId, modId) {
     });
   });
 }
+
+// ═══ DIRECT INGEST: drop anywhere, paste, launch-queue, share ═══════════════
+//
+// The point of this section is that filing a document should never require
+// downloading it first. Every path here — window drop, Ctrl+V, and later the
+// PWA share target / file handler — funnels into ONE entry point,
+// sosIngestFiles(), which asks where the file goes and then hands off to
+// handleFilesAdded() above.
+//
+// THAT HANDOFF IS THE RULE, NOT A DETAIL. handleFilesAdded -> sosUploadToCloud
+// already performs the _sosCloudUrls.set()-before-persist dance that keeps a
+// mid-upload Firestore sync from orphaning a storageUrl (see the cloud-URL
+// memory notes near the top of this file). Any "simpler" ingest path that
+// writes to IndexedDB or KV directly reintroduces that bug. Don't write one.
+
+let _sosPendingIngest = null;                     // {files, resolve} while the picker is open
+let _sosClassPickAbort = null;                    // set while the class sub-picker is up
+const SOS_LAST_DEST_KEY = 'studyos_last_dest';    // {classId, modId}
+
+// Run fn now if the app is unlocked, otherwise once App Lock opens the gate.
+// applock.js drives body[data-sos-gate] = pending | locked | open. We watch the
+// attribute rather than window.alIsLocked, which reports "a lock is CONFIGURED"
+// — not "the app is currently blocked". A file arriving at a locked app (share
+// target, file handler) must wait, not vanish.
+function _sosWhenUnlocked(fn) {
+  if (document.body.dataset.sosGate === 'open') { fn(); return; }
+  const obs = new MutationObserver(function() {
+    if (document.body.dataset.sosGate === 'open') { obs.disconnect(); fn(); }
+  });
+  obs.observe(document.body, { attributes: true, attributeFilter: ['data-sos-gate'] });
+}
+
+// Every documents-type module across real classes AND the KSU pseudo-class.
+// Reads classes/ksuData directly instead of going through findClassOrKsu,
+// which builds a throwaway wrapper object on every call — the same walk that
+// _sosEachFile does.
+function _sosDocDestinations() {
+  const out = [];
+  for (const cls of classes) {
+    for (const mod of (cls.modules || [])) {
+      if (mod.type !== 'documents') continue;
+      out.push({ classId: cls.id, className: cls.name || 'Class', color: cls.color || '#8D769A',
+                 modId: mod.id, modName: mod.name || 'Module', count: (mod.files || []).length });
+    }
+  }
+  for (const mod of (ksuData.modules || [])) {
+    if (mod.type !== 'documents') continue;
+    out.push({ classId: 'ksu', className: 'KSU', color: '#8D769A',
+               modId: mod.id, modName: mod.name || 'Module', count: (mod.files || []).length });
+  }
+  return out;
+}
+
+function _sosReadLastDest() {
+  try { return JSON.parse(localStorage.getItem(SOS_LAST_DEST_KEY) || 'null'); } catch (_) { return null; }
+}
+
+function _sosRenderDestList(dests) {
+  const list = _sosEl('pick-dest-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!dests.length) {
+    const empty = document.createElement('div');
+    empty.className = 'pick-dest-empty';
+    empty.textContent = 'No documents modules yet.';
+    list.appendChild(empty);
+    return;
+  }
+  const last = _sosReadLastDest();
+  let focusRow = null;
+  dests.forEach(function(d) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'pick-dest-row';
+    if (last && last.classId === d.classId && last.modId === d.modId) {
+      row.classList.add('is-last');
+      focusRow = row;
+    }
+    const main = document.createElement('div');
+    main.className = 'pick-dest-main';
+    const cn = document.createElement('div');
+    cn.className = 'pick-dest-class';
+    cn.style.color = d.color;
+    cn.textContent = d.className;
+    const mn = document.createElement('div');
+    mn.className = 'pick-dest-mod';
+    mn.textContent = d.modName;
+    main.appendChild(cn); main.appendChild(mn);
+    const ct = document.createElement('div');
+    ct.className = 'pick-dest-count';
+    ct.textContent = d.count + (d.count === 1 ? ' file' : ' files');
+    row.appendChild(main); row.appendChild(ct);
+    row.onclick = function() { _sosChooseDest(d.classId, d.modId); };
+    list.appendChild(row);
+  });
+  // Focus the remembered row so Enter confirms it; else the first row.
+  const target = focusRow || list.querySelector('.pick-dest-row');
+  if (target) { try { target.focus(); target.scrollIntoView({ block: 'nearest' }); } catch (_) {} }
+}
+
+// Ask which module these files belong in. Resolves {classId,modId} or null.
+function sosPickDestination(files) {
+  return new Promise(function(resolve) {
+    if (document.body.dataset.sosGate !== 'open') { resolve(null); return; }
+    const dests = _sosDocDestinations();
+    const total = files.reduce(function(a, f) { return a + (f.size || 0); }, 0);
+    const summary = _sosEl('pick-dest-summary');
+    if (summary) summary.textContent = files.length + ' file' + (files.length === 1 ? '' : 's') + ' · ' + _sosFmtBytes(total);
+    _sosPendingIngest = { files: files, resolve: resolve };
+    _sosRenderDestList(dests);
+    _sosOpen('modal-pick-dest');
+    // No documents module anywhere: skip the empty modal and offer to make one.
+    if (!dests.length) _sosCreateDestModule();
+  });
+}
+
+// Resolve exactly once. Both exits null _sosPendingIngest FIRST so a second
+// call (Escape after a click, backdrop after Cancel) is a harmless no-op.
+function _sosChooseDest(classId, modId) {
+  const p = _sosPendingIngest;
+  if (!p) return;
+  _sosPendingIngest = null;
+  try { localStorage.setItem(SOS_LAST_DEST_KEY, JSON.stringify({ classId: classId, modId: modId })); } catch (_) {}
+  _sosClose('modal-pick-dest');
+  p.resolve({ classId: classId, modId: modId });
+}
+
+function _sosCancelPick() {
+  // A class sub-picker on top of the destination list must unwind too.
+  if (_sosClassPickAbort) _sosClassPickAbort();
+  const p = _sosPendingIngest;
+  if (!p) return;
+  _sosPendingIngest = null;
+  _sosClose('modal-pick-dest');
+  p.resolve(null);
+}
+
+// The generic backdrop handler installed at parse time (see the
+// querySelectorAll('.sos-modal') loop further down) only strips the `open`
+// class — it never resolves anything. Without this listener a backdrop click
+// would close the picker and leave _sosPendingIngest dangling, hanging this
+// ingest and silently swallowing every later one. Runs after the generic
+// handler; resolution is idempotent, so the ordering does not matter.
+document.addEventListener('DOMContentLoaded', function() {
+  const ov = _sosEl('modal-pick-dest');
+  if (ov) ov.addEventListener('click', function(e) { if (e.target === ov) _sosCancelPick(); });
+});
+
+// Deliberately not saveModule(): that one is wired to pendingModuleType,
+// _ksuAddPending, currentClassId and closing modal-module-create. This just
+// makes a documents module and selects it.
+//
+// Two steps rather than one form: window.uiForm renders every field as an
+// <input> and its collect() reads only inputs, so a "select" field would draw
+// as a text box and hand back whatever was typed. Rendering the class list
+// ourselves sidesteps that entirely.
+async function _sosCreateDestModule() {
+  const opts = classes.map(function(c) { return { id: c.id, name: c.name || 'Class' }; });
+  opts.push({ id: 'ksu', name: 'KSU' });   // KSU always exists as a destination
+
+  let classId;
+  if (opts.length === 1) {
+    classId = opts[0].id;
+  } else {
+    classId = await _sosPickClassForNewModule(opts);
+    if (!classId) return;
+  }
+
+  let name;
+  try {
+    name = await window.uiPrompt('Name for the new documents module', {
+      title: 'New documents module', okLabel: 'Create', placeholder: 'e.g. Lecture Slides',
+    });
+  } catch (_) { return; }
+  if (!name || !String(name).trim()) { _sosCancelPick(); return; }
+
+  const cls = findClassOrKsu(classId);
+  if (!cls) { _sosCancelPick(); return; }
+  const mod = {
+    id: Date.now().toString(),
+    name: String(name).trim(),
+    type: 'documents',
+    icon: (typeof ICONS !== 'undefined' && ICONS.documents) || '📄',
+    files: [], prompts: [], notes: [],
+  };
+  cls.modules.push(mod);
+  persistForCls(cls);
+  _sosRefreshModuleGrid(cls);
+  // Still mid-pick? Re-render so the new module is listed, then take it.
+  if (_sosPendingIngest) { _sosRenderDestList(_sosDocDestinations()); _sosChooseDest(cls.id, mod.id); }
+  else showNotif('✅', 'Module created', mod.name + ' is ready for documents.');
+}
+
+// Repaints the picker list as a class chooser, then restores it. Resolves a
+// classId or null. Reuses the picker rows so this needs no extra modal.
+function _sosPickClassForNewModule(opts) {
+  return new Promise(function(resolve) {
+    const list = _sosEl('pick-dest-list');
+    const summary = _sosEl('pick-dest-summary');
+    const overlay = _sosEl('modal-pick-dest');
+    if (!list || !overlay) { resolve(null); return; }
+    const prevSummary = summary ? summary.textContent : '';
+    const wasOpen = overlay.classList.contains('open');
+    if (summary) summary.textContent = 'Which class does the new module belong to?';
+    list.innerHTML = '';
+    let settled = false;
+    const finish = function(v) {
+      if (settled) return;
+      settled = true;
+      _sosClassPickAbort = null;
+      if (summary) summary.textContent = prevSummary;
+      _sosRenderDestList(_sosDocDestinations());   // restore for whatever comes next
+      if (!wasOpen) _sosClose('modal-pick-dest');
+      resolve(v);
+    };
+    opts.forEach(function(o) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'pick-dest-row';
+      const main = document.createElement('div');
+      main.className = 'pick-dest-main';
+      const mn = document.createElement('div');
+      mn.className = 'pick-dest-mod';
+      mn.textContent = o.name;
+      main.appendChild(mn);
+      row.appendChild(main);
+      row.onclick = function() { finish(o.id); };
+      list.appendChild(row);
+    });
+    _sosOpen('modal-pick-dest');
+    const first = list.querySelector('.pick-dest-row');
+    if (first) { try { first.focus(); } catch (_) {} }
+    _sosClassPickAbort = function() { finish(null); };
+  });
+}
+
+// handleFilesAdded only refreshes doc-list-<modId>, which exists solely while
+// that module's detail modal is open. For a background ingest the grid's file
+// count would otherwise stay stale until the next navigation.
+function _sosRefreshModuleGrid(cls) {
+  try {
+    if (cls && cls._ksu) renderKsuModules();
+    else if (cls && cls.id === currentClassId) renderModules(cls);
+  } catch (e) { console.warn('SOS grid refresh failed:', e); }
+}
+
+// THE ingest entry point. Every path lands here.
+async function sosIngestFiles(files) {
+  files = Array.from(files || []).filter(Boolean);
+  if (!files.length) return;
+  if (document.body.dataset.sosGate !== 'open') return;
+  const dest = await sosPickDestination(files);
+  if (!dest) return;
+  // Re-validate: a Firestore sync can replace classes/ksuData wholesale while
+  // the picker sits open, so the module chosen a moment ago may be gone.
+  // handleFilesAdded would return silently; say so instead.
+  const cls = findClassOrKsu(dest.classId);
+  const mod = cls && (cls.modules || []).find(function(m) { return m.id === dest.modId; });
+  if (!mod) {
+    showNotif('⚠️', 'Destination gone', 'That module no longer exists — nothing was filed.');
+    return;
+  }
+  handleFilesAdded(files, dest.classId, dest.modId);
+  _sosRefreshModuleGrid(cls);
+}
+
+// ── Layer 1: drop anywhere in the window ──────────────────────────────────
+let _sosDragDepth = 0;
+
+// True only for an OS file drag. Also false while a Notes editor is open:
+// notes-sync/docx-engine own drops in that region and their stopPropagation()
+// keeps the window handler out, but suppressing the overlay too avoids
+// flashing a prompt the user cannot act on.
+function _sosDragHasFiles(e) {
+  const dt = e.dataTransfer;
+  if (!dt || !dt.types) return false;
+  if (Array.prototype.indexOf.call(dt.types, 'Files') === -1) return false;
+  if (document.querySelector('#modal-module-detail.open #so-root')) return false;
+  return true;
+}
+
+function _sosShowDropOverlay(on) {
+  const ov = _sosEl('sos-drop-overlay');
+  if (ov) ov.classList.toggle('open', !!on);
+}
+
+function _sosInstallDropTarget() {
+  // Bound on window, not document: dragleave fires on document when the
+  // pointer crosses any child boundary. The enter/leave DEPTH COUNTER is what
+  // keeps the overlay from flickering on every element crossed.
+  window.addEventListener('dragenter', function(e) {
+    if (!_sosDragHasFiles(e)) return;
+    e.preventDefault();
+    if (++_sosDragDepth === 1) _sosShowDropOverlay(true);
+  });
+  window.addEventListener('dragover', function(e) {
+    if (!_sosDragHasFiles(e)) return;
+    // BOTH lines matter: without preventDefault here the browser never fires
+    // `drop` at all, which is the classic silent failure for this feature.
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'copy'; } catch (_) {}
+  });
+  window.addEventListener('dragleave', function(e) {
+    if (!_sosDragHasFiles(e)) return;
+    if (--_sosDragDepth <= 0) { _sosDragDepth = 0; _sosShowDropOverlay(false); }
+  });
+  window.addEventListener('drop', function(e) {
+    if (!_sosDragHasFiles(e)) return;
+    e.preventDefault();
+    _sosDragDepth = 0;
+    _sosShowDropOverlay(false);
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if (files.length) sosIngestFiles(files);
+  });
+  // A drag that leaves the window entirely can swallow the final dragleave.
+  window.addEventListener('blur', function() { _sosDragDepth = 0; _sosShowDropOverlay(false); });
+}
+
+// ── Layer 2: paste anywhere ───────────────────────────────────────────────
+function _sosIsEditable(el) {
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  return /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName || '');
+}
+
+// Win+Shift+S puts a bitmap on the clipboard with NO filename — every capture
+// arrives as "image.png". handleFilesAdded stores name verbatim and does not
+// dedupe, so ten screenshots would become ten identical rows, synced forever.
+// Only the paste path needs this; drags carry real filenames.
+function _sosNameClipboardFile(f) {
+  if (f.name && !/^image\.(png|jpe?g|webp)$/i.test(f.name)) return f;
+  const d = new Date();
+  const p = function(n) { return String(n).padStart(2, '0'); };
+  const stamp = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+                ' ' + p(d.getHours()) + '-' + p(d.getMinutes()) + '-' + p(d.getSeconds());
+  const ext = (f.type && f.type.split('/')[1]) || 'png';
+  try { return new File([f], 'Screenshot ' + stamp + '.' + ext, { type: f.type }); }
+  catch (_) { return f; }   // File constructor unavailable — keep the original
+}
+
+function _sosOnPaste(e) {
+  if (document.body.dataset.sosGate !== 'open') return;
+  // Leave real text entry alone. Checked on both the event target and the
+  // focused element, since paste can target <body> while focus sits elsewhere
+  // (the Notes editor has its own paste handler in docx-engine.js).
+  if (_sosIsEditable(e.target) || _sosIsEditable(document.activeElement)) return;
+  const files = Array.from((e.clipboardData && e.clipboardData.files) || []);
+  if (!files.length) return;          // pasted text falls through untouched
+  e.preventDefault();
+  sosIngestFiles(files.map(_sosNameClipboardFile));
+}
+
+function _sosInstallIngest() {
+  _sosInstallDropTarget();
+  document.addEventListener('paste', _sosOnPaste);
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && (_sosPendingIngest || _sosClassPickAbort)) _sosCancelPick();
+  });
+}
+
 
 function removeFile(classId, modId, idx) {
   const cls = findClassOrKsu(classId);

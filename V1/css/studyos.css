@@ -1366,3 +1366,61 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .sos-ptr-spin .sos-ptr-spinner { animation-duration: 1.6s; }
 }
+
+/* ── Global file-drop overlay + destination picker ────────────────────────── */
+/* z-index sits BELOW .sos-modal (10100) so the destination picker draws on top
+   of the overlay, and pointer-events stay off in both states — the drop is
+   handled on `window`, and capturing pointers here would swallow drops meant
+   for the edit-mode upload zone beneath. */
+#sos-drop-overlay {
+  position: fixed; inset: 0; z-index: 10050;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15,16,18,0.72); backdrop-filter: blur(2px);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+#sos-drop-overlay.open { opacity: 1; visibility: visible; pointer-events: none; }
+#sos-drop-overlay .sos-drop-card {
+  border: 2px dashed #8D769A; border-radius: 14px;
+  padding: 40px 56px; text-align: center; background: rgba(38,39,42,0.92);
+}
+#sos-drop-overlay .sos-drop-icon { color: #8D769A; margin-bottom: 12px; }
+#sos-drop-overlay .sos-drop-icon svg { width: 34px; height: 34px; }
+#sos-drop-overlay .sos-drop-title {
+  font-family: 'Lora', serif; font-size: 19px; font-weight: 700; color: #ECECEE;
+}
+#sos-drop-overlay .sos-drop-sub {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #AFB0B5; margin-top: 6px;
+}
+
+.sos-modal .pick-dest-summary {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #AFB0B5;
+  margin: -8px 0 14px; word-break: break-word;
+}
+.sos-modal #pick-dest-list { max-height: 46vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.sos-modal .pick-dest-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 12px; margin-bottom: 6px; border-radius: 6px;
+  background: #26272A; border: 1px solid rgba(255,255,255,0.09);
+  border-left: 3px solid transparent;
+  cursor: pointer; text-align: left; transition: all 0.15s;
+  font-family: 'Nunito', sans-serif; color: #ECECEE;
+}
+.sos-modal .pick-dest-row:hover { background: #2e2f33; border-color: #8D769A; }
+.sos-modal .pick-dest-row:focus { outline: none; background: #2e2f33; border-color: #8D769A; }
+.sos-modal .pick-dest-row.is-last { border-left-color: #8D769A; }
+.sos-modal .pick-dest-main { flex: 1; min-width: 0; }
+.sos-modal .pick-dest-class {
+  font-family: 'Lora', serif; font-size: 9px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 2px;
+}
+.sos-modal .pick-dest-mod {
+  font-size: 13px; font-weight: 700; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.sos-modal .pick-dest-count {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #AFB0B5; flex-shrink: 0;
+}
+.sos-modal .pick-dest-empty {
+  font-size: 13px; color: #AFB0B5; padding: 18px 4px; text-align: center;
+}

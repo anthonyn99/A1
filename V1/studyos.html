@@ -398,6 +398,21 @@
   </button>
 </nav>
 
+<!-- GLOBAL FILE-DROP OVERLAY -->
+<!-- Lives OUTSIDE #study-root so a view re-render can never wipe it. Purely
+     visual: pointer-events stay off even while shown, because the drop is
+     handled on `window` and an overlay that captured pointer events would
+     swallow drops meant for the edit-mode upload zone underneath it. -->
+<div id="sos-drop-overlay" aria-hidden="true">
+  <div class="sos-drop-card">
+    <div class="sos-drop-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+    </div>
+    <div class="sos-drop-title">Drop to file in StudyOS</div>
+    <div class="sos-drop-sub">You'll pick the module next</div>
+  </div>
+</div>
+
 <!-- NOTIFICATION CONTAINER -->
 <div class="notif-container" id="notif-container"></div>
 
@@ -493,6 +508,22 @@
     <div class="modal-footer">
       <button class="btn" onclick="_sosClose('modal-module-create');_sosOpen('modal-add-module')">Back</button>
       <button class="btn primary" onclick="saveModule()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: PICK DESTINATION (file ingest) -->
+<!-- Shown by sosPickDestination() for every drop / paste / share / file-open.
+     A flat "Class > Module" row list, not two selects: one click instead of
+     three, on the critical path of every single file filed. -->
+<div class="modal-overlay sos-modal" id="modal-pick-dest">
+  <div class="modal">
+    <div class="modal-title">File to&hellip;</div>
+    <div class="pick-dest-summary" id="pick-dest-summary"></div>
+    <div id="pick-dest-list"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="_sosCancelPick()">Cancel</button>
+      <button class="btn primary" onclick="_sosCreateDestModule()">New documents module&hellip;</button>
     </div>
   </div>
 </div>

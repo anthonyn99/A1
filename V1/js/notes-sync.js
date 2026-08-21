@@ -553,8 +553,14 @@ function wireStaticListeners() {
     pageArea.addEventListener('dragover', e => { if (isEditMode) e.preventDefault(); });
     pageArea.addEventListener('dragleave', e => { if (e.target === dropZone) dropZone.classList.remove('active'); });
     pageArea.addEventListener('drop', e => {
+      // Not in edit mode: let the drop bubble to the global StudyOS
+      // handler, which offers to file the files as documents instead.
       if (!isEditMode) return;
       e.preventDefault();
+      // In edit mode these files belong to the page. Stop the
+      // window-level ingest handler so they are not ALSO filed into a
+      // documents module.
+      e.stopPropagation();
       dropZone.classList.remove('active');
       Array.from(e.dataTransfer.files || []).forEach(file => {
         const reader = new FileReader();
