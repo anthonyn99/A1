@@ -21,7 +21,7 @@ const vm = require('vm');
 // in this list the day it ships.
 const FILES = [
   'index.html', 'shield.html', 'tradehub.html', 'vault.html', 'insight.html',
-  'mylist.html', 'oneinbox.html', 'solace.html', 'warroom.html', 'wellness.html',
+  'mylist.html', 'oneinbox.html', 'solace.html', 'riftiq.html', 'wellness.html',
 ];
 
 let babelParse = null;

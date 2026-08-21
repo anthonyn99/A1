@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WarRoom</title>
+<title>RiftIQ</title>
 <meta name="theme-color" content="#1a1a1d">
 <!-- ── App icon ────────────────────────────────────────────────────────────────
      Hextech hexagon with a sword standing in it: black plate, gray hex, light
-     purple blade — WarRoom's own palette. Inline data URI in the same 96x96 /
+     purple blade — RiftIQ's own palette. Inline data URI in the same 96x96 /
      rx=22 line-art style as every other A1 app, so no asset file to lose. -->
-<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22WarRoom%22%2C%22short_name%22%3A%22WarRoom%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fwarroom.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Fwarroom.html%22%2C%22background_color%22%3A%22%230f0f12%22%2C%22theme_color%22%3A%22%230f0f12%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D'http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg'%2520viewBox%253D'0%25200%252096%252096'%253E%253Crect%2520width%253D'96'%2520height%253D'96'%2520rx%253D'22'%2520fill%253D'%252316161c'%252F%253E%253Cpath%2520d%253D'M48%252019%252073%252033.5v29L48%252077%252023%252062.5v-29Z'%2520fill%253D'none'%2520stroke%253D'%25235a5a68'%2520stroke-width%253D'4'%2520stroke-linejoin%253D'round'%252F%253E%253Cpath%2520d%253D'M48%252026l5%252012v18H43V38Z'%2520fill%253D'%2523c0aeea'%252F%253E%253Crect%2520x%253D'33'%2520y%253D'56'%2520width%253D'30'%2520height%253D'6'%2520rx%253D'3'%2520fill%253D'%2523dbd0f5'%252F%253E%253Crect%2520x%253D'45'%2520y%253D'62'%2520width%253D'6'%2520height%253D'11'%2520rx%253D'3'%2520fill%253D'%252383838f'%252F%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22RiftIQ%22%2C%22short_name%22%3A%22RiftIQ%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Friftiq.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Friftiq.html%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D'http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg'%2520viewBox%253D'0%25200%252096%252096'%253E%253Crect%2520width%253D'96'%2520height%253D'96'%2520rx%253D'22'%2520fill%253D'%252316161c'%252F%253E%253Cpath%2520d%253D'M48%252019%252073%252033.5v29L48%252077%252023%252062.5v-29Z'%2520fill%253D'none'%2520stroke%253D'%25235a5a68'%2520stroke-width%253D'4'%2520stroke-linejoin%253D'round'%252F%253E%253Cpath%2520d%253D'M48%252026l5%252012v18H43V38Z'%2520fill%253D'%2523c0aeea'%252F%253E%253Crect%2520x%253D'33'%2520y%253D'56'%2520width%253D'30'%2520height%253D'6'%2520rx%253D'3'%2520fill%253D'%2523dbd0f5'%252F%253E%253Crect%2520x%253D'45'%2520y%253D'62'%2520width%253D'6'%2520height%253D'11'%2520rx%253D'3'%2520fill%253D'%252383838f'%252F%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%2316161c'%2F%3E%3Cpath%20d%3D'M48%2019%2073%2033.5v29L48%2077%2023%2062.5v-29Z'%20fill%3D'none'%20stroke%3D'%235a5a68'%20stroke-width%3D'4'%20stroke-linejoin%3D'round'%2F%3E%3Cpath%20d%3D'M48%2026l5%2012v18H43V38Z'%20fill%3D'%23c0aeea'%2F%3E%3Crect%20x%3D'33'%20y%3D'56'%20width%3D'30'%20height%3D'6'%20rx%3D'3'%20fill%3D'%23dbd0f5'%2F%3E%3Crect%20x%3D'45'%20y%3D'62'%20width%3D'6'%20height%3D'11'%20rx%3D'3'%20fill%3D'%2383838f'%2F%3E%3C%2Fsvg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%2316161c'%2F%3E%3Cpath%20d%3D'M48%2019%2073%2033.5v29L48%2077%2023%2062.5v-29Z'%20fill%3D'none'%20stroke%3D'%235a5a68'%20stroke-width%3D'4'%20stroke-linejoin%3D'round'%2F%3E%3Cpath%20d%3D'M48%2026l5%2012v18H43V38Z'%20fill%3D'%23c0aeea'%2F%3E%3Crect%20x%3D'33'%20y%3D'56'%20width%3D'30'%20height%3D'6'%20rx%3D'3'%20fill%3D'%23dbd0f5'%2F%3E%3Crect%20x%3D'45'%20y%3D'62'%20width%3D'6'%20height%3D'11'%20rx%3D'3'%20fill%3D'%2383838f'%2F%3E%3C%2Fsvg%3E">
 <!-- ── Single-tab handoff ──────────────────────────────────────────────────────
@@ -46,9 +46,17 @@
         dashboards/applock Firestore doc for cross-device lock state, WebAuthn
         biometrics as the primary unlock, Formspree for hint / reset email.
 
-        APPID is 'tony_warroom_standalone', distinct from index.html's
-        'tony_warroom' (which locks the WarRoom nav BUTTON on the TaskHub), so
-        the two are independent — exactly the split Vault and TradeHub use. ══ -->
+        One lock covers BOTH programs — WarRoom and ProView.
+
+        APPID stays 'tony_warroom_standalone' under its original name on purpose:
+        it IS this lock's identity inside dashboards/applock, so renaming it
+        alongside the app would read as "no lock set" and silently expose
+        everything. Same reasoning keeps BIO_NS 'warroomlock' — WebAuthn
+        credentials are registered against that exact string.
+
+        Distinct from index.html's 'tony_warroom', which locks the RiftIQ nav
+        BUTTON on the TaskHub, so the two stay independent — the same split
+        Vault and TradeHub use. ══════════════════════════════════════════ -->
 <script>
   /* DURABLE LOCK STORE — localStorage mirrored into a long-lived cookie.
      Why: the "unlocked once per device" record lived ONLY in localStorage, which
@@ -95,7 +103,7 @@
 </script>
 
 <script>
-  /* SECURITY GATE — runs BEFORE first paint. If WarRoom is locked and this device
+  /* SECURITY GATE — runs BEFORE first paint. If RiftIQ is locked and this device
      has not unlocked it, keep both roots hidden so no summoner name, match or
      build ever flashes on screen ahead of the password. */
   (function(){
@@ -267,7 +275,7 @@
      card-bloated TaskHub doc crossed Firestore's 1 MiB limit and permanently
      wedged that device's write queue.
 
-     They now live in their own small document. WarRoom is its ONLY writer and
+     They now live in their own small document. RiftIQ is its ONLY writer and
      rewrites it wholesale from the current favourites; index.html only reads it
      and renders the entries as display-only cards. One writer per document, and
      the TaskHub doc stops growing with data that was never really TaskHub's. */
@@ -284,7 +292,7 @@
   };
 
   /* ── APP LOCK — dashboards/applock ──────────────────────────────────────────
-     The SAME doc index.html, Vault, TradeHub and Solace use, so locking WarRoom
+     The SAME doc index.html, Vault, TradeHub and Solace use, so locking RiftIQ
      here or there stays in step across devices. _alApplyRemoteLocks rebuilds the
      whole map, which is what preserves every OTHER program's entry on write. */
   const _alDocRef = doc(_fbDb, 'dashboards', 'applock');
@@ -324,7 +332,7 @@
 /* ══ PALETTE ═══════════════════════════════════════════════════════════════
    The A1 suite design system — warm charcoal surfaces, warm neutral text, and
    muted semantics (sage good, terracotta bad) shared with Insight, Solace,
-   Vault and TradeHub — carrying WarRoom's own identity accent, ProView's light
+   Vault and TradeHub — carrying RiftIQ's own identity accent, ProView's light
    purple. --gold/--gold2 keep their names for continuity; they hold the purple.
    League rank tiers and rune-tree hues are kept recognisable but desaturated
    onto the same lightness so nothing shouts against this ground. */
@@ -435,7 +443,7 @@ body { cursor: default; }
 }
 .hdr-btn:hover { border-color: var(--gold); color: var(--gold); }
 
-/* Header lock toggle — dim when WarRoom is unlocked, lit when locked. */
+/* Header lock toggle — dim when RiftIQ is unlocked, lit when locked. */
 #wr-lock-btn {
   height: 30px; width: 30px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
@@ -452,9 +460,9 @@ body { cursor: default; }
 #builds-panel.active { display: flex !important; flex-direction: column; overflow: hidden; height: 100%; }
 
 /* ══ APP LOCK ══════════════════════════════════════════════════════════════
-   Overlay mirrors index.html / Vault / Solace, retinted to WarRoom's palette. */
+   Overlay mirrors index.html / Vault / Solace, retinted to RiftIQ's palette. */
 /* Pre-paint: html.wr-prelock is stamped by the gate in <head>, before any of
-   WarRoom's own markup is parsed, so nothing can flash before the password. */
+   RiftIQ's own markup is parsed, so nothing can flash before the password. */
 html.wr-prelock body > #setup-modal,
 html.wr-prelock body > #app,
 html.wr-prelock body > #program-picker,
@@ -2059,9 +2067,9 @@ input:-webkit-autofill:active {
 <body>
 
 <!-- ══ PROGRAM PICKER ═══════════════════════════════════════════════════════
-     WarRoom hosts two programs now. This is the front door: pick one, and the
+     RiftIQ hosts two programs. This is the front door: pick one, and the
      header of whichever you land in carries a button to swap to the other.
-     Both sit behind the single WarRoom app lock. ══════════════════════════ -->
+     Both sit behind the single RiftIQ app lock. ═══════════════════════════ -->
 <div id="program-picker">
   <div class="pp-inner">
     <div class="pp-head">
@@ -2263,7 +2271,7 @@ input:-webkit-autofill:active {
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>
       ProView
     </button>
-    <button id="wr-lock-btn" title="Lock WarRoom behind a password"
+    <button id="wr-lock-btn" title="Lock RiftIQ behind a password"
             onclick="window._wrManageLock && window._wrManageLock()"></button>
   </div>
   </div>
@@ -2439,7 +2447,7 @@ input:-webkit-autofill:active {
 <!-- Everything below is position:fixed chrome and belongs to the document, not to
      the app shell. #content and #app were never closed, so the browser nested all
      of it inside #content — which meant the app-lock overlay inherited #app's
-     display:none while WarRoom was locked and rendered at 0x0: a locked device got
+     display:none while RiftIQ was locked and rendered at 0x0: a locked device got
      a blank page with no password prompt. -->
 
 <!-- Player Context Menu -->
@@ -5113,7 +5121,7 @@ var _liveGen = 0; // incremented on pause/stop; invalidates any in-flight fetch
 
 // Where live game data comes from.
 //  - PROXY: local helper (warroom-live-proxy.js) that reads Riot's :2999 and
-//    re-serves it WITH CORS headers. Required when WarRoom is loaded from a
+//    re-serves it WITH CORS headers. Required when RiftIQ is loaded from a
 //    hosted https page (github.io) — the raw :2999 endpoint sends no CORS
 //    headers, so the browser blocks reading it directly no matter what.
 //  - DIRECT: only works inside Electron / a browser with web security off, or
@@ -7049,7 +7057,7 @@ function backToLeaderboard() {
 // ══════════════════════════════════════
 // PROGRAM ROUTING
 // ══════════════════════════════════════
-// WarRoom hosts two programs. Boot lands on the picker; openProgram() moves
+// RiftIQ hosts two programs. Boot lands on the picker; openProgram() moves
 // between them and the header of each carries a button back to the other.
 //
 // Each program initialises LAZILY, the first time it is opened. That matters
@@ -7070,7 +7078,7 @@ function showProgramPicker() {
   if (window._pvHide) window._pvHide();
   var bar = _el_('wr-progbar'); if (bar) bar.classList.remove('on');
   var pick = _el_('program-picker'); if (pick) pick.classList.add('on');
-  document.title = 'WarRoom';
+  document.title = 'RiftIQ';
 }
 
 function openProgram(name) {
@@ -7125,7 +7133,7 @@ function _wrSaveProgram(p) { try { localStorage.setItem('wr_last_program', p); }
 
 // ── START ──
 // Boot is owned by the app lock: warRoomBoot() runs on the first unlock, or
-// immediately when WarRoom is not locked on this device. It is idempotent
+// immediately when RiftIQ is not locked on this device. It is idempotent
 // because alShowRoot() calls it on every unlock, not only the first.
 let _wrBooted = false;
 window.warRoomBoot = function() {
@@ -7177,7 +7185,7 @@ if (!window.__wrGateBlocked) window.warRoomBoot();
     <div id="applock-icon"></div>
     <div id="applock-head">
       <div id="applock-title">Locked</div>
-      <div id="applock-sub">Enter your password to open WarRoom.</div>
+      <div id="applock-sub">Enter your password to open RiftIQ.</div>
     </div>
     <div id="applock-form">
       <div id="applock-bio"></div>
@@ -7335,7 +7343,7 @@ function alSaveLocks(){
 function alSetLock(version){ _alLocks[APPID] = { locked: true, v: version||Date.now() }; alSaveLocks(); }
 function alRemoveLock(){ delete _alLocks[APPID]; alSaveLocks(); }
 
-// Show / hide WarRoom's content. Unlike Solace's single #sol-root there are two
+// Show / hide RiftIQ's content. Unlike Solace's single #sol-root there are two
 // roots here — the setup modal (shown when no summoner is saved yet) and the app
 // shell — so the gate hides the pair via a class and lets showApp() pick which one
 // comes back. Booting is deferred until unlock, so a locked page never spends any
@@ -7356,7 +7364,7 @@ window._wrLockCoversBoth = true;
 
 // ── REMOTE LOCK CHANGES (from the Firebase onSnapshot in the module above) ──
 // The shared dashboards/applock doc carries locks for EVERY app; we only care
-// about WarRoom's entry but must preserve the rest so we never wipe them.
+// about RiftIQ's entry but must preserve the rest so we never wipe them.
 window._alApplyRemoteLocks = function(remoteLocks){
   remoteLocks = remoteLocks || {};
   // Re-locking is governed entirely by version comparison in alIsUnlocked()
@@ -7368,7 +7376,7 @@ window._alApplyRemoteLocks = function(remoteLocks){
   _alLocks = {};
   Object.keys(remoteLocks).forEach(function(id){ var r=remoteLocks[id]; _alLocks[id] = { locked: true, v:(r&&r.v)||0 }; });
   try { window.alDur.set('al_locks', JSON.stringify(_alLocks)); } catch(e){}
-  // SECURITY: if WarRoom just got locked remotely and isn't unlocked here, hide + prompt.
+  // SECURITY: if RiftIQ just got locked remotely and isn't unlocked here, hide + prompt.
   if (alMustBlock()) { alHideRoot(); alShowOverlay('unlock'); }
   else if (!alIsLocked()) { alShowRoot(); if(_el('applock-overlay').style.display==='flex' && _alMode==='unlock'){ alHideOverlay(); } }
   alUpdateLockBtns();
@@ -7404,12 +7412,12 @@ function alShowOverlay(mode){
   _el('applock-err').textContent='';
   _el('applock-pw').value='';
   _el('applock-pw').classList.remove('error');
-  _el('applock-title').textContent='WarRoom';
+  _el('applock-title').textContent='RiftIQ';
   _el('applock-submit').style.display='';
   var m=_el('al-menu-btns'); if(m) m.remove();
   if (mode==='setpw'){
     _el('applock-icon').innerHTML=SLI.shield;
-    _el('applock-sub').textContent='Choose a password to lock WarRoom. Unlock once per device.';
+    _el('applock-sub').textContent='Choose a password to lock RiftIQ. Unlock once per device.';
     _el('applock-submit').textContent='Set Password';
     _el('applock-forgot').style.display='none'; _el('applock-cancel').style.display='';
   } else if (mode==='remove'){
@@ -7424,10 +7432,10 @@ function alShowOverlay(mode){
     _el('applock-forgot').style.display=''; _el('applock-cancel').style.display='';
   } else {
     _el('applock-icon').innerHTML=SLI.lock;
-    _el('applock-sub').textContent='Enter your password to open WarRoom.';
+    _el('applock-sub').textContent='Enter your password to open RiftIQ.';
     _el('applock-submit').textContent='Unlock';
     _el('applock-forgot').style.display='';
-    // No cancel escape when content is gated — you must unlock to view WarRoom.
+    // No cancel escape when content is gated — you must unlock to view RiftIQ.
     _el('applock-cancel').style.display = alMustBlock() ? 'none' : '';
   }
   // Reset link mirrors the "Forgot password?" link (hidden while setting a new password).
@@ -7446,7 +7454,7 @@ function alHideOverlay(){
 
 // ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
 // Primary unlock; the password below always remains the fallback. The credential
-// is keyed to (BIO_NS, APPID) so it can only ever satisfy WarRoom's own unlock.
+// is keyed to (BIO_NS, APPID) so it can only ever satisfy RiftIQ's own unlock.
 function alBioShowPw(show){
   _el('applock-pw').style.display = show ? '' : 'none';
   _el('applock-submit').style.display = show ? '' : 'none';
@@ -7501,8 +7509,8 @@ function alDoRemoveBio(){
 }
 function alBioRegister(closeAfter){
   if(!window.Bio) return;
-  window.Bio.register(BIO_NS, APPID, { rpName:'WarRoom', userName:'warroomlock', displayName:'WarRoom' }).then(function(r){
-    if(r.ok){ alMarkUnlocked(); if(closeAfter) alHideOverlay(); alUpdateLockBtns(); window.uiAlert('Biometrics registered on this device. You can now unlock WarRoom with '+window.Bio.label()+'.'); }
+  window.Bio.register(BIO_NS, APPID, { rpName:'RiftIQ', userName:'warroomlock', displayName:'RiftIQ' }).then(function(r){
+    if(r.ok){ alMarkUnlocked(); if(closeAfter) alHideOverlay(); alUpdateLockBtns(); window.uiAlert('Biometrics registered on this device. You can now unlock RiftIQ with '+window.Bio.label()+'.'); }
     else if(r.error==='cancelled' || r.error==='NotAllowedError'){ /* user backed out */ }
     else window.uiAlert('Could not register biometrics on this device.');
   });
@@ -7511,7 +7519,7 @@ function alMaybeOfferBio(){
   if(!window.Bio) return;
   window.Bio.available().then(function(avail){
     if(!avail || window.Bio.isRegistered(BIO_NS, APPID)) return;
-    window.uiConfirm('Register '+window.Bio.label()+' to unlock WarRoom on this device? Your password still works as a fallback.',
+    window.uiConfirm('Register '+window.Bio.label()+' to unlock RiftIQ on this device? Your password still works as a fallback.',
       {title:'Register '+window.Bio.label(), okLabel:'Register'}).then(function(ok){ if(ok) alBioRegister(false); });
   });
 }
@@ -7531,12 +7539,12 @@ function alShowManageMenu(){
   _el('applock-pw').value='';
   _el('applock-pw').classList.remove('error');
   _el('applock-icon').innerHTML=SLI.lock;
-  _el('applock-title').textContent='WarRoom';
+  _el('applock-title').textContent='RiftIQ';
   _el('applock-submit').style.display='none';
   _el('applock-forgot').style.display='none';
   if (_el('applock-reset')) _el('applock-reset').style.display='none';
   _el('applock-cancel').style.display='';
-  _el('applock-sub').textContent = isUnlocked ? 'WarRoom is locked. Manage:' : 'WarRoom is locked. Choose:';
+  _el('applock-sub').textContent = isUnlocked ? 'RiftIQ is locked. Manage:' : 'RiftIQ is locked. Choose:';
   var existing=_el('al-menu-btns'); if(existing) existing.remove();
   var menu=document.createElement('div');
   menu.id='al-menu-btns';
@@ -7660,7 +7668,7 @@ _el('applock-forgot').addEventListener('click', async function(){
     var hr=await fetch(AL_WORKER+'/auth/journal/hint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID})});
     var hd=await hr.json();
     if (hd.noLock){ _el('applock-err').textContent='No lock on server. Try re-locking.'; _el('applock-forgot').disabled=false; _el('applock-forgot').textContent='Forgot password?'; return; }
-    var fp=await fetch(AL_FORM,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:AL_EMAIL,subject:'App Lock - Hint (WarRoom)',message:'Hint for "WarRoom":\n\n'+(hd.hint||'(none)')+'\n\n- WarRoom'})});
+    var fp=await fetch(AL_FORM,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:AL_EMAIL,subject:'App Lock - Hint (RiftIQ)',message:'Hint for "RiftIQ":\n\n'+(hd.hint||'(none)')+'\n\n- RiftIQ'})});
     if (fp.ok){ _el('applock-forgot').textContent='Hint sent!'; setTimeout(function(){_el('applock-forgot').textContent='Forgot password?';_el('applock-forgot').disabled=false;},3000); }
     else { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
   } catch(e){ _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
@@ -7716,7 +7724,7 @@ window._pwReset = window._pwReset || async function(opts){
   return false;
 };
 
-// WarRoom app-lock: reset password via emailed security code.
+// RiftIQ app-lock: reset password via emailed security code.
 _el('applock-reset') && _el('applock-reset').addEventListener('click', async function(){
   var prev=_el('applock-reset').textContent; _el('applock-reset').textContent='Sending code…'; _el('applock-reset').disabled=true;
   await window._pwReset({
@@ -7724,8 +7732,8 @@ _el('applock-reset') && _el('applock-reset').addEventListener('click', async fun
     reqBody:{ journal:AL_JOURNAL, entryId:APPID },
     email:AL_EMAIL,
     form:AL_FORM,
-    appName:'WarRoom',
-    label:'WarRoom',
+    appName:'RiftIQ',
+    label:'RiftIQ',
     onSuccess:function(){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
   });
   _el('applock-reset').textContent=prev; _el('applock-reset').disabled=false;
@@ -7742,7 +7750,7 @@ function alUpdateLockBtns(){
       if (!b) return;
       b.innerHTML = on ? SLI.lock : SLI.unlock;
       b.style.opacity = on ? '1' : '0.55';
-      b.title = on ? 'Locked — manage the lock' : 'Lock WarRoom + ProView behind a password';
+      b.title = on ? 'Locked — manage the lock' : 'Lock RiftIQ behind a password';
     });
   } catch(e){}
 }
@@ -7765,7 +7773,7 @@ setTimeout(alEnforce, 300);
 
 <!-- ══════════════════════════════════════════════════════════════════════════
      ProView — LoL Esports schedules, standings and favourites.
-     Moved here from index.html; WarRoom hosts it as a second program.
+     Moved here from index.html; RiftIQ hosts it as a second program.
        CF Worker: https://proview-api.av1.workers.dev  (KV-cached API proxy)
        Firebase:  dashboards/proview   — leagues + favourites config
                   dashboards/pv_cards  — favourited matches, read by TaskHub
