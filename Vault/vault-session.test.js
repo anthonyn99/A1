@@ -12,18 +12,31 @@ async function throws(name, fn, msg) {
 }
 
 // Fake WebAuthn authenticator we can make succeed / fail / cancel.
-function fakeBio() {
-  const creds = new Set();
-  const state = { mode: 'ok', avail: true };
+// `prf` mirrors the real WebAuthn PRF extension: the authenticator holds a
+// secret we never see and hands back a derived key ONLY on a successful
+// assertion. With prf:false it behaves like a browser that lacks the extension.
+function fakeBio(opts) {
+  const creds = new Map();
+  const state = { mode: 'ok', avail: true, prf: (opts && opts.prf) !== false };
   return {
     _state: state,
     async available() { return state.avail; },
     isRegistered(app, id) { return creds.has(app + ':' + id); },
-    async register(app, id) { if (state.mode === 'cancel') return { ok: false, error: 'cancelled' }; creds.add(app + ':' + id); return { ok: true }; },
-    async authenticate(app, id) {
+    async register(app, id) {
+      if (state.mode === 'cancel') return { ok: false, error: 'cancelled' };
+      // The per-credential secret never leaves this object, exactly as a real
+      // authenticator's PRF key never leaves the hardware.
+      creds.set(app + ':' + id, state.prf ? require('crypto').randomBytes(32).toString('base64') : null);
+      return { ok: true, prf: state.prf };
+    },
+    async authenticate(app, id, o) {
+      o = o || {};
       if (state.mode === 'cancel') return { ok: false, error: 'cancelled' };
       if (state.mode === 'fail') return { ok: false, error: 'NotAllowedError' };
-      return creds.has(app + ':' + id) ? { ok: true } : { ok: false, error: 'notregistered' };
+      if (!creds.has(app + ':' + id)) return { ok: false, error: 'notregistered' };
+      const secret = creds.get(app + ':' + id);
+      if (o.withPrf) return secret ? { ok: true, prf: secret } : { ok: false, error: 'noprf' };
+      return { ok: true };
     },
     unregister(app, id) { creds.delete(app + ':' + id); },
     label() { return 'Windows Hello'; },
@@ -69,7 +82,12 @@ function fakeBio() {
   ok('not enabled yet', !(await s.biometricEnabled()));
   await s.enableBiometric('Windows Hello');
   ok('biometric now enabled', await s.biometricEnabled());
-  ok('device key persisted locally', !!store.get('vault.deviceKey'));
+  // THE POINT OF THE PRF PATH: nothing is written to the device. The old
+  // behaviour stored the unwrapping key here, so anyone who could read local
+  // storage could unwrap the vault without ever passing the biometric check.
+  ok('PRF enrolment stores NO key on the device', !store.get('vault.deviceKey'));
+  ok('slot records that it is PRF-backed',
+    (await s.getConfig()).biometrics[await s._deviceId()].kind === 'prf');
   // Cold session on the SAME device (shares deviceStore + registered cred) unlocks via biometric.
   let sBio = new VaultSession({ backend, bio, deviceStore: store, appId: 'vault', autoLockMs: 0 });
   await sBio.unlockWithBiometric();
@@ -87,6 +105,30 @@ function fakeBio() {
 
   await s.disableBiometric();
   ok('biometric disabled removes slot + key', !(await s.biometricEnabled()) && !store.get('vault.deviceKey'));
+
+  console.log('\n── browsers without PRF ──');
+  {
+    const noPrfBio = fakeBio({ prf: false });
+    const st = VaultSession.memoryDeviceStore();
+    const sNo = new VaultSession({ backend, bio: noPrfBio, deviceStore: st, appId: 'vault', autoLockMs: 0 });
+    await sNo.unlockWithPassword('MasterPW-123!');
+    // Refused by default: without PRF the key would have to live on the device,
+    // where the scan guards the code path rather than the key itself.
+    await throws('enrolment refused when PRF is unavailable', () => sNo.enableBiometric('Hello'), 'bio-no-prf');
+    ok('refusal leaves nothing behind', !st.get('vault.deviceKey') && !noPrfBio.isRegistered('vault', await sNo._deviceId()));
+
+    // Still possible, but only when the caller opts in knowingly.
+    await sNo.enableBiometric('Hello', { allowStoredKey: true });
+    ok('opt-in fallback enrols', await sNo.biometricEnabled());
+    ok('fallback DOES store a key (the weaker path, labelled as such)', !!st.get('vault.deviceKey'));
+    ok('slot records it is the stored-key kind',
+      (await sNo.getConfig()).biometrics[await sNo._deviceId()].kind === 'stored');
+
+    const sCold = new VaultSession({ backend, bio: noPrfBio, deviceStore: st, appId: 'vault', autoLockMs: 0 });
+    await sCold.unlockWithBiometric();
+    ok('legacy stored-key slots still unlock', sCold.isUnlocked());
+    await sNo.disableBiometric();
+  }
 
   console.log('\n── change master password (old still verifies, recovery unaffected) ──');
   await throws('change with wrong old password rejected', () => s.changeMasterPassword('wrong', 'X'), 'bad-password');

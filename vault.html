@@ -390,36 +390,68 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
     if(/Mac/.test(ua)) return 'Touch ID';
     return 'biometrics';
   }
+  // ── PRF ────────────────────────────────────────────────────────────────────
+  // The WebAuthn PRF extension makes the authenticator derive a secret from a
+  // salt, released ONLY after a successful biometric check. Vault uses that
+  // secret as the key that unwraps its vault key, so with PRF there is nothing
+  // on disk to steal: passing the fingerprint is what produces the key, rather
+  // than merely guarding a key already sitting in localStorage.
+  //
+  // The salt is not secret — it is an input, and the authenticator's own key is
+  // what stays out of reach. Store it beside the credential id.
+  function prfExt(rec){ return { prf: { eval: { first: unb64u(rec.prfSalt) } } }; }
+
   function register(app,id,opts){
     opts=opts||{};
     if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    var salt = rand(32);
     return navigator.credentials.create({publicKey:{
       challenge: rand(32),
       rp:{ name: opts.rpName||document.title||'App', id: location.hostname||undefined },
       user:{ id: rand(16), name: opts.userName||(app+':'+id), displayName: opts.displayName||opts.userName||id },
       pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
       authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred' },
-      timeout: 60000, attestation:'none'
+      timeout: 60000, attestation:'none',
+      extensions: { prf: {} }
     }}).then(function(cred){
       if(!cred) return {ok:false,error:'cancelled'};
-      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), label:opts.displayName||opts.userName||id }));
-      return {ok:true};
+      var ext = {}; try { ext = cred.getClientExtensionResults() || {}; } catch(e) {}
+      var prfOk = !!(ext.prf && ext.prf.enabled);
+      localStorage.setItem(keyOf(app,id), JSON.stringify({
+        id:b64u(cred.rawId), created:Date.now(),
+        label:opts.displayName||opts.userName||id,
+        prf:prfOk, prfSalt:b64u(salt)
+      }));
+      return {ok:true, prf:prfOk};
     }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
   }
-  function authenticate(app,id){
+  // opts.withPrf asks for the derived secret; it comes back base64 in `.prf`.
+  function authenticate(app,id,opts){
+    opts=opts||{};
     if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
     var rec=stored(app,id);
     if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
-    return navigator.credentials.get({publicKey:{
+    var want = !!(opts.withPrf && rec.prf && rec.prfSalt);
+    var pk = {
       challenge: rand(32),
       allowCredentials:[{ type:'public-key', id: unb64u(rec.id) }],
       userVerification:'required', timeout:60000, rpId: location.hostname||undefined
-    }}).then(function(asr){
+    };
+    if (want) pk.extensions = prfExt(rec);
+    return navigator.credentials.get({publicKey:pk}).then(function(asr){
       if(!asr) return {ok:false,error:'cancelled'};
-      return {ok:true};
+      if(!want) return {ok:true};
+      var ext = {}; try { ext = asr.getClientExtensionResults() || {}; } catch(e) {}
+      var first = ext.prf && ext.prf.results && ext.prf.results.first;
+      // The check passed but the authenticator gave no secret — better to fail
+      // than to fall back to something weaker without saying so.
+      if(!first) return {ok:false, error:'noprf'};
+      return {ok:true, prf:b64u(first)};
     }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
   }
-  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label };
+  // Does THIS device's stored credential carry a usable PRF secret?
+  function hasPrf(app,id){ var r=stored(app,id); return !!(r&&r.prf&&r.prfSalt); }
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label, hasPrf:hasPrf };
 })();
 </script>
 
@@ -2329,7 +2361,9 @@ window.kcFavicon=function(u){
   if(hit&&hit.src) return hit.src;
   var url=kcUrl(u);
   if(!url||!url.hostname) return '';
-  return 'https://www.google.com/s2/favicons?sz=64&domain='+encodeURIComponent(url.hostname);
+  // Drawn locally. The old Google favicon endpoint disclosed every saved
+  // site's domain to a third party just by rendering the list.
+  return (function(h){h=String(h||'').replace(/^www\./,'');if(!h)return '';var n=0;for(var i=0;i<h.length;i++)n=(n*31+h.charCodeAt(i))>>>0;var c=/^[a-z0-9]/i.test(h)?h.charAt(0).toUpperCase():'#';return 'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +'<rect width="64" height="64" rx="14" fill="hsl('+(n%360)+' 42% 46%)"/>' +'<text x="32" y="44" font-family="system-ui,sans-serif" font-size="34" font-weight="600" fill="#ffffff" text-anchor="middle">'+c+'</text></svg>');})(url.hostname);
 };
 // Rows paint with kcFavicon's synchronous guess; once a page's real mark comes
 // back, swap it in. Call after rendering a list of link rows.
@@ -2872,11 +2906,10 @@ _el('applock-cancel').addEventListener('click', function(){
 _el('applock-forgot').addEventListener('click', async function(){
   _el('applock-forgot').textContent='Sending…'; _el('applock-forgot').disabled=true;
   try {
-    var hr=await fetch(AL_WORKER+'/auth/journal/hint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID})});
+    var hr=await fetch(AL_WORKER+'/auth/journal/hint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,appName:'Vault',label:'Vault'})});
     var hd=await hr.json();
     if (hd.noLock){ _el('applock-err').textContent='No lock on server. Try re-locking.'; _el('applock-forgot').disabled=false; _el('applock-forgot').textContent='Forgot password?'; return; }
-    var fp=await fetch('https://formspree.io/f/xeedkebo',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:AL_EMAIL,subject:'App Lock - Hint (Vault)',message:'Hint for "Vault":\n\n'+(hd.hint||'(none)')+'\n\n- Vault'})});
-    if (fp.ok){ _el('applock-forgot').textContent='Hint sent!'; setTimeout(function(){_el('applock-forgot').textContent='Forgot password?';_el('applock-forgot').disabled=false;},3000); }
+    if (hd.ok){ _el('applock-forgot').textContent='Hint sent!'; setTimeout(function(){_el('applock-forgot').textContent='Forgot password?';_el('applock-forgot').disabled=false;},3000); }
     else { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
   } catch(e){ _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
 });
@@ -2886,22 +2919,17 @@ _el('applock-forgot').addEventListener('click', async function(){
 window._pwReset = window._pwReset || async function(opts){
   function post(path, obj){ return fetch(opts.worker+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}).then(function(r){return r.json();}); }
   var rq;
-  try { rq = await post('/auth/reset/request', opts.reqBody); }
+  try { rq = await post('/auth/reset/request', Object.assign({ appName: opts.appName, label: opts.label, owner: opts.owner }, opts.reqBody)); }
   catch(e){ alert('Network error while starting the reset. Check your connection and try again.'); return false; }
   if (rq && rq.noLock) { alert('There is no password set on the server for this item.'); return false; }
-  if (!rq || !rq.ok || !rq.code) { alert('Could not start the reset. Please try again.'); return false; }
-  // Email the code through the same Formspree form used for hints (proven, browser-origin).
-  var emailed = false;
-  try {
-    var fp = await fetch(opts.form, { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
-      body: JSON.stringify({ email: opts.email, subject: opts.appName+' — Password Reset Code',
-        message: 'Your password reset code for '+opts.label+' is:\n\n    '+rq.code+'\n\nEnter this code in '+opts.appName+' to set a new password. It expires in 15 minutes. If you did not request this, you can ignore this email.\n\n— '+opts.appName }) });
-    emailed = fp.ok;
-  } catch(e){ emailed = false; }
-  if (!emailed) { alert('Could not send the reset email. Please try again in a moment.'); return false; }
+  if (rq && rq.error==='throttled') { alert('Too many reset emails have gone out just now. Wait a few minutes and try again.'); return false; }
+  if (rq && rq.error==='email-failed') { alert('Could not send the reset email. Please try again in a moment.'); return false; }
+  if (!rq || !rq.ok) { alert('Could not start the reset. Please try again.'); return false; }
+  // The WORKER mails the code now; it is never returned here. That is what
+  // stops a stranger starting a reset and reading the code off the reply.
   var vals = await window.uiForm({
     title:'Reset password',
-    message:'A 6-character code was emailed to '+opts.email+'. Enter it below (check spam if you don\'t see it within a minute), then choose a new password.',
+    message:'A 6-character code was emailed to '+(rq.to||opts.email)+'. Enter it below (check spam if you don\'t see it within a minute), then choose a new password.',
     okLabel:'Reset password',
     fields:[
       { name:'code', label:'Security code from email', placeholder:'6-character code', autocap:false, required:true },

@@ -230,7 +230,8 @@ function faviconUrl(url) {
   if (app) return app;
   try {
     const host = new URL(/^https?:\/\//i.test(url) ? url : "https://" + url).hostname;
-    return "https://www.google.com/s2/favicons?sz=32&domain=" + encodeURIComponent(host);
+    // Drawn locally — see the note in vault-ui.js's faviconUrl().
+    return (function(h){h=String(h||'').replace(/^www\./,'');if(!h)return '';var n=0;for(var i=0;i<h.length;i++)n=(n*31+h.charCodeAt(i))>>>0;var c=/^[a-z0-9]/i.test(h)?h.charAt(0).toUpperCase():'#';return 'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +'<rect width="64" height="64" rx="14" fill="hsl('+(n%360)+' 42% 46%)"/>' +'<text x="32" y="44" font-family="system-ui,sans-serif" font-size="34" font-weight="600" fill="#ffffff" text-anchor="middle">'+c+'</text></svg>');})(host);
   } catch { return ""; }
 }
 

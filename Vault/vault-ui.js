@@ -75,7 +75,9 @@
     return Promise.resolve(window.confirm(message));
   }
   function faviconUrl(url) {
-    try { var host = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname; return 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host); } catch (e) { return ''; }
+    // Drawn locally. Fetching these from Google disclosed every saved site's
+    // domain to a third party each time the list rendered.
+    try { var host = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname; return (function(h){h=String(h||'').replace(/^www\./,'');if(!h)return '';var n=0;for(var i=0;i<h.length;i++)n=(n*31+h.charCodeAt(i))>>>0;var c=/^[a-z0-9]/i.test(h)?h.charAt(0).toUpperCase():'#';return 'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +'<rect width="64" height="64" rx="14" fill="hsl('+(n%360)+' 42% 46%)"/>' +'<text x="32" y="44" font-family="system-ui,sans-serif" font-size="34" font-weight="600" fill="#ffffff" text-anchor="middle">'+c+'</text></svg>');})(host); } catch (e) { return ''; }
   }
   function copyText(v, label) { try { navigator.clipboard.writeText(v).then(function () { toast((label || 'Copied') + ' — clears in 30s'); scheduleClipboardClear(v); }); } catch (e) { toast('Copy failed'); } }
   // Clear the clipboard after 30s if it still holds the secret we copied.
@@ -849,7 +851,14 @@
         { title: 'Enable ' + label, okLabel: 'Enable', cancelLabel: 'Not now' });
       if (!ok) { localStorage.setItem('vault.bioDeclined', '1'); return; }
       await session.enableBiometric(label); toast(label + ' enabled on this device');
-    } catch (e) { console.warn('[vault] biometric enroll skipped', e); }
+    } catch (e) {
+      // 'bio-no-prf' means this browser can't tie the unlock key to the
+      // fingerprint, so enabling would only put a key in local storage behind
+      // an app-level prompt. Don't nag about it on every load — the offer is
+      // still available from Settings, where the trade-off is spelled out.
+      if (e && e.message === 'bio-no-prf') { try { localStorage.setItem('vault.bioDeclined', '1'); } catch (_) {} }
+      console.warn('[vault] biometric enroll skipped', e);
+    }
   }
 
   // ── passwords panel ────────────────────────────────────────────────────────
@@ -1512,7 +1521,28 @@
           if (!(await verifyIdentity('disable biometric unlock'))) return;
           session.disableBiometric().then(function () { toast('Biometrics disabled'); overlay.remove(); });
         } else {
-          session.enableBiometric(window.Bio && window.Bio.label ? window.Bio.label() : 'biometrics').then(function () { toast('Biometrics enabled'); overlay.remove(); }).catch(function (e) { if (e.message !== 'cancelled') toast('Failed: ' + e.message); });
+          var bioLabel = window.Bio && window.Bio.label ? window.Bio.label() : 'biometrics';
+          session.enableBiometric(bioLabel).then(function () { toast('Biometrics enabled'); overlay.remove(); }).catch(function (e) {
+            if (e.message === 'cancelled') return;
+            // This browser has no PRF, so the unlock key can't be bound to the
+            // scan — it would have to sit in local storage with the prompt only
+            // guarding the code path in front of it. Say so plainly and let the
+            // user decide rather than enabling something weaker than it looks.
+            if (e.message === 'bio-no-prf') {
+              confirmUI(
+                'This browser can\'t tie the unlock key to your ' + bioLabel + '. Vault would have to keep that key on this device, where anyone who can read the browser\'s storage could bypass the scan.\n\n' +
+                'Your master password is unaffected either way. Enable it anyway?',
+                { title: 'Weaker on this browser', okLabel: 'Enable anyway', cancelLabel: 'Skip' }
+              ).then(function (yes) {
+                if (!yes) return;
+                session.enableBiometric(bioLabel, { allowStoredKey: true })
+                  .then(function () { toast('Biometrics enabled (stored key)'); overlay.remove(); })
+                  .catch(function (e2) { if (e2.message !== 'cancelled') toast('Failed: ' + e2.message); });
+              });
+              return;
+            }
+            toast('Failed: ' + e.message);
+          });
         }
       }));
     });

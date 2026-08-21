@@ -22,6 +22,56 @@
 
 const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
 
+// ── Recovery-email routing ──────────────────────────────────────────────────
+// The reset code is emailed BY THE WORKER and never returned to the caller (see
+// /auth/reset/request). The consequence that matters: the destination is no
+// longer chosen by whoever made the request. It is derived here from the lock's
+// own id, so a stranger who asks for a reset only ever mails the code to the
+// real owner's inbox — they learn nothing.
+//
+// Env overrides (MAIL_FORM_VEDA / MAIL_TO_VEDA, same for TONY) let a profile
+// move to its own form and address without touching this file.
+const MAILBOXES = {
+  tony: { form: 'https://formspree.io/f/xeedkebo', email: 'anthonypn99@gmail.com' },
+  veda: { form: 'https://formspree.io/f/xzdlwaqg', email: 'vedaapatel1605@gmail.com' },
+};
+// Most lock ids name their owner ('veda_links', 'profile_veda'). Two do not:
+// Veda's Brainstorm Journal ('bj') and Tony's Journal ('tj') key every lock by a
+// RANDOM entry id, so the journal name is the only owner signal there — miss it
+// and Veda's hints quietly land in Tony's inbox.
+const JOURNAL_OWNER = {
+  bj: 'veda', veda_journal: 'veda',
+  tj: 'tony', tony_myjournal: 'tony',
+};
+
+// `owner` may be stated outright by the caller. That is safe to honour: it only
+// picks between two fixed mailboxes defined here, so nobody can aim a code at
+// an address of their own choosing — the worst it can do is mail the wrong one
+// of the two people, which reveals nothing.
+function mailboxFor(env, body) {
+  const b = body || {};
+  const stated = String(b.owner || '').toLowerCase();
+  const id = String(b.profile || b.entryId || '').toLowerCase();
+  const jr = String(b.journal || '').toLowerCase();
+  let who = 'tony';
+  if (stated === 'veda' || stated === 'tony') who = stated;
+  else if (JOURNAL_OWNER[jr]) who = JOURNAL_OWNER[jr];
+  else if (id.includes('veda') || jr.includes('veda')) who = 'veda';
+  const up = who.toUpperCase();
+  return {
+    who,
+    form: (env && env['MAIL_FORM_' + up]) || MAILBOXES[who].form,
+    email: (env && env['MAIL_TO_' + up]) || MAILBOXES[who].email,
+  };
+}
+function maskEmail(e) {
+  const parts = String(e || '').split('@');
+  if (parts.length !== 2) return '';
+  const u = parts[0];
+  const shown = u.length <= 2 ? u.slice(0, 1) : u.slice(0, 2);
+  return shown + '*'.repeat(Math.max(1, Math.min(6, u.length - shown.length))) + '@' + parts[1];
+}
+
 // ── Idle-tick lookahead ─────────────────────────────────────────────────────
 // The cron fires every minute, and a query that matches NOTHING is still billed
 // as one read — so simply proving "nothing is due" cost ~1,440 reads/day around
@@ -808,57 +858,120 @@ async function handleAuth(path, request, env, origin) {
   let body = {};
   try { body = await request.json(); } catch { return json({ ok: false, error: 'bad json' }, origin, 400); }
 
+  // Creating a lock where none exists is open (that is first-run). OVERWRITING
+  // one is not: without this check, anyone who could guess an entryId could POST
+  // a new password over an existing lock and own it. The established
+  // change-password flow in every app is verify → remove-lock → set-lock, so by
+  // the time it lands here the record is already gone and nothing needs to
+  // change client-side; `current` is offered for a caller that would rather
+  // rotate in one step.
   if (path === '/auth/journal/set-lock') {
-    const { journal, entryId, password, hint } = body;
+    const { journal, entryId, password, hint, current } = body;
     if (!journal || !entryId || !password) return json({ ok: false, error: 'missing fields' }, origin, 400);
+    const k = jKey(journal, entryId);
+    const existing = await getJSON(env, k);
+    if (existing) {
+      const wait = await guessBlocked(env, k);
+      if (wait) return throttled(wait, origin);
+      if (!current || !(await verifyHash(current, existing))) {
+        await guessFail(env, k);
+        return json({ ok: false, error: 'needs-current' }, origin, 403);
+      }
+      await guessClear(env, k);
+    }
     const rec = await makeHash(password);
     rec.hint = typeof hint === 'string' ? hint : '';
-    await env.TOKEN_CACHE.put(jKey(journal, entryId), JSON.stringify(rec));
+    await env.TOKEN_CACHE.put(k, JSON.stringify(rec));
     return json({ ok: true }, origin);
   }
 
   if (path === '/auth/journal/verify') {
     const { journal, entryId, password } = body;
     if (!journal || !entryId || !password) return json({ ok: false }, origin);
-    const rec = await getJSON(env, jKey(journal, entryId));
+    const k = jKey(journal, entryId);
+    const wait = await guessBlocked(env, k);
+    if (wait) return throttled(wait, origin);
+    const rec = await getJSON(env, k);
     if (!rec) return json({ ok: false, noLock: true }, origin);
-    return json({ ok: await verifyHash(password, rec) }, origin);
+    const ok = await verifyHash(password, rec);
+    if (ok) await guessClear(env, k); else await guessFail(env, k);
+    return json({ ok }, origin);
   }
 
   if (path === '/auth/journal/remove-lock') {
     const { journal, entryId, password } = body;
     if (!journal || !entryId || !password) return json({ ok: false }, origin);
-    const rec = await getJSON(env, jKey(journal, entryId));
+    const k = jKey(journal, entryId);
+    const wait = await guessBlocked(env, k);
+    if (wait) return throttled(wait, origin);
+    const rec = await getJSON(env, k);
     if (!rec) return json({ ok: true }, origin);
-    if (!(await verifyHash(password, rec))) return json({ ok: false }, origin);
-    await env.TOKEN_CACHE.delete(jKey(journal, entryId));
+    if (!(await verifyHash(password, rec))) { await guessFail(env, k); return json({ ok: false }, origin); }
+    await guessClear(env, k);
+    await env.TOKEN_CACHE.delete(k);
     return json({ ok: true }, origin);
   }
 
   if (path === '/auth/journal/update-hint') {
     const { journal, entryId, password, hint } = body;
     if (!journal || !entryId || !password) return json({ ok: false }, origin);
-    const rec = await getJSON(env, jKey(journal, entryId));
-    if (!rec || !(await verifyHash(password, rec))) return json({ ok: false }, origin);
+    const k = jKey(journal, entryId);
+    const wait = await guessBlocked(env, k);
+    if (wait) return throttled(wait, origin);
+    const rec = await getJSON(env, k);
+    if (!rec || !(await verifyHash(password, rec))) { await guessFail(env, k); return json({ ok: false }, origin); }
+    await guessClear(env, k);
     rec.hint = typeof hint === 'string' ? hint : '';
-    await env.TOKEN_CACHE.put(jKey(journal, entryId), JSON.stringify(rec));
+    await env.TOKEN_CACHE.put(k, JSON.stringify(rec));
     return json({ ok: true }, origin);
   }
 
+  // "Does a lock exist here?" — and nothing else. Insight and OneInbox ask this
+  // on every page load to decide between the setup and unlock screens. They used
+  // to ask /hint for it, which was fine while /hint just returned text; now that
+  // /hint MAILS the owner, a boot-time call there would send an email on every
+  // single page load. This endpoint answers the boot question without mailing.
+  if (path === '/auth/journal/status') {
+    const { journal, entryId } = body;
+    if (!journal || !entryId) return json({ ok: false, error: 'missing fields' }, origin, 400);
+    const rec = await getJSON(env, jKey(journal, entryId));
+    return json({ ok: true, hasLock: !!rec, noLock: !rec }, origin);
+  }
+
+  // The hint is deliberately reachable without a password (that is the whole
+  // point of "forgot password?"), which used to mean it was readable by anyone
+  // who asked. It is now MAILED to the owner instead of returned, so asking for
+  // someone else's hint tells you nothing and merely sends them an email.
   if (path === '/auth/journal/hint') {
     const { journal, entryId } = body;
     if (!journal || !entryId) return json({ noLock: true }, origin);
-    const rec = await getJSON(env, jKey(journal, entryId));
+    const k = jKey(journal, entryId);
+    // Throttled in its OWN namespace: a mail flood must not lock the password
+    // out, and a locked-out password must not block the way back in.
+    const mk = 'mail:' + k;
+    const wait = await guessBlocked(env, mk);
+    if (wait) return throttled(wait, origin);
+    const rec = await getJSON(env, k);
     if (!rec) return json({ noLock: true }, origin);
-    return json({ ok: true, hint: rec.hint || '' }, origin);
+    const box = mailboxFor(env, body);
+    const label = String(body.label || entryId);
+    const m = hintMail(label, rec.hint, body.appName);
+    const ok = await sendMail(box, m.subject, m.message);
+    await guessFail(env, mk);
+    return json({ ok, emailed: ok, to: maskEmail(box.email) }, origin);
   }
 
   if (path === '/auth/profile/verify') {
     const { profile, password } = body;
     if (!profile || !password) return json({ ok: false }, origin);
-    const rec = await getJSON(env, pKey(profile));
+    const k = pKey(profile);
+    const wait = await guessBlocked(env, k);
+    if (wait) return throttled(wait, origin);
+    const rec = await getJSON(env, k);
     if (!rec) return json({ ok: false, noLock: true }, origin);
-    return json({ ok: await verifyHash(password, rec) }, origin);
+    const ok = await verifyHash(password, rec);
+    if (ok) await guessClear(env, k); else await guessFail(env, k);
+    return json({ ok }, origin);
   }
 
   // Seed/reset a profile password. Gated by AUTH_SETUP_KEY (call via curl).
@@ -871,24 +984,42 @@ async function handleAuth(path, request, env, origin) {
   }
 
   // ── PASSWORD RESET VIA EMAILED CODE ──────────────────────────────────────
-  // request: generate a short code, store it hashed (with TTL) and return it so
-  // the page can email it through the same browser-origin Formspree path already
-  // used for password hints (server-origin email is unproven; the lock's own
-  // set endpoint is unauthenticated anyway, so returning the code grants nothing
-  // an attacker didn't already have). confirm: check the pasted code + attempt
-  // count, then set the new password. Works for any journal/entryId lock (MyList,
-  // journals, app-locks, tab-locks) and for profile passwords.
+  // request: generate a short code, store it hashed (with TTL) and MAIL it to
+  // the lock's owner. confirm: check the pasted code + attempt count, then set
+  // the new password. Works for any journal/entryId lock (MyList, journals,
+  // app-locks, tab-locks) and for profile passwords.
+  //
+  // This endpoint used to return the code in its own response so the page could
+  // email it. That made the reset flow a complete bypass of the lock: ask for a
+  // code, read it off the reply, confirm with it, own the lock. The code now
+  // goes only to the address derived from the lock id (see mailboxFor) and the
+  // reply carries nothing but "sent, to t***@…". Asking for someone else's
+  // reset now just sends them an email.
   if (path === '/auth/reset/request') {
     const key = resetKeyFor(body);
     if (!key) return json({ ok: false, error: 'missing fields' }, origin, 400);
+    // Own namespace — see the note on /auth/journal/hint. Someone who has just
+    // locked themselves out by guessing needs this path to still work.
+    const mk = 'mail:' + key;
+    const wait = await guessBlocked(env, mk);
+    if (wait) return throttled(wait, origin);
     const lock = await getJSON(env, key);
     if (!lock) return json({ ok: false, noLock: true }, origin);
     const code = genResetCode();
     const codeRec = await makeHash(code);
+    const box = mailboxFor(env, body);
+    const label = String(body.label || body.entryId || body.profile || 'your lock');
+    const m = resetMail(label, code, body.appName);
+    // Mail FIRST: if it can't be delivered there is no point storing a code
+    // nobody will ever see, and the caller must be told the reset didn't start.
+    if (!(await sendMail(box, m.subject, m.message))) {
+      return json({ ok: false, error: 'email-failed' }, origin, 502);
+    }
     await env.TOKEN_CACHE.put('reset:' + key,
       JSON.stringify({ code: codeRec, exp: Date.now() + RESET_TTL * 1000, tries: 0 }),
       { expirationTtl: RESET_TTL });
-    return json({ ok: true, code }, origin);
+    await guessFail(env, mk);   // rate-limit the mailer itself
+    return json({ ok: true, emailed: true, to: maskEmail(box.email) }, origin);
   }
 
   if (path === '/auth/reset/confirm') {
@@ -916,6 +1047,9 @@ async function handleAuth(path, request, env, origin) {
       await env.TOKEN_CACHE.put(jKey(body.journal, body.entryId), JSON.stringify(newRec));
     }
     await env.TOKEN_CACHE.delete('reset:' + key);
+    // The password just changed, so any lockout earned by guessing the OLD one
+    // is meaningless — clear it rather than making a recovered user wait it out.
+    await guessClear(env, key);
     return json({ ok: true }, origin);
   }
 
@@ -976,6 +1110,76 @@ function genResetCode() {
   let s = '';
   for (let i = 0; i < 6; i++) s += alphabet[r[i] % alphabet.length];
   return s;
+}
+
+// Mail from the WORKER so secrets never travel back to the requester.
+// Formspree is the same transport the pages already use and it accepts a
+// server-side POST, so this needs no new account, key or secret.
+async function sendMail(box, subject, message) {
+  try {
+    const r = await fetch(box.form, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ email: box.email, subject, message }),
+    });
+    return r.ok;
+  } catch (e) { return false; }
+}
+function resetMail(label, code, appName) {
+  const app = appName || 'A1';
+  return {
+    subject: app + ' — Password Reset Code',
+    message: 'Your password reset code for ' + (label || 'your lock') + ' is:\n\n    ' + code +
+      '\n\nEnter this code to set a new password. It expires in 15 minutes.\n\n' +
+      'If you did not request this, ignore this email — your current password ' +
+      'stays in place and nothing changes.\n\n— ' + app,
+  };
+}
+function hintMail(label, hint, appName) {
+  const app = appName || 'A1';
+  return {
+    subject: app + ' — Password Hint',
+    message: 'Your password hint for ' + (label || 'your lock') + ':\n\n    ' +
+      (hint || '(no hint was saved)') +
+      '\n\nThis is only the reminder you saved — your password itself is never ' +
+      'stored and cannot be emailed.\n\n— ' + app,
+  };
+}
+
+// ── Brute-force throttle ────────────────────────────────────────────────────
+// Every client already enforces "5 wrong tries → 30s cooldown", but that lives
+// in the page: a direct HTTP caller never runs it. This is the same budget
+// enforced where it actually binds, keyed per lock.
+//
+// KV is eventually consistent, so under a burst the count can lag by a second
+// or so and a few extra guesses may land. That is fine for the job — the point
+// is turning UNLIMITED online guessing into a hard stop, not counting exactly.
+const GUESS_MAX = 8;            // wrong answers before the lock stops replying
+const GUESS_WINDOW = 15 * 60;   // seconds the counter — and the lockout — live
+
+async function guessState(env, key) {
+  const r = await getJSON(env, 'fail:' + key);
+  return { n: (r && r.n) || 0, until: (r && r.until) || 0 };
+}
+// → 0 when free to try, else the seconds remaining on the lockout.
+async function guessBlocked(env, key) {
+  const s = await guessState(env, key);
+  if (s.until && Date.now() < s.until) return Math.max(1, Math.ceil((s.until - Date.now()) / 1000));
+  return 0;
+}
+async function guessFail(env, key) {
+  const s = await guessState(env, key);
+  const n = s.n + 1;
+  const until = n >= GUESS_MAX ? Date.now() + GUESS_WINDOW * 1000 : 0;
+  try {
+    await env.TOKEN_CACHE.put('fail:' + key, JSON.stringify({ n, until }), { expirationTtl: GUESS_WINDOW });
+  } catch (e) {}
+}
+async function guessClear(env, key) {
+  try { await env.TOKEN_CACHE.delete('fail:' + key); } catch (e) {}
+}
+function throttled(secs, origin) {
+  return json({ ok: false, error: 'throttled', retryAfter: secs }, origin, 429);
 }
 
 // ══════════════════════════════════════════════════════════════════════════

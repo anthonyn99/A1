@@ -1189,28 +1189,31 @@
     setTimeout(() => { ls.style.display = 'none'; }, 320);
   }
 
+  // The hint text no longer reaches the page at all — the worker mails it. That
+  // is the point: it used to be prefetched into a variable on every load, so
+  // anyone who opened Insight could read it out of memory without unlocking.
   async function emailHint() {
     lockMsg('Sending…', true);
-    if (!lockHint) { lockMsg('No hint is saved for this password.'); return; }
     try {
-      const fp = await formspree('Insight — Password Hint',
-        'Your Insight password hint:\n\n    ' + lockHint + '\n\n— Insight');
-      lockMsg(fp.ok ? 'Hint emailed to ' + LOCK_EMAIL : 'Email failed — try again shortly.', fp.ok);
+      const h = await authPost('/auth/journal/hint', { appName: 'Insight', label: 'Insight' });
+      if (h.noLock) { lockMsg('No password is set yet.'); return; }
+      if (h.error === 'throttled') { lockMsg('Too many hint emails just now — wait a few minutes.'); return; }
+      lockMsg(h.ok ? 'Hint emailed to ' + (h.to || LOCK_EMAIL) : 'Email failed — try again shortly.', h.ok);
     } catch { lockMsg('Email failed — try again shortly.'); }
   }
 
   async function startReset() {
     lockMsg('Emailing you a reset code…', true);
     try {
-      const rq = await authPost('/auth/reset/request', {});
+      // The worker mails the code itself; it is never returned here, so a
+      // stranger who starts a reset cannot read the code off the reply.
+      const rq = await authPost('/auth/reset/request', { appName: 'Insight', label: 'Insight' });
       if (rq.noLock) { lockMsg('No password is set yet.'); return; }
-      if (!rq.ok || !rq.code) { lockMsg('Could not start the reset — try again.'); return; }
-      const fp = await formspree('Insight — Password Reset Code',
-        'Your Insight password reset code is:\n\n    ' + rq.code +
-        '\n\nEnter it in Insight to set a new password. It expires in 15 minutes. If you did not request this, ignore this email.\n\n— Insight');
-      if (!fp.ok) { lockMsg('Could not send the email — try again shortly.'); return; }
+      if (rq.error === 'throttled') { lockMsg('Too many reset emails just now — wait a few minutes.'); return; }
+      if (rq.error === 'email-failed') { lockMsg('Could not send the email — try again shortly.'); return; }
+      if (!rq.ok) { lockMsg('Could not start the reset — try again.'); return; }
       if (lockMode !== 'reset') lockView('reset');
-      lockMsg('Code sent to ' + LOCK_EMAIL + ' — check spam if it\'s not there in a minute.', true);
+      lockMsg('Code sent to ' + (rq.to || LOCK_EMAIL) + ' — check spam if it\'s not there in a minute.', true);
     } catch { lockMsg('Network error — try again.'); }
   }
 
@@ -1337,9 +1340,10 @@
   if (lockSession) lockEl('lockScreen').style.display = 'none';
   (async () => {
     try {
-      const h = await authPost('/auth/journal/hint', {});
+      // /status, not /hint: this runs on every page load and /hint now MAILS
+      // the owner. All the boot needs is whether a lock exists at all.
+      const h = await authPost('/auth/journal/status', {});
       lockSetupNeeded = !!h.noLock;
-      lockHint = h.hint || '';
     } catch {
       if (!lockSession) { lockMsg('Lock service unreachable — reload to retry.'); return; }
     }

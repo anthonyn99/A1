@@ -238,15 +238,25 @@
   //
   // Returns { config (updated), deviceKeyB64 } — the caller persists
   // deviceKeyB64 on-device behind the biometric gate and writes config to cloud.
+  // opts.deviceKeyB64 — supply the wrapping key instead of generating one. This
+  // is the WebAuthn PRF path: the authenticator derives that key fresh on every
+  // unlock, so the caller stores NOTHING. Without it we fall back to generating
+  // a random key the caller must keep on the device, which is only as strong as
+  // that device's storage — the slot records which of the two it is so an
+  // unlock never silently accepts the weaker one.
   async function addBiometricSlot(config, dek, deviceId, opts) {
     opts = opts || {};
-    const deviceKeyBytes = randomBytes(32);
+    const supplied = !!opts.deviceKeyB64;
+    const deviceKeyBytes = supplied ? b64ToBytes(opts.deviceKeyB64) : randomBytes(32);
     const kek = await subtle.importKey('raw', deviceKeyBytes, { name: AES.name }, false,
       ['wrapKey', 'unwrapKey']);
     const wrap = await wrapDEK(dek, kek);
     const next = { ...config, biometrics: { ...config.biometrics }, updatedAt: Date.now() };
-    next.biometrics[deviceId] = { wrap, addedAt: Date.now(), label: opts.label || '' };
-    return { config: next, deviceKeyB64: bytesToB64(deviceKeyBytes) };
+    next.biometrics[deviceId] = {
+      wrap, addedAt: Date.now(), label: opts.label || '',
+      kind: supplied ? 'prf' : 'stored',
+    };
+    return { config: next, deviceKeyB64: supplied ? null : bytesToB64(deviceKeyBytes) };
   }
 
   // Unlock using a previously stored device key (after the WebAuthn gate passed).

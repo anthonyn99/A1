@@ -314,7 +314,7 @@
     let html = '<div class="v-head">' + keyIconSVG() + "Vault Autofill</div>";
     if (state.unlocked && state.creds.length) {
       html += state.creds.map((c, i) =>
-        '<div class="v-item" data-i="' + i + '"><img class="v-ic" src="https://www.google.com/s2/favicons?sz=32&domain=' + encodeURIComponent(host) + '" alt=""><div class="v-txt"><div class="v-t">' +
+        '<div class="v-item" data-i="' + i + '"><img class="v-ic" src="' + (function(h){h=String(h||'').replace(/^www\./,'');if(!h)return '';var n=0;for(var i=0;i<h.length;i++)n=(n*31+h.charCodeAt(i))>>>0;var c=/^[a-z0-9]/i.test(h)?h.charAt(0).toUpperCase():'#';return 'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +'<rect width="64" height="64" rx="14" fill="hsl('+(n%360)+' 42% 46%)"/>' +'<text x="32" y="44" font-family="system-ui,sans-serif" font-size="34" font-weight="600" fill="#ffffff" text-anchor="middle">'+c+'</text></svg>');})(host) + '" alt=""><div class="v-txt"><div class="v-t">' +
         esc(c.title || host) + '</div><div class="v-u">' + esc(c.username || "(no username)") + "</div></div></div>"
       ).join("");
       html += '<div class="v-foot">' + state.creds.length + " login" + (state.creds.length === 1 ? "" : "s") + " · Vault</div>";

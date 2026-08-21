@@ -109,10 +109,21 @@
       const slot = this._config.biometrics && this._config.biometrics[deviceId];
       if (!slot) throw new Error('no-biometric-slot');
       if (!this.bio) throw new Error('bio-unavailable');
-      const asr = await this.bio.authenticate(this.appId, deviceId);
+      // A PRF slot asks the authenticator for the key as part of the biometric
+      // check, so the fingerprint is what produces it. A legacy 'stored' slot
+      // reads a key that was already on the device and the check only gates the
+      // app's own code path — hence the migration prompt in the UI.
+      const wantPrf = slot.kind === 'prf';
+      const asr = await this.bio.authenticate(this.appId, deviceId, { withPrf: wantPrf });
       if (!asr || !asr.ok) throw new Error(asr && asr.error === 'cancelled' ? 'cancelled' : 'bio-failed');
-      const deviceKeyB64 = await this.deviceStore.get(DEVICE_KEY_KEY);
-      if (!deviceKeyB64) throw new Error('no-device-key');
+      let deviceKeyB64;
+      if (wantPrf) {
+        if (!asr.prf) throw new Error('bio-prf-failed');
+        deviceKeyB64 = asr.prf;
+      } else {
+        deviceKeyB64 = await this.deviceStore.get(DEVICE_KEY_KEY);
+        if (!deviceKeyB64) throw new Error('no-device-key');
+      }
       this._dek = await VC.unlockWithBiometric(this._config, deviceId, deviceKeyB64);
       this._afterUnlock();
       return true;
@@ -132,12 +143,27 @@
     async biometricEnabled() {
       await this._ensureConfig();
       const deviceId = await this._deviceId();
-      const hasSlot = !!(this._config.biometrics && this._config.biometrics[deviceId]);
-      const hasKey = !!(await this.deviceStore.get(DEVICE_KEY_KEY));
+      const slot = this._config.biometrics && this._config.biometrics[deviceId];
+      if (!slot) return false;
       const registered = this.bio ? this.bio.isRegistered(this.appId, deviceId) : false;
-      return hasSlot && hasKey && registered;
+      if (!registered) return false;
+      // A PRF slot deliberately has nothing on disk — the authenticator makes
+      // the key at unlock time. Only a legacy 'stored' slot needs a local key.
+      if (slot.kind === 'prf') return true;
+      return !!(await this.deviceStore.get(DEVICE_KEY_KEY));
     }
-    async enableBiometric(label) {
+
+    // Enrol this device. PREFERS WebAuthn PRF: the wrapping key is derived by
+    // the authenticator on each unlock and never written down, so a copy of the
+    // device's storage is worth nothing without the live fingerprint.
+    //
+    // Without PRF the only option is a random key kept in local storage, where
+    // the biometric prompt is an app-level check in front of a key an attacker
+    // with the device's storage already has. That is a materially weaker
+    // promise than the prompt implies, so it is refused rather than offered
+    // quietly — callers can pass {allowStoredKey:true} to take it knowingly.
+    async enableBiometric(label, opts) {
+      opts = opts || {};
       this._requireUnlocked();
       if (!this.bio) throw new Error('bio-unavailable');
       const deviceId = await this._deviceId();
@@ -145,10 +171,31 @@
         rpName: 'Vault', userName: 'vault:' + deviceId, displayName: label || (this.bio.label && this.bio.label()) || 'This device',
       });
       if (!reg || !reg.ok) throw new Error(reg && reg.error === 'cancelled' ? 'cancelled' : 'bio-register-failed');
-      const { config, deviceKeyB64 } = await VC.addBiometricSlot(this._config, this._dek, deviceId, { label: label || '' });
-      await this.deviceStore.set(DEVICE_KEY_KEY, deviceKeyB64);
-      this._config = config;
-      await this.backend.saveConfig(config);
+
+      let deviceKeyB64 = null;
+      if (reg.prf) {
+        // One extra prompt at setup: PRF output is only released by an
+        // assertion, so we take one now to learn the key we are wrapping with.
+        const asr = await this.bio.authenticate(this.appId, deviceId, { withPrf: true });
+        if (!asr || !asr.ok || !asr.prf) {
+          this.bio.unregister(this.appId, deviceId);
+          throw new Error('bio-prf-failed');
+        }
+        deviceKeyB64 = asr.prf;
+      } else if (!opts.allowStoredKey) {
+        this.bio.unregister(this.appId, deviceId);
+        throw new Error('bio-no-prf');
+      }
+
+      const res = await VC.addBiometricSlot(this._config, this._dek, deviceId, {
+        label: label || '',
+        deviceKeyB64: deviceKeyB64 || undefined,
+      });
+      // Only the legacy path has anything to keep.
+      if (res.deviceKeyB64) await this.deviceStore.set(DEVICE_KEY_KEY, res.deviceKeyB64);
+      else await this.deviceStore.remove(DEVICE_KEY_KEY);
+      this._config = res.config;
+      await this.backend.saveConfig(res.config);
       return true;
     }
     async disableBiometric() {

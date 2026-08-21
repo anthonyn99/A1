@@ -31,7 +31,8 @@
   function copy(v, label) { VP.touchSession(); navigator.clipboard.writeText(v || "").then(() => toast(label + " copied")); }
   function favicon(url) {
     const host = VP.hostFromUrl(url);
-    const i = el("img", { class: "pw-fav", src: "https://www.google.com/s2/favicons?sz=32&domain=" + encodeURIComponent(host), width: 16, height: 16, alt: "" });
+    // Drawn locally — see the note in vault-ui.js's faviconUrl().
+    const i = el("img", { class: "pw-fav", src: (function(h){h=String(h||'').replace(/^www\./,'');if(!h)return '';var n=0;for(var i=0;i<h.length;i++)n=(n*31+h.charCodeAt(i))>>>0;var c=/^[a-z0-9]/i.test(h)?h.charAt(0).toUpperCase():'#';return 'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +'<rect width="64" height="64" rx="14" fill="hsl('+(n%360)+' 42% 46%)"/>' +'<text x="32" y="44" font-family="system-ui,sans-serif" font-size="34" font-weight="600" fill="#ffffff" text-anchor="middle">'+c+'</text></svg>');})(host), width: 16, height: 16, alt: "" });
     i.addEventListener("error", () => { i.style.visibility = "hidden"; });
     return i;
   }

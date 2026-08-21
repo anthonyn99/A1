@@ -1576,28 +1576,17 @@ async function resetFlow(id){
     return fetch(AL_WORKER+path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(obj) })
       .then(function(r){ return r.json(); });
   }
-  var reqBody = { journal:AL_JOURNAL, entryId:id };
+  // entryId carries the owner (tony_shield / veda_shield), so the worker mails
+  // the code to the right person. It is never returned here — that is what stops
+  // a stranger starting a reset and reading the code off the reply.
+  var reqBody = { journal:AL_JOURNAL, entryId:id, appName:'Shield', label:'Shield' };
   var rq;
   try { rq = await post('/auth/reset/request', reqBody); }
   catch(e){ await window.uiAlert('Network error while starting the reset. Check your connection and try again.'); return; }
   if (rq && rq.noLock){ await window.uiAlert('There is no password set on the server for Shield.'); return; }
-  if (!rq || !rq.ok || !rq.code){ await window.uiAlert('Could not start the reset. Please try again.'); return; }
-
-  var emailed=false;
-  try {
-    var fp = await fetch(form, {
-      method:'POST', headers:{'Content-Type':'application/json', Accept:'application/json'},
-      body: JSON.stringify({
-        email: email,
-        subject: 'Shield — Password Reset Code',
-        message: 'Your password reset code for Shield is:\n\n    '+rq.code
-          +'\n\nEnter this code in Shield to set a new password. It expires in 15 minutes.'
-          +'\nIf you did not request this, you can ignore this email.\n\n— Shield'
-      })
-    });
-    emailed = fp.ok;
-  } catch(e){ emailed=false; }
-  if (!emailed){ await window.uiAlert('Could not send the reset email. Please try again in a moment.'); return; }
+  if (rq && rq.error==='throttled'){ await window.uiAlert('Too many reset emails have gone out just now. Wait a few minutes and try again.'); return; }
+  if (rq && rq.error==='email-failed'){ await window.uiAlert('Could not send the reset email. Please try again in a moment.'); return; }
+  if (!rq || !rq.ok){ await window.uiAlert('Could not start the reset. Please try again.'); return; }
 
   var vals = await window.uiForm({
     title:'Reset password',
@@ -1727,17 +1716,15 @@ function wire(){
     var form = AL_FORM[m.profile] || AL_FORM.tony, email = AL_EMAIL[m.profile] || AL_EMAIL.tony;
     btn.textContent='Sending…'; btn.disabled=true;
     try {
-      var hd = await api(id, '/auth/journal/hint', {});
+      // The worker mails the hint. Shield is the one program BOTH profiles run,
+      // so `owner` matters here more than anywhere: it is what keeps Veda's
+      // Shield hint out of Tony's inbox and vice versa.
+      var hd = await api(id, '/auth/journal/hint', { owner:m.profile, appName:'Shield', label:'Shield' });
       if (hd.noLock){
         el('applock-err').textContent='No lock on the server. Try re-locking.';
         btn.disabled=false; btn.textContent='Forgot password?'; return;
       }
-      var fp = await fetch(form, {
-        method:'POST', headers:{'Content-Type':'application/json', Accept:'application/json'},
-        body: JSON.stringify({ email:email, subject:'Shield — Password Hint',
-          message:'Hint for "Shield":\n\n'+(hd.hint||'(none set)')+'\n\n— Shield' })
-      });
-      if (fp.ok){ btn.textContent='Hint sent!'; setTimeout(function(){ btn.textContent='Forgot password?'; btn.disabled=false; }, 3000); }
+      if (hd.ok){ btn.textContent='Hint sent!'; setTimeout(function(){ btn.textContent='Forgot password?'; btn.disabled=false; }, 3000); }
       else { btn.textContent='Failed — try again'; btn.disabled=false; }
     } catch(e){ btn.textContent='Failed — try again'; btn.disabled=false; }
   });
