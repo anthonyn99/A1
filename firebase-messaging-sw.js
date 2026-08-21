@@ -20,7 +20,7 @@ firebase.initializeApp({
 // task) to REPLACE push #1 (e.g. an event) fired at the same minute, so only one
 // showed on mobile. Changing these bytes makes the browser install this build,
 // and skipWaiting + clients.claim below swap it in immediately.
-const SW_VERSION = '2026-07-31-content-dedup';
+const SW_VERSION = '2026-08-20-event-scope';
 
 // GUARDED: firebase.messaging() throws in browsers where push is unavailable —
 // notably Brave with "Use Google services for push messaging" off. At top level
@@ -134,15 +134,46 @@ async function getStoredMainDash(){
   }catch(e){}
   return null; // unknown — caller falls back to showing (trusts send-side scope)
 }
+// The profile most recently OPENED on this device, which is not always the one
+// it is main for: the first profile opened on a device claims main permanently,
+// so the other person can use it every day and still fail every main-based gate.
+// That is fine for a scheduled reminder (a personal alarm belongs to the main
+// profile) and wrong for a Plans event, which is addressed to a person. Empty is
+// never stored, same rule as the main above: a page that has not picked a
+// profile yet must not overwrite what an earlier session already told us.
+var SW_LASTDASH_URL = '/__th_lastdash__';
+async function setStoredLastDash(dash){
+  if(!dash) return;
+  try{
+    var cache = await caches.open(SW_MAINDASH_CACHE);
+    await cache.put(SW_LASTDASH_URL, new Response(String(dash)));
+  }catch(e){}
+}
+async function getStoredLastDash(){
+  try{
+    var cache = await caches.open(SW_MAINDASH_CACHE);
+    var hit = await cache.match(SW_LASTDASH_URL);
+    if(hit) return (await hit.text()) || null;
+  }catch(e){}
+  return null;
+}
 // shouldShow: a banner/notification fires only if THIS device's main matches the
 // reminder's dash. 'all' always shows. If we've never been told the main yet
 // (stored===null), show — the Worker already scoped the send, and the page will
 // populate this on its next load.
-async function shouldShowForDash(dash){
+async function shouldShowForDash(dash, kind){
   if(!dash || dash === 'all') return true;
   var stored = await getStoredMainDash();
-  if(stored === null) return true;
-  return stored === dash;
+  if(stored === null) return true;      // unknown — trust the send-side scope
+  if(stored === dash) return true;
+  // A Plans EVENT is addressed to a person, not to this device's role, so the
+  // profile actually in use here answers it. Without this a device whose main is
+  // the other profile drew nothing when the app was closed — and its open-app
+  // banner was gated the same way — so a proposed plan reached neither surface.
+  // Scheduled reminders are unaffected: they never carry kind==='event'.
+  if(kind !== 'event') return false;
+  var last = await getStoredLastDash();
+  return last === dash;
 }
 
 // Page → SW: receive the current main dashboard and persist it.
@@ -150,6 +181,9 @@ self.addEventListener('message', function(e){
   var msg = e.data || {};
   if(msg && msg.type === 'th-set-maindash'){
     e.waitUntil(setStoredMainDash(msg.mainDash));
+  }
+  if(msg && msg.type === 'th-set-lastdash'){
+    e.waitUntil(setStoredLastDash(msg.lastDash));
   }
   if(msg && msg.type === 'th-mark-shown'){
     // `keys` (array) is the current shape; `key` kept for an older page build.
@@ -162,9 +196,9 @@ self.addEventListener('message', function(e){
 // dedups against its own fired-set so this can't double up with the foreground
 // onMessage path. Fully-closed tabs have no client to receive this (OS
 // notification still fires); on next open the page banner just won't replay.
-function postBannerToClients(id, body, dash){
+function postBannerToClients(id, body, dash, kind){
   return self.clients.matchAll({ type:'window', includeUncontrolled:true }).then(function(list){
-    list.forEach(function(c){ try{ c.postMessage({ type:'th-notif-banner', id:id, body:body, dash:dash||'all' }); }catch(e){} });
+    list.forEach(function(c){ try{ c.postMessage({ type:'th-notif-banner', id:id, body:body, dash:dash||'all', kind:kind||'reminder' }); }catch(e){} });
   });
 }
 
@@ -173,13 +207,16 @@ if (messaging) messaging.onBackgroundMessage(function(payload){
   const body  = d.body || d.title || 'Task reminder';
   const id    = d.id || '';
   const dash  = d.dash || 'all';
+  // 'event' (a Plans notification) or 'reminder' (a scheduled alarm). Absent on
+  // a push from an older worker → the stricter reminder gate, as before.
+  const kind  = d.kind || 'reminder';
   const key   = swOccKey(d.id);
   const tag   = (d.id || 'th') + '_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
   // SCOPE FIRST: a profile-scoped reminder must NOT draw on a device whose
   // current main is the other profile (or unset='all'). Closed-app pushes hit
   // here, so this is the only gate that can stop a wrong-profile OS notification
   // when the cloud token's mainDash is stale.
-  return shouldShowForDash(dash).then(function(allowed){
+  return shouldShowForDash(dash, kind).then(function(allowed){
     if(!allowed) return; // wrong profile for this device — draw nothing
     return alreadyShown([key, swContentKey(dash, body)]).then(function(dup){
       if(dup) return; // same occurrence already shown on this device — skip
@@ -198,7 +235,7 @@ if (messaging) messaging.onBackgroundMessage(function(payload){
         icon: 'data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%234a7c59%27/%3E%3Ctext%20x%3D%2750%25%27%20y%3D%2765%25%27%20text-anchor%3D%27middle%27%20font-size%3D%2756%27%3E%E2%9C%93%3C/text%3E%3C/svg%3E'
       }).then(function(){
         // Best-effort — must never block or fail the card that was just drawn.
-        return postBannerToClients(id, body, dash).catch(function(){});
+        return postBannerToClients(id, body, dash, kind).catch(function(){});
       });
     });
   });

@@ -14215,6 +14215,9 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
       window._plPrevProfile=window._activeProfile;window._plProfileSwitchedAt=Date.now();
     }
     window._activeProfile="tony";
+    // Tell the push layer which profile this device is being used as, so a Plans
+    // event addressed to Tony can reach it even when its main is Veda's.
+    if(window._fcmNoteActiveDash)window._fcmNoteActiveDash("tony");
     const ov=document.getElementById("profile-overlay");
     if(ov)ov.style.display="none";
     document.body.style.overflow="";
@@ -14250,6 +14253,8 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
       window._plPrevProfile=window._activeProfile;window._plProfileSwitchedAt=Date.now();
     }
     window._activeProfile="veda";
+    // See goTony.
+    if(window._fcmNoteActiveDash)window._fcmNoteActiveDash("veda");
     const ov=document.getElementById("profile-overlay");
     if(ov)ov.style.display="none";
     document.body.style.overflow="";
@@ -14901,8 +14906,15 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     if(!token){_fcmToken=null;if(!window._fcmLastError)window._fcmLastError='getToken returned empty (push blocked?)';return null;}
     _fcmToken=token;
     const mainDash=localStorage.getItem('td6_mainDash')||'all';
+    // lastDash is the profile most recently OPENED on this device, which is not
+    // always the one it is "main" for — the first profile opened on a device
+    // claims main permanently (goTony/goVeda), so the other person can be using
+    // it daily and still be invisible to every profile-scoped send. mainDash
+    // alone therefore cannot route a Plans event, which is addressed to a person
+    // rather than to a device. Reminder scoping still uses mainDash only.
+    const lastDash=localStorage.getItem('td6_lastDash')||'';
     try{
-      await setDoc(doc(db,'fcm_tokens',getDeviceId()),{token,updatedAt:Date.now(),ua:navigator.userAgent.slice(0,80),mainDash},{merge:true});
+      await setDoc(doc(db,'fcm_tokens',getDeviceId()),{token,updatedAt:Date.now(),ua:navigator.userAgent.slice(0,80),mainDash,lastDash},{merge:true});
     }catch(e){window._fcmLastError='token OK but fcm_tokens write blocked: '+((e&&e.code?e.code+' ':'')+(e&&e.message||e));console.warn('fcm_tokens write error:',e);return token;}
     window._fcmLastError='';
     return token;
@@ -14927,16 +14939,50 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       if(sw)sw.postMessage({type:'th-set-maindash',mainDash:mainDash||'all'});
     }catch(e){}
   }
+  // Same, for the profile currently OPEN on this device. The SW gates a
+  // closed-app OS card on the device's main dashboard, which is the correct test
+  // for a scheduled reminder and the wrong one for a Plans event: a device whose
+  // main is the other profile would silently drop every card addressed to the
+  // person actually holding it. The SW needs both values to tell those apart.
+  async function tellSWLastDash(lastDash){
+    try{
+      if(!('serviceWorker' in navigator))return;
+      const reg=await navigator.serviceWorker.getRegistration('./');
+      const sw=(reg&&(reg.active||reg.waiting))||navigator.serviceWorker.controller;
+      if(sw)sw.postMessage({type:'th-set-lastdash',lastDash:lastDash||''});
+    }catch(e){}
+  }
   // Push the current main to the SW once on load (and retry shortly, since the SW
   // may still be installing at first paint).
   tellSWMainDash(localStorage.getItem('td6_mainDash')||'all');
-  setTimeout(function(){tellSWMainDash(localStorage.getItem('td6_mainDash')||'all');},4000);
+  tellSWLastDash(localStorage.getItem('td6_lastDash')||'');
+  setTimeout(function(){
+    tellSWMainDash(localStorage.getItem('td6_mainDash')||'all');
+    tellSWLastDash(localStorage.getItem('td6_lastDash')||'');
+  },4000);
 
   // Called when user changes main dashboard — updates Firestore token doc
   window._updateFCMMainDash=async function(mainDash){
     const devId=getDeviceId();
     tellSWMainDash(mainDash||'all');
-    try{await _authReady;await setDoc(doc(db,'fcm_tokens',devId),{mainDash,updatedAt:Date.now()},{merge:true});}catch(e){}
+    const lastDash=localStorage.getItem('td6_lastDash')||'';
+    try{await _authReady;await setDoc(doc(db,'fcm_tokens',devId),{mainDash,lastDash,updatedAt:Date.now()},{merge:true});}catch(e){}
+  };
+
+  // Called on every profile switch. Publishes the profile now open on this
+  // device to BOTH places that gate a notification on it: the cloud token doc
+  // (so the Worker's send-side scope can reach this device for that person's
+  // event pushes) and the service worker (so a closed-app OS card for them is
+  // not dropped by the SW's own gate). Cheap and idempotent — the token write is
+  // skipped unless the value actually changed, so switching back and forth
+  // costs nothing.
+  let _lastDashSent=null;
+  window._fcmNoteActiveDash=async function(dash){
+    const d=dash||localStorage.getItem('td6_lastDash')||'';
+    tellSWLastDash(d);
+    if(!d||d===_lastDashSent)return;
+    _lastDashSent=d;
+    try{await _authReady;await setDoc(doc(db,'fcm_tokens',getDeviceId()),{lastDash:d,updatedAt:Date.now()},{merge:true});}catch(e){}
   };
 
   // ── Permission + token ────────────────────────────────────────────────
@@ -15438,6 +15484,15 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         tag:id,collapseKey:id,
         notifyRepeat:'none',notifyRepeatDays:[],notifyRepeatId:null,
         source:'plans',
+        // EVENT PUSH, not a scheduled alarm. notifyAt above is only "as soon as
+        // possible" written in the one language the sweep speaks, and it comes
+        // off THIS browser's clock — which is exactly why the Worker must not
+        // judge it by that clock. deliverNow tells it so: an event push is
+        // delivered whenever it is first seen, however late that is, instead of
+        // being marked fired unsent for having missed a 90-second window. A
+        // device with a slow clock, a lost wake poke or one skipped cron tick
+        // used to destroy the notification outright.
+        deliverNow:true,
         fired:false,createdAt:Date.now()
       });
       // This doc is deliberately dated in the PAST so the very next sweep sends
@@ -15478,6 +15533,37 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     await Promise.all(jobs);
   };
 
+  // ── Receive-side scope gate ───────────────────────────────────────────
+  // May a push tagged for profile `dash` surface on THIS device?
+  //
+  // For a scheduled reminder the answer is the device's main dashboard and
+  // nothing else: those are personal alarms, and the strictness here is what
+  // stopped Tony's reminders banner-ing on Veda's TaskHub. A device that never
+  // picked a main ('all') deliberately gets none of them.
+  //
+  // A Plans EVENT (kind==='event') is addressed to a PERSON, and the profile
+  // open on this device right now answers that better than the device's main
+  // does — the in-app banner for the same event (_thPlanBanner) already uses
+  // exactly that test. On a device whose main is the other profile, the two
+  // gates used to exclude each other and the person in front of it got nothing
+  // on either surface: no banner, because they are not the main profile, and no
+  // push, because the Worker never targeted the device. Accepting the active
+  // profile for events closes that, and cannot leak a reminder, which never
+  // carries kind==='event'.
+  //
+  // The Worker only started sending `kind` alongside this change, so a push in
+  // flight from the old build (or from an older deployed worker) arrives without
+  // one and is treated as a reminder — the previous behaviour exactly.
+  function _dashAllowedHere(dash,kind){
+    if(!dash||dash==='all')return true;
+    const mainD=localStorage.getItem('td6_mainDash')||'all';
+    if(mainD===dash)return true;
+    if(kind!=='event')return false;
+    const here=window._activeProfile||localStorage.getItem('td6_lastDash')||'';
+    return here===dash;
+  }
+  window._thDashAllowedHere=_dashAllowedHere;
+
   // ── Foreground FCM message handler ────────────────────────────────────
   if(messaging){
     onMessage(messaging,payload=>{
@@ -15490,8 +15576,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       // failed), so a wrong-profile push can still arrive here. Re-check against
       // live localStorage — mirrors the poll's shouldFire() and the SW's gate.
       const dash=payload.data?.dash||'all';
-      const mainD=localStorage.getItem('td6_mainDash')||'all';
-      if(dash!=='all'&&mainD!==dash)return;
+      if(!_dashAllowedHere(dash,payload.data?.kind))return;
       // Dedup on the OCCURRENCE key (series+minute), shared with the polling
       // engine via the same fired-set, so one reminder can't fire from both
       // the foreground FCM push AND the poll loop. Falls back to raw id.
@@ -15527,8 +15612,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       if(!IS_DESKTOP)return;
       // Same profile scope gate as the foreground onMessage path (above).
       var dash=msg.dash||'all';
-      var mainD=localStorage.getItem('td6_mainDash')||'all';
-      if(dash!=='all'&&mainD!==dash)return;
+      if(!_dashAllowedHere(dash,msg.kind))return;
       var ok=fcmOccKey(msg.id)||msg.id;
       if(ok){ if(hasFired(ok))return; markFired(ok); }
       if(claimContent(dash,msg.body))return; // same text already banner-ed

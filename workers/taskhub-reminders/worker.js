@@ -241,8 +241,9 @@ async function handleNotifDebug(request, env, origin) {
   const authHdr   = { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
   const now = Date.now();
 
-  // Same window the cron uses (non-sweep)
-  const startAtIso = new Date(now - 90 * 1000).toISOString();
+  // Same window the cron uses (non-sweep) — keep these two in step, or this
+  // endpoint reports on a window the cron does not actually read.
+  const startAtIso = new Date(now - 16 * 60 * 1000).toISOString();
   const endAtIso   = new Date(now + 10 * 60 * 1000).toISOString();
   const qRes = await fetch(`${baseUrl}:runQuery`, {
     method: 'POST', headers: authHdr,
@@ -266,20 +267,15 @@ async function handleNotifDebug(request, env, origin) {
     return { id: f.id?.stringValue, notifyAt: f.notifyAt?.stringValue, dash: f.dashboard?.stringValue, fired: f.fired?.booleanValue === true };
   });
 
-  // Tokens
-  const tRes = await fetch(`${baseUrl}/fcm_tokens`, { headers: authHdr });
-  out.tokensStatus = tRes.status;
-  if (!tRes.ok) { out.ok = false; out.tokensError = (await tRes.text()).slice(0, 500); return json(out, origin); }
-  const tData = await tRes.json();
-  const seen = new Set();
-  const tokenDocs = (tData.documents || []).filter(d => {
-    const t = d.fields?.token?.stringValue;
-    if (!t || seen.has(t)) return false; seen.add(t); return true;
-  });
+  // Tokens — read exactly the way the cron reads them, pagination included, so
+  // this endpoint can never report a device the cron cannot actually see.
+  const tokenDocs = await listTokenDocs(baseUrl, authHdr);
+  if (tokenDocs === null) { out.ok = false; out.tokensError = 'fcm_tokens fetch failed'; return json(out, origin); }
   out.uniqueTokens = tokenDocs.length;
   out.tokens = tokenDocs.map(d => ({
     id: (d.name||'').split('/').pop()?.slice(-10),
     dash: d.fields?.mainDash?.stringValue || 'all',
+    lastDash: d.fields?.lastDash?.stringValue || null,
     ua: (d.fields?.ua?.stringValue || '').slice(0, 40),
     tokenTail: (d.fields?.token?.stringValue || '').slice(-12)
   }));
@@ -294,32 +290,32 @@ async function handleNotifDebug(request, env, origin) {
   out.matchAnalysis = docs.slice(0,20).map(r => {
     const f = r.document.fields || {};
     const dash = f.dashboard?.stringValue || 'all';
-    const matching = tokenDocs.filter(d => {
-      const md = d.fields?.mainDash?.stringValue || 'all';
-      return dash === 'all' || md === dash;
-    }).length;
+    const evt = f.deliverNow?.booleanValue === true || f.source?.stringValue === 'plans';
+    const matching = tokenDocs.filter(d => deviceMatches(d, dash, evt)).length;
     return {
       id: f.id?.stringValue,
       dash,
+      kind: evt ? 'event' : 'reminder',
       fired: f.fired?.booleanValue === true,
       wouldNotify: matching,
-      problem: matching === 0 ? `NO DEVICE has mainDash="${dash}" — this reminder can never fire` : null
+      problem: matching === 0
+        ? (evt
+            ? `NO DEVICE has mainDash="${dash}" or was last opened as "${dash}" — this event push can never fire`
+            : `NO DEVICE has mainDash="${dash}" — this reminder can never fire`)
+        : null
     };
   });
 
   // Optional: force a push right now to confirm FCM delivery end-to-end.
   if (url.searchParams.get('send') === '1') {
     const wantDash = url.searchParams.get('dash') || 'all';
-    const targets = tokenDocs.filter(d => {
-      const md = d.fields?.mainDash?.stringValue || 'all';
-      return wantDash === 'all' || md === wantDash;
-    });
+    const targets = tokenDocs.filter(d => deviceMatches(d, wantDash, true));
     out.forcedTo = targets.length;
     const sendResults = [];
     for (const d of targets) {
       const token = d.fields.token.stringValue;
       try {
-        await sendFCM(projectId, token, 'WORKER TEST ✓ ' + new Date().toLocaleTimeString(), 'workertest_' + Date.now(), accessToken, 'all');
+        await sendFCM(projectId, token, 'WORKER TEST ✓ ' + new Date().toLocaleTimeString(), 'workertest_' + Date.now(), accessToken, 'all', 'event');
         sendResults.push({ token: token.slice(-12), result: 'sent' });
       } catch (e) {
         sendResults.push({ token: token.slice(-12), result: 'FAIL: ' + (e.message || e) });
@@ -1046,6 +1042,63 @@ async function refreshLookahead(env, baseUrl, authHdr, now, nextInWindow, window
   } catch (e) { /* non-fatal — the next tick just queries */ }
 }
 
+// Every registered device, de-duped by token.
+//
+// PAGINATED. Firestore's REST list endpoint returns a DEFAULT PAGE of 20
+// documents plus a nextPageToken, and the old call read neither. Device docs are
+// keyed by a localStorage device id, so they accumulate — a cleared browser
+// profile, a reinstalled PWA or a new phone each mint another one. Once the
+// collection passed 20 docs, every device after the first page became invisible
+// to this worker and silently stopped receiving anything: no error, no log, just
+// a person who no longer gets notifications. Ask for a full page and follow the
+// cursor.
+async function listTokenDocs(baseUrl, authHdr) {
+  const out = [];
+  const seen = new Set();
+  let pageToken = null;
+  do {
+    const url = new URL(`${baseUrl}/fcm_tokens`);
+    url.searchParams.set('pageSize', '300');
+    if (pageToken) url.searchParams.set('pageToken', pageToken);
+    const res = await fetch(url.toString(), { headers: authHdr });
+    if (!res.ok) { console.error('FCM tokens fetch failed:', await res.text()); return null; }
+    const data = await res.json();
+    for (const d of (data.documents || [])) {
+      const t = d.fields?.token?.stringValue;
+      if (!t || seen.has(t)) continue;
+      seen.add(t);
+      out.push(d);
+    }
+    pageToken = data.nextPageToken || null;
+  } while (pageToken);
+  return out;
+}
+
+// Does this device belong to the profile a notification is addressed to?
+//
+// `mainDash` is the device's declared main dashboard, and it is the right test
+// for a SCHEDULED reminder: those are personal alarms and must not ring on the
+// other person's device.
+//
+// An EVENT push is addressed to a PERSON, not to a device role, and its in-app
+// twin already follows the person: _thPlanBanner shows on whichever profile is
+// OPEN right now. Routing the push on mainDash alone contradicted that, and the
+// two gates could exclude each other completely. On a device whose main is the
+// other profile — including one that merely had the other profile opened on it
+// first, since goTony/goVeda auto-claim an unset main — the push was never sent
+// AND the banner never fired, so the person sitting in front of it got no
+// notification on either surface. That is the "Veda proposed/confirmed a plan
+// and the other side heard nothing" case. `lastDash`, the profile most recently
+// opened on that device, closes exactly that gap, and only for events: reminder
+// scoping is untouched.
+function deviceMatches(d, dash, eventPush) {
+  if (dash === 'all') return true;
+  const md = d.fields?.mainDash?.stringValue || 'all';
+  if (md === dash) return true;
+  if (!eventPush) return false;
+  return (d.fields?.lastDash?.stringValue || '') === dash;
+}
+
 async function runReminders(env) {
   const now = Date.now();
 
@@ -1065,9 +1118,23 @@ async function runReminders(env) {
   // reminders pre-expanding many future occurrences, that pinned reads at
   // 100/tick × 60 = 6,000/hr around the clock, even idle. Bounding the upper
   // edge to ~10min ahead means a normal tick reads 0–2 docs.
-  //   lower bound: now - 90s   (catches a tick we just missed / clock skew)
+  //   lower bound: now - 16min (see below)
   //   upper bound: now + 10min  (anything sooner than the next few ticks)
-  const startAtIso = new Date(now - 90 * 1000).toISOString();
+  //
+  // The lower bound is 16 minutes, not the 90s the DUE test uses, because the
+  // two answer different questions. 90s is how late a SCHEDULED alarm may be and
+  // still ring. 16 minutes is how far back this query must look to be sure it
+  // SEES an event push (deliverNow, below) written since the last tick that
+  // actually ran — and with the lookahead skip in place, that gap can be a full
+  // LOOKAHEAD_MAX_AGE_MS. An event push dated by a browser whose clock lags, or
+  // written on a tick whose wake poke never landed, fell outside a 90s window
+  // and so was never returned by a normal tick at all: it surfaced only in the
+  // top-of-hour sweep, which marks stale docs fired WITHOUT sending. That is how
+  // a proposed plan could be queued perfectly and still never reach the other
+  // person. The extra reads are bounded by what fired in the last 16 minutes —
+  // typically 0-3 docs — not by the future-dated pile the old unbounded query
+  // walked.
+  const startAtIso = new Date(now - 16 * 60 * 1000).toISOString();
   const endAtIso   = new Date(now + 10 * 60 * 1000).toISOString();
   const tenMinFromNow = now + 10 * 60 * 1000;
   // Sweep window for STALE reminders (device offline, missed their minute).
@@ -1108,6 +1175,22 @@ async function runReminders(env) {
   const _docCount = results.filter(r => r.document).length;
   console.log(`[reminders] tick read ${_docCount} doc(s) | window ${doStaleSweep ? '(stale sweep -2h)' : '-90s..+10m'}`);
 
+  // A reminder is a SCHEDULED alarm: ringing it long after its minute is worse
+  // than staying quiet, so anything more than 90s late is dropped — marked fired
+  // and never sent. An EVENT push is the opposite. `deliverNow` means "this just
+  // happened, deliver it at the first opportunity": it has no meaningful minute,
+  // so no amount of lateness can make it undeliverable. A missed tick, a lost
+  // wake poke, a lagging client clock or an offline stretch must DELAY one,
+  // never destroy it. Without this every Plans notification was one skipped tick
+  // away from being silently marked fired with nobody notified.
+  //
+  // `source:'plans'` is honoured alongside the flag so docs written by an older
+  // client build — which sets source but not deliverNow — are covered too.
+  const isEventPush = (fsDoc) => {
+    const f = fsDoc.fields || {};
+    return f.deliverNow?.booleanValue === true || f.source?.stringValue === 'plans';
+  };
+
   const due = [], stale = [];
   // Earliest UNFIRED doc in this window that is not due YET. It is the next
   // moment the cron has to be awake for, and it comes free out of the result
@@ -1118,6 +1201,13 @@ async function runReminders(env) {
     if (!r.document) continue;
     if (r.document.fields?.fired?.booleanValue === true) continue;
     const at = new Date(r.document.fields?.notifyAt?.stringValue).getTime();
+    if (isEventPush(r.document)) {
+      // Only its own future date can hold an event push back, and only briefly.
+      // An unreadable date is no reason to withhold one.
+      if (isNaN(at) || at <= now + 5000) due.push(r);
+      else if (nextInWindow === null || at < nextInWindow) nextInWindow = at;
+      continue;
+    }
     if (isNaN(at)) continue;
     if (at > tenMinFromNow) continue;
     if (at <= now + 5000 && at > now - 90000) due.push(r);
@@ -1136,15 +1226,8 @@ async function runReminders(env) {
     return;
   }
 
-  const tokensRes = await fetch(`${baseUrl}/fcm_tokens`, { headers: authHdr });
-  if (!tokensRes.ok) { console.error('FCM tokens fetch failed:', await tokensRes.text()); return; }
-  const tokensData = await tokensRes.json();
-  const seen = new Set();
-  const tokenDocs = (tokensData.documents || []).filter(d => {
-    const t = d.fields?.token?.stringValue;
-    if (!t || seen.has(t)) return false;
-    seen.add(t); return true;
-  });
+  const tokenDocs = await listTokenDocs(baseUrl, authHdr);
+  if (tokenDocs === null) return;    // fetch failed; already logged
 
   for (const r of stale) {
     await markFired(r.document.name, accessToken);
@@ -1207,6 +1290,7 @@ async function runReminders(env) {
     const title  = fields.title?.stringValue || 'Task reminder';
     const id     = fields.id?.stringValue    || '';
     const dash   = fields.dashboard?.stringValue || 'all';
+    const evt    = isEventPush(r.document);
     const key    = occKeyFor(fields);
     const cKey   = contentKeyFor(fields);
 
@@ -1221,22 +1305,15 @@ async function runReminders(env) {
 
     await maybeReschedule(r.document, baseUrl, authHdr);
 
-    // Scope: dashboard-tagged reminder → only devices whose main matches.
+    // Scope: profile-tagged notification → only that person's devices. STRICT
+    // for scheduled reminders, widened to the device's last-used profile for
+    // event pushes — see deviceMatches.
     let targets = [];
     if (!dup) {
       targets = tokenDocs
-        .filter(d => {
-          const md = d.fields?.mainDash?.stringValue || 'all';
-          // STRICT scoping. A profile-tagged reminder (tony / veda / StudyOS=veda)
-          // fires ONLY on devices whose main dashboard EQUALS that profile. The
-          // old `md === 'all'` escape hatch let a device that never picked a main
-          // receive everything — that's how a Tony reminder landed on Veda's
-          // TaskHub. Only an explicitly 'all'-tagged reminder (test/diagnostic)
-          // broadcasts. Each device MUST set its main ("Set as main" button).
-          return dash === 'all' || md === dash;
-        })
+        .filter(d => deviceMatches(d, dash, evt))
         .map(d => d.fields.token.stringValue);
-      if (!targets.length) console.log(`No matching devices for dash="${dash}"`);
+      if (!targets.length) console.log(`No matching devices for dash="${dash}"${evt ? ' (event push)' : ''}`);
     }
 
     // Fire the push(es) and the mark-fired write TOGETHER, so a task + event
@@ -1244,7 +1321,7 @@ async function runReminders(env) {
     // behind the mark-fired network call.
     const jobs = [ markFired(r.document.name, accessToken) ];
     targets.forEach(token => jobs.push(
-      sendFCM(projectId, token, title, id, accessToken, dash)
+      sendFCM(projectId, token, title, id, accessToken, dash, evt ? 'event' : 'reminder')
         .catch(e => console.warn(`FCM failed ...${token.slice(-8)}:`, e.message))
     ));
     await Promise.allSettled(jobs);
@@ -1320,7 +1397,7 @@ async function maybeReschedule(fsDoc, baseUrl, authHdr) {
   }).catch(e => console.warn('Reschedule write failed:', e.message));
 }
 
-async function sendFCM(projectId, token, title, id, accessToken, dash) {
+async function sendFCM(projectId, token, title, id, accessToken, dash, kind) {
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -1331,7 +1408,10 @@ async function sendFCM(projectId, token, title, id, accessToken, dash) {
         // worker's onBackgroundMessage runs for EVERY message and draws it with
         // a unique tag, so multiple same-minute reminders can't be collapsed or
         // dropped by Android/Brave's auto-display path.
-        data: { id: String(id || ''), title: String(title || 'Task reminder'), body: String(title || 'Task reminder'), dash: String(dash || 'all') },
+        // `kind` tells the receiving device which scope gate to apply: 'reminder'
+        // (this device's MAIN profile only) or 'event' (also the profile open on
+        // it right now). Missing, on a push from an older worker → 'reminder'.
+        data: { id: String(id || ''), title: String(title || 'Task reminder'), body: String(title || 'Task reminder'), dash: String(dash || 'all'), kind: String(kind || 'reminder') },
         android: { priority: 'high' },
         // UNIQUE Topic per message → the push service can NEVER coalesce/replace
         // two reminders fired at the same instant to the same device (Android
