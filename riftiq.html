@@ -697,14 +697,47 @@ body.wr-locked #wr-progbar { display: none !important; }
   color: var(--tx);
   letter-spacing: -1px;
 }
+.setup-shortcuts-hdr {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.2px; color: var(--tx3);
+}
+.setup-shortcut-add {
+  background: transparent; border: 1px solid var(--bd2); border-radius: 5px;
+  color: var(--tx3); font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.4px; padding: 3px 9px; cursor: pointer; transition: all 0.15s;
+}
+.setup-shortcut-add:hover { border-color: var(--gold); color: var(--gold); }
+
+.setup-shortcuts { display: flex; flex-wrap: wrap; gap: 8px; }
+.setup-shortcuts .setup-empty {
+  font-family: var(--mono); font-size: 11px; color: var(--tx3); opacity: .8;
+  padding: 7px 2px; line-height: 1.5;
+}
+/* The chip is the row: the name loads the account, the × removes it. A button
+   cannot contain a button, so the × is a span carrying its own handler. */
 .setup-shortcut-btn {
-  flex: 1; padding: 8px 0;
+  flex: 1 1 auto; min-width: 132px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 10px;
   background: var(--bg5); border: 1px solid var(--bd2);
   border-radius: 6px; color: var(--tx2);
   font-family: var(--mono); font-size: 12px; font-weight: 700;
   letter-spacing: 0.5px; cursor: pointer; transition: all 0.15s;
 }
 .setup-shortcut-btn:hover { border-color: var(--gold); color: var(--gold); }
+.setup-shortcut-btn .sc-label { flex: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup-shortcut-btn .sc-x {
+  flex-shrink: 0; width: 16px; height: 16px; border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--tx3); font-size: 12px; line-height: 1; opacity: 0; transition: opacity .15s, color .15s, background .15s;
+}
+.setup-shortcut-btn:hover .sc-x { opacity: 1; }
+.setup-shortcut-btn .sc-x:hover { color: var(--red); background: rgba(214,138,124,.14); }
+/* No hover on touch — keep the remove control permanently visible there. */
+@media (pointer: coarse) {
+  .setup-shortcut-btn .sc-x { opacity: 1; width: 22px; height: 22px; }
+  .setup-shortcut-add { padding: 7px 12px; }
+}
 .setup-row { display: flex; gap: 10px; margin-bottom: 14px; }
 .setup-input {
   flex: 1; height: 40px; padding: 0 14px;
@@ -2203,7 +2236,6 @@ input:-webkit-autofill:active {
     <div style="text-align:center;margin-bottom:32px;">
       <div style="font-family:var(--head);font-size:17px;font-weight:700;color:var(--tx);letter-spacing:0.2px;margin-bottom:6px;">Welcome to League of Legends WarRoom</div>
       <div style="font-family:var(--body);font-size:14px;font-weight:600;color:var(--tx2);margin-bottom:8px;margin-top:10px;">Curated by AVybz</div>
-      <div style="font-family:var(--mono);font-size:11px;color:var(--tx2);letter-spacing:0.5px;">Totally not inspired by op.gg and porofessor</div>
     </div>
 
     <!-- Inputs -->
@@ -2230,13 +2262,15 @@ input:-webkit-autofill:active {
       </select>
     </div>
 
-    <!-- Shortcuts -->
+    <!-- Shortcuts — accounts you can jump straight into. Rendered from storage
+         by renderShortcuts(); Add saves whatever is typed above. -->
     <div style="margin-bottom:16px;">
-      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.2px;color:var(--tx3);margin-bottom:8px;">Shortcuts</div>
-      <div style="display:flex;gap:8px;">
-        <button onclick="quickLoad('AVybz','PYKE')" class="setup-shortcut-btn">AVybz <span style="color:var(--tx3);">#PYKE</span></button>
-  
+      <div class="setup-shortcuts-hdr">
+        <span>Shortcuts</span>
+        <button type="button" class="setup-shortcut-add" onclick="addShortcutFromForm()"
+                title="Save the name, tag and region above as a shortcut">+ Add</button>
       </div>
+      <div id="setup-shortcuts" class="setup-shortcuts"></div>
     </div>
 
     <button id="setup-submit-btn" class="btn-primary" onclick="setupSubmit()">Enter WarRoom</button>
@@ -2616,6 +2650,7 @@ async function init() {
       // it back rather than landing the user on an empty screen.
       const sm = document.getElementById('setup-modal');
       if (sm) sm.style.display = 'flex';
+      renderShortcuts();
     }
   } catch(e) {
     console.warn('Clearing corrupted localStorage:', e);
@@ -2678,10 +2713,99 @@ async function fetchServerStatus() {
 }
 
 
-function quickLoad(name, tag) {
-  document.getElementById('setup-name').value = name;
-  document.getElementById('setup-tag').value = tag;
-  document.getElementById('setup-region').value = 'na1|americas';
+// ══════════════════════════════════════
+// SETUP SHORTCUTS
+// ══════════════════════════════════════
+// Saved accounts on the setup screen. Kept in localStorage, per device — the
+// same place the chosen summoner itself lives, so the whole screen's state
+// stays in one store rather than half of it syncing and half of it not.
+const SHORTCUTS_KEY = 'warroom_shortcuts';
+const SHORTCUTS_MAX = 8;
+
+function loadShortcuts() {
+  try {
+    const raw = localStorage.getItem(SHORTCUTS_KEY);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) return list.filter(x => x && x.name);
+    }
+    // First run: keep the account that used to be hard-coded here, so nothing
+    // is lost the first time this screen is opened after the change.
+    return [{ name: 'AVybz', tag: 'PYKE', region: 'na1|americas' }];
+  } catch(e) { return []; }
+}
+
+function saveShortcuts(list) {
+  try { localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(list)); } catch(e) {}
+}
+
+function renderShortcuts() {
+  const el = document.getElementById('setup-shortcuts');
+  if (!el) return;
+  const list = loadShortcuts();
+  if (!list.length) {
+    el.innerHTML = '<div class="setup-empty">None yet — type a name and tag above, then Add.</div>';
+    return;
+  }
+  el.innerHTML = list.map(function(sc, i) {
+    const nm  = String(sc.name || '');
+    const tg  = String(sc.tag || '');
+    const rg  = String(sc.region || 'na1|americas');
+    // Region is only worth the space when it is not the default one.
+    const rgTag = rg.split('|')[0];
+    const extra = rgTag && rgTag !== 'na1'
+      ? '<span style="color:var(--tx3);opacity:.75;"> ' + esc(rgTag.toUpperCase()) + '</span>' : '';
+    return '<button type="button" class="setup-shortcut-btn" onclick="quickLoad(' + i + ')" title="Open ' + esc(nm) + ' #' + esc(tg) + '">' +
+      '<span class="sc-label">' + esc(nm) + '<span style="color:var(--tx3);"> #' + esc(tg) + '</span>' + extra + '</span>' +
+      '<span class="sc-x" role="button" title="Remove shortcut" onclick="removeShortcut(event,' + i + ')">&#x2715;</span>' +
+    '</button>';
+  }).join('');
+}
+
+// Anything that reaches innerHTML here came from a text field.
+function esc(v) {
+  return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function addShortcutFromForm() {
+  const nameEl = document.getElementById('setup-name');
+  const tagEl  = document.getElementById('setup-tag');
+  const regEl  = document.getElementById('setup-region');
+  const name = (nameEl.value || '').trim();
+  const tag  = (tagEl.value || '').trim().replace('#', '');
+  if (!name) { nameEl.focus(); return; }
+  if (!tag)  { tagEl.focus();  return; }
+
+  const list = loadShortcuts();
+  const key = (name + '#' + tag).toLowerCase();
+  if (list.some(function(sc){ return ((sc.name||'') + '#' + (sc.tag||'')).toLowerCase() === key; })) {
+    renderShortcuts();   // already saved — nothing to do
+    return;
+  }
+  list.push({ name: name, tag: tag, region: regEl ? regEl.value : 'na1|americas' });
+  saveShortcuts(list.slice(0, SHORTCUTS_MAX));
+  renderShortcuts();
+}
+
+function removeShortcut(ev, i) {
+  // The × sits inside the chip button; without this the click would also fire
+  // the chip's own handler and load the account being removed.
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const list = loadShortcuts();
+  if (i < 0 || i >= list.length) return;
+  list.splice(i, 1);
+  saveShortcuts(list);
+  renderShortcuts();
+}
+
+// Called with a shortcut index from the chips above.
+function quickLoad(i) {
+  const sc = loadShortcuts()[i];
+  if (!sc) return;
+  document.getElementById('setup-name').value = sc.name || '';
+  document.getElementById('setup-tag').value = sc.tag || '';
+  const regEl = document.getElementById('setup-region');
+  if (regEl) regEl.value = sc.region || 'na1|americas';
   setupSubmit();
 }
 
@@ -7186,7 +7310,7 @@ function openProgram(name) {
       // Resume the live-game poll we stopped on the way out.
       if (typeof fetchLiveGame === 'function' && document.getElementById('live-game-section')) fetchLiveGame();
     } else {
-      var setup3 = _el_('setup-modal'); if (setup3) setup3.style.display = 'flex';
+      var setup3 = _el_('setup-modal'); if (setup3) { setup3.style.display = 'flex'; renderShortcuts(); }
     }
   }
   _wrSaveProgram('warroom');
