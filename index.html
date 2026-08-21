@@ -39809,7 +39809,21 @@ window._THV={
   }
   // Does THIS device's stored credential carry a usable PRF secret?
   function hasPrf(app,id){ var r=stored(app,id); return !!(r&&r.prf&&r.prfSalt); }
-  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label, hasPrf:hasPrf };
+  // Can this BROWSER do PRF at all? Asked before offering to re-enrol an older
+  // credential, because finding out by attempting a registration would burn the
+  // working credential we are trying to replace. When the capability API is
+  // absent we answer false and simply never offer — no prompt is much better
+  // than a prompt that can strand someone without biometric unlock.
+  function prfCapable(){
+    try {
+      if(!window.PublicKeyCredential || !PublicKeyCredential.getClientCapabilities)
+        return Promise.resolve(false);
+      return PublicKeyCredential.getClientCapabilities()
+        .then(function(c){ return !!(c && c.prf); })
+        .catch(function(){ return false; });
+    } catch(e){ return Promise.resolve(false); }
+  }
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label, hasPrf:hasPrf, prfCapable:prfCapable };
 })();
 </script>
 

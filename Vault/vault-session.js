@@ -112,7 +112,8 @@
       // A PRF slot asks the authenticator for the key as part of the biometric
       // check, so the fingerprint is what produces it. A legacy 'stored' slot
       // reads a key that was already on the device and the check only gates the
-      // app's own code path — hence the migration prompt in the UI.
+      // app's own code path. biometricNeedsPrfUpgrade() spots those slots so the
+      // UI can offer to re-enrol them.
       const wantPrf = slot.kind === 'prf';
       const asr = await this.bio.authenticate(this.appId, deviceId, { withPrf: wantPrf });
       if (!asr || !asr.ok) throw new Error(asr && asr.error === 'cancelled' ? 'cancelled' : 'bio-failed');
@@ -151,6 +152,24 @@
       // the key at unlock time. Only a legacy 'stored' slot needs a local key.
       if (slot.kind === 'prf') return true;
       return !!(await this.deviceStore.get(DEVICE_KEY_KEY));
+    }
+
+    // True when THIS device is enrolled the old way (a key in local storage)
+    // AND the browser can now do PRF, so re-enrolling would remove that key.
+    // Slots predating the `kind` field count as 'stored' — they are exactly the
+    // ones that need moving.
+    //
+    // Gated on a real capability answer rather than on trying and seeing,
+    // because a failed attempt unregisters the credential it was replacing and
+    // would leave the device with no biometric unlock at all.
+    async biometricNeedsPrfUpgrade() {
+      if (!this.bio || !this.bio.prfCapable) return false;
+      await this._ensureConfig();
+      const deviceId = await this._deviceId();
+      const slot = this._config.biometrics && this._config.biometrics[deviceId];
+      if (!slot || slot.kind === 'prf') return false;
+      if (!this.bio.isRegistered(this.appId, deviceId)) return false;
+      try { return !!(await this.bio.prfCapable()); } catch (e) { return false; }
     }
 
     // Enrol this device. PREFERS WebAuthn PRF: the wrapping key is derived by

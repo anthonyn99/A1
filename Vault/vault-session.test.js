@@ -40,6 +40,12 @@ function fakeBio(opts) {
     },
     unregister(app, id) { creds.delete(app + ':' + id); },
     label() { return 'Windows Hello'; },
+    // Whether the BROWSER can do PRF — asked before offering to re-enrol an
+    // existing credential, separately from whether that credential has one.
+    async prfCapable() { return !!state.capable && state.prf; },
+    // Test helper: mark a device as already carrying a (pre-PRF) credential
+    // without going through register(), so the upgrade path can be exercised.
+    _adopt(app, id) { creds.set(app + ':' + id, null); },
   };
 }
 
@@ -127,7 +133,25 @@ function fakeBio(opts) {
     const sCold = new VaultSession({ backend, bio: noPrfBio, deviceStore: st, appId: 'vault', autoLockMs: 0 });
     await sCold.unlockWithBiometric();
     ok('legacy stored-key slots still unlock', sCold.isUnlocked());
-    await sNo.disableBiometric();
+
+    // On a browser that still cannot do PRF, nothing is offered — an upgrade
+    // attempt there would unregister the working credential for nothing.
+    ok('no upgrade offered while PRF is unavailable', !(await sNo.biometricNeedsPrfUpgrade()));
+
+    // Same stored-key slot, but the browser CAN do PRF now → offer the swap.
+    const ablePrf = fakeBio({ prf: true });
+    ablePrf._state.capable = true;
+    const sUp = new VaultSession({ backend, bio: ablePrf, deviceStore: st, appId: 'vault', autoLockMs: 0 });
+    await sUp.unlockWithPassword('MasterPW-123!');
+    const devId = await sUp._deviceId();
+    ablePrf._adopt('vault', devId);            // this device is already enrolled
+    ok('upgrade offered for a stored-key slot on a PRF browser', await sUp.biometricNeedsPrfUpgrade());
+    await sUp.enableBiometric('Hello');
+    ok('re-enrolling moves the slot to PRF',
+      (await sUp.getConfig()).biometrics[devId].kind === 'prf');
+    ok('and clears the key that used to sit on the device', !st.get('vault.deviceKey'));
+    ok('no longer offers once upgraded', !(await sUp.biometricNeedsPrfUpgrade()));
+    await sUp.disableBiometric();
   }
 
   console.log('\n── change master password (old still verifies, recovery unaffected) ──');

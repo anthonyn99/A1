@@ -843,7 +843,29 @@
   async function maybeOfferBiometric() {
     try {
       if (!window.Bio) return;
-      if (await session.biometricEnabled()) return;
+      if (await session.biometricEnabled()) {
+        // Already enrolled — but if it is an OLD slot (unlock key sitting in
+        // local storage) and this browser can now bind the key to the scan
+        // instead, offer the swap once. Declining is remembered so it asks at
+        // most once per device.
+        if (localStorage.getItem('vault.prfUpgradeDeclined')) return;
+        if (!(await session.biometricNeedsPrfUpgrade())) return;
+        var bl = window.Bio.label ? window.Bio.label() : 'biometrics';
+        var up = await confirmUI(
+          'Vault can make your ' + bl + ' unlock stronger on this device.\n\n' +
+          'Right now the unlock key is stored on the device and the scan is checked in front of it. ' +
+          'Re-registering lets your ' + bl + ' produce the key instead, so nothing is left on disk to copy.\n\n' +
+          'Takes one scan. Your master password is unaffected.',
+          { title: 'Strengthen ' + bl, okLabel: 'Re-register', cancelLabel: 'Not now' });
+        if (!up) { try { localStorage.setItem('vault.prfUpgradeDeclined', '1'); } catch (_) {} return; }
+        try {
+          await session.enableBiometric(bl);   // replaces the slot, drops the stored key
+          toast(bl + ' strengthened on this device');
+        } catch (e) {
+          if (e && e.message !== 'cancelled') toast('Could not re-register: ' + e.message);
+        }
+        return;
+      }
       if (!(await session.biometricSupported())) return;
       if (localStorage.getItem('vault.bioDeclined')) return;
       var label = window.Bio.label ? window.Bio.label() : 'biometrics';
