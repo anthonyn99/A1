@@ -1,0 +1,19 @@
+name = "warden-files"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[observability]
+enabled = false
+
+# Holds the encrypted ID-document scans and attachments. Create it with:
+#   wrangler kv namespace create WARDEN
+# then paste the printed id here. This must be its OWN namespace, not the one
+# warden-links uses for the token cache.
+[[kv_namespaces]]
+binding = "WARDEN"
+id = "__KV_NAMESPACE_ID_FILES__"
+
+# No secrets. See the note at the top of worker.js for why this Worker has no
+# shared-key gate.
+#
+# KV free plan: value <= 25 MB, 1 GB total, ~1000 writes/day.

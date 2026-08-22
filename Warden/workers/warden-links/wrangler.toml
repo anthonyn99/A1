@@ -1,0 +1,19 @@
+name = "warden-links"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[observability]
+enabled = false
+
+# Caches the short-lived Google access token (key "gat"). Create one KV
+# namespace and paste its id here:
+#   wrangler kv namespace create TOKEN_CACHE
+[[kv_namespaces]]
+binding = "TOKEN_CACHE"
+id = "__KV_NAMESPACE_ID__"
+
+# Secrets — set with `wrangler secret put <NAME>`, never committed:
+#   FIREBASE_PROJECT_ID    — her Firebase project id
+#   FIREBASE_CLIENT_EMAIL  — her service-account email
+#   FIREBASE_PRIVATE_KEY   — her service-account private key (full PEM)
+#   WARDEN_KEY             — must equal WORKER_KEY in Warden/warden-config.js

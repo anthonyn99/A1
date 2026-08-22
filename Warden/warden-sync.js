@@ -1,13 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Warden Launcher ← Keychain shared backend (client side).
+// Warden Launcher ← Links shared backend (client side).
 //
 // Warden Launcher keeps NO database of its own. It reads — and writes card ORDER
-// back to — the single Firestore document the Warden app's Keychain uses:
+// back to — the single Firestore document the Warden app's Links tab uses:
 //
-//     dashboards/keychain  →  { connections, colmap, savedAt }
+//     dashboards/warden_links  →  { connections, colmap, savedAt }
 //
 // A "connection" is a group:  { name, color, items: [ ... ] }, where items of
-// type:'link' are { type:'link', name, url }. Keychain also stores email /
+// type:'link' are { type:'link', name, url }. Links also stores email /
 // phone / username / info / doc items — a reorder saved from here round-trips
 // those untouched, so it never drops data the popup does not render.
 //

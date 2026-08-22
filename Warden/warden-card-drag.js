@@ -133,7 +133,7 @@ const WardenCardDrag = (() => {
 
       // New order, expressed as the ORIGINAL indices in DOM order, plus the
       // column each card ended up in — keyed by the card's NEW index, which is
-      // exactly the shape dashboards/keychain stores (colmap[connIdx] = col).
+      // exactly the shape dashboards/warden_links stores (colmap[connIdx] = col).
       const dom = cards();
       const order = dom.map(el => parseInt(el.dataset.ci, 10));
       if (order.some(Number.isNaN)) { if (o.onDrop) o.onDrop(null); return; }

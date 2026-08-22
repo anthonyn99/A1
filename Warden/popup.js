@@ -15,7 +15,7 @@ const toggleEl  = document.getElementById("reorder-toggle");
 // Warden is its own program at /A1/warden.html — it used to live inside the
 // TaskHub PWA and was reached with ?goto=keychain. Nothing else about the
 // extension changes: both apps read the same Firestore documents
-// (dashboards/keychain, dashboards/warden_pw) through the same Workers, and
+// (dashboards/warden_links, dashboards/warden_pw) through the same Workers, and
 // warden.html is the same origin, so the synced biometric link and the app-lock
 // unlock marker in localStorage carry over untouched.
 //
@@ -194,7 +194,7 @@ function pastelize(hex) {
 }
 
 // ── A1 suite app icons ──────────────────────────────────────────
-// Every A1 program is served off the one host (anthonyn99.github.io/A1), so the
+// Every A1 program is served off a single host, so the
 // favicon service below hands back the same generic globe for all of them. Map
 // our own pages to the app's own <link rel="icon"> mark instead, keyed by
 // filename. Twins of this map live in index.html, warden.html and the other

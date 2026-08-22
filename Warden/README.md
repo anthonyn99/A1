@@ -22,7 +22,7 @@ Rebuilt from the old *D2L Tabs Automate* class project (used only as a template)
   group.
 - **Rearrange connection cards** — the **Reorder** switch above the Links list turns
   on a drag grip on every card. Drop a card in a new spot (or, at two columns, a
-  new column) and the new order is PUT straight to `dashboards/keychain` through the
+  new column) and the new order is PUT straight to `dashboards/warden_links` through the
   same Worker. Warden's Keychain listens on that document with `onSnapshot`, so an
   open Warden tab re-renders in the new order within a second — and the popup polls
   every 5s, so an edit made in Warden shows up here without reopening. Groups with no
@@ -30,7 +30,7 @@ Rebuilt from the old *D2L Tabs Automate* class project (used only as a template)
   reorder carries each card's existing column forward instead of flattening the
   app's two-column layout. See `warden-card-drag.js` and `persistOrder()` in
   `popup.js`. The switch is off by default and its state is remembered.
-- **Read-mostly mirror** — reads `dashboards/keychain` in Firestore, the exact document
+- **Read-mostly mirror** — reads `dashboards/warden_links` in Firestore, the exact document
   Keychain uses, and reflects it live. **Card order is the one thing this popup
   writes**; all other editing (add/remove links, groups, colours) happens in the
   **Warden app → Keychain**.
@@ -114,23 +114,20 @@ they can't drift apart. Its DOM contract: each list child is a
 
 ### Passwords Worker setup (one-time)
 
-`workers/warden-pw-sync` auto-deploys on push (see `deploy-workers.yml`). Set its
-secrets once (the three `FIREBASE_*` are identical to `keychain-sync`; `WARDEN_KEY`
-is the same shared key already in `warden-sync.js` / `warden-pw.js`):
+See **[SETUP.md](SETUP.md) step 6**. The Worker source lives in
+`Warden/workers/warden-pw-sync/` and its four secrets (`FIREBASE_PROJECT_ID`,
+`FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `WARDEN_KEY`) are set with
+`wrangler secret put`.
 
-```bash
-cd workers/warden-pw-sync
-wrangler secret put FIREBASE_PROJECT_ID     # task-dashboard-d2b53
-wrangler secret put FIREBASE_CLIENT_EMAIL   # same as keychain-sync
-wrangler secret put FIREBASE_PRIVATE_KEY    # same as keychain-sync
-wrangler secret put WARDEN_KEY               # vh-Ou55y3rGmjUn_ZGFTdSIFph2xN_OK
-```
+`WARDEN_KEY` must equal `WORKER_KEY` in `warden-config.js`. It is generated
+fresh for Warden and must **never** be the key Tony's Vault Launcher ships —
+reusing his would put both vaults behind one gate.
 
 ---
 
 ## Architecture — why there's a Worker
 
-The Firebase project (`task-dashboard-d2b53`) enforces **App Check (reCAPTCHA v3)**.
+Her Firebase project enforces **App Check (reCAPTCHA v3)**.
 That blocks Firestore access from any origin that can't mint a reCAPTCHA token —
 which a `chrome-extension://` page cannot do, even with a valid anonymous login.
 
@@ -231,30 +228,39 @@ copy of `warden-crypto.js` locally from this same folder.
 
 ## One-time setup
 
-### 1. Deploy the Worker
+Warden is set up **once**, end to end, by following
+**[SETUP.md](SETUP.md)** — it is the single ordered checklist and covers the
+Firebase project, App Check, the Firestore rules, all three Workers, GitHub
+Pages, and loading the extension.
 
-`workers/keychain-sync` auto-deploys via `.github/workflows/deploy-workers.yml` when
-you push changes under `workers/keychain-sync/**`. (Or run `wrangler deploy` inside
-that folder.) It ends up at `https://keychain-sync.av1.workers.dev`.
+What follows is only the shape of it; SETUP.md has the actual commands.
+
+### 1. Deploy the three Workers
+
+Sources are in `Warden/workers/`:
+
+| Worker | Serves | Needs |
+|---|---|---|
+| `warden-links` | Links — `dashboards/warden_links` | service account + `WARDEN_KEY` |
+| `warden-pw-sync` | the vault — `dashboards/warden_pw` | service account + `WARDEN_KEY` |
+| `warden-files` | encrypted attachments (KV) | a KV namespace, no key |
+
+`cd` into each and run `wrangler deploy`.
 
 ### 2. Set the Worker secrets (once)
 
-From `workers/keychain-sync/`:
-
 ```bash
-wrangler secret put FIREBASE_PROJECT_ID     # task-dashboard-d2b53
-wrangler secret put FIREBASE_CLIENT_EMAIL   # same service-account email as taskhub-reminders
-wrangler secret put FIREBASE_PRIVATE_KEY    # same private key as taskhub-reminders
-wrangler secret put WARDEN_KEY               # vh-Ou55y3rGmjUn_ZGFTdSIFph2xN_OK
+wrangler secret put FIREBASE_PROJECT_ID     # her Firebase project id
+wrangler secret put FIREBASE_CLIENT_EMAIL   # her service-account email
+wrangler secret put FIREBASE_PRIVATE_KEY    # her service-account private key (full PEM)
+wrangler secret put WARDEN_KEY              # must equal WORKER_KEY in warden-config.js
 ```
 
-The three `FIREBASE_*` values are identical to the ones already on the
-`taskhub-reminders` worker (they come from your Firebase service-account JSON).
-`WARDEN_KEY` is the shared secret the extension sends — it already matches the value
-baked into `warden-sync.js`. Change both together if you ever rotate it.
+`warden-files` takes no secrets — everything it stores is ciphertext under a
+random per-file key, so a gate there would protect nothing.
 
-> Wrangler can't read existing secrets back, so copy the `FIREBASE_*` values from
-> your service-account JSON (the same file used to configure `taskhub-reminders`).
+> Wrangler cannot read secrets back, so keep the service-account JSON somewhere
+> safe when it is first downloaded.
 
 ### 3. Load the extension
 

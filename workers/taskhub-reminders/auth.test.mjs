@@ -114,6 +114,17 @@ t('mylist profile_veda', await route({ journal: 'mylist', entryId: 'profile_veda
 t('mylist profile_tony', await route({ journal: 'mylist', entryId: 'profile_tony' }) === TONY);
 t('explicit owner:veda overrides journal', await route({ journal: 'tj', entryId: 'x1', owner: 'veda' }) === VEDA);
 
+// Warden (warden.html + the Warden Launcher). It passes owner:'veda' explicitly
+// on every app-lock call rather than relying on the entryId-contains-"veda"
+// fallback, so that renaming the entry later cannot silently redirect her reset
+// codes and password hints to Tony's inbox.
+t('applock veda_warden_standalone', await route({ journal: 'applock', entryId: 'veda_warden_standalone' }) === VEDA);
+t('warden passes owner explicitly', await route({ journal: 'applock', entryId: 'veda_warden_standalone', owner: 'veda' }) === VEDA);
+t('warden owner survives an entryId with no "veda" in it',
+  await route({ journal: 'applock', entryId: 'warden_standalone', owner: 'veda' }) === VEDA);
+t('a warden entryId without owner and without "veda" still falls back to Tony',
+  await route({ journal: 'applock', entryId: 'warden_standalone' }) === TONY);
+
 // Profile passwords live under their own key (profilepw:<who>), seeded through
 // the setup endpoint rather than set-lock.
 MAILS.length = 0;

@@ -1450,7 +1450,7 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
     }
   };
 
-  // ── Keychain: dashboards/keychain ─────────────────────────────────────────
+  // ── Links: WCFG.docs.links (dashboards/warden_links) ──────────────────────
   const kcDocRef = doc(db, WCFG.docs.links);
   let _kcLastOwnSaveAt = 0, _kcSaveTimer = null;
   authedSnapshot(kcDocRef, (snap) => {

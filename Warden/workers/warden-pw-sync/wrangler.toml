@@ -1,0 +1,22 @@
+name = "warden-pw-sync"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[observability]
+enabled = false
+
+# Safe to point at the SAME namespace as warden-links — it only caches the
+# short-lived Google access token under key "gat".
+[[kv_namespaces]]
+binding = "TOKEN_CACHE"
+id = "__KV_NAMESPACE_ID__"
+
+# Secrets — set with `wrangler secret put <NAME>`, never committed:
+#   FIREBASE_PROJECT_ID    — her Firebase project id
+#   FIREBASE_CLIENT_EMAIL  — her service-account email
+#   FIREBASE_PRIVATE_KEY   — her service-account private key (full PEM)
+#   WARDEN_KEY             — must equal WORKER_KEY in Warden/warden-config.js
+#
+# This Worker serves ONLY AES-GCM ciphertext. Without her master password the
+# document it returns is noise, which is why a key shipped in an extension is an
+# acceptable gate here.
