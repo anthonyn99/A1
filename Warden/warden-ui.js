@@ -104,7 +104,7 @@
     function fail(msg) { toast(msg); btn.textContent = prev; btn.disabled = false; }
     try {
       var hint = await session.getHint();
-      if (!hint) { fail('No hint was saved for this warden'); return; }
+      if (!hint) { fail('No hint was saved for this vault'); return; }
       var r = await fetch(HINT_FORM, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -338,7 +338,7 @@
     var r = $('kc-root'); if (r) { r.style.height = '100dvh'; r.style.overflowY = 'auto'; r.style.overflowX = 'clip'; }
     bindPullToRefresh(r);
     ensureSession();
-    // Default to the (non-secret) Keychain tab — no unlock needed to open Warden.
+    // Default to the (non-secret) Links tab — no unlock needed to open Warden.
     // Passwords / Sensitive still require unlock when their tab is selected.
     showTab(activeTab);
   }
@@ -347,13 +347,13 @@
   function injectShell() {
     var root = $('kc-root'); if (!root || $('warden-tabs')) return;
     injectStyles();
-    // Wrap existing Keychain content (everything after the header) as the Links tab.
+    // Wrap the existing connections content (everything after the header) as the Links tab.
     var hbar = root.querySelector('.app-hbar');
     var linksWrap = el('div', { id: 'warden-links-panel', class: 'warden-panel' });
     // Move the existing .kc-wrap (Connections) into the Links panel.
     var kcWrap = root.querySelector('.kc-wrap');
     var tabs = el('div', { id: 'warden-tabs', class: 'warden-tabs' }, [
-      tabBtn('links', 'Keychain', VI.link), tabBtn('passwords', 'Passwords', VI.key),
+      tabBtn('links', 'Links', VI.link), tabBtn('passwords', 'Passwords', VI.key),
       tabBtn('payments', 'Payments', VI.card), tabBtn('iddocs', 'ID Docs', idCardIcon()),
       tabBtn('sensitive', 'Sensitive Info', VI.archive), tabBtn('cloud', 'Cloud', cloudIcon()),
     ]);

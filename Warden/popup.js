@@ -443,7 +443,7 @@ function persistOrder(result) {
       lastOwnSaveAt = Date.now();
       WardenDB.writeCache({ connections, colmap, savedAt: Date.now() });
       setSync("ok", "✓ Synced");
-      setTimeout(() => { if (syncEl.textContent === "✓ Synced") setSync("", "Synced with Keychain"); }, 2200);
+      setTimeout(() => { if (syncEl.textContent === "✓ Synced") setSync("", "Synced with Warden"); }, 2200);
     })
     .catch((e) => { console.error(e); setSync("error", "⚠ Sync failed"); });
 }
@@ -535,14 +535,14 @@ function applyRemote(doc) {
   // reconcile against the worker.
   try {
     const cached = await WardenDB.readCache();
-    if (cached && cached.connections.length) { apply(cached); setSync("", "Synced with Keychain"); }
+    if (cached && cached.connections.length) { apply(cached); setSync("", "Synced with Warden"); }
   } catch (_) {}
 
   try {
     const doc = await WardenDB.refresh();
     if (loadingEl.style.display !== "none") apply(doc);
     else applyRemote(doc);
-    setSync("", "Synced with Keychain");
+    setSync("", "Synced with Warden");
   } catch (e) {
     console.error(e);
     if (!connections.length) {

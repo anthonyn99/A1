@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Warden Launcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <!-- Must run BEFORE <body> is parsed: it restores the saved popup size from
        localStorage in time for the one layout the browser measures to size the
        popup window. See the file header. -->
@@ -15,12 +18,18 @@
       --bg:#1B1C1E; --s1:#26272A; --s2:#303135; --s3:#303135;
       --bd:#3D3E43; --bdl:#4A4B52; --tx:#ECECEE; --txd:#AFB0B5;
       --txm:#76777C; --ac:#8D769A; --shadow:rgba(0,0,0,.55);
-      --rail:9px;
+      --acd:#6E5C7A; --acs:#A78FB4; --acl:rgba(141,118,154,.38);
+      --err:#E74C3C; --grn:#5DAF6D;
+      --sans:'Nunito',system-ui,-apple-system,sans-serif;
+      --display:'Playfair Display',Georgia,'Times New Roman',serif;
+      --serif:'Playfair Display',Georgia,'Times New Roman',serif;
+      --mono:'IBM Plex Mono',ui-monospace,'Cascadia Mono','Segoe UI Mono',Consolas,monospace;
+      --rail:9px; --radius:9px; --radius-sm:6px;
     }
     * { box-sizing:border-box; margin:0; padding:0; }
     html, body {
       margin:0; padding:0; background:var(--bg); color:var(--tx);
-      font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+      font-family:var(--sans);
       -webkit-font-smoothing:antialiased;
     }
     /* ── Popup sizing ─────────────────────────────────────────────────────────
@@ -104,7 +113,7 @@
     /* "Warden Launcher" is twice the width the old one-word mark was, so the
        wordmark drops to 19px and the second word sits a shade lighter — it
        still clears the gear at the 344px default width. */
-    .logo { font-family:"Manrope",system-ui,sans-serif; font-size:19px; font-weight:750; letter-spacing:-.3px;
+    .logo { font-family:var(--display); font-size:19px; font-weight:700; letter-spacing:-.2px;
       white-space:nowrap;
       background:linear-gradient(180deg,#f4d795 0%,#8D769A 90%); -webkit-background-clip:text; background-clip:text;
       -webkit-text-fill-color:transparent; color:#8D769A; }
@@ -308,7 +317,7 @@
     .pw-main { flex:1; min-width:0; }
     .pw-title { font-size:12.5px; font-weight:500; color:var(--tx); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .pw-user { font-size:11px; color:var(--txd); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .pw-pw { font-size:11px; color:var(--txm); font-family:ui-monospace,monospace; }
+    .pw-pw { font-size:11px; color:var(--txm); font-family:var(--mono); }
     .pw-actions { display:flex; gap:3px; flex-shrink:0; }
     .pw-fill { background:var(--ac); color:#1B1C1E; border:none; border-radius:7px; padding:0 10px; height:30px; font-size:11px; font-weight:800; cursor:pointer; }
     .pw-fill:hover { filter:brightness(1.08); }
@@ -319,7 +328,7 @@
     .pay-mark { flex-shrink:0; width:34px; height:22px; display:flex; align-items:center; justify-content:center; margin-top:2px; }
     .pay-mark svg { width:34px; height:22px; display:block; }
     .pay-numline { display:flex; align-items:center; gap:7px; margin-top:2px; }
-    .pay-num { font-size:11.5px; color:var(--txm); font-family:ui-monospace,monospace; letter-spacing:.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pay-num { font-size:11.5px; color:var(--txm); font-family:var(--mono); letter-spacing:.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .pay-num.shown { color:var(--ac); }
     .pay-exp { font-size:10px; font-weight:800; color:var(--txm); flex-shrink:0; font-variant-numeric:tabular-nums; }
     .pay-exp.warn { color:#8D769A; }
@@ -352,7 +361,7 @@
  <div id="app">
   <header>
     <div>
-      <div class="logo"><span class="base">V</span><span class="dot">ault</span> <span class="sub">Launcher</span></div>
+      <div class="logo"><span class="base">W</span><span class="dot">arden</span> <span class="sub">Launcher</span></div>
       <div class="sync" id="sync"></div>
     </div>
     <button class="gear" id="gear" title="Open the Warden app">

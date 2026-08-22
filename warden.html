@@ -618,7 +618,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
   <div class="app-hbar-inner">
     <div class="app-hbar-row1">
       <div style="display:flex;flex-direction:column;gap:2px;">
-        <div class="kc-logo"><span class="base">V</span><span class="dot">ault</span></div>
+        <div class="kc-logo"><span class="base">W</span><span class="dot">arden</span></div>
         <span id="kc-sync-status" style="font-size:10px;font-weight:600;white-space:nowrap;visibility:hidden;display:block;min-height:12px;line-height:1.2;"></span>
       </div>
     </div>
@@ -1380,6 +1380,74 @@ window.vdkcSyncFilesClick = () => _kcRunSyncButton('vd-kc-syncfiles-btn', () => 
       const o = {}; Object.entries(obj).forEach(([k,v]) => { if (v !== undefined) o[k] = clean(v); }); return o;
     }
     return obj;
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LINKS MIGRATION
+  //
+  // Veda's Links currently live in dashboards/veda_links inside TONY's Firebase
+  // project, written by index.html. Warden reads dashboards/warden_links inside
+  // HERS. The document shape is identical -- { connections, colmap, savedAt } --
+  // so moving them is a one-document copy, but the two documents are in
+  // different projects, so nothing can copy them server-side without
+  // credentials for both.
+  //
+  // Hence export-then-import, run once, from the browser on each side. See the
+  // Links migration step in Warden/SETUP.md for the exact snippet to run on
+  // index.html; this is the receiving half.
+  //
+  // ORDER MATTERS: do not remove the Links section from index.html until
+  // wardenImportLinks() has reported success here. Removing it first strands
+  // the data in a project Warden does not read.
+  // ══════════════════════════════════════════════════════════════════════════
+  window.wardenExportLinks = async function () {
+    const snap = await freshGet(kcDocRef);
+    const d = (snap && snap.exists()) ? snap.data() : null;
+    if (!d) { console.warn("No Links document to export."); return null; }
+    return { connections: d.connections || [], colmap: d.colmap || null, savedAt: d.savedAt || null };
+  };
+
+  // Accepts the object (or JSON string) the export snippet produced. Refuses to
+  // overwrite a non-empty Links document unless told to, so running it twice --
+  // or running it after she has started adding connections in Warden -- cannot
+  // silently destroy work. Whole-doc setDoc has no merge to fall back on.
+  window.wardenImportLinks = async function (data, opts) {
+    opts = opts || {};
+    try {
+      if (typeof data === "string") data = JSON.parse(data);
+    } catch (e) { console.error("Not valid JSON:", e.message); return false; }
+    if (!data || !Array.isArray(data.connections)) {
+      console.error("Expected { connections: [...] } — got:", data);
+      return false;
+    }
+
+    const existing = await freshGet(kcDocRef);
+    const cur = (existing && existing.exists()) ? existing.data() : null;
+    const curCount = (cur && Array.isArray(cur.connections)) ? cur.connections.length : 0;
+    if (curCount > 0 && !opts.overwrite) {
+      console.warn(
+        "Refusing to import: " + WCFG.docs.links + " already holds " + curCount +
+        " connection(s). Re-run as wardenImportLinks(data, {overwrite:true}) if that is really what you want."
+      );
+      return false;
+    }
+
+    const payload = clean({
+      connections: data.connections,
+      colmap: (Array.isArray(data.colmap) && data.colmap.length) ? data.colmap : null,
+      savedAt: Date.now()
+    });
+    try {
+      _kcLastOwnSaveAt = Date.now();
+      await setDoc(kcDocRef, payload);
+      _kcLastOwnSaveAt = Date.now();
+      console.log("Imported " + data.connections.length + " connection(s) into " + WCFG.docs.links + ". Reload Warden to see them.");
+      return true;
+    } catch (e) {
+      console.error("Import failed:", (e && e.code) || e.message,
+                    "— run wardenDiagnose() to see which layer rejected it.");
+      return false;
+    }
   };
 
   // ── Keychain: dashboards/keychain ─────────────────────────────────────────

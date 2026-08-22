@@ -90,8 +90,8 @@
     currentHost = await getActiveHost();
     let has;
     try { has = await VP.hasWarden(); }
-    catch (e) { clear(); panel.appendChild(el("div", { class: "pw-msg err" }, ["Couldn't reach your warden.", el("br"), "Check your connection."])); return; }
-    if (!has) { clear(); panel.appendChild(el("div", { class: "pw-msg" }, ["No warden yet. Create one in the Warden app first."])); return; }
+    catch (e) { clear(); panel.appendChild(el("div", { class: "pw-msg err" }, ["Couldn't reach Warden.", el("br"), "Check your connection."])); return; }
+    if (!has) { clear(); panel.appendChild(el("div", { class: "pw-msg" }, ["No vault yet. Set one up in the Warden app first."])); return; }
     // Resume a recent unlock (30-min idle) so we don't re-prompt every open.
     if (!VP.isUnlocked()) { try { await VP.restoreSession(); } catch (e) {} }
     if (!VP.isUnlocked()) return renderUnlock();
