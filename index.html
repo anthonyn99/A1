@@ -9583,7 +9583,19 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // the write entirely if the page unloaded or the active entry changed first.
     let _bjPendingGetState = null;
     let _bjSaveInFlight = null;
-    const _bjDoSave = async () => {
+    // SERIALISED. Two overlapping writes of the same whole entry are a race: if they
+    // land out of order the OLDER payload wins and the newest keystrokes are gone.
+    // A save requested while one is still crossing the network is CHAINED behind it
+    // instead — and because the chained link reads _bjPendingGetState fresh when it
+    // finally runs, it carries the latest state rather than a stale snapshot.
+    const _bjDoSave = () => {
+      if (_bjSaveInFlight) {
+        _bjSaveInFlight = _bjSaveInFlight.then(_bjRunSave, _bjRunSave);
+        return _bjSaveInFlight;
+      }
+      return _bjRunSave();
+    };
+    const _bjRunSave = async () => {
       if (!_bjPendingGetState) return _bjSaveInFlight || undefined;
       const getState = _bjPendingGetState; _bjPendingGetState = null;
       _bjSaveInFlight = (async () => {
@@ -10090,7 +10102,19 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Save: write active entry + _order array + activeId. FLUSHABLE — see BJ above.
     let _tjPendingGetState = null;
     let _tjSaveInFlight = null;
-    const _tjDoSave = async () => {
+    // SERIALISED. Two overlapping writes of the same whole entry are a race: if they
+    // land out of order the OLDER payload wins and the newest keystrokes are gone.
+    // A save requested while one is still crossing the network is CHAINED behind it
+    // instead — and because the chained link reads _tjPendingGetState fresh when it
+    // finally runs, it carries the latest state rather than a stale snapshot.
+    const _tjDoSave = () => {
+      if (_tjSaveInFlight) {
+        _tjSaveInFlight = _tjSaveInFlight.then(_tjRunSave, _tjRunSave);
+        return _tjSaveInFlight;
+      }
+      return _tjRunSave();
+    };
+    const _tjRunSave = async () => {
       if (!_tjPendingGetState) return _tjSaveInFlight || undefined;
       const getState = _tjPendingGetState; _tjPendingGetState = null;
       _tjSaveInFlight = (async () => {
@@ -18049,6 +18073,250 @@ window._attachJournalTouchDrag = function(handle, div, entry, list, state, dragO
   }, {passive:true});
 };
 </script>
+<!-- ── JGuard: content-loss guard shared by MyJournal (#tj-root) and Brainstorm Journal (#bj-root) ── -->
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   JGuard — why an entry's content could go blank, and what stops it now.
+
+   Both journals persist an entry by reading the LIVE DOM (saveCurrentEntry does
+   `entry.data.html = editor.innerHTML`) and then writing that whole entry to
+   Firestore. That is only safe while the DOM on screen really is the entry being
+   saved AND has finished painting. Four situations break that assumption, and
+   every one of them ends the same way: a blank or foreign editor is written over
+   real content, and the whole-entry cloud write spreads the wipe to every device.
+
+     1. SHARED DOM. ONE #tj-page-editor serves every page entry and every Google
+        Docs / OneNote document MJDocs opens. A save that runs while the editor
+        still holds the entry we just left (or a released cloud document) files
+        that content under the wrong id.
+     2. UNPAINTED DOM. loadActiveEntry() returns early for a locked entry and when
+        there is no entry at all, leaving the editor blank. A save in that window
+        reads "" as the entry's new content.
+     3. A TOUCHED CLOCK — the one that made this recur for months. saveCurrentEntry
+        stamped `entry.updated = Date.now()` on EVERY call, even a no-op one. The
+        remote merge resolves conflicts with `remoteUpdated <= localUpdated → keep
+        local`, so a single no-op save on a session holding stale content made that
+        stale copy the permanent winner: the real remote content was dropped the
+        moment it arrived, and then overwritten on the next write.
+     4. A FOREIGN UNDO STACK. The editor persists undo history per document id
+        across sessions. Reopening an entry that had changed elsewhere restored
+        that old stack, so one Ctrl+Z jumped to a version from a previous session
+        and auto-saved it over the current one.
+
+   This module supplies the primitives; the rules using them live at the call
+   sites, where lock state, cloud mode, focus and edit mode are known:
+
+     emptyHtml / emptyData  "is there materially anything here", tags ignored.
+     wouldLose              would committing this DOM turn a non-empty field empty?
+     sig                    content fingerprint, for no-op detection (excludes
+                            `updated`, which is the field we must stop mis-stamping).
+     backup / recover       a rolling per-entry local version history, written only
+                            when content SHRINKS, so a regression that still gets
+                            through is recoverable instead of terminal.
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function () {
+'use strict';
+
+var BAK_MAX       = 6;        // versions kept per entry
+var BAK_MAX_CHARS = 300000;   // never let one entry's history alone blow the quota
+
+// "Empty" means no text AND no embedded object. A page holding nothing but an
+// image, a table or a canvas has real content even though stripping tags leaves
+// an empty string — treating that as blank is exactly how an image-only page
+// would get wiped.
+function emptyHtml(html) {
+  if (!html) return true;
+  var s = String(html);
+  if (/<(img|table|canvas|svg|iframe|video|audio|hr|input|object|embed)\b/i.test(s)) return false;
+  return s.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, '').length === 0;
+}
+function emptyText(v) { return !v || String(v).replace(/\s+/g, '').length === 0; }
+
+function emptyData(template, data) {
+  var d = data || {};
+  switch (template) {
+    case 'page':    return emptyHtml(d.html);
+    case 'notes':   return emptyText(d.main) && emptyText(d.links) && emptyText(d.questions);
+    case 'cornell': return emptyText(d.topic) && emptyText(d.cues) && emptyText(d.notes) && emptyText(d.summary);
+    case 'journal-entries': {
+      var dates = d.dates || {};
+      return Object.keys(dates).every(function (k) { return emptyHtml(dates[k] && dates[k].html); });
+    }
+    case 'mindmap': {
+      var n = d.nodes || [];
+      if (n.length > 1 || (d.edges || []).length) return false;
+      return !n.length || !n[0].label || n[0].label === 'Central Idea';   // untouched default
+    }
+    case 'whiteboard': return !d.canvas;
+    // An unrecognised template must never be called empty — the guards below
+    // read "not empty" as "leave it alone", which is the safe direction.
+    default: return false;
+  }
+}
+function emptyEntry(e) { return !e || emptyData(e.template, e.data); }
+
+/* Would committing `next` over `old` turn a field that HAS content into an empty
+ * one? Checked per FIELD, not per entry: a journal-entries page with ten dated
+ * pages is not "empty" just because today's tab blanked, but that one date is
+ * still a loss. Deleting a date outright (the key disappears) is an explicit user
+ * action, not a loss, so keys missing from `next` are skipped. Mindmap and
+ * whiteboard are excluded — their edits are explicit node/stroke operations with
+ * their own undo, not a text field that can silently read back blank. */
+function wouldLose(template, old, next) {
+  var o = old || {}, n = next || {};
+  function lostText(a, b) { return !emptyText(a) && emptyText(b); }
+  function lostHtml(a, b) { return !emptyHtml(a) && emptyHtml(b); }
+  switch (template) {
+    case 'page':    return lostHtml(o.html, n.html);
+    case 'notes':   return lostText(o.main, n.main) || lostText(o.links, n.links) || lostText(o.questions, n.questions);
+    case 'cornell': return lostText(o.topic, n.topic) || lostText(o.cues, n.cues) ||
+                           lostText(o.notes, n.notes) || lostText(o.summary, n.summary);
+    case 'journal-entries': {
+      var od = o.dates || {}, nd = n.dates || {};
+      return Object.keys(od).some(function (k) {
+        if (!(k in nd)) return false;
+        return lostHtml(od[k] && od[k].html, nd[k] && nd[k].html);
+      });
+    }
+    default: return false;
+  }
+}
+
+// Content fingerprint. Deliberately EXCLUDES `updated`, `_fbPushed` and the rest
+// of the sync bookkeeping, so "did the user actually change anything" can be
+// answered without consulting the timestamp this module exists to protect.
+function sig(template, data, title) {
+  var d = data || {}, parts = [String(title == null ? '' : title)];
+  switch (template) {
+    case 'page':    parts.push(d.html || ''); break;
+    case 'notes':   parts.push(d.main || '', d.links || '', d.questions || ''); break;
+    case 'cornell': parts.push(d.topic || '', d.cues || '', d.notes || '', d.summary || ''); break;
+    case 'journal-entries': {
+      var dates = d.dates || {};
+      parts.push((d.dateOrder || []).join(','));
+      Object.keys(dates).sort().forEach(function (k) { parts.push(k, (dates[k] && dates[k].html) || ''); });
+      break;
+    }
+    case 'mindmap':    parts.push(JSON.stringify(d.nodes || []), JSON.stringify(d.edges || [])); break;
+    case 'whiteboard': parts.push(String((d.canvas || '').length)); break;
+    default:           try { parts.push(JSON.stringify(d)); } catch (e) { parts.push('?'); }
+  }
+  try { parts.push(JSON.stringify(d.attachments || [])); } catch (e) {}
+  return parts.join(' ');
+}
+
+// Rough content size, used only to decide whether a version is worth keeping.
+function size(template, data) { return sig(template, data, '').length; }
+
+function bakKey(app, id) { return 'jg_bak_' + app + '_' + id; }
+function readBak(app, id) {
+  try { var v = JSON.parse(localStorage.getItem(bakKey(app, id)) || '[]'); return Array.isArray(v) ? v : []; }
+  catch (e) { return []; }
+}
+
+/* Keep a copy of the CURRENT content just before it is replaced by something
+ * smaller. Growth is never a loss and snapshotting every keystroke would blow the
+ * localStorage quota on one long page, so shrinkage is the only trigger. */
+function backup(app, entry, nextData) {
+  try {
+    if (!entry || !entry.id || emptyEntry(entry)) return;
+    if (size(entry.template, nextData) >= size(entry.template, entry.data)) return;
+    var payload = JSON.stringify({ template: entry.template, title: entry.title || '', data: entry.data });
+    if (payload.length > BAK_MAX_CHARS) return;
+    var list = readBak(app, entry.id);
+    if (list.length && list[0].p === payload) return;
+    list.unshift({ t: Date.now(), p: payload });
+    while (list.length > BAK_MAX) list.pop();
+    try { localStorage.setItem(bakKey(app, entry.id), JSON.stringify(list)); }
+    catch (e) { try { localStorage.setItem(bakKey(app, entry.id), JSON.stringify(list.slice(0, 2))); } catch (x) {} }
+  } catch (e) {}
+}
+
+// Newest kept version that still has content.
+function latestBackup(app, id) {
+  var list = readBak(app, id);
+  for (var i = 0; i < list.length; i++) {
+    try {
+      var v = JSON.parse(list[i].p);
+      if (!emptyData(v.template, v.data)) return { at: list[i].t, title: v.title, template: v.template, data: v.data };
+    } catch (e) {}
+  }
+  return null;
+}
+
+/* The editor's cross-session undo stack (docx_hist_<app>_<entryId>) is a second,
+ * independent copy of a page's HTML sitting in this browser. For content lost
+ * BEFORE this guard shipped there is no JGuard backup, so that stack is the only
+ * surviving copy — worth reading before declaring a page gone. */
+function histRecover(app, id) {
+  try {
+    var raw = localStorage.getItem('docx_hist_' + app + '_' + id);
+    if (!raw) return null;
+    var stack = (JSON.parse(raw) || {}).stack || [];
+    var best = '';
+    stack.forEach(function (s) {
+      if (s && typeof s.html === 'string' && !emptyHtml(s.html) && s.html.length > best.length) best = s.html;
+    });
+    return best || null;
+  } catch (e) { return null; }
+}
+
+/* An entry the user EMPTIED ON PURPOSE. Recovery exists to repair unexplained
+ * emptiness; a deliberate clear is explained, and resurrecting it on the next open
+ * would be its own kind of data corruption — the user's deletion undone behind
+ * their back. Recorded as a timestamp so the marker expires naturally: write
+ * content again and the next backup is newer than the marker, which re-arms
+ * recovery for that new content. */
+function markCleared(app, id) {
+  try { localStorage.setItem('jg_cleared_' + app + '_' + id, String(Date.now())); } catch (e) {}
+}
+function clearedAt(app, id) {
+  var v = parseInt(localStorage.getItem('jg_cleared_' + app + '_' + id) || '', 10);
+  return isNaN(v) ? 0 : v;
+}
+
+/* Heal an entry that has come back empty, in place. Returns true if it changed
+ * anything. Only ever ADDS content to an empty field — it can never overwrite
+ * something the user still has. */
+function recover(app, entry) {
+  if (!entry || !entry.id || !emptyEntry(entry)) return false;
+  var bak = latestBackup(app, entry.id);
+  // Emptied on purpose, and nothing has been written since — leave it empty.
+  var mark = clearedAt(app, entry.id);
+  if (mark && mark >= (bak ? bak.at : 0)) return false;
+  if (bak && bak.template === entry.template) {
+    entry.data = bak.data;
+    if (!entry.title && bak.title) entry.title = bak.title;
+    console.warn('[JGuard] restored ' + app + ' entry ' + entry.id + ' from local backup of ' + new Date(bak.at).toLocaleString());
+    return true;
+  }
+  if (entry.template === 'page') {
+    var html = histRecover(app, entry.id);
+    if (html) {
+      entry.data = entry.data || {};
+      entry.data.html = html;
+      console.warn('[JGuard] restored ' + app + ' entry ' + entry.id + ' from its saved editor history');
+      return true;
+    }
+  }
+  return false;
+}
+
+window.JGuard = {
+  emptyHtml: emptyHtml, emptyText: emptyText, emptyData: emptyData, emptyEntry: emptyEntry,
+  wouldLose: wouldLose, sig: sig, size: size,
+  backup: backup, latestBackup: latestBackup, histRecover: histRecover, recover: recover,
+  markCleared: markCleared, clearedAt: clearedAt,
+  // Manual escape hatch from the console: JGuard.versions('tj', entryId)
+  versions: function (app, id) {
+    return readBak(app, id).map(function (r) {
+      var v = {}; try { v = JSON.parse(r.p); } catch (e) {}
+      return { at: new Date(r.t).toLocaleString(), title: v.title, data: v.data };
+    });
+  }
+};
+})();
+</script>
 <!-- ── Brainstorm Journal (embedded) ── -->
 <style>
 #bj-root {
@@ -19693,6 +19961,15 @@ const STORAGE_KEY = 'brainstorm_journal_v3';
 const BJ_CANVAS_KEY = (id) => 'bj_canvas_' + id;
 let state = { entries: [], activeId: null, deletedIds: [] };
 let saveTimer = null;
+// ── Anti-regression state — the MyJournal twins, same reasons (see JGuard above) ──
+// _bjDomOwner: the entry id the editor DOM was last PAINTED for. Every template
+//   shares one set of nodes, so this is the only way saveCurrentEntry can tell "the
+//   content on screen is this entry's" from "it belongs to the entry we just left,
+//   or has not been painted yet".
+// _bjUserEdited: set by autoSave(), which only runs off a real edit. It separates a
+//   user genuinely clearing a page from a blank editor that was never filled in.
+let _bjDomOwner   = null;
+let _bjUserEdited = false;
 let bjSyncStatus = 'idle'; // idle | saving | saved | error
 
 function _bjSetSync(status) {
@@ -19790,9 +20067,23 @@ function _bjApplyRemote(remote) {
 
   var focused = document.activeElement;
 
-  // Flush active entry DOM → state before merging so local updated timestamp is current
+  // "Is the user actively editing something here that must not be yanked away?"
+  // Focus alone is not the right test: an EMPTY field holds no cursor position and
+  // no in-progress text worth protecting, and treating it as protected is what kept
+  // an entry that came back blank from ever healing — the moment you clicked into it
+  // to see what had happened, the repair was vetoed and the blank stayed.
+  function _bjBusy(el) {
+    if (!el) return false;
+    if (focused !== el && !(el.contains && el.contains(focused))) return false;
+    return !(window.JGuard && window.JGuard.emptyHtml(el.value !== undefined ? el.value : el.innerHTML));
+  }
+
+  // Flush active entry DOM → state before merging so local updated timestamp is current.
+  // Gated on DOM ownership for the same reason saveCurrentEntry is: if the editor was
+  // not painted for this entry there is nothing here worth flushing, only the previous
+  // entry's content or a blank field waiting to be mistaken for one.
   var activeEntry = getActive();
-  if (activeEntry) {
+  if (activeEntry && _bjDomOwner === activeEntry.id) {
     // Capture ONLY the field the user is actively editing (focused). Blindly
     // snapshotting every input here wiped titles on phones: when this listener
     // fired during entry open, the (hidden) desktop title input could still be
@@ -19880,8 +20171,22 @@ function _bjApplyRemote(remote) {
       return;
     }
 
-    // Entry exists locally — only update if remote is strictly newer
-    if (remoteUpdated < localUpdated) return; // local is same age or newer, keep it
+    // Entry exists locally — only update if remote is strictly newer.
+    // ONE exception, and it is the safety net for every remaining way this device
+    // could be holding a bad copy: an EMPTY local entry never wins over a remote one
+    // that still has content, whatever the clocks say. Emptiness is not an edit worth
+    // defending, and without this a session that once stamped `updated` from a blank
+    // editor would reject the real content forever and then publish its blank over
+    // it. The reverse — remote blank, local full — is left alone on purpose: that is
+    // what the pending local write is about to correct.
+    if (remoteUpdated < localUpdated) {
+      if (!(window.JGuard && window.JGuard.emptyEntry(local) && !window.JGuard.emptyEntry(remoteEntry))) return;
+      console.warn('[JGuard] bj entry ' + remoteEntry.id + ' is empty locally but has content on the server — taking the server copy');
+    }
+    // Remote is about to replace local content. If it is SMALLER, keep the local
+    // version in the rolling backup first — the last line of defence if a wipe still
+    // reaches the cloud from some other device.
+    if (window.JGuard) window.JGuard.backup('bj', local, remoteEntry.data);
 
     if (remoteEntry.template === 'whiteboard') {
       // Whiteboard canvas handled by _fbWatchCanvas; only sync metadata
@@ -19905,10 +20210,10 @@ function _bjApplyRemote(remote) {
       var titleEl = document.getElementById('bj-entry-title-input');
       var newData = Object.assign({}, local.data);
       var newTitle = local.title;
-      if (focused !== titleEl && remoteEntry.title !== undefined) { newTitle = remoteEntry.title; if (titleEl) titleEl.value = newTitle; }
-      if (focused !== mainEl  && remoteEntry.data && remoteEntry.data.main      !== undefined) { newData.main      = remoteEntry.data.main;      if (mainEl)  mainEl.value  = newData.main; }
-      if (focused !== linksEl && remoteEntry.data && remoteEntry.data.links     !== undefined) { newData.links     = remoteEntry.data.links;     if (linksEl) linksEl.value = newData.links; }
-      if (focused !== questEl && remoteEntry.data && remoteEntry.data.questions !== undefined) { newData.questions = remoteEntry.data.questions; if (questEl) questEl.value = newData.questions; }
+      if (!_bjBusy(titleEl) && remoteEntry.title !== undefined) { newTitle = remoteEntry.title; if (titleEl) titleEl.value = newTitle; }
+      if (!_bjBusy(mainEl)  && remoteEntry.data && remoteEntry.data.main      !== undefined) { newData.main      = remoteEntry.data.main;      if (mainEl)  mainEl.value  = newData.main; }
+      if (!_bjBusy(linksEl) && remoteEntry.data && remoteEntry.data.links     !== undefined) { newData.links     = remoteEntry.data.links;     if (linksEl) linksEl.value = newData.links; }
+      if (!_bjBusy(questEl) && remoteEntry.data && remoteEntry.data.questions !== undefined) { newData.questions = remoteEntry.data.questions; if (questEl) questEl.value = newData.questions; }
       localById[remoteEntry.id] = Object.assign({}, remoteEntry, { title: newTitle, data: newData });
     } else if (remoteEntry.template === 'cornell') {
       var topicEl   = document.getElementById('bj-cornell-topic');
@@ -19918,15 +20223,15 @@ function _bjApplyRemote(remote) {
       var titleElC  = document.getElementById('bj-entry-title-input');
       var newDataC = Object.assign({}, local.data);
       var newTitleC = local.title;
-      if (focused !== titleElC  && remoteEntry.title !== undefined)                             { newTitleC = remoteEntry.title;              if (titleElC)  titleElC.value  = newTitleC; }
-      if (focused !== topicEl   && remoteEntry.data && remoteEntry.data.topic   !== undefined) { newDataC.topic   = remoteEntry.data.topic;   if (topicEl)   topicEl.value   = newDataC.topic; }
-      if (focused !== cuesEl    && remoteEntry.data && remoteEntry.data.cues    !== undefined) { newDataC.cues    = remoteEntry.data.cues;    if (cuesEl)    cuesEl.value    = newDataC.cues; }
-      if (focused !== notesEl   && remoteEntry.data && remoteEntry.data.notes   !== undefined) { newDataC.notes   = remoteEntry.data.notes;   if (notesEl)   notesEl.value   = newDataC.notes; }
-      if (focused !== summaryEl && remoteEntry.data && remoteEntry.data.summary !== undefined) { newDataC.summary = remoteEntry.data.summary; if (summaryEl) summaryEl.value = newDataC.summary; }
+      if (!_bjBusy(titleElC)  && remoteEntry.title !== undefined)                             { newTitleC = remoteEntry.title;              if (titleElC)  titleElC.value  = newTitleC; }
+      if (!_bjBusy(topicEl)   && remoteEntry.data && remoteEntry.data.topic   !== undefined) { newDataC.topic   = remoteEntry.data.topic;   if (topicEl)   topicEl.value   = newDataC.topic; }
+      if (!_bjBusy(cuesEl)    && remoteEntry.data && remoteEntry.data.cues    !== undefined) { newDataC.cues    = remoteEntry.data.cues;    if (cuesEl)    cuesEl.value    = newDataC.cues; }
+      if (!_bjBusy(notesEl)   && remoteEntry.data && remoteEntry.data.notes   !== undefined) { newDataC.notes   = remoteEntry.data.notes;   if (notesEl)   notesEl.value   = newDataC.notes; }
+      if (!_bjBusy(summaryEl) && remoteEntry.data && remoteEntry.data.summary !== undefined) { newDataC.summary = remoteEntry.data.summary; if (summaryEl) summaryEl.value = newDataC.summary; }
       localById[remoteEntry.id] = Object.assign({}, remoteEntry, { title: newTitleC, data: newDataC });
     } else if (remoteEntry.template === 'page') {
       var pageEd = document.getElementById('bj-page-editor');
-      var userInEditor = pageEd && (focused === pageEd || pageEd.contains(focused));
+      var userInEditor = _bjBusy(pageEd);
       if (!userInEditor) {
         // Apply remote HTML, rehydrate images if needed
         localById[remoteEntry.id] = remoteEntry;
@@ -20346,6 +20651,10 @@ function showTemplate(name) {
 
 function loadActiveEntry() {
   const entry = getActive();
+  // Nothing painted for any entry yet — see _bjDomOwner. Cleared BEFORE the early
+  // returns below, so the blank editor they leave behind can never be read back as
+  // an entry's new content.
+  _bjDomOwner = null;
   if (!entry) { document.getElementById('bj-entry-title-input').value = ''; showTemplate(null); renderTags([]); return; }
   // Lock guard: if entry is locked and not yet unlocked this session, show lock screen — no content
   if (window._bjGetLock && window._bjGetLock(entry.id) && !(window._bjIsUnlocked && window._bjIsUnlocked(entry.id))) {
@@ -20355,6 +20664,10 @@ function loadActiveEntry() {
     if (window._bjLockCheck) window._bjLockCheck();
     return;
   }
+  // An entry that has come back empty while a local copy of its content survives is
+  // healed here, before it is painted — otherwise the blank paint is what the next
+  // save would publish. Only ever fills an EMPTY entry. See JGuard.recover.
+  if (window.JGuard && window.JGuard.recover('bj', entry)) { entry.updated = Date.now(); _bjWriteCache(); }
   document.getElementById('bj-entry-title-input').value = entry.title;
   showTemplate(entry.template);
   renderTags(entry.tags || []);
@@ -20430,40 +20743,81 @@ function loadActiveEntry() {
       });
     }
   }
+  // The DOM now genuinely shows THIS entry, so saveCurrentEntry may read it. Last
+  // line on purpose: everything above either paints or bails, and a save that lands
+  // mid-paint must find the editor still marked as nobody's.
+  _bjDomOwner = entry.id;
 }
 
 function saveCurrentEntry() {
   const entry = getActive(); if (!entry) return;
+  clearTimeout(autoTimer); _bjAutoFirstAt = 0;   // this IS the save the pending timer was for
+  const _userEdit = _bjUserEdited; _bjUserEdited = false;
   // GUARD: a locked entry not yet unlocked on THIS device has its inputs blanked
   // (or showing another entry's content). Persisting that DOM would erase the
   // real content and sync the wipe to every device. Skip entirely — unlocking
   // re-renders from the intact synced state.
   if (window._bjGetLock && window._bjGetLock(entry.id) && !(window._bjIsUnlocked && window._bjIsUnlocked(entry.id))) return;
-  entry.title = document.getElementById('bj-entry-title-input').value;
+  // GUARD (DOM ownership): the templates share one set of DOM nodes, so reading
+  // them for an entry they were not painted for files the previous entry's content
+  // — or a blank, still-loading editor — under this id, and the whole-entry cloud
+  // write then propagates it everywhere. loadActiveEntry() stamps the id it painted.
+  if (_bjDomOwner !== entry.id) return;
+
+  let _title = document.getElementById('bj-entry-title-input').value;
   // Auto-title: derive from content while the title is empty; a user-typed title always wins
-  if (!entry.title.trim()) {
+  if (!_title.trim()) {
     const _auto = _bjAutoTitle(entry);
     if (_auto) {
-      entry.title = _auto;
+      _title = _auto;
       const _ti = document.getElementById('bj-entry-title-input');
       if (_ti && document.activeElement !== _ti) _ti.value = _auto;
     }
   }
-  entry.updated = Date.now();
-  if (entry.template === 'whiteboard') entry.data.canvas = wbCanvas ? wbCanvas.toDataURL('image/png') : '';
+
+  // Read the DOM into a PROPOSED copy of data rather than straight into the entry,
+  // so the two guards below can still refuse it. Nothing is committed until both pass.
+  const _next = Object.assign({}, entry.data);
+  if (entry.template === 'whiteboard') _next.canvas = wbCanvas ? wbCanvas.toDataURL('image/png') : '';
   if (entry.template === 'notes') {
-    entry.data.main = document.getElementById('bj-notes-main').value;
-    entry.data.links = document.getElementById('bj-notes-links').value;
-    entry.data.questions = document.getElementById('bj-notes-questions').value;
+    _next.main = document.getElementById('bj-notes-main').value;
+    _next.links = document.getElementById('bj-notes-links').value;
+    _next.questions = document.getElementById('bj-notes-questions').value;
   }
   if (entry.template === 'cornell') {
-    entry.data.topic = document.getElementById('bj-cornell-topic').value;
-    entry.data.cues = document.getElementById('bj-cornell-cues-ta').value;
-    entry.data.notes = document.getElementById('bj-cornell-notes-ta').value;
-    entry.data.summary = document.getElementById('bj-cornell-summary-ta').value;
+    _next.topic = document.getElementById('bj-cornell-topic').value;
+    _next.cues = document.getElementById('bj-cornell-cues-ta').value;
+    _next.notes = document.getElementById('bj-cornell-notes-ta').value;
+    _next.summary = document.getElementById('bj-cornell-summary-ta').value;
   }
-  if (entry.template === 'mindmap') { entry.data.nodes = mmNodes; entry.data.edges = mmEdges; }
-  if (entry.template === 'page') { const ed = document.getElementById('bj-page-editor'); entry.data.html = ed.innerHTML; }
+  if (entry.template === 'mindmap') { _next.nodes = mmNodes; _next.edges = mmEdges; }
+  if (entry.template === 'page') { _next.html = document.getElementById('bj-page-editor').innerHTML; }
+
+  // GUARD (blank overwrite): never let an empty field replace stored content unless
+  // this save came from a real edit. A genuine select-all-and-delete goes through
+  // autoSave (_userEdit === true) and passes straight through — with the previous
+  // version kept locally first, so even that stays reversible.
+  if (window.JGuard && window.JGuard.wouldLose(entry.template, entry.data, _next)) {
+    if (!_userEdit) {
+      console.warn('[JGuard] refused a blank overwrite of bj entry ' + entry.id + ' (editor was not user-edited)');
+      return;
+    }
+    window.JGuard.backup('bj', entry, _next);
+    // A deliberate clear must not be undone by recovery on the next open.
+    if (window.JGuard.emptyData(entry.template, _next)) window.JGuard.markCleared('bj', entry.id);
+  }
+
+  // GUARD (no-op): only stamp `updated` when something ACTUALLY changed — the remote
+  // merge resolves conflicts on that timestamp, so a no-op save on a session holding
+  // stale content used to make the stale copy the permanent winner.
+  if (window.JGuard && window.JGuard.sig(entry.template, entry.data, entry.title) ===
+                       window.JGuard.sig(entry.template, _next, _title)) return;
+
+  entry.title = _title;
+  // Merged in place rather than reassigned: attachment lists, mindmap node arrays
+  // and the whiteboard canvas are all held by reference elsewhere in this file.
+  Object.assign(entry.data, _next);
+  entry.updated = Date.now();
   saveState(); renderSidebar();
 }
 
@@ -20499,6 +20853,9 @@ function renderTags(tags) {
     delBtn.onclick = () => {
       const e = getActive(); if (!e) return;
       e.tags = (e.tags||[]).filter(t => t !== tag);
+      // A tag change is a real edit: bump the merge clock too, or the other device
+      // resolves the incoming copy as older and silently drops it.
+      e.updated = Date.now();
       saveState(); renderTags(e.tags); renderSidebar();
     };
     span.appendChild(delBtn);
@@ -20513,6 +20870,7 @@ document.getElementById('bj-add-tag-input').addEventListener('keydown', e => {
     const entry = getActive(); if (!entry) return;
     entry.tags = entry.tags || [];
     if (!entry.tags.includes(val)) entry.tags.push(val);
+    entry.updated = Date.now();   // see the tag-delete handler above
     e.target.value = ''; saveState(); renderTags(entry.tags); renderSidebar();
   }
 });
@@ -22520,7 +22878,22 @@ document.getElementById('bj-page-editor').addEventListener('keydown', e => {
 
 /* AUTO-SAVE */
 let autoTimer=null;
-function autoSave() { _bjSetSync('syncing'); clearTimeout(autoTimer); autoTimer=setTimeout(saveCurrentEntry, 700); }
+let _bjAutoFirstAt = 0;   // when the current unsaved burst of edits began
+function autoSave() {
+  // Only real editing reaches here (input, paste, toolbar command, undo), which is
+  // what makes this the signal that a blank editor is a deliberate clear rather
+  // than an unpainted one — see the blank-overwrite guard in saveCurrentEntry.
+  _bjUserEdited = true;
+  _bjSetSync('syncing');
+  const _now = Date.now();
+  if (!_bjAutoFirstAt) _bjAutoFirstAt = _now;
+  clearTimeout(autoTimer);
+  // MAX WAIT. The debounce restarts on every keystroke, so a long uninterrupted
+  // burst of typing reached neither localStorage nor the cloud until the user
+  // paused — a crash mid-paragraph lost all of it. However long the burst runs, the
+  // entry is now persisted at least every 1.5s.
+  autoTimer = setTimeout(saveCurrentEntry, (_now - _bjAutoFirstAt >= 1500) ? 0 : 700);
+}
 // Persist the current entry synchronously RIGHT NOW: flush the pending autoSave
 // (DOM→state), then flush the pending Firebase write. Called on tab-hide/close so the
 // last few hundred ms of typing (still inside the debounce) can't be lost.
@@ -25392,6 +25765,18 @@ const STORAGE_KEY = 'tony_journal_v3';
 const TJ_CANVAS_KEY = (id) => 'tj_canvas_' + id;
 let state = { entries: [], activeId: null, deletedIds: [] };
 let saveTimer = null;
+// ── Anti-regression state (see the JGuard block above) ────────────────────────
+// _tjDomOwner: the entry id the editor DOM was last PAINTED for. The templates
+//   share one set of nodes — a single #tj-page-editor serves every page entry and
+//   every cloud document — so this is the only way saveCurrentEntry can tell "the
+//   content on screen is this entry's" from "the content on screen belongs to
+//   something else, or has not been painted yet".
+// _tjUserEdited: set by autoSave(), which only ever runs off a real edit (input,
+//   paste, toolbar command, undo). It is what distinguishes a user genuinely
+//   clearing a page — which must be allowed to save — from a blank editor that was
+//   never filled in, which must not.
+let _tjDomOwner  = null;
+let _tjUserEdited = false;
 let tjSyncStatus = 'idle'; // idle | saving | saved | error
 
 function _tjSetSync(status) {
@@ -25497,9 +25882,23 @@ function _tjApplyRemote(remote) {
 
   var focused = document.activeElement;
 
-  // Flush active entry DOM → state before merging so local updated timestamp is current
+  // "Is the user actively editing something here that must not be yanked away?"
+  // Focus alone is not the right test: an EMPTY field holds no cursor position and
+  // no in-progress text worth protecting, and treating it as protected is what kept
+  // an entry that came back blank from ever healing — the moment you clicked into it
+  // to see what had happened, the repair was vetoed and the blank stayed.
+  function _tjBusy(el) {
+    if (!el) return false;
+    if (focused !== el && !(el.contains && el.contains(focused))) return false;
+    return !(window.JGuard && window.JGuard.emptyHtml(el.value !== undefined ? el.value : el.innerHTML));
+  }
+
+  // Flush active entry DOM → state before merging so local updated timestamp is current.
+  // Gated on DOM ownership for the same reason saveCurrentEntry is: if the editor was
+  // not painted for this entry there is nothing here worth flushing, only the previous
+  // entry's content or a blank field waiting to be mistaken for one.
   var activeEntry = getActive();
-  if (activeEntry) {
+  if (activeEntry && _tjDomOwner === activeEntry.id) {
     // Capture ONLY the focused field — see _bjApplyRemote. Prevents opening an
     // entry on a phone from overwriting its title with the empty desktop input.
     var _fa = document.activeElement;
@@ -25586,8 +25985,22 @@ function _tjApplyRemote(remote) {
       return;
     }
 
-    // Entry exists locally — only update if remote is strictly newer
-    if (remoteUpdated <= localUpdated) return; // local is same age or newer, keep it
+    // Entry exists locally — only update if remote is strictly newer.
+    // ONE exception, and it is the safety net for every remaining way this device
+    // could be holding a bad copy: an EMPTY local entry never wins over a remote one
+    // that still has content, whatever the clocks say. Emptiness is not an edit
+    // worth defending, and without this a session that once stamped `updated` from a
+    // blank editor would reject the real content forever and then publish its blank
+    // over it. The reverse — remote blank, local full — is left alone on purpose:
+    // that is what the pending local write is about to correct.
+    if (remoteUpdated <= localUpdated) {
+      if (!(window.JGuard && window.JGuard.emptyEntry(local) && !window.JGuard.emptyEntry(remoteEntry))) return;
+      console.warn('[JGuard] tj entry ' + remoteEntry.id + ' is empty locally but has content on the server — taking the server copy');
+    }
+    // Remote is about to replace local content. If it is SMALLER, keep the local
+    // version in the rolling backup first — that is the last line of defence if a
+    // wipe still reaches the cloud from some other device.
+    if (window.JGuard) window.JGuard.backup('tj', local, remoteEntry.data);
 
     if (remoteEntry.template === 'whiteboard') {
       // Whiteboard canvas handled by _fbWatchCanvas; only sync metadata
@@ -25610,10 +26023,10 @@ function _tjApplyRemote(remote) {
       var titleEl = document.getElementById('tj-entry-title-input');
       var newData = Object.assign({}, local.data);
       var newTitle = local.title;
-      if (focused !== titleEl && remoteEntry.title !== undefined) { newTitle = remoteEntry.title; if (titleEl) titleEl.value = newTitle; }
-      if (focused !== mainEl  && remoteEntry.data && remoteEntry.data.main      !== undefined) { newData.main      = remoteEntry.data.main;      if (mainEl)  mainEl.value  = newData.main; }
-      if (focused !== linksEl && remoteEntry.data && remoteEntry.data.links     !== undefined) { newData.links     = remoteEntry.data.links;     if (linksEl) linksEl.value = newData.links; }
-      if (focused !== questEl && remoteEntry.data && remoteEntry.data.questions !== undefined) { newData.questions = remoteEntry.data.questions; if (questEl) questEl.value = newData.questions; }
+      if (!_tjBusy(titleEl) && remoteEntry.title !== undefined) { newTitle = remoteEntry.title; if (titleEl) titleEl.value = newTitle; }
+      if (!_tjBusy(mainEl)  && remoteEntry.data && remoteEntry.data.main      !== undefined) { newData.main      = remoteEntry.data.main;      if (mainEl)  mainEl.value  = newData.main; }
+      if (!_tjBusy(linksEl) && remoteEntry.data && remoteEntry.data.links     !== undefined) { newData.links     = remoteEntry.data.links;     if (linksEl) linksEl.value = newData.links; }
+      if (!_tjBusy(questEl) && remoteEntry.data && remoteEntry.data.questions !== undefined) { newData.questions = remoteEntry.data.questions; if (questEl) questEl.value = newData.questions; }
       localById[remoteEntry.id] = Object.assign({}, remoteEntry, { title: newTitle, data: newData });
     } else if (remoteEntry.template === 'cornell') {
       var topicEl   = document.getElementById('tj-cornell-topic');
@@ -25623,15 +26036,15 @@ function _tjApplyRemote(remote) {
       var titleElC  = document.getElementById('tj-entry-title-input');
       var newDataC = Object.assign({}, local.data);
       var newTitleC = local.title;
-      if (focused !== titleElC  && remoteEntry.title !== undefined)                             { newTitleC = remoteEntry.title;              if (titleElC)  titleElC.value  = newTitleC; }
-      if (focused !== topicEl   && remoteEntry.data && remoteEntry.data.topic   !== undefined) { newDataC.topic   = remoteEntry.data.topic;   if (topicEl)   topicEl.value   = newDataC.topic; }
-      if (focused !== cuesEl    && remoteEntry.data && remoteEntry.data.cues    !== undefined) { newDataC.cues    = remoteEntry.data.cues;    if (cuesEl)    cuesEl.value    = newDataC.cues; }
-      if (focused !== notesEl   && remoteEntry.data && remoteEntry.data.notes   !== undefined) { newDataC.notes   = remoteEntry.data.notes;   if (notesEl)   notesEl.value   = newDataC.notes; }
-      if (focused !== summaryEl && remoteEntry.data && remoteEntry.data.summary !== undefined) { newDataC.summary = remoteEntry.data.summary; if (summaryEl) summaryEl.value = newDataC.summary; }
+      if (!_tjBusy(titleElC)  && remoteEntry.title !== undefined)                             { newTitleC = remoteEntry.title;              if (titleElC)  titleElC.value  = newTitleC; }
+      if (!_tjBusy(topicEl)   && remoteEntry.data && remoteEntry.data.topic   !== undefined) { newDataC.topic   = remoteEntry.data.topic;   if (topicEl)   topicEl.value   = newDataC.topic; }
+      if (!_tjBusy(cuesEl)    && remoteEntry.data && remoteEntry.data.cues    !== undefined) { newDataC.cues    = remoteEntry.data.cues;    if (cuesEl)    cuesEl.value    = newDataC.cues; }
+      if (!_tjBusy(notesEl)   && remoteEntry.data && remoteEntry.data.notes   !== undefined) { newDataC.notes   = remoteEntry.data.notes;   if (notesEl)   notesEl.value   = newDataC.notes; }
+      if (!_tjBusy(summaryEl) && remoteEntry.data && remoteEntry.data.summary !== undefined) { newDataC.summary = remoteEntry.data.summary; if (summaryEl) summaryEl.value = newDataC.summary; }
       localById[remoteEntry.id] = Object.assign({}, remoteEntry, { title: newTitleC, data: newDataC });
     } else if (remoteEntry.template === 'page') {
       var pageEd = document.getElementById('tj-page-editor');
-      var userInEditor = pageEd && (focused === pageEd || pageEd.contains(focused));
+      var userInEditor = _tjBusy(pageEd);
       if (!userInEditor) {
         // Apply remote HTML, rehydrate images if needed
         localById[remoteEntry.id] = remoteEntry;
@@ -25652,7 +26065,7 @@ function _tjApplyRemote(remote) {
       // else: user is typing in page editor, skip to avoid disrupting cursor
     } else if (remoteEntry.template === 'journal-entries') {
       var jeEdR = document.getElementById('tj-je-editor');
-      var userInJE = jeEdR && (focused === jeEdR || jeEdR.contains(focused));
+      var userInJE = _tjBusy(jeEdR);
       // Always update localById with the remote entry so state stays in sync.
       // If user is currently typing in the editor, preserve ONLY the active date's
       // current editor content — all other dates come from remote (last-write-wins).
@@ -26101,6 +26514,10 @@ function loadActiveEntry() {
   // won — release the document, or its toolbar chip, buttons and sync line stay
   // over an entry that isn't it and the next keystroke saves into it.
   if (entry && window._tjCloudMode && window.MJDocsUI && window.MJDocsUI.release) window.MJDocsUI.release();
+  // Nothing painted for any entry yet — see _tjDomOwner. Cleared BEFORE the early
+  // returns below, so the blank editor they leave behind can never be read back as
+  // an entry's new content.
+  _tjDomOwner = null;
   if (!entry) { document.getElementById('tj-entry-title-input').value = ''; showTemplate(null); renderTags([]); return; }
   // Lock guard: if entry is locked and not yet unlocked this session, show lock screen — no content
   if (window._tjGetLock && window._tjGetLock(entry.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(entry.id))) {
@@ -26110,6 +26527,11 @@ function loadActiveEntry() {
     if (window._tjLockCheck) window._tjLockCheck();
     return;
   }
+  // An entry that has come back empty while a local copy of its content survives is
+  // healed here, before it is painted — otherwise the blank paint is what the next
+  // save would publish. Only ever fills an EMPTY entry, so it can never overwrite
+  // anything the user still has. See JGuard.recover.
+  if (window.JGuard && window.JGuard.recover('tj', entry)) { entry.updated = Date.now(); _tjWriteCache(); }
   document.getElementById('tj-entry-title-input').value = entry.title;
   showTemplate(entry.template);
   renderTags(entry.tags || []);
@@ -26191,39 +26613,92 @@ function loadActiveEntry() {
     if (!entry.data.dateOrder) entry.data.dateOrder = Object.keys(entry.data.dates).sort();
     _jeRenderTabs(entry);
   }
+  // The DOM now genuinely shows THIS entry, so saveCurrentEntry may read it. Last
+  // line on purpose: everything above either paints or bails, and a save that lands
+  // mid-paint must find the editor still marked as nobody's.
+  _tjDomOwner = entry.id;
 }
 
 function saveCurrentEntry() {
   if (window._tjCloudMode) return;   // the editor belongs to a cloud document — see autoSave
   const entry = getActive(); if (!entry) return;
+  clearTimeout(autoTimer); _tjAutoFirstAt = 0;   // this IS the save the pending timer was for
+  const _userEdit = _tjUserEdited; _tjUserEdited = false;
   // GUARD: see BJ — do not persist a locked-but-not-unlocked entry's blank DOM.
   if (window._tjGetLock && window._tjGetLock(entry.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(entry.id))) return;
-  entry.title = document.getElementById('tj-entry-title-input').value;
+  // GUARD (DOM ownership): every template shares one set of DOM nodes, and a cloud
+  // document borrows the page editor outright. Reading that DOM for an entry it was
+  // not painted for files someone else's content — or a blank, still-loading
+  // editor — under this id, and the whole-entry cloud write then propagates it to
+  // every device. loadActiveEntry() stamps the id it painted; anything else means
+  // the DOM is not ours to read. See the JGuard block for the full list of ways
+  // this used to happen.
+  if (_tjDomOwner !== entry.id) return;
+
+  let _title = document.getElementById('tj-entry-title-input').value;
   // Auto-title: derive from content while the title is empty; a user-typed title always wins
-  if (!entry.title.trim()) {
+  if (!_title.trim()) {
     const _auto = _tjAutoTitle(entry);
     if (_auto) {
-      entry.title = _auto;
+      _title = _auto;
       const _ti = document.getElementById('tj-entry-title-input');
       if (_ti && document.activeElement !== _ti) _ti.value = _auto;
     }
   }
-  entry.updated = Date.now();
-  if (entry.template === 'whiteboard') entry.data.canvas = wbCanvas ? wbCanvas.toDataURL('image/png') : '';
+
+  // Read the DOM into a PROPOSED copy of data rather than straight into the entry,
+  // so the two guards below can still refuse it. Nothing is committed until both pass.
+  const _next = Object.assign({}, entry.data);
+  if (entry.template === 'whiteboard') _next.canvas = wbCanvas ? wbCanvas.toDataURL('image/png') : '';
   if (entry.template === 'notes') {
-    entry.data.main = document.getElementById('tj-notes-main').value;
-    entry.data.links = document.getElementById('tj-notes-links').value;
-    entry.data.questions = document.getElementById('tj-notes-questions').value;
+    _next.main = document.getElementById('tj-notes-main').value;
+    _next.links = document.getElementById('tj-notes-links').value;
+    _next.questions = document.getElementById('tj-notes-questions').value;
   }
   if (entry.template === 'cornell') {
-    entry.data.topic = document.getElementById('tj-cornell-topic').value;
-    entry.data.cues = document.getElementById('tj-cornell-cues-ta').value;
-    entry.data.notes = document.getElementById('tj-cornell-notes-ta').value;
-    entry.data.summary = document.getElementById('tj-cornell-summary-ta').value;
+    _next.topic = document.getElementById('tj-cornell-topic').value;
+    _next.cues = document.getElementById('tj-cornell-cues-ta').value;
+    _next.notes = document.getElementById('tj-cornell-notes-ta').value;
+    _next.summary = document.getElementById('tj-cornell-summary-ta').value;
   }
-  if (entry.template === 'mindmap') { entry.data.nodes = mmNodes; entry.data.edges = mmEdges; }
-  if (entry.template === 'page') { const ed = document.getElementById('tj-page-editor'); entry.data.html = ed.innerHTML; }
-  if (entry.template === 'journal-entries') { _jeSaveActiveDate(entry); }
+  if (entry.template === 'mindmap') { _next.nodes = mmNodes; _next.edges = mmEdges; }
+  if (entry.template === 'page') { _next.html = document.getElementById('tj-page-editor').innerHTML; }
+  if (entry.template === 'journal-entries') {
+    // _jeSaveActiveDate writes into entry.data.dates, so give it a detached dates
+    // map — otherwise the proposal would mutate the entry before it is vetted.
+    _next.dates = Object.assign({}, entry.data && entry.data.dates);
+    _jeSaveActiveDate({ template: 'journal-entries', data: _next });
+  }
+
+  // GUARD (blank overwrite): never let an empty field replace stored content unless
+  // this save came from a real edit. A blank editor here is almost never something
+  // the user did — it is a load that has not painted, a lock screen, a released
+  // cloud document, or a hidden template area. A genuine select-all-and-delete goes
+  // through autoSave (_userEdit === true) and is allowed straight through; its
+  // previous version is kept locally first so even that is reversible.
+  if (window.JGuard && window.JGuard.wouldLose(entry.template, entry.data, _next)) {
+    if (!_userEdit) {
+      console.warn('[JGuard] refused a blank overwrite of tj entry ' + entry.id + ' (editor was not user-edited)');
+      return;
+    }
+    window.JGuard.backup('tj', entry, _next);
+    // A deliberate clear must not be undone by recovery on the next open.
+    if (window.JGuard.emptyData(entry.template, _next)) window.JGuard.markCleared('tj', entry.id);
+  }
+
+  // GUARD (no-op): only stamp `updated` when something ACTUALLY changed. The remote
+  // merge resolves conflicts on that timestamp, so a no-op save on a session holding
+  // stale content used to make the stale copy the permanent winner — the real remote
+  // content was dropped on arrival and overwritten on the next write. This is the
+  // root cause of content silently reverting after a background/refresh.
+  if (window.JGuard && window.JGuard.sig(entry.template, entry.data, entry.title) ===
+                       window.JGuard.sig(entry.template, _next, _title)) return;
+
+  entry.title = _title;
+  // Merged in place rather than reassigned: attachment lists, mindmap node arrays
+  // and the whiteboard canvas are all held by reference elsewhere in this file.
+  Object.assign(entry.data, _next);
+  entry.updated = Date.now();
   saveState(); renderSidebar();
 }
 
@@ -26264,6 +26739,9 @@ function renderTags(tags) {
     delBtn.onclick = () => {
       const e = getActive(); if (!e) return;
       e.tags = (e.tags||[]).filter(t => t !== tag);
+      // A tag change is a real edit: bump the merge clock too, or the other device
+      // resolves the incoming copy as older and silently drops it.
+      e.updated = Date.now();
       saveState(); renderTags(e.tags); renderSidebar();
     };
     span.appendChild(delBtn);
@@ -26278,6 +26756,7 @@ document.getElementById('tj-add-tag-input').addEventListener('keydown', e => {
     const entry = getActive(); if (!entry) return;
     entry.tags = entry.tags || [];
     if (!entry.tags.includes(val)) entry.tags.push(val);
+    entry.updated = Date.now();   // see the tag-delete handler above
     e.target.value = ''; saveState(); renderTags(entry.tags); renderSidebar();
   }
 });
@@ -28479,9 +28958,22 @@ let autoTimer=null;
 // editor, so every keystroke still lands here. Hand the edit to MJDocs instead of
 // writing it into a journal entry — otherwise typing in a cloud document would
 // silently overwrite whichever local entry happened to be active.
+let _tjAutoFirstAt = 0;   // when the current unsaved burst of edits began
 function autoSave() {
   if (window._tjCloudMode) { if (window.MJDocs) window.MJDocs.onEditorInput(); return; }
-  _tjSetSync('syncing'); clearTimeout(autoTimer); autoTimer=setTimeout(saveCurrentEntry, 500);
+  // Only real editing reaches here (input, paste, toolbar command, undo), which is
+  // what makes this the signal that a blank editor is a deliberate clear rather
+  // than an unpainted one — see the blank-overwrite guard in saveCurrentEntry.
+  _tjUserEdited = true;
+  _tjSetSync('syncing');
+  const _now = Date.now();
+  if (!_tjAutoFirstAt) _tjAutoFirstAt = _now;
+  clearTimeout(autoTimer);
+  // MAX WAIT. The 500ms debounce restarts on every keystroke, so a long
+  // uninterrupted burst of typing reached neither localStorage nor the cloud until
+  // the user paused — a crash or a closed lid in the middle of a paragraph lost all
+  // of it. However long the burst runs, the entry is now persisted at least every 1.5s.
+  autoTimer = setTimeout(saveCurrentEntry, (_now - _tjAutoFirstAt >= 1500) ? 0 : 500);
 }
 // Persist the current entry synchronously RIGHT NOW — see _bjPersistNow.
 window._tjPersistNow = function() {
@@ -29679,6 +30171,10 @@ window._tjCloudBridge = {
     try { saveCurrentEntry(); } catch (e) {}
     try { if (window._fbFlushTonyJournal) window._fbFlushTonyJournal(); } catch (e) {}
     window._tjCloudMode = true;
+    // The editor is about to hold a Google Doc / OneNote page. Disown it, so that
+    // if cloud mode is ever dropped while that HTML is still on screen (a failed
+    // open, a release racing a repaint) no journal entry can be saved from it.
+    _tjDomOwner = null;
     state.activeId = null;
     renderSidebar();
     showTemplate('page');
@@ -31060,9 +31556,20 @@ function makeHistory(ctx) {
     try {
       var data = JSON.parse(localStorage.getItem(key) || 'null');
       if (!data || !data.stack || !data.stack.length) return;
-      stack = data.stack; idx = Math.min(data.idx | 0, stack.length - 1); if (idx < 0) idx = 0;
-      // Reconcile with what actually loaded: if content differs from the restored state, add it on top.
-      if (stack[idx].html !== ctx.edEl.innerHTML) { stack = stack.slice(0, idx + 1); stack.push(snap()); idx = stack.length - 1; }
+      var saved = data.stack, savedIdx = Math.min(data.idx | 0, saved.length - 1);
+      if (savedIdx < 0) savedIdx = 0;
+      // Reconcile with what actually loaded. The stack is only usable if the document
+      // came back EXACTLY as this history last left it — same lineage, so undo walks
+      // the user's own steps.
+      //
+      // It used to push the loaded content on top of a divergent stack instead, and
+      // that quietly destroyed work: content that had changed elsewhere (edited on
+      // another device, merged from the server, rehydrated images) sat above states
+      // belonging to a different lineage, so ONE Ctrl+Z jumped to a version from a
+      // previous session and autoSave immediately published it over the current one.
+      // A divergent stack is worth nothing next to that risk — start fresh.
+      if (saved[savedIdx].html !== ctx.edEl.innerHTML) { try { localStorage.removeItem(key); } catch (e) {} seed(); return; }
+      stack = saved; idx = savedIdx;
       updateBtns();
     } catch (e) {}
   }
