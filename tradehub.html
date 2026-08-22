@@ -1663,10 +1663,11 @@ function useTBJournal(){
     const doAutoSync=async()=>{
       try{
         const last=parseInt(localStorage.getItem(TB_SYNC_TS_KEY)||'0',10);
-        const slot=tbLastTradingMorningSlot();
-        // Sync on the first Journal open each trading morning (last sync predates
-        // today's 6am slot). Off-hours / weekends fall back to a 24h guard so a
-        // stale journal still refreshes when reopened. sync() records the timestamp.
+        const slot=tbLastMorningSlot();
+        // Sync on the first Journal open each morning — EVERY calendar day, weekends
+        // and holidays included (last sync predates today's 6am slot). The 24h
+        // fallback only matters if the slot math ever returns 0. sync() records the
+        // timestamp.
         if(slot ? last>=slot : (Date.now()-last<86400000)) return;
         await sync();
       }catch(e){console.warn('TB auto-sync failed',e);}
@@ -5909,37 +5910,25 @@ let _tbCatLastSyncedSig='';
 // Most-recent 6:00 AM America/Denver (Mountain) slot, EVERY calendar day — weekends
 // and market holidays included. Returns a ms timestamp at or before now.
 //
-// Catalysts runs off THIS, not the trading-day slot below. The trading-day version
-// returns the most recent TRADING morning, so all weekend (and through a holiday) it
-// keeps handing back Friday's slot — a value the guard already recorded on Friday, so
-// the whole Saturday/Sunday/holiday catalyst refresh silently no-opped and both
-// TaskHubs sat on a calendar that aged out day by day. The forward 30-day window
-// shifts every calendar day and the newshub cron pre-warms the calendar Mon-Sun
-// (workers/newshub-api/wrangler.toml), so there is a fresh build waiting every
-// morning — the browser just has to collect and publish it, since App Check blocks
-// the worker's own Firebase push (see pushMarketCalToFirebase in worker.js).
+// THE single refresh boundary for the whole app: Catalysts, News, Portfolio and the
+// Journal Webull sync all run off this one slot, so opening TradeHub on any day —
+// Saturday, Sunday, Thanksgiving — shows data collected that morning.
+//
+// There used to be a second, trading-day-only slot powering News/Portfolio/Journal.
+// It returned the most recent TRADING morning, so all weekend (and through a holiday)
+// it kept handing back Friday's slot — a value those guards already recorded on
+// Friday, so the refresh silently no-opped and the app sat on data that aged out day
+// by day. Weekends are not empty: news breaks, the forward 30-day calendar shifts,
+// Sunday-night positions and fees still need to be reconciled. The newshub cron
+// pre-warms news + calendar Mon-Sun (workers/newshub-api/wrangler.toml), so there is
+// a fresh build waiting every morning — the browser just has to collect and publish
+// it, since App Check blocks the worker's own Firebase push (see
+// pushMarketCalToFirebase in worker.js).
 function tbLastMorningSlot(){
   const now=Date.now();
   for(let back=0;back<3;back++){
     const ts=new Date(tbZonedISO(tbEtDate(-back),6,0)).getTime();
     if(ts<=now) return ts;              // today's 6am, or yesterday's before 6am
-  }
-  return 0;
-}
-
-// Most-recent trading-morning auto-refresh slot: 6:00 AM America/Denver (Mountain)
-// on an NYSE trading day, at or before now. Returns a ms timestamp, or 0 if none in
-// the last ~8 days. Powers the trading-only pieces of the morning orchestrator
-// (News + Portfolio + Journal), which have nothing new to fetch on a closed market.
-function tbLastTradingMorningSlot(){
-  const now=Date.now();
-  for(let back=0;back<8;back++){
-    const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(now-back*86400000)).reduce((a,x)=>{a[x.type]=x.value;return a},{});
-    const ds=`${p.year}-${p.month}-${p.day}`;
-    if(tbMktIsTradingDay(ds)){
-      const ts=new Date(tbZonedISO(ds,6,0)).getTime();
-      if(ts<=now) return ts;
-    }
   }
   return 0;
 }
@@ -7035,26 +7024,27 @@ function TBApp(){
      TradeHub opens — no tab visit, no manual action. Runs at the APP level so it's
      independent of which tab is showing. A 5-min tick re-checks; each piece is
      guarded so it fires at most once per morning slot.
-     TWO slots, deliberately: Catalysts uses the EVERY-DAY 6am slot (Mon-Sun,
-     holidays included — see tbLastMorningSlot), because the forward 30-day calendar
-     goes stale on a Saturday exactly like it does on a Tuesday and both TaskHubs
-     read the published doc all weekend. News / Portfolio / Journal stay on the
-     trading-day slot — a closed market has no new fills and no new session.
+     ONE slot for all four pieces: the EVERY-DAY 6am Mountain slot (Mon-Sun,
+     holidays included — see tbLastMorningSlot). Catalysts, News, Portfolio and
+     Journal therefore all refresh on every calendar day, so opening TradeHub on a
+     Saturday shows Saturday's data instead of Friday's. News/Portfolio/Journal used
+     to run on a trading-day slot, which meant their guards stayed satisfied from
+     Friday all the way through the weekend and nothing refreshed until Monday.
      News is here at all because the worker cron pre-warms it at 6am but nothing
      pulled that build into the app until the News tab was opened — so the tab, not
      the morning, was what made the news appear (and kicked a fresh build whenever
      the pre-warm had lapsed).
-     Cost note: both slot functions are pure date math (free); each piece only
-     touches the network the first time a new 6 AM slot is seen, then short-circuits
-     on its per-slot guard until the next morning. The extra weekend catalyst runs
-     are worker cache HITs off the daily cron, so they cost nothing from the
-     force-fresh budget. */
+     Cost note: the slot function is pure date math (free); each piece only touches
+     the network the first time a new 6 AM slot is seen, then short-circuits on its
+     per-slot guard until the next morning. The weekend runs are worker cache HITs
+     off the daily cron (newshub is crons = ["0 12 * * *"], every day), so they cost
+     nothing from the force-fresh budget. */
   useEffect(()=>{
     let stop=false, timer=null;
     const check=async()=>{
       if(stop)return;
-      const daySlot=tbLastMorningSlot();                    // 6am Mountain, EVERY day → Catalysts
-      const slot=tbLastTradingMorningSlot();                // 6am Mountain, trading days → the rest
+      const daySlot=tbLastMorningSlot();                    // 6am Mountain, EVERY day
+      const slot=daySlot;                                   // …for every piece below
 
       // ── Catalysts: pull the morning calendar and publish it to Firebase so every
       //    device — TradeHub, Tony's TaskHub, Veda's TaskHub — shows it without
@@ -7095,11 +7085,11 @@ function TBApp(){
         }catch(e){}finally{ _tbAutoForceInFlight=false; }
       }
 
-      // Everything below is market-session work — new fills, a new news day, a new
-      // Webull session. On a weekend/holiday tbLastTradingMorningSlot() hands back
-      // the last trading morning, whose per-slot guards were already satisfied then,
-      // so these no-op exactly as they did before. Catalysts above is deliberately
-      // NOT gated on it.
+      // Everything below runs on the SAME every-day slot as Catalysts above: a
+      // weekend still brings new headlines, a shifted forward calendar, and a
+      // Webull account worth re-reading (settled fees, dividends, a position the
+      // journal never reconciled). Each piece is per-slot guarded, so a quiet
+      // Sunday costs one cheap cached call apiece and then short-circuits.
       if(!slot)return;
 
       // ── News: get the morning build INTO the app before the News tab is ever
