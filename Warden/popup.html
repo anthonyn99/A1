@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Warden Launcher</title>
+  <!-- Must run BEFORE <body> is parsed: it restores the saved popup size from
+       localStorage in time for the one layout the browser measures to size the
+       popup window. See the file header. -->
+  <script src="warden-config.js"></script>
+  <script src="warden-size.js"></script>
+  <style>
+    /* Keychain dark palette (from index.html #kc-root) */
+    :root {
+      --bg:#1B1C1E; --s1:#26272A; --s2:#303135; --s3:#303135;
+      --bd:#3D3E43; --bdl:#4A4B52; --tx:#ECECEE; --txd:#AFB0B5;
+      --txm:#76777C; --ac:#8D769A; --shadow:rgba(0,0,0,.55);
+      --rail:9px;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html, body {
+      margin:0; padding:0; background:var(--bg); color:var(--tx);
+      font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    /* ── Popup sizing ─────────────────────────────────────────────────────────
+       <html> is the sized element — warden-size.js sets its width/height, and
+       the browser measures that to size the popup window. Everything below it
+       simply fills it.
+
+       NOTHING here may be locked to the VIEWPORT. A `position:fixed; inset:0`
+       (or 100vw/100vh) child holds the document's preferred size at the
+       window's current size, so the window can never shrink — the popup could
+       be dragged wider but never narrower again. Percentages of <html> keep the
+       preferred size equal to the REQUEST, which is what lets it shrink.
+
+       The default below is only a fallback: warden-size.js has normally already
+       written the restored size onto <html> before this stylesheet applies. */
+    html { width:344px; height:580px; overflow:hidden; }
+    /* position:relative makes body the containing block for the rails, the
+       toast and the step-up overlay, so none of them has to be viewport-fixed
+       (which would re-lock the window open — see the note above). */
+    body { width:100%; height:100%; overflow:hidden; position:relative; }
+    #app {
+      width:100%; height:100%;
+      display:flex; flex-direction:column; overflow:hidden;
+      /* Reserve the height rail's strip so #scroll's viewport ENDS above it.
+         Padding on the scroller itself would not do: it only pads the end of
+         the scrollable content, so mid-scroll a link row still rendered under
+         the rail. The left rail needs no such reservation — every child already
+         carries ≥16px of left padding for it to sit in. */
+      padding-bottom:var(--rail);
+    }
+    /* header + tabs stay fixed; only #scroll scrolls */
+    #scroll { flex:1; overflow-y:auto; overflow-x:hidden; }
+    #scroll::-webkit-scrollbar { width:11px; }
+    #scroll::-webkit-scrollbar-track { background:var(--s1); }
+    #scroll::-webkit-scrollbar-thumb { background:#3A3B40; border-radius:6px; border:2px solid var(--bg); min-height:36px; }
+    #scroll::-webkit-scrollbar-thumb:hover { background:var(--ac); }
+    /* ── Resize rails: one per axis ───────────────────────────────────────────
+       The popup window is anchored at its TOP and RIGHT edges — it hangs below
+       the toolbar icon — so those two edges physically cannot move. The LEFT
+       and BOTTOM edges are the free ones, which is why the handles live there:
+       drag one and its edge travels exactly as far as the pointer does, so the
+       handle stays under the cursor.
+
+       A single bottom-right corner grip could not do that. It sat ON the pinned
+       edges, so widening the popup moved the far side instead and the grip slid
+       out from under the pointer, with both axes fighting each other in one
+       gesture. Split per axis, each drag is a straight 1:1 slide.
+
+       The rails overlay the existing left/bottom padding (≥16px everywhere), so
+       they cover no content and cost no layout shift. */
+    .rail {
+      position:absolute; z-index:30; touch-action:none;
+      display:flex; align-items:center; justify-content:center;
+      background:transparent; transition:background .15s;
+    }
+    .rail::before {                       /* the visible pill */
+      content:''; border-radius:3px; background:var(--bd); transition:background .15s;
+    }
+    .rail:hover, .rail.active { background:var(--s2); }
+    .rail:hover::before, .rail.active::before { background:var(--ac); }
+    #resize-x { left:0; top:0; bottom:0; width:var(--rail); cursor:ew-resize; }
+    #resize-x::before { width:3px; height:30px; }
+    #resize-y { left:var(--rail); right:0; bottom:0; height:var(--rail); cursor:ns-resize; }
+    #resize-y::before { width:30px; height:3px; }
+    /* Hold the axis cursor over the whole popup for the length of the drag.
+       #app stops taking pointer events rather than every descendant restating
+       the cursor: a `body.resizing-x *` rule re-matched the entire DOM on each
+       toggle, which showed up as a hitch at the start of every drag. The rails
+       live outside #app, so they keep working. */
+    body.resizing-x { cursor:ew-resize; }
+    body.resizing-y { cursor:ns-resize; }
+    body.resizing-x #app, body.resizing-y #app { pointer-events:none; user-select:none; }
+
+    /* ── Header ── */
+    header {
+      position:sticky; top:0; z-index:5;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 16px 12px;
+      background:var(--bg); border-bottom:1px solid var(--bd);
+    }
+    /* "Warden Launcher" is twice the width the old one-word mark was, so the
+       wordmark drops to 19px and the second word sits a shade lighter — it
+       still clears the gear at the 344px default width. */
+    .logo { font-family:"Manrope",system-ui,sans-serif; font-size:19px; font-weight:750; letter-spacing:-.3px;
+      white-space:nowrap;
+      background:linear-gradient(180deg,#f4d795 0%,#8D769A 90%); -webkit-background-clip:text; background-clip:text;
+      -webkit-text-fill-color:transparent; color:#8D769A; }
+    .logo .base, .logo .dot { color:inherit; }
+    .logo .sub { font-weight:500; letter-spacing:0; }
+    .sync {
+      font-size:10px; font-weight:600; color:var(--txd);
+      min-height:13px; margin-top:2px; white-space:nowrap;
+    }
+    .sync.saving { color:var(--ac); }
+    .sync.ok     { color:#8fc99c; }
+    .sync.error  { color:#E74C3C; }
+    .gear {
+      background:none; border:none; color:var(--txd);
+      width:30px; height:30px; border-radius:8px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:background .15s,color .15s;
+    }
+    .gear:hover { background:var(--s2); color:var(--tx); }
+
+    /* ── Tabs ── */
+    .tabs { display:flex; gap:6px; padding:10px 16px 4px; }
+    .tab {
+      flex:1; background:transparent; border:1px solid var(--bd);
+      color:var(--txd); font-size:10.5px; font-weight:500;
+      letter-spacing:1.2px; text-transform:uppercase;
+      padding:9px; border-radius:6px; cursor:pointer;
+      transition:border-color .18s,color .18s;
+    }
+    .tab:hover { color:var(--tx); border-color:var(--txd); }
+    .tab.active { background:transparent; color:#8D769A; border-color:var(--ac); }
+
+    /* 7px + #app's 9px rail reservation = the 16px of bottom breathing room
+       this panel had before the rails existed. */
+    .panel { padding:8px 16px 7px; }
+    .hidden { display:none; }
+
+    /* ── Group columns + cards ── */
+    #groups { display:flex; gap:10px; align-items:flex-start; }
+    .col { flex:1 1 0; min-width:0; }
+    /* Accent sits along the TOP of the card, matching the Warden app's
+       .kc-card — a ::before bar rather than a border, so it spans the full
+       width inside the rounded corners. */
+    .card {
+      background:var(--s1); border:1px solid var(--bd);
+      border-radius:9px; padding:11px 12px 10px; margin-bottom:10px;
+      position:relative; overflow:hidden;
+    }
+    .card::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:2px;
+      background:var(--card-accent,var(--ac)); opacity:.6;
+    }
+    .card-top {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:8px; margin-bottom:8px;
+    }
+    .card-headline { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
+    /* Group name takes the card's own accent, as it does in the app. */
+    .card-name {
+      font-size:13px; font-weight:600; color:var(--card-accent,#8D769A); min-width:0;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+
+    /* ── Reorder mode ──
+       The grips, the empty-column target and the drag chrome only exist while
+       Reorder is switched on, so normal use is untouched by it. */
+    /* The toggle carries its own label, so the bar is just a right-aligned
+       holder for it — no explanatory copy. */
+    .reorder-bar {
+      display:flex; align-items:center; justify-content:flex-end; gap:10px;
+      margin:0 0 10px;
+    }
+    /* An author `display` beats the UA's [hidden] rule, so restate it — popup.js
+       hides this bar whenever there are fewer than two cards to rearrange. */
+    .reorder-bar[hidden] { display:none; }
+    .toggle {
+      display:inline-flex; align-items:center; gap:7px; cursor:pointer; flex-shrink:0;
+      user-select:none; background:transparent; color:var(--txd);
+      border:1px solid var(--bd); border-radius:6px; padding:0 9px; height:26px;
+      font-size:10px; font-weight:600; letter-spacing:1px; text-transform:uppercase;
+      transition:border-color .18s,color .18s;
+    }
+    .toggle:hover { color:var(--tx); border-color:var(--txd); }
+    .toggle-track {
+      width:24px; height:13px; border-radius:7px; background:var(--bd);
+      position:relative; transition:background .25s; flex-shrink:0;
+    }
+    .toggle-thumb {
+      width:9px; height:9px; border-radius:50%; background:var(--txd);
+      position:absolute; top:50%; transform:translateY(-50%); left:2px;
+      transition:left .25s, background .25s; box-shadow:0 1px 3px rgba(0,0,0,.25);
+    }
+    #app.reorder .toggle { color:#8D769A; border-color:rgba(141,118,154,.45); }
+    #app.reorder .toggle-track { background:var(--ac); }
+    #app.reorder .toggle-thumb { left:13px; background:#1B1C1E; }
+    /* At two columns a column can be emptied entirely; show it as a drop target
+       so the last card out of a column can be dropped back into it. */
+    #app.reorder .col:empty {
+      border:1.5px dashed rgba(141,118,154,.25); border-radius:9px; min-height:56px;
+    }
+    /* Turning Reorder on must not resize a single card. The grip is therefore a
+       ZERO-HEIGHT flex item: align-items:center puts it on the row's centre
+       line and its dots simply overflow (overflow is visible), so it draws
+       normally while contributing nothing to the row's height. Sized as an
+       ordinary item it was taller than the card title and pushed every card
+       down a few px the moment the dots appeared.
+
+       The hit area comes from ::after, which is absolutely positioned and so is
+       likewise free of layout — and it is a bigger, easier target than the dots
+       themselves, which a 0-height box would otherwise make unclickable. */
+    .grip {
+      display:none; position:relative; cursor:grab; color:var(--txm);
+      flex-shrink:0; line-height:0; height:0; padding:0 2px;
+      touch-action:none; user-select:none; transition:color .12s;
+    }
+    .grip::after { content:''; position:absolute; inset:-10px -6px; border-radius:4px; }
+    #app.reorder .grip { display:inline-flex; align-items:center; justify-content:center; }
+    .grip:hover { color:var(--txd); }
+    .grip:active { cursor:grabbing; }
+    .grip svg { display:block; width:13px; height:13px; }
+    .card-placeholder {
+      border-radius:9px; margin-bottom:10px;
+      background:rgba(141,118,154,.06);
+      border:1.5px dashed rgba(141,118,154,.35);
+    }
+    .card-fly {
+      position:fixed !important; pointer-events:none !important; z-index:9000;
+      border-radius:9px; box-shadow:0 20px 60px rgba(0,0,0,.7);
+      transform:rotate(1deg) scale(1.03); opacity:.95; margin:0 !important;
+    }
+    .open-group {
+      flex-shrink:0; background:transparent; color:var(--txd);
+      border:1px solid var(--bd); border-radius:6px; padding:5px 11px;
+      font-size:11px; font-weight:500; letter-spacing:.3px;
+      cursor:pointer; transition:border-color .18s,color .18s; white-space:nowrap;
+    }
+    .open-group:hover { color:var(--tx); border-color:var(--txd); }
+    .open-group:active { transform:scale(.97); }
+    .open-group:disabled { opacity:.35; cursor:not-allowed; }
+
+    .link-row {
+      display:flex; align-items:center; gap:8px;
+      padding:5px 0; min-width:0;
+    }
+    .favicon {
+      flex-shrink:0; width:16px; height:16px; border-radius:3px;
+      object-fit:contain; background:var(--s3);
+    }
+    .link-name {
+      flex:1; font-size:12px; color:var(--txd);
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .icon-btn {
+      flex-shrink:0; background:transparent; border:1px solid var(--bd);
+      color:var(--txd); border-radius:6px; padding:3px 9px;
+      font-size:10.5px; font-weight:500; cursor:pointer; line-height:1.4;
+      display:inline-flex; align-items:center; justify-content:center;
+      transition:border-color .18s,color .18s;
+    }
+    .icon-btn:hover { color:var(--tx); border-color:var(--txd); }
+    .icon-btn.visit:hover { color:#8D769A; border-color:var(--ac); }
+    .no-links { font-size:11px; color:var(--txm); padding:2px 0; }
+
+    /* ── States ── */
+    .placeholder, .empty {
+      border:1px dashed var(--bd); border-radius:9px;
+      padding:26px 16px; text-align:center;
+      font-size:12px; color:var(--txd); line-height:1.7;
+    }
+    .placeholder .big { font-size:22px; display:block; margin-bottom:8px; }
+    .empty { flex:1 1 100%; }
+    .loading { text-align:center; color:var(--txm); font-size:12px; padding:30px 0; }
+
+    /* ── Passwords panel ── */
+    .pw-msg { text-align:center; color:var(--txd); font-size:12px; line-height:1.7; padding:26px 12px; border:1px dashed var(--bd); border-radius:9px; }
+    .pw-msg.err { color:#E74C3C; }
+    .pw-lock { text-align:center; padding:22px 8px; }
+    .pw-lock-icon { line-height:0; color:var(--ac); }
+    .pw-lock-icon svg { width:28px; height:28px; display:inline-block; }
+    .pw-lock-title { font-size:17px; font-weight:600; color:var(--tx); margin:8px 0 4px; }
+    .pw-lock-sub { font-size:11.5px; color:var(--txd); line-height:1.6; margin-bottom:14px; }
+    .pw-input, .pw-search { width:100%; background:var(--s2); border:1px solid var(--bd); color:var(--tx); border-radius:6px; padding:10px 12px; font-size:13px; outline:none; transition:border-color .18s; }
+    .pw-input:focus, .pw-search:focus { border-color:var(--ac); }
+    .pw-input { margin-bottom:9px; }
+    .pw-err { color:#E74C3C; font-size:11px; min-height:14px; margin-bottom:6px; }
+    .pw-btn { width:100%; background:transparent; border:1px solid var(--bd); color:var(--tx); border-radius:6px; padding:11px; font-size:13px; font-weight:500; letter-spacing:.2px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; transition:border-color .18s,color .18s; }
+    .pw-btn:hover { border-color:var(--txd); }
+    .pw-btn svg { display:block; width:15px; height:15px; flex-shrink:0; }
+    .pw-btn.primary { background:transparent; color:#8D769A; border-color:rgba(141,118,154,.36); }
+    .pw-btn.primary:hover { border-color:var(--ac); }
+    .pw-btn.primary:disabled { opacity:.5; cursor:not-allowed; }
+    .pw-toolbar { display:flex; gap:6px; margin-bottom:10px; position:sticky; top:0; z-index:3; background:var(--bg); padding:8px 0; }
+    .pw-icon { flex-shrink:0; background:transparent; border:1px solid var(--bd); color:var(--txd); width:30px; height:30px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; transition:border-color .18s,color .18s; }
+    .pw-icon svg { display:block; width:15px; height:15px; }
+    .pw-icon:hover { color:#8D769A; border-color:var(--ac); }
+    .pw-list { display:flex; flex-direction:column; gap:6px; }
+    .pw-section-h { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; color:var(--txm); margin:8px 2px 3px; }
+    .pw-row { display:flex; align-items:center; gap:9px; background:var(--s1); border:1px solid var(--bd); border-radius:10px; padding:9px 10px; }
+    .pw-row.match { border-color:var(--ac); }
+    .pw-fav { flex-shrink:0; width:16px; height:16px; border-radius:3px; background:var(--s3); }
+    .pw-main { flex:1; min-width:0; }
+    .pw-title { font-size:12.5px; font-weight:500; color:var(--tx); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pw-user { font-size:11px; color:var(--txd); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pw-pw { font-size:11px; color:var(--txm); font-family:ui-monospace,monospace; }
+    .pw-actions { display:flex; gap:3px; flex-shrink:0; }
+    .pw-fill { background:var(--ac); color:#1B1C1E; border:none; border-radius:7px; padding:0 10px; height:30px; font-size:11px; font-weight:800; cursor:pointer; }
+    .pw-fill:hover { filter:brightness(1.08); }
+
+    /* ── Payments panel (Google Wallet–flavoured, same Keychain palette) ── */
+    .pay-row { align-items:flex-start; }
+    .pay-row.expired { opacity:.72; }
+    .pay-mark { flex-shrink:0; width:34px; height:22px; display:flex; align-items:center; justify-content:center; margin-top:2px; }
+    .pay-mark svg { width:34px; height:22px; display:block; }
+    .pay-numline { display:flex; align-items:center; gap:7px; margin-top:2px; }
+    .pay-num { font-size:11.5px; color:var(--txm); font-family:ui-monospace,monospace; letter-spacing:.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pay-num.shown { color:var(--ac); }
+    .pay-exp { font-size:10px; font-weight:800; color:var(--txm); flex-shrink:0; font-variant-numeric:tabular-nums; }
+    .pay-exp.warn { color:#8D769A; }
+    .pay-exp.bad { color:#E74C3C; }
+    /* step-up auth sheet */
+    .pay-overlay { position:absolute; inset:0; background:rgba(0,0,0,.66); display:flex; align-items:center; justify-content:center; z-index:40; padding:14px; }
+    .pay-modal { background:var(--s1); border:1px solid var(--bdl); border-radius:13px; padding:16px; width:100%; max-width:300px; box-shadow:0 18px 50px var(--shadow); }
+    .pay-modal-title { font-size:14px; font-weight:800; color:var(--tx); margin-bottom:4px; }
+    .pay-modal-actions { display:flex; gap:6px; }
+    .pay-modal-actions .pw-btn { margin:0; }
+
+    /* ── ID Docs panel ── */
+    /* Rows reuse .pw-row/.pay-row wholesale — only the leading mark differs.
+       The thumbnail is BLURRED, exactly as the web app's grid shows it: enough
+       to recognise the document, never enough to read off a shared screen. */
+    .idp-mark { flex-shrink:0; width:26px; height:26px; display:flex; align-items:center;
+      justify-content:center; color:var(--ac); margin-top:2px; }
+    .idp-mark svg { display:block; }
+    .idp-thumb { flex-shrink:0; width:34px; height:24px; border-radius:4px; overflow:hidden;
+      background:var(--s3); margin-top:2px; position:relative; }
+    .idp-thumb img { width:100%; height:100%; object-fit:cover; filter:blur(4px); transform:scale(1.25); }
+    .idp-thumb::after { content:''; position:absolute; inset:0; background:rgba(26,26,29,.35); }
+    /* Five tabs no longer fit at the default 344px popup width, so they wrap
+       into a tidy grid rather than crushing every label to an ellipsis. */
+    .tabs { flex-wrap:wrap; }
+    .tab { flex:1 1 auto; min-width:74px; padding:9px 6px; }
+  </style>
+</head>
+<body>
+ <div id="app">
+  <header>
+    <div>
+      <div class="logo"><span class="base">V</span><span class="dot">ault</span> <span class="sub">Launcher</span></div>
+      <div class="sync" id="sync"></div>
+    </div>
+    <button class="gear" id="gear" title="Open the Warden app">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-links" data-panel="links">Links</button>
+    <button class="tab" id="tab-pw" data-panel="passwords">Passwords</button>
+    <button class="tab" id="tab-pay" data-panel="payments">Payments</button>
+    <button class="tab" id="tab-id" data-panel="iddocs">ID Docs</button>
+  </div>
+
+  <div id="scroll">
+    <div class="panel" id="panel-links">
+      <div class="reorder-bar" id="reorder-bar" hidden>
+        <div class="toggle" id="reorder-toggle" role="switch" aria-checked="false" tabindex="0"
+             title="Drag cards to reorder — the new order syncs to Firebase and back to the Warden app">
+          <div class="toggle-track"><div class="toggle-thumb"></div></div>
+          <span>Reorder</span>
+        </div>
+      </div>
+      <div class="loading" id="loading">Loading from Keychain…</div>
+      <div id="groups"></div>
+    </div>
+
+    <div class="panel hidden" id="panel-passwords">
+      <div class="loading">Loading…</div>
+    </div>
+
+    <div class="panel hidden" id="panel-payments">
+      <div class="loading">Loading…</div>
+    </div>
+
+    <div class="panel hidden" id="panel-iddocs">
+      <div class="loading">Loading…</div>
+    </div>
+  </div>
+
+  <div id="toast" style="position:absolute;bottom:14px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--s3);border:1px solid var(--bdl);color:var(--tx);font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;opacity:0;transition:all .2s;pointer-events:none;z-index:10;">Copied!</div>
+
+ </div>
+
+ <!-- Outside #app on purpose: #app drops pointer events for the length of
+      a resize drag, and the rails have to keep receiving them. -->
+  <div class="rail" id="resize-x" title="Drag left or right to set the width"></div>
+  <div class="rail" id="resize-y" title="Drag up or down to set the height"></div>
+
+  <script src="warden-icons.js"></script>
+  <script src="warden-sync.js"></script>
+  <script src="warden-card-drag.js"></script>
+  <script src="warden-crypto.js"></script>
+  <script src="warden-pay.js"></script>
+  <script src="warden-id.js"></script>
+  <script src="warden-pw-core.js"></script>
+  <script src="warden-pw.js"></script>
+  <script src="warden-pay-panel.js"></script>
+  <script src="warden-id-panel.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

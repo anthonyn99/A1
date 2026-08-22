@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Signing in…</title>
+<!--
+  Silent OAuth callback — the quietest page in the app.
+
+  Warden renews its Google Drive token by loading the auth endpoint with
+  prompt=none inside a hidden iframe. Google answers with a redirect to here,
+  carrying either an access token or an error in the URL fragment. This page
+  hands that back to the Warden window and stops. It is never seen, never
+  navigated to directly, and deliberately has no markup, no styling and no
+  dependencies — anything that took a moment to load would be a moment the
+  renewal spent waiting.
+
+  It must be registered as an authorised redirect URI on the Google OAuth client
+  (Cloud settings shows the exact URL to paste).
+-->
+<script>
+(function () {
+  'use strict';
+
+  function parse(s) {
+    var out = {};
+    String(s || '').replace(/^[#?]/, '').split('&').forEach(function (kv) {
+      if (!kv) return;
+      var i = kv.indexOf('=');
+      var k = kv.slice(0, i < 0 ? kv.length : i);
+      var v = i < 0 ? '' : kv.slice(i + 1);
+      try { out[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) {}
+    });
+    return out;
+  }
+
+  // response_type=token puts the result in the fragment; errors can arrive
+  // either way depending on how far Google got, so read both.
+  var frag = parse(location.hash);
+  var query = parse(location.search);
+
+  var msg = {
+    type: 'warden-oauth-silent',
+    state: frag.state || query.state || '',
+    access_token: frag.access_token || '',
+    expires_in: frag.expires_in || '',
+    error: frag.error || query.error || (frag.access_token ? '' : 'no_token')
+  };
+
+  // Get the token out of the address bar before handing it over. Nothing else
+  // runs on this page, but a bearer credential sitting in a URL is the kind of
+  // thing that ends up in a history entry or a referrer header.
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+
+  // Normally the parent (hidden iframe). window.opener covers a popup, which is
+  // how this same page would be reached if a future flow needed one.
+  var target = (window.parent && window.parent !== window) ? window.parent : window.opener;
+  if (target) {
+    try { target.postMessage(msg, location.origin); } catch (e) {}
+  }
+})();
+</script>
+</head>
+<body></body>
+</html>

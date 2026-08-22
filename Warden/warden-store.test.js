@@ -1,0 +1,145 @@
+// Real verification of warden-store.js (uses warden-crypto.js + in-memory backend).
+const VC = require('./warden-crypto.js');
+const WardenStore = require('./warden-store.js');
+
+let pass = 0, fail = 0;
+function ok(name, cond) { if (cond) { pass++; console.log('  ✓', name); } else { fail++; console.log('  ✗ FAIL:', name); } }
+
+(async () => {
+  const { config, dek } = await VC.createWarden('master-pw');
+
+  console.log('\n── CRUD + encryption-at-rest ──');
+  const backend = WardenStore.memoryBackend();
+  await backend.saveConfig(config);
+  const store = new WardenStore(backend, dek);
+  await store.load();
+  ok('starts empty', store.all().length === 0);
+
+  const g1 = await store.save({ kind: 'login', title: 'GitHub', url: 'github.com', username: 'anthony', password: 'hunter2', category: 'Development', tags: ['work'] });
+  await store.save({ kind: 'login', title: 'GitHub', url: 'github.com', username: 'work@corp.com', password: 'S3cret!', category: 'Development' });
+  await store.save({ kind: 'login', title: 'Amazon', url: 'amazon.com', username: 'personal', password: 'a', category: 'Shopping' });
+  await store.save({ kind: 'sensitive', title: 'Home safe code', notes: '12-34-56', category: 'Codes' });
+  ok('4 items stored', store.all().length === 4);
+
+  // Confirm what's actually persisted is ciphertext, not plaintext.
+  const rawDocs = await backend.listItems();
+  const rawStr = JSON.stringify(rawDocs);
+  ok('backend stores NO plaintext password', !rawStr.includes('hunter2') && !rawStr.includes('S3cret!'));
+  ok('backend stores NO plaintext username/notes', !rawStr.includes('anthony') && !rawStr.includes('12-34-56'));
+  ok('backend keeps kind in plaintext (routing only)', rawStr.includes('login') && rawStr.includes('sensitive'));
+
+  console.log('\n── kind filter + multiple logins per site ──');
+  ok('2 sensitive/login split', store.byKind('login').length === 3 && store.byKind('sensitive').length === 1);
+  const githubs = store.all().filter((i) => i.url === 'github.com');
+  ok('two GitHub accounts under one site', githubs.length === 2);
+
+  console.log('\n── fuzzy search ──');
+  ok('"gh" fuzzy-matches GitHub', store.search('gh').some((i) => i.title === 'GitHub'));
+  ok('search by username', store.search('work@corp').some((i) => i.username === 'work@corp.com'));
+  ok('search by category', store.search('shopping').some((i) => i.title === 'Amazon'));
+  ok('search by tag', store.search('work').some((i) => i.title === 'GitHub'));
+  ok('nonsense returns nothing', store.search('zzzqqq').length === 0);
+
+  console.log('\n── search ranking (best match first) ──');
+  const rk = WardenStore.memoryBackend(); const rs = new WardenStore(rk, dek); await rs.load();
+  await rs.save({ kind: 'login', title: 'Facebook', username: 'a', password: 'p' });     // fuzzy "fb"
+  await rs.save({ kind: 'login', title: 'FB Marketplace', username: 'b', password: 'p' }); // prefix "fb"
+  await rs.save({ kind: 'login', title: 'Work', username: 'x', password: 'p', notes: 'fb backup codes' }); // notes only
+  const r = rs.search('fb');
+  ok('exact/prefix title ranks above notes-only match', r[0].title === 'FB Marketplace');
+  ok('all three matched', r.length === 3);
+  ok('notes-only match ranks last', r[r.length - 1].title === 'Work');
+  await rs.save({ kind: 'login', title: 'Gmail', username: 'me@gmail.com', password: 'p' });
+  await rs.save({ kind: 'login', title: 'Randalls', username: 'shopper', password: 'p', url: 'gmailish.com' });
+  const r2 = rs.search('gmail');
+  ok('exact title "Gmail" outranks url substring', r2[0].title === 'Gmail');
+
+  console.log('\n── edit preserves createdAt, updates modifiedAt ──');
+  const createdAt = store.get(g1.id).createdAt;
+  await new Promise((r) => setTimeout(r, 5));
+  const edited = await store.save({ ...store.get(g1.id), password: 'newpass' });
+  ok('createdAt preserved on edit', edited.createdAt === createdAt);
+  ok('modifiedAt advanced', edited.modifiedAt > createdAt);
+  ok('password updated', edited.password === 'newpass');
+
+  console.log('\n── password history ──');
+  const ph1 = await store.save({ kind: 'login', title: 'Hist', username: 'u', password: 'first' });
+  await new Promise((r) => setTimeout(r, 3));
+  const ph2 = await store.save({ ...store.get(ph1.id), password: 'second' });
+  ok('history records the old password', Array.isArray(ph2.passwordHistory) && ph2.passwordHistory[0].password === 'first');
+  await new Promise((r) => setTimeout(r, 3));
+  const ph3 = await store.save({ ...store.get(ph1.id), password: 'third' });
+  ok('history grows newest-first', ph3.passwordHistory[0].password === 'second' && ph3.passwordHistory[1].password === 'first');
+  const ph4 = await store.save({ ...store.get(ph1.id), username: 'changed' });
+  ok('non-password edit keeps history unchanged', ph4.passwordHistory.length === 2);
+  await store.remove(ph1.id); // clean up so later live-item counts stay stable
+
+  console.log('\n── saveMany: batch write, one change event ──');
+  // No `subscribe` on this backend — deliberately. memoryBackend() echoes every
+  // putItem straight back to its subscribers, which would re-enter _ingest/_emit
+  // per item and mask what saveMany itself emits. The PWA's Firestore adapter
+  // does NOT echo local writes (index.html suppresses its own snapshot for 6s),
+  // so this shape is the one that matches production.
+  const raw = WardenStore.memoryBackend();
+  const bb = { loadConfig: raw.loadConfig, saveConfig: raw.saveConfig, listItems: raw.listItems, putItem: raw.putItem };
+  const bs = new WardenStore(bb, dek);
+  await bs.load();
+  let emits = 0;
+  bs.startLive(() => { emits++; });
+  const seeded = [];
+  for (const n of ['one', 'two', 'three']) seeded.push(await bs.save({ kind: 'payment', nickname: n, number: '4111111111111111', cvv: '737' }));
+  emits = 0;
+  const batch = await bs.saveMany(seeded.map((s, i) => ({ ...s, order: 2 - i })));
+  ok('saveMany returns every saved item', batch.length === 3 && batch.every((b) => b));
+  ok('one change event for the whole batch', emits === 1);
+  ok('all three persisted', (await bb.listItems()).filter((d) => d.kind === 'payment' && !d.deleted).length === 3);
+  ok('new field round-trips', bs.get(seeded[0].id).order === 2 && bs.get(seeded[2].id).order === 0);
+  ok('batch is still encrypted at rest', !JSON.stringify(await bb.listItems()).includes('4111111111111111'));
+  ok('every batched item got a fresh updatedAt', batch.every((b, i) => b.updatedAt > seeded[i].updatedAt));
+  ok('batched updatedAt values are strictly increasing', batch[0].updatedAt < batch[1].updatedAt && batch[1].updatedAt < batch[2].updatedAt);
+  ok('empty batch is a no-op', (await bs.saveMany([])).length === 0);
+  // A second device must converge on the batch.
+  const bs2 = new WardenStore(bb, dek);
+  await bs2.load();
+  ok('another device sees the batched order', bs2.get(seeded[0].id).order === 2 && bs2.get(seeded[1].id).order === 1);
+  ok('saveMany kept save() semantics (createdAt preserved)', bs.get(seeded[0].id).createdAt === seeded[0].createdAt);
+
+  console.log('\n── delete tombstones + propagate ──');
+  await store.remove(g1.id);
+  ok('item gone from list', !store.get(g1.id));
+  const tomb = (await backend.listItems()).find((d) => d.id === g1.id);
+  ok('tombstone persisted (deleted:true, no ciphertext)', tomb.deleted === true && !tomb.enc);
+
+  console.log('\n── second device sees the same encrypted data ──');
+  const store2 = new WardenStore(backend, dek);
+  await store2.load();
+  ok('device 2 decrypts 3 live items', store2.all().length === 3);
+  ok('device 2 does NOT see deleted item', !store2.get(g1.id));
+
+  console.log('\n── live sync + last-write-wins conflict ──');
+  let liveCount = -1;
+  const s3backend = WardenStore.memoryBackend();
+  const A = new WardenStore(s3backend, dek); await A.load();
+  const B = new WardenStore(s3backend, dek); await B.load();
+  A.startLive((list) => { liveCount = list.length; });
+  const made = await B.save({ kind: 'login', title: 'Live', username: 'x', password: 'y' });
+  await new Promise((r) => setTimeout(r, 30)); // let A's async decrypt-on-ingest settle
+  ok('device A got live push from device B', liveCount === 1 && A.get(made.id));
+
+  // Concurrent edit: newer updatedAt must win regardless of ingest order.
+  // (Timestamps must be newer than the just-saved item's real Date.now().)
+  const base = made.updatedAt + 1000;
+  const older = { id: made.id, kind: 'login', enc: await VC.encrypt(dek, { title: 'OLD', modifiedAt: 1 }), updatedAt: base + 100, deleted: false };
+  const newer = { id: made.id, kind: 'login', enc: await VC.encrypt(dek, { title: 'NEW', modifiedAt: 2 }), updatedAt: base + 200, deleted: false };
+  await A._ingest(newer); await A._ingest(older); // deliver out of order
+  ok('last-write-wins: newer update kept despite out-of-order delivery', A.get(made.id).title === 'NEW');
+
+  console.log('\n── wrong key cannot decrypt (graceful) ──');
+  const { dek: otherDek } = await VC.createWarden('someone-else');
+  const intruder = new WardenStore(backend, otherDek);
+  await intruder.load();
+  ok('intruder with wrong DEK decrypts nothing', intruder.all().length === 0);
+
+  console.log(`\n${'═'.repeat(40)}\n  ${pass} passed, ${fail} failed\n${'═'.repeat(40)}`);
+  process.exit(fail ? 1 : 0);
+})().catch((e) => { console.error('HARNESS ERROR:', e); process.exit(2); });

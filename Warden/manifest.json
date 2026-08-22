@@ -1,0 +1,66 @@
+{
+  "manifest_version": 3,
+  "name": "Warden Launcher",
+  "version": "1.0.0",
+  "description": "Veda's links, logins, cards & ID documents - synced with Warden. Autofill, attach a document scan to an upload field, launch a whole tab group in one click, and rearrange your connection cards from the toolbar.",
+  "permissions": [
+    "tabs",
+    "tabGroups",
+    "storage",
+    "scripting",
+    "activeTab",
+    "downloads"
+  ],
+  "host_permissions": [
+    "__WARDEN_LINKS_WORKER_ORIGIN__/*",
+    "__WARDEN_VAULT_WORKER_ORIGIN__/*",
+    "__WARDEN_FILES_WORKER_ORIGIN__/*",
+    "__WARDEN_PAGES_ORIGIN__/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Warden Launcher",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "exclude_matches": [
+        "__WARDEN_PAGES_ORIGIN__/*"
+      ],
+      "js": [
+        "warden-config.js",
+        "warden-cardfill.js",
+        "warden-idfill.js",
+        "warden-ai-prompt.js",
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "__WARDEN_PAGES_ORIGIN__/*"
+      ],
+      "js": [
+        "warden-config.js",
+        "warden-bio-sync.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
