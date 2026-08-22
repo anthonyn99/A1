@@ -33,6 +33,36 @@ concise instruction list at the END of the build — not scattered.
 
 ---
 
+## Scale, and how to port (read before writing any code)
+
+This is a **1.22 MB, 38-file** duplicate:
+
+| File | Size |
+|---|---|
+| `vault.html` | 191 KB / 3,123 lines |
+| `vault-ui.js` | 158 KB |
+| `vault-cloud-ui.js` | 131 KB |
+| `vault-id-ui.js` | 99 KB |
+| `vault-cloud.js` | 76 KB |
+| …33 more | ~570 KB |
+
+**Do not hand-write this.** Almost all of it is a mechanical rename, and trying
+to read and reproduce 1.2 MB will exhaust a session's context long before the
+build is done. The strategy that works:
+
+1. **Copy the files**, then rename with a script — a Node pass over
+   `Vault/*` → `Warden/*` applying an ordered token map (`VaultCrypto`→
+   `WardenCrypto`, `vault-`→`warden-`, `window.Vault`→`window.Warden`,
+   localStorage `vault.`→`warden.`, and so on). Longest tokens first so
+   `vault-pw-core` isn't half-renamed by the `vault-` rule.
+2. **Verify the rename** rather than eyeballing it: `node --check` every JS file,
+   assert zero remaining `/[Vv]ault/` matches outside comments that legitimately
+   reference Tony's original, and confirm the file count and script tags match.
+3. **Only then** hand-edit the genuinely new parts: the config block, the palette
+   tokens, `warden.html`'s shell, the manifest, and `SETUP.md`.
+
+Budget the session accordingly, and expect to phase it (see Build order).
+
 ## Naming / rename map
 
 | Old | New |
@@ -252,15 +282,24 @@ biometric slot  ─WebAuthn PRF───────→ KEK ─wraps→┘   └
   title, url, username, password, notes, tags, TOTP all live inside `enc`.
 - Auto-lock 30 min idle; clipboard cleared 30 s after copy; DEK memory-only.
 
-### Storage ceiling
+### Storage ceiling — already solved, don't redesign it
 
-`dashboards/vault_pw` is **ONE Firestore document**, and Firestore's limit is
-**1 MiB**. Passwords/cards/notes are fine at hundreds of entries. **ID Docs store
-encrypted image scans and will blow it.**
+`dashboards/vault_pw` is **ONE Firestore document** and Firestore caps a document
+at **1 MiB**. This is handled, and the design is worth understanding before you
+touch anything:
 
-> **OPEN DECISION — settle before building.** If Veda wants ID Docs with real
-> scans, storage must change (per-item docs, or blobs in her files worker as
-> `vault-id-files.js` already contemplates).
+- Passwords, cards and notes live in the document. Fine at hundreds of entries.
+- **ID Docs and attachments do NOT.** `vault-id-files.js` encrypts the file with
+  the session DEK and uploads the ciphertext to the `vault-files` Worker (KV).
+  Only a small descriptor — key, IV, mime, size and a ~3 KB thumbnail — rides in
+  the vault doc, itself inside the item's AES-GCM envelope. The upload carries no
+  filename, no mime type and no item reference.
+- Ciphertext is written to IndexedDB *before* the upload, so a failed upload is
+  marked `pending` and retried with backoff rather than lost.
+
+So ID Docs are safe to include as-is. The only consequence is that **her files
+worker is required**, not optional. Keep the thumbnail budget small — that is
+what protects the ceiling.
 
 ---
 
@@ -415,17 +454,66 @@ headless Chrome via CDP.
 
 ---
 
-## Open questions — answer before building
+## Build order
 
-1. **ID Docs with real scans?** Changes the storage design (1 MiB ceiling).
-2. **Cloud tab** (Google Drive / Dropbox browser)? Large chunk; needs her own
-   OAuth client ids. Include or drop?
-3. **Her own Cloudflare account, or her workers on Tony's account?** Separate
-   account is cleaner; same account with her own key and separate worker names is
-   much less setup. Either way the KEY must be new.
-4. **Does Index keep a button linking to Warden** where her Links tab was?
-5. **Password floor** — the app accepts 8 characters; the security write-up tells
-   her to use a four-word passphrase. Raise the minimum, or leave as advice?
-6. **Build in this repo then move, or build directly into a new folder** shaped
-   like her repo? (Recommend the latter — `Warden/` + `warden.html` — so the
-   handoff is a straight copy.)
+Phase it. Each phase ends in a verifiable state, so a session that runs out of
+room can hand over cleanly at a phase boundary.
+
+**Phase 1 — port the engine.** Copy + scripted rename into `Warden/`. Port the
+test suites. **Done when:** every renamed suite passes and `node --check` is
+clean on all JS.
+
+**Phase 2 — the page shell.** `warden.html` from `vault.html`: her palette
+tokens, the single config block with `__PLACEHOLDER__` values, the Firebase glue
+(`_fbLoadWarden`/`_fbSaveWarden`), app-lock UI, `window.Bio` (PRF version).
+**Done when:** it loads over `http://localhost` against `memoryBackend()` and the
+lock screen renders.
+
+**Phase 3 — flows verified locally.** Drive it headlessly against
+`memoryBackend()`: setup → unlock → add/edit/delete → search → lock → recovery
+reset → payments → notes → ID Docs. **Done when:** every flow passes and both
+desktop and coarse-pointer layouts are checked.
+
+**Phase 4 — the extension.** `Warden/` manifest, popup, background, content
+scripts, the four tabs, her config. **Done when:** `popup.html` drives as a plain
+page with `chrome.*` stubbed (headless Chrome cannot load a real extension).
+
+**Phase 5 — Links migration.** Warden's Links tab against the existing
+`{connections, colmap, savedAt}` shape; migration path off `dashboards/veda_links`;
+only afterwards remove the tab from `index.html`. **Done when:** her real
+connections render in Warden.
+
+**Phase 6 — handoff.** Write `Warden/SETUP.md`, confirm no placeholder is left
+holding one of Tony's real values, and confirm the folder copies cleanly.
+
+### Definition of done overall
+
+- No `__PLACEHOLDER__` resolved to a Tony value anywhere.
+- No `google.com/s2/favicons`, no `rq.code`, no `hd.hint` in any client code.
+- No shared `X-Vault-Key` reused.
+- Every ported suite green; `npm test` green.
+- Desktop **and** `pointer:coarse` layouts verified.
+
+## Decisions — defaults already chosen, override if wrong
+
+A fresh session should **proceed on these defaults** rather than stopping to ask.
+Only #2 and #3 are worth a human confirming first.
+
+1. **ID Docs — INCLUDE.** Not an architectural problem; scans already go to the
+   files worker (see Storage ceiling). Requires her files worker.
+2. **Cloud tab — ASK.** ~207 KB of the port (`vault-cloud.js` +
+   `vault-cloud-ui.js`) and it needs her own Google/Dropbox OAuth client ids.
+   Dropping it removes a sixth of the build. Default if unanswered: **include the
+   tab but leave it unconfigured**, so it is present and inert until she adds
+   client ids.
+3. **Cloudflare — ASK.** Default: **her workers on Tony's account** under new
+   names (`warden-links`, `warden-pw-sync`, `warden-files`) with a freshly
+   generated key. Far less setup, and the key is what actually separates them.
+   Move to her own account later if she wants full independence.
+4. **Index keeps a Warden button** where her Links tab was — mirrors Tony's Vault
+   button.
+5. **Password floor — raise to 12 characters** in Warden, with the existing
+   passphrase hint. The security write-up tells her four words; 8 contradicts it.
+6. **Build directly into `Warden/` + `warden.html`** at this repo's root, shaped
+   exactly like her repo, so handoff is a straight copy. Do **not** nest it under
+   `V1/`.
