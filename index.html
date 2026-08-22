@@ -9520,7 +9520,14 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     };
 
     // Helper: strip canvas + extract inline images from a single entry before saving
-    const _bjStripEntry = async (e) => {
+    // Local-only sync bookkeeping, stripped before anything is published: _dirty is
+    // THIS device's "not uploaded yet" mark and _fbPushed its "seen on the server"
+    // mark. Shipping either would hand another device our sync state as if it were
+    // its own — a receiver would think its copy was already safe, or refuse to let
+    // the server correct it.
+    const _bjStripLocal = (e) => { const o = Object.assign({}, e); delete o._dirty; delete o._fbPushed; return o; };
+    const _bjStripEntry = async (e0) => {
+      const e = _bjStripLocal(e0);
       if (e.template === 'whiteboard') {
         const { canvas, history, ...rest } = (e.data || {});
         return { entry: { ...e, data: rest }, imageUploadPromises: [] };
@@ -9565,10 +9572,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           } else {
             entries.sort((a, b) => (b.created || 0) - (a.created || 0));
           }
-          return { entries, activeId: data.activeId || null };
+          return { entries, activeId: data.activeId || null, _legacy: false };
         }
-        // Legacy format: had entries[] array — return as-is for migration
-        if (Array.isArray(data.entries) && data.entries.length > 0) return data;
+        // Legacy shape: one `entries` array and no e_* fields at all.
+        if (Array.isArray(data.entries) && data.entries.length > 0) return Object.assign({}, data, { _legacy: true });
         return null;
       } catch(e) {
         console.warn("Firebase Journal load failed:", e);
@@ -9617,7 +9624,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           _bjLastWrittenSavedAt = _bjSavedAt;
           await _fbUpsert(bjDocRef, { [fieldKey]: sanitized, _order, activeId, savedAt: _bjSavedAt }, 'BJ save');
           _bjLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-bj-saved"));
+          // Names the entry — see the MyJournal twin: the UI clears that entry's
+          // _dirty mark on this event.
+          window.dispatchEvent(new CustomEvent("fb-bj-saved", { detail: { id: activeEntry.id } }));
         } catch(e) {
           console.error("Firebase Journal save failed:", e.code, e.message, e);
           window.dispatchEvent(new CustomEvent("fb-bj-error"));
@@ -9660,7 +9669,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         const payload = { ['e_' + entry.id]: sanitized, savedAt: _ts };
         if (Array.isArray(allEntries)) payload._order = allEntries.map(e => e.id);
         await _fbUpsert(bjDocRef, payload, 'BJ save-one');
-        window.dispatchEvent(new CustomEvent('fb-bj-saved'));
+        window.dispatchEvent(new CustomEvent('fb-bj-saved', { detail: { id: entry.id } }));
       } catch(e) { console.warn('BJ save-one failed:', e.message); }
     });
 
@@ -9683,7 +9692,14 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           const { entry: stripped } = await _bjStripEntry(e);
           payload['e_' + e.id] = _bjSanitize(stripped);
         }
-        await _fbWriteRetry(() => setDoc(bjDocRef, payload), 'BJ migrate');
+        // MERGE, never a bare setDoc. setDoc REPLACES the document, so this used to
+        // delete _order and activeId and republish every entry from whatever this
+        // device happened to have read — and when _freshGet had fallen back to the
+        // IndexedDB cache, that was this device's stale copy overwriting the real one
+        // for ALL entries at once. Combined with the boot-time trigger below firing
+        // on every single page load, that is how a phone resurrected entries deleted
+        // days ago and pushed week-old page content over the desktop's.
+        await _fbWriteRetry(() => setDoc(bjDocRef, payload, { merge: true }), 'BJ migrate');
         console.log('BJ: migrated', legacyEntries.length, 'entries to per-entry field format');
       } catch(err) {
         console.warn('BJ migration failed:', err.message);
@@ -9711,6 +9727,70 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       return div.innerHTML;
     };
 
+
+    // Turn a journal document into the detail the UI merge expects. Shared by the
+    // live listener and the authoritative resync below so the two can never drift.
+    const _bjBuildRemote = (data, authoritative) => {
+      const entries = [];
+      const _allPresentIds = [];
+      Object.entries(data).forEach(([k, v]) => {
+        if (k.startsWith('e_')) {
+          _allPresentIds.push(k.slice(2));
+          if (v && typeof v === 'object' && v.id) entries.push(v);
+        }
+      });
+      if (Array.isArray(data._order) && data._order.length > 0) {
+        const orderMap = {}; data._order.forEach((id, i) => { orderMap[id] = i; });
+        entries.sort((a, b) => {
+          const ia = orderMap[a.id] != null ? orderMap[a.id] : 9999;
+          const ib = orderMap[b.id] != null ? orderMap[b.id] : 9999;
+          return ia !== ib ? ia - ib : (b.created || 0) - (a.created || 0);
+        });
+      } else {
+        entries.sort((a, b) => (b.created || 0) - (a.created || 0));
+      }
+      return { entries, activeId: data.activeId || null, _order: data._order || null,
+               _fbHasData: true, _allPresentIds, _authoritative: !!authoritative };
+    };
+
+    /* ── Server-authoritative resync ───────────────────────────────────────────
+     * The live listener alone is not enough, and this is why "the phone shows a
+     * week-old page, and entries I deleted days ago are back" happens:
+     *
+     *   - onSnapshot is served from the IndexedDB cache FIRST, so on a phone that
+     *     has been backgrounded for days the cached copy is what paints;
+     *   - the merge that follows is a defensive, per-entry last-write-wins on a
+     *     DEVICE WALL CLOCK, so a local copy carrying a newer `updated` rejects the
+     *     real server content the moment it arrives — and permanently, because
+     *     nothing ever lowers that number again;
+     *   - and the loader that does a forced server read only ran ONCE per page
+     *     load, so re-opening the app after a teardown re-read nothing at all.
+     *
+     * This is the other half: a FORCED server read applied as the TRUTH — content,
+     * deletions and order all come from the server, and the only thing kept from
+     * this device is an entry it has edited but not yet uploaded (entry._dirty).
+     * Run on open, on resume and on reconnect, it makes a journal that has not been
+     * opened here in a week show the current state instead of this device's memory
+     * of it. Cost is one document read per open — the read the page already did at
+     * boot, no longer only at boot. */
+    window._fbResyncJournal = async () => {
+      try {
+        const snap = await _freshGet(bjDocRef);
+        if (!snap) return false;
+        // _freshGet falls back to the CACHE when the server is unreachable, and a
+        // cached read must never authorise itself — that is exactly the stale copy
+        // this is here to correct.
+        const fromServer = !!(snap.metadata && !snap.metadata.fromCache);
+        if (fromServer) _bjMarkServerSeen();
+        if (!snap.exists()) return false;
+        const data = snap.data();
+        _bjLastAppliedSavedAt = data.savedAt || 0;
+        window.dispatchEvent(new CustomEvent('fb-bj-remote-update', { detail: _bjBuildRemote(data, fromServer) }));
+        window.dispatchEvent(new CustomEvent('fb-bj-synced'));
+        return fromServer;
+      } catch (e) { console.warn('Journal resync failed:', e && e.message); return false; }
+    };
+
     // ── Brainstorm Journal real-time listener ─────────────────────────────────
     // includeMetadataChanges:true so we reliably observe the fromCache→server
     // transition even when the cached and server data are identical; that transition
@@ -9733,27 +9813,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // drop out without re-running the merge / re-rendering the sidebar.
       if (_bjSnapSavedAt > 0 && _bjSnapSavedAt === _bjLastAppliedSavedAt) { if (!_fromCache) _bjMarkServerSeen(); return; }
       _bjLastAppliedSavedAt = _bjSnapSavedAt;
-      const entries = [];
-      const _allPresentIds = [];
-      Object.entries(data).forEach(([k, v]) => {
-        if (k.startsWith('e_')) {
-          _allPresentIds.push(k.slice(2));
-          if (v && typeof v === 'object' && v.id) entries.push(v);
-        }
-      });
-      // Always dispatch — even entries.length===0. A deletion that removes the last
-      // (or any) entry must propagate; the merge handles the empty-list case.
-      if (Array.isArray(data._order) && data._order.length > 0) {
-        const orderMap = {}; data._order.forEach((id, i) => { orderMap[id] = i; });
-        entries.sort((a, b) => {
-          const ia = orderMap[a.id] != null ? orderMap[a.id] : 9999;
-          const ib = orderMap[b.id] != null ? orderMap[b.id] : 9999;
-          return ia !== ib ? ia - ib : (b.created || 0) - (a.created || 0);
-        });
-      } else {
-        entries.sort((a, b) => (b.created || 0) - (a.created || 0));
-      }
-      window.dispatchEvent(new CustomEvent("fb-bj-remote-update", { detail: { entries, activeId: data.activeId || null, _order: data._order || null, _fbHasData: true, _allPresentIds } }));
+      // Always dispatch — even entries.length===0 — so deletions propagate. A
+      // snapshot that came from the SERVER is as authoritative as the forced read
+      // above: it IS the current document, not this device's memory of it. Only
+      // cache-sourced snapshots go through the defensive merge.
+      window.dispatchEvent(new CustomEvent("fb-bj-remote-update", { detail: _bjBuildRemote(data, !_fromCache) }));
       window.dispatchEvent(new CustomEvent("fb-bj-synced"));
       // Confirm server AFTER the merge above has been applied, so any writes that were
       // queued while offline flush against the already-reconciled state (never clobber).
@@ -10049,7 +10113,14 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       return div.innerHTML;
     };
 
-    const _tjStripEntry = async (e) => {
+    // Local-only sync bookkeeping, stripped before anything is published: _dirty is
+    // THIS device's "not uploaded yet" mark and _fbPushed its "seen on the server"
+    // mark. Shipping either would hand another device our sync state as if it were
+    // its own — a receiver would think its copy was already safe, or refuse to let
+    // the server correct it.
+    const _tjStripLocal = (e) => { const o = Object.assign({}, e); delete o._dirty; delete o._fbPushed; return o; };
+    const _tjStripEntry = async (e0) => {
+      const e = _tjStripLocal(e0);
       if (e.template === 'whiteboard') {
         const { canvas, history, ...rest } = (e.data || {});
         return { entry: { ...e, data: rest }, imageUploadPromises: [] };
@@ -10092,9 +10163,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           } else {
             entries.sort((a, b) => (b.created || 0) - (a.created || 0));
           }
-          return { entries, activeId: data.activeId || null };
+          return { entries, activeId: data.activeId || null, _legacy: false };
         }
-        if (Array.isArray(data.entries) && data.entries.length > 0) return data;
+        // Legacy shape: one `entries` array and no e_* fields at all.
+        if (Array.isArray(data.entries) && data.entries.length > 0) return Object.assign({}, data, { _legacy: true });
         return null;
       } catch(e) { console.warn("Firebase TonyJournal load failed:", e); return null; }
     };
@@ -10132,7 +10204,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           _tjLastWrittenSavedAt = _tjSavedAt;
           await _fbUpsert(tjDocRef, { [fieldKey]: sanitized, _order, activeId, savedAt: _tjSavedAt }, 'TJ save');
           _tjLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent("fb-tj-saved"));
+          // Names the entry: the UI clears that entry's _dirty mark on this event,
+          // and clearing the wrong one would either strand an unsynced edit or drop
+          // the protection from one that really is still unsynced.
+          window.dispatchEvent(new CustomEvent("fb-tj-saved", { detail: { id: activeEntry.id } }));
         } catch(e) {
           console.error("Firebase TonyJournal save failed:", e.code, e.message, e);
           window.dispatchEvent(new CustomEvent("fb-tj-error"));
@@ -10174,7 +10249,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         const payload = { ['e_' + entry.id]: sanitized, savedAt: _ts };
         if (Array.isArray(allEntries)) payload._order = allEntries.map(e => e.id);
         await _fbUpsert(tjDocRef, payload, 'TJ save-one');
-        window.dispatchEvent(new CustomEvent('fb-tj-saved'));
+        window.dispatchEvent(new CustomEvent('fb-tj-saved', { detail: { id: entry.id } }));
       } catch(e) { console.warn('TJ save-one failed:', e.message); }
     });
 
@@ -10196,7 +10271,14 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           const { entry: stripped } = await _tjStripEntry(e);
           payload['e_' + e.id] = _tjSanitize(stripped);
         }
-        await _fbWriteRetry(() => setDoc(tjDocRef, payload), 'TJ migrate');
+        // MERGE, never a bare setDoc. setDoc REPLACES the document, so this used to
+        // delete _order and activeId and republish every entry from whatever this
+        // device happened to have read — and when _freshGet had fallen back to the
+        // IndexedDB cache, that was this device's stale copy overwriting the real one
+        // for ALL entries at once. Combined with the boot-time trigger below firing
+        // on every single page load, that is how a phone resurrected entries deleted
+        // days ago and pushed week-old page content over the desktop's.
+        await _fbWriteRetry(() => setDoc(tjDocRef, payload, { merge: true }), 'TJ migrate');
       } catch(err) { console.warn('TJ migration failed:', err.message); }
     });
 
@@ -10214,6 +10296,70 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         } catch(err) { console.warn('TJ image rehydrate failed:', imgKey, err.message); }
       }));
       return div.innerHTML;
+    };
+
+
+    // Turn a journal document into the detail the UI merge expects. Shared by the
+    // live listener and the authoritative resync below so the two can never drift.
+    const _tjBuildRemote = (data, authoritative) => {
+      const entries = [];
+      const _allPresentIds = [];
+      Object.entries(data).forEach(([k, v]) => {
+        if (k.startsWith('e_')) {
+          _allPresentIds.push(k.slice(2));
+          if (v && typeof v === 'object' && v.id) entries.push(v);
+        }
+      });
+      if (Array.isArray(data._order) && data._order.length > 0) {
+        const orderMap = {}; data._order.forEach((id, i) => { orderMap[id] = i; });
+        entries.sort((a, b) => {
+          const ia = orderMap[a.id] != null ? orderMap[a.id] : 9999;
+          const ib = orderMap[b.id] != null ? orderMap[b.id] : 9999;
+          return ia !== ib ? ia - ib : (b.created || 0) - (a.created || 0);
+        });
+      } else {
+        entries.sort((a, b) => (b.created || 0) - (a.created || 0));
+      }
+      return { entries, activeId: data.activeId || null, _order: data._order || null,
+               _fbHasData: true, _allPresentIds, _authoritative: !!authoritative };
+    };
+
+    /* ── Server-authoritative resync ───────────────────────────────────────────
+     * The live listener alone is not enough, and this is why "the phone shows a
+     * week-old page, and entries I deleted days ago are back" happens:
+     *
+     *   - onSnapshot is served from the IndexedDB cache FIRST, so on a phone that
+     *     has been backgrounded for days the cached copy is what paints;
+     *   - the merge that follows is a defensive, per-entry last-write-wins on a
+     *     DEVICE WALL CLOCK, so a local copy carrying a newer `updated` rejects the
+     *     real server content the moment it arrives — and permanently, because
+     *     nothing ever lowers that number again;
+     *   - and the loader that does a forced server read only ran ONCE per page
+     *     load, so re-opening the app after a teardown re-read nothing at all.
+     *
+     * This is the other half: a FORCED server read applied as the TRUTH — content,
+     * deletions and order all come from the server, and the only thing kept from
+     * this device is an entry it has edited but not yet uploaded (entry._dirty).
+     * Run on open, on resume and on reconnect, it makes a journal that has not been
+     * opened here in a week show the current state instead of this device's memory
+     * of it. Cost is one document read per open — the read the page already did at
+     * boot, no longer only at boot. */
+    window._fbResyncTonyJournal = async () => {
+      try {
+        const snap = await _freshGet(tjDocRef);
+        if (!snap) return false;
+        // _freshGet falls back to the CACHE when the server is unreachable, and a
+        // cached read must never authorise itself — that is exactly the stale copy
+        // this is here to correct.
+        const fromServer = !!(snap.metadata && !snap.metadata.fromCache);
+        if (fromServer) _tjMarkServerSeen();
+        if (!snap.exists()) return false;
+        const data = snap.data();
+        _tjLastAppliedSavedAt = data.savedAt || 0;
+        window.dispatchEvent(new CustomEvent('fb-tj-remote-update', { detail: _tjBuildRemote(data, fromServer) }));
+        window.dispatchEvent(new CustomEvent('fb-tj-synced'));
+        return fromServer;
+      } catch (e) { console.warn('TonyJournal resync failed:', e && e.message); return false; }
     };
 
     // ── Tony's Journal real-time listener ────────────────────────────────────
@@ -10235,26 +10381,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // drop out without re-running the merge / re-rendering the sidebar.
       if (_tjSnapSavedAt > 0 && _tjSnapSavedAt === _tjLastAppliedSavedAt) { if (!_fromCache) _tjMarkServerSeen(); return; }
       _tjLastAppliedSavedAt = _tjSnapSavedAt;
-      const entries = [];
-      const _allPresentIds = [];
-      Object.entries(data).forEach(([k, v]) => {
-        if (k.startsWith('e_')) {
-          _allPresentIds.push(k.slice(2));
-          if (v && typeof v === 'object' && v.id) entries.push(v);
-        }
-      });
-      // Always dispatch — even entries.length===0 — so deletions propagate.
-      if (Array.isArray(data._order) && data._order.length > 0) {
-        const orderMap = {}; data._order.forEach((id, i) => { orderMap[id] = i; });
-        entries.sort((a, b) => {
-          const ia = orderMap[a.id] != null ? orderMap[a.id] : 9999;
-          const ib = orderMap[b.id] != null ? orderMap[b.id] : 9999;
-          return ia !== ib ? ia - ib : (b.created || 0) - (a.created || 0);
-        });
-      } else {
-        entries.sort((a, b) => (b.created || 0) - (a.created || 0));
-      }
-      window.dispatchEvent(new CustomEvent("fb-tj-remote-update", { detail: { entries, activeId: data.activeId || null, _order: data._order || null, _fbHasData: true, _allPresentIds } }));
+      // Always dispatch — even entries.length===0 — so deletions propagate. A
+      // snapshot that came from the SERVER is as authoritative as the forced read
+      // above: it IS the current document, not this device's memory of it. Only
+      // cache-sourced snapshots go through the defensive merge.
+      window.dispatchEvent(new CustomEvent("fb-tj-remote-update", { detail: _tjBuildRemote(data, !_fromCache) }));
       window.dispatchEvent(new CustomEvent("fb-tj-synced"));
       // Confirm server AFTER the merge above has been applied, so any writes that were
       // queued while offline flush against the already-reconciled state (never clobber).
@@ -10660,6 +10791,26 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     _fbGen++;
   }
 
+  // Re-read whichever journal is on screen straight from the server.
+  //
+  // The listeners alone do not cover this. A teardown terminates the client, and the
+  // reattach that follows re-registers listeners but does not re-read the document —
+  // Firestore only pushes what CHANGES from the resumed connection's point of view,
+  // and a phone that has been asleep for days has a cache that disagrees with the
+  // server about the past, not the future. So the app came back showing its cache.
+  // A forced read on the way back in is the only thing that fixes that, and it costs
+  // one document read per resume of a journal that is actually open.
+  const _fbResyncVisibleJournals = () => {
+    const onScreen = (id) => {
+      const el = document.getElementById(id);
+      return !!el && getComputedStyle(el).display !== 'none';
+    };
+    try {
+      if (onScreen('tj-root') && window._fbResyncTonyJournal) window._fbResyncTonyJournal();
+      if (onScreen('bj-root') && window._fbResyncJournal)     window._fbResyncJournal();
+    } catch (e) {}
+  };
+
   function _startIdleTimer() {
     clearTimeout(_idleTimer);
     _idleTimer = setTimeout(() => {
@@ -10697,6 +10848,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // you can interact. Cheap: init() is a no-op when listeners are still live.
       if (!_fbRecovering && !_unsubscribe) init();
       _startIdleTimer();
+      _fbResyncVisibleJournals();
     }
   });
 
@@ -10732,10 +10884,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   window.addEventListener("pageshow", (e) => {
     if (!_fbRecovering && !_unsubscribe) init();
     _startIdleTimer();
+    _fbResyncVisibleJournals();
   });
   document.addEventListener("resume", () => {
     if (!_fbRecovering && !_unsubscribe) init();
     _startIdleTimer();
+    _fbResyncVisibleJournals();
   });
 
   // Wait for anon auth before wiring up listeners/loads so the very first
@@ -20082,6 +20236,13 @@ function _bjApplyRemote(remote) {
   // Gated on DOM ownership for the same reason saveCurrentEntry is: if the editor was
   // not painted for this entry there is nothing here worth flushing, only the previous
   // entry's content or a blank field waiting to be mistaken for one.
+  // An AUTHORITATIVE update is a forced (or server-sourced) read of the real
+  // document, not this device's cached memory of it — see _fbResync* in the Firebase
+  // module. In that mode the server decides every entry except ones this device has
+  // edited and not yet uploaded, which is what makes re-opening a journal after days
+  // away show the current state instead of the copy this device fell asleep holding.
+  var _auth = !!(remote && remote._authoritative);
+
   var activeEntry = getActive();
   if (activeEntry && _bjDomOwner === activeEntry.id) {
     // Capture ONLY the field the user is actively editing (focused). Blindly
@@ -20171,16 +20332,33 @@ function _bjApplyRemote(remote) {
       return;
     }
 
-    // Entry exists locally — only update if remote is strictly newer.
-    // ONE exception, and it is the safety net for every remaining way this device
-    // could be holding a bad copy: an EMPTY local entry never wins over a remote one
-    // that still has content, whatever the clocks say. Emptiness is not an edit worth
-    // defending, and without this a session that once stamped `updated` from a blank
-    // editor would reject the real content forever and then publish its blank over
-    // it. The reverse — remote blank, local full — is left alone on purpose: that is
-    // what the pending local write is about to correct.
-    if (remoteUpdated < localUpdated) {
-      if (!(window.JGuard && window.JGuard.emptyEntry(local) && !window.JGuard.emptyEntry(remoteEntry))) return;
+    // ── Which copy of this entry wins? Resolved in this order, and the order is
+    // the whole point:
+    //
+    //  1. AN UNSYNCED LOCAL EDIT always wins. `_dirty` marks an entry this device
+    //     has changed but not yet managed to upload; it is about to be written, and
+    //     nothing arriving now may erase it.
+    //  2. AN AUTHORITATIVE SNAPSHOT otherwise wins outright. This is what stops a
+    //     device that has been away for a week from insisting on its own copy.
+    //  3. REVISION. `rev` counts committed content changes, so it orders two copies
+    //     WITHOUT consulting a clock. Device clocks disagree by minutes, and a phone
+    //     whose clock ran fast used to win every conflict on nothing but that.
+    //  4. `updated`, the legacy fallback for entries written before `rev` existed.
+    //  5. And regardless of all of it: an EMPTY local copy never beats a remote one
+    //     that still has content. Emptiness is not an edit worth defending, and
+    //     without this a session that once stamped a timestamp from a blank editor
+    //     would reject the real content forever, then publish its blank over it.
+    //     The reverse — remote blank, local full — is deliberately left alone: that
+    //     is what this device's pending write is about to correct.
+    var _rRev = remoteEntry.rev || 0, _lRev = local.rev || 0;
+    var _localEmpty = !!(window.JGuard && window.JGuard.emptyEntry(local) && !window.JGuard.emptyEntry(remoteEntry));
+    var _remoteWins;
+    if (local._dirty)         _remoteWins = false;
+    else if (_auth)           _remoteWins = true;
+    else if (_rRev !== _lRev) _remoteWins = _rRev > _lRev;
+    else                      _remoteWins = remoteUpdated >= localUpdated;
+    if (!_remoteWins) {
+      if (!_localEmpty) return;
       console.warn('[JGuard] bj entry ' + remoteEntry.id + ' is empty locally but has content on the server — taking the server copy');
     }
     // Remote is about to replace local content. If it is SMALLER, keep the local
@@ -20278,12 +20456,25 @@ function _bjApplyRemote(remote) {
   // Only prune when we know Firebase actually responded (_fbHasData:true prevents pruning
   // on a stale/empty initial load before Firebase data arrives).
   var canPrune = !!remote._fbHasData;
+  // In AUTHORITATIVE mode the server's key list is the truth: an entry missing from
+  // it was deleted somewhere else, whether or not this device ever got round to
+  // marking it _fbPushed. That missing mark is exactly why entries deleted days ago
+  // kept reappearing on a phone. Gated on the server actually having entries, so a
+  // read of an empty/not-yet-written document can never wipe a populated device.
+  var _authPrune = _auth && authorizedPresentIds.size > 0;
   var _prunedRemotely = [];
   state.entries = state.entries.filter(function(e) {
-    if (ownDeletedSet.has(e.id)) return false;               // we deleted it locally
-    if (authorizedPresentIds.has(e.id)) return true;          // still in Firebase — keep
+    if (ownDeletedSet.has(e.id)) return false;
+    if (authorizedPresentIds.has(e.id)) return true;
+    // Unsynced local work is protected from a remote view's key list ONLY while the
+    // server has never seen this entry — i.e. it was created here and has not been
+    // uploaded yet. An entry the server DID have and no longer does was deleted on
+    // another device; that deletion wins, or a stalled upload here would resurrect it
+    // and we are back to "entries I deleted days ago keep coming back".
+    if (e._dirty && !e._fbPushed) return true;
+    if (_authPrune) { _prunedRemotely.push(e.id); return false; }
     if (canPrune && e._fbPushed) { _prunedRemotely.push(e.id); return false; }  // was in Firebase, now gone = remote delete
-    return true;                                              // never synced or no data yet — keep
+    return true;
   });
   // Remember remote hard-deletes as our own, so a late in-flight write from any
   // device can never resurrect the entry here, and drop its lock state with it.
@@ -20322,6 +20513,18 @@ function _bjApplyRemote(remote) {
   // Mark all entries present in remote as confirmed synced
   state.entries.forEach(function(e) { if (remotePresentIds.has(e.id)) e._fbPushed = true; });
 
+  // Anything still marked dirty after an authoritative reconcile has local work the
+  // server has not got. The debounced save only ever writes the ACTIVE entry, so a
+  // failed or interrupted upload of some other entry would otherwise sit unsynced
+  // forever. Push them now — this is the "everything ends up saved" half of the
+  // resync, and it is a no-op in the normal case where nothing is dirty.
+  if (_auth) {
+    state.entries.forEach(function(e) {
+      if (!e._dirty || e.id === state.activeId) return;
+      if (window._fbSaveJournalEntry) window._fbSaveJournalEntry(e, state.entries);
+    });
+  }
+
   // NEVER override local activeId — each device stays on its own entry
   _bjWriteCache();
   renderSidebar();
@@ -20332,10 +20535,14 @@ function _bjApplyRemote(remote) {
 }
 
 // Listen for Firebase sync events
-window.addEventListener('fb-bj-saved', function() {
+window.addEventListener('fb-bj-saved', function(ev) {
   _bjSetSync('synced');
-  // Mark active entry as confirmed pushed to Firebase
-  var ae = getActive(); if (ae) { ae._fbPushed = true; _bjWriteCache(); }
+  // Confirmed in the cloud: record that it has been pushed and drop the unsynced
+  // mark. Keyed by the id the event names, because the save that just landed is not
+  // always for the entry that is active NOW.
+  var _sid = ev && ev.detail && ev.detail.id;
+  var ae = _sid ? state.entries.find(function(x){ return x.id === _sid; }) : getActive();
+  if (ae) { ae._fbPushed = true; delete ae._dirty; _bjWriteCache(); }
 });
 window.addEventListener('fb-bj-synced', function() { _bjSetSync('synced'); });
 window.addEventListener('fb-bj-canvas-saved', function() { _bjSetSync('synced'); });
@@ -20346,24 +20553,36 @@ window.addEventListener('fb-bj-remote-update', function(e) { _bjApplyRemote(e.de
 
 // Initial Firebase load when FB ready
 function _bjInitFirebase() {
-  if (!window._fbLoadJournal) return;
-  window._fbLoadJournal().then(remote => {
-    if (!remote) return; // No remote data yet — local state is source of truth
-    // Detect legacy format (has entries[] array but no e_* fields) — migrate it
-    if (Array.isArray(remote.entries) && remote.entries.length > 0) {
-      var hasNewFormat = remote.entries.some && Object.keys(remote).some(k => k.startsWith('e_'));
-      if (!hasNewFormat && window._fbMigrateJournalIfNeeded) {
+  // MIGRATION — only for a genuinely legacy document: one `entries` array and no
+  // e_* fields. The old test asked whether any key of the LOADER'S RETURN VALUE
+  // started with "e_", but that value is { entries, activeId } — it never has such a
+  // key, so the answer was always "legacy" and the migration ran on EVERY page load,
+  // on every device. It wrote with a bare setDoc (a whole-document replace), so each
+  // launch deleted _order and activeId and republished every entry from whatever
+  // that device had just read. When the read had fallen back to the IndexedDB cache
+  // — routine on a phone waking up on a slow connection — a week-old local copy was
+  // published over the live document, restoring entries deleted elsewhere and
+  // reverting page content. The loader now says so itself.
+  if (window._fbLoadJournal) {
+    window._fbLoadJournal().then(function (remote) {
+      if (!remote || !remote._legacy) return;
+      if (Array.isArray(remote.entries) && remote.entries.length > 0 && window._fbMigrateJournalIfNeeded) {
         window._fbMigrateJournalIfNeeded(remote.entries);
       }
-    }
-    _bjApplyRemote(remote);
-  });
+    });
+  }
+  // The merge comes from the authoritative resync — a forced SERVER read applied as
+  // the truth — so a cold launch shows the current document instead of this device's
+  // cached memory of it. Safe to call repeatedly; that is the point.
+  if (window._fbResyncJournal) window._fbResyncJournal();
 }
-if (window._fbReady) {
-  _bjInitFirebase();
-} else {
-  window.addEventListener('fb-ready', _bjInitFirebase, {once:true});
-}
+// Re-run on EVERY fb-ready, not just the first. The connection is torn down whenever
+// the tab is hidden or the phone suspends the app, and re-established on the way
+// back; before this, that reconnect re-attached the listeners but never re-read the
+// document, so a device returning after days sat on its cache until something
+// happened to change server-side.
+if (window._fbReady) _bjInitFirebase();
+window.addEventListener('fb-ready', _bjInitFirebase);
 
 function getActive() { return state.entries.find(e => e.id === state.activeId) || null; }
 
@@ -20375,6 +20594,9 @@ function createEntry(template) {
   if (template === 'cornell') entry.data = { topic: '', cues: '', notes: '', summary: '', attachments: [] };
   if (template === 'mindmap') entry.data = { nodes: [{ id: 1, x: 340, y: 220, label: 'Central Idea', root: true }], edges: [], attachments: [] };
   if (template === 'page') entry.data = { html: '', attachments: [] };
+  // Unsynced until the cloud confirms it — without this an authoritative resync
+  // arriving in the next second would prune an entry the server has never seen.
+  entry._dirty = true;
   state.entries.unshift(entry);
   state.activeId = id;
   return entry;
@@ -20818,6 +21040,12 @@ function saveCurrentEntry() {
   // and the whiteboard canvas are all held by reference elsewhere in this file.
   Object.assign(entry.data, _next);
   entry.updated = Date.now();
+  // rev counts committed content changes, which is how two copies of an entry get
+  // ordered WITHOUT trusting a device clock — see the merge rules in applyRemote.
+  entry.rev = (entry.rev || 0) + 1;
+  // Unsynced until the cloud confirms it. Nothing arriving from a remote view may
+  // overwrite an entry in this state, and an authoritative resync will push it.
+  entry._dirty = true;
   saveState(); renderSidebar();
 }
 
@@ -23347,6 +23575,9 @@ window.showBrainstormJournal = function(caller) {
   bj.style.display='flex'; bj.style.flexDirection='column';
   // Always re-check lock state when journal becomes visible
   if (window._bjLockCheck) window._bjLockCheck();
+  // Opening the journal re-reads the real document from the server — see the
+  // MyJournal twin.
+  if (window._fbResyncJournal) window._fbResyncJournal();
 };
 window.hideBrainstormJournal = function() {
   document.getElementById('bj-root').style.display = 'none';
@@ -25897,6 +26128,13 @@ function _tjApplyRemote(remote) {
   // Gated on DOM ownership for the same reason saveCurrentEntry is: if the editor was
   // not painted for this entry there is nothing here worth flushing, only the previous
   // entry's content or a blank field waiting to be mistaken for one.
+  // An AUTHORITATIVE update is a forced (or server-sourced) read of the real
+  // document, not this device's cached memory of it — see _fbResync* in the Firebase
+  // module. In that mode the server decides every entry except ones this device has
+  // edited and not yet uploaded, which is what makes re-opening a journal after days
+  // away show the current state instead of the copy this device fell asleep holding.
+  var _auth = !!(remote && remote._authoritative);
+
   var activeEntry = getActive();
   if (activeEntry && _tjDomOwner === activeEntry.id) {
     // Capture ONLY the focused field — see _bjApplyRemote. Prevents opening an
@@ -25985,16 +26223,33 @@ function _tjApplyRemote(remote) {
       return;
     }
 
-    // Entry exists locally — only update if remote is strictly newer.
-    // ONE exception, and it is the safety net for every remaining way this device
-    // could be holding a bad copy: an EMPTY local entry never wins over a remote one
-    // that still has content, whatever the clocks say. Emptiness is not an edit
-    // worth defending, and without this a session that once stamped `updated` from a
-    // blank editor would reject the real content forever and then publish its blank
-    // over it. The reverse — remote blank, local full — is left alone on purpose:
-    // that is what the pending local write is about to correct.
-    if (remoteUpdated <= localUpdated) {
-      if (!(window.JGuard && window.JGuard.emptyEntry(local) && !window.JGuard.emptyEntry(remoteEntry))) return;
+    // ── Which copy of this entry wins? Resolved in this order, and the order is
+    // the whole point:
+    //
+    //  1. AN UNSYNCED LOCAL EDIT always wins. `_dirty` marks an entry this device
+    //     has changed but not yet managed to upload; it is about to be written, and
+    //     nothing arriving now may erase it.
+    //  2. AN AUTHORITATIVE SNAPSHOT otherwise wins outright. This is what stops a
+    //     device that has been away for a week from insisting on its own copy.
+    //  3. REVISION. `rev` counts committed content changes, so it orders two copies
+    //     WITHOUT consulting a clock. Device clocks disagree by minutes, and a phone
+    //     whose clock ran fast used to win every conflict on nothing but that.
+    //  4. `updated`, the legacy fallback for entries written before `rev` existed.
+    //  5. And regardless of all of it: an EMPTY local copy never beats a remote one
+    //     that still has content. Emptiness is not an edit worth defending, and
+    //     without this a session that once stamped a timestamp from a blank editor
+    //     would reject the real content forever, then publish its blank over it.
+    //     The reverse — remote blank, local full — is deliberately left alone: that
+    //     is what this device's pending write is about to correct.
+    var _rRev = remoteEntry.rev || 0, _lRev = local.rev || 0;
+    var _localEmpty = !!(window.JGuard && window.JGuard.emptyEntry(local) && !window.JGuard.emptyEntry(remoteEntry));
+    var _remoteWins;
+    if (local._dirty)         _remoteWins = false;
+    else if (_auth)           _remoteWins = true;
+    else if (_rRev !== _lRev) _remoteWins = _rRev > _lRev;
+    else                      _remoteWins = remoteUpdated > localUpdated;
+    if (!_remoteWins) {
+      if (!_localEmpty) return;
       console.warn('[JGuard] tj entry ' + remoteEntry.id + ' is empty locally but has content on the server — taking the server copy');
     }
     // Remote is about to replace local content. If it is SMALLER, keep the local
@@ -26134,10 +26389,23 @@ function _tjApplyRemote(remote) {
     : remotePresentIds;
   var ownDeletedSet = new Set(state.deletedIds || []);
   var canPrune = !!remote._fbHasData;
+  // In AUTHORITATIVE mode the server's key list is the truth: an entry missing from
+  // it was deleted somewhere else, whether or not this device ever got round to
+  // marking it _fbPushed. That missing mark is exactly why entries deleted days ago
+  // kept reappearing on a phone. Gated on the server actually having entries, so a
+  // read of an empty/not-yet-written document can never wipe a populated device.
+  var _authPrune = _auth && authorizedPresentIds.size > 0;
   var _prunedRemotely = [];
   state.entries = state.entries.filter(function(e) {
     if (ownDeletedSet.has(e.id)) return false;
     if (authorizedPresentIds.has(e.id)) return true;
+    // Unsynced local work is protected from a remote view's key list ONLY while the
+    // server has never seen this entry — i.e. it was created here and has not been
+    // uploaded yet. An entry the server DID have and no longer does was deleted on
+    // another device; that deletion wins, or a stalled upload here would resurrect it
+    // and we are back to "entries I deleted days ago keep coming back".
+    if (e._dirty && !e._fbPushed) return true;
+    if (_authPrune) { _prunedRemotely.push(e.id); return false; }
     if (canPrune && e._fbPushed) { _prunedRemotely.push(e.id); return false; }  // was in Firebase, now gone = remote delete
     return true;
   });
@@ -26177,6 +26445,18 @@ function _tjApplyRemote(remote) {
   // Mark all entries present in remote as confirmed synced
   state.entries.forEach(function(e) { if (remotePresentIds.has(e.id)) e._fbPushed = true; });
 
+  // Anything still marked dirty after an authoritative reconcile has local work the
+  // server has not got. The debounced save only ever writes the ACTIVE entry, so a
+  // failed or interrupted upload of some other entry would otherwise sit unsynced
+  // forever. Push them now — this is the "everything ends up saved" half of the
+  // resync, and it is a no-op in the normal case where nothing is dirty.
+  if (_auth) {
+    state.entries.forEach(function(e) {
+      if (!e._dirty || e.id === state.activeId) return;
+      if (window._fbSaveTonyJournalEntry) window._fbSaveTonyJournalEntry(e, state.entries);
+    });
+  }
+
   // NEVER override local activeId — each device stays on its own entry
   _tjWriteCache();
   renderSidebar();
@@ -26185,10 +26465,14 @@ function _tjApplyRemote(remote) {
 }
 
 // Listen for Firebase sync events
-window.addEventListener('fb-tj-saved', function() {
+window.addEventListener('fb-tj-saved', function(ev) {
   _tjSetSync('synced');
-  // Mark active entry as confirmed pushed to Firebase
-  var ae = getActive(); if (ae) { ae._fbPushed = true; _tjWriteCache(); }
+  // Confirmed in the cloud: record that it has been pushed and drop the unsynced
+  // mark. Keyed by the id the event names, because the save that just landed is not
+  // always for the entry that is active NOW.
+  var _sid = ev && ev.detail && ev.detail.id;
+  var ae = _sid ? state.entries.find(function(x){ return x.id === _sid; }) : getActive();
+  if (ae) { ae._fbPushed = true; delete ae._dirty; _tjWriteCache(); }
 });
 window.addEventListener('fb-tj-synced', function() { _tjSetSync('synced'); });
 window.addEventListener('fb-tj-canvas-saved', function() { _tjSetSync('synced'); });
@@ -26199,24 +26483,36 @@ window.addEventListener('fb-tj-remote-update', function(e) { _tjApplyRemote(e.de
 
 // Initial Firebase load when FB ready
 function _tjInitFirebase() {
-  if (!window._fbLoadTonyJournal) return;
-  window._fbLoadTonyJournal().then(remote => {
-    if (!remote) return; // No remote data yet — local state is source of truth
-    // Detect legacy format (has entries[] array but no e_* fields) — migrate it
-    if (Array.isArray(remote.entries) && remote.entries.length > 0) {
-      var hasNewFormat = remote.entries.some && Object.keys(remote).some(k => k.startsWith('e_'));
-      if (!hasNewFormat && window._fbMigrateTonyJournalIfNeeded) {
+  // MIGRATION — only for a genuinely legacy document: one `entries` array and no
+  // e_* fields. The old test asked whether any key of the LOADER'S RETURN VALUE
+  // started with "e_", but that value is { entries, activeId } — it never has such a
+  // key, so the answer was always "legacy" and the migration ran on EVERY page load,
+  // on every device. It wrote with a bare setDoc (a whole-document replace), so each
+  // launch deleted _order and activeId and republished every entry from whatever
+  // that device had just read. When the read had fallen back to the IndexedDB cache
+  // — routine on a phone waking up on a slow connection — a week-old local copy was
+  // published over the live document, restoring entries deleted elsewhere and
+  // reverting page content. The loader now says so itself.
+  if (window._fbLoadTonyJournal) {
+    window._fbLoadTonyJournal().then(function (remote) {
+      if (!remote || !remote._legacy) return;
+      if (Array.isArray(remote.entries) && remote.entries.length > 0 && window._fbMigrateTonyJournalIfNeeded) {
         window._fbMigrateTonyJournalIfNeeded(remote.entries);
       }
-    }
-    _tjApplyRemote(remote);
-  });
+    });
+  }
+  // The merge comes from the authoritative resync — a forced SERVER read applied as
+  // the truth — so a cold launch shows the current document instead of this device's
+  // cached memory of it. Safe to call repeatedly; that is the point.
+  if (window._fbResyncTonyJournal) window._fbResyncTonyJournal();
 }
-if (window._fbReady) {
-  _tjInitFirebase();
-} else {
-  window.addEventListener('fb-ready', _tjInitFirebase, {once:true});
-}
+// Re-run on EVERY fb-ready, not just the first. The connection is torn down whenever
+// the tab is hidden or the phone suspends the app, and re-established on the way
+// back; before this, that reconnect re-attached the listeners but never re-read the
+// document, so a device returning after days sat on its cache until something
+// happened to change server-side.
+if (window._fbReady) _tjInitFirebase();
+window.addEventListener('fb-ready', _tjInitFirebase);
 
 function getActive() { return state.entries.find(e => e.id === state.activeId) || null; }
 
@@ -26229,6 +26525,9 @@ function createEntry(template) {
   if (template === 'mindmap') entry.data = { nodes: [{ id: 1, x: 340, y: 220, label: 'Central Idea', root: true }], edges: [], attachments: [] };
   if (template === 'page') entry.data = { html: '', attachments: [] };
   if (template === 'journal-entries') entry.data = { dates: {}, activeDateKey: '', dateOrder: [] };
+  // Unsynced until the cloud confirms it — without this an authoritative resync
+  // arriving in the next second would prune an entry the server has never seen.
+  entry._dirty = true;
   state.entries.unshift(entry);
   state.activeId = id;
   saveState(); renderSidebar(); loadActiveEntry();
@@ -26699,6 +26998,12 @@ function saveCurrentEntry() {
   // and the whiteboard canvas are all held by reference elsewhere in this file.
   Object.assign(entry.data, _next);
   entry.updated = Date.now();
+  // rev counts committed content changes, which is how two copies of an entry get
+  // ordered WITHOUT trusting a device clock — see the merge rules in applyRemote.
+  entry.rev = (entry.rev || 0) + 1;
+  // Unsynced until the cloud confirms it. Nothing arriving from a remote view may
+  // overwrite an entry in this state, and an authoritative resync will push it.
+  entry._dirty = true;
   saveState(); renderSidebar();
 }
 
@@ -29580,6 +29885,10 @@ window.showTonyJournal = function() {
   if(window._tjApplyTheme) window._tjApplyTheme();
   // Always re-check lock state when journal becomes visible
   if (window._tjLockCheck) window._tjLockCheck();
+  // Opening the journal re-reads the real document from the server. This is the
+  // trigger the user actually notices: switch to MyJournal after a day away and the
+  // current entries appear, rather than whatever this device last cached.
+  if (window._fbResyncTonyJournal) window._fbResyncTonyJournal();
 };
 window.hideTonyJournal = function() {
   var tj = document.getElementById('tj-root');
