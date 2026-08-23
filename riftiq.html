@@ -2415,12 +2415,19 @@ input:-webkit-autofill:active {
 @media (max-width: 700px) { .mh-badge { font-size: 9px; padding: 2px 6px; } }
 
 .pro-tag {
-  display: inline-flex; align-items: center;
-  margin-left: 6px; padding: 1px 6px 2px; border-radius: 4px;
-  font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: .6px;
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  margin-left: 6px; padding: 2px 7px 3px; border-radius: 4px;
+  font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .6px;
   color: #e7a6b4; background: rgba(231,166,180,.10);
   border: 1px solid rgba(231,166,180,.34);
   vertical-align: middle; white-space: nowrap; cursor: help;
+}
+/* On the profile header the name is 30px, so the badge scales with it — at
+   list size it read as a stray speck next to the title. */
+.summoner-header .pro-tag {
+  font-size: 14px; padding: 4px 12px 5px; border-radius: 6px;
+  margin-left: 12px; letter-spacing: .8px;
+  background: rgba(231,166,180,.13); border-color: rgba(231,166,180,.45);
 }
 
 .lb-pill {
@@ -4806,7 +4813,7 @@ function renderMatchRow(m, mIdx) {
                  onclick="showPlayerMenu(event,this.dataset.pname,this.dataset.ptag,this.dataset.cid)">
               <img src="${champIconUrl(pp.championName)}" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;" onerror="this.style.opacity=0.3">
               <div style="overflow:hidden;min-width:0;">
-                <div style="font-family:var(--body);font-weight:700;font-size:13px;color:${isMe?'var(--gold)':'var(--tx)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pp.riotIdGameName||pp.summonerName||'Player'}${pTag?`<span style="font-weight:400;color:var(--tx3);font-size:12px;"> #${pTag}</span>`:''}${proTagHtml(proLookup(pp.riotIdGameName||pp.summonerName, pp.riotIdTagline, summoner.platform))}</div>
+                <div style="display:flex;align-items:center;min-width:0;font-family:var(--body);font-weight:700;font-size:13px;color:${isMe?'var(--gold)':'var(--tx)'};"><span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pp.riotIdGameName||pp.summonerName||'Player'}${pTag?`<span style="font-weight:400;color:var(--tx3);font-size:12px;"> #${pTag}</span>`:''}</span>${proTagHtml(proLookup(pp.riotIdGameName||pp.summonerName, pp.riotIdTagline, summoner.platform))}</div>
                 <div style="display:flex;align-items:center;gap:4px;">
                   <span style="font-family:var(--mono);font-size:12px;color:var(--tx3);">Lv ${pp.champLevel}</span>
                   ${rankStr ? `<span style="font-family:var(--mono);font-size:12px;font-weight:700;color:${rankColor};margin-left:4px;">${rankStr}</span>` : ''}
@@ -8220,13 +8227,15 @@ function renderLeaderboard(entries, filterQ) {
           'style="width:34px;height:34px;border-radius:50%;border:1px solid var(--bd2);background:var(--bg5);flex-shrink:0;' + (iconSrc ? '' : 'display:none') + '" ' +
           'onerror="this.style.display=\'none\'">' +
         '<div style="min-width:0;overflow:hidden;">' +
-          '<div id="lb-name-' + rank + '" style="color:' + (isMe ? 'var(--gold)' : 'var(--tx)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+          '<div id="lb-name-' + rank + '" style="display:flex;align-items:center;min-width:0;color:' + (isMe ? 'var(--gold)' : 'var(--tx)') + ';">' +
             (displayName
-              ? '<span style="font-family:var(--body);font-size:14px;font-weight:700;">' + displayName + '</span>' +
-                (displayTag ? '<span style="font-family:var(--body);font-size:12px;color:var(--tx3);font-weight:400;"> #' + displayTag + '</span>' : '') +
+              ? '<span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+                  '<span style="font-family:var(--body);font-size:14px;font-weight:700;">' + displayName + '</span>' +
+                  (displayTag ? '<span style="font-family:var(--body);font-size:12px;color:var(--tx3);font-weight:400;"> #' + displayTag + '</span>' : '') +
+                '</span>' +
                 proTagHtml(proLookup(entry.riotIdGameName || entry.summonerName, entry.riotIdTagLine, _lbRegion))
               : '<span style="font-family:var(--body);font-size:13px;color:var(--tx3);">Loading...</span>') +
-            (badge ? '<span style="font-size:11px;margin-left:4px;">' + badge.trim() + '</span>' : '') +
+            (badge ? '<span style="font-size:11px;margin-left:4px;flex-shrink:0;">' + badge.trim() + '</span>' : '') +
           '</div>' +
           '<div style="font-family:var(--body);font-size:12px;color:var(--tx3);font-weight:400;margin-top:1px;">' + tierLabel + '</div>' +
         '</div>' +
