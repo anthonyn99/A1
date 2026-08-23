@@ -5824,30 +5824,53 @@ function toggleMatch(idx) {
 }
 
 // ── Load another player's profile ──
-async function loadPlayerProfile(name, tag) {
+// Platform id → the regional routing host its match/account data lives on.
+// match-v5 and account-v1 are addressed by ROUTING (americas/europe/asia), while
+// league-v4 and champion-mastery-v4 are addressed by PLATFORM (na1/kr/euw1…), so
+// both halves have to travel together or a lookup silently returns nothing.
+// Keep in sync with the #setup-region <select>.
+const WR_ROUTING = {
+  na1:'americas', br1:'americas', la1:'americas', la2:'americas', oc1:'americas',
+  euw1:'europe',  eun1:'europe',  tr1:'europe',   ru:'europe',
+  kr:'asia',      jp1:'asia'
+};
+const wrRoutingFor = plat => WR_ROUTING[plat] || 'americas';
+
+// View any player's profile.
+//
+// `platform`/`routing` say WHICH SERVER to ask. They default to your own, which
+// is right for every caller that found the player inside your own games (recent
+// players, the in-match player menu). The Ladder is the exception: its entries
+// can be on a different region entirely, so it passes that region through.
+// Without it a KR account resolved fine — account-v1 is global, so the name and
+// icon rendered — but ranked, mastery and matches were all queried against NA
+// and came back empty, showing a real player as "0 of 0 games".
+async function loadPlayerProfile(name, tag, platform, routing) {
   // Save current summoner
   const prev = {...summoner};
+  const plat = platform || prev.platform;
+  const rout = routing  || prev.routing;
   const el = document.getElementById('profile-content');
   el.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>Loading ' + name + '</span></div>';
 
   try {
-    const resp = await riotFetch('/riot/account/v1/accounts/by-riot-id/' + encodeURIComponent(name) + '/' + encodeURIComponent(tag), summoner.routing);
+    const resp = await riotFetch('/riot/account/v1/accounts/by-riot-id/' + encodeURIComponent(name) + '/' + encodeURIComponent(tag), rout);
     if (!resp.puuid) throw new Error('Not found');
 
     // Temporarily switch summoner context
     const prevSummoner = {...summoner};
-    summoner = {...resp, platform: prev.platform, routing: prev.routing};
+    summoner = {...resp, platform: plat, routing: rout};
 
     const [ranked, mastery, matchIds] = await Promise.all([
-      riotFetch('/lol/league/v4/entries/by-puuid/' + resp.puuid, prev.platform),
-      riotFetch('/lol/champion-mastery/v4/champion-masteries/by-puuid/' + resp.puuid + '?count=10', prev.platform),
-      riotFetch('/lol/match/v5/matches/by-puuid/' + resp.puuid + '/ids?start=0&count=20', prev.routing)
+      riotFetch('/lol/league/v4/entries/by-puuid/' + resp.puuid, plat),
+      riotFetch('/lol/champion-mastery/v4/champion-masteries/by-puuid/' + resp.puuid + '?count=10', plat),
+      riotFetch('/lol/match/v5/matches/by-puuid/' + resp.puuid + '/ids?start=0&count=20', rout)
     ]);
 
     const matches = [];
     for (let i = 0; i < matchIds.length; i += 5) {
       const batch = matchIds.slice(i, i+5);
-      const results = await Promise.all(batch.map(id => riotFetch('/lol/match/v5/matches/' + id, prev.routing)));
+      const results = await Promise.all(batch.map(id => riotFetch('/lol/match/v5/matches/' + id, rout)));
       matches.push(...results.filter(Boolean));
     }
 
@@ -6997,12 +7020,7 @@ async function loadLeaderboard() {
 async function enrichLeaderboardRows(entries, region) {
   if (!region) return;
   var myAbort = ++_lbEnrichAbort;
-  var routingMap = {
-    na1:'americas', br1:'americas', la1:'americas', la2:'americas', oc1:'americas',
-    euw1:'europe',  eun1:'europe',  tr1:'europe',   ru:'europe',
-    kr:'asia',      jp1:'asia'
-  };
-  var routing = routingMap[region] || 'americas';
+  var routing = wrRoutingFor(region);
 
   for (var i = 0; i < entries.length; i++) {
     if (myAbort !== _lbEnrichAbort) return; // cancelled by new load
@@ -7249,8 +7267,7 @@ async function lbViewPlayer(name, tag) {
     var entry = _lbData[_lbMenuEntry.rank - 1];
     if (entry && !entry.riotIdGameName) {
       try {
-        var routingMap = {na1:'americas',br1:'americas',la1:'americas',la2:'americas',oc1:'americas',euw1:'europe',eun1:'europe',tr1:'europe',ru:'europe',kr:'asia',jp1:'asia'};
-        var routing = routingMap[_lbRegion] || 'americas';
+        var routing = wrRoutingFor(_lbRegion);
         var acct = await riotFetch('/riot/account/v1/accounts/by-puuid/' + entry.puuid, routing);
         if (acct && acct.gameName) { entry.riotIdGameName = acct.gameName; entry.riotIdTagLine = acct.tagLine; }
       } catch(e) {}
@@ -7260,7 +7277,8 @@ async function lbViewPlayer(name, tag) {
   }
   if (!name) return;
   switchTab('profile');
-  loadPlayerProfile(name, tag || 'NA1');
+  // The ladder's region, NOT yours — a KR entry has no NA ranked/mastery/match data.
+  loadPlayerProfile(name, tag || 'NA1', _lbRegion || undefined, _lbRegion ? wrRoutingFor(_lbRegion) : undefined);
 }
 
 function backToLeaderboard() {
