@@ -1185,10 +1185,10 @@ body.wr-locked #wr-progbar { display: none !important; }
 .match-list { display: flex; flex-direction: column; gap: 6px; }
 .match-row {
   display: grid;
-  grid-template-columns: 52px 72px 110px 1fr 120px 80px;
-  align-items: center; gap: 12px;
+  grid-template-columns: 52px 66px 104px minmax(0,1fr) auto 78px;
+  align-items: center; gap: 12px; min-height: 66px;
   background: var(--bg3); border: 1px solid var(--bd);
-  border-radius: 8px; padding: 12px 16px;
+  border-radius: 8px; padding: 9px 16px;
   transition: border-color 0.15s;
   cursor: pointer;
 }
@@ -1208,9 +1208,13 @@ body.wr-locked #wr-progbar { display: none !important; }
 .match-row .kda-val .slash { color: var(--tx3); }
 .match-row .kda-val .deaths { color: var(--red); }
 .match-row .kda-val .assists { color: var(--blue); }
-.match-row .champ-name { font-family: var(--body); font-weight: 600; font-size: 14px; color: var(--tx); }
+.match-row .champ-name {
+  font-family: var(--body); font-weight: 600; font-size: 14px; color: var(--tx);
+  min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .match-row .champ-name .queue-tag { font-family: var(--mono); font-size: 12px; color: var(--tx3); margin-left: 6px; }
-.match-row .stats { display: flex; flex-direction: column; gap: 2px; text-align: right; }
+.match-row .stats { display: flex; flex-direction: column; gap: 1px; text-align: right; white-space: nowrap; }
+.match-row .stats .when { font-family: var(--mono); font-size: 11.5px; color: var(--tx3); }
 .match-row .stats .cs { font-family: var(--mono); font-size: 12px; color: var(--tx2); }
 .match-row .stats .duration { font-family: var(--mono); font-size: 12px; color: var(--tx3); }
 .match-row .kda-ratio { font-family: var(--mono); font-size: 12px; color: var(--gold); text-align: right; }
@@ -2390,7 +2394,11 @@ input:-webkit-autofill:active {
    numbers; MVP/ACE is computed from team-relative kill participation, damage
    share and KDA — Riot publishes no MVP field, so it is scoped to a claim the
    data supports rather than dressed up as official. */
-.mh-badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; grid-column: 1 / -1; margin-top: 2px; }
+.mh-badges {
+  display: inline-flex; gap: 5px; align-items: center; flex-wrap: nowrap;
+  margin-left: 8px; vertical-align: middle; overflow: hidden;
+}
+.mh-badge { flex-shrink: 0; }
 .mh-badge {
   font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: .3px;
   padding: 2px 7px; border-radius: 4px; white-space: nowrap; line-height: 1.4;
@@ -2403,6 +2411,7 @@ input:-webkit-autofill:active {
 .mh-badge.spree    { color:#a4b986; background:rgba(164,185,134,.10); border-color:rgba(164,185,134,.34); }
 .mh-badge.fb       { color:#8fa6d8; background:rgba(143,166,216,.10); border-color:rgba(143,166,216,.34); }
 .mh-badge.clean    { color:#7cc0b6; background:rgba(124,192,182,.10); border-color:rgba(124,192,182,.34); }
+.mh-badge.more     { color:var(--tx3); background:transparent; border-color:var(--bd2); }
 @media (max-width: 700px) { .mh-badge { font-size: 9px; padding: 2px 6px; } }
 
 .pro-tag {
@@ -2880,7 +2889,7 @@ input:-webkit-autofill:active {
             style="height:32px;padding:0 32px 0 14px;background:var(--bg3);border:1px solid var(--bd2);border-radius:20px;color:var(--tx);font-family:var(--body);font-size:12px;font-weight:500;outline:none;width:170px;transition:all 0.2s ease;letter-spacing:0.2px;"
             onfocus="this.style.borderColor='rgba(192,174,234,0.6)';this.style.boxShadow='0 0 0 1px rgba(192,174,234,0.12)'"
             onblur="this.style.borderColor='var(--bd2)';this.style.boxShadow='none'">
-          <button onclick="document.getElementById('lb-search').value='';filterLeaderboard('')" class="input-clear-btn" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:12px;cursor:pointer;line-height:1;padding:0;transition:color 0.15s;" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)''+wrIco('close',15)+'</button>
+          <button onclick="document.getElementById('lb-search').value='';filterLeaderboard('')" class="input-clear-btn" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:12px;cursor:pointer;line-height:1;padding:0;transition:color 0.15s;" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)'"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
         </div>
       </div>
       <!-- Table -->
@@ -3956,7 +3965,7 @@ function renderStatsSection(matches) {
   // One unified box: header + WR circle + record/KDA + top champs
   // Same section-hdr as "Recently played with" so the two halves of the row
   // read as siblings rather than one titled panel next to one untitled card.
-  let h = `<div class="section-hdr"><h2>Last ${games} games</h2><span class="sub">This profile’s loaded matches</span></div>`;
+  let h = `<div class="section-hdr"><h2>Last ${games} games</h2></div>`;
   h += `<div class="pf-panel">`;
   // WR + stats row
   h += `<div class="stats-row" style="margin-bottom:16px;">
@@ -4339,7 +4348,7 @@ function renderProfile(_sumData, ranked, mastery, matches, leagueHistory=[]) {
   html += `</div>`;
 
   // Match history
-  html += `<div id="match-history-section">${renderMatchHistory()}</div>`;
+  html += `<div id="match-history-section" style="margin-top:26px;">${renderMatchHistory()}</div>`;
 
   html += `</div>`; // end main
   html += `</div>`; // end layout
@@ -4575,7 +4584,7 @@ async function buildRecentPlayers(matches) {
 
   // Render immediately with champion icons
   function renderList(list) {
-    let h = `<div class="section-hdr"><h2>Recently played with</h2><span class="sub">From the same loaded matches</span></div>`;
+    let h = `<div class="section-hdr"><h2>Recently played with</h2><span class="sub">Based on loaded matches</span></div>`;
     h += `<div class="recent-players">`;
     list.forEach(p => {
       const wr = Math.round(p.wins / p.games * 100);
@@ -4618,7 +4627,11 @@ function renderMatchRow(m, mIdx) {
     const win = p.win;
     const dur = Math.floor(m.info.gameDuration/60) + ':' + String(m.info.gameDuration%60).padStart(2,'0');
     const matchDate = m.info.gameStartTimestamp ? new Date(m.info.gameStartTimestamp) : null;
-    const dateStr = matchDate ? matchDate.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}) + ' · ' + matchDate.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}) : '';
+    // "Aug 23, 2026, 1:47 PM" — one line, device locale and device timezone.
+    const dateStr = matchDate
+      ? matchDate.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})
+        + ', ' + matchDate.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})
+      : '';
     const kda = p.deaths === 0
       ? (p.kills+p.assists).toFixed(1)
       : ((p.kills+p.assists)/p.deaths).toFixed(2);
@@ -4834,15 +4847,13 @@ function renderMatchRow(m, mIdx) {
         <div class="kda-val">
           <span class="kills">${p.kills}</span><span class="slash">/</span><span class="deaths">${p.deaths}</span><span class="slash">/</span><span class="assists">${p.assists??0}</span>
         </div>
-        <div class="champ-name">${p.championName}<span class="queue-tag">${qName !== 'Game' ? qName : ''}</span>${mapName && mapName !== 'Summoner\'s Rift' ? `<span class="queue-tag" style="color:var(--tx3);margin-left:4px;">${mapName}</span>` : ''}${avgRankStr ? `<span class="queue-tag" style="color:var(--gold);margin-left:6px;">~${avgRankStr}</span>` : ''}</div>
+        <div class="champ-name">${p.championName}<span class="queue-tag">${qName !== 'Game' ? qName : ''}</span>${mapName && mapName !== 'Summoner\'s Rift' ? `<span class="queue-tag" style="color:var(--tx3);margin-left:4px;">${mapName}</span>` : ''}${avgRankStr ? `<span class="queue-tag" style="color:var(--gold);margin-left:6px;">~${avgRankStr}</span>` : ''}${matchBadgesHtml(m, p)}</div>
         <div class="stats">
           ${(function(){var kp=killParticipationPct(m,p);return kp==null?'':'<div class="cs" style="color:var(--gold);">P/Kill '+kp+'%</div>';})()}
           <div class="cs">${p.totalMinionsKilled} CS · ${cspm}/m</div>
-          <div class="duration">${dur}</div>
-          ${dateStr ? `<div style="font-family:var(--mono);font-size:12px;color:var(--tx3);">${dateStr}</div>` : ''}
+          <div class="when">${dur}${dateStr ? ' · ' + dateStr : ''}</div>
         </div>
         <div class="kda-ratio">${kda} KDA</div>
-        ${matchBadgesHtml(m, p)}
       </div>
       <div class="match-detail" id="mdetail-${rowKey}">${detailHtml}</div>
     </div>`;
@@ -4914,9 +4925,15 @@ function matchBadges(m, p) {
 function matchBadgesHtml(m, p) {
   const b = matchBadges(m, p);
   if (!b.length) return '';
-  return '<div class="mh-badges">' +
-    b.map(x => '<span class="mh-badge ' + x.kind + '">' + x.label + '</span>').join('') +
-    '</div>';
+  // Cap the visible run so the row height can stay fixed. matchBadges() is
+  // already ordered best-first, so the ones that get cut are the least
+  // interesting; the full list still shows in the title.
+  const shown = b.slice(0, 3);
+  const title = b.map(x => x.label).join(' · ');
+  return '<span class="mh-badges" title="' + title.replace(/"/g, '&quot;') + '">' +
+    shown.map(x => '<span class="mh-badge ' + x.kind + '">' + x.label + '</span>').join('') +
+    (b.length > shown.length ? '<span class="mh-badge more">+' + (b.length - shown.length) + '</span>' : '') +
+    '</span>';
 }
 
 // Kill participation, straight from Riot's own challenges block. Returns '' when
@@ -9511,16 +9528,16 @@ function render(){
     if(_activeLg){
       const _lgFaved=isFavLeague(_activeLeague);
       const _lgStar=BI({
-        background:'transparent',
-        color:_lgFaved?T.acl:T.txd,
-        border:'1px solid '+(_lgFaved?'rgba(192,174,234,0.6)':'rgba(192,174,234,0.25)'),
+        background:_lgFaved?T.ac:'transparent',
+        color:_lgFaved?T.aci:T.txd,
+        border:'1px solid '+(_lgFaved?T.ac:'rgba(192,174,234,0.25)'),
         borderRadius:20,padding:'0 12px',height:'28px',fontSize:11,fontWeight:700,
         cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1,whiteSpace:'nowrap',flexShrink:0,
         fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px',
         transition:'all .15s',
       },'star',(_activeLg.name||'League'),
       ()=>{ if(!_favSyncBusy) runFavSync(()=>toggleFavLeague(_activeLg)); },
-      _lgFaved?'':'opacity:.4;');
+      _lgFaved?'':'opacity:.45;');
       _lgStar.title=_favSyncBusy?'Syncing…':(_lgFaved?'Unfavorite league (removes all cards from TaskHub)':'Favorite league (all matches → TaskHub)');
       hrow1.appendChild(_lgStar);
     }
@@ -9896,13 +9913,12 @@ function matchCard(T,ev,league){
   const mkFB=(team,fav)=>{
     const nm=team.code||team.name||'';
     if(!nm||nm==='TBD') return null;
-    return BI({background:'transparent',color:fav?T.acl:T.txd,
-      border:'1px solid '+(fav?'#c0aeea':T.bd),borderRadius:4,
-      boxShadow:fav?'0 0 0 1px rgba(192,174,234,.28),0 0 10px rgba(192,174,234,.28)':'none',
+    return BI({background:fav?T.ac:'transparent',color:fav?T.aci:T.txd,
+      border:'1px solid '+(fav?T.ac:T.bd),borderRadius:4,
       padding:'3px 9px',fontSize:9,fontWeight:700,cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1},
       'star', nm,
       (e)=>{e.stopPropagation(); if(!_favSyncBusy) runFavSync(()=>toggleFav(team));},
-      fav?'':'opacity:.4;');
+      fav?'':'opacity:.45;');
   };
   const r3=D({display:'flex',justifyContent:'space-between',marginTop:6});
   const r3L=D({flex:1});const _fb1=mkFB(t1,t1f);if(_fb1)r3L.appendChild(_fb1);
@@ -9921,6 +9937,9 @@ function showLeagueMgr(){
   const T=th();
   const overlay=D({position:'fixed',inset:0,background:'rgba(0,0,0,.6)',
     zIndex:10002,display:'flex',alignItems:'center',justifyContent:'center'});
+  // Tagged so ProView's button styles reach it: this overlay lives on <body>,
+  // outside #pv-root, so anything scoped to that root would miss it.
+  overlay.className='pv-modal';
 
   // overscrollBehavior:contain stops the page behind scrolling once this list hits
   // its top or bottom (the touchmove guard below covers the backdrop itself).
@@ -9951,10 +9970,9 @@ function showLeagueMgr(){
     const btns=D({display:'flex',alignItems:'center',gap:6,flexShrink:0});
     // Fav star
     const _star=BI(
-      {background:'transparent',
-       color:lgFaved?T.acl:T.txd,
-       border:'1px solid '+(lgFaved?'#c0aeea':T.bd),
-       boxShadow:lgFaved?'0 0 0 1px rgba(192,174,234,.28),0 0 10px rgba(192,174,234,.28)':'none',
+      {background:lgFaved?T.ac:'transparent',
+       color:lgFaved?T.aci:T.txd,
+       border:'1px solid '+(lgFaved?T.ac:T.bd),
        borderRadius:4,padding:'5px 9px',fontSize:12,fontWeight:700,cursor:'pointer'},
       'star','',
       (e)=>{
@@ -9965,14 +9983,13 @@ function showLeagueMgr(){
         overlay.parentNode&&overlay.parentNode.removeChild(overlay);
         showLeagueMgr();
       },
-      lgFaved?'':'opacity:.4;'
+      lgFaved?'':'opacity:.45;'
     );
     _star.title=lgFaved?'Remove all league matches from TaskHub':'Add all matches to TaskHub';
     btns.appendChild(_star);
     btns.appendChild(B(
-      {background:'transparent',color:added?T.acl:T.txd,
-       border:'1px solid '+(added?'#c0aeea':T.bd),borderRadius:4,
-       boxShadow:added?'0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45)':'none',
+      {background:added?T.ac:'transparent',color:added?T.aci:T.txd,
+       border:'1px solid '+(added?T.ac:T.bd),borderRadius:4,
        padding:'5px 14px',fontSize:10,fontWeight:700,cursor:'pointer'},
       added?'Added':'Add',
       ()=>{
@@ -10129,8 +10146,12 @@ setInterval(()=>{
          pointer with the same lit outline WarRoom uses — one hover language
          across both programs. */
       '#pv-root button{transition:border-color .18s,color .18s,box-shadow .18s,background .18s;}'+
-      '#pv-root button:hover:not(:disabled){border-color:#c0aeea!important;'+
-        'color:#dbd0f5!important;'+
+      /* Filled chips keep their dark ink on hover — recolouring it to light
+         lavender would make the label vanish into its own accent fill. They
+         still take the glow below. */
+      '#pv-root button, .pv-modal button{transition:border-color .18s,color .18s,box-shadow .18s,background .18s;}'+
+      '#pv-root button:hover:not(:disabled), .pv-modal button:hover:not(:disabled){'+
+        'border-color:#c0aeea!important;'+
         'box-shadow:0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45);}'+
       '.pv-hglow:hover{border-color:#c0aeea!important;color:#dbd0f5!important;'+
         'box-shadow:0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45);}'+
