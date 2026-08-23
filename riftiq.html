@@ -2714,6 +2714,36 @@ async function fetchServerStatus() {
 
 
 // ══════════════════════════════════════
+// QUOTA-TOLERANT localStorage WRITE
+// ══════════════════════════════════════
+// Every A1 program is served from ONE origin, so they all share a single ~5 MB
+// localStorage budget. WarRoom's own entries are a few hundred bytes, but a
+// neighbour's regenerable cache filling the store makes even those writes throw
+// QuotaExceededError — which is how a *successful* Riot lookup ended up on
+// screen as "Could not find summoner".
+//
+// So: on a quota failure, drop the caches that cost nothing to rebuild (they are
+// re-fetched on next use) and retry. Everything listed here is a cache, never
+// user data — do not add a key that holds something only the browser has.
+const WR_EVICTABLE = [
+  'pv_sched_v1',        // ProView schedule cache — re-fetched from the worker
+  'kc_icon_cache_v1',   // TaskHub link-icon cache — re-fetched per site
+  'thwx_data_v2',       // weather payload — refetched on open
+  'thts_cache_v1',      // ticker cache — refetched on open
+];
+function wrSetItem(key, val) {
+  try { localStorage.setItem(key, val); return true; } catch(e) {
+    let freed = false;
+    for (const k of WR_EVICTABLE) {
+      try { if (localStorage.getItem(k) != null) { localStorage.removeItem(k); freed = true; } } catch(_) {}
+    }
+    if (freed) { try { localStorage.setItem(key, val); return true; } catch(_) {} }
+    console.warn('[WarRoom] could not persist ' + key + ':', e && e.message);
+    return false;
+  }
+}
+
+// ══════════════════════════════════════
 // SETUP SHORTCUTS
 // ══════════════════════════════════════
 // Saved accounts on the setup screen. Kept in localStorage, per device — the
@@ -2736,7 +2766,7 @@ function loadShortcuts() {
 }
 
 function saveShortcuts(list) {
-  try { localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(list)); } catch(e) {}
+  wrSetItem(SHORTCUTS_KEY, JSON.stringify(list));
 }
 
 function renderShortcuts() {
@@ -2824,7 +2854,10 @@ async function setupSubmit() {
     if (!resp.puuid) throw new Error('Not found');
 
     summoner = { ...resp, platform, routing };
-    localStorage.setItem('warroom_summoner', JSON.stringify(summoner));
+    // The account is already found at this point. Remembering it is a
+    // convenience, so a storage failure must not be reported as a lookup
+    // failure or keep you out — worst case you re-pick the summoner next open.
+    wrSetItem('warroom_summoner', JSON.stringify(summoner));
     showApp();
   } catch(e) {
     console.error('Setup error:', e);
