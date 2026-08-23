@@ -50,6 +50,20 @@
     fired both an InteractiveToken and a SYSTEM task on time, so the plumbing
     works; it is prolonged DRIPS that suppresses the wake.
 
+    THE SHUTDOWN ITSELF MUST BE IMMEDIATE
+    A second night, 2026-08-23, got all the way to the end and still failed:
+
+      01:50:41  507  exited Modern Standby, task launched, result 0
+      01:50:45       decided SHUTDOWN (locked, idle 4.4h), ran shutdown /t 20
+      01:50:45  42   system entering sleep, the same second
+      08:09:28  13   OS finally shut down - after the lid was opened and the
+                     pending warning dialog was clicked
+
+    The countdown never elapsed, because a Modern Standby machine suspends it;
+    the shutdown sat pending all night. Hence: no countdown when the session is
+    locked, and a system power request held for the whole run so the PC cannot
+    slide back into standby between the decision and the shutdown.
+
     So the design does not depend on waking at exactly $Time:
       - WakeToRun still asks for the wake, and takes it when it is granted.
       - The run is valid from $Time until $Time + $WindowHours, so a trigger
@@ -96,9 +110,11 @@ param(
     [ValidateRange(0,1440)]
     [int]$MediaGraceMinutes = 60,
 
-    # Countdown before the shutdown; 'shutdown /a' cancels within it.
+    # Countdown before the shutdown, for the awake-and-unlocked case only.
+    # Defaults to 0: a countdown cannot elapse while the PC is in Modern
+    # Standby, and a locked session forces 0 regardless of what is passed here.
     [ValidateRange(0,600)]
-    [int]$GraceSeconds = 20,
+    [int]$GraceSeconds = 0,
 
     # Decide and log, but do not shut down.
     [switch]$DryRun,
@@ -185,27 +201,46 @@ function Assert-Admin {
 
 # Seconds since the last keyboard/mouse input in THIS session. Only meaningful
 # from an interactive session, which is why the task runs as InteractiveToken.
-function Get-IdleSeconds {
-    if (-not ('A1.Idle' -as [type])) {
-        # No -UsingNamespace here: Add-Type already emits a using for
-        # System.Runtime.InteropServices, and the duplicate is a warning-as-error.
-        Add-Type -Namespace 'A1' -Name 'Idle' -MemberDefinition @'
+# One Add-Type for every P/Invoke here. Compiling C# costs a second or two, and
+# in the window that matters that latency is the difference between the
+# shutdown landing and the machine sliding back into standby first.
+function Initialize-Native {
+    if ('A1.Native' -as [type]) { return }
+    # No -UsingNamespace here: Add-Type already emits a using for
+    # System.Runtime.InteropServices, and the duplicate is a warning-as-error.
+    Add-Type -Namespace 'A1' -Name 'Native' -MemberDefinition @'
 [StructLayout(LayoutKind.Sequential)]
 public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 [DllImport("user32.dll")]
 private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
 [DllImport("kernel32.dll")]
 private static extern uint GetTickCount();
-public static double Seconds() {
+[DllImport("kernel32.dll", SetLastError=true)]
+private static extern uint SetThreadExecutionState(uint esFlags);
+public static double IdleSeconds() {
     LASTINPUTINFO lii = new LASTINPUTINFO();
     lii.cbSize = (uint)Marshal.SizeOf(lii);
     if (!GetLastInputInfo(ref lii)) { return -1.0; }
     // unchecked uint subtraction stays correct across the 49.7-day tick wrap
     return (double)(GetTickCount() - lii.dwTime) / 1000.0;
 }
+// ES_CONTINUOUS 0x80000000 | ES_SYSTEM_REQUIRED 0x00000001
+public static void KeepAwake(bool hold) {
+    SetThreadExecutionState(hold ? 0x80000001u : 0x80000000u);
+}
 '@
-    }
-    [A1.Idle]::Seconds()
+}
+
+function Get-IdleSeconds { Initialize-Native; [A1.Native]::IdleSeconds() }
+
+# Holds a system power request for as long as this run lasts. Without it the PC
+# can slide back into Modern Standby mid-run: on 2026-08-23 it woke at 01:50:41
+# and was entering sleep again at 01:50:45 - the same second the shutdown was
+# issued - which left the shutdown pending until someone opened the lid.
+function Set-KeepAwake {
+    param([switch]$Release)
+    Initialize-Native
+    [A1.Native]::KeepAwake(-not $Release)
 }
 
 function Test-SessionLocked {
@@ -415,9 +450,18 @@ function Invoke-Uninstall {
 }
 
 function Get-Decision {
+    # Lock state first and alone. It is the overnight case, it decides on its
+    # own, and returning here skips the idle P/Invoke and the powercfg call -
+    # latency that competes directly with the PC returning to standby.
+    if (Test-SessionLocked) {
+        return [pscustomobject]@{
+            Decision = 'SHUTDOWN'; Reason = 'session is locked (asleep, or left locked)'
+            IdleSeconds = -1; Locked = $true; DisplayRequest = $null
+        }
+    }
+
     $idle    = Get-IdleSeconds
-    $locked  = Test-SessionLocked
-    $display = if ($locked) { $null } else { Get-DisplayRequest }
+    $display = Get-DisplayRequest
 
     # A wake lock means "someone is watching something" only if that someone is
     # still around. Held locks go stale - the League client keeps a Video Wake
@@ -425,7 +469,6 @@ function Get-Decision {
     $mediaHold = $display -and ($idle -lt $MediaGraceMinutes * 60)
 
     if ($idle -lt 0)                     { $d = 'SKIP';     $why = 'idle time unavailable' }
-    elseif ($locked)                     { $d = 'SHUTDOWN'; $why = 'session is locked (asleep, or left locked)' }
     elseif ($mediaHold)                  { $d = 'SKIP';     $why = ('display wake lock held and last input was {0:N0}s ago: {1}' -f $idle, $display) }
     elseif ($idle -lt $IdleMinutes * 60) { $d = 'SKIP';     $why = ('last input {0:N0}s ago, under the {1}m threshold' -f $idle, $IdleMinutes) }
     else {
@@ -435,11 +478,13 @@ function Get-Decision {
 
     [pscustomobject]@{
         Decision = $d; Reason = $why; IdleSeconds = $idle
-        Locked   = $locked; DisplayRequest = $display
+        Locked   = $false; DisplayRequest = $display
     }
 }
 
 function Invoke-Run {
+    # Before anything else: stop the PC returning to standby underneath us.
+    Set-KeepAwake
     $now = Get-Date
     $tz  = Get-TimeZone
     Write-Log ('run: {0} local | {1} | DST in effect now: {2}' -f $now.ToString('yyyy-MM-dd HH:mm:ss'), $tz.Id, $tz.IsDaylightSavingTime($now))
@@ -469,32 +514,44 @@ function Invoke-Run {
         Write-Log ('note: running {0:N1}h late - the trigger was deferred, most likely by Modern Standby' -f $sinceH) 'WARN'
     }
 
-    # Self-heal: a power-plan change or reset can turn wake timers back off.
-    if (Test-Admin) {
-        $w = Get-WakeTimerSetting
-        if (-not $w.Enabled) {
-            Write-Log ('wake timers were off (AC={0} DC={1}) - re-enabling' -f $w.AC, $w.DC) 'WARN'
-            Enable-WakeTimers
-        }
-    }
-
     $r = Get-Decision
-    Write-Log ('signals: idle={0:N0}s locked={1} display_request={2}' -f $r.IdleSeconds, $r.Locked, $(if ($r.DisplayRequest) { 'yes' } else { 'no' }))
+    $idleTxt = if ($r.IdleSeconds -lt 0) { 'not measured (locked)' } else { '{0:N0}s' -f $r.IdleSeconds }
+    Write-Log ('signals: idle={0} locked={1} display_request={2}' -f $idleTxt, $r.Locked, $(if ($r.DisplayRequest) { 'yes' } else { 'no' }))
 
     if ($r.Decision -eq 'SKIP') {
         Write-Log ('skip: PC is in use - {0}' -f $r.Reason) 'ACT'
+        # Self-heal only on the path where the PC keeps running: a power-plan
+        # change can turn wake timers back off. Skipped before a shutdown,
+        # where the powercfg call would only add latency.
+        if (Test-Admin) {
+            $w = Get-WakeTimerSetting
+            if (-not $w.Enabled) {
+                Write-Log ('wake timers were off (AC={0} DC={1}) - re-enabling' -f $w.AC, $w.DC) 'WARN'
+                Enable-WakeTimers
+            }
+        }
         return 0
     }
+    # A countdown does not elapse while the PC is in Modern Standby - the
+    # shutdown just sits pending, with its warning dialog, until someone opens
+    # the lid. So no countdown when nobody could see it anyway, which is every
+    # case where the session is locked. See the header for the 2026-08-23 trace.
+    # Computed before the dry-run exit so a dry run reports the real grace.
+    $grace = if ($r.Locked) { 0 } else { $GraceSeconds }
+    if ($GraceSeconds -gt 0 -and $grace -eq 0) {
+        Write-Log ('ignoring -GraceSeconds {0}: a countdown cannot elapse while the PC is asleep' -f $GraceSeconds)
+    }
+
     if ($DryRun) {
-        Write-Log ('DRY RUN: would shut down - {0}' -f $r.Reason) 'ACT'
+        Write-Log ('DRY RUN: would shut down with grace {0}s - {1}' -f $grace, $r.Reason) 'ACT'
         return 0
     }
 
-    Write-Log ("shutting down - {0} (grace {1}s; 'shutdown /a' cancels)" -f $r.Reason, $GraceSeconds) 'ACT'
+    Write-Log ("shutting down - {0} (grace {1}s)" -f $r.Reason, $grace) 'ACT'
     $old = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        & shutdown.exe /s /f /t $GraceSeconds /c "A1 Auto Shutdown: nightly $Time shutdown. Run 'shutdown /a' to cancel."
+        & shutdown.exe /s /f /t $grace /c "A1 Auto Shutdown: nightly $Time shutdown."
         $rc = $LASTEXITCODE
     } finally { $ErrorActionPreference = $old }
     if ($rc -ne 0) { Write-Log "shutdown.exe failed with exit code $rc" 'ERROR'; return 3 }
