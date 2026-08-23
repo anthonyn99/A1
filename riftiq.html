@@ -367,12 +367,12 @@
     flame:    '<path d="M12 22c4 0 6.5-2.6 6.5-6 0-4.5-4.5-6-4.5-10 0 0-2 1.5-2 4 0 1.5-1 2-1.5 2S9 11 9 9c-1.5 1.5-3.5 3.5-3.5 7 0 3.4 2.5 6 6.5 6Z"/>',
     sparkle:  '<path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/><path d="M18.5 15.5 19 17l1.5.5L19 18l-.5 1.5L18 18l-1.5-.5L18 17Z"/>',
     // — objectives (match history + live) —
-    dragon:   '<path d="M3 8c3-2 6-1 7.5 1L14 6l1-3 2 3 4 1-2.5 2.5c.7 3-.5 6-3.5 7.5L14 21l-3-4c-4 0-7-2.5-8-6Z"/><path d="M8.5 10h.01"/>',
-    grub:     '<path d="M6 12a6 4.5 0 0 1 12 0c0 3.5-2.7 6-6 6s-6-2.5-6-6Z"/><path d="M9 5.5 10.5 9M15 5.5 13.5 9M9.5 12h.01M14.5 12h.01"/>',
-    baron:    '<path d="M4 13c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 7-8 7-8-2.6-8-7Z"/><path d="M9 11h.01M15 11h.01M9 15.5c1.8 1.2 4.2 1.2 6 0"/>',
-    herald:   '<path d="M4 9 12 4l8 5"/><path d="M6 9v9M10 9v9M14 9v9M18 9v9"/><path d="M3.5 21h17"/>',
-    tower:    '<path d="M8 21V8l4-5 4 5v13"/><path d="M6 8h12"/><path d="M12 12v4"/><path d="M5.5 21h13"/>',
-    inhib:    '<path d="M12 2.5 19 7v6.5c0 4-3 6.7-7 8-4-1.3-7-4-7-8V7Z"/><path d="M12 8v7M9 11h6"/>',
+    // Dragon: horned head in profile, eye punched out.
+    // Void grub: segmented body with two feelers, eyes punched out.
+    // Baron Nashor: crowned head with a forked tail, eyes punched out.
+    // Rift Herald: its single eye is the recognisable part — iris punched out,
+    // Turret: pointed cap, shaft, plated base.
+    // Inhibitor: the crystal, hollowed so it reads as a shell not a blob.
     skull:    '<path d="M5 11a7 7 0 1 1 14 0v3.5l-1.5 1V19h-11v-3.5L5 14.5Z"/><path d="M9.5 11h.01M14.5 11h.01"/>',
     swords:   '<path d="m4 4 8 8M2.5 6.5 6.5 2.5M14 14l6 6M21.5 17.5 17.5 21.5"/><path d="m20 4-8 8M17.5 2.5l4 4M10 14l-6 6M2.5 17.5l4 4"/>',
     crown:    '<path d="m3 8 3.5 3L12 5l5.5 6L21 8l-2 11H5Z"/><path d="M5 19h14"/>',
@@ -386,11 +386,14 @@
     plus:     '<path d="M12 5v14M5 12h14"/>'
   };
   // Icons drawn as outlines vs solid shapes. Solid ones read better at pill size.
-  var FILLED = { star:1, medal:1, flame:1, sparkle:1, dot:1, crown:1, burst:1, skull:1, dragon:1, grub:1, baron:1, inhib:1 };
+  var FILLED = { star:1, medal:1, flame:1, sparkle:1, dot:1, crown:1, burst:1,
+                 skull:1, dragon:1, grub:1, baron:1, inhib:1, herald:1, tower:1 };
 
   function svg(name, size, extra){
     var d = P[name]; if (!d) return '';
     var s = size || 16;
+    // Solid icons carry their own holes via fill-rule="evenodd" on the path, so
+    // the cut-outs show whatever surface is behind them instead of a fixed colour.
     var paint = FILLED[name]
       ? 'fill="currentColor" stroke="none"'
       : 'fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"';
@@ -738,8 +741,8 @@ body.wr-locked #wr-progbar { display: none !important; }
   transition: border-color .18s, color .18s, box-shadow .18s, opacity .18s;
 }
 #wr-progbar-lock:hover {
-  opacity: 1; color: var(--gold2); border-color: rgba(192,174,234,.6);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.14), 0 0 12px rgba(192,174,234,.14);
+  opacity: 1; color: var(--gold2); border-color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
 }
 #wr-progbar-lock svg { width: 14px; height: 14px; display: block; }
 
@@ -862,7 +865,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 .wr-cta:hover, .btn-primary:hover,
 .wr-cta:focus-visible, .btn-primary:focus-visible {
   border-color: var(--gold) !important;
-  box-shadow: 0 0 0 1px rgba(192,174,234,.22), 0 0 14px rgba(192,174,234,.20);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
 }
 .wr-cta:disabled, .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: default; }
 
@@ -875,9 +878,9 @@ body.wr-locked #wr-progbar { display: none !important; }
 .profile-action-btn:hover, .wr-swap-btn:hover, .btn-ghost:hover,
 .setup-shortcut:hover, .setup-shortcut-add:hover, #patch-notes-link:hover,
 #wr-lock-btn:hover {
-  border-color: rgba(192,174,234,.6) !important;
+  border-color: var(--gold) !important;
   color: var(--gold2);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.14), 0 0 12px rgba(192,174,234,.14);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
 }
 
 /* The setup screen's two fields are one control visually, so they must be the
@@ -952,7 +955,7 @@ body.wr-locked #wr-progbar { display: none !important; }
   margin-top: 6px;
 }
 /* Hover lights the button in its own accent; nothing glows at rest. */
-.btn-primary:hover { background: var(--gold2); box-shadow: 0 0 8px rgba(192,174,234,0.4), 0 0 0 1px rgba(192,174,234,0.15); }
+.btn-primary:hover { box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45); }
 .setup-error { color: var(--red); font-family: var(--mono); font-size: 12px; margin-top: 10px; display: none; }
 
 /* ── LOADING SPINNER ── */
@@ -1237,17 +1240,25 @@ body.wr-locked #wr-progbar { display: none !important; }
   border-bottom: 1px solid var(--bd);
 }
 .obj-center .oc-meta { font-family: var(--mono); font-size: 12px; color: var(--tx3); margin-top: 5px; }
+/* A normal table cell — NOT display:flex. Making the <th> itself a flex
+   container takes it out of table layout, which silently voids its colspan and
+   collapses it to the first column's width. The inner div does the flexing at
+   the cell's real full width. */
 .team-head {
   padding: 9px 14px !important; text-align: left;
   background: var(--bg2); border-bottom: 1px solid var(--bd);
+}
+.team-head-in {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 10px 18px; flex-wrap: wrap;
+  gap: 8px 20px; flex-wrap: wrap; width: 100%;
 }
 .team-head .th-side {
   display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--body); font-size: 14px; font-weight: 700; white-space: nowrap;
 }
-.team-objs { display: flex; align-items: center; gap: 4px 14px; flex-wrap: wrap; }
+/* One horizontal run of pills that wraps as a whole when the card is narrow,
+   rather than one pill per line. */
+.team-objs { display: flex; align-items: center; gap: 6px 16px; flex-wrap: wrap; flex: 1 1 auto; justify-content: flex-end; }
 .obj-pill {
   display: inline-flex; align-items: center; gap: 5px;
   font-family: var(--mono); font-size: 12px; font-weight: 600; white-space: nowrap;
@@ -1258,8 +1269,8 @@ body.wr-locked #wr-progbar { display: none !important; }
 @media (max-width: 700px) {
   /* Phones: the strip owns its own line under the side name, and the labels
      shrink rather than wrapping mid-pill. */
-  .team-head { gap: 7px; }
-  .team-objs { width: 100%; justify-content: flex-start; gap: 4px 12px; }
+  .team-head-in { gap: 7px 14px; }
+  .team-objs { justify-content: flex-start; gap: 5px 13px; }
   .obj-pill { font-size: 11px; }
 }
 .obj-center { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
@@ -1371,7 +1382,7 @@ body.wr-locked #wr-progbar { display: none !important; }
   letter-spacing: 0.3px;
   cursor: pointer; transition: background 0.15s;
 }
-.builds-champ-hdr .add-build-btn:hover { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(192,174,234,.2), 0 0 12px rgba(192,174,234,.18); }
+.builds-champ-hdr .add-build-btn:hover { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45); }
 
 .build-card {
   background: var(--bg3); border: 1px solid var(--bd);
@@ -1470,7 +1481,7 @@ body.wr-locked #wr-progbar { display: none !important; }
   font-weight: 700; letter-spacing: 0.3px;
   cursor: pointer; transition: background 0.15s;
 }
-.btn-save:hover { background: var(--gold2); box-shadow: 0 0 8px rgba(192,174,234,0.4), 0 0 0 1px rgba(192,174,234,0.15); }
+.btn-save:hover { box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45); }
 
 /* Item search in modal */
 .item-search-wrap { position: relative; }
@@ -1638,10 +1649,10 @@ body.wr-locked #wr-progbar { display: none !important; }
   color: var(--tx2); font-family: var(--mono); font-size: 12px;
   cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }
-.filter-chip:hover { border-color: rgba(192,174,234,.6); color: var(--gold2); }
+.filter-chip:hover { border-color: var(--gold); color: var(--gold2); }
 .filter-chip.active {
   border-color: var(--gold); color: var(--gold2); background: transparent;
-  box-shadow: 0 0 0 1px rgba(192,174,234,.22), 0 0 12px rgba(192,174,234,.18);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
 }
 .items-grid {
   display: grid;
@@ -1952,7 +1963,7 @@ input:-webkit-autofill:active {
 .profile-action-btn:hover {
   border-color: var(--gold);
   color: var(--gold);
-  box-shadow: 0 0 10px rgba(192,174,234,0.25), 0 0 0 1px rgba(192,174,234,0.15);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
 }
 
 /* Items + Champions panels: no padding so sticky bar touches header */
@@ -1963,7 +1974,7 @@ input:-webkit-autofill:active {
 /* ── MISC ── */
 .error-msg { font-family: var(--mono); font-size: 12px; color: var(--red); padding: 20px; }
 .btn-ghost { transition: border-color 0.15s, color 0.15s, box-shadow 0.15s; box-shadow: none; }
-.btn-ghost:hover { border-color: var(--gold) !important; color: var(--gold) !important; box-shadow: 0 0 8px rgba(192,174,234,0.4), 0 0 0 1px rgba(192,174,234,0.15); }
+.btn-ghost:hover { border-color: var(--gold) !important; color: var(--gold2) !important; box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45); }
 
 .tab-btn, #topbar-logo { font-feature-settings: "liga" 0, "calt" 0; }
 
@@ -1988,10 +1999,17 @@ input:-webkit-autofill:active {
    they belong on one row above it rather than in different columns. Stacks
    below 1100px, where two columns of this would be too narrow to read. */
 .pf-toprow { display: flex; flex-direction: column; gap: 16px; }
-.pf-toprow > * { min-width: 0; }
+.pf-toprow > * { min-width: 0; display: flex; flex-direction: column; }
+/* Both halves are a titled section over a panel. The panel is the flex child
+   that grows, so the two columns end level however unequal their contents —
+   otherwise the shorter one leaves a ragged gap under it. */
+.pf-panel {
+  background: var(--bg3); border: 1px solid var(--bd); border-radius: 10px;
+  padding: 18px 20px; flex: 1 1 auto;
+}
+.pf-toprow .recent-players { margin-bottom: 0; gap: 6px; }
 @media (min-width: 1100px) {
-  .pf-toprow { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 20px; align-items: start; }
-  .pf-toprow .recent-players { margin-bottom: 0; }
+  .pf-toprow { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); gap: 20px; align-items: stretch; }
 }
 
 /* Region under the name — quiet, so it reads as metadata rather than a second
@@ -2026,8 +2044,8 @@ input:-webkit-autofill:active {
   color: var(--tx2); cursor: pointer; transition: border-color .18s, color .18s, box-shadow .18s;
 }
 #mastery-overlay-close:hover {
-  border-color: rgba(192,174,234,.6); color: var(--gold2);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.14), 0 0 12px rgba(192,174,234,.14);
+  border-color: var(--gold); color: var(--gold2);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
 }
 #mastery-overlay-body {
   overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
@@ -2368,6 +2386,25 @@ input:-webkit-autofill:active {
 /* Pro badge — soft pink. It has to read as a different KIND of thing from the
    lavender accent (which means 'selected' everywhere else in the program), so
    it borrows the palette's warm side rather than another shade of purple. */
+/* Achievement badges on a match row. Multikills and sprees are Riot's own
+   numbers; MVP/ACE is computed from team-relative kill participation, damage
+   share and KDA — Riot publishes no MVP field, so it is scoped to a claim the
+   data supports rather than dressed up as official. */
+.mh-badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; grid-column: 1 / -1; margin-top: 2px; }
+.mh-badge {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: .3px;
+  padding: 2px 7px; border-radius: 4px; white-space: nowrap; line-height: 1.4;
+  border: 1px solid transparent;
+}
+.mh-badge.mvp      { color:#e0b874; background:rgba(224,184,116,.10); border-color:rgba(224,184,116,.38); }
+.mh-badge.ace      { color:#c0aeea; background:rgba(192,174,234,.10); border-color:rgba(192,174,234,.38); }
+.mh-badge.multi    { color:#e7a6b4; background:rgba(231,166,180,.10); border-color:rgba(231,166,180,.34); }
+.mh-badge.multi-hi { color:#d68a7c; background:rgba(214,138,124,.14); border-color:rgba(214,138,124,.46); }
+.mh-badge.spree    { color:#a4b986; background:rgba(164,185,134,.10); border-color:rgba(164,185,134,.34); }
+.mh-badge.fb       { color:#8fa6d8; background:rgba(143,166,216,.10); border-color:rgba(143,166,216,.34); }
+.mh-badge.clean    { color:#7cc0b6; background:rgba(124,192,182,.10); border-color:rgba(124,192,182,.34); }
+@media (max-width: 700px) { .mh-badge { font-size: 9px; padding: 2px 6px; } }
+
 .pro-tag {
   display: inline-flex; align-items: center;
   margin-left: 6px; padding: 1px 6px 2px; border-radius: 4px;
@@ -2389,13 +2426,13 @@ input:-webkit-autofill:active {
   border-color: rgba(192,174,234,0.6);
   color: var(--gold2);
   background: rgba(192,174,234,0.07);
-  box-shadow: 0 0 0 1px rgba(192,174,234,0.15), 0 0 10px rgba(192,174,234,0.08);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
 }
 .lb-pill.active {
   background: transparent;
   border-color: var(--gold);
   color: var(--gold2);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.22), 0 0 12px rgba(192,174,234,.18);
+  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
 }
 
 
@@ -2502,7 +2539,7 @@ input:-webkit-autofill:active {
   <div id="mastery-overlay-card">
     <div id="mastery-overlay-head">
       <div>
-        <div class="mo-title">Champion mastery</div>
+        <div class="mo-title" id="mastery-overlay-title">Champion mastery</div>
         <div class="mo-count" id="mastery-overlay-count"></div>
       </div>
       <button id="mastery-overlay-close" onclick="closeMasteryOverlay()" aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -2843,7 +2880,7 @@ input:-webkit-autofill:active {
             style="height:32px;padding:0 32px 0 14px;background:var(--bg3);border:1px solid var(--bd2);border-radius:20px;color:var(--tx);font-family:var(--body);font-size:12px;font-weight:500;outline:none;width:170px;transition:all 0.2s ease;letter-spacing:0.2px;"
             onfocus="this.style.borderColor='rgba(192,174,234,0.6)';this.style.boxShadow='0 0 0 1px rgba(192,174,234,0.12)'"
             onblur="this.style.borderColor='var(--bd2)';this.style.boxShadow='none'">
-          <button onclick="document.getElementById('lb-search').value='';filterLeaderboard('')" class="input-clear-btn" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:12px;cursor:pointer;line-height:1;padding:0;transition:color 0.15s;" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)'"'+wrIco('close',15)+'</button>
+          <button onclick="document.getElementById('lb-search').value='';filterLeaderboard('')" class="input-clear-btn" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:12px;cursor:pointer;line-height:1;padding:0;transition:color 0.15s;" onmouseover="this.style.color='var(--tx)'" onmouseout="this.style.color='var(--tx3)''+wrIco('close',15)+'</button>
         </div>
       </div>
       <!-- Table -->
@@ -3145,7 +3182,15 @@ function wrEnableTabDrag(){
     }
   }
   function makeMove(other, after){
-    return function(){ nav.insertBefore(d.tab, after ? other.nextSibling : other); };
+    return function(){
+      nav.insertBefore(d.tab, after ? other.nextSibling : other);
+      // insertBefore on an already-attached node is a REMOVE followed by an
+      // insert, and removing a node releases its pointer capture. Losing it
+      // mid-drag is what made a release outside the strip go unnoticed — the
+      // tab kept following the pointer until the next click, which then also
+      // fired the button underneath. Re-take it after every reorder.
+      try { d.tab.setPointerCapture(d.id); } catch(_e) {}
+    };
   }
 
   // Dragging toward either end scrolls the strip, so a tab that is off-screen
@@ -3196,7 +3241,7 @@ function wrEnableTabDrag(){
     if (d.touch) holdTimer = setTimeout(function(){ holdTimer = null; if (d) startDrag(e); }, 320);
   });
 
-  nav.addEventListener('pointermove', function(e){
+  window.addEventListener('pointermove', function(e){
     if (!d || e.pointerId !== d.id) return;
     if (!d.dragging){
       var dx = Math.abs(e.clientX - d.startX), dy = Math.abs(e.clientY - d.startY);
@@ -3212,7 +3257,8 @@ function wrEnableTabDrag(){
   nav.addEventListener('touchmove', function(e){ if (d && d.dragging) e.preventDefault(); }, { passive: false });
 
   function endDrag(e){
-    if (!d || (e && e.pointerId !== d.id)) return;
+    if (!d) return;
+    if (e && e.pointerId != null && e.pointerId !== d.id) return;
     var wasDrag = d.dragging && d.moved;
     cleanup();
     if (!wasDrag) return;
@@ -3223,8 +3269,17 @@ function wrEnableTabDrag(){
     wrTabOrder = next;
     wrSaveTabOrder().catch(function(){});
   }
-  nav.addEventListener('pointerup', endDrag);
-  nav.addEventListener('pointercancel', endDrag);
+  // Bound on the WINDOW, not the strip: even with the capture re-taken above,
+  // a pointer released over the page BELOW the tab bar would never bubble a
+  // pointerup through #topbar-tabs, so the drag could not end. The window sees
+  // every release, and endDrag no-ops unless a drag is actually in flight.
+  window.addEventListener('pointerup', endDrag, true);
+  window.addEventListener('pointercancel', endDrag, true);
+  // Safety nets: a dropped capture, or the tab/window losing focus entirely.
+  window.addEventListener('lostpointercapture', function(e){
+    if (d && d.dragging && e.pointerId === d.id) endDrag(e);
+  }, true);
+  window.addEventListener('blur', function(){ if (d) endDrag(null); });
 
   // A drop must not also fire the tab's own switch handler. Capture phase, so
   // this runs before the inline onclick on the button itself.
@@ -3899,8 +3954,10 @@ function renderStatsSection(matches) {
   const dash = (wr / 100) * circ;
 
   // One unified box: header + WR circle + record/KDA + top champs
-  let h = `<div style="background:var(--bg3);border:1px solid var(--bd);border-radius:10px;padding:18px 20px;margin-bottom:16px;">`;
-  h += `<div style="font-family:var(--body);font-size:13px;font-weight:700;color:var(--tx2);letter-spacing:-0.2px;margin-bottom:14px;">Last ${games} Games</div>`;
+  // Same section-hdr as "Recently played with" so the two halves of the row
+  // read as siblings rather than one titled panel next to one untitled card.
+  let h = `<div class="section-hdr"><h2>Last ${games} games</h2><span class="sub">This profile’s loaded matches</span></div>`;
+  h += `<div class="pf-panel">`;
   // WR + stats row
   h += `<div class="stats-row" style="margin-bottom:16px;">
     <div class="wr-circle-wrap">
@@ -3985,6 +4042,11 @@ function openMasteryOverlay() {
   const cnt = document.getElementById('mastery-overlay-count');
   if (!ov || !body) return;
   cnt.textContent = allMastery.length + ' champion' + (allMastery.length === 1 ? '' : 's');
+  // Name whose mastery this is — the overlay can be opened from another
+  // player's profile, where `summoner` is that player for the duration.
+  var ttl = document.getElementById('mastery-overlay-title');
+  if (ttl) ttl.textContent = 'Champion mastery' +
+    (summoner && summoner.gameName ? ' — ' + summoner.gameName + (summoner.tagLine ? '#' + summoner.tagLine : '') : '');
   body.innerHTML = '<div class="mastery-grid">' + allMastery.map(masteryCardHtml).join('') + '</div>';
   ov.style.display = 'flex';
   document.body.style.overflow = 'hidden';
@@ -4209,7 +4271,7 @@ function renderProfile(_sumData, ranked, mastery, matches, leagueHistory=[]) {
           <div class="sh-region">${WR_REGION_SHORT[summoner.platform] || String(summoner.platform||'').toUpperCase()}</div>
         </div>
         <div style="display:flex;gap:8px;margin-left:auto;">
-          <button onclick="refreshProfile()" class="profile-action-btn">${wrIco('refresh',12)} Refresh</button>
+          <button onclick="refreshProfile()" class="profile-action-btn">Refresh</button>
           <button onclick="changeSummoner()" class="profile-action-btn">Change</button>
         </div>
       </div>
@@ -4513,7 +4575,7 @@ async function buildRecentPlayers(matches) {
 
   // Render immediately with champion icons
   function renderList(list) {
-    let h = `<div class="section-hdr"><h2>Recently Played With</h2><span class="sub">Based on loaded matches</span></div>`;
+    let h = `<div class="section-hdr"><h2>Recently played with</h2><span class="sub">From the same loaded matches</span></div>`;
     h += `<div class="recent-players">`;
     list.forEach(p => {
       const wr = Math.round(p.wins / p.games * 100);
@@ -4616,8 +4678,10 @@ function renderMatchRow(m, mIdx) {
       }).join('');
       t += `<thead>
         <tr><th colspan="9" class="team-head ${isBlue?'blue':'red'}">
-          <span class="th-side" style="color:${sideColor};">${wrIco('dot',10)} ${isBlue?'Blue':'Red'} · ${wrIco(win?'check':'cross',12)} ${winStr}</span>
-          <span class="team-objs">${objStrip}</span>
+          <div class="team-head-in">
+            <span class="th-side" style="color:${sideColor};">${wrIco('dot',10)} ${isBlue?'Blue':'Red'} · ${wrIco(win?'check':'cross',12)} ${winStr}</span>
+            <span class="team-objs">${objStrip}</span>
+          </div>
         </th></tr>
         <tr style="border-bottom:1px solid var(--bd);">
         <th style="text-align:left;padding:6px 14px;font-family:var(--mono);font-size:11px;color:var(--tx3);font-weight:600;">Player</th>
@@ -4772,11 +4836,13 @@ function renderMatchRow(m, mIdx) {
         </div>
         <div class="champ-name">${p.championName}<span class="queue-tag">${qName !== 'Game' ? qName : ''}</span>${mapName && mapName !== 'Summoner\'s Rift' ? `<span class="queue-tag" style="color:var(--tx3);margin-left:4px;">${mapName}</span>` : ''}${avgRankStr ? `<span class="queue-tag" style="color:var(--gold);margin-left:6px;">~${avgRankStr}</span>` : ''}</div>
         <div class="stats">
+          ${(function(){var kp=killParticipationPct(m,p);return kp==null?'':'<div class="cs" style="color:var(--gold);">P/Kill '+kp+'%</div>';})()}
           <div class="cs">${p.totalMinionsKilled} CS · ${cspm}/m</div>
           <div class="duration">${dur}</div>
           ${dateStr ? `<div style="font-family:var(--mono);font-size:12px;color:var(--tx3);">${dateStr}</div>` : ''}
         </div>
         <div class="kda-ratio">${kda} KDA</div>
+        ${matchBadgesHtml(m, p)}
       </div>
       <div class="match-detail" id="mdetail-${rowKey}">${detailHtml}</div>
     </div>`;
@@ -4788,6 +4854,82 @@ let _matchFilter = 'All';
 // Called with no arguments — it always reads allMatches / _matchFilter /
 // displayedMatches so every render path (first paint, chip click, load-more)
 // agrees on what is on screen.
+// ── Match achievement badges ───────────────────────────────────────────────
+// What is OFFICIAL in match-v5, and what is not:
+//
+//   largestMultiKill      official — 2..5, the Double/Triple/Quadra/Penta line
+//   largestKillingSpree   official — the in-game spree tiers
+//   firstBloodKill        official — boolean on the participant
+//   challenges.killParticipation  official — the "P/Kill %" figure
+//
+//   "MVP" is NOT a Riot field. Sites that show one compute it from their own
+//   scoring model. So the badge here is computed too, and it is deliberately
+//   scoped to a claim the data can actually support: best on your TEAM by a
+//   transparent blend of kill participation, damage share and KDA. It is
+//   labelled MVP only for the winning team and ACE for the losing one, which
+//   is the convention players already read.
+//
+// `challenges` only exists on matches played after Riot shipped it; every read
+// below is optional-chained so an older match simply shows fewer badges.
+const SPREE = { 2:'Killing spree', 3:'Rampage', 4:'Unstoppable', 5:'Dominating', 6:'Godlike' };
+const MULTI = { 2:'Double kill', 3:'Triple kill', 4:'Quadra kill', 5:'Penta kill' };
+
+// Team-relative score. Not a Riot number — see the note above.
+function _mhScore(pp, teamKills, teamDmg) {
+  const kp = teamKills ? (pp.kills + (pp.assists || 0)) / teamKills : 0;
+  const ds = teamDmg ? (pp.totalDamageDealtToChampions || 0) / teamDmg : 0;
+  const kda = pp.deaths === 0 ? (pp.kills + (pp.assists || 0)) : (pp.kills + (pp.assists || 0)) / pp.deaths;
+  return kp * 0.4 + ds * 0.4 + Math.min(kda / 10, 1) * 0.2;
+}
+
+// → [{ label, kind }] for one participant, best-first.
+function matchBadges(m, p) {
+  if (!m || !p) return [];
+  const out = [];
+  const team = (m.info.participants || []).filter(x => x.teamId === p.teamId);
+  const teamKills = team.reduce((a, x) => a + (x.kills || 0), 0);
+  const teamDmg = team.reduce((a, x) => a + (x.totalDamageDealtToChampions || 0), 0);
+
+  // Best on the team, by the blend above.
+  let best = null, bestScore = -1;
+  team.forEach(x => { const sc = _mhScore(x, teamKills, teamDmg); if (sc > bestScore) { bestScore = sc; best = x; } });
+  if (best && best.puuid === p.puuid && team.length > 1)
+    out.push({ label: p.win ? 'MVP' : 'ACE', kind: p.win ? 'mvp' : 'ace' });
+
+  const mk = p.largestMultiKill || 0;
+  if (mk >= 2) out.push({ label: MULTI[Math.min(mk, 5)], kind: mk >= 4 ? 'multi-hi' : 'multi' });
+
+  const spree = p.largestKillingSpree || 0;
+  if (spree >= 4) out.push({ label: SPREE[Math.min(spree, 6)], kind: 'spree' });
+
+  if (p.firstBloodKill) out.push({ label: 'First blood', kind: 'fb' });
+
+  // Perfect KDA is worth calling out, but only when the game had real kills in
+  // it — 2/0/1 in a five-minute remake is not the same achievement.
+  if (p.deaths === 0 && (p.kills + (p.assists || 0)) >= 5) out.push({ label: 'No deaths', kind: 'clean' });
+
+  return out;
+}
+
+function matchBadgesHtml(m, p) {
+  const b = matchBadges(m, p);
+  if (!b.length) return '';
+  return '<div class="mh-badges">' +
+    b.map(x => '<span class="mh-badge ' + x.kind + '">' + x.label + '</span>').join('') +
+    '</div>';
+}
+
+// Kill participation, straight from Riot's own challenges block. Returns '' when
+// the match predates it rather than inventing a number.
+function killParticipationPct(m, p) {
+  const kp = p && p.challenges && p.challenges.killParticipation;
+  if (typeof kp === 'number') return Math.round(kp * 100);
+  const team = (m.info.participants || []).filter(x => x.teamId === p.teamId);
+  const tk = team.reduce((a, x) => a + (x.kills || 0), 0);
+  if (!tk) return null;
+  return Math.round(((p.kills + (p.assists || 0)) / tk) * 100);
+}
+
 function renderMatchHistory() {
   const pool  = allMatches || [];
   // Bucket counts across the whole loaded pool, so a chip is only offered when
@@ -5208,7 +5350,7 @@ function renderChampBuildPage(cid) {
   el.innerHTML =
     '<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">' +
       '<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--bd);flex-shrink:0;">' +
-        '<button id="cbp-back" class="btn-ghost" style="height:32px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;"'+wrIco('back',12)+' Back</button>' +
+        '<button id="cbp-back" class="btn-ghost" style="height:32px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">'+wrIco('back',12)+' Back</button>' +
         '<img src="'+DDRAGON+'/img/champion/'+cid+'.png" style="width:40px;height:40px;border-radius:8px;">' +
         '<span style="font-family:var(--head);font-size:18px;font-weight:800;color:var(--tx);">'+(champ?champ.name:cid)+'</span>' +
         '<button id="cbp-new" class="wr-cta" style="margin-left:auto;height:32px;padding:0 16px;background:transparent;border:1px solid rgba(192,174,234,.45);border-radius:8px;color:var(--gold2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">+ New Build</button>' +
@@ -5344,7 +5486,7 @@ function renderBuildCard(cid, b, idx) {
       '</div>' +
       '<div style="display:flex;gap:6px;">' +
         '<button onclick="editBuild(\'' + selectedBuildChamp + '\',' + idx + ')" class="btn-ghost" style="height:28px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;">Edit</button>' +
-        '<button onclick="deleteBuild(\'' + selectedBuildChamp + '\',' + idx + ')" style="height:28px;padding:0 12px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx3);font-family:var(--mono);font-size:12px;cursor:pointer;"'+wrIco('close',15)+'</button>' +
+        '<button onclick="deleteBuild(\'' + selectedBuildChamp + '\',' + idx + ')" style="height:28px;padding:0 12px;background:transparent;border:1px solid rgba(214,138,124,.35);border-radius:6px;color:var(--red);font-family:var(--mono);font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">'+wrIco('close',14)+'</button>' +
       '</div>' +
     '</div>' +
     '<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">' +
@@ -5564,11 +5706,11 @@ function openBuildEditor() {
       '<div style="width:min(780px,96vw);max-height:88vh;background:var(--bg3);border:1px solid var(--bd2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--bd);flex-shrink:0;">' +
           '<span style="font-family:var(--head);font-size:18px;font-weight:800;color:var(--tx);">Select Matchup Champions</span>' +
-          '<button id="mq-close-btn" style="background:none;border:none;color:var(--tx2);font-size:20px;cursor:pointer;padding:4px;"'+wrIco('close',15)+'</button>' +
+          '<button id="mq-close-btn" style="background:none;border:none;color:var(--tx2);font-size:20px;cursor:pointer;padding:4px;">'+wrIco('close',15)+'</button>' +
         '</div>' +
         '<div style="padding:10px 14px;border-bottom:1px solid var(--bd);position:relative;flex-shrink:0;">' +
           '<input id="matchup-search" placeholder="Search champions..." style="width:100%;height:38px;padding:0 34px 0 12px;background:var(--bg4);border:1px solid var(--bd2);border-radius:8px;color:var(--tx);font-family:var(--body);font-size:14px;outline:none;">' +
-          '<button id="mq-search-clear" class="input-clear-btn" style="position:absolute;right:22px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;"'+wrIco('close',15)+'</button>' +
+          '<button id="mq-search-clear" class="input-clear-btn" style="position:absolute;right:22px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--tx3);font-size:14px;cursor:pointer;">'+wrIco('close',15)+'</button>' +
         '</div>' +
         '<div style="padding:8px 14px;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;gap:6px;flex-shrink:0;">' +
           '<div><div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--tx2);font-weight:700;letter-spacing:2px;margin-bottom:4px;">Class</div><div style="display:flex;gap:4px;flex-wrap:wrap;" id="mq-class-chips"></div></div>' +
@@ -6722,9 +6864,9 @@ async function loadPlayerProfile(name, tag, platform, routing) {
     // fetchLiveGame() was holding a reference to.
     var backBar = document.createElement('div');
     backBar.style.cssText = 'margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;';
-    var backBtns = '<button onclick="restoreSummoner()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;"'+wrIco('back',12)+' Back to ' + prev.gameName + '</button>';
+    var backBtns = '<button onclick="restoreSummoner()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">'+wrIco('back',12)+' Back to ' + prev.gameName + '</button>';
     if (_lbFromRank > 0) {
-      backBtns += '<button onclick="backToLeaderboard()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;"'+wrIco('ret',12)+' Back to Leaderboard</button>';
+      backBtns += '<button onclick="backToLeaderboard()" class="btn-ghost" style="height:32px;padding:0 16px;background:transparent;border:1px solid var(--bd2);border-radius:6px;color:var(--tx2);font-family:var(--mono);font-size:12px;cursor:pointer;">'+wrIco('ret',12)+' Back to Leaderboard</button>';
     }
     backBar.innerHTML = backBtns;
     var pc = document.getElementById('profile-content');
@@ -7356,7 +7498,7 @@ function renderSpectateGame(game, targetPuuid, name, tag) {
       '<div class="live-pulse"></div>' +
       '<div><div style="font-family:var(--head);font-size:18px;font-weight:700;color:var(--green);">' + name + ' <span style="color:var(--tx3);font-weight:400;font-size:14px;">#' + tag + '</span> is live</div>' +
       '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;">' + '<span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--gold);background:rgba(192,174,234,0.15);padding:2px 10px;border-radius:20px;">' + qName + '</span>' + '<span style="font-family:var(--mono);font-size:12px;color:var(--tx2);">' + timeStr + '</span>' + '</div></div>' +
-      '<button onclick="lookupSpectate(true)" style="margin-left:auto;height:32px;padding:0 16px;background:transparent;border:1px solid var(--green);border-radius:6px;color:var(--green);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;letter-spacing:0.2px;">'+wrIco('refresh',12)+' Refresh</button>' +
+      '<button onclick="lookupSpectate(true)" style="margin-left:auto;height:32px;padding:0 16px;background:transparent;border:1px solid var(--green);border-radius:6px;color:var(--green);font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;letter-spacing:0.2px;">Refresh</button>' +
     '</div>' +
     '<div class="live-game-wrap">' + renderTeam(blue,'blue') + renderTeam(red,'red') + '</div>';
 }
@@ -7973,9 +8115,9 @@ function renderLeaderboard(entries, filterQ) {
 
   // Header — LP left-aligned to match number indent
   html += '<div style="display:grid;grid-template-columns:' + COLS + ';align-items:center;padding:10px 20px;background:var(--bg2);border-bottom:1px solid var(--bd);">' +
-    '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.8px;">#/div>' +
+    '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.8px;">#</div>' +
     '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.5px;">Summoner</div>' +
-    '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.8px;">LP/div>' +
+    '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.8px;">LP</div>' +
     '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.5px;">Win Rate</div>' +
     '<div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:0.5px;text-align:right;">Level</div>' +
   '</div>';
@@ -8021,8 +8163,8 @@ function renderLeaderboard(entries, filterQ) {
         '<img id="lb-icon-' + rank + '" src="' + iconSrc + '" ' +
           'style="width:34px;height:34px;border-radius:50%;border:1px solid var(--bd2);background:var(--bg5);flex-shrink:0;' + (iconSrc ? '' : 'display:none') + '" ' +
           'onerror="this.style.display=\'none\'">' +
-        '<div style="min-width:0;">' +
-          '<div id="lb-name-' + rank + '" style="color:' + (isMe ? 'var(--gold)' : 'var(--tx)') + ';">' +
+        '<div style="min-width:0;overflow:hidden;">' +
+          '<div id="lb-name-' + rank + '" style="color:' + (isMe ? 'var(--gold)' : 'var(--tx)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
             (displayName
               ? '<span style="font-family:var(--body);font-size:14px;font-weight:700;">' + displayName + '</span>' +
                 (displayTag ? '<span style="font-family:var(--body);font-size:12px;color:var(--tx3);font-weight:400;"> #' + displayTag + '</span>' : '') +
@@ -9312,6 +9454,16 @@ function mk(tag,attrs,...ch){
 const D=(s,...c)=>mk('div',{style:s},...c);
 const S=(s,t)=>{const x=mk('span',{style:s});if(t!=null)x.textContent=t;return x;};
 const B=(s,t,fn)=>mk('button',{style:{fontFamily:"'Inter',system-ui,-apple-system,sans-serif",...(typeof s==='object'?s:{})},onClick:fn},t);
+// Icon + label. B() assigns its label through textContent, so passing an SVG
+// string to it renders the markup literally — the icon has to be inserted as
+// real nodes once the button exists.
+const BI=(sty,icon,label,fn,iconStyle)=>{
+  const b=B(sty,label,fn);
+  // No label gutter on an icon-only button.
+  b.insertAdjacentHTML('afterbegin', wrIco(icon,12,(iconStyle||'')+(label?'margin-right:5px;':'')));
+  b.style.display='inline-flex'; b.style.alignItems='center'; b.style.justifyContent='center';
+  return b;
+};
 const IMG=(src,s)=>{const i=mk('img',{style:s,alt:''});i.src=src;i.onerror=()=>{i.style.display='none';};return i;};
 
 // ── Render entry ───────────────────────────────────────────────────────────
@@ -9358,7 +9510,7 @@ function render(){
     const _activeLg=_cfg.leagues.find(l=>l.id===_activeLeague);
     if(_activeLg){
       const _lgFaved=isFavLeague(_activeLeague);
-      const _lgStar=B({
+      const _lgStar=BI({
         background:'transparent',
         color:_lgFaved?T.acl:T.txd,
         border:'1px solid '+(_lgFaved?'rgba(192,174,234,0.6)':'rgba(192,174,234,0.25)'),
@@ -9366,8 +9518,9 @@ function render(){
         cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1,whiteSpace:'nowrap',flexShrink:0,
         fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",letterSpacing:'0.3px',
         transition:'all .15s',
-      },(_favSyncBusy?'':(_lgFaved?'':''))+(_activeLg.name||'League'),
-      ()=>{ if(!_favSyncBusy) runFavSync(()=>toggleFavLeague(_activeLg)); });
+      },'star',(_activeLg.name||'League'),
+      ()=>{ if(!_favSyncBusy) runFavSync(()=>toggleFavLeague(_activeLg)); },
+      _lgFaved?'':'opacity:.4;');
       _lgStar.title=_favSyncBusy?'Syncing…':(_lgFaved?'Unfavorite league (removes all cards from TaskHub)':'Favorite league (all matches → TaskHub)');
       hrow1.appendChild(_lgStar);
     }
@@ -9615,7 +9768,7 @@ function buildSchedule(T,league,ld){
     const b=B({background:'transparent',
       color:on?T.acl:T.txd,
       border:'1px solid '+(on?'#c0aeea':T.bd),
-      boxShadow:on?'0 0 8px rgba(192,174,234,0.4),0 0 0 1px rgba(192,174,234,0.15)':'none',
+      boxShadow:on?'0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45)':'none',
       borderRadius:20,padding:'0 14px',height:'30px',fontSize:11,fontWeight:700,
       letterSpacing:'0.3px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
       fontFamily:"'Syne','Inter',system-ui,-apple-system,sans-serif",transition:'all .15s'},
@@ -9743,11 +9896,13 @@ function matchCard(T,ev,league){
   const mkFB=(team,fav)=>{
     const nm=team.code||team.name||'';
     if(!nm||nm==='TBD') return null;
-    return B({background:fav?T.ac:'transparent',color:fav?T.aci:T.txd,
-      border:'1px solid '+(fav?T.ac:T.bd),borderRadius:4,
-      padding:'2px 9px',fontSize:9,fontWeight:700,cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1},
-      (_favSyncBusy?'':(fav?'':''))+nm,
-      (e)=>{e.stopPropagation(); if(!_favSyncBusy) runFavSync(()=>toggleFav(team));});
+    return BI({background:'transparent',color:fav?T.acl:T.txd,
+      border:'1px solid '+(fav?'#c0aeea':T.bd),borderRadius:4,
+      boxShadow:fav?'0 0 0 1px rgba(192,174,234,.28),0 0 10px rgba(192,174,234,.28)':'none',
+      padding:'3px 9px',fontSize:9,fontWeight:700,cursor:_favSyncBusy?'default':'pointer',opacity:_favSyncBusy?0.5:1},
+      'star', nm,
+      (e)=>{e.stopPropagation(); if(!_favSyncBusy) runFavSync(()=>toggleFav(team));},
+      fav?'':'opacity:.4;');
   };
   const r3=D({display:'flex',justifyContent:'space-between',marginTop:6});
   const r3L=D({flex:1});const _fb1=mkFB(t1,t1f);if(_fb1)r3L.appendChild(_fb1);
@@ -9770,8 +9925,8 @@ function showLeagueMgr(){
   // overscrollBehavior:contain stops the page behind scrolling once this list hits
   // its top or bottom (the touchmove guard below covers the backdrop itself).
   const modal=D({background:T.s1,border:'1px solid '+T.bd,borderRadius:16,
-    padding:'24px',width:'360px',maxWidth:'90vw',maxHeight:'82vh',
-    overflowY:'auto',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch',
+    padding:'24px',width:'380px',maxWidth:'92vw',maxHeight:'82vh',
+    overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch',
     boxShadow:'0 20px 60px rgba(0,0,0,.5)'});
 
   // Title + explainer live in one darker panel rather than floating above the
@@ -9788,19 +9943,20 @@ function showLeagueMgr(){
     const added=!!_cfg.leagues.find(l=>l.id===lg.id);
     const lgFaved=isFavLeague(lg.id);
     const row=D({display:'flex',alignItems:'center',justifyContent:'space-between',
-      padding:'14px 0',borderBottom:'1px solid '+T.bd+'44',gap:8});
-    const left=D({display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0});
+      padding:'11px 0',borderBottom:'1px solid '+T.bd+'44',gap:12,flexWrap:'nowrap'});
+    const left=D({display:'flex',flexDirection:'column',gap:2,flex:'1 1 auto',minWidth:0,overflow:'hidden'});
     left.appendChild(S({fontSize:13,fontWeight:700,color:T.tx},lg.name));
     left.appendChild(S({fontSize:10,color:T.txm},lg.region+(lgFaved?' · All matches in TaskHub':'')));
     row.appendChild(left);
     const btns=D({display:'flex',alignItems:'center',gap:6,flexShrink:0});
     // Fav star
-    const _star=B(
-      {background:lgFaved?'rgba(192,174,234,0.18)':'transparent',
+    const _star=BI(
+      {background:'transparent',
        color:lgFaved?T.acl:T.txd,
-       border:'1px solid '+(lgFaved?'rgba(192,174,234,0.5)':T.bd),
-       borderRadius:4,padding:'4px 8px',fontSize:12,fontWeight:700,cursor:'pointer'},
-      lgFaved?wrIco('star',13):wrIco('star',13,'opacity:.35;'),
+       border:'1px solid '+(lgFaved?'#c0aeea':T.bd),
+       boxShadow:lgFaved?'0 0 0 1px rgba(192,174,234,.28),0 0 10px rgba(192,174,234,.28)':'none',
+       borderRadius:4,padding:'5px 9px',fontSize:12,fontWeight:700,cursor:'pointer'},
+      'star','',
       (e)=>{
         e.stopPropagation();
         if(_favSyncBusy) return;
@@ -9808,14 +9964,15 @@ function showLeagueMgr(){
         runFavSync(()=>toggleFavLeague(target));
         overlay.parentNode&&overlay.parentNode.removeChild(overlay);
         showLeagueMgr();
-      }
+      },
+      lgFaved?'':'opacity:.4;'
     );
     _star.title=lgFaved?'Remove all league matches from TaskHub':'Add all matches to TaskHub';
     btns.appendChild(_star);
     btns.appendChild(B(
       {background:'transparent',color:added?T.acl:T.txd,
        border:'1px solid '+(added?'#c0aeea':T.bd),borderRadius:4,
-       boxShadow:added?'0 0 0 1px rgba(192,174,234,.16),0 0 10px rgba(192,174,234,.16)':'none',
+       boxShadow:added?'0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45)':'none',
        padding:'5px 14px',fontSize:10,fontWeight:700,cursor:'pointer'},
       added?'Added':'Add',
       ()=>{
@@ -9972,15 +10129,15 @@ setInterval(()=>{
          pointer with the same lit outline WarRoom uses — one hover language
          across both programs. */
       '#pv-root button{transition:border-color .18s,color .18s,box-shadow .18s,background .18s;}'+
-      '#pv-root button:hover:not(:disabled){border-color:rgba(192,174,234,.65)!important;'+
+      '#pv-root button:hover:not(:disabled){border-color:#c0aeea!important;'+
         'color:#dbd0f5!important;'+
-        'box-shadow:0 0 0 1px rgba(192,174,234,.18),0 0 13px rgba(192,174,234,.20);}'+
-      '.pv-hglow:hover{border-color:rgba(192,174,234,.65)!important;color:#dbd0f5!important;'+
-        'box-shadow:0 0 0 1px rgba(192,174,234,.18),0 0 13px rgba(192,174,234,.20);}'+
+        'box-shadow:0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45);}'+
+      '.pv-hglow:hover{border-color:#c0aeea!important;color:#dbd0f5!important;'+
+        'box-shadow:0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45);}'+
       /* The Select Leagues header sits in its own darker panel so the list below
          reads as content rather than as more header. */
-      '.pv-mgr-head{background:#1c1c1f;border:1px solid #2f2f35;border-radius:10px;'+
-        'padding:14px 16px;margin-bottom:14px;}'+
+      '.pv-mgr-head{background:#1c1c1f;border-bottom:1px solid #2f2f35;'+
+        'padding:18px 24px 16px;margin:-24px -24px 12px;}'+
       '.pv-mgr-head .pv-mgr-title{font-size:16px;font-weight:800;letter-spacing:-.2px;color:#f4f3f0;display:block;}'+
       '.pv-mgr-head .pv-mgr-sub{font-size:11.5px;color:#8d8d94;display:block;margin-top:4px;line-height:1.5;}';
     document.head.appendChild(st);
