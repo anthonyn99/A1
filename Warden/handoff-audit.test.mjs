@@ -103,6 +103,26 @@ const cfg = fs.readFileSync(path.join(HERE, 'warden-config.js'), 'utf8');
 rule('extension config exists and declares a key',
      /WORKER_KEY:\s*'(?!__)[^']{8,}'/.test(cfg) ? [] : ['warden-config.js has no concrete WORKER_KEY']);
 
+// ── 6. Same-origin storage isolation ────────────────────────────────────────
+// Warden inherited Vault's browser-storage keys along with everything else, and
+// those are NOT namespaced by program: kc_connections, kc_colmap,
+// kc_icon_cache_v1 and the kc_file_store IndexedDB database are the literal
+// names index.html and vault.html use. Served from the same origin -- which is
+// exactly what happens while Warden still lives in Tony's repo -- Warden read
+// his cached Keychain and painted his links into her Links tab before Firebase
+// was configured at all. It looked like a wrong document path; it was the cache.
+//
+// This is invisible once Warden sits alone on her own Pages origin, which is
+// what makes it worth pinning: it would come back silently on any shared host.
+const page = fs.readFileSync(path.join(ROOT, 'warden.html'), 'utf8');
+const SHARED_KEYS = ['kc_connections', 'kc_colmap', 'kc_icon_cache_v1', 'kc_file_store'];
+rule('browser-storage keys namespaced away from Vault/Index',
+     SHARED_KEYS.flatMap(k => {
+       const bare = new RegExp(`['"]${k}['"]`, 'g');
+       const hits = page.match(bare) || [];
+       return hits.length ? [`warden.html uses unprefixed '${k}' (${hits.length}x) — collides with vault.html/index.html on a shared origin`] : [];
+     }));
+
 // ── 6. Placeholders are obvious, and none silently holds a real value ───────
 const ph = new Set();
 for (const f of files) {

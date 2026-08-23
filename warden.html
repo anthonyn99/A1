@@ -841,7 +841,7 @@ body{font-family:var(--sans);-webkit-font-smoothing:antialiased;color:var(--tx);
 <script>
 (function(){
 'use strict';
-const DB_NAME='kc_file_store', DB_VER=1, STORE='files';
+const DB_NAME='warden_kc_file_store', DB_VER=1, STORE='files';
 let _db=null;
 
 function openDB(){
@@ -1744,7 +1744,7 @@ window.kcToggleMode=function(){
 
 // ── Data & migration ──
 let conns=[];
-try{conns=JSON.parse(localStorage.getItem('kc_connections')||'[]');}catch{}
+try{conns=JSON.parse(localStorage.getItem('warden_kc_connections')||'[]');}catch{}
 
 function migrate(c){
   if(Array.isArray(c.items)) return c;
@@ -1759,21 +1759,21 @@ function migrate(c){
 conns=conns.map(migrate);
 
 function save(){
-  localStorage.setItem('kc_connections',JSON.stringify(conns));
+  localStorage.setItem('warden_kc_connections',JSON.stringify(conns));
   if(window._fbSaveKeychain){
     if(window.kcSetSync)window.kcSetSync('saving');
     window._fbSaveKeychain(()=>({connections:conns,colmap:_loadColMapRaw()}));
   }
 }
 function saveColMap(map){
-  localStorage.setItem('kc_colmap',JSON.stringify(map));
+  localStorage.setItem('warden_kc_colmap',JSON.stringify(map));
   if(window._fbSaveKeychain){
     if(window.kcSetSync)window.kcSetSync('saving');
     window._fbSaveKeychain(()=>({connections:conns,colmap:map}));
   }
 }
-function _loadColMapRaw(){try{return JSON.parse(localStorage.getItem('kc_colmap')||'null');}catch{return null;}}
-function loadColMap(){try{const m=JSON.parse(localStorage.getItem('kc_colmap')||'null');if(Array.isArray(m)&&m.length===conns.length)return m;}catch{}return null;}
+function _loadColMapRaw(){try{return JSON.parse(localStorage.getItem('warden_kc_colmap')||'null');}catch{return null;}}
+function loadColMap(){try{const m=JSON.parse(localStorage.getItem('warden_kc_colmap')||'null');if(Array.isArray(m)&&m.length===conns.length)return m;}catch{}return null;}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 // ── Render ──
@@ -2304,8 +2304,8 @@ window.kcExecuteDelete=function(){
        — drops every card back to default packing, so the whole board appears to
        shuffle when you delete one card. */
     const m=_loadColMapRaw();
-    if(Array.isArray(m)&&m.length>delIdx){m.splice(delIdx,1);localStorage.setItem('kc_colmap',JSON.stringify(m));}
-    else localStorage.removeItem('kc_colmap');
+    if(Array.isArray(m)&&m.length>delIdx){m.splice(delIdx,1);localStorage.setItem('warden_kc_colmap',JSON.stringify(m));}
+    else localStorage.removeItem('warden_kc_colmap');
   }
   delIdx=null;
   save();   /* writes connections + colmap together — one Firestore write, not two */
@@ -2330,8 +2330,8 @@ applyTheme();render();
     if(!data||!Array.isArray(data.connections)) return;
     conns=data.connections.map(migrate);
     const map=data.colmap;
-    localStorage.setItem('kc_connections',JSON.stringify(conns));
-    if(Array.isArray(map)){localStorage.setItem('kc_colmap',JSON.stringify(map));}
+    localStorage.setItem('warden_kc_connections',JSON.stringify(conns));
+    if(Array.isArray(map)){localStorage.setItem('warden_kc_colmap',JSON.stringify(map));}
     render();
     scheduleMigration();                 // carry any legacy base64 files → Cloudflare KV
   }
@@ -2348,7 +2348,7 @@ applyTheme();render();
     try{
       const r=await window._kcMigrateConnsToCloud(conns, window.KcCloud, onProgress);
       if(r.uploaded){
-        localStorage.setItem('kc_connections',JSON.stringify(conns));
+        localStorage.setItem('warden_kc_connections',JSON.stringify(conns));
         save();                          // push slimmed metadata (URL, no base64) to Firestore
         render();
       }
@@ -2549,7 +2549,7 @@ window.kcAppIcon=function(u){
 // localStorage. So adding the link is the whole job; no edit needed here.
 // Sites on other origins can't have their HTML read (CORS), so those keep
 // using the favicon service, itself an auto-pull of the site's real mark.
-var KC_ICON_LS='kc_icon_cache_v1', KC_ICON_TTL=7*864e5;
+var KC_ICON_LS='warden_kc_icon_cache_v1', KC_ICON_TTL=7*864e5;
 window._KC_ICON_CACHE=(function(){try{return JSON.parse(localStorage.getItem(KC_ICON_LS))||{};}catch(_){return {};}})();
 var _kcIconPend={};
 // A stored link can be a full URL, a bare host ("example.com/x") or, rarely,
